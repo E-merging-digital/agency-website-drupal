@@ -1,0 +1,56 @@
+name: "🧩 Task technique"
+description: "Tâche technique structurée (Drupal / ddev / backend / frontend)"
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Contexte
+        - Projet : site agence Drupal
+        - Drupal : 11.x
+        - PHP : 8.3
+        - DB : MariaDB
+        - Environnement : ddev
+        - Branche : feature/xxx
+
+  - type: textarea
+    id: objectif
+    attributes:
+      label: Objectif
+      description: Décrire clairement ce que ce ticket doit apporter.
+    validations:
+      required: true
+
+  - type: textarea
+    id: taches
+    attributes:
+      label: Tâches
+      description: Liste des actions à réaliser.
+      value: |
+        - [ ] …
+        - [ ] …
+        - [ ] …
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: dod
+    attributes:
+      label: Définition de terminé (DoD)
+      options:
+        - label: Fonctionnel en local
+        - label: Conforme aux bonnes pratiques Drupal
+        - label: Pas de régression
+        - label: Documenté si nécessaire
+
+  - type: textarea
+    id: fichiers
+    attributes:
+      label: Fichiers concernés
+      description: Lister les fichiers ou dossiers impactés.
+
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Prompt ChatGPT / Codex
+      description: Prompt exact utilisé pour implémenter ce ticket.

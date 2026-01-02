@@ -1,0 +1,8 @@
+.DS_Store
+/vendor/
+/web/sites/*/settings.php
+/web/sites/*/services.yml
+/.idea/
+/.vscode/
+/node_modules/
+/.cache/

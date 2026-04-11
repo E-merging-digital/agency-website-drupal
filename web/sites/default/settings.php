@@ -14,6 +14,13 @@ $settings['config_sync_directory'] = '../config/sync';
 $settings['file_private_path'] = '../private';
 
 /**
+ * Load DDEV-generated settings, if available.
+ */
+if (file_exists(__DIR__ . '/settings.ddev.php')) {
+  include __DIR__ . '/settings.ddev.php';
+}
+
+/**
  * Load local development override configuration, if available.
  */
 if (file_exists(__DIR__ . '/settings.local.php')) {

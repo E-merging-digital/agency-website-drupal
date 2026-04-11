@@ -1,0 +1,19 @@
+uuid: 0f4d9b95-3f3f-4d02-9a5c-7ef2ec0f9f2d
+langcode: en
+status: false
+dependencies: {  }
+id: dev
+label: Dev
+description: 'Local development split.'
+weight: 0
+stackable: false
+no_patching: false
+storage: folder
+folder: '../config/dev'
+module: {  }
+theme: {  }
+blacklist: {  }
+graylist: {  }
+graylist_dependents: true
+graylist_skip_equal: true
+complete_list: {  }

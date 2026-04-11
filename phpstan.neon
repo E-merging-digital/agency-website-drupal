@@ -1,0 +1,20 @@
+includes:
+  - vendor/mglaman/phpstan-drupal/extension.neon
+  - vendor/mglaman/phpstan-drupal/rules.neon
+
+parameters:
+  level: 5
+  drupal:
+    drupal_root: web
+
+  paths:
+    - web/modules/custom
+    - web/themes/custom
+    - web/profiles/custom
+
+  excludePaths:
+    - web/core
+    - web/modules/contrib
+    - web/themes/contrib
+    - web/profiles/contrib
+    - vendor

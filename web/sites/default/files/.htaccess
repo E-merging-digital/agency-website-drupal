@@ -1,0 +1,6 @@
+# Protect against arbitrary code execution in the public files directory.
+Options -Indexes -ExecCGI -Includes -MultiViews
+
+<FilesMatch "\.(php|phar|phtml|pl|py|cgi|asp|js|sh|rb)$">
+  Require all denied
+</FilesMatch>

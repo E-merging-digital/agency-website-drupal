@@ -1,0 +1,21 @@
+<?php
+
+/**
+ * Example local development settings.
+ *
+ * Copy this file to settings.local.php for local-only overrides.
+ */
+
+$settings['rebuild_access'] = TRUE;
+
+$settings['cache']['bins']['render'] = 'cache.backend.null';
+$settings['cache']['bins']['page'] = 'cache.backend.null';
+$settings['cache']['bins']['dynamic_page_cache'] = 'cache.backend.null';
+
+$config['system.performance']['css']['preprocess'] = FALSE;
+$config['system.performance']['js']['preprocess'] = FALSE;
+
+$settings['skip_permissions_hardening'] = TRUE;
+
+// Activate the development split only on local environments.
+$config['config_split.config_split.dev']['status'] = TRUE;

@@ -4,9 +4,9 @@
 Structurer le contenu du site pour une édition claire et évolutive, avec une mise en avant éditoriale des fonctionnalités IA.
 
 ## Types de contenu
-- Page
+- Page (type Drupal standard conservé)
 - Service
-- Article
+- Article (type Drupal standard conservé)
 - Cas client
 - Fonctionnalité IA
 
@@ -15,6 +15,10 @@ Structurer le contenu du site pour une édition claire et évolutive, avec une m
 - Type de service
 - Localisation
 - Type de fonctionnalité IA
+
+## Médias
+- Vérification faite : le modèle de contenu utilise des champs image sur les nœuds.
+- Les types de média ne sont pas forcés dans ce ticket pour éviter une dépendance d’import sur le module `media` quand il n’est pas activé sur tous les environnements.
 
 ## Relations métier
 - **Service** → référence plusieurs **Fonctionnalités IA** (`field_related_ai_features`)

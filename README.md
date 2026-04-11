@@ -23,49 +23,130 @@ Site d’agence basé sur **Drupal 11** avec un environnement local reproductibl
 ```bash
 git clone <URL_DU_REPO>
 cd agency-website-drupal
-```bash
+```
 
-### 2. Démarrer l’environnement :
+### 2. Démarrer l’environnement
 
 ```bash
 ddev start
 ddev composer install
-```bash
+```
 
-### 3. Installer Drupal (profil standard) :
+### 3. Installer Drupal (profil standard)
 
 ```bash
 ddev drush site:install standard \
   --account-name=admin --account-pass=admin \
   --site-name="Agency Website" -y
-```bash
+```
 
-### 4. Ouvrir le site :
+### 4. Ouvrir le site
 
 ```bash
 ddev launch
+```
+
+## Conventions multi-environnements
+
+### Rôle de `web/sites/default/settings.php`
+
+- Fichier **versionné** qui définit le socle commun à tous les environnements.
+- Charge en premier `default.settings.php` (base Drupal).
+- Définit les chemins partagés du projet :
+  - `config/sync` pour la configuration exportée
+  - `private/` (hors docroot) pour les fichiers privés
+- Contrôle l’ordre d’inclusion des surcharges d’environnement.
+
+### Rôle de `web/sites/default/settings.ddev.php`
+
+- Fichier géré par **DDEV**.
+- Spécifique à l’environnement local conteneurisé.
+- Peut contenir des paramètres de connexion BDD et d’intégration DDEV.
+- **Ne pas modifier manuellement** dans le cadre des conventions projet.
+
+### Rôle de `web/sites/default/settings.local.php`
+
+- Fichier local développeur (**non versionné**).
+- Sert aux surcharges machine individuelles (debug, paramètres locaux, etc.).
+- Chargé après `settings.ddev.php` pour permettre des overrides explicites en local.
+
+### Ordre d’inclusion recommandé
+
+Dans `settings.php`, l’ordre est :
+
+1. `default.settings.php`
+2. paramètres partagés (`config_sync_directory`, `file_private_path`)
+3. `settings.ddev.php` (si présent)
+4. `settings.local.php` (si présent)
+
+Cet ordre garantit un socle stable et des surcharges explicites.
+
+## Configuration Drupal (`config/sync`)
+
+- `config/sync/` est la **source de vérité** de la configuration exportée.
+- Toute modification de configuration doit être synchronisée via Drush.
+- Le dossier est versionné pour partager un état cohérent entre environnements.
+
+### Commandes Drush de référence
+
+Exporter la configuration locale vers `config/sync` :
+
 ```bash
+ddev drush cex -y
+```
+
+Importer la configuration du dépôt vers la base locale :
+
+```bash
+ddev drush cim -y
+```
+
+## Gestion des fichiers privés (`private/`)
+
+- `private/` est hors docroot (`web/`) et n’est donc pas exposé publiquement.
+- Le chemin est défini dans `settings.php` via :
+  - `$settings['file_private_path'] = '../private';`
+- Le contenu runtime de `private/` est ignoré par Git (sauf éventuel `.gitkeep`).
+
+## Conventions Git / branches / Pull Requests
+
+- 1 ticket GitHub = 1 branche = 1 Pull Request.
+- Branche de travail dédiée : `feature/<slug-du-ticket>`.
+- Cible de PR : `main`.
+- La PR doit référencer le ticket avec : `Closes #X`.
+- Aucun changement hors périmètre du ticket.
+
+## Rôle de `AGENTS.md`
+
+`AGENTS.md` est le contrat de contribution du dépôt :
+
+- règles Git (branches, PR, périmètre),
+- attentes qualité/CI,
+- règles sécurité/configuration,
+- contraintes spécifiques pour agents automatisés et contributeurs humains.
+
+Toute contribution doit respecter ces règles avant ouverture de PR.
 
 ## Commandes utiles
 
-### Vérifier l’état du projet :
+### Vérifier l’état du projet
 
 ```bash
 ddev describe
 ddev drush status
-```bash
+```
 
-### Vider le cache :
+### Vider le cache
 
 ```bash
 ddev drush cr
-```bash
+```
 
-### Accéder au shell du container :
+### Accéder au shell du container
 
 ```bash
 ddev ssh
-```bash
+```
 
 ### Réinitialiser l’environnement
 
@@ -75,20 +156,18 @@ ddev ssh
 ddev stop --remove-data --omit-snapshot
 ddev start
 ddev composer install
-```bash
+```
 
-### Puis réinstaller Drupal :
+### Puis réinstaller Drupal
 
 ```bash
 ddev drush site:install standard \
   --account-name=admin --account-pass=admin \
   --site-name="Agency Website" -y
-```bash
+```
 
 ## Notes
 
-    Le projet utilise la structure drupal/recommended-project.
-
-    Les fichiers sensibles (settings.local.php, etc.) ne doivent pas être versionnés.
-
-    La configuration ddev (.ddev/) est versionnée pour garantir la reproductibilité.
+- Le projet utilise la structure `drupal/recommended-project`.
+- Les fichiers sensibles (`settings.local.php`, etc.) ne doivent pas être versionnés.
+- La configuration DDEV (`.ddev/`) est versionnée pour garantir la reproductibilité.

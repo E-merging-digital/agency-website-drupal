@@ -120,5 +120,15 @@
                 "      composer remove drupal/core-project-message"
             ]
         }
+    },
+    "scripts": {
+        "lint:phpcs": "vendor/bin/phpcs --standard=phpcs.xml",
+        "lint:phpstan": "vendor/bin/phpstan analyse -c phpstan.neon",
+        "lint:drupal-check": "vendor/bin/drupal-check web/modules/custom web/themes/custom web/profiles/custom",
+        "ci": [
+            "@lint:phpcs",
+            "@lint:phpstan",
+            "@lint:drupal-check"
+        ]
     }
 }

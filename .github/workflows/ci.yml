@@ -7,32 +7,26 @@ on:
   pull_request:
 
 jobs:
-  tests:
-    name: Quality checks
+  lint:
+    name: PHP Quality
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          coverage: none
           tools: composer:v2
+          coverage: none
 
       - name: Validate composer.json
         run: composer validate --strict
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: composer install --prefer-dist --no-progress --no-interaction
 
-      - name: Run PHPCS
-        run: vendor/bin/phpcs --standard=phpcs.xml web/modules/custom web/themes/custom web/profiles/custom
-
-      - name: Run PHPStan
-        run: vendor/bin/phpstan analyse -c phpstan.neon
-
-      - name: Run Drupal Check
-        run: vendor/bin/drupal-check
+      - name: Run CI checks
+        run: composer ci

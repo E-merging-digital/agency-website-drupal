@@ -17,7 +17,8 @@ Thumbs.db
 composer.phar
 
 # --- Drupal runtime ---
-/web/sites/*/files/
+/web/sites/*/files/*
+!/web/sites/*/files/
 !/web/sites/*/files/.htaccess
 
 # Settings (do not commit secrets)
@@ -28,7 +29,8 @@ composer.phar
 /web/sites/*/services.local.yml
 
 # Private files
-/private/
+/private/*
+!/private/.gitkeep
 
 # --- Tests ---
 /web/sites/simpletest/

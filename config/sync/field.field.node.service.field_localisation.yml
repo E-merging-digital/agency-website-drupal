@@ -1,0 +1,27 @@
+uuid: ff6458b8-5fe3-4d7a-92b3-e2ae736c9fbb
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_localisation
+    - node.type.service
+    - taxonomy.vocabulary.localisation
+id: node.service.field_localisation
+field_name: field_localisation
+entity_type: node
+bundle: service
+label: Localisation
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:taxonomy_term'
+  handler_settings:
+    target_bundles:
+      localisation: localisation
+    sort:
+      field: name
+      direction: asc
+field_type: entity_reference

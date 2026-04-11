@@ -1,0 +1,11 @@
+uuid: 41070b84-e281-477f-896d-7e6ba5e8c7a5
+langcode: en
+status: true
+dependencies: {  }
+name: 'Fonctionnalité IA'
+type: ai_feature
+description: 'Editorial and commercial AI capabilities that can be linked to services.'
+help: null
+new_revision: true
+preview_mode: 1
+display_submitted: false

@@ -1,0 +1,20 @@
+uuid: 22cea2a8-d6e0-47ab-aacd-012c6328304c
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_customer_benefit
+    - node.type.ai_feature
+id: node.ai_feature.field_customer_benefit
+field_name: field_customer_benefit
+entity_type: node
+bundle: ai_feature
+label: 'Bénéfice client'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

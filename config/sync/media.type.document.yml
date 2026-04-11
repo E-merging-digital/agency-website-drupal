@@ -1,0 +1,14 @@
+uuid: bfab7646-52f9-4e78-a02f-f9bd58e265b5
+langcode: en
+status: true
+dependencies:
+  module:
+    - media
+id: document
+label: Document
+description: 'PDF and office files for downloadable assets.'
+source: file
+queue_thumbnail_downloads: false
+new_revision: true
+source_configuration:
+  source_field: field_media_document

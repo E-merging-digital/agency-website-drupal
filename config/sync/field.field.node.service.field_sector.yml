@@ -1,0 +1,27 @@
+uuid: 75e04237-43a5-48f7-a309-f4f7cc16d403
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_sector
+    - node.type.service
+    - taxonomy.vocabulary.secteur
+id: node.service.field_sector
+field_name: field_sector
+entity_type: node
+bundle: service
+label: Secteur
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:taxonomy_term'
+  handler_settings:
+    target_bundles:
+      secteur: secteur
+    sort:
+      field: name
+      direction: asc
+field_type: entity_reference

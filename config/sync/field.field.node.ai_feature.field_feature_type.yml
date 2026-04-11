@@ -1,0 +1,28 @@
+uuid: 1f4af148-ee17-48b4-81c8-7f6f80f17588
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_feature_type
+    - node.type.ai_feature
+    - taxonomy.vocabulary.type_fonctionnalite_ia
+id: node.ai_feature.field_feature_type
+field_name: field_feature_type
+entity_type: node
+bundle: ai_feature
+label: 'Type de fonctionnalité IA'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:taxonomy_term'
+  handler_settings:
+    target_bundles:
+      type_fonctionnalite_ia: type_fonctionnalite_ia
+    sort:
+      field: name
+      direction: asc
+    auto_create: false
+field_type: entity_reference

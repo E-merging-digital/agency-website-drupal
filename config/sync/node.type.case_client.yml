@@ -1,0 +1,11 @@
+uuid: 311c45aa-7ddf-4308-9e80-695be95c70d6
+langcode: en
+status: true
+dependencies: {  }
+name: 'Cas client'
+type: case_client
+description: 'Client case studies showcasing context, solution, and results.'
+help: null
+new_revision: true
+preview_mode: 1
+display_submitted: false

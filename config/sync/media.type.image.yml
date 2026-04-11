@@ -1,0 +1,14 @@
+uuid: f2031845-bdc2-4c6d-9bd9-f4ac206ca6ec
+langcode: en
+status: true
+dependencies:
+  module:
+    - media
+id: image
+label: Image
+description: 'Images used in editorial content.'
+source: image
+queue_thumbnail_downloads: false
+new_revision: true
+source_configuration:
+  source_field: field_media_image

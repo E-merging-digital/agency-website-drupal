@@ -1,0 +1,20 @@
+uuid: de7e7df4-93f0-4762-b8b9-a8563a0d0a4b
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_concrete_example
+    - node.type.ai_feature
+id: node.ai_feature.field_concrete_example
+field_name: field_concrete_example
+entity_type: node
+bundle: ai_feature
+label: 'Exemple concret'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

@@ -1,0 +1,20 @@
+uuid: 98ec56f4-6260-4d80-9087-c4cf0a89ef3c
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_use_cases
+    - node.type.ai_feature
+id: node.ai_feature.field_use_cases
+field_name: field_use_cases
+entity_type: node
+bundle: ai_feature
+label: 'Cas d’usage'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

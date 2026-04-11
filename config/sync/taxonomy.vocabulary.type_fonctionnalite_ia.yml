@@ -1,0 +1,9 @@
+uuid: b113de0f-8437-47de-8e83-29f9d3da6eb4
+langcode: en
+status: true
+dependencies: {  }
+name: 'Type de fonctionnalité IA'
+vid: type_fonctionnalite_ia
+description: 'Classification of AI capabilities and use cases.'
+weight: 0
+new_revision: false

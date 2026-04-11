@@ -45,7 +45,10 @@
             "php-http/discovery": true,
             "php-tuf/composer-integration": true
         },
-        "sort-packages": true
+        "sort-packages": true,
+        "platform": {
+            "php": "8.3.0"
+        }
     },
     "extra": {
         "drupal-scaffold": {

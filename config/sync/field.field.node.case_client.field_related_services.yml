@@ -1,0 +1,24 @@
+uuid: da0a84b7-32de-43a3-b5ec-e8fce703a993
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_related_services
+    - node.type.case_client
+    - node.type.service
+id: node.case_client.field_related_services
+field_name: field_related_services
+entity_type: node
+bundle: case_client
+label: 'Services liés'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:node'
+  handler_settings:
+    target_bundles:
+      service: service
+field_type: entity_reference

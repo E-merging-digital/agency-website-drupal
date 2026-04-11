@@ -1,0 +1,11 @@
+uuid: 9fbad644-c89c-4d2c-9505-95f2f3d1a0ff
+langcode: en
+status: true
+dependencies: {  }
+name: Article
+type: article
+description: 'Editorial news, insights, and thought leadership articles.'
+help: null
+new_revision: true
+preview_mode: 1
+display_submitted: true

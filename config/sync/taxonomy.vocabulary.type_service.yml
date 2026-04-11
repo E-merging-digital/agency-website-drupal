@@ -1,0 +1,9 @@
+uuid: 2040ea73-5e24-4fb1-a5cf-ff22ed53f5d4
+langcode: en
+status: true
+dependencies: {  }
+name: 'Type de service'
+vid: type_service
+description: 'Service categorization used for offers and related content.'
+weight: 0
+new_revision: false

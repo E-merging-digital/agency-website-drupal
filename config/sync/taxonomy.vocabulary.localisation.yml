@@ -1,0 +1,9 @@
+uuid: 03beecfc-870d-4e8b-b6bc-fffe7f63f6d2
+langcode: en
+status: true
+dependencies: {  }
+name: Localisation
+vid: localisation
+description: 'Geographical coverage for services and references.'
+weight: 0
+new_revision: false

@@ -1,0 +1,20 @@
+uuid: 843f580a-4dc6-41a8-b76d-6f1d817d75ca
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_short_description
+    - node.type.ai_feature
+id: node.ai_feature.field_short_description
+field_name: field_short_description
+entity_type: node
+bundle: ai_feature
+label: 'Description courte'
+description: ''
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

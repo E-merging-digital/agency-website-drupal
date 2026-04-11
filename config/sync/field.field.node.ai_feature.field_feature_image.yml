@@ -1,0 +1,32 @@
+uuid: 7247e329-3811-48b4-8996-e9e0620c95c8
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_feature_image
+    - node.type.ai_feature
+  module:
+    - image
+id: node.ai_feature.field_feature_image
+field_name: field_feature_image
+entity_type: node
+bundle: ai_feature
+label: Image
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  file_directory: ai-features
+  file_extensions: 'png gif jpg jpeg webp'
+  max_filesize: ''
+  max_resolution: ''
+  min_resolution: ''
+  alt_field: true
+  alt_field_required: true
+  title_field: false
+  title_field_required: false
+  handler: 'default:file'
+  handler_settings: {  }
+field_type: image

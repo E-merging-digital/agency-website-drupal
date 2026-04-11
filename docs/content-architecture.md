@@ -4,9 +4,9 @@
 Structurer le contenu du site pour une édition claire et évolutive, avec une mise en avant éditoriale des fonctionnalités IA.
 
 ## Types de contenu
-- Page (type Drupal standard conservé)
+- Page
 - Service
-- Article (type Drupal standard conservé)
+- Article
 - Cas client
 - Fonctionnalité IA
 

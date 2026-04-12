@@ -2,6 +2,21 @@
 
 Si l'erreur persiste après un `ddev drush cr`, suivre cette checklist dans l'ordre.
 
+
+## 0) Si `Drupal\gin\GinSettings` est manquant
+
+Si les logs montrent `Class "Drupal\gin\GinSettings" does not exist`, c'est un décalage code/config (Gin non installé mais activé).
+
+Remettre un état stable immédiatement :
+
+```bash
+ddev drush cset system.theme admin claro -y
+ddev drush pmu gin_toolbar -y
+ddev drush cr
+```
+
+Puis installer Gin proprement seulement si les dépendances sont présentes dans `vendor/`.
+
 ## 1) Repartir de la config versionnée
 
 ```bash
@@ -23,7 +38,7 @@ ddev drush cget system.theme
 ```
 
 Attendu :
-- `admin: gin`
+- `admin: claro` (stable en config sync)
 - `default: emerging_digital`
 
 ## 4) Vérifier les logs Drupal

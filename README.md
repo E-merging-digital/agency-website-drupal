@@ -182,9 +182,9 @@ ddev drush site:install standard \
 
 ### UX administration
 
-- Thème d’administration : `gin`.
-- Module complémentaire : `gin_toolbar`.
-- Objectif : améliorer immédiatement le confort de navigation back-office.
+- Thème d’administration par défaut (config sync) : `claro` (stable).
+- Option admin UX (installation manuelle) : `gin` + `gin_toolbar`.
+- Objectif : garder une base stable en sync et activer Gin uniquement quand les dépendances sont réellement installées.
 
 
 ### Validation Composer (environnement restreint)
@@ -207,7 +207,7 @@ composer update drupal/gin drupal/gin_toolbar -W
 # Installer les dépendances thème admin
 ddev composer require drupal/gin drupal/gin_toolbar
 
-# Activer Gin Toolbar et positionner Gin en admin theme
+# Optionnel : activer Gin Toolbar et positionner Gin en admin theme
 ddev drush en gin_toolbar -y
 ddev drush cset system.theme admin gin -y
 

@@ -1,7 +1,3 @@
-includes:
-  - vendor/mglaman/phpstan-drupal/extension.neon
-  - vendor/mglaman/phpstan-drupal/rules.neon
-
 parameters:
   level: 5
 

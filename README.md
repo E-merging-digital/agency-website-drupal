@@ -234,3 +234,19 @@ ddev drush config:set system.theme default emerging_digital -y
 ddev drush cex -y
 ddev drush cim -y
 ```
+
+## Ticket #5 — Contenus stratégiques et design de base
+
+Le thème `emerging_digital` intègre désormais une base visuelle orientée conversion pour les pages stratégiques et la home :
+
+- Hero orienté proposition de valeur Drupal + IA
+- Blocs réutilisables pour services, fonctionnalités IA, bénéfices clients et CTA
+- Grilles de cartes pour faciliter la lisibilité des offres
+- Renforcement de la hiérarchie visuelle (titres, intertitres, contrastes, espacements)
+
+Fichiers principalement concernés :
+
+- `web/themes/custom/emerging_digital/templates/paragraphs/`
+- `web/themes/custom/emerging_digital/templates/layout/`
+- `web/themes/custom/emerging_digital/css/`
+- `web/themes/custom/emerging_digital/js/main.js`

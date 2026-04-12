@@ -13,13 +13,39 @@
   padding-block: var(--space-4);
 }
 
+.page-header__inner,
+.page-footer__inner {
+  display: grid;
+  gap: var(--space-3);
+}
+
 .page-main {
   padding-block: var(--space-6);
+}
+
+.page-main--front {
+  padding-block: var(--space-7);
+}
+
+.front-layout {
+  display: grid;
+  gap: var(--space-4);
 }
 
 .page-footer {
   padding-block: var(--space-5);
   color: var(--color-muted);
+}
+
+.page-footer__tagline {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .layout-grid {

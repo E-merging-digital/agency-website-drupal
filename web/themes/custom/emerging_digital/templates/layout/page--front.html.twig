@@ -6,21 +6,22 @@
 #}
 <div class="site-shell site-shell--front">
   <header class="page-header" role="banner">
-    <div class="page-container">
+    <div class="page-container page-header__inner">
       {{ page.header }}
     </div>
   </header>
 
   <main role="main" class="page-main page-main--front">
     <a id="main-content" tabindex="-1"></a>
-    <div class="page-container">
+    <div class="page-container front-layout">
       {{ page.content }}
     </div>
   </main>
 
   <footer class="page-footer" role="contentinfo">
-    <div class="page-container">
+    <div class="page-container page-footer__inner">
       {{ page.footer }}
+      <p class="page-footer__tagline">Drupal + IA pragmatique pour PME &amp; ASBL en Wallonie et à Bruxelles.</p>
     </div>
   </footer>
 </div>

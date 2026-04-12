@@ -17,6 +17,6 @@
       return;
     }
 
-    target.focus({ preventScroll: false });
+    target.focus();
   });
 })();

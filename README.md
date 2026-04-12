@@ -250,3 +250,80 @@ Fichiers principalement concernés :
 - `web/themes/custom/emerging_digital/templates/layout/`
 - `web/themes/custom/emerging_digital/css/`
 - `web/themes/custom/emerging_digital/js/main.js`
+
+
+## Ticket #6 — Fondation IA Drupal (AI + OpenAI Provider)
+
+### Modules ajoutés (Composer)
+
+Le socle IA est déclaré dans `composer.json` avec des contraintes stables compatibles Drupal 11 :
+
+- `drupal/ai:^1.2.12` (**version corrigée après l’avis de sécurité de mars 2026**)
+- `drupal/ai_provider_openai:^1.2.1`
+- `drupal/key:^1.20`
+
+> Important sécurité : ne jamais utiliser une version `1.1.x` ou `1.2.x` vulnérable du module AI. Toujours installer une version corrigée et relancer un audit sécurité Composer.
+
+### Procédure locale (non versionnée) pour la clé API OpenAI
+
+1. Installer les dépendances en local (environnement avec accès réseau) :
+
+```bash
+composer install
+composer update drupal/ai drupal/ai_provider_openai drupal/key -W
+```
+
+2. Activer les modules :
+
+```bash
+drush en ai ai_provider_openai key -y
+```
+
+3. Créer la clé OpenAI dans Drupal via **Key** :
+   - Admin → Configuration → System → Keys
+   - Ajouter une clé `openai_api_key`
+   - Stocker la valeur en local uniquement (jamais dans Git)
+
+4. Lier la clé au provider :
+   - Admin → Configuration → AI → Providers → OpenAI
+   - Sélectionner la clé `openai_api_key`
+   - Sauvegarder et tester le provider
+
+### Méthode recommandée pour secret local
+
+- Utiliser un `settings.local.php` **non versionné** (déjà ignoré par Git).
+- Définir la clé via variable d’environnement locale (DDEV / shell local), puis renseigner le module Key uniquement en local.
+- Ne jamais exporter une configuration contenant une clé en clair.
+
+Exemple d’injection locale (machine développeur) :
+
+```bash
+# Exemple local uniquement (ne pas commiter)
+export OPENAI_API_KEY="sk-..."
+```
+
+### Cas d’usage IA activés immédiatement (admin)
+
+Cette première phase cible des usages démontrables pour éditeurs Drupal (PME / ASBL) :
+
+1. **Assistance rédactionnelle / reformulation**
+2. **Correction éditoriale** (style, grammaire, clarté)
+3. **Amélioration / suggestions SEO** (titres, méta, structure contenu)
+
+### Cas d’usage documentés pour une phase suivante
+
+- Traduction automatique
+- Tags/alt text automatiques pour images
+- Résumé de contenu
+- Assistants avancés / workspaces
+
+### Synchronisation de configuration
+
+Après activation et paramétrage en local :
+
+```bash
+drush cex -y
+drush cim -y
+```
+
+Vérifier que l’export ne contient aucun secret avant commit.

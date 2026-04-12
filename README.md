@@ -254,9 +254,9 @@ Fichiers principalement concernés :
 
 ## Ticket #6 — Fondation IA Drupal (AI + OpenAI Provider)
 
-### Modules ajoutés (Composer)
+### Modules à installer (Composer)
 
-Le socle IA est déclaré dans `composer.json` avec des contraintes stables compatibles Drupal 11 :
+Le socle IA doit être installé avec des contraintes stables compatibles Drupal 11 :
 
 - `drupal/ai:^1.2.12` (**version corrigée après l’avis de sécurité de mars 2026**)
 - `drupal/ai_provider_openai:^1.2.1`
@@ -270,7 +270,7 @@ Le socle IA est déclaré dans `composer.json` avec des contraintes stables comp
 
 ```bash
 composer install
-composer update drupal/ai drupal/ai_provider_openai drupal/key -W
+composer require drupal/ai:^1.2.12 drupal/ai_provider_openai:^1.2.1 drupal/key:^1.20 -W
 ```
 
 2. Activer les modules :

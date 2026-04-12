@@ -23,7 +23,7 @@ final class HomepageRenderTest extends BrowserTestBase {
    */
   public function testHomepageLoads(): void {
     $this->drupalGet('<front>');
-    $this->assertSame(200, $this->getSession()->getStatusCode());
+    $this->assertSession()->responseContains('No front page content has been created yet.');
   }
 
 }

@@ -7,22 +7,22 @@
 <!DOCTYPE html>
 <html{{ html_attributes }}>
   <head>
-    <head-placeholder token="{{ placeholder_token }}">
+    <head-placeholder token="{{ placeholder_token|default('') }}">
     {% set safe_head_title = [] %}
     {% for title_item in head_title|default([]) %}
       {% if title_item is not null and title_item is not empty %}
-        {% set safe_head_title = safe_head_title|merge([title_item|render|striptags|trim]) %}
+        {% set safe_head_title = safe_head_title|merge([title_item]) %}
       {% endif %}
     {% endfor %}
     <title>{{ safe_head_title|join(' | ') }}</title>
-    <css-placeholder token="{{ placeholder_token }}">
-    <js-placeholder token="{{ placeholder_token }}">
+    <css-placeholder token="{{ placeholder_token|default('') }}">
+    <js-placeholder token="{{ placeholder_token|default('') }}">
   </head>
   <body{{ attributes }}>
     <a href="#main-content" class="visually-hidden focusable">{{ 'Skip to main content'|t }}</a>
     {{ page_top }}
     {{ page }}
     {{ page_bottom }}
-    <js-bottom-placeholder token="{{ placeholder_token }}">
+    <js-bottom-placeholder token="{{ placeholder_token|default('') }}">
   </body>
 </html>

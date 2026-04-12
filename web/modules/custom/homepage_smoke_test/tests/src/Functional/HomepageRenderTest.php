@@ -23,7 +23,7 @@ final class HomepageRenderTest extends BrowserTestBase {
    */
   public function testHomepageLoads(): void {
     $this->drupalGet('<front>');
-    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSame(200, $this->getSession()->getStatusCode());
   }
 
 }

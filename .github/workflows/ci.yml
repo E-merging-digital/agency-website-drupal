@@ -34,7 +34,7 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Install BrowserTest dependencies
-        run: composer update drupal/core-dev --with-all-dependencies --prefer-dist --no-progress --no-interaction
+        run: composer require --dev drupal/core-dev:^11.3 --with-all-dependencies --prefer-dist --no-progress --no-interaction
 
       - name: Run CI checks (including homepage smoke test)
         run: composer ci

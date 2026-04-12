@@ -14,6 +14,119 @@
   <main role="main" class="page-main page-main--front">
     <a id="main-content" tabindex="-1"></a>
     <div class="page-container front-layout">
+      <section class="landing-section landing-section--hero">
+        <div class="hero-split">
+          <div class="hero-split__content">
+            <h1>Des sites Drupal performants, avec l’IA intégrée au cœur de vos contenus</h1>
+            <p>Nous concevons des plateformes web durables pour PME et ASBL, avec une approche claire, structurée et orientée résultats.</p>
+            <div class="hero-split__actions">
+              <a class="button" href="/contact">Demander un audit</a>
+              <a class="button button--secondary" href="/services">Découvrir nos services</a>
+            </div>
+          </div>
+          <aside class="hero-split__visual" aria-hidden="true">
+            <div class="mockup-card">
+              <p class="mockup-card__title">Drupal + IA</p>
+              <p>Contenus structurés, édition facilitée, meilleures conversions.</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="landing-section landing-section--value">
+        <div class="section-heading section-heading--centered">
+          <h2>Drupal solide. Expérience claire. IA utile.</h2>
+        </div>
+        <div class="value-columns">
+          <p>Nous aidons les PME et ASBL à moderniser leur présence digitale avec Drupal.</p>
+          <p>Nous structurons mieux vos contenus et activons une IA concrète : rédaction assistée, SEO, traduction, tags automatiques et amélioration éditoriale.</p>
+        </div>
+      </section>
+
+      <section class="landing-section landing-section--services" id="services">
+        <div class="section-heading">
+          <h2>Nos services</h2>
+        </div>
+        <div class="cards-grid cards-grid--services">
+          <article class="card card--service">
+            <h3>Création de sites Drupal</h3>
+            <p>Sites institutionnels, vitrines ou plateformes éditoriales robustes et évolutives.</p>
+            <a href="/services">En savoir plus</a>
+          </article>
+          <article class="card card--service">
+            <h3>Migration et modernisation</h3>
+            <p>Reprise de sites Drupal existants, montée de version, refonte structurelle.</p>
+            <a href="/services">En savoir plus</a>
+          </article>
+          <article class="card card--service">
+            <h3>SEO et performance</h3>
+            <p>Un site rapide, lisible et pensé pour la visibilité.</p>
+            <a href="/services">En savoir plus</a>
+          </article>
+          <article class="card card--service">
+            <h3>IA intégrée dans le CMS</h3>
+            <p>Des outils concrets pour produire, corriger et enrichir vos contenus.</p>
+            <a href="/ia-drupal">En savoir plus</a>
+          </article>
+        </div>
+      </section>
+
+      <section class="landing-section landing-section--ai">
+        <div class="section-heading">
+          <h2>Ce que l’IA peut faire dans Drupal</h2>
+          <p>Nous intégrons des fonctionnalités utiles, directement dans l’interface éditoriale.</p>
+        </div>
+        <div class="cards-grid cards-grid--ai">
+          <article class="card card--ai"><h3>Correction orthographique et reformulation</h3></article>
+          <article class="card card--ai"><h3>Traduction automatique de contenus</h3></article>
+          <article class="card card--ai"><h3>Génération assistée de textes</h3></article>
+          <article class="card card--ai"><h3>Tags automatiques pour les images</h3></article>
+          <article class="card card--ai"><h3>Suggestions SEO</h3></article>
+          <article class="card card--ai"><h3>Résumé et structuration de contenu</h3></article>
+        </div>
+      </section>
+
+      <section class="landing-section landing-section--cases">
+        <div class="section-heading">
+          <h2>Des projets clairs, utiles et durables</h2>
+        </div>
+        <div class="cards-grid cards-grid--cases">
+          <article class="card card--case">
+            <h3>Refonte d’un site institutionnel Drupal</h3>
+            <p>Structure clarifiée, édition facilitée, meilleures performances.</p>
+          </article>
+          <article class="card card--case">
+            <h3>Modernisation d’un site existant</h3>
+            <p>Migration maîtrisée, base technique assainie, meilleure maintenabilité.</p>
+          </article>
+          <article class="card card--case">
+            <h3>Mise en valeur de services complexes</h3>
+            <p>Hiérarchie de contenu simplifiée, meilleure conversion.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="landing-section landing-section--trust">
+        <div class="section-heading">
+          <h2>Pourquoi travailler avec nous</h2>
+        </div>
+        <ul class="trust-list">
+          <li>Expertise Drupal</li>
+          <li>Approche structurée</li>
+          <li>Vision long terme</li>
+          <li>IA utile, pas gadget</li>
+          <li>Compréhension des réalités PME / ASBL</li>
+        </ul>
+      </section>
+
+      <section class="landing-section landing-section--final-cta">
+        <div class="final-cta">
+          <h2>Vous avez un projet Drupal ou un site à moderniser ?</h2>
+          <p>Parlons de votre contexte, de vos contenus et de ce que l’IA peut réellement vous apporter.</p>
+          <a class="button" href="/contact">Prendre contact</a>
+        </div>
+      </section>
+
       {{ page.content }}
     </div>
   </main>
@@ -21,6 +134,12 @@
   <footer class="page-footer" role="contentinfo">
     <div class="page-container page-footer__inner">
       {{ page.footer }}
+      <nav aria-label="Navigation secondaire" class="footer-links">
+        <a href="/services">Services</a>
+        <a href="/ia-drupal">IA &amp; Drupal</a>
+        <a href="/cas-clients">Cas clients</a>
+        <a href="/contact">Contact</a>
+      </nav>
       <p class="page-footer__tagline">Drupal + IA pragmatique pour PME &amp; ASBL en Wallonie et à Bruxelles.</p>
     </div>
   </footer>

@@ -29,7 +29,7 @@
 
 .front-layout {
   display: grid;
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 
 .page-footer {
@@ -40,6 +40,12 @@
 .page-footer__tagline {
   margin: 0;
   font-size: 0.95rem;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .layout-grid {

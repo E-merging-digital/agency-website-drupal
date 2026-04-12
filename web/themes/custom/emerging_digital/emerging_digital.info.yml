@@ -2,8 +2,9 @@ name: Emerging Digital
 package: Custom
 type: theme
 base theme: false
-description: 'Socle front sobre et maintenable pour le site agence.'
+description: 'Starterkit-based custom front theme for the agency website.'
 core_version_requirement: ^11
+generator: starterkit_theme:11.x
 libraries:
   - emerging_digital/global-styling
 regions:

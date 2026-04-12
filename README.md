@@ -171,3 +171,36 @@ ddev drush site:install standard \
 - Le projet utilise la structure `drupal/recommended-project`.
 - Les fichiers sensibles (`settings.local.php`, etc.) ne doivent pas être versionnés.
 - La configuration DDEV (`.ddev/`) est versionnée pour garantir la reproductibilité.
+
+## Thèmes (front + administration)
+
+### Thème front custom
+
+- Thème front : `emerging_digital` (custom, basé sur Starterkit Drupal core).
+- Emplacement : `web/themes/custom/emerging_digital`.
+- Objectif : fournir un socle front sobre et maintenable (tokens CSS, layout, boutons, templates Twig de base).
+
+### UX administration
+
+- Thème d’administration : `gin`.
+- Module complémentaire : `gin_toolbar`.
+- Objectif : améliorer immédiatement le confort de navigation back-office.
+
+### Commandes utiles (thèmes)
+
+```bash
+# Installer les dépendances thème admin
+ddev composer require drupal/gin drupal/gin_toolbar
+
+# Activer Gin Toolbar et positionner Gin en admin theme
+ddev drush en gin_toolbar -y
+ddev drush cset system.theme admin gin -y
+
+# Activer le thème front custom
+ddev drush theme:enable emerging_digital -y
+ddev drush config:set system.theme default emerging_digital -y
+
+# Synchronisation config
+ddev drush cex -y
+ddev drush cim -y
+```

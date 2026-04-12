@@ -6,3 +6,7 @@ global-styling:
     theme:
       css/layout.css: {}
       css/components.css: {}
+  js:
+    js/main.js: {}
+  dependencies:
+    - core/drupal

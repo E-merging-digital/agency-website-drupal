@@ -6,19 +6,3 @@ declare(strict_types=1);
  * @file
  * Theme hooks and preprocess functions for the Emerging Digital theme.
  */
-
-/**
- * Implements hook_preprocess_html().
- */
-function emerging_digital_preprocess_html(array &$variables): void {
-  if (!isset($variables['placeholder_token']) || !is_string($variables['placeholder_token'])) {
-    $variables['placeholder_token'] = '';
-  }
-
-  if (isset($variables['head_title']) && is_array($variables['head_title'])) {
-    $variables['head_title'] = array_values(array_filter(
-      $variables['head_title'],
-      static fn(mixed $item): bool => is_scalar($item) && (string) $item !== ''
-    ));
-  }
-}

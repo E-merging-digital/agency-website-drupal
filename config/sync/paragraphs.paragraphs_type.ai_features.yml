@@ -1,0 +1,8 @@
+uuid: b8ae3d26-43e9-4e75-b20c-3daae1c4117b
+langcode: en
+status: true
+dependencies: {  }
+id: ai_features
+label: 'Fonctionnalités IA'
+description: 'Section de mise en avant IA.'
+behavior_plugins: {  }

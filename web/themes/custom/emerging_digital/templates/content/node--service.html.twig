@@ -1,0 +1,24 @@
+{#
+/**
+ * @file
+ * Theme override for service nodes.
+ */
+#}
+<article{{ attributes.addClass('node', 'node--service') }}>
+  <header class="node__header">
+    {{ title_prefix }}
+    <h1{{ title_attributes.addClass('node__title') }}>{{ label }}</h1>
+    {{ title_suffix }}
+  </header>
+
+  <div class="node__content">
+    {{ content|without('field_related_ai_features') }}
+  </div>
+
+  {% if content.field_related_ai_features %}
+    <aside class="node__related">
+      <h2 class="node__related-title">Fonctionnalités IA liées</h2>
+      {{ content.field_related_ai_features }}
+    </aside>
+  {% endif %}
+</article>

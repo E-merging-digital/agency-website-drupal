@@ -1,0 +1,19 @@
+uuid: 3abf9f22-eabd-449b-8a35-206ef1a86b11
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_heading
+    - paragraphs.paragraphs_type.ai_features
+id: paragraph.ai_features.field_heading
+field_name: field_heading
+entity_type: paragraph
+bundle: ai_features
+label: Titre
+description: ''
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

@@ -1,0 +1,13 @@
+<section{{ attributes.addClass('component', 'component--cta') }}>
+  <div class="component__inner">
+    {% if content.field_heading %}
+      <h2 class="component__title">{{ content.field_heading }}</h2>
+    {% endif %}
+    {% if content.field_text %}
+      <div class="component__text">{{ content.field_text }}</div>
+    {% endif %}
+    {% if content.field_link %}
+      <div class="component__actions">{{ content.field_link }}</div>
+    {% endif %}
+  </div>
+</section>

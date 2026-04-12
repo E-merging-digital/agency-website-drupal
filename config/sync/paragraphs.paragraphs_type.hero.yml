@@ -1,0 +1,8 @@
+uuid: 94901a6b-6977-4b14-acfd-4b7ab2da23ec
+langcode: en
+status: true
+dependencies: {  }
+id: hero
+label: Hero
+description: 'Bloc Hero pour la page d''accueil.'
+behavior_plugins: {  }

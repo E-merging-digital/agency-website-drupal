@@ -1,0 +1,51 @@
+uuid: be115f8f-dbb2-4dde-acdd-f82579cd634d
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_home_components
+    - node.type.page
+    - paragraphs.paragraphs_type.ai_features
+    - paragraphs.paragraphs_type.case_clients
+    - paragraphs.paragraphs_type.cta
+    - paragraphs.paragraphs_type.hero
+    - paragraphs.paragraphs_type.services
+  module:
+    - entity_reference_revisions
+id: node.page.field_home_components
+field_name: field_home_components
+entity_type: node
+bundle: page
+label: 'Composants d''accueil'
+description: 'Ordre recommandé : Hero → Services → IA → Cas clients → CTA.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  handler: 'default:paragraph'
+  handler_settings:
+    target_bundles:
+      hero: hero
+      services: services
+      ai_features: ai_features
+      case_clients: case_clients
+      cta: cta
+    negate: 0
+    target_bundles_drag_drop:
+      ai_features:
+        weight: 3
+        enabled: true
+      case_clients:
+        weight: 4
+        enabled: true
+      cta:
+        weight: 5
+        enabled: true
+      hero:
+        weight: 1
+        enabled: true
+      services:
+        weight: 2
+        enabled: true
+field_type: entity_reference_revisions

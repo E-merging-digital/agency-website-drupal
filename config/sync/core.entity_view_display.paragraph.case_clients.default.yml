@@ -1,0 +1,32 @@
+uuid: a7328d72-a35d-4181-ba03-1e04c0df1a06
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.paragraph.case_clients.field_heading
+    - field.field.paragraph.case_clients.field_text
+    - paragraphs.paragraphs_type.case_clients
+  module:
+    - text
+id: paragraph.case_clients.default
+targetEntityType: paragraph
+bundle: case_clients
+mode: default
+content:
+  field_heading:
+    type: string
+    label: hidden
+    settings:
+      link_to_entity: false
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_text:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 1
+    region: content
+hidden:
+  search_api_excerpt: true

@@ -1,0 +1,10 @@
+<section{{ attributes.addClass('component', 'component--services') }}>
+  <div class="component__inner">
+    {% if content.field_heading %}
+      <h2 class="component__title">{{ content.field_heading }}</h2>
+    {% endif %}
+    {% if content.field_text %}
+      <div class="component__text">{{ content.field_text }}</div>
+    {% endif %}
+  </div>
+</section>

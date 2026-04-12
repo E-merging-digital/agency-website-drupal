@@ -186,6 +186,21 @@ ddev drush site:install standard \
 - Module complémentaire : `gin_toolbar`.
 - Objectif : améliorer immédiatement le confort de navigation back-office.
 
+
+### Validation Composer (environnement restreint)
+
+Si l'accès réseau à `packages.drupal.org` est limité (proxy/CI sandbox), la validation suivante permet de vérifier `composer.json` sans faire échouer le contrôle sur un `composer.lock` non rafraîchi :
+
+```bash
+composer validate --no-check-publish --no-check-lock
+```
+
+Dès qu'un environnement avec accès réseau complet est disponible, régénérez le lock proprement :
+
+```bash
+composer update drupal/gin drupal/gin_toolbar -W
+```
+
 ### Commandes utiles (thèmes)
 
 ```bash

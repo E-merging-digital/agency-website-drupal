@@ -42,6 +42,7 @@ Il constitue un **contrat de contribution**.
 ## 4. Règles de qualité et CI
 
 - Les scripts **Composer** sont la source de vérité pour le CI
+- Le pipeline CI doit exécuter un smoke test Drupal `BrowserTestBase` minimal sur la home (`<front>`) et échouer en cas d’erreur de rendu runtime
 - Les contrôles qualité **ne doivent jamais** analyser :
 - `web/core`
 - `web/modules/contrib`

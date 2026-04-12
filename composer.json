@@ -125,7 +125,9 @@
         "ci": [
             "@lint:phpcs",
             "@lint:phpstan",
-            "@lint:drupal-check"
-        ]
+            "@lint:drupal-check",
+            "@test:homepage-smoke"
+        ],
+        "test:homepage-smoke": "mkdir -p /tmp/browsertest_output web/sites/simpletest && SIMPLETEST_BASE_URL=http://127.0.0.1:8888 SIMPLETEST_DB=sqlite://localhost/sites/default/files/.ht.sqlite BROWSERTEST_OUTPUT_DIRECTORY=/tmp/browsertest_output vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/homepage_smoke_test/tests/src/Functional/HomepageRenderTest.php"
     }
 }

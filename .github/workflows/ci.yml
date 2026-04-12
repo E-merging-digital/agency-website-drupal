@@ -33,5 +33,5 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
-      - name: Run CI checks
+      - name: Run CI checks (including homepage smoke test)
         run: composer ci

@@ -127,6 +127,21 @@ ddev drush cim -y
 
 Toute contribution doit respecter ces règles avant ouverture de PR.
 
+
+## Filet de sécurité runtime (Ticket #4A)
+
+Un test fonctionnel Drupal `BrowserTestBase` minimal vérifie le rendu de la page d’accueil (`<front>`) et doit rester vert avant de poursuivre les travaux front.
+
+- Classe de test : `web/modules/custom/homepage_smoke_test/tests/src/Functional/HomepageRenderTest.php`
+- Commande dédiée : `composer test:homepage-smoke`
+- Intégration CI : incluse dans `composer ci`
+
+Exécution locale :
+
+```bash
+ddev composer test:homepage-smoke
+```
+
 ## Commandes utiles
 
 ### Vérifier l’état du projet

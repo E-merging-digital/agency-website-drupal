@@ -1,0 +1,5 @@
+name: 'Homepage Smoke Test'
+type: module
+description: 'Provides a minimal BrowserTestBase smoke test for the Drupal homepage.'
+package: Testing
+core_version_requirement: ^11

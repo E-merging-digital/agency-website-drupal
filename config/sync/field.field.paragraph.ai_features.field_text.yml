@@ -1,0 +1,22 @@
+uuid: 8236bd0f-7799-45d2-bbfc-9a0c40aeb430
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_text
+    - paragraphs.paragraphs_type.ai_features
+  module:
+    - text
+id: paragraph.ai_features.field_text
+field_name: field_text
+entity_type: paragraph
+bundle: ai_features
+label: Description
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

@@ -35,3 +35,66 @@ button:focus-visible {
   background: transparent;
   color: var(--color-text);
 }
+
+.node {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.node__header {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-3);
+}
+
+.node__title {
+  margin: 0;
+}
+
+.node__related,
+.node__references {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.node__related {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.component {
+  padding-block: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.component__inner {
+  width: min(100%, 52rem);
+}
+
+.component__title {
+  margin-bottom: var(--space-3);
+}
+
+.component__text {
+  color: var(--color-muted);
+}
+
+.component__actions {
+  margin-top: var(--space-4);
+}
+
+.component--hero {
+  padding-block: var(--space-7);
+}
+
+.component--hero .component__inner {
+  width: min(100%, 44rem);
+}
+
+.component--cta {
+  border-bottom: 0;
+  background: var(--color-surface);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-md);
+}

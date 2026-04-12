@@ -1,0 +1,32 @@
+uuid: 60f3111c-67cd-4dd5-ad64-b5343574c1a4
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.paragraph.services.field_heading
+    - field.field.paragraph.services.field_text
+    - paragraphs.paragraphs_type.services
+id: paragraph.services.default
+targetEntityType: paragraph
+bundle: services
+mode: default
+content:
+  field_heading:
+    type: string_textfield
+    weight: 0
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_text:
+    type: text_textarea
+    weight: 1
+    region: content
+    settings:
+      rows: 5
+      placeholder: ''
+    third_party_settings: {  }
+hidden:
+  created: true
+  status: true

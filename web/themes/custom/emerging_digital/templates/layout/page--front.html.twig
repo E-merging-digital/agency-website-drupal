@@ -1,0 +1,26 @@
+{#
+/**
+ * @file
+ * Theme override for the front page.
+ */
+#}
+<div class="site-shell site-shell--front">
+  <header class="page-header" role="banner">
+    <div class="page-container">
+      {{ page.header }}
+    </div>
+  </header>
+
+  <main role="main" class="page-main page-main--front">
+    <a id="main-content" tabindex="-1"></a>
+    <div class="page-container">
+      {{ page.content }}
+    </div>
+  </main>
+
+  <footer class="page-footer" role="contentinfo">
+    <div class="page-container">
+      {{ page.footer }}
+    </div>
+  </footer>
+</div>

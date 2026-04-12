@@ -1,0 +1,41 @@
+{#
+/**
+ * @file
+ * Theme override for a page.
+ */
+#}
+<div class="site-shell">
+  <header class="page-header" role="banner">
+    <div class="page-container">
+      {{ page.header }}
+    </div>
+  </header>
+
+  {% if page.highlighted %}
+    <section class="page-highlighted" aria-label="Highlighted">
+      <div class="page-container">
+        {{ page.highlighted }}
+      </div>
+    </section>
+  {% endif %}
+
+  <main role="main" class="page-main">
+    <a id="main-content" tabindex="-1"></a>
+    <div class="page-container layout-grid {% if page.sidebar %}layout-grid--with-sidebar{% endif %}">
+      <section class="layout-grid__content">
+        {{ page.content }}
+      </section>
+      {% if page.sidebar %}
+        <aside class="layout-grid__sidebar">
+          {{ page.sidebar }}
+        </aside>
+      {% endif %}
+    </div>
+  </main>
+
+  <footer class="page-footer" role="contentinfo">
+    <div class="page-container">
+      {{ page.footer }}
+    </div>
+  </footer>
+</div>

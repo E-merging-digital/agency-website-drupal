@@ -1,0 +1,32 @@
+uuid: 350473f9-f85f-418f-a769-997f64b0a8a8
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.paragraph.ai_features.field_heading
+    - field.field.paragraph.ai_features.field_text
+    - paragraphs.paragraphs_type.ai_features
+  module:
+    - text
+id: paragraph.ai_features.default
+targetEntityType: paragraph
+bundle: ai_features
+mode: default
+content:
+  field_heading:
+    type: string
+    label: hidden
+    settings:
+      link_to_entity: false
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_text:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 1
+    region: content
+hidden:
+  search_api_excerpt: true

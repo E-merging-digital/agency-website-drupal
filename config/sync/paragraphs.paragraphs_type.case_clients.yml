@@ -1,0 +1,8 @@
+uuid: def9858b-542d-4d45-9483-54b7281db29f
+langcode: en
+status: true
+dependencies: {  }
+id: case_clients
+label: 'Cas clients'
+description: 'Section de preuves clients.'
+behavior_plugins: {  }

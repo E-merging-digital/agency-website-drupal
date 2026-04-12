@@ -1,0 +1,33 @@
+{#
+/**
+ * @file
+ * Theme override for case client nodes.
+ */
+#}
+<article{{ attributes.addClass('node', 'node--case-client') }}>
+  <header class="node__header">
+    {{ title_prefix }}
+    <h1{{ title_attributes.addClass('node__title') }}>{{ label }}</h1>
+    {{ title_suffix }}
+  </header>
+
+  <div class="node__content">
+    {{ content|without('field_related_services', 'field_related_ai_features') }}
+  </div>
+
+  <div class="node__references">
+    {% if content.field_related_services %}
+      <section class="node__related">
+        <h2 class="node__related-title">Services associés</h2>
+        {{ content.field_related_services }}
+      </section>
+    {% endif %}
+
+    {% if content.field_related_ai_features %}
+      <section class="node__related">
+        <h2 class="node__related-title">Fonctionnalités IA mobilisées</h2>
+        {{ content.field_related_ai_features }}
+      </section>
+    {% endif %}
+  </div>
+</article>

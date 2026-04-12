@@ -1,0 +1,17 @@
+{#
+/**
+ * @file
+ * Theme override for article nodes.
+ */
+#}
+<article{{ attributes.addClass('node', 'node--article') }}>
+  <header class="node__header">
+    {{ title_prefix }}
+    <h1{{ title_attributes.addClass('node__title') }}>{{ label }}</h1>
+    {{ title_suffix }}
+  </header>
+
+  <div class="node__content">
+    {{ content }}
+  </div>
+</article>

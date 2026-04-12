@@ -171,3 +171,51 @@ ddev drush site:install standard \
 - Le projet utilise la structure `drupal/recommended-project`.
 - Les fichiers sensibles (`settings.local.php`, etc.) ne doivent pas être versionnés.
 - La configuration DDEV (`.ddev/`) est versionnée pour garantir la reproductibilité.
+
+## Thèmes (front + administration)
+
+### Thème front custom
+
+- Thème front : `emerging_digital` (custom, basé sur Starterkit Drupal core).
+- Emplacement : `web/themes/custom/emerging_digital`.
+- Objectif : fournir un socle front sobre et maintenable (tokens CSS, layout, boutons, templates Twig de base).
+
+### UX administration
+
+- Thème d’administration par défaut (config sync) : `claro` (stable).
+- Option admin UX (installation manuelle) : `gin` + `gin_toolbar`.
+- Objectif : garder une base stable en sync et activer Gin uniquement quand les dépendances sont réellement installées.
+
+
+### Validation Composer (environnement restreint)
+
+Si l'accès réseau à `packages.drupal.org` est limité (proxy/CI sandbox), la validation suivante permet de vérifier `composer.json` sans faire échouer le contrôle sur un `composer.lock` non rafraîchi :
+
+```bash
+composer validate --no-check-publish --no-check-lock
+```
+
+Dès qu'un environnement avec accès réseau complet est disponible, régénérez le lock proprement :
+
+```bash
+composer update drupal/gin drupal/gin_toolbar -W
+```
+
+### Commandes utiles (thèmes)
+
+```bash
+# Installer les dépendances thème admin
+ddev composer require drupal/gin drupal/gin_toolbar
+
+# Optionnel : activer Gin Toolbar et positionner Gin en admin theme
+ddev drush en gin_toolbar -y
+ddev drush cset system.theme admin gin -y
+
+# Activer le thème front custom
+ddev drush theme:enable emerging_digital -y
+ddev drush config:set system.theme default emerging_digital -y
+
+# Synchronisation config
+ddev drush cex -y
+ddev drush cim -y
+```

@@ -1,0 +1,35 @@
+.page-container {
+  width: min(100% - (2 * var(--space-4)), var(--container-width));
+  margin-inline: auto;
+}
+
+.page-header,
+.page-footer {
+  background: var(--color-surface);
+  border-block: 1px solid var(--color-border);
+}
+
+.page-header {
+  padding-block: var(--space-4);
+}
+
+.page-main {
+  padding-block: var(--space-6);
+}
+
+.page-footer {
+  padding-block: var(--space-5);
+  color: var(--color-muted);
+}
+
+.layout-grid {
+  display: grid;
+  gap: var(--space-5);
+}
+
+@media (min-width: 64rem) {
+  .layout-grid--with-sidebar {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    align-items: start;
+  }
+}

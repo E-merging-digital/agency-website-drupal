@@ -1,0 +1,16 @@
+name: Emerging Digital
+package: Custom
+type: theme
+base theme: false
+description: 'Starterkit-based custom front theme for the agency website.'
+core_version_requirement: ^11
+generator: starterkit_theme:11.x
+libraries:
+  - emerging_digital/global-styling
+regions:
+  header: Header
+  highlighted: Highlighted
+  breadcrumb: Breadcrumb
+  content: Content
+  sidebar: Sidebar
+  footer: Footer

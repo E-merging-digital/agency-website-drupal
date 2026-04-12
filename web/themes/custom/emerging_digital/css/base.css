@@ -1,0 +1,65 @@
+:root {
+  --color-bg: #ffffff;
+  --color-surface: #f6f7fb;
+  --color-text: #111827;
+  --color-muted: #4b5563;
+  --color-border: #d1d5db;
+  --color-primary: #005bbb;
+  --color-primary-contrast: #ffffff;
+
+  --font-body: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+  --font-heading: "Poppins", "Segoe UI", Roboto, Arial, sans-serif;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --container-width: 72rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.6;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-block: 0 0.75em;
+  font-family: var(--font-heading);
+  line-height: 1.2;
+}
+
+p,
+ul,
+ol {
+  margin-block: 0 1em;
+}

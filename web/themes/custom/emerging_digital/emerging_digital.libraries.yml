@@ -1,0 +1,8 @@
+global-styling:
+  version: 1.x
+  css:
+    base:
+      css/base.css: {}
+    theme:
+      css/layout.css: {}
+      css/components.css: {}

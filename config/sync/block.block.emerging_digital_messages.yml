@@ -1,0 +1,20 @@
+uuid: 8bc14e55-0d27-4be2-840b-de31ce2c0a7b
+langcode: en
+status: true
+dependencies:
+  module:
+    - system
+  theme:
+    - emerging_digital
+id: emerging_digital_messages
+theme: emerging_digital
+region: highlighted
+weight: -10
+provider: null
+plugin: system_messages_block
+settings:
+  id: system_messages_block
+  label: 'Status messages'
+  label_display: '0'
+  provider: system
+visibility: {  }

@@ -1,0 +1,20 @@
+uuid: 36408931-8e3b-4c56-85ce-ece35b08f00f
+langcode: en
+status: true
+dependencies:
+  module:
+    - system
+  theme:
+    - emerging_digital
+id: emerging_digital_content
+theme: emerging_digital
+region: content
+weight: 0
+provider: null
+plugin: system_main_block
+settings:
+  id: system_main_block
+  label: 'Main page content'
+  label_display: '0'
+  provider: system
+visibility: {  }

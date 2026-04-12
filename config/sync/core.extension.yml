@@ -51,6 +51,7 @@ module:
   paragraphs: 11
   standard: 1000
 theme:
+  emerging_digital: 0
   olivero: 0
   claro: 0
 profile: standard

@@ -1,0 +1,8 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * @file
+ * Theme hooks and preprocess functions for the Emerging Digital theme.
+ */

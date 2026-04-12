@@ -1,0 +1,32 @@
+{#
+/**
+ * @file
+ * Theme override to display a single page.
+ */
+#}
+<header class="page-header" role="banner">
+  <div class="page-container">
+    {{ page.header }}
+  </div>
+</header>
+
+<main class="page-main" role="main" id="main-content">
+  <div class="page-container layout-grid {% if page.sidebar %}layout-grid--with-sidebar{% endif %}">
+    <div>
+      {{ page.highlighted }}
+      {{ page.breadcrumb }}
+      {{ page.content }}
+    </div>
+    {% if page.sidebar %}
+      <aside>
+        {{ page.sidebar }}
+      </aside>
+    {% endif %}
+  </div>
+</main>
+
+<footer class="page-footer" role="contentinfo">
+  <div class="page-container">
+    {{ page.footer }}
+  </div>
+</footer>

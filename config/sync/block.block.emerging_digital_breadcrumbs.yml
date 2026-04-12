@@ -1,0 +1,20 @@
+uuid: 09244ce0-f1ff-4205-b655-1ec6d6d78307
+langcode: en
+status: true
+dependencies:
+  module:
+    - system
+  theme:
+    - emerging_digital
+id: emerging_digital_breadcrumbs
+theme: emerging_digital
+region: breadcrumb
+weight: 0
+provider: null
+plugin: system_breadcrumb_block
+settings:
+  id: system_breadcrumb_block
+  label: Breadcrumbs
+  label_display: '0'
+  provider: system
+visibility: {  }

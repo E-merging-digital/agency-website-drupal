@@ -121,13 +121,13 @@
     "scripts": {
         "lint:phpcs": "vendor/bin/phpcs --standard=phpcs.xml",
         "lint:phpstan": "vendor/bin/phpstan analyse -c phpstan.neon",
-        "lint:drupal-check": "vendor/bin/drupal-check web/modules/custom web/themes/custom web/profiles/custom",
+        "lint:drupal-check": "php -d error_reporting=8191 vendor/bin/drupal-check web/modules/custom web/themes/custom web/profiles/custom",
         "ci": [
             "@lint:phpcs",
             "@lint:phpstan",
             "@lint:drupal-check",
             "@test:homepage-smoke"
         ],
-        "test:homepage-smoke": "mkdir -p /tmp/browsertest_output web/sites/simpletest && SIMPLETEST_BASE_URL=http://127.0.0.1:8888 SIMPLETEST_DB=sqlite://localhost/sites/default/files/.ht.sqlite BROWSERTEST_OUTPUT_DIRECTORY=/tmp/browsertest_output vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/homepage_smoke_test/tests/src/Functional/HomepageRenderTest.php"
+        "test:homepage-smoke": "mkdir -p /tmp/browsertest_output web/sites/simpletest && php -S 127.0.0.1:8888 -t web >/tmp/browsertest_server.log 2>&1 & PHP_SERVER_PID=$! && trap \"kill $PHP_SERVER_PID\" EXIT && SIMPLETEST_BASE_URL=http://127.0.0.1:8888 SIMPLETEST_DB=sqlite://localhost/sites/default/files/.ht.sqlite BROWSERTEST_OUTPUT_DIRECTORY=/tmp/browsertest_output vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/homepage_smoke_test/tests/src/Functional/HomepageRenderTest.php"
     }
 }

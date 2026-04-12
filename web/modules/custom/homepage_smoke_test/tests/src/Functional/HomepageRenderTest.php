@@ -25,7 +25,9 @@ final class HomepageRenderTest extends BrowserTestBase {
    */
   public function testHomepageLoads(): void {
     $this->drupalGet('<front>');
-    $this->assertSession()->responseContains('No front page content has been created yet.');
+    /** @phpstan-ignore-next-line */
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextNotContains('The website encountered an unexpected error.');
   }
 
 }

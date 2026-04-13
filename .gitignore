@@ -43,6 +43,7 @@ composer.phar
 /build/
 
 # --- ddev (keep config, ignore local state) ---
+.ddev/config.local.yaml
 .ddev/.dbimageBuild/
 .ddev/.ddev-database/
 .ddev/.drush/

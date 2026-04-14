@@ -177,3 +177,20 @@ Toutes les pages de type `page` utilisent `field_home_components` (entity_refere
 ## 4) Décisions non évidentes (documentées)
 - Les grilles `services` utilisent `field_items` avec le séparateur `|` pour éviter d’ajouter un Paragraph supplémentaire de carte et garder une structure simple/maintenable.
 - Les cas clients utilisent des champs multi-valeurs synchronisés par index (`field_items`, `field_case_problem`, `field_case_solution`, `field_case_result`) pour conserver une saisie simple en back-office sans complexifier le modèle.
+
+## 5) Initialisation automatique de la frontpage
+
+Pour créer et placer automatiquement les blocs sur la frontpage (sans version statique hardcodée), utiliser l'update hook:
+
+- Module: `agency_content_seed`
+- Fichier: `web/modules/custom/agency_content_seed/agency_content_seed.post_update.php`
+- Fonction: `agency_content_seed_post_update_frontpage_paragraphs()`
+
+Commande d'exécution:
+- `drush updb -y`
+
+Effet:
+- crée/met à jour la page `Accueil`
+- crée les Paragraphs dans l’ordre éditorial validé
+- assigne ces Paragraphs à `field_home_components`
+- positionne la frontpage sur ce nœud via `system.site:page.front`

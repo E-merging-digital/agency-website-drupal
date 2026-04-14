@@ -12,6 +12,11 @@
   </header>
 
   {% if label == 'Services' %}
+    <section class="strategic-page__section strategic-page__section--visual">
+      <figure class="visual-block">
+        <img src="{{ directory }}/images/services/services-page-hero.svg" alt="Consultants préparant une stratégie Drupal sur une table de travail premium." loading="eager" width="1200" height="720" />
+      </figure>
+    </section>
     <section class="strategic-page__section strategic-page__section--alt">
       <p>Nous accompagnons les PME et ASBL de la stratégie à la mise en production, avec une méthode claire et orientée résultats.</p>
     </section>
@@ -23,9 +28,14 @@
         <article class="card card--service"><h2>IA intégrée dans le CMS</h2><p>Fonctionnalités éditoriales IA utiles dans les workflows quotidiens.</p></article>
       </div>
     </section>
-    <section class="strategic-page__section strategic-page__section--alt">
-      <h2>Pourquoi Drupal</h2>
+    <section class="strategic-page__section strategic-page__section--alt strategic-page__section--with-visual">
+      <div>
+        <h2>Pourquoi Drupal</h2>
       <p>Drupal offre une base fiable pour des contenus structurés, des parcours lisibles et une évolutivité adaptée aux organisations en croissance.</p>
+      </div>
+      <figure class="visual-chip">
+        <img src="{{ directory }}/images/services/services-method-blueprint.svg" alt="Schéma visuel d’une méthode projet Drupal structurée et progressive." loading="lazy" width="640" height="420" />
+      </figure>
     </section>
     <section class="strategic-page__section">
       <div class="final-cta">
@@ -34,6 +44,11 @@
       </div>
     </section>
   {% elseif label == 'IA / Drupal' or label == 'IA & Drupal' %}
+    <section class="strategic-page__section strategic-page__section--visual">
+      <figure class="visual-block">
+        <img src="{{ directory }}/images/ia-drupal/ia-drupal-page-hero.svg" alt="Spécialiste contenu utilisant des suggestions IA dans une interface Drupal moderne." loading="eager" width="1200" height="720" />
+      </figure>
+    </section>
     <section class="strategic-page__section strategic-page__section--alt">
       <p class="component__text--lead">L’IA au service de vos contenus Drupal.</p>
       <p>Notre approche est concrète, rassurante et orientée usages métier, sans effet buzz.</p>
@@ -48,9 +63,14 @@
         <article class="card card--ai"><h2>Contrôle qualité</h2><p>Réduire les erreurs et homogénéiser le ton.</p></article>
       </div>
     </section>
-    <section class="strategic-page__section strategic-page__section--alt">
-      <h2>Comment nous l’intégrons</h2>
-      <p>Nous sélectionnons des usages prioritaires, les testons en contexte réel puis les déployons progressivement dans vos processus éditoriaux.</p>
+    <section class="strategic-page__section strategic-page__section--alt strategic-page__section--with-visual">
+      <div>
+        <h2>Comment nous l’intégrons</h2>
+        <p>Nous sélectionnons des usages prioritaires, les testons en contexte réel puis les déployons progressivement dans vos processus éditoriaux.</p>
+      </div>
+      <figure class="visual-chip">
+        <img src="{{ directory }}/images/ia-drupal/ia-drupal-workflow.svg" alt="Workflow collaboratif entre équipe éditoriale et modules IA dans Drupal." loading="lazy" width="640" height="420" />
+      </figure>
     </section>
     <section class="strategic-page__section">
       <div class="final-cta">
@@ -59,6 +79,11 @@
       </div>
     </section>
   {% elseif label == 'Cas clients' %}
+    <section class="strategic-page__section strategic-page__section--visual">
+      <figure class="visual-block">
+        <img src="{{ directory }}/images/case-clients/case-clients-page-hero.svg" alt="Présentation de résultats clients Drupal dans une réunion de pilotage." loading="eager" width="1200" height="720" />
+      </figure>
+    </section>
     <section class="strategic-page__section strategic-page__section--alt">
       <p>Une sélection de projets où la clarté, la structuration des contenus et la robustesse Drupal ont amélioré les résultats.</p>
     </section>

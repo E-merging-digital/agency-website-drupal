@@ -234,3 +234,57 @@ button:focus-visible {
     grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   }
 }
+
+
+.section-heading--with-visual {
+  display: grid;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.visual-block,
+.visual-chip {
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: linear-gradient(145deg, #f5f8ff 0%, #ebf1ff 100%);
+  box-shadow: var(--shadow-sm);
+}
+
+.visual-block img,
+.visual-chip img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.visual-block figcaption {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-muted);
+  font-size: 0.92rem;
+}
+
+.visual-chip {
+  max-width: 22rem;
+}
+
+.strategic-page__section--visual {
+  padding-block: var(--space-3);
+}
+
+.strategic-page__section--with-visual {
+  display: grid;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+@media (min-width: 48rem) {
+  .section-heading--with-visual {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  }
+
+  .strategic-page__section--with-visual {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  }
+}

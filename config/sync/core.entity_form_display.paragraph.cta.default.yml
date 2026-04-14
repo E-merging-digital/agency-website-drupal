@@ -1,4 +1,4 @@
-uuid: f81fd9ce-60b1-4095-8bfa-e849e24583a1
+uuid: 8b7e1f06-cd00-4a37-95eb-2b68f0467112
 langcode: en
 status: true
 dependencies:
@@ -27,7 +27,7 @@ content:
     weight: 1
     region: content
     settings:
-      rows: 5
+      rows: 4
       placeholder: ''
     third_party_settings: {  }
   field_link:

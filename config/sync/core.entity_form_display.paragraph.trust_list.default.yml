@@ -1,17 +1,16 @@
-uuid: 74a48805-a62f-4631-953f-e2a8679797e0
+uuid: 2e076dd9-018d-4521-9b3a-bd3f4470d878
 langcode: en
 status: true
 dependencies:
   config:
-    - field.field.paragraph.services.field_heading
-    - field.field.paragraph.services.field_text
-    - field.field.paragraph.services.field_items
-    - paragraphs.paragraphs_type.services
+    - field.field.paragraph.trust_list.field_heading
+    - field.field.paragraph.trust_list.field_items
+    - paragraphs.paragraphs_type.trust_list
   module:
     - text
-id: paragraph.services.default
+id: paragraph.trust_list.default
 targetEntityType: paragraph
-bundle: services
+bundle: trust_list
 mode: default
 content:
   field_heading:
@@ -22,17 +21,9 @@ content:
       size: 60
       placeholder: ''
     third_party_settings: {  }
-  field_text:
-    type: text_textarea
-    weight: 1
-    region: content
-    settings:
-      rows: 3
-      placeholder: ''
-    third_party_settings: {  }
   field_items:
     type: text_textarea
-    weight: 2
+    weight: 1
     region: content
     settings:
       rows: 2

@@ -1,0 +1,8 @@
+uuid: 42d44e92-1204-46f6-85ee-d7f1e661f8ab
+langcode: en
+status: true
+dependencies: {  }
+id: trust_list
+label: 'Trust list'
+description: 'Liste de points de confiance.'
+behavior_plugins: {  }

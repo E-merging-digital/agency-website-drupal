@@ -10,14 +10,16 @@ dependencies:
     - paragraphs.paragraphs_type.cta
     - paragraphs.paragraphs_type.hero
     - paragraphs.paragraphs_type.services
+    - paragraphs.paragraphs_type.text_block
+    - paragraphs.paragraphs_type.trust_list
   module:
     - entity_reference_revisions
 id: node.page.field_home_components
 field_name: field_home_components
 entity_type: node
 bundle: page
-label: 'Composants d''accueil'
-description: 'Ordre recommandé : Hero → Services → IA → Cas clients → CTA.'
+label: 'Composants de page'
+description: 'Assembler les sections de page dans l’ordre éditorial validé.'
 required: false
 translatable: true
 default_value: {  }
@@ -27,25 +29,33 @@ settings:
   handler_settings:
     target_bundles:
       hero: hero
+      text_block: text_block
       services: services
       ai_features: ai_features
       case_clients: case_clients
+      trust_list: trust_list
       cta: cta
     negate: 0
     target_bundles_drag_drop:
-      ai_features:
-        weight: 3
-        enabled: true
-      case_clients:
-        weight: 4
-        enabled: true
-      cta:
-        weight: 5
-        enabled: true
       hero:
         weight: 1
         enabled: true
-      services:
+      text_block:
         weight: 2
+        enabled: true
+      services:
+        weight: 3
+        enabled: true
+      ai_features:
+        weight: 4
+        enabled: true
+      case_clients:
+        weight: 5
+        enabled: true
+      trust_list:
+        weight: 6
+        enabled: true
+      cta:
+        weight: 7
         enabled: true
 field_type: entity_reference_revisions

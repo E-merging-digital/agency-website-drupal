@@ -1,8 +1,8 @@
-uuid: f48eb8e0-96a0-4ec6-a0a7-6faa1eff2c9a
+uuid: 14999b1c-586b-4427-9591-5a1b39919b58
 langcode: en
 status: true
 dependencies: {  }
 id: services
-label: Services
-description: 'Section des services principaux.'
+label: 'Services grid'
+description: 'Grille de services avec cartes titre + description.'
 behavior_plugins: {  }

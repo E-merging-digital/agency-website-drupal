@@ -1,17 +1,16 @@
-uuid: 74a48805-a62f-4631-953f-e2a8679797e0
+uuid: c910ccac-7112-44fd-8f24-88e965bead0d
 langcode: en
 status: true
 dependencies:
   config:
-    - field.field.paragraph.services.field_heading
-    - field.field.paragraph.services.field_text
-    - field.field.paragraph.services.field_items
-    - paragraphs.paragraphs_type.services
+    - field.field.paragraph.text_block.field_heading
+    - field.field.paragraph.text_block.field_text
+    - paragraphs.paragraphs_type.text_block
   module:
     - text
-id: paragraph.services.default
+id: paragraph.text_block.default
 targetEntityType: paragraph
-bundle: services
+bundle: text_block
 mode: default
 content:
   field_heading:
@@ -27,15 +26,7 @@ content:
     weight: 1
     region: content
     settings:
-      rows: 3
-      placeholder: ''
-    third_party_settings: {  }
-  field_items:
-    type: text_textarea
-    weight: 2
-    region: content
-    settings:
-      rows: 2
+      rows: 4
       placeholder: ''
     third_party_settings: {  }
 hidden:

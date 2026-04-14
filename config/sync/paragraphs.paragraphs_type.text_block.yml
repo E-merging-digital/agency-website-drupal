@@ -1,0 +1,8 @@
+uuid: 1c00bf9e-1d35-4832-9665-73803c393f34
+langcode: en
+status: true
+dependencies: {  }
+id: text_block
+label: 'Text block'
+description: 'Bloc texte simple avec titre et contenu.'
+behavior_plugins: {  }

@@ -1,8 +1,8 @@
-uuid: 62f7766d-8cf4-4f21-bfca-418115a7fd9d
+uuid: 63d4ec4f-f806-49a8-aa17-a18ffd6a1865
 langcode: en
 status: true
 dependencies: {  }
 id: cta
-label: CTA
-description: 'Bloc d''appel à action.'
+label: 'CTA block'
+description: 'Bloc call-to-action final.'
 behavior_plugins: {  }

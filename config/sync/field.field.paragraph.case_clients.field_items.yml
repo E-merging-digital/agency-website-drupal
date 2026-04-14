@@ -1,0 +1,22 @@
+uuid: 4ba8cdd6-5cae-41ee-9da6-f2b44c341b23
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_items
+    - paragraphs.paragraphs_type.case_clients
+  module:
+    - text
+id: paragraph.case_clients.field_items
+field_name: field_items
+entity_type: paragraph
+bundle: case_clients
+label: 'Titres des cas'
+description: 'Un titre par cas client.'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

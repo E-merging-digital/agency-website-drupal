@@ -1,16 +1,19 @@
-<section{{ attributes.addClass('component', 'component--case-clients') }}>
-  <div class="component__inner">
-    {% if content.field_heading %}
-      <h2 class="component__title">{{ content.field_heading }}</h2>
+<section{{ attributes.addClass('ed-section', 'ed-section--case-studies') }}>
+  <div class="ed-container">
+    <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
+    {% if paragraph.field_text.value %}
+      <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
-    {% if content.field_text %}
-      <div class="component__text">{{ content.field_text }}</div>
-    {% endif %}
-
-    <div class="proof-strip" aria-label="Bénéfices clients">
-      <p><strong>+42%</strong> demandes qualifiées</p>
-      <p><strong>-35%</strong> temps de qualification</p>
-      <p><strong>x2</strong> vitesse de publication</p>
+    <div class="ed-cards ed-cards--cases">
+      {% for item in paragraph.field_items %}
+        {% set idx = loop.index0 %}
+        <article class="ed-card ed-card--case">
+          <h3>{{ item.value|striptags|trim }}</h3>
+          <p><strong>Problème :</strong> {{ paragraph.field_case_problem[idx].value|striptags|trim }}</p>
+          <p><strong>Solution :</strong> {{ paragraph.field_case_solution[idx].value|striptags|trim }}</p>
+          <p><strong>Résultat :</strong> {{ paragraph.field_case_result[idx].value|striptags|trim }}</p>
+        </article>
+      {% endfor %}
     </div>
   </div>
 </section>

@@ -1,8 +1,8 @@
-uuid: def9858b-542d-4d45-9483-54b7281db29f
+uuid: d15b08ae-0e06-499a-af50-6fb54ff0e216
 langcode: en
 status: true
 dependencies: {  }
 id: case_clients
-label: 'Cas clients'
-description: 'Section de preuves clients.'
+label: 'Case studies'
+description: 'Bloc de cas clients avec problème, solution et résultat.'
 behavior_plugins: {  }

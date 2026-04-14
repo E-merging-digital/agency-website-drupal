@@ -1,11 +1,14 @@
-uuid: 19772705-5268-4636-b0f2-b2139da3fa57
+uuid: 5982f738-07b7-44bd-b1b9-4ad12847ffc7
 langcode: en
 status: true
 dependencies:
   config:
     - field.field.paragraph.ai_features.field_heading
     - field.field.paragraph.ai_features.field_text
+    - field.field.paragraph.ai_features.field_items
     - paragraphs.paragraphs_type.ai_features
+  module:
+    - text
 id: paragraph.ai_features.default
 targetEntityType: paragraph
 bundle: ai_features
@@ -24,7 +27,15 @@ content:
     weight: 1
     region: content
     settings:
-      rows: 5
+      rows: 3
+      placeholder: ''
+    third_party_settings: {  }
+  field_items:
+    type: text_textarea
+    weight: 2
+    region: content
+    settings:
+      rows: 2
       placeholder: ''
     third_party_settings: {  }
 hidden:

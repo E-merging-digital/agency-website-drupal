@@ -1,0 +1,19 @@
+uuid: 233f09d8-d651-4674-9969-e32c363908b8
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_heading
+    - paragraphs.paragraphs_type.trust_list
+id: paragraph.trust_list.field_heading
+field_name: field_heading
+entity_type: paragraph
+bundle: trust_list
+label: Titre
+description: ''
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

@@ -27,6 +27,7 @@ Pré-requis : contenu validé déjà présent dans Drupal.
 
 1. Installer les dépendances :
    - `composer install`
+   - si besoin: `composer require "drupal/default_content:^2.0@alpha" "drupal/hal:^2.0"`
 2. Importer la configuration :
    - `drush cim -y`
 3. Activer les modules nécessaires (si pas déjà actifs) :

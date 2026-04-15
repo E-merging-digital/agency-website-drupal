@@ -9,52 +9,66 @@ Les exports sont stockés dans `web/modules/custom/emerging_digital_content/cont
 - `node/` : 5 pages stratégiques (Accueil, Services, IA & Drupal, Cas clients, Contact)
 - `paragraph/` : Paragraphs référencés par ces pages (`hero`, `text_block`, `services`, `ai_features`, `case_clients`, `trust_list`, `cta`)
 
-## Exporter le contenu
+> Conformément à la documentation officielle du module, les UUID à importer sont déclarés dans `emerging_digital_content.info.yml` sous la clé `default_content`.
+
+## Exporter le contenu (workflow recommandé)
 
 Pré-requis : contenu validé déjà présent dans Drupal.
 
-1. Installer les dépendances puis activer le module :
-   - `composer require "drupal/default_content:^2.0@alpha"`
-   - `drush en serialization default_content emerging_digital_content -y`
-2. Exporter chaque nœud stratégique par UUID :
-   - `drush dcer node <UUID_NODE> emerging_digital_content`
-3. Vérifier que les JSON sont générés sous :
+1. Vérifier/compléter la section `default_content` dans `emerging_digital_content.info.yml`.
+2. Exporter selon la doc du module :
+   - `drush default-content:export-module emerging_digital_content`
+   - ou (avec dépendances) `drush default-content:export-module-with-references emerging_digital_content`
+3. Vérifier les JSON générés dans :
    - `web/modules/custom/emerging_digital_content/content/node/`
    - `web/modules/custom/emerging_digital_content/content/paragraph/`
 
-> `dcer` exporte automatiquement les dépendances (Paragraphs référencés).
-
-## Importer le contenu
-
-Sur un environnement neuf :
+## Importer le contenu — environnement neuf
 
 1. Installer les dépendances :
    - `composer install`
-2. Activer les modules :
+2. Importer la configuration :
+   - `drush cim -y`
+3. Activer les modules nécessaires (si pas déjà actifs) :
    - `drush en serialization default_content emerging_digital_content -y`
-3. Import initial du contenu :
-   - `drush en emerging_digital_content -y`
-4. Réimport forcé si le module est déjà activé :
-   - `drush php:eval "\Drupal::service('default_content.importer')->importContent('emerging_digital_content');"`
-5. Vider le cache :
+4. Vider le cache :
    - `drush cr`
 
-## Non-duplication et reproductibilité
+L’import du contenu est déclenché lors de l’installation du module `emerging_digital_content` grâce à la section `default_content` du `.info.yml`.
 
-- `default_content` s’appuie sur les UUID versionnés : la réimportation met à jour les entités existantes au lieu d’en créer de nouvelles.
-- Les relations `node -> field_home_components -> paragraphs` sont conservées via les UUID des Paragraphs exportés.
-- La front page est définie automatiquement à l’installation du module sur `/accueil`.
+## Procédure si le module est déjà installé (cas actuel)
 
-## Vérifications recommandées
+Si `emerging_digital_content` est déjà activé, l’import automatique à l’installation ne se relance pas tout seul.
 
-- `drush sqlq "SELECT title, nid FROM node_field_data WHERE type='page' ORDER BY nid;"`
-- Vérifier qu’un second import ne modifie pas le nombre de nœuds.
-- Contrôler le rendu de la home et des pages stratégiques.
+### Option A (recommandée) : réimport sans désinstaller
 
+```bash
+drush php:eval "\\Drupal::service('default_content.importer')->importContent('emerging_digital_content');"
+drush cr
+```
+
+### Option B : désinstaller/réinstaller le module de contenu
+
+```bash
+drush pmu emerging_digital_content -y
+drush en emerging_digital_content -y
+drush cr
+```
+
+## Vérifications après import
+
+- Front page configurée :
+  - `drush cget system.site page.front` (doit retourner `/accueil`)
+- Nœuds pages présents :
+  - `drush sqlq "SELECT nid,title FROM node_field_data WHERE type='page' ORDER BY nid;"`
+- Alias front disponible :
+  - `drush sqlq "SELECT alias,path FROM path_alias WHERE alias='/accueil';"`
+- Références Paragraphs :
+  - vérifier le rendu des pages stratégiques et l’ordre des sections.
 
 ## Dépannage commandes Drush
 
-Selon la version du module `default_content`, la commande `default-content:import` peut ne pas exister.
+Selon la version de `default_content`, la commande `default-content:import` peut ne pas exister.
 
 - Vérifier les commandes disponibles : `drush list --filter=default-content`
-- Si seules les commandes d’export sont présentes, utiliser `drush en emerging_digital_content -y` pour l’import initial, puis `drush php:eval` pour forcer un réimport.
+- Si la commande d’import n’est pas disponible, utiliser `drush php:eval` avec le service `default_content.importer`.

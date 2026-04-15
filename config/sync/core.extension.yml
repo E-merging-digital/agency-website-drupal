@@ -42,6 +42,7 @@ module:
   path_alias: 0
   pathauto: 1
   redirect: 0
+  serialization: 0
   search: 0
   shortcut: 0
   simple_sitemap: 0

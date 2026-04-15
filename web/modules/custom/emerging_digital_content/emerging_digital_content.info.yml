@@ -7,3 +7,4 @@ dependencies:
   - drupal:default_content
   - drupal:node
   - drupal:paragraphs
+  - drupal:serialization

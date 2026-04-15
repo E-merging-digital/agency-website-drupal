@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file
  * Post-update hooks for initial strategic content seeding.
@@ -56,22 +57,22 @@ function agency_content_seed_post_update_frontpage_paragraphs(array &$sandbox): 
     'field_items' => [
       [
         'value' => 'Création de sites Drupal|Sites institutionnels, vitrines ou '
-          . 'plateformes éditoriales robustes et évolutives, conçus pour durer.',
+        . 'plateformes éditoriales robustes et évolutives, conçus pour durer.',
         'format' => 'basic_html',
       ],
       [
         'value' => 'Migration et modernisation|Reprise de sites existants, montée '
-          . 'de version Drupal, amélioration de la structure et des performances.',
+        . 'de version Drupal, amélioration de la structure et des performances.',
         'format' => 'basic_html',
       ],
       [
         'value' => 'SEO et performance|Un site rapide, lisible et pensé pour être '
-          . 'trouvé par vos publics.',
+        . 'trouvé par vos publics.',
         'format' => 'basic_html',
       ],
       [
         'value' => 'IA intégrée dans le CMS|Des outils concrets pour produire, '
-          . 'corriger et enrichir vos contenus directement dans Drupal.',
+        . 'corriger et enrichir vos contenus directement dans Drupal.',
         'format' => 'basic_html',
       ],
     ],

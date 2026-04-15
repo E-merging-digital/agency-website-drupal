@@ -8,6 +8,7 @@ dependencies:
   - drupal:node
   - drupal:paragraphs
   - drupal:serialization
+  - drupal:hal
 default_content:
   node:
     - 12beb25a-52af-4ca6-a214-64b3047537d0

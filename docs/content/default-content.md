@@ -30,7 +30,8 @@ Pré-requis : contenu validé déjà présent dans Drupal.
 2. Importer la configuration :
    - `drush cim -y`
 3. Activer les modules nécessaires (si pas déjà actifs) :
-   - `drush en serialization default_content emerging_digital_content -y`
+   - `hal` est requis pour l'import HAL JSON en default_content 2.x
+   - `drush en hal serialization default_content emerging_digital_content -y`
 4. Vider le cache :
    - `drush cr`
 

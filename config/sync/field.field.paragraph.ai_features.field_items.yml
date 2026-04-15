@@ -1,0 +1,22 @@
+uuid: 4255413a-5bb3-4cb3-8dc1-adc63c571691
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_items
+    - paragraphs.paragraphs_type.ai_features
+  module:
+    - text
+id: paragraph.ai_features.field_items
+field_name: field_items
+entity_type: paragraph
+bundle: ai_features
+label: 'Fonctionnalités IA'
+description: 'Un item par fonctionnalité.'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

@@ -1,24 +1,15 @@
-<section{{ attributes.addClass('component', 'component--ai-features') }}>
-  <div class="component__inner">
-    {% if content.field_heading %}
-      <h2 class="component__title">{{ content.field_heading }}</h2>
+<section{{ attributes.addClass('ed-section', 'ed-section--ai-features-grid') }}>
+  <div class="ed-container">
+    <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
+    {% if paragraph.field_text.value %}
+      <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
-    {% if content.field_text %}
-      <div class="component__text">{{ content.field_text }}</div>
-    {% endif %}
-    <div class="cards-grid" aria-label="Fonctionnalités IA">
-      <article class="card card--ai">
-        <h3>Copilote éditorial</h3>
-        <p>Accélère la production des pages Services et des contenus experts.</p>
-      </article>
-      <article class="card card--ai">
-        <h3>Qualification intelligente</h3>
-        <p>Pré-qualifie les leads pour réduire les délais de réponse commerciale.</p>
-      </article>
-      <article class="card card--ai">
-        <h3>Insights conversion</h3>
-        <p>Priorise les actions à impact business direct avec des signaux lisibles.</p>
-      </article>
+    <div class="ed-cards ed-cards--ai">
+      {% for item in paragraph.field_items %}
+        <article class="ed-card ed-card--ai">
+          <h3>{{ item.value|striptags|trim }}</h3>
+        </article>
+      {% endfor %}
     </div>
   </div>
 </section>

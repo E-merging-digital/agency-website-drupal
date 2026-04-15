@@ -1,8 +1,8 @@
-uuid: b8ae3d26-43e9-4e75-b20c-3daae1c4117b
+uuid: c13156a3-2dd8-48f6-bb12-8fd666018e39
 langcode: en
 status: true
 dependencies: {  }
 id: ai_features
-label: 'Fonctionnalités IA'
-description: 'Section de mise en avant IA.'
+label: 'AI features grid'
+description: 'Bloc des fonctionnalités IA sous forme de grille.'
 behavior_plugins: {  }

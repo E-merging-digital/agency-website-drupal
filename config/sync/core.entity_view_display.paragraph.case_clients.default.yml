@@ -1,10 +1,14 @@
-uuid: a7328d72-a35d-4181-ba03-1e04c0df1a06
+uuid: 1d686f1c-edef-4200-8d87-f82c1a728879
 langcode: en
 status: true
 dependencies:
   config:
     - field.field.paragraph.case_clients.field_heading
     - field.field.paragraph.case_clients.field_text
+    - field.field.paragraph.case_clients.field_items
+    - field.field.paragraph.case_clients.field_case_problem
+    - field.field.paragraph.case_clients.field_case_solution
+    - field.field.paragraph.case_clients.field_case_result
     - paragraphs.paragraphs_type.case_clients
   module:
     - text
@@ -27,6 +31,34 @@ content:
     settings: {  }
     third_party_settings: {  }
     weight: 1
+    region: content
+  field_items:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 2
+    region: content
+  field_case_problem:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 3
+    region: content
+  field_case_solution:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 4
+    region: content
+  field_case_result:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 5
     region: content
 hidden:
   search_api_excerpt: true

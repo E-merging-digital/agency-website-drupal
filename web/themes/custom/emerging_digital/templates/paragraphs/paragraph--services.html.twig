@@ -1,24 +1,19 @@
-<section{{ attributes.addClass('component', 'component--services') }}>
-  <div class="component__inner">
-    {% if content.field_heading %}
-      <h2 class="component__title">{{ content.field_heading }}</h2>
+<section{{ attributes.addClass('ed-section', 'ed-section--services-grid') }}>
+  <div class="ed-container">
+    <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
+    {% if paragraph.field_text.value %}
+      <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
-    {% if content.field_text %}
-      <div class="component__text">{{ content.field_text }}</div>
-    {% endif %}
-    <div class="cards-grid" aria-label="Services principaux">
-      <article class="card card--service">
-        <h3>Audit &amp; cadrage Drupal</h3>
-        <p>Clarifiez vos priorités business, votre architecture et vos quick wins.</p>
-      </article>
-      <article class="card card--service">
-        <h3>Factory de contenus</h3>
-        <p>Publiez plus vite avec une structure éditoriale robuste et réutilisable.</p>
-      </article>
-      <article class="card card--service">
-        <h3>Optimisation conversion</h3>
-        <p>Améliorez les pages clés et CTA pour générer plus de demandes qualifiées.</p>
-      </article>
+    <div class="ed-cards ed-cards--services">
+      {% for item in paragraph.field_items %}
+        {% set parts = item.value|split('|') %}
+        <article class="ed-card ed-card--service">
+          <h3>{{ parts[0]|trim }}</h3>
+          {% if parts|length > 1 %}
+            <p>{{ parts[1]|trim }}</p>
+          {% endif %}
+        </article>
+      {% endfor %}
     </div>
   </div>
 </section>

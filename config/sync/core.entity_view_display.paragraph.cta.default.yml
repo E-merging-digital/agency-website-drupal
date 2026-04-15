@@ -1,15 +1,15 @@
-uuid: 9673a576-e0c4-461d-a8de-e98aee0c375f
+uuid: 7e6c8393-ec00-49a1-9c76-f2ff23fed755
 langcode: en
 status: true
 dependencies:
   config:
     - field.field.paragraph.cta.field_heading
-    - field.field.paragraph.cta.field_text
     - field.field.paragraph.cta.field_link
+    - field.field.paragraph.cta.field_text
     - paragraphs.paragraphs_type.cta
   module:
-    - text
     - link
+    - text
 id: paragraph.cta.default
 targetEntityType: paragraph
 bundle: cta

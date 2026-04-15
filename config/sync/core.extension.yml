@@ -1,7 +1,10 @@
 _core:
   default_config_hash: 4GIX5Esnc_umpXUBj4IIocRX7Mt5fPhm4AgXfE3E56E
 module:
+  agency_content_seed: 0
   admin_toolbar: 0
+  ai: 0
+  ai_provider_openai: 0
   announcements_feed: 0
   automated_cron: 0
   big_pipe: 0
@@ -24,6 +27,7 @@ module:
   help: 0
   history: 0
   image: 0
+  key: 0
   link: 0
   menu_link_content: 0
   menu_ui: 0
@@ -32,12 +36,15 @@ module:
   node: 0
   options: 0
   page_cache: 0
+  paragraphs: 11
   path: 0
   path_alias: 0
+  pathauto: 1
   redirect: 0
   search: 0
   shortcut: 0
   simple_sitemap: 0
+  standard: 1000
   system: 0
   taxonomy: 0
   text: 0
@@ -45,11 +52,8 @@ module:
   toolbar: 0
   update: 0
   user: 0
-  views_ui: 0
-  pathauto: 1
   views: 10
-  paragraphs: 11
-  standard: 1000
+  views_ui: 0
 theme:
   emerging_digital: 0
   olivero: 0

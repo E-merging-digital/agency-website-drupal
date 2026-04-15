@@ -1,0 +1,22 @@
+uuid: f5cd4e66-bdbb-4038-ab79-d81b74a26a19
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_items
+    - paragraphs.paragraphs_type.services
+  module:
+    - text
+id: paragraph.services.field_items
+field_name: field_items
+entity_type: paragraph
+bundle: services
+label: 'Cartes de services'
+description: 'Un item par carte: utiliser le format "Titre|Description".'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

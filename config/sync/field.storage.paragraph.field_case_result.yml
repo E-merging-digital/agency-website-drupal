@@ -1,0 +1,19 @@
+uuid: ed2ccbd9-6d72-4c4a-9e3d-3e612f533a91
+langcode: en
+status: true
+dependencies:
+  module:
+    - paragraphs
+    - text
+id: paragraph.field_case_result
+field_name: field_case_result
+entity_type: paragraph
+type: text_long
+settings: {  }
+module: text
+locked: false
+cardinality: -1
+translatable: true
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

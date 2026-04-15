@@ -1,11 +1,17 @@
-uuid: dc839b03-d398-42e3-aa1d-bd5d464b616f
+uuid: ea7e3092-8e40-4aed-bb3e-9d2f3f06971c
 langcode: en
 status: true
 dependencies:
   config:
     - field.field.paragraph.case_clients.field_heading
     - field.field.paragraph.case_clients.field_text
+    - field.field.paragraph.case_clients.field_items
+    - field.field.paragraph.case_clients.field_case_problem
+    - field.field.paragraph.case_clients.field_case_solution
+    - field.field.paragraph.case_clients.field_case_result
     - paragraphs.paragraphs_type.case_clients
+  module:
+    - text
 id: paragraph.case_clients.default
 targetEntityType: paragraph
 bundle: case_clients
@@ -24,7 +30,39 @@ content:
     weight: 1
     region: content
     settings:
-      rows: 5
+      rows: 3
+      placeholder: ''
+    third_party_settings: {  }
+  field_items:
+    type: text_textarea
+    weight: 2
+    region: content
+    settings:
+      rows: 2
+      placeholder: ''
+    third_party_settings: {  }
+  field_case_problem:
+    type: text_textarea
+    weight: 3
+    region: content
+    settings:
+      rows: 2
+      placeholder: ''
+    third_party_settings: {  }
+  field_case_solution:
+    type: text_textarea
+    weight: 4
+    region: content
+    settings:
+      rows: 2
+      placeholder: ''
+    third_party_settings: {  }
+  field_case_result:
+    type: text_textarea
+    weight: 5
+    region: content
+    settings:
+      rows: 2
       placeholder: ''
     third_party_settings: {  }
 hidden:

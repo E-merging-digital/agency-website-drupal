@@ -1,0 +1,22 @@
+uuid: 82c97357-1afa-4fb8-bec6-635123165a0c
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_case_solution
+    - paragraphs.paragraphs_type.case_clients
+  module:
+    - text
+id: paragraph.case_clients.field_case_solution
+field_name: field_case_solution
+entity_type: paragraph
+bundle: case_clients
+label: Solution
+description: 'Une solution par cas (même ordre que les titres).'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

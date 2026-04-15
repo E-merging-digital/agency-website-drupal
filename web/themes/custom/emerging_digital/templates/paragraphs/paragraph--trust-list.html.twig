@@ -1,0 +1,10 @@
+<section{{ attributes.addClass('ed-section', 'ed-section--trust-list') }}>
+  <div class="ed-container">
+    <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
+    <ul class="ed-trust-list">
+      {% for item in paragraph.field_items %}
+        <li>{{ item.value|striptags|trim }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>

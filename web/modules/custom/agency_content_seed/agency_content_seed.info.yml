@@ -1,0 +1,8 @@
+name: 'Agency Content Seed'
+type: module
+description: 'Seeds strategic frontpage paragraph content.'
+core_version_requirement: ^11
+package: Custom
+dependencies:
+  - drupal:node
+  - drupal:paragraphs

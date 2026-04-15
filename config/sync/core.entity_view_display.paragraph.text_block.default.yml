@@ -1,17 +1,16 @@
-uuid: d5c8a619-00b8-46cb-a0f2-753d1f13725f
+uuid: 6341f90c-f154-453f-8c6d-e5ba4b7bd211
 langcode: en
 status: true
 dependencies:
   config:
-    - field.field.paragraph.ai_features.field_heading
-    - field.field.paragraph.ai_features.field_text
-    - field.field.paragraph.ai_features.field_items
-    - paragraphs.paragraphs_type.ai_features
+    - field.field.paragraph.text_block.field_heading
+    - field.field.paragraph.text_block.field_text
+    - paragraphs.paragraphs_type.text_block
   module:
     - text
-id: paragraph.ai_features.default
+id: paragraph.text_block.default
 targetEntityType: paragraph
-bundle: ai_features
+bundle: text_block
 mode: default
 content:
   field_heading:
@@ -28,13 +27,6 @@ content:
     settings: {  }
     third_party_settings: {  }
     weight: 1
-    region: content
-  field_items:
-    type: text_default
-    label: hidden
-    settings: {  }
-    third_party_settings: {  }
-    weight: 2
     region: content
 hidden:
   search_api_excerpt: true

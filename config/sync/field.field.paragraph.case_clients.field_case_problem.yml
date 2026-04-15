@@ -1,0 +1,22 @@
+uuid: f0fee809-6d9f-4c17-821a-f20acc9c610f
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_case_problem
+    - paragraphs.paragraphs_type.case_clients
+  module:
+    - text
+id: paragraph.case_clients.field_case_problem
+field_name: field_case_problem
+entity_type: paragraph
+bundle: case_clients
+label: Problème
+description: 'Un problème par cas (même ordre que les titres).'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

@@ -1,13 +1,13 @@
-<section{{ attributes.addClass('component', 'component--cta') }}>
-  <div class="component__inner">
-    {% if content.field_heading %}
-      <h2 class="component__title">{{ content.field_heading }}</h2>
-    {% endif %}
-    {% if content.field_text %}
-      <div class="component__text">{{ content.field_text }}</div>
-    {% endif %}
-    {% if content.field_link %}
-      <div class="component__actions component__actions--inline">{{ content.field_link }}</div>
-    {% endif %}
+<section{{ attributes.addClass('ed-section', 'ed-section--cta-block') }}>
+  <div class="ed-container">
+    <div class="ed-cta">
+      <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
+      {% if paragraph.field_text.value %}
+        <div class="ed-section__intro">{{ content.field_text }}</div>
+      {% endif %}
+      {% if content.field_link %}
+        <div class="ed-actions">{{ content.field_link }}</div>
+      {% endif %}
+    </div>
   </div>
 </section>

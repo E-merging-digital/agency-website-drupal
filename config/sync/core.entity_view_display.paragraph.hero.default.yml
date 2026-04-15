@@ -1,4 +1,4 @@
-uuid: ccb70d2f-fe90-4ec3-ada3-bc604b63586b
+uuid: 5205d154-c21d-4148-8480-1e92899cb881
 langcode: en
 status: true
 dependencies:
@@ -6,10 +6,11 @@ dependencies:
     - field.field.paragraph.hero.field_heading
     - field.field.paragraph.hero.field_text
     - field.field.paragraph.hero.field_link
+    - field.field.paragraph.hero.field_secondary_link
     - paragraphs.paragraphs_type.hero
   module:
-    - text
     - link
+    - text
 id: paragraph.hero.default
 targetEntityType: paragraph
 bundle: hero
@@ -41,6 +42,18 @@ content:
       target: ''
     third_party_settings: {  }
     weight: 2
+    region: content
+  field_secondary_link:
+    type: link
+    label: hidden
+    settings:
+      trim_length: 80
+      url_only: false
+      url_plain: false
+      rel: ''
+      target: ''
+    third_party_settings: {  }
+    weight: 3
     region: content
 hidden:
   search_api_excerpt: true

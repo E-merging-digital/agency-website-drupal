@@ -1,0 +1,8 @@
+<section{{ attributes.addClass('ed-section', 'ed-section--text-block') }}>
+  <div class="ed-container">
+    {% if paragraph.field_heading.value %}
+      <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
+    {% endif %}
+    <div class="ed-section__content">{{ content.field_text }}</div>
+  </div>
+</section>

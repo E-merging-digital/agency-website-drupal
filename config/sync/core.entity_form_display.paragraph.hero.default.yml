@@ -1,4 +1,4 @@
-uuid: bd3b7106-4d8e-4a5f-b432-12702bcf3c1b
+uuid: 1e06806f-99a7-4e79-86ea-05c3b8e05441
 langcode: en
 status: true
 dependencies:
@@ -6,6 +6,7 @@ dependencies:
     - field.field.paragraph.hero.field_heading
     - field.field.paragraph.hero.field_text
     - field.field.paragraph.hero.field_link
+    - field.field.paragraph.hero.field_secondary_link
     - paragraphs.paragraphs_type.hero
   module:
     - link
@@ -33,6 +34,14 @@ content:
   field_link:
     type: link_default
     weight: 2
+    region: content
+    settings:
+      placeholder_url: ''
+      placeholder_title: ''
+    third_party_settings: {  }
+  field_secondary_link:
+    type: link_default
+    weight: 3
     region: content
     settings:
       placeholder_url: ''

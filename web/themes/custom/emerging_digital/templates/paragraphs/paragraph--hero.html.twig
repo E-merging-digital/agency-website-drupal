@@ -1,14 +1,18 @@
-<section{{ attributes.addClass('component', 'component--hero') }}>
-  <div class="component__inner">
-    <p class="component__eyebrow">Agence Drupal orientée conversion</p>
-    {% if content.field_heading %}
-      <h2 class="component__title component__title--hero">{{ content.field_heading }}</h2>
+<section{{ attributes.addClass('ed-section', 'ed-section--hero') }}>
+  <div class="ed-container">
+    {% if paragraph.field_heading.value %}
+      <h2 class="ed-section__title ed-section__title--hero">{{ paragraph.field_heading.value }}</h2>
     {% endif %}
-    {% if content.field_text %}
-      <div class="component__text component__text--lead">{{ content.field_text }}</div>
+    {% if paragraph.field_text.value %}
+      <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
-    {% if content.field_link %}
-      <div class="component__actions component__actions--inline">{{ content.field_link }}</div>
-    {% endif %}
+    <div class="ed-actions">
+      {% if content.field_link %}
+        <span class="ed-actions__primary">{{ content.field_link }}</span>
+      {% endif %}
+      {% if content.field_secondary_link %}
+        <span class="ed-actions__secondary">{{ content.field_secondary_link }}</span>
+      {% endif %}
+    </div>
   </div>
 </section>

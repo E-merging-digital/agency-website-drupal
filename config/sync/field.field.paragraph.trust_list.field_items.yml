@@ -1,0 +1,22 @@
+uuid: c084370d-f96d-42cf-9008-79274efb9684
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.paragraph.field_items
+    - paragraphs.paragraphs_type.trust_list
+  module:
+    - text
+id: paragraph.trust_list.field_items
+field_name: field_items
+entity_type: paragraph
+bundle: trust_list
+label: 'Éléments de confiance'
+description: 'Un item par ligne.'
+required: true
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

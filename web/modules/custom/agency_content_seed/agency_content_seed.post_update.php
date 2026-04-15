@@ -148,7 +148,7 @@ function agency_content_seed_post_update_frontpage_paragraphs(array &$sandbox): 
     ];
   }, $paragraphs));
 
-  $front->setPublished(TRUE);
+  $front->setPublished();
   $front->save();
 
   \Drupal::configFactory()->getEditable('system.site')

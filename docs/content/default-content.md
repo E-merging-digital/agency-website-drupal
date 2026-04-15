@@ -40,16 +40,25 @@ L’import du contenu est déclenché lors de l’installation du module `emergi
 
 ## Procédure si le module est déjà installé (cas actuel)
 
-Si `emerging_digital_content` est déjà activé, l’import automatique à l’installation ne se relance pas tout seul.
+Si `emerging_digital_content` est déjà activé, l'import automatique à l'installation ne se relance pas tout seul.
 
-### Option A (recommandée) : réimport sans désinstaller
+### Option A (recommandée) : exécuter l'update hook du module
+
+```bash
+drush updb -y
+drush cr
+```
+
+Cet update hook exécute l'import `default_content` pour `emerging_digital_content` et réapplique la front page `/accueil`.
+
+### Option B : réimport manuel sans désinstaller
 
 ```bash
 drush php:eval "\\Drupal::service('default_content.importer')->importContent('emerging_digital_content');"
 drush cr
 ```
 
-### Option B : désinstaller/réinstaller le module de contenu
+### Option C : désinstaller/réinstaller le module de contenu
 
 ```bash
 drush pmu emerging_digital_content -y

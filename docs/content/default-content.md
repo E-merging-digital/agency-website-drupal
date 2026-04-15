@@ -19,9 +19,11 @@ Pré-requis : contenu validé déjà présent dans Drupal.
 2. Exporter selon la doc du module :
    - `drush default-content:export-module emerging_digital_content`
    - ou (avec dépendances) `drush default-content:export-module-with-references emerging_digital_content`
-3. Vérifier les JSON générés dans :
+3. Vérifier les YAML générés dans :
    - `web/modules/custom/emerging_digital_content/content/node/`
    - `web/modules/custom/emerging_digital_content/content/paragraph/`
+
+Les fichiers versionnés sont désormais au format `.yml` (et non `.json`) pour compatibilité avec `default_content` 2.x/3.x.
 
 ## Importer le contenu — environnement neuf
 
@@ -31,7 +33,6 @@ Pré-requis : contenu validé déjà présent dans Drupal.
 2. Importer la configuration :
    - `drush cim -y`
 3. Activer les modules nécessaires (si pas déjà actifs) :
-   - `hal` est requis pour l'import HAL JSON en default_content 2.x
    - `drush en hal serialization default_content emerging_digital_content -y`
 4. Vider le cache :
    - `drush cr`
@@ -51,10 +52,10 @@ drush cr
 
 Cet update hook exécute l'import `default_content` pour `emerging_digital_content` et réapplique la front page `/accueil`.
 
-### Option B : réimport manuel sans désinstaller
+### Option B : réimport manuel sans désinstaller (sans problème de quoting)
 
 ```bash
-drush php:eval "\\Drupal::service('default_content.importer')->importContent('emerging_digital_content');"
+drush php:script web/modules/custom/emerging_digital_content/scripts/import_default_content.php
 drush cr
 ```
 
@@ -82,6 +83,6 @@ drush cr
 Selon la version de `default_content`, la commande `default-content:import` peut ne pas exister.
 
 - Vérifier les commandes disponibles : `drush list --filter=default-content`
-- Si la commande d’import n’est pas disponible, utiliser `drush php:eval` avec le service `default_content.importer`.
+- Si la commande d’import n’est pas disponible, utiliser `drush php:script web/modules/custom/emerging_digital_content/scripts/import_default_content.php`.
 
-- Si tu vois `Undefined array key "uuid"` ou `Default content with uuid "" exists twice`, cela indique des exports sans clé `uuid` au niveau racine du JSON (format non attendu par le parseur courant).
+- Si tu vois `Undefined array key "uuid"` ou `Default content with uuid "" exists twice`, cela indique des exports sans clé `uuid` ou des fichiers sérialisés en HAL JSON. Re-exporter via `default-content:export-module-with-references` pour obtenir des fichiers YAML compatibles.

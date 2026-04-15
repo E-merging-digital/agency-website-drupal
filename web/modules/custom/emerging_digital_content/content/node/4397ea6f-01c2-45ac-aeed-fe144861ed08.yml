@@ -1,0 +1,32 @@
+_meta:
+  version: 1.0
+  entity_type: node
+  uuid: "4397ea6f-01c2-45ac-aeed-fe144861ed08"
+  bundle: page
+  default_langcode: en
+default:
+  uid:
+    -
+      target_id: 1
+  status:
+    -
+      value: true
+  title:
+    -
+      value: Contact
+  field_home_components:
+    -
+      entity: "c93b579f-4761-4f3f-932a-08179b686305"
+    -
+      entity: "f17c1051-3a7b-4b3b-af6e-649d5cf15747"
+    -
+      entity: "faa20185-10a4-4570-b641-a78d7bfd6e3f"
+    -
+      entity: "ff54ed56-a170-43dd-abda-39faf1bcd030"
+    -
+      entity: "14ed8d34-9500-4ff4-8ab0-89296eb22963"
+  path:
+    -
+      alias: /contact
+      langcode: en
+      pathauto: false

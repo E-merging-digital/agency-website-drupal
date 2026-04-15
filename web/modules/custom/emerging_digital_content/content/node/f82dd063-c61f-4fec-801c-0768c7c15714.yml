@@ -1,0 +1,36 @@
+_meta:
+  version: 1.0
+  entity_type: node
+  uuid: "f82dd063-c61f-4fec-801c-0768c7c15714"
+  bundle: page
+  default_langcode: en
+default:
+  uid:
+    -
+      target_id: 1
+  status:
+    -
+      value: true
+  title:
+    -
+      value: Accueil
+  field_home_components:
+    -
+      entity: "f51216df-757b-4cce-bca8-5334666a4fc7"
+    -
+      entity: "12b66649-fa65-4aaa-857e-ec4e30b8d144"
+    -
+      entity: "5e27e427-4af6-4ae2-8dd0-f47002957c93"
+    -
+      entity: "f52efe3e-819a-45d5-833e-e7a989d33a52"
+    -
+      entity: "e8df7ab5-46d7-42f3-b71a-c7bb19ca53ad"
+    -
+      entity: "05f4dc51-e1af-493b-b031-0b943ea51c0b"
+    -
+      entity: "19af126d-3d79-434b-a876-4de8c839a719"
+  path:
+    -
+      alias: /accueil
+      langcode: en
+      pathauto: false

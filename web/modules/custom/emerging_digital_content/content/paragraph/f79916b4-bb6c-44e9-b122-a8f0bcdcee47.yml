@@ -1,0 +1,14 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "f79916b4-bb6c-44e9-b122-a8f0bcdcee47"
+  bundle: cta
+  default_langcode: en
+default:
+  field_text:
+    -
+      value: Découvrez comment intégrer l’IA dans votre site Drupal.
+      format: basic_html
+  status:
+    -
+      value: true

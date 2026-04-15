@@ -1,0 +1,13 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "b0d27032-5d82-4db6-b693-20ffa4a4b944"
+  bundle: hero
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Des projets concrets et maîtrisés
+  status:
+    -
+      value: true

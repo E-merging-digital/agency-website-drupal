@@ -1,0 +1,13 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "c93b579f-4761-4f3f-932a-08179b686305"
+  bundle: hero
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Parlons de votre projet
+  status:
+    -
+      value: true

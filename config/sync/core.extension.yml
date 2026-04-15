@@ -1,7 +1,6 @@
 _core:
   default_config_hash: 4GIX5Esnc_umpXUBj4IIocRX7Mt5fPhm4AgXfE3E56E
 module:
-  agency_content_seed: 0
   admin_toolbar: 0
   ai: 0
   ai_provider_openai: 0
@@ -17,8 +16,10 @@ module:
   contextual: 0
   datetime: 0
   dblog: 0
+  default_content: 0
   dynamic_page_cache: 0
   editor: 0
+  emerging_digital_content: 0
   entity_reference_revisions: 0
   field: 0
   field_ui: 0

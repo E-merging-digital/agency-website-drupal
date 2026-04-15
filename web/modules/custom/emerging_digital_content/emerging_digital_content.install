@@ -1,0 +1,17 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * @file
+ * Install hooks for Emerging Digital Content module.
+ */
+
+/**
+ * Sets the homepage path alias as front page.
+ */
+function emerging_digital_content_install(): void {
+  \Drupal::configFactory()->getEditable('system.site')
+    ->set('page.front', '/accueil')
+    ->save(TRUE);
+}

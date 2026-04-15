@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "entity_type": "paragraph",
+    "uuid": "8a793081-7db6-453e-9e0a-25fdde18099a",
+    "bundle": "text_block",
+    "default_langcode": "en"
+  },
+  "default": {
+    "field_heading": [
+      {
+        "value": "Pourquoi Drupal"
+      }
+    ],
+    "field_text": [
+      {
+        "value": "Drupal est une plateforme robuste, flexible et idéale pour gérer des contenus complexes de manière structurée.",
+        "format": "basic_html"
+      }
+    ],
+    "status": [
+      {
+        "value": true
+      }
+    ]
+  }
+}

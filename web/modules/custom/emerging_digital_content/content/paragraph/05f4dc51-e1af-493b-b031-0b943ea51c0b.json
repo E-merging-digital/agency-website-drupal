@@ -1,0 +1,43 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "entity_type": "paragraph",
+    "uuid": "05f4dc51-e1af-493b-b031-0b943ea51c0b",
+    "bundle": "trust_list",
+    "default_langcode": "en"
+  },
+  "default": {
+    "field_heading": [
+      {
+        "value": "Pourquoi travailler avec nous"
+      }
+    ],
+    "field_items": [
+      {
+        "value": "Expertise Drupal",
+        "format": "basic_html"
+      },
+      {
+        "value": "Approche structurée",
+        "format": "basic_html"
+      },
+      {
+        "value": "Vision long terme",
+        "format": "basic_html"
+      },
+      {
+        "value": "IA utile, pas gadget",
+        "format": "basic_html"
+      },
+      {
+        "value": "Compréhension des réalités PME / ASBL",
+        "format": "basic_html"
+      }
+    ],
+    "status": [
+      {
+        "value": true
+      }
+    ]
+  }
+}

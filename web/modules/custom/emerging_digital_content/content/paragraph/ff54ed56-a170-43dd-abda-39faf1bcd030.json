@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "entity_type": "paragraph",
+    "uuid": "ff54ed56-a170-43dd-abda-39faf1bcd030",
+    "bundle": "text_block",
+    "default_langcode": "en"
+  },
+  "default": {
+    "field_heading": [
+      {
+        "value": "Informations"
+      }
+    ],
+    "field_text": [
+      {
+        "value": "Disponible pour projets en Wallonie et Bruxelles.",
+        "format": "basic_html"
+      }
+    ],
+    "status": [
+      {
+        "value": true
+      }
+    ]
+  }
+}

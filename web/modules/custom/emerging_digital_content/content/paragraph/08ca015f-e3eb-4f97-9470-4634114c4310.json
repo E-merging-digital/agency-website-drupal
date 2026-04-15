@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "entity_type": "paragraph",
+    "uuid": "08ca015f-e3eb-4f97-9470-4634114c4310",
+    "bundle": "cta",
+    "default_langcode": "en"
+  },
+  "default": {
+    "field_text": [
+      {
+        "value": "Vous avez un projet similaire ? Discutons-en.",
+        "format": "basic_html"
+      }
+    ],
+    "status": [
+      {
+        "value": true
+      }
+    ]
+  }
+}

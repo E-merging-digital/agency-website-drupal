@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "entity_type": "paragraph",
+    "uuid": "cd1ee50c-7e2d-40a2-a4a8-d9376c1dea51",
+    "bundle": "hero",
+    "default_langcode": "en"
+  },
+  "default": {
+    "field_heading": [
+      {
+        "value": "L’IA au service de vos contenus Drupal"
+      }
+    ],
+    "field_text": [
+      {
+        "value": "Des fonctionnalités concrètes pour améliorer votre productivité et la qualité de vos contenus.",
+        "format": "basic_html"
+      }
+    ],
+    "status": [
+      {
+        "value": true
+      }
+    ]
+  }
+}

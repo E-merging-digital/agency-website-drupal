@@ -74,3 +74,5 @@ Selon la version de `default_content`, la commande `default-content:import` peut
 
 - Vérifier les commandes disponibles : `drush list --filter=default-content`
 - Si la commande d’import n’est pas disponible, utiliser `drush php:eval` avec le service `default_content.importer`.
+
+- Si tu vois `Undefined array key "uuid"` ou `Default content with uuid "" exists twice`, cela indique des exports sans clé `uuid` au niveau racine du JSON (format non attendu par le parseur courant).

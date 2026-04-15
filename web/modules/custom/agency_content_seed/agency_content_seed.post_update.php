@@ -1,4 +1,8 @@
 <?php
+/**
+ * @file
+ * Post-update hooks for initial strategic content seeding.
+ */
 
 declare(strict_types=1);
 
@@ -50,10 +54,26 @@ function agency_content_seed_post_update_frontpage_paragraphs(array &$sandbox): 
   $paragraphs[] = _agency_content_seed_create_paragraph('services', [
     'field_heading' => 'Nos services',
     'field_items' => [
-      ['value' => 'Création de sites Drupal|Sites institutionnels, vitrines ou plateformes éditoriales robustes et évolutives, conçus pour durer.', 'format' => 'basic_html'],
-      ['value' => 'Migration et modernisation|Reprise de sites existants, montée de version Drupal, amélioration de la structure et des performances.', 'format' => 'basic_html'],
-      ['value' => 'SEO et performance|Un site rapide, lisible et pensé pour être trouvé par vos publics.', 'format' => 'basic_html'],
-      ['value' => 'IA intégrée dans le CMS|Des outils concrets pour produire, corriger et enrichir vos contenus directement dans Drupal.', 'format' => 'basic_html'],
+      [
+        'value' => 'Création de sites Drupal|Sites institutionnels, vitrines ou '
+          . 'plateformes éditoriales robustes et évolutives, conçus pour durer.',
+        'format' => 'basic_html',
+      ],
+      [
+        'value' => 'Migration et modernisation|Reprise de sites existants, montée '
+          . 'de version Drupal, amélioration de la structure et des performances.',
+        'format' => 'basic_html',
+      ],
+      [
+        'value' => 'SEO et performance|Un site rapide, lisible et pensé pour être '
+          . 'trouvé par vos publics.',
+        'format' => 'basic_html',
+      ],
+      [
+        'value' => 'IA intégrée dans le CMS|Des outils concrets pour produire, '
+          . 'corriger et enrichir vos contenus directement dans Drupal.',
+        'format' => 'basic_html',
+      ],
     ],
   ]);
 

@@ -11,6 +11,8 @@ Les exports sont stockés dans `web/modules/custom/emerging_digital_content/cont
 
 > Conformément à la documentation officielle du module, les UUID à importer sont déclarés dans `emerging_digital_content.info.yml` sous la clé `default_content`.
 
+> Important: dans `emerging_digital_content.info.yml`, les `paragraph` sont listés **avant** les `node` pour que les références `entity_reference_revisions` soient résolues à l'import.
+
 ## Exporter le contenu (workflow recommandé)
 
 Pré-requis : contenu validé déjà présent dans Drupal.

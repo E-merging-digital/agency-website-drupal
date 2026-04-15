@@ -10,12 +10,6 @@ dependencies:
   - drupal:serialization
   - drupal:hal
 default_content:
-  node:
-    - 12beb25a-52af-4ca6-a214-64b3047537d0
-    - 4397ea6f-01c2-45ac-aeed-fe144861ed08
-    - 46793f61-ea11-4639-9b74-db5df7db3bf3
-    - e027a74d-e6af-4b71-82a8-691bcda36f0e
-    - f82dd063-c61f-4fec-801c-0768c7c15714
   paragraph:
     - 05f4dc51-e1af-493b-b031-0b943ea51c0b
     - 08ca015f-e3eb-4f97-9470-4634114c4310
@@ -44,3 +38,9 @@ default_content:
     - f79916b4-bb6c-44e9-b122-a8f0bcdcee47
     - faa20185-10a4-4570-b641-a78d7bfd6e3f
     - ff54ed56-a170-43dd-abda-39faf1bcd030
+  node:
+    - 12beb25a-52af-4ca6-a214-64b3047537d0
+    - 4397ea6f-01c2-45ac-aeed-fe144861ed08
+    - 46793f61-ea11-4639-9b74-db5df7db3bf3
+    - e027a74d-e6af-4b71-82a8-691bcda36f0e
+    - f82dd063-c61f-4fec-801c-0768c7c15714

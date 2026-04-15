@@ -14,7 +14,7 @@ Les exports sont stockés dans `web/modules/custom/emerging_digital_content/cont
 Pré-requis : contenu validé déjà présent dans Drupal.
 
 1. Installer les dépendances puis activer le module :
-   - `composer require drupal/default_content`
+   - `composer require "drupal/default_content:^2.0@alpha"`
    - `drush en default_content emerging_digital_content -y`
 2. Exporter chaque nœud stratégique par UUID :
    - `drush dcer node <UUID_NODE> emerging_digital_content`

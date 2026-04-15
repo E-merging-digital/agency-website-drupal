@@ -32,9 +32,11 @@ Sur un environnement neuf :
    - `composer install`
 2. Activer les modules :
    - `drush en serialization default_content emerging_digital_content -y`
-3. (Re)import forcé si besoin :
-   - `drush default-content:import module emerging_digital_content`
-4. Vider le cache :
+3. Import initial du contenu :
+   - `drush en emerging_digital_content -y`
+4. Réimport forcé si le module est déjà activé :
+   - `drush php:eval "\Drupal::service('default_content.importer')->importContent('emerging_digital_content');"`
+5. Vider le cache :
    - `drush cr`
 
 ## Non-duplication et reproductibilité
@@ -48,3 +50,11 @@ Sur un environnement neuf :
 - `drush sqlq "SELECT title, nid FROM node_field_data WHERE type='page' ORDER BY nid;"`
 - Vérifier qu’un second import ne modifie pas le nombre de nœuds.
 - Contrôler le rendu de la home et des pages stratégiques.
+
+
+## Dépannage commandes Drush
+
+Selon la version du module `default_content`, la commande `default-content:import` peut ne pas exister.
+
+- Vérifier les commandes disponibles : `drush list --filter=default-content`
+- Si seules les commandes d’export sont présentes, utiliser `drush en emerging_digital_content -y` pour l’import initial, puis `drush php:eval` pour forcer un réimport.

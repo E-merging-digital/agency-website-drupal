@@ -13,4 +13,6 @@ $importer->importContent('emerging_digital_content');
   ->set('page.front', '/accueil')
   ->save(TRUE);
 
+  \Drupal::state()->set('system.maintenance_mode', 0);
+
 print "Default content imported and front page set to /accueil.\n";

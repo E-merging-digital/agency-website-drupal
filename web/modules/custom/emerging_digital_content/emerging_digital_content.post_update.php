@@ -29,5 +29,7 @@ function emerging_digital_content_post_update_import_default_content(array &$san
     ->set('page.front', '/accueil')
     ->save(TRUE);
 
+  \Drupal::state()->set('system.maintenance_mode', 0);
+
   return 'Default content for emerging_digital_content has been imported or was already present.';
 }

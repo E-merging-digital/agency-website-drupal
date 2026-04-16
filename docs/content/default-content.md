@@ -76,6 +76,8 @@ drush cr
 
 ## Vérifications après import
 
+- Le module désactive automatiquement le mode maintenance (`system.maintenance_mode = 0`) pendant les flux install/update/import.
+
 - Front page configurée :
   - `drush cget system.site page.front` (doit retourner `/accueil`)
 - Nœuds pages présents :

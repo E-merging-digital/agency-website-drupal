@@ -11,7 +11,7 @@ Les exports sont stockés dans `web/modules/custom/emerging_digital_content/cont
 
 > Conformément à la documentation officielle du module, les UUID à importer sont déclarés dans `emerging_digital_content.info.yml` sous la clé `default_content`.
 
-> Important: `emerging_digital_content.info.yml` ne liste que les `node`; les Paragraphs liés sont importés automatiquement comme dépendances pour éviter les doublons de UUID.
+> Important: `emerging_digital_content.info.yml` liste d'abord les `paragraph`, puis les `node`, pour résoudre correctement les références `entity_reference_revisions` au moment de l'import.
 
 ## Exporter le contenu (workflow recommandé)
 

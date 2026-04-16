@@ -10,9 +10,37 @@ dependencies:
   - drupal:serialization
   - drupal:hal
 default_content:
+  paragraph:
+    - 11c3e2e1-78c9-491d-814c-b204bc2f5338
+    - 25892a5a-3c09-4f64-86d7-cda8058e1875
+    - 2eb8e4b6-37d0-47cc-8702-7a850dd94c15
+    - 2f4f723a-90d5-4a95-84dc-333363d51655
+    - 33873ed7-004d-4a7f-b69e-b8f64dc4fa9b
+    - 3b376be4-852e-4fa2-85ba-a64ff0fefa9d
+    - 3d0518cf-cf7a-4cac-a2eb-ee80c1ba63f9
+    - 50c9c0ef-85f8-49a3-819c-4aa63ddd1737
+    - 614270dd-1d42-4ea9-a7ae-6321952de65b
+    - 65be59ce-5a5e-44ec-9c63-b0796b0dd6f9
+    - 8236e39f-2bcf-4758-a441-c9f6eb8f75f6
+    - 83435955-44bb-40df-8e8c-eda848d40301
+    - 855b08da-0ec9-4261-883a-d27f214606e6
+    - 88affed2-d7e1-44bc-8607-28f0111fc123
+    - 88bc3809-2c51-4ec1-93a8-2eed9ce6930c
+    - ad8e2138-9355-4951-90dc-354e07847eca
+    - b73c293b-32b3-426d-a86b-adfed1a386a7
+    - b878853f-1368-47be-bee9-8cdc1dba826a
+    - bfa1a9d3-2715-4a04-8758-d14ece990e6e
+    - cfe7d994-e099-44b4-a0cc-12c69760288e
+    - d36b8734-7d9e-4782-a2e5-efa82d8ecfea
+    - dc4e80eb-e338-4dfb-a7b3-ce0f4e1eba92
+    - e8fcb813-8e1a-4739-a80b-f941b34040c7
+    - efdbbfe1-aec4-4cbb-be3d-33f3fe5966ac
+    - f4581518-8acc-4632-8b25-884776b3aeb4
+    - f6e32e97-aba4-4f5f-a8ce-89fb2ad2a83d
+    - f7bb4bef-3172-4e6b-aadd-3adaaf5aeb29
   node:
-    - d6e1876f-8e32-4f75-b6bb-946de5f5afdb
-    - d962ec05-25ec-4446-b645-0959a57964e7
     - 28345cad-8947-4f91-b77e-9251609a5bcc
     - 3636da02-c8e6-40ea-aa71-54148f029a09
     - 7b8d9926-e015-457f-9da3-562439b962a7
+    - d6e1876f-8e32-4f75-b6bb-946de5f5afdb
+    - d962ec05-25ec-4446-b645-0959a57964e7

@@ -18,6 +18,8 @@ function emerging_digital_content_post_update_import_default_content(array &$san
   ]);
 
   if (!$existing) {
+    _emerging_digital_content_purge_stale_entities();
+
     /** @var \Drupal\default_content\ImporterInterface $importer */
     $importer = \Drupal::service('default_content.importer');
     $importer->importContent('emerging_digital_content');

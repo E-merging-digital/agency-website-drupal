@@ -63,6 +63,9 @@ drush cr
 
 ### Option C : désinstaller/réinstaller le module de contenu
 
+> Le module purge désormais les UUID packagés existants avant import (install/post-update/script), pour éviter les collisions `Duplicate entry ... paragraph_field__uuid__value`.
+
+
 ```bash
 drush pmu emerging_digital_content -y
 drush en emerging_digital_content -y

@@ -8,10 +8,33 @@ declare(strict_types=1);
  */
 
 /**
- * Sets the homepage path alias as front page.
+ * Sets front page and purges stale packaged UUIDs before auto-import runs.
  */
 function emerging_digital_content_install(): void {
+  _emerging_digital_content_purge_stale_entities();
+
   \Drupal::configFactory()->getEditable('system.site')
     ->set('page.front', '/accueil')
     ->save(TRUE);
+}
+
+/**
+ * Deletes existing packaged entities by UUID to avoid duplicate collisions.
+ */
+function _emerging_digital_content_purge_stale_entities(): void {
+  $entity_type_manager = \Drupal::entityTypeManager();
+  $base = DRUPAL_ROOT . '/modules/custom/emerging_digital_content/content';
+
+  foreach (['paragraph', 'node'] as $entity_type) {
+    $files = glob($base . '/' . $entity_type . '/*.yml') ?: [];
+    $storage = $entity_type_manager->getStorage($entity_type);
+
+    foreach ($files as $file) {
+      $uuid = pathinfo($file, PATHINFO_FILENAME);
+      $existing = $storage->loadByProperties(['uuid' => $uuid]);
+      if ($existing) {
+        $storage->delete($existing);
+      }
+    }
+  }
 }

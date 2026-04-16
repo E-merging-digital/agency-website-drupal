@@ -13,6 +13,8 @@ Les exports sont stockés dans `web/modules/custom/emerging_digital_content/cont
 
 > Important: `emerging_digital_content.info.yml` liste d'abord les `paragraph`, puis les `node`, pour résoudre correctement les références `entity_reference_revisions` au moment de l'import.
 
+> Les fichiers `node/*.yml` incluent désormais `_meta.depends` vers les UUID de Paragraphs requis, afin que `default_content` importe les révisions dans le bon ordre.
+
 ## Exporter le contenu (workflow recommandé)
 
 Pré-requis : contenu validé déjà présent dans Drupal.

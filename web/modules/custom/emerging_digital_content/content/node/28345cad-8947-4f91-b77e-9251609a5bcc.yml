@@ -4,6 +4,11 @@ _meta:
   uuid: "28345cad-8947-4f91-b77e-9251609a5bcc"
   bundle: page
   default_langcode: en
+  depends:
+    b878853f-1368-47be-bee9-8cdc1dba826a: paragraph
+    25892a5a-3c09-4f64-86d7-cda8058e1875: paragraph
+    83435955-44bb-40df-8e8c-eda848d40301: paragraph
+    d36b8734-7d9e-4782-a2e5-efa82d8ecfea: paragraph
 default:
   uid:
     -

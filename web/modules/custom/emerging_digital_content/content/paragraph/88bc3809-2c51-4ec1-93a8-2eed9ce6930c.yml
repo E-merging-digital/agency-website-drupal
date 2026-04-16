@@ -1,0 +1,21 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "88bc3809-2c51-4ec1-93a8-2eed9ce6930c"
+  bundle: cta
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: "Vous avez un projet Drupal ou un site à moderniser ?"
+  field_text:
+    -
+      value: Parlons de votre contexte et de ce que l’IA peut réellement vous apporter.
+      format: basic_html
+  field_link:
+    -
+      uri: "internal:/contact"
+      title: Prendre contact
+  status:
+    -
+      value: true

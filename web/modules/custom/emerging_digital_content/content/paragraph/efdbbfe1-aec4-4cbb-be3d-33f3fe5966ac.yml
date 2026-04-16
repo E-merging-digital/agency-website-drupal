@@ -1,0 +1,26 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "efdbbfe1-aec4-4cbb-be3d-33f3fe5966ac"
+  bundle: services
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Nos services
+  field_items:
+    -
+      value: "Création de sites Drupal|Sites institutionnels, vitrines ou plateformes éditoriales robustes et évolutives, conçus pour durer."
+      format: basic_html
+    -
+      value: "Migration et modernisation|Reprise de sites existants, montée de version Drupal, amélioration de la structure et des performances."
+      format: basic_html
+    -
+      value: "SEO et performance|Un site rapide, lisible et pensé pour être trouvé par vos publics."
+      format: basic_html
+    -
+      value: "IA intégrée dans le CMS|Des outils concrets pour produire, corriger et enrichir vos contenus directement dans Drupal."
+      format: basic_html
+  status:
+    -
+      value: true

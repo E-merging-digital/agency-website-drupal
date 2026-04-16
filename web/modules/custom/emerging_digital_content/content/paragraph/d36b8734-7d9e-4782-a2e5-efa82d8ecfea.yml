@@ -1,0 +1,14 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "d36b8734-7d9e-4782-a2e5-efa82d8ecfea"
+  bundle: cta
+  default_langcode: en
+default:
+  field_text:
+    -
+      value: "Vous avez un projet similaire ? Discutons-en."
+      format: basic_html
+  status:
+    -
+      value: true

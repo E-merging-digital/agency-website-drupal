@@ -1,0 +1,14 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "88affed2-d7e1-44bc-8607-28f0111fc123"
+  bundle: text_block
+  default_langcode: en
+default:
+  field_text:
+    -
+      value: Nous analysons votre situation et vous proposons des solutions adaptées.
+      format: basic_html
+  status:
+    -
+      value: true

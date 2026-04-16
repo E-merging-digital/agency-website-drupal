@@ -1,0 +1,29 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "11c3e2e1-78c9-491d-814c-b204bc2f5338"
+  bundle: services
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Nos services
+  field_items:
+    -
+      value: "Création de site Drupal|Conception de sites sur mesure, pensés pour la performance, la clarté et la durabilité."
+      format: basic_html
+    -
+      value: "Migration Drupal|Mise à jour de versions anciennes, sécurisation et modernisation de votre plateforme."
+      format: basic_html
+    -
+      value: "Maintenance et évolutions|Suivi technique, améliorations continues et support."
+      format: basic_html
+    -
+      value: "SEO et optimisation|Optimisation des contenus, structure technique et performance."
+      format: basic_html
+    -
+      value: "IA intégrée|Automatisation de tâches éditoriales, amélioration de la qualité des contenus."
+      format: basic_html
+  status:
+    -
+      value: true

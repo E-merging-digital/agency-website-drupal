@@ -11,8 +11,8 @@ dependencies:
   - drupal:hal
 default_content:
   node:
-    - 12beb25a-52af-4ca6-a214-64b3047537d0
-    - 4397ea6f-01c2-45ac-aeed-fe144861ed08
-    - 46793f61-ea11-4639-9b74-db5df7db3bf3
-    - e027a74d-e6af-4b71-82a8-691bcda36f0e
-    - f82dd063-c61f-4fec-801c-0768c7c15714
+    - d6e1876f-8e32-4f75-b6bb-946de5f5afdb
+    - d962ec05-25ec-4446-b645-0959a57964e7
+    - 28345cad-8947-4f91-b77e-9251609a5bcc
+    - 3636da02-c8e6-40ea-aa71-54148f029a09
+    - 7b8d9926-e015-457f-9da3-562439b962a7

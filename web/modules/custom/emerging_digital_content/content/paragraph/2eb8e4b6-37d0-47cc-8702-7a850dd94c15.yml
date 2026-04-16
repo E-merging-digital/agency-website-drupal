@@ -1,0 +1,14 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "2eb8e4b6-37d0-47cc-8702-7a850dd94c15"
+  bundle: text_block
+  default_langcode: en
+default:
+  field_text:
+    -
+      value: "Votre site doit être un outil clair, fiable et évolutif. Nous vous aidons à structurer vos contenus et à construire une base technique solide."
+      format: basic_html
+  status:
+    -
+      value: true

@@ -17,33 +17,17 @@ targetEntityType: paragraph
 bundle: case_clients
 mode: default
 content:
-  field_heading:
-    type: string_textfield
-    weight: 0
-    region: content
-    settings:
-      size: 60
-      placeholder: ''
-    third_party_settings: {  }
-  field_text:
+  field_case_problem:
     type: text_textarea
-    weight: 1
-    region: content
-    settings:
-      rows: 3
-      placeholder: ''
-    third_party_settings: {  }
-  field_items:
-    type: text_textarea
-    weight: 2
+    weight: 3
     region: content
     settings:
       rows: 2
       placeholder: ''
     third_party_settings: {  }
-  field_case_problem:
+  field_case_result:
     type: text_textarea
-    weight: 3
+    weight: 5
     region: content
     settings:
       rows: 2
@@ -57,12 +41,28 @@ content:
       rows: 2
       placeholder: ''
     third_party_settings: {  }
-  field_case_result:
+  field_heading:
+    type: string_textfield
+    weight: 0
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_items:
     type: text_textarea
-    weight: 5
+    weight: 2
     region: content
     settings:
       rows: 2
+      placeholder: ''
+    third_party_settings: {  }
+  field_text:
+    type: text_textarea
+    weight: 1
+    region: content
+    settings:
+      rows: 3
       placeholder: ''
     third_party_settings: {  }
 hidden:

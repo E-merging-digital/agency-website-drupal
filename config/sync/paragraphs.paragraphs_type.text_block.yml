@@ -4,5 +4,7 @@ status: true
 dependencies: {  }
 id: text_block
 label: 'Text block'
+icon_uuid: null
+icon_default: null
 description: 'Bloc texte simple avec titre et contenu.'
 behavior_plugins: {  }

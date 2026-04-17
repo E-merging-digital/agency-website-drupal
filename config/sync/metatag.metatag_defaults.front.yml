@@ -7,5 +7,14 @@ _core:
 id: front
 label: 'Front page'
 tags:
+  title: 'Agence Drupal & IA | [site:name]'
+  description: 'Agence Drupal 11 : services, solutions IA et cas clients.'
   canonical_url: '[site:url]'
   shortlink: '[site:url]'
+  og_title: 'Agence Drupal & IA | [site:name]'
+  og_description: 'Agence Drupal 11 : services, solutions IA et cas clients.'
+  og_url: '[site:url]'
+  og_type: website
+  twitter_cards_type: summary
+  twitter_cards_title: 'Agence Drupal & IA | [site:name]'
+  twitter_cards_description: 'Agence Drupal 11 : services, solutions IA et cas clients.'

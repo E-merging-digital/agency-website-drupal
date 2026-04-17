@@ -6,3 +6,25 @@ declare(strict_types=1);
  * @file
  * Theme hooks and preprocess functions for the Emerging Digital theme.
  */
+
+/**
+ * Implements hook_preprocess_paragraph().
+ */
+function emerging_digital_preprocess_paragraph(array &$variables): void {
+  $paragraph = $variables['paragraph'] ?? NULL;
+  if (!$paragraph) {
+    return;
+  }
+
+  $bundle = $paragraph->bundle();
+
+  if (isset($variables['content']['field_link'][0])) {
+    $variables['content']['field_link'][0]['#options']['attributes']['class'][] = 'button';
+    $variables['content']['field_link'][0]['#options']['attributes']['class'][] = 'button--primary';
+  }
+
+  if ($bundle === 'hero' && isset($variables['content']['field_secondary_link'][0])) {
+    $variables['content']['field_secondary_link'][0]['#options']['attributes']['class'][] = 'button';
+    $variables['content']['field_secondary_link'][0]['#options']['attributes']['class'][] = 'button--secondary';
+  }
+}

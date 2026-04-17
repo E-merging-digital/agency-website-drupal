@@ -1,9 +1,11 @@
 <article{{ attributes.addClass('node', 'node--page', 'strategic-page') }}>
-  <header class="node__header strategic-page__hero">
-    {{ title_prefix }}
-    <h1{{ title_attributes.addClass('node__title') }}>{{ label }}</h1>
-    {{ title_suffix }}
-  </header>
+  {% if not is_front %}
+    <header class="node__header strategic-page__hero">
+      {{ title_prefix }}
+      <h1{{ title_attributes.addClass('node__title') }}>{{ label }}</h1>
+      {{ title_suffix }}
+    </header>
+  {% endif %}
 
   <div class="node__content strategic-page__content">
     {{ content }}

@@ -36,11 +36,21 @@ button:focus-visible {
   box-shadow: 0 12px 24px rgb(0 91 187 / 24%);
 }
 
+.button--primary {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
 .button--secondary {
   border-color: var(--color-border);
   background: #fff;
   color: var(--color-text);
   box-shadow: none;
+}
+
+.button--secondary:hover,
+.button--secondary:focus-visible {
+  box-shadow: 0 6px 14px rgb(17 24 39 / 12%);
 }
 
 .ed-section {
@@ -104,6 +114,13 @@ button:focus-visible {
   flex-wrap: wrap;
   gap: var(--space-3);
   margin-top: var(--space-5);
+}
+
+.ed-actions__primary .button,
+.ed-actions__primary a,
+.ed-actions__secondary .button,
+.ed-actions__secondary a {
+  text-decoration: none;
 }
 
 .ed-actions__secondary .button,

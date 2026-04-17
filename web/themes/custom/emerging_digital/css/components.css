@@ -16,7 +16,10 @@ button {
   color: var(--color-primary-contrast);
   font: inherit;
   font-weight: 600;
+  line-height: 1.2;
   text-decoration: none;
+  box-shadow: 0 8px 18px rgb(0 91 187 / 20%);
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
   cursor: pointer;
 }
 
@@ -29,51 +32,78 @@ input[type="button"]:focus-visible,
 button:hover,
 button:focus-visible {
   filter: brightness(0.95);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgb(0 91 187 / 24%);
 }
 
 .button--secondary {
   border-color: var(--color-border);
   background: #fff;
   color: var(--color-text);
+  box-shadow: none;
 }
 
 .ed-section {
+  position: relative;
   padding-block: clamp(2.5rem, 6vw, 5rem);
 }
 
 .ed-container {
-  width: min(100%, var(--container-width));
+  width: min(100% - (2 * var(--space-4)), var(--container-width));
   margin-inline: auto;
 }
 
 .ed-section__title {
   margin: 0 0 var(--space-3);
   font-size: clamp(1.55rem, 2.4vw, 2.35rem);
+  letter-spacing: -0.02em;
 }
 
 .ed-section__intro,
 .ed-section__content {
   max-width: 72ch;
   color: var(--color-muted);
+  font-size: 1.05rem;
 }
 
 .ed-section--hero {
+  isolation: isolate;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: linear-gradient(130deg, #f8fbff 0%, #edf2ff 100%);
   padding: clamp(2rem, 6vw, 4.5rem);
+  overflow: hidden;
+}
+
+.ed-section--hero::after {
+  content: "";
+  position: absolute;
+  right: clamp(-6rem, -2vw, -2rem);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(34rem, 48vw);
+  aspect-ratio: 1;
+  background: url("../images/home/home-hero-ia-drupal.svg") no-repeat center / contain;
+  opacity: 0.24;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .ed-section__title--hero {
   font-size: clamp(2rem, 4vw, 3.25rem);
-  max-width: 18ch;
+  max-width: 16ch;
+  margin-bottom: var(--space-4);
+}
+
+.ed-section--hero .ed-section__intro {
+  max-width: 62ch;
 }
 
 .ed-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
 }
 
 .ed-actions__secondary .button,
@@ -81,20 +111,27 @@ button:focus-visible {
   border: 1px solid var(--color-border);
   background: #fff;
   color: var(--color-text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
 }
 
 .ed-cards {
   display: grid;
   gap: var(--space-4);
-  margin-top: var(--space-4);
+  margin-top: clamp(1.5rem, 2.5vw, 2rem);
 }
 
 .ed-card {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: #fff;
-  padding: 1.25rem;
+  padding: clamp(1.1rem, 2.2vw, 1.5rem);
   box-shadow: var(--shadow-sm);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.ed-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgb(17 24 39 / 8%);
 }
 
 .ed-card h3 {
@@ -105,6 +142,10 @@ button:focus-visible {
 .ed-card p {
   margin: 0;
   color: var(--color-muted);
+}
+
+.ed-card--case p + p {
+  margin-top: 0.7rem;
 }
 
 .ed-section--ai-features-grid {
@@ -128,15 +169,18 @@ button:focus-visible {
 }
 
 .ed-trust-list li {
-  border-left: 3px solid var(--color-primary);
-  padding-left: var(--space-3);
+  border: 1px solid #dbe5ff;
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: #f8fbff;
+  padding: 0.85rem var(--space-3);
   font-weight: 500;
 }
 
 .ed-cta {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: #1c2b4a;
+  background: linear-gradient(130deg, #1c2b4a 0%, #253a66 100%);
   color: #fff;
   padding: clamp(1.5rem, 4vw, 2.5rem);
   text-align: center;
@@ -147,10 +191,15 @@ button:focus-visible {
   color: #d7e2ff;
 }
 
+.ed-cta .ed-actions {
+  justify-content: center;
+}
+
 .ed-cta .button,
 .ed-cta a {
   background: #fff;
   color: #1c2b4a;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 20%);
 }
 
 .strategic-page__content {
@@ -170,5 +219,31 @@ button:focus-visible {
 
   .ed-trust-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48rem) {
+  .ed-section--hero::after {
+    right: -3.5rem;
+    top: auto;
+    bottom: -4rem;
+    transform: none;
+    width: min(20rem, 74vw);
+    opacity: 0.18;
+  }
+
+  .ed-actions,
+  .ed-cta .ed-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ed-actions > * {
+    width: 100%;
+  }
+
+  .ed-actions .button,
+  .ed-actions a {
+    width: 100%;
   }
 }

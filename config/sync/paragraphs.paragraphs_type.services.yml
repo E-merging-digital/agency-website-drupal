@@ -4,5 +4,7 @@ status: true
 dependencies: {  }
 id: services
 label: 'Services grid'
+icon_uuid: null
+icon_default: null
 description: 'Grille de services avec cartes titre + description.'
 behavior_plugins: {  }

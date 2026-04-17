@@ -38,16 +38,13 @@ module:
   node: 0
   options: 0
   page_cache: 0
-  paragraphs: 11
   path: 0
   path_alias: 0
-  pathauto: 1
   redirect: 0
-  serialization: 0
   search: 0
+  serialization: 0
   shortcut: 0
   simple_sitemap: 0
-  standard: 1000
   system: 0
   taxonomy: 0
   text: 0
@@ -55,8 +52,11 @@ module:
   toolbar: 0
   update: 0
   user: 0
-  views: 10
   views_ui: 0
+  pathauto: 1
+  views: 10
+  paragraphs: 11
+  standard: 1000
 theme:
   emerging_digital: 0
   olivero: 0

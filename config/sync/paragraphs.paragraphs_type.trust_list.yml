@@ -4,5 +4,7 @@ status: true
 dependencies: {  }
 id: trust_list
 label: 'Trust list'
+icon_uuid: null
+icon_default: null
 description: 'Liste de points de confiance.'
 behavior_plugins: {  }

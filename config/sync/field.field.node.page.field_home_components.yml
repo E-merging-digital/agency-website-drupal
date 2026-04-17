@@ -37,25 +37,25 @@ settings:
       cta: cta
     negate: 0
     target_bundles_drag_drop:
-      hero:
-        weight: 1
-        enabled: true
-      text_block:
-        weight: 2
-        enabled: true
-      services:
-        weight: 3
-        enabled: true
       ai_features:
         weight: 4
         enabled: true
       case_clients:
         weight: 5
         enabled: true
-      trust_list:
-        weight: 6
-        enabled: true
       cta:
         weight: 7
+        enabled: true
+      hero:
+        weight: 1
+        enabled: true
+      services:
+        weight: 3
+        enabled: true
+      text_block:
+        weight: 2
+        enabled: true
+      trust_list:
+        weight: 6
         enabled: true
 field_type: entity_reference_revisions

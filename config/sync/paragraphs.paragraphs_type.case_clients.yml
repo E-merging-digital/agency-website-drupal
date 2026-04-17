@@ -4,5 +4,7 @@ status: true
 dependencies: {  }
 id: case_clients
 label: 'Case studies'
+icon_uuid: null
+icon_default: null
 description: 'Bloc de cas clients avec problème, solution et résultat.'
 behavior_plugins: {  }

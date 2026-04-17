@@ -28,3 +28,10 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
     $variables['content']['field_secondary_link'][0]['#options']['attributes']['class'][] = 'button--secondary';
   }
 }
+
+/**
+ * Implements hook_preprocess_paragraph__hero().
+ */
+function emerging_digital_preprocess_paragraph__hero(array &$variables): void {
+  $variables['heading_tag'] = !empty($variables['is_front']) ? 'h1' : 'h2';
+}

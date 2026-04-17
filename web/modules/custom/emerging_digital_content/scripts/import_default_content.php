@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * @file
+ * Imports packaged default content for local/bootstrap workflows.
+ */
+
 declare(strict_types=1);
 
 require_once DRUPAL_ROOT . '/modules/custom/emerging_digital_content/emerging_digital_content.install';
@@ -13,6 +18,6 @@ $importer->importContent('emerging_digital_content');
   ->set('page.front', '/accueil')
   ->save(TRUE);
 
-  \Drupal::state()->set('system.maintenance_mode', 0);
+\Drupal::state()->set('system.maintenance_mode', 0);
 
 print "Default content imported and front page set to /accueil.\n";

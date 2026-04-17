@@ -1,11 +1,11 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * @file
  * Post-update hooks for Emerging Digital Content.
  */
+
+declare(strict_types=1);
 
 /**
  * Imports packaged default content for already-installed environments.

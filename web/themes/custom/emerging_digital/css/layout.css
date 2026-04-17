@@ -24,12 +24,12 @@
 }
 
 .page-main--front {
-  padding-block: var(--space-7);
+  padding-block: clamp(2rem, 5vw, 3.5rem);
 }
 
 .front-layout {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .page-footer {

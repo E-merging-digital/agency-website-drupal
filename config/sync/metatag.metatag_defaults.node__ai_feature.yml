@@ -1,0 +1,12 @@
+uuid: 3dec4bcf-45c9-4ddb-a54c-7c2aee536f65
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node__ai_feature
+label: 'Content: Fonctionnalité IA'
+tags:
+  title: '[node:title] | [site:name]'
+  description: '[node:field_short_description:value]'
+  canonical_url: '[node:url]'

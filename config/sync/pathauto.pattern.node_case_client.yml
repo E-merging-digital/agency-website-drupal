@@ -1,0 +1,22 @@
+uuid: cb90a0fe-df18-4584-9cdf-404b80018582
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node_case_client
+label: 'Content path pattern (Cas client)'
+type: 'canonical_entities:node'
+pattern: 'cas-clients/[node:title]'
+selection_criteria:
+  ca74dee3-e177-4818-91b6-83009a5b3f75:
+    id: 'entity_bundle:node'
+    negate: false
+    uuid: ca74dee3-e177-4818-91b6-83009a5b3f75
+    context_mapping:
+      node: node
+    bundles:
+      case_client: case_client
+selection_logic: and
+weight: -7
+relationships: {  }

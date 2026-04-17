@@ -1,0 +1,12 @@
+uuid: b221ca12-be61-4678-9343-8a7285fb20da
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node__article
+label: 'Content: Article'
+tags:
+  title: '[node:title] | [site:name]'
+  description: '[node:field_short_description:value]'
+  canonical_url: '[node:url]'

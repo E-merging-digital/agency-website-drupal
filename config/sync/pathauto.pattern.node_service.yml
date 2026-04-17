@@ -1,0 +1,22 @@
+uuid: 8d039650-6bbd-4f03-8671-53ae777331dc
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node_service
+label: 'Content path pattern (Service)'
+type: 'canonical_entities:node'
+pattern: 'services/[node:title]'
+selection_criteria:
+  5d6066ce-be42-4d75-ae05-c4044020944c:
+    id: 'entity_bundle:node'
+    negate: false
+    uuid: 5d6066ce-be42-4d75-ae05-c4044020944c
+    context_mapping:
+      node: node
+    bundles:
+      service: service
+selection_logic: and
+weight: -9
+relationships: {  }

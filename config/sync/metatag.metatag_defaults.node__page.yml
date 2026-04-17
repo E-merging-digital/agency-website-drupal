@@ -1,0 +1,12 @@
+uuid: a5bf0e5b-0c01-4c25-886e-343851eae18f
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node__page
+label: 'Content: Page'
+tags:
+  title: '[node:title] | [site:name]'
+  description: '[node:title] - [site:name]'
+  canonical_url: '[node:url]'

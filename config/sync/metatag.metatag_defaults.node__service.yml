@@ -1,0 +1,12 @@
+uuid: 06f680a1-ea01-4396-8b93-f818b69e51bd
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node__service
+label: 'Content: Service'
+tags:
+  title: '[node:title] | [site:name]'
+  description: '[node:field_short_description:value]'
+  canonical_url: '[node:url]'

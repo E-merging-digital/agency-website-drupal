@@ -1,0 +1,12 @@
+uuid: a8224e19-286d-45d5-92ee-39c1ac6beb18
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node__case_client
+label: 'Content: Cas client'
+tags:
+  title: '[node:title] | [site:name]'
+  description: '[node:field_short_description:value]'
+  canonical_url: '[node:url]'

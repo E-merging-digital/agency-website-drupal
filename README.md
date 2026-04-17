@@ -327,3 +327,32 @@ drush cim -y
 ```
 
 Vérifier que l’export ne contient aucun secret avant commit.
+
+## Ticket #10 — Formulaire de contact (Webform) : gestion manuelle
+
+Pour garder une implémentation simple et maintenable, le formulaire de contact **n'est pas créé automatiquement** par post-update.
+
+### Pré-requis
+
+- Module `webform` installé via Composer.
+- Module `webform` activé dans Drupal.
+
+### Créer le formulaire dans l’admin
+
+1. Aller dans **Structure → Webforms → Add webform**.
+2. Créer un formulaire `contact` (ou équivalent) avec au minimum :
+   - `Nom` (textfield, requis)
+   - `E-mail` (email, requis)
+   - `Message` (textarea, requis)
+3. Enregistrer et tester une soumission.
+
+### Intégrer le formulaire sur la page Contact
+
+Option recommandée (sans automatisation implicite) :
+
+1. Aller dans **Structure → Block layout**.
+2. Placer le block Webform dans une région adaptée du thème `emerging_digital`.
+3. Limiter l’affichage du block au chemin `/contact` via les conditions de visibilité.
+4. Vider le cache (`ddev drush cr`) et vérifier le rendu.
+
+Cette approche évite les effets de bord des post-updates complexes et laisse la main à l’équipe éditoriale.

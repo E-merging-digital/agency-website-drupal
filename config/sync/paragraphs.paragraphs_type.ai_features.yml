@@ -4,5 +4,7 @@ status: true
 dependencies: {  }
 id: ai_features
 label: 'AI features grid'
+icon_uuid: null
+icon_default: null
 description: 'Bloc des fonctionnalités IA sous forme de grille.'
 behavior_plugins: {  }

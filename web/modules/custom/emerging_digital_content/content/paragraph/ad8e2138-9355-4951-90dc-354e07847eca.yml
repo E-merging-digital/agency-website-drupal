@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "ad8e2138-9355-4951-90dc-354e07847eca"
+  bundle: text_block
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Drupal solide. Expérience claire. IA utile.
+  field_text:
+    -
+      value: "Nous aidons les organisations à structurer leur présence digitale avec Drupal, à améliorer la qualité de leurs contenus et à intégrer l’IA de manière concrète : rédaction assistée, optimisation SEO, traduction, enrichissement automatique des contenus."
+      format: basic_html
+  status:
+    -
+      value: true

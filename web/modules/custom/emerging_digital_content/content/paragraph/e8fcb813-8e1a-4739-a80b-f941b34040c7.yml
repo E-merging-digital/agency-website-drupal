@@ -1,0 +1,14 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "e8fcb813-8e1a-4739-a80b-f941b34040c7"
+  bundle: cta
+  default_langcode: en
+default:
+  field_link:
+    -
+      uri: "internal:/contact"
+      title: Envoyer une demande
+  status:
+    -
+      value: true

@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "855b08da-0ec9-4261-883a-d27f214606e6"
+  bundle: text_block
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Formulaire
+  field_text:
+    -
+      value: Nom / Email / Organisation / Message
+      format: basic_html
+  status:
+    -
+      value: true

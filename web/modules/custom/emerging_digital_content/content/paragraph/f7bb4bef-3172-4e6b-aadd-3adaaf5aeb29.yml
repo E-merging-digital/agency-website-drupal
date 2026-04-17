@@ -1,0 +1,29 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "f7bb4bef-3172-4e6b-aadd-3adaaf5aeb29"
+  bundle: ai_features
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Cas d’usage
+  field_items:
+    -
+      value: "Rédaction assistée : Génération de contenu, reformulation, amélioration de texte."
+      format: basic_html
+    -
+      value: "Correction éditoriale : Amélioration de la qualité linguistique et du ton."
+      format: basic_html
+    -
+      value: "SEO intelligent : Suggestions pour améliorer la visibilité."
+      format: basic_html
+    -
+      value: "Traduction : Adaptation de contenus multilingues."
+      format: basic_html
+    -
+      value: "Enrichissement automatique : Tags, résumés, structuration."
+      format: basic_html
+  status:
+    -
+      value: true

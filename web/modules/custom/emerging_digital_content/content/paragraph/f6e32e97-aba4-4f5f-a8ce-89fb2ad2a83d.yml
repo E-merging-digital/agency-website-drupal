@@ -1,0 +1,26 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "f6e32e97-aba4-4f5f-a8ce-89fb2ad2a83d"
+  bundle: trust_list
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Bénéfices
+  field_items:
+    -
+      value: Gain de temps
+      format: basic_html
+    -
+      value: Meilleure qualité éditoriale
+      format: basic_html
+    -
+      value: Cohérence des contenus
+      format: basic_html
+    -
+      value: Accessibilité améliorée
+      format: basic_html
+  status:
+    -
+      value: true

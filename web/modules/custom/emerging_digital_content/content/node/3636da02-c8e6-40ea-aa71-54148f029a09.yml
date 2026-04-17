@@ -1,0 +1,41 @@
+_meta:
+  version: 1.0
+  entity_type: node
+  uuid: "3636da02-c8e6-40ea-aa71-54148f029a09"
+  bundle: page
+  default_langcode: en
+  depends:
+    bfa1a9d3-2715-4a04-8758-d14ece990e6e: paragraph
+    65be59ce-5a5e-44ec-9c63-b0796b0dd6f9: paragraph
+    f7bb4bef-3172-4e6b-aadd-3adaaf5aeb29: paragraph
+    f6e32e97-aba4-4f5f-a8ce-89fb2ad2a83d: paragraph
+    3d0518cf-cf7a-4cac-a2eb-ee80c1ba63f9: paragraph
+    f4581518-8acc-4632-8b25-884776b3aeb4: paragraph
+default:
+  uid:
+    -
+      target_id: 1
+  status:
+    -
+      value: true
+  title:
+    -
+      value: "IA & Drupal"
+  field_home_components:
+    -
+      entity: "bfa1a9d3-2715-4a04-8758-d14ece990e6e"
+    -
+      entity: "65be59ce-5a5e-44ec-9c63-b0796b0dd6f9"
+    -
+      entity: "f7bb4bef-3172-4e6b-aadd-3adaaf5aeb29"
+    -
+      entity: "f6e32e97-aba4-4f5f-a8ce-89fb2ad2a83d"
+    -
+      entity: "3d0518cf-cf7a-4cac-a2eb-ee80c1ba63f9"
+    -
+      entity: "f4581518-8acc-4632-8b25-884776b3aeb4"
+  path:
+    -
+      alias: "/ia-drupal"
+      langcode: en
+      pathauto: false

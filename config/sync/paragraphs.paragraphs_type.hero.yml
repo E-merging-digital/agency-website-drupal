@@ -4,5 +4,7 @@ status: true
 dependencies: {  }
 id: hero
 label: Hero
-description: 'Bloc Hero pour la page d''accueil.'
+icon_uuid: null
+icon_default: null
+description: "Bloc Hero pour la page d'accueil."
 behavior_plugins: {  }

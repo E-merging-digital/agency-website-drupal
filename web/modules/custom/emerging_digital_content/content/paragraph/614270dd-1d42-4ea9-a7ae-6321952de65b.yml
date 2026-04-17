@@ -1,0 +1,53 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "614270dd-1d42-4ea9-a7ae-6321952de65b"
+  bundle: case_clients
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: "Des projets clairs, utiles et durables"
+  field_items:
+    -
+      value: Refonte d’un site institutionnel Drupal
+      format: basic_html
+    -
+      value: Modernisation d’un site existant
+      format: basic_html
+    -
+      value: Mise en valeur de services complexes
+      format: basic_html
+  field_case_problem:
+    -
+      value: Site institutionnel difficile à maintenir.
+      format: basic_html
+    -
+      value: Socle Drupal vieillissant et dette technique.
+      format: basic_html
+    -
+      value: Offres perçues comme complexes et confuses.
+      format: basic_html
+  field_case_solution:
+    -
+      value: Structure clarifiée et parcours d’édition simplifié.
+      format: basic_html
+    -
+      value: Migration maîtrisée et assainissement technique.
+      format: basic_html
+    -
+      value: Contenus simplifiés et hiérarchie clarifiée.
+      format: basic_html
+  field_case_result:
+    -
+      value: Édition facilitée et meilleures performances.
+      format: basic_html
+    -
+      value: Base technique stabilisée.
+      format: basic_html
+    -
+      value: Meilleure lisibilité et meilleure conversion.
+      format: basic_html
+  status:
+    -
+      value: true

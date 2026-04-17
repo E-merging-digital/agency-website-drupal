@@ -4,5 +4,7 @@ status: true
 dependencies: {  }
 id: cta
 label: 'CTA block'
+icon_uuid: null
+icon_default: null
 description: 'Bloc call-to-action final.'
 behavior_plugins: {  }

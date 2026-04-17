@@ -180,17 +180,13 @@ Toutes les pages de type `page` utilisent `field_home_components` (entity_refere
 
 ## 5) Initialisation automatique de la frontpage
 
-Pour créer et placer automatiquement les blocs sur la frontpage (sans version statique hardcodée), utiliser l'update hook:
+L'initialisation se fait via `default_content` (pas via update hook custom) :
 
-- Module: `agency_content_seed`
-- Fichier: `web/modules/custom/agency_content_seed/agency_content_seed.post_update.php`
-- Fonction: `agency_content_seed_post_update_frontpage_paragraphs()`
-
-Commande d'exécution:
-- `drush updb -y`
+- Module de contenu: `emerging_digital_content`
+- Export versionné: `web/modules/custom/emerging_digital_content/content/`
+- Import: `drush en default_content emerging_digital_content -y`
 
 Effet:
-- crée/met à jour la page `Accueil`
-- crée les Paragraphs dans l’ordre éditorial validé
-- assigne ces Paragraphs à `field_home_components`
-- positionne la frontpage sur ce nœud via `system.site:page.front`
+- importe les pages stratégiques et leurs Paragraphs liés
+- évite les doublons via UUID d'entités
+- positionne la frontpage sur `/accueil` (config Drupal + install hook du module)

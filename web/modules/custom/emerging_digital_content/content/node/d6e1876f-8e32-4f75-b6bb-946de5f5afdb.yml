@@ -1,0 +1,38 @@
+_meta:
+  version: 1.0
+  entity_type: node
+  uuid: "d6e1876f-8e32-4f75-b6bb-946de5f5afdb"
+  bundle: page
+  default_langcode: en
+  depends:
+    50c9c0ef-85f8-49a3-819c-4aa63ddd1737: paragraph
+    2eb8e4b6-37d0-47cc-8702-7a850dd94c15: paragraph
+    11c3e2e1-78c9-491d-814c-b204bc2f5338: paragraph
+    2f4f723a-90d5-4a95-84dc-333363d51655: paragraph
+    cfe7d994-e099-44b4-a0cc-12c69760288e: paragraph
+default:
+  uid:
+    -
+      target_id: 1
+  status:
+    -
+      value: true
+  title:
+    -
+      value: Services
+  field_home_components:
+    -
+      entity: "50c9c0ef-85f8-49a3-819c-4aa63ddd1737"
+    -
+      entity: "2eb8e4b6-37d0-47cc-8702-7a850dd94c15"
+    -
+      entity: "11c3e2e1-78c9-491d-814c-b204bc2f5338"
+    -
+      entity: "2f4f723a-90d5-4a95-84dc-333363d51655"
+    -
+      entity: "cfe7d994-e099-44b4-a0cc-12c69760288e"
+  path:
+    -
+      alias: /services
+      langcode: en
+      pathauto: false

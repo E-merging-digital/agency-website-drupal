@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "8236e39f-2bcf-4758-a441-c9f6eb8f75f6"
+  bundle: text_block
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Informations
+  field_text:
+    -
+      value: Disponible pour projets en Wallonie et Bruxelles.
+      format: basic_html
+  status:
+    -
+      value: true

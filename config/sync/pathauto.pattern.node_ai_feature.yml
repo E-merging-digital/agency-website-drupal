@@ -1,0 +1,22 @@
+uuid: 2fd977f2-104b-4129-9675-8f66e6488d6a
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node_ai_feature
+label: 'Content path pattern (Fonctionnalité IA)'
+type: 'canonical_entities:node'
+pattern: 'ia/[node:title]'
+selection_criteria:
+  8d7f8da3-6ec4-44ed-85e5-00296c84173b:
+    id: 'entity_bundle:node'
+    negate: false
+    uuid: 8d7f8da3-6ec4-44ed-85e5-00296c84173b
+    context_mapping:
+      node: node
+    bundles:
+      ai_feature: ai_feature
+selection_logic: and
+weight: -6
+relationships: {  }

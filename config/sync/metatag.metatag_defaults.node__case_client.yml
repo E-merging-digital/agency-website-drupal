@@ -1,0 +1,19 @@
+uuid: a8224e19-286d-45d5-92ee-39c1ac6beb18
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node__case_client
+label: 'Content: Cas client'
+tags:
+  title: '[node:title] | [site:name]'
+  description: '[node:field_short_description:value]'
+  canonical_url: '[node:url]'
+  og_title: '[node:title] | [site:name]'
+  og_description: '[node:field_short_description:value]'
+  og_url: '[node:url]'
+  og_type: website
+  twitter_cards_type: summary
+  twitter_cards_title: '[node:title] | [site:name]'
+  twitter_cards_description: '[node:field_short_description:value]'

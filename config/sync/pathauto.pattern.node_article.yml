@@ -1,0 +1,22 @@
+uuid: 10315169-eb0f-42be-9776-7f80047a3843
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node_article
+label: 'Content path pattern (Article)'
+type: 'canonical_entities:node'
+pattern: 'actualites/[node:title]'
+selection_criteria:
+  dc548961-b1bc-41a1-b140-62ca0fd8f9fe:
+    id: 'entity_bundle:node'
+    negate: false
+    uuid: dc548961-b1bc-41a1-b140-62ca0fd8f9fe
+    context_mapping:
+      node: node
+    bundles:
+      article: article
+selection_logic: and
+weight: -8
+relationships: {  }

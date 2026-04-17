@@ -1,0 +1,19 @@
+uuid: a5bf0e5b-0c01-4c25-886e-343851eae18f
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+id: node__page
+label: 'Content: Page'
+tags:
+  title: '[node:title] | [site:name]'
+  description: 'Page institutionnelle de [site:name].'
+  canonical_url: '[node:url]'
+  og_title: '[node:title] | [site:name]'
+  og_description: 'Page institutionnelle de [site:name].'
+  og_url: '[node:url]'
+  og_type: website
+  twitter_cards_type: summary
+  twitter_cards_title: '[node:title] | [site:name]'
+  twitter_cards_description: 'Page institutionnelle de [site:name].'

@@ -35,3 +35,18 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
 function emerging_digital_preprocess_paragraph__hero(array &$variables): void {
   $variables['heading_tag'] = !empty($variables['is_front']) ? 'h1' : 'h2';
 }
+
+/**
+ * Implements hook_preprocess_block().
+ */
+function emerging_digital_preprocess_block(array &$variables): void {
+  if (($variables['plugin_id'] ?? '') !== 'page_title_block') {
+    return;
+  }
+
+  if (!empty($variables['elements']['#base_plugin_id']) && $variables['elements']['#base_plugin_id'] === 'page_title_block') {
+    if (\Drupal::service('path.matcher')->isFrontPage()) {
+      $variables['content'] = [];
+    }
+  }
+}

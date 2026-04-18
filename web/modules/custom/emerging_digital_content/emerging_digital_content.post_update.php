@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-use Drupal\menu_link_content\Entity\MenuLinkContent;
+use Drupal\emerging_digital_content\MainNavigationManager;
 
 /**
  * Imports packaged default content for already-installed environments.

@@ -44,3 +44,29 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
 function emerging_digital_preprocess_paragraph__hero(array &$variables): void {
   $variables['heading_tag'] = !empty($variables['is_front']) ? 'h1' : 'h2';
 }
+
+/**
+ * Implements hook_page_attachments().
+ */
+function emerging_digital_page_attachments(array &$attachments): void {
+  $theme_path = \Drupal::service('extension.list.theme')->getPath('emerging_digital');
+
+  $attachments['#attached']['html_head_link'][] = [
+    [
+      'rel' => 'icon',
+      'type' => 'image/svg+xml',
+      'href' => base_path() . $theme_path . '/images/branding/emerging-digital-favicon.svg',
+    ],
+    'emerging_digital_favicon_svg',
+  ];
+
+  $attachments['#attached']['html_head_link'][] = [
+    [
+      'rel' => 'icon',
+      'type' => 'image/png',
+      'href' => base_path() . $theme_path . '/images/branding/emerging-digital-favicon.png',
+      'sizes' => '64x64',
+    ],
+    'emerging_digital_favicon_png',
+  ];
+}

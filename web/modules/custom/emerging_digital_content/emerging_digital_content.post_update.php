@@ -180,7 +180,7 @@ function emerging_digital_content_post_update_main_navigation_deduplicate_home_l
     if ($kept_id === NULL) {
       $kept_id = $link->id();
       if ($title !== 'Accueil') {
-        $link->setTitle('Accueil');
+        $link->set('title', 'Accueil');
         $updated++;
       }
       if ((int) $link->get('weight')->value !== 0) {

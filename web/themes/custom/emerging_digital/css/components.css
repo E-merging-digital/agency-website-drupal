@@ -3,7 +3,11 @@
 .button:visited,
 input[type="submit"],
 input[type="button"],
-button {
+button,
+.webform-button--submit,
+.webform-button--submit.button,
+.webform-submission-form .form-actions .button,
+.webform-submission-form .form-actions .button--primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -30,7 +34,11 @@ input[type="submit"]:focus-visible,
 input[type="button"]:hover,
 input[type="button"]:focus-visible,
 button:hover,
-button:focus-visible {
+button:focus-visible,
+.webform-button--submit:hover,
+.webform-button--submit:focus-visible,
+.webform-submission-form .form-actions .button:hover,
+.webform-submission-form .form-actions .button:focus-visible {
   filter: brightness(0.95);
   transform: translateY(-1px);
   box-shadow: 0 12px 24px rgb(0 91 187 / 24%);

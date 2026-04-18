@@ -7,7 +7,7 @@
 
 declare(strict_types=1);
 
-use Drupal\menu_link_content\Entity\MenuLinkContent;
+use Drupal\emerging_digital_content\MainNavigationManager;
 
 /**
  * Imports packaged default content for already-installed environments.
@@ -40,7 +40,7 @@ function emerging_digital_content_post_update_import_default_content(array &$san
  * Creates missing main navigation links for the public website pages.
  */
 function emerging_digital_content_post_update_main_navigation_links(array &$sandbox): string {
-  $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+  $updated = MainNavigationManager::ensureMainNavigationLinks();
 
   $links = [
     ['title' => 'Accueil', 'uri' => 'internal:/', 'weight' => 0],

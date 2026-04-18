@@ -76,6 +76,37 @@ button:focus-visible {
   font-size: 1.05rem;
 }
 
+.ed-section__content--contact-form {
+  max-width: min(100%, 52rem);
+}
+
+.ed-section__content--contact-form form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ed-section__content--contact-form .form-item {
+  margin: 0;
+}
+
+.ed-section__content--contact-form label {
+  display: inline-block;
+  margin-bottom: 0.4rem;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.ed-section__content--contact-form input,
+.ed-section__content--contact-form textarea,
+.ed-section__content--contact-form select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.8rem;
+  font: inherit;
+  background: #fff;
+}
+
 .ed-section--hero {
   isolation: isolate;
   border: 1px solid var(--color-border);

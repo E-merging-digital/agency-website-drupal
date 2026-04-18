@@ -3,6 +3,12 @@
     {% if paragraph.field_heading.value %}
       <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
     {% endif %}
-    <div class="ed-section__content">{{ content.field_text }}</div>
+    <div class="ed-section__content{% if contact_webform is defined %} ed-section__content--contact-form{% endif %}">
+      {% if contact_webform is defined %}
+        {{ contact_webform }}
+      {% else %}
+        {{ content.field_text }}
+      {% endif %}
+    </div>
   </div>
 </section>

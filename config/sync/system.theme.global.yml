@@ -11,6 +11,6 @@ features:
   favicon: true
   node_user_picture: true
 logo:
-  path: themes/custom/emerging_digital/images/branding/emerging-digital-logo.svg
+  path: themes/custom/emerging_digital/images/branding/emerging-digital-mark.svg
   url: null
   use_default: false

@@ -4,7 +4,7 @@
  * Theme override for the site branding block.
  */
 #}
-{% set logo_alt = site_name|default('Emerging Digital') %}
+{% set logo_alt = site_name ?: 'Site logo' %}
 <div{{ attributes.addClass('site-branding') }}>
   {{ title_prefix }}
   {{ title_suffix }}
@@ -15,13 +15,15 @@
     </a>
   {% endif %}
 
-  {% if site_name %}
-    <p class="site-name">
-      <a href="{{ path('<front>') }}" rel="home">{{ site_name }}</a>
-    </p>
-  {% endif %}
+  <div class="site-branding__text">
+    {% if site_name %}
+      <p class="site-name">
+        <a href="{{ path('<front>') }}" rel="home">{{ site_name }}</a>
+      </p>
+    {% endif %}
 
-  {% if site_slogan %}
-    <p class="site-slogan">{{ site_slogan }}</p>
-  {% endif %}
+    {% if site_slogan %}
+      <p class="site-slogan">{{ site_slogan }}</p>
+    {% endif %}
+  </div>
 </div>

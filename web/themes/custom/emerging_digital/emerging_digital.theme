@@ -27,6 +27,15 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
     $variables['content']['field_secondary_link'][0]['#options']['attributes']['class'][] = 'button';
     $variables['content']['field_secondary_link'][0]['#options']['attributes']['class'][] = 'button--secondary';
   }
+
+  if ($bundle === 'text_block' && $paragraph->uuid() === '855b08da-0ec9-4261-883a-d27f214606e6') {
+    $contact_webform = \Drupal\webform\Entity\Webform::load('contact');
+    if ($contact_webform) {
+      $variables['contact_webform'] = \Drupal::entityTypeManager()
+        ->getViewBuilder('webform')
+        ->view($contact_webform);
+    }
+  }
 }
 
 /**

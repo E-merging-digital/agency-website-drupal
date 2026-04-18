@@ -62,7 +62,7 @@ function emerging_digital_page_attachments(array &$attachments): void {
 
   $attachments['#attached']['html_head_link'][] = [
     [
-      'rel' => 'alternate icon',
+      'rel' => 'icon',
       'type' => 'image/png',
       'href' => base_path() . $theme_path . '/images/branding/emerging-digital-favicon.png',
       'sizes' => '64x64',

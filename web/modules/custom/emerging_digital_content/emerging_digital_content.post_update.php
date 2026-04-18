@@ -199,3 +199,63 @@ function emerging_digital_content_post_update_main_navigation_deduplicate_home_l
 
   return sprintf('%d homepage links removed, %d homepage links updated.', $removed, $updated);
 }
+
+/**
+ * Deduplicates home links using broader matching (title and URI variants).
+ */
+function emerging_digital_content_post_update_main_navigation_deduplicate_home_link_v2(array &$sandbox): string {
+  unset($sandbox);
+
+  $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+  $ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->execute();
+
+  if (!$ids) {
+    return 'No links found in main navigation.';
+  }
+
+  $links = $storage->loadMultiple($ids);
+  $kept_id = NULL;
+  $removed = 0;
+  $updated = 0;
+
+  foreach ($links as $link) {
+    $title = mb_strtolower(trim((string) $link->label()));
+    $uri = (string) ($link->get('link')->first()->getValue()['uri'] ?? '');
+    $is_home_title = in_array($title, ['accueil', 'home'], TRUE);
+    $is_front_uri = in_array($uri, ['internal:/', 'route:<front>', 'internal:/accueil'], TRUE);
+
+    if (!$is_home_title && !$is_front_uri) {
+      continue;
+    }
+
+    if ($kept_id === NULL) {
+      $kept_id = $link->id();
+
+      if ($link->label() !== 'Accueil') {
+        $link->set('title', 'Accueil');
+        $updated++;
+      }
+      if ($uri !== 'internal:/') {
+        $link->set('link', ['uri' => 'internal:/']);
+        $updated++;
+      }
+      if ((int) $link->get('weight')->value !== 0) {
+        $link->set('weight', 0);
+        $updated++;
+      }
+
+      if ($updated > 0) {
+        $link->save();
+      }
+      continue;
+    }
+
+    $link->delete();
+    $removed++;
+  }
+
+  return sprintf('%d homepage links removed, %d homepage links updated.', $removed, $updated);
+}

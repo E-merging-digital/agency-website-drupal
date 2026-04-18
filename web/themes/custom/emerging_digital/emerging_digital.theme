@@ -44,25 +44,3 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
 function emerging_digital_preprocess_paragraph__hero(array &$variables): void {
   $variables['heading_tag'] = !empty($variables['is_front']) ? 'h1' : 'h2';
 }
-
-/**
- * Implements hook_preprocess_page().
- */
-function emerging_digital_preprocess_page(array &$variables): void {
-  if (!\Drupal::service('path.matcher')->isFrontPage()) {
-    return;
-  }
-
-  if (empty($variables['page']['content']) || !is_array($variables['page']['content'])) {
-    return;
-  }
-
-  foreach (\Drupal\Core\Render\Element::children($variables['page']['content']) as $key) {
-    $plugin_id = $variables['page']['content'][$key]['#plugin_id'] ?? '';
-    $base_plugin_id = $variables['page']['content'][$key]['#base_plugin_id'] ?? '';
-
-    if ($plugin_id === 'page_title_block' || $base_plugin_id === 'page_title_block' || str_contains((string) $key, 'page_title')) {
-      unset($variables['page']['content'][$key]);
-    }
-  }
-}

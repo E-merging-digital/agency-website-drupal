@@ -2,6 +2,8 @@ uuid: 7810d906-b6ba-48c6-a69a-5edbebffa9d1
 langcode: en
 status: true
 dependencies:
+  module:
+    - system
   theme:
     - emerging_digital
 id: emerging_digital_page_title
@@ -15,4 +17,11 @@ settings:
   label: 'Page title'
   label_display: '0'
   provider: core
-visibility: {  }
+visibility:
+  request_path:
+    id: request_path
+    negate: true
+    context_mapping: {  }
+    pages: |
+      <front>
+      /accueil

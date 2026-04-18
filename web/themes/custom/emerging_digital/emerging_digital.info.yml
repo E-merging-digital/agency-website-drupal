@@ -14,3 +14,7 @@ regions:
   content: Content
   sidebar: Sidebar
   footer: Footer
+logo:
+  path: images/branding/emerging-digital-logo.svg
+favicon:
+  path: images/branding/emerging-digital-favicon.svg

@@ -1,0 +1,27 @@
+{#
+/**
+ * @file
+ * Theme override for the site branding block.
+ */
+#}
+{% set logo_alt = site_name|default('Emerging Digital') %}
+<div{{ attributes.addClass('site-branding') }}>
+  {{ title_prefix }}
+  {{ title_suffix }}
+
+  {% if site_logo %}
+    <a href="{{ path('<front>') }}" rel="home" class="site-logo">
+      <img src="{{ site_logo }}" alt="{{ logo_alt }}" decoding="async" fetchpriority="high" />
+    </a>
+  {% endif %}
+
+  {% if site_name %}
+    <p class="site-name">
+      <a href="{{ path('<front>') }}" rel="home">{{ site_name }}</a>
+    </p>
+  {% endif %}
+
+  {% if site_slogan %}
+    <p class="site-slogan">{{ site_slogan }}</p>
+  {% endif %}
+</div>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 64" role="img" aria-labelledby="title desc">
+  <title id="title">Emerging Digital</title>
+  <desc id="desc">Logo Emerging Digital avec monogramme ED et signature texte.</desc>
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="#0F2A4A"/>
+  <path d="M17 16h30v8H25v8h20v8H25v8h22v8H17V16z" fill="#6AD6FF"/>
+  <path d="M78 18h12c10 0 16 6 16 14s-6 14-16 14H78V18zm11 22c5 0 8-3 8-8s-3-8-8-8h-3v16h3z" fill="#0F2A4A"/>
+  <path d="M111 18h27v6h-19v5h17v6h-17v5h19v6h-27V18z" fill="#0F2A4A"/>
+  <path d="M144 18h7l11 18V18h8v28h-7l-11-18v18h-8V18z" fill="#0F2A4A"/>
+  <path d="M176 18h9l7 19 7-19h8l-11 28h-9l-11-28z" fill="#0F2A4A"/>
+  <path d="M211 18h8v28h-8V18z" fill="#0F2A4A"/>
+  <path d="M225 18h12c10 0 16 6 16 14s-6 14-16 14h-12V18zm11 22c5 0 8-3 8-8s-3-8-8-8h-3v16h3z" fill="#0F2A4A"/>
+  <path d="M266 18h8v22h14v6h-22V18z" fill="#0F2A4A"/>
+  <path d="M291 18h8v28h-8V18z" fill="#0F2A4A"/>
+</svg>

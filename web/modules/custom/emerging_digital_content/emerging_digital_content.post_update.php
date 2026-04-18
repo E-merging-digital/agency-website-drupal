@@ -7,8 +7,6 @@
 
 declare(strict_types=1);
 
-use Drupal\menu_link_content\Entity\MenuLinkContent;
-
 /**
  * Imports packaged default content for already-installed environments.
  */
@@ -72,7 +70,7 @@ function emerging_digital_content_post_update_main_navigation_links(array &$sand
       }
     }
 
-    MenuLinkContent::create([
+    \Drupal\menu_link_content\Entity\MenuLinkContent::create([
       'title' => $link['title'],
       'menu_name' => 'main',
       'link' => ['uri' => $link['uri']],

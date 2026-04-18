@@ -38,10 +38,17 @@
   flex-shrink: 0;
 }
 
+.page-header .site-branding {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .page-header .site-logo img {
   display: block;
   width: auto;
-  max-height: 2.2rem;
+  height: clamp(2rem, 2.8vw, 2.5rem);
+  max-width: min(12rem, 45vw);
 }
 
 .page-header .site-name {
@@ -176,8 +183,12 @@
     width: 100%;
   }
 
-  .page-header .main-navigation__link {
+  .page-header .site-branding {
     width: 100%;
-    min-height: 2.5rem;
+    justify-content: flex-start;
+  }
+
+  .page-header .menu {
+    gap: var(--space-2) var(--space-3);
   }
 }

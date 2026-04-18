@@ -66,6 +66,12 @@
   gap: var(--space-3);
 }
 
+.page-header .site-branding {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .page-header .site-logo img {
   display: block;
   width: auto;
@@ -208,6 +214,11 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-1);
     width: 100%;
+  }
+
+  .page-header .site-branding {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .page-header .site-branding {

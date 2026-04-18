@@ -7,12 +7,12 @@
 
 declare(strict_types=1);
 
-use Drupal\emerging_digital_content\MainNavigationManager;
-
 /**
  * Imports packaged default content for already-installed environments.
  */
 function emerging_digital_content_post_update_import_default_content(array &$sandbox): string {
+  unset($sandbox);
+
   $node_storage = \Drupal::entityTypeManager()->getStorage('node');
   $existing = $node_storage->loadByProperties([
     'type' => 'page',
@@ -40,7 +40,9 @@ function emerging_digital_content_post_update_import_default_content(array &$san
  * Creates missing main navigation links for the public website pages.
  */
 function emerging_digital_content_post_update_main_navigation_links(array &$sandbox): string {
-  $updated = MainNavigationManager::ensureMainNavigationLinks();
+  unset($sandbox);
+
+  $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
 
   $links = [
     ['title' => 'Accueil', 'uri' => 'internal:/', 'weight' => 0],
@@ -68,7 +70,7 @@ function emerging_digital_content_post_update_main_navigation_links(array &$sand
       }
     }
 
-    MenuLinkContent::create([
+    \Drupal\menu_link_content\Entity\MenuLinkContent::create([
       'title' => $link['title'],
       'menu_name' => 'main',
       'link' => ['uri' => $link['uri']],
@@ -87,6 +89,8 @@ function emerging_digital_content_post_update_main_navigation_links(array &$sand
  * Normalizes main navigation homepage links in French and removes duplicates.
  */
 function emerging_digital_content_post_update_main_navigation_home_link_cleanup(array &$sandbox): string {
+  unset($sandbox);
+
   $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
 
   $ids = \Drupal::entityQuery('menu_link_content')

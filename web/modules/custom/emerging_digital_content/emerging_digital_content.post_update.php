@@ -146,3 +146,56 @@ function emerging_digital_content_post_update_main_navigation_home_link_cleanup(
 
   return sprintf('%d homepage links removed, %d homepage settings updated.', $removed, $updated);
 }
+
+/**
+ * Ensures only one French homepage link remains in the main navigation.
+ */
+function emerging_digital_content_post_update_main_navigation_deduplicate_home_link(array &$sandbox): string {
+  unset($sandbox);
+
+  $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+
+  $ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->condition('title', ['Accueil', 'Home'], 'IN')
+    ->execute();
+
+  if (!$ids) {
+    return 'No Accueil/Home links found in main navigation.';
+  }
+
+  $links = $storage->loadMultiple($ids);
+  $kept_id = NULL;
+  $removed = 0;
+  $updated = 0;
+
+  foreach ($links as $link) {
+    $uri = (string) ($link->get('link')->first()->getValue()['uri'] ?? '');
+    if ($uri !== 'internal:/') {
+      continue;
+    }
+
+    $title = (string) $link->label();
+    if ($kept_id === NULL) {
+      $kept_id = $link->id();
+      if ($title !== 'Accueil') {
+        $link->setTitle('Accueil');
+        $updated++;
+      }
+      if ((int) $link->get('weight')->value !== 0) {
+        $link->set('weight', 0);
+        $updated++;
+      }
+      if ($updated > 0) {
+        $link->save();
+      }
+      continue;
+    }
+
+    $link->delete();
+    $removed++;
+  }
+
+  return sprintf('%d homepage links removed, %d homepage links updated.', $removed, $updated);
+}

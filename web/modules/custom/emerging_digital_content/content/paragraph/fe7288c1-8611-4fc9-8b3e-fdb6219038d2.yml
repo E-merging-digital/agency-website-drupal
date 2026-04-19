@@ -10,7 +10,7 @@ default:
       value: Informations
   field_text:
     -
-      value: '<p>Disponible pour projets en Wallonie et Bruxelles.</p><p>Interventions pour PME et ASBL.</p><p>Premier échange sans engagement.</p>'
+      value: '<p>Disponible pour projets en Wallonie et Bruxelles.</p><p>Interventions pour PME, ASBL et organisations publiques.</p><p>Habitué à travailler sur des projets structurés et exigeants.</p><p>Premier échange sans engagement.</p>'
       format: basic_html
   status:
     -

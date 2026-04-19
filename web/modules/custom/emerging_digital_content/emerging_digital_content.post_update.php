@@ -422,6 +422,13 @@ function emerging_digital_content_post_update_contact_page_professional_layout_v
 }
 
 /**
+ * Rejoue l'harmonisation Contact avec contenu Informations enrichi.
+ */
+function emerging_digital_content_post_update_contact_page_professional_layout_v4(array &$sandbox): string {
+  return emerging_digital_content_post_update_contact_page_professional_layout($sandbox);
+}
+
+/**
  * Valeurs de la section intro de la page Contact.
  */
 function _emerging_digital_content_contact_intro_values(): array {
@@ -475,7 +482,7 @@ function _emerging_digital_content_contact_information_values(): array {
     'status' => TRUE,
     'field_heading' => 'Informations',
     'field_text' => [
-      'value' => '<p>Disponible pour projets en Wallonie et Bruxelles.</p><p>Interventions pour PME et ASBL.</p><p>Premier échange sans engagement.</p>',
+      'value' => '<p>Disponible pour projets en Wallonie et Bruxelles.</p><p>Interventions pour PME, ASBL et organisations publiques.</p><p>Habitué à travailler sur des projets structurés et exigeants.</p><p>Premier échange sans engagement.</p>',
       'format' => 'basic_html',
     ],
   ];

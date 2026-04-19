@@ -5,9 +5,12 @@ _meta:
   bundle: text_block
   default_langcode: en
 default:
+  field_heading:
+    -
+      value: Intro
   field_text:
     -
-      value: Nous analysons votre situation et vous proposons des solutions adaptées.
+      value: '<p>Parlons de votre projet digital. Décrivez vos objectifs : nous revenons vers vous avec une réponse claire, structurée et orientée résultats.</p>'
       format: basic_html
   status:
     -

@@ -57,6 +57,7 @@ settings:
         - '<h4 id>'
         - '<h5 id>'
         - '<h6 id>'
+        - '<iframe title src width height style loading referrerpolicy allowfullscreen>'
 image_upload:
   status: true
   scheme: public

@@ -522,14 +522,48 @@ function emerging_digital_content_post_update_legal_notice_and_footer_links(arra
 <p>Informations d’hébergement disponibles sur demande.</p>
 HTML;
 
-  $legal_page->set('body', [
-    'value' => $legal_body,
-    'format' => 'basic_html',
-  ]);
-  $legal_page->set('path', [
-    'alias' => '/mentions-legales',
-    'pathauto' => 0,
-  ]);
+  if ($legal_page->hasField('body')) {
+    $legal_page->set('body', [
+      'value' => $legal_body,
+      'format' => 'basic_html',
+    ]);
+  }
+  elseif ($legal_page->hasField('field_home_components')) {
+    $legal_paragraph = NULL;
+    foreach ($legal_page->get('field_home_components')->referencedEntities() as $component) {
+      if ($component->bundle() !== 'text_block') {
+        continue;
+      }
+      if ((string) $component->get('field_heading')->value !== 'Mentions légales') {
+        continue;
+      }
+      $legal_paragraph = $component;
+      break;
+    }
+
+    $legal_paragraph = $legal_paragraph ?? Paragraph::create([
+      'type' => 'text_block',
+      'status' => TRUE,
+    ]);
+    $legal_paragraph->set('field_heading', 'Mentions légales');
+    $legal_paragraph->set('field_text', [
+      'value' => $legal_body,
+      'format' => 'basic_html',
+    ]);
+    $legal_paragraph->save();
+
+    $legal_page->set('field_home_components', [[
+      'target_id' => $legal_paragraph->id(),
+      'target_revision_id' => $legal_paragraph->getRevisionId(),
+    ]]);
+  }
+
+  if ($legal_page->hasField('path')) {
+    $legal_page->set('path', [
+      'alias' => '/mentions-legales',
+      'pathauto' => 0,
+    ]);
+  }
   $legal_page->setPublished();
   $legal_page->save();
 

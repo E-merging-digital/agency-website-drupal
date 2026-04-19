@@ -552,10 +552,12 @@ HTML;
     ]);
     $legal_paragraph->save();
 
-    $legal_page->set('field_home_components', [[
-      'target_id' => $legal_paragraph->id(),
-      'target_revision_id' => $legal_paragraph->getRevisionId(),
-    ]]);
+    $legal_page->set('field_home_components', [
+      [
+        'target_id' => $legal_paragraph->id(),
+        'target_revision_id' => $legal_paragraph->getRevisionId(),
+      ],
+    ]);
   }
 
   if ($legal_page->hasField('path')) {

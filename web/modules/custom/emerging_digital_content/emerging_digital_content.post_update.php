@@ -389,6 +389,13 @@ function emerging_digital_content_post_update_contact_page_professional_layout(a
 }
 
 /**
+ * Rejoue l'harmonisation de la page Contact sur les environnements existants.
+ */
+function emerging_digital_content_post_update_contact_page_professional_layout_v2(array &$sandbox): string {
+  return emerging_digital_content_post_update_contact_page_professional_layout($sandbox);
+}
+
+/**
  * Valeurs de la section intro de la page Contact.
  */
 function _emerging_digital_content_contact_intro_values(): array {

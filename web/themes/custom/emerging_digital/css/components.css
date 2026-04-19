@@ -88,6 +88,26 @@ button:focus-visible,
   max-width: min(100%, 52rem);
 }
 
+.ed-section__content > * + * {
+  margin-top: var(--space-3);
+}
+
+.ed-section__content p {
+  line-height: 1.65;
+}
+
+.ed-section__content a {
+  overflow-wrap: anywhere;
+}
+
+.ed-section__content iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
 .ed-section__content--contact-form form {
   display: grid;
   gap: var(--space-3);

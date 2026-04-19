@@ -7,9 +7,9 @@ _meta:
   depends:
     dc4e80eb-e338-4dfb-a7b3-ce0f4e1eba92: paragraph
     88affed2-d7e1-44bc-8607-28f0111fc123: paragraph
-    855b08da-0ec9-4261-883a-d27f214606e6: paragraph
     8236e39f-2bcf-4758-a441-c9f6eb8f75f6: paragraph
-    e8fcb813-8e1a-4739-a80b-f941b34040c7: paragraph
+    855b08da-0ec9-4261-883a-d27f214606e6: paragraph
+    856cbeed-a7cd-430b-ba72-aca0b79b6022: paragraph
 default:
   uid:
     -
@@ -26,11 +26,11 @@ default:
     -
       entity: "88affed2-d7e1-44bc-8607-28f0111fc123"
     -
-      entity: "855b08da-0ec9-4261-883a-d27f214606e6"
-    -
       entity: "8236e39f-2bcf-4758-a441-c9f6eb8f75f6"
     -
-      entity: "e8fcb813-8e1a-4739-a80b-f941b34040c7"
+      entity: "855b08da-0ec9-4261-883a-d27f214606e6"
+    -
+      entity: "856cbeed-a7cd-430b-ba72-aca0b79b6022"
   path:
     -
       alias: /contact

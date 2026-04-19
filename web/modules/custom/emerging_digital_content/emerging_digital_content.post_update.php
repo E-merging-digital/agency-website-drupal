@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\menu_link_content\Entity\MenuLinkContent;
+use Drupal\paragraphs\Entity\Paragraph;
 
 /**
  * Imports packaged default content for already-installed environments.
@@ -258,4 +259,176 @@ function emerging_digital_content_post_update_main_navigation_deduplicate_home_l
   }
 
   return sprintf('%d homepage links removed, %d homepage links updated.', $removed, $updated);
+}
+
+/**
+ * Harmonise la page Contact et supprime le CTA redondant.
+ */
+function emerging_digital_content_post_update_contact_page_professional_layout(array &$sandbox): string {
+  unset($sandbox);
+
+  $node_storage = \Drupal::entityTypeManager()->getStorage('node');
+  $existing = $node_storage->loadByProperties([
+    'type' => 'page',
+    'title' => 'Contact',
+  ]);
+
+  if (!$existing) {
+    return 'No Contact page found.';
+  }
+
+  /** @var \Drupal\node\Entity\Node $contact */
+  $contact = reset($existing);
+  $components = $contact->get('field_home_components')->referencedEntities();
+
+  $hero = NULL;
+  $intro = NULL;
+  $coordinates = NULL;
+  $form = NULL;
+  $map = NULL;
+  $extra_components = [];
+  $removed_cta = 0;
+
+  foreach ($components as $paragraph) {
+    if (!$paragraph instanceof Paragraph) {
+      continue;
+    }
+
+    $bundle = $paragraph->bundle();
+    $heading = trim((string) $paragraph->get('field_heading')->value);
+
+    if ($bundle === 'cta') {
+      $removed_cta++;
+      continue;
+    }
+
+    if ($bundle === 'hero' && $hero === NULL) {
+      $hero = $paragraph;
+      continue;
+    }
+
+    if ($bundle === 'text_block') {
+      if ($paragraph->uuid() === '855b08da-0ec9-4261-883a-d27f214606e6' || $heading === 'Formulaire') {
+        $form = $paragraph;
+        continue;
+      }
+
+      if ($heading === 'Coordonnées') {
+        $coordinates = $paragraph;
+        continue;
+      }
+
+      if ($heading === 'Carte') {
+        $map = $paragraph;
+        continue;
+      }
+
+      if ($intro === NULL) {
+        $intro = $paragraph;
+        continue;
+      }
+    }
+
+    $extra_components[] = $paragraph;
+  }
+
+  $intro_values = _emerging_digital_content_contact_intro_values();
+  if ($intro === NULL) {
+    $intro = Paragraph::create($intro_values);
+    $intro->save();
+  }
+  else {
+    foreach ($intro_values as $field_name => $value) {
+      $intro->set($field_name, $value);
+    }
+    $intro->save();
+  }
+
+  $coordinates_values = _emerging_digital_content_contact_coordinates_values();
+  if ($coordinates === NULL) {
+    $coordinates = Paragraph::create($coordinates_values);
+    $coordinates->save();
+  }
+  else {
+    foreach ($coordinates_values as $field_name => $value) {
+      $coordinates->set($field_name, $value);
+    }
+    $coordinates->save();
+  }
+
+  $map_values = _emerging_digital_content_contact_map_values();
+  if ($map === NULL) {
+    $map = Paragraph::create($map_values);
+    $map->save();
+  }
+  else {
+    foreach ($map_values as $field_name => $value) {
+      $map->set($field_name, $value);
+    }
+    $map->save();
+  }
+
+  $ordered_components = array_values(array_filter([
+    $hero,
+    $intro,
+    $coordinates,
+    $form,
+    $map,
+    ...$extra_components,
+  ]));
+
+  $contact->set('field_home_components', array_map(static function (Paragraph $paragraph): array {
+    return [
+      'target_id' => $paragraph->id(),
+      'target_revision_id' => $paragraph->getRevisionId(),
+    ];
+  }, $ordered_components));
+  $contact->save();
+
+  return sprintf('Contact page updated. Removed %d redundant CTA block(s).', $removed_cta);
+}
+
+/**
+ * Valeurs de la section intro de la page Contact.
+ */
+function _emerging_digital_content_contact_intro_values(): array {
+  return [
+    'type' => 'text_block',
+    'status' => TRUE,
+    'field_heading' => 'Intro',
+    'field_text' => [
+      'value' => '<p>Parlons de votre projet digital. Décrivez vos objectifs : nous revenons vers vous avec une réponse claire, structurée et orientée résultats.</p>',
+      'format' => 'basic_html',
+    ],
+  ];
+}
+
+/**
+ * Valeurs de la section coordonnées de la page Contact.
+ */
+function _emerging_digital_content_contact_coordinates_values(): array {
+  return [
+    'type' => 'text_block',
+    'status' => TRUE,
+    'field_heading' => 'Coordonnées',
+    'field_text' => [
+      'value' => '<p><strong>Adresse :</strong> Rue des Peupliers 1, 4254 Ligney (Geer)</p><p><strong>Email :</strong> <a href="mailto:jonathan@emergingdigital.be">jonathan@emergingdigital.be</a></p><p><strong>Téléphone :</strong> <a href="tel:+32475722884">+32 475/72.28.84</a></p><p><strong>Informations légales :</strong> SRL — BE 0746.356.206</p>',
+      'format' => 'basic_html',
+    ],
+  ];
+}
+
+/**
+ * Valeurs de la section carte de la page Contact.
+ */
+function _emerging_digital_content_contact_map_values(): array {
+  return [
+    'type' => 'text_block',
+    'status' => TRUE,
+    'field_heading' => 'Carte',
+    'field_text' => [
+      'value' => '<iframe title="Localisation Emerging Digital" src="https://www.google.com/maps?q=Rue%20des%20Peupliers%201%2C%204254%20Ligney%20(Geer)&output=embed" width="100%" height="380" style="border:0;" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>',
+      'format' => 'basic_html',
+    ],
+  ];
 }

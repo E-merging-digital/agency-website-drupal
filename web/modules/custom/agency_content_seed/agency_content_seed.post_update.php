@@ -178,8 +178,11 @@ function _agency_content_seed_create_paragraph(string $bundle, array $values): P
 
 /**
  * Creates the legal notice page and footer legal navigation links.
+ *
+ * Suffix _v2 ensures execution on environments where previous post-update
+ * name was already recorded as completed.
  */
-function agency_content_seed_post_update_legal_notice_and_footer_links(array &$sandbox): string {
+function agency_content_seed_post_update_legal_notice_and_footer_links_v2(array &$sandbox): string {
   unset($sandbox);
 
   $node_storage = \Drupal::entityTypeManager()->getStorage('node');

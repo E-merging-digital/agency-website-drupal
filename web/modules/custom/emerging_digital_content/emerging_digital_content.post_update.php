@@ -284,6 +284,7 @@ function emerging_digital_content_post_update_contact_page_professional_layout(a
   $hero = NULL;
   $intro = NULL;
   $coordinates = NULL;
+  $information = NULL;
   $form = NULL;
   $map = NULL;
   $extra_components = [];
@@ -320,6 +321,11 @@ function emerging_digital_content_post_update_contact_page_professional_layout(a
 
       if ($heading === 'Carte') {
         $map = $paragraph;
+        continue;
+      }
+
+      if ($heading === 'Informations') {
+        $information = $paragraph;
         continue;
       }
 
@@ -368,10 +374,23 @@ function emerging_digital_content_post_update_contact_page_professional_layout(a
     $map->save();
   }
 
+  $information_values = _emerging_digital_content_contact_information_values();
+  if ($information === NULL) {
+    $information = Paragraph::create($information_values);
+    $information->save();
+  }
+  else {
+    foreach ($information_values as $field_name => $value) {
+      $information->set($field_name, $value);
+    }
+    $information->save();
+  }
+
   $ordered_components = array_values(array_filter([
     $hero,
     $intro,
     $coordinates,
+    $information,
     $form,
     $map,
     ...$extra_components,
@@ -392,6 +411,13 @@ function emerging_digital_content_post_update_contact_page_professional_layout(a
  * Rejoue l'harmonisation de la page Contact sur les environnements existants.
  */
 function emerging_digital_content_post_update_contact_page_professional_layout_v2(array &$sandbox): string {
+  return emerging_digital_content_post_update_contact_page_professional_layout($sandbox);
+}
+
+/**
+ * Rejoue l'harmonisation Contact avec le bloc Informations de réassurance.
+ */
+function emerging_digital_content_post_update_contact_page_professional_layout_v3(array &$sandbox): string {
   return emerging_digital_content_post_update_contact_page_professional_layout($sandbox);
 }
 
@@ -435,6 +461,21 @@ function _emerging_digital_content_contact_map_values(): array {
     'field_heading' => 'Carte',
     'field_text' => [
       'value' => '<iframe title="Localisation Emerging Digital" src="https://www.google.com/maps?q=Rue%20des%20Peupliers%201%2C%204254%20Ligney%20(Geer)&output=embed" width="100%" height="380" style="border:0;" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>',
+      'format' => 'basic_html',
+    ],
+  ];
+}
+
+/**
+ * Valeurs de la section informations de la page Contact.
+ */
+function _emerging_digital_content_contact_information_values(): array {
+  return [
+    'type' => 'text_block',
+    'status' => TRUE,
+    'field_heading' => 'Informations',
+    'field_text' => [
+      'value' => '<p>Disponible pour projets en Wallonie et Bruxelles.</p><p>Interventions pour PME et ASBL.</p><p>Premier échange sans engagement.</p>',
       'format' => 'basic_html',
     ],
   ];

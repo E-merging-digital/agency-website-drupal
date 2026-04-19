@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "fe7288c1-8611-4fc9-8b3e-fdb6219038d2"
+  bundle: text_block
+  default_langcode: en
+default:
+  field_heading:
+    -
+      value: Informations
+  field_text:
+    -
+      value: '<p>Disponible pour projets en Wallonie et Bruxelles.</p><p>Interventions pour PME et ASBL.</p><p>Premier échange sans engagement.</p>'
+      format: basic_html
+  status:
+    -
+      value: true

@@ -25,6 +25,7 @@
         "drupal/core-recipe-unpack": "^11.3",
         "drupal/core-recommended": "^11.3",
         "drupal/default_content": "^2.0@alpha",
+        "drupal/eu_cookie_compliance": "^1.29",
         "drupal/hal": "^2.0",
         "drupal/key": "^1.20",
         "drupal/metatag": "^2.2",

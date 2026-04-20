@@ -1,0 +1,10 @@
+banner:
+  version: 1.x
+  css:
+    component:
+      css/cookie-consent.css: {}
+  js:
+    js/cookie-consent.js: {}
+  dependencies:
+    - core/drupal
+    - core/once

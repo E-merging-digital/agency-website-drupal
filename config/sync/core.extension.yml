@@ -20,6 +20,7 @@ module:
   dynamic_page_cache: 0
   editor: 0
   emerging_digital_content: 0
+  emerging_digital_cookie_consent: 0
   entity_reference_revisions: 0
   field: 0
   field_ui: 0

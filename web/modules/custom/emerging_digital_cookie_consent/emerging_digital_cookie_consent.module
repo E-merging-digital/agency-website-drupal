@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * @file
+ * Hooks pour le module de consentement cookies.
+ */
+
+/**
+ * Implements hook_page_attachments().
+ */
+function emerging_digital_cookie_consent_page_attachments(array &$attachments): void {
+  $config = \Drupal::config('emerging_digital_cookie_consent.settings');
+  $policy_path = trim((string) $config->get('policy_path'));
+
+  $attachments['#attached']['library'][] = 'emerging_digital_cookie_consent/banner';
+  $attachments['#attached']['drupalSettings']['emergingDigitalCookieConsent'] = [
+    'policyPath' => $policy_path,
+  ];
+}

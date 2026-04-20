@@ -35,8 +35,18 @@
 
   <footer class="page-footer" role="contentinfo">
     <div class="page-container page-footer__inner">
-      {{ page.footer }}
-      <p class="page-footer__tagline">Sites Drupal commerciaux, lisibles et évolutifs pour PME &amp; ASBL.</p>
+      <div class="page-footer__top">
+        <div class="page-footer__branding">
+          <p class="page-footer__eyebrow">E-merging Digital</p>
+          <p class="page-footer__tagline">Sites Drupal commerciaux, lisibles et évolutifs pour PME &amp; ASBL.</p>
+        </div>
+        {% if page.footer %}
+          <div class="page-footer__legal">
+            <p class="page-footer__legal-title">Informations légales</p>
+            {{ page.footer }}
+          </div>
+        {% endif %}
+      </div>
     </div>
   </footer>
 </div>

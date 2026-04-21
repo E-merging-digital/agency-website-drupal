@@ -10,7 +10,7 @@ default:
       value: Nos services
   field_items:
     -
-      value: "Création de site Drupal|Conception de sites sur mesure, pensés pour la performance, la clarté et la durabilité."
+      value: "Création de site Drupal|Conception de sites sur mesure pour institutions, PME et ASBL, avec une structure éditoriale claire et durable."
       format: basic_html
     -
       value: "Migration Drupal|Mise à jour de versions anciennes, sécurisation et modernisation de votre plateforme."
@@ -19,10 +19,10 @@ default:
       value: "Maintenance et évolutions|Suivi technique, améliorations continues et support."
       format: basic_html
     -
-      value: "SEO et optimisation|Optimisation des contenus, structure technique et performance."
+      value: "Accessibilité, SEO et optimisation|Amélioration de la lisibilité, du référencement naturel et des performances techniques."
       format: basic_html
     -
-      value: "IA intégrée|Automatisation de tâches éditoriales, amélioration de la qualité des contenus."
+      value: "IA intégrée|Automatisation de tâches éditoriales utiles, amélioration de la qualité et préparation à la traduction automatique."
       format: basic_html
   status:
     -

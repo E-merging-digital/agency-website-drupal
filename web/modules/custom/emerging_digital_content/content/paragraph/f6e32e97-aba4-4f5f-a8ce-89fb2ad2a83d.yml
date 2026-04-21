@@ -19,7 +19,7 @@ default:
       value: Cohérence des contenus
       format: basic_html
     -
-      value: Accessibilité améliorée
+      value: Accessibilité éditoriale renforcée
       format: basic_html
   status:
     -

@@ -7,7 +7,7 @@ _meta:
 default:
   field_heading:
     -
-      value: Cas d’usage
+      value: Cas d’usage IA dans Drupal
   field_items:
     -
       value: "Rédaction assistée : Génération de contenu, reformulation, amélioration de texte."
@@ -19,7 +19,7 @@ default:
       value: "SEO intelligent : Suggestions pour améliorer la visibilité."
       format: basic_html
     -
-      value: "Traduction : Adaptation de contenus multilingues."
+      value: "Traduction : Préparation et automatisation progressive des contenus multilingues."
       format: basic_html
     -
       value: "Enrichissement automatique : Tags, résumés, structuration."

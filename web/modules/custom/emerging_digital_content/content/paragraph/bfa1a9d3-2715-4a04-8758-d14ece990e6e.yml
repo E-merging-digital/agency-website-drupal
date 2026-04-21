@@ -7,10 +7,10 @@ _meta:
 default:
   field_heading:
     -
-      value: L’IA au service de vos contenus Drupal
+      value: IA utile dans Drupal pour les équipes éditoriales
   field_text:
     -
-      value: Des fonctionnalités concrètes pour améliorer votre productivité et la qualité de vos contenus.
+      value: "Des fonctionnalités IA concrètes pour améliorer la qualité des contenus, la cohérence éditoriale et la productivité, dans un cadre maîtrisé."
       format: basic_html
   status:
     -

@@ -7,7 +7,7 @@ _meta:
 default:
   field_text:
     -
-      value: "Vous avez un projet similaire ? Discutons-en."
+      value: "Vous avez un projet similaire ? Consultez nos <a href=\"/services\">services</a> ou notre page <a href=\"/ia-drupal\">IA &amp; Drupal</a>, puis discutons-en."
       format: basic_html
   field_link:
     -

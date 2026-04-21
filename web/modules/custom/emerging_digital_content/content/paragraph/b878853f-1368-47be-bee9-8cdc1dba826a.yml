@@ -7,7 +7,7 @@ _meta:
 default:
   field_heading:
     -
-      value: Des projets concrets et maîtrisés
+      value: Cas clients Drupal sur des contextes structurés
   status:
     -
       value: true

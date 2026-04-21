@@ -7,10 +7,10 @@ _meta:
 default:
   field_heading:
     -
-      value: Intégration
+      value: Intégration dans vos processus CMS
   field_text:
     -
-      value: "Les outils sont directement intégrés dans l’interface Drupal, sans complexité pour les utilisateurs."
+      value: "Les outils sont intégrés dans l’interface Drupal, sans rupture pour les équipes. Le dispositif reste gouvernable pour des contextes PME, ASBL et institutionnels."
       format: basic_html
   status:
     -

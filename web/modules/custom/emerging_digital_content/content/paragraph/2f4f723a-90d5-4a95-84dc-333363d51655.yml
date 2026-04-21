@@ -7,10 +7,10 @@ _meta:
 default:
   field_heading:
     -
-      value: Pourquoi Drupal
+      value: Pourquoi Drupal pour des projets exigeants
   field_text:
     -
-      value: "Drupal est une plateforme robuste, flexible et idéale pour gérer des contenus complexes de manière structurée."
+      value: "Drupal est une plateforme robuste et flexible, particulièrement adaptée aux projets institutionnels et aux écosystèmes de contenus complexes, avec des besoins d’accessibilité et de gouvernance."
       format: basic_html
   status:
     -

@@ -7,7 +7,7 @@ _meta:
 default:
   field_text:
     -
-      value: Découvrez comment intégrer l’IA dans votre site Drupal.
+      value: "Découvrez comment relier vos objectifs éditoriaux à des usages IA concrets. Voir aussi nos <a href=\"/services\">services Drupal</a> et des <a href=\"/cas-clients\">cas clients</a>."
       format: basic_html
   field_link:
     -

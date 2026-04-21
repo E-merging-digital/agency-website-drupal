@@ -7,7 +7,7 @@ _meta:
 default:
   field_text:
     -
-      value: "L’IA ne remplace pas votre expertise, elle l’amplifie. Nous intégrons des outils utiles directement dans votre CMS."
+      value: "L’IA ne remplace pas l’expertise métier : elle la renforce. Nous intégrons des usages utiles directement dans Drupal, avec attention portée à l’accessibilité web et à la qualité éditoriale."
       format: basic_html
   status:
     -

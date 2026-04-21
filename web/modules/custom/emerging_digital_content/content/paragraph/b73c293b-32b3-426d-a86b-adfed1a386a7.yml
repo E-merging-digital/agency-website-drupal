@@ -10,7 +10,7 @@ default:
       value: Ce que l’IA peut faire dans Drupal
   field_text:
     -
-      value: Nous intégrons des fonctionnalités utiles directement dans l’interface éditoriale.
+      value: "Des usages IA concrets, intégrés à Drupal, pour aider les équipes éditoriales sans complexifier le travail quotidien."
       format: basic_html
   field_items:
     -
@@ -20,7 +20,7 @@ default:
       value: Génération assistée de contenu
       format: basic_html
     -
-      value: Traduction automatique
+      value: Préparation à la traduction automatique multilingue
       format: basic_html
     -
       value: Tags automatiques pour les images

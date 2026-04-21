@@ -10,7 +10,7 @@ default:
       value: "Vous avez un projet Drupal ou un site à moderniser ?"
   field_text:
     -
-      value: Parlons de votre contexte et de ce que l’IA peut réellement vous apporter.
+      value: "Parlons de votre contexte Drupal et de vos objectifs d’accessibilité. Vous pouvez aussi consulter nos <a href=\"/services\">services Drupal</a> et notre approche <a href=\"/ia-drupal\">IA &amp; Drupal</a>."
       format: basic_html
   field_link:
     -

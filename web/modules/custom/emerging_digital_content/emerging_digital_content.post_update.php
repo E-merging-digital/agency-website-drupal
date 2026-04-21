@@ -898,3 +898,51 @@ HTML;
 function emerging_digital_content_post_update_privacy_policy_and_contact_consent_rerun(array &$sandbox): string {
   return emerging_digital_content_post_update_privacy_policy_and_contact_consent($sandbox);
 }
+
+/**
+ * Backfills missing contact CTA links on strategic pages for installed sites.
+ */
+function emerging_digital_content_post_update_backfill_strategic_cta_contact_links(array &$sandbox): string {
+  unset($sandbox);
+
+  $node_storage = \Drupal::entityTypeManager()->getStorage('node');
+  $page_ids = \Drupal::entityQuery('node')
+    ->accessCheck(FALSE)
+    ->condition('type', 'page')
+    ->condition('title', ['Services', 'IA & Drupal', 'Cas clients'], 'IN')
+    ->execute();
+
+  if (!$page_ids) {
+    return 'No strategic pages found for CTA backfill.';
+  }
+
+  /** @var \Drupal\node\NodeInterface[] $pages */
+  $pages = $node_storage->loadMultiple($page_ids);
+  $updated = 0;
+
+  foreach ($pages as $page) {
+    if (!$page->hasField('field_home_components')) {
+      continue;
+    }
+
+    foreach ($page->get('field_home_components')->referencedEntities() as $component) {
+      if ($component->bundle() !== 'cta' || !$component->hasField('field_link')) {
+        continue;
+      }
+
+      $existing_link = $component->get('field_link')->first();
+      if ($existing_link && !empty($existing_link->getValue()['uri'])) {
+        continue;
+      }
+
+      $component->set('field_link', [
+        'uri' => 'internal:/contact',
+        'title' => 'Prendre contact',
+      ]);
+      $component->save();
+      $updated++;
+    }
+  }
+
+  return sprintf('%d CTA paragraph(s) updated with contact links.', $updated);
+}

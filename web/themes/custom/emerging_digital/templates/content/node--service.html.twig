@@ -5,6 +5,9 @@
  */
 #}
 <article{{ attributes.addClass('node', 'node--service') }}>
+  {% if label and view_mode == 'full' %}
+    <h1 class="node__title">{{ label }}</h1>
+  {% endif %}
   <div class="node__content">
     {{ content|without('field_related_ai_features') }}
   </div>

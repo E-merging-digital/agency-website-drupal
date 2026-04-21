@@ -2,6 +2,13 @@
   'use strict';
 
   const STORAGE_KEY = 'ed_cookie_consent_v1';
+  let lastFocusedElement = null;
+
+  function getFocusableElements(container) {
+    return Array.from(
+      container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
+    );
+  }
 
   function readConsent() {
     try {
@@ -58,7 +65,7 @@
     banner.id = 'ed-cookie-banner';
     banner.className = 'ed-cookie-banner';
     banner.innerHTML = `
-      <div class="ed-cookie-banner__content" role="dialog" aria-live="polite" aria-label="Préférences cookies">
+      <div class="ed-cookie-banner__content" role="region" aria-live="polite" aria-label="Préférences cookies">
         <p class="ed-cookie-banner__text">
           Nous utilisons des cookies techniques nécessaires et, avec votre accord,
           des contenus externes (ex: Google Maps).
@@ -66,8 +73,8 @@
         </p>
         <div class="ed-cookie-banner__actions">
           <div class="ed-cookie-banner__row ed-cookie-banner__row--primary">
-            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--secondary" data-ed-cookie-action="reject">Refuser</button>
-            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--primary" data-ed-cookie-action="accept">Accepter</button>
+            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--secondary" data-ed-cookie-action="reject">Refuser les cookies externes</button>
+            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--primary" data-ed-cookie-action="accept">Accepter les cookies externes</button>
           </div>
           <div class="ed-cookie-banner__row ed-cookie-banner__row--secondary">
             <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--ghost" data-ed-cookie-action="preferences">Préférences</button>
@@ -97,21 +104,77 @@
       }
 
       if (action === 'preferences') {
-        openPreferencesModal();
+        openPreferencesModal(event.target);
       }
     });
   }
 
-  function openPreferencesModal() {
+  function closePreferencesModal(modal) {
+    modal.classList.remove('is-open');
+    modal.removeEventListener('keydown', trapFocusInModal);
+
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+      lastFocusedElement.focus();
+      return;
+    }
+
+    const preferencesButton = document.querySelector('[data-ed-cookie-action="preferences"]');
+    if (preferencesButton) {
+      preferencesButton.focus();
+    }
+  }
+
+  function trapFocusInModal(event) {
+    const modal = event.currentTarget;
+    if (!modal || !modal.classList.contains('is-open')) {
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closePreferencesModal(modal);
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const focusable = getFocusableElements(modal);
+    if (!focusable.length) {
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function openPreferencesModal(triggerElement) {
+    if (triggerElement && typeof triggerElement.focus === 'function') {
+      lastFocusedElement = triggerElement;
+    }
+
     let modal = document.getElementById('ed-cookie-preferences-modal');
     if (!modal) {
       modal = document.createElement('div');
       modal.id = 'ed-cookie-preferences-modal';
       modal.className = 'ed-cookie-modal';
       modal.innerHTML = `
-        <div class="ed-cookie-modal__panel" role="dialog" aria-modal="true" aria-label="Préférences cookies">
-          <h2 class="ed-cookie-modal__title">Préférences cookies</h2>
-          <p class="ed-cookie-modal__description">Les cookies nécessaires sont toujours actifs.</p>
+        <div class="ed-cookie-modal__panel" role="dialog" aria-modal="true" aria-labelledby="ed-cookie-modal-title" aria-describedby="ed-cookie-modal-description">
+          <button type="button" class="ed-cookie-modal__close" data-ed-cookie-modal-action="cancel" aria-label="Fermer la fenêtre des préférences cookies">×</button>
+          <h2 id="ed-cookie-modal-title" class="ed-cookie-modal__title">Préférences cookies</h2>
+          <p id="ed-cookie-modal-description" class="ed-cookie-modal__description">Les cookies nécessaires sont toujours actifs.</p>
           <label class="ed-cookie-modal__option">
             <input type="checkbox" data-ed-cookie-toggle="external" />
             Activer les contenus externes (Google Maps, services tiers)
@@ -131,14 +194,14 @@
         }
 
         if (action === 'cancel') {
-          modal.classList.remove('is-open');
+          closePreferencesModal(modal);
         }
 
         if (action === 'save') {
           const toggle = modal.querySelector('[data-ed-cookie-toggle="external"]');
           const accepted = Boolean(toggle?.checked);
           writeConsent(accepted);
-          modal.classList.remove('is-open');
+          closePreferencesModal(modal);
 
           const banner = document.getElementById('ed-cookie-banner');
           if (banner) {
@@ -146,6 +209,8 @@
           }
         }
       });
+
+      modal.addEventListener('keydown', trapFocusInModal);
     }
 
     const consent = readConsent();
@@ -155,6 +220,11 @@
     }
 
     modal.classList.add('is-open');
+
+    const focusable = getFocusableElements(modal);
+    if (focusable.length) {
+      focusable[0].focus();
+    }
   }
 
   function isGoogleMapsIframe(iframe) {

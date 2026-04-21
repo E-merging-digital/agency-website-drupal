@@ -4,14 +4,13 @@
  * Theme override for the site branding block.
  */
 #}
-{% set logo_alt = site_name ?: 'Site logo' %}
 <div{{ attributes.addClass('site-branding') }}>
   {{ title_prefix }}
   {{ title_suffix }}
 
-  {% if site_logo %}
+{% if site_logo %}
     <a href="{{ path('<front>') }}" rel="home" class="site-logo">
-      <img src="{{ site_logo }}" alt="{{ logo_alt }}" decoding="async" fetchpriority="high" />
+      <img src="{{ site_logo }}" alt="" decoding="async" fetchpriority="high" />
     </a>
   {% endif %}
 

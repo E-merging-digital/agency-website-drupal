@@ -193,6 +193,21 @@ button:focus-visible,
   background: #fff;
 }
 
+.ed-section__content--contact-form input:not([type="submit"]):not([type="button"]):not([type="reset"]):focus-visible,
+.ed-section__content--contact-form textarea:focus-visible,
+.ed-section__content--contact-form select:focus-visible,
+.ed-section__content--contact-form input[type="checkbox"]:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 2px;
+  border-color: #1d4ed8;
+}
+
+.ed-section__content--contact-form .form-item--error-message,
+.ed-section__content--contact-form .form-item .error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .ed-section__content--contact-form input[type="submit"],
 .ed-section__content--contact-form .form-submit,
 .ed-section__content--contact-form .webform-button--submit,

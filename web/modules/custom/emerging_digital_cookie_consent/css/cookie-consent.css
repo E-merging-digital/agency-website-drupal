@@ -99,7 +99,13 @@
 }
 
 .ed-cookie-banner__link {
-  color: #bfdbfe;
+  color: #dbeafe;
+  text-underline-offset: 0.15em;
+}
+
+.ed-cookie-banner__link:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
 }
 
 .ed-cookie-modal {
@@ -125,6 +131,7 @@
 .ed-cookie-modal__title {
   margin-top: 0;
   margin-bottom: 0.5rem;
+  padding-right: 2.2rem;
 }
 
 .ed-cookie-modal__description {
@@ -143,6 +150,23 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.ed-cookie-modal__close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 0.35rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.ed-cookie-modal__panel {
+  position: relative;
 }
 
 .ed-cookie-modal .ed-cookie-banner__btn--secondary {

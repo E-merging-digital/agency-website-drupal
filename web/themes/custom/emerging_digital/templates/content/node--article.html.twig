@@ -5,9 +5,6 @@
  */
 #}
 <article{{ attributes.addClass('node', 'node--article') }}>
-  {% if label and view_mode == 'full' %}
-    <h1 class="node__title">{{ label }}</h1>
-  {% endif %}
   <div class="node__content">
     {{ content }}
   </div>

@@ -58,7 +58,7 @@
 
     const policyLink = getPolicyLink();
     const policyMarkup = policyLink
-      ? `<a href="${policyLink}" class="ed-cookie-banner__link">Politique de cookies</a>`
+      ? `<p class="ed-cookie-banner__meta"><a href="${policyLink}" class="ed-cookie-banner__link">Politique de cookies</a></p>`
       : '';
 
     const banner = document.createElement('div');
@@ -66,15 +66,17 @@
     banner.className = 'ed-cookie-banner';
     banner.innerHTML = `
       <div class="ed-cookie-banner__content" role="region" aria-live="polite" aria-label="Préférences cookies">
-        <p class="ed-cookie-banner__text">
-          Nous utilisons des cookies techniques nécessaires et, avec votre accord,
-          des contenus externes (ex: Google Maps).
+        <div class="ed-cookie-banner__message">
+          <p class="ed-cookie-banner__text">
+            Nous utilisons des cookies techniques nécessaires et, avec votre accord,
+            des contenus externes (ex: Google Maps).
+          </p>
           ${policyMarkup}
-        </p>
+        </div>
         <div class="ed-cookie-banner__actions">
           <div class="ed-cookie-banner__row ed-cookie-banner__row--primary">
-            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--secondary" data-ed-cookie-action="reject">Refuser les cookies externes</button>
-            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--primary" data-ed-cookie-action="accept">Accepter les cookies externes</button>
+            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--secondary" data-ed-cookie-action="reject">Refuser</button>
+            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--primary" data-ed-cookie-action="accept">Accepter</button>
           </div>
           <div class="ed-cookie-banner__row ed-cookie-banner__row--secondary">
             <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--ghost" data-ed-cookie-action="preferences">Préférences</button>

@@ -1,7 +1,4 @@
 <article{{ attributes.addClass('node', 'node--page', 'strategic-page') }}>
-  {% if label and view_mode == 'full' %}
-    <h1 class="node__title">{{ label }}</h1>
-  {% endif %}
   <div class="node__content strategic-page__content">
     {{ content }}
   </div>

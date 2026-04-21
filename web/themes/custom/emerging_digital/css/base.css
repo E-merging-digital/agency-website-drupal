@@ -54,6 +54,15 @@ a:focus-visible {
   text-underline-offset: 0.18em;
 }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
 h1,
 h2,
 h3,

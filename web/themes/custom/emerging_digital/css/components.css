@@ -277,6 +277,31 @@ button:focus-visible,
   color: #d7e2ff;
 }
 
+.cookie-policy-link-wrapper {
+  margin: 0.75rem 0 0;
+  text-align: center;
+}
+
+.cookie-policy-link {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.cookie-policy-link:hover,
+.cookie-policy-link:focus-visible {
+  color: var(--color-text);
+}
+
+.cookie-policy-link--banner {
+  white-space: nowrap;
+}
+
+.cookie-policy-link--modal {
+  display: inline-block;
+}
+
 .ed-cta .ed-actions {
   justify-content: center;
 }

@@ -141,9 +141,15 @@ button:focus-visible,
 
 .ed-section__content--contact-form .form-type-checkbox label {
   display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
   margin: 0;
   cursor: pointer;
   line-height: 1.5;
+  word-break: normal;
+  overflow-wrap: normal;
+  white-space: normal;
 }
 
 .ed-section__content--contact-form .form-type-checkbox .description {

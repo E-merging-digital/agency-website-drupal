@@ -8,12 +8,13 @@
 
   var COOKIE_POLICY_URL = '/cookies';
   var COOKIE_POLICY_TEXT = 'Politique de cookies';
+  var COOKIE_POLICY_MODAL_TEXT = 'Consulter la Politique de cookies';
 
-  function createCookiePolicyLink(className) {
+  function createCookiePolicyLink(className, text) {
     var link = document.createElement('a');
     link.href = COOKIE_POLICY_URL;
     link.className = className;
-    link.textContent = COOKIE_POLICY_TEXT;
+    link.textContent = text || COOKIE_POLICY_TEXT;
     link.setAttribute('aria-label', 'Consulter la politique de cookies');
     return link;
   }
@@ -40,7 +41,7 @@
       'p'
     ];
     var textContainer = banner.querySelector(textContainerSelectors.join(',')) || banner;
-    var link = createCookiePolicyLink('cookie-policy-link cookie-policy-link--banner js-cookie-policy-link--banner');
+    var link = createCookiePolicyLink('cookie-policy-link cookie-policy-link--banner js-cookie-policy-link--banner', COOKIE_POLICY_TEXT);
     var separator = document.createTextNode(' ');
 
     textContainer.appendChild(separator);
@@ -70,9 +71,29 @@
       '.modal-footer'
     ];
     var footer = modal.querySelector(footerSelectors.join(',')) || modal;
+    var actionsSelectors = [
+      '[data-cookie-modal-actions]',
+      '.cookie-modal__actions',
+      '.cookies-modal__actions',
+      '.cc-compliance',
+      '.modal-actions',
+      '.modal-footer',
+      '.buttons'
+    ];
+    var actionsContainer = footer.querySelector(actionsSelectors.join(','));
+    if (!actionsContainer) {
+      actionsContainer = modal.querySelector('button, .button') ? modal.querySelector('button, .button').parentElement : null;
+    }
+
     var wrapper = document.createElement('p');
-    wrapper.className = 'cookie-policy-link-wrapper';
-    wrapper.appendChild(createCookiePolicyLink('cookie-policy-link cookie-policy-link--modal js-cookie-policy-link--modal'));
+    wrapper.className = 'cookie-policy-link-wrapper cookie-policy-link-wrapper--modal';
+    wrapper.appendChild(createCookiePolicyLink('cookie-policy-link cookie-policy-link--modal js-cookie-policy-link--modal', COOKIE_POLICY_MODAL_TEXT));
+
+    if (actionsContainer && actionsContainer.parentElement) {
+      actionsContainer.parentElement.insertBefore(wrapper, actionsContainer);
+      return;
+    }
+
     footer.appendChild(wrapper);
   }
 

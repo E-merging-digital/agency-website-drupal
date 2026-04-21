@@ -282,6 +282,10 @@ button:focus-visible,
   text-align: center;
 }
 
+.cookie-policy-link-wrapper--modal {
+  margin: 0 0 0.75rem;
+}
+
 .cookie-policy-link {
   color: var(--color-muted);
   font-size: 0.875rem;
@@ -300,6 +304,7 @@ button:focus-visible,
 
 .cookie-policy-link--modal {
   display: inline-block;
+  font-size: 0.8125rem;
 }
 
 .ed-cta .ed-actions {

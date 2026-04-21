@@ -1,11 +1,13 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * @file
  * Theme hooks and preprocess functions for the Emerging Digital theme.
  */
+
+declare(strict_types=1);
+
+use Drupal\webform\Entity\Webform;
 
 /**
  * Implements hook_preprocess_paragraph().
@@ -29,7 +31,7 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
   }
 
   if ($bundle === 'text_block' && $paragraph->uuid() === '855b08da-0ec9-4261-883a-d27f214606e6') {
-    $contact_webform = \Drupal\webform\Entity\Webform::load('contact');
+    $contact_webform = Webform::load('contact');
     if ($contact_webform) {
       $variables['contact_webform'] = \Drupal::entityTypeManager()
         ->getViewBuilder('webform')

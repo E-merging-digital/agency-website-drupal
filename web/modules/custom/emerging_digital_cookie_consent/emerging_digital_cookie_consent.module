@@ -1,11 +1,11 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * @file
  * Hooks pour le module de consentement cookies.
  */
+
+declare(strict_types=1);
 
 /**
  * Implements hook_page_attachments().

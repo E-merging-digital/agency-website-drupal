@@ -174,7 +174,7 @@
       modal.className = 'ed-cookie-modal';
       modal.innerHTML = `
         <div class="ed-cookie-modal__panel" role="dialog" aria-modal="true" aria-labelledby="ed-cookie-modal-title" aria-describedby="ed-cookie-modal-description">
-          <button type="button" class="ed-cookie-modal__close" data-ed-cookie-modal-action="cancel" aria-label="Fermer la fenêtre des préférences cookies">×</button>
+          <button type="button" class="ed-cookie-modal__close" data-ed-cookie-modal-action="cancel" aria-label="Fermer la fenêtre">×</button>
           <h2 id="ed-cookie-modal-title" class="ed-cookie-modal__title">Préférences cookies</h2>
           <p id="ed-cookie-modal-description" class="ed-cookie-modal__description">Les cookies nécessaires sont toujours actifs.</p>
           <label class="ed-cookie-modal__option">

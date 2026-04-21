@@ -125,20 +125,24 @@
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(15, 23, 42, 0.56);
   z-index: 1100;
 }
 
 .ed-cookie-modal.is-open {
-  display: grid;
-  place-items: center;
+  display: block;
 }
 
 .ed-cookie-modal__panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: min(560px, calc(100% - 2rem));
   background: #fff;
   border-radius: 12px;
   padding: 1.2rem;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
 }
 
 .ed-cookie-modal__title {
@@ -167,19 +171,30 @@
 
 .ed-cookie-modal__close {
   position: absolute;
-  top: 0.7rem;
-  right: 0.7rem;
-  border: 1px solid #cbd5e1;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #94a3b8;
   background: #fff;
   border-radius: 0.35rem;
-  min-width: 2rem;
-  min-height: 2rem;
-  font-size: 1.15rem;
+  color: #0f172a;
+  font-size: 1.05rem;
   line-height: 1;
+  cursor: pointer;
+  padding: 0;
 }
 
-.ed-cookie-modal__panel {
-  position: relative;
+.ed-cookie-modal__close:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.ed-cookie-modal__close:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .ed-cookie-modal .ed-cookie-banner__btn--secondary {

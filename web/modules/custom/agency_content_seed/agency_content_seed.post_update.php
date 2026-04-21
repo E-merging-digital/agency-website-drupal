@@ -209,6 +209,13 @@ function agency_content_seed_post_update_issue_81_editorial_repositioning(array 
 }
 
 /**
+ * Re-applies issue #81 editorial updates when first hook already ran.
+ */
+function agency_content_seed_post_update_issue_81_editorial_repositioning_v2(array &$sandbox): string {
+  return agency_content_seed_post_update_issue_81_editorial_repositioning($sandbox);
+}
+
+/**
  * Loads strategic pages by title.
  *
  * @return array<string, \Drupal\node\NodeInterface>

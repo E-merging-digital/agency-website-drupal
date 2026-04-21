@@ -953,6 +953,22 @@ function emerging_digital_content_post_update_backfill_strategic_cta_contact_lin
 function emerging_digital_content_post_update_issue_81_editorial_repositioning_live(array &$sandbox): string {
   unset($sandbox);
 
+  return _emerging_digital_content_apply_issue_81_editorial_updates();
+}
+
+/**
+ * Re-applies issue #81 editorial texts with the complete paragraph set.
+ */
+function emerging_digital_content_post_update_issue_81_editorial_repositioning_live_v2(array &$sandbox): string {
+  unset($sandbox);
+
+  return _emerging_digital_content_apply_issue_81_editorial_updates();
+}
+
+/**
+ * Applies issue #81 editorial updates to strategic paragraphs by UUID.
+ */
+function _emerging_digital_content_apply_issue_81_editorial_updates(): string {
   $entity_repository = \Drupal::service('entity.repository');
   $updated = 0;
 
@@ -974,6 +990,50 @@ function emerging_digital_content_post_update_issue_81_editorial_repositioning_l
       ],
       ],
     ],
+    'efdbbfe1-aec4-4cbb-be3d-33f3fe5966ac' => [
+      'field_items' => [
+        [
+          'value' => 'Création de sites Drupal|Conception de plateformes institutionnelles, PME ou ASBL avec une structure solide, maintenable et pensée pour durer.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'Migration et modernisation|Reprise de sites existants, montée de version Drupal, amélioration de la structure et des performances.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'Accessibilité, SEO et performance|Contenus lisibles, parcours clairs et socle technique optimisé pour vos publics et les moteurs de recherche.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'IA intégrée dans le CMS|Aide à la rédaction, amélioration de la qualité éditoriale, enrichissement et préparation à la traduction automatique des contenus.',
+          'format' => 'basic_html',
+        ],
+      ],
+    ],
+    'b73c293b-32b3-426d-a86b-adfed1a386a7' => [
+      'field_text' => [[
+        'value' => 'Des usages IA concrets, intégrés à Drupal, pour aider les équipes éditoriales sans complexifier le travail quotidien.',
+        'format' => 'basic_html',
+      ],
+      ],
+      'field_items' => [
+        ['value' => 'Correction orthographique et reformulation', 'format' => 'basic_html'],
+        ['value' => 'Génération assistée de contenu', 'format' => 'basic_html'],
+        ['value' => 'Préparation à la traduction automatique multilingue', 'format' => 'basic_html'],
+        ['value' => 'Tags automatiques pour les images', 'format' => 'basic_html'],
+        ['value' => 'Suggestions SEO', 'format' => 'basic_html'],
+        ['value' => 'Résumé et structuration de contenu', 'format' => 'basic_html'],
+      ],
+    ],
+    '33873ed7-004d-4a7f-b69e-b8f64dc4fa9b' => [
+      'field_items' => [
+        ['value' => 'Expertise Drupal', 'format' => 'basic_html'],
+        ['value' => 'Expérience des contextes institutionnels', 'format' => 'basic_html'],
+        ['value' => 'Maîtrise des enjeux d’accessibilité web', 'format' => 'basic_html'],
+        ['value' => 'IA utile, pas gadget', 'format' => 'basic_html'],
+        ['value' => 'Compréhension des réalités PME / ASBL', 'format' => 'basic_html'],
+      ],
+    ],
     '50c9c0ef-85f8-49a3-819c-4aa63ddd1737' => [
       'field_heading' => [['value' => 'Services Drupal pour projets structurés et institutionnels']],
       'field_text' => [[
@@ -982,10 +1042,48 @@ function emerging_digital_content_post_update_issue_81_editorial_repositioning_l
       ],
       ],
     ],
+    '2eb8e4b6-37d0-47cc-8702-7a850dd94c15' => [
+      'field_text' => [[
+        'value' => 'Votre site doit rester clair, fiable et évolutif. Nous structurons vos contenus, sécurisons la base technique Drupal et intégrons les exigences d’accessibilité dès la conception.',
+        'format' => 'basic_html',
+      ],
+      ],
+    ],
+    '11c3e2e1-78c9-491d-814c-b204bc2f5338' => [
+      'field_items' => [
+        [
+          'value' => 'Création de site Drupal|Conception de sites sur mesure pour institutions, PME et ASBL, avec une structure éditoriale claire et durable.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'Migration Drupal|Mise à jour de versions anciennes, sécurisation et modernisation de votre plateforme.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'Maintenance et évolutions|Suivi technique, améliorations continues et support.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'Accessibilité, SEO et optimisation|Amélioration de la lisibilité, du référencement naturel et des performances techniques.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'IA intégrée|Automatisation de tâches éditoriales utiles, amélioration de la qualité et préparation à la traduction automatique.',
+          'format' => 'basic_html',
+        ],
+      ],
+    ],
     '2f4f723a-90d5-4a95-84dc-333363d51655' => [
       'field_heading' => [['value' => 'Pourquoi Drupal pour des projets exigeants']],
       'field_text' => [[
         'value' => 'Drupal est une plateforme robuste et flexible, particulièrement adaptée aux projets institutionnels et aux écosystèmes de contenus complexes, avec des besoins d’accessibilité et de gouvernance.',
+        'format' => 'basic_html',
+      ],
+      ],
+    ],
+    'cfe7d994-e099-44b4-a0cc-12c69760288e' => [
+      'field_text' => [[
+        'value' => 'Parlons de votre projet et identifions la solution la plus adaptée. Consultez aussi notre page <a href="/ia-drupal">IA &amp; Drupal</a> pour les usages éditoriaux.',
         'format' => 'basic_html',
       ],
       ],
@@ -1000,6 +1098,68 @@ function emerging_digital_content_post_update_issue_81_editorial_repositioning_l
     ],
     'b878853f-1368-47be-bee9-8cdc1dba826a' => [
       'field_heading' => [['value' => 'Cas clients Drupal sur des contextes structurés']],
+    ],
+    '25892a5a-3c09-4f64-86d7-cda8058e1875' => [
+      'field_text' => [[
+        'value' => 'Chaque projet répond à des besoins réels avec une approche pragmatique : robustesse Drupal, clarté éditoriale, accessibilité et intégration d’IA utile.',
+        'format' => 'basic_html',
+      ],
+      ],
+    ],
+    '83435955-44bb-40df-8e8c-eda848d40301' => [
+      'field_items' => [
+        ['value' => 'Refonte d’un site institutionnel', 'format' => 'basic_html'],
+        ['value' => 'Migration Drupal', 'format' => 'basic_html'],
+        ['value' => 'Structuration éditoriale accessible', 'format' => 'basic_html'],
+      ],
+      'field_case_problem' => [
+        ['value' => 'Site difficile à maintenir et à faire évoluer', 'format' => 'basic_html'],
+        ['value' => 'version obsolète', 'format' => 'basic_html'],
+        ['value' => 'Contenus peu lisibles pour les publics', 'format' => 'basic_html'],
+      ],
+      'field_case_solution' => [
+        ['value' => 'refonte Drupal', 'format' => 'basic_html'],
+        ['value' => 'migration complète', 'format' => 'basic_html'],
+        ['value' => 'Architecture claire et règles éditoriales partagées', 'format' => 'basic_html'],
+      ],
+      'field_case_result' => [
+        ['value' => 'meilleure structure, plus simple à éditer', 'format' => 'basic_html'],
+        ['value' => 'sécurité et performance améliorées', 'format' => 'basic_html'],
+        ['value' => 'Meilleure lisibilité et accessibilité web', 'format' => 'basic_html'],
+      ],
+    ],
+    '65be59ce-5a5e-44ec-9c63-b0796b0dd6f9' => [
+      'field_text' => [[
+        'value' => 'L’IA ne remplace pas l’expertise métier : elle la renforce. Nous intégrons des usages utiles directement dans Drupal, avec attention portée à l’accessibilité web et à la qualité éditoriale.',
+        'format' => 'basic_html',
+      ],
+      ],
+    ],
+    'f7bb4bef-3172-4e6b-aadd-3adaaf5aeb29' => [
+      'field_heading' => [['value' => 'Cas d’usage IA dans Drupal']],
+      'field_items' => [
+        ['value' => 'Rédaction assistée : Génération de contenu, reformulation, amélioration de texte.', 'format' => 'basic_html'],
+        ['value' => 'Correction éditoriale : Amélioration de la qualité linguistique et du ton.', 'format' => 'basic_html'],
+        ['value' => 'SEO intelligent : Suggestions pour améliorer la visibilité.', 'format' => 'basic_html'],
+        ['value' => 'Traduction : Préparation et automatisation progressive des contenus multilingues.', 'format' => 'basic_html'],
+        ['value' => 'Enrichissement automatique : Tags, résumés, structuration.', 'format' => 'basic_html'],
+      ],
+    ],
+    'f6e32e97-aba4-4f5f-a8ce-89fb2ad2a83d' => [
+      'field_items' => [
+        ['value' => 'Gain de temps', 'format' => 'basic_html'],
+        ['value' => 'Meilleure qualité éditoriale', 'format' => 'basic_html'],
+        ['value' => 'Cohérence des contenus', 'format' => 'basic_html'],
+        ['value' => 'Accessibilité éditoriale renforcée', 'format' => 'basic_html'],
+      ],
+    ],
+    '3d0518cf-cf7a-4cac-a2eb-ee80c1ba63f9' => [
+      'field_heading' => [['value' => 'Intégration dans vos processus CMS']],
+      'field_text' => [[
+        'value' => 'Les outils sont intégrés dans l’interface Drupal, sans rupture pour les équipes. Le dispositif reste gouvernable pour des contextes PME, ASBL et institutionnels.',
+        'format' => 'basic_html',
+      ],
+      ],
     ],
     '88bc3809-2c51-4ec1-93a8-2eed9ce6930c' => [
       'field_text' => [[

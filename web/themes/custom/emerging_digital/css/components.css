@@ -157,6 +157,31 @@ button:focus-visible,
   font-size: 0.95rem;
 }
 
+.ed-section__content--contact-form .webform-submission-form .form-item-rgpd-consent {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.2rem;
+  align-items: flex-start;
+}
+
+.ed-section__content--contact-form .webform-submission-form .form-item-rgpd-consent input[type="checkbox"] {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  margin-top: 0.3rem;
+}
+
+.ed-section__content--contact-form .webform-submission-form .form-item-rgpd-consent label {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.ed-section__content--contact-form .webform-submission-form .form-item-rgpd-consent .description {
+  grid-column: 2;
+  grid-row: 2;
+  margin-top: 0;
+}
+
 .ed-section__content--contact-form input:not([type="submit"]):not([type="button"]):not([type="reset"]),
 .ed-section__content--contact-form textarea,
 .ed-section__content--contact-form select {

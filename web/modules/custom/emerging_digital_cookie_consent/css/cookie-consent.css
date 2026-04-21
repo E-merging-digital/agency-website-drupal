@@ -171,10 +171,10 @@
 
 .ed-cookie-modal__close {
   position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  width: 2rem;
-  height: 2rem;
+  top: 0.55rem;
+  right: 0.55rem;
+  width: 1.75rem;
+  height: 1.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -182,7 +182,8 @@
   background: #fff;
   border-radius: 0.35rem;
   color: #0f172a;
-  font-size: 1.05rem;
+  font-size: 1.125rem;
+  font-weight: 600;
   line-height: 1;
   cursor: pointer;
   padding: 0;

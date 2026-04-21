@@ -1138,11 +1138,26 @@ function _emerging_digital_content_apply_issue_81_editorial_updates(): string {
     'f7bb4bef-3172-4e6b-aadd-3adaaf5aeb29' => [
       'field_heading' => [['value' => 'Cas d’usage IA dans Drupal']],
       'field_items' => [
-        ['value' => 'Rédaction assistée : Génération de contenu, reformulation, amélioration de texte.', 'format' => 'basic_html'],
-        ['value' => 'Correction éditoriale : Amélioration de la qualité linguistique et du ton.', 'format' => 'basic_html'],
-        ['value' => 'SEO intelligent : Suggestions pour améliorer la visibilité.', 'format' => 'basic_html'],
-        ['value' => 'Traduction : Préparation et automatisation progressive des contenus multilingues.', 'format' => 'basic_html'],
-        ['value' => 'Enrichissement automatique : Tags, résumés, structuration.', 'format' => 'basic_html'],
+        [
+          'value' => 'Rédaction assistée : Génération de contenu, reformulation, amélioration de texte.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'Correction éditoriale : Amélioration de la qualité linguistique et du ton.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'SEO intelligent : Suggestions pour améliorer la visibilité.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'Traduction : Préparation et automatisation progressive des contenus multilingues.',
+          'format' => 'basic_html',
+        ],
+        [
+          'value' => 'Enrichissement automatique : Tags, résumés, structuration.',
+          'format' => 'basic_html',
+        ],
       ],
     ],
     'f6e32e97-aba4-4f5f-a8ce-89fb2ad2a83d' => [

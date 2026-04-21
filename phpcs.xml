@@ -3,6 +3,7 @@
   <description>Drupal coding standards for custom code only.</description>
 
   <config name="drupal_core_version" value="11"/>
+  <arg name="extensions" value="php,module,inc,install,test,profile,theme,yml"/>
 
   <file>web/modules/custom</file>
   <file>web/themes/custom</file>

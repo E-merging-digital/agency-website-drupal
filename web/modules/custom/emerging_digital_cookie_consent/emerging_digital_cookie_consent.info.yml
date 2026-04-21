@@ -1,0 +1,7 @@
+name: 'Emerging Digital Cookie Consent'
+type: module
+description: 'Gestion simple du consentement cookies pour les contenus externes.'
+package: 'Emerging Digital'
+core_version_requirement: '^11'
+dependencies:
+  - drupal:system

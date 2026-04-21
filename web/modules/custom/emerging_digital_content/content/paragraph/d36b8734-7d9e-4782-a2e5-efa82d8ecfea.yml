@@ -9,6 +9,10 @@ default:
     -
       value: "Vous avez un projet similaire ? Discutons-en."
       format: basic_html
+  field_link:
+    -
+      uri: "internal:/contact"
+      title: Prendre contact
   status:
     -
       value: true

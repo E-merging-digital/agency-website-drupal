@@ -9,6 +9,10 @@ default:
     -
       value: Découvrez comment intégrer l’IA dans votre site Drupal.
       format: basic_html
+  field_link:
+    -
+      uri: "internal:/contact"
+      title: Prendre contact
   status:
     -
       value: true

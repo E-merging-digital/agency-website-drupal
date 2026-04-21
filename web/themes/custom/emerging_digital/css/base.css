@@ -79,3 +79,9 @@ ul,
 ol {
   margin-block: 0 1em;
 }
+
+.page-container,
+.ed-container {
+  width: min(100% - (2 * var(--space-4)), var(--container-width));
+  margin-inline: auto;
+}

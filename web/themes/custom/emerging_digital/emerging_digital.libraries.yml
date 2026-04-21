@@ -7,6 +7,8 @@ global-styling:
       css/layout.css: {}
       css/components.css: {}
   js:
-    js/main.js: {}
+    js/main.js:
+      attributes:
+        defer: true
   dependencies:
     - core/drupal

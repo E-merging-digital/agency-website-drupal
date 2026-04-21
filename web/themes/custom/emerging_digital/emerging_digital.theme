@@ -72,3 +72,30 @@ function emerging_digital_page_attachments(array &$attachments): void {
     'emerging_digital_favicon_png',
   ];
 }
+
+/**
+ * Implements hook_preprocess_image().
+ */
+function emerging_digital_preprocess_image(array &$variables): void {
+  if (!isset($variables['attributes'])) {
+    return;
+  }
+
+  $uri = (string) ($variables['uri'] ?? '');
+  $is_brand_mark = str_contains($uri, '/images/branding/emerging-digital-mark.svg');
+
+  if ($is_brand_mark) {
+    $variables['attributes']['loading'] = 'eager';
+    $variables['attributes']['fetchpriority'] = 'high';
+    $variables['attributes']['decoding'] = 'async';
+    return;
+  }
+
+  if (empty($variables['attributes']['loading'])) {
+    $variables['attributes']['loading'] = 'lazy';
+  }
+
+  if (empty($variables['attributes']['decoding'])) {
+    $variables['attributes']['decoding'] = 'async';
+  }
+}

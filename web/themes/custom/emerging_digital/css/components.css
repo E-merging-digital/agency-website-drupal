@@ -12,18 +12,19 @@ button,
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 2.75rem;
-  padding: 0.75rem 1.2rem;
+  min-height: 2.875rem;
+  padding: 0.8rem 1.35rem;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--color-primary);
   color: var(--color-primary-contrast);
   font: inherit;
   font-weight: 600;
   line-height: 1.2;
   text-decoration: none;
+  text-align: center;
   box-shadow: 0 8px 18px rgb(0 91 187 / 20%);
-  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
   cursor: pointer;
 }
 
@@ -44,20 +45,33 @@ button:focus-visible,
   box-shadow: 0 12px 24px rgb(0 91 187 / 24%);
 }
 
+.button:focus-visible,
+input[type="submit"]:focus-visible,
+input[type="button"]:focus-visible,
+button:focus-visible,
+.webform-button--submit:focus-visible,
+.webform-submission-form .form-actions .button:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
 .button--primary {
   background: var(--color-primary);
   color: var(--color-primary-contrast);
 }
 
 .button--secondary {
-  border-color: var(--color-border);
+  border-color: #b9c4d6;
   background: #fff;
   color: var(--color-text);
-  box-shadow: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 7%);
 }
 
 .button--secondary:hover,
 .button--secondary:focus-visible {
+  background: #f8faff;
+  border-color: #9eb2d4;
+  color: #0f2a4a;
   box-shadow: 0 6px 14px rgb(17 24 39 / 12%);
 }
 
@@ -254,6 +268,7 @@ button:focus-visible,
 .ed-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-3);
   margin-top: var(--space-5);
 }
@@ -267,10 +282,19 @@ button:focus-visible,
 
 .ed-actions__secondary .button,
 .ed-actions__secondary a {
-  border: 1px solid var(--color-border);
+  border: 1px solid #b9c4d6;
   background: #fff;
   color: var(--color-text);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 7%);
+}
+
+.ed-actions__secondary .button:hover,
+.ed-actions__secondary .button:focus-visible,
+.ed-actions__secondary a:hover,
+.ed-actions__secondary a:focus-visible {
+  background: #f8faff;
+  border-color: #9eb2d4;
+  color: #0f2a4a;
 }
 
 .ed-cards {
@@ -280,6 +304,10 @@ button:focus-visible,
 }
 
 .ed-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: #fff;
@@ -294,13 +322,19 @@ button:focus-visible,
 }
 
 .ed-card h3 {
-  margin: 0 0 var(--space-2);
+  margin: 0;
   font-size: 1.15rem;
 }
 
 .ed-card p {
   margin: 0;
   color: var(--color-muted);
+}
+
+.ed-card .button,
+.ed-card a.button,
+.ed-card .field--name-field-link {
+  margin-top: auto;
 }
 
 .ed-card--case p + p {
@@ -336,18 +370,27 @@ button:focus-visible,
   font-weight: 500;
 }
 
+.ed-section--cta-block {
+  padding-top: clamp(2rem, 4vw, 3rem);
+}
+
 .ed-cta {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: linear-gradient(130deg, #1c2b4a 0%, #253a66 100%);
   color: #fff;
-  padding: clamp(1.5rem, 4vw, 2.5rem);
+  padding: clamp(1.75rem, 4vw, 2.75rem);
   text-align: center;
+}
+
+.ed-cta .ed-section__title {
+  margin-bottom: var(--space-2);
 }
 
 .ed-cta .ed-section__intro {
   margin-inline: auto;
   color: #d7e2ff;
+  max-width: 58ch;
 }
 
 .cookie-policy-link-wrapper {
@@ -382,13 +425,23 @@ button:focus-visible,
 
 .ed-cta .ed-actions {
   justify-content: center;
+  margin-top: var(--space-4);
 }
 
 .ed-cta .button,
 .ed-cta a {
   background: #fff;
   color: #1c2b4a;
+  border-color: transparent;
   box-shadow: 0 8px 20px rgb(0 0 0 / 20%);
+}
+
+.ed-cta .button:hover,
+.ed-cta .button:focus-visible,
+.ed-cta a:hover,
+.ed-cta a:focus-visible {
+  background: #f5f8ff;
+  color: #0f2a4a;
 }
 
 .strategic-page__content {
@@ -434,5 +487,13 @@ button:focus-visible,
   .ed-actions .button,
   .ed-actions a {
     width: 100%;
+  }
+
+  .ed-cta {
+    text-align: left;
+  }
+
+  .ed-cta .ed-actions {
+    justify-content: flex-start;
   }
 }

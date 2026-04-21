@@ -65,9 +65,13 @@
           ${policyMarkup}
         </p>
         <div class="ed-cookie-banner__actions">
-          <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--secondary" data-ed-cookie-action="reject">Refuser</button>
-          <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--secondary" data-ed-cookie-action="preferences">Préférences</button>
-          <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--primary" data-ed-cookie-action="accept">Accepter</button>
+          <div class="ed-cookie-banner__row ed-cookie-banner__row--primary">
+            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--secondary" data-ed-cookie-action="reject">Refuser</button>
+            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--primary" data-ed-cookie-action="accept">Accepter</button>
+          </div>
+          <div class="ed-cookie-banner__row ed-cookie-banner__row--secondary">
+            <button type="button" class="ed-cookie-banner__btn ed-cookie-banner__btn--ghost" data-ed-cookie-action="preferences">Préférences</button>
+          </div>
         </div>
       </div>
     `;

@@ -797,7 +797,7 @@ function emerging_digital_content_post_update_privacy_policy_and_contact_consent
 <h2>Vos droits</h2>
 <p>Conformément au RGPD, vous pouvez demander l’accès à vos données, leur rectification, leur suppression, la limitation du traitement ou vous opposer au traitement lorsque cela est applicable.</p>
 <h2>Contact RGPD</h2>
-<p>Pour toute demande relative à vos données personnelles&nbsp;: <a href="mailto:rgpd@e-merging.com">rgpd@e-merging.com</a>.</p>
+<p>Pour toute demande relative à vos données personnelles&nbsp;: <a href="mailto:rgpd@emergingdigital.be">rgpd@emergingdigital.be</a>.</p>
 HTML;
 
   if ($privacy_page->hasField('body')) {

@@ -891,3 +891,10 @@ HTML;
 
   return sprintf('Privacy policy page ensured, %d footer links created, %d footer links updated.', $created, $updated);
 }
+
+/**
+ * Re-runs privacy policy synchronization on existing environments.
+ */
+function emerging_digital_content_post_update_privacy_policy_and_contact_consent_rerun(array &$sandbox): string {
+  return emerging_digital_content_post_update_privacy_policy_and_contact_consent($sandbox);
+}

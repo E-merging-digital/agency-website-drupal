@@ -1026,7 +1026,7 @@ function emerging_digital_content_post_update_issue_81_editorial_repositioning_l
 
   foreach ($field_updates as $uuid => $fields) {
     $paragraph = $entity_repository->loadEntityByUuid('paragraph', $uuid);
-    if (!$paragraph) {
+    if (!$paragraph instanceof Paragraph) {
       continue;
     }
     foreach ($fields as $field_name => $value) {

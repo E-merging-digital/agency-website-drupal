@@ -946,3 +946,89 @@ function emerging_digital_content_post_update_backfill_strategic_cta_contact_lin
 
   return sprintf('%d CTA paragraph(s) updated with contact links.', $updated);
 }
+
+/**
+ * Applies issue #81 editorial texts on installed sites (module enabled).
+ */
+function emerging_digital_content_post_update_issue_81_editorial_repositioning_live(array &$sandbox): string {
+  unset($sandbox);
+
+  $entity_repository = \Drupal::service('entity.repository');
+  $updated = 0;
+
+  $field_updates = [
+    '3b376be4-852e-4fa2-85ba-a64ff0fefa9d' => [
+      'field_heading' => [['value' => 'Drupal pour projets structurés, accessibles et évolutifs']],
+      'field_text' => [[
+        'value' => 'Nous accompagnons PME, ASBL et organisations publiques dans des projets Drupal robustes, avec une architecture éditoriale claire, des exigences d’accessibilité web et une IA utile au quotidien.',
+        'format' => 'basic_html',
+      ]],
+      'field_secondary_link' => [['uri' => 'internal:/services', 'title' => 'Explorer les services Drupal']],
+    ],
+    'ad8e2138-9355-4951-90dc-354e07847eca' => [
+      'field_heading' => [['value' => 'Positionnement éditorial clair pour environnements exigeants']],
+      'field_text' => [[
+        'value' => 'Notre approche Drupal s’adresse aux contextes structurés et institutionnels : gouvernance de contenu, parcours d’édition fiables, accessibilité web et intégration d’outils IA pour la rédaction assistée, le SEO éditorial et l’ouverture vers la traduction automatique.',
+        'format' => 'basic_html',
+      ]],
+    ],
+    '50c9c0ef-85f8-49a3-819c-4aa63ddd1737' => [
+      'field_heading' => [['value' => 'Services Drupal pour projets structurés et institutionnels']],
+      'field_text' => [[
+        'value' => 'Nous accompagnons PME, ASBL et organisations publiques dans la création, la modernisation et l’évolution de sites Drupal robustes, accessibles et éditorialement maîtrisés.',
+        'format' => 'basic_html',
+      ]],
+    ],
+    '2f4f723a-90d5-4a95-84dc-333363d51655' => [
+      'field_heading' => [['value' => 'Pourquoi Drupal pour des projets exigeants']],
+      'field_text' => [[
+        'value' => 'Drupal est une plateforme robuste et flexible, particulièrement adaptée aux projets institutionnels et aux écosystèmes de contenus complexes, avec des besoins d’accessibilité et de gouvernance.',
+        'format' => 'basic_html',
+      ]],
+    ],
+    'bfa1a9d3-2715-4a04-8758-d14ece990e6e' => [
+      'field_heading' => [['value' => 'IA utile dans Drupal pour les équipes éditoriales']],
+      'field_text' => [[
+        'value' => 'Des fonctionnalités IA concrètes pour améliorer la qualité des contenus, la cohérence éditoriale et la productivité, dans un cadre maîtrisé.',
+        'format' => 'basic_html',
+      ]],
+    ],
+    'b878853f-1368-47be-bee9-8cdc1dba826a' => [
+      'field_heading' => [['value' => 'Cas clients Drupal sur des contextes structurés']],
+    ],
+    '88bc3809-2c51-4ec1-93a8-2eed9ce6930c' => [
+      'field_text' => [[
+        'value' => 'Parlons de votre contexte Drupal et de vos objectifs d’accessibilité. Vous pouvez aussi consulter nos <a href="/services">services Drupal</a> et notre approche <a href="/ia-drupal">IA &amp; Drupal</a>.',
+        'format' => 'basic_html',
+      ]],
+    ],
+    'f4581518-8acc-4632-8b25-884776b3aeb4' => [
+      'field_text' => [[
+        'value' => 'Découvrez comment relier vos objectifs éditoriaux à des usages IA concrets. Voir aussi nos <a href="/services">services Drupal</a> et des <a href="/cas-clients">cas clients</a>.',
+        'format' => 'basic_html',
+      ]],
+    ],
+    'd36b8734-7d9e-4782-a2e5-efa82d8ecfea' => [
+      'field_text' => [[
+        'value' => 'Vous avez un projet similaire ? Consultez nos <a href="/services">services</a> ou notre page <a href="/ia-drupal">IA &amp; Drupal</a>, puis discutons-en.',
+        'format' => 'basic_html',
+      ]],
+    ],
+  ];
+
+  foreach ($field_updates as $uuid => $fields) {
+    $paragraph = $entity_repository->loadEntityByUuid('paragraph', $uuid);
+    if (!$paragraph) {
+      continue;
+    }
+    foreach ($fields as $field_name => $value) {
+      if ($paragraph->hasField($field_name)) {
+        $paragraph->set($field_name, $value);
+      }
+    }
+    $paragraph->save();
+    $updated++;
+  }
+
+  return sprintf('Issue #81 live editorial update applied on %d paragraph(s).', $updated);
+}

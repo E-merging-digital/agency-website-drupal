@@ -9,6 +9,10 @@ default:
     -
       value: Parlons de votre projet et trouvons la solution adaptée.
       format: basic_html
+  field_link:
+    -
+      uri: "internal:/contact"
+      title: Prendre contact
   status:
     -
       value: true

@@ -637,3 +637,128 @@ HTML;
 
   return sprintf('Legal page ensured, %d footer links created, %d footer links updated.', $created, $updated);
 }
+
+/**
+ * Creates the cookie policy page and exposes it in the footer menu.
+ */
+function emerging_digital_content_post_update_cookie_policy_page(array &$sandbox): string {
+  unset($sandbox);
+
+  $node_storage = \Drupal::entityTypeManager()->getStorage('node');
+  $link_storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+
+  $existing_pages = $node_storage->loadByProperties([
+    'type' => 'page',
+    'title' => 'Politique de cookies',
+  ]);
+
+  /** @var \Drupal\node\Entity\Node $cookie_page */
+  $cookie_page = $existing_pages ? reset($existing_pages) : Node::create([
+    'type' => 'page',
+    'title' => 'Politique de cookies',
+    'status' => 1,
+  ]);
+
+  $cookie_body = <<<HTML
+<p>Cette page explique simplement comment notre site utilise des cookies et des contenus externes. Le but est de vous informer clairement, sans jargon.</p>
+<h2>Pourquoi utilisons-nous des cookies&nbsp;?</h2>
+<p>Les cookies nous aident à faire fonctionner le site correctement et à vous proposer une expérience stable. Nous ne les utilisons pas pour collecter des données inutiles.</p>
+<h2>Cookies nécessaires</h2>
+<p>Ces cookies sont indispensables au fonctionnement technique du site (sécurité, préférences de base, stabilité d’affichage). Sans eux, certaines fonctionnalités peuvent ne pas fonctionner correctement.</p>
+<h2>Contenus externes et services tiers</h2>
+<p>Certaines pages peuvent afficher des contenus provenant de services tiers. Par exemple, nous utilisons Google Maps sur la page de contact pour afficher notre localisation. Lors de l’affichage de cette carte, Google peut déposer des cookies ou traiter certaines données techniques (comme votre adresse IP), selon sa propre politique de confidentialité.</p>
+<h2>Comment gérer votre consentement&nbsp;?</h2>
+<p>Vous pouvez accepter ou refuser les cookies non nécessaires via le bandeau cookies affiché sur le site. Vous pouvez aussi modifier vos choix à tout moment en rouvrant ce gestionnaire de consentement, ou en configurant votre navigateur pour bloquer ou supprimer les cookies.</p>
+HTML;
+
+  if ($cookie_page->hasField('body')) {
+    $cookie_page->set('body', [
+      'value' => $cookie_body,
+      'format' => 'basic_html',
+    ]);
+  }
+  elseif ($cookie_page->hasField('field_home_components')) {
+    $cookie_paragraph = NULL;
+    foreach ($cookie_page->get('field_home_components')->referencedEntities() as $component) {
+      if ($component->bundle() !== 'text_block') {
+        continue;
+      }
+      if ((string) $component->get('field_heading')->value !== 'Politique de cookies') {
+        continue;
+      }
+      $cookie_paragraph = $component;
+      break;
+    }
+
+    $cookie_paragraph = $cookie_paragraph ?? Paragraph::create([
+      'type' => 'text_block',
+      'status' => TRUE,
+    ]);
+    $cookie_paragraph->set('field_heading', 'Politique de cookies');
+    $cookie_paragraph->set('field_text', [
+      'value' => $cookie_body,
+      'format' => 'basic_html',
+    ]);
+    $cookie_paragraph->save();
+
+    $cookie_page->set('field_home_components', [
+      [
+        'target_id' => $cookie_paragraph->id(),
+        'target_revision_id' => $cookie_paragraph->getRevisionId(),
+      ],
+    ]);
+  }
+
+  if ($cookie_page->hasField('path')) {
+    $cookie_page->set('path', [
+      'alias' => '/cookies',
+      'pathauto' => 0,
+    ]);
+  }
+  $cookie_page->setPublished();
+  $cookie_page->save();
+
+  $ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'footer')
+    ->condition('title', ['Cookies', 'Politique de cookies'], 'IN')
+    ->execute();
+
+  $updated = 0;
+  $created = 0;
+
+  if ($ids) {
+    /** @var \Drupal\menu_link_content\Entity\MenuLinkContent[] $links */
+    $links = $link_storage->loadMultiple($ids);
+    $kept = FALSE;
+
+    foreach ($links as $link) {
+      if (!$kept) {
+        $link->set('title', 'Politique de cookies');
+        $link->set('link', ['uri' => 'internal:/cookies']);
+        $link->set('enabled', TRUE);
+        $link->set('weight', 2);
+        $link->save();
+        $updated++;
+        $kept = TRUE;
+        continue;
+      }
+
+      $link->delete();
+      $updated++;
+    }
+  }
+  else {
+    MenuLinkContent::create([
+      'title' => 'Politique de cookies',
+      'menu_name' => 'footer',
+      'link' => ['uri' => 'internal:/cookies'],
+      'expanded' => FALSE,
+      'enabled' => TRUE,
+      'weight' => 2,
+    ])->save();
+    $created++;
+  }
+
+  return sprintf('Cookie policy page ensured, %d footer links created, %d footer links updated.', $created, $updated);
+}

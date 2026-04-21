@@ -7,7 +7,7 @@ _meta:
 default:
   field_text:
     -
-      value: "Votre site doit être un outil clair, fiable et évolutif. Nous vous aidons à structurer vos contenus et à construire une base technique solide."
+      value: "Votre site doit rester clair, fiable et évolutif. Nous structurons vos contenus, sécurisons la base technique Drupal et intégrons les exigences d’accessibilité dès la conception."
       format: basic_html
   status:
     -

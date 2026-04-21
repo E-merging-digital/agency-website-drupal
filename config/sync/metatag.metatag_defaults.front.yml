@@ -7,14 +7,14 @@ _core:
 id: front
 label: 'Front page'
 tags:
-  title: 'Agence Drupal & IA | [site:name]'
-  description: 'Agence Drupal 11 : services, solutions IA et cas clients.'
+  title: 'Drupal, accessibilité & IA utile | [site:name]'
+  description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibilité web et IA utile dans le CMS.'
   canonical_url: '[site:url]'
   shortlink: '[site:url]'
-  og_title: 'Agence Drupal & IA | [site:name]'
-  og_description: 'Agence Drupal 11 : services, solutions IA et cas clients.'
+  og_title: 'Drupal, accessibilité & IA utile | [site:name]'
+  og_description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibilité web et IA utile dans le CMS.'
   og_url: '[site:url]'
   og_type: website
   twitter_cards_type: summary
-  twitter_cards_title: 'Agence Drupal & IA | [site:name]'
-  twitter_cards_description: 'Agence Drupal 11 : services, solutions IA et cas clients.'
+  twitter_cards_title: 'Drupal, accessibilité & IA utile | [site:name]'
+  twitter_cards_description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibilité web et IA utile dans le CMS.'

@@ -9,11 +9,11 @@ label: Global
 tags:
   canonical_url: '[current-page:url]'
   title: '[current-page:title] | [site:name]'
-  description: 'Agence Drupal 11 : services web, IA & cas clients.'
+  description: 'Expertise Drupal 11 pour projets structurés : accessibilité web, IA utile dans le CMS et accompagnement PME, ASBL, institutions.'
   og_title: '[current-page:title] | [site:name]'
-  og_description: 'Agence Drupal 11 : services web, IA & cas clients.'
+  og_description: 'Expertise Drupal 11 pour projets structurés : accessibilité web, IA utile dans le CMS et accompagnement PME, ASBL, institutions.'
   og_url: '[current-page:url]'
   og_type: website
   twitter_cards_type: summary
   twitter_cards_title: '[current-page:title] | [site:name]'
-  twitter_cards_description: 'Agence Drupal 11 : services web, IA & cas clients.'
+  twitter_cards_description: 'Expertise Drupal 11 pour projets structurés : accessibilité web, IA utile dans le CMS et accompagnement PME, ASBL, institutions.'

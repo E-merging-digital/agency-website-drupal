@@ -13,10 +13,10 @@ default:
       value: Expertise Drupal
       format: basic_html
     -
-      value: Approche structurée
+      value: Expérience des contextes institutionnels
       format: basic_html
     -
-      value: Vision long terme
+      value: Maîtrise des enjeux d’accessibilité web
       format: basic_html
     -
       value: "IA utile, pas gadget"

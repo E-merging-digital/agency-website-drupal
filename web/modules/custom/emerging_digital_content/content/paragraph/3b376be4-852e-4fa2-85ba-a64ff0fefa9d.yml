@@ -7,10 +7,10 @@ _meta:
 default:
   field_heading:
     -
-      value: "Des sites Drupal performants, avec l’IA intégrée au cœur de vos contenus"
+      value: "Drupal pour projets structurés, accessibles et évolutifs"
   field_text:
     -
-      value: "Nous concevons des plateformes web durables pour PME et ASBL, en combinant expertise Drupal, structure éditoriale claire et intelligence artificielle utile."
+      value: "Nous accompagnons PME, ASBL et organisations publiques dans des projets Drupal robustes, avec une architecture éditoriale claire, des exigences d’accessibilité web et une IA utile au quotidien."
       format: basic_html
   field_link:
     -
@@ -19,7 +19,7 @@ default:
   field_secondary_link:
     -
       uri: "internal:/services"
-      title: Découvrir nos services
+      title: Explorer les services Drupal
   status:
     -
       value: true

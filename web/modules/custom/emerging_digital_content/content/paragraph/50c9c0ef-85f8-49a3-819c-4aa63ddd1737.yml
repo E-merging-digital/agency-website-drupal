@@ -7,10 +7,10 @@ _meta:
 default:
   field_heading:
     -
-      value: Des solutions Drupal adaptées à vos besoins
+      value: Services Drupal pour projets structurés et institutionnels
   field_text:
     -
-      value: "Nous accompagnons PME et ASBL dans la création, la modernisation et l’évolution de leurs sites Drupal."
+      value: "Nous accompagnons PME, ASBL et organisations publiques dans la création, la modernisation et l’évolution de sites Drupal robustes, accessibles et éditorialement maîtrisés."
       format: basic_html
   status:
     -

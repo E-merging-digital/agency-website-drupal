@@ -7,7 +7,7 @@ _meta:
 default:
   field_text:
     -
-      value: Parlons de votre projet et trouvons la solution adaptée.
+      value: "Parlons de votre projet et identifions la solution la plus adaptée. Consultez aussi notre page <a href=\"/ia-drupal\">IA &amp; Drupal</a> pour les usages éditoriaux."
       format: basic_html
   field_link:
     -

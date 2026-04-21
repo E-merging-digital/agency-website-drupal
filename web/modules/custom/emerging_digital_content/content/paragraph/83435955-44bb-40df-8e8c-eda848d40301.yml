@@ -7,23 +7,23 @@ _meta:
 default:
   field_items:
     -
-      value: Refonte d’un site
+      value: Refonte d’un site institutionnel
       format: basic_html
     -
       value: Migration Drupal
       format: basic_html
     -
-      value: Structuration de contenu
+      value: Structuration éditoriale accessible
       format: basic_html
   field_case_problem:
     -
-      value: site difficile à maintenir
+      value: Site difficile à maintenir et à faire évoluer
       format: basic_html
     -
       value: version obsolète
       format: basic_html
     -
-      value: contenu confus
+      value: Contenus peu lisibles pour les publics
       format: basic_html
   field_case_solution:
     -
@@ -33,7 +33,7 @@ default:
       value: migration complète
       format: basic_html
     -
-      value: architecture claire
+      value: Architecture claire et règles éditoriales partagées
       format: basic_html
   field_case_result:
     -
@@ -43,7 +43,7 @@ default:
       value: sécurité et performance améliorées
       format: basic_html
     -
-      value: meilleure lisibilité
+      value: Meilleure lisibilité et accessibilité web
       format: basic_html
   status:
     -

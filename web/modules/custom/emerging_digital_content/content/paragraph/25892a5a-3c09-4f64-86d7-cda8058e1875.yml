@@ -7,7 +7,7 @@ _meta:
 default:
   field_text:
     -
-      value: "Chaque projet est conçu pour répondre à des besoins réels, avec une approche pragmatique."
+      value: "Chaque projet répond à des besoins réels avec une approche pragmatique : robustesse Drupal, clarté éditoriale, accessibilité et intégration d’IA utile."
       format: basic_html
   status:
     -

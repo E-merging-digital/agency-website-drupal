@@ -762,3 +762,152 @@ HTML;
 
   return sprintf('Cookie policy page ensured, %d footer links created, %d footer links updated.', $created, $updated);
 }
+
+/**
+ * Ensures privacy policy page, footer link, and contact webform consent field.
+ */
+function emerging_digital_content_post_update_privacy_policy_and_contact_consent(array &$sandbox): string {
+  unset($sandbox);
+
+  $node_storage = \Drupal::entityTypeManager()->getStorage('node');
+  $link_storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+  $webform_storage = \Drupal::entityTypeManager()->getStorage('webform');
+
+  $existing_pages = $node_storage->loadByProperties([
+    'type' => 'page',
+    'title' => 'Politique de confidentialité',
+  ]);
+
+  /** @var \Drupal\node\Entity\Node $privacy_page */
+  $privacy_page = $existing_pages ? reset($existing_pages) : Node::create([
+    'type' => 'page',
+    'title' => 'Politique de confidentialité',
+    'status' => 1,
+  ]);
+
+  $privacy_body = <<<HTML
+<p>Cette page explique de manière claire comment nous traitons les données personnelles envoyées via notre formulaire de contact.</p>
+<h2>Données collectées</h2>
+<p>Lorsque vous nous contactez, nous collectons uniquement les informations que vous nous transmettez dans le formulaire&nbsp;: votre nom, votre adresse e-mail et votre message.</p>
+<h2>Finalités du traitement</h2>
+<p>Ces données sont utilisées uniquement pour répondre à votre demande et assurer le suivi de nos échanges.</p>
+<h2>Base légale</h2>
+<p>Le traitement repose sur votre consentement explicite, donné au moment de l’envoi du formulaire de contact.</p>
+<h2>Durée de conservation</h2>
+<p>Les données sont conservées pendant une durée maximale de 12 mois après le dernier échange, puis supprimées.</p>
+<h2>Vos droits</h2>
+<p>Conformément au RGPD, vous pouvez demander l’accès à vos données, leur rectification, leur suppression, la limitation du traitement ou vous opposer au traitement lorsque cela est applicable.</p>
+<h2>Contact RGPD</h2>
+<p>Pour toute demande relative à vos données personnelles&nbsp;: <a href="mailto:rgpd@e-merging.com">rgpd@e-merging.com</a>.</p>
+HTML;
+
+  if ($privacy_page->hasField('body')) {
+    $privacy_page->set('body', [
+      'value' => $privacy_body,
+      'format' => 'basic_html',
+    ]);
+  }
+  elseif ($privacy_page->hasField('field_home_components')) {
+    $privacy_paragraph = NULL;
+    foreach ($privacy_page->get('field_home_components')->referencedEntities() as $component) {
+      if ($component->bundle() !== 'text_block') {
+        continue;
+      }
+      if ((string) $component->get('field_heading')->value !== 'Politique de confidentialité') {
+        continue;
+      }
+      $privacy_paragraph = $component;
+      break;
+    }
+
+    $privacy_paragraph = $privacy_paragraph ?? Paragraph::create([
+      'type' => 'text_block',
+      'status' => TRUE,
+    ]);
+    $privacy_paragraph->set('field_heading', 'Politique de confidentialité');
+    $privacy_paragraph->set('field_text', [
+      'value' => $privacy_body,
+      'format' => 'basic_html',
+    ]);
+    $privacy_paragraph->save();
+
+    $privacy_page->set('field_home_components', [
+      [
+        'target_id' => $privacy_paragraph->id(),
+        'target_revision_id' => $privacy_paragraph->getRevisionId(),
+      ],
+    ]);
+  }
+
+  if ($privacy_page->hasField('path')) {
+    $privacy_page->set('path', [
+      'alias' => '/politique-confidentialite',
+      'pathauto' => 0,
+    ]);
+  }
+  $privacy_page->setPublished();
+  $privacy_page->save();
+
+  $ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'footer')
+    ->condition('title', ['Politique de confidentialité', 'Confidentialité'], 'IN')
+    ->execute();
+
+  $updated = 0;
+  $created = 0;
+
+  if ($ids) {
+    /** @var \Drupal\menu_link_content\Entity\MenuLinkContent[] $links */
+    $links = $link_storage->loadMultiple($ids);
+    $kept = FALSE;
+
+    foreach ($links as $link) {
+      if (!$kept) {
+        $link->set('title', 'Politique de confidentialité');
+        $link->set('link', ['uri' => 'internal:/politique-confidentialite']);
+        $link->set('enabled', TRUE);
+        $link->set('weight', 1);
+        $link->save();
+        $updated++;
+        $kept = TRUE;
+        continue;
+      }
+
+      $link->delete();
+      $updated++;
+    }
+  }
+  else {
+    MenuLinkContent::create([
+      'title' => 'Politique de confidentialité',
+      'menu_name' => 'footer',
+      'link' => ['uri' => 'internal:/politique-confidentialite'],
+      'expanded' => FALSE,
+      'enabled' => TRUE,
+      'weight' => 1,
+    ])->save();
+    $created++;
+  }
+
+  /** @var \Drupal\webform\WebformInterface|null $contact_webform */
+  $contact_webform = $webform_storage->load('contact');
+  if ($contact_webform) {
+    $elements = $contact_webform->getElementsInitializedAndFlattened();
+    if (!isset($elements['rgpd_consent'])) {
+      $contact_webform->setElements($contact_webform->getElementsDecoded() + [
+        'rgpd_consent' => [
+          '#type' => 'checkbox',
+          '#title' => 'J’accepte que mes données soient utilisées pour traiter ma demande, conformément à la politique de confidentialité',
+          '#description' => '<a href="/politique-confidentialite">Consulter la politique de confidentialité</a>',
+          '#required' => TRUE,
+          '#default_value' => 0,
+          '#weight' => 99,
+        ],
+      ]);
+      $contact_webform->save();
+    }
+  }
+
+  return sprintf('Privacy policy page ensured, %d footer links created, %d footer links updated, contact form consent synchronized.', $created, $updated);
+}

@@ -38,6 +38,12 @@ elements: |-
     '#type': textarea
     '#required': true
     '#test': 'Please ignore this email.'
+  rgpd_consent:
+    '#type': checkbox
+    '#title': "J’accepte que mes données soient utilisées pour traiter ma demande, conformément à la politique de confidentialité"
+    '#description': '<a href="/politique-confidentialite">Consulter la politique de confidentialité</a>'
+    '#required': true
+    '#default_value': 0
   actions:
     '#type': webform_actions
     '#title': 'Submit button(s)'

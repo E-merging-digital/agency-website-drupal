@@ -771,7 +771,6 @@ function emerging_digital_content_post_update_privacy_policy_and_contact_consent
 
   $node_storage = \Drupal::entityTypeManager()->getStorage('node');
   $link_storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
-  $webform_storage = \Drupal::entityTypeManager()->getStorage('webform');
 
   $existing_pages = $node_storage->loadByProperties([
     'type' => 'page',
@@ -890,24 +889,5 @@ HTML;
     $created++;
   }
 
-  /** @var \Drupal\webform\WebformInterface|null $contact_webform */
-  $contact_webform = $webform_storage->load('contact');
-  if ($contact_webform) {
-    $elements = $contact_webform->getElementsInitializedAndFlattened();
-    if (!isset($elements['rgpd_consent'])) {
-      $contact_webform->setElements($contact_webform->getElementsDecoded() + [
-        'rgpd_consent' => [
-          '#type' => 'checkbox',
-          '#title' => 'J’accepte que mes données soient utilisées pour traiter ma demande, conformément à la politique de confidentialité',
-          '#description' => '<a href="/politique-confidentialite">Consulter la politique de confidentialité</a>',
-          '#required' => TRUE,
-          '#default_value' => 0,
-          '#weight' => 99,
-        ],
-      ]);
-      $contact_webform->save();
-    }
-  }
-
-  return sprintf('Privacy policy page ensured, %d footer links created, %d footer links updated, contact form consent synchronized.', $created, $updated);
+  return sprintf('Privacy policy page ensured, %d footer links created, %d footer links updated.', $created, $updated);
 }

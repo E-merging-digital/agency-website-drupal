@@ -8,7 +8,7 @@ slogan: 'Stratégie digitale, solutions durables'
 page:
   403: ''
   404: ''
-  front: /accueil
+  front: /
 admin_compact_mode: false
 weight_select_max: 100
 default_langcode: fr

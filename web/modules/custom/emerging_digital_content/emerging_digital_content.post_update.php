@@ -10,6 +10,8 @@ declare(strict_types=1);
 use Drupal\menu_link_content\Entity\MenuLinkContent;
 use Drupal\node\Entity\Node;
 use Drupal\paragraphs\Entity\Paragraph;
+use Drupal\language\Entity\ConfigurableLanguage;
+use Drupal\Core\Entity\Sql\SqlContentEntityStorageInterface;
 
 /**
  * Imports packaged default content for already-installed environments.
@@ -1214,4 +1216,109 @@ function _emerging_digital_content_apply_issue_81_editorial_updates(): string {
   }
 
   return sprintf('Issue #81 live editorial update applied on %d paragraph(s).', $updated);
+}
+
+/**
+ * Normalizes legacy English source content to French for issue #25.
+ */
+function emerging_digital_content_post_update_issue_25_normalize_fr_source(array &$sandbox): string {
+  unset($sandbox);
+
+  $language_status = _emerging_digital_content_ensure_english_secondary_language();
+  $entity_types = ['node', 'paragraph', 'menu_link_content', 'path_alias'];
+  $counts = [];
+
+  foreach ($entity_types as $entity_type_id) {
+    $counts[$entity_type_id] = _emerging_digital_content_bulk_update_entity_langcode($entity_type_id, 'en', 'fr');
+  }
+
+  \Drupal::configFactory()->getEditable('system.site')
+    ->set('langcode', 'fr')
+    ->set('default_langcode', 'fr')
+    ->set('page.front', '/')
+    ->save(TRUE);
+
+  return sprintf(
+    '%s Updated langcode en->fr rows: node=%d, paragraph=%d, menu_link_content=%d, path_alias=%d.',
+    $language_status,
+    $counts['node'] ?? 0,
+    $counts['paragraph'] ?? 0,
+    $counts['menu_link_content'] ?? 0,
+    $counts['path_alias'] ?? 0,
+  );
+}
+
+/**
+ * Ensures English exists and stays enabled as secondary language.
+ */
+function _emerging_digital_content_ensure_english_secondary_language(): string {
+  /** @var \Drupal\Core\Entity\EntityStorageInterface $storage */
+  $storage = \Drupal::entityTypeManager()->getStorage('configurable_language');
+  $english = $storage->load('en');
+
+  if (!$english instanceof ConfigurableLanguage) {
+    ConfigurableLanguage::create([
+      'id' => 'en',
+      'label' => 'English',
+      'weight' => 1,
+      'status' => TRUE,
+    ])->save();
+    return 'English language has been created and enabled.';
+  }
+
+  if (!$english->status()) {
+    $english->enable()->save();
+    return 'English language has been re-enabled.';
+  }
+
+  return 'English language was already enabled.';
+}
+
+/**
+ * Bulk-updates SQL langcode columns for one content entity type.
+ */
+function _emerging_digital_content_bulk_update_entity_langcode(string $entity_type_id, string $from, string $to): int {
+  /** @var \Drupal\Core\Entity\EntityStorageInterface $storage */
+  $storage = \Drupal::entityTypeManager()->getStorage($entity_type_id);
+  if (!$storage instanceof SqlContentEntityStorageInterface) {
+    return 0;
+  }
+
+  $database = \Drupal::database();
+  $schema = $database->schema();
+  $mapping = $storage->getTableMapping();
+
+  $tables = array_filter(array_unique(array_merge(
+    [
+      $storage->getBaseTable(),
+      $storage->getDataTable(),
+      $storage->getRevisionTable(),
+      $storage->getRevisionDataTable(),
+    ],
+    array_values($mapping->getDedicatedDataTableNames()),
+    array_values($mapping->getDedicatedRevisionTableNames()),
+  )));
+
+  $updated = 0;
+  foreach ($tables as $table) {
+    if (!$schema->tableExists($table)) {
+      continue;
+    }
+
+    if ($schema->fieldExists($table, 'langcode')) {
+      $updated += (int) $database->update($table)
+        ->fields(['langcode' => $to])
+        ->condition('langcode', $from)
+        ->execute();
+    }
+
+    if ($schema->fieldExists($table, 'source_langcode')) {
+      $updated += (int) $database->update($table)
+        ->fields(['source_langcode' => $to])
+        ->condition('source_langcode', $from)
+        ->execute();
+    }
+  }
+
+  return $updated;
 }

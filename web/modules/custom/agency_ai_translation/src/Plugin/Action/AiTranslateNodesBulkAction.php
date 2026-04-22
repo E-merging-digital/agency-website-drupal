@@ -7,9 +7,9 @@ namespace Drupal\agency_ai_translation\Plugin\Action;
 use Drupal\agency_ai_translation\Service\AiTranslationManager;
 use Drupal\Core\Action\ConfigurableActionBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
-use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\node\NodeInterface;
@@ -32,7 +32,6 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     $plugin_definition,
     private readonly AiTranslationManager $translationManager,
     private readonly LanguageManagerInterface $languageManager,
-    private readonly MessengerInterface $messenger,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -47,7 +46,6 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       $plugin_definition,
       $container->get('agency_ai_translation.manager'),
       $container->get('language_manager'),
-      $container->get('messenger'),
     );
   }
 
@@ -135,10 +133,10 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     }
 
     if ($success > 0) {
-      $this->messenger->addStatus($this->formatPlural($success, '1 contenu traduit.', '@count contenus traduits.'));
+      $this->messenger()->addStatus($this->formatPlural($success, '1 contenu traduit.', '@count contenus traduits.'));
     }
     if ($errors > 0) {
-      $this->messenger->addWarning($this->formatPlural($errors, '1 contenu en erreur.', '@count contenus en erreur.'));
+      $this->messenger()->addWarning($this->formatPlural($errors, '1 contenu en erreur.', '@count contenus en erreur.'));
     }
   }
 
@@ -146,11 +144,11 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
    * {@inheritdoc}
    */
   public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE) {
-    $allowed = $object instanceof NodeInterface
+    $accessResult = AccessResult::allowedIf($object instanceof NodeInterface
       && $object->access('update', $account)
-      && ($account?->hasPermission('trigger ai translation') || $account?->hasPermission('administer nodes'));
+      && ($account?->hasPermission('trigger ai translation') || $account?->hasPermission('administer nodes')));
 
-    return $return_as_object ? $this->createAccessResult($allowed) : $allowed;
+    return $return_as_object ? $accessResult : $accessResult->isAllowed();
   }
 
 }

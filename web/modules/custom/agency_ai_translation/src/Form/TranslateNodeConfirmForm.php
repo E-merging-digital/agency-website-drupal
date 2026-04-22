@@ -11,6 +11,7 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 use Drupal\node\NodeInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -104,6 +105,9 @@ final class TranslateNodeConfirmForm extends ConfirmFormBase {
     }
     if ($this->targetLangcode === $this->sourceLangcode) {
       throw new \InvalidArgumentException('La langue cible doit être différente de la langue source.');
+    }
+    if (!$node->access('update', $this->currentUser())) {
+      throw new AccessDeniedHttpException();
     }
     $this->node = $node;
 

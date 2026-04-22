@@ -65,7 +65,7 @@ final class AiTranslationSettingsForm extends ConfigFormBase {
 
     $form['description'] = [
       '#type' => 'item',
-      '#markup' => $this->t('Définissez la clé API dans <code>settings.php</code> via <code>$settings["agency_ai_translation.api_key"]</code> (recommandé) ou via la variable d’environnement <code>AGENCY_AI_TRANSLATION_API_KEY</code>. Le champ ci-dessous est un fallback stocké en base (state), non exporté.'),
+      '#markup' => $this->t('Priorité de résolution : (1) configuration provider OpenAI + module Key, (2) key_id défini ci-dessous, puis (3) fallback legacy settings.php / variable d’environnement / state.'),
     ];
 
     $form['endpoint'] = [
@@ -79,6 +79,14 @@ final class AiTranslationSettingsForm extends ConfigFormBase {
       '#type' => 'textfield',
       '#title' => $this->t('Modèle'),
       '#default_value' => $config->get('model') ?: 'gpt-4o-mini',
+      '#required' => TRUE,
+    ];
+
+    $form['openai_key_id'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Key ID Drupal (module Key)'),
+      '#default_value' => $config->get('openai_key_id') ?: 'openai_api_key',
+      '#description' => $this->t('Identifiant de la clé dans le module Key (ex: openai_api_key).'),
       '#required' => TRUE,
     ];
 
@@ -105,6 +113,7 @@ final class AiTranslationSettingsForm extends ConfigFormBase {
     $this->configFactory->getEditable('agency_ai_translation.settings')
       ->set('endpoint', $form_state->getValue('endpoint'))
       ->set('model', $form_state->getValue('model'))
+      ->set('openai_key_id', $form_state->getValue('openai_key_id'))
       ->set('system_prompt', $form_state->getValue('system_prompt'))
       ->save();
 

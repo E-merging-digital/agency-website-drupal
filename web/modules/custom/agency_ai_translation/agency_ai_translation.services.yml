@@ -6,6 +6,7 @@ services:
       - '@http_client'
       - '@logger.channel.agency_ai_translation'
       - '@state'
+      - '@?key.repository'
 
   agency_ai_translation.manager:
     class: Drupal\agency_ai_translation\Service\AiTranslationManager

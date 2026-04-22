@@ -7,6 +7,7 @@ namespace Drupal\agency_ai_translation\Service;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\State\StateInterface;
+use Drupal\key\KeyRepositoryInterface;
 use GuzzleHttp\ClientInterface;
 use Psr\Log\LoggerInterface;
 
@@ -20,6 +21,7 @@ final class AiTranslationClient {
     private readonly ClientInterface $httpClient,
     private readonly LoggerInterface $logger,
     private readonly StateInterface $state,
+    private readonly ?KeyRepositoryInterface $keyRepository = NULL,
   ) {}
 
   /**
@@ -34,7 +36,7 @@ final class AiTranslationClient {
     $config = $this->configFactory->get('agency_ai_translation.settings');
     $apiKey = $this->resolveApiKey();
     if ($apiKey === '') {
-      throw new \RuntimeException('Clé API absente. Configurez-la dans settings.php ou en variable d’environnement.');
+      throw new \RuntimeException('Configuration OpenAI absente. Vérifiez d’abord la Key Drupal/provider OpenAI, puis les fallbacks éventuels.');
     }
 
     $endpoint = (string) $config->get('endpoint');
@@ -84,6 +86,29 @@ final class AiTranslationClient {
    * Retourne la clé API sans la persister en configuration exportable.
    */
   private function resolveApiKey(): string {
+    $settings = $this->configFactory->get('agency_ai_translation.settings');
+
+    // 1) Source de vérité prioritaire : provider OpenAI + module Key.
+    $providerConfig = $this->configFactory->get('ai_provider_openai.settings');
+    $providerKeyId = $this->firstNonEmptyString([
+      $providerConfig->get('key_id'),
+      $providerConfig->get('api_key'),
+      $providerConfig->get('api_key_name'),
+      $providerConfig->get('key'),
+    ]);
+    $providerKey = $this->resolveFromKeyIdOrRawValue($providerKeyId);
+    if ($providerKey !== '') {
+      return $providerKey;
+    }
+
+    // 2) Key ID configurable côté module.
+    $configuredKeyId = (string) $settings->get('openai_key_id');
+    $configuredKey = $this->resolveFromKeyIdOrRawValue($configuredKeyId);
+    if ($configuredKey !== '') {
+      return $configuredKey;
+    }
+
+    // 3) Fallbacks legacy.
     $settingsKey = Settings::get('agency_ai_translation.api_key', '');
     if (is_string($settingsKey) && $settingsKey !== '') {
       return $settingsKey;
@@ -96,6 +121,41 @@ final class AiTranslationClient {
 
     $stateKey = $this->state->get('agency_ai_translation.api_key', '');
     return is_string($stateKey) ? $stateKey : '';
+  }
+
+  /**
+   * Résout une valeur brute ou un identifiant Key Drupal.
+   */
+  private function resolveFromKeyIdOrRawValue(?string $candidate): string {
+    $candidate = trim((string) $candidate);
+    if ($candidate === '') {
+      return '';
+    }
+
+    if ($this->keyRepository) {
+      $key = $this->keyRepository->getKey($candidate);
+      if ($key) {
+        $resolvedValue = trim((string) $key->getKeyValue());
+        if ($resolvedValue !== '') {
+          return $resolvedValue;
+        }
+      }
+    }
+
+    // Si ce n'est pas un key_id résolvable, on traite la valeur comme brute.
+    return str_starts_with($candidate, 'sk-') ? $candidate : '';
+  }
+
+  /**
+   * Retourne la première chaîne non vide.
+   */
+  private function firstNonEmptyString(array $values): ?string {
+    foreach ($values as $value) {
+      if (is_string($value) && trim($value) !== '') {
+        return trim($value);
+      }
+    }
+    return NULL;
   }
 
 }

@@ -102,7 +102,76 @@
     ensureModalCookiePolicyLink();
   }
 
+  function closeLanguageSwitcher(switcher) {
+    var toggle = switcher.querySelector('.language-switcher__toggle');
+    var menu = switcher.querySelector('.language-switcher__menu');
+    if (!toggle || !menu) {
+      return;
+    }
+
+    toggle.setAttribute('aria-expanded', 'false');
+    menu.hidden = true;
+  }
+
+  function openLanguageSwitcher(switcher) {
+    var toggle = switcher.querySelector('.language-switcher__toggle');
+    var menu = switcher.querySelector('.language-switcher__menu');
+    if (!toggle || !menu) {
+      return;
+    }
+
+    toggle.setAttribute('aria-expanded', 'true');
+    menu.hidden = false;
+  }
+
+  function closeAllLanguageSwitchers() {
+    var switchers = document.querySelectorAll('[data-language-switcher]');
+    switchers.forEach(closeLanguageSwitcher);
+  }
+
+  function initLanguageSwitcher(switcher) {
+    if (switcher.dataset.languageSwitcherReady === 'true') {
+      return;
+    }
+
+    var toggle = switcher.querySelector('.language-switcher__toggle');
+    var menu = switcher.querySelector('.language-switcher__menu');
+
+    if (!toggle || !menu) {
+      return;
+    }
+
+    switcher.dataset.languageSwitcherReady = 'true';
+
+    toggle.addEventListener('click', function () {
+      var isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+      closeAllLanguageSwitchers();
+      if (!isExpanded) {
+        openLanguageSwitcher(switcher);
+      }
+    });
+
+    switcher.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      closeLanguageSwitcher(switcher);
+      toggle.focus();
+    });
+  }
+
+  function initLanguageSwitchers() {
+    var switchers = document.querySelectorAll('[data-language-switcher]');
+    switchers.forEach(initLanguageSwitcher);
+  }
+
   document.addEventListener('click', function (event) {
+    var clickedInSwitcher = event.target.closest('[data-language-switcher]');
+    if (!clickedInSwitcher) {
+      closeAllLanguageSwitchers();
+    }
+
     var trigger = event.target.closest('a[href="#main-content"]');
     if (!trigger) {
       return;
@@ -117,9 +186,11 @@
   });
 
   ensureCookiePolicyLinks();
+  initLanguageSwitchers();
 
   var observer = new MutationObserver(function () {
     ensureCookiePolicyLinks();
+    initLanguageSwitchers();
   });
   observer.observe(document.documentElement, {
     childList: true,

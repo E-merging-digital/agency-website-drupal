@@ -13,6 +13,7 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\node\NodeInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -32,6 +33,7 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     $plugin_definition,
     private readonly AiTranslationManager $translationManager,
     private readonly LanguageManagerInterface $languageManager,
+    private readonly LoggerInterface $logger,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -46,6 +48,7 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       $plugin_definition,
       $container->get('agency_ai_translation.manager'),
       $container->get('language_manager'),
+      $container->get('logger.channel.agency_ai_translation'),
     );
   }
 
@@ -144,7 +147,7 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
             '@message' => $exception->getMessage(),
           ]);
         }
-        \Drupal::logger('agency_ai_translation')->error('Échec traduction IA en masse pour le nœud @nid : @message', [
+        $this->logger->error('Échec traduction IA en masse pour le nœud @nid : @message', [
           '@nid' => $entity->id(),
           '@message' => $exception->getMessage(),
         ]);

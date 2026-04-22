@@ -1,4 +1,3 @@
-selected_langcode: site_default
 session:
   parameter: language
 url:
@@ -9,3 +8,4 @@ url:
   domains:
     en: ''
     fr: ''
+selected_langcode: site_default

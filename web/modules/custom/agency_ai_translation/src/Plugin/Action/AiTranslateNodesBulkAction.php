@@ -15,6 +15,7 @@ use Drupal\Core\Session\AccountInterface;
 use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Action de masse de traduction IA.
@@ -34,6 +35,7 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     private readonly AiTranslationManager $translationManager,
     private readonly LanguageManagerInterface $languageManager,
     private readonly LoggerInterface $logger,
+    private readonly RequestStack $requestStack,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -49,6 +51,7 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       $container->get('agency_ai_translation.manager'),
       $container->get('language_manager'),
       $container->get('logger.channel.agency_ai_translation'),
+      $container->get('request_stack'),
     );
   }
 
@@ -117,6 +120,12 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
   public function executeMultiple(array $entities): void {
     $sourceLangcode = (string) $this->configuration['source_langcode'];
     $targetLangcode = (string) $this->configuration['target_langcode'];
+    if ($targetLangcode === '') {
+      $requestTarget = $this->requestStack->getCurrentRequest()?->request->get('agency_ai_translation_target_langcode');
+      if (is_string($requestTarget) && $requestTarget !== '') {
+        $targetLangcode = $requestTarget;
+      }
+    }
     if ($targetLangcode === '') {
       $this->messenger()->addError($this->t('Veuillez choisir une langue cible avant d’exécuter l’action.'));
       return;

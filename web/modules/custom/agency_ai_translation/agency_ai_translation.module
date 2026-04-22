@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Url;
 use Drupal\node\NodeInterface;
@@ -50,4 +51,40 @@ function agency_ai_translation_entity_operation(EntityInterface $entity): array 
   }
 
   return $operations;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function agency_ai_translation_form_alter(array &$form, FormStateInterface $form_state, string $form_id): void {
+  if (!str_starts_with($form_id, 'views_form_content_')) {
+    return;
+  }
+
+  $actionOptions = $form['action']['#options'] ?? [];
+  if (!is_array($actionOptions) || !isset($actionOptions['agency_ai_translate_nodes_bulk_action'])) {
+    return;
+  }
+
+  $languages = \Drupal::languageManager()->getLanguages(LanguageInterface::STATE_CONFIGURABLE);
+  $options = [];
+  foreach ($languages as $language) {
+    if ($language->getId() === 'fr') {
+      continue;
+    }
+    $options[$language->getId()] = strtoupper($language->getId()) . ' — ' . $language->getName();
+  }
+
+  if ($options === []) {
+    return;
+  }
+
+  $form['agency_ai_translation_target_langcode'] = [
+    '#type' => 'select',
+    '#title' => t('Langue cible (IA)'),
+    '#options' => $options,
+    '#empty_option' => t('- Sélectionner -'),
+    '#description' => t('Obligatoire pour l’action “Traduire avec IA vers une langue cible”.'),
+    '#weight' => -10,
+  ];
 }

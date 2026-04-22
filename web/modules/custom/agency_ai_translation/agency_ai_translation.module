@@ -1,0 +1,33 @@
+<?php
+
+declare(strict_types=1);
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Url;
+use Drupal\node\NodeInterface;
+
+/**
+ * Implements hook_entity_operation().
+ */
+function agency_ai_translation_entity_operation(EntityInterface $entity): array {
+  if (!$entity instanceof NodeInterface) {
+    return [];
+  }
+
+  if ($entity->language()->getId() !== 'fr') {
+    return [];
+  }
+
+  $account = \Drupal::currentUser();
+  if (!$account->hasPermission('trigger ai translation') || !$entity->access('update', $account)) {
+    return [];
+  }
+
+  return [
+    'agency_ai_translate' => [
+      'title' => t('Générer EN (IA)'),
+      'weight' => 30,
+      'url' => Url::fromRoute('agency_ai_translation.translate_node', ['node' => $entity->id()]),
+    ],
+  ];
+}

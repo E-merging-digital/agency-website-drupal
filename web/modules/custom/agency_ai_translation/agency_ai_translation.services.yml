@@ -1,0 +1,19 @@
+services:
+  agency_ai_translation.client:
+    class: Drupal\agency_ai_translation\Service\AiTranslationClient
+    arguments:
+      - '@config.factory'
+      - '@http_client'
+      - '@logger.channel.agency_ai_translation'
+      - '@state'
+
+  agency_ai_translation.manager:
+    class: Drupal\agency_ai_translation\Service\AiTranslationManager
+    arguments:
+      - '@agency_ai_translation.client'
+      - '@entity_field.manager'
+      - '@logger.channel.agency_ai_translation'
+
+  logger.channel.agency_ai_translation:
+    parent: logger.channel_base
+    arguments: ['agency_ai_translation']

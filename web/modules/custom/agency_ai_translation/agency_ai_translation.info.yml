@@ -1,0 +1,10 @@
+name: 'Agency AI Translation'
+type: module
+description: 'Traduction assistée par IA du français vers l’anglais pour les contenus éditoriaux.'
+core_version_requirement: ^11
+package: Custom
+dependencies:
+  - drupal:content_translation
+  - drupal:language
+  - drupal:node
+  - drupal:paragraphs

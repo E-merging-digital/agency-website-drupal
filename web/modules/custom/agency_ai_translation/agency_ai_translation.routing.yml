@@ -1,0 +1,16 @@
+agency_ai_translation.translate_node:
+  path: '/admin/content/ai-translate/node/{node}/to-en'
+  defaults:
+    _form: '\\Drupal\\agency_ai_translation\\Form\\TranslateNodeConfirmForm'
+    _title: 'Générer la traduction anglaise (IA)'
+  requirements:
+    _permission: 'trigger ai translation'
+    _entity_access: 'node.update'
+
+agency_ai_translation.settings:
+  path: '/admin/config/content/agency-ai-translation'
+  defaults:
+    _form: '\\Drupal\\agency_ai_translation\\Form\\AiTranslationSettingsForm'
+    _title: 'Traduction IA FR -> EN'
+  requirements:
+    _permission: 'administer site configuration'

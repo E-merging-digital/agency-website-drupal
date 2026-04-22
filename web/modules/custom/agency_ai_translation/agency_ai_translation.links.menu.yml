@@ -1,0 +1,5 @@
+agency_ai_translation.settings:
+  title: 'Traduction IA FR -> EN'
+  description: 'Configurer l’intégration IA pour la pré-traduction éditoriale.'
+  route_name: agency_ai_translation.settings
+  parent: system.admin_config_content

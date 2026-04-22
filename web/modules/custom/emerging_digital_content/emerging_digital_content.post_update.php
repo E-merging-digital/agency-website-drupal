@@ -1232,15 +1232,18 @@ function emerging_digital_content_post_update_issue_25_normalize_fr_source(array
     $counts[$entity_type_id] = _emerging_digital_content_bulk_update_entity_langcode($entity_type_id, 'en', 'fr');
   }
 
+  $front_path = _emerging_digital_content_resolve_front_page_system_path();
+
   \Drupal::configFactory()->getEditable('system.site')
     ->set('langcode', 'fr')
     ->set('default_langcode', 'fr')
-    ->set('page.front', '/')
+    ->set('page.front', $front_path)
     ->save(TRUE);
 
   return sprintf(
-    '%s Updated langcode en->fr rows: node=%d, paragraph=%d, menu_link_content=%d, path_alias=%d.',
+    '%s Front page set to %s. Updated langcode en->fr rows: node=%d, paragraph=%d, menu_link_content=%d, path_alias=%d.',
     $language_status,
+    $front_path,
     $counts['node'] ?? 0,
     $counts['paragraph'] ?? 0,
     $counts['menu_link_content'] ?? 0,
@@ -1253,6 +1256,40 @@ function emerging_digital_content_post_update_issue_25_normalize_fr_source(array
  */
 function emerging_digital_content_post_update_issue_25_normalize_fr_source_v2(array &$sandbox): string {
   return emerging_digital_content_post_update_issue_25_normalize_fr_source($sandbox);
+}
+
+/**
+ * Re-applies front page system path fix for multilingual resolution.
+ */
+function emerging_digital_content_post_update_issue_25_front_page_system_path_v3(array &$sandbox): string {
+  unset($sandbox);
+
+  $front_path = _emerging_digital_content_resolve_front_page_system_path();
+  \Drupal::configFactory()->getEditable('system.site')
+    ->set('page.front', $front_path)
+    ->save(TRUE);
+
+  return sprintf('Front page system path has been set to %s.', $front_path);
+}
+
+/**
+ * Resolves a stable system path for the French front page.
+ */
+function _emerging_digital_content_resolve_front_page_system_path(): string {
+  $ids = \Drupal::entityQuery('node')
+    ->accessCheck(FALSE)
+    ->condition('type', 'page')
+    ->condition('title', 'Accueil')
+    ->sort('nid', 'ASC')
+    ->range(0, 1)
+    ->execute();
+
+  if ($ids) {
+    $nid = (int) reset($ids);
+    return '/node/' . $nid;
+  }
+
+  return '/node/5';
 }
 
 /**

@@ -13,14 +13,23 @@ use Drupal\Core\Site\Settings;
  */
 final class AiTranslationSettingsForm extends ConfigFormBase {
 
+  /**
+   * {@inheritdoc}
+   */
   public function getFormId(): string {
     return 'agency_ai_translation_settings_form';
   }
 
+  /**
+   * {@inheritdoc}
+   */
   protected function getEditableConfigNames(): array {
     return ['agency_ai_translation.settings'];
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config('agency_ai_translation.settings');
     $fromSettings = Settings::get('agency_ai_translation.api_key');
@@ -60,6 +69,9 @@ final class AiTranslationSettingsForm extends ConfigFormBase {
     return parent::buildForm($form, $form_state);
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     $this->configFactory->getEditable('agency_ai_translation.settings')
       ->set('endpoint', $form_state->getValue('endpoint'))

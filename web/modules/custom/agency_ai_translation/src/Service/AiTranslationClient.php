@@ -46,7 +46,10 @@ final class AiTranslationClient {
       'temperature' => 0.2,
       'messages' => [
         ['role' => 'system', 'content' => $systemPrompt],
-        ['role' => 'user', 'content' => "Traduire du français vers l’anglais sans ajouter de commentaire.\n\nTexte source :\n{$text}"],
+        [
+          'role' => 'user',
+          'content' => "Traduire du français vers l’anglais sans ajouter de commentaire.\n\nTexte source :\n{$text}",
+        ],
       ],
     ];
 

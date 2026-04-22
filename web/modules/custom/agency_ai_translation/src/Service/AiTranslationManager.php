@@ -29,6 +29,8 @@ final class AiTranslationManager {
   ) {}
 
   /**
+   * Traduit une entité source FR vers sa traduction EN.
+   *
    * @return int
    *   Nombre de champs traduits.
    */
@@ -53,6 +55,9 @@ final class AiTranslationManager {
     return $translatedCount;
   }
 
+  /**
+   * Traduit les champs éditoriaux translatables d'une entité.
+   */
   private function translateFields(ContentEntityInterface $source, ContentEntityInterface $target): int {
     $count = 0;
     $definitions = $this->fieldManager->getFieldDefinitions($source->getEntityTypeId(), $source->bundle());
@@ -79,6 +84,9 @@ final class AiTranslationManager {
     return $count;
   }
 
+  /**
+   * Traduit un champ éditorial simple (texte, summary, titre de lien).
+   */
   private function translateSimpleField(ContentEntityInterface $source, ContentEntityInterface $target, string $fieldName, string $fieldType): int {
     $items = $source->get($fieldName)->getValue();
 
@@ -107,6 +115,9 @@ final class AiTranslationManager {
     return count($items);
   }
 
+  /**
+   * Traduit les Paragraphs référencés et rattache les révisions EN.
+   */
   private function translateParagraphReferences(ContentEntityInterface $source, ContentEntityInterface $target, string $fieldName): int {
     $translatedReferences = [];
     $count = 0;

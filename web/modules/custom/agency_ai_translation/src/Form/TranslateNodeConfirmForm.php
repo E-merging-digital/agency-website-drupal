@@ -16,38 +16,62 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 final class TranslateNodeConfirmForm extends ConfirmFormBase {
 
+  /**
+   * Nœud source FR à traduire.
+   */
   private ?NodeInterface $node = NULL;
 
   public function __construct(
     private readonly AiTranslationManager $translationManager,
   ) {}
 
+  /**
+   * {@inheritdoc}
+   */
   public static function create(ContainerInterface $container): self {
     return new self(
       $container->get('agency_ai_translation.manager'),
     );
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getFormId(): string {
     return 'agency_ai_translation_translate_node_confirm';
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getQuestion(): string {
     return $this->t('Générer/mettre à jour la traduction anglaise de "@title" ?', ['@title' => $this->node?->label() ?? '']);
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getDescription(): string {
     return $this->t('Cette action traduit uniquement les champs éditoriaux (texte, résumé, CTA et paragraphs translatables). Les champs techniques ne sont pas modifiés.');
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getCancelUrl(): Url {
     return $this->node ? $this->node->toUrl('canonical') : Url::fromRoute('<front>');
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getConfirmText(): string {
     return $this->t('Lancer la traduction IA');
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function buildForm(array $form, FormStateInterface $form_state, ?NodeInterface $node = NULL): array {
     if (!$node instanceof NodeInterface) {
       throw new \InvalidArgumentException('Nœud invalide.');
@@ -61,6 +85,9 @@ final class TranslateNodeConfirmForm extends ConfirmFormBase {
     return parent::buildForm($form, $form_state);
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     try {
       $translatedFieldsCount = $this->translationManager->translateEntityToEnglish($this->node);

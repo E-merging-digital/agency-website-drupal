@@ -10,7 +10,7 @@ dependencies:
     - emerging_digital
 id: emerging_digital_main_menu
 theme: emerging_digital
-region: header_navigation
+region: header
 weight: 1
 provider: null
 plugin: 'system_menu_block:main'

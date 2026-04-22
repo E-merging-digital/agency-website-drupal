@@ -2,13 +2,7 @@
   <a class="skip-link" href="#main-content">Aller au contenu principal</a>
   <header class="page-header" role="banner">
     <div class="page-container page-header__inner">
-      {% if page.header_branding or page.header_navigation or page.header_language %}
-        <div class="page-header__branding">{{ page.header_branding }}</div>
-        <div class="page-header__navigation">{{ page.header_navigation }}</div>
-        <div class="page-header__language">{{ page.header_language }}</div>
-      {% else %}
-        {{ page.header }}
-      {% endif %}
+      {{ page.header }}
     </div>
   </header>
 

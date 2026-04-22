@@ -8,10 +8,7 @@ generator: starterkit_theme:11.x
 libraries:
   - emerging_digital/global-styling
 regions:
-  header: Header (fallback)
-  header_branding: Header branding
-  header_navigation: Header navigation
-  header_language: Header language
+  header: Header
   highlighted: Highlighted
   breadcrumb: Breadcrumb
   content: Content

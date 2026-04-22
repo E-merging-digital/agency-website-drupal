@@ -6,7 +6,6 @@ namespace Drupal\agency_ai_translation\Service;
 
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
-use Psr\Log\LoggerInterface;
 
 /**
  * Orchestre la traduction éditoriale FR -> EN pour noeuds et paragraphs.
@@ -25,7 +24,6 @@ final class AiTranslationManager {
   public function __construct(
     private readonly AiTranslationClient $client,
     private readonly EntityFieldManagerInterface $fieldManager,
-    private readonly LoggerInterface $logger,
   ) {}
 
   /**

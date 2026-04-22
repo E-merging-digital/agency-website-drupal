@@ -7,11 +7,33 @@ namespace Drupal\agency_ai_translation\Form;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Site\Settings;
+use Drupal\Core\State\StateInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Configuration du module de traduction IA.
  */
 final class AiTranslationSettingsForm extends ConfigFormBase {
+
+  public function __construct(
+    StateInterface $state,
+  ) {
+    $this->state = $state;
+  }
+
+  /**
+   * State store.
+   */
+  protected StateInterface $state;
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container): self {
+    return new self(
+      $container->get('state'),
+    );
+  }
 
   /**
    * {@inheritdoc}
@@ -81,7 +103,7 @@ final class AiTranslationSettingsForm extends ConfigFormBase {
 
     $apiKeyFallback = trim((string) $form_state->getValue('api_key_fallback'));
     if ($apiKeyFallback !== '') {
-      $this->state()->set('agency_ai_translation.api_key', $apiKeyFallback);
+      $this->state->set('agency_ai_translation.api_key', $apiKeyFallback);
     }
 
     parent::submitForm($form, $form_state);

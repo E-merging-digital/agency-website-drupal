@@ -7,6 +7,7 @@ namespace Drupal\agency_ai_translation\Form;
 use Drupal\agency_ai_translation\Service\AiTranslationManager;
 use Drupal\Core\Form\ConfirmFormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 use Drupal\node\NodeInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -44,14 +45,14 @@ final class TranslateNodeConfirmForm extends ConfirmFormBase {
   /**
    * {@inheritdoc}
    */
-  public function getQuestion(): string {
+  public function getQuestion(): TranslatableMarkup {
     return $this->t('Générer/mettre à jour la traduction anglaise de "@title" ?', ['@title' => $this->node?->label() ?? '']);
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getDescription(): string {
+  public function getDescription(): TranslatableMarkup {
     return $this->t('Cette action traduit uniquement les champs éditoriaux (texte, résumé, CTA et paragraphs translatables). Les champs techniques ne sont pas modifiés.');
   }
 
@@ -65,7 +66,7 @@ final class TranslateNodeConfirmForm extends ConfirmFormBase {
   /**
    * {@inheritdoc}
    */
-  public function getConfirmText(): string {
+  public function getConfirmText(): TranslatableMarkup {
     return $this->t('Lancer la traduction IA');
   }
 

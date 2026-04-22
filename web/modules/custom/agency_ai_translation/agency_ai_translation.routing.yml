@@ -4,8 +4,7 @@ agency_ai_translation.translate_node:
     _form: '\\Drupal\\agency_ai_translation\\Form\\TranslateNodeConfirmForm'
     _title: 'Générer la traduction anglaise (IA)'
   requirements:
-    _permission: 'trigger ai translation'
-    _entity_access: 'node.update'
+    _custom_access: '\\Drupal\\agency_ai_translation\\Form\\TranslateNodeConfirmForm::access'
 
 agency_ai_translation.settings:
   path: '/admin/config/content/agency-ai-translation'

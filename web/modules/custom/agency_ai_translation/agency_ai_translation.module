@@ -24,7 +24,10 @@ function agency_ai_translation_entity_operation(EntityInterface $entity): array 
   }
 
   $account = \Drupal::currentUser();
-  if (!$account->hasPermission('trigger ai translation') || !$entity->access('update', $account)) {
+  $hasTranslationPermission = $account->hasPermission('trigger ai translation')
+    || $account->hasPermission('administer nodes');
+
+  if (!$hasTranslationPermission || !$entity->access('update', $account)) {
     return [];
   }
 

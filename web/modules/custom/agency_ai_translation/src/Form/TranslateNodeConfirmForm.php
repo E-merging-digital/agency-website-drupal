@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Drupal\agency_ai_translation\Form;
 
 use Drupal\agency_ai_translation\Service\AiTranslationManager;
+use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Form\ConfirmFormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 use Drupal\node\NodeInterface;
@@ -33,6 +35,21 @@ final class TranslateNodeConfirmForm extends ConfirmFormBase {
     return new self(
       $container->get('agency_ai_translation.manager'),
     );
+  }
+
+  /**
+   * Contrôle l'accès à l'action de traduction.
+   */
+  public static function access(NodeInterface $node, AccountInterface $account): AccessResult {
+    $sourceNode = $node->hasTranslation('fr') ? $node->getTranslation('fr') : $node;
+    $isFrenchSource = $sourceNode->language()->getId() === 'fr';
+
+    $hasTranslationPermission = $account->hasPermission('trigger ai translation')
+      || $account->hasPermission('administer nodes');
+
+    return AccessResult::allowedIf($isFrenchSource && $hasTranslationPermission)
+      ->andIf($sourceNode->access('update', $account, TRUE))
+      ->addCacheableDependency($sourceNode);
   }
 
   /**
@@ -77,9 +94,9 @@ final class TranslateNodeConfirmForm extends ConfirmFormBase {
     if (!$node instanceof NodeInterface) {
       throw new \InvalidArgumentException('Nœud invalide.');
     }
-    $this->node = $node;
+    $this->node = $node->hasTranslation('fr') ? $node->getTranslation('fr') : $node;
 
-    if ($node->language()->getId() !== 'fr') {
+    if ($this->node->language()->getId() !== 'fr') {
       throw new \InvalidArgumentException('Seuls les contenus FR source peuvent être traduits.');
     }
 

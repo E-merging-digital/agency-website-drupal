@@ -9,7 +9,6 @@ libraries:
   - emerging_digital/global-styling
 regions:
   header: Header
-  header_right: Header right
   highlighted: Highlighted
   breadcrumb: Breadcrumb
   content: Content

@@ -1,0 +1,45 @@
+{#
+/**
+ * @file
+ * Theme override for language switcher links.
+ */
+#}
+{% if links %}
+  {% set active_label = '' %}
+  {% for item in links %}
+    {% if active_label is empty and (item.link is empty or (item.attributes is defined and item.attributes.hasClass('is-active'))) %}
+      {% set active_label = item.text %}
+    {% endif %}
+  {% endfor %}
+
+  {% if active_label is empty %}
+    {% set first_key = links|keys|first %}
+    {% set active_label = links[first_key].text %}
+  {% endif %}
+
+  <div class="language-switcher" data-language-switcher>
+    <button
+      type="button"
+      class="language-switcher__toggle"
+      aria-expanded="false"
+      aria-haspopup="true"
+      aria-controls="language-switcher-menu"
+    >
+      <span class="language-switcher__current">{{ active_label }}</span>
+      <span class="language-switcher__icon" aria-hidden="true">▾</span>
+      <span class="visually-hidden">{{ 'Choisir la langue'|t }}</span>
+    </button>
+
+    <ul id="language-switcher-menu" class="language-switcher__menu" hidden>
+      {% for item in links %}
+        <li{{ item.attributes.addClass('language-switcher__item') }}>
+          {% if item.link %}
+            {{ item.link }}
+          {% else %}
+            <span class="language-switcher__link is-active" aria-current="true">{{ item.text }}</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}

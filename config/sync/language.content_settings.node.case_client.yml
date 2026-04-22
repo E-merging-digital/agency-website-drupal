@@ -1,0 +1,16 @@
+uuid: 7ca09d68-edb4-49cc-903f-4391ff089c59
+langcode: en
+status: true
+dependencies:
+  config:
+    - node.type.case_client
+  module:
+    - content_translation
+third_party_settings:
+  content_translation:
+    enabled: true
+id: node.case_client
+target_entity_type_id: node
+target_bundle: case_client
+default_langcode: site_default
+language_alterable: true

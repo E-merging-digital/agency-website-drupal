@@ -1,0 +1,16 @@
+uuid: fb876d7a-8adf-4c9f-8bf7-33cf0a720fa0
+langcode: en
+status: true
+dependencies:
+  config:
+    - paragraphs.paragraphs_type.case_clients
+  module:
+    - content_translation
+third_party_settings:
+  content_translation:
+    enabled: true
+id: paragraph.case_clients
+target_entity_type_id: paragraph
+target_bundle: case_clients
+default_langcode: site_default
+language_alterable: true

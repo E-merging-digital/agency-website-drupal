@@ -32,9 +32,13 @@ module:
   image: 0
   key: 0
   link: 0
+  language: 0
+  locale: 0
   menu_link_content: 0
   menu_ui: 0
   metatag: 0
+  config_translation: 0
+  content_translation: 10
   metatag_open_graph: 0
   metatag_twitter_cards: 0
   mysql: 0

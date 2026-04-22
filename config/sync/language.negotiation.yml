@@ -1,0 +1,18 @@
+selected_langcode: site_default
+session:
+  parameter: language
+url:
+  source: path_prefix
+negotiation:
+  language_interface:
+    enabled:
+      language-url: -8
+      language-selected: 12
+  language_content:
+    enabled:
+      language-interface: -10
+      language-url: -8
+      language-selected: 12
+  language_url:
+    enabled:
+      language-url: -8

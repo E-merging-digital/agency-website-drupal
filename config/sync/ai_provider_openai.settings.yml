@@ -1,0 +1,11 @@
+uuid: c9be8672-8ef9-4de4-a906-8105f82da8bb
+langcode: en
+status: true
+dependencies:
+  module:
+    - ai_provider_openai
+    - key
+api_key: openai_api_key
+organization: ''
+project: ''
+base_url: ''

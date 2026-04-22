@@ -356,3 +356,32 @@ Option recommandée (sans automatisation implicite) :
 4. Vider le cache (`ddev drush cr`) et vérifier le rendu.
 
 Cette approche évite les effets de bord des post-updates complexes et laisse la main à l’équipe éditoriale.
+
+## Ticket #93 — Réactivation OpenAI via variable d’environnement
+
+Objectif : réactiver l’intégration OpenAI sans exposer de secret dans la configuration exportée.
+
+### Ce qui est versionné
+
+- `config/sync/key.key.openai_api_key.yml`
+  - Key Drupal `openai_api_key`
+  - Provider : `environment`
+  - Variable attendue : `OPENAI_API_KEY`
+- `config/sync/ai_provider_openai.settings.yml`
+  - Provider OpenAI branché sur la Key `openai_api_key`
+
+### Ce qui **n’est pas** versionné
+
+- La valeur de la clé OpenAI (`sk-...`) n’apparaît jamais dans Git.
+- La clé reste fournie uniquement par l’environnement DDEV.
+
+### Vérification locale
+
+```bash
+ddev drush cr
+ddev drush cex -y
+git diff config/sync
+ddev drush cim -y
+```
+
+Contrôle attendu : aucun secret en clair dans `config/sync` et provider OpenAI utilisable depuis l’UI Drupal.

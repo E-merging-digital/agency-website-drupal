@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\agency_ai_translation\Form;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Site\Settings;
@@ -15,22 +16,25 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 final class AiTranslationSettingsForm extends ConfigFormBase {
 
-  public function __construct(
-    StateInterface $state,
-  ) {
-    $this->state = $state;
-  }
-
   /**
    * State store.
    */
   protected StateInterface $state;
+
+  public function __construct(
+    ConfigFactoryInterface $configFactory,
+    StateInterface $state,
+  ) {
+    parent::__construct($configFactory);
+    $this->state = $state;
+  }
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container): self {
     return new self(
+      $container->get('config.factory'),
       $container->get('state'),
     );
   }

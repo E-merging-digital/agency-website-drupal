@@ -365,9 +365,10 @@ Objectif : réactiver l’intégration OpenAI sans exposer de secret dans la con
 
 - `config/sync/key.key.openai_api_key.yml`
   - Key Drupal `openai_api_key`
-  - Provider : `environment`
+  - Provider : `env`
   - Variable attendue : `OPENAI_API_KEY`
 - `config/sync/ai_provider_openai.settings.yml`
+  - Configuration minimale conforme au schéma (`api_key` uniquement)
   - Provider OpenAI branché sur la Key `openai_api_key`
 
 ### Ce qui **n’est pas** versionné

@@ -3,7 +3,7 @@ _meta:
   entity_type: node
   uuid: "3636da02-c8e6-40ea-aa71-54148f029a09"
   bundle: page
-  default_langcode: en
+  default_langcode: fr
   depends:
     bfa1a9d3-2715-4a04-8758-d14ece990e6e: paragraph
     65be59ce-5a5e-44ec-9c63-b0796b0dd6f9: paragraph
@@ -37,5 +37,5 @@ default:
   path:
     -
       alias: "/ia-drupal"
-      langcode: en
+      langcode: fr
       pathauto: false

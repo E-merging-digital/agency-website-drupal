@@ -1,0 +1,16 @@
+uuid: e5fed154-7b40-41c1-b1e3-a43a7f835d41
+langcode: en
+status: true
+dependencies:
+  config:
+    - system.menu.footer
+  module:
+    - content_translation
+third_party_settings:
+  content_translation:
+    enabled: true
+id: menu_link_content.footer
+target_entity_type_id: menu_link_content
+target_bundle: footer
+default_langcode: site_default
+language_alterable: true

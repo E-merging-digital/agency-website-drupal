@@ -3,7 +3,7 @@ _meta:
   entity_type: node
   uuid: "28345cad-8947-4f91-b77e-9251609a5bcc"
   bundle: page
-  default_langcode: en
+  default_langcode: fr
   depends:
     b878853f-1368-47be-bee9-8cdc1dba826a: paragraph
     25892a5a-3c09-4f64-86d7-cda8058e1875: paragraph
@@ -31,5 +31,5 @@ default:
   path:
     -
       alias: "/cas-clients"
-      langcode: en
+      langcode: fr
       pathauto: false

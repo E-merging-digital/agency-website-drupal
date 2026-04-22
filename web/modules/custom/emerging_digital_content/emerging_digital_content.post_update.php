@@ -11,7 +11,7 @@ use Drupal\menu_link_content\Entity\MenuLinkContent;
 use Drupal\node\Entity\Node;
 use Drupal\paragraphs\Entity\Paragraph;
 use Drupal\language\Entity\ConfigurableLanguage;
-use Drupal\Core\Entity\Sql\SqlContentEntityStorageInterface;
+use Drupal\Core\Entity\Sql\SqlContentEntityStorage;
 
 /**
  * Imports packaged default content for already-installed environments.
@@ -1280,7 +1280,7 @@ function _emerging_digital_content_ensure_english_secondary_language(): string {
 function _emerging_digital_content_bulk_update_entity_langcode(string $entity_type_id, string $from, string $to): int {
   /** @var \Drupal\Core\Entity\EntityStorageInterface $storage */
   $storage = \Drupal::entityTypeManager()->getStorage($entity_type_id);
-  if (!$storage instanceof SqlContentEntityStorageInterface) {
+  if (!$storage instanceof SqlContentEntityStorage) {
     return 0;
   }
 

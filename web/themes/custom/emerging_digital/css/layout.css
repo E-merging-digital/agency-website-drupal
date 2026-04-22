@@ -38,10 +38,10 @@
 }
 
 .page-header__inner .region-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
   width: 100%;
 }
 
@@ -57,7 +57,8 @@
 
 .page-header .block-system-menu-blockmain {
   order: 2;
-  margin-inline-start: auto;
+  min-width: 0;
+  justify-self: end;
 }
 
 .page-header .site-branding {
@@ -112,10 +113,18 @@
   list-style: none;
 }
 
+
+.page-header .block-system-menu-blockmain .main-navigation__list {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+
 .page-header .block-language-blocklanguage-interface {
   order: 3;
   margin: 0;
   position: relative;
+  justify-self: end;
 }
 
 .page-header .language-switcher {
@@ -423,10 +432,10 @@
 
 @media (max-width: 48rem) {
   .page-header__inner .region-header {
+    display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
   }
-
 
   .page-header .main-navigation__list {
     display: grid;

@@ -57,12 +57,22 @@ function agency_ai_translation_entity_operation(EntityInterface $entity): array 
  * Implements hook_form_alter().
  */
 function agency_ai_translation_form_alter(array &$form, FormStateInterface $form_state, string $form_id): void {
-  if (!str_starts_with($form_id, 'views_form_content_')) {
+  if (
+    !str_starts_with($form_id, 'views_form_content_')
+    && $form_id !== 'node_admin_content'
+  ) {
     return;
   }
 
-  $actionOptions = $form['action']['#options'] ?? [];
-  if (!is_array($actionOptions) || !isset($actionOptions['agency_ai_translate_nodes_bulk_action'])) {
+  $actionElement = NULL;
+  if (isset($form['action']) && is_array($form['action'])) {
+    $actionElement = &$form;
+  }
+  elseif (isset($form['actions']['action']) && is_array($form['actions']['action'])) {
+    $actionElement = &$form['actions'];
+  }
+
+  if ($actionElement === NULL) {
     return;
   }
 
@@ -79,12 +89,12 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
     return;
   }
 
-  $form['agency_ai_translation_target_langcode'] = [
+  $actionElement['agency_ai_translation_target_langcode'] = [
     '#type' => 'select',
     '#title' => t('Langue cible (IA)'),
     '#options' => $options,
     '#empty_option' => t('- Sélectionner -'),
     '#description' => t('Obligatoire pour l’action “Traduire avec IA vers une langue cible”.'),
-    '#weight' => -10,
+    '#weight' => 5,
   ];
 }

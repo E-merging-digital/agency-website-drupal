@@ -9,16 +9,3 @@ url:
   domains:
     fr: ''
     en: ''
-negotiation:
-  language_interface:
-    enabled:
-      language-url: -8
-      language-selected: -6
-  language_content:
-    enabled:
-      language-content-entity: -10
-      language-url: -8
-      language-selected: -6
-  language_url:
-    enabled:
-      language-url: -8

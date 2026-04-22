@@ -1249,6 +1249,13 @@ function emerging_digital_content_post_update_issue_25_normalize_fr_source(array
 }
 
 /**
+ * Re-runs FR source normalization on already-installed environments.
+ */
+function emerging_digital_content_post_update_issue_25_normalize_fr_source_v2(array &$sandbox): string {
+  return emerging_digital_content_post_update_issue_25_normalize_fr_source($sandbox);
+}
+
+/**
  * Ensures English exists and stays enabled as secondary language.
  */
 function _emerging_digital_content_ensure_english_secondary_language(): string {

@@ -71,6 +71,12 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
   elseif (isset($form['actions']['action']) && is_array($form['actions']['action'])) {
     $actionElement = &$form['actions'];
   }
+  elseif (isset($form['header']['action']) && is_array($form['header']['action'])) {
+    $actionElement = &$form['header'];
+  }
+  elseif (isset($form['header']['actions']['action']) && is_array($form['header']['actions']['action'])) {
+    $actionElement = &$form['header']['actions'];
+  }
 
   if ($actionElement === NULL) {
     return;

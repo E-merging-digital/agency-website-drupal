@@ -129,6 +129,15 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
           $requestTarget = $actionsValues['agency_ai_translation_target_langcode'];
         }
       }
+      if (!is_string($requestTarget) || $requestTarget === '') {
+        $headerValues = $request?->request->all('header');
+        if (is_array($headerValues) && isset($headerValues['agency_ai_translation_target_langcode']) && is_string($headerValues['agency_ai_translation_target_langcode'])) {
+          $requestTarget = $headerValues['agency_ai_translation_target_langcode'];
+        }
+        if (is_array($headerValues) && isset($headerValues['actions']) && is_array($headerValues['actions']) && isset($headerValues['actions']['agency_ai_translation_target_langcode']) && is_string($headerValues['actions']['agency_ai_translation_target_langcode'])) {
+          $requestTarget = $headerValues['actions']['agency_ai_translation_target_langcode'];
+        }
+      }
       if (is_string($requestTarget) && $requestTarget !== '') {
         $targetLangcode = $requestTarget;
       }

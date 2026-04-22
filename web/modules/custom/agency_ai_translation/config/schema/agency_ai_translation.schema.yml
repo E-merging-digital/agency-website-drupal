@@ -11,3 +11,14 @@ agency_ai_translation.settings:
     system_prompt:
       type: text
       label: 'System prompt'
+
+action.configuration.agency_ai_translate_nodes_bulk_action:
+  type: mapping
+  label: 'Configuration de l’action de masse de traduction IA'
+  mapping:
+    source_langcode:
+      type: string
+      label: 'Langue source'
+    target_langcode:
+      type: string
+      label: 'Langue cible'

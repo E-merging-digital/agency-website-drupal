@@ -1,0 +1,14 @@
+uuid: afb95202-30af-48d0-b654-a328c7fcc359
+langcode: en
+status: true
+dependencies:
+  module:
+    - agency_ai_translation
+    - node
+id: agency_ai_translate_nodes_bulk_action
+label: 'Traduire avec IA vers une langue cible'
+type: node
+plugin: agency_ai_translate_nodes_bulk_action
+configuration:
+  source_langcode: fr
+  target_langcode: en

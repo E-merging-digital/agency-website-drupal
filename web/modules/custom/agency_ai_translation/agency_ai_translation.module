@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Url;
 use Drupal\node\NodeInterface;
 
@@ -19,10 +20,6 @@ function agency_ai_translation_entity_operation(EntityInterface $entity): array 
     return [];
   }
 
-  if ($entity->language()->getId() !== 'fr') {
-    return [];
-  }
-
   $account = \Drupal::currentUser();
   $hasTranslationPermission = $account->hasPermission('trigger ai translation')
     || $account->hasPermission('administer nodes');
@@ -31,11 +28,26 @@ function agency_ai_translation_entity_operation(EntityInterface $entity): array 
     return [];
   }
 
-  return [
-    'agency_ai_translate' => [
-      'title' => t('Générer EN (IA)'),
-      'weight' => 30,
-      'url' => Url::fromRoute('agency_ai_translation.translate_node', ['node' => $entity->id()]),
-    ],
-  ];
+  $sourceLangcode = $entity->language()->getId();
+  $languages = \Drupal::languageManager()->getLanguages(LanguageInterface::STATE_CONFIGURABLE);
+  $operations = [];
+  $weight = 30;
+
+  foreach ($languages as $targetLanguage) {
+    $targetLangcode = $targetLanguage->getId();
+    if ($targetLangcode === $sourceLangcode) {
+      continue;
+    }
+
+    $operations['agency_ai_translate_' . $targetLangcode] = [
+      'title' => t('Générer @lang (IA)', ['@lang' => strtoupper($targetLangcode)]),
+      'weight' => $weight++,
+      'url' => Url::fromRoute('agency_ai_translation.translate_node', [
+        'node' => $entity->id(),
+        'target_langcode' => $targetLangcode,
+      ]),
+    ];
+  }
+
+  return $operations;
 }

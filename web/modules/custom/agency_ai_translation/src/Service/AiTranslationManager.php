@@ -33,20 +33,33 @@ final class AiTranslationManager {
    *   Nombre de champs traduits.
    */
   public function translateEntityToEnglish(ContentEntityInterface $entity): int {
+    return $this->translateEntityToLanguage($entity, 'en', 'fr');
+  }
+
+  /**
+   * Traduit une entité source vers une langue cible.
+   *
+   * @return int
+   *   Nombre de champs traduits.
+   */
+  public function translateEntityToLanguage(ContentEntityInterface $entity, string $targetLangcode, string $sourceLangcode = 'fr'): int {
     if (!$entity->isTranslatable()) {
       throw new \InvalidArgumentException('Entité non traduisible.');
     }
-
-    $sourceLangcode = $entity->language()->getId();
-    if ($sourceLangcode !== 'fr') {
-      throw new \InvalidArgumentException('La source doit être en français (fr).');
+    if ($targetLangcode === $sourceLangcode) {
+      throw new \InvalidArgumentException('La langue cible doit être différente de la langue source.');
     }
 
-    $translatedEntity = $entity->hasTranslation('en')
-      ? $entity->getTranslation('en')
-      : $entity->addTranslation('en');
+    $sourceEntity = $entity->hasTranslation($sourceLangcode) ? $entity->getTranslation($sourceLangcode) : $entity;
+    if ($sourceEntity->language()->getId() !== $sourceLangcode) {
+      throw new \InvalidArgumentException(sprintf('La source doit être en %s.', $sourceLangcode));
+    }
 
-    $translatedCount = $this->translateFields($entity, $translatedEntity);
+    $translatedEntity = $entity->hasTranslation($targetLangcode)
+      ? $entity->getTranslation($targetLangcode)
+      : $entity->addTranslation($targetLangcode);
+
+    $translatedCount = $this->translateFields($sourceEntity, $translatedEntity, $sourceLangcode, $targetLangcode);
 
     $translatedEntity->save();
 
@@ -56,7 +69,7 @@ final class AiTranslationManager {
   /**
    * Traduit les champs éditoriaux translatables d'une entité.
    */
-  private function translateFields(ContentEntityInterface $source, ContentEntityInterface $target): int {
+  private function translateFields(ContentEntityInterface $source, ContentEntityInterface $target, string $sourceLangcode, string $targetLangcode): int {
     $count = 0;
     $definitions = $this->fieldManager->getFieldDefinitions($source->getEntityTypeId(), $source->bundle());
 
@@ -70,12 +83,12 @@ final class AiTranslationManager {
 
       $fieldType = $definition->getType();
       if (in_array($fieldType, self::TRANSLATABLE_FIELD_TYPES, TRUE)) {
-        $count += $this->translateSimpleField($source, $target, $fieldName, $fieldType);
+        $count += $this->translateSimpleField($source, $target, $fieldName, $fieldType, $sourceLangcode, $targetLangcode);
         continue;
       }
 
       if ($fieldType === 'entity_reference_revisions') {
-        $count += $this->translateParagraphReferences($source, $target, $fieldName);
+        $count += $this->translateParagraphReferences($source, $target, $fieldName, $sourceLangcode, $targetLangcode);
       }
     }
 
@@ -85,14 +98,14 @@ final class AiTranslationManager {
   /**
    * Traduit un champ éditorial simple (texte, summary, titre de lien).
    */
-  private function translateSimpleField(ContentEntityInterface $source, ContentEntityInterface $target, string $fieldName, string $fieldType): int {
+  private function translateSimpleField(ContentEntityInterface $source, ContentEntityInterface $target, string $fieldName, string $fieldType, string $sourceLangcode, string $targetLangcode): int {
     $items = $source->get($fieldName)->getValue();
 
     foreach ($items as $delta => $item) {
       if ($fieldType === 'link') {
         $title = trim((string) ($item['title'] ?? ''));
         if ($title !== '') {
-          $items[$delta]['title'] = $this->client->translateFrToEn($title);
+          $items[$delta]['title'] = $this->client->translate($title, $sourceLangcode, $targetLangcode);
         }
         continue;
       }
@@ -105,7 +118,7 @@ final class AiTranslationManager {
         if ($value === '') {
           continue;
         }
-        $items[$delta][$key] = $this->client->translateFrToEn($value);
+        $items[$delta][$key] = $this->client->translate($value, $sourceLangcode, $targetLangcode);
       }
     }
 
@@ -116,7 +129,7 @@ final class AiTranslationManager {
   /**
    * Traduit les Paragraphs référencés et rattache les révisions EN.
    */
-  private function translateParagraphReferences(ContentEntityInterface $source, ContentEntityInterface $target, string $fieldName): int {
+  private function translateParagraphReferences(ContentEntityInterface $source, ContentEntityInterface $target, string $fieldName, string $sourceLangcode, string $targetLangcode): int {
     $translatedReferences = [];
     $count = 0;
 
@@ -126,16 +139,16 @@ final class AiTranslationManager {
         continue;
       }
 
-      if ($paragraph->language()->getId() !== 'fr') {
+      if ($paragraph->language()->getId() !== $sourceLangcode) {
         $translatedReferences[] = ['target_id' => $paragraph->id(), 'target_revision_id' => $paragraph->getRevisionId()];
         continue;
       }
 
-      $paragraphTranslation = $paragraph->hasTranslation('en')
-        ? $paragraph->getTranslation('en')
-        : $paragraph->addTranslation('en');
+      $paragraphTranslation = $paragraph->hasTranslation($targetLangcode)
+        ? $paragraph->getTranslation($targetLangcode)
+        : $paragraph->addTranslation($targetLangcode);
 
-      $count += $this->translateFields($paragraph, $paragraphTranslation);
+      $count += $this->translateFields($paragraph, $paragraphTranslation, $sourceLangcode, $targetLangcode);
       $paragraphTranslation->save();
 
       $translatedReferences[] = [

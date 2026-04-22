@@ -23,9 +23,9 @@ final class AiTranslationClient {
   ) {}
 
   /**
-   * Traduit un texte FR en EN via un provider de type OpenAI-compatible.
+   * Traduit un texte entre deux langues via un provider OpenAI-compatible.
    */
-  public function translateFrToEn(string $text): string {
+  public function translate(string $text, string $sourceLangcode, string $targetLangcode): string {
     $text = trim($text);
     if ($text === '') {
       return $text;
@@ -48,7 +48,7 @@ final class AiTranslationClient {
         ['role' => 'system', 'content' => $systemPrompt],
         [
           'role' => 'user',
-          'content' => "Traduire du français vers l’anglais sans ajouter de commentaire.\n\nTexte source :\n{$text}",
+          'content' => "Traduire de {$sourceLangcode} vers {$targetLangcode} sans ajouter de commentaire.\n\nTexte source :\n{$text}",
         ],
       ],
     ];
@@ -71,6 +71,13 @@ final class AiTranslationClient {
     }
 
     return $translated;
+  }
+
+  /**
+   * Traduit du FR vers EN (compatibilité rétro).
+   */
+  public function translateFrToEn(string $text): string {
+    return $this->translate($text, 'fr', 'en');
   }
 
   /**

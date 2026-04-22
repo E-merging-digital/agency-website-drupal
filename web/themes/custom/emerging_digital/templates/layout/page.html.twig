@@ -8,7 +8,14 @@
   <a class="skip-link" href="#main-content">Aller au contenu principal</a>
   <header class="page-header" role="banner">
     <div class="page-container page-header__inner">
-      {{ page.header }}
+      <div class="page-header__main">
+        {{ page.header }}
+      </div>
+      {% if page.header_right %}
+        <div class="page-header__aside">
+          {{ page.header_right }}
+        </div>
+      {% endif %}
     </div>
   </header>
 

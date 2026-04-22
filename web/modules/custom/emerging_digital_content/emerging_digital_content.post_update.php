@@ -1286,7 +1286,6 @@ function _emerging_digital_content_bulk_update_entity_langcode(string $entity_ty
 
   $database = \Drupal::database();
   $schema = $database->schema();
-  $mapping = $storage->getTableMapping();
 
   $tables = array_filter(array_unique(array_merge(
     [
@@ -1295,8 +1294,8 @@ function _emerging_digital_content_bulk_update_entity_langcode(string $entity_ty
       $storage->getRevisionTable(),
       $storage->getRevisionDataTable(),
     ],
-    array_values($mapping->getDedicatedDataTableNames()),
-    array_values($mapping->getDedicatedRevisionTableNames()),
+    $schema->findTables($entity_type_id . '__%'),
+    $schema->findTables($entity_type_id . '_revision__%'),
   )));
 
   $updated = 0;

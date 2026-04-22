@@ -10,4 +10,4 @@ type: node
 plugin: agency_ai_translate_nodes_bulk_action
 configuration:
   source_langcode: fr
-  target_langcode: en
+  target_langcode: ''

@@ -58,7 +58,7 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
   public function defaultConfiguration(): array {
     return [
       'source_langcode' => 'fr',
-      'target_langcode' => 'en',
+      'target_langcode' => '',
     ] + parent::defaultConfiguration();
   }
 
@@ -69,23 +69,19 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     $languages = $this->languageManager->getLanguages(LanguageInterface::STATE_CONFIGURABLE);
     $options = [];
     foreach ($languages as $language) {
+      if ($language->getId() === 'fr') {
+        continue;
+      }
       $options[$language->getId()] = strtoupper($language->getId()) . ' — ' . $language->getName();
     }
-
-    $form['source_langcode'] = [
-      '#type' => 'select',
-      '#title' => $this->t('Langue source'),
-      '#options' => $options,
-      '#default_value' => $this->configuration['source_langcode'],
-      '#required' => TRUE,
-    ];
 
     $form['target_langcode'] = [
       '#type' => 'select',
       '#title' => $this->t('Langue cible'),
+      '#empty_option' => $this->t('- Sélectionner -'),
       '#options' => $options,
       '#default_value' => $this->configuration['target_langcode'],
-      '#description' => $this->t('Langue cible utilisée pour cette exécution de l’action de masse.'),
+      '#description' => $this->t('Choix obligatoire avant exécution de la traduction de masse.'),
       '#required' => TRUE,
     ];
 
@@ -96,7 +92,7 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
    * {@inheritdoc}
    */
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
-    $this->configuration['source_langcode'] = $form_state->getValue('source_langcode');
+    $this->configuration['source_langcode'] = 'fr';
     $this->configuration['target_langcode'] = $form_state->getValue('target_langcode');
   }
 
@@ -121,6 +117,10 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
   public function executeMultiple(array $entities): void {
     $sourceLangcode = (string) $this->configuration['source_langcode'];
     $targetLangcode = (string) $this->configuration['target_langcode'];
+    if ($targetLangcode === '') {
+      $this->messenger()->addError($this->t('Veuillez choisir une langue cible avant d’exécuter l’action.'));
+      return;
+    }
     if ($sourceLangcode === $targetLangcode) {
       $this->messenger()->addError($this->t('La langue cible doit être différente de la langue source.'));
       return;
@@ -162,6 +162,9 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       foreach ($errorMessages as $errorMessage) {
         $this->messenger()->addWarning($errorMessage);
       }
+    }
+    if ($success === 0 && $errors > 0) {
+      $this->messenger()->addWarning($this->t('0 contenu traduit.'));
     }
   }
 

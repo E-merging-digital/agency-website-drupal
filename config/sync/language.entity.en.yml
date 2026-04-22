@@ -8,4 +8,4 @@ id: en
 label: English
 direction: ltr
 weight: 1
-locked: false
+locked: true

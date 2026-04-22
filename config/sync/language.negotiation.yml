@@ -3,16 +3,22 @@ session:
   parameter: language
 url:
   source: path_prefix
+  prefixes:
+    fr: fr
+    en: en
+  domains:
+    fr: ''
+    en: ''
 negotiation:
   language_interface:
     enabled:
       language-url: -8
-      language-selected: 12
+      language-selected: -6
   language_content:
     enabled:
-      language-interface: -10
+      language-content-entity: -10
       language-url: -8
-      language-selected: 12
+      language-selected: -6
   language_url:
     enabled:
       language-url: -8

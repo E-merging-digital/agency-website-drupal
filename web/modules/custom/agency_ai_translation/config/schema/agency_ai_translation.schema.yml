@@ -9,7 +9,7 @@ agency_ai_translation.settings:
       type: string
       label: 'Model'
     openai_key_id:
-      type: string
+      type: machine_name
       label: 'Drupal Key ID for OpenAI'
     system_prompt:
       type: text

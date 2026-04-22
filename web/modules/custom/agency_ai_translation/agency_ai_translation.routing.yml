@@ -4,7 +4,7 @@ agency_ai_translation.translate_node:
     _form: '\\Drupal\\agency_ai_translation\\Form\\TranslateNodeConfirmForm'
     _title: 'Générer une traduction (IA)'
   requirements:
-    _permission: 'trigger ai translation'
+    _permission: 'trigger ai translation,administer nodes'
     _entity_access: 'node.update'
     target_langcode: '[a-z_]+'
 

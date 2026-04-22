@@ -82,6 +82,7 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       '#title' => $this->t('Langue cible'),
       '#options' => $options,
       '#default_value' => $this->configuration['target_langcode'],
+      '#description' => $this->t('Langue cible utilisée pour cette exécution de l’action de masse.'),
       '#required' => TRUE,
     ];
 
@@ -115,8 +116,16 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
    * {@inheritdoc}
    */
   public function executeMultiple(array $entities): void {
+    $sourceLangcode = (string) $this->configuration['source_langcode'];
+    $targetLangcode = (string) $this->configuration['target_langcode'];
+    if ($sourceLangcode === $targetLangcode) {
+      $this->messenger()->addError($this->t('La langue cible doit être différente de la langue source.'));
+      return;
+    }
+
     $success = 0;
     $errors = 0;
+    $errorMessages = [];
 
     foreach ($entities as $entity) {
       if (!$entity instanceof NodeInterface) {
@@ -127,8 +136,18 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
         $this->execute($entity);
         $success++;
       }
-      catch (\Throwable) {
+      catch (\Throwable $exception) {
         $errors++;
+        if (count($errorMessages) < 3) {
+          $errorMessages[] = $this->t('Nœud @nid : @message', [
+            '@nid' => (string) $entity->id(),
+            '@message' => $exception->getMessage(),
+          ]);
+        }
+        \Drupal::logger('agency_ai_translation')->error('Échec traduction IA en masse pour le nœud @nid : @message', [
+          '@nid' => $entity->id(),
+          '@message' => $exception->getMessage(),
+        ]);
       }
     }
 
@@ -137,6 +156,9 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     }
     if ($errors > 0) {
       $this->messenger()->addWarning($this->formatPlural($errors, '1 contenu en erreur.', '@count contenus en erreur.'));
+      foreach ($errorMessages as $errorMessage) {
+        $this->messenger()->addWarning($errorMessage);
+      }
     }
   }
 

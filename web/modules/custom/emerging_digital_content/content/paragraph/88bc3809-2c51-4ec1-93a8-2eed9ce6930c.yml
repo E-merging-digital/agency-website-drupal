@@ -3,7 +3,7 @@ _meta:
   entity_type: paragraph
   uuid: "88bc3809-2c51-4ec1-93a8-2eed9ce6930c"
   bundle: cta
-  default_langcode: en
+  default_langcode: fr
 default:
   field_heading:
     -

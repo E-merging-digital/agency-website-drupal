@@ -3,7 +3,7 @@ _meta:
   entity_type: node
   uuid: "d6e1876f-8e32-4f75-b6bb-946de5f5afdb"
   bundle: page
-  default_langcode: en
+  default_langcode: fr
   depends:
     50c9c0ef-85f8-49a3-819c-4aa63ddd1737: paragraph
     2eb8e4b6-37d0-47cc-8702-7a850dd94c15: paragraph
@@ -34,5 +34,5 @@ default:
   path:
     -
       alias: /services
-      langcode: en
+      langcode: fr
       pathauto: false

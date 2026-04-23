@@ -8,6 +8,7 @@ use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\agency_ai_translation\Support\StaticTranslationHttpClient;
 use Drupal\Tests\BrowserTestBase;
+use Drupal\user\UserInterface;
 
 /**
  * Vérifie les workflows critiques de traduction IA.
@@ -37,9 +38,11 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
   protected $defaultTheme = 'stark';
 
   /**
-   * Utilisateur de test.
+   * Utilisateur dédié aux scénarios de traduction.
+   *
+   * @var \Drupal\user\UserInterface
    */
-  private $translatorUser;
+  private UserInterface $translatorUser;
 
   /**
    * {@inheritdoc}

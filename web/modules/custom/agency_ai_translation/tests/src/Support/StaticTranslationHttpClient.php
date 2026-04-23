@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_ai_translation\Support;
 
+use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response;
@@ -13,7 +14,7 @@ use Psr\Http\Message\ResponseInterface;
 /**
  * Faux client HTTP pour rendre les tests de traduction déterministes.
  */
-final class StaticTranslationHttpClient implements \GuzzleHttp\ClientInterface {
+final class StaticTranslationHttpClient implements ClientInterface {
 
   /**
    * {@inheritdoc}

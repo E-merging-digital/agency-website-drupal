@@ -3,6 +3,7 @@ services:
     class: Drupal\agency_ai_translation\Service\AiTranslationClient
     arguments:
       - '@config.factory'
+      - '@language_manager'
       - '@http_client'
       - '@logger.channel.agency_ai_translation'
       - '@state'

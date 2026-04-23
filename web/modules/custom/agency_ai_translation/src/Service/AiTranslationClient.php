@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\agency_ai_translation\Service;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\State\StateInterface;
 use Drupal\key\KeyRepositoryInterface;
@@ -18,6 +19,7 @@ final class AiTranslationClient {
 
   public function __construct(
     private readonly ConfigFactoryInterface $configFactory,
+    private readonly LanguageManagerInterface $languageManager,
     private readonly ClientInterface $httpClient,
     private readonly LoggerInterface $logger,
     private readonly StateInterface $state,
@@ -42,15 +44,18 @@ final class AiTranslationClient {
     $endpoint = (string) $config->get('endpoint');
     $model = (string) $config->get('model');
     $systemPrompt = (string) $config->get('system_prompt');
+    $sourceLanguageLabel = $this->getLanguageLabel($sourceLangcode);
+    $targetLanguageLabel = $this->getLanguageLabel($targetLangcode);
+    $systemPromptWithContext = trim($systemPrompt . "\n\nSource language: {$sourceLanguageLabel}\nTarget language: {$targetLanguageLabel}\nReturn only the translated content.");
 
     $payload = [
       'model' => $model,
       'temperature' => 0.2,
       'messages' => [
-        ['role' => 'system', 'content' => $systemPrompt],
+        ['role' => 'system', 'content' => $systemPromptWithContext],
         [
           'role' => 'user',
-          'content' => "Traduire de {$sourceLangcode} vers {$targetLangcode} sans ajouter de commentaire.\n\nTexte source :\n{$text}",
+          'content' => "Translate from {$sourceLanguageLabel} to {$targetLanguageLabel} without adding commentary.\n\nSource content:\n{$text}",
         ],
       ],
     ];
@@ -156,6 +161,14 @@ final class AiTranslationClient {
       }
     }
     return NULL;
+  }
+
+  /**
+   * Retourne le libellé Drupal d'une langue à partir de son code.
+   */
+  private function getLanguageLabel(string $langcode): string {
+    $language = $this->languageManager->getLanguage($langcode);
+    return $language ? $language->getName() : strtoupper($langcode);
   }
 
 }

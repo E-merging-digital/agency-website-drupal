@@ -1,6 +1,15 @@
 agency_ai_translation.translate_node:
   path: '/admin/content/ai-translate/node/{node}/to/{target_langcode}'
   defaults:
+    _form: '\Drupal\agency_ai_translation\Form\TranslateNodeConfirmForm'
+    _title: 'Confirmer la génération de traduction (IA)'
+  requirements:
+    _permission: 'access content'
+    target_langcode: '[a-z_]+'
+
+agency_ai_translation.translate_node_execute:
+  path: '/admin/content/ai-translate/node/{node}/to/{target_langcode}/execute'
+  defaults:
     _controller: '\Drupal\agency_ai_translation\Controller\TranslateNodeController::translate'
     _title: 'Générer une traduction (IA)'
   requirements:

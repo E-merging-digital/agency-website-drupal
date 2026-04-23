@@ -62,9 +62,9 @@ final class AiTranslationManager {
 
     $translatedCount = $this->translateFields($sourceEntity, $translatedEntity, $sourceLangcode, $targetLangcode);
 
-    $this->preparePathAliasGeneration($translatedEntity);
-    $translatedEntity->save();
-    $this->generatePathAlias($translatedEntity);
+    $this->preparePathAliasGeneration($translatedEntity, $targetLangcode);
+    $translatedEntity->getUntranslated()->save();
+    $this->generatePathAlias($translatedEntity, $targetLangcode);
 
     return $translatedCount;
   }
@@ -170,7 +170,7 @@ final class AiTranslationManager {
   /**
    * Prépare la régénération Pathauto de l'alias sur la traduction cible.
    */
-  private function preparePathAliasGeneration(ContentEntityInterface $translatedEntity): void {
+  private function preparePathAliasGeneration(ContentEntityInterface $translatedEntity, string $targetLangcode): void {
     if (!$translatedEntity->hasField('path')) {
       return;
     }
@@ -182,14 +182,21 @@ final class AiTranslationManager {
     }
     $firstPath['alias'] = '';
     $firstPath['pathauto'] = 1;
+    $firstPath['langcode'] = $targetLangcode;
     $translatedEntity->set('path', [$firstPath]);
   }
 
   /**
    * Déclenche Pathauto si disponible pour générer un alias de traduction.
    */
-  private function generatePathAlias(ContentEntityInterface $translatedEntity): void {
+  private function generatePathAlias(ContentEntityInterface $translatedEntity, string $targetLangcode): void {
     if (!is_object($this->pathautoGenerator) || !method_exists($this->pathautoGenerator, 'updateEntityAlias')) {
+      return;
+    }
+
+    $reflection = new \ReflectionMethod($this->pathautoGenerator, 'updateEntityAlias');
+    if ($reflection->getNumberOfParameters() >= 3) {
+      $this->pathautoGenerator->updateEntityAlias($translatedEntity, 'update', ['language' => $targetLangcode]);
       return;
     }
 

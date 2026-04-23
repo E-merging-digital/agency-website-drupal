@@ -5,7 +5,7 @@ dependencies:
   module:
     - node
 id: node_ai_feature
-label: 'Content path pattern (Fonctionnalité IA)'
+label: 'Content path pattern (Fonctionnalité IA fallback)'
 type: 'canonical_entities:node'
 pattern: 'ia/[node:title]'
 selection_criteria:
@@ -18,5 +18,5 @@ selection_criteria:
     bundles:
       ai_feature: ai_feature
 selection_logic: and
-weight: -6
+weight: -1
 relationships: {  }

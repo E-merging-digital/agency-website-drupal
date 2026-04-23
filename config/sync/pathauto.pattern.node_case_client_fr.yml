@@ -1,0 +1,31 @@
+uuid: d6a2cd47-c67d-4ec8-9dfa-f1be9f4f8604
+langcode: en
+status: true
+dependencies:
+  module:
+    - language
+    - node
+id: node_case_client_fr
+label: 'Content path pattern (Cas client FR)'
+type: 'canonical_entities:node'
+pattern: 'cas-clients/[node:title]'
+selection_criteria:
+  7e6f25f1-43da-4963-8787-4df5b7d8f205:
+    id: language
+    negate: false
+    uuid: 7e6f25f1-43da-4963-8787-4df5b7d8f205
+    context_mapping:
+      language: 'node:langcode:language'
+    langcodes:
+      fr: fr
+  0df52cbf-f39e-4763-aa74-4e989ec2116b:
+    id: 'entity_bundle:node'
+    negate: false
+    uuid: 0df52cbf-f39e-4763-aa74-4e989ec2116b
+    context_mapping:
+      node: node
+    bundles:
+      case_client: case_client
+selection_logic: and
+weight: -12
+relationships: {  }

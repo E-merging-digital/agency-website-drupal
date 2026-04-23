@@ -5,7 +5,7 @@ dependencies:
   module:
     - node
 id: node_case_client
-label: 'Content path pattern (Cas client)'
+label: 'Content path pattern (Cas client fallback)'
 type: 'canonical_entities:node'
 pattern: 'cas-clients/[node:title]'
 selection_criteria:
@@ -18,5 +18,5 @@ selection_criteria:
     bundles:
       case_client: case_client
 selection_logic: and
-weight: -7
+weight: -1
 relationships: {  }

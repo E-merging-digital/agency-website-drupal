@@ -1,0 +1,31 @@
+uuid: f5791824-e70f-466a-ba91-c98743984a13
+langcode: en
+status: true
+dependencies:
+  module:
+    - language
+    - node
+id: node_case_client_en
+label: 'Content path pattern (Cas client EN)'
+type: 'canonical_entities:node'
+pattern: 'case-studies/[node:title]'
+selection_criteria:
+  5f7fdb6c-702f-4285-b657-2da37d4fd966:
+    id: language
+    negate: false
+    uuid: 5f7fdb6c-702f-4285-b657-2da37d4fd966
+    context_mapping:
+      language: 'node:langcode:language'
+    langcodes:
+      en: en
+  36ea85e2-3870-4d0f-9c59-f308f4b69457:
+    id: 'entity_bundle:node'
+    negate: false
+    uuid: 36ea85e2-3870-4d0f-9c59-f308f4b69457
+    context_mapping:
+      node: node
+    bundles:
+      case_client: case_client
+selection_logic: and
+weight: -11
+relationships: {  }

@@ -1,0 +1,31 @@
+uuid: 15d638e3-e68b-4874-b4ff-d0ec9ff9be2f
+langcode: en
+status: true
+dependencies:
+  module:
+    - language
+    - node
+id: node_page_fr
+label: 'Content path pattern (Page FR)'
+type: 'canonical_entities:node'
+pattern: '[node:title]'
+selection_criteria:
+  b6f6fc97-8882-4203-b68e-a4c993193652:
+    id: language
+    negate: false
+    uuid: b6f6fc97-8882-4203-b68e-a4c993193652
+    context_mapping:
+      language: 'node:langcode:language'
+    langcodes:
+      fr: fr
+  c5fd08ca-417a-44a4-8a7c-14fbb989d86d:
+    id: 'entity_bundle:node'
+    negate: false
+    uuid: c5fd08ca-417a-44a4-8a7c-14fbb989d86d
+    context_mapping:
+      node: node
+    bundles:
+      page: page
+selection_logic: and
+weight: -12
+relationships: {  }

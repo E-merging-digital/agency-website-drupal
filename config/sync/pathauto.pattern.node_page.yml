@@ -5,7 +5,7 @@ dependencies:
   module:
     - node
 id: node_page
-label: 'Content path pattern (Page)'
+label: 'Content path pattern (Page fallback)'
 type: 'canonical_entities:node'
 pattern: '[node:title]'
 selection_criteria:
@@ -18,5 +18,5 @@ selection_criteria:
     bundles:
       page: page
 selection_logic: and
-weight: -10
+weight: -1
 relationships: {  }

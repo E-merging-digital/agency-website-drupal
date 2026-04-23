@@ -1,0 +1,31 @@
+uuid: 7132638d-df2a-4f3d-ba4a-aeec03ef9231
+langcode: en
+status: true
+dependencies:
+  module:
+    - language
+    - node
+id: node_ai_feature_fr
+label: 'Content path pattern (Fonctionnalité IA FR)'
+type: 'canonical_entities:node'
+pattern: 'ia/[node:title]'
+selection_criteria:
+  34e8f4f6-2d34-47a5-8f29-4eaecb8686e8:
+    id: language
+    negate: false
+    uuid: 34e8f4f6-2d34-47a5-8f29-4eaecb8686e8
+    context_mapping:
+      language: 'node:langcode:language'
+    langcodes:
+      fr: fr
+  a24e35ad-c7f6-48dc-aeb5-9d88217f8e84:
+    id: 'entity_bundle:node'
+    negate: false
+    uuid: a24e35ad-c7f6-48dc-aeb5-9d88217f8e84
+    context_mapping:
+      node: node
+    bundles:
+      ai_feature: ai_feature
+selection_logic: and
+weight: -12
+relationships: {  }

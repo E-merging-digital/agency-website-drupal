@@ -1,0 +1,27 @@
+agency_ai_translation.settings:
+  type: config_object
+  label: 'AI translation settings'
+  mapping:
+    endpoint:
+      type: uri
+      label: 'Chat completion endpoint'
+    model:
+      type: string
+      label: 'Model'
+    openai_key_id:
+      type: machine_name
+      label: 'Drupal Key ID for OpenAI'
+    system_prompt:
+      type: text
+      label: 'System prompt'
+
+action.configuration.agency_ai_translate_nodes_bulk_action:
+  type: mapping
+  label: 'Configuration de l’action de masse de traduction IA'
+  mapping:
+    source_langcode:
+      type: string
+      label: 'Langue source'
+    target_langcode:
+      type: string
+      label: 'Langue cible'

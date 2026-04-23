@@ -1,20 +1,20 @@
-# Agency AI Translation (FR -> EN)
+# Agency AI Translation (multi-langue)
 
 ## Objectif
-Ce module ajoute un **déclenchement manuel** pour pré-traduire un contenu Drupal depuis le français (`fr`) vers l’anglais (`en`) via une IA compatible API Chat Completions.
+Ce module ajoute un **déclenchement manuel** pour pré-traduire un contenu Drupal vers une langue cible configurable via une IA compatible API Chat Completions.
 
-- Le FR reste la source éditoriale.
-- L’EN est une traduction secondaire.
+- La source est la langue courante du contenu.
+- La cible est choisie au déclenchement.
 - Aucun déclenchement automatique à la sauvegarde.
 - Contrôle humain avant publication EN.
 
 ## Workflow éditeur
-1. Ouvrir un contenu source en français.
-2. Dans les opérations du contenu, cliquer **Générer EN (IA)**.
+1. Ouvrir un contenu source.
+2. Dans les opérations du contenu, cliquer **Générer [langue] (IA)**.
 3. Confirmer l’action.
-4. Le module crée/met à jour la traduction `en`.
-5. L’éditeur est redirigé vers l’édition EN pour relecture/corrections.
-6. Publication EN manuelle uniquement.
+4. Le module crée/met à jour la traduction cible.
+5. L’éditeur est redirigé vers l’édition de la langue cible pour relecture/corrections.
+6. Publication manuelle uniquement.
 
 ## Champs traités
 Le module traduit uniquement les champs translatables de type éditorial :

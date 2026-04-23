@@ -60,7 +60,6 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
    */
   public function defaultConfiguration(): array {
     return [
-      'source_langcode' => 'fr',
       'target_langcode' => '',
     ] + parent::defaultConfiguration();
   }
@@ -72,9 +71,6 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     $languages = $this->languageManager->getLanguages(LanguageInterface::STATE_CONFIGURABLE);
     $options = [];
     foreach ($languages as $language) {
-      if ($language->getId() === 'fr') {
-        continue;
-      }
       $options[$language->getId()] = strtoupper($language->getId()) . ' — ' . $language->getName();
     }
 
@@ -95,7 +91,6 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
    * {@inheritdoc}
    */
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state): void {
-    $this->configuration['source_langcode'] = 'fr';
     $this->configuration['target_langcode'] = $form_state->getValue('target_langcode');
   }
 
@@ -107,18 +102,18 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       return;
     }
 
-    $this->translationManager->translateEntityToLanguage(
-      $entity,
-      (string) $this->configuration['target_langcode'],
-      (string) $this->configuration['source_langcode'],
-    );
+    $targetLangcode = (string) $this->configuration['target_langcode'];
+    if ($targetLangcode === '') {
+      return;
+    }
+
+    $this->translationManager->translateEntityToLanguage($entity, $targetLangcode, $entity->language()->getId());
   }
 
   /**
    * {@inheritdoc}
    */
   public function executeMultiple(array $entities): void {
-    $sourceLangcode = (string) $this->configuration['source_langcode'];
     $targetLangcode = (string) $this->configuration['target_langcode'];
     if ($targetLangcode === '') {
       $request = $this->requestStack->getCurrentRequest();
@@ -146,11 +141,6 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       $this->messenger()->addError($this->t('Veuillez choisir une langue cible avant d’exécuter l’action.'));
       return;
     }
-    if ($sourceLangcode === $targetLangcode) {
-      $this->messenger()->addError($this->t('La langue cible doit être différente de la langue source.'));
-      return;
-    }
-
     $success = 0;
     $errors = 0;
     $errorMessages = [];
@@ -161,7 +151,11 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       }
 
       try {
-        $this->execute($entity);
+        $sourceLangcode = $entity->language()->getId();
+        if ($sourceLangcode === $targetLangcode) {
+          continue;
+        }
+        $this->translationManager->translateEntityToLanguage($entity, $targetLangcode, $sourceLangcode);
         $success++;
       }
       catch (\Throwable $exception) {

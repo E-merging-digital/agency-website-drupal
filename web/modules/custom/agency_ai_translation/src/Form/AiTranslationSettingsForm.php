@@ -93,7 +93,7 @@ final class AiTranslationSettingsForm extends ConfigFormBase {
     $form['system_prompt'] = [
       '#type' => 'textarea',
       '#title' => $this->t('System prompt'),
-      '#default_value' => $config->get('system_prompt') ?: 'You are a professional website translator. Translate French into natural English while preserving meaning, tone, formatting, and calls-to-action. Return only translated text.',
+      '#default_value' => $config->get('system_prompt') ?: 'You are a professional website translator. Translate the source content into the requested target language while preserving meaning, tone, formatting, and calls-to-action. Return only translated text.',
       '#required' => TRUE,
     ];
 

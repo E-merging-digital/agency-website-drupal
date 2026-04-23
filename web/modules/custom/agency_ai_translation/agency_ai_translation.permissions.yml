@@ -1,3 +1,3 @@
 trigger ai translation:
-  title: 'Déclencher une traduction IA FR -> EN'
-  description: 'Permet de lancer manuellement la traduction IA d’un contenu français vers l’anglais.'
+  title: 'Déclencher une traduction IA'
+  description: 'Permet de lancer manuellement la traduction IA d’un contenu vers une langue cible.'

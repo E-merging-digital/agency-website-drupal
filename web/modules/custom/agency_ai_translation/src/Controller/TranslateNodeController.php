@@ -51,7 +51,7 @@ final class TranslateNodeController extends ControllerBase {
     }
 
     try {
-      $translatedFieldsCount = $this->translationManager->translateEntityToLanguage($node, $target_langcode, 'fr');
+      $translatedFieldsCount = $this->translationManager->translateEntityToLanguage($node, $target_langcode, $node->language()->getId());
       $this->messenger()->addStatus($this->t('Traduction @target générée. @count champ(s) traité(s).', [
         '@target' => strtoupper($target_langcode),
         '@count' => $translatedFieldsCount,

@@ -78,7 +78,7 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
     $actionElement = &$form['header']['actions'];
   }
   else {
-    foreach ($form as $key => &$element) {
+    foreach ($form as &$element) {
       if (!is_array($element)) {
         continue;
       }

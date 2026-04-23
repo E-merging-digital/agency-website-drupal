@@ -14,6 +14,7 @@ services:
     arguments:
       - '@agency_ai_translation.client'
       - '@entity_field.manager'
+      - '@?pathauto.generator'
 
   logger.channel.agency_ai_translation:
     parent: logger.channel_base

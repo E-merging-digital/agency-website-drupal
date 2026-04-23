@@ -24,6 +24,7 @@ final class AiTranslationManager {
   public function __construct(
     private readonly AiTranslationClient $client,
     private readonly EntityFieldManagerInterface $fieldManager,
+    private readonly ?object $pathautoGenerator = NULL,
   ) {}
 
   /**
@@ -61,7 +62,9 @@ final class AiTranslationManager {
 
     $translatedCount = $this->translateFields($sourceEntity, $translatedEntity, $sourceLangcode, $targetLangcode);
 
+    $this->preparePathAliasGeneration($translatedEntity);
     $translatedEntity->save();
+    $this->generatePathAlias($translatedEntity);
 
     return $translatedCount;
   }
@@ -162,6 +165,35 @@ final class AiTranslationManager {
     }
 
     return $count;
+  }
+
+  /**
+   * Prépare la régénération Pathauto de l'alias sur la traduction cible.
+   */
+  private function preparePathAliasGeneration(ContentEntityInterface $translatedEntity): void {
+    if (!$translatedEntity->hasField('path')) {
+      return;
+    }
+
+    $pathValue = $translatedEntity->get('path')->getValue();
+    $firstPath = $pathValue[0] ?? [];
+    if (!is_array($firstPath)) {
+      $firstPath = [];
+    }
+    $firstPath['alias'] = '';
+    $firstPath['pathauto'] = 1;
+    $translatedEntity->set('path', [$firstPath]);
+  }
+
+  /**
+   * Déclenche Pathauto si disponible pour générer un alias de traduction.
+   */
+  private function generatePathAlias(ContentEntityInterface $translatedEntity): void {
+    if (!is_object($this->pathautoGenerator) || !method_exists($this->pathautoGenerator, 'updateEntityAlias')) {
+      return;
+    }
+
+    $this->pathautoGenerator->updateEntityAlias($translatedEntity, 'update');
   }
 
 }

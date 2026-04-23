@@ -55,3 +55,7 @@ Fallback possible (non exporté) : champ mot de passe de la page de config (stoc
 ## Limites connues
 - Première version volontairement simple : traduction champ à champ.
 - La qualité dépend du modèle IA et du prompt configuré.
+
+## Alias d’URL (Pathauto)
+- Si le module **Pathauto** est actif, l’alias de la traduction cible est régénéré après traduction.
+- Le champ `path` de la traduction cible est préparé avec `pathauto = 1` pour éviter de rester sur `/[lang]/node/[nid]`.

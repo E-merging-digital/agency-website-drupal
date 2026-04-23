@@ -66,7 +66,7 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
 
   $actionElement = NULL;
   if (isset($form['action']) && is_array($form['action'])) {
-    $actionElement = &$form;
+    $actionElement = &$form['action'];
   }
   elseif (isset($form['actions']['action']) && is_array($form['actions']['action'])) {
     $actionElement = &$form['actions'];
@@ -101,9 +101,6 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
   $languages = \Drupal::languageManager()->getLanguages(LanguageInterface::STATE_CONFIGURABLE);
   $options = [];
   foreach ($languages as $language) {
-    if ($language->getId() === 'fr') {
-      continue;
-    }
     $options[$language->getId()] = strtoupper($language->getId()) . ' — ' . $language->getName();
   }
 
@@ -119,4 +116,44 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
     '#description' => t('Obligatoire pour l’action “Traduire avec IA vers une langue cible”.'),
     '#weight' => 5,
   ];
+
+  $form['#validate'][] = 'agency_ai_translation_bulk_action_validate';
+}
+
+/**
+ * Validation du sélecteur de langue cible pour l'action IA de masse.
+ */
+function agency_ai_translation_bulk_action_validate(array &$form, FormStateInterface $form_state): void {
+  $selectedAction = (string) ($form_state->getValue('action') ?? '');
+  if ($selectedAction === '' && is_array($form_state->getValue('actions'))) {
+    $selectedAction = (string) (($form_state->getValue('actions')['action'] ?? ''));
+  }
+  if ($selectedAction === '' && is_array($form_state->getValue('header'))) {
+    $headerValues = $form_state->getValue('header');
+    if (is_array($headerValues)) {
+      $selectedAction = (string) ($headerValues['action'] ?? ($headerValues['actions']['action'] ?? ''));
+    }
+  }
+
+  if ($selectedAction !== 'agency_ai_translate_nodes_bulk_action') {
+    return;
+  }
+
+  $targetLangcode = (string) ($form_state->getValue('agency_ai_translation_target_langcode') ?? '');
+  if ($targetLangcode === '' && is_array($form_state->getValue('action'))) {
+    $targetLangcode = (string) (($form_state->getValue('action')['agency_ai_translation_target_langcode'] ?? ''));
+  }
+  if ($targetLangcode === '' && is_array($form_state->getValue('actions'))) {
+    $targetLangcode = (string) (($form_state->getValue('actions')['agency_ai_translation_target_langcode'] ?? ''));
+  }
+  if ($targetLangcode === '' && is_array($form_state->getValue('header'))) {
+    $headerValues = $form_state->getValue('header');
+    if (is_array($headerValues)) {
+      $targetLangcode = (string) ($headerValues['agency_ai_translation_target_langcode'] ?? ($headerValues['actions']['agency_ai_translation_target_langcode'] ?? ''));
+    }
+  }
+
+  if ($targetLangcode === '') {
+    $form_state->setErrorByName('agency_ai_translation_target_langcode', t('Veuillez choisir une langue cible pour la traduction IA.'));
+  }
 }

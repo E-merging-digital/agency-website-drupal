@@ -119,6 +119,12 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
       $request = $this->requestStack->getCurrentRequest();
       $requestTarget = $request?->request->get('agency_ai_translation_target_langcode');
       if (!is_string($requestTarget) || $requestTarget === '') {
+        $actionValues = $request?->request->all('action');
+        if (is_array($actionValues) && isset($actionValues['agency_ai_translation_target_langcode']) && is_string($actionValues['agency_ai_translation_target_langcode'])) {
+          $requestTarget = $actionValues['agency_ai_translation_target_langcode'];
+        }
+      }
+      if (!is_string($requestTarget) || $requestTarget === '') {
         $actionsValues = $request?->request->all('actions');
         if (is_array($actionsValues) && isset($actionsValues['agency_ai_translation_target_langcode']) && is_string($actionsValues['agency_ai_translation_target_langcode'])) {
           $requestTarget = $actionsValues['agency_ai_translation_target_langcode'];

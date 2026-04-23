@@ -64,40 +64,6 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
     return;
   }
 
-  $actionElement = NULL;
-  if (isset($form['action']) && is_array($form['action'])) {
-    $actionElement = &$form['action'];
-  }
-  elseif (isset($form['actions']['action']) && is_array($form['actions']['action'])) {
-    $actionElement = &$form['actions'];
-  }
-  elseif (isset($form['header']['action']) && is_array($form['header']['action'])) {
-    $actionElement = &$form['header'];
-  }
-  elseif (isset($form['header']['actions']['action']) && is_array($form['header']['actions']['action'])) {
-    $actionElement = &$form['header']['actions'];
-  }
-  else {
-    foreach ($form as &$element) {
-      if (!is_array($element)) {
-        continue;
-      }
-      if (isset($element['action']) && is_array($element['action'])) {
-        $actionElement = &$element;
-        break;
-      }
-      if (isset($element['actions']) && is_array($element['actions']) && isset($element['actions']['action']) && is_array($element['actions']['action'])) {
-        $actionElement = &$element['actions'];
-        break;
-      }
-    }
-    unset($element);
-  }
-
-  if ($actionElement === NULL) {
-    return;
-  }
-
   $languages = \Drupal::languageManager()->getLanguages(LanguageInterface::STATE_CONFIGURABLE);
   $options = [];
   foreach ($languages as $language) {
@@ -108,23 +74,87 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
     return;
   }
 
-  $actionElement['agency_ai_translation_target_langcode'] = [
+  $inserted = FALSE;
+  $inserted = agency_ai_translation_attach_target_language_select($form, $options) || $inserted;
+  if (isset($form['actions']) && is_array($form['actions'])) {
+    $inserted = agency_ai_translation_attach_target_language_select($form['actions'], $options) || $inserted;
+  }
+  if (isset($form['header']) && is_array($form['header'])) {
+    $inserted = agency_ai_translation_attach_target_language_select($form['header'], $options) || $inserted;
+    if (isset($form['header']['actions']) && is_array($form['header']['actions'])) {
+      $inserted = agency_ai_translation_attach_target_language_select($form['header']['actions'], $options) || $inserted;
+    }
+  }
+
+  if (!$inserted) {
+    foreach ($form as &$element) {
+      if (!is_array($element)) {
+        continue;
+      }
+      $inserted = agency_ai_translation_attach_target_language_select($element, $options) || $inserted;
+      if (isset($element['actions']) && is_array($element['actions'])) {
+        $inserted = agency_ai_translation_attach_target_language_select($element['actions'], $options) || $inserted;
+      }
+    }
+    unset($element);
+  }
+
+  if (!$inserted) {
+    return;
+  }
+
+  $form['#validate'][] = 'agency_ai_translation_bulk_action_validate';
+}
+
+/**
+ * Attache le sélecteur de langue cible à un conteneur d'actions de masse.
+ */
+function agency_ai_translation_attach_target_language_select(array &$container, array $options): bool {
+  if (!isset($container['action']) || !is_array($container['action'])) {
+    return FALSE;
+  }
+
+  if (isset($container['agency_ai_translation_target_langcode'])) {
+    return TRUE;
+  }
+
+  $container['agency_ai_translation_target_langcode'] = [
     '#type' => 'select',
     '#title' => t('Langue cible (IA)'),
     '#options' => $options,
     '#empty_option' => t('- Sélectionner -'),
     '#description' => t('Obligatoire pour l’action “Traduire avec IA vers une langue cible”.'),
     '#weight' => 5,
+    '#states' => [
+      'visible' => [
+        [':input[name="action"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+        'or',
+        [':input[name="action[action]"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+        'or',
+        [':input[name="actions[action]"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+        'or',
+        [':input[name="header[action]"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+        'or',
+        [':input[name="header[actions][action]"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+      ],
+    ],
   ];
 
-  $form['#validate'][] = 'agency_ai_translation_bulk_action_validate';
+  return TRUE;
 }
 
 /**
  * Validation du sélecteur de langue cible pour l'action IA de masse.
  */
 function agency_ai_translation_bulk_action_validate(array &$form, FormStateInterface $form_state): void {
-  $selectedAction = (string) ($form_state->getValue('action') ?? '');
+  $selectedAction = '';
+  $actionValue = $form_state->getValue('action');
+  if (is_string($actionValue)) {
+    $selectedAction = $actionValue;
+  }
+  elseif (is_array($actionValue)) {
+    $selectedAction = (string) ($actionValue['action'] ?? '');
+  }
   if ($selectedAction === '' && is_array($form_state->getValue('actions'))) {
     $selectedAction = (string) (($form_state->getValue('actions')['action'] ?? ''));
   }

@@ -59,3 +59,4 @@ Fallback possible (non exporté) : champ mot de passe de la page de config (stoc
 ## Alias d’URL (Pathauto)
 - Si le module **Pathauto** est actif, l’alias de la traduction cible est régénéré après traduction.
 - Le champ `path` de la traduction cible est préparé avec `pathauto = 1` pour éviter de rester sur `/[lang]/node/[nid]`.
+- Les patterns Pathauto doivent être configurés par langue (ex: `node_page_fr`, `node_page_en`) pour des alias cohérents en multilingue.

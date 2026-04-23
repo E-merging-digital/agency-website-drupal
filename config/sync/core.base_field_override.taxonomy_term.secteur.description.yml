@@ -1,0 +1,21 @@
+uuid: 87c4bff2-b86d-4fe8-b909-37857ef7149a
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.secteur
+  module:
+    - text
+id: taxonomy_term.secteur.description
+field_name: description
+entity_type: taxonomy_term
+bundle: secteur
+label: Description
+description: ''
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

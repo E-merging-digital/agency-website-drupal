@@ -1,0 +1,22 @@
+uuid: b2c6a0c0-bb62-4689-b180-50dff384e6ea
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.type_fonctionnalite_ia
+id: taxonomy_term.type_fonctionnalite_ia.status
+field_name: status
+entity_type: taxonomy_term
+bundle: type_fonctionnalite_ia
+label: Published
+description: ''
+required: false
+translatable: false
+default_value:
+  -
+    value: 1
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

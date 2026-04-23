@@ -1,0 +1,18 @@
+uuid: cbaa3396-d34b-4182-95e1-f56a1b6fef94
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.secteur
+id: taxonomy_term.secteur.changed
+field_name: changed
+entity_type: taxonomy_term
+bundle: secteur
+label: Changed
+description: 'The time that the term was last edited.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: changed

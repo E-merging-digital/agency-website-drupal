@@ -1,0 +1,11 @@
+uuid: 3a2f2f72-2940-40ca-a76d-21f3d9d6a2c7
+langcode: fr
+status: true
+dependencies:
+  module:
+    - path_alias
+id: path_alias.path_alias
+target_entity_type_id: path_alias
+target_bundle: path_alias
+default_langcode: site_default
+language_alterable: false

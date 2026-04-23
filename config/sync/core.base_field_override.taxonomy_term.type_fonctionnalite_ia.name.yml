@@ -1,0 +1,18 @@
+uuid: 29e31261-5755-4548-83e8-8b759df6b49c
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.type_fonctionnalite_ia
+id: taxonomy_term.type_fonctionnalite_ia.name
+field_name: name
+entity_type: taxonomy_term
+bundle: type_fonctionnalite_ia
+label: Name
+description: ''
+required: true
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

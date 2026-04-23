@@ -1,0 +1,21 @@
+uuid: f245a7a1-82e6-487a-b38f-3363b802f4fb
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.type_fonctionnalite_ia
+  module:
+    - text
+id: taxonomy_term.type_fonctionnalite_ia.description
+field_name: description
+entity_type: taxonomy_term
+bundle: type_fonctionnalite_ia
+label: Description
+description: ''
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

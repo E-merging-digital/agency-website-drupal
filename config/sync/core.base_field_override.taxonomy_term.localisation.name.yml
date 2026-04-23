@@ -1,0 +1,18 @@
+uuid: 680e71d6-5fde-4b6e-b81d-b2d507375e3f
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.localisation
+id: taxonomy_term.localisation.name
+field_name: name
+entity_type: taxonomy_term
+bundle: localisation
+label: Name
+description: ''
+required: true
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

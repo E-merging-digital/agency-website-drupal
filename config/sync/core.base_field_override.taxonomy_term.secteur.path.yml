@@ -1,0 +1,20 @@
+uuid: bf4315e4-1eb6-4d4c-8f25-4f7d32f08777
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.secteur
+  module:
+    - path
+id: taxonomy_term.secteur.path
+field_name: path
+entity_type: taxonomy_term
+bundle: secteur
+label: 'URL alias'
+description: ''
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: path

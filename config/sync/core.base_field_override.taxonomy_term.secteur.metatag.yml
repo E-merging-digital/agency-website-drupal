@@ -1,0 +1,20 @@
+uuid: 24450fee-b5c6-4da7-9f1a-bb1df9e9e831
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.secteur
+  module:
+    - metatag
+id: taxonomy_term.secteur.metatag
+field_name: metatag
+entity_type: taxonomy_term
+bundle: secteur
+label: 'Metatags (Hidden field for JSON support)'
+description: 'The computed meta tags for the entity.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: metatag_computed

@@ -1,0 +1,18 @@
+uuid: f926f68e-d420-4d20-8c55-d9f71d4482d7
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.secteur
+id: taxonomy_term.secteur.name
+field_name: name
+entity_type: taxonomy_term
+bundle: secteur
+label: Name
+description: ''
+required: true
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

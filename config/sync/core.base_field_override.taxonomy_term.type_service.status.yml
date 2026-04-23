@@ -1,0 +1,22 @@
+uuid: 79fcdcee-e92c-4a62-9702-b7483cacdc97
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.type_service
+id: taxonomy_term.type_service.status
+field_name: status
+entity_type: taxonomy_term
+bundle: type_service
+label: Published
+description: ''
+required: false
+translatable: false
+default_value:
+  -
+    value: 1
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

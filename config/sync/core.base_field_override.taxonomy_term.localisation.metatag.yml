@@ -1,0 +1,20 @@
+uuid: fcec7b1c-ac33-4329-b862-3c5bd5021cc2
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.localisation
+  module:
+    - metatag
+id: taxonomy_term.localisation.metatag
+field_name: metatag
+entity_type: taxonomy_term
+bundle: localisation
+label: 'Metatags (Hidden field for JSON support)'
+description: 'The computed meta tags for the entity.'
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: metatag_computed

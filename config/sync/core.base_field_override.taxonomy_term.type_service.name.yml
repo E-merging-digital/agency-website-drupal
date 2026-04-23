@@ -1,0 +1,18 @@
+uuid: 34ae08c8-de9c-481a-aa86-d0e6ea844ceb
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.type_service
+id: taxonomy_term.type_service.name
+field_name: name
+entity_type: taxonomy_term
+bundle: type_service
+label: Name
+description: ''
+required: true
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string

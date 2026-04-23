@@ -1,0 +1,22 @@
+uuid: 43650592-d1c1-450a-9675-976a48491ae3
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.secteur
+id: taxonomy_term.secteur.status
+field_name: status
+entity_type: taxonomy_term
+bundle: secteur
+label: Published
+description: ''
+required: false
+translatable: false
+default_value:
+  -
+    value: 1
+default_value_callback: ''
+settings:
+  on_label: 'On'
+  off_label: 'Off'
+field_type: boolean

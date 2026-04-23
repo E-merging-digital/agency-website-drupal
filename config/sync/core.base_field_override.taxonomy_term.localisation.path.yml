@@ -1,0 +1,20 @@
+uuid: dbac9617-3267-47ca-ab8c-482fdc08bc7b
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.localisation
+  module:
+    - path
+id: taxonomy_term.localisation.path
+field_name: path
+entity_type: taxonomy_term
+bundle: localisation
+label: 'URL alias'
+description: ''
+required: false
+translatable: false
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: path

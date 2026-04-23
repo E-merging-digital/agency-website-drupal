@@ -1,0 +1,18 @@
+uuid: e5f8c38e-6bd2-46b0-b5c8-cd3078656f9d
+langcode: fr
+status: true
+dependencies:
+  config:
+    - taxonomy.vocabulary.secteur
+  module:
+    - content_translation
+third_party_settings:
+  content_translation:
+    enabled: false
+    bundle_settings:
+      untranslatable_fields_hide: '0'
+id: taxonomy_term.secteur
+target_entity_type_id: taxonomy_term
+target_bundle: secteur
+default_langcode: site_default
+language_alterable: false

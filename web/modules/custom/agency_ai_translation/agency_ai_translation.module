@@ -75,14 +75,22 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
   }
 
   $inserted = FALSE;
-  $inserted = agency_ai_translation_attach_target_language_select($form, $options) || $inserted;
+  if (agency_ai_translation_attach_target_language_select($form, $options)) {
+    $inserted = TRUE;
+  }
   if (isset($form['actions']) && is_array($form['actions'])) {
-    $inserted = agency_ai_translation_attach_target_language_select($form['actions'], $options) || $inserted;
+    if (agency_ai_translation_attach_target_language_select($form['actions'], $options)) {
+      $inserted = TRUE;
+    }
   }
   if (isset($form['header']) && is_array($form['header'])) {
-    $inserted = agency_ai_translation_attach_target_language_select($form['header'], $options) || $inserted;
+    if (agency_ai_translation_attach_target_language_select($form['header'], $options)) {
+      $inserted = TRUE;
+    }
     if (isset($form['header']['actions']) && is_array($form['header']['actions'])) {
-      $inserted = agency_ai_translation_attach_target_language_select($form['header']['actions'], $options) || $inserted;
+      if (agency_ai_translation_attach_target_language_select($form['header']['actions'], $options)) {
+        $inserted = TRUE;
+      }
     }
   }
 
@@ -91,18 +99,43 @@ function agency_ai_translation_form_alter(array &$form, FormStateInterface $form
       if (!is_array($element)) {
         continue;
       }
-      $inserted = agency_ai_translation_attach_target_language_select($element, $options) || $inserted;
+      if (agency_ai_translation_attach_target_language_select($element, $options)) {
+        $inserted = TRUE;
+      }
       if (isset($element['actions']) && is_array($element['actions'])) {
-        $inserted = agency_ai_translation_attach_target_language_select($element['actions'], $options) || $inserted;
+        if (agency_ai_translation_attach_target_language_select($element['actions'], $options)) {
+          $inserted = TRUE;
+        }
       }
     }
     unset($element);
   }
 
   if (!$inserted) {
-    return;
+    $form['agency_ai_translation_target_langcode'] = [
+      '#type' => 'select',
+      '#title' => t('Langue cible (IA)'),
+      '#options' => $options,
+      '#empty_option' => t('- Sélectionner -'),
+      '#description' => t('Choisissez la langue cible pour l’action “Traduire avec IA vers une langue cible”.'),
+      '#weight' => 100,
+      '#states' => [
+        'visible' => [
+          [':input[name="action"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+          'or',
+          [':input[name="action[action]"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+          'or',
+          [':input[name="actions[action]"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+          'or',
+          [':input[name="header[action]"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+          'or',
+          [':input[name="header[actions][action]"]' => ['value' => 'agency_ai_translate_nodes_bulk_action']],
+        ],
+      ],
+    ];
   }
 
+  $form['#attached']['library'][] = 'core/drupal.states';
   $form['#validate'][] = 'agency_ai_translation_bulk_action_validate';
 }
 

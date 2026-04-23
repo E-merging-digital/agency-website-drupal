@@ -118,20 +118,21 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     if ($targetLangcode === '') {
       $request = $this->requestStack->getCurrentRequest();
       $requestTarget = $request?->request->get('agency_ai_translation_target_langcode');
+      $requestData = $request ? $request->request->all() : [];
       if (!is_string($requestTarget) || $requestTarget === '') {
-        $actionValues = $request?->request->get('action');
+        $actionValues = $requestData['action'] ?? NULL;
         if (is_array($actionValues) && isset($actionValues['agency_ai_translation_target_langcode']) && is_string($actionValues['agency_ai_translation_target_langcode'])) {
           $requestTarget = $actionValues['agency_ai_translation_target_langcode'];
         }
       }
       if (!is_string($requestTarget) || $requestTarget === '') {
-        $actionsValues = $request?->request->get('actions');
+        $actionsValues = $requestData['actions'] ?? NULL;
         if (is_array($actionsValues) && isset($actionsValues['agency_ai_translation_target_langcode']) && is_string($actionsValues['agency_ai_translation_target_langcode'])) {
           $requestTarget = $actionsValues['agency_ai_translation_target_langcode'];
         }
       }
       if (!is_string($requestTarget) || $requestTarget === '') {
-        $headerValues = $request?->request->get('header');
+        $headerValues = $requestData['header'] ?? NULL;
         if (is_array($headerValues) && isset($headerValues['agency_ai_translation_target_langcode']) && is_string($headerValues['agency_ai_translation_target_langcode'])) {
           $requestTarget = $headerValues['agency_ai_translation_target_langcode'];
         }

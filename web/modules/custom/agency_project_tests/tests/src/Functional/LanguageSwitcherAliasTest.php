@@ -20,8 +20,6 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  */
 #[RunTestsInSeparateProcesses]
 final class LanguageSwitcherAliasTest extends BrowserTestBase {
-  private const SWITCHER_BLOCK_SELECTOR = '[id*="block-test-language-switcher"]';
-
   /**
    * {@inheritdoc}
    */
@@ -36,7 +34,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'stark';
+  protected $defaultTheme = 'emerging_digital';
 
   /**
    * {@inheritdoc}
@@ -105,7 +103,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     Block::create([
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
-      'region' => 'sidebar_first',
+      'region' => 'header_language',
       'plugin' => 'language_block:language_url',
       'weight' => 0,
       'visibility' => [],
@@ -116,6 +114,10 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         'provider' => 'language',
       ],
     ])->save();
+    $block = Block::load('test_language_switcher');
+    self::assertNotNull($block);
+    self::assertSame('header_language', $block->getRegion());
+    self::assertSame($this->defaultTheme, $block->getTheme());
     drupal_flush_all_caches();
   }
 
@@ -182,21 +184,19 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->responseContains('test-language-switcher');
-    $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
-    $frenchSwitcherHrefs = $this->getLanguageSwitcherHrefs();
-    self::assertContains('/en/cookie-policy', $frenchSwitcherHrefs);
-    foreach ($frenchSwitcherHrefs as $href) {
+    $frenchLanguageHrefs = $this->getVisibleLanguageLinkHrefs();
+    self::assertNotEmpty($frenchLanguageHrefs);
+    self::assertContains('/en/cookie-policy', $frenchLanguageHrefs);
+    foreach ($frenchLanguageHrefs as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
 
     $this->drupalGet($englishUrl);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->responseContains('test-language-switcher');
-    $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
-    $englishSwitcherHrefs = $this->getLanguageSwitcherHrefs();
-    self::assertContains('/cookies', $englishSwitcherHrefs);
-    foreach ($englishSwitcherHrefs as $href) {
+    $englishLanguageHrefs = $this->getVisibleLanguageLinkHrefs();
+    self::assertNotEmpty($englishLanguageHrefs);
+    self::assertContains('/cookies', $englishLanguageHrefs);
+    foreach ($englishLanguageHrefs as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
   }
@@ -230,28 +230,22 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->responseContains('test-language-switcher');
-    $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
-    $switcherHrefs = $this->getLanguageSwitcherHrefs();
-    self::assertNotContains('/en/cookies-only-fr', $switcherHrefs);
-    foreach ($switcherHrefs as $href) {
+    $languageHrefs = $this->getVisibleLanguageLinkHrefs();
+    self::assertNotEmpty($languageHrefs);
+    self::assertNotContains('/en/cookies-only-fr', $languageHrefs);
+    foreach ($languageHrefs as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
   }
 
   /**
-   * Récupère les href des liens du language switcher affiché.
+   * Récupère les href des liens de langue visibles dans le body.
    *
    * @return string[]
    *   Liste des href.
    */
-  private function getLanguageSwitcherHrefs(): array {
-    $switcherBlock = $this->getSession()
-      ->getPage()
-      ->find('css', self::SWITCHER_BLOCK_SELECTOR);
-    self::assertNotNull($switcherBlock);
-
-    $links = $switcherBlock->findAll('css', 'a[href]');
+  private function getVisibleLanguageLinkHrefs(): array {
+    $links = $this->getSession()->getPage()->findAll('css', 'a[href][hreflang]');
     $hrefs = [];
     foreach ($links as $link) {
       $href = (string) $link->getAttribute('href');

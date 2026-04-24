@@ -119,18 +119,18 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet('/cookies');
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->elementTextContains('css', '.language-switcher__current', 'Français');
     $frenchLinks = $this->getSwitcherMenuLinks();
     self::assertContains('/en/cookie-policy', $frenchLinks);
+    self::assertNotContains('/cookies', $frenchLinks);
     foreach ($frenchLinks as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
 
     $this->drupalGet('/en/cookie-policy');
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->elementTextContains('css', '.language-switcher__current', 'English');
     $englishLinks = $this->getSwitcherMenuLinks();
     self::assertContains('/cookies', $englishLinks);
+    self::assertNotContains('/en/cookie-policy', $englishLinks);
     foreach ($englishLinks as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }

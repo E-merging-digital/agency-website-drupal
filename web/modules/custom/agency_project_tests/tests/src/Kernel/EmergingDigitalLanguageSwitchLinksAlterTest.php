@@ -130,12 +130,70 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
 
     emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
 
-    self::assertArrayHasKey('url', $links['fr']);
+    // La langue courante n'a volontairement pas d'URL active.
+    self::assertArrayNotHasKey('url', $links['fr']);
     self::assertArrayHasKey('url', $links['en']);
-    self::assertStringContainsString('/cookies', $links['fr']['url']->toString());
     self::assertStringContainsString('/en/cookie-policy', $links['en']['url']->toString());
-    self::assertArrayNotHasKey('language_content_entity', (array) $links['fr']['url']->getOption('query'));
     self::assertArrayNotHasKey('language_content_entity', (array) $links['en']['url']->getOption('query'));
+  }
+
+  /**
+   * Vérifie le mapping des liens sur page EN (EN active sans URL).
+   */
+  public function testAlterUsesFrenchLinkWhenEnglishIsCurrent(): void {
+    $node = Node::create([
+      'type' => 'page',
+      'title' => 'cookies',
+      'langcode' => 'fr',
+      'status' => Node::PUBLISHED,
+    ]);
+    $node->save();
+
+    $node->addTranslation('en', [
+      'title' => 'cookie-policy',
+      'status' => Node::PUBLISHED,
+    ])->save();
+
+    PathAlias::create([
+      'path' => '/node/' . $node->id(),
+      'alias' => '/cookies',
+      'langcode' => 'fr',
+    ])->save();
+    PathAlias::create([
+      'path' => '/node/' . $node->id(),
+      'alias' => '/cookie-policy',
+      'langcode' => 'en',
+    ])->save();
+
+    drupal_flush_all_caches();
+
+    $languageManager = $this->container->get('language_manager');
+    $links = [
+      'fr' => [
+        'url' => Url::fromRoute('entity.node.canonical', ['node' => $node->id()], [
+          'language' => $languageManager->getLanguage('fr'),
+          'query' => ['language_content_entity' => 'fr'],
+        ]),
+      ],
+      'en' => [
+        'url' => Url::fromRoute('entity.node.canonical', ['node' => $node->id()], [
+          'language' => $languageManager->getLanguage('en'),
+          'query' => ['language_content_entity' => 'en'],
+        ]),
+      ],
+    ];
+
+    $currentUrl = Url::fromRoute('entity.node.canonical', ['node' => $node->id()], [
+      'language' => $languageManager->getLanguage('en'),
+    ]);
+
+    emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
+
+    // La langue courante n'a volontairement pas d'URL active.
+    self::assertArrayNotHasKey('url', $links['en']);
+    self::assertArrayHasKey('url', $links['fr']);
+    self::assertStringContainsString('/cookies', $links['fr']['url']->toString());
+    self::assertArrayNotHasKey('language_content_entity', (array) $links['fr']['url']->getOption('query'));
   }
 
   /**
@@ -180,9 +238,9 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
 
     emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
 
-    self::assertArrayHasKey('url', $links['fr']);
+    // La langue courante n'a volontairement pas d'URL active.
+    self::assertArrayNotHasKey('url', $links['fr']);
     self::assertArrayNotHasKey('url', $links['en']);
-    self::assertArrayNotHasKey('language_content_entity', (array) $links['fr']['url']->getOption('query'));
   }
 
 }

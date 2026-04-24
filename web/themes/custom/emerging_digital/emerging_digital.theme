@@ -113,7 +113,11 @@ function emerging_digital_language_switch_links_alter(array &$links, string $typ
   }
 
   $entity = emerging_digital_get_language_switch_entity($url);
-  $currentContentLangcode = \Drupal::languageManager()->getCurrentLanguage(LanguageInterface::TYPE_CONTENT)->getId();
+  $currentLanguage = $url->getOption('language');
+  if (!$currentLanguage instanceof LanguageInterface) {
+    $currentLanguage = \Drupal::languageManager()->getCurrentLanguage(LanguageInterface::TYPE_CONTENT);
+  }
+  $currentContentLangcode = $currentLanguage->getId();
 
   if (!$entity instanceof ContentEntityInterface || !$entity->isTranslatable()) {
     foreach ($links as &$link) {

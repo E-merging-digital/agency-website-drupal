@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_ai_translation\Functional;
 
+use Drupal\agency_ai_translation\Service\AiTranslationClient;
+use Drupal\agency_ai_translation\Service\AiTranslationManager;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
@@ -69,8 +71,33 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
 
     $this->container->get('content_translation.manager')->setEnabled('node', 'page', TRUE);
 
+    $this->config('agency_ai_translation.settings')
+      ->set('endpoint', 'https://api.openai.com/v1/chat/completions')
+      ->set('model', 'gpt-4o-mini')
+      ->set('openai_key_id', '')
+      ->set('system_prompt', 'Test translation prompt.')
+      ->save();
+
     $this->container->get('state')->set('agency_ai_translation.api_key', 'test-key');
-    $this->container->set('http_client', new StaticTranslationHttpClient());
+    $testHttpClient = new StaticTranslationHttpClient();
+    $this->container->set('http_client', $testHttpClient);
+
+    $aiClient = new AiTranslationClient(
+      $this->container->get('config.factory'),
+      $this->container->get('language_manager'),
+      $testHttpClient,
+      $this->container->get('logger.channel.agency_ai_translation'),
+      $this->container->get('state'),
+      $this->container->has('key.repository') ? $this->container->get('key.repository') : NULL,
+    );
+    $this->container->set('agency_ai_translation.client', $aiClient);
+
+    $translationManager = new AiTranslationManager(
+      $aiClient,
+      $this->container->get('entity_field.manager'),
+      $this->container->has('pathauto.generator') ? $this->container->get('pathauto.generator') : NULL,
+    );
+    $this->container->set('agency_ai_translation.manager', $translationManager);
 
     $this->translatorUser = $this->drupalCreateUser([
       'access administration pages',

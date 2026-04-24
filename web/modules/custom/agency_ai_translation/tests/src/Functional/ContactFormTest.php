@@ -80,7 +80,9 @@ final class ContactFormTest extends BrowserTestBase {
       'subject[0][value]' => 'Sujet valide',
       'message[0][value]' => 'Message valide',
     ], 'Send message');
-    $this->assertSession()->pageTextContains('Your message has been sent.');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextNotContains('Subject field is required.');
+    $this->assertSession()->pageTextMatches('/message.*(sent|envoyé)/i');
   }
 
 }

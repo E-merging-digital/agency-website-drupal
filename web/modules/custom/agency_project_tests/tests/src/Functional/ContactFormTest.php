@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\agency_ai_translation\Functional;
+namespace Drupal\Tests\agency_project_tests\Functional;
 
 use Drupal\contact\Entity\ContactForm;
 use Drupal\Tests\BrowserTestBase;
@@ -10,9 +10,9 @@ use Drupal\user\Entity\Role;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Couvre le formulaire de contact public (fallback si Webform absent).
+ * Couvre le formulaire de contact public.
  *
- * @group agency_ai_translation
+ * @group agency_project_tests
  */
 #[RunTestsInSeparateProcesses]
 final class ContactFormTest extends BrowserTestBase {
@@ -83,3 +83,4 @@ final class ContactFormTest extends BrowserTestBase {
   }
 
 }
+

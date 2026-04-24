@@ -18,6 +18,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * Vérifie les workflows critiques de traduction IA.
  *
  * @group agency_ai_translation
+ * @group unstable_ia
  */
 #[RunTestsInSeparateProcesses]
 final class AiTranslationWorkflowTest extends BrowserTestBase {

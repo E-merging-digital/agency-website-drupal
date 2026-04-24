@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\homepage_smoke_test\Functional;
+namespace Drupal\Tests\agency_project_tests\Functional;
 
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Basic smoke test for homepage rendering.
+ * Smoke test de la homepage.
  *
- * @group homepage_smoke_test
+ * @group agency_project_tests
  */
 #[RunTestsInSeparateProcesses]
 final class HomepageRenderTest extends BrowserTestBase {
@@ -21,7 +21,7 @@ final class HomepageRenderTest extends BrowserTestBase {
   protected $profile = 'standard';
 
   /**
-   * Ensures the homepage loads without a runtime rendering error.
+   * Vérifie que la homepage se charge sans erreur runtime.
    */
   public function testHomepageLoads(): void {
     $this->drupalGet('<front>');
@@ -30,3 +30,4 @@ final class HomepageRenderTest extends BrowserTestBase {
   }
 
 }
+

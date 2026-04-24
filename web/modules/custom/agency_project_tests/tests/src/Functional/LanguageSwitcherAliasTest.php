@@ -36,7 +36,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'emerging_digital';
+  protected $defaultTheme = 'stark';
 
   /**
    * {@inheritdoc}
@@ -102,11 +102,10 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     drupal_flush_all_caches();
 
-    $theme = (string) $this->config('system.theme')->get('default');
     Block::create([
       'id' => 'test_language_switcher',
-      'theme' => $theme,
-      'region' => 'header_language',
+      'theme' => $this->defaultTheme,
+      'region' => 'sidebar_first',
       'plugin' => 'language_block:language_url',
       'weight' => 0,
       'visibility' => [],
@@ -117,6 +116,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         'provider' => 'language',
       ],
     ])->save();
+    drupal_flush_all_caches();
   }
 
   /**
@@ -182,6 +182,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->responseContains('test-language-switcher');
     $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
     $frenchSwitcherHrefs = $this->getLanguageSwitcherHrefs();
     self::assertContains('/en/cookie-policy', $frenchSwitcherHrefs);
@@ -191,6 +192,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($englishUrl);
     $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->responseContains('test-language-switcher');
     $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
     $englishSwitcherHrefs = $this->getLanguageSwitcherHrefs();
     self::assertContains('/cookies', $englishSwitcherHrefs);
@@ -228,6 +230,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->responseContains('test-language-switcher');
     $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
     $switcherHrefs = $this->getLanguageSwitcherHrefs();
     self::assertNotContains('/en/cookies-only-fr', $switcherHrefs);

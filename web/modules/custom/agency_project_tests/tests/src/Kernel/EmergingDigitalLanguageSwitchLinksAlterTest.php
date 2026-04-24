@@ -128,7 +128,7 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
       'language' => $languageManager->getLanguage('fr'),
     ]);
 
-    emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_URL, $currentUrl);
+    emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
 
     self::assertArrayHasKey('url', $links['fr']);
     self::assertArrayHasKey('url', $links['en']);
@@ -178,7 +178,7 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
       'language' => $languageManager->getLanguage('fr'),
     ]);
 
-    emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_URL, $currentUrl);
+    emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
 
     self::assertArrayHasKey('url', $links['fr']);
     self::assertArrayNotHasKey('url', $links['en']);

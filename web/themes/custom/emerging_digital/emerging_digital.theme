@@ -108,11 +108,12 @@ function emerging_digital_preprocess_image(array &$variables): void {
  * Implements hook_language_switch_links_alter().
  */
 function emerging_digital_language_switch_links_alter(array &$links, string $type, Url $url): void {
-  if ($type !== LanguageInterface::TYPE_URL) {
+  if (!in_array($type, [LanguageInterface::TYPE_URL, LanguageInterface::TYPE_CONTENT], TRUE)) {
     return;
   }
 
   $entity = emerging_digital_get_language_switch_entity($url);
+  $currentContentLangcode = \Drupal::languageManager()->getCurrentLanguage(LanguageInterface::TYPE_CONTENT)->getId();
 
   if (!$entity instanceof ContentEntityInterface || !$entity->isTranslatable()) {
     foreach ($links as &$link) {
@@ -151,6 +152,12 @@ function emerging_digital_language_switch_links_alter(array &$links, string $typ
     $query = (array) $translatedUrl->getOption('query');
     unset($query['language_content_entity']);
     $translatedUrl->setOption('query', $query);
+
+    if ($langcode === $currentContentLangcode) {
+      unset($links[$langcode]['url']);
+      continue;
+    }
+
     $links[$langcode]['url'] = $translatedUrl;
   }
 }

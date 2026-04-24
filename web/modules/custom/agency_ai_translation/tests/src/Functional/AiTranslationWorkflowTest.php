@@ -112,8 +112,11 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
 
     $this->submitForm([], 'Lancer la traduction IA');
     $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Traduction EN générée.');
 
-    $reloaded = $this->container->get('entity_type.manager')->getStorage('node')->load($node->id());
+    $nodeStorage = $this->container->get('entity_type.manager')->getStorage('node');
+    $nodeStorage->resetCache([$node->id()]);
+    $reloaded = $nodeStorage->load($node->id());
     self::assertNotNull($reloaded);
     self::assertTrue($reloaded->hasTranslation('en'));
 
@@ -148,16 +151,22 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
     $this->drupalGet('/admin/content');
     $this->assertSession()->fieldExists('Action');
     $this->assertSession()->fieldExists('Langue cible (IA)');
+    $checkbox = $this->assertSession()->elementExists('xpath', sprintf('//tr[.//a[normalize-space()="%s"]]//input[@type="checkbox"]', $node->label()));
+    $checkboxName = (string) $checkbox->getAttribute('name');
+    self::assertNotSame('', $checkboxName);
 
     $edit = [
-      'nodes[' . $node->id() . ']' => TRUE,
+      $checkboxName => TRUE,
       'action' => 'agency_ai_translate_nodes_bulk_action',
       'agency_ai_translation_target_langcode' => 'en',
     ];
 
     $this->submitForm($edit, 'Apply to selected items');
+    $this->assertSession()->pageTextContains('1 contenu traduit.');
 
-    $reloaded = $this->container->get('entity_type.manager')->getStorage('node')->load($node->id());
+    $nodeStorage = $this->container->get('entity_type.manager')->getStorage('node');
+    $nodeStorage->resetCache([$node->id()]);
+    $reloaded = $nodeStorage->load($node->id());
     self::assertNotNull($reloaded);
     self::assertTrue($reloaded->hasTranslation('en'));
     self::assertStringStartsWith('EN: ', $reloaded->getTranslation('en')->label());

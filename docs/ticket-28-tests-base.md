@@ -21,3 +21,8 @@ Créer le dossier de sortie navigateur utilisé par Simpletest (si absent) :
 
 ```bash
 mkdir -p web/sites/simpletest/browser_output
+chmod -R 777 web/sites/simpletest
+```
+
+Sans ces droits d’écriture, les tests fonctionnels peuvent échouer lors de la
+génération des artefacts navigateur.

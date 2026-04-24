@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Functional;
 
 use Drupal\block\Entity\Block;
+use Drupal\language\Entity\ContentLanguageSettings;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
@@ -90,10 +91,15 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     }
     self::assertNotNull(NodeType::load('page'));
 
-    $this->config('language.content_settings.node.page')
-      ->set('third_party_settings.content_translation.enabled', TRUE)
-      ->set('language_alterable', TRUE)
+    $contentLanguageSettings = ContentLanguageSettings::loadByEntityTypeBundle('node', 'page');
+    self::assertNotNull($contentLanguageSettings);
+    $contentLanguageSettings
+      ->setDefaultLangcode('fr')
+      ->setLanguageAlterable(TRUE)
       ->save();
+    $this->container->get('content_translation.manager')->setEnabled('node', 'page', TRUE);
+
+    drupal_flush_all_caches();
 
     Block::create([
       'id' => 'test_language_switcher',

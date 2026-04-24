@@ -67,7 +67,9 @@ jobs:
       - name: Prepare BrowserTestBase HTML output directory
         run: |
           mkdir -p web/sites/simpletest/browser_output
+          mkdir -p sites/simpletest/browser_output
           chmod -R 777 web/sites/simpletest
+          chmod -R 777 sites/simpletest
 
       - name: Run custom PHPUnit suite only (exclude unstable_ia)
         run: vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia web/modules/custom/agency_project_tests/tests

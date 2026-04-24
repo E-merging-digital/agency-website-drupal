@@ -54,9 +54,19 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       ->set('url.source', 'path_prefix')
       ->set('url.prefixes', ['en' => 'en', 'fr' => 'fr'])
       ->set('url.domains', ['en' => '', 'fr' => ''])
+      ->set('selected_langcode', 'site_default')
       ->save();
 
     $this->config('language.types')
+      ->set('all', [
+        'language_interface',
+        'language_content',
+        'language_url',
+      ])
+      ->set('configurable', [
+        'language_interface',
+        'language_content',
+      ])
       ->set('negotiation.language_interface.enabled', [
         'language-url' => -8,
         'language-selected' => -6,
@@ -128,6 +138,8 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'langcode' => 'en',
     ])->save();
 
+    drupal_flush_all_caches();
+
     /** @var \Drupal\path_alias\AliasRepositoryInterface $aliasRepository */
     $aliasRepository = $this->container->get('path_alias.repository');
     self::assertSame('/cookies', $aliasRepository->lookupBySystemPath('/node/' . $node->id(), 'fr')['alias'] ?? NULL);
@@ -149,8 +161,6 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $englishUrl = $englishTranslation->toUrl('canonical', ['language' => $englishLanguage]);
     self::assertStringContainsString('/fr/cookies', $frenchUrl->toString());
     self::assertStringContainsString('/en/cookie-policy', $englishUrl->toString());
-
-    drupal_flush_all_caches();
 
     $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);

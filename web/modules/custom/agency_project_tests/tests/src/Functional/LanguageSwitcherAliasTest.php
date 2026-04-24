@@ -33,7 +33,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   /**
    * {@inheritdoc}
    */
-  protected $defaultTheme = 'stark';
+  protected $defaultTheme = 'emerging_digital';
 
   /**
    * {@inheritdoc}
@@ -88,8 +88,8 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     Block::create([
       'id' => 'test_language_switcher',
-      'theme' => 'stark',
-      'region' => 'sidebar_first',
+      'theme' => 'emerging_digital',
+      'region' => 'header_language',
       'plugin' => 'language_block:language_url',
       'visibility' => [],
       'settings' => [
@@ -163,15 +163,12 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     self::assertStringContainsString('/en/cookie-policy', $englishUrl->toString());
 
     $this->drupalGet($frenchUrl);
-    $frenchCurrentUrl = $this->getSession()->getCurrentUrl();
     $frenchHtml = $this->getSession()->getPage()->getContent();
-    fwrite(STDERR, sprintf("LanguageSwitcherAliasTest FR visited URL: %s\n", $frenchCurrentUrl));
     self::assertSame(
       200,
       $this->getSession()->getStatusCode(),
       sprintf(
-        'Expected HTTP 200 for FR URL "%s" (generated: "%s"). HTML snippet: %s',
-        $frenchCurrentUrl,
+        'Expected HTTP 200 for FR URL "%s". HTML snippet: %s',
         $frenchUrl->toString(),
         mb_substr(trim(strip_tags($frenchHtml)), 0, 500)
       )
@@ -183,15 +180,12 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     );
 
     $this->drupalGet($englishUrl);
-    $englishCurrentUrl = $this->getSession()->getCurrentUrl();
     $englishHtml = $this->getSession()->getPage()->getContent();
-    fwrite(STDERR, sprintf("LanguageSwitcherAliasTest EN visited URL: %s\n", $englishCurrentUrl));
     self::assertSame(
       200,
       $this->getSession()->getStatusCode(),
       sprintf(
-        'Expected HTTP 200 for EN URL "%s" (generated: "%s"). HTML snippet: %s',
-        $englishCurrentUrl,
+        'Expected HTTP 200 for EN URL "%s". HTML snippet: %s',
         $englishUrl->toString(),
         mb_substr(trim(strip_tags($englishHtml)), 0, 500)
       )
@@ -200,6 +194,43 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->assertStringNotContainsString(
       'language_content_entity=fr',
       $englishHtml
+    );
+  }
+
+  /**
+   * Vérifie que la langue non traduite n'affiche pas de faux lien actif.
+   */
+  public function testLanguageSwitcherDoesNotLinkMissingTranslation(): void {
+    $node = Node::create([
+      'type' => 'page',
+      'title' => 'cookies-only-fr',
+      'langcode' => 'fr',
+      'status' => Node::PUBLISHED,
+    ]);
+    $node->save();
+
+    PathAlias::create([
+      'path' => '/node/' . $node->id(),
+      'alias' => '/cookies-only-fr',
+      'langcode' => 'fr',
+    ])->save();
+
+    drupal_flush_all_caches();
+
+    /** @var \Drupal\Core\Language\LanguageManagerInterface $languageManager */
+    $languageManager = $this->container->get('language_manager');
+    $frenchLanguage = $languageManager->getLanguage('fr');
+    self::assertNotNull($frenchLanguage);
+    $frenchUrl = $node->toUrl('canonical', ['language' => $frenchLanguage]);
+    self::assertStringContainsString('/cookies-only-fr', $frenchUrl->toString());
+
+    $this->drupalGet($frenchUrl);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->elementNotExists('css', '.language-switcher a[href="/en/cookies-only-fr"]');
+    $this->assertSession()->elementNotExists('css', '.language-switcher a[href*="language_content_entity"]');
+    $this->assertStringNotContainsString(
+      'language_content_entity=',
+      $this->getSession()->getPage()->getContent()
     );
   }
 

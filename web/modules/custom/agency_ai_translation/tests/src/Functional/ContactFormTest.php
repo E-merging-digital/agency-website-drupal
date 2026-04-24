@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_ai_translation\Functional;
 
 use Drupal\Tests\BrowserTestBase;
+use Drupal\user\UserInterface;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
@@ -28,9 +29,30 @@ final class ContactFormTest extends BrowserTestBase {
   protected $defaultTheme = 'stark';
 
   /**
+   * Utilisateur autorisé à accéder au formulaire de contact global.
+   *
+   * @var \Drupal\user\UserInterface
+   */
+  private UserInterface $contactUser;
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+
+    $this->contactUser = $this->drupalCreateUser([
+      'access site-wide contact form',
+      'access user profiles',
+    ]);
+  }
+
+  /**
    * Vérifie affichage, cas invalide et cas valide.
    */
   public function testContactFormValidationAndSubmit(): void {
+    $this->drupalLogin($this->contactUser);
+
     $this->drupalGet('/contact');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->fieldExists('name');

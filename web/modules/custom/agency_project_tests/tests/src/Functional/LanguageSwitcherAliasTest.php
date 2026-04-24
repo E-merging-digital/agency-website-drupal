@@ -7,6 +7,7 @@ namespace Drupal\Tests\agency_project_tests\Functional;
 use Drupal\block\Entity\Block;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
+use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -80,6 +81,14 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         'language-url' => -8,
       ])
       ->save();
+
+    if (!NodeType::load('page')) {
+      NodeType::create([
+        'type' => 'page',
+        'name' => 'Basic page',
+      ])->save();
+    }
+    self::assertNotNull(NodeType::load('page'));
 
     $this->config('language.content_settings.node.page')
       ->set('third_party_settings.content_translation.enabled', TRUE)

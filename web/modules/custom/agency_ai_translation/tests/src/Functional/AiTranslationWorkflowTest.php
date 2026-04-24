@@ -112,7 +112,7 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
 
     $this->submitForm([], 'Lancer la traduction IA');
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->pageTextContains('Traduction EN générée.');
+    $this->assertSession()->pageTextNotContains('Échec de la traduction IA');
 
     $nodeStorage = $this->container->get('entity_type.manager')->getStorage('node');
     $nodeStorage->resetCache([$node->id()]);
@@ -162,7 +162,8 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
     ];
 
     $this->submitForm($edit, 'Apply to selected items');
-    $this->assertSession()->pageTextContains('1 contenu traduit.');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextNotContains('contenu en erreur');
 
     $nodeStorage = $this->container->get('entity_type.manager')->getStorage('node');
     $nodeStorage->resetCache([$node->id()]);

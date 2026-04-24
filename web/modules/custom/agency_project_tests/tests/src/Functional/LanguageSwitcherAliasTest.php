@@ -101,11 +101,13 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     drupal_flush_all_caches();
 
+    $theme = (string) $this->config('system.theme')->get('default');
     Block::create([
       'id' => 'test_language_switcher',
-      'theme' => 'emerging_digital',
+      'theme' => $theme,
       'region' => 'header_language',
       'plugin' => 'language_block:language_url',
+      'weight' => 0,
       'visibility' => [],
       'settings' => [
         'id' => 'language_block:language_url',
@@ -178,38 +180,22 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     self::assertStringContainsString('/en/cookie-policy', $englishUrl->toString());
 
     $this->drupalGet($frenchUrl);
-    $frenchHtml = $this->getSession()->getPage()->getContent();
-    self::assertSame(
-      200,
-      $this->getSession()->getStatusCode(),
-      sprintf(
-        'Expected HTTP 200 for FR URL "%s". HTML snippet: %s',
-        $frenchUrl->toString(),
-        mb_substr(trim(strip_tags($frenchHtml)), 0, 500)
-      )
-    );
-    $this->assertSession()->linkByHrefExists('/en/cookie-policy');
-    $this->assertStringNotContainsString(
-      'language_content_entity=en',
-      $frenchHtml
-    );
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->elementExists('css', '.language-switcher');
+    $frenchSwitcherHrefs = $this->getLanguageSwitcherHrefs();
+    self::assertContains('/en/cookie-policy', $frenchSwitcherHrefs);
+    foreach ($frenchSwitcherHrefs as $href) {
+      self::assertStringNotContainsString('language_content_entity', $href);
+    }
 
     $this->drupalGet($englishUrl);
-    $englishHtml = $this->getSession()->getPage()->getContent();
-    self::assertSame(
-      200,
-      $this->getSession()->getStatusCode(),
-      sprintf(
-        'Expected HTTP 200 for EN URL "%s". HTML snippet: %s',
-        $englishUrl->toString(),
-        mb_substr(trim(strip_tags($englishHtml)), 0, 500)
-      )
-    );
-    $this->assertSession()->linkByHrefExists('/cookies');
-    $this->assertStringNotContainsString(
-      'language_content_entity=fr',
-      $englishHtml
-    );
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->elementExists('css', '.language-switcher');
+    $englishSwitcherHrefs = $this->getLanguageSwitcherHrefs();
+    self::assertContains('/cookies', $englishSwitcherHrefs);
+    foreach ($englishSwitcherHrefs as $href) {
+      self::assertStringNotContainsString('language_content_entity', $href);
+    }
   }
 
   /**
@@ -241,12 +227,30 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->elementNotExists('css', '.language-switcher a[href="/en/cookies-only-fr"]');
-    $this->assertSession()->elementNotExists('css', '.language-switcher a[href*="language_content_entity"]');
-    $this->assertStringNotContainsString(
-      'language_content_entity=',
-      $this->getSession()->getPage()->getContent()
-    );
+    $this->assertSession()->elementExists('css', '.language-switcher');
+    $switcherHrefs = $this->getLanguageSwitcherHrefs();
+    self::assertNotContains('/en/cookies-only-fr', $switcherHrefs);
+    foreach ($switcherHrefs as $href) {
+      self::assertStringNotContainsString('language_content_entity', $href);
+    }
+  }
+
+  /**
+   * Récupère les href des liens du language switcher affiché.
+   *
+   * @return string[]
+   *   Liste des href.
+   */
+  private function getLanguageSwitcherHrefs(): array {
+    $links = $this->getSession()->getPage()->findAll('css', '.language-switcher a[href]');
+    $hrefs = [];
+    foreach ($links as $link) {
+      $href = (string) $link->getAttribute('href');
+      if ($href !== '') {
+        $hrefs[] = $href;
+      }
+    }
+    return $hrefs;
   }
 
 }

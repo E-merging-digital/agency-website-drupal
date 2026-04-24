@@ -3,4 +3,3 @@ type: module
 description: 'Contient les tests transversaux du site (smoke homepage, contact, pages publiques critiques).'
 package: Testing
 core_version_requirement: ^11
-

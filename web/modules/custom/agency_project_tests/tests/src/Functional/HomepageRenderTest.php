@@ -30,4 +30,3 @@ final class HomepageRenderTest extends BrowserTestBase {
   }
 
 }
-

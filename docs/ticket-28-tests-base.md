@@ -8,21 +8,16 @@
 - Vérification de base de l’alias de traduction (quand un alias EN existe).
 - Formulaire de contact public : affichage des champs, cas invalide, cas valide.
 
-## Limites actuelles
+## Isolation des tests (important)
 
-- Le test contact cible le module `contact` cœur Drupal. Si le module `webform` est requis en environnement projet, un test dédié `webform` devra être ajouté quand le module sera disponible dans le dépôt.
-- La génération d’alias Pathauto est validée de manière pragmatique (absence d’alias brut `/node/{nid}` lorsqu’un alias EN est généré).
+Les tests `BrowserTestBase` sont exécutés dans une installation Drupal de test isolée.
+Ils ne doivent **pas** dépendre de la base locale existante.
 
-## Lancer les tests en local
+Le type de contenu `page` est créé explicitement dans `setUp()` du test de workflow avant l’activation de `content_translation`.
 
-```bash
-ddev drush cr
-vendor/bin/phpunit web/modules/custom/agency_ai_translation/tests/src/Functional/AiTranslationWorkflowTest.php
-vendor/bin/phpunit web/modules/custom/agency_ai_translation/tests/src/Functional/ContactFormTest.php
-```
+## Pré-requis local
 
-Ou la suite complète :
+Créer le dossier de sortie navigateur utilisé par Simpletest (si absent) :
 
 ```bash
-vendor/bin/phpunit
-```
+mkdir -p web/sites/simpletest/browser_output

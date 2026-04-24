@@ -5,16 +5,19 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_ai_translation\Functional;
 
 use Drupal\language\Entity\ConfigurableLanguage;
+use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\agency_ai_translation\Support\StaticTranslationHttpClient;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\user\UserInterface;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Vérifie les workflows critiques de traduction IA.
  *
  * @group agency_ai_translation
  */
+#[RunTestsInSeparateProcesses]
 final class AiTranslationWorkflowTest extends BrowserTestBase {
 
   /**
@@ -55,6 +58,13 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
     }
     if (!ConfigurableLanguage::load('en')) {
       ConfigurableLanguage::createFromLangcode('en')->save();
+    }
+
+    if (!NodeType::load('page')) {
+      NodeType::create([
+        'type' => 'page',
+        'name' => 'Page',
+      ])->save();
     }
 
     $this->container->get('content_translation.manager')->setEnabled('node', 'page', TRUE);

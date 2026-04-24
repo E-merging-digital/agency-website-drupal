@@ -138,9 +138,21 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     self::assertSame('/node/' . $node->id(), $aliasManager->getPathByAlias('/cookies', 'fr'));
     self::assertSame('/node/' . $node->id(), $aliasManager->getPathByAlias('/cookie-policy', 'en'));
 
+    /** @var \Drupal\Core\Language\LanguageManagerInterface $languageManager */
+    $languageManager = $this->container->get('language_manager');
+    $frenchLanguage = $languageManager->getLanguage('fr');
+    $englishLanguage = $languageManager->getLanguage('en');
+    self::assertNotNull($frenchLanguage);
+    self::assertNotNull($englishLanguage);
+
+    $frenchUrl = $node->toUrl('canonical', ['language' => $frenchLanguage]);
+    $englishUrl = $englishTranslation->toUrl('canonical', ['language' => $englishLanguage]);
+    self::assertStringContainsString('/fr/cookies', $frenchUrl->toString());
+    self::assertStringContainsString('/en/cookie-policy', $englishUrl->toString());
+
     drupal_flush_all_caches();
 
-    $this->drupalGet('/fr/cookies');
+    $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->linkByHrefExists('/en/cookie-policy');
     $this->assertStringNotContainsString(
@@ -148,7 +160,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       $this->getSession()->getPage()->getContent()
     );
 
-    $this->drupalGet('/en/cookie-policy');
+    $this->drupalGet($englishUrl);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->linkByHrefExists('/fr/cookies');
     $this->assertStringNotContainsString(

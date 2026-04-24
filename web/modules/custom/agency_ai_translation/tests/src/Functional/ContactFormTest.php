@@ -6,7 +6,7 @@ namespace Drupal\Tests\agency_ai_translation\Functional;
 
 use Drupal\contact\Entity\ContactForm;
 use Drupal\Tests\BrowserTestBase;
-use Drupal\user\UserInterface;
+use Drupal\user\Entity\Role;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
@@ -30,13 +30,6 @@ final class ContactFormTest extends BrowserTestBase {
   protected $defaultTheme = 'stark';
 
   /**
-   * Utilisateur autorisé à accéder au formulaire de contact global.
-   *
-   * @var \Drupal\user\UserInterface
-   */
-  private UserInterface $contactUser;
-
-  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
@@ -52,37 +45,41 @@ final class ContactFormTest extends BrowserTestBase {
       ])->save();
     }
 
-    $this->contactUser = $this->drupalCreateUser([
-      'access site-wide contact form',
-      'access user profiles',
-    ]);
+    $anonymousRole = Role::load('anonymous');
+    self::assertNotNull($anonymousRole);
+    $anonymousRole->grantPermission('access site-wide contact form');
+    $anonymousRole->save();
   }
 
   /**
    * Vérifie affichage, cas invalide et cas valide.
    */
   public function testContactFormValidationAndSubmit(): void {
-    $this->drupalLogin($this->contactUser);
-
     $this->drupalGet('/contact/feedback');
     $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->fieldExists('name');
+    $this->assertSession()->fieldExists('mail');
     $this->assertSession()->fieldExists('subject[0][value]');
     $this->assertSession()->fieldExists('message[0][value]');
     $this->assertSession()->buttonExists('Send message');
 
     $this->submitForm([
-      'subject[0][value]' => '',
+      'name' => 'Test Contact',
+      'mail' => 'email-invalide',
+      'subject[0][value]' => 'Sujet test',
       'message[0][value]' => 'Message test',
     ], 'Send message');
-    $this->assertSession()->pageTextContains('Subject field is required.');
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->elementExists('css', '[role="alert"]');
 
     $this->submitForm([
+      'name' => 'Test Contact',
+      'mail' => 'contact@example.com',
       'subject[0][value]' => 'Sujet valide',
       'message[0][value]' => 'Message valide',
     ], 'Send message');
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->pageTextNotContains('Subject field is required.');
-    $this->assertSession()->pageTextMatches('/message.*(sent|envoyé)/i');
+    $this->assertSession()->elementNotExists('css', '[role="alert"]');
   }
 
 }

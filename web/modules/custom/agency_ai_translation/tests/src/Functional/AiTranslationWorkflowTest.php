@@ -81,6 +81,10 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
     $this->container->get('state')->set('agency_ai_translation.api_key', 'test-key');
     $testHttpClient = new StaticTranslationHttpClient();
     $this->container->set('http_client', $testHttpClient);
+    $keyRepository = NULL;
+    if ($this->container->has('key.repository')) {
+      $keyRepository = $this->container->get('key.repository');
+    }
 
     $aiClient = new AiTranslationClient(
       $this->container->get('config.factory'),
@@ -88,14 +92,18 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
       $testHttpClient,
       $this->container->get('logger.channel.agency_ai_translation'),
       $this->container->get('state'),
-      $this->container->has('key.repository') ? $this->container->get('key.repository') : NULL,
+      $keyRepository,
     );
     $this->container->set('agency_ai_translation.client', $aiClient);
+    $pathautoGenerator = NULL;
+    if ($this->container->has('pathauto.generator')) {
+      $pathautoGenerator = $this->container->get('pathauto.generator');
+    }
 
     $translationManager = new AiTranslationManager(
       $aiClient,
       $this->container->get('entity_field.manager'),
-      $this->container->has('pathauto.generator') ? $this->container->get('pathauto.generator') : NULL,
+      $pathautoGenerator,
     );
     $this->container->set('agency_ai_translation.manager', $translationManager);
 

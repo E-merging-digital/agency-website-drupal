@@ -56,4 +56,3 @@ final class ContactFormTest extends BrowserTestBase {
   }
 
 }
-

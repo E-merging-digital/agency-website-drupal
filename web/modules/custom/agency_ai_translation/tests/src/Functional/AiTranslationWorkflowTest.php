@@ -60,13 +60,13 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
       ConfigurableLanguage::createFromLangcode('en')->save();
     }
 
-
     if (!NodeType::load('page')) {
       NodeType::create([
         'type' => 'page',
         'name' => 'Page',
       ])->save();
     }
+
     $this->container->get('content_translation.manager')->setEnabled('node', 'page', TRUE);
 
     $this->container->get('state')->set('agency_ai_translation.api_key', 'test-key');
@@ -164,4 +164,3 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
   }
 
 }
-

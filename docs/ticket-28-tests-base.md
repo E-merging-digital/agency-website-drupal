@@ -21,33 +21,3 @@ Créer le dossier de sortie navigateur utilisé par Simpletest (si absent) :
 
 ```bash
 mkdir -p web/sites/simpletest/browser_output
-```
-
-## Lancer les tests en local (DDEV)
-
-```bash
-ddev exec env SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site \
-SIMPLETEST_DB=mysql://db:db@db/db \
-vendor/bin/phpunit -c web/core/phpunit.xml.dist \
-web/modules/custom/agency_ai_translation/tests/src/Functional/AiTranslationWorkflowTest.php
-```
-
-```bash
-ddev exec env SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site \
-SIMPLETEST_DB=mysql://db:db@db/db \
-vendor/bin/phpunit -c web/core/phpunit.xml.dist \
-web/modules/custom/agency_ai_translation/tests/src/Functional/ContactFormTest.php
-```
-
-Suite complète :
-
-```bash
-ddev exec env SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site \
-SIMPLETEST_DB=mysql://db:db@db/db \
-vendor/bin/phpunit -c web/core/phpunit.xml.dist
-```
-
-## Limites actuelles
-
-- Le test contact cible le module `contact` cœur Drupal. Si `webform` est requis dans le projet, un test dédié `webform` sera ajouté quand le module sera présent dans le dépôt.
-- La génération d’alias Pathauto est validée de manière pragmatique (absence d’alias brut `/node/{nid}` lorsqu’un alias EN est généré).

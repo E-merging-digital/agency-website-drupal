@@ -52,7 +52,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->config('language.negotiation')
       ->set('url.source', 'path_prefix')
-      ->set('url.prefixes', ['en' => 'en', 'fr' => 'fr'])
+      ->set('url.prefixes', ['en' => 'en', 'fr' => ''])
       ->set('url.domains', ['en' => '', 'fr' => ''])
       ->set('selected_langcode', 'site_default')
       ->save();
@@ -159,7 +159,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $frenchUrl = $node->toUrl('canonical', ['language' => $frenchLanguage]);
     $englishUrl = $englishTranslation->toUrl('canonical', ['language' => $englishLanguage]);
-    self::assertStringContainsString('/fr/cookies', $frenchUrl->toString());
+    self::assertStringContainsString('/cookies', $frenchUrl->toString());
     self::assertStringContainsString('/en/cookie-policy', $englishUrl->toString());
 
     $this->drupalGet($frenchUrl);
@@ -172,7 +172,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($englishUrl);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->linkByHrefExists('/fr/cookies');
+    $this->assertSession()->linkByHrefExists('/cookies');
     $this->assertStringNotContainsString(
       'language_content_entity=fr',
       $this->getSession()->getPage()->getContent()

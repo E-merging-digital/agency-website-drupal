@@ -20,6 +20,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  */
 #[RunTestsInSeparateProcesses]
 final class LanguageSwitcherAliasTest extends BrowserTestBase {
+  private const SWITCHER_BLOCK_SELECTOR = '[id*="block-test-language-switcher"]';
 
   /**
    * {@inheritdoc}
@@ -181,7 +182,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->elementExists('css', '.language-switcher');
+    $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
     $frenchSwitcherHrefs = $this->getLanguageSwitcherHrefs();
     self::assertContains('/en/cookie-policy', $frenchSwitcherHrefs);
     foreach ($frenchSwitcherHrefs as $href) {
@@ -190,7 +191,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($englishUrl);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->elementExists('css', '.language-switcher');
+    $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
     $englishSwitcherHrefs = $this->getLanguageSwitcherHrefs();
     self::assertContains('/cookies', $englishSwitcherHrefs);
     foreach ($englishSwitcherHrefs as $href) {
@@ -227,7 +228,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet($frenchUrl);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->elementExists('css', '.language-switcher');
+    $this->assertSession()->elementExists('css', self::SWITCHER_BLOCK_SELECTOR);
     $switcherHrefs = $this->getLanguageSwitcherHrefs();
     self::assertNotContains('/en/cookies-only-fr', $switcherHrefs);
     foreach ($switcherHrefs as $href) {
@@ -242,7 +243,12 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    *   Liste des href.
    */
   private function getLanguageSwitcherHrefs(): array {
-    $links = $this->getSession()->getPage()->findAll('css', '.language-switcher a[href]');
+    $switcherBlock = $this->getSession()
+      ->getPage()
+      ->find('css', self::SWITCHER_BLOCK_SELECTOR);
+    self::assertNotNull($switcherBlock);
+
+    $links = $switcherBlock->findAll('css', 'a[href]');
     $hrefs = [];
     foreach ($links as $link) {
       $href = (string) $link->getAttribute('href');

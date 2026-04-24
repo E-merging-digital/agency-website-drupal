@@ -12,12 +12,14 @@ use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Couvre la logique du hook emerging_digital_language_switch_links_alter().
  *
  * @group agency_project_tests
  */
+#[RunTestsInSeparateProcesses]
 final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
 
   /**
@@ -44,7 +46,8 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
     $this->installEntitySchema('node');
     $this->installEntitySchema('path_alias');
     $this->installEntitySchema('user');
-    $this->installConfig(['system', 'language', 'node']);
+    $this->installSchema('node', ['node_access']);
+    $this->installConfig(['system', 'node', 'language', 'content_translation']);
 
     if (!ConfigurableLanguage::load('fr')) {
       ConfigurableLanguage::createFromLangcode('fr')->save();

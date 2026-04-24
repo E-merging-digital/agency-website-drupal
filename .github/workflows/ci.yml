@@ -64,5 +64,10 @@ jobs:
       - name: Start local web server for BrowserTestBase
         run: php -S 127.0.0.1:8888 -t web >/tmp/php-server.log 2>&1 &
 
+      - name: Prepare BrowserTestBase HTML output directory
+        run: |
+          mkdir -p web/sites/simpletest/browser_output
+          chmod -R 777 web/sites/simpletest
+
       - name: Run custom PHPUnit suite only (exclude unstable_ia)
         run: vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia web/modules/custom/agency_project_tests/tests

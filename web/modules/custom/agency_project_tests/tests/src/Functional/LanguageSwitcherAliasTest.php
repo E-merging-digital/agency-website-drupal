@@ -7,7 +7,7 @@ namespace Drupal\Tests\agency_project_tests\Functional;
 use Drupal\block\Entity\Block;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
-use Drupal\pathauto\Entity\PathautoPattern;
+use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -28,8 +28,6 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     'language',
     'node',
     'path_alias',
-    'pathauto',
-    'token',
   ];
 
   /**
@@ -78,52 +76,6 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       ->set('language_alterable', TRUE)
       ->save();
 
-    PathautoPattern::create([
-      'id' => 'test_node_page_fr',
-      'label' => 'Pattern FR page',
-      'type' => 'canonical_entities:node',
-      'pattern' => '[node:title]',
-      'selection_criteria' => [
-        'bundle' => [
-          'id' => 'entity_bundle:node',
-          'context_mapping' => ['node' => 'node'],
-          'bundles' => ['page' => 'page'],
-          'negate' => FALSE,
-        ],
-        'lang' => [
-          'id' => 'language',
-          'context_mapping' => ['language' => 'node:langcode:language'],
-          'langcodes' => ['fr' => 'fr'],
-          'negate' => FALSE,
-        ],
-      ],
-      'selection_logic' => 'and',
-      'weight' => -20,
-    ])->save();
-
-    PathautoPattern::create([
-      'id' => 'test_node_page_en',
-      'label' => 'Pattern EN page',
-      'type' => 'canonical_entities:node',
-      'pattern' => '[node:title]',
-      'selection_criteria' => [
-        'bundle' => [
-          'id' => 'entity_bundle:node',
-          'context_mapping' => ['node' => 'node'],
-          'bundles' => ['page' => 'page'],
-          'negate' => FALSE,
-        ],
-        'lang' => [
-          'id' => 'language',
-          'context_mapping' => ['language' => 'node:langcode:language'],
-          'langcodes' => ['en' => 'en'],
-          'negate' => FALSE,
-        ],
-      ],
-      'selection_logic' => 'and',
-      'weight' => -19,
-    ])->save();
-
     Block::create([
       'id' => 'test_language_switcher',
       'theme' => 'stark',
@@ -156,10 +108,37 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'status' => Node::PUBLISHED,
     ])->save();
 
-    /** @var \Drupal\pathauto\PathautoGeneratorInterface $generator */
-    $generator = $this->container->get('pathauto.generator');
-    $generator->updateEntityAlias($node, 'insert');
-    $generator->updateEntityAlias($node->getTranslation('en'), 'insert');
+    $node = Node::load($node->id());
+    self::assertNotNull($node);
+    self::assertSame('fr', $node->language()->getId());
+    self::assertTrue($node->isPublished());
+    self::assertTrue($node->hasTranslation('en'));
+
+    $englishTranslation = $node->getTranslation('en');
+    self::assertTrue($englishTranslation->isPublished());
+
+    PathAlias::create([
+      'path' => '/node/' . $node->id(),
+      'alias' => '/cookies',
+      'langcode' => 'fr',
+    ])->save();
+    PathAlias::create([
+      'path' => '/node/' . $node->id(),
+      'alias' => '/cookie-policy',
+      'langcode' => 'en',
+    ])->save();
+
+    /** @var \Drupal\path_alias\AliasRepositoryInterface $aliasRepository */
+    $aliasRepository = $this->container->get('path_alias.repository');
+    self::assertSame('/cookies', $aliasRepository->lookupBySystemPath('/node/' . $node->id(), 'fr')['alias'] ?? NULL);
+    self::assertSame('/cookie-policy', $aliasRepository->lookupBySystemPath('/node/' . $node->id(), 'en')['alias'] ?? NULL);
+
+    /** @var \Drupal\path_alias\AliasManagerInterface $aliasManager */
+    $aliasManager = $this->container->get('path_alias.manager');
+    self::assertSame('/node/' . $node->id(), $aliasManager->getPathByAlias('/cookies', 'fr'));
+    self::assertSame('/node/' . $node->id(), $aliasManager->getPathByAlias('/cookie-policy', 'en'));
+
+    drupal_flush_all_caches();
 
     $this->drupalGet('/fr/cookies');
     $this->assertSession()->statusCodeEquals(200);

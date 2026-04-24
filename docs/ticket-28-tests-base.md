@@ -35,10 +35,22 @@ Homepage smoke :
 ddev exec env BROWSERTEST_OUTPUT_DIRECTORY=web/sites/simpletest/browser_output SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site SIMPLETEST_DB=mysql://db:db@db/db vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional/HomepageRenderTest.php
 ```
 
+Via script Composer (recommandé) :
+
+```powershell
+ddev composer test:homepage-smoke
+```
+
 Contact fonctionnel :
 
 ```powershell
 ddev exec env BROWSERTEST_OUTPUT_DIRECTORY=web/sites/simpletest/browser_output SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site SIMPLETEST_DB=mysql://db:db@db/db vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional/ContactFormTest.php
+```
+
+Via script Composer :
+
+```powershell
+ddev composer test:contact
 ```
 
 Tous les tests transversaux du module :
@@ -47,12 +59,24 @@ Tous les tests transversaux du module :
 ddev exec env BROWSERTEST_OUTPUT_DIRECTORY=web/sites/simpletest/browser_output SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site SIMPLETEST_DB=mysql://db:db@db/db vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional
 ```
 
+Via script Composer :
+
+```powershell
+ddev composer test:project-functional
+```
+
 ## Commandes agency_ai_translation (PowerShell, une ligne)
 
 Exécuter les tests du module **en excluant temporairement** le workflow IA complet instable :
 
 ```powershell
 ddev exec env BROWSERTEST_OUTPUT_DIRECTORY=web/sites/simpletest/browser_output SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site SIMPLETEST_DB=mysql://db:db@db/db vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia web/modules/custom/agency_ai_translation/tests/src/Functional
+```
+
+Via script Composer :
+
+```powershell
+ddev composer test:ai-translation:stable
 ```
 
 Exécuter explicitement le test instable (debug uniquement, hors CI pour le moment) :
@@ -65,4 +89,6 @@ ddev exec env BROWSERTEST_OUTPUT_DIRECTORY=web/sites/simpletest/browser_output S
 
 - Ne pas utiliser `--filter` global seul (risque de chargement de tests contrib hors périmètre).
 - Ne pas dépendre de la base locale : `BrowserTestBase` crée une installation isolée.
+- Les scripts Composer neutralisent les deprecations Symfony via `SYMFONY_DEPRECATIONS_HELPER=disabled` pour éviter `OK, but there were issues!` en exécution locale.
+- `test:homepage-smoke` n’ouvre plus systématiquement un serveur PHP en arrière-plan : en DDEV, il réutilise `DDEV_PRIMARY_URL`; hors DDEV, un serveur local est démarré automatiquement en fallback.
 - Le branchement GitHub Actions est volontairement traité dans un ticket séparé.

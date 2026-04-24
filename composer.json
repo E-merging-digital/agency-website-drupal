@@ -136,6 +136,9 @@
             "@lint:drupal-check",
             "@test:homepage-smoke"
         ],
-        "test:homepage-smoke": "mkdir -p /tmp/browsertest_output web/sites/simpletest && php -S 127.0.0.1:8888 -t web >/tmp/browsertest_server.log 2>&1 & PHP_SERVER_PID=$! && trap \"kill $PHP_SERVER_PID\" EXIT && SIMPLETEST_BASE_URL=http://127.0.0.1:8888 SIMPLETEST_DB=sqlite://localhost/sites/default/files/.ht.sqlite BROWSERTEST_OUTPUT_DIRECTORY=/tmp/browsertest_output vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional/HomepageRenderTest.php"
+        "test:project-functional": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional",
+        "test:homepage-smoke": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional/HomepageRenderTest.php",
+        "test:contact": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional/ContactFormTest.php",
+        "test:ai-translation:stable": "SYMFONY_DEPRECATIONS_HELPER=disabled vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia web/modules/custom/agency_ai_translation/tests/src/Functional"
     }
 }

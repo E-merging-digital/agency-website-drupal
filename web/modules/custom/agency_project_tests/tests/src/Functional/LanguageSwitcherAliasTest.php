@@ -90,10 +90,10 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => 'stark',
       'region' => 'sidebar_first',
-      'plugin' => 'language_block:language_content',
+      'plugin' => 'language_block:language_url',
       'visibility' => [],
       'settings' => [
-        'id' => 'language_block:language_content',
+        'id' => 'language_block:language_url',
         'label' => 'Language switcher',
         'label_display' => FALSE,
         'provider' => 'language',
@@ -163,19 +163,43 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     self::assertStringContainsString('/en/cookie-policy', $englishUrl->toString());
 
     $this->drupalGet($frenchUrl);
-    $this->assertSession()->statusCodeEquals(200);
+    $frenchCurrentUrl = $this->getSession()->getCurrentUrl();
+    $frenchHtml = $this->getSession()->getPage()->getContent();
+    fwrite(STDERR, sprintf("LanguageSwitcherAliasTest FR visited URL: %s\n", $frenchCurrentUrl));
+    self::assertSame(
+      200,
+      $this->getSession()->getStatusCode(),
+      sprintf(
+        'Expected HTTP 200 for FR URL "%s" (generated: "%s"). HTML snippet: %s',
+        $frenchCurrentUrl,
+        $frenchUrl->toString(),
+        mb_substr(trim(strip_tags($frenchHtml)), 0, 500)
+      )
+    );
     $this->assertSession()->linkByHrefExists('/en/cookie-policy');
     $this->assertStringNotContainsString(
       'language_content_entity=en',
-      $this->getSession()->getPage()->getContent()
+      $frenchHtml
     );
 
     $this->drupalGet($englishUrl);
-    $this->assertSession()->statusCodeEquals(200);
+    $englishCurrentUrl = $this->getSession()->getCurrentUrl();
+    $englishHtml = $this->getSession()->getPage()->getContent();
+    fwrite(STDERR, sprintf("LanguageSwitcherAliasTest EN visited URL: %s\n", $englishCurrentUrl));
+    self::assertSame(
+      200,
+      $this->getSession()->getStatusCode(),
+      sprintf(
+        'Expected HTTP 200 for EN URL "%s" (generated: "%s"). HTML snippet: %s',
+        $englishCurrentUrl,
+        $englishUrl->toString(),
+        mb_substr(trim(strip_tags($englishHtml)), 0, 500)
+      )
+    );
     $this->assertSession()->linkByHrefExists('/cookies');
     $this->assertStringNotContainsString(
       'language_content_entity=fr',
-      $this->getSession()->getPage()->getContent()
+      $englishHtml
     );
   }
 

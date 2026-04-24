@@ -73,3 +73,12 @@ jobs:
 
       - name: Run custom PHPUnit suite only (exclude unstable_ia)
         run: vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia web/modules/custom/agency_project_tests/tests
+
+      - name: Upload BrowserTestBase HTML output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-output
+          path: |
+            web/sites/simpletest/browser_output
+            sites/simpletest/browser_output

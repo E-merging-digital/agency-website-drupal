@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_ai_translation\Functional;
 
+use Drupal\contact\Entity\ContactForm;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\user\UserInterface;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -41,6 +42,16 @@ final class ContactFormTest extends BrowserTestBase {
   protected function setUp(): void {
     parent::setUp();
 
+    if (!ContactForm::load('feedback')) {
+      ContactForm::create([
+        'id' => 'feedback',
+        'label' => 'Website feedback',
+        'recipients' => ['contact@example.com'],
+        'reply' => '',
+        'weight' => 0,
+      ])->save();
+    }
+
     $this->contactUser = $this->drupalCreateUser([
       'access site-wide contact form',
       'access user profiles',
@@ -53,7 +64,7 @@ final class ContactFormTest extends BrowserTestBase {
   public function testContactFormValidationAndSubmit(): void {
     $this->drupalLogin($this->contactUser);
 
-    $this->drupalGet('/contact');
+    $this->drupalGet('/contact/feedback');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->fieldExists('name');
     $this->assertSession()->fieldExists('mail');

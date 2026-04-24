@@ -112,13 +112,7 @@ function emerging_digital_language_switch_links_alter(array &$links, string $typ
     return;
   }
 
-  $entity = NULL;
-  foreach (\Drupal::routeMatch()->getParameters()->all() as $parameter) {
-    if ($parameter instanceof ContentEntityInterface) {
-      $entity = $parameter;
-      break;
-    }
-  }
+  $entity = emerging_digital_get_language_switch_entity($url);
 
   if (!$entity instanceof ContentEntityInterface || !$entity->isTranslatable()) {
     foreach ($links as &$link) {
@@ -159,4 +153,30 @@ function emerging_digital_language_switch_links_alter(array &$links, string $typ
     $translatedUrl->setOption('query', $query);
     $links[$langcode]['url'] = $translatedUrl;
   }
+}
+
+/**
+ * Résout l'entité courante pour le switcher de langue.
+ */
+function emerging_digital_get_language_switch_entity(Url $url): ?ContentEntityInterface {
+  if ($url->isRouted() && str_starts_with($url->getRouteName(), 'entity.node.')) {
+    $parameters = $url->getRouteParameters();
+    if (!empty($parameters['node'])) {
+      $node = $parameters['node'];
+      if (is_numeric($node)) {
+        $node = \Drupal::entityTypeManager()->getStorage('node')->load((int) $node);
+      }
+      if ($node instanceof ContentEntityInterface) {
+        return $node;
+      }
+    }
+  }
+
+  foreach (\Drupal::routeMatch()->getParameters()->all() as $parameter) {
+    if ($parameter instanceof ContentEntityInterface) {
+      return $parameter;
+    }
+  }
+
+  return NULL;
 }

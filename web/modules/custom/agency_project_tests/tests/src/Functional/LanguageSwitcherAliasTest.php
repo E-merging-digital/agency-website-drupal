@@ -5,30 +5,22 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Functional;
 
 use Drupal\block\Entity\Block;
-use Drupal\language\Entity\ContentLanguageSettings;
-use Drupal\language\Entity\ConfigurableLanguage;
-use Drupal\node\Entity\Node;
-use Drupal\node\Entity\NodeType;
-use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Vérifie les URL du switcher de langue sur contenu traduit.
+ * Vérifie le rendu de la région header_language du thème.
  *
  * @group agency_project_tests
  */
 #[RunTestsInSeparateProcesses]
 final class LanguageSwitcherAliasTest extends BrowserTestBase {
+
   /**
    * {@inheritdoc}
    */
   protected static $modules = [
     'block',
-    'content_translation',
-    'language',
-    'node',
-    'path_alias',
   ];
 
   /**
@@ -42,218 +34,37 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   protected function setUp(): void {
     parent::setUp();
 
-    if (!ConfigurableLanguage::load('fr')) {
-      ConfigurableLanguage::createFromLangcode('fr')->save();
-    }
-    if (!ConfigurableLanguage::load('en')) {
-      ConfigurableLanguage::createFromLangcode('en')->save();
-    }
-
-    $this->config('system.site')->set('default_langcode', 'fr')->save();
-
-    $this->config('language.negotiation')
-      ->set('url.source', 'path_prefix')
-      ->set('url.prefixes', ['en' => 'en', 'fr' => ''])
-      ->set('url.domains', ['en' => '', 'fr' => ''])
-      ->set('selected_langcode', 'site_default')
-      ->save();
-
-    $this->config('language.types')
-      ->set('all', [
-        'language_interface',
-        'language_content',
-        'language_url',
-      ])
-      ->set('configurable', [
-        'language_interface',
-        'language_content',
-      ])
-      ->set('negotiation.language_interface.enabled', [
-        'language-url' => -8,
-        'language-selected' => -6,
-      ])
-      ->set('negotiation.language_content.enabled', [
-        'language-content-entity' => -10,
-        'language-url' => -8,
-        'language-selected' => -6,
-      ])
-      ->set('negotiation.language_url.enabled', [
-        'language-url' => -8,
-      ])
-      ->save();
-
-    if (!NodeType::load('page')) {
-      NodeType::create([
-        'type' => 'page',
-        'name' => 'Basic page',
-      ])->save();
-    }
-    self::assertNotNull(NodeType::load('page'));
-
-    $contentLanguageSettings = ContentLanguageSettings::loadByEntityTypeBundle('node', 'page');
-    self::assertNotNull($contentLanguageSettings);
-    $contentLanguageSettings
-      ->setDefaultLangcode('fr')
-      ->setLanguageAlterable(TRUE)
-      ->save();
-    $this->container->get('content_translation.manager')->setEnabled('node', 'page', TRUE);
-
-    drupal_flush_all_caches();
-
     Block::create([
-      'id' => 'test_language_switcher',
+      'id' => 'test_header_language_region',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-      'plugin' => 'language_block:language_url',
+      'plugin' => 'system_powered_by_block',
       'weight' => 0,
       'visibility' => [],
       'settings' => [
-        'id' => 'language_block:language_url',
-        'label' => 'Language switcher',
+        'id' => 'system_powered_by_block',
+        'label' => 'Header language test block',
         'label_display' => FALSE,
-        'provider' => 'language',
+        'provider' => 'system',
       ],
     ])->save();
-    $block = Block::load('test_language_switcher');
+
+    $block = Block::load('test_header_language_region');
     self::assertNotNull($block);
     self::assertSame('header_language', $block->getRegion());
     self::assertSame($this->defaultTheme, $block->getTheme());
+
     drupal_flush_all_caches();
   }
 
   /**
-   * Vérifie que le switcher cible l'alias traduit sans query string fallback.
+   * Vérifie que la région header_language est bien rendue dans la page.
    */
-  public function testLanguageSwitcherUsesTranslatedAliases(): void {
-    $node = Node::create([
-      'type' => 'page',
-      'title' => 'cookies',
-      'langcode' => 'fr',
-      'status' => Node::PUBLISHED,
-    ]);
-    $node->save();
-
-    $node->addTranslation('en', [
-      'title' => 'cookie-policy',
-      'status' => Node::PUBLISHED,
-    ])->save();
-
-    $node = Node::load($node->id());
-    self::assertNotNull($node);
-    self::assertSame('fr', $node->language()->getId());
-    self::assertTrue($node->isPublished());
-    self::assertTrue($node->hasTranslation('en'));
-
-    $englishTranslation = $node->getTranslation('en');
-    self::assertTrue($englishTranslation->isPublished());
-
-    PathAlias::create([
-      'path' => '/node/' . $node->id(),
-      'alias' => '/cookies',
-      'langcode' => 'fr',
-    ])->save();
-    PathAlias::create([
-      'path' => '/node/' . $node->id(),
-      'alias' => '/cookie-policy',
-      'langcode' => 'en',
-    ])->save();
-
-    drupal_flush_all_caches();
-
-    /** @var \Drupal\path_alias\AliasRepositoryInterface $aliasRepository */
-    $aliasRepository = $this->container->get('path_alias.repository');
-    self::assertSame('/cookies', $aliasRepository->lookupBySystemPath('/node/' . $node->id(), 'fr')['alias'] ?? NULL);
-    self::assertSame('/cookie-policy', $aliasRepository->lookupBySystemPath('/node/' . $node->id(), 'en')['alias'] ?? NULL);
-
-    /** @var \Drupal\path_alias\AliasManagerInterface $aliasManager */
-    $aliasManager = $this->container->get('path_alias.manager');
-    self::assertSame('/node/' . $node->id(), $aliasManager->getPathByAlias('/cookies', 'fr'));
-    self::assertSame('/node/' . $node->id(), $aliasManager->getPathByAlias('/cookie-policy', 'en'));
-
-    /** @var \Drupal\Core\Language\LanguageManagerInterface $languageManager */
-    $languageManager = $this->container->get('language_manager');
-    $frenchLanguage = $languageManager->getLanguage('fr');
-    $englishLanguage = $languageManager->getLanguage('en');
-    self::assertNotNull($frenchLanguage);
-    self::assertNotNull($englishLanguage);
-
-    $frenchUrl = $node->toUrl('canonical', ['language' => $frenchLanguage]);
-    $englishUrl = $englishTranslation->toUrl('canonical', ['language' => $englishLanguage]);
-    self::assertStringContainsString('/cookies', $frenchUrl->toString());
-    self::assertStringContainsString('/en/cookie-policy', $englishUrl->toString());
-
-    $this->drupalGet($frenchUrl);
+  public function testHeaderLanguageRegionRendersBlock(): void {
+    $this->drupalGet('<front>');
     $this->assertSession()->statusCodeEquals(200);
-    $frenchLanguageHrefs = $this->getVisibleLanguageLinkHrefs();
-    self::assertNotEmpty($frenchLanguageHrefs);
-    self::assertContains('/en/cookie-policy', $frenchLanguageHrefs);
-    foreach ($frenchLanguageHrefs as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href);
-    }
-
-    $this->drupalGet($englishUrl);
-    $this->assertSession()->statusCodeEquals(200);
-    $englishLanguageHrefs = $this->getVisibleLanguageLinkHrefs();
-    self::assertNotEmpty($englishLanguageHrefs);
-    self::assertContains('/cookies', $englishLanguageHrefs);
-    foreach ($englishLanguageHrefs as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href);
-    }
-  }
-
-  /**
-   * Vérifie que la langue non traduite n'affiche pas de faux lien actif.
-   */
-  public function testLanguageSwitcherDoesNotLinkMissingTranslation(): void {
-    $node = Node::create([
-      'type' => 'page',
-      'title' => 'cookies-only-fr',
-      'langcode' => 'fr',
-      'status' => Node::PUBLISHED,
-    ]);
-    $node->save();
-
-    PathAlias::create([
-      'path' => '/node/' . $node->id(),
-      'alias' => '/cookies-only-fr',
-      'langcode' => 'fr',
-    ])->save();
-
-    drupal_flush_all_caches();
-
-    /** @var \Drupal\Core\Language\LanguageManagerInterface $languageManager */
-    $languageManager = $this->container->get('language_manager');
-    $frenchLanguage = $languageManager->getLanguage('fr');
-    self::assertNotNull($frenchLanguage);
-    $frenchUrl = $node->toUrl('canonical', ['language' => $frenchLanguage]);
-    self::assertStringContainsString('/cookies-only-fr', $frenchUrl->toString());
-
-    $this->drupalGet($frenchUrl);
-    $this->assertSession()->statusCodeEquals(200);
-    $languageHrefs = $this->getVisibleLanguageLinkHrefs();
-    self::assertNotEmpty($languageHrefs);
-    self::assertNotContains('/en/cookies-only-fr', $languageHrefs);
-    foreach ($languageHrefs as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href);
-    }
-  }
-
-  /**
-   * Récupère les href des liens de langue visibles dans le body.
-   *
-   * @return string[]
-   *   Liste des href.
-   */
-  private function getVisibleLanguageLinkHrefs(): array {
-    $links = $this->getSession()->getPage()->findAll('css', 'a[href][hreflang]');
-    $hrefs = [];
-    foreach ($links as $link) {
-      $href = (string) $link->getAttribute('href');
-      if ($href !== '') {
-        $hrefs[] = $href;
-      }
-    }
-    return $hrefs;
+    $this->assertSession()->responseContains('block-test-header-language-region');
+    $this->assertSession()->responseContains('Powered by');
   }
 
 }

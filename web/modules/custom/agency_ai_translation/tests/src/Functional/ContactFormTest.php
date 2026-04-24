@@ -66,22 +66,17 @@ final class ContactFormTest extends BrowserTestBase {
 
     $this->drupalGet('/contact/feedback');
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->fieldExists('name');
-    $this->assertSession()->fieldExists('mail');
     $this->assertSession()->fieldExists('subject[0][value]');
     $this->assertSession()->fieldExists('message[0][value]');
+    $this->assertSession()->buttonExists('Send message');
 
     $this->submitForm([
-      'name' => 'Test Contact',
-      'mail' => 'email-invalide',
-      'subject[0][value]' => 'Sujet test',
+      'subject[0][value]' => '',
       'message[0][value]' => 'Message test',
     ], 'Send message');
-    $this->assertSession()->pageTextContains('mail is not valid');
+    $this->assertSession()->pageTextContains('Subject field is required.');
 
     $this->submitForm([
-      'name' => 'Test Contact',
-      'mail' => 'contact@example.com',
       'subject[0][value]' => 'Sujet valide',
       'message[0][value]' => 'Message valide',
     ], 'Send message');

@@ -81,10 +81,7 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
     $this->container->get('state')->set('agency_ai_translation.api_key', 'test-key');
     $testHttpClient = new StaticTranslationHttpClient();
     $this->container->set('http_client', $testHttpClient);
-    $keyRepository = NULL;
-    if ($this->container->has('key.repository')) {
-      $keyRepository = $this->container->get('key.repository');
-    }
+    $keyRepository = $this->getOptionalService('key.repository');
 
     $aiClient = new AiTranslationClient(
       $this->container->get('config.factory'),
@@ -95,10 +92,7 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
       $keyRepository,
     );
     $this->container->set('agency_ai_translation.client', $aiClient);
-    $pathautoGenerator = NULL;
-    if ($this->container->has('pathauto.generator')) {
-      $pathautoGenerator = $this->container->get('pathauto.generator');
-    }
+    $pathautoGenerator = $this->getOptionalService('pathauto.generator');
 
     $translationManager = new AiTranslationManager(
       $aiClient,
@@ -206,6 +200,20 @@ final class AiTranslationWorkflowTest extends BrowserTestBase {
     self::assertNotNull($reloaded);
     self::assertTrue($reloaded->hasTranslation('en'));
     self::assertStringStartsWith('EN: ', $reloaded->getTranslation('en')->label());
+  }
+
+  /**
+   * Retourne un service optionnel du conteneur de test.
+   */
+  private function getOptionalService(string $serviceId): ?object {
+    try {
+      $service = $this->container->get($serviceId);
+    }
+    catch (\Throwable) {
+      return NULL;
+    }
+
+    return is_object($service) ? $service : NULL;
   }
 
 }

@@ -56,6 +56,29 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       ->set('url.prefixes', ['fr' => '', 'en' => 'en'])
       ->set('url.domains', ['fr' => '', 'en' => ''])
       ->save();
+    $this->config('language.types')
+      ->set('all', [
+        'language_interface',
+        'language_content',
+        'language_url',
+      ])
+      ->set('configurable', [
+        'language_interface',
+        'language_content',
+      ])
+      ->set('negotiation.language_interface.enabled', [
+        'language-url' => -8,
+        'language-selected' => -6,
+      ])
+      ->set('negotiation.language_content.enabled', [
+        'language-content-entity' => -10,
+        'language-url' => -8,
+        'language-selected' => -6,
+      ])
+      ->set('negotiation.language_url.enabled', [
+        'language-url' => -8,
+      ])
+      ->save();
 
     if (!NodeType::load('page')) {
       NodeType::create([
@@ -120,7 +143,11 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->drupalGet('/cookies');
     $this->assertSession()->statusCodeEquals(200);
     $frenchLinks = $this->getSwitcherMenuLinks();
-    self::assertTrue($this->containsPath($frenchLinks, '/en/cookie-policy'));
+    $foundExpectedEnglishLink = $this->containsPath($frenchLinks, '/en/cookie-policy');
+    self::assertTrue(
+      $foundExpectedEnglishLink,
+      $this->buildSwitcherDebugMessage('/en/cookie-policy', $frenchLinks)
+    );
     self::assertFalse($this->containsPath($frenchLinks, '/fr/cookie-policy'));
     self::assertFalse($this->containsPath($frenchLinks, '/cookies'));
     foreach ($frenchLinks as $href) {
@@ -204,6 +231,27 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       }
     }
     return $hrefs;
+  }
+
+  /**
+   * Construit un message d'erreur détaillé pour diagnostiquer les hrefs.
+   *
+   * @param string $expectedPath
+   *   Lien attendu.
+   * @param string[] $hrefs
+   *   Hrefs collectés.
+   */
+  private function buildSwitcherDebugMessage(string $expectedPath, array $hrefs): string {
+    $currentUrl = $this->getSession()->getCurrentUrl();
+    $headerRegion = $this->getSession()->getPage()->find('css', '.page-header__aside');
+    $headerSnippet = $headerRegion ? trim($headerRegion->getHtml()) : '[header_language not found]';
+    return sprintf(
+      'Expected language switcher link "%s" not found. Current URL: %s. Header snippet: %s. Actual hrefs: %s',
+      $expectedPath,
+      $currentUrl,
+      $headerSnippet,
+      implode(', ', $hrefs)
+    );
   }
 
 }

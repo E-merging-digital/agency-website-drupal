@@ -11,6 +11,7 @@ use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Vérifie le rendu réel du switcher lang_dropdown.
@@ -19,6 +20,7 @@ use Drupal\Tests\BrowserTestBase;
  *
  * @group agency_project_tests
  */
+#[RunTestsInSeparateProcesses]
 final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
   /**
@@ -83,18 +85,25 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-      'plugin' => 'language_dropdown_block:language_content',
+      'plugin' => 'language_dropdown_block',
       'weight' => 0,
       'visibility' => [],
       'settings' => [
-        'id' => 'language_dropdown_block:language_content',
+        'id' => 'language_dropdown_block',
         'label' => 'Language switcher',
         'label_display' => FALSE,
         'provider' => 'lang_dropdown',
+        'type' => 'language_content',
         'showall' => 0,
         'tohome' => 0,
       ],
     ])->save();
+
+    $block = Block::load('test_language_switcher');
+    self::assertNotNull($block);
+    self::assertSame('header_language', $block->getRegion());
+    self::assertSame($this->defaultTheme, $block->getTheme());
+    self::assertSame('language_dropdown_block', $block->getPluginId());
 
     drupal_flush_all_caches();
   }
@@ -133,27 +142,41 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->drupalGet('/cookies');
     $this->assertSession()->statusCodeEquals(200);
 
-    $frenchLinks = $this->getSwitcherHrefs();
+    $frenchLinks = $this->getSwitcherMenuLinks();
     self::assertTrue(
       $this->containsPath($frenchLinks, '/en/cookie-policy'),
       $this->buildSwitcherDebugMessage('/en/cookie-policy', $frenchLinks)
     );
 
     foreach ($frenchLinks as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href, $this->buildSwitcherDebugMessage('no language_content_entity query', $frenchLinks));
+      self::assertStringNotContainsString(
+        'language_content_entity',
+        $href,
+        $this->buildSwitcherDebugMessage(
+          'no language_content_entity query',
+          $frenchLinks
+        )
+      );
     }
 
     $this->drupalGet('/en/cookie-policy');
     $this->assertSession()->statusCodeEquals(200);
 
-    $englishLinks = $this->getSwitcherHrefs();
+    $englishLinks = $this->getSwitcherMenuLinks();
     self::assertTrue(
       $this->containsPath($englishLinks, '/cookies'),
       $this->buildSwitcherDebugMessage('/cookies', $englishLinks)
     );
 
     foreach ($englishLinks as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href, $this->buildSwitcherDebugMessage('no language_content_entity query', $englishLinks));
+      self::assertStringNotContainsString(
+        'language_content_entity',
+        $href,
+        $this->buildSwitcherDebugMessage(
+          'no language_content_entity query',
+          $englishLinks
+        )
+      );
     }
   }
 
@@ -180,7 +203,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->drupalGet('/cookies-only-fr');
     $this->assertSession()->statusCodeEquals(200);
 
-    $links = $this->getSwitcherHrefs();
+    $links = $this->getSwitcherMenuLinks();
 
     self::assertFalse(
       $this->containsPath($links, '/en/cookies-only-fr'),
@@ -188,7 +211,14 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     );
 
     foreach ($links as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href, $this->buildSwitcherDebugMessage('no language_content_entity query', $links));
+      self::assertStringNotContainsString(
+        'language_content_entity',
+        $href,
+        $this->buildSwitcherDebugMessage(
+          'no language_content_entity query',
+          $links
+        )
+      );
     }
   }
 
@@ -215,30 +245,53 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   }
 
   /**
-   * Retourne les href collectés depuis le conteneur réel du bloc.
+   * Retourne les cibles du switcher depuis le conteneur header_language.
    *
    * @return string[]
    *   Hrefs trouvés.
    */
-  private function getSwitcherHrefs(): array {
+  private function getSwitcherMenuLinks(): array {
     $page = $this->getSession()->getPage();
-    $switcherContainer = $page->find('css', '#block-test-language-switcher');
+    $headerRegion = $page->find('css', '.page-header__aside');
 
-    if (!$switcherContainer) {
+    if (!$headerRegion) {
       return [];
     }
 
-    $items = $switcherContainer->findAll('css', 'a[href]');
+    $collected = [];
 
-    $hrefs = [];
-    foreach ($items as $item) {
-      $href = trim((string) $item->getAttribute('href'));
-      if ($href !== '') {
-        $hrefs[] = $href;
+    foreach ($headerRegion->findAll('css', 'a[href]') as $item) {
+      $value = trim((string) $item->getAttribute('href'));
+      if ($value !== '') {
+        $collected[] = $this->normalizeSwitcherUrl($value);
       }
     }
 
-    return $hrefs;
+    foreach ($headerRegion->findAll('css', 'option[value]') as $item) {
+      $value = trim((string) $item->getAttribute('value'));
+      if ($value !== '') {
+        $collected[] = $this->normalizeSwitcherUrl($value);
+      }
+    }
+
+    return array_values(array_unique(array_filter($collected)));
+  }
+
+  /**
+   * Normalise les URLs collectées depuis href/value.
+   */
+  private function normalizeSwitcherUrl(string $value): string {
+    $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
+
+    if (str_starts_with($value, 'javascript:')) {
+      return '';
+    }
+
+    if (preg_match('/https?:\\/\\/[^\\/]+(\\/.*)/', $value, $matches) === 1) {
+      $value = $matches[1];
+    }
+
+    return $value;
   }
 
   /**
@@ -255,15 +308,43 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       ->getPage()
       ->find('css', '.page-header__aside');
 
-    $headerSnippet = $headerRegion ? trim($headerRegion->getHtml()) : '[header_language not found]';
+    $headerSnippet = $headerRegion
+      ? trim($headerRegion->getHtml())
+      : '[header_language not found]';
+    $allPageLinks = $this->collectAllPageLinks();
+    $block = Block::load('test_language_switcher');
+    $pluginId = $block ? $block->getPluginId() : '[block not found]';
 
     return sprintf(
-      'Expected: %s. Current URL: %s. Header snippet: %s. Actual hrefs: %s',
+      'Expected: %s. Current URL: %s. Block plugin: %s. Header snippet: %s. '
+      . 'Switcher targets: %s. All page links: %s',
       $expected,
       $currentUrl,
+      $pluginId,
       $headerSnippet,
-      implode(', ', $hrefs)
+      implode(', ', $hrefs),
+      implode(', ', $allPageLinks)
     );
+  }
+
+  /**
+   * Retourne tous les href de la page pour diagnostic.
+   *
+   * @return string[]
+   *   Tous les href trouvés.
+   */
+  private function collectAllPageLinks(): array {
+    $items = $this->getSession()->getPage()->findAll('css', 'a[href]');
+    $hrefs = [];
+
+    foreach ($items as $item) {
+      $href = trim((string) $item->getAttribute('href'));
+      if ($href !== '') {
+        $hrefs[] = $this->normalizeSwitcherUrl($href);
+      }
+    }
+
+    return array_values(array_unique(array_filter($hrefs)));
   }
 
 }

@@ -239,6 +239,7 @@
 .page-header__aside .block-emerging-digital-languagedropdownswitchercontent,
 .page-header__aside .block-language-dropdown-blocklanguage-content {
   margin: 0;
+  margin-inline-start: var(--space-3);
 }
 
 .page-header__aside .block-emerging-digital-languagedropdownswitchercontent .lang-dropdown-form,
@@ -256,17 +257,34 @@
 .page-header__aside .block-emerging-digital-languagedropdownswitchercontent select,
 .page-header__aside .block-language-dropdown-blocklanguage-content select {
   width: auto;
-  min-width: 8.25rem;
-  max-width: 10.5rem;
+  min-width: 6.875rem;
+  max-width: 10rem;
   min-height: 2.25rem;
-  padding: 0.35rem 2rem 0.35rem 0.75rem;
-  border: 1px solid #cfd8eb;
+  padding: 0.375rem 2rem 0.375rem 0.75rem;
+  border: 1px solid rgb(0 0 0 / 15%);
   border-radius: var(--radius-sm);
-  background-color: #fff;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: rgb(255 255 255 / 94%);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='m3 4.5 3 3 3-3' stroke='%234b5563' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.75rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
   color: #0f2a4a;
   font-family: var(--font-base);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 500;
   line-height: 1.2;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.page-header__aside .block-emerging-digital-languagedropdownswitchercontent select:hover,
+.page-header__aside .block-language-dropdown-blocklanguage-content select:hover {
+  border-color: rgb(0 0 0 / 28%);
+  background-color: rgb(248 250 252 / 96%);
 }
 
 .page-header__aside .block-emerging-digital-languagedropdownswitchercontent select:focus-visible,
@@ -274,6 +292,7 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgb(0 91 187 / 14%);
 }
 
 .page-header .main-navigation__item {
@@ -527,8 +546,10 @@
 
   .page-header__aside .block-emerging-digital-languagedropdownswitchercontent select,
   .page-header__aside .block-language-dropdown-blocklanguage-content select {
-    min-width: 7.5rem;
+    min-width: 6.5rem;
     max-width: 100%;
+    padding-right: 1.75rem;
+    font-size: 0.88rem;
   }
 
 

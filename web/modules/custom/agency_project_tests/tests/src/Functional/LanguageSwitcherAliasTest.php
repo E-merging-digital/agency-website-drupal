@@ -120,8 +120,8 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->drupalGet('/cookies');
     $this->assertSession()->statusCodeEquals(200);
     $frenchLinks = $this->getSwitcherMenuLinks();
-    self::assertContains('/en/cookie-policy', $frenchLinks);
-    self::assertNotContains('/cookies', $frenchLinks);
+    self::assertTrue($this->containsPath($frenchLinks, '/en/cookie-policy'));
+    self::assertFalse($this->containsPath($frenchLinks, '/cookies'));
     foreach ($frenchLinks as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
@@ -129,8 +129,8 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->drupalGet('/en/cookie-policy');
     $this->assertSession()->statusCodeEquals(200);
     $englishLinks = $this->getSwitcherMenuLinks();
-    self::assertContains('/cookies', $englishLinks);
-    self::assertNotContains('/en/cookie-policy', $englishLinks);
+    self::assertTrue($this->containsPath($englishLinks, '/cookies'));
+    self::assertFalse($this->containsPath($englishLinks, '/en/cookie-policy'));
     foreach ($englishLinks as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
@@ -160,10 +160,29 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
 
     $links = $this->getSwitcherMenuLinks();
-    self::assertNotContains('/en/cookies-only-fr', $links);
+    self::assertFalse($this->containsPath($links, '/en/cookies-only-fr'));
     foreach ($links as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
+  }
+
+  /**
+   * Indique si une liste de liens contient un path donné.
+   *
+   * @param string[] $hrefs
+   *   Liste des href.
+   */
+  private function containsPath(array $hrefs, string $expectedPath): bool {
+    foreach ($hrefs as $href) {
+      $path = parse_url($href, PHP_URL_PATH);
+      if (is_string($path) && $path === $expectedPath) {
+        return TRUE;
+      }
+      if ($href === $expectedPath) {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
   /**

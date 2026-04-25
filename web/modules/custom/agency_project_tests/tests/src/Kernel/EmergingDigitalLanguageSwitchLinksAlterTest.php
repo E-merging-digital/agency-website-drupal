@@ -15,7 +15,7 @@ use Drupal\path_alias\Entity\PathAlias;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Couvre la logique du hook emerging_digital_language_switch_links_alter().
+ * Couvre la logique du hook agency_language_switcher_language_switch_links_alter().
  *
  * @group agency_project_tests
  */
@@ -26,6 +26,7 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
+    'agency_language_switcher',
     'content_translation',
     'language',
     'node',
@@ -40,8 +41,6 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
    */
   protected function setUp(): void {
     parent::setUp();
-
-    require_once DRUPAL_ROOT . '/themes/custom/emerging_digital/emerging_digital.theme';
 
     $this->installEntitySchema('node');
     $this->installEntitySchema('path_alias');
@@ -128,7 +127,7 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
       'language' => $languageManager->getLanguage('fr'),
     ]);
 
-    emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
+    agency_language_switcher_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
 
     // La langue courante n'a volontairement pas d'URL active.
     self::assertArrayNotHasKey('url', $links['fr']);
@@ -187,7 +186,7 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
       'language' => $languageManager->getLanguage('en'),
     ]);
 
-    emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
+    agency_language_switcher_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
 
     // La langue courante n'a volontairement pas d'URL active.
     self::assertArrayNotHasKey('url', $links['en']);
@@ -236,7 +235,7 @@ final class EmergingDigitalLanguageSwitchLinksAlterTest extends KernelTestBase {
       'language' => $languageManager->getLanguage('fr'),
     ]);
 
-    emerging_digital_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
+    agency_language_switcher_language_switch_links_alter($links, LanguageInterface::TYPE_CONTENT, $currentUrl);
 
     // La langue courante n'a volontairement pas d'URL active.
     self::assertArrayNotHasKey('url', $links['fr']);

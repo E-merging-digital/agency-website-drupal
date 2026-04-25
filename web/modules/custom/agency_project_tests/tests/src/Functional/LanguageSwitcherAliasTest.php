@@ -25,6 +25,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
+    'agency_language_switcher',
     'block',
     'content_translation',
     'language',

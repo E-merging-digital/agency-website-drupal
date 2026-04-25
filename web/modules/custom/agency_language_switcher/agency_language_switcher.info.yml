@@ -1,0 +1,8 @@
+name: 'Agency Language Switcher'
+type: module
+description: 'Corrige les liens du language switcher de contenu (aliases traduits, sans fallback query).'
+package: Custom
+core_version_requirement: ^11
+dependencies:
+  - drupal:language
+  - drupal:node

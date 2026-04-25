@@ -1,0 +1,96 @@
+<?php
+
+declare(strict_types=1);
+
+use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\EntityPublishedInterface;
+use Drupal\Core\Language\LanguageInterface;
+use Drupal\Core\Url;
+
+/**
+ * Implements hook_language_switch_links_alter().
+ */
+function agency_language_switcher_language_switch_links_alter(array &$links, string $type, Url $url): void {
+  if (!in_array($type, [LanguageInterface::TYPE_URL, LanguageInterface::TYPE_CONTENT], TRUE)) {
+    return;
+  }
+
+  $entity = agency_language_switcher_get_language_switch_entity($url);
+  $currentLanguage = $url->getOption('language');
+  if (!$currentLanguage instanceof LanguageInterface) {
+    $currentLanguage = \Drupal::languageManager()->getCurrentLanguage(LanguageInterface::TYPE_CONTENT);
+  }
+  $currentContentLangcode = $currentLanguage->getId();
+
+  if (!$entity instanceof ContentEntityInterface || !$entity->isTranslatable()) {
+    foreach ($links as &$link) {
+      if (!empty($link['url']) && $link['url'] instanceof Url) {
+        $query = (array) $link['url']->getOption('query');
+        unset($query['language_content_entity']);
+        $link['url']->setOption('query', $query);
+      }
+    }
+    return;
+  }
+
+  $languages = \Drupal::languageManager()->getLanguages(LanguageInterface::STATE_CONFIGURABLE);
+
+  foreach ($languages as $langcode => $language) {
+    if (!isset($links[$langcode])) {
+      continue;
+    }
+
+    if (!$entity->hasTranslation($langcode)) {
+      unset($links[$langcode]['url']);
+      continue;
+    }
+
+    $translation = $entity->getTranslation($langcode);
+    if (
+      $translation instanceof EntityPublishedInterface
+      && method_exists($translation, 'isPublished')
+      && !$translation->isPublished()
+    ) {
+      unset($links[$langcode]['url']);
+      continue;
+    }
+
+    $translatedUrl = $translation->toUrl('canonical', ['language' => $language]);
+    $query = (array) $translatedUrl->getOption('query');
+    unset($query['language_content_entity']);
+    $translatedUrl->setOption('query', $query);
+
+    if ($langcode === $currentContentLangcode) {
+      unset($links[$langcode]['url']);
+      continue;
+    }
+
+    $links[$langcode]['url'] = $translatedUrl;
+  }
+}
+
+/**
+ * Résout l'entité courante pour le switcher de langue.
+ */
+function agency_language_switcher_get_language_switch_entity(Url $url): ?ContentEntityInterface {
+  if ($url->isRouted() && str_starts_with($url->getRouteName(), 'entity.node.')) {
+    $parameters = $url->getRouteParameters();
+    if (!empty($parameters['node'])) {
+      $node = $parameters['node'];
+      if (is_numeric($node)) {
+        $node = \Drupal::entityTypeManager()->getStorage('node')->load((int) $node);
+      }
+      if ($node instanceof ContentEntityInterface) {
+        return $node;
+      }
+    }
+  }
+
+  foreach (\Drupal::routeMatch()->getParameters()->all() as $parameter) {
+    if ($parameter instanceof ContentEntityInterface) {
+      return $parameter;
+    }
+  }
+
+  return NULL;
+}

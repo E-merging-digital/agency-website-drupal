@@ -15,7 +15,7 @@ use Drupal\path_alias\Entity\PathAlias;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Couvre la logique du hook agency_language_switcher_language_switch_links_alter().
+ * Couvre la logique du hook du module agency_language_switcher.
  *
  * @group agency_project_tests
  */

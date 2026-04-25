@@ -215,6 +215,8 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    *
    * @param string[] $hrefs
    *   Liste des href.
+   * @param string $expectedPath
+   *   Path attendu.
    */
   private function containsPath(array $hrefs, string $expectedPath): bool {
     foreach ($hrefs as $href) {

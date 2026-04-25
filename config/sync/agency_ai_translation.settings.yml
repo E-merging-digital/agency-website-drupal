@@ -1,3 +1,4 @@
+langcode: fr
 endpoint: 'https://api.openai.com/v1/chat/completions'
 model: gpt-4o-mini
 openai_key_id: openai_api_key

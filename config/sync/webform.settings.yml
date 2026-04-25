@@ -1,6 +1,6 @@
 _core:
   default_config_hash: 7jkcONJCeAj9U78Fi8W2Os2B70oxqWk4Ett0bKYOvKU
-langcode: en
+langcode: fr
 settings:
   default_status: open
   default_categories: {  }

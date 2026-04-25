@@ -25,9 +25,15 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
+<<<<<<< HEAD
     'agency_language_switcher',
     'block',
     'content_translation',
+=======
+    'block',
+    'content_translation',
+    'lang_dropdown',
+>>>>>>> 15da1b640d5b433426c13f298f33fb2739ee9543
     'language',
     'node',
     'path_alias',
@@ -97,6 +103,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
+<<<<<<< HEAD
       'plugin' => 'language_block:language_content',
       'weight' => 0,
       'visibility' => [],
@@ -105,6 +112,16 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         'label' => 'Language switcher',
         'label_display' => FALSE,
         'provider' => 'language',
+=======
+      'plugin' => 'language_dropdown_block',
+      'weight' => 0,
+      'visibility' => [],
+      'settings' => [
+        'id' => 'language_dropdown_block',
+        'label' => 'Language switcher',
+        'label_display' => FALSE,
+        'provider' => 'lang_dropdown',
+>>>>>>> 15da1b640d5b433426c13f298f33fb2739ee9543
       ],
     ])->save();
 
@@ -223,7 +240,11 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    *   Liens du menu.
    */
   private function getSwitcherMenuLinks(): array {
+<<<<<<< HEAD
     $items = $this->getSession()->getPage()->findAll('css', '.language-switcher__menu a[href]');
+=======
+    $items = $this->getSession()->getPage()->findAll('css', '#block-test-language-switcher a[href]');
+>>>>>>> 15da1b640d5b433426c13f298f33fb2739ee9543
     $hrefs = [];
     foreach ($items as $item) {
       $href = (string) $item->getAttribute('href');

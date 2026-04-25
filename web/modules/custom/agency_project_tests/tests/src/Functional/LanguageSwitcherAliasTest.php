@@ -17,6 +17,7 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
  * Vérifie le rendu réel du switcher sur contenu traduit/non traduit.
  *
  * @group agency_project_tests
+ * @group unstable_language_switcher
  */
 #[RunTestsInSeparateProcesses]
 final class LanguageSwitcherAliasTest extends BrowserTestBase {

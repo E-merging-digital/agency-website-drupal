@@ -13,7 +13,8 @@ use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\BrowserTestBase;
 
 /**
- * Vérifie le rendu réel du switcher lang_dropdown sur contenu traduit/non traduit.
+ * Vérifie le rendu réel du switcher lang_dropdown sur contenu
+ * traduit/non traduit.
  *
  * @group agency_project_tests
  */

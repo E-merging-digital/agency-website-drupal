@@ -3,6 +3,7 @@ _core:
 module:
   admin_toolbar: 0
   agency_ai_translation: 0
+  agency_language_switcher: 0
   ai: 0
   ai_provider_openai: 0
   announcements_feed: 0
@@ -36,7 +37,6 @@ module:
   language: 0
   link: 0
   locale: 0
-  lang_dropdown: 0
   menu_link_content: 0
   menu_ui: 0
   metatag: 0

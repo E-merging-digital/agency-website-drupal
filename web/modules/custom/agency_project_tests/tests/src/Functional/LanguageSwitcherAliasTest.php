@@ -25,9 +25,9 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
+    'agency_language_switcher',
     'block',
     'content_translation',
-    'lang_dropdown',
     'language',
     'node',
     'path_alias',
@@ -97,14 +97,14 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-      'plugin' => 'language_dropdown_block',
+      'plugin' => 'language_block:language_content',
       'weight' => 0,
       'visibility' => [],
       'settings' => [
-        'id' => 'language_dropdown_block',
+        'id' => 'language_block:language_content',
         'label' => 'Language switcher',
         'label_display' => FALSE,
-        'provider' => 'lang_dropdown',
+        'provider' => 'language',
       ],
     ])->save();
 

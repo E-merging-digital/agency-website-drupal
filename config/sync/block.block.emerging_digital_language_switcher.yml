@@ -11,9 +11,15 @@ theme: emerging_digital
 region: header_language
 weight: 2
 provider: null
+<<<<<<< HEAD
 plugin: language_dropdown_block
 settings:
   id: language_dropdown_block
+=======
+plugin: 'language_block:language_content'
+settings:
+  id: 'language_block:language_content'
+>>>>>>> cfe1f144364c34cec17b67c5ed6d28984c4b1d78
   label: 'Language switcher'
   label_display: '0'
   provider: language

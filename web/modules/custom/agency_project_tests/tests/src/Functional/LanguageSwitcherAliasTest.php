@@ -25,15 +25,9 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
-<<<<<<< HEAD
     'agency_language_switcher',
     'block',
     'content_translation',
-=======
-    'block',
-    'content_translation',
-    'lang_dropdown',
->>>>>>> 15da1b640d5b433426c13f298f33fb2739ee9543
     'language',
     'node',
     'path_alias',
@@ -57,12 +51,16 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       ConfigurableLanguage::createFromLangcode('en')->save();
     }
 
-    $this->config('system.site')->set('default_langcode', 'fr')->save();
+    $this->config('system.site')
+      ->set('default_langcode', 'fr')
+      ->save();
+
     $this->config('language.negotiation')
       ->set('url.source', 'path_prefix')
       ->set('url.prefixes', ['fr' => '', 'en' => 'en'])
       ->set('url.domains', ['fr' => '', 'en' => ''])
       ->save();
+
     $this->config('language.types')
       ->set('all', [
         'language_interface',
@@ -96,14 +94,19 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $settings = ContentLanguageSettings::loadByEntityTypeBundle('node', 'page');
     self::assertNotNull($settings);
-    $settings->setDefaultLangcode('fr')->setLanguageAlterable(TRUE)->save();
-    $this->container->get('content_translation.manager')->setEnabled('node', 'page', TRUE);
+    $settings
+      ->setDefaultLangcode('fr')
+      ->setLanguageAlterable(TRUE)
+      ->save();
+
+    $this->container
+      ->get('content_translation.manager')
+      ->setEnabled('node', 'page', TRUE);
 
     Block::create([
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-<<<<<<< HEAD
       'plugin' => 'language_block:language_content',
       'weight' => 0,
       'visibility' => [],
@@ -112,16 +115,6 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         'label' => 'Language switcher',
         'label_display' => FALSE,
         'provider' => 'language',
-=======
-      'plugin' => 'language_dropdown_block',
-      'weight' => 0,
-      'visibility' => [],
-      'settings' => [
-        'id' => 'language_dropdown_block',
-        'label' => 'Language switcher',
-        'label_display' => FALSE,
-        'provider' => 'lang_dropdown',
->>>>>>> 15da1b640d5b433426c13f298f33fb2739ee9543
       ],
     ])->save();
 
@@ -150,6 +143,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'alias' => '/cookies',
       'langcode' => 'fr',
     ])->save();
+
     PathAlias::create([
       'path' => '/node/' . $node->id(),
       'alias' => '/cookie-policy',
@@ -160,23 +154,29 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->drupalGet('/cookies');
     $this->assertSession()->statusCodeEquals(200);
+
     $frenchLinks = $this->getSwitcherMenuLinks();
-    $foundExpectedEnglishLink = $this->containsPath($frenchLinks, '/en/cookie-policy');
     self::assertTrue(
-      $foundExpectedEnglishLink,
+      $this->containsPath($frenchLinks, '/en/cookie-policy'),
       $this->buildSwitcherDebugMessage('/en/cookie-policy', $frenchLinks)
     );
     self::assertFalse($this->containsPath($frenchLinks, '/fr/cookie-policy'));
     self::assertFalse($this->containsPath($frenchLinks, '/cookies'));
+
     foreach ($frenchLinks as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
 
     $this->drupalGet('/en/cookie-policy');
     $this->assertSession()->statusCodeEquals(200);
+
     $englishLinks = $this->getSwitcherMenuLinks();
-    self::assertTrue($this->containsPath($englishLinks, '/cookies'));
+    self::assertTrue(
+      $this->containsPath($englishLinks, '/cookies'),
+      $this->buildSwitcherDebugMessage('/cookies', $englishLinks)
+    );
     self::assertFalse($this->containsPath($englishLinks, '/en/cookie-policy'));
+
     foreach ($englishLinks as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
@@ -206,7 +206,9 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
 
     $links = $this->getSwitcherMenuLinks();
+
     self::assertFalse($this->containsPath($links, '/en/cookies-only-fr'));
+
     foreach ($links as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
@@ -230,6 +232,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         return TRUE;
       }
     }
+
     return FALSE;
   }
 
@@ -240,11 +243,10 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    *   Liens du menu.
    */
   private function getSwitcherMenuLinks(): array {
-<<<<<<< HEAD
-    $items = $this->getSession()->getPage()->findAll('css', '.language-switcher__menu a[href]');
-=======
-    $items = $this->getSession()->getPage()->findAll('css', '#block-test-language-switcher a[href]');
->>>>>>> 15da1b640d5b433426c13f298f33fb2739ee9543
+    $items = $this->getSession()
+      ->getPage()
+      ->findAll('css', '#block-test-language-switcher a[href], .language-switcher__menu a[href]');
+
     $hrefs = [];
     foreach ($items as $item) {
       $href = (string) $item->getAttribute('href');
@@ -252,6 +254,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         $hrefs[] = $href;
       }
     }
+
     return $hrefs;
   }
 
@@ -265,8 +268,12 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    */
   private function buildSwitcherDebugMessage(string $expectedPath, array $hrefs): string {
     $currentUrl = $this->getSession()->getCurrentUrl();
-    $headerRegion = $this->getSession()->getPage()->find('css', '.page-header__aside');
+    $headerRegion = $this->getSession()
+      ->getPage()
+      ->find('css', '.page-header__aside');
+
     $headerSnippet = $headerRegion ? trim($headerRegion->getHtml()) : '[header_language not found]';
+
     return sprintf(
       'Expected language switcher link "%s" not found. Current URL: %s. Header snippet: %s. Actual hrefs: %s',
       $expectedPath,

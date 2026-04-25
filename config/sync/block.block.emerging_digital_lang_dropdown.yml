@@ -1,4 +1,4 @@
-uuid: 6738ab16-af25-44ac-b9a0-0556a697ebe1
+uuid: a9b39522-37bc-4af5-91be-f89eb5ca74fa
 langcode: en
 status: true
 dependencies:
@@ -6,17 +6,15 @@ dependencies:
     - lang_dropdown
   theme:
     - emerging_digital
-id: emerging_digital_language_switcher
+id: emerging_digital_lang_dropdown
 theme: emerging_digital
 region: header_language
 weight: 2
 provider: null
-plugin: 'language_dropdown_block:language_content'
+plugin: language_dropdown_block
 settings:
-  id: 'language_dropdown_block:language_content'
+  id: language_dropdown_block
   label: 'Language switcher'
   label_display: '0'
   provider: lang_dropdown
-  showall: 0
-  tohome: 0
 visibility: {  }

@@ -107,11 +107,11 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-      'plugin' => 'language_dropdown_block:language_content',
+      'plugin' => 'language_dropdown_block',
       'weight' => 0,
       'visibility' => [],
       'settings' => [
-        'id' => 'language_dropdown_block:language_content',
+        'id' => 'language_dropdown_block',
         'label' => 'Language switcher',
         'label_display' => FALSE,
         'provider' => 'lang_dropdown',

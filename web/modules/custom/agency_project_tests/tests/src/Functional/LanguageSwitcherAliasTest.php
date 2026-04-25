@@ -11,23 +11,21 @@ use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\BrowserTestBase;
-use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Vérifie le rendu réel du switcher sur contenu traduit/non traduit.
+ * Vérifie le rendu réel du switcher lang_dropdown sur contenu traduit/non traduit.
  *
  * @group agency_project_tests
  */
-#[RunTestsInSeparateProcesses]
 final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
   /**
    * {@inheritdoc}
    */
   protected static $modules = [
-    'agency_language_switcher',
     'block',
     'content_translation',
+    'lang_dropdown',
     'language',
     'node',
     'path_alias',
@@ -61,30 +59,6 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       ->set('url.domains', ['fr' => '', 'en' => ''])
       ->save();
 
-    $this->config('language.types')
-      ->set('all', [
-        'language_interface',
-        'language_content',
-        'language_url',
-      ])
-      ->set('configurable', [
-        'language_interface',
-        'language_content',
-      ])
-      ->set('negotiation.language_interface.enabled', [
-        'language-url' => -8,
-        'language-selected' => -6,
-      ])
-      ->set('negotiation.language_content.enabled', [
-        'language-content-entity' => -10,
-        'language-url' => -8,
-        'language-selected' => -6,
-      ])
-      ->set('negotiation.language_url.enabled', [
-        'language-url' => -8,
-      ])
-      ->save();
-
     if (!NodeType::load('page')) {
       NodeType::create([
         'type' => 'page',
@@ -107,14 +81,16 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-      'plugin' => 'language_block:language_content',
+      'plugin' => 'language_dropdown_block:language_content',
       'weight' => 0,
       'visibility' => [],
       'settings' => [
-        'id' => 'language_block:language_content',
+        'id' => 'language_dropdown_block:language_content',
         'label' => 'Language switcher',
         'label_display' => FALSE,
-        'provider' => 'language',
+        'provider' => 'lang_dropdown',
+        'showall' => 0,
+        'tohome' => 0,
       ],
     ])->save();
 
@@ -155,30 +131,27 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->drupalGet('/cookies');
     $this->assertSession()->statusCodeEquals(200);
 
-    $frenchLinks = $this->getSwitcherMenuLinks();
+    $frenchLinks = $this->getSwitcherHrefs();
     self::assertTrue(
       $this->containsPath($frenchLinks, '/en/cookie-policy'),
       $this->buildSwitcherDebugMessage('/en/cookie-policy', $frenchLinks)
     );
-    self::assertFalse($this->containsPath($frenchLinks, '/fr/cookie-policy'));
-    self::assertFalse($this->containsPath($frenchLinks, '/cookies'));
 
     foreach ($frenchLinks as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href);
+      self::assertStringNotContainsString('language_content_entity', $href, $this->buildSwitcherDebugMessage('no language_content_entity query', $frenchLinks));
     }
 
     $this->drupalGet('/en/cookie-policy');
     $this->assertSession()->statusCodeEquals(200);
 
-    $englishLinks = $this->getSwitcherMenuLinks();
+    $englishLinks = $this->getSwitcherHrefs();
     self::assertTrue(
       $this->containsPath($englishLinks, '/cookies'),
       $this->buildSwitcherDebugMessage('/cookies', $englishLinks)
     );
-    self::assertFalse($this->containsPath($englishLinks, '/en/cookie-policy'));
 
     foreach ($englishLinks as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href);
+      self::assertStringNotContainsString('language_content_entity', $href, $this->buildSwitcherDebugMessage('no language_content_entity query', $englishLinks));
     }
   }
 
@@ -205,12 +178,15 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->drupalGet('/cookies-only-fr');
     $this->assertSession()->statusCodeEquals(200);
 
-    $links = $this->getSwitcherMenuLinks();
+    $links = $this->getSwitcherHrefs();
 
-    self::assertFalse($this->containsPath($links, '/en/cookies-only-fr'));
+    self::assertFalse(
+      $this->containsPath($links, '/en/cookies-only-fr'),
+      $this->buildSwitcherDebugMessage('no fake EN link /en/cookies-only-fr', $links)
+    );
 
     foreach ($links as $href) {
-      self::assertStringNotContainsString('language_content_entity', $href);
+      self::assertStringNotContainsString('language_content_entity', $href, $this->buildSwitcherDebugMessage('no language_content_entity query', $links));
     }
   }
 
@@ -237,19 +213,24 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   }
 
   /**
-   * Retourne les href des liens du menu du switcher.
+   * Retourne les href collectés depuis le conteneur réel du bloc.
    *
    * @return string[]
-   *   Liens du menu.
+   *   Hrefs trouvés.
    */
-  private function getSwitcherMenuLinks(): array {
-    $items = $this->getSession()
-      ->getPage()
-      ->findAll('css', '#block-test-language-switcher a[href], .language-switcher__menu a[href]');
+  private function getSwitcherHrefs(): array {
+    $page = $this->getSession()->getPage();
+    $switcherContainer = $page->find('css', '#block-test-language-switcher');
+
+    if (!$switcherContainer) {
+      return [];
+    }
+
+    $items = $switcherContainer->findAll('css', 'a[href]');
 
     $hrefs = [];
     foreach ($items as $item) {
-      $href = (string) $item->getAttribute('href');
+      $href = trim((string) $item->getAttribute('href'));
       if ($href !== '') {
         $hrefs[] = $href;
       }
@@ -261,12 +242,12 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   /**
    * Construit un message d'erreur détaillé pour diagnostiquer les hrefs.
    *
-   * @param string $expectedPath
-   *   Lien attendu.
+   * @param string $expected
+   *   L'attendu pour le contexte d'erreur.
    * @param string[] $hrefs
    *   Hrefs collectés.
    */
-  private function buildSwitcherDebugMessage(string $expectedPath, array $hrefs): string {
+  private function buildSwitcherDebugMessage(string $expected, array $hrefs): string {
     $currentUrl = $this->getSession()->getCurrentUrl();
     $headerRegion = $this->getSession()
       ->getPage()
@@ -275,8 +256,8 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $headerSnippet = $headerRegion ? trim($headerRegion->getHtml()) : '[header_language not found]';
 
     return sprintf(
-      'Expected language switcher link "%s" not found. Current URL: %s. Header snippet: %s. Actual hrefs: %s',
-      $expectedPath,
+      'Expected: %s. Current URL: %s. Header snippet: %s. Actual hrefs: %s',
+      $expected,
       $currentUrl,
       $headerSnippet,
       implode(', ', $hrefs)

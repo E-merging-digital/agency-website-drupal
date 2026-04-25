@@ -3,7 +3,6 @@ _core:
 module:
   admin_toolbar: 0
   agency_ai_translation: 0
-  agency_language_switcher: 0
   ai: 0
   ai_provider_openai: 0
   announcements_feed: 0

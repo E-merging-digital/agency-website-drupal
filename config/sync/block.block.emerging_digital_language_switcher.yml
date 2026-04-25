@@ -3,7 +3,7 @@ langcode: en
 status: true
 dependencies:
   module:
-    - language
+    - lang_dropdown
   theme:
     - emerging_digital
 id: emerging_digital_language_switcher
@@ -11,10 +11,12 @@ theme: emerging_digital
 region: header_language
 weight: 2
 provider: null
-plugin: 'language_block:language_content'
+plugin: 'language_dropdown_block:language_content'
 settings:
-  id: 'language_block:language_content'
+  id: 'language_dropdown_block:language_content'
   label: 'Language switcher'
   label_display: '0'
-  provider: language
+  provider: lang_dropdown
+  showall: 0
+  tohome: 0
 visibility: {  }

@@ -17,4 +17,5 @@ negotiation:
       language-selected: -6
   language_url:
     enabled:
-      language-url: -8
+      language-url: 0
+      language-url-fallback: 1

@@ -1,0 +1,45 @@
+uuid: 0656fb75-c807-46d9-aa30-e45eb9e52530
+langcode: fr
+status: true
+dependencies:
+  module:
+    - lang_dropdown
+  theme:
+    - emerging_digital
+id: emerging_digital_languagedropdownswitchercontent
+theme: emerging_digital
+region: header_language
+weight: 0
+provider: null
+plugin: 'language_dropdown_block:language_content'
+settings:
+  id: 'language_dropdown_block:language_content'
+  label: 'Language dropdown switcher (Content)'
+  label_display: visible
+  provider: lang_dropdown
+  showall: true
+  hide_only_one: true
+  tohome: false
+  width: 165
+  display: 1
+  widget: 0
+  msdropdown:
+    visible_rows: 5
+    rounded: true
+    animation: slideDown
+    event: click
+    skin: ldsSkin
+    custom_skin: ''
+  chosen:
+    disable_search: true
+    no_results_text: 'No language match'
+  ddslick:
+    ddslick_height: 0
+    showSelectedHTML: true
+    imagePosition: left
+    skin: ddsDefault
+    custom_skin: ''
+  languageicons:
+    flag_position: 1
+  hidden_languages: {  }
+visibility: {  }

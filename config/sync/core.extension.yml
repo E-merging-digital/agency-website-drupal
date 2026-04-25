@@ -33,10 +33,10 @@ module:
   history: 0
   image: 0
   key: 0
+  lang_dropdown: 0
   language: 0
   link: 0
   locale: 0
-  lang_dropdown: 0
   menu_link_content: 0
   menu_ui: 0
   metatag: 0

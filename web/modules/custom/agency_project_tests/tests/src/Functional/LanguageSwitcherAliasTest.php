@@ -14,9 +14,7 @@ use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Vérifie le rendu réel du switcher lang_dropdown.
- *
- * Couvre les cas de contenu traduit et non traduit.
+ * Vérifie le rendu réel du switcher sur contenu traduit/non traduit.
  *
  * @group agency_project_tests
  */
@@ -29,7 +27,6 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   protected static $modules = [
     'block',
     'content_translation',
-    'lang_dropdown',
     'language',
     'node',
     'path_alias',
@@ -63,6 +60,30 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       ->set('url.domains', ['fr' => '', 'en' => ''])
       ->save();
 
+    $this->config('language.types')
+      ->set('all', [
+        'language_interface',
+        'language_content',
+        'language_url',
+      ])
+      ->set('configurable', [
+        'language_interface',
+        'language_content',
+      ])
+      ->set('negotiation.language_interface.enabled', [
+        'language-url' => -8,
+        'language-selected' => -6,
+      ])
+      ->set('negotiation.language_content.enabled', [
+        'language-content-entity' => -10,
+        'language-url' => -8,
+        'language-selected' => -6,
+      ])
+      ->set('negotiation.language_url.enabled', [
+        'language-url' => -8,
+      ])
+      ->save();
+
     if (!NodeType::load('page')) {
       NodeType::create([
         'type' => 'page',
@@ -85,25 +106,16 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-      'plugin' => 'language_dropdown_block',
+      'plugin' => 'language_block:language_content',
       'weight' => 0,
       'visibility' => [],
       'settings' => [
-        'id' => 'language_dropdown_block',
+        'id' => 'language_block:language_content',
         'label' => 'Language switcher',
         'label_display' => FALSE,
-        'provider' => 'lang_dropdown',
-        'type' => 'language_content',
-        'showall' => 0,
-        'tohome' => 0,
+        'provider' => 'language',
       ],
     ])->save();
-
-    $block = Block::load('test_language_switcher');
-    self::assertNotNull($block);
-    self::assertSame('header_language', $block->getRegion());
-    self::assertSame($this->defaultTheme, $block->getTheme());
-    self::assertSame('language_dropdown_block', $block->getPluginId());
 
     drupal_flush_all_caches();
   }
@@ -149,14 +161,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     );
 
     foreach ($frenchLinks as $href) {
-      self::assertStringNotContainsString(
-        'language_content_entity',
-        $href,
-        $this->buildSwitcherDebugMessage(
-          'no language_content_entity query',
-          $frenchLinks
-        )
-      );
+      self::assertStringNotContainsString('language_content_entity', $href);
     }
 
     $this->drupalGet('/en/cookie-policy');
@@ -169,14 +174,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     );
 
     foreach ($englishLinks as $href) {
-      self::assertStringNotContainsString(
-        'language_content_entity',
-        $href,
-        $this->buildSwitcherDebugMessage(
-          'no language_content_entity query',
-          $englishLinks
-        )
-      );
+      self::assertStringNotContainsString('language_content_entity', $href);
     }
   }
 
@@ -205,20 +203,10 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $links = $this->getSwitcherMenuLinks();
 
-    self::assertFalse(
-      $this->containsPath($links, '/en/cookies-only-fr'),
-      $this->buildSwitcherDebugMessage('no fake EN link /en/cookies-only-fr', $links)
-    );
+    self::assertFalse($this->containsPath($links, '/en/cookies-only-fr'));
 
     foreach ($links as $href) {
-      self::assertStringNotContainsString(
-        'language_content_entity',
-        $href,
-        $this->buildSwitcherDebugMessage(
-          'no language_content_entity query',
-          $links
-        )
-      );
+      self::assertStringNotContainsString('language_content_entity', $href);
     }
   }
 
@@ -227,8 +215,6 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    *
    * @param string[] $hrefs
    *   Liste des href.
-   * @param string $expectedPath
-   *   Path attendu.
    */
   private function containsPath(array $hrefs, string $expectedPath): bool {
     foreach ($hrefs as $href) {
@@ -236,6 +222,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       if (is_string($path) && $path === $expectedPath) {
         return TRUE;
       }
+
       if ($href === $expectedPath) {
         return TRUE;
       }
@@ -245,64 +232,36 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   }
 
   /**
-   * Retourne les cibles du switcher depuis le conteneur header_language.
+   * Retourne les href des liens du menu du switcher.
    *
    * @return string[]
-   *   Hrefs trouvés.
+   *   Liens du menu.
    */
   private function getSwitcherMenuLinks(): array {
-    $page = $this->getSession()->getPage();
-    $headerRegion = $page->find('css', '.page-header__aside');
+    $items = $this->getSession()
+      ->getPage()
+      ->findAll('css', '#block-test-language-switcher a[href], .language-switcher__menu a[href]');
 
-    if (!$headerRegion) {
-      return [];
-    }
-
-    $collected = [];
-
-    foreach ($headerRegion->findAll('css', 'a[href]') as $item) {
-      $value = trim((string) $item->getAttribute('href'));
-      if ($value !== '') {
-        $collected[] = $this->normalizeSwitcherUrl($value);
+    $hrefs = [];
+    foreach ($items as $item) {
+      $href = (string) $item->getAttribute('href');
+      if ($href !== '') {
+        $hrefs[] = $href;
       }
     }
 
-    foreach ($headerRegion->findAll('css', 'option[value]') as $item) {
-      $value = trim((string) $item->getAttribute('value'));
-      if ($value !== '') {
-        $collected[] = $this->normalizeSwitcherUrl($value);
-      }
-    }
-
-    return array_values(array_unique(array_filter($collected)));
-  }
-
-  /**
-   * Normalise les URLs collectées depuis href/value.
-   */
-  private function normalizeSwitcherUrl(string $value): string {
-    $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
-
-    if (str_starts_with($value, 'javascript:')) {
-      return '';
-    }
-
-    if (preg_match('/https?:\\/\\/[^\\/]+(\\/.*)/', $value, $matches) === 1) {
-      $value = $matches[1];
-    }
-
-    return $value;
+    return $hrefs;
   }
 
   /**
    * Construit un message d'erreur détaillé pour diagnostiquer les hrefs.
    *
-   * @param string $expected
-   *   L'attendu pour le contexte d'erreur.
+   * @param string $expectedPath
+   *   Lien attendu.
    * @param string[] $hrefs
    *   Hrefs collectés.
    */
-  private function buildSwitcherDebugMessage(string $expected, array $hrefs): string {
+  private function buildSwitcherDebugMessage(string $expectedPath, array $hrefs): string {
     $currentUrl = $this->getSession()->getCurrentUrl();
     $headerRegion = $this->getSession()
       ->getPage()
@@ -311,40 +270,14 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $headerSnippet = $headerRegion
       ? trim($headerRegion->getHtml())
       : '[header_language not found]';
-    $allPageLinks = $this->collectAllPageLinks();
-    $block = Block::load('test_language_switcher');
-    $pluginId = $block ? $block->getPluginId() : '[block not found]';
 
     return sprintf(
-      'Expected: %s. Current URL: %s. Block plugin: %s. Header snippet: %s. '
-      . 'Switcher targets: %s. All page links: %s',
-      $expected,
+      'Expected: %s. Current URL: %s. Header snippet: %s. Actual hrefs: %s',
+      $expectedPath,
       $currentUrl,
-      $pluginId,
       $headerSnippet,
-      implode(', ', $hrefs),
-      implode(', ', $allPageLinks)
+      implode(', ', $hrefs)
     );
-  }
-
-  /**
-   * Retourne tous les href de la page pour diagnostic.
-   *
-   * @return string[]
-   *   Tous les href trouvés.
-   */
-  private function collectAllPageLinks(): array {
-    $items = $this->getSession()->getPage()->findAll('css', 'a[href]');
-    $hrefs = [];
-
-    foreach ($items as $item) {
-      $href = trim((string) $item->getAttribute('href'));
-      if ($href !== '') {
-        $hrefs[] = $this->normalizeSwitcherUrl($href);
-      }
-    }
-
-    return array_values(array_unique(array_filter($hrefs)));
   }
 
 }

@@ -27,6 +27,7 @@
         "drupal/default_content": "^2.0@alpha",
         "drupal/hal": "^2.0",
         "drupal/key": "^1.20",
+        "drupal/lang_dropdown": "^2.4",
         "drupal/metatag": "^2.2",
         "drupal/paragraphs": "^1.19",
         "drupal/pathauto": "^1.14",

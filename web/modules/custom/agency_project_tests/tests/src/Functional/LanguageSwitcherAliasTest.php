@@ -121,6 +121,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
     $frenchLinks = $this->getSwitcherMenuLinks();
     self::assertTrue($this->containsPath($frenchLinks, '/en/cookie-policy'));
+    self::assertFalse($this->containsPath($frenchLinks, '/fr/cookie-policy'));
     self::assertFalse($this->containsPath($frenchLinks, '/cookies'));
     foreach ($frenchLinks as $href) {
       self::assertStringNotContainsString('language_content_entity', $href);

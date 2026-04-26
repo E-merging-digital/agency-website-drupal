@@ -4,15 +4,15 @@
  * Theme override for the site branding block.
  */
 #}
+{% set brand_mark = directory ~ '/images/branding/emerging-digital-mark.svg' %}
+
 <div{{ attributes.addClass('site-branding') }}>
   {{ title_prefix }}
   {{ title_suffix }}
 
-{% if site_logo %}
-    <a href="{{ path('<front>') }}" rel="home" class="site-logo">
-      <img src="{{ site_logo }}" alt="" width="64" height="64" loading="eager" decoding="async" fetchpriority="high" />
-    </a>
-  {% endif %}
+  <a href="{{ path('<front>') }}" rel="home" class="site-logo" aria-label="{{ 'Back to homepage'|t }}">
+    <img src="{{ brand_mark }}" alt="{{ site_name ?: 'Emerging Digital' }}" width="64" height="64" loading="eager" decoding="async" fetchpriority="high" />
+  </a>
 
   <div class="site-branding__text">
     {% if site_name %}

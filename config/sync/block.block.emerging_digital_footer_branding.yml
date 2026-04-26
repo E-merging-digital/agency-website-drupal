@@ -1,0 +1,22 @@
+uuid: 5a9f1f4d-c52e-4f07-85a0-8d5be31cb3f8
+langcode: fr
+status: true
+dependencies:
+  module:
+    - emerging_digital_content
+  theme:
+    - emerging_digital
+id: emerging_digital_footer_branding
+theme: emerging_digital
+region: footer_branding
+weight: 0
+provider: null
+plugin: emerging_digital_footer_branding
+settings:
+  id: emerging_digital_footer_branding
+  label: 'E-merging Digital'
+  label_display: visible
+  provider: emerging_digital_content
+  tagline: 'Sites Drupal commerciaux, lisibles et évolutifs pour PME & ASBL.'
+  status: true
+visibility: {  }

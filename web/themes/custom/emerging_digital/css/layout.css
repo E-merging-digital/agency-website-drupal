@@ -429,6 +429,21 @@
   max-width: 58ch;
 }
 
+.page-footer__branding-block {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.page-footer__branding-block .page-footer__tagline > :first-child {
+  margin-top: 0;
+}
+
+.page-footer__branding-block .page-footer__tagline > :last-child {
+  margin-bottom: 0;
+}
+
 .page-footer .menu {
   margin: 0;
   padding: 0;

@@ -1,0 +1,19 @@
+{#
+/**
+ * @file
+ * Theme override for the legal links footer block.
+ */
+#}
+<div{{ attributes.addClass('page-footer__legal-block') }}>
+  {{ title_prefix }}
+  {% if label %}
+    <p{{ title_attributes.addClass('page-footer__legal-title') }}>
+      {{ label }}
+    </p>
+  {% endif %}
+  {{ title_suffix }}
+
+  <div class="page-footer__legal-content">
+    {{ content }}
+  </div>
+</div>

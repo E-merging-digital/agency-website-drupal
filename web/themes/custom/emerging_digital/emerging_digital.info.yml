@@ -14,6 +14,7 @@ regions:
   breadcrumb: Breadcrumb
   content: Content
   sidebar: Sidebar
+  footer_branding: Footer branding
   footer: Footer
 logo: images/branding/emerging-digital-mark.svg
 favicon: images/branding/emerging-digital-favicon.svg

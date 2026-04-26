@@ -1,0 +1,19 @@
+{#
+/**
+ * @file
+ * Theme override for the footer branding custom block.
+ */
+#}
+<div{{ attributes.addClass('page-footer__branding-block') }}>
+  {{ title_prefix }}
+  {% if label %}
+    <p{{ title_attributes.addClass('page-footer__eyebrow') }}>
+      {{ label }}
+    </p>
+  {% endif %}
+  {{ title_suffix }}
+
+  <div class="page-footer__tagline">
+    {{ content }}
+  </div>
+</div>

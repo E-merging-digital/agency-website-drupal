@@ -11,14 +11,17 @@ use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Vérifie le rendu réel du switcher sur contenu traduit/non traduit.
  *
  * @group agency_project_tests
+ * @group unstable_language_switcher
  */
 #[RunTestsInSeparateProcesses]
+#[Group('unstable_language_switcher')]
 final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
   /**
@@ -107,11 +110,11 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-      'plugin' => 'language_dropdown_block',
+      'plugin' => 'language_dropdown_block:language_content',
       'weight' => 0,
       'visibility' => [],
       'settings' => [
-        'id' => 'language_dropdown_block',
+        'id' => 'language_dropdown_block:language_content',
         'label' => 'Language switcher',
         'label_display' => FALSE,
         'provider' => 'lang_dropdown',
@@ -235,21 +238,28 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
   }
 
   /**
-   * Retourne les href des liens du menu du switcher.
+   * Retourne toutes les valeurs de navigation exposées par le switcher.
    *
    * @return string[]
-   *   Liens du menu.
+   *   Valeurs href/value collectées dans le header language.
    */
   private function getSwitcherMenuLinks(): array {
-    $container = $this->getSession()
-      ->getPage()
-      ->find('css', '#block-test-language-switcher, .page-header__aside');
+    $page = $this->getSession()->getPage();
+    $container = $page->find('css', '.page-header__aside');
 
     if (!$container) {
       return [];
     }
 
-    $items = $container->findAll('css', 'a[href], option[value]');
+    $items = $container->findAll(
+      'css',
+      implode(', ', [
+        'a[href]',
+        'select option[value]',
+        'select[data-drupal-selector] option[value]',
+        'input[value]',
+      ])
+    );
 
     $hrefs = [];
     foreach ($items as $item) {
@@ -290,21 +300,45 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
    *   Hrefs collectés.
    */
   private function buildSwitcherDebugMessage(string $expectedPath, array $hrefs): string {
+    $page = $this->getSession()->getPage();
     $currentUrl = $this->getSession()->getCurrentUrl();
-    $headerRegion = $this->getSession()
-      ->getPage()
-      ->find('css', '.page-header__aside');
+    $headerRegion = $page->find('css', '.page-header__aside');
 
     $headerSnippet = $headerRegion
       ? trim($headerRegion->getHtml())
       : '[header_language not found]';
+    $pageHrefs = array_map(
+      static fn($node) => (string) $node->getAttribute('href'),
+      $page->findAll('css', 'a[href]')
+    );
+    $pageSelects = array_map(
+      static fn($node) => trim($node->getOuterHtml()),
+      $page->findAll('css', 'select')
+    );
+    $pageOptions = array_map(
+      static fn($node) => (string) $node->getAttribute('value'),
+      $page->findAll('css', 'option[value]')
+    );
+    $block = Block::load('test_language_switcher');
+    $blockDebug = $block
+      ? sprintf(
+        'exists=yes, plugin=%s, theme=%s, region=%s',
+        $block->getPluginId(),
+        (string) $block->get('theme'),
+        (string) $block->get('region')
+      )
+      : 'exists=no';
 
     return sprintf(
-      'Expected: %s. Current URL: %s. Header snippet: %s. Actual hrefs: %s',
+      'Expected: %s. Current URL: %s. Header snippet: %s. Block debug: %s. Actual hrefs: %s. Page a[href]: %s. Page selects: %s. Page option[value]: %s',
       $expectedPath,
       $currentUrl,
       $headerSnippet,
-      implode(', ', $hrefs)
+      $blockDebug,
+      implode(', ', $hrefs),
+      implode(', ', $pageHrefs),
+      implode(' || ', $pageSelects),
+      implode(', ', $pageOptions)
     );
   }
 

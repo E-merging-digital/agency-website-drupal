@@ -8,24 +8,26 @@ dependencies:
 id: node_case_client_en
 label: 'Content path pattern (Cas client EN)'
 type: 'canonical_entities:node'
-pattern: 'case-studies/[node:title]'
+pattern: 'en/case-studies/[node:title]'
 selection_criteria:
-  5f7fdb6c-702f-4285-b657-2da37d4fd966:
-    id: language
-    negate: false
-    uuid: 5f7fdb6c-702f-4285-b657-2da37d4fd966
-    context_mapping:
-      language: 'node:langcode:language'
-    langcodes:
-      en: en
-  36ea85e2-3870-4d0f-9c59-f308f4b69457:
+  9f6b80eb-a1a9-4a02-999f-c4c64494d467:
     id: 'entity_bundle:node'
     negate: false
-    uuid: 36ea85e2-3870-4d0f-9c59-f308f4b69457
+    uuid: 9f6b80eb-a1a9-4a02-999f-c4c64494d467
     context_mapping:
       node: node
     bundles:
       case_client: case_client
+  7d4700cd-9bbf-4b7b-a06f-304ceeae4e8d:
+    id: language
+    negate: false
+    uuid: 7d4700cd-9bbf-4b7b-a06f-304ceeae4e8d
+    context_mapping:
+      language: 'node:langcode:language'
+    langcodes:
+      en: en
 selection_logic: and
 weight: -11
-relationships: {  }
+relationships:
+  'node:langcode:language':
+    label: Language

@@ -1273,6 +1273,77 @@ function emerging_digital_content_post_update_issue_25_front_page_system_path_v3
 }
 
 /**
+ * Aligns language switcher behavior and main menu translations for issue #110.
+ */
+function emerging_digital_content_post_update_issue_110_language_switcher_alignment(array &$sandbox): string {
+  unset($sandbox);
+
+  $messages = [];
+
+  $language_negotiation = \Drupal::configFactory()->getEditable('language.negotiation');
+  $language_negotiation->set('url.source', 'path_prefix');
+  $language_negotiation->set('url.prefixes.fr', 'fr');
+  $language_negotiation->set('url.prefixes.en', 'en');
+  $language_negotiation->save(TRUE);
+  $messages[] = 'Language URL negotiation has been aligned to /fr and /en prefixes.';
+
+  $switcher_block = \Drupal::configFactory()->getEditable('block.block.emerging_digital_languagedropdownswitchercontent');
+  if ((bool) $switcher_block->get('status')) {
+    $switcher_block->set('plugin', 'language_dropdown_block:language_interface');
+    $switcher_block->set('region', 'header_language');
+    $switcher_block->set('settings.id', 'language_dropdown_block:language_interface');
+    $switcher_block->set('settings.label', 'Language dropdown switcher (Interface)');
+    $switcher_block->save(TRUE);
+    $messages[] = 'lang_dropdown now switches interface language from header_language region.';
+  }
+
+  $menu_storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+  $english_titles = [
+    'Accueil' => 'Home',
+    'Services' => 'Services',
+    'IA & Drupal' => 'AI & Drupal',
+    'Cas clients' => 'Case studies',
+    'Contact' => 'Contact',
+  ];
+
+  $updated_links = 0;
+  $ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->execute();
+
+  if ($ids) {
+    /** @var \Drupal\menu_link_content\Entity\MenuLinkContent[] $links */
+    $links = $menu_storage->loadMultiple($ids);
+
+    foreach ($links as $link) {
+      $french_title = (string) $link->label();
+      if (!isset($english_titles[$french_title])) {
+        continue;
+      }
+
+      $english_title = $english_titles[$french_title];
+      if ($link->hasTranslation('en')) {
+        $translation = $link->getTranslation('en');
+      }
+      else {
+        $translation = $link->addTranslation('en');
+      }
+
+      if ((string) $translation->label() !== $english_title) {
+        $translation->set('title', $english_title);
+        $translation->save();
+        $updated_links++;
+      }
+    }
+  }
+
+  $messages[] = sprintf('%d main navigation English translations were updated.', $updated_links);
+
+  return implode(' ', $messages);
+}
+
+/**
  * Resolves a stable system path for the French front page.
  */
 function _emerging_digital_content_resolve_front_page_system_path(): string {

@@ -8,24 +8,26 @@ dependencies:
 id: node_service_en
 label: 'Content path pattern (Service EN)'
 type: 'canonical_entities:node'
-pattern: 'services/[node:title]'
+pattern: 'en/services/[node:title]'
 selection_criteria:
-  3a89fc73-52fb-47e0-8fe1-5e59f2ccce15:
-    id: language
-    negate: false
-    uuid: 3a89fc73-52fb-47e0-8fe1-5e59f2ccce15
-    context_mapping:
-      language: 'node:langcode:language'
-    langcodes:
-      en: en
-  8a24e0f3-92e8-4ee6-8c85-620ca4a0dd8d:
+  59df3679-73f6-4038-ad6c-87107ffd2701:
     id: 'entity_bundle:node'
     negate: false
-    uuid: 8a24e0f3-92e8-4ee6-8c85-620ca4a0dd8d
+    uuid: 59df3679-73f6-4038-ad6c-87107ffd2701
     context_mapping:
       node: node
     bundles:
       service: service
+  f7f49c98-b47a-45b8-b09d-a776341f1de7:
+    id: language
+    negate: false
+    uuid: f7f49c98-b47a-45b8-b09d-a776341f1de7
+    context_mapping:
+      language: 'node:langcode:language'
+    langcodes:
+      en: en
 selection_logic: and
 weight: -11
-relationships: {  }
+relationships:
+  'node:langcode:language':
+    label: Language

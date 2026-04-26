@@ -11,10 +11,10 @@ theme: emerging_digital
 region: header_language
 weight: 0
 provider: null
-plugin: 'language_dropdown_block:language_content'
+plugin: 'language_dropdown_block:language_interface'
 settings:
-  id: 'language_dropdown_block:language_content'
-  label: 'Language dropdown switcher (Content)'
+  id: 'language_dropdown_block:language_interface'
+  label: 'Language dropdown switcher (Interface)'
   label_display: visible
   provider: lang_dropdown
   showall: true

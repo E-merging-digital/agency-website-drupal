@@ -5,14 +5,14 @@ dependencies:
   module:
     - node
 id: node_article
-label: 'Content path pattern (Article)'
+label: 'Content path pattern (Article fallback)'
 type: 'canonical_entities:node'
 pattern: 'actualites/[node:title]'
 selection_criteria:
-  dc548961-b1bc-41a1-b140-62ca0fd8f9fe:
+  482ce287-8564-4e03-97f3-ec6a958703d8:
     id: 'entity_bundle:node'
     negate: false
-    uuid: dc548961-b1bc-41a1-b140-62ca0fd8f9fe
+    uuid: 482ce287-8564-4e03-97f3-ec6a958703d8
     context_mapping:
       node: node
     bundles:

@@ -8,24 +8,26 @@ dependencies:
 id: node_page_fr
 label: 'Content path pattern (Page FR)'
 type: 'canonical_entities:node'
-pattern: '[node:title]'
+pattern: 'fr/[node:title]'
 selection_criteria:
-  b6f6fc97-8882-4203-b68e-a4c993193652:
-    id: language
-    negate: false
-    uuid: b6f6fc97-8882-4203-b68e-a4c993193652
-    context_mapping:
-      language: 'node:langcode:language'
-    langcodes:
-      fr: fr
-  c5fd08ca-417a-44a4-8a7c-14fbb989d86d:
+  3adcb436-aaeb-4580-b0f8-b5cd57864e93:
     id: 'entity_bundle:node'
     negate: false
-    uuid: c5fd08ca-417a-44a4-8a7c-14fbb989d86d
+    uuid: 3adcb436-aaeb-4580-b0f8-b5cd57864e93
     context_mapping:
       node: node
     bundles:
       page: page
+  2b7a00c6-cf14-4562-b053-78cbb4692db6:
+    id: language
+    negate: false
+    uuid: 2b7a00c6-cf14-4562-b053-78cbb4692db6
+    context_mapping:
+      language: 'node:langcode:language'
+    langcodes:
+      fr: fr
 selection_logic: and
 weight: -12
-relationships: {  }
+relationships:
+  'node:langcode:language':
+    label: Language

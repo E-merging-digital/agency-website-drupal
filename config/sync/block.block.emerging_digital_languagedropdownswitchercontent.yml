@@ -15,7 +15,7 @@ plugin: 'language_dropdown_block:language_interface'
 settings:
   id: 'language_dropdown_block:language_interface'
   label: 'Language dropdown switcher (Interface)'
-  label_display: visible
+  label_display: '0'
   provider: lang_dropdown
   showall: true
   hide_only_one: true

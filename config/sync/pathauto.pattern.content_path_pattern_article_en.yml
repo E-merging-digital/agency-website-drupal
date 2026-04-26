@@ -1,33 +1,33 @@
-uuid: a67eb4d4-86ea-4bf8-90ba-df2f3e5f17c5
-langcode: en
+uuid: cd1de087-a83d-420a-a35d-7158db04b90d
+langcode: fr
 status: true
 dependencies:
   module:
     - language
     - node
-id: node_ai_feature_en
-label: 'Content path pattern (Fonctionnalité IA EN)'
+id: content_path_pattern_article_en
+label: 'Content path pattern (Article)'
 type: 'canonical_entities:node'
-pattern: 'en/ai/[node:title]'
+pattern: 'en/news/[node:title]'
 selection_criteria:
-  d48e5517-51f8-43b8-8f72-d6ae9f5bf26e:
+  a5b1ccb7-e39a-434a-899b-706a49ef615f:
     id: 'entity_bundle:node'
     negate: false
-    uuid: d48e5517-51f8-43b8-8f72-d6ae9f5bf26e
+    uuid: a5b1ccb7-e39a-434a-899b-706a49ef615f
     context_mapping:
       node: node
     bundles:
-      ai_feature: ai_feature
-  38f11098-03bc-403a-95e2-1cebd4270613:
+      article: article
+  894c4bf9-3b01-45e9-bab9-c2a5df03155a:
     id: language
     negate: false
-    uuid: 38f11098-03bc-403a-95e2-1cebd4270613
+    uuid: 894c4bf9-3b01-45e9-bab9-c2a5df03155a
     context_mapping:
       language: 'node:langcode:language'
     langcodes:
       en: en
 selection_logic: and
-weight: -11
+weight: -10
 relationships:
   'node:langcode:language':
     label: Language

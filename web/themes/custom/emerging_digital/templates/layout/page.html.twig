@@ -37,10 +37,11 @@
   <footer class="page-footer" role="contentinfo">
     <div class="page-container page-footer__inner">
       <div class="page-footer__top">
-        <div class="page-footer__branding">
-          <p class="page-footer__eyebrow">E-merging Digital</p>
-          <p class="page-footer__tagline">Sites Drupal commerciaux, lisibles et évolutifs pour PME &amp; ASBL.</p>
-        </div>
+        {% if page.footer_branding %}
+          <div class="page-footer__branding">
+            {{ page.footer_branding }}
+          </div>
+        {% endif %}
         {% if page.footer %}
           <div class="page-footer__legal">
             {{ page.footer }}

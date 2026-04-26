@@ -1,0 +1,25 @@
+uuid: 5a9f1f4d-c52e-4f07-85a0-8d5be31cb3f8
+langcode: fr
+status: true
+dependencies:
+  content:
+    - 'block_content:9e6d8aa5-96d8-4b1d-bf9e-8c58d35f5f58'
+  module:
+    - block_content
+  theme:
+    - emerging_digital
+id: emerging_digital_footer_branding
+theme: emerging_digital
+region: footer_branding
+weight: 0
+provider: null
+plugin: 'block_content:9e6d8aa5-96d8-4b1d-bf9e-8c58d35f5f58'
+settings:
+  id: 'block_content:9e6d8aa5-96d8-4b1d-bf9e-8c58d35f5f58'
+  label: 'E-merging Digital'
+  label_display: visible
+  provider: block_content
+  status: true
+  info: 'E-merging Digital'
+  view_mode: full
+visibility: {  }

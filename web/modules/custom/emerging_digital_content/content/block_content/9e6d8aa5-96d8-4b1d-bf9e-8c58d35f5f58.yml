@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: block_content
+  uuid: 9e6d8aa5-96d8-4b1d-bf9e-8c58d35f5f58
+  bundle: basic
+  default_langcode: fr
+default:
+  reusable:
+    -
+      value: true
+  info:
+    -
+      value: 'E-merging Digital'
+  body:
+    -
+      value: 'Sites Drupal commerciaux, lisibles et évolutifs pour PME & ASBL.'
+      format: plain_text

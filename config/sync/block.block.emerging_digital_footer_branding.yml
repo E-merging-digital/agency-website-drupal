@@ -17,6 +17,6 @@ settings:
   label: 'E-merging Digital'
   label_display: visible
   provider: emerging_digital_content
-  status: true
   tagline: 'Sites Drupal commerciaux, lisibles et évolutifs pour PME & ASBL.'
+  status: true
 visibility: {  }

@@ -1,0 +1,7 @@
+block.settings.emerging_digital_footer_branding:
+  type: block_settings
+  label: 'Footer branding block settings'
+  mapping:
+    tagline:
+      type: text
+      label: 'Tagline'

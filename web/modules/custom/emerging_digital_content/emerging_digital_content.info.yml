@@ -10,8 +10,6 @@ dependencies:
   - drupal:serialization
   - drupal:hal
 default_content:
-  block_content:
-    - 9e6d8aa5-96d8-4b1d-bf9e-8c58d35f5f58
   paragraph:
     - 11c3e2e1-78c9-491d-814c-b204bc2f5338
     - 25892a5a-3c09-4f64-86d7-cda8058e1875

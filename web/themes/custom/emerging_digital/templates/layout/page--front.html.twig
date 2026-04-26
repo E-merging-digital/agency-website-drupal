@@ -17,14 +17,18 @@
 
   <footer class="page-footer" role="contentinfo">
     <div class="page-container page-footer__inner">
-      {{ page.footer }}
-      <nav aria-label="Navigation secondaire" class="footer-links">
-        <a href="/services">Services</a>
-        <a href="/ia-drupal">IA &amp; Drupal</a>
-        <a href="/cas-clients">Cas clients</a>
-        <a href="/contact">Contact</a>
-      </nav>
-      <p class="page-footer__tagline">Drupal + IA pragmatique pour PME &amp; ASBL en Wallonie et à Bruxelles.</p>
+      <div class="page-footer__top">
+        {% if page.footer_branding %}
+          <div class="page-footer__branding">
+            {{ page.footer_branding }}
+          </div>
+        {% endif %}
+        {% if page.footer %}
+          <div class="page-footer__legal">
+            {{ page.footer }}
+          </div>
+        {% endif %}
+      </div>
     </div>
   </footer>
 </div>

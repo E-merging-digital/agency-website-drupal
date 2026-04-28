@@ -68,7 +68,7 @@
 
 .page-header .block-system-menu-blockmain {
   margin: 0;
-  margin-inline-start: clamp(var(--space-3), 1.8vw, var(--space-5));
+  margin-inline-start: 0;
   min-width: 0;
 }
 
@@ -511,6 +511,13 @@
 .layout-grid {
   display: grid;
   gap: var(--space-5);
+}
+
+@media (min-width: 48.0625rem) {
+  #block-emerging-digital-main-menu,
+  .page-header .block-system-menu-blockmain {
+    margin-inline-start: clamp(3rem, 4vw, 4rem);
+  }
 }
 
 @media (min-width: 64rem) {

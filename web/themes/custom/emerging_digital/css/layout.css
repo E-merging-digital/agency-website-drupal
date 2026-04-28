@@ -528,6 +528,7 @@
   .page-header__inner {
     position: relative;
     min-height: var(--mobile-header-height);
+    flex-wrap: nowrap;
     gap: var(--space-2);
     align-items: center;
   }
@@ -540,6 +541,7 @@
   .page-header__main .region-header {
     display: flex;
     align-items: center;
+    flex-wrap: nowrap;
     gap: var(--space-2);
   }
 
@@ -685,6 +687,10 @@
   }
 
   .page-header .page-header__main .block-system-menu-blockmain,
+  .page-header .page-header__main .main-navigation__list,
+  .page-header .page-header__main .menu,
+  .page-header .page-header__main nav[aria-label*="Main"],
+  .page-header .page-header__main nav[aria-labelledby*="main"],
   .page-header .page-header__inner > .page-header__aside {
     display: none;
   }

@@ -186,7 +186,7 @@
     var toggle = header.querySelector('[data-mobile-nav-toggle]');
     var drawer = header.querySelector('[data-mobile-nav-drawer]');
     var content = header.querySelector('[data-mobile-nav-content]');
-    var overlay = header.querySelector('[data-mobile-nav-overlay]');
+    var closeButton = header.querySelector('[data-mobile-nav-close]');
     var main = header.querySelector('.page-header__main');
     var menuList = main ? main.querySelector('.main-navigation__list') : null;
     var menuBlock = main ? main.querySelector('.block-system-menu-blockmain') : null;
@@ -199,7 +199,7 @@
         menuList;
     }
 
-    if (!toggle || !drawer || !content || !overlay) {
+    if (!toggle || !drawer || !content || !closeButton) {
       return;
     }
 
@@ -223,7 +223,6 @@
         toggle.setAttribute('aria-expanded', 'false');
         toggle.setAttribute('aria-label', 'Ouvrir le menu principal');
         drawer.setAttribute('aria-hidden', 'true');
-        overlay.hidden = true;
         document.body.style.removeProperty('overflow');
         return;
       }
@@ -233,7 +232,6 @@
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-label', 'Ouvrir le menu principal');
       drawer.setAttribute('aria-hidden', 'true');
-      overlay.hidden = true;
       document.body.style.removeProperty('overflow');
 
       if (options && options.restoreFocus && previousFocus) {
@@ -252,7 +250,6 @@
       toggle.setAttribute('aria-expanded', 'true');
       toggle.setAttribute('aria-label', 'Fermer le menu principal');
       drawer.setAttribute('aria-hidden', 'false');
-      overlay.hidden = false;
       document.body.style.overflow = 'hidden';
 
       var focusables = getFocusableElements(content);
@@ -297,7 +294,7 @@
       openMenu();
     });
 
-    overlay.addEventListener('click', function () {
+    closeButton.addEventListener('click', function () {
       closeMenu({ restoreFocus: true });
     });
 

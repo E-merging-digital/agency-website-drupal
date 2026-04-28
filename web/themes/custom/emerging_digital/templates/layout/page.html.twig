@@ -11,29 +11,29 @@
       <div class="page-header__main">{{ page.header }}</div>
       <button
         type="button"
-        class="mobile-nav-toggle"
+        class="mobile-menu-toggle"
         data-mobile-nav-toggle
         aria-label="{{ 'Ouvrir le menu principal'|t }}"
         aria-controls="mobile-nav-drawer"
         aria-expanded="false"
       >
-        <span class="mobile-nav-toggle__icon" aria-hidden="true"></span>
+        <span class="mobile-menu-toggle__icon" aria-hidden="true"></span>
         <span class="visually-hidden">{{ 'Menu'|t }}</span>
       </button>
       <div class="page-header__aside">{{ page.header_language }}</div>
       <div
         id="mobile-nav-overlay"
-        class="mobile-nav-overlay"
+        class="mobile-menu-overlay"
         data-mobile-nav-overlay
         hidden
       ></div>
       <div
         id="mobile-nav-drawer"
-        class="mobile-nav-drawer"
+        class="mobile-menu-drawer"
         data-mobile-nav-drawer
         aria-hidden="true"
       >
-        <div class="mobile-nav-drawer__content" data-mobile-nav-content></div>
+        <div class="mobile-menu-drawer__content" data-mobile-nav-content></div>
       </div>
     </div>
   </header>

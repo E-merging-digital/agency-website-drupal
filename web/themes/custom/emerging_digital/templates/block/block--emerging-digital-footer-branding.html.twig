@@ -26,19 +26,19 @@
       <dl class="page-footer__company-list">
         {% if content.legal_name is not empty %}
           <div class="page-footer__company-item">
-            <dt>{{ 'Legal name'|t }}</dt>
+            <dt>{{ 'Nom légal'|t }}</dt>
             <dd>{{ content.legal_name }}</dd>
           </div>
         {% endif %}
         {% if content.company_number is not empty %}
           <div class="page-footer__company-item">
-            <dt>{{ 'Company number'|t }}</dt>
+            <dt>{{ 'Numéro d'entreprise'|t }}</dt>
             <dd>{{ content.company_number }}</dd>
           </div>
         {% endif %}
         {% if content.company_address is not empty %}
           <div class="page-footer__company-item page-footer__company-item--address">
-            <dt>{{ 'Address'|t }}</dt>
+            <dt>{{ 'Adresse'|t }}</dt>
             <dd>
               <address>{{ content.company_address }}</address>
             </dd>

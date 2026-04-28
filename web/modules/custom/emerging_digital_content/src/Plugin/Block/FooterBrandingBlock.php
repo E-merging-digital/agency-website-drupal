@@ -46,25 +46,25 @@ final class FooterBrandingBlock extends BlockBase {
 
     $form['legal_name'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Legal company name'),
+      '#title' => $this->t("Nom légal de l'entreprise"),
       '#default_value' => $this->configuration['legal_name'] ?? '',
-      '#description' => $this->t('Leave empty if this information is not available yet.'),
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
       '#maxlength' => 255,
     ];
 
     $form['company_number'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Company registration number'),
+      '#title' => $this->t("Numéro d'entreprise"),
       '#default_value' => $this->configuration['company_number'] ?? '',
-      '#description' => $this->t('Leave empty if this information is not available yet.'),
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
       '#maxlength' => 255,
     ];
 
     $form['company_address'] = [
       '#type' => 'textarea',
-      '#title' => $this->t('Company address'),
+      '#title' => $this->t('Adresse légale'),
       '#default_value' => $this->configuration['company_address'] ?? '',
-      '#description' => $this->t('Leave empty if this information is not available yet.'),
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
       '#rows' => 3,
     ];
 

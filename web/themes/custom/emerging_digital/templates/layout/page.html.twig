@@ -9,7 +9,33 @@
   <header class="page-header" role="banner">
     <div class="page-container page-header__inner">
       <div class="page-header__main">{{ page.header }}</div>
+      <button
+        type="button"
+        class="mobile-menu-toggle"
+        data-mobile-nav-toggle
+        aria-label="{{ 'Ouvrir le menu principal'|t }}"
+        aria-controls="mobile-nav-drawer"
+        aria-expanded="false"
+      >
+        <span class="mobile-menu-toggle__icon" aria-hidden="true"></span>
+        <span class="visually-hidden">{{ 'Menu'|t }}</span>
+      </button>
       <div class="page-header__aside">{{ page.header_language }}</div>
+      <div
+        id="mobile-nav-drawer"
+        class="mobile-menu-drawer"
+        data-mobile-nav-drawer
+        role="dialog"
+        aria-modal="true"
+        aria-label="{{ 'Menu principal'|t }}"
+        aria-hidden="true"
+      >
+        <div class="mobile-menu-drawer__content" data-mobile-nav-content>
+          <button type="button" class="mobile-menu-close" data-mobile-nav-close aria-label="{{ 'Fermer le menu'|t }}">
+            <span class="mobile-menu-close__icon" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 

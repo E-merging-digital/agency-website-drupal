@@ -188,10 +188,18 @@
     var content = header.querySelector('[data-mobile-nav-content]');
     var overlay = header.querySelector('[data-mobile-nav-overlay]');
     var main = header.querySelector('.page-header__main');
+    var menuList = main ? main.querySelector('.main-navigation__list') : null;
     var menuBlock = main ? main.querySelector('.block-system-menu-blockmain') : null;
     var aside = header.querySelector('.page-header__inner > .page-header__aside');
 
-    if (!toggle || !drawer || !content || !overlay || !menuBlock || !aside || !menuBlock.parentNode || !aside.parentNode) {
+    if (!menuBlock && menuList) {
+      menuBlock = menuList.closest('.block-system-menu-blockmain') ||
+        menuList.closest('.block') ||
+        menuList.closest('nav') ||
+        menuList;
+    }
+
+    if (!toggle || !drawer || !content || !overlay) {
       return;
     }
 
@@ -202,8 +210,12 @@
     var isMoved = false;
     var previousFocus = null;
 
-    menuBlock.parentNode.insertBefore(menuPlaceholder, menuBlock);
-    aside.parentNode.insertBefore(asidePlaceholder, aside);
+    if (menuBlock && menuBlock.parentNode) {
+      menuBlock.parentNode.insertBefore(menuPlaceholder, menuBlock);
+    }
+    if (aside && aside.parentNode) {
+      aside.parentNode.insertBefore(asidePlaceholder, aside);
+    }
 
     function closeMenu(options) {
       if (!isOpen) {
@@ -251,17 +263,21 @@
 
     function moveDrawerNodes(enableMobile) {
       if (enableMobile && !isMoved) {
-        content.appendChild(menuBlock);
-        content.appendChild(aside);
+        if (menuBlock) {
+          content.appendChild(menuBlock);
+        }
+        if (aside) {
+          content.appendChild(aside);
+        }
         isMoved = true;
         return;
       }
 
       if (!enableMobile && isMoved) {
-        if (menuPlaceholder.parentNode) {
+        if (menuBlock && menuPlaceholder.parentNode) {
           menuPlaceholder.parentNode.insertBefore(menuBlock, menuPlaceholder.nextSibling);
         }
-        if (asidePlaceholder.parentNode) {
+        if (aside && asidePlaceholder.parentNode) {
           asidePlaceholder.parentNode.insertBefore(aside, asidePlaceholder.nextSibling);
         }
         closeMenu();

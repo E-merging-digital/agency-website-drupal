@@ -516,7 +516,8 @@
 @media (min-width: 48.0625rem) {
   #block-emerging-digital-main-menu,
   .page-header .block-system-menu-blockmain {
-    margin-inline-start: clamp(3rem, 4vw, 4rem);
+    margin-inline-start: 0;
+    margin-top: 0.5rem;
   }
 }
 

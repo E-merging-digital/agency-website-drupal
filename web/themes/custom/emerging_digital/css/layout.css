@@ -369,8 +369,8 @@
 
 .page-footer__top {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(12rem, 1fr);
-  gap: clamp(var(--space-3), 3vw, var(--space-5));
+  grid-template-columns: minmax(0, 1.5fr) minmax(13rem, 1fr);
+  gap: clamp(var(--space-3), 2.8vw, var(--space-5));
   align-items: start;
 }
 
@@ -383,10 +383,11 @@
   margin: 0;
   color: var(--color-text);
   font-family: var(--font-heading);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  line-height: 1.2;
 }
 
 .page-footer__legal {
@@ -445,16 +446,17 @@
 
 .page-footer__company-item {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.05rem;
 }
 
 .page-footer__company-item dt {
   margin: 0;
-  color: var(--color-text);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--color-text) 68%, white);
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  line-height: 1.2;
 }
 
 .page-footer__company-item dd {
@@ -484,24 +486,28 @@
   margin-bottom: 0;
 }
 
+.page-footer__legal-content .menu,
 .page-footer .menu {
   margin: 0;
   padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem 0.75rem;
+  list-style: none !important;
+  display: grid;
+  gap: 0.35rem;
 }
 
+.page-footer__legal-content .menu > li,
 .page-footer .menu li {
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
+.page-footer__legal-content .menu a,
 .page-footer .menu a {
   display: inline-flex;
   align-items: center;
   min-height: 2.1rem;
-  padding: 0.2rem 0.15rem;
+  padding: 0.2rem 0.1rem;
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--color-text) 20%, transparent);
   text-decoration-thickness: 1px;
@@ -515,18 +521,21 @@
   transition: color 160ms ease, text-decoration-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 
+.page-footer__legal-content .menu a:hover,
 .page-footer .menu a:hover {
   color: #111827;
   text-decoration-color: color-mix(in srgb, var(--color-primary) 75%, white);
   text-decoration-thickness: 2px;
 }
 
+.page-footer__legal-content .menu .is-active,
 .page-footer .menu .is-active {
   color: #0f172a;
   text-decoration-color: color-mix(in srgb, var(--color-primary) 60%, white);
   text-decoration-thickness: 2px;
 }
 
+.page-footer__legal-content .menu a:focus-visible,
 .page-footer .menu a:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-primary) 80%, white);
   outline-offset: 2px;
@@ -789,8 +798,6 @@
   }
 
   .page-footer .menu {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.25rem;
+    gap: 0.2rem;
   }
 }

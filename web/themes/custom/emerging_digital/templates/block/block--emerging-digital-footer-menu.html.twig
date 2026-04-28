@@ -13,7 +13,9 @@
   {% endif %}
   {{ title_suffix }}
 
-  <div class="page-footer__legal-content">
-    {{ content }}
-  </div>
+  <nav class="page-footer__legal-nav" aria-label="{{ label ?: 'Legal information'|t }}">
+    <div class="page-footer__legal-content">
+      {{ content }}
+    </div>
+  </nav>
 </div>

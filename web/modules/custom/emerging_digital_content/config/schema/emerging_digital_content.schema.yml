@@ -5,3 +5,12 @@ block.settings.emerging_digital_footer_branding:
     tagline:
       type: text
       label: 'Tagline'
+    legal_name:
+      type: label
+      label: 'Legal company name'
+    company_number:
+      type: label
+      label: 'Company registration number'
+    company_address:
+      type: text
+      label: 'Company address'

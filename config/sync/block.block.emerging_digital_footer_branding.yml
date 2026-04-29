@@ -18,5 +18,8 @@ settings:
   label_display: visible
   provider: emerging_digital_content
   tagline: 'Sites Drupal commerciaux, lisibles et évolutifs pour PME & ASBL.'
+  legal_name: 'E-merging Digital SRL'
+  company_number: 'BE 0746.356.206'
+  company_address: 'Rue des Peupliers 1, 4254 Ligney (Geer), Belgique'
   status: true
 visibility: {  }

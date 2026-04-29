@@ -81,8 +81,8 @@
 .page-header .site-logo img {
   display: block;
   width: auto;
-  height: clamp(2.1rem, 2.4vw, 2.4rem);
-  max-width: min(2.4rem, 10vw);
+  height: clamp(2.35rem, 2.65vw, 2.7rem);
+  max-width: min(2.7rem, 11vw);
 }
 
 .page-header .site-branding__text {

@@ -78,11 +78,20 @@
   gap: var(--space-3);
 }
 
-.page-header .site-logo img {
+.page-header #block-emerging-digital-site-branding .site-logo img,
+.page-header #block-emerging-digital-site-branding .site-logo svg {
   display: block;
-  width: auto;
-  height: clamp(2.35rem, 2.65vw, 2.7rem);
-  max-width: min(2.7rem, 11vw);
+  width: 2.5rem;
+  height: 2.5rem;
+  max-width: none;
+}
+
+@media (min-width: 48rem) {
+  .page-header #block-emerging-digital-site-branding .site-logo img,
+  .page-header #block-emerging-digital-site-branding .site-logo svg {
+    width: 2.9rem;
+    height: 2.9rem;
+  }
 }
 
 .page-header .site-branding__text {

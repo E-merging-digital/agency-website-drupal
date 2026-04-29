@@ -81,16 +81,16 @@
 .page-header #block-emerging-digital-site-branding .site-logo img,
 .page-header #block-emerging-digital-site-branding .site-logo svg {
   display: block;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
   max-width: none;
 }
 
 @media (min-width: 48rem) {
   .page-header #block-emerging-digital-site-branding .site-logo img,
   .page-header #block-emerging-digital-site-branding .site-logo svg {
-    width: 2.9rem;
-    height: 2.9rem;
+    width: 5.9rem;
+    height: 5.9rem;
   }
 }
 

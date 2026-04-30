@@ -249,6 +249,16 @@ button:focus-visible,
   overflow: hidden;
 }
 
+.ed-section--hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: min(62%, 46rem);
+  background: linear-gradient(90deg, rgb(255 255 255 / 88%) 0%, rgb(255 255 255 / 72%) 78%, rgb(255 255 255 / 0%) 100%);
+  pointer-events: none;
+  z-index: -1;
+}
+
 .ed-section--hero::after {
   content: "";
   position: absolute;
@@ -258,7 +268,7 @@ button:focus-visible,
   width: min(34rem, 48vw);
   aspect-ratio: 1;
   background: url("../images/home/home-hero-ia-drupal.svg") no-repeat center / contain;
-  opacity: 0;
+  opacity: 0.9;
   pointer-events: none;
   z-index: -1;
 }
@@ -473,13 +483,18 @@ button:focus-visible,
 }
 
 @media (max-width: 48rem) {
+  .ed-section--hero::before {
+    width: 100%;
+    background: linear-gradient(180deg, rgb(255 255 255 / 86%) 0%, rgb(255 255 255 / 74%) 44%, rgb(255 255 255 / 20%) 100%);
+  }
+
   .ed-section--hero::after {
     right: -3.5rem;
     top: auto;
     bottom: -4rem;
     transform: none;
     width: min(20rem, 74vw);
-    opacity: 0;
+    opacity: 0.82;
   }
 
   .ed-actions,

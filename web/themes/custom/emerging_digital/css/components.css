@@ -244,7 +244,7 @@ button:focus-visible,
   isolation: isolate;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(130deg, rgb(248 251 255 / 12%) 0%, rgb(237 242 255 / 10%) 100%);
+  background: transparent;
   padding: clamp(2rem, 6vw, 4.5rem);
   overflow: hidden;
 }
@@ -258,7 +258,7 @@ button:focus-visible,
   width: min(34rem, 48vw);
   aspect-ratio: 1;
   background: url("../images/home/home-hero-ia-drupal.svg") no-repeat center / contain;
-  opacity: 0.24;
+  opacity: 0;
   pointer-events: none;
   z-index: -1;
 }
@@ -479,7 +479,7 @@ button:focus-visible,
     bottom: -4rem;
     transform: none;
     width: min(20rem, 74vw);
-    opacity: 0.18;
+    opacity: 0;
   }
 
   .ed-actions,

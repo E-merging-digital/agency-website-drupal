@@ -24,6 +24,9 @@ final class FooterBrandingBlock extends BlockBase {
   public function defaultConfiguration(): array {
     return [
       'tagline' => 'Sites Drupal commerciaux, lisibles et évolutifs pour PME & ASBL.',
+      'legal_name' => '',
+      'company_number' => '',
+      'company_address' => '',
     ] + parent::defaultConfiguration();
   }
 
@@ -32,6 +35,7 @@ final class FooterBrandingBlock extends BlockBase {
    */
   public function blockForm($form, FormStateInterface $form_state): array {
     $form = parent::blockForm($form, $form_state);
+
     $form['tagline'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Tagline'),
@@ -39,6 +43,31 @@ final class FooterBrandingBlock extends BlockBase {
       '#required' => TRUE,
       '#rows' => 2,
     ];
+
+    $form['legal_name'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t("Nom légal de l'entreprise"),
+      '#default_value' => $this->configuration['legal_name'] ?? '',
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
+      '#maxlength' => 255,
+    ];
+
+    $form['company_number'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t("Numéro d'entreprise"),
+      '#default_value' => $this->configuration['company_number'] ?? '',
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
+      '#maxlength' => 255,
+    ];
+
+    $form['company_address'] = [
+      '#type' => 'textarea',
+      '#title' => $this->t('Adresse légale'),
+      '#default_value' => $this->configuration['company_address'] ?? '',
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
+      '#rows' => 3,
+    ];
+
     return $form;
   }
 
@@ -48,14 +77,33 @@ final class FooterBrandingBlock extends BlockBase {
   public function blockSubmit($form, FormStateInterface $form_state): void {
     parent::blockSubmit($form, $form_state);
     $this->configuration['tagline'] = (string) $form_state->getValue('tagline');
+    $this->configuration['legal_name'] = trim((string) $form_state->getValue('legal_name'));
+    $this->configuration['company_number'] = trim((string) $form_state->getValue('company_number'));
+    $this->configuration['company_address'] = trim((string) $form_state->getValue('company_address'));
   }
 
   /**
    * {@inheritdoc}
    */
   public function build(): array {
+    $tagline = (string) ($this->configuration['tagline'] ?? '');
+    $legal_name = trim((string) ($this->configuration['legal_name'] ?? ''));
+    $company_number = trim((string) ($this->configuration['company_number'] ?? ''));
+    $company_address = trim((string) ($this->configuration['company_address'] ?? ''));
+
     return [
-      '#plain_text' => (string) ($this->configuration['tagline'] ?? ''),
+      'tagline' => [
+        '#plain_text' => $tagline,
+      ],
+      'legal_name' => [
+        '#plain_text' => $legal_name,
+      ],
+      'company_number' => [
+        '#plain_text' => $company_number,
+      ],
+      'company_address' => [
+        '#plain_text' => $company_address,
+      ],
     ];
   }
 

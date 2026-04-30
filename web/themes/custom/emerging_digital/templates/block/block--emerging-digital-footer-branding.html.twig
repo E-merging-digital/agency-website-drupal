@@ -13,7 +13,40 @@
   {% endif %}
   {{ title_suffix }}
 
-  <div class="page-footer__tagline">
-    {{ content }}
-  </div>
+  {% if content.tagline is not empty %}
+    <p class="page-footer__tagline">
+      {{ content.tagline }}
+    </p>
+  {% endif %}
+
+  {% set has_legal_details = content.legal_name is not empty or content.company_number is not empty or content.company_address is not empty %}
+  {% if has_legal_details %}
+    <section class="page-footer__company" aria-label="{{ 'Company legal details'|t }}">
+      <h3 class="visually-hidden">{{ 'Company legal details'|t }}</h3>
+      <dl class="page-footer__company-list">
+        {% if content.legal_name is not empty %}
+          <div class="page-footer__company-item">
+            <dt>{{ 'Nom légal'|t }}</dt>
+            <dd>{{ content.legal_name }}</dd>
+          </div>
+        {% endif %}
+        {% if content.company_number is not empty %}
+          <div class="page-footer__company-item">
+            <dt>{{ "Numéro d'entreprise"|t }}</dt>
+            <dd>{{ content.company_number }}</dd>
+          </div>
+        {% endif %}
+        {% if content.company_address is not empty %}
+          <div class="page-footer__company-item page-footer__company-item--address">
+            <dt>{{ 'Adresse'|t }}</dt>
+            <dd>
+              <address>{{ content.company_address }}</address>
+            </dd>
+          </div>
+        {% endif %}
+      </dl>
+    </section>
+  {% else %}
+    {# Legal company details intentionally hidden until configured in block settings. #}
+  {% endif %}
 </div>

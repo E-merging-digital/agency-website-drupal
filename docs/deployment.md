@@ -182,3 +182,57 @@ Cette procédure manuelle sert de base à l’automatisation future (ex. GitHub 
 - vérifications.
 
 Aucun workflow CI/CD n’est créé à ce stade : ce document définit la référence opérationnelle.
+
+
+## 9) Déploiement automatisé
+
+Le script `scripts/deploy-production.sh` automatise la procédure de déploiement en production en conservant le même modèle à releases.
+
+### 9.1 Utilisation
+
+```bash
+bash scripts/deploy-production.sh main
+```
+
+- Le paramètre de branche est optionnel (`main` par défaut).
+- Le script crée une release horodatée sous `/var/www/agency/releases`.
+- Il exécute l’installation Composer, les symlinks partagés, le backup DB, le mode maintenance, les commandes Drush et le nettoyage.
+
+### 9.2 Logs et backups
+
+- Logs de déploiement : `/var/www/agency/shared/deployments.log`
+- Backups base de données : `/var/www/agency/shared/backups`
+
+Chaque exécution journalise notamment : timestamp, branche, commit, chemin de release, utilisateur Linux et statut final (`success` / `failure`).
+
+### 9.3 Politique de conservation
+
+- Releases : conservation des **3** plus récentes (sans supprimer la release active).
+- Backups DB : conservation des **10** plus récents.
+
+### 9.4 Rollback après déploiement automatisé
+
+1. Lister les releases disponibles :
+
+```bash
+ls -1dt /var/www/agency/releases/*
+```
+
+2. Repointer `current` vers la release cible :
+
+```bash
+ROLLBACK_RELEASE="/var/www/agency/releases/<timestamp_precedent>"
+ln -sfn "$ROLLBACK_RELEASE" /var/www/agency/current
+```
+
+3. Finaliser côté Drupal :
+
+```bash
+cd /var/www/agency/current
+vendor/bin/drush state:set system.maintenance_mode 0 --input-format=integer
+vendor/bin/drush cr
+```
+
+4. Vérifier le fonctionnement du site et les logs (`deployments.log`, watchdog Drupal).
+
+> Important : le rollback de code est immédiat via symlink, mais la restauration DB reste une opération séparée (à faire depuis les backups SQL si nécessaire).

@@ -9,7 +9,7 @@ RELEASES_DIR="/var/www/agency/releases"
 SHARED_DIR="/var/www/agency/shared"
 BACKUPS_DIR="$SHARED_DIR/backups"
 LOG_FILE="$SHARED_DIR/deployments.log"
-REPO_URL="git@github.com:<org>/<repo>.git"
+REPO_URL="${REPO_URL:-git@github.com:E-merging-digital/agency-website-drupal.git}"
 CURRENT_LINK="$PROJECT_ROOT/current"
 NEW_RELEASE="$RELEASES_DIR/$TIMESTAMP"
 ACTIVE_RELEASE=""
@@ -52,6 +52,11 @@ fail_trap() {
 }
 
 trap 'fail_trap $LINENO' ERR
+
+if [[ -z "$REPO_URL" ]] || [[ "$REPO_URL" == *"<org>/<repo>"* ]]; then
+  echo "REPO_URL invalide: $REPO_URL" >&2
+  exit 1
+fi
 
 mkdir -p "$RELEASES_DIR" "$SHARED_DIR" "$BACKUPS_DIR" "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"

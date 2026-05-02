@@ -226,7 +226,7 @@ Aucun workflow CI/CD n’est créé à ce stade : ce document définit la réfé
 
 ## 10) Procédure automatique (script)
 
-Un script de déploiement est disponible : `scripts/deploy.sh`.
+Un script de déploiement est disponible : `scripts/deploy-production.sh`.
 
 ### Usage standard
 
@@ -235,7 +235,7 @@ ssh ubuntu@emergingdigital
 sudo -iu deploy
 cd /var/www/agency/current
 
-BRANCH=main /var/www/agency/current/scripts/deploy.sh
+bash scripts/deploy-production.sh main
 ```
 
 ### Variables supportées
@@ -253,7 +253,7 @@ RUN_NGINX_RELOAD=0
 Exemple avec reload Nginx :
 
 ```bash
-BRANCH=main RUN_NGINX_RELOAD=1 /var/www/agency/current/scripts/deploy.sh
+REPO_URL=git@github.com:E-merging-digital/agency-website-drupal.git bash scripts/deploy-production.sh main
 ```
 
 Le script applique la même logique que la procédure manuelle : validation GitHub, clone timestampé, `composer install`, symlinks partagés, bascule `current`, `drush updb`, `drush cim`, `drush cr`, puis nettoyage des anciennes releases.

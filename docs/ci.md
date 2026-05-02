@@ -52,3 +52,10 @@ Un serveur PHP local est démarré sur `127.0.0.1:8888` et la base SQLite est ut
 ```powershell
 ddev exec env SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site SIMPLETEST_DB=mysql://db:db@db/db vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia --exclude-group unstable_language_switcher web/modules/custom/agency_project_tests/tests
 ```
+
+
+## Déploiement automatique (production)
+
+Le déploiement production est documenté dans `docs/deployment.md` et automatisé via `scripts/deploy.sh`.
+
+Ce script n'est **pas** exécuté par la CI actuelle ; il constitue la base d'un futur workflow GitHub Actions de déploiement contrôlé (approval manuel, secrets GitHub, SSH vers serveur).

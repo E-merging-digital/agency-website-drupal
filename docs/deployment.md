@@ -25,18 +25,21 @@ Vérifier avant tout déploiement :
 
 ## 3) Procédure de déploiement manuel
 
-> Exemple avec la branche `main`. Adapter la variable `BRANCH` selon la version à déployer.
+> Exemple avec la branche `main`. Adapter `BRANCH` selon la version à déployer.
+> **Important :** copier-coller le bloc de variables complet à chaque déploiement pour éviter de réutiliser d’anciennes valeurs de shell.
 
 ### 3.1 Connexion et préparation
 
 ```bash
-ssh <user>@<server>
+ssh ubuntu@emergingdigital
 sudo -iu deploy
+
+unset PROJECT_ROOT RELEASES_DIR SHARED_DIR REPO_URL BRANCH TIMESTAMP NEW_RELEASE
 
 PROJECT_ROOT=/var/www/agency
 RELEASES_DIR="$PROJECT_ROOT/releases"
 SHARED_DIR="$PROJECT_ROOT/shared"
-REPO_URL="git@github.com:<org>/<repo>.git"
+REPO_URL="git@github.com:E-merging-digital/agency-website-drupal.git"
 BRANCH="main"
 TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 NEW_RELEASE="$RELEASES_DIR/$TIMESTAMP"
@@ -45,37 +48,55 @@ mkdir -p "$RELEASES_DIR" "$SHARED_DIR"
 mkdir -p "$SHARED_DIR/files" "$SHARED_DIR/private" "$SHARED_DIR/settings"
 ```
 
-### 3.2 Création de la release et récupération du code
+### 3.2 Vérifications avant clone (important)
+
+```bash
+whoami
+printf 'REPO_URL=%s\nBRANCH=%s\nNEW_RELEASE=%s\n' "$REPO_URL" "$BRANCH" "$NEW_RELEASE"
+ssh -T git@github.com || true
+git ls-remote "$REPO_URL" -h "refs/heads/$BRANCH"
+```
+
+Attendus :
+
+- `whoami` retourne `deploy` ;
+- `REPO_URL` n’est **pas vide** et ne contient pas `<org>/<repo>` ;
+- le test SSH GitHub répond (même avec un message sans shell interactif) ;
+- `git ls-remote` retourne un hash (sinon, accès dépôt incorrect).
+
+### 3.3 Création de la release et récupération du code
 
 ```bash
 git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$NEW_RELEASE"
 cd "$NEW_RELEASE"
 ```
 
-### 3.3 Installation des dépendances
+### 3.4 Installation des dépendances
 
 ```bash
 composer install --no-dev --optimize-autoloader
 ```
 
-### 3.4 Liens symboliques des éléments partagés
+### 3.5 Liens symboliques des éléments partagés
 
 ```bash
 # Fichiers publics Drupal
+rm -rf "$NEW_RELEASE/web/sites/default/files"
 ln -sfn "$SHARED_DIR/files" "$NEW_RELEASE/web/sites/default/files"
 
 # settings.php partagé
+rm -f "$NEW_RELEASE/web/sites/default/settings.php"
 ln -sfn "$SHARED_DIR/settings/settings.php" "$NEW_RELEASE/web/sites/default/settings.php"
 ```
 
-### 3.5 Activation de la nouvelle release
+### 3.6 Activation de la nouvelle release
 
 ```bash
 ln -sfn "$NEW_RELEASE" "$PROJECT_ROOT/current"
 cd "$PROJECT_ROOT/current"
 ```
 
-### 3.6 Mises à jour Drupal post-déploiement
+### 3.7 Mises à jour Drupal post-déploiement
 
 ```bash
 vendor/bin/drush updb -y
@@ -83,7 +104,7 @@ vendor/bin/drush cim -y
 vendor/bin/drush cr
 ```
 
-### 3.7 Nginx
+### 3.8 Nginx
 
 En général, le changement de symlink suffit. Recharger Nginx uniquement si nécessaire :
 
@@ -158,7 +179,27 @@ cd /var/www/agency/current
 vendor/bin/drush watchdog:show
 ```
 
-## 7) Précautions importantes
+## 7) Dépannage rapide
+
+### Erreur `fatal: repository '' does not exist`
+
+Cette erreur signifie que `REPO_URL` est vide, mal défini, resté avec une valeur placeholder (`<org>/<repo>`), ou que la deploy key n'a pas accès au dépôt.
+Recharger explicitement les variables puis retenter le clone :
+
+```bash
+REPO_URL="git@github.com:E-merging-digital/agency-website-drupal.git"
+BRANCH="main"
+TIMESTAMP="$(date +%Y%m%d%H%M%S)"
+NEW_RELEASE="/var/www/agency/releases/$TIMESTAMP"
+
+printf 'REPO_URL=%s\n' "$REPO_URL"
+[[ "$REPO_URL" == *"<org>/<repo>"* ]] && echo "REPO_URL invalide" && return 1
+git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$NEW_RELEASE"
+```
+
+Si l’erreur persiste, vérifier que la deploy key GitHub est bien attachée au dépôt `E-merging-digital/agency-website-drupal` avec accès en lecture.
+
+## 8) Précautions importantes
 
 - Ne jamais modifier directement une release active.
 - Ne jamais committer `settings.php`.
@@ -171,7 +212,7 @@ vendor/bin/drush watchdog:show
 chmod -R ug+rwX /var/www/agency/current
 ```
 
-## 8) Perspective CI/CD
+## 9) Perspective CI/CD
 
 Cette procédure manuelle sert de base à l’automatisation future (ex. GitHub Actions) :
 
@@ -183,56 +224,36 @@ Cette procédure manuelle sert de base à l’automatisation future (ex. GitHub 
 
 Aucun workflow CI/CD n’est créé à ce stade : ce document définit la référence opérationnelle.
 
+## 10) Procédure automatique (script)
 
-## 9) Déploiement automatisé
+Un script de déploiement est disponible : `scripts/deploy.sh`.
 
-Le script `scripts/deploy-production.sh` automatise la procédure de déploiement en production en conservant le même modèle à releases.
-
-### 9.1 Utilisation
-
-```bash
-bash scripts/deploy-production.sh main
-```
-
-- Le paramètre de branche est optionnel (`main` par défaut).
-- Le script crée une release horodatée sous `/var/www/agency/releases`.
-- Il exécute l’installation Composer, les symlinks partagés, le backup DB, le mode maintenance, les commandes Drush et le nettoyage.
-
-### 9.2 Logs et backups
-
-- Logs de déploiement : `/var/www/agency/shared/deployments.log`
-- Backups base de données : `/var/www/agency/shared/backups`
-
-Chaque exécution journalise notamment : timestamp, branche, commit, chemin de release, utilisateur Linux et statut final (`success` / `failure`).
-
-### 9.3 Politique de conservation
-
-- Releases : conservation des **3** plus récentes (sans supprimer la release active).
-- Backups DB : conservation des **10** plus récents.
-
-### 9.4 Rollback après déploiement automatisé
-
-1. Lister les releases disponibles :
+### Usage standard
 
 ```bash
-ls -1dt /var/www/agency/releases/*
-```
-
-2. Repointer `current` vers la release cible :
-
-```bash
-ROLLBACK_RELEASE="/var/www/agency/releases/<timestamp_precedent>"
-ln -sfn "$ROLLBACK_RELEASE" /var/www/agency/current
-```
-
-3. Finaliser côté Drupal :
-
-```bash
+ssh ubuntu@emergingdigital
+sudo -iu deploy
 cd /var/www/agency/current
-vendor/bin/drush state:set system.maintenance_mode 0 --input-format=integer
-vendor/bin/drush cr
+
+BRANCH=main /var/www/agency/current/scripts/deploy.sh
 ```
 
-4. Vérifier le fonctionnement du site et les logs (`deployments.log`, watchdog Drupal).
+### Variables supportées
 
-> Important : le rollback de code est immédiat via symlink, mais la restauration DB reste une opération séparée (à faire depuis les backups SQL si nécessaire).
+```bash
+PROJECT_ROOT=/var/www/agency
+RELEASES_DIR=/var/www/agency/releases
+SHARED_DIR=/var/www/agency/shared
+REPO_URL=git@github.com:E-merging-digital/agency-website-drupal.git
+BRANCH=main
+KEEP_RELEASES=3
+RUN_NGINX_RELOAD=0
+```
+
+Exemple avec reload Nginx :
+
+```bash
+BRANCH=main RUN_NGINX_RELOAD=1 /var/www/agency/current/scripts/deploy.sh
+```
+
+Le script applique la même logique que la procédure manuelle : validation GitHub, clone timestampé, `composer install`, symlinks partagés, bascule `current`, `drush updb`, `drush cim`, `drush cr`, puis nettoyage des anciennes releases.

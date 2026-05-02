@@ -257,3 +257,29 @@ BRANCH=main RUN_NGINX_RELOAD=1 /var/www/agency/current/scripts/deploy.sh
 ```
 
 Le script applique la même logique que la procédure manuelle : validation GitHub, clone timestampé, `composer install`, symlinks partagés, bascule `current`, `drush updb`, `drush cim`, `drush cr`, puis nettoyage des anciennes releases.
+
+## 11) Déploiement automatisé
+
+Le script `scripts/deploy-production.sh` automatise le déploiement en production avec gestion robuste des erreurs.
+
+### Commande
+
+```bash
+bash scripts/deploy-production.sh main
+```
+
+### Ce que fait le script
+
+- crée une nouvelle release timestampée dans `/var/www/agency/releases` ;
+- exécute un backup de base de données (si une release `current` existe) dans `/var/www/agency/shared/backups` ;
+- active le mode maintenance Drupal juste avant la bascule de release ;
+- bascule `current` vers la nouvelle release puis exécute `drush updb`, `drush cim`, `drush cr` ;
+- désactive le mode maintenance après succès ;
+- écrit un journal persistant dans `/var/www/agency/shared/deployments.log` (statuts `START`, `SUCCESS`, `FAILURE`) ;
+- conserve les 3 dernières releases sans supprimer celle pointée par `current` ;
+- conserve les 10 derniers backups DB ;
+- en cas d’échec, trace l’erreur, tente de désactiver la maintenance, et laisse la release précédente intacte.
+
+### Rollback
+
+Le rollback reste basé sur le repointage du symlink `current` vers une release précédente (voir section 4). Le script ne supprime pas la release active précédente en cas d’erreur, ce qui permet un retour arrière rapide.

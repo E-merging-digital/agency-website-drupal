@@ -7,36 +7,47 @@ TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 PROJECT_ROOT="/var/www/agency"
 RELEASES_DIR="/var/www/agency/releases"
 SHARED_DIR="/var/www/agency/shared"
-BACKUPS_DIR="/var/www/agency/shared/backups"
-LOG_FILE="/var/www/agency/shared/deployments.log"
+BACKUPS_DIR="$SHARED_DIR/backups"
+LOG_FILE="$SHARED_DIR/deployments.log"
 REPO_URL="git@github.com:<org>/<repo>.git"
 CURRENT_LINK="$PROJECT_ROOT/current"
 NEW_RELEASE="$RELEASES_DIR/$TIMESTAMP"
 ACTIVE_RELEASE=""
 DEPLOY_USER="$(id -un)"
-COMMIT_HASH="unknown"
-DEPLOY_STATUS="failure"
+GIT_COMMIT="unknown"
+MAINTENANCE_ENABLED=0
 
 log() {
   local message="$1"
-  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$message" | tee -a "$LOG_FILE"
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$message"
+}
+
+log_file() {
+  local status="$1"
+  local message="$2"
+  printf '[%s] %s | %s | %s | %s | %s\n' \
+    "$(date '+%Y-%m-%d %H:%M:%S')" \
+    "$status" \
+    "$BRANCH" \
+    "$GIT_COMMIT" \
+    "$NEW_RELEASE" \
+    "$message" >> "$LOG_FILE"
 }
 
 fail_trap() {
   local exit_code="$?"
   local line_no="${1:-unknown}"
 
-  log "ERROR: Deployment failed at line ${line_no} with exit code ${exit_code}."
+  log "[deploy] ERROR at line ${line_no} (exit ${exit_code})"
+  log_file "FAILURE" "Deployment failed at line ${line_no} (exit ${exit_code})"
 
-  if [[ -L "$CURRENT_LINK" ]] && [[ -x "$CURRENT_LINK/vendor/bin/drush" ]]; then
-    log "Attempting to disable maintenance mode on active release after failure."
+  if [[ "$MAINTENANCE_ENABLED" -eq 1 ]] && [[ -x "$CURRENT_LINK/vendor/bin/drush" ]]; then
+    log "[deploy] Attempting Maintenance OFF after failure"
     "$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 0 --input-format=integer || true
     "$CURRENT_LINK/vendor/bin/drush" cr || true
-  else
-    log "No active release with Drush detected to disable maintenance mode after failure."
   fi
 
-  log "Deployment metadata: timestamp=${TIMESTAMP} branch=${BRANCH} commit=${COMMIT_HASH} release=${NEW_RELEASE} user=${DEPLOY_USER} status=${DEPLOY_STATUS}"
+  log "Deployment failed. Previous release kept intact."
   exit "$exit_code"
 }
 
@@ -45,8 +56,9 @@ trap 'fail_trap $LINENO' ERR
 mkdir -p "$RELEASES_DIR" "$SHARED_DIR" "$BACKUPS_DIR" "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"
 
-log "Starting deployment for branch '${BRANCH}'."
-log "Creating new release directory: ${NEW_RELEASE}"
+log "[deploy] START branch=${BRANCH}"
+log_file "START" "Deployment started"
+log "[deploy] Prepare release ${NEW_RELEASE}"
 
 if [[ -e "$NEW_RELEASE" ]]; then
   log "ERROR: Release directory already exists: ${NEW_RELEASE}"
@@ -55,12 +67,13 @@ fi
 
 mkdir -p "$NEW_RELEASE"
 
+log "[deploy] Clone"
 git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$NEW_RELEASE"
-COMMIT_HASH="$(git -C "$NEW_RELEASE" rev-parse --short HEAD)"
-log "Repository cloned at commit ${COMMIT_HASH}."
+GIT_COMMIT="$(git -C "$NEW_RELEASE" rev-parse HEAD)"
+log "Repository cloned at commit ${GIT_COMMIT}."
 
+log "[deploy] Composer"
 composer --working-dir="$NEW_RELEASE" install --no-dev --optimize-autoloader
-log "Composer dependencies installed."
 
 mkdir -p "$SHARED_DIR/files" "$SHARED_DIR/private" "$SHARED_DIR/settings"
 ln -sfn "$SHARED_DIR/files" "$NEW_RELEASE/web/sites/default/files"
@@ -73,30 +86,43 @@ if [[ -L "$CURRENT_LINK" ]]; then
 
   if [[ -x "$CURRENT_LINK/vendor/bin/drush" ]]; then
     DB_BACKUP="$BACKUPS_DIR/db-${TIMESTAMP}.sql.gz"
-    "$CURRENT_LINK/vendor/bin/drush" sql:dump --gzip --result-file="$DB_BACKUP"
+    log "[deploy] Backup DB"
+    (
+      cd "$CURRENT_LINK"
+      vendor/bin/drush sql:dump --gzip --result-file="$DB_BACKUP"
+    )
     log "Database backup created: ${DB_BACKUP}"
+  else
+    log "WARNING: Drush not available on active release. Skipping DB backup."
+  fi
 
+  if [[ -x "$CURRENT_LINK/vendor/bin/drush" ]]; then
+    log "[deploy] Maintenance ON"
     "$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 1 --input-format=integer
     "$CURRENT_LINK/vendor/bin/drush" cr
-    log "Maintenance mode enabled on active release."
-  else
-    log "WARNING: Drush not available on active release. Skipping DB backup and maintenance mode activation."
+    MAINTENANCE_ENABLED=1
   fi
 else
-  log "No current release detected. Skipping DB backup and maintenance mode activation."
+  log "No current release detected."
+  log_file "START" "no previous release, no backup"
 fi
 
+if [[ -x "$NEW_RELEASE/vendor/bin/drush" ]]; then
+  "$NEW_RELEASE/vendor/bin/drush" status >/dev/null
+fi
+
+log "[deploy] Switch release"
 ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"
-log "Current symlink switched to new release."
 
 "$CURRENT_LINK/vendor/bin/drush" updb -y
 "$CURRENT_LINK/vendor/bin/drush" cim -y
 "$CURRENT_LINK/vendor/bin/drush" cr
 log "Drupal update, config import and cache rebuild completed."
 
+log "[deploy] Maintenance OFF"
 "$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 0 --input-format=integer
 "$CURRENT_LINK/vendor/bin/drush" cr
-log "Maintenance mode disabled on new release."
+MAINTENANCE_ENABLED=0
 
 mapfile -t all_releases < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r)
 if (( ${#all_releases[@]} > 3 )); then
@@ -117,6 +143,5 @@ if (( ${#all_backups[@]} > 10 )); then
   done
 fi
 
-DEPLOY_STATUS="success"
-log "Deployment completed successfully."
-log "Deployment metadata: timestamp=${TIMESTAMP} branch=${BRANCH} commit=${COMMIT_HASH} release=${NEW_RELEASE} user=${DEPLOY_USER} status=${DEPLOY_STATUS}"
+log "[deploy] SUCCESS"
+log_file "SUCCESS" "Deployment completed successfully"

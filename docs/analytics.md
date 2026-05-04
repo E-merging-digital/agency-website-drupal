@@ -25,6 +25,8 @@ Valeur placeholder utilisée si l'ID réel n'est pas encore fourni :
 
 - `G-XXXXXXXXXX`
 
+ID actuellement prévu pour la production : `G-K5TDNZCPTY` (à conserver uniquement dans la config de split production).
+
 ## Config Split production
 
 Le split `production` doit être activé uniquement en environnement de production (via `settings.php`/`settings.prod.php` selon la convention projet).

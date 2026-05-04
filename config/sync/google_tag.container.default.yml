@@ -6,7 +6,7 @@ dependencies:
     - google_tag
 id: default
 label: 'Google Analytics 4'
-container_id: ''
+tag_container_ids: {  }
 conditions: {  }
 events: {  }
 include_environment: false
@@ -17,4 +17,3 @@ allowlist_classes: ''
 blocklist_classes: ''
 include_environment_prefix: false
 environment_prefix: ''
-html_container: google_tag.container.default

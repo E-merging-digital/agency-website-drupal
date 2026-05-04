@@ -19,10 +19,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup PHP 8.3
+      - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           tools: composer:v2
           coverage: none
           extensions: sqlite3
@@ -43,7 +43,7 @@ jobs:
         run: composer validate --strict
 
       - name: Install dependencies (with require-dev)
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
 
       - name: Run quality scripts defined in composer.json
         run: |

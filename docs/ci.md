@@ -2,7 +2,7 @@
 
 ## Objectif
 
-La CI exécute un pipeline ciblé pour Drupal 11 / PHP 8.3 sur GitHub Actions, avec :
+La CI exécute un pipeline ciblé pour Drupal 11 / PHP 8.4 sur GitHub Actions, avec :
 
 - validation Composer stricte ;
 - installation des dépendances (avec `require-dev`) ;
@@ -59,3 +59,18 @@ ddev exec env SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site SIMPLET
 Le déploiement production est documenté dans `docs/deployment.md` et automatisé via `scripts/deploy.sh`.
 
 Ce script n'est **pas** exécuté par la CI actuelle ; il constitue la base d'un futur workflow GitHub Actions de déploiement contrôlé (approval manuel, secrets GitHub, SSH vers serveur).
+
+
+## Version PHP de la CI
+
+La CI est désormais alignée sur **PHP 8.4** pour refléter les environnements réels du projet :
+
+- **production** : Ubuntu 24.04 + PHP 8.4 ;
+- **local** : DDEV en PHP 8.4 ;
+- **CI GitHub Actions** : setup-php configuré en PHP 8.4.
+
+Cet alignement réduit les écarts de comportement entre local, CI et production, et limite les faux positifs/négatifs de validation.
+
+### Modifier la version PHP si nécessaire
+
+Si une évolution future impose un changement de version, mettre à jour la clé `php-version` dans `.github/workflows/ci.yml` (étape `shivammathur/setup-php@v2`) puis vérifier les exécutions CI associées.

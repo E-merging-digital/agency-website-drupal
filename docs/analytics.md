@@ -27,19 +27,30 @@ Valeur placeholder utilisée si l'ID réel n'est pas encore fourni :
 
 ID actuellement prévu pour la production : `G-K5TDNZCPTY` (à conserver uniquement dans la config de split production).
 
-## Config Split production
+## Activation du split production
 
-Le split `production` doit être activé uniquement en environnement de production (via `settings.php`/`settings.prod.php` selon la convention projet).
+Le split concerné est : `config_split.config_split.production`.
 
-Quand le split est actif :
+L'activation doit être faite **uniquement sur le serveur de production**, dans le fichier :
 
-- `google_tag.container.default` est surchargé avec `status: true`
-- `container_id` contient l'ID GA4 réel
+- `/var/www/agency/shared/settings/settings.php`
 
-Quand le split est inactif (local/DDEV) :
+Ligne attendue :
 
-- `google_tag.container.default` reste `status: false`
-- aucun script Google Tag n'est injecté
+```php
+$config['config_split.config_split.production']['status'] = TRUE;
+```
+
+### Important
+
+- `settings.php` de production n'est **pas versionné** dans ce dépôt.
+- Cette ligne ne doit **pas** être ajoutée dans la configuration locale/DDEV.
+- En local (DDEV), le split `production` doit rester désactivé.
+
+### Effet attendu
+
+- En production (split activé) : Google Tag est injecté selon la config du split.
+- En local/DDEV (split désactivé) : aucun script Google Tag n'est injecté.
 
 ## Vérifier que le script est présent en production
 

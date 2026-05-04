@@ -1,5 +1,9 @@
 # Déploiement manuel en production (GandiCloud)
 
+## Références complémentaires
+
+- Configuration HTTPS (Let's Encrypt / Certbot, politique canonique) : `docs/https.md`
+
 ## 1) Principe général du déploiement
 
 Le déploiement repose sur une structure **à releases timestampées** :

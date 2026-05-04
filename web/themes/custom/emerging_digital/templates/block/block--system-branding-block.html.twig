@@ -4,7 +4,7 @@
  * Theme override for the site branding block.
  */
 #}
-{% set brand_mark = directory ~ '/images/branding/emerging-digital-mark.svg' %}
+{% set brand_mark = base_path ~ directory ~ '/images/branding/emerging-digital-mark.svg' %}
 
 <div{{ attributes.addClass('site-branding') }}>
   {{ title_prefix }}

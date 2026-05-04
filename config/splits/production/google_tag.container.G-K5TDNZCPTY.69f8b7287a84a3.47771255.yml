@@ -1,0 +1,25 @@
+uuid: ac0ce5d0-7020-422d-ba13-cb370c6b8310
+langcode: fr
+status: true
+dependencies: {  }
+id: G-K5TDNZCPTY.69f8b7287a84a3.47771255
+label: G-K5TDNZCPTY
+weight: 0
+tag_container_ids:
+  - G-K5TDNZCPTY
+  - ''
+advanced_settings:
+  consent_mode: false
+dimensions_metrics: {  }
+conditions: {  }
+events:
+  webform_purchase: {  }
+  sign_up:
+    method: CMS
+  login:
+    method: CMS
+  generate_lead:
+    value: ''
+    currency: ''
+  custom: {  }
+  search: {  }

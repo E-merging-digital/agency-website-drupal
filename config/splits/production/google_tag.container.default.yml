@@ -1,0 +1,20 @@
+uuid: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+langcode: en
+status: true
+dependencies:
+  module:
+    - google_tag
+id: default
+label: 'Google Analytics 4'
+container_id: G-XXXXXXXXXX
+conditions: {  }
+events: {  }
+include_environment: false
+environment_id: ''
+environment_token: ''
+include_classes: false
+allowlist_classes: ''
+blocklist_classes: ''
+include_environment_prefix: false
+environment_prefix: ''
+html_container: google_tag.container.default

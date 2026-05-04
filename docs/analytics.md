@@ -31,6 +31,7 @@ ID actuellement prévu pour la production : `G-K5TDNZCPTY` (à conserver uniquem
 
 Le module `google_tag` en version 2.x lit les identifiants via la clé `tag_container_ids`.
 Le format historique `container_id` (et `html_container`) est obsolète et n'est pas appliqué dans cette version.
+La configuration exportée en 2.x inclut aussi des blocs comme `weight`, `advanced_settings` et `dimensions_metrics` : conserver cette structure évite un état `Different` après `drush cim`.
 
 Exemple attendu pour GA4 en production :
 

@@ -6,15 +6,10 @@ dependencies:
     - google_tag
 id: default
 label: 'Google Analytics 4'
+weight: 0
 tag_container_ids:
   google_tag: G-K5TDNZCPTY
+advanced_settings: {  }
+dimensions_metrics: {  }
 conditions: {  }
 events: {  }
-include_environment: false
-environment_id: ''
-environment_token: ''
-include_classes: false
-allowlist_classes: ''
-blocklist_classes: ''
-include_environment_prefix: false
-environment_prefix: ''

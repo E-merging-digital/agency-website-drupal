@@ -283,3 +283,7 @@ bash scripts/deploy-production.sh main
 ### Rollback
 
 Le rollback reste basé sur le repointage du symlink `current` vers une release précédente (voir section 4). Le script ne supprime pas la release active précédente en cas d’erreur, ce qui permet un retour arrière rapide.
+
+## 10) Référence SSH
+
+Pour la séparation des clés SSH (serveur, GitHub Actions, accès personnels), voir `docs/infra-ssh.md`.

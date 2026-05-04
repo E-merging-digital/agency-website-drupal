@@ -1,0 +1,17 @@
+uuid: 11111111-2222-4333-8444-555555555555
+langcode: en
+status: false
+dependencies: {  }
+id: production
+label: Production
+description: 'Production-only overrides (analytics, etc.).'
+weight: 0
+stackable: false
+no_patching: false
+storage: ../config/splits/production
+folder: ../config/splits/production
+module: {  }
+theme: {  }
+complete_list:
+  - google_tag.container.default
+partial_list: {  }

@@ -3,6 +3,7 @@
 ## Références complémentaires
 
 - Configuration HTTPS (Let's Encrypt / Certbot, politique canonique) : `docs/https.md`
+- Configuration Analytics GA4 (Google Tag + Config Split) : `docs/analytics.md`
 
 ## 1) Principe général du déploiement
 

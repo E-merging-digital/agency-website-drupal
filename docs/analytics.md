@@ -27,19 +27,33 @@ Valeur placeholder utilisée si l'ID réel n'est pas encore fourni :
 
 ID actuellement prévu pour la production : `G-K5TDNZCPTY` (à conserver uniquement dans la config de split production).
 
+## Format de configuration attendu (`google_tag` 2.x)
+
+Le module `google_tag` en version 2.x lit les identifiants via la clé `tag_container_ids`.
+Le format historique `container_id` (et `html_container`) est obsolète et n'est pas appliqué dans cette version.
+La configuration exportée en 2.x inclut aussi des blocs comme `weight`, `advanced_settings` et `dimensions_metrics` : conserver cette structure évite un état `Different` après `drush cim`.
+
+Exemple attendu pour GA4 en production :
+
+```yaml
+tag_container_ids:
+  google_tag: G-K5TDNZCPTY
+```
+
+⚠️ Attention : selon la version majeure du module, la structure YAML peut différer. Toujours vérifier le schéma attendu par la version installée avant de modifier la config.
+
 ## Activation du split production
 
 Le split concerné est : `config_split.config_split.production`.
 
-L'activation doit être faite **uniquement sur le serveur de production**, dans le fichier :
-
-- `/var/www/agency/shared/settings/settings.php`
-
-Ligne attendue :
+- Dans `config/sync`, ce split reste avec `status: false`.
+- En production uniquement, `settings.php` force son activation avec :
 
 ```php
 $config['config_split.config_split.production']['status'] = TRUE;
 ```
+
+Ce mécanisme permet de conserver une base locale/dev sûre (tracking désactivé), puis d'activer GA4 uniquement en production au moment du `drush cim`.
 
 ### Important
 

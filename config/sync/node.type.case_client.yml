@@ -9,9 +9,3 @@ help: null
 new_revision: true
 preview_mode: 1
 display_submitted: false
-third_party_settings:
-  simple_sitemap:
-    index: true
-    priority: '0.7'
-    changefreq: weekly
-    include_images: true

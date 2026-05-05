@@ -11,8 +11,7 @@ preview_mode: 1
 display_submitted: true
 third_party_settings:
   simple_sitemap:
-    sitemap:
-      default:
-        index: true
-        priority: '0.7'
-        changefreq: weekly
+    index: true
+    priority: '0.7'
+    changefreq: weekly
+    include_images: true

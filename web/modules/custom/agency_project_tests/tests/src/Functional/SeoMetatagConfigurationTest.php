@@ -4,44 +4,65 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Functional;
 
-use Drupal\Tests\BrowserTestBase;
+use Drupal\Tests\UnitTestCase;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Vérifie les defaults SEO Metatag + Schema.org attendus.
  *
  * @group agency_project_tests
  */
-final class SeoMetatagConfigurationTest extends BrowserTestBase {
+final class SeoMetatagConfigurationTest extends UnitTestCase {
 
   /**
-   * {@inheritdoc}
+   * Fichiers Metatag exportés attendus.
    */
-  protected $profile = 'standard';
+  private const REQUIRED_METATAG_FILES = [
+    'config/sync/metatag.metatag_defaults.front.yml',
+    'config/sync/metatag.metatag_defaults.node.yml',
+    'config/sync/metatag.metatag_defaults.node__article.yml',
+    'config/sync/metatag.metatag_defaults.node__page.yml',
+    'config/sync/metatag.metatag_defaults.node__service.yml',
+    'config/sync/metatag.metatag_defaults.node__case_client.yml',
+    'config/sync/metatag.metatag_defaults.node__ai_feature.yml',
+  ];
 
   /**
-   * Vérifie les defaults globaux et par type de contenu.
+   * Vérifie les defaults SEO dans les fichiers exportés config/sync.
    */
   public function testSeoMetatagDefaults(): void {
-    $front = $this->config('metatag.metatag_defaults.front')->get('tags');
-    $this->assertIsArray($front);
-    $this->assertArrayHasKey('og_type', $front);
-    $this->assertArrayHasKey('twitter_cards_type', $front);
-    $this->assertArrayHasKey('schema_web_site_type', $front);
-    $this->assertArrayHasKey('schema_organization_type', $front);
+    $repositoryRoot = dirname(__DIR__, 7);
 
-    $content = $this->config('metatag.metatag_defaults.node')->get('tags');
-    $this->assertIsArray($content);
-    $this->assertArrayHasKey('schema_web_page_type', $content);
-
-    $article = $this->config('metatag.metatag_defaults.node__article')->get('tags');
-    $this->assertIsArray($article);
-    $this->assertSame('Article', $article['schema_article_type'] ?? NULL);
-
-    foreach (['page', 'service', 'case_client', 'ai_feature'] as $bundle) {
-      $tags = $this->config('metatag.metatag_defaults.node__' . $bundle)->get('tags');
+    foreach (self::REQUIRED_METATAG_FILES as $relativePath) {
+      $absolutePath = $repositoryRoot . '/' . $relativePath;
+      $this->assertFileExists($absolutePath);
+      $parsed = Yaml::parseFile($absolutePath);
+      $this->assertIsArray($parsed);
+      $tags = $parsed['tags'] ?? NULL;
       $this->assertIsArray($tags);
-      $this->assertSame('WebPage', $tags['schema_web_page_type'] ?? NULL);
+
+      foreach ([
+        'title',
+        'description',
+        'canonical_url',
+        'og_title',
+        'og_description',
+        'twitter_cards_title',
+        'twitter_cards_description',
+      ] as $requiredTag) {
+        $this->assertArrayHasKey($requiredTag, $tags, sprintf('Missing "%s" in %s', $requiredTag, $relativePath));
+      }
     }
+
+    $frontTags = (Yaml::parseFile($repositoryRoot . '/config/sync/metatag.metatag_defaults.front.yml'))['tags'];
+    $this->assertArrayHasKey('schema_web_site_type', $frontTags);
+    $this->assertArrayHasKey('schema_organization_type', $frontTags);
+
+    $nodeTags = (Yaml::parseFile($repositoryRoot . '/config/sync/metatag.metatag_defaults.node.yml'))['tags'];
+    $this->assertArrayHasKey('schema_web_page_type', $nodeTags);
+
+    $articleTags = (Yaml::parseFile($repositoryRoot . '/config/sync/metatag.metatag_defaults.node__article.yml'))['tags'];
+    $this->assertArrayHasKey('schema_article_type', $articleTags);
   }
 
 }

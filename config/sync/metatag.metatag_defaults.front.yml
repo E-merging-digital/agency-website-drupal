@@ -7,14 +7,20 @@ _core:
 id: front
 label: 'Front page'
 tags:
-  title: 'Drupal, accessibilité & IA utile | [site:name]'
-  description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibilité web et IA utile dans le CMS.'
+  title: '[site:name] | [site:slogan]'
+  description: '[site:slogan]'
   canonical_url: '[site:url]'
   shortlink: '[site:url]'
-  og_title: 'Drupal, accessibilité & IA utile | [site:name]'
-  og_description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibilité web et IA utile dans le CMS.'
+  og_title: '[site:name] | [site:slogan]'
+  og_description: '[site:slogan]'
   og_url: '[site:url]'
   og_type: website
-  twitter_cards_type: summary
-  twitter_cards_title: 'Drupal, accessibilité & IA utile | [site:name]'
-  twitter_cards_description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibilité web et IA utile dans le CMS.'
+  twitter_cards_type: summary_large_image
+  twitter_cards_title: '[site:name] | [site:slogan]'
+  twitter_cards_description: '[site:slogan]'
+  schema_web_site_type: WebSite
+  schema_web_site_name: '[site:name]'
+  schema_web_site_url: '[site:url]'
+  schema_organization_type: Organization
+  schema_organization_name: '[site:name]'
+  schema_organization_url: '[site:url]'

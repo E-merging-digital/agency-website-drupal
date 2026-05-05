@@ -13,6 +13,9 @@ require __DIR__ . '/default.settings.php';
 $settings['config_sync_directory'] = '../config/sync';
 $settings['file_private_path'] = '../private';
 
+// Disable production-only configuration split in local/DDEV.
+$config['config_split.config_split.production']['status'] = FALSE;
+
 /**
  * Include environment-specific overrides in a predictable order:
  * 1) DDEV managed settings (project-level local container environment).

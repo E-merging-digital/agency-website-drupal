@@ -16,3 +16,5 @@ hide_branding: false
 excluded_languages: {  }
 enabled_entity_types:
   - node
+  - taxonomy_term
+  - menu_link_content

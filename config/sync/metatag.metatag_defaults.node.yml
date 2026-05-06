@@ -7,14 +7,10 @@ _core:
 id: node
 label: Content
 tags:
-  title: '[node:title] | [site:name]'
+  title: '[node:title] | E-merging Digital'
   description: '[node:summary]'
   canonical_url: '[node:url]'
-  og_title: '[node:title] | [site:name]'
+  og_title: '[node:title] | E-merging Digital'
   og_description: '[node:summary]'
   og_url: '[node:url]'
   og_type: article
-  twitter_cards_type: summary_large_image
-  twitter_cards_title: '[node:title] | [site:name]'
-  twitter_cards_description: '[node:summary]'
-  schema_web_page_type: WebPage

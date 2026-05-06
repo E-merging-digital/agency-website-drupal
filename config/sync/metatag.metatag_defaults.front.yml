@@ -8,9 +8,10 @@ id: front
 label: 'Front page'
 tags:
   canonical_url: '[site:url]'
-  description: '[site:slogan]'
-  og_description: '[site:slogan]'
-  og_title: '[site:name] | [site:slogan]'
+  description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibles, évolutifs et IA utile dans le CMS.'
+  og_description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibles, évolutifs et IA utile dans le CMS.'
+  og_site_name: '[site:name]'
+  og_title: 'Drupal accessible & IA utile | [site:name]'
   og_type: website
   og_url: '[site:url]'
   schema_organization_name: '[site:name]'
@@ -20,7 +21,7 @@ tags:
   schema_web_site_type: WebSite
   schema_web_site_url: '[site:url]'
   shortlink: '[site:url]'
-  title: '[site:name] | [site:slogan]'
-  twitter_cards_description: '[site:slogan]'
-  twitter_cards_title: '[site:name] | [site:slogan]'
-  twitter_cards_type: summary_large_image
+  title: 'Drupal accessible & IA utile | [site:name]'
+  twitter_cards_description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibles, évolutifs et IA utile dans le CMS.'
+  twitter_cards_title: 'Drupal accessible & IA utile | [site:name]'
+  twitter_cards_type: summary

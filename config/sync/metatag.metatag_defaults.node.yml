@@ -7,14 +7,17 @@ _core:
 id: node
 label: Content
 tags:
-  title: '[node:title] | [site:name]'
-  description: '[node:summary]'
   canonical_url: '[node:url]'
-  og_title: '[node:title] | [site:name]'
+  description: '[node:summary]'
   og_description: '[node:summary]'
+  og_title: '[node:title] | [site:name]'
+  og_type: website
   og_url: '[node:url]'
-  og_type: article
-  twitter_cards_type: summary_large_image
-  twitter_cards_title: '[node:title] | [site:name]'
+  schema_web_page_description: '[node:summary]'
+  schema_web_page_id: '[node:url]'
+  schema_web_page_publisher: 'a:3:{s:5:"@type";s:12:"Organization";s:4:"name";s:11:"[site:name]";s:3:"url";s:10:"[site:url]";}'
+  twitter_cards_type: summary
   twitter_cards_description: '[node:summary]'
+  twitter_cards_title: '[node:title] | [site:name]'
+  title: '[node:title] | [site:name]'
   schema_web_page_type: WebPage

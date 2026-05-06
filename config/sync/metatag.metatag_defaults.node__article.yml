@@ -7,13 +7,22 @@ dependencies:
 id: node__article
 label: 'Content: Article'
 tags:
-  title: '[node:title] | [site:name]'
-  description: '[node:field_short_description:value]'
   canonical_url: '[node:url]'
-  og_title: '[node:title] | [site:name]'
+  description: '[node:field_short_description:value]'
   og_description: '[node:field_short_description:value]'
-  og_url: '[node:url]'
+  og_title: '[node:title] | [site:name]'
   og_type: article
+  og_url: '[node:url]'
+  schema_article_author: 'a:2:{s:5:"@type";s:6:"Person";s:4:"name";s:26:"[node:author:display-name]";}'
+  schema_article_date_modified: '[node:changed:html_datetime]'
+  schema_article_date_published: '[node:created:html_datetime]'
+  schema_article_description: '[node:field_short_description:value]'
+  schema_article_headline: '[node:title]'
+  schema_article_id: '[node:url]'
+  schema_article_main_entity_of_page: '[node:url]'
+  schema_article_publisher: 'a:3:{s:5:"@type";s:12:"Organization";s:4:"name";s:11:"[site:name]";s:3:"url";s:10:"[site:url]";}'
   twitter_cards_type: summary
-  twitter_cards_title: '[node:title] | [site:name]'
   twitter_cards_description: '[node:field_short_description:value]'
+  twitter_cards_title: '[node:title] | [site:name]'
+  title: '[node:title] | [site:name]'
+  schema_article_type: Article

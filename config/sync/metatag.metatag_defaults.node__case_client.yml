@@ -7,13 +7,16 @@ dependencies:
 id: node__case_client
 label: 'Content: Cas client'
 tags:
-  title: '[node:title] | [site:name]'
-  description: '[node:field_short_description:value]'
   canonical_url: '[node:url]'
-  og_title: '[node:title] | [site:name]'
+  description: '[node:field_short_description:value]'
   og_description: '[node:field_short_description:value]'
-  og_url: '[node:url]'
+  og_title: '[node:title] | [site:name]'
   og_type: website
+  og_url: '[node:url]'
+  schema_web_page_description: '[node:field_short_description:value]'
+  schema_web_page_id: '[node:url]'
   twitter_cards_type: summary
-  twitter_cards_title: '[node:title] | [site:name]'
   twitter_cards_description: '[node:field_short_description:value]'
+  twitter_cards_title: '[node:title] | [site:name]'
+  title: '[node:title] | [site:name]'
+  schema_web_page_type: WebPage

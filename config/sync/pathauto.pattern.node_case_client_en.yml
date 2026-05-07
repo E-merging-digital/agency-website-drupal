@@ -8,7 +8,7 @@ dependencies:
 id: node_case_client_en
 label: 'Content path pattern (Cas client EN)'
 type: 'canonical_entities:node'
-pattern: 'en/case-studies/[node:title]'
+pattern: 'case-studies/[node:title]'
 selection_criteria:
   9f6b80eb-a1a9-4a02-999f-c4c64494d467:
     id: 'entity_bundle:node'

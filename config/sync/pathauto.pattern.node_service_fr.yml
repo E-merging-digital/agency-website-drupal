@@ -8,7 +8,7 @@ dependencies:
 id: node_service_fr
 label: 'Content path pattern (Service FR)'
 type: 'canonical_entities:node'
-pattern: 'fr/services/[node:title]'
+pattern: 'services/[node:title]'
 selection_criteria:
   b7dfe028-8fee-45b8-bfc1-895e3044f66a:
     id: 'entity_bundle:node'

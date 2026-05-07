@@ -265,6 +265,133 @@ function emerging_digital_content_post_update_main_navigation_deduplicate_home_l
 }
 
 /**
+ * Fixes multilingual aliases and menu links for public English pages.
+ */
+function emerging_digital_content_post_update_fix_multilingual_public_aliases(array &$sandbox): string {
+  unset($sandbox);
+
+  $entity_type_manager = \Drupal::entityTypeManager();
+  $node_storage = $entity_type_manager->getStorage('node');
+  $menu_link_storage = $entity_type_manager->getStorage('menu_link_content');
+  $pathauto_generator = \Drupal::service('pathauto.generator');
+  $database = \Drupal::database();
+
+  $updated_translations = 0;
+  $updated_footer_links = 0;
+  $regenerated_aliases = 0;
+
+  $english_pages = [
+    1 => 'Case studies',
+    2 => 'Contact',
+  ];
+
+  foreach ($english_pages as $nid => $title) {
+    $node = $node_storage->load($nid);
+    if (!$node instanceof Node) {
+      continue;
+    }
+
+    if ($node->hasTranslation('en')) {
+      $translation = $node->getTranslation('en');
+    }
+    else {
+      $translation = $node->addTranslation('en', $node->toArray());
+    }
+
+    $translation->setTitle($title);
+    $translation->setPublished(TRUE);
+    $translation->set('path', [
+      'alias' => '',
+      'pathauto' => 1,
+    ]);
+    $translation->save();
+    $updated_translations++;
+  }
+
+  $footer_links = [
+    6 => 'entity:node/6',
+    7 => 'entity:node/8',
+    8 => 'entity:node/7',
+  ];
+
+  foreach ($footer_links as $id => $uri) {
+    $link = $menu_link_storage->load($id);
+    if (!$link instanceof MenuLinkContent) {
+      continue;
+    }
+
+    foreach (array_keys($link->getTranslationLanguages()) as $langcode) {
+      $translation = $link->getTranslation($langcode);
+      $translation->set('link', [
+        'uri' => $uri,
+        'title' => '',
+        'options' => [],
+      ]);
+    }
+
+    $link->save();
+    $updated_footer_links++;
+  }
+
+  $select = $database->select('path_alias', 'pa')
+    ->fields('pa', ['path', 'langcode'])
+    ->condition('path', '/node/%', 'LIKE');
+  $select->condition($select->orConditionGroup()
+    ->condition('alias', '/en/%', 'LIKE')
+    ->condition('alias', '/fr/%', 'LIKE'));
+  $prefixed_aliases = $select->execute()->fetchAllAssoc('path');
+
+  foreach ($prefixed_aliases as $path => $record) {
+    $nid = (int) str_replace('/node/', '', $path);
+    $langcode = (string) $record->langcode;
+    $node = $node_storage->load($nid);
+    if (!$node instanceof Node || !$node->hasTranslation($langcode)) {
+      continue;
+    }
+
+    $translation = $node->getTranslation($langcode);
+    $translation->set('path', [
+      'alias' => '',
+      'pathauto' => 1,
+    ]);
+    $translation->save();
+  }
+
+  $delete = $database->delete('path_alias')
+    ->condition('path', '/node/%', 'LIKE');
+  $delete->condition($delete->orConditionGroup()
+    ->condition('alias', '/en/%', 'LIKE')
+    ->condition('alias', '/fr/%', 'LIKE'));
+  $delete->execute();
+
+  $target_nids = array_unique(array_merge(array_keys($english_pages), [3, 4, 5, 6, 7, 8]));
+  foreach ($target_nids as $nid) {
+    $node = $node_storage->load($nid);
+    if (!$node instanceof Node) {
+      continue;
+    }
+
+    foreach (array_keys($node->getTranslationLanguages()) as $langcode) {
+      $translation = $node->getTranslation($langcode);
+      $translation->set('path', [
+        'alias' => '',
+        'pathauto' => 1,
+      ]);
+      $translation->save();
+      $pathauto_generator->updateEntityAlias($translation, 'bulkupdate', ['force' => TRUE]);
+      $regenerated_aliases++;
+    }
+  }
+
+  return sprintf(
+    '%d translations updated, %d footer links normalized, %d aliases regenerated.',
+    $updated_translations,
+    $updated_footer_links,
+    $regenerated_aliases,
+  );
+}
+
+/**
  * Harmonise la page Contact et supprime le CTA redondant.
  */
 function emerging_digital_content_post_update_contact_page_professional_layout(array &$sandbox): string {

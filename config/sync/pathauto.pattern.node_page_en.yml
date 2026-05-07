@@ -8,7 +8,7 @@ dependencies:
 id: node_page_en
 label: 'Content path pattern (Page EN)'
 type: 'canonical_entities:node'
-pattern: 'en/[node:title]'
+pattern: '[node:title]'
 selection_criteria:
   ebe70e76-f61b-4479-92ad-81bf723e7cab:
     id: 'entity_bundle:node'

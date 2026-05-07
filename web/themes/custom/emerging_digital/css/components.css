@@ -435,6 +435,16 @@ button:focus-visible,
   white-space: nowrap;
 }
 
+.ed-cookie-banner .cookie-policy-link,
+.ed-cookie-banner .cookie-policy-link:visited {
+  color: #dbeafe;
+}
+
+.ed-cookie-banner .cookie-policy-link:hover,
+.ed-cookie-banner .cookie-policy-link:focus-visible {
+  color: #fff;
+}
+
 .cookie-policy-link--modal {
   display: inline-block;
   font-size: 0.8125rem;

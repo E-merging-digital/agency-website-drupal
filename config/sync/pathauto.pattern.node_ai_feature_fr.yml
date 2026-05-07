@@ -8,7 +8,7 @@ dependencies:
 id: node_ai_feature_fr
 label: 'Content path pattern (Fonctionnalité IA FR)'
 type: 'canonical_entities:node'
-pattern: 'fr/ia/[node:title]'
+pattern: 'ia/[node:title]'
 selection_criteria:
   2a32eac6-0667-429e-a6de-78caeb3f4c02:
     id: 'entity_bundle:node'

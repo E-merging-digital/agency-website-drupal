@@ -65,6 +65,41 @@ function emerging_digital_page_attachments(array &$attachments): void {
 }
 
 /**
+ * Implements hook_page_attachments_alter().
+ */
+function emerging_digital_page_attachments_alter(array &$attachments): void {
+  $attachments['#cache']['contexts'][] = 'user.roles:anonymous';
+
+  if (!_emerging_digital_should_strip_anonymous_editorial_assets()) {
+    return;
+  }
+
+  _emerging_digital_remove_attached_libraries($attachments, ['ai/ai_global']);
+}
+
+/**
+ * Returns whether anonymous public pages can skip theme-level editorial assets.
+ */
+function _emerging_digital_should_strip_anonymous_editorial_assets(): bool {
+  return \Drupal::currentUser()->isAnonymous()
+    && !\Drupal::service('router.admin_context')->isAdminRoute();
+}
+
+/**
+ * Removes selected libraries from a render array attachment list.
+ */
+function _emerging_digital_remove_attached_libraries(array &$build, array $libraries): void {
+  if (empty($build['#attached']['library'])) {
+    return;
+  }
+
+  $build['#attached']['library'] = array_values(array_diff(
+    $build['#attached']['library'],
+    $libraries,
+  ));
+}
+
+/**
  * Implements hook_preprocess_image().
  */
 function emerging_digital_preprocess_image(array &$variables): void {

@@ -60,7 +60,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     $this->config('language.negotiation')
       ->set('url.source', 'path_prefix')
-      ->set('url.prefixes', ['fr' => '', 'en' => 'en'])
+      ->set('url.prefixes', ['fr' => 'fr', 'en' => 'en'])
       ->set('url.domains', ['fr' => '', 'en' => ''])
       ->save();
 
@@ -79,9 +79,8 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         'language-selected' => -6,
       ])
       ->set('negotiation.language_content.enabled', [
-        'language-content-entity' => -10,
         'language-url' => -8,
-        'language-selected' => -6,
+        'language-selected' => 12,
       ])
       ->set('negotiation.language_url.enabled', [
         'language-url' => -8,
@@ -110,11 +109,11 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       'id' => 'test_language_switcher',
       'theme' => $this->defaultTheme,
       'region' => 'header_language',
-      'plugin' => 'language_dropdown_block:language_content',
+      'plugin' => 'language_dropdown_block:language_interface',
       'weight' => 0,
       'visibility' => [],
       'settings' => [
-        'id' => 'language_dropdown_block:language_content',
+        'id' => 'language_dropdown_block:language_interface',
         'label' => 'Language switcher',
         'label_display' => FALSE,
         'provider' => 'lang_dropdown',
@@ -155,7 +154,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     drupal_flush_all_caches();
 
-    $this->drupalGet('/cookies');
+    $this->getSession()->visit($this->baseUrl . '/fr/cookies');
     $this->assertSession()->statusCodeEquals(200);
 
     $frenchLinks = $this->getSwitcherMenuLinks();
@@ -168,13 +167,13 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
       self::assertStringNotContainsString('language_content_entity', $href);
     }
 
-    $this->drupalGet('/en/cookie-policy');
+    $this->getSession()->visit($this->baseUrl . '/en/cookie-policy');
     $this->assertSession()->statusCodeEquals(200);
 
     $englishLinks = $this->getSwitcherMenuLinks();
     self::assertTrue(
-      $this->containsPath($englishLinks, '/cookies'),
-      $this->buildSwitcherDebugMessage('/cookies', $englishLinks)
+      $this->containsPath($englishLinks, '/fr/cookies'),
+      $this->buildSwitcherDebugMessage('/fr/cookies', $englishLinks)
     );
 
     foreach ($englishLinks as $href) {
@@ -202,7 +201,7 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
 
     drupal_flush_all_caches();
 
-    $this->drupalGet('/cookies-only-fr');
+    $this->getSession()->visit($this->baseUrl . '/fr/cookies-only-fr');
     $this->assertSession()->statusCodeEquals(200);
 
     $links = $this->getSwitcherMenuLinks();
@@ -257,7 +256,8 @@ final class LanguageSwitcherAliasTest extends BrowserTestBase {
         'a[href]',
         'select option[value]',
         'select[data-drupal-selector] option[value]',
-        'input[value]',
+        'input[type="hidden"][name="en"][value]',
+        'input[type="hidden"][name="fr"][value]',
       ])
     );
 

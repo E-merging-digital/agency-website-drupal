@@ -299,7 +299,7 @@ function emerging_digital_content_post_update_fix_multilingual_public_aliases(ar
     }
 
     $translation->setTitle($title);
-    $translation->setPublished(TRUE);
+    $translation->setPublished();
     $translation->set('path', [
       'alias' => '',
       'pathauto' => 1,

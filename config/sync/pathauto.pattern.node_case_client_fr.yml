@@ -8,7 +8,7 @@ dependencies:
 id: node_case_client_fr
 label: 'Content path pattern (Cas client FR)'
 type: 'canonical_entities:node'
-pattern: 'fr/cas-clients/[node:title]'
+pattern: '/cas-clients/[node:title]'
 selection_criteria:
   3c90b4a5-d7f6-452f-a9e6-02282c89dc50:
     id: 'entity_bundle:node'

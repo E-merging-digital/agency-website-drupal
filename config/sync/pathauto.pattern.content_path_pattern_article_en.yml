@@ -8,7 +8,7 @@ dependencies:
 id: content_path_pattern_article_en
 label: 'Content path pattern (Article)'
 type: 'canonical_entities:node'
-pattern: 'en/news/[node:title]'
+pattern: '/news/[node:title]'
 selection_criteria:
   a5b1ccb7-e39a-434a-899b-706a49ef615f:
     id: 'entity_bundle:node'

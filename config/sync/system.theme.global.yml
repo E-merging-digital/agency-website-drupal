@@ -1,8 +1,8 @@
 _core:
   default_config_hash: KZiV2LB312xgJBphfq5BTjmp16xiR5KM8InBJ-pff7Y
 favicon:
-  mimetype: image/svg+xml
-  path: themes/custom/emerging_digital/images/branding/emerging-digital-favicon.svg
+  mimetype: image/png
+  path: themes/custom/emerging_digital/images/branding/emerging-digital-favicon.png
   url: ''
   use_default: false
 features:

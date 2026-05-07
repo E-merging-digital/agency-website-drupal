@@ -56,15 +56,6 @@ function emerging_digital_page_attachments(array &$attachments): void {
   $attachments['#attached']['html_head_link'][] = [
     [
       'rel' => 'icon',
-      'type' => 'image/svg+xml',
-      'href' => base_path() . $theme_path . '/images/branding/emerging-digital-favicon.svg',
-    ],
-    'emerging_digital_favicon_svg',
-  ];
-
-  $attachments['#attached']['html_head_link'][] = [
-    [
-      'rel' => 'icon',
       'type' => 'image/png',
       'href' => base_path() . $theme_path . '/images/branding/emerging-digital-favicon.png',
       'sizes' => '64x64',

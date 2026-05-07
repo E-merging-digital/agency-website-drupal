@@ -267,7 +267,6 @@ button:focus-visible,
   transform: translateY(-50%);
   width: min(34rem, 48vw);
   aspect-ratio: 1;
-  background: url("../images/home/home-hero-ia-drupal.svg") no-repeat center / contain;
   opacity: 0.9;
   pointer-events: none;
   z-index: -1;
@@ -468,6 +467,10 @@ button:focus-visible,
 }
 
 @media (min-width: 48rem) {
+  .ed-section--hero::after {
+    background: url("../images/home/home-hero-ia-drupal.svg") no-repeat center / contain;
+  }
+
   .ed-cards--services {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

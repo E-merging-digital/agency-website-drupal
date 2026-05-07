@@ -1,0 +1,22 @@
+_core:
+  default_config_hash: 8li-dNZmDWxFkjSCn7tlOYgFwvD17uTZxjQkHbja8Y0
+ignore_admin_paths: true
+ignore_ajax_links: true
+ignore_hashes: true
+ignore_file_ext: true
+url_patterns_to_ignore: |-
+  /user
+  /admin
+  /edit
+ignore_selectors: ''
+selector: ''
+allowed_domains: ''
+prefetch_only_paths: ''
+no_load_when_authenticated: true
+no_load_when_session: true
+no_load_content_types: {  }
+total_request_limit: 4
+concurrency_throttle_limit: 1
+viewport_delay: 500
+idle_wait_timeout: 2500
+enable_debug_mode: false

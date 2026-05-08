@@ -1,0 +1,6 @@
+services:
+  emerging_digital_content.content_sync_manager:
+    class: Drupal\emerging_digital_content\ContentSync\ContentSyncManager
+    arguments:
+      - '@entity_type.manager'
+      - '@path_alias.repository'

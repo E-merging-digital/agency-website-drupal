@@ -1,0 +1,30 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "c429c6d9-5f1b-4a57-8214-f28488e633eb"
+  bundle: services
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "Méthode de travail"
+  field_text:
+    -
+      value: "Une méthode courte, lisible et orientée décisions pour éviter les refontes floues."
+      format: basic_html
+  field_items:
+    -
+      value: "1. Cadrer|Objectifs, publics, contraintes, risques techniques, contenus prioritaires et indicateurs de réussite."
+      format: basic_html
+    -
+      value: "2. Structurer|Architecture Drupal, types de contenus, parcours, maillage interne, SEO et règles éditoriales."
+      format: basic_html
+    -
+      value: "3. Construire|Développement, intégration, accessibilité, performance, configuration, contenus et itérations régulières."
+      format: basic_html
+    -
+      value: "4. Stabiliser|Tests ciblés, corrections, documentation utile, mise en production et priorités d’évolution."
+      format: basic_html
+  status:
+    -
+      value: true

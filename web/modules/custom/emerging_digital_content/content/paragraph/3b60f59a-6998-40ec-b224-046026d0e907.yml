@@ -1,0 +1,33 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "3b60f59a-6998-40ec-b224-046026d0e907"
+  bundle: services
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "Services Drupal"
+  field_text:
+    -
+      value: "Un accompagnement senior pour faire de Drupal une plateforme éditoriale stable, performante et utile à vos équipes."
+      format: basic_html
+  field_items:
+    -
+      value: "Création de site Drupal|Architecture éditoriale, modèles de contenus, parcours clés, intégration front-end et socle technique propre."
+      format: basic_html
+    -
+      value: "Refonte Drupal|Clarification des contenus, modernisation visuelle, amélioration des performances et reprise progressive des fonctionnalités critiques."
+      format: basic_html
+    -
+      value: "Migration Drupal|Passage depuis une ancienne version, consolidation de contenus, nettoyage technique et préparation d’un socle durable."
+      format: basic_html
+    -
+      value: "Maintenance et évolutions|Corrections, mises à jour, sécurité, petites évolutions, suivi des performances et support éditorial."
+      format: basic_html
+    -
+      value: "Audit Drupal|Diagnostic rapide sur SEO technique, accessibilité, cache, structure de contenu, dette technique et priorités d’action."
+      format: basic_html
+  status:
+    -
+      value: true

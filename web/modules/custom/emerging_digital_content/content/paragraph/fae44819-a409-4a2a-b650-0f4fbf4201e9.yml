@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "fae44819-a409-4a2a-b650-0f4fbf4201e9"
+  bundle: text_block
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "Expertise technique"
+  field_text:
+    -
+      value: "<p>Drupal est le cœur de l’expertise d’Emerging Digital : architecture de contenus, modules custom, intégrations, cache, sécurité, accessibilité et maintenance.</p><p>La profondeur technique vient aussi de l’écosystème PHP : Symfony pour la robustesse applicative, Laravel pour certains socles métier ou API, et PHP moderne pour construire des intégrations propres. Cette culture technique aide à résoudre les vrais problèmes derrière un projet Drupal : données, workflow, performance, dette technique et maintenabilité.</p>"
+      format: basic_html
+  status:
+    -
+      value: true

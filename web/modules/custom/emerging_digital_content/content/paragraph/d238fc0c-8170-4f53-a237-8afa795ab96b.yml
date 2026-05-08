@@ -1,0 +1,26 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "d238fc0c-8170-4f53-a237-8afa795ab96b"
+  bundle: trust_list
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "Qualité web"
+  field_items:
+    -
+      value: "Performance : cache Drupal, poids des pages, rendu stable, Quicklink et priorités Core Web Vitals."
+      format: basic_html
+    -
+      value: "Accessibilité : structure HTML, navigation clavier, contrastes, textes utiles et parcours compréhensibles."
+      format: basic_html
+    -
+      value: "SEO technique : métadonnées, maillage interne, redirections, sitemap, contenus structurés et pages indexables."
+      format: basic_html
+    -
+      value: "Contenus structurés : types de contenus, taxonomies, composants réutilisables et informations lisibles par les IA."
+      format: basic_html
+  status:
+    -
+      value: true

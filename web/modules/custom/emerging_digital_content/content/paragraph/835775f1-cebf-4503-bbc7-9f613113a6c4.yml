@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "835775f1-cebf-4503-bbc7-9f613113a6c4"
+  bundle: text_block
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "Pourquoi choisir Drupal"
+  field_text:
+    -
+      value: "<p>Drupal est pertinent quand un site doit durer, évoluer et rester maîtrisable. Il permet de modéliser des contenus riches, de gérer des rôles éditoriaux précis, de soutenir le multilingue, d’intégrer des outils métier et de garder une base saine pour le SEO technique.</p><p>Ce n’est pas le choix automatique pour tous les sites. Pour un projet très simple, WordPress peut suffire. Pour une organisation qui anticipe de la complexité éditoriale, des exigences d’accessibilité, des intégrations ou une durée de vie longue, Drupal offre un meilleur socle stratégique.</p>"
+      format: basic_html
+  status:
+    -
+      value: true

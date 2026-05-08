@@ -1,0 +1,53 @@
+_meta:
+  version: 1.0
+  entity_type: node
+  uuid: "0b4b1728-7c80-4c17-a057-ebf52dc4eb5a"
+  bundle: page
+  default_langcode: fr
+  depends:
+    cad1cd49-c7f0-478d-b344-6c7d4922abfc: paragraph
+    44295590-7064-45b2-907c-998ce3ddaf22: paragraph
+    3b60f59a-6998-40ec-b224-046026d0e907: paragraph
+    ac322b28-6dff-42ed-9e66-7e7086c4f861: paragraph
+    d238fc0c-8170-4f53-a237-8afa795ab96b: paragraph
+    fae44819-a409-4a2a-b650-0f4fbf4201e9: paragraph
+    835775f1-cebf-4503-bbc7-9f613113a6c4: paragraph
+    c429c6d9-5f1b-4a57-8214-f28488e633eb: paragraph
+    3ff4a66e-a18e-4918-bc91-5786714dbd53: paragraph
+    4cec9827-580a-41bf-b4b0-3fc43af0562b: paragraph
+default:
+  uid:
+    -
+      target_id: 1
+  status:
+    -
+      value: true
+  title:
+    -
+      value: "Agence Drupal en Belgique pour sites durables, rapides et accessibles"
+  field_home_components:
+    -
+      entity: "cad1cd49-c7f0-478d-b344-6c7d4922abfc"
+    -
+      entity: "44295590-7064-45b2-907c-998ce3ddaf22"
+    -
+      entity: "3b60f59a-6998-40ec-b224-046026d0e907"
+    -
+      entity: "ac322b28-6dff-42ed-9e66-7e7086c4f861"
+    -
+      entity: "d238fc0c-8170-4f53-a237-8afa795ab96b"
+    -
+      entity: "fae44819-a409-4a2a-b650-0f4fbf4201e9"
+    -
+      entity: "835775f1-cebf-4503-bbc7-9f613113a6c4"
+    -
+      entity: "c429c6d9-5f1b-4a57-8214-f28488e633eb"
+    -
+      entity: "3ff4a66e-a18e-4918-bc91-5786714dbd53"
+    -
+      entity: "4cec9827-580a-41bf-b4b0-3fc43af0562b"
+  path:
+    -
+      alias: "/agence-drupal-belgique"
+      langcode: fr
+      pathauto: false

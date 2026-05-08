@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "44295590-7064-45b2-907c-998ce3ddaf22"
+  bundle: text_block
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "Pour qui"
+  field_text:
+    -
+      value: "<p>Cette page s’adresse aux organisations belges qui ont besoin d’un site fiable, maintenable et clair pour leurs équipes.</p><ul><li><strong>PME</strong> : transformer un site vitrine en outil commercial durable, avec des contenus structurés et un socle technique qui suit la croissance.</li><li><strong>ASBL</strong> : publier des informations utiles, gérer des rôles éditoriaux, rendre les contenus accessibles et faciliter la traduction.</li><li><strong>Institutions</strong> : sécuriser la gouvernance de contenu, la conformité accessibilité, les performances et les intégrations métier.</li></ul><p>Le projet peut démarrer par une création, une refonte, une migration Drupal ou un <a href=\"/contact\">audit court</a> d’un site existant.</p>"
+      format: basic_html
+  status:
+    -
+      value: true

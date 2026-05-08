@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "3ff4a66e-a18e-4918-bc91-5786714dbd53"
+  bundle: text_block
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "FAQ"
+  field_text:
+    -
+      value: "<h3>Pourquoi choisir Drupal pour une PME ou une ASBL&nbsp;?</h3><p>Drupal convient aux organisations qui veulent un site durable, sécurisé et évolutif, avec des rôles éditoriaux clairs, des contenus structurés et une base technique capable de grandir sans repartir de zéro.</p><h3>Travaillez-vous uniquement avec Drupal&nbsp;?</h3><p>Drupal reste l’expertise principale d’Emerging Digital. Les compétences PHP, Symfony et Laravel renforcent l’architecture, les intégrations et la maintenance de projets complexes.</p><h3>Pouvez-vous reprendre un site Drupal existant&nbsp;?</h3><p>Oui. Emerging Digital peut auditer un site Drupal existant, corriger ses priorités techniques, préparer une migration, améliorer ses performances et stabiliser son workflow éditorial.</p><h3>Comment intégrez-vous l’IA dans Drupal&nbsp;?</h3><p>L’IA est intégrée par des usages concrets : aide à la rédaction, optimisation SEO, traduction, préparation de variantes de contenu et assistance aux équipes éditoriales.</p><h3>Intervenez-vous à Bruxelles et en Wallonie&nbsp;?</h3><p>Oui. Emerging Digital accompagne des PME, ASBL et institutions en Belgique, notamment à Bruxelles, en Wallonie et à distance.</p><h3>Drupal est-il adapté au SEO&nbsp;?</h3><p>Oui. Drupal permet de structurer les contenus, contrôler les métadonnées, optimiser les performances, gérer les redirections et produire des pages accessibles et lisibles par les moteurs comme par les assistants IA.</p><h3>Drupal est-il mieux que WordPress&nbsp;?</h3><p>Drupal n’est pas toujours le bon choix pour un petit site très simple. Il devient pertinent quand le projet demande une architecture éditoriale solide, de la sécurité, des rôles avancés, des intégrations ou une durée de vie longue.</p>"
+      format: basic_html
+  status:
+    -
+      value: true

@@ -1,0 +1,25 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "cad1cd49-c7f0-478d-b344-6c7d4922abfc"
+  bundle: hero
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "Drupal solide, IA utile et SEO technique pour organisations belges"
+  field_text:
+    -
+      value: "Emerging Digital accompagne les PME, ASBL et institutions en Belgique dans la création, la refonte, la migration et l’optimisation de sites Drupal rapides, accessibles et prêts pour les moteurs de recherche comme pour les assistants IA."
+      format: basic_html
+  field_link:
+    -
+      uri: "internal:/contact"
+      title: "Demander un audit Drupal"
+  field_secondary_link:
+    -
+      uri: "internal:/services"
+      title: "Voir les services"
+  status:
+    -
+      value: true

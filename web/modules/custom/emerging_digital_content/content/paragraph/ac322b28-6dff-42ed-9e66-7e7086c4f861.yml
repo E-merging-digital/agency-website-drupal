@@ -1,0 +1,17 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "ac322b28-6dff-42ed-9e66-7e7086c4f861"
+  bundle: text_block
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "IA concrète dans Drupal"
+  field_text:
+    -
+      value: "<p>L’IA n’est pas présentée comme une promesse vague. Elle sert des cas d’usage éditoriaux mesurables dans Drupal.</p><ul><li><strong>Rédaction assistée</strong> : produire des brouillons, reformuler des textes, adapter le niveau de lecture et garder une voix cohérente.</li><li><strong>SEO</strong> : préparer titres, descriptions, variantes de contenus, briefs de pages et contrôles de cohérence sémantique.</li><li><strong>Traduction</strong> : accélérer les versions multilingues avec validation humaine, mémoire de vocabulaire et contexte métier.</li><li><strong>Workflow éditorial</strong> : aider les contributeurs à passer d’une idée brute à une page prête à relire, publier et maintenir.</li></ul><p>Pour voir cette approche dans le contexte du site, consultez aussi la page <a href=\"/ia-drupal\">IA &amp; Drupal</a>.</p>"
+      format: basic_html
+  status:
+    -
+      value: true

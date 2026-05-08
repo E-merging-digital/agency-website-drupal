@@ -1,0 +1,21 @@
+_meta:
+  version: 1.0
+  entity_type: paragraph
+  uuid: "4cec9827-580a-41bf-b4b0-3fc43af0562b"
+  bundle: cta
+  default_langcode: fr
+default:
+  field_heading:
+    -
+      value: "Parlons de votre site Drupal"
+  field_text:
+    -
+      value: "Vous préparez une création, une refonte, une migration ou un audit Drupal en Belgique ? Consultez aussi nos <a href=\"/services\">services</a>, notre page <a href=\"/ia-drupal\">IA &amp; Drupal</a> et les <a href=\"/cas-clients\">cas clients</a>, puis envoyez votre contexte."
+      format: basic_html
+  field_link:
+    -
+      uri: "internal:/contact"
+      title: "Contacter Emerging Digital"
+  status:
+    -
+      value: true

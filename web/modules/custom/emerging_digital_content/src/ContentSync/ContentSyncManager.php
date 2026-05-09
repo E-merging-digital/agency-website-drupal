@@ -26,6 +26,7 @@ use Drupal\path_alias\AliasManagerInterface;
 final class ContentSyncManager {
 
   private const PRUNE_UNPUBLISH = 'unpublish';
+  private const PRUNE_UNPUBLISH_ALLOW_ENV = 'CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH';
 
   public function __construct(
     private readonly ContentSyncCatalogLoader $catalogLoader,
@@ -62,6 +63,10 @@ final class ContentSyncManager {
       ));
     }
 
+    if ($prune === self::PRUNE_UNPUBLISH) {
+      $this->assertPruneUnpublishAllowed($dry_run);
+    }
+
     if ($dry_run) {
       return $this->dryRun($content_id !== '' ? $content_id : NULL, $prune);
     }
@@ -88,16 +93,23 @@ final class ContentSyncManager {
       $catalog = $this->catalogLoader->load();
     }
     catch (ContentSyncCatalogException $exception) {
-      return [
+      return $this->withSummary([
         'contents_found' => 0,
         'valid_contents' => [],
         'invalid_contents' => [],
         'warnings' => [],
         'errors' => [$exception->getMessage()],
-      ];
+      ], 'validation', TRUE, TRUE, '', FALSE);
     }
 
-    return $this->catalogValidator->validate($catalog);
+    return $this->withSummary(
+      $this->catalogValidator->validate($catalog),
+      'validation',
+      TRUE,
+      TRUE,
+      '',
+      FALSE,
+    );
   }
 
   /**
@@ -112,7 +124,7 @@ final class ContentSyncManager {
       $report = $this->catalogValidator->validate($catalog);
     }
     catch (ContentSyncCatalogException $exception) {
-      return [
+      return $this->withSummary([
         'dry_run' => TRUE,
         'contents_found' => 0,
         'valid_contents' => [],
@@ -120,8 +132,9 @@ final class ContentSyncManager {
         'warnings' => [],
         'errors' => [$exception->getMessage()],
         'actions' => [],
+        'content_reports' => [],
         'menus_touched' => FALSE,
-      ];
+      ], 'dry_run', $content_id === NULL, TRUE, $prune, FALSE);
     }
 
     $entries = [];
@@ -143,6 +156,7 @@ final class ContentSyncManager {
 
     $report['dry_run'] = TRUE;
     $report['actions'] = [];
+    $report['content_reports'] = [];
     $report['menus_touched'] = FALSE;
 
     foreach ($entries as $entry) {
@@ -152,6 +166,22 @@ final class ContentSyncManager {
         ? $definition['translations']
         : [];
       $catalog_hash = $this->catalogHash($definition);
+      $planned_operation = $mapping === NULL
+        ? 'would create managed entity'
+        : 'would update mapped entity';
+
+      $report['content_reports'][] = [
+        'id' => $entry->id(),
+        'entity_type' => (string) ($definition['entity_type'] ?? 'unknown'),
+        'bundle' => (string) ($definition['bundle'] ?? 'unknown'),
+        'translations' => array_keys($translations),
+        'mapping_status' => $mapping === NULL ? 'unmapped' : 'mapped',
+        'mapped_entity' => $mapping === NULL
+          ? ''
+          : sprintf('%s:%s', $mapping->entityType(), (string) ($mapping->entityId() ?? 'unknown')),
+        'planned_operation' => $planned_operation,
+        'catalog_hash' => $catalog_hash,
+      ];
 
       $report['actions'][] = sprintf(
         'read %s "%s" from catalog: %s',
@@ -219,7 +249,7 @@ final class ContentSyncManager {
 
     $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
 
-    return $report;
+    return $this->withSummary($report, 'dry_run', $content_id === NULL, TRUE, $prune, FALSE);
   }
 
   /**
@@ -234,7 +264,7 @@ final class ContentSyncManager {
       $report = $this->catalogValidator->validate($catalog);
     }
     catch (ContentSyncCatalogException $exception) {
-      return [
+      return $this->withSummary([
         'dry_run' => FALSE,
         'contents_found' => 0,
         'valid_contents' => [],
@@ -242,23 +272,25 @@ final class ContentSyncManager {
         'warnings' => [],
         'errors' => [$exception->getMessage()],
         'actions' => [],
+        'content_reports' => [],
         'menus_touched' => FALSE,
-      ];
+      ], 'targeted_apply', FALSE, FALSE, '', FALSE);
     }
 
     $report['dry_run'] = FALSE;
     $report['actions'] = [];
+    $report['content_reports'] = [];
     $report['menus_touched'] = FALSE;
 
     $entry = $catalog->get($content_id);
     if ($entry === NULL) {
       $report['errors'][] = sprintf('Unknown content id "%s".', $content_id);
-      return $report;
+      return $this->withSummary($report, 'targeted_apply', FALSE, FALSE, '', FALSE);
     }
 
     if (isset($report['invalid_contents'][$content_id . '#' . $entry->index()])) {
       $report['errors'][] = sprintf('Content "%s" is invalid and was not applied.', $content_id);
-      return $report;
+      return $this->withSummary($report, 'targeted_apply', FALSE, FALSE, '', FALSE);
     }
 
     try {
@@ -275,7 +307,7 @@ final class ContentSyncManager {
 
     $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
 
-    return $report;
+    return $this->withSummary($report, 'targeted_apply', FALSE, FALSE, '', TRUE);
   }
 
   /**
@@ -290,7 +322,7 @@ final class ContentSyncManager {
       $report = $this->catalogValidator->validate($catalog);
     }
     catch (ContentSyncCatalogException $exception) {
-      return [
+      return $this->withSummary([
         'dry_run' => FALSE,
         'contents_found' => 0,
         'valid_contents' => [],
@@ -300,7 +332,7 @@ final class ContentSyncManager {
         'actions' => [],
         'content_reports' => [],
         'menus_touched' => FALSE,
-      ];
+      ], 'full_apply', TRUE, FALSE, $prune, FALSE);
     }
 
     $report['dry_run'] = FALSE;
@@ -311,7 +343,7 @@ final class ContentSyncManager {
     if ($this->reportList($report, 'errors') !== []) {
       $report['actions'][] = 'catalog validation failed: no content or mapping writes were executed';
       $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
-      return $report;
+      return $this->withSummary($report, 'full_apply', TRUE, FALSE, $prune, FALSE);
     }
 
     foreach ($catalog->entries() as $entry) {
@@ -326,7 +358,7 @@ final class ContentSyncManager {
     if ($this->reportList($report, 'errors') !== []) {
       $report['actions'][] = 'catalog apply preflight failed: no content or mapping writes were executed';
       $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
-      return $report;
+      return $this->withSummary($report, 'full_apply', TRUE, FALSE, $prune, FALSE);
     }
 
     foreach ($catalog->entries() as $entry) {
@@ -373,6 +405,103 @@ final class ContentSyncManager {
     }
 
     $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
+
+    return $this->withSummary($report, 'full_apply', TRUE, FALSE, $prune, TRUE);
+  }
+
+  /**
+   * Blocks production prune apply unless the explicit environment flag is set.
+   */
+  private function assertPruneUnpublishAllowed(bool $dry_run): void {
+    if ($dry_run || !$this->isProductionEnvironment() || $this->isPruneUnpublishExplicitlyAllowed()) {
+      return;
+    }
+
+    throw new \InvalidArgumentException(sprintf(
+      'Content Sync --prune=unpublish is blocked in production unless %s=1 is set.',
+      self::PRUNE_UNPUBLISH_ALLOW_ENV,
+    ));
+  }
+
+  /**
+   * Detects production from project config split or common environment names.
+   */
+  private function isProductionEnvironment(): bool {
+    $production_split_status = $this->configFactory
+      ->get('config_split.config_split.production')
+      ->get('status');
+    if ($production_split_status === TRUE || $production_split_status === 1 || $production_split_status === '1') {
+      return TRUE;
+    }
+
+    foreach (['APP_ENV', 'DRUPAL_ENV', 'ENVIRONMENT'] as $name) {
+      $value = getenv($name);
+      if (!is_string($value)) {
+        continue;
+      }
+
+      if (in_array(strtolower(trim($value)), ['prod', 'production'], TRUE)) {
+        return TRUE;
+      }
+    }
+
+    return FALSE;
+  }
+
+  /**
+   * Checks the explicit production prune allow flag.
+   */
+  private function isPruneUnpublishExplicitlyAllowed(): bool {
+    $value = getenv(self::PRUNE_UNPUBLISH_ALLOW_ENV);
+
+    return is_string($value) && trim($value) === '1';
+  }
+
+  /**
+   * Adds a final structured summary to a Content Sync report.
+   *
+   * @param array<string, mixed> $report
+   *   Structured report.
+   * @param string $mode
+   *   Execution mode label.
+   * @param bool $all
+   *   TRUE when the full catalog was requested.
+   * @param bool $dry_run
+   *   TRUE when no writes were requested.
+   * @param string $prune
+   *   Prune option value.
+   * @param bool $writes_attempted
+   *   TRUE when the operation reached a write phase.
+   *
+   * @return array<string, mixed>
+   *   Structured report with summary.
+   */
+  private function withSummary(
+    array $report,
+    string $mode,
+    bool $all,
+    bool $dry_run,
+    string $prune,
+    bool $writes_attempted,
+  ): array {
+    $errors = $this->reportList($report, 'errors');
+
+    $report['summary'] = [
+      'mode' => $mode,
+      'all' => $all,
+      'dry_run' => $dry_run,
+      'prune' => $prune !== '' ? $prune : 'none',
+      'contents_found' => (int) ($report['contents_found'] ?? 0),
+      'valid_contents' => count($this->reportList($report, 'valid_contents')),
+      'invalid_contents' => count($this->reportList($report, 'invalid_contents')),
+      'content_reports' => count($this->reportList($report, 'content_reports')),
+      'actions' => count($this->reportList($report, 'actions')),
+      'warnings' => count($this->reportList($report, 'warnings')),
+      'errors' => count($errors),
+      'blocking_errors' => $errors !== [],
+      'writes_attempted' => $writes_attempted,
+      'menus_touched' => (bool) ($report['menus_touched'] ?? FALSE),
+    ];
 
     return $report;
   }

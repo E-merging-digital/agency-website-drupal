@@ -136,6 +136,14 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
 
     $dry_run = $manager->sync('', TRUE, TRUE);
     self::assertSame([], $dry_run['errors']);
+    self::assertSame('dry_run', $dry_run['summary']['mode']);
+    self::assertTrue($dry_run['summary']['all']);
+    self::assertTrue($dry_run['summary']['dry_run']);
+    self::assertFalse($dry_run['summary']['blocking_errors']);
+    self::assertCount(1, $dry_run['content_reports']);
+    self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
+    self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
+    self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
     self::assertFalse($mapping_repository->exists('agence-drupal-belgique'));
     self::assertSame(0, $this->countServiceNodes());
 
@@ -207,6 +215,58 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertNotNull($obsolete_mapping);
     self::assertSame('unpublished', $obsolete_mapping->lastAction());
     self::assertSame('unpublished', $obsolete_mapping->status());
+  }
+
+  /**
+   * Tests production prune apply requires an explicit environment flag.
+   */
+  public function testProductionPruneUnpublishApplyRequiresEnvironmentFlag(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+
+    $previous_app_env = getenv('APP_ENV');
+    $previous_allow_prune = getenv('CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH');
+
+    putenv('APP_ENV=production');
+    putenv('CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH');
+
+    try {
+      $dry_run = $manager->sync('', TRUE, TRUE, 'unpublish');
+      self::assertSame([], $dry_run['errors']);
+      self::assertSame('unpublish', $dry_run['summary']['prune']);
+
+      try {
+        $manager->sync('', FALSE, TRUE, 'unpublish');
+        self::fail('Production prune apply should require CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH=1.');
+      }
+      catch (\InvalidArgumentException $exception) {
+        self::assertSame(
+          'Content Sync --prune=unpublish is blocked in production unless CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH=1 is set.',
+          $exception->getMessage(),
+        );
+      }
+
+      putenv('CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH=1');
+      $apply = $manager->sync('', FALSE, TRUE, 'unpublish');
+      self::assertSame([], $apply['errors']);
+      self::assertSame('unpublish', $apply['summary']['prune']);
+    }
+    finally {
+      $this->restoreEnvironmentVariable('APP_ENV', $previous_app_env);
+      $this->restoreEnvironmentVariable('CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH', $previous_allow_prune);
+    }
+  }
+
+  /**
+   * Tests blocking errors are exposed in the final structured summary.
+   */
+  public function testBlockingErrorsAreSummarized(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+
+    $report = $manager->sync('unknown-content-id', TRUE);
+
+    self::assertNotSame([], $report['errors']);
+    self::assertTrue($report['summary']['blocking_errors']);
+    self::assertSame(1, $report['summary']['errors']);
   }
 
   /**
@@ -311,6 +371,18 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertInstanceOf(NodeInterface::class, $reloaded);
 
     return $reloaded;
+  }
+
+  /**
+   * Restores an environment variable after a guarded test.
+   */
+  private function restoreEnvironmentVariable(string $name, string|false $value): void {
+    if ($value === FALSE) {
+      putenv($name);
+      return;
+    }
+
+    putenv($name . '=' . $value);
   }
 
 }

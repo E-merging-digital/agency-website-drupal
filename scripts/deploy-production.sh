@@ -121,8 +121,10 @@ ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"
 
 "$CURRENT_LINK/vendor/bin/drush" updb -y
 "$CURRENT_LINK/vendor/bin/drush" cim -y
+log "[deploy] Content Sync"
+"$CURRENT_LINK/vendor/bin/drush" emerging:content-sync --all
 "$CURRENT_LINK/vendor/bin/drush" cr
-log "Drupal update, config import and cache rebuild completed."
+log "Drupal update, config import, content sync and cache rebuild completed."
 
 log "[deploy] Maintenance OFF"
 "$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 0 --input-format=integer

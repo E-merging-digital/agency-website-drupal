@@ -11,7 +11,7 @@ use Drush\Commands\DrushCommands;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
- * Drush commands for read-only Content Sync catalog checks.
+ * Drush commands for targeted Content Sync catalog checks and writes.
  */
 final class ContentSyncCommands extends DrushCommands {
 
@@ -40,31 +40,34 @@ final class ContentSyncCommands extends DrushCommands {
   }
 
   /**
-   * Reads one versioned content item by business identifier in dry-run mode.
+   * Synchronizes one versioned content item by business identifier.
    */
   #[CLI\Command(name: 'emerging:content-sync')]
   #[CLI\Argument(name: 'content_id', description: 'Stable business identifier, for example agence-drupal-belgique.')]
-  #[CLI\Option(name: 'dry-run', description: 'Read and report only. Apply mode is intentionally unavailable.')]
+  #[CLI\Option(name: 'dry-run', description: 'Read and report only without writing entities or mappings.')]
   #[CLI\Usage(
     name: 'drush emerging:content-sync agence-drupal-belgique --dry-run',
     description: 'Preview catalog reading without saving content.',
   )]
   #[CLI\Usage(
     name: 'drush emerging:content-sync agence-drupal-belgique',
-    description: 'Preview catalog reading without saving content.',
+    description: 'Create or update the targeted managed content item.',
   )]
-  public function sync(string $content_id = '', array $options = ['dry-run' => TRUE]): int {
-    unset($options);
+  public function sync(string $content_id = '', array $options = ['dry-run' => FALSE]): int {
+    $dry_run = (bool) ($options['dry-run'] ?? FALSE);
 
     try {
-      $report = $this->contentSyncManager->sync($content_id, TRUE);
+      $report = $this->contentSyncManager->sync($content_id, $dry_run);
     }
     catch (\InvalidArgumentException $exception) {
       $this->logger()->error($exception->getMessage());
       return self::EXIT_FAILURE;
     }
 
-    $this->printReport($report, 'Content Sync catalog read-only dry-run');
+    $this->printReport(
+      $report,
+      $dry_run ? 'Content Sync catalog read-only dry-run' : 'Content Sync targeted apply',
+    );
 
     return $this->reportList($report, 'errors') === []
       ? self::EXIT_SUCCESS

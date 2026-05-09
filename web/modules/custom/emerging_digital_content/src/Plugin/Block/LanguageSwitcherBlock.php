@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Drupal\emerging_digital_content\Plugin\Block;
 
-use Drupal\Component\Render\MarkupInterface;
-use Drupal\Component\Utility\Html;
 use Drupal\Core\Block\BlockBase;
+use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Language\LanguageInterface;
+use Drupal\Core\Language\LanguageManagerInterface;
+use Drupal\Core\Path\PathMatcherInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
-use Drupal\Core\Render\Markup;
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Provides a cacheable language switcher block.
@@ -27,7 +30,9 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
     array $configuration,
     $plugin_id,
     $plugin_definition,
-    private readonly RequestStack $requestStack,
+    private readonly LanguageManagerInterface $languageManager,
+    private readonly PathMatcherInterface $pathMatcher,
+    private readonly RouteMatchInterface $routeMatch,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -40,7 +45,9 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
       $configuration,
       $plugin_id,
       $plugin_definition,
-      $container->get('request_stack'),
+      $container->get('language_manager'),
+      $container->get('path.matcher'),
+      $container->get('current_route_match'),
     );
   }
 
@@ -48,115 +55,119 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
    * {@inheritdoc}
    */
   public function build(): array {
-    $prefixes = ['en' => 'en', 'fr' => 'fr'];
-    $current_langcode = $this->getCurrentLangcode($prefixes);
-    $links = [];
+    $build = [];
+    $cache_metadata = (new CacheableMetadata())
+      ->addCacheContexts([
+        'languages:' . LanguageInterface::TYPE_INTERFACE,
+        'route',
+        'url.path',
+        'url.query_args',
+        'url.site',
+      ])
+      ->addCacheTags(['config:configurable_language_list']);
 
-    foreach ($prefixes as $langcode => $prefix) {
-      $links[$langcode] = [
-        'label' => $this->getLanguageLabel($langcode),
-        'href' => $this->buildLanguageHref($langcode, $prefixes),
-        'hreflang' => $langcode,
-        'active' => $langcode === $current_langcode,
-      ];
+    if (!$this->languageManager->isMultilingual()) {
+      $cache_metadata->applyTo($build);
+      return $build;
     }
 
-    return [
-      '#markup' => $this->buildSwitcherMarkup($links),
-      '#cache' => [
-        'contexts' => [
-          'url.path',
-          'url.query_args',
-        ],
-      ],
-    ];
-  }
-
-  /**
-   * Builds the switcher markup from already escaped language link data.
-   */
-  private function buildSwitcherMarkup(array $links): MarkupInterface {
-    $active_label = '';
-    foreach ($links as $link) {
-      if ($link['active']) {
-        $active_label = $link['label'];
-        break;
-      }
-    }
-
-    $active_label = $active_label ?: (string) reset($links)['label'];
-    $items = '';
-
-    foreach ($links as $link) {
-      $item_class = 'language-switcher__item' . ($link['active'] ? ' is-active' : '');
-      if ($link['active']) {
-        $items .= '<li class="' . Html::escape($item_class) . '"><span class="language-switcher__link is-active" aria-current="true">' . Html::escape($link['label']) . '</span></li>';
-      }
-      else {
-        $items .= '<li class="' . Html::escape($item_class) . '"><a href="' . Html::escape($link['href']) . '" hreflang="' . Html::escape($link['hreflang']) . '">' . Html::escape($link['label']) . '</a></li>';
-      }
-    }
-
-    return Markup::create(
-      '<div class="language-switcher" data-language-switcher>' .
-      '<button type="button" class="language-switcher__toggle" aria-expanded="false" aria-haspopup="true" aria-controls="language-switcher-menu">' .
-      '<span class="language-switcher__current">' . Html::escape($active_label) . '</span>' .
-      '<span class="language-switcher__icon" aria-hidden="true">&#9662;</span>' .
-      '<span class="visually-hidden">Choisir la langue</span>' .
-      '</button>' .
-      '<ul id="language-switcher-menu" class="language-switcher__menu" hidden>' . $items . '</ul>' .
-      '</div>'
+    $switch_links = $this->languageManager->getLanguageSwitchLinks(
+      LanguageInterface::TYPE_INTERFACE,
+      $this->getCurrentRouteUrl(),
     );
-  }
 
-  /**
-   * Builds a language href without invoking Drupal URL generators.
-   */
-  private function buildLanguageHref(string $targetLangcode, array $prefixes): string {
-    $request = $this->requestStack->getCurrentRequest();
-    $query = $request ? $request->query->all() : [];
-    $target_path = $this->buildPrefixedPath($prefixes[$targetLangcode], $prefixes);
-    $query_string = $query ? '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986) : '';
-
-    return $target_path . $query_string;
-  }
-
-  /**
-   * Gets the current language from the first URL path segment.
-   */
-  private function getCurrentLangcode(array $prefixes): string {
-    $request = $this->requestStack->getCurrentRequest();
-    $first_segment = $request ? strtok(trim($request->getPathInfo(), '/'), '/') : '';
-    $langcode = array_search($first_segment, $prefixes, TRUE);
-
-    return is_string($langcode) ? $langcode : (string) array_key_first($prefixes);
-  }
-
-  /**
-   * Builds the target path by replacing the current language prefix.
-   */
-  private function buildPrefixedPath(string $targetPrefix, array $prefixes): string {
-    $request = $this->requestStack->getCurrentRequest();
-    $path = $request ? trim($request->getPathInfo(), '/') : '';
-    $segments = $path === '' ? [] : explode('/', $path);
-    $current_langcode = $this->getCurrentLangcode($prefixes);
-
-    if ($segments && $segments[0] === $prefixes[$current_langcode]) {
-      array_shift($segments);
+    if (empty($switch_links->links)) {
+      $cache_metadata->applyTo($build);
+      return $build;
     }
 
-    return '/' . $targetPrefix . ($segments ? '/' . implode('/', $segments) : '');
+    $current_langcode = $this->languageManager
+      ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)
+      ->getId();
+    $route_entities = $this->getRouteContentEntities();
+
+    foreach ($route_entities as $entity) {
+      $cache_metadata->addCacheableDependency($entity);
+    }
+
+    $links = [];
+    foreach ($switch_links->links as $langcode => $link) {
+      if (!$this->hasRouteEntityTranslation($route_entities, $langcode)) {
+        continue;
+      }
+
+      if (($link['url'] ?? NULL) instanceof Url) {
+        $cache_metadata->addCacheableDependency($link['url']->access(NULL, TRUE));
+      }
+
+      $link['attributes']['class'][] = 'language-switcher__link';
+
+      if ($langcode === $current_langcode) {
+        unset($link['url']);
+      }
+
+      $links[$langcode] = $link;
+    }
+
+    if (!$links) {
+      $cache_metadata->applyTo($build);
+      return $build;
+    }
+
+    $build = [
+      '#theme' => 'links__language_block',
+      '#links' => $links,
+      '#set_active_class' => TRUE,
+    ];
+
+    $cache_metadata->applyTo($build);
+    return $build;
   }
 
   /**
-   * Gets a short native language label for the configured site languages.
+   * Gets the URL object for the current route.
    */
-  private function getLanguageLabel(string $langcode): string {
-    return match ($langcode) {
-      'fr' => 'Français',
-      'en' => 'English',
-      default => strtoupper($langcode),
-    };
+  private function getCurrentRouteUrl(): Url {
+    if ($this->pathMatcher->isFrontPage() || !$this->routeMatch->getRouteObject()) {
+      return Url::fromRoute('<front>');
+    }
+
+    return Url::fromRouteMatch($this->routeMatch);
+  }
+
+  /**
+   * Gets content entities from the active route parameters.
+   *
+   * @return \Drupal\Core\Entity\ContentEntityInterface[]
+   *   The content entities found in the current route.
+   */
+  private function getRouteContentEntities(): array {
+    $entities = [];
+    foreach ($this->routeMatch->getParameters()->all() as $parameter) {
+      if ($parameter instanceof ContentEntityInterface) {
+        $entities[] = $parameter;
+      }
+    }
+
+    return $entities;
+  }
+
+  /**
+   * Determines whether every route entity is available in the target language.
+   *
+   * @param \Drupal\Core\Entity\ContentEntityInterface[] $entities
+   *   The route content entities to check.
+   * @param string $langcode
+   *   The target language code.
+   */
+  private function hasRouteEntityTranslation(array $entities, string $langcode): bool {
+    foreach ($entities as $entity) {
+      if ($entity->isTranslatable() && !$entity->hasTranslation($langcode)) {
+        return FALSE;
+      }
+    }
+
+    return TRUE;
   }
 
 }

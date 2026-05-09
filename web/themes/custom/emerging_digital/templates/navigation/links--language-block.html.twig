@@ -17,16 +17,21 @@
     {% set active_label = links[first_key].text %}
   {% endif %}
 
-  <div class="language-switcher" data-language-switcher>
+  <nav{{ attributes
+    .addClass('language-switcher')
+    .setAttribute('data-language-switcher', '')
+    .setAttribute('aria-label', 'Language switcher'|t)
+  }}>
     <button
       type="button"
       class="language-switcher__toggle"
+      aria-label="{{ 'Choose language'|t }}"
       aria-expanded="false"
       aria-haspopup="true"
       aria-controls="language-switcher-menu"
     >
       <span class="language-switcher__current">{{ active_label }}</span>
-      <span class="language-switcher__icon" aria-hidden="true">▾</span>
+      <span class="language-switcher__icon" aria-hidden="true">&#9662;</span>
       <span class="visually-hidden">{{ 'Choisir la langue'|t }}</span>
     </button>
 
@@ -41,5 +46,5 @@
         </li>
       {% endfor %}
     </ul>
-  </div>
+  </nav>
 {% endif %}

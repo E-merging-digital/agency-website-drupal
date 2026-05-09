@@ -74,7 +74,7 @@ final class ContentSyncManager {
         $translation = $this->getOrCreateTranslation($node, $langcode);
         if ($translation instanceof NodeInterface) {
           $translation->setTitle($translation_values['title']);
-          $translation->setPublished(TRUE);
+          $translation->setPublished();
         }
         $translation->set('path', [
           'alias' => $translation_values['alias'],

@@ -51,6 +51,10 @@ final class ContentSyncCommands extends DrushCommands {
       $this->logger()->notice(' - ' . $action);
     }
 
+    foreach ($report['warnings'] as $warning) {
+      $this->logger()->warning(' - ' . $warning);
+    }
+
     if (!empty($report['node_id'])) {
       $this->logger()->notice(sprintf('Target node: nid %s, uuid %s.', $report['node_id'], $report['node_uuid']));
     }

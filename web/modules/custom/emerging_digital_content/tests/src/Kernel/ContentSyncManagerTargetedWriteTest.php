@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\emerging_digital_content\Kernel;
 
+use Drupal\emerging_digital_content\ContentSync\Entity\ContentSyncMappingRecord;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\language\Entity\ConfigurableLanguage;
+use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -159,6 +161,77 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
   }
 
   /**
+   * Tests prune only touches active managed nodes absent from catalog.
+   */
+  public function testPruneUnpublishDryRunAndApplyAreScopedToManagedNodes(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+
+    $catalog_apply = $manager->sync('', FALSE, TRUE);
+    self::assertSame([], $catalog_apply['errors']);
+
+    $obsolete_node = $this->createPublishedServiceNode('Obsolete managed service');
+    $manual_node = $this->createPublishedServiceNode('Manual unmanaged service');
+    $mapping_repository->createOrUpdate(new ContentSyncMappingRecord(
+      'obsolete-service',
+      'node',
+      (int) $obsolete_node->id(),
+      $obsolete_node->uuid(),
+      'fr',
+      str_repeat('c', 64),
+      1_700_000_000,
+      'updated',
+      'active',
+    ));
+
+    $dry_run = $manager->sync('', TRUE, TRUE, 'unpublish');
+    self::assertSame([], $dry_run['errors']);
+    self::assertStringContainsString(
+      sprintf('would unpublish managed node:%d', (int) $obsolete_node->id()),
+      implode("\n", $dry_run['actions']),
+    );
+    self::assertTrue($this->reloadNode($obsolete_node)->isPublished());
+    self::assertTrue($this->reloadNode($manual_node)->isPublished());
+    self::assertSame('updated', $mapping_repository->findByContentId('obsolete-service')?->lastAction());
+
+    $apply = $manager->sync('', FALSE, TRUE, 'unpublish');
+    self::assertSame([], $apply['errors']);
+    self::assertStringContainsString(
+      sprintf('unpublished managed node:%d', (int) $obsolete_node->id()),
+      implode("\n", $apply['actions']),
+    );
+    self::assertFalse($this->reloadNode($obsolete_node)->isPublished());
+    self::assertTrue($this->reloadNode($manual_node)->isPublished());
+
+    $obsolete_mapping = $mapping_repository->findByContentId('obsolete-service');
+    self::assertNotNull($obsolete_mapping);
+    self::assertSame('unpublished', $obsolete_mapping->lastAction());
+    self::assertSame('unpublished', $obsolete_mapping->status());
+  }
+
+  /**
+   * Tests prune cannot be used outside the explicit safe --all mode.
+   */
+  public function testPruneRejectsTargetedAndUnsupportedModes(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+
+    $this->expectException(\InvalidArgumentException::class);
+    $this->expectExceptionMessage('Content Sync prune mode requires --all.');
+    $manager->sync('agence-drupal-belgique', TRUE, FALSE, 'unpublish');
+  }
+
+  /**
+   * Tests delete prune mode is not implemented.
+   */
+  public function testPruneDeleteIsRejected(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+
+    $this->expectException(\InvalidArgumentException::class);
+    $this->expectExceptionMessage('Only "unpublish" is available.');
+    $manager->sync('', TRUE, TRUE, 'delete');
+  }
+
+  /**
    * Creates one translatable text_long field on service nodes.
    */
   private function createTextLongField(string $field_name, bool $required): void {
@@ -209,6 +282,35 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertInstanceOf(NodeInterface::class, $node);
 
     return $node;
+  }
+
+  /**
+   * Creates a published service node for prune scope tests.
+   */
+  private function createPublishedServiceNode(string $title): NodeInterface {
+    $node = Node::create([
+      'type' => 'service',
+      'title' => $title,
+      'langcode' => 'fr',
+      'status' => NodeInterface::PUBLISHED,
+      'uid' => 1,
+    ]);
+    $node->save();
+    self::assertInstanceOf(NodeInterface::class, $node);
+
+    return $node;
+  }
+
+  /**
+   * Reloads a node after a Content Sync operation.
+   */
+  private function reloadNode(NodeInterface $node): NodeInterface {
+    $reloaded = $this->container->get('entity_type.manager')
+      ->getStorage('node')
+      ->load((int) $node->id());
+    self::assertInstanceOf(NodeInterface::class, $reloaded);
+
+    return $reloaded;
   }
 
 }

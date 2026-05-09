@@ -9,6 +9,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityRepositoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
+use Drupal\emerging_digital_content\ContentSync\Catalog\ContentSyncCatalog;
 use Drupal\emerging_digital_content\ContentSync\Catalog\ContentSyncCatalogEntry;
 use Drupal\emerging_digital_content\ContentSync\Catalog\Exception\ContentSyncCatalogException;
 use Drupal\emerging_digital_content\ContentSync\Entity\ContentSyncMappingRecord;
@@ -23,6 +24,8 @@ use Drupal\path_alias\AliasManagerInterface;
  * Builds Content Sync catalog reports and applies catalog writes.
  */
 final class ContentSyncManager {
+
+  private const PRUNE_UNPUBLISH = 'unpublish';
 
   public function __construct(
     private readonly ContentSyncCatalogLoader $catalogLoader,
@@ -43,17 +46,28 @@ final class ContentSyncManager {
    * @return array<string, mixed>
    *   A structured Content Sync report.
    */
-  public function sync(string $content_id = '', bool $dry_run = TRUE, bool $all = FALSE): array {
+  public function sync(string $content_id = '', bool $dry_run = TRUE, bool $all = FALSE, string $prune = ''): array {
     if ($all && $content_id !== '') {
       throw new \InvalidArgumentException('Content Sync cannot combine --all with a targeted content id.');
     }
 
+    if ($prune !== '' && !$all) {
+      throw new \InvalidArgumentException('Content Sync prune mode requires --all.');
+    }
+
+    if ($prune !== '' && $prune !== self::PRUNE_UNPUBLISH) {
+      throw new \InvalidArgumentException(sprintf(
+        'Unsupported Content Sync prune mode "%s". Only "unpublish" is available.',
+        $prune,
+      ));
+    }
+
     if ($dry_run) {
-      return $this->dryRun($content_id !== '' ? $content_id : NULL);
+      return $this->dryRun($content_id !== '' ? $content_id : NULL, $prune);
     }
 
     if ($all) {
-      return $this->applyAll();
+      return $this->applyAll($prune);
     }
 
     if ($content_id === '') {
@@ -92,7 +106,7 @@ final class ContentSyncManager {
    * @return array<string, mixed>
    *   A structured dry-run report.
    */
-  public function dryRun(?string $content_id = NULL): array {
+  public function dryRun(?string $content_id = NULL, string $prune = ''): array {
     try {
       $catalog = $this->catalogLoader->load();
       $report = $this->catalogValidator->validate($catalog);
@@ -194,6 +208,15 @@ final class ContentSyncManager {
       );
     }
 
+    if ($prune === self::PRUNE_UNPUBLISH) {
+      $result = $this->pruneUnpublish($this->catalogContentIds($catalog), TRUE);
+      $report['actions'] = array_merge($report['actions'], $result['actions']);
+      $report['warnings'] = array_merge(
+        $this->reportList($report, 'warnings'),
+        $result['warnings'],
+      );
+    }
+
     $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
 
     return $report;
@@ -261,7 +284,7 @@ final class ContentSyncManager {
    * @return array<string, mixed>
    *   A structured apply report.
    */
-  private function applyAll(): array {
+  private function applyAll(string $prune = ''): array {
     try {
       $catalog = $this->catalogLoader->load();
       $report = $this->catalogValidator->validate($catalog);
@@ -335,9 +358,119 @@ final class ContentSyncManager {
       $report['content_reports'][] = $content_report;
     }
 
+    if ($prune === self::PRUNE_UNPUBLISH) {
+      if ($this->reportList($report, 'errors') === []) {
+        $result = $this->pruneUnpublish($this->catalogContentIds($catalog), FALSE);
+        $report['actions'] = array_merge($report['actions'], $result['actions']);
+        $report['warnings'] = array_merge(
+          $this->reportList($report, 'warnings'),
+          $result['warnings'],
+        );
+      }
+      else {
+        $report['actions'][] = 'prune unpublish skipped: catalog apply reported errors';
+      }
+    }
+
     $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
 
     return $report;
+  }
+
+  /**
+   * Unpublishes active managed nodes absent from the current catalog.
+   *
+   * @param list<string> $catalog_content_ids
+   *   Business identifiers currently declared in the catalog.
+   * @param bool $dry_run
+   *   TRUE to report only, FALSE to write node and mapping changes.
+   *
+   * @return array{actions: list<string>, warnings: list<string>}
+   *   Prune messages.
+   */
+  private function pruneUnpublish(array $catalog_content_ids, bool $dry_run): array {
+    $actions = [
+      $dry_run
+        ? 'prune unpublish dry-run: checking active mappings absent from catalog'
+        : 'prune unpublish apply: checking active mappings absent from catalog',
+    ];
+    $warnings = [];
+    $mappings = $this->mappingRepository->findActiveMissingFromCatalog($catalog_content_ids);
+
+    if ($mappings === []) {
+      $actions[] = 'prune unpublish: no active managed content is absent from catalog';
+      return [
+        'actions' => $actions,
+        'warnings' => $warnings,
+      ];
+    }
+
+    foreach ($mappings as $mapping) {
+      if ($mapping->entityType() !== 'node') {
+        $warnings[] = sprintf(
+          'prune unpublish skipped for %s: mapped entity type "%s" is not supported',
+          $mapping->contentId(),
+          $mapping->entityType(),
+        );
+        continue;
+      }
+
+      $node = $this->loadMappedNode($mapping);
+      if (!$node instanceof NodeInterface) {
+        $warnings[] = sprintf(
+          'prune unpublish skipped for %s: mapped node could not be loaded',
+          $mapping->contentId(),
+        );
+        continue;
+      }
+
+      if ($dry_run) {
+        $actions[] = sprintf(
+          'would unpublish managed node:%d for absent catalog content %s',
+          (int) $node->id(),
+          $mapping->contentId(),
+        );
+        continue;
+      }
+
+      $this->unpublishNodeTranslations($node);
+      $node->save();
+      $this->mappingRepository->createOrUpdate(new ContentSyncMappingRecord(
+        $mapping->contentId(),
+        'node',
+        (int) $node->id(),
+        $node->uuid(),
+        $mapping->langcode(),
+        $mapping->catalogHash(),
+        $this->time->getRequestTime(),
+        'unpublished',
+        'unpublished',
+        $mapping->created(),
+      ));
+
+      $actions[] = sprintf(
+        'unpublished managed node:%d for absent catalog content %s',
+        (int) $node->id(),
+        $mapping->contentId(),
+      );
+    }
+
+    return [
+      'actions' => $actions,
+      'warnings' => $warnings,
+    ];
+  }
+
+  /**
+   * Unpublishes every available translation of a node.
+   */
+  private function unpublishNodeTranslations(NodeInterface $node): void {
+    foreach (array_keys($node->getTranslationLanguages()) as $langcode) {
+      $translation = $node->getTranslation((string) $langcode);
+      if ($translation->hasField('status')) {
+        $translation->set('status', NodeInterface::NOT_PUBLISHED);
+      }
+    }
   }
 
   /**
@@ -905,6 +1038,21 @@ final class ContentSyncManager {
     }
 
     return $aliases;
+  }
+
+  /**
+   * Returns all business identifiers declared in a catalog.
+   *
+   * @return list<string>
+   *   Catalog content identifiers.
+   */
+  private function catalogContentIds(ContentSyncCatalog $catalog): array {
+    $content_ids = [];
+    foreach ($catalog->entries() as $entry) {
+      $content_ids[] = $entry->id();
+    }
+
+    return $content_ids;
   }
 
   /**

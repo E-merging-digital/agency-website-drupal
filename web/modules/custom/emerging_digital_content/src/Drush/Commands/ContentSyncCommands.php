@@ -33,7 +33,14 @@ final class ContentSyncCommands extends DrushCommands {
     description: 'Validate the Content Sync catalog without writing entities.',
   )]
   public function validate(): int {
-    $report = $this->contentSyncManager->validateCatalog();
+    try {
+      $report = $this->contentSyncManager->validateCatalog();
+    }
+    catch (\Throwable $exception) {
+      $this->logger()->error($exception->getMessage());
+      return self::EXIT_FAILURE;
+    }
+
     $this->printReport($report, 'Content Sync catalog validation');
 
     return $this->reportList($report, 'errors') === [] ? self::EXIT_SUCCESS : self::EXIT_FAILURE;
@@ -87,7 +94,7 @@ final class ContentSyncCommands extends DrushCommands {
     try {
       $report = $this->contentSyncManager->sync($content_id, $dry_run, $all, $prune);
     }
-    catch (\InvalidArgumentException $exception) {
+    catch (\Throwable $exception) {
       $this->logger()->error($exception->getMessage());
       return self::EXIT_FAILURE;
     }
@@ -158,6 +165,38 @@ final class ContentSyncCommands extends DrushCommands {
       $this->logger()->notice(' - ' . (string) $action);
     }
 
+    foreach ($this->reportList($report, 'content_reports') as $content_report) {
+      if (!is_array($content_report)) {
+        continue;
+      }
+
+      $translations = $content_report['translations'] ?? [];
+      if (isset($content_report['planned_operation'])) {
+        $this->logger()->notice(sprintf(
+          ' - content report: %s | %s:%s | %s | mapping %s%s | translations %s | hash %s',
+          (string) ($content_report['id'] ?? ''),
+          (string) ($content_report['entity_type'] ?? ''),
+          (string) ($content_report['bundle'] ?? ''),
+          (string) $content_report['planned_operation'],
+          (string) ($content_report['mapping_status'] ?? ''),
+          (string) ($content_report['mapped_entity'] ?? '') !== ''
+            ? ' ' . (string) $content_report['mapped_entity']
+            : '',
+          is_array($translations) ? implode(', ', $translations) : '',
+          (string) ($content_report['catalog_hash'] ?? ''),
+        ));
+        continue;
+      }
+
+      $this->logger()->notice(sprintf(
+        ' - content report: %s | actions %d | warnings %d | errors %d',
+        (string) ($content_report['id'] ?? ''),
+        count($this->reportList($content_report, 'actions')),
+        count($this->reportList($content_report, 'warnings')),
+        count($this->reportList($content_report, 'errors')),
+      ));
+    }
+
     foreach ($this->reportList($report, 'warnings') as $warning) {
       $this->logger()->warning(' - ' . (string) $warning);
     }
@@ -169,6 +208,8 @@ final class ContentSyncCommands extends DrushCommands {
     if (($report['menus_touched'] ?? FALSE) === FALSE) {
       $this->logger()->notice('Menu entities untouched.');
     }
+
+    $this->printSummary($report);
   }
 
   /**
@@ -184,6 +225,43 @@ final class ContentSyncCommands extends DrushCommands {
    */
   private function reportList(array $report, string $key): array {
     return isset($report[$key]) && is_array($report[$key]) ? $report[$key] : [];
+  }
+
+  /**
+   * Prints the final structured summary at the end of the report.
+   *
+   * @param array<string, mixed> $report
+   *   Structured report.
+   */
+  private function printSummary(array $report): void {
+    if (!isset($report['summary']) || !is_array($report['summary'])) {
+      return;
+    }
+
+    $summary = $report['summary'];
+    $this->logger()->notice('Final summary:');
+    foreach ($summary as $key => $value) {
+      $this->logger()->notice(sprintf(
+        ' - %s: %s',
+        (string) $key,
+        $this->formatSummaryValue($value),
+      ));
+    }
+  }
+
+  /**
+   * Formats a scalar summary value for CLI output.
+   */
+  private function formatSummaryValue(mixed $value): string {
+    if (is_bool($value)) {
+      return $value ? 'true' : 'false';
+    }
+
+    if (is_scalar($value)) {
+      return (string) $value;
+    }
+
+    return json_encode($value) ?: '';
   }
 
 }

@@ -4,3 +4,4 @@ services:
     arguments:
       - '@entity_type.manager'
       - '@path_alias.repository'
+      - '@config.factory'

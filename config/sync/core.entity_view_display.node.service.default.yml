@@ -1,0 +1,45 @@
+uuid: 41d7b2f6-92b5-4d02-9eb7-bb919cd9b3ef
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.service.field_detailed_description
+    - field.field.node.service.field_localisation
+    - field.field.node.service.field_related_ai_features
+    - field.field.node.service.field_sector
+    - field.field.node.service.field_service_type
+    - field.field.node.service.field_short_description
+    - node.type.service
+  module:
+    - text
+    - user
+id: node.service.default
+targetEntityType: node
+bundle: service
+mode: default
+content:
+  field_detailed_description:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_short_description:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden:
+  field_localisation: true
+  field_related_ai_features: true
+  field_sector: true
+  field_service_type: true
+  langcode: true

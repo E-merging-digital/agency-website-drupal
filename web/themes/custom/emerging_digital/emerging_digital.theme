@@ -7,6 +7,7 @@
 
 declare(strict_types=1);
 
+use Drupal\Core\Url;
 use Drupal\webform\Entity\Webform;
 
 /**
@@ -38,6 +39,64 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
         ->view($contact_webform);
     }
   }
+}
+
+/**
+ * Implements hook_preprocess_paragraph__services().
+ */
+function emerging_digital_preprocess_paragraph__services(array &$variables): void {
+  $paragraph = $variables['paragraph'] ?? NULL;
+  if (!$paragraph || !$paragraph->hasField('field_items')) {
+    return;
+  }
+
+  $language = $paragraph->language();
+  $langcode = $language->getId();
+  $default_langcode = \Drupal::languageManager()->getDefaultLanguage()->getId();
+  $variables['service_cards'] = [];
+
+  foreach ($paragraph->get('field_items') as $item) {
+    $parts = array_map('trim', explode('|', (string) $item->value));
+    $url = '';
+
+    if (!empty($parts[2])) {
+      try {
+        $url = Url::fromUserInput($parts[2], ['language' => $language])->toString();
+        if ($langcode === $default_langcode) {
+          $url = _emerging_digital_strip_default_language_prefix($url, $default_langcode);
+        }
+      }
+      catch (\InvalidArgumentException) {
+        $url = $parts[2];
+      }
+    }
+
+    $variables['service_cards'][] = [
+      'title' => $parts[0] ?? '',
+      'description' => $parts[1] ?? '',
+      'url' => $url,
+      'cta_label' => $langcode === 'en' ? 'Discover' : 'Découvrir',
+    ];
+  }
+}
+
+/**
+ * Removes the configured URL prefix for the default language.
+ */
+function _emerging_digital_strip_default_language_prefix(string $url, string $default_langcode): string {
+  $prefix = \Drupal::config('language.negotiation')->get('url.prefixes.' . $default_langcode);
+  if (!is_string($prefix) || $prefix === '') {
+    return $url;
+  }
+
+  $prefix = '/' . trim($prefix, '/');
+  if ($url === $prefix) {
+    return '/';
+  }
+
+  return str_starts_with($url, $prefix . '/')
+    ? substr($url, strlen($prefix))
+    : $url;
 }
 
 /**

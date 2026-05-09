@@ -20,7 +20,7 @@ use Drupal\paragraphs\ParagraphInterface;
 use Drupal\path_alias\AliasManagerInterface;
 
 /**
- * Builds Content Sync catalog reports and applies targeted writes.
+ * Builds Content Sync catalog reports and applies catalog writes.
  */
 final class ContentSyncManager {
 
@@ -38,14 +38,22 @@ final class ContentSyncManager {
   }
 
   /**
-   * Synchronizes one catalog content item, or previews it in dry-run mode.
+   * Synchronizes catalog content items, or previews them in dry-run mode.
    *
    * @return array<string, mixed>
    *   A structured Content Sync report.
    */
-  public function sync(string $content_id = '', bool $dry_run = TRUE): array {
+  public function sync(string $content_id = '', bool $dry_run = TRUE, bool $all = FALSE): array {
+    if ($all && $content_id !== '') {
+      throw new \InvalidArgumentException('Content Sync cannot combine --all with a targeted content id.');
+    }
+
     if ($dry_run) {
       return $this->dryRun($content_id !== '' ? $content_id : NULL);
+    }
+
+    if ($all) {
+      return $this->applyAll();
     }
 
     if ($content_id === '') {
@@ -231,8 +239,7 @@ final class ContentSyncManager {
     }
 
     try {
-      $this->assertSupportedTarget($entry);
-      $result = $this->applyNodeService($entry);
+      $result = $this->applyValidatedEntry($entry);
       $report['actions'] = array_merge($report['actions'], $result['actions']);
       $report['warnings'] = array_merge(
         $this->reportList($report, 'warnings'),
@@ -246,6 +253,103 @@ final class ContentSyncManager {
     $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
 
     return $report;
+  }
+
+  /**
+   * Applies every valid catalog entry after a full preflight validation.
+   *
+   * @return array<string, mixed>
+   *   A structured apply report.
+   */
+  private function applyAll(): array {
+    try {
+      $catalog = $this->catalogLoader->load();
+      $report = $this->catalogValidator->validate($catalog);
+    }
+    catch (ContentSyncCatalogException $exception) {
+      return [
+        'dry_run' => FALSE,
+        'contents_found' => 0,
+        'valid_contents' => [],
+        'invalid_contents' => [],
+        'warnings' => [],
+        'errors' => [$exception->getMessage()],
+        'actions' => [],
+        'content_reports' => [],
+        'menus_touched' => FALSE,
+      ];
+    }
+
+    $report['dry_run'] = FALSE;
+    $report['actions'] = [];
+    $report['content_reports'] = [];
+    $report['menus_touched'] = FALSE;
+
+    if ($this->reportList($report, 'errors') !== []) {
+      $report['actions'][] = 'catalog validation failed: no content or mapping writes were executed';
+      $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
+      return $report;
+    }
+
+    foreach ($catalog->entries() as $entry) {
+      try {
+        $this->assertSupportedTarget($entry);
+      }
+      catch (\RuntimeException $exception) {
+        $report['errors'][] = $exception->getMessage();
+      }
+    }
+
+    if ($this->reportList($report, 'errors') !== []) {
+      $report['actions'][] = 'catalog apply preflight failed: no content or mapping writes were executed';
+      $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
+      return $report;
+    }
+
+    foreach ($catalog->entries() as $entry) {
+      $content_report = [
+        'id' => $entry->id(),
+        'actions' => [],
+        'warnings' => [],
+        'errors' => [],
+      ];
+
+      try {
+        $result = $this->applyValidatedEntry($entry);
+        $content_report['actions'] = $result['actions'];
+        $content_report['warnings'] = $result['warnings'];
+        $report['actions'][] = sprintf('content %s:', $entry->id());
+        foreach ($result['actions'] as $action) {
+          $report['actions'][] = sprintf('  - %s', $action);
+        }
+        $report['warnings'] = array_merge(
+          $this->reportList($report, 'warnings'),
+          $result['warnings'],
+        );
+      }
+      catch (\RuntimeException $exception) {
+        $content_report['errors'][] = $exception->getMessage();
+        $report['errors'][] = $exception->getMessage();
+      }
+
+      $report['content_reports'][] = $content_report;
+    }
+
+    $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
+
+    return $report;
+  }
+
+  /**
+   * Applies one catalog entry that has already passed catalog preflight.
+   *
+   * @return array{actions: list<string>, warnings: list<string>}
+   *   Apply messages.
+   */
+  private function applyValidatedEntry(ContentSyncCatalogEntry $entry): array {
+    $this->assertSupportedTarget($entry);
+
+    return $this->applyNodeService($entry);
   }
 
   /**

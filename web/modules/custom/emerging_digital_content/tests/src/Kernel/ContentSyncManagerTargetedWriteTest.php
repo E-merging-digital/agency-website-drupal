@@ -126,6 +126,39 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
   }
 
   /**
+   * Tests full catalog dry-run safety, apply and idempotence.
+   */
+  public function testAllSyncCreatesCatalogContentsWithoutDuplication(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+
+    $dry_run = $manager->sync('', TRUE, TRUE);
+    self::assertSame([], $dry_run['errors']);
+    self::assertFalse($mapping_repository->exists('agence-drupal-belgique'));
+    self::assertSame(0, $this->countServiceNodes());
+
+    $first_apply = $manager->sync('', FALSE, TRUE);
+    self::assertSame([], $first_apply['errors']);
+    self::assertSame(1, $this->countServiceNodes());
+    self::assertArrayHasKey('content_reports', $first_apply);
+    self::assertCount(1, $first_apply['content_reports']);
+    self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
+
+    $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
+    self::assertNotNull($mapping);
+    self::assertSame('created', $mapping->lastAction());
+
+    $second_apply = $manager->sync('', FALSE, TRUE);
+    self::assertSame([], $second_apply['errors']);
+    self::assertSame(1, $this->countServiceNodes());
+
+    $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
+    self::assertNotNull($updated_mapping);
+    self::assertSame($mapping->id(), $updated_mapping->id());
+    self::assertSame('updated', $updated_mapping->lastAction());
+  }
+
+  /**
    * Creates one translatable text_long field on service nodes.
    */
   private function createTextLongField(string $field_name, bool $required): void {

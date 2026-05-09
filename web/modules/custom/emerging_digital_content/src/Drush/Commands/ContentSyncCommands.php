@@ -46,6 +46,7 @@ final class ContentSyncCommands extends DrushCommands {
   #[CLI\Argument(name: 'content_id', description: 'Optional stable business identifier, for example agence-drupal-belgique.')]
   #[CLI\Option(name: 'all', description: 'Synchronize every content item declared in the catalog.')]
   #[CLI\Option(name: 'dry-run', description: 'Read and report only without writing entities or mappings.')]
+  #[CLI\Option(name: 'prune', description: 'Prune mode for --all. Supported value: unpublish.')]
   #[CLI\Usage(
     name: 'drush emerging:content-sync --all --dry-run',
     description: 'Preview every catalog content item without saving content.',
@@ -53,6 +54,14 @@ final class ContentSyncCommands extends DrushCommands {
   #[CLI\Usage(
     name: 'drush emerging:content-sync --all',
     description: 'Create or update every managed content item declared in the catalog.',
+  )]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync --all --prune=unpublish --dry-run',
+    description: 'Preview managed nodes absent from the catalog that would be unpublished.',
+  )]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync --all --prune=unpublish',
+    description: 'Unpublish managed nodes absent from the catalog after applying the catalog.',
   )]
   #[CLI\Usage(
     name: 'drush emerging:content-sync agence-drupal-belgique --dry-run',
@@ -67,13 +76,16 @@ final class ContentSyncCommands extends DrushCommands {
     array $options = [
       'all' => FALSE,
       'dry-run' => FALSE,
+      'prune' => '',
     ],
   ): int {
     $all = (bool) ($options['all'] ?? FALSE);
     $dry_run = (bool) ($options['dry-run'] ?? FALSE);
+    $raw_prune = $options['prune'] ?? '';
+    $prune = is_string($raw_prune) ? $raw_prune : (string) $raw_prune;
 
     try {
-      $report = $this->contentSyncManager->sync($content_id, $dry_run, $all);
+      $report = $this->contentSyncManager->sync($content_id, $dry_run, $all, $prune);
     }
     catch (\InvalidArgumentException $exception) {
       $this->logger()->error($exception->getMessage());
@@ -82,7 +94,7 @@ final class ContentSyncCommands extends DrushCommands {
 
     $this->printReport(
       $report,
-      $this->reportTitle($dry_run, $all),
+      $this->reportTitle($dry_run, $all, $prune),
     );
 
     return $this->reportList($report, 'errors') === []
@@ -93,7 +105,13 @@ final class ContentSyncCommands extends DrushCommands {
   /**
    * Returns the command report title.
    */
-  private function reportTitle(bool $dry_run, bool $all): string {
+  private function reportTitle(bool $dry_run, bool $all, string $prune): string {
+    if ($prune !== '') {
+      return $dry_run
+        ? 'Content Sync prune unpublish read-only dry-run'
+        : 'Content Sync prune unpublish apply';
+    }
+
     if ($dry_run) {
       return $all
         ? 'Content Sync full catalog read-only dry-run'

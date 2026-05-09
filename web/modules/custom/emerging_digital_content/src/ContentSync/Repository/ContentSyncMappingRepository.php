@@ -64,6 +64,37 @@ final class ContentSyncMappingRepository {
   }
 
   /**
+   * Finds active mappings whose business identifiers are absent from catalog.
+   *
+   * @param list<string> $catalog_content_ids
+   *   Business identifiers currently declared in the catalog.
+   *
+   * @return list<\Drupal\emerging_digital_content\ContentSync\Entity\ContentSyncMappingRecord>
+   *   Active mappings absent from the catalog.
+   */
+  public function findActiveMissingFromCatalog(array $catalog_content_ids): array {
+    if (!$this->tableExists()) {
+      return [];
+    }
+
+    $query = $this->database->select(self::TABLE, 'm')
+      ->fields('m')
+      ->condition('status', 'active')
+      ->orderBy('content_id');
+
+    if ($catalog_content_ids !== []) {
+      $query->condition('content_id', $catalog_content_ids, 'NOT IN');
+    }
+
+    $records = [];
+    foreach ($query->execute()->fetchAllAssoc('content_id') as $row) {
+      $records[] = ContentSyncMappingRecord::fromArray((array) $row);
+    }
+
+    return $records;
+  }
+
+  /**
    * Creates or updates one mapping row.
    */
   public function createOrUpdate(ContentSyncMappingRecord $record): ContentSyncMappingRecord {

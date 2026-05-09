@@ -1,0 +1,16 @@
+version: 1
+contents:
+  - id: agence-drupal-belgique
+    entity_type: node
+    bundle: service
+    file: node/agence-drupal-belgique.yml
+    business_aliases:
+      fr: /agence-drupal-belgique
+      en: /drupal-agency-belgium
+    translations:
+      fr:
+        title: 'Agence Drupal Belgique'
+        alias: /agence-drupal-belgique
+      en:
+        title: 'Drupal Agency Belgium'
+        alias: /drupal-agency-belgium

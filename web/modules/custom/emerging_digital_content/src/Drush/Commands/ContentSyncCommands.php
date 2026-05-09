@@ -11,7 +11,7 @@ use Drush\Commands\DrushCommands;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
- * Drush commands for targeted Content Sync catalog checks and writes.
+ * Drush commands for Content Sync catalog checks and writes.
  */
 final class ContentSyncCommands extends DrushCommands {
 
@@ -40,11 +40,20 @@ final class ContentSyncCommands extends DrushCommands {
   }
 
   /**
-   * Synchronizes one versioned content item by business identifier.
+   * Synchronizes versioned content by business identifier or full catalog.
    */
   #[CLI\Command(name: 'emerging:content-sync')]
-  #[CLI\Argument(name: 'content_id', description: 'Stable business identifier, for example agence-drupal-belgique.')]
+  #[CLI\Argument(name: 'content_id', description: 'Optional stable business identifier, for example agence-drupal-belgique.')]
+  #[CLI\Option(name: 'all', description: 'Synchronize every content item declared in the catalog.')]
   #[CLI\Option(name: 'dry-run', description: 'Read and report only without writing entities or mappings.')]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync --all --dry-run',
+    description: 'Preview every catalog content item without saving content.',
+  )]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync --all',
+    description: 'Create or update every managed content item declared in the catalog.',
+  )]
   #[CLI\Usage(
     name: 'drush emerging:content-sync agence-drupal-belgique --dry-run',
     description: 'Preview catalog reading without saving content.',
@@ -53,11 +62,18 @@ final class ContentSyncCommands extends DrushCommands {
     name: 'drush emerging:content-sync agence-drupal-belgique',
     description: 'Create or update the targeted managed content item.',
   )]
-  public function sync(string $content_id = '', array $options = ['dry-run' => FALSE]): int {
+  public function sync(
+    string $content_id = '',
+    array $options = [
+      'all' => FALSE,
+      'dry-run' => FALSE,
+    ],
+  ): int {
+    $all = (bool) ($options['all'] ?? FALSE);
     $dry_run = (bool) ($options['dry-run'] ?? FALSE);
 
     try {
-      $report = $this->contentSyncManager->sync($content_id, $dry_run);
+      $report = $this->contentSyncManager->sync($content_id, $dry_run, $all);
     }
     catch (\InvalidArgumentException $exception) {
       $this->logger()->error($exception->getMessage());
@@ -66,12 +82,25 @@ final class ContentSyncCommands extends DrushCommands {
 
     $this->printReport(
       $report,
-      $dry_run ? 'Content Sync catalog read-only dry-run' : 'Content Sync targeted apply',
+      $this->reportTitle($dry_run, $all),
     );
 
     return $this->reportList($report, 'errors') === []
       ? self::EXIT_SUCCESS
       : self::EXIT_FAILURE;
+  }
+
+  /**
+   * Returns the command report title.
+   */
+  private function reportTitle(bool $dry_run, bool $all): string {
+    if ($dry_run) {
+      return $all
+        ? 'Content Sync full catalog read-only dry-run'
+        : 'Content Sync catalog read-only dry-run';
+    }
+
+    return $all ? 'Content Sync full catalog apply' : 'Content Sync targeted apply';
   }
 
   /**

@@ -1,4 +1,9 @@
 services:
+  logger.channel.emerging_digital_content:
+    parent: logger.channel_base
+    arguments:
+      - 'emerging_digital_content'
+
   emerging_digital_content.content_sync_catalog_loader:
     class: Drupal\emerging_digital_content\ContentSync\Loader\ContentSyncCatalogLoader
     arguments:
@@ -8,8 +13,16 @@ services:
   emerging_digital_content.content_sync_catalog_validator:
     class: Drupal\emerging_digital_content\ContentSync\Validator\ContentSyncCatalogValidator
 
+  emerging_digital_content.content_sync_mapping_repository:
+    class: Drupal\emerging_digital_content\ContentSync\Repository\ContentSyncMappingRepository
+    arguments:
+      - '@database'
+      - '@datetime.time'
+      - '@logger.channel.emerging_digital_content'
+
   emerging_digital_content.content_sync_manager:
     class: Drupal\emerging_digital_content\ContentSync\ContentSyncManager
     arguments:
       - '@emerging_digital_content.content_sync_catalog_loader'
       - '@emerging_digital_content.content_sync_catalog_validator'
+      - '@emerging_digital_content.content_sync_mapping_repository'

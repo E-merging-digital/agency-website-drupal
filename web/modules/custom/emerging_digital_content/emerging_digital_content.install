@@ -10,6 +10,15 @@ declare(strict_types=1);
 use Drupal\emerging_digital_content\MainNavigationManager;
 
 /**
+ * Implements hook_schema().
+ */
+function emerging_digital_content_schema(): array {
+  return [
+    'emerging_digital_content_sync_mapping' => _emerging_digital_content_sync_mapping_schema(),
+  ];
+}
+
+/**
  * Sets front page and purges stale packaged UUIDs before auto-import runs.
  */
 function emerging_digital_content_install(): void {
@@ -22,6 +31,126 @@ function emerging_digital_content_install(): void {
   \Drupal::state()->set('system.maintenance_mode', 0);
 
   MainNavigationManager::ensureMainNavigationLinks();
+}
+
+/**
+ * Installs the Content Sync mapping table on existing environments.
+ */
+function emerging_digital_content_update_11001(array &$sandbox): string {
+  unset($sandbox);
+
+  $schema = \Drupal::database()->schema();
+  if (!$schema->tableExists('emerging_digital_content_sync_mapping')) {
+    $schema->createTable(
+      'emerging_digital_content_sync_mapping',
+      _emerging_digital_content_sync_mapping_schema(),
+    );
+
+    return 'Content Sync mapping table has been created.';
+  }
+
+  return 'Content Sync mapping table already exists.';
+}
+
+/**
+ * Returns the Content Sync mapping schema definition.
+ *
+ * @return array<string, mixed>
+ *   Drupal schema definition.
+ */
+function _emerging_digital_content_sync_mapping_schema(): array {
+  return [
+    'description' => 'Maps Content Sync business identifiers to managed Drupal entities.',
+    'fields' => [
+      'id' => [
+        'description' => 'Primary key.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ],
+      'content_id' => [
+        'description' => 'Stable business identifier declared in the Content Sync catalog.',
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+      ],
+      'entity_type' => [
+        'description' => 'Drupal entity type managed by Content Sync.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+      ],
+      'entity_id' => [
+        'description' => 'Drupal entity numeric identifier.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ],
+      'entity_uuid' => [
+        'description' => 'Drupal entity UUID.',
+        'type' => 'varchar',
+        'length' => 128,
+      ],
+      'langcode' => [
+        'description' => 'Primary language code tracked for the mapping.',
+        'type' => 'varchar',
+        'length' => 12,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'catalog_hash' => [
+        'description' => 'Hash of the catalog definition used during the last sync.',
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'last_synced' => [
+        'description' => 'Unix timestamp of the latest successful sync.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+      ],
+      'last_action' => [
+        'description' => 'Latest Content Sync action recorded for this mapping.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => '',
+      ],
+      'status' => [
+        'description' => 'Mapping status reserved for future prune and audit workflows.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => 'active',
+      ],
+      'created' => [
+        'description' => 'Unix timestamp when the mapping was created.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      'changed' => [
+        'description' => 'Unix timestamp when the mapping was last changed.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+    ],
+    'primary key' => ['id'],
+    'unique keys' => [
+      'content_id' => ['content_id'],
+    ],
+    'indexes' => [
+      'entity' => ['entity_type', 'entity_id'],
+      'entity_uuid' => ['entity_uuid'],
+      'langcode' => ['langcode'],
+      'status' => ['status'],
+      'last_action' => ['last_action'],
+      'last_synced' => ['last_synced'],
+    ],
+  ];
 }
 
 /**

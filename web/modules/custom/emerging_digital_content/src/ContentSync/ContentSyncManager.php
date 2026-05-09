@@ -6,6 +6,7 @@ namespace Drupal\emerging_digital_content\ContentSync;
 
 use Drupal\emerging_digital_content\ContentSync\Catalog\Exception\ContentSyncCatalogException;
 use Drupal\emerging_digital_content\ContentSync\Loader\ContentSyncCatalogLoader;
+use Drupal\emerging_digital_content\ContentSync\Repository\ContentSyncMappingRepository;
 use Drupal\emerging_digital_content\ContentSync\Validator\ContentSyncCatalogValidator;
 
 /**
@@ -16,6 +17,7 @@ final class ContentSyncManager {
   public function __construct(
     private readonly ContentSyncCatalogLoader $catalogLoader,
     private readonly ContentSyncCatalogValidator $catalogValidator,
+    private readonly ContentSyncMappingRepository $mappingRepository,
   ) {
   }
 
@@ -103,14 +105,35 @@ final class ContentSyncManager {
 
     foreach ($entries as $entry) {
       $definition = $entry->toArray();
+      $mapping = $this->mappingRepository->findByContentId($entry->id());
       $translations = is_array($definition['translations'] ?? NULL)
         ? $definition['translations']
         : [];
+      $catalog_hash = $this->catalogHash($definition);
 
       $report['actions'][] = sprintf(
         'read %s "%s" from catalog: %s',
         (string) ($definition['entity_type'] ?? 'unknown'),
         (string) ($definition['bundle'] ?? 'unknown'),
+        $entry->id(),
+      );
+      $report['actions'][] = $mapping === NULL
+        ? sprintf(
+          'mapping lookup for %s: no managed Drupal entity is registered yet (catalog hash %s)',
+          $entry->id(),
+          $catalog_hash,
+        )
+        : sprintf(
+          'mapping lookup for %s: registered %s:%s, langcode %s, status %s, last action %s',
+          $entry->id(),
+          $mapping->entityType(),
+          (string) ($mapping->entityId() ?? 'unknown'),
+          $mapping->langcode() !== '' ? $mapping->langcode() : 'unknown',
+          $mapping->status(),
+          $mapping->lastAction() !== '' ? $mapping->lastAction() : 'none',
+        );
+      $report['actions'][] = sprintf(
+        'mapping write skipped for %s: dry-run remains read-only',
         $entry->id(),
       );
       $report['actions'][] = sprintf(
@@ -146,6 +169,16 @@ final class ContentSyncManager {
     $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
 
     return $report;
+  }
+
+  /**
+   * Builds a deterministic hash for one catalog definition.
+   *
+   * @param array<string, mixed> $definition
+   *   Catalog definition.
+   */
+  private function catalogHash(array $definition): string {
+    return hash('sha256', serialize($definition));
   }
 
 }

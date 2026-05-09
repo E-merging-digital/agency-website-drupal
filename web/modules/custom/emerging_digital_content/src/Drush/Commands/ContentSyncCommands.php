@@ -11,7 +11,7 @@ use Drush\Commands\DrushCommands;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
- * Drush commands for targeted content synchronization.
+ * Drush commands for read-only Content Sync catalog checks.
  */
 final class ContentSyncCommands extends DrushCommands {
 
@@ -25,45 +25,115 @@ final class ContentSyncCommands extends DrushCommands {
   }
 
   /**
-   * Creates or updates one versioned content item by business identifier.
+   * Validates the versioned Content Sync catalog.
+   */
+  #[CLI\Command(name: 'emerging:content-sync:validate')]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync:validate',
+    description: 'Validate the Content Sync catalog without writing entities.',
+  )]
+  public function validate(): int {
+    $report = $this->contentSyncManager->validateCatalog();
+    $this->printReport($report, 'Content Sync catalog validation');
+
+    return $this->reportList($report, 'errors') === [] ? self::EXIT_SUCCESS : self::EXIT_FAILURE;
+  }
+
+  /**
+   * Reads one versioned content item by business identifier in dry-run mode.
    */
   #[CLI\Command(name: 'emerging:content-sync')]
   #[CLI\Argument(name: 'content_id', description: 'Stable business identifier, for example agence-drupal-belgique.')]
-  #[CLI\Option(name: 'dry-run', description: 'Preview actions without saving content.')]
-  #[CLI\Usage(name: 'drush emerging:content-sync agence-drupal-belgique --dry-run', description: 'Preview the synchronization.')]
-  #[CLI\Usage(name: 'drush emerging:content-sync agence-drupal-belgique', description: 'Apply the synchronization.')]
-  public function sync(string $content_id, array $options = ['dry-run' => FALSE]): int {
+  #[CLI\Option(name: 'dry-run', description: 'Read and report only. Apply mode is intentionally unavailable.')]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync agence-drupal-belgique --dry-run',
+    description: 'Preview catalog reading without saving content.',
+  )]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync agence-drupal-belgique',
+    description: 'Preview catalog reading without saving content.',
+  )]
+  public function sync(string $content_id = '', array $options = ['dry-run' => TRUE]): int {
+    unset($options);
+
     try {
-      $report = $this->contentSyncManager->sync($content_id, (bool) $options['dry-run']);
+      $report = $this->contentSyncManager->sync($content_id, TRUE);
     }
     catch (\InvalidArgumentException $exception) {
       $this->logger()->error($exception->getMessage());
       return self::EXIT_FAILURE;
     }
 
+    $this->printReport($report, 'Content Sync catalog read-only dry-run');
+
+    return $this->reportList($report, 'errors') === []
+      ? self::EXIT_SUCCESS
+      : self::EXIT_FAILURE;
+  }
+
+  /**
+   * Prints a compact structured report.
+   *
+   * @param array<string, mixed> $report
+   *   Structured report.
+   * @param string $title
+   *   Report title.
+   */
+  private function printReport(array $report, string $title): void {
+    $this->logger()->notice($title);
+    $this->logger()->notice(sprintf('Contents found: %d', (int) $report['contents_found']));
     $this->logger()->notice(sprintf(
-      '%s content sync for "%s".',
-      $report['dry_run'] ? 'Dry-run' : 'Applied',
-      $report['content_id'],
+      'Valid contents: %d',
+      count($this->reportList($report, 'valid_contents')),
+    ));
+    $this->logger()->notice(sprintf(
+      'Invalid contents: %d',
+      count($this->reportList($report, 'invalid_contents')),
     ));
 
-    foreach ($report['actions'] as $action) {
-      $this->logger()->notice(' - ' . $action);
+    foreach ($this->reportList($report, 'valid_contents') as $content) {
+      if (!is_array($content)) {
+        continue;
+      }
+
+      $this->logger()->notice(sprintf(
+        ' - valid: %s (%s:%s)',
+        (string) ($content['id'] ?? ''),
+        (string) ($content['entity_type'] ?? ''),
+        (string) ($content['bundle'] ?? ''),
+      ));
     }
 
-    foreach ($report['warnings'] as $warning) {
-      $this->logger()->warning(' - ' . $warning);
+    foreach ($this->reportList($report, 'actions') as $action) {
+      $this->logger()->notice(' - ' . (string) $action);
     }
 
-    if (!empty($report['node_id'])) {
-      $this->logger()->notice(sprintf('Target node: nid %s, uuid %s.', $report['node_id'], $report['node_uuid']));
+    foreach ($this->reportList($report, 'warnings') as $warning) {
+      $this->logger()->warning(' - ' . (string) $warning);
     }
 
-    if ($report['menus_touched'] === FALSE) {
+    foreach ($this->reportList($report, 'errors') as $error) {
+      $this->logger()->error(' - ' . (string) $error);
+    }
+
+    if (($report['menus_touched'] ?? FALSE) === FALSE) {
       $this->logger()->notice('Menu entities untouched.');
     }
+  }
 
-    return self::EXIT_SUCCESS;
+  /**
+   * Returns a report list safely.
+   *
+   * @param array<string, mixed> $report
+   *   Structured report.
+   * @param string $key
+   *   Report list key.
+   *
+   * @return array<int|string, mixed>
+   *   Report list.
+   */
+  private function reportList(array $report, string $key): array {
+    return isset($report[$key]) && is_array($report[$key]) ? $report[$key] : [];
   }
 
 }

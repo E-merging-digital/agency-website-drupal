@@ -1,7 +1,15 @@
 services:
+  emerging_digital_content.content_sync_catalog_loader:
+    class: Drupal\emerging_digital_content\ContentSync\Loader\ContentSyncCatalogLoader
+    arguments:
+      - '@extension.list.module'
+      - '%app.root%'
+
+  emerging_digital_content.content_sync_catalog_validator:
+    class: Drupal\emerging_digital_content\ContentSync\Validator\ContentSyncCatalogValidator
+
   emerging_digital_content.content_sync_manager:
     class: Drupal\emerging_digital_content\ContentSync\ContentSyncManager
     arguments:
-      - '@entity_type.manager'
-      - '@path_alias.repository'
-      - '@config.factory'
+      - '@emerging_digital_content.content_sync_catalog_loader'
+      - '@emerging_digital_content.content_sync_catalog_validator'

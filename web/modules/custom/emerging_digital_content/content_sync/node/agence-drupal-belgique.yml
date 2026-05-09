@@ -1,0 +1,86 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Agence Drupal en Belgique pour PME, ASBL et institutions : audit,
+          création, refonte, migration et maintenance de sites Drupal
+          accessibles, performants et durables.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital accompagne les organisations belges qui veulent un
+          site Drupal fiable, clair pour les équipes éditoriales et prêt pour
+          les enjeux de performance, d'accessibilité et de référencement
+          naturel.</p><h2>Ce que nous prenons en charge</h2><ul><li>Audit
+          Drupal, architecture de contenu et priorisation technique.</li><li>
+          Création ou refonte de sites Drupal pour PME, ASBL et institutions.
+          </li><li>Migration, maintenance, sécurité et amélioration continue.
+          </li><li>Optimisation SEO technique, performance et accessibilité.
+          </li><li>Intégration d'usages IA utiles dans les workflows éditoriaux
+          Drupal.</li></ul><p>La page est synchronisée avec un identifiant
+          métier stable afin de pouvoir être rejouée sans duplication. Vous
+          pouvez aussi consulter nos <a href="/services">services Drupal</a> et
+          notre approche <a href="/ia-drupal">IA &amp; Drupal</a>.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Drupal agency in Belgium for SMEs, non-profits and institutions:
+          audits, builds, redesigns, migrations and maintenance for accessible,
+          performant websites.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital supports Belgian organisations that need a
+          reliable Drupal website, clear editorial workflows and a strong
+          foundation for performance, accessibility and organic search.</p><h2>
+          What we cover</h2><ul><li>Drupal audits, content architecture and
+          technical prioritisation.</li><li>Drupal website builds and redesigns
+          for SMEs, non-profits and institutions.</li><li>Migration,
+          maintenance, security and continuous improvement.</li><li>Technical
+          SEO, performance and accessibility optimisation.</li><li>Practical AI
+          use cases inside Drupal editorial workflows.</li></ul><p>This page is
+          synchronized through a stable business identifier so it can be replayed
+          without duplication. You can also explore our <a href="/services">
+          Drupal services</a> and our <a href="/ia-drupal">AI &amp; Drupal</a>
+          approach.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Agence Drupal Belgique'
+        description: >-
+          Un accompagnement senior pour créer, refondre, migrer et maintenir des
+          sites Drupal accessibles, performants et durables.
+        url: /agence-drupal-belgique
+      en:
+        title: 'Drupal Agency Belgium'
+        description: >-
+          Senior support to build, redesign, migrate and maintain accessible,
+          performant and durable Drupal websites.
+        url: /drupal-agency-belgium
+  - target:
+      label: Homepage
+      front: true
+      aliases:
+        fr: /accueil
+    translations:
+      fr:
+        title: 'Agence Drupal Belgique'
+        description: >-
+          Un partenaire Drupal senior en Belgique pour structurer vos contenus,
+          vos parcours et votre socle technique.
+        url: /agence-drupal-belgique
+      en:
+        title: 'Drupal Agency Belgium'
+        description: >-
+          A senior Drupal partner in Belgium to structure your content, user
+          journeys and technical foundation.
+        url: /drupal-agency-belgium

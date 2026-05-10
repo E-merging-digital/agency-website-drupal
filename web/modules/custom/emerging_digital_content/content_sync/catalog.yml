@@ -14,3 +14,18 @@ contents:
       en:
         title: 'Drupal Agency Belgium'
         alias: /drupal-agency-belgium
+  - id: services
+    entity_type: node
+    bundle: page
+    file: node/services.yml
+    legacy_uuid: d6e1876f-8e32-4f75-b6bb-946de5f5afdb
+    business_aliases:
+      fr: /services
+      en: /services
+    translations:
+      fr:
+        title: Services
+        alias: /services
+      en:
+        title: Services
+        alias: /services

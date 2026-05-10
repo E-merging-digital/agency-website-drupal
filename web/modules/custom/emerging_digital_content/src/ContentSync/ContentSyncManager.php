@@ -611,17 +611,18 @@ final class ContentSyncManager {
   private function applyValidatedEntry(ContentSyncCatalogEntry $entry): array {
     $this->assertSupportedTarget($entry);
 
-    return $this->applyNodeService($entry);
+    return $this->applyNode($entry);
   }
 
   /**
-   * Applies the supported node:service catalog item.
+   * Applies the supported node catalog item.
    *
    * @return array{actions: list<string>, warnings: list<string>}
    *   Apply messages.
    */
-  private function applyNodeService(ContentSyncCatalogEntry $entry): array {
+  private function applyNode(ContentSyncCatalogEntry $entry): array {
     $definition = $entry->toArray();
+    $bundle = (string) ($definition['bundle'] ?? '');
     $mapping = $this->mappingRepository->findByContentId($entry->id());
     $node = $this->loadMappedNode($mapping);
     $actions = [];
@@ -632,7 +633,14 @@ final class ContentSyncManager {
     }
 
     if ($node === NULL) {
-      $node = $this->resolveNodeByCatalogAliases($definition);
+      $node = $this->resolveNodeByLegacyUuid($definition, $bundle);
+      if ($node !== NULL) {
+        $actions[] = sprintf('legacy uuid resolved %s to node:%d', $entry->id(), (int) $node->id());
+      }
+    }
+
+    if ($node === NULL) {
+      $node = $this->resolveNodeByCatalogAliases($definition, $bundle);
       if ($node !== NULL) {
         $actions[] = sprintf('alias fallback resolved %s to node:%d', $entry->id(), (int) $node->id());
       }
@@ -641,7 +649,7 @@ final class ContentSyncManager {
     $created = FALSE;
     if ($node === NULL) {
       $node = $this->entityTypeManager->getStorage('node')->create([
-        'type' => 'service',
+        'type' => $bundle,
         'langcode' => $this->defaultTranslationLangcode($definition),
         'status' => NodeInterface::PUBLISHED,
         'uid' => 1,
@@ -650,18 +658,22 @@ final class ContentSyncManager {
         throw new \RuntimeException(sprintf('Could not create node for "%s".', $entry->id()));
       }
       $created = TRUE;
-      $actions[] = sprintf('created new node:service for %s', $entry->id());
+      $actions[] = sprintf('created new node:%s for %s', $bundle, $entry->id());
     }
 
-    if ($node->bundle() !== 'service') {
+    if ($node->bundle() !== $bundle) {
       throw new \RuntimeException(sprintf(
-        'Content "%s" resolved to node:%s, but it is not a service node.',
+        'Content "%s" resolved to node:%s, but it is not a %s node.',
         $entry->id(),
         (string) $node->id(),
+        $bundle,
       ));
     }
 
     $this->applyNodeTranslations($node, $definition);
+    $component_actions = [];
+    $this->applyPageComponents($node, $definition, $component_actions);
+    $actions = array_merge($actions, $component_actions);
 
     foreach ($this->collectAliases($definition) as $langcode => $aliases) {
       foreach ($aliases as $alias) {
@@ -677,12 +689,14 @@ final class ContentSyncManager {
       implode(', ', array_keys($this->translations($definition))),
     );
 
-    foreach ($this->applyPromotions($definition) as $message) {
-      if (str_starts_with($message, 'warning: ')) {
-        $warnings[] = substr($message, 9);
-        continue;
+    if ($bundle === 'service') {
+      foreach ($this->applyPromotions($definition) as $message) {
+        if (str_starts_with($message, 'warning: ')) {
+          $warnings[] = substr($message, 9);
+          continue;
+        }
+        $actions[] = $message;
       }
-      $actions[] = $message;
     }
 
     $catalog_hash = $this->catalogHash($definition);
@@ -718,7 +732,8 @@ final class ContentSyncManager {
    */
   private function assertSupportedTarget(ContentSyncCatalogEntry $entry): void {
     $definition = $entry->toArray();
-    if (($definition['entity_type'] ?? NULL) !== 'node' || ($definition['bundle'] ?? NULL) !== 'service') {
+    $bundle = (string) ($definition['bundle'] ?? '');
+    if (($definition['entity_type'] ?? NULL) !== 'node' || !in_array($bundle, ['service', 'page'], TRUE)) {
       throw new \RuntimeException(sprintf(
         'Content "%s" is outside the supported targeted write scope.',
         $entry->id(),
@@ -752,12 +767,61 @@ final class ContentSyncManager {
   }
 
   /**
-   * Resolves an existing service node cautiously by catalog aliases.
+   * Loads a paragraph from a mapping record when it still exists.
+   */
+  private function loadMappedParagraph(?ContentSyncMappingRecord $mapping): ?ParagraphInterface {
+    if ($mapping === NULL || $mapping->entityType() !== 'paragraph') {
+      return NULL;
+    }
+
+    if ($mapping->entityUuid() !== NULL && $mapping->entityUuid() !== '') {
+      $entity = $this->entityRepository->loadEntityByUuid('paragraph', $mapping->entityUuid());
+      if ($entity instanceof ParagraphInterface) {
+        return $entity;
+      }
+    }
+
+    if ($mapping->entityId() !== NULL) {
+      $entity = $this->entityTypeManager->getStorage('paragraph')->load($mapping->entityId());
+      if ($entity instanceof ParagraphInterface) {
+        return $entity;
+      }
+    }
+
+    return NULL;
+  }
+
+  /**
+   * Resolves an existing node by the migrated default_content UUID.
    *
    * @param array<string, mixed> $definition
    *   Catalog definition.
+   * @param string $bundle
+   *   Expected node bundle.
    */
-  private function resolveNodeByCatalogAliases(array $definition): ?NodeInterface {
+  private function resolveNodeByLegacyUuid(array $definition, string $bundle): ?NodeInterface {
+    $legacy_uuid = (string) ($definition['legacy_uuid'] ?? '');
+    if ($legacy_uuid === '') {
+      return NULL;
+    }
+
+    $entity = $this->entityRepository->loadEntityByUuid('node', $legacy_uuid);
+    if ($entity instanceof NodeInterface && $entity->bundle() === $bundle) {
+      return $entity;
+    }
+
+    return NULL;
+  }
+
+  /**
+   * Resolves an existing node cautiously by catalog aliases.
+   *
+   * @param array<string, mixed> $definition
+   *   Catalog definition.
+   * @param string $bundle
+   *   Expected node bundle.
+   */
+  private function resolveNodeByCatalogAliases(array $definition, string $bundle): ?NodeInterface {
     $candidates = [];
     foreach ($this->collectAliases($definition) as $langcode => $aliases) {
       foreach ($aliases as $alias) {
@@ -767,14 +831,14 @@ final class ContentSyncManager {
         }
 
         $node = $this->entityTypeManager->getStorage('node')->load((int) $matches[1]);
-        if ($node instanceof NodeInterface && $node->bundle() === 'service') {
+        if ($node instanceof NodeInterface && $node->bundle() === $bundle) {
           $candidates[(int) $node->id()] = $node;
         }
       }
     }
 
     if (count($candidates) > 1) {
-      throw new \RuntimeException('Catalog aliases resolve to multiple service nodes; refusing to write.');
+      throw new \RuntimeException(sprintf('Catalog aliases resolve to multiple %s nodes; refusing to write.', $bundle));
     }
 
     return $candidates === [] ? NULL : reset($candidates);
@@ -814,6 +878,181 @@ final class ContentSyncManager {
           'alias' => $translation_definition['alias'],
           'pathauto' => FALSE,
         ]);
+      }
+    }
+  }
+
+  /**
+   * Applies ordered page components to every declared node translation.
+   *
+   * @param \Drupal\node\NodeInterface $node
+   *   Page node to update.
+   * @param array<string, mixed> $definition
+   *   Catalog definition.
+   * @param list<string> $actions
+   *   Actions populated for the apply report.
+   */
+  private function applyPageComponents(NodeInterface $node, array $definition, array &$actions): void {
+    if (($definition['bundle'] ?? NULL) !== 'page') {
+      return;
+    }
+
+    if (!$node->hasField('field_home_components')) {
+      throw new \RuntimeException(sprintf(
+        'Page content "%s" cannot be synchronized because field_home_components is missing.',
+        (string) ($definition['id'] ?? 'unknown'),
+      ));
+    }
+
+    $components = is_array($definition['components'] ?? NULL) ? $definition['components'] : [];
+    $references = [];
+    foreach ($components as $component_definition) {
+      if (!is_array($component_definition)) {
+        continue;
+      }
+
+      $paragraph = $this->applyParagraphComponent($component_definition, $actions);
+      $references[] = [
+        'target_id' => (int) $paragraph->id(),
+        'target_revision_id' => (int) $paragraph->getRevisionId(),
+      ];
+    }
+
+    foreach (array_keys($this->translations($definition)) as $langcode) {
+      $translation = $this->nodeTranslation($node, (string) $langcode);
+      $translation->set('field_home_components', $references);
+    }
+
+    $actions[] = sprintf('synchronized %d page component(s) for %s', count($references), (string) ($definition['id'] ?? 'unknown'));
+  }
+
+  /**
+   * Applies one paragraph component declared by a page catalog entry.
+   *
+   * @param array<string, mixed> $definition
+   *   Paragraph component definition.
+   * @param list<string> $actions
+   *   Actions populated for the apply report.
+   */
+  private function applyParagraphComponent(array $definition, array &$actions): ParagraphInterface {
+    $content_id = (string) ($definition['id'] ?? '');
+    if ($content_id === '') {
+      throw new \RuntimeException('Page component is missing a stable business id.');
+    }
+
+    $bundle = (string) ($definition['bundle'] ?? '');
+    if ($bundle === '') {
+      throw new \RuntimeException(sprintf('Page component "%s" is missing a paragraph bundle.', $content_id));
+    }
+
+    $mapping = $this->mappingRepository->findByContentId($content_id);
+    $paragraph = $this->loadMappedParagraph($mapping);
+    $created = FALSE;
+
+    if ($paragraph !== NULL) {
+      $actions[] = sprintf('mapping resolved %s to paragraph:%d', $content_id, (int) $paragraph->id());
+    }
+
+    if ($paragraph === NULL) {
+      $paragraph = $this->resolveParagraphByLegacyUuid($definition, $bundle);
+      if ($paragraph !== NULL) {
+        $actions[] = sprintf('legacy uuid resolved %s to paragraph:%d', $content_id, (int) $paragraph->id());
+      }
+    }
+
+    if ($paragraph === NULL) {
+      $paragraph = $this->entityTypeManager->getStorage('paragraph')->create([
+        'type' => $bundle,
+        'langcode' => $this->defaultTranslationLangcode($definition),
+        'status' => TRUE,
+      ]);
+      if (!$paragraph instanceof ParagraphInterface) {
+        throw new \RuntimeException(sprintf('Could not create paragraph for "%s".', $content_id));
+      }
+      $created = TRUE;
+      $actions[] = sprintf('created new paragraph:%s for %s', $bundle, $content_id);
+    }
+
+    if ($paragraph->bundle() !== $bundle) {
+      throw new \RuntimeException(sprintf(
+        'Component "%s" resolved to paragraph:%s, but it is not a %s paragraph.',
+        $content_id,
+        (string) $paragraph->id(),
+        $bundle,
+      ));
+    }
+
+    $this->applyParagraphTranslations($paragraph, $definition);
+    $paragraph->save();
+
+    $record = $this->mappingRepository->createOrUpdate(new ContentSyncMappingRecord(
+      $content_id,
+      'paragraph',
+      (int) $paragraph->id(),
+      $paragraph->uuid(),
+      $this->defaultTranslationLangcode($definition),
+      $this->catalogHash($definition),
+      $this->time->getRequestTime(),
+      $created ? 'created' : 'updated',
+      'active',
+      $mapping?->created() ?? 0,
+    ));
+
+    $actions[] = sprintf(
+      'mapping %s for %s: paragraph:%d',
+      $mapping === NULL ? 'created' : 'updated',
+      $content_id,
+      (int) $record->entityId(),
+    );
+
+    return $paragraph;
+  }
+
+  /**
+   * Resolves an existing paragraph by the migrated default_content UUID.
+   *
+   * @param array<string, mixed> $definition
+   *   Paragraph component definition.
+   * @param string $bundle
+   *   Expected paragraph bundle.
+   */
+  private function resolveParagraphByLegacyUuid(array $definition, string $bundle): ?ParagraphInterface {
+    $legacy_uuid = (string) ($definition['legacy_uuid'] ?? '');
+    if ($legacy_uuid === '') {
+      return NULL;
+    }
+
+    $entity = $this->entityRepository->loadEntityByUuid('paragraph', $legacy_uuid);
+    if ($entity instanceof ParagraphInterface && $entity->bundle() === $bundle) {
+      return $entity;
+    }
+
+    return NULL;
+  }
+
+  /**
+   * Applies all declared paragraph translations.
+   *
+   * @param \Drupal\paragraphs\ParagraphInterface $paragraph
+   *   Paragraph to update.
+   * @param array<string, mixed> $definition
+   *   Paragraph component definition.
+   */
+  private function applyParagraphTranslations(ParagraphInterface $paragraph, array $definition): void {
+    foreach ($this->translations($definition) as $langcode => $translation_definition) {
+      $translation = $this->paragraphTranslation($paragraph, $langcode);
+
+      if ($translation->hasField('status')) {
+        $translation->set('status', TRUE);
+      }
+
+      $fields = is_array($translation_definition['fields'] ?? NULL)
+        ? $translation_definition['fields']
+        : [];
+      foreach ($fields as $field_name => $value) {
+        if (is_string($field_name) && $translation->hasField($field_name)) {
+          $translation->set($field_name, $value);
+        }
       }
     }
   }

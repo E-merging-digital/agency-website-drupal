@@ -12,6 +12,7 @@ use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
+use Drupal\paragraphs\Entity\ParagraphsType;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
@@ -35,6 +36,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     'filter',
     'hal',
     'language',
+    'link',
     'node',
     'paragraphs',
     'path',
@@ -53,6 +55,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
 
     $this->installEntitySchema('user');
     $this->installEntitySchema('node');
+    $this->installEntitySchema('paragraph');
     $this->installEntitySchema('path_alias');
     $this->installSchema('node', ['node_access']);
     $this->installSchema('emerging_digital_content', ['emerging_digital_content_sync_mapping']);
@@ -70,8 +73,25 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       'name' => 'Service',
     ])->save();
 
+    NodeType::create([
+      'type' => 'page',
+      'name' => 'Page',
+    ])->save();
+
+    foreach (['hero', 'text_block', 'services', 'cta'] as $paragraph_type) {
+      ParagraphsType::create([
+        'id' => $paragraph_type,
+        'label' => $paragraph_type,
+      ])->save();
+    }
+
     $this->createTextLongField('field_short_description', TRUE);
     $this->createTextLongField('field_detailed_description', FALSE);
+    $this->createHomeComponentsField();
+    $this->createParagraphField('field_heading', 'string', ['hero', 'text_block', 'services']);
+    $this->createParagraphField('field_text', 'text_long', ['hero', 'text_block', 'cta']);
+    $this->createParagraphField('field_items', 'text_long', ['services']);
+    $this->createParagraphField('field_link', 'link', ['cta']);
   }
 
   /**
@@ -140,19 +160,22 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(1, $dry_run['content_reports']);
+    self::assertCount(2, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
     self::assertFalse($mapping_repository->exists('agence-drupal-belgique'));
     self::assertSame(0, $this->countServiceNodes());
+    self::assertSame(0, $this->countPageNodes());
 
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
+    self::assertSame(1, $this->countPageNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(1, $first_apply['content_reports']);
+    self::assertCount(2, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
+    self::assertSame('services', $first_apply['content_reports'][1]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
@@ -161,11 +184,92 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
+    self::assertSame(1, $this->countPageNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($updated_mapping);
     self::assertSame($mapping->id(), $updated_mapping->id());
     self::assertSame('updated', $updated_mapping->lastAction());
+  }
+
+  /**
+   * Tests Services page sync creates translated paragraphs in stable order.
+   */
+  public function testServicesPageSyncCreatesTranslatedParagraphsWithoutDuplication(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+
+    $dry_run = $manager->sync('services', TRUE);
+    self::assertSame([], $dry_run['errors']);
+    self::assertFalse($mapping_repository->exists('services'));
+    self::assertSame(0, $this->countPageNodes());
+    self::assertSame(0, $this->countParagraphs());
+
+    $first_apply = $manager->sync('services', FALSE);
+    self::assertSame([], $first_apply['errors']);
+    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(5, $this->countParagraphs());
+
+    $page = $this->loadOnlyPageNode();
+    self::assertSame('fr', $page->language()->getId());
+    self::assertSame('Services', $page->label());
+    self::assertTrue($page->hasTranslation('en'));
+    self::assertSame('Services', $page->getTranslation('en')->label());
+
+    $alias_manager = $this->container->get('path_alias.manager');
+    $alias_manager->cacheClear('/node/' . $page->id());
+    self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/services', 'fr'));
+    self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/services', 'en'));
+
+    $paragraphs = $page->get('field_home_components')->referencedEntities();
+    self::assertCount(5, $paragraphs);
+    self::assertSame(
+      ['hero', 'text_block', 'services', 'text_block', 'cta'],
+      array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
+    );
+    self::assertSame(
+      'Services Drupal pour projets structurés et institutionnels',
+      $paragraphs[0]->get('field_heading')->value,
+    );
+    self::assertSame('Nos services', $paragraphs[2]->get('field_heading')->value);
+    self::assertCount(6, $paragraphs[2]->get('field_items'));
+    self::assertSame(
+      'Pourquoi Drupal pour des projets exigeants',
+      $paragraphs[3]->get('field_heading')->value,
+    );
+    self::assertSame('Prendre contact', $paragraphs[4]->get('field_link')->title);
+
+    $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
+    self::assertCount(5, $english_paragraphs);
+    self::assertSame(
+      'Drupal services for structured and institutional projects',
+      $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'Our services',
+      $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'Get in touch',
+      $english_paragraphs[4]->getTranslation('en')->get('field_link')->title,
+    );
+
+    $mapping = $mapping_repository->findByContentId('services');
+    self::assertNotNull($mapping);
+    self::assertSame((int) $page->id(), $mapping->entityId());
+    self::assertSame('created', $mapping->lastAction());
+    self::assertNotNull($mapping_repository->findByContentId('services.grid'));
+
+    $component_ids = array_map(static fn ($paragraph): int => (int) $paragraph->id(), $paragraphs);
+    $second_apply = $manager->sync('services', FALSE);
+    self::assertSame([], $second_apply['errors']);
+    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(5, $this->countParagraphs());
+    self::assertSame($component_ids, array_map(
+      static fn ($paragraph): int => (int) $paragraph->id(),
+      $this->loadOnlyPageNode()->get('field_home_components')->referencedEntities(),
+    ));
+    self::assertSame('updated', $mapping_repository->findByContentId('services')?->lastAction());
   }
 
   /**
@@ -313,6 +417,72 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
   }
 
   /**
+   * Creates the translatable page components reference field.
+   */
+  private function createHomeComponentsField(): void {
+    FieldStorageConfig::create([
+      'field_name' => 'field_home_components',
+      'entity_type' => 'node',
+      'type' => 'entity_reference_revisions',
+      'cardinality' => FieldStorageConfig::CARDINALITY_UNLIMITED,
+      'translatable' => TRUE,
+      'settings' => [
+        'target_type' => 'paragraph',
+      ],
+    ])->save();
+
+    FieldConfig::create([
+      'field_name' => 'field_home_components',
+      'entity_type' => 'node',
+      'bundle' => 'page',
+      'label' => 'Composants de page',
+      'required' => FALSE,
+      'translatable' => TRUE,
+      'settings' => [
+        'handler' => 'default:paragraph',
+      ],
+    ])->save();
+  }
+
+  /**
+   * Creates a translatable paragraph field on the requested paragraph bundles.
+   *
+   * @param string $field_name
+   *   Field machine name.
+   * @param string $type
+   *   Field storage type.
+   * @param list<string> $bundles
+   *   Paragraph bundle IDs.
+   */
+  private function createParagraphField(string $field_name, string $type, array $bundles): void {
+    $storage = [
+      'field_name' => $field_name,
+      'entity_type' => 'paragraph',
+      'type' => $type,
+      'cardinality' => $field_name === 'field_heading' ? 1 : FieldStorageConfig::CARDINALITY_UNLIMITED,
+      'translatable' => TRUE,
+    ];
+    if ($type === 'string') {
+      $storage['settings'] = [
+        'max_length' => 255,
+      ];
+    }
+
+    FieldStorageConfig::create($storage)->save();
+
+    foreach ($bundles as $bundle) {
+      FieldConfig::create([
+        'field_name' => $field_name,
+        'entity_type' => 'paragraph',
+        'bundle' => $bundle,
+        'label' => $field_name,
+        'required' => FALSE,
+        'translatable' => TRUE,
+      ])->save();
+    }
+  }
+
+  /**
    * Counts service nodes without applying access checks.
    */
   private function countServiceNodes(): int {
@@ -326,6 +496,31 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
   }
 
   /**
+   * Counts page nodes without applying access checks.
+   */
+  private function countPageNodes(): int {
+    return (int) $this->container->get('entity_type.manager')
+      ->getStorage('node')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('type', 'page')
+      ->count()
+      ->execute();
+  }
+
+  /**
+   * Counts paragraphs without applying access checks.
+   */
+  private function countParagraphs(): int {
+    return (int) $this->container->get('entity_type.manager')
+      ->getStorage('paragraph')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->count()
+      ->execute();
+  }
+
+  /**
    * Loads the only service node created by the targeted sync.
    */
   private function loadOnlyServiceNode(): NodeInterface {
@@ -334,6 +529,25 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       ->getQuery()
       ->accessCheck(FALSE)
       ->condition('type', 'service')
+      ->execute();
+
+    $node = $this->container->get('entity_type.manager')
+      ->getStorage('node')
+      ->load((int) reset($ids));
+    self::assertInstanceOf(NodeInterface::class, $node);
+
+    return $node;
+  }
+
+  /**
+   * Loads the only page node created by the targeted sync.
+   */
+  private function loadOnlyPageNode(): NodeInterface {
+    $ids = $this->container->get('entity_type.manager')
+      ->getStorage('node')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('type', 'page')
       ->execute();
 
     $node = $this->container->get('entity_type.manager')

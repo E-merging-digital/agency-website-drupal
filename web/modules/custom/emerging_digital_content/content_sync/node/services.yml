@@ -1,0 +1,164 @@
+components:
+  - id: services.hero
+    legacy_uuid: 50c9c0ef-85f8-49a3-819c-4aa63ddd1737
+    bundle: hero
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Services Drupal pour projets structurés et institutionnels'
+          field_text:
+            - value: >-
+                Nous accompagnons PME, ASBL et organisations publiques dans la
+                création, la modernisation et l’évolution de sites Drupal
+                robustes, accessibles et éditorialement maîtrisés.
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Drupal services for structured and institutional projects'
+          field_text:
+            - value: >-
+                We support SMEs, non-profits, and public organizations in the
+                creation, modernization, and evolution of robust, accessible,
+                and editorially controlled Drupal sites.
+              format: basic_html
+  - id: services.intro
+    legacy_uuid: 2eb8e4b6-37d0-47cc-8702-7a850dd94c15
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_text:
+            - value: >-
+                Votre site doit rester clair, fiable et évolutif. Nous
+                structurons vos contenus, sécurisons la base technique Drupal
+                et intégrons les exigences d’accessibilité dès la conception.
+              format: basic_html
+      en:
+        fields:
+          field_text:
+            - value: >-
+                Your site must remain clear, reliable, and scalable. We
+                structure your content, secure the Drupal technical foundation,
+                and integrate accessibility requirements from the design stage.
+              format: basic_html
+  - id: services.grid
+    legacy_uuid: 11c3e2e1-78c9-491d-814c-b204bc2f5338
+    bundle: services
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Nos services'
+          field_items:
+            - value: >-
+                Création de site Drupal|Conception de sites sur mesure pour
+                institutions, PME et ASBL, avec une structure éditoriale claire
+                et durable.
+              format: basic_html
+            - value: >-
+                Migration Drupal|Mise à jour de versions anciennes,
+                sécurisation et modernisation de votre plateforme.
+              format: basic_html
+            - value: >-
+                Maintenance et évolutions|Suivi technique, améliorations
+                continues et support.
+              format: basic_html
+            - value: >-
+                Accessibilité, SEO et optimisation|Amélioration de la
+                lisibilité, du référencement naturel et des performances
+                techniques.
+              format: basic_html
+            - value: >-
+                IA intégrée|Automatisation de tâches éditoriales utiles,
+                amélioration de la qualité et préparation à la traduction
+                automatique.
+              format: basic_html
+            - value: >-
+                Agence Drupal Belgique|Un accompagnement senior pour créer,
+                refondre, migrer et maintenir des sites Drupal accessibles,
+                performants et durables.|/agence-drupal-belgique
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Our services'
+          field_items:
+            - value: >-
+                Drupal Site Creation | Custom website design for institutions,
+                SMEs, and non-profits, with a clear and sustainable editorial
+                structure.
+              format: basic_html
+            - value: >-
+                Drupal Migration | Updating old versions, securing and
+                modernizing your platform.
+              format: basic_html
+            - value: >-
+                Maintenance and developments | Technical monitoring, continuous
+                improvements, and support.
+              format: basic_html
+            - value: >-
+                Accessibility, SEO, and optimization | Improvement of
+                readability, organic search, and technical performance.
+              format: basic_html
+            - value: >-
+                Integrated AI | Automation of useful editorial tasks, quality
+                enhancement, and preparation for machine translation.
+              format: basic_html
+            - value: >-
+                Drupal Agency Belgium|Senior support to build, redesign,
+                migrate and maintain accessible, performant and durable Drupal
+                websites.|/drupal-agency-belgium
+              format: basic_html
+  - id: services.why-drupal
+    legacy_uuid: 2f4f723a-90d5-4a95-84dc-333363d51655
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Pourquoi Drupal pour des projets exigeants'
+          field_text:
+            - value: >-
+                Drupal est une plateforme robuste et flexible,
+                particulièrement adaptée aux projets institutionnels et aux
+                écosystèmes de contenus complexes, avec des besoins
+                d’accessibilité et de gouvernance.
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Why choose Drupal for demanding projects'
+          field_text:
+            - value: >-
+                Drupal is a robust and flexible platform, particularly suited
+                for institutional projects and complex content ecosystems, with
+                needs for accessibility and governance.
+              format: basic_html
+  - id: services.cta
+    legacy_uuid: cfe7d994-e099-44b4-a0cc-12c69760288e
+    bundle: cta
+    translations:
+      fr:
+        fields:
+          field_text:
+            - value: >-
+                Parlons de votre projet et identifions la solution la plus
+                adaptée. Consultez aussi notre page <a href="/ia-drupal">IA
+                &amp; Drupal</a> pour les usages éditoriaux.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Prendre contact'
+      en:
+        fields:
+          field_text:
+            - value: >-
+                Let's talk about your project and identify the most suitable
+                solution. Also, check out our page <a href="/ia-drupal">AI
+                &amp; Drupal</a> for editorial uses.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Get in touch'

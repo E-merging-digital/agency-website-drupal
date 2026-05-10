@@ -116,6 +116,10 @@ final class ContentSyncCatalogValidator {
       $errors = array_merge($errors, $this->validateTranslations($entry));
     }
 
+    if (($definition['bundle'] ?? NULL) === 'page') {
+      $errors = array_merge($errors, $this->validatePageComponents($entry));
+    }
+
     $definition_file = $entry->definitionFile();
     if ($definition_file !== NULL) {
       if (!$this->isSafeDefinitionFile($definition_file)) {
@@ -126,6 +130,58 @@ final class ContentSyncCatalogValidator {
           'Content "%s" declares a missing file: %s.',
           $entry->id(),
           $definition_file,
+        );
+      }
+    }
+
+    return $errors;
+  }
+
+  /**
+   * Validates page component definitions.
+   *
+   * @return string[]
+   *   Validation errors.
+   */
+  private function validatePageComponents(ContentSyncCatalogEntry $entry): array {
+    $definition = $entry->toArray();
+    $components = $definition['components'] ?? NULL;
+    if (!is_array($components) || $components === []) {
+      return [sprintf('Content "%s" page entries must declare at least one component.', $entry->id())];
+    }
+
+    $errors = [];
+    $seen_ids = [];
+    foreach ($components as $index => $component) {
+      if (!is_array($component)) {
+        $errors[] = sprintf('Content "%s" component #%d must be a map.', $entry->id(), (int) $index);
+        continue;
+      }
+
+      $component_id = $component['id'] ?? NULL;
+      if (!is_string($component_id) || $component_id === '') {
+        $errors[] = sprintf('Content "%s" component #%d must define a stable id.', $entry->id(), (int) $index);
+      }
+      elseif (isset($seen_ids[$component_id])) {
+        $errors[] = sprintf('Content "%s" component id "%s" is duplicated.', $entry->id(), $component_id);
+      }
+      else {
+        $seen_ids[$component_id] = TRUE;
+      }
+
+      if (!isset($component['bundle']) || !is_string($component['bundle']) || $component['bundle'] === '') {
+        $errors[] = sprintf(
+          'Content "%s" component "%s" must define a paragraph bundle.',
+          $entry->id(),
+          (string) ($component_id ?? '#' . $index),
+        );
+      }
+
+      if (!isset($component['translations']) || !is_array($component['translations']) || $component['translations'] === []) {
+        $errors[] = sprintf(
+          'Content "%s" component "%s" must declare translations.',
+          $entry->id(),
+          (string) ($component_id ?? '#' . $index),
         );
       }
     }

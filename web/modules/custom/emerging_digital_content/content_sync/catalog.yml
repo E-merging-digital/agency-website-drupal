@@ -59,3 +59,18 @@ contents:
       en:
         title: 'Case studies'
         alias: /case-studies
+  - id: contact
+    entity_type: node
+    bundle: page
+    file: node/contact.yml
+    legacy_uuid: d962ec05-25ec-4446-b645-0959a57964e7
+    business_aliases:
+      fr: /contact
+      en: /contact
+    translations:
+      fr:
+        title: Contact
+        alias: /contact
+      en:
+        title: Contact
+        alias: /contact

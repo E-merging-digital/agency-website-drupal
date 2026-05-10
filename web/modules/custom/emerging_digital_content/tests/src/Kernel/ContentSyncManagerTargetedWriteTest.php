@@ -170,7 +170,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(4, $dry_run['content_reports']);
+    self::assertCount(5, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
@@ -181,13 +181,14 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
-    self::assertSame(3, $this->countPageNodes());
+    self::assertSame(4, $this->countPageNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(4, $first_apply['content_reports']);
+    self::assertCount(5, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
     self::assertSame('services', $first_apply['content_reports'][1]['id']);
     self::assertSame('ia-drupal', $first_apply['content_reports'][2]['id']);
     self::assertSame('cas-clients', $first_apply['content_reports'][3]['id']);
+    self::assertSame('contact', $first_apply['content_reports'][4]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
@@ -196,7 +197,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
-    self::assertSame(3, $this->countPageNodes());
+    self::assertSame(4, $this->countPageNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($updated_mapping);
@@ -460,6 +461,96 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       $this->loadOnlyPageNode()->get('field_home_components')->referencedEntities(),
     ));
     self::assertSame('updated', $mapping_repository->findByContentId('cas-clients')?->lastAction());
+  }
+
+  /**
+   * Tests Contact page sync creates translated paragraphs in stable order.
+   */
+  public function testContactPageSyncCreatesTranslatedParagraphsWithoutDuplication(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+
+    $dry_run = $manager->sync('contact', TRUE);
+    self::assertSame([], $dry_run['errors']);
+    self::assertFalse($mapping_repository->exists('contact'));
+    self::assertSame(0, $this->countPageNodes());
+    self::assertSame(0, $this->countParagraphs());
+
+    $first_apply = $manager->sync('contact', FALSE);
+    self::assertSame([], $first_apply['errors']);
+    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(6, $this->countParagraphs());
+
+    $page = $this->loadOnlyPageNode();
+    self::assertSame('fr', $page->language()->getId());
+    self::assertSame('Contact', $page->label());
+    self::assertTrue($page->hasTranslation('en'));
+    self::assertSame('Contact', $page->getTranslation('en')->label());
+
+    $alias_manager = $this->container->get('path_alias.manager');
+    $alias_manager->cacheClear('/node/' . $page->id());
+    self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/contact', 'fr'));
+    self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/contact', 'en'));
+
+    $paragraphs = $page->get('field_home_components')->referencedEntities();
+    self::assertCount(6, $paragraphs);
+    self::assertSame(
+      ['hero', 'text_block', 'text_block', 'text_block', 'text_block', 'text_block'],
+      array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
+    );
+    self::assertSame('Parlons de votre projet', $paragraphs[0]->get('field_heading')->value);
+    self::assertSame('Intro', $paragraphs[1]->get('field_heading')->value);
+    self::assertStringContainsString('réponse claire', (string) $paragraphs[1]->get('field_text')->value);
+    self::assertSame('Coordonnées', $paragraphs[2]->get('field_heading')->value);
+    self::assertStringContainsString('jonathan@emergingdigital.be', (string) $paragraphs[2]->get('field_text')->value);
+    self::assertSame('Informations', $paragraphs[3]->get('field_heading')->value);
+    self::assertStringContainsString('Premier échange sans engagement', (string) $paragraphs[3]->get('field_text')->value);
+    self::assertSame('Formulaire', $paragraphs[4]->get('field_heading')->value);
+    self::assertSame('Nom / Email / Organisation / Message', $paragraphs[4]->get('field_text')->value);
+    self::assertSame('Carte', $paragraphs[5]->get('field_heading')->value);
+    self::assertStringContainsString('Localisation Emerging Digital', (string) $paragraphs[5]->get('field_text')->value);
+
+    $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
+    self::assertCount(6, $english_paragraphs);
+    self::assertSame(
+      'Let’s talk about your project',
+      $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'Contact details',
+      $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertStringContainsString(
+      'Available for projects in Wallonia and Brussels',
+      (string) $english_paragraphs[3]->getTranslation('en')->get('field_text')->value,
+    );
+    self::assertSame(
+      'Form',
+      $english_paragraphs[4]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'Map',
+      $english_paragraphs[5]->getTranslation('en')->get('field_heading')->value,
+    );
+
+    $mapping = $mapping_repository->findByContentId('contact');
+    self::assertNotNull($mapping);
+    self::assertSame((int) $page->id(), $mapping->entityId());
+    self::assertSame('created', $mapping->lastAction());
+    self::assertNotNull($mapping_repository->findByContentId('contact.coordinates'));
+    self::assertNotNull($mapping_repository->findByContentId('contact.form'));
+    self::assertNotNull($mapping_repository->findByContentId('contact.map'));
+
+    $component_ids = array_map(static fn ($paragraph): int => (int) $paragraph->id(), $paragraphs);
+    $second_apply = $manager->sync('contact', FALSE);
+    self::assertSame([], $second_apply['errors']);
+    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(6, $this->countParagraphs());
+    self::assertSame($component_ids, array_map(
+      static fn ($paragraph): int => (int) $paragraph->id(),
+      $this->loadOnlyPageNode()->get('field_home_components')->referencedEntities(),
+    ));
+    self::assertSame('updated', $mapping_repository->findByContentId('contact')?->lastAction());
   }
 
   /**

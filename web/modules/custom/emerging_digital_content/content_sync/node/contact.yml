@@ -1,0 +1,103 @@
+components:
+  - id: contact.hero
+    legacy_uuid: dc4e80eb-e338-4dfb-a7b3-ce0f4e1eba92
+    bundle: hero
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Parlons de votre projet'
+      en:
+        fields:
+          field_heading:
+            - value: 'Let’s talk about your project'
+  - id: contact.intro
+    legacy_uuid: 88affed2-d7e1-44bc-8607-28f0111fc123
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: Intro
+          field_text:
+            - value: '<p>Parlons de votre projet digital. Décrivez vos objectifs : nous revenons vers vous avec une réponse claire, structurée et orientée résultats.</p>'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: Intro
+          field_text:
+            - value: '<p>Tell us about your digital project. Describe your goals: we will come back to you with a clear, structured, results-oriented response.</p>'
+              format: basic_html
+  - id: contact.coordinates
+    legacy_uuid: aace78f7-e456-4e99-a6bb-29d3129696ad
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Coordonnées'
+          field_text:
+            - value: '<p><strong>Adresse :</strong> Rue des Peupliers 1, 4254 Ligney (Geer)</p><p><strong>Email :</strong> <a href="mailto:jonathan@emergingdigital.be">jonathan@emergingdigital.be</a></p><p><strong>Téléphone :</strong> <a href="tel:+32475722884">+32 475/72.28.84</a></p><p>E-MERGING DIGITAL SRL<br>BE 0746.356.206</p>'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Contact details'
+          field_text:
+            - value: '<p><strong>Address:</strong> Rue des Peupliers 1, 4254 Ligney (Geer), Belgium</p><p><strong>Email:</strong> <a href="mailto:jonathan@emergingdigital.be">jonathan@emergingdigital.be</a></p><p><strong>Phone:</strong> <a href="tel:+32475722884">+32 475/72.28.84</a></p><p>E-MERGING DIGITAL SRL<br>BE 0746.356.206</p>'
+              format: basic_html
+  - id: contact.information
+    legacy_uuid: 8236e39f-2bcf-4758-a441-c9f6eb8f75f6
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: Informations
+          field_text:
+            - value: '<p>Disponible pour projets en Wallonie et Bruxelles.</p><p>Interventions pour PME, ASBL et organisations publiques.</p><p>Habitué à travailler sur des projets structurés et exigeants.</p><p>Premier échange sans engagement.</p>'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: Information
+          field_text:
+            - value: '<p>Available for projects in Wallonia and Brussels.</p><p>Support for SMEs, non-profits, and public organizations.</p><p>Used to working on structured and demanding projects.</p><p>First conversation without commitment.</p>'
+              format: basic_html
+  - id: contact.form
+    legacy_uuid: 855b08da-0ec9-4261-883a-d27f214606e6
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: Formulaire
+          field_text:
+            - value: 'Nom / Email / Organisation / Message'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: Form
+          field_text:
+            - value: 'Name / Email / Organization / Message'
+              format: basic_html
+  - id: contact.map
+    legacy_uuid: be01c4d4-b45d-4b08-aeb5-9ad05c860b6a
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: Carte
+          field_text:
+            - value: '<iframe title="Localisation Emerging Digital" src="https://www.google.com/maps?q=Rue%20des%20Peupliers%201%2C%204254%20Ligney%20(Geer)&output=embed" width="100%" height="380" style="border:0;" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: Map
+          field_text:
+            - value: '<iframe title="Emerging Digital location" src="https://www.google.com/maps?q=Rue%20des%20Peupliers%201%2C%204254%20Ligney%20(Geer)&output=embed" width="100%" height="380" style="border:0;" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>'
+              format: basic_html

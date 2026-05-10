@@ -44,3 +44,18 @@ contents:
       en:
         title: 'AI & Drupal'
         alias: /ai-drupal
+  - id: cas-clients
+    entity_type: node
+    bundle: page
+    file: node/cas-clients.yml
+    legacy_uuid: 28345cad-8947-4f91-b77e-9251609a5bcc
+    business_aliases:
+      fr: /cas-clients
+      en: /case-studies
+    translations:
+      fr:
+        title: 'Cas clients'
+        alias: /cas-clients
+      en:
+        title: 'Case studies'
+        alias: /case-studies

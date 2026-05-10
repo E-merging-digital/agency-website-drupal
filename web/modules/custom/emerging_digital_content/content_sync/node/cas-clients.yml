@@ -1,0 +1,123 @@
+components:
+  - id: cas-clients.hero
+    legacy_uuid: b878853f-1368-47be-bee9-8cdc1dba826a
+    bundle: hero
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Cas clients Drupal sur des contextes structurés'
+      en:
+        fields:
+          field_heading:
+            - value: 'Drupal case studies for structured contexts'
+  - id: cas-clients.intro
+    legacy_uuid: 25892a5a-3c09-4f64-86d7-cda8058e1875
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_text:
+            - value: >-
+                Chaque projet répond à des besoins réels avec une approche
+                pragmatique : robustesse Drupal, clarté éditoriale,
+                accessibilité et intégration d’IA utile.
+              format: basic_html
+      en:
+        fields:
+          field_text:
+            - value: >-
+                Each project responds to real needs with a pragmatic approach:
+                Drupal robustness, editorial clarity, accessibility, and useful
+                AI integration.
+              format: basic_html
+  - id: cas-clients.case-studies
+    legacy_uuid: 83435955-44bb-40df-8e8c-eda848d40301
+    bundle: case_clients
+    translations:
+      fr:
+        fields:
+          field_items:
+            - value: 'Refonte d’un site institutionnel'
+              format: basic_html
+            - value: 'Migration Drupal'
+              format: basic_html
+            - value: 'Structuration éditoriale accessible'
+              format: basic_html
+          field_case_problem:
+            - value: 'Site difficile à maintenir et à faire évoluer'
+              format: basic_html
+            - value: 'version obsolète'
+              format: basic_html
+            - value: 'Contenus peu lisibles pour les publics'
+              format: basic_html
+          field_case_solution:
+            - value: 'refonte Drupal'
+              format: basic_html
+            - value: 'migration complète'
+              format: basic_html
+            - value: 'Architecture claire et règles éditoriales partagées'
+              format: basic_html
+          field_case_result:
+            - value: 'meilleure structure, plus simple à éditer'
+              format: basic_html
+            - value: 'sécurité et performance améliorées'
+              format: basic_html
+            - value: 'Meilleure lisibilité et accessibilité web'
+              format: basic_html
+      en:
+        fields:
+          field_items:
+            - value: 'Institutional website redesign'
+              format: basic_html
+            - value: 'Drupal migration'
+              format: basic_html
+            - value: 'Accessible editorial structuring'
+              format: basic_html
+          field_case_problem:
+            - value: 'Site difficult to maintain and evolve'
+              format: basic_html
+            - value: 'outdated version'
+              format: basic_html
+            - value: 'Content that was hard for audiences to read'
+              format: basic_html
+          field_case_solution:
+            - value: 'Drupal redesign'
+              format: basic_html
+            - value: 'complete migration'
+              format: basic_html
+            - value: 'Clear architecture and shared editorial rules'
+              format: basic_html
+          field_case_result:
+            - value: 'better structure, easier to edit'
+              format: basic_html
+            - value: 'improved security and performance'
+              format: basic_html
+            - value: 'Better readability and web accessibility'
+              format: basic_html
+  - id: cas-clients.cta
+    legacy_uuid: d36b8734-7d9e-4782-a2e5-efa82d8ecfea
+    bundle: cta
+    translations:
+      fr:
+        fields:
+          field_text:
+            - value: >-
+                Vous avez un projet similaire ? Consultez nos <a
+                href="/services">services</a> ou notre page <a
+                href="/ia-drupal">IA &amp; Drupal</a>, puis discutons-en.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Prendre contact'
+      en:
+        fields:
+          field_text:
+            - value: >-
+                Have a similar project? Explore our <a
+                href="/services">services</a> or our <a href="/ai-drupal">AI
+                &amp; Drupal</a> page, then let’s talk.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Get in touch'

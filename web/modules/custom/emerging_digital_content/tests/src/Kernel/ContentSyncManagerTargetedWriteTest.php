@@ -78,7 +78,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       'name' => 'Page',
     ])->save();
 
-    foreach (['hero', 'text_block', 'services', 'ai_features', 'trust_list', 'cta'] as $paragraph_type) {
+    foreach (['hero', 'text_block', 'services', 'ai_features', 'trust_list', 'case_clients', 'cta'] as $paragraph_type) {
       ParagraphsType::create([
         'id' => $paragraph_type,
         'label' => $paragraph_type,
@@ -94,9 +94,13 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       'services',
       'ai_features',
       'trust_list',
+      'case_clients',
     ]);
-    $this->createParagraphField('field_text', 'text_long', ['hero', 'text_block', 'ai_features', 'cta']);
-    $this->createParagraphField('field_items', 'text_long', ['services', 'ai_features', 'trust_list']);
+    $this->createParagraphField('field_text', 'text_long', ['hero', 'text_block', 'ai_features', 'case_clients', 'cta']);
+    $this->createParagraphField('field_items', 'text_long', ['services', 'ai_features', 'trust_list', 'case_clients']);
+    $this->createParagraphField('field_case_problem', 'text_long', ['case_clients']);
+    $this->createParagraphField('field_case_solution', 'text_long', ['case_clients']);
+    $this->createParagraphField('field_case_result', 'text_long', ['case_clients']);
     $this->createParagraphField('field_link', 'link', ['cta']);
   }
 
@@ -166,7 +170,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(3, $dry_run['content_reports']);
+    self::assertCount(4, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
@@ -177,12 +181,13 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
-    self::assertSame(2, $this->countPageNodes());
+    self::assertSame(3, $this->countPageNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(3, $first_apply['content_reports']);
+    self::assertCount(4, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
     self::assertSame('services', $first_apply['content_reports'][1]['id']);
     self::assertSame('ia-drupal', $first_apply['content_reports'][2]['id']);
+    self::assertSame('cas-clients', $first_apply['content_reports'][3]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
@@ -191,7 +196,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
-    self::assertSame(2, $this->countPageNodes());
+    self::assertSame(3, $this->countPageNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($updated_mapping);
@@ -362,6 +367,99 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       $this->loadOnlyPageNode()->get('field_home_components')->referencedEntities(),
     ));
     self::assertSame('updated', $mapping_repository->findByContentId('ia-drupal')?->lastAction());
+  }
+
+  /**
+   * Tests Cas clients page sync creates translated paragraphs in stable order.
+   */
+  public function testCasClientsPageSyncCreatesTranslatedParagraphsWithoutDuplication(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+
+    $dry_run = $manager->sync('cas-clients', TRUE);
+    self::assertSame([], $dry_run['errors']);
+    self::assertFalse($mapping_repository->exists('cas-clients'));
+    self::assertSame(0, $this->countPageNodes());
+    self::assertSame(0, $this->countParagraphs());
+
+    $first_apply = $manager->sync('cas-clients', FALSE);
+    self::assertSame([], $first_apply['errors']);
+    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(4, $this->countParagraphs());
+
+    $page = $this->loadOnlyPageNode();
+    self::assertSame('fr', $page->language()->getId());
+    self::assertSame('Cas clients', $page->label());
+    self::assertTrue($page->hasTranslation('en'));
+    self::assertSame('Case studies', $page->getTranslation('en')->label());
+
+    $alias_manager = $this->container->get('path_alias.manager');
+    $alias_manager->cacheClear('/node/' . $page->id());
+    self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/cas-clients', 'fr'));
+    self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/case-studies', 'en'));
+
+    $paragraphs = $page->get('field_home_components')->referencedEntities();
+    self::assertCount(4, $paragraphs);
+    self::assertSame(
+      ['hero', 'text_block', 'case_clients', 'cta'],
+      array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
+    );
+    self::assertSame('Cas clients Drupal sur des contextes structurés', $paragraphs[0]->get('field_heading')->value);
+    self::assertStringContainsString('Chaque projet répond à des besoins réels', (string) $paragraphs[1]->get('field_text')->value);
+    self::assertCount(3, $paragraphs[2]->get('field_items'));
+    self::assertSame('Refonte d’un site institutionnel', $paragraphs[2]->get('field_items')->first()->value);
+    self::assertSame('Site difficile à maintenir et à faire évoluer', $paragraphs[2]->get('field_case_problem')->first()->value);
+    self::assertSame('refonte Drupal', $paragraphs[2]->get('field_case_solution')->first()->value);
+    self::assertSame('meilleure structure, plus simple à éditer', $paragraphs[2]->get('field_case_result')->first()->value);
+    self::assertSame('Prendre contact', $paragraphs[3]->get('field_link')->title);
+
+    $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
+    self::assertCount(4, $english_paragraphs);
+    self::assertSame(
+      'Drupal case studies for structured contexts',
+      $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertStringContainsString(
+      'Each project responds to real needs',
+      (string) $english_paragraphs[1]->getTranslation('en')->get('field_text')->value,
+    );
+    self::assertSame(
+      'Institutional website redesign',
+      $english_paragraphs[2]->getTranslation('en')->get('field_items')->first()->value,
+    );
+    self::assertSame(
+      'Site difficult to maintain and evolve',
+      $english_paragraphs[2]->getTranslation('en')->get('field_case_problem')->first()->value,
+    );
+    self::assertSame(
+      'Drupal redesign',
+      $english_paragraphs[2]->getTranslation('en')->get('field_case_solution')->first()->value,
+    );
+    self::assertSame(
+      'better structure, easier to edit',
+      $english_paragraphs[2]->getTranslation('en')->get('field_case_result')->first()->value,
+    );
+    self::assertSame(
+      'Get in touch',
+      $english_paragraphs[3]->getTranslation('en')->get('field_link')->title,
+    );
+
+    $mapping = $mapping_repository->findByContentId('cas-clients');
+    self::assertNotNull($mapping);
+    self::assertSame((int) $page->id(), $mapping->entityId());
+    self::assertSame('created', $mapping->lastAction());
+    self::assertNotNull($mapping_repository->findByContentId('cas-clients.case-studies'));
+
+    $component_ids = array_map(static fn ($paragraph): int => (int) $paragraph->id(), $paragraphs);
+    $second_apply = $manager->sync('cas-clients', FALSE);
+    self::assertSame([], $second_apply['errors']);
+    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(4, $this->countParagraphs());
+    self::assertSame($component_ids, array_map(
+      static fn ($paragraph): int => (int) $paragraph->id(),
+      $this->loadOnlyPageNode()->get('field_home_components')->referencedEntities(),
+    ));
+    self::assertSame('updated', $mapping_repository->findByContentId('cas-clients')?->lastAction());
   }
 
   /**

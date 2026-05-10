@@ -1,0 +1,311 @@
+components:
+  - id: homepage.hero
+    legacy_uuid: 3b376be4-852e-4fa2-85ba-a64ff0fefa9d
+    bundle: hero
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Drupal pour projets structurés, accessibles et évolutifs'
+          field_text:
+            - value: >-
+                Nous accompagnons PME, ASBL et organisations publiques dans des
+                projets Drupal robustes, avec une architecture éditoriale
+                claire, des exigences d’accessibilité web et une IA utile au
+                quotidien.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Demander un audit'
+          field_secondary_link:
+            - uri: 'internal:/services'
+              title: 'Explorer les services Drupal'
+      en:
+        fields:
+          field_heading:
+            - value: 'Drupal for structured, accessible, and scalable projects'
+          field_text:
+            - value: >-
+                We support SMEs, non-profits, and public organizations in
+                robust Drupal projects, with a clear editorial architecture,
+                web accessibility requirements, and useful AI for everyday use.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Request an audit'
+          field_secondary_link:
+            - uri: 'internal:/services'
+              title: 'Explore Drupal services'
+  - id: homepage.positioning
+    legacy_uuid: ad8e2138-9355-4951-90dc-354e07847eca
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Positionnement éditorial clair pour environnements exigeants'
+          field_text:
+            - value: >-
+                Notre approche Drupal s’adresse aux contextes structurés et
+                institutionnels : gouvernance de contenu, parcours d’édition
+                fiables, accessibilité web et intégration d’outils IA pour la
+                rédaction assistée, le SEO éditorial et l’ouverture vers la
+                traduction automatique.
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Clear editorial positioning for demanding environments'
+          field_text:
+            - value: >-
+                Our Drupal approach is aimed at structured and institutional
+                contexts: content governance, reliable editing workflows, web
+                accessibility, and integration of AI tools for assisted
+                writing, editorial SEO, and openness to machine translation.
+              format: basic_html
+  - id: homepage.services
+    legacy_uuid: efdbbfe1-aec4-4cbb-be3d-33f3fe5966ac
+    bundle: services
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Nos services'
+          field_items:
+            - value: >-
+                Création de sites Drupal|Conception de plateformes
+                institutionnelles, PME ou ASBL avec une structure solide,
+                maintenable et pensée pour durer.
+              format: basic_html
+            - value: >-
+                Migration et modernisation|Reprise de sites existants, montée
+                de version Drupal, amélioration de la structure et des
+                performances.
+              format: basic_html
+            - value: >-
+                Accessibilité, SEO et performance|Contenus lisibles, parcours
+                clairs et socle technique optimisé pour vos publics et les
+                moteurs de recherche.
+              format: basic_html
+            - value: >-
+                IA intégrée dans le CMS|Aide à la rédaction, amélioration de la
+                qualité éditoriale, enrichissement et préparation à la
+                traduction automatique des contenus.
+              format: basic_html
+            - value: >-
+                Agence Drupal Belgique|Un partenaire Drupal senior en Belgique
+                pour structurer vos contenus, vos parcours et votre socle
+                technique.|/agence-drupal-belgique
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Our services'
+          field_items:
+            - value: >-
+                Drupal website creation | Design of institutional platforms,
+                SMEs, or non-profits with a solid, maintainable structure built
+                to last.
+              format: basic_html
+            - value: >-
+                Migration and modernization | Resumption of existing sites,
+                Drupal version upgrade, improvement of structure and
+                performance.
+              format: basic_html
+            - value: >-
+                Accessibility, SEO, and performance | Readable content, clear
+                pathways, and a technical foundation optimized for your
+                audiences and search engines.
+              format: basic_html
+            - value: >-
+                AI integrated into the CMS | Writing assistance, improvement of
+                editorial quality, enrichment and preparation for automatic
+                translation of content.
+              format: basic_html
+            - value: >-
+                Drupal Agency Belgium|A senior Drupal partner in Belgium to
+                structure your content, user journeys and technical
+                foundation.|/drupal-agency-belgium
+              format: basic_html
+  - id: homepage.ai-features
+    legacy_uuid: b73c293b-32b3-426d-a86b-adfed1a386a7
+    bundle: ai_features
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Ce que l’IA peut faire dans Drupal'
+          field_text:
+            - value: >-
+                Des usages IA concrets, intégrés à Drupal, pour aider les
+                équipes éditoriales sans complexifier le travail quotidien.
+              format: basic_html
+          field_items:
+            - value: 'Correction orthographique et reformulation'
+              format: basic_html
+            - value: 'Génération assistée de contenu'
+              format: basic_html
+            - value: 'Préparation à la traduction automatique multilingue'
+              format: basic_html
+            - value: 'Tags automatiques pour les images'
+              format: basic_html
+            - value: 'Suggestions SEO'
+              format: basic_html
+            - value: 'Résumé et structuration de contenu'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'What AI can do in Drupal'
+          field_text:
+            - value: >-
+                Concrete AI applications, integrated into Drupal, to assist
+                editorial teams without complicating daily work.
+              format: basic_html
+          field_items:
+            - value: 'Spelling correction and rephrasing'
+              format: basic_html
+            - value: 'Assisted content generation'
+              format: basic_html
+            - value: 'Preparation for multilingual machine translation'
+              format: basic_html
+            - value: 'Automatic tags for images'
+              format: basic_html
+            - value: 'SEO Suggestions'
+              format: basic_html
+            - value: 'Summary and content structuring'
+              format: basic_html
+  - id: homepage.case-studies
+    legacy_uuid: 614270dd-1d42-4ea9-a7ae-6321952de65b
+    bundle: case_clients
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Des projets clairs, utiles et durables'
+          field_items:
+            - value: 'Refonte d’un site institutionnel Drupal'
+              format: basic_html
+            - value: 'Modernisation d’un site existant'
+              format: basic_html
+            - value: 'Mise en valeur de services complexes'
+              format: basic_html
+          field_case_problem:
+            - value: 'Site institutionnel difficile à maintenir.'
+              format: basic_html
+            - value: 'Socle Drupal vieillissant et dette technique.'
+              format: basic_html
+            - value: 'Offres perçues comme complexes et confuses.'
+              format: basic_html
+          field_case_solution:
+            - value: 'Structure clarifiée et parcours d’édition simplifié.'
+              format: basic_html
+            - value: 'Migration maîtrisée et assainissement technique.'
+              format: basic_html
+            - value: 'Contenus simplifiés et hiérarchie clarifiée.'
+              format: basic_html
+          field_case_result:
+            - value: 'Édition facilitée et meilleures performances.'
+              format: basic_html
+            - value: 'Base technique stabilisée.'
+              format: basic_html
+            - value: 'Meilleure lisibilité et meilleure conversion.'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Clear, useful, and sustainable projects'
+          field_items:
+            - value: 'Redesign of an institutional Drupal website'
+              format: basic_html
+            - value: 'Modernization of an existing site'
+              format: basic_html
+            - value: 'Showcasing complex services'
+              format: basic_html
+          field_case_problem:
+            - value: 'Institutional site difficult to maintain.'
+              format: basic_html
+            - value: 'Aging Drupal foundation and technical debt.'
+              format: basic_html
+            - value: 'Offers perceived as complex and confusing.'
+              format: basic_html
+          field_case_solution:
+            - value: 'Clarified structure and simplified editing process.'
+              format: basic_html
+            - value: 'Controlled migration and technical sanitation.'
+              format: basic_html
+            - value: 'Simplified content and clarified hierarchy.'
+              format: basic_html
+          field_case_result:
+            - value: 'Easier editing and better performance.'
+              format: basic_html
+            - value: 'Stabilized technical base.'
+              format: basic_html
+            - value: 'Better readability and better conversion.'
+              format: basic_html
+  - id: homepage.trust
+    legacy_uuid: 33873ed7-004d-4a7f-b69e-b8f64dc4fa9b
+    bundle: trust_list
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Pourquoi travailler avec nous'
+          field_items:
+            - value: 'Expertise Drupal'
+              format: basic_html
+            - value: 'Expérience des contextes institutionnels'
+              format: basic_html
+            - value: 'Maîtrise des enjeux d’accessibilité web'
+              format: basic_html
+            - value: 'IA utile, pas gadget'
+              format: basic_html
+            - value: 'Compréhension des réalités PME / ASBL'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Why work with us'
+          field_items:
+            - value: 'Drupal Expertise'
+              format: basic_html
+            - value: 'Experience of institutional contexts'
+              format: basic_html
+            - value: 'Mastery of web accessibility issues'
+              format: basic_html
+            - value: 'Useful AI, not a gimmick'
+              format: basic_html
+            - value: 'Understanding the realities of SMEs / NGOs'
+              format: basic_html
+  - id: homepage.cta
+    legacy_uuid: 88bc3809-2c51-4ec1-93a8-2eed9ce6930c
+    bundle: cta
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Vous avez un projet Drupal ou un site à moderniser ?'
+          field_text:
+            - value: >-
+                Parlons de votre contexte Drupal et de vos objectifs
+                d’accessibilité. Vous pouvez aussi consulter nos <a
+                href="/services">services Drupal</a> et notre approche <a
+                href="/ia-drupal">IA &amp; Drupal</a>.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Prendre contact'
+      en:
+        fields:
+          field_heading:
+            - value: 'Do you have a Drupal project or a website to modernize?'
+          field_text:
+            - value: >-
+                Let's talk about your Drupal context and your accessibility
+                goals. You can also check out our <a href="/services">Drupal
+                services</a> and our <a href="/ai-drupal">AI &amp; Drupal</a>
+                approach.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Get in touch'

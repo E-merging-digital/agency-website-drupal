@@ -74,3 +74,18 @@ contents:
       en:
         title: Contact
         alias: /contact
+  - id: homepage
+    entity_type: node
+    bundle: page
+    file: node/homepage.yml
+    legacy_uuid: 7b8d9926-e015-457f-9da3-562439b962a7
+    business_aliases:
+      fr: /accueil
+      en: /home
+    translations:
+      fr:
+        title: Accueil
+        alias: /accueil
+      en:
+        title: Home
+        alias: /home

@@ -78,7 +78,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       'name' => 'Page',
     ])->save();
 
-    foreach (['hero', 'text_block', 'services', 'cta'] as $paragraph_type) {
+    foreach (['hero', 'text_block', 'services', 'ai_features', 'trust_list', 'cta'] as $paragraph_type) {
       ParagraphsType::create([
         'id' => $paragraph_type,
         'label' => $paragraph_type,
@@ -88,9 +88,15 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $this->createTextLongField('field_short_description', TRUE);
     $this->createTextLongField('field_detailed_description', FALSE);
     $this->createHomeComponentsField();
-    $this->createParagraphField('field_heading', 'string', ['hero', 'text_block', 'services']);
-    $this->createParagraphField('field_text', 'text_long', ['hero', 'text_block', 'cta']);
-    $this->createParagraphField('field_items', 'text_long', ['services']);
+    $this->createParagraphField('field_heading', 'string', [
+      'hero',
+      'text_block',
+      'services',
+      'ai_features',
+      'trust_list',
+    ]);
+    $this->createParagraphField('field_text', 'text_long', ['hero', 'text_block', 'ai_features', 'cta']);
+    $this->createParagraphField('field_items', 'text_long', ['services', 'ai_features', 'trust_list']);
     $this->createParagraphField('field_link', 'link', ['cta']);
   }
 
@@ -160,7 +166,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(2, $dry_run['content_reports']);
+    self::assertCount(3, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
@@ -171,11 +177,12 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
-    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(2, $this->countPageNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(2, $first_apply['content_reports']);
+    self::assertCount(3, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
     self::assertSame('services', $first_apply['content_reports'][1]['id']);
+    self::assertSame('ia-drupal', $first_apply['content_reports'][2]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
@@ -184,7 +191,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
-    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(2, $this->countPageNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($updated_mapping);
@@ -270,6 +277,91 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       $this->loadOnlyPageNode()->get('field_home_components')->referencedEntities(),
     ));
     self::assertSame('updated', $mapping_repository->findByContentId('services')?->lastAction());
+  }
+
+  /**
+   * Tests IA & Drupal page sync creates translated paragraphs in stable order.
+   */
+  public function testIaDrupalPageSyncCreatesTranslatedParagraphsWithoutDuplication(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+
+    $dry_run = $manager->sync('ia-drupal', TRUE);
+    self::assertSame([], $dry_run['errors']);
+    self::assertFalse($mapping_repository->exists('ia-drupal'));
+    self::assertSame(0, $this->countPageNodes());
+    self::assertSame(0, $this->countParagraphs());
+
+    $first_apply = $manager->sync('ia-drupal', FALSE);
+    self::assertSame([], $first_apply['errors']);
+    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(6, $this->countParagraphs());
+
+    $page = $this->loadOnlyPageNode();
+    self::assertSame('fr', $page->language()->getId());
+    self::assertSame('IA & Drupal', $page->label());
+    self::assertTrue($page->hasTranslation('en'));
+    self::assertSame('AI & Drupal', $page->getTranslation('en')->label());
+
+    $alias_manager = $this->container->get('path_alias.manager');
+    $alias_manager->cacheClear('/node/' . $page->id());
+    self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/ia-drupal', 'fr'));
+    self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/ai-drupal', 'en'));
+
+    $paragraphs = $page->get('field_home_components')->referencedEntities();
+    self::assertCount(6, $paragraphs);
+    self::assertSame(
+      ['hero', 'text_block', 'ai_features', 'trust_list', 'text_block', 'cta'],
+      array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
+    );
+    self::assertSame('IA utile dans Drupal pour les équipes éditoriales', $paragraphs[0]->get('field_heading')->value);
+    self::assertSame('Cas d’usage IA dans Drupal', $paragraphs[2]->get('field_heading')->value);
+    self::assertCount(5, $paragraphs[2]->get('field_items'));
+    self::assertSame('Bénéfices', $paragraphs[3]->get('field_heading')->value);
+    self::assertCount(4, $paragraphs[3]->get('field_items'));
+    self::assertSame('Intégration dans vos processus CMS', $paragraphs[4]->get('field_heading')->value);
+    self::assertSame('Prendre contact', $paragraphs[5]->get('field_link')->title);
+
+    $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
+    self::assertCount(6, $english_paragraphs);
+    self::assertSame(
+      'Useful AI in Drupal for editorial teams',
+      $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'AI use cases in Drupal',
+      $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'Benefits',
+      $english_paragraphs[3]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'Integration into your CMS processes',
+      $english_paragraphs[4]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'Get in touch',
+      $english_paragraphs[5]->getTranslation('en')->get('field_link')->title,
+    );
+
+    $mapping = $mapping_repository->findByContentId('ia-drupal');
+    self::assertNotNull($mapping);
+    self::assertSame((int) $page->id(), $mapping->entityId());
+    self::assertSame('created', $mapping->lastAction());
+    self::assertNotNull($mapping_repository->findByContentId('ia-drupal.features'));
+    self::assertNotNull($mapping_repository->findByContentId('ia-drupal.benefits'));
+
+    $component_ids = array_map(static fn ($paragraph): int => (int) $paragraph->id(), $paragraphs);
+    $second_apply = $manager->sync('ia-drupal', FALSE);
+    self::assertSame([], $second_apply['errors']);
+    self::assertSame(1, $this->countPageNodes());
+    self::assertSame(6, $this->countParagraphs());
+    self::assertSame($component_ids, array_map(
+      static fn ($paragraph): int => (int) $paragraph->id(),
+      $this->loadOnlyPageNode()->get('field_home_components')->referencedEntities(),
+    ));
+    self::assertSame('updated', $mapping_repository->findByContentId('ia-drupal')?->lastAction());
   }
 
   /**

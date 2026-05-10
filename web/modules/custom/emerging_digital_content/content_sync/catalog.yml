@@ -29,3 +29,18 @@ contents:
       en:
         title: Services
         alias: /services
+  - id: ia-drupal
+    entity_type: node
+    bundle: page
+    file: node/ia-drupal.yml
+    legacy_uuid: 3636da02-c8e6-40ea-aa71-54148f029a09
+    business_aliases:
+      fr: /ia-drupal
+      en: /ai-drupal
+    translations:
+      fr:
+        title: 'IA & Drupal'
+        alias: /ia-drupal
+      en:
+        title: 'AI & Drupal'
+        alias: /ai-drupal

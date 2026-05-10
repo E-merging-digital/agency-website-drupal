@@ -1,0 +1,172 @@
+components:
+  - id: ia-drupal.hero
+    legacy_uuid: bfa1a9d3-2715-4a04-8758-d14ece990e6e
+    bundle: hero
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'IA utile dans Drupal pour les équipes éditoriales'
+          field_text:
+            - value: >-
+                Des fonctionnalités IA concrètes pour améliorer la qualité des
+                contenus, la cohérence éditoriale et la productivité, dans un
+                cadre maîtrisé.
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Useful AI in Drupal for editorial teams'
+          field_text:
+            - value: >-
+                Concrete AI features to enhance content quality, editorial
+                consistency, and productivity, within a controlled framework.
+              format: basic_html
+  - id: ia-drupal.intro
+    legacy_uuid: 65be59ce-5a5e-44ec-9c63-b0796b0dd6f9
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_text:
+            - value: >-
+                L’IA ne remplace pas l’expertise métier : elle la renforce.
+                Nous intégrons des usages utiles directement dans Drupal, avec
+                attention portée à l’accessibilité web et à la qualité
+                éditoriale.
+              format: basic_html
+      en:
+        fields:
+          field_text:
+            - value: >-
+                AI does not replace industry expertise: it enhances it. We
+                integrate useful applications directly into Drupal, with a focus
+                on web accessibility and editorial quality.
+              format: basic_html
+  - id: ia-drupal.features
+    legacy_uuid: f7bb4bef-3172-4e6b-aadd-3adaaf5aeb29
+    bundle: ai_features
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Cas d’usage IA dans Drupal'
+          field_items:
+            - value: >-
+                Rédaction assistée : Génération de contenu, reformulation,
+                amélioration de texte.
+              format: basic_html
+            - value: >-
+                Correction éditoriale : Amélioration de la qualité linguistique
+                et du ton.
+              format: basic_html
+            - value: >-
+                SEO intelligent : Suggestions pour améliorer la visibilité.
+              format: basic_html
+            - value: >-
+                Traduction : Préparation et automatisation progressive des
+                contenus multilingues.
+              format: basic_html
+            - value: 'Enrichissement automatique : Tags, résumés, structuration.'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'AI use cases in Drupal'
+          field_items:
+            - value: >-
+                Assisted writing: Content generation, rephrasing, text
+                enhancement.
+              format: basic_html
+            - value: >-
+                Editorial correction: Improvement of linguistic quality and
+                tone.
+              format: basic_html
+            - value: 'Intelligent SEO: Suggestions to Improve Visibility.'
+              format: basic_html
+            - value: >-
+                Translation: Preparation and gradual automation of multilingual
+                content.
+              format: basic_html
+            - value: 'Automatic enrichment: Tags, summaries, structuring.'
+              format: basic_html
+  - id: ia-drupal.benefits
+    legacy_uuid: f6e32e97-aba4-4f5f-a8ce-89fb2ad2a83d
+    bundle: trust_list
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Bénéfices'
+          field_items:
+            - value: 'Gain de temps'
+              format: basic_html
+            - value: 'Meilleure qualité éditoriale'
+              format: basic_html
+            - value: 'Cohérence des contenus'
+              format: basic_html
+            - value: 'Accessibilité éditoriale renforcée'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Benefits'
+          field_items:
+            - value: 'Time saver'
+              format: basic_html
+            - value: 'Best editorial quality'
+              format: basic_html
+            - value: 'Content consistency'
+              format: basic_html
+            - value: 'Enhanced editorial accessibility'
+              format: basic_html
+  - id: ia-drupal.integration
+    legacy_uuid: 3d0518cf-cf7a-4cac-a2eb-ee80c1ba63f9
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Intégration dans vos processus CMS'
+          field_text:
+            - value: >-
+                Les outils sont intégrés dans l’interface Drupal, sans rupture
+                pour les équipes. Le dispositif reste gouvernable pour des
+                contextes PME, ASBL et institutionnels.
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Integration into your CMS processes'
+          field_text:
+            - value: >-
+                The tools are integrated into the Drupal interface, without
+                disruption for the teams. The system remains manageable for SME,
+                non-profit, and institutional contexts.
+              format: basic_html
+  - id: ia-drupal.cta
+    legacy_uuid: f4581518-8acc-4632-8b25-884776b3aeb4
+    bundle: cta
+    translations:
+      fr:
+        fields:
+          field_text:
+            - value: >-
+                Découvrez comment relier vos objectifs éditoriaux à des usages
+                IA concrets. Voir aussi nos <a href="/services">services
+                Drupal</a> et des <a href="/cas-clients">cas clients</a>.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Prendre contact'
+      en:
+        fields:
+          field_text:
+            - value: >-
+                Discover how to connect your editorial goals to concrete AI
+                applications. Also, see our <a href="/services">Drupal
+                services</a> and <a href="/cas-clients">client cases</a>.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/contact'
+              title: 'Get in touch'

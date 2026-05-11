@@ -1,0 +1,37 @@
+components:
+  - id: mentions-legales.content
+    legacy_uuid: d88c477b-b568-4353-8c4a-e159644325bf
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Mentions légales'
+          field_text:
+            - value: |
+                <h2>Éditeur du site</h2>
+                <p><strong>Nom légal complet&nbsp;:</strong> E-MERGING DIGITAL SRL<br>
+                <strong>Numéro d’entreprise&nbsp;:</strong> BE 0746.356.206<br>
+                <strong>Adresse du siège&nbsp;:</strong> Rue des Peupliers 1, 4254 Ligney (Geer), Belgique</p>
+                <h2>Contact</h2>
+                <p><strong>Email&nbsp;:</strong> <a href="mailto:jonathan@emergingdigital.be">jonathan@emergingdigital.be</a><br>
+                <strong>Téléphone&nbsp;:</strong> <a href="tel:+32475722884">+32 475 72 28 84</a></p>
+                <h2>Hébergement</h2>
+                <p>Informations d’hébergement disponibles sur demande.</p>
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Legal Notices'
+          field_text:
+            - value: |
+                <h2>Site Publisher</h2>
+                <p><strong>Full legal name&nbsp;:</strong> E-MERGING DIGITAL SRL<br>
+                <strong>Company number&nbsp;:</strong> BE 0746.356.206<br>
+                <strong>Head office address&nbsp;:</strong> Rue des Peupliers 1, 4254 Ligney (Geer), Belgium</p>
+                <h2>Contact</h2>
+                <p><strong>Email&nbsp;:</strong> <a href="mailto:jonathan@emergingdigital.be">jonathan@emergingdigital.be</a><br>
+                <strong>Phone&nbsp;:</strong> <a href="tel:+32475722884">+32 475 72 28 84</a></p>
+                <h2>Hosting</h2>
+                <p>Hosting information available upon request.</p>
+              format: basic_html

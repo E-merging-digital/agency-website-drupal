@@ -1,0 +1,37 @@
+components:
+  - id: politique-cookies.content
+    legacy_uuid: 4629b8a1-71cd-4298-9d0c-e668e27f6e99
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Politique de cookies'
+          field_text:
+            - value: |
+                <p>Cette page explique simplement comment notre site utilise des cookies et des contenus externes. Le but est de vous informer clairement, sans jargon.</p>
+                <h2>Pourquoi utilisons-nous des cookies&nbsp;?</h2>
+                <p>Les cookies nous aident à faire fonctionner le site correctement et à vous proposer une expérience stable. Nous ne les utilisons pas pour collecter des données inutiles.</p>
+                <h2>Cookies nécessaires</h2>
+                <p>Ces cookies sont indispensables au fonctionnement technique du site (sécurité, préférences de base, stabilité d’affichage). Sans eux, certaines fonctionnalités peuvent ne pas fonctionner correctement.</p>
+                <h2>Contenus externes et services tiers</h2>
+                <p>Certaines pages peuvent afficher des contenus provenant de services tiers. Par exemple, nous utilisons Google Maps sur la page de contact pour afficher notre localisation. Lors de l’affichage de cette carte, Google peut déposer des cookies ou traiter certaines données techniques (comme votre adresse IP), selon sa propre politique de confidentialité.</p>
+                <h2>Comment gérer votre consentement&nbsp;?</h2>
+                <p>Vous pouvez accepter ou refuser les cookies non nécessaires via le bandeau cookies affiché sur le site. Vous pouvez aussi modifier vos choix à tout moment en rouvrant ce gestionnaire de consentement, ou en configurant votre navigateur pour bloquer ou supprimer les cookies.</p>
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Cookie Policy'
+          field_text:
+            - value: |
+                <p>This page simply explains how our site uses cookies and external content. The aim is to inform you clearly, without jargon.</p>
+                <h2>Why do we use cookies?</h2>
+                <p>Cookies help us operate the site properly and provide you with a stable experience. We do not use them to collect unnecessary data.</p>
+                <h2>Necessary cookies</h2>
+                <p>These cookies are essential for the technical functioning of the site (security, basic preferences, display stability). Without them, some features may not work correctly.</p>
+                <h2>External content and third-party services</h2>
+                <p>Some pages may display content from third-party services. For example, we use Google Maps on the contact page to show our location. When displaying this map, Google may place cookies or process certain technical data (such as your IP address), according to its own privacy policy.</p>
+                <h2>How to manage your consent?</h2>
+                <p>You can accept or refuse non-essential cookies via the cookie banner displayed on the site. You can also change your choices at any time by reopening this consent manager or by configuring your browser to block or delete cookies.</p>
+              format: basic_html

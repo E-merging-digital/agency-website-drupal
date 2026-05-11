@@ -1,0 +1,90 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Création de site Drupal sur mesure pour PME, ASBL et institutions :
+          architecture éditoriale, UX, développement, accessibilité,
+          performance et SEO technique.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital conçoit et développe des sites Drupal pensés pour
+          durer : une structure éditoriale claire, un socle technique fiable et
+          des pages prêtes pour le référencement naturel dès la mise en ligne.
+          </p><h2>Une création Drupal structurée</h2><ul><li>Cadrage des
+          objectifs, des audiences et des parcours clés.</li><li>Architecture
+          de contenu réutilisable pour des équipes éditoriales autonomes.</li>
+          <li>Développement Drupal 11 propre, maintenable et compatible avec
+          vos contraintes d'hébergement.</li><li>Accessibilité, performance,
+          sécurité et SEO technique intégrés dès la conception.</li><li>
+          Préparation des contenus multilingues et des workflows éditoriaux.
+          </li></ul><p>Cette page complète notre positionnement d'<a
+          href="/agence-drupal-belgique">agence Drupal en Belgique</a>. Vous
+          pouvez aussi consulter nos <a href="/services">services Drupal</a>,
+          notre offre de <a href="/maintenance-drupal">maintenance Drupal</a>
+          et notre approche <a href="/ia-drupal">IA &amp; Drupal</a>.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Custom Drupal website creation for SMEs, non-profits and
+          institutions: editorial architecture, UX, development, accessibility,
+          performance and technical SEO.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital designs and builds Drupal websites made to last:
+          a clear editorial structure, a reliable technical foundation and pages
+          ready for organic search from launch.</p><h2>A structured Drupal
+          build</h2><ul><li>Framing goals, audiences and key user journeys.
+          </li><li>Reusable content architecture for autonomous editorial
+          teams.</li><li>Clean and maintainable Drupal 11 development aligned
+          with your hosting constraints.</li><li>Accessibility, performance,
+          security and technical SEO integrated from the start.</li><li>
+          Preparation for multilingual content and editorial workflows.</li>
+          </ul><p>This page extends our <a href="/drupal-agency-belgium">Drupal
+          agency in Belgium</a> positioning. You can also explore our <a
+          href="/services">Drupal services</a>, our <a
+          href="/drupal-maintenance">Drupal maintenance</a> offer and our <a
+          href="/ai-drupal">AI &amp; Drupal</a> approach.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Création de site Drupal'
+        description: >-
+          Conception et développement de sites Drupal clairs, accessibles,
+          performants et prêts pour le SEO.
+        url: /creation-site-drupal
+      en:
+        title: 'Drupal Website Creation'
+        description: >-
+          Design and development of clear, accessible, performant Drupal
+          websites ready for SEO.
+        url: /drupal-website-creation
+  - target:
+      label: Homepage
+      front: true
+      aliases:
+        fr: /accueil
+        en: /home
+    translations:
+      fr:
+        title: 'Création de site Drupal'
+        description: >-
+          Un site Drupal conçu pour vos contenus, vos équipes et votre
+          référencement naturel.
+        url: /creation-site-drupal
+      en:
+        title: 'Drupal Website Creation'
+        description: >-
+          A Drupal website designed for your content, your teams and your
+          organic search visibility.
+        url: /drupal-website-creation

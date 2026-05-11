@@ -1,0 +1,88 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Maintenance Drupal pour sites existants : mises à jour, sécurité,
+          support éditorial, performance, accessibilité et amélioration SEO
+          continue.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital assure la maintenance de sites Drupal qui doivent
+          rester stables, sécurisés et faciles à faire évoluer sans bloquer les
+          équipes métiers.</p><h2>Une maintenance Drupal orientée continuité</h2>
+          <ul><li>Mises à jour Drupal core, modules contrib et dépendances
+          Composer.</li><li>Surveillance des risques de sécurité, corrections
+          et priorisation technique.</li><li>Support aux équipes éditoriales et
+          amélioration des workflows de publication.</li><li>Optimisation des
+          performances, de l'accessibilité et du référencement naturel.</li>
+          <li>Petites évolutions fonctionnelles, audits et préparation des
+          montées de version.</li></ul><p>Cette offre prolonge notre approche
+          d'<a href="/agence-drupal-belgique">agence Drupal en Belgique</a>.
+          Elle peut compléter une <a href="/creation-site-drupal">création de
+          site Drupal</a>, nos <a href="/services">services Drupal</a> et les
+          usages <a href="/ia-drupal">IA &amp; Drupal</a> utiles aux équipes
+          éditoriales.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Drupal maintenance for existing websites: updates, security,
+          editorial support, performance, accessibility and continuous SEO
+          improvement.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital maintains Drupal websites that need to stay
+          stable, secure and easy to evolve without slowing down business
+          teams.</p><h2>Drupal maintenance focused on continuity</h2><ul><li>
+          Updates for Drupal core, contributed modules and Composer
+          dependencies.</li><li>Security risk monitoring, fixes and technical
+          prioritisation.</li><li>Editorial team support and publication
+          workflow improvements.</li><li>Performance, accessibility and organic
+          search optimisation.</li><li>Small feature improvements, audits and
+          preparation for major upgrades.</li></ul><p>This offer extends our <a
+          href="/drupal-agency-belgium">Drupal agency in Belgium</a> approach.
+          It can support a <a href="/drupal-website-creation">Drupal website
+          creation</a>, our <a href="/services">Drupal services</a> and useful
+          <a href="/ai-drupal">AI &amp; Drupal</a> editorial workflows.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Maintenance Drupal'
+        description: >-
+          Mises à jour, sécurité, support et amélioration continue pour garder
+          votre site Drupal fiable.
+        url: /maintenance-drupal
+      en:
+        title: 'Drupal Maintenance'
+        description: >-
+          Updates, security, support and continuous improvement to keep your
+          Drupal website reliable.
+        url: /drupal-maintenance
+  - target:
+      label: Homepage
+      front: true
+      aliases:
+        fr: /accueil
+        en: /home
+    translations:
+      fr:
+        title: 'Maintenance Drupal'
+        description: >-
+          Un accompagnement technique régulier pour sécuriser et faire évoluer
+          votre site Drupal.
+        url: /maintenance-drupal
+      en:
+        title: 'Drupal Maintenance'
+        description: >-
+          Regular technical support to secure and evolve your Drupal website.
+        url: /drupal-maintenance

@@ -14,6 +14,34 @@ contents:
       en:
         title: 'Drupal Agency Belgium'
         alias: /drupal-agency-belgium
+  - id: creation-site-drupal
+    entity_type: node
+    bundle: service
+    file: node/creation-site-drupal.yml
+    business_aliases:
+      fr: /creation-site-drupal
+      en: /drupal-website-creation
+    translations:
+      fr:
+        title: 'Création de site Drupal'
+        alias: /creation-site-drupal
+      en:
+        title: 'Drupal Website Creation'
+        alias: /drupal-website-creation
+  - id: maintenance-drupal
+    entity_type: node
+    bundle: service
+    file: node/maintenance-drupal.yml
+    business_aliases:
+      fr: /maintenance-drupal
+      en: /drupal-maintenance
+    translations:
+      fr:
+        title: 'Maintenance Drupal'
+        alias: /maintenance-drupal
+      en:
+        title: 'Drupal Maintenance'
+        alias: /drupal-maintenance
   - id: services
     entity_type: node
     bundle: page

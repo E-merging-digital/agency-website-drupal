@@ -12,6 +12,7 @@ use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\node\NodeInterface;
+use Drupal\paragraphs\Entity\Paragraph;
 use Drupal\paragraphs\Entity\ParagraphsType;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -170,7 +171,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(5, $dry_run['content_reports']);
+    self::assertCount(9, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
@@ -181,14 +182,18 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
-    self::assertSame(4, $this->countPageNodes());
+    self::assertSame(8, $this->countPageNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(5, $first_apply['content_reports']);
+    self::assertCount(9, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
     self::assertSame('services', $first_apply['content_reports'][1]['id']);
     self::assertSame('ia-drupal', $first_apply['content_reports'][2]['id']);
     self::assertSame('cas-clients', $first_apply['content_reports'][3]['id']);
     self::assertSame('contact', $first_apply['content_reports'][4]['id']);
+    self::assertSame('mentions-legales', $first_apply['content_reports'][5]['id']);
+    self::assertSame('politique-confidentialite', $first_apply['content_reports'][6]['id']);
+    self::assertSame('politique-cookies', $first_apply['content_reports'][7]['id']);
+    self::assertSame('homepage', $first_apply['content_reports'][8]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
@@ -197,7 +202,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
     self::assertSame(1, $this->countServiceNodes());
-    self::assertSame(4, $this->countPageNodes());
+    self::assertSame(8, $this->countPageNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($updated_mapping);
@@ -554,6 +559,96 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
   }
 
   /**
+   * Tests legal page sync preserves historical UUIDs, translations and aliases.
+   */
+  public function testLegalPagesSyncCreateTranslatedParagraphsWithoutDuplication(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+
+    $pages = [
+      'mentions-legales' => [
+        'uuid' => '0705e972-2817-4e71-a29e-659bbe78ab73',
+        'component_id' => 'mentions-legales.content',
+        'paragraph_uuid' => 'd88c477b-b568-4353-8c4a-e159644325bf',
+        'fr_title' => 'Mentions légales',
+        'en_title' => 'Legal Notices',
+        'fr_alias' => '/mentions-legales',
+        'en_alias' => '/legal-notices',
+        'fr_text' => 'Éditeur du site',
+        'en_text' => 'Site Publisher',
+      ],
+      'politique-confidentialite' => [
+        'uuid' => '72c950fa-49bc-440b-a778-47b4b33d5735',
+        'component_id' => 'politique-confidentialite.content',
+        'paragraph_uuid' => '50c557e0-a74e-4124-acb2-115ab84e402b',
+        'fr_title' => 'Politique de confidentialité',
+        'en_title' => 'Privacy Policy',
+        'fr_alias' => '/politique-de-confidentialite',
+        'en_alias' => '/privacy-policy',
+        'fr_text' => 'données personnelles',
+        'en_text' => 'personal data',
+      ],
+      'politique-cookies' => [
+        'uuid' => '8eb854c8-d7cc-4235-aa79-18f428325a8b',
+        'component_id' => 'politique-cookies.content',
+        'paragraph_uuid' => '4629b8a1-71cd-4298-9d0c-e668e27f6e99',
+        'fr_title' => 'Politique de cookies',
+        'en_title' => 'Cookie Policy',
+        'fr_alias' => '/politique-de-cookies',
+        'en_alias' => '/cookie-policy',
+        'fr_text' => 'utilise des cookies',
+        'en_text' => 'uses cookies',
+      ],
+    ];
+
+    foreach ($pages as $content_id => $expected) {
+      $this->createLegacyLegalPage($expected);
+
+      $dry_run = $manager->sync($content_id, TRUE);
+      self::assertSame([], $dry_run['errors']);
+      self::assertFalse($mapping_repository->exists($content_id));
+
+      $first_apply = $manager->sync($content_id, FALSE);
+      self::assertSame([], $first_apply['errors']);
+
+      $mapping = $mapping_repository->findByContentId($content_id);
+      self::assertNotNull($mapping);
+      self::assertSame($expected['uuid'], $mapping->entityUuid());
+      self::assertSame('updated', $mapping->lastAction());
+
+      $node = $this->loadPageNodeByUuid($expected['uuid']);
+      self::assertSame('fr', $node->language()->getId());
+      self::assertSame($expected['fr_title'], $node->label());
+      self::assertTrue($node->hasTranslation('en'));
+      self::assertSame($expected['en_title'], $node->getTranslation('en')->label());
+
+      $alias_manager = $this->container->get('path_alias.manager');
+      $alias_manager->cacheClear('/node/' . $node->id());
+      self::assertSame('/node/' . $node->id(), $alias_manager->getPathByAlias($expected['fr_alias'], 'fr'));
+      self::assertSame('/node/' . $node->id(), $alias_manager->getPathByAlias($expected['en_alias'], 'en'));
+
+      $paragraphs = $node->get('field_home_components')->referencedEntities();
+      self::assertCount(1, $paragraphs);
+      self::assertSame('text_block', $paragraphs[0]->bundle());
+      self::assertSame($expected['paragraph_uuid'], $paragraphs[0]->uuid());
+      self::assertSame($expected['fr_title'], $paragraphs[0]->get('field_heading')->value);
+      self::assertStringContainsString($expected['fr_text'], (string) $paragraphs[0]->get('field_text')->value);
+      self::assertSame($expected['en_title'], $paragraphs[0]->getTranslation('en')->get('field_heading')->value);
+      self::assertStringContainsString($expected['en_text'], (string) $paragraphs[0]->getTranslation('en')->get('field_text')->value);
+      self::assertNotNull($mapping_repository->findByContentId($expected['component_id']));
+
+      $component_ids = array_map(static fn ($paragraph): int => (int) $paragraph->id(), $paragraphs);
+      $second_apply = $manager->sync($content_id, FALSE);
+      self::assertSame([], $second_apply['errors']);
+      self::assertSame($component_ids, array_map(
+        static fn ($paragraph): int => (int) $paragraph->id(),
+        $this->loadPageNodeByUuid($expected['uuid'])->get('field_home_components')->referencedEntities(),
+      ));
+      self::assertSame('updated', $mapping_repository->findByContentId($content_id)?->lastAction());
+    }
+  }
+
+  /**
    * Tests prune only touches active managed nodes absent from catalog.
    */
   public function testPruneUnpublishDryRunAndApplyAreScopedToManagedNodes(): void {
@@ -835,6 +930,83 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       ->getStorage('node')
       ->load((int) reset($ids));
     self::assertInstanceOf(NodeInterface::class, $node);
+
+    return $node;
+  }
+
+  /**
+   * Loads one page node by UUID.
+   */
+  private function loadPageNodeByUuid(string $uuid): NodeInterface {
+    $node = $this->container->get('entity.repository')->loadEntityByUuid('node', $uuid);
+    self::assertInstanceOf(NodeInterface::class, $node);
+
+    return $node;
+  }
+
+  /**
+   * Creates a pre-existing translated legal page with historical UUIDs.
+   *
+   * @param array<string, string> $expected
+   *   Expected legal page values.
+   */
+  private function createLegacyLegalPage(array $expected): NodeInterface {
+    $paragraph = Paragraph::create([
+      'type' => 'text_block',
+      'uuid' => $expected['paragraph_uuid'],
+      'langcode' => 'fr',
+      'status' => TRUE,
+      'field_heading' => $expected['fr_title'],
+      'field_text' => [
+        'value' => '<p>' . $expected['fr_text'] . '</p>',
+        'format' => 'basic_html',
+      ],
+    ]);
+    $paragraph->addTranslation('en', [
+      'field_heading' => $expected['en_title'],
+      'field_text' => [
+        'value' => '<p>' . $expected['en_text'] . '</p>',
+        'format' => 'basic_html',
+      ],
+    ]);
+    $paragraph->save();
+
+    $node = Node::create([
+      'type' => 'page',
+      'uuid' => $expected['uuid'],
+      'langcode' => 'fr',
+      'title' => $expected['fr_title'],
+      'status' => NodeInterface::PUBLISHED,
+      'uid' => 1,
+      'field_home_components' => [
+        [
+          'target_id' => (int) $paragraph->id(),
+          'target_revision_id' => (int) $paragraph->getRevisionId(),
+        ],
+      ],
+      'path' => [
+        'alias' => $expected['fr_alias'],
+        'pathauto' => FALSE,
+      ],
+    ]);
+    $node->save();
+
+    $node->addTranslation('en', [
+      'title' => $expected['en_title'],
+      'status' => NodeInterface::PUBLISHED,
+      'uid' => 1,
+      'field_home_components' => [
+        [
+          'target_id' => (int) $paragraph->id(),
+          'target_revision_id' => (int) $paragraph->getRevisionId(),
+        ],
+      ],
+      'path' => [
+        'alias' => $expected['en_alias'],
+        'pathauto' => FALSE,
+      ],
+    ]);
+    $node->save();
 
     return $node;
   }

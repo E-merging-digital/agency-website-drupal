@@ -74,6 +74,51 @@ contents:
       en:
         title: Contact
         alias: /contact
+  - id: mentions-legales
+    entity_type: node
+    bundle: page
+    file: node/mentions-legales.yml
+    legacy_uuid: 0705e972-2817-4e71-a29e-659bbe78ab73
+    business_aliases:
+      fr: /mentions-legales
+      en: /legal-notices
+    translations:
+      fr:
+        title: 'Mentions légales'
+        alias: /mentions-legales
+      en:
+        title: 'Legal Notices'
+        alias: /legal-notices
+  - id: politique-confidentialite
+    entity_type: node
+    bundle: page
+    file: node/politique-confidentialite.yml
+    legacy_uuid: 72c950fa-49bc-440b-a778-47b4b33d5735
+    business_aliases:
+      fr: /politique-de-confidentialite
+      en: /privacy-policy
+    translations:
+      fr:
+        title: 'Politique de confidentialité'
+        alias: /politique-de-confidentialite
+      en:
+        title: 'Privacy Policy'
+        alias: /privacy-policy
+  - id: politique-cookies
+    entity_type: node
+    bundle: page
+    file: node/politique-cookies.yml
+    legacy_uuid: 8eb854c8-d7cc-4235-aa79-18f428325a8b
+    business_aliases:
+      fr: /politique-de-cookies
+      en: /cookie-policy
+    translations:
+      fr:
+        title: 'Politique de cookies'
+        alias: /politique-de-cookies
+      en:
+        title: 'Cookie Policy'
+        alias: /cookie-policy
   - id: homepage
     entity_type: node
     bundle: page

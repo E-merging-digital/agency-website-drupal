@@ -1,0 +1,45 @@
+components:
+  - id: politique-confidentialite.content
+    legacy_uuid: 50c557e0-a74e-4124-acb2-115ab84e402b
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Politique de confidentialité'
+          field_text:
+            - value: |
+                <p>Cette page explique de manière claire comment nous traitons les données personnelles envoyées via notre formulaire de contact.</p>
+                <h2>Données collectées</h2>
+                <p>Lorsque vous nous contactez, nous collectons uniquement les informations que vous nous transmettez dans le formulaire&nbsp;: votre nom, votre adresse e-mail et votre message.</p>
+                <h2>Finalités du traitement</h2>
+                <p>Ces données sont utilisées uniquement pour répondre à votre demande et assurer le suivi de nos échanges.</p>
+                <h2>Base légale</h2>
+                <p>Le traitement repose sur votre consentement explicite, donné au moment de l’envoi du formulaire de contact.</p>
+                <h2>Durée de conservation</h2>
+                <p>Les données sont conservées pendant une durée maximale de 12 mois après le dernier échange, puis supprimées.</p>
+                <h2>Vos droits</h2>
+                <p>Conformément au RGPD, vous pouvez demander l’accès à vos données, leur rectification, leur suppression, la limitation du traitement ou vous opposer au traitement lorsque cela est applicable.</p>
+                <h2>Contact RGPD</h2>
+                <p>Pour toute demande relative à vos données personnelles&nbsp;: <a href="mailto:rgpd@emergingdigital.be">rgpd@emergingdigital.be</a>.</p>
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Privacy Policy'
+          field_text:
+            - value: |
+                <p>This page clearly explains how we process personal data sent via our contact form.</p>
+                <h2>Data Collected</h2>
+                <p>When you contact us, we only collect the information you provide in the form: your name, your email address, and your message.</p>
+                <h2>Purposes of Processing</h2>
+                <p>This data is used solely to respond to your request and ensure follow-up on our exchanges.</p>
+                <h2>Legal Basis</h2>
+                <p>The processing is based on your explicit consent, given at the time of submitting the contact form.</p>
+                <h2>Retention Period</h2>
+                <p>The data is retained for a maximum period of 12 months after the last exchange, after which it is deleted.</p>
+                <h2>Your Rights</h2>
+                <p>In accordance with the GDPR, you can request access to your data, its rectification, its deletion, the limitation of processing, or object to processing where applicable.</p>
+                <h2>GDPR Contact</h2>
+                <p>For any requests regarding your personal data: <a href="mailto:rgpd@emergingdigital.be">rgpd@emergingdigital.be</a>.</p>
+              format: basic_html

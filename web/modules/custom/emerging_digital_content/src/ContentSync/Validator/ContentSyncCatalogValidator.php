@@ -13,6 +13,12 @@ use Drupal\emerging_digital_content\ContentSync\Catalog\ContentSyncCatalogEntry;
 final class ContentSyncCatalogValidator {
 
   /**
+   * UUID pattern used for historical default_content lookups.
+   */
+  private const UUID_PATTERN =
+    '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
+
+  /**
    * Required catalog keys.
    */
   private const REQUIRED_KEYS = [
@@ -38,6 +44,7 @@ final class ContentSyncCatalogValidator {
     ];
 
     $seen_ids = [];
+    $seen_legacy_uuids = [];
     foreach ($catalog->entries() as $entry) {
       $definition = $entry->toArray();
       $id = $entry->id();
@@ -51,6 +58,22 @@ final class ContentSyncCatalogValidator {
       }
       else {
         $seen_ids[$id] = TRUE;
+      }
+
+      foreach ($this->validLegacyUuidReferences($entry) as $legacy_uuid_reference) {
+        $legacy_uuid = $legacy_uuid_reference['uuid'];
+        $label = $legacy_uuid_reference['label'];
+        if (isset($seen_legacy_uuids[$legacy_uuid])) {
+          $entry_errors[] = sprintf(
+            'Legacy UUID "%s" is declared by both %s and %s.',
+            $legacy_uuid,
+            $seen_legacy_uuids[$legacy_uuid],
+            $label,
+          );
+          continue;
+        }
+
+        $seen_legacy_uuids[$legacy_uuid] = $label;
       }
 
       if ($entry_errors !== []) {
@@ -107,6 +130,13 @@ final class ContentSyncCatalogValidator {
           $string_key,
         );
       }
+    }
+
+    if (array_key_exists('legacy_uuid', $definition)) {
+      $errors = array_merge($errors, $this->validateLegacyUuid(
+        $definition['legacy_uuid'],
+        sprintf('Content "%s"', $entry->id()),
+      ));
     }
 
     if (isset($definition['translations']) && !is_array($definition['translations'])) {
@@ -169,6 +199,17 @@ final class ContentSyncCatalogValidator {
         $seen_ids[$component_id] = TRUE;
       }
 
+      if (array_key_exists('legacy_uuid', $component)) {
+        $errors = array_merge($errors, $this->validateLegacyUuid(
+          $component['legacy_uuid'],
+          sprintf(
+            'Content "%s" component "%s"',
+            $entry->id(),
+            (string) ($component_id ?? '#' . $index),
+          ),
+        ));
+      }
+
       if (!isset($component['bundle']) || !is_string($component['bundle']) || $component['bundle'] === '') {
         $errors[] = sprintf(
           'Content "%s" component "%s" must define a paragraph bundle.',
@@ -187,6 +228,94 @@ final class ContentSyncCatalogValidator {
     }
 
     return $errors;
+  }
+
+  /**
+   * Validates one optional legacy UUID.
+   *
+   * @return string[]
+   *   Validation errors.
+   */
+  private function validateLegacyUuid(mixed $legacy_uuid, string $label): array {
+    if (!is_string($legacy_uuid) || $legacy_uuid === '') {
+      return [
+        sprintf('%s legacy_uuid must be a non-empty UUID string.', $label),
+      ];
+    }
+
+    if (!preg_match(self::UUID_PATTERN, $legacy_uuid)) {
+      return [
+        sprintf('%s legacy_uuid "%s" is not a valid UUID.', $label, $legacy_uuid),
+      ];
+    }
+
+    return [];
+  }
+
+  /**
+   * Returns valid legacy UUID declarations for duplicate detection.
+   *
+   * @return array<int, array{uuid: string, label: string}>
+   *   Legacy UUID references.
+   */
+  private function validLegacyUuidReferences(ContentSyncCatalogEntry $entry): array {
+    $definition = $entry->toArray();
+    $references = [];
+
+    $this->addLegacyUuidReference(
+      $references,
+      $definition['legacy_uuid'] ?? NULL,
+      sprintf('content "%s"', $entry->id()),
+    );
+
+    $components = $definition['components'] ?? [];
+    if (!is_array($components)) {
+      return $references;
+    }
+
+    foreach ($components as $index => $component) {
+      if (!is_array($component)) {
+        continue;
+      }
+
+      $component_id = $component['id'] ?? '#' . (string) $index;
+      $this->addLegacyUuidReference(
+        $references,
+        $component['legacy_uuid'] ?? NULL,
+        sprintf(
+          'content "%s" component "%s"',
+          $entry->id(),
+          (string) $component_id,
+        ),
+      );
+    }
+
+    return $references;
+  }
+
+  /**
+   * Adds a valid legacy UUID reference to the duplicate detection map.
+   *
+   * @param array<int, array{uuid: string, label: string}> $references
+   *   Legacy UUID references.
+   * @param mixed $legacy_uuid
+   *   Candidate legacy UUID.
+   * @param string $label
+   *   Human-readable catalog location.
+   */
+  private function addLegacyUuidReference(
+    array &$references,
+    mixed $legacy_uuid,
+    string $label,
+  ): void {
+    if (!is_string($legacy_uuid) || !preg_match(self::UUID_PATTERN, $legacy_uuid)) {
+      return;
+    }
+
+    $references[] = [
+      'uuid' => strtolower($legacy_uuid),
+      'label' => $label,
+    ];
   }
 
   /**

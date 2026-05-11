@@ -1471,6 +1471,46 @@ function emerging_digital_content_post_update_issue_110_language_switcher_alignm
 }
 
 /**
+ * Excludes homepage aliases from Simple Sitemap entity URLs.
+ */
+function emerging_digital_content_post_update_issue_217_exclude_front_page_aliases_from_sitemap(array &$sandbox): string {
+  unset($sandbox);
+
+  if (!\Drupal::moduleHandler()->moduleExists('simple_sitemap')) {
+    return 'Simple Sitemap is not enabled; no homepage sitemap override was applied.';
+  }
+
+  $front_page = (string) \Drupal::config('system.site')->get('page.front');
+  if (!preg_match('@^/node/(\d+)$@', $front_page, $matches)) {
+    return sprintf(
+      'Front page %s is not a node path; no homepage sitemap override was applied.',
+      $front_page,
+    );
+  }
+
+  $node = Node::load((int) $matches[1]);
+  if (!$node instanceof Node) {
+    return sprintf(
+      'Front page %s does not resolve to an existing node; no homepage sitemap override was applied.',
+      $front_page,
+    );
+  }
+
+  /** @var \Drupal\simple_sitemap\Manager\EntityManager $entity_manager */
+  $entity_manager = \Drupal::service('simple_sitemap.entity_manager');
+  $entity_manager->setEntityInstanceSettings('node', (string) $node->id(), [
+    'index' => FALSE,
+  ]);
+
+  \Drupal::service('simple_sitemap.generator')->generate('backend');
+
+  return sprintf(
+    'Homepage node/%d is excluded from Simple Sitemap entity URLs; final language front URLs remain published through the custom "/" sitemap link.',
+    $node->id(),
+  );
+}
+
+/**
  * Resolves a stable system path for the French front page.
  */
 function _emerging_digital_content_resolve_front_page_system_path(): string {

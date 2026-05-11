@@ -171,7 +171,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(9, $dry_run['content_reports']);
+    self::assertCount(11, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
@@ -181,27 +181,31 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
 
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
-    self::assertSame(1, $this->countServiceNodes());
+    self::assertSame(3, $this->countServiceNodes());
     self::assertSame(8, $this->countPageNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(9, $first_apply['content_reports']);
+    self::assertCount(11, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
-    self::assertSame('services', $first_apply['content_reports'][1]['id']);
-    self::assertSame('ia-drupal', $first_apply['content_reports'][2]['id']);
-    self::assertSame('cas-clients', $first_apply['content_reports'][3]['id']);
-    self::assertSame('contact', $first_apply['content_reports'][4]['id']);
-    self::assertSame('mentions-legales', $first_apply['content_reports'][5]['id']);
-    self::assertSame('politique-confidentialite', $first_apply['content_reports'][6]['id']);
-    self::assertSame('politique-cookies', $first_apply['content_reports'][7]['id']);
-    self::assertSame('homepage', $first_apply['content_reports'][8]['id']);
+    self::assertSame('creation-site-drupal', $first_apply['content_reports'][1]['id']);
+    self::assertSame('maintenance-drupal', $first_apply['content_reports'][2]['id']);
+    self::assertSame('services', $first_apply['content_reports'][3]['id']);
+    self::assertSame('ia-drupal', $first_apply['content_reports'][4]['id']);
+    self::assertSame('cas-clients', $first_apply['content_reports'][5]['id']);
+    self::assertSame('contact', $first_apply['content_reports'][6]['id']);
+    self::assertSame('mentions-legales', $first_apply['content_reports'][7]['id']);
+    self::assertSame('politique-confidentialite', $first_apply['content_reports'][8]['id']);
+    self::assertSame('politique-cookies', $first_apply['content_reports'][9]['id']);
+    self::assertSame('homepage', $first_apply['content_reports'][10]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
     self::assertSame('created', $mapping->lastAction());
+    self::assertNotNull($mapping_repository->findByContentId('creation-site-drupal'));
+    self::assertNotNull($mapping_repository->findByContentId('maintenance-drupal'));
 
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
-    self::assertSame(1, $this->countServiceNodes());
+    self::assertSame(3, $this->countServiceNodes());
     self::assertSame(8, $this->countPageNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');

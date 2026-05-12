@@ -6,7 +6,12 @@ dependencies:
     - field.storage.paragraph.field_items
     - paragraphs.paragraphs_type.case_clients
   module:
+    - linkchecker
     - text
+third_party_settings:
+  linkchecker:
+    scan: true
+    extractor: html_link_extractor
 id: paragraph.case_clients.field_items
 field_name: field_items
 entity_type: paragraph

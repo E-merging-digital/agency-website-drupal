@@ -6,7 +6,12 @@ dependencies:
     - field.storage.paragraph.field_items
     - paragraphs.paragraphs_type.trust_list
   module:
+    - linkchecker
     - text
+third_party_settings:
+  linkchecker:
+    scan: true
+    extractor: html_link_extractor
 id: paragraph.trust_list.field_items
 field_name: field_items
 entity_type: paragraph

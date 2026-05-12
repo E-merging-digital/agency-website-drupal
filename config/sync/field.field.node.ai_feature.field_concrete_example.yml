@@ -5,6 +5,12 @@ dependencies:
   config:
     - field.storage.node.field_concrete_example
     - node.type.ai_feature
+  module:
+    - linkchecker
+third_party_settings:
+  linkchecker:
+    scan: true
+    extractor: html_link_extractor
 id: node.ai_feature.field_concrete_example
 field_name: field_concrete_example
 entity_type: node

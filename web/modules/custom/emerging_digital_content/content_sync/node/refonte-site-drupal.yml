@@ -4,28 +4,29 @@ translations:
       field_short_description:
         value: >-
           Refonte de site Drupal pour moderniser un site existant : audit,
-          architecture editoriale, UX, performance, accessibilite, SEO et plan
+          architecture éditoriale, UX, performance, accessibilité, SEO et plan
           de migration.
         format: basic_html
       field_detailed_description:
         value: >-
           <p>Emerging Digital accompagne les refontes Drupal lorsque le site ne
           soutient plus correctement les contenus, les parcours utilisateurs ou
-          les objectifs de conversion.</p><h2>Une refonte Drupal qui protege
+          les objectifs de conversion.</p><h2>Une refonte Drupal qui protège
           l'existant</h2><ul><li>Diagnostic des signes de vieillissement :
-          dette technique, lenteurs, edition complexe, contenus disperses.</li>
-          <li>Audit avant refonte pour arbitrer ce qui doit etre conserve,
-          simplifie, migre ou reconstruit.</li><li>Nouvelle architecture
-          editoriale, parcours plus lisibles et experience d'edition plus
+          dette technique, lenteurs, édition complexe, contenus dispersés.</li>
+          <li>Audit avant refonte pour arbitrer ce qui doit être conservé,
+          simplifié, migré ou reconstruit.</li><li>Nouvelle architecture
+          éditoriale, parcours plus lisibles et expérience d'édition plus
           fluide.</li><li>Plan de migration des contenus, SEO technique,
-          redirections et controle des pages prioritaires.</li><li>Amelioration
-          de la performance, de l'accessibilite et de la maintenabilite Drupal.
+          redirections et contrôle des pages prioritaires.</li><li>Amélioration
+          de la performance, de l'accessibilité et de la maintenabilité Drupal.
           </li></ul><p>Cette offre s'inscrit dans notre positionnement d'<a
           href="/fr/agence-drupal-belgique">agence Drupal en Belgique</a>. Elle
-          peut etre precedee d'un <a href="/fr/audit-drupal">audit Drupal</a>,
+          peut être précédée d'un <a href="/fr/audit-drupal">audit Drupal</a>,
           suivie par une <a href="/fr/maintenance-drupal">maintenance Drupal</a>
-          et completee par nos <a href="/fr/services">services Drupal</a>.</p>
-          <p><strong>Votre site Drupal doit evoluer ?</strong> <a
+          et complétée par nos <a href="/fr/services">services Drupal</a> ou
+          notre approche <a href="/fr/ia-drupal">IA &amp; Drupal</a>.</p>
+          <p><strong>Votre site Drupal doit évoluer ?</strong> <a
           href="/fr/contact">Contactez-nous</a> pour cadrer une refonte utile,
           sobre et mesurable.</p>
         format: basic_html
@@ -53,7 +54,8 @@ translations:
           positioning. It can start with a <a href="/en/drupal-audit">Drupal
           audit</a>, continue with <a href="/en/drupal-maintenance">Drupal
           maintenance</a> and connect with our <a href="/en/services">Drupal
-          services</a>.</p><p><strong>Does your Drupal website need to evolve?
+          services</a> or <a href="/en/ai-drupal">AI &amp; Drupal</a>
+          approach.</p><p><strong>Does your Drupal website need to evolve?
           </strong> <a href="/en/contact">Contact us</a> to frame a useful,
           focused and measurable redesign.</p>
         format: basic_html
@@ -67,8 +69,8 @@ promotions:
       fr:
         title: 'Refonte de site Drupal'
         description: >-
-          Refonte Drupal pour clarifier les contenus, moderniser l'experience
-          et proteger le SEO existant.
+          Refonte Drupal pour clarifier les contenus, moderniser l'expérience
+          et protéger le SEO existant.
         url: /fr/refonte-site-drupal
       en:
         title: 'Drupal Website Redesign'

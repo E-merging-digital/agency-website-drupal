@@ -3,31 +3,32 @@ translations:
     fields:
       field_short_description:
         value: >-
-          IA integree dans Drupal pour aider les equipes editoriales :
-          assistance a la redaction, qualite des contenus, enrichissement,
+          IA intégrée dans Drupal pour aider les équipes éditoriales :
+          assistance à la rédaction, qualité des contenus, enrichissement,
           traduction et gouvernance des usages.
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>Emerging Digital integre des usages IA directement dans Drupal
-          pour soutenir les equipes editoriales sans transformer le CMS en
+          <p>Emerging Digital intègre des usages IA directement dans Drupal
+          pour soutenir les équipes éditoriales sans transformer le CMS en
           boite noire.</p><h2>Une IA Drupal utile et gouvernable</h2><ul><li>
-          Assistance a la redaction, reformulation, resume et amelioration du
-          ton editorial.</li><li>Suggestions SEO et structuration de contenu en
-          lien avec les objectifs de visibilite.</li><li>Preparation a la
-          traduction automatique multilingue avec controle humain et coherence
-          editoriale.</li><li>Enrichissement de contenus : tags, resumes,
-          metadonnees et aide a la classification.</li><li>Cadre d'usage clair
-          pour securiser les prompts, les workflows et les validations
+          Assistance à la rédaction, reformulation, résumé et amélioration du
+          ton éditorial.</li><li>Suggestions SEO et structuration de contenu en
+          lien avec les objectifs de visibilité.</li><li>Préparation à la
+          traduction automatique multilingue avec contrôle humain et cohérence
+          éditoriale.</li><li>Enrichissement de contenus : tags, résumés,
+          métadonnées et aide à la classification.</li><li>Cadre d'usage clair
+          pour sécuriser les prompts, les workflows et les validations
           internes.</li></ul><p>Cette offre prolonge notre approche <a
-          href="/fr/ia-drupal">IA &amp; Drupal</a> et se relie a nos services
-          d'<a href="/fr/accessibilite-seo-optimisation">accessibilite, SEO et
-          optimisation</a>, de <a href="/fr/creation-site-drupal">creation de
+          href="/fr/ia-drupal">IA &amp; Drupal</a> et se relie à nos services
+          d'<a href="/fr/accessibilite-seo-optimisation">accessibilité, SEO et
+          optimisation</a>, de <a href="/fr/creation-site-drupal">création de
           site Drupal</a> et de <a href="/fr/maintenance-drupal">maintenance
-          Drupal</a>.</p><p>Elle peut aussi etre cadree apres un <a
+          Drupal</a> dans le cadre de nos <a href="/fr/services">services
+          Drupal</a>.</p><p>Elle peut aussi être cadrée après un <a
           href="/fr/audit-drupal">audit Drupal</a> afin de choisir les usages
-          IA qui apportent une valeur reelle aux equipes.</p><p><strong>Vous
-          voulez integrer l'IA sans perdre la qualite editoriale ?</strong> <a
+          IA qui apportent une valeur réelle aux équipes.</p><p><strong>Vous
+          voulez intégrer l'IA sans perdre la qualité éditoriale ?</strong> <a
           href="/fr/contact">Contactez-nous</a> pour cadrer un premier usage
           concret dans Drupal.</p>
         format: basic_html
@@ -54,7 +55,8 @@ translations:
           href="/en/ai-accessibility-seo-optimization">accessibility, SEO and
           optimization</a>, <a href="/en/drupal-website-creation">Drupal website
           creation</a> and <a href="/en/drupal-maintenance">Drupal
-          maintenance</a>.</p><p>It can also be framed after a <a
+          maintenance</a> within our broader <a href="/en/services">Drupal
+          services</a>.</p><p>It can also be framed after a <a
           href="/en/drupal-audit">Drupal audit</a> to choose the AI use cases
           that create real value for teams.</p><p><strong>Want to integrate AI
           without losing editorial quality?</strong> <a href="/en/contact">
@@ -70,7 +72,7 @@ promotions:
       fr:
         title: 'IA intégrée'
         description: >-
-          Automatisation editoriale utile, qualite des contenus, traduction et
+          Automatisation éditoriale utile, qualité des contenus, traduction et
           gouvernance des usages IA dans Drupal.
         url: /fr/ia-integree
       en:
@@ -89,8 +91,8 @@ promotions:
       fr:
         title: 'IA intégrée dans le CMS'
         description: >-
-          Aide a la redaction, amelioration de la qualite editoriale,
-          enrichissement et preparation a la traduction automatique des
+          Aide à la rédaction, amélioration de la qualité éditoriale,
+          enrichissement et préparation à la traduction automatique des
           contenus.
         url: /fr/ia-integree
       en:

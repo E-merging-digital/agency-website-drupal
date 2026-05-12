@@ -129,12 +129,42 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       'Emerging Digital accompagne',
       (string) $node->get('field_detailed_description')->value,
     );
+    $this->assertLocalizedInternalLinks(
+      (string) $node->get('field_detailed_description')->value,
+      'fr',
+      [
+        '/fr/services',
+        '/fr/ia-drupal',
+        '/fr/creation-site-drupal',
+        '/fr/refonte-site-drupal',
+        '/fr/migration-drupal',
+        '/fr/maintenance-drupal',
+        '/fr/audit-drupal',
+        '/fr/accessibilite-seo-optimisation',
+        '/fr/ia-integree',
+      ],
+    );
 
     $english = $node->getTranslation('en');
     self::assertSame('Drupal Agency Belgium', $english->label());
     self::assertStringContainsString(
       'Emerging Digital supports Belgian organisations',
       (string) $english->get('field_detailed_description')->value,
+    );
+    $this->assertLocalizedInternalLinks(
+      (string) $english->get('field_detailed_description')->value,
+      'en',
+      [
+        '/en/services',
+        '/en/ai-drupal',
+        '/en/drupal-website-creation',
+        '/en/drupal-website-redesign',
+        '/en/drupal-migration',
+        '/en/drupal-maintenance',
+        '/en/drupal-audit',
+        '/en/ai-accessibility-seo-optimization',
+        '/en/integrated-ai',
+      ],
     );
 
     $alias_manager = $this->container->get('path_alias.manager');
@@ -167,21 +197,91 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $alias_manager = $this->container->get('path_alias.manager');
 
     $pages = [
+      'creation-site-drupal' => [
+        'fr_title' => 'Création de site Drupal',
+        'en_title' => 'Drupal Website Creation',
+        'fr_alias' => '/creation-site-drupal',
+        'en_alias' => '/drupal-website-creation',
+        'fr_text' => 'création Drupal structurée',
+        'en_text' => 'structured Drupal build',
+        'fr_required_links' => [
+          '/fr/services',
+          '/fr/ia-drupal',
+          '/fr/agence-drupal-belgique',
+          '/fr/maintenance-drupal',
+        ],
+        'en_required_links' => [
+          '/en/services',
+          '/en/ai-drupal',
+          '/en/drupal-agency-belgium',
+          '/en/drupal-maintenance',
+        ],
+      ],
+      'maintenance-drupal' => [
+        'fr_title' => 'Maintenance Drupal',
+        'en_title' => 'Drupal Maintenance',
+        'fr_alias' => '/maintenance-drupal',
+        'en_alias' => '/drupal-maintenance',
+        'fr_text' => 'maintenance Drupal orientée continuité',
+        'en_text' => 'Drupal maintenance focused on continuity',
+        'fr_required_links' => [
+          '/fr/services',
+          '/fr/ia-drupal',
+          '/fr/agence-drupal-belgique',
+          '/fr/creation-site-drupal',
+        ],
+        'en_required_links' => [
+          '/en/services',
+          '/en/ai-drupal',
+          '/en/drupal-agency-belgium',
+          '/en/drupal-website-creation',
+        ],
+      ],
       'migration-drupal' => [
         'fr_title' => 'Migration Drupal',
         'en_title' => 'Drupal Migration',
         'fr_alias' => '/migration-drupal',
         'en_alias' => '/drupal-migration',
-        'fr_text' => 'migration Drupal preparee',
+        'fr_text' => 'migration Drupal préparée',
         'en_text' => 'prepared and controlled Drupal migration',
+        'fr_required_links' => [
+          '/fr/services',
+          '/fr/ia-drupal',
+          '/fr/agence-drupal-belgique',
+          '/fr/audit-drupal',
+          '/fr/refonte-site-drupal',
+          '/fr/maintenance-drupal',
+        ],
+        'en_required_links' => [
+          '/en/services',
+          '/en/ai-drupal',
+          '/en/drupal-agency-belgium',
+          '/en/drupal-audit',
+          '/en/drupal-website-redesign',
+          '/en/drupal-maintenance',
+        ],
       ],
       'refonte-site-drupal' => [
         'fr_title' => 'Refonte de site Drupal',
         'en_title' => 'Drupal Website Redesign',
         'fr_alias' => '/refonte-site-drupal',
         'en_alias' => '/drupal-website-redesign',
-        'fr_text' => 'refonte Drupal qui protege',
+        'fr_text' => 'refonte Drupal qui protège',
         'en_text' => 'Drupal redesign that protects',
+        'fr_required_links' => [
+          '/fr/services',
+          '/fr/ia-drupal',
+          '/fr/agence-drupal-belgique',
+          '/fr/audit-drupal',
+          '/fr/maintenance-drupal',
+        ],
+        'en_required_links' => [
+          '/en/services',
+          '/en/ai-drupal',
+          '/en/drupal-agency-belgium',
+          '/en/drupal-audit',
+          '/en/drupal-maintenance',
+        ],
       ],
       'audit-drupal' => [
         'fr_title' => 'Audit Drupal',
@@ -190,6 +290,22 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
         'en_alias' => '/drupal-audit',
         'fr_text' => 'audit Drupal actionnable',
         'en_text' => 'actionable Drupal audit',
+        'fr_required_links' => [
+          '/fr/services',
+          '/fr/ia-drupal',
+          '/fr/agence-drupal-belgique',
+          '/fr/refonte-site-drupal',
+          '/fr/migration-drupal',
+          '/fr/maintenance-drupal',
+        ],
+        'en_required_links' => [
+          '/en/services',
+          '/en/ai-drupal',
+          '/en/drupal-agency-belgium',
+          '/en/drupal-website-redesign',
+          '/en/drupal-migration',
+          '/en/drupal-maintenance',
+        ],
       ],
       'accessibilite-seo-optimisation' => [
         'fr_title' => 'Accessibilité, SEO et optimisation',
@@ -198,6 +314,22 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
         'en_alias' => '/ai-accessibility-seo-optimization',
         'fr_text' => 'optimisation Drupal lisible et mesurable',
         'en_text' => 'Clear and measurable Drupal optimization',
+        'fr_required_links' => [
+          '/fr/services',
+          '/fr/ia-drupal',
+          '/fr/audit-drupal',
+          '/fr/refonte-site-drupal',
+          '/fr/maintenance-drupal',
+          '/fr/creation-site-drupal',
+        ],
+        'en_required_links' => [
+          '/en/services',
+          '/en/ai-drupal',
+          '/en/drupal-audit',
+          '/en/drupal-website-redesign',
+          '/en/drupal-maintenance',
+          '/en/drupal-website-creation',
+        ],
       ],
       'ia-integree' => [
         'fr_title' => 'IA intégrée',
@@ -206,6 +338,22 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
         'en_alias' => '/integrated-ai',
         'fr_text' => 'IA Drupal utile et gouvernable',
         'en_text' => 'Useful and governed Drupal AI',
+        'fr_required_links' => [
+          '/fr/services',
+          '/fr/ia-drupal',
+          '/fr/accessibilite-seo-optimisation',
+          '/fr/creation-site-drupal',
+          '/fr/maintenance-drupal',
+          '/fr/audit-drupal',
+        ],
+        'en_required_links' => [
+          '/en/services',
+          '/en/ai-drupal',
+          '/en/ai-accessibility-seo-optimization',
+          '/en/drupal-website-creation',
+          '/en/drupal-maintenance',
+          '/en/drupal-audit',
+        ],
       ],
     ];
 
@@ -232,12 +380,22 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
         $expected['fr_text'],
         (string) $node->get('field_detailed_description')->value,
       );
+      $this->assertLocalizedInternalLinks(
+        (string) $node->get('field_detailed_description')->value,
+        'fr',
+        $expected['fr_required_links'],
+      );
 
       $english = $node->getTranslation('en');
       self::assertSame($expected['en_title'], $english->label());
       self::assertStringContainsString(
         $expected['en_text'],
         (string) $english->get('field_detailed_description')->value,
+      );
+      $this->assertLocalizedInternalLinks(
+        (string) $english->get('field_detailed_description')->value,
+        'en',
+        $expected['en_required_links'],
       );
 
       $alias_manager->cacheClear('/node/' . $node->id());
@@ -321,26 +479,26 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     );
     self::assertContains(
       'Migration Drupal|Migration Drupal vers Drupal 11 avec audit, reprise '
-      . 'de contenu, tests et securisation du socle technique.|/fr/migration-drupal',
+      . 'de contenu, tests et sécurisation du socle technique.|/fr/migration-drupal',
       $services_items,
     );
     self::assertContains(
       "Refonte de site Drupal|Refonte Drupal pour clarifier les contenus, "
-      . "moderniser l'experience et proteger le SEO existant.|/fr/refonte-site-drupal",
+      . "moderniser l'expérience et protéger le SEO existant.|/fr/refonte-site-drupal",
       $services_items,
     );
     self::assertContains(
-      'Audit Drupal|Audit technique, SEO, performance, accessibilite et '
-      . 'editorial pour prioriser les bonnes corrections Drupal.|/fr/audit-drupal',
+      'Audit Drupal|Audit technique, SEO, performance, accessibilité et '
+      . 'éditorial pour prioriser les bonnes corrections Drupal.|/fr/audit-drupal',
       $services_items,
     );
     self::assertContains(
-      'Accessibilité, SEO et optimisation|Lisibilite, referencement naturel, '
-      . 'accessibilite et performance pour des pages Drupal plus utiles.|/fr/accessibilite-seo-optimisation',
+      'Accessibilité, SEO et optimisation|Lisibilité, référencement naturel, '
+      . 'accessibilité et performance pour des pages Drupal plus utiles.|/fr/accessibilite-seo-optimisation',
       $services_items,
     );
     self::assertContains(
-      'IA intégrée|Automatisation editoriale utile, qualite des contenus, '
+      'IA intégrée|Automatisation éditoriale utile, qualité des contenus, '
       . 'traduction et gouvernance des usages IA dans Drupal.|/fr/ia-integree',
       $services_items,
     );
@@ -396,8 +554,8 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       $homepage_items,
     );
     self::assertContains(
-      'Migration et modernisation|Reprise de sites existants, montee de '
-      . 'version Drupal, amelioration de la structure et des performances.|/fr/migration-drupal',
+      'Migration et modernisation|Reprise de sites existants, montée de '
+      . 'version Drupal, amélioration de la structure et des performances.|/fr/migration-drupal',
       $homepage_items,
     );
     self::assertContains(
@@ -412,12 +570,12 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     );
     self::assertContains(
       'Accessibilité, SEO et performance|Contenus lisibles, parcours clairs et '
-      . 'socle technique optimise pour vos publics et les moteurs de recherche.|/fr/accessibilite-seo-optimisation',
+      . 'socle technique optimisé pour vos publics et les moteurs de recherche.|/fr/accessibilite-seo-optimisation',
       $homepage_items,
     );
     self::assertContains(
-      'IA intégrée dans le CMS|Aide a la redaction, amelioration de la qualite '
-      . 'editoriale, enrichissement et preparation a la traduction automatique des contenus.|/fr/ia-integree',
+      'IA intégrée dans le CMS|Aide à la rédaction, amélioration de la qualité '
+      . 'éditoriale, enrichissement et préparation à la traduction automatique des contenus.|/fr/ia-integree',
       $homepage_items,
     );
 
@@ -1209,6 +1367,34 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertInstanceOf(NodeInterface::class, $node);
 
     return $node;
+  }
+
+  /**
+   * Asserts service body links stay language-prefixed and intentional.
+   *
+   * @param string $html
+   *   HTML body to inspect.
+   * @param string $langcode
+   *   Expected URL language prefix.
+   * @param list<string> $required_links
+   *   Required localized paths.
+   */
+  private function assertLocalizedInternalLinks(string $html, string $langcode, array $required_links): void {
+    foreach ($required_links as $required_link) {
+      self::assertStringContainsString('href="' . $required_link . '"', $html);
+    }
+
+    self::assertStringNotContainsString('/fr/fr/', $html);
+    self::assertStringNotContainsString('/en/en/', $html);
+
+    preg_match_all('/href="([^"]+)"/', $html, $matches);
+    foreach ($matches[1] as $href) {
+      if (!str_starts_with($href, '/')) {
+        continue;
+      }
+
+      self::assertStringStartsWith('/' . $langcode . '/', $href);
+    }
   }
 
   /**

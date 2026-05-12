@@ -5,6 +5,12 @@ dependencies:
   config:
     - field.storage.node.field_detailed_description
     - node.type.case_client
+  module:
+    - linkchecker
+third_party_settings:
+  linkchecker:
+    scan: true
+    extractor: html_link_extractor
 id: node.case_client.field_detailed_description
 field_name: field_detailed_description
 entity_type: node

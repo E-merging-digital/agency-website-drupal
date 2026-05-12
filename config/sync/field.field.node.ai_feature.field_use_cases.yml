@@ -5,6 +5,12 @@ dependencies:
   config:
     - field.storage.node.field_use_cases
     - node.type.ai_feature
+  module:
+    - linkchecker
+third_party_settings:
+  linkchecker:
+    scan: true
+    extractor: html_link_extractor
 id: node.ai_feature.field_use_cases
 field_name: field_use_cases
 entity_type: node

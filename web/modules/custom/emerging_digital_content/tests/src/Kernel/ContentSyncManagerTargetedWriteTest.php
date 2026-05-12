@@ -159,6 +159,84 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
   }
 
   /**
+   * Tests the new service landing pages create translations and mappings.
+   */
+  public function testServiceLandingPagesSyncCreateTranslationsAliasesAndMappings(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+    $alias_manager = $this->container->get('path_alias.manager');
+
+    $pages = [
+      'migration-drupal' => [
+        'fr_title' => 'Migration Drupal',
+        'en_title' => 'Drupal Migration',
+        'fr_alias' => '/migration-drupal',
+        'en_alias' => '/drupal-migration',
+        'fr_text' => 'migration Drupal preparee',
+        'en_text' => 'prepared and controlled Drupal migration',
+      ],
+      'refonte-site-drupal' => [
+        'fr_title' => 'Refonte de site Drupal',
+        'en_title' => 'Drupal Website Redesign',
+        'fr_alias' => '/refonte-site-drupal',
+        'en_alias' => '/drupal-website-redesign',
+        'fr_text' => 'refonte Drupal qui protege',
+        'en_text' => 'Drupal redesign that protects',
+      ],
+      'audit-drupal' => [
+        'fr_title' => 'Audit Drupal',
+        'en_title' => 'Drupal Audit',
+        'fr_alias' => '/audit-drupal',
+        'en_alias' => '/drupal-audit',
+        'fr_text' => 'audit Drupal actionnable',
+        'en_text' => 'actionable Drupal audit',
+      ],
+    ];
+
+    $expected_count = 0;
+    foreach ($pages as $content_id => $expected) {
+      $dry_run = $manager->sync($content_id, TRUE);
+      self::assertSame([], $dry_run['errors']);
+      self::assertFalse($mapping_repository->exists($content_id));
+
+      $first_apply = $manager->sync($content_id, FALSE);
+      self::assertSame([], $first_apply['errors']);
+      self::assertSame(++$expected_count, $this->countServiceNodes());
+
+      $mapping = $mapping_repository->findByContentId($content_id);
+      self::assertNotNull($mapping);
+      self::assertSame('created', $mapping->lastAction());
+
+      $node = $this->loadMappedNodeByContentId($content_id);
+      self::assertSame('service', $node->bundle());
+      self::assertSame('fr', $node->language()->getId());
+      self::assertSame($expected['fr_title'], $node->label());
+      self::assertTrue($node->hasTranslation('en'));
+      self::assertStringContainsString(
+        $expected['fr_text'],
+        (string) $node->get('field_detailed_description')->value,
+      );
+
+      $english = $node->getTranslation('en');
+      self::assertSame($expected['en_title'], $english->label());
+      self::assertStringContainsString(
+        $expected['en_text'],
+        (string) $english->get('field_detailed_description')->value,
+      );
+
+      $alias_manager->cacheClear('/node/' . $node->id());
+      self::assertSame('/node/' . $node->id(), $alias_manager->getPathByAlias($expected['fr_alias'], 'fr'));
+      self::assertSame('/node/' . $node->id(), $alias_manager->getPathByAlias($expected['en_alias'], 'en'));
+
+      $second_apply = $manager->sync($content_id, FALSE);
+      self::assertSame([], $second_apply['errors']);
+      self::assertSame($expected_count, $this->countServiceNodes());
+      self::assertSame($mapping->id(), $mapping_repository->findByContentId($content_id)?->id());
+      self::assertSame('updated', $mapping_repository->findByContentId($content_id)?->lastAction());
+    }
+  }
+
+  /**
    * Tests full catalog dry-run safety, apply and idempotence.
    */
   public function testAllSyncCreatesCatalogContentsWithoutDuplication(): void {
@@ -171,7 +249,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(11, $dry_run['content_reports']);
+    self::assertCount(14, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
@@ -181,30 +259,36 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
 
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
-    self::assertSame(3, $this->countServiceNodes());
+    self::assertSame(6, $this->countServiceNodes());
     self::assertSame(8, $this->countPageNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(11, $first_apply['content_reports']);
+    self::assertCount(14, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
     self::assertSame('creation-site-drupal', $first_apply['content_reports'][1]['id']);
     self::assertSame('maintenance-drupal', $first_apply['content_reports'][2]['id']);
-    self::assertSame('services', $first_apply['content_reports'][3]['id']);
-    self::assertSame('ia-drupal', $first_apply['content_reports'][4]['id']);
-    self::assertSame('cas-clients', $first_apply['content_reports'][5]['id']);
-    self::assertSame('contact', $first_apply['content_reports'][6]['id']);
-    self::assertSame('mentions-legales', $first_apply['content_reports'][7]['id']);
-    self::assertSame('politique-confidentialite', $first_apply['content_reports'][8]['id']);
-    self::assertSame('politique-cookies', $first_apply['content_reports'][9]['id']);
-    self::assertSame('homepage', $first_apply['content_reports'][10]['id']);
+    self::assertSame('migration-drupal', $first_apply['content_reports'][3]['id']);
+    self::assertSame('refonte-site-drupal', $first_apply['content_reports'][4]['id']);
+    self::assertSame('audit-drupal', $first_apply['content_reports'][5]['id']);
+    self::assertSame('services', $first_apply['content_reports'][6]['id']);
+    self::assertSame('ia-drupal', $first_apply['content_reports'][7]['id']);
+    self::assertSame('cas-clients', $first_apply['content_reports'][8]['id']);
+    self::assertSame('contact', $first_apply['content_reports'][9]['id']);
+    self::assertSame('mentions-legales', $first_apply['content_reports'][10]['id']);
+    self::assertSame('politique-confidentialite', $first_apply['content_reports'][11]['id']);
+    self::assertSame('politique-cookies', $first_apply['content_reports'][12]['id']);
+    self::assertSame('homepage', $first_apply['content_reports'][13]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
     self::assertSame('created', $mapping->lastAction());
     self::assertNotNull($mapping_repository->findByContentId('creation-site-drupal'));
     self::assertNotNull($mapping_repository->findByContentId('maintenance-drupal'));
+    self::assertNotNull($mapping_repository->findByContentId('migration-drupal'));
+    self::assertNotNull($mapping_repository->findByContentId('refonte-site-drupal'));
+    self::assertNotNull($mapping_repository->findByContentId('audit-drupal'));
 
     $services_items = $this->serviceCardItems($this->loadMappedNodeByContentId('services'), 'fr');
-    self::assertCount(6, $services_items);
+    self::assertCount(8, $services_items);
     self::assertContains(
       'Création de site Drupal|Conception et développement de sites Drupal '
       . 'clairs, accessibles, performants et prêts pour le SEO.|/fr/creation-site-drupal',
@@ -215,9 +299,24 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       . 'continue pour garder votre site Drupal fiable.|/fr/maintenance-drupal',
       $services_items,
     );
+    self::assertContains(
+      'Migration Drupal|Migration Drupal vers Drupal 11 avec audit, reprise '
+      . 'de contenu, tests et securisation du socle technique.|/fr/migration-drupal',
+      $services_items,
+    );
+    self::assertContains(
+      "Refonte de site Drupal|Refonte Drupal pour clarifier les contenus, "
+      . "moderniser l'experience et proteger le SEO existant.|/fr/refonte-site-drupal",
+      $services_items,
+    );
+    self::assertContains(
+      'Audit Drupal|Audit technique, SEO, performance, accessibilite et '
+      . 'editorial pour prioriser les bonnes corrections Drupal.|/fr/audit-drupal',
+      $services_items,
+    );
 
     $services_en_items = $this->serviceCardItems($this->loadMappedNodeByContentId('services'), 'en');
-    self::assertCount(6, $services_en_items);
+    self::assertCount(8, $services_en_items);
     self::assertContains(
       'Drupal Website Creation|Design and development of clear, accessible, '
       . 'performant Drupal websites ready for SEO.|/en/drupal-website-creation',
@@ -228,9 +327,24 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       . 'improvement to keep your Drupal website reliable.|/en/drupal-maintenance',
       $services_en_items,
     );
+    self::assertContains(
+      'Drupal Migration|Drupal migration to Drupal 11 with audit, content '
+      . 'migration, testing and a secure technical foundation.|/en/drupal-migration',
+      $services_en_items,
+    );
+    self::assertContains(
+      'Drupal Website Redesign|Drupal redesign to clarify content, modernise '
+      . 'the experience and protect existing SEO value.|/en/drupal-website-redesign',
+      $services_en_items,
+    );
+    self::assertContains(
+      'Drupal Audit|Technical, SEO, performance, accessibility and editorial '
+      . 'audit to prioritise the right Drupal fixes.|/en/drupal-audit',
+      $services_en_items,
+    );
 
     $homepage_items = $this->serviceCardItems($this->loadMappedNodeByContentId('homepage'), 'fr');
-    self::assertCount(6, $homepage_items);
+    self::assertCount(9, $homepage_items);
     self::assertContains(
       'Création de site Drupal|Un site Drupal conçu pour vos contenus, '
       . 'vos équipes et votre référencement naturel.|/fr/creation-site-drupal',
@@ -241,10 +355,43 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       . 'et faire évoluer votre site Drupal.|/fr/maintenance-drupal',
       $homepage_items,
     );
+    self::assertContains(
+      'Migration Drupal|Une migration Drupal preparee pour reduire les risques '
+      . 'techniques, SEO et editoriaux.|/fr/migration-drupal',
+      $homepage_items,
+    );
+    self::assertContains(
+      'Refonte de site Drupal|Une refonte Drupal pour remettre contenus, '
+      . 'parcours et socle technique au service de vos objectifs.|/fr/refonte-site-drupal',
+      $homepage_items,
+    );
+    self::assertContains(
+      'Audit Drupal|Un diagnostic Drupal clair pour comprendre les risques '
+      . 'et prioriser les actions utiles.|/fr/audit-drupal',
+      $homepage_items,
+    );
+
+    $homepage_en_items = $this->serviceCardItems($this->loadMappedNodeByContentId('homepage'), 'en');
+    self::assertCount(9, $homepage_en_items);
+    self::assertContains(
+      'Drupal Migration|A prepared Drupal migration to reduce technical, SEO '
+      . 'and editorial risks.|/en/drupal-migration',
+      $homepage_en_items,
+    );
+    self::assertContains(
+      'Drupal Website Redesign|A Drupal redesign to realign content, journeys '
+      . 'and the technical foundation with your goals.|/en/drupal-website-redesign',
+      $homepage_en_items,
+    );
+    self::assertContains(
+      'Drupal Audit|A clear Drupal diagnosis to understand risks and prioritise '
+      . 'useful actions.|/en/drupal-audit',
+      $homepage_en_items,
+    );
 
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
-    self::assertSame(3, $this->countServiceNodes());
+    self::assertSame(6, $this->countServiceNodes());
     self::assertSame(8, $this->countPageNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');

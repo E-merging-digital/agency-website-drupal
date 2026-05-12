@@ -53,17 +53,18 @@ components:
             - value: 'Nos services'
           field_items:
             - value: >-
-                Création de site Drupal|Conception de sites sur mesure pour
-                institutions, PME et ASBL, avec une structure éditoriale claire
-                et durable.
+                Création de site Drupal|Conception et développement de sites
+                Drupal clairs, accessibles, performants et prêts pour le
+                SEO.|/fr/creation-site-drupal
               format: basic_html
             - value: >-
                 Migration Drupal|Mise à jour de versions anciennes,
                 sécurisation et modernisation de votre plateforme.
               format: basic_html
             - value: >-
-                Maintenance et évolutions|Suivi technique, améliorations
-                continues et support.
+                Maintenance Drupal|Mises à jour, sécurité, support et
+                amélioration continue pour garder votre site Drupal
+                fiable.|/fr/maintenance-drupal
               format: basic_html
             - value: >-
                 Accessibilité, SEO et optimisation|Amélioration de la
@@ -78,7 +79,7 @@ components:
             - value: >-
                 Agence Drupal Belgique|Un accompagnement senior pour créer,
                 refondre, migrer et maintenir des sites Drupal accessibles,
-                performants et durables.|/agence-drupal-belgique
+                performants et durables.|/fr/agence-drupal-belgique
               format: basic_html
       en:
         fields:
@@ -86,17 +87,18 @@ components:
             - value: 'Our services'
           field_items:
             - value: >-
-                Drupal Site Creation | Custom website design for institutions,
-                SMEs, and non-profits, with a clear and sustainable editorial
-                structure.
+                Drupal Website Creation|Design and development of clear,
+                accessible, performant Drupal websites ready for
+                SEO.|/en/drupal-website-creation
               format: basic_html
             - value: >-
                 Drupal Migration | Updating old versions, securing and
                 modernizing your platform.
               format: basic_html
             - value: >-
-                Maintenance and developments | Technical monitoring, continuous
-                improvements, and support.
+                Drupal Maintenance|Updates, security, support and continuous
+                improvement to keep your Drupal website
+                reliable.|/en/drupal-maintenance
               format: basic_html
             - value: >-
                 Accessibility, SEO, and optimization | Improvement of
@@ -109,7 +111,7 @@ components:
             - value: >-
                 Drupal Agency Belgium|Senior support to build, redesign,
                 migrate and maintain accessible, performant and durable Drupal
-                websites.|/drupal-agency-belgium
+                websites.|/en/drupal-agency-belgium
               format: basic_html
   - id: services.why-drupal
     legacy_uuid: 2f4f723a-90d5-4a95-84dc-333363d51655
@@ -145,7 +147,7 @@ components:
           field_text:
             - value: >-
                 Parlons de votre projet et identifions la solution la plus
-                adaptée. Consultez aussi notre page <a href="/ia-drupal">IA
+                adaptée. Consultez aussi notre page <a href="/fr/ia-drupal">IA
                 &amp; Drupal</a> pour les usages éditoriaux.
               format: basic_html
           field_link:
@@ -156,7 +158,7 @@ components:
           field_text:
             - value: >-
                 Let's talk about your project and identify the most suitable
-                solution. Also, check out our page <a href="/ia-drupal">AI
+                solution. Also, check out our page <a href="/en/ai-drupal">AI
                 &amp; Drupal</a> for editorial uses.
               format: basic_html
           field_link:

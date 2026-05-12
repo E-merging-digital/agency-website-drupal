@@ -73,9 +73,14 @@ components:
             - value: 'Nos services'
           field_items:
             - value: >-
-                Création de sites Drupal|Conception de plateformes
-                institutionnelles, PME ou ASBL avec une structure solide,
-                maintenable et pensée pour durer.
+                Création de site Drupal|Un site Drupal conçu pour vos contenus,
+                vos équipes et votre référencement
+                naturel.|/fr/creation-site-drupal
+              format: basic_html
+            - value: >-
+                Maintenance Drupal|Un accompagnement technique régulier pour
+                sécuriser et faire évoluer votre site
+                Drupal.|/fr/maintenance-drupal
               format: basic_html
             - value: >-
                 Migration et modernisation|Reprise de sites existants, montée
@@ -95,7 +100,7 @@ components:
             - value: >-
                 Agence Drupal Belgique|Un partenaire Drupal senior en Belgique
                 pour structurer vos contenus, vos parcours et votre socle
-                technique.|/agence-drupal-belgique
+                technique.|/fr/agence-drupal-belgique
               format: basic_html
       en:
         fields:
@@ -103,9 +108,13 @@ components:
             - value: 'Our services'
           field_items:
             - value: >-
-                Drupal website creation | Design of institutional platforms,
-                SMEs, or non-profits with a solid, maintainable structure built
-                to last.
+                Drupal Website Creation|A Drupal website designed for your
+                content, your teams and your organic search
+                visibility.|/en/drupal-website-creation
+              format: basic_html
+            - value: >-
+                Drupal Maintenance|Regular technical support to secure and
+                evolve your Drupal website.|/en/drupal-maintenance
               format: basic_html
             - value: >-
                 Migration and modernization | Resumption of existing sites,
@@ -125,7 +134,7 @@ components:
             - value: >-
                 Drupal Agency Belgium|A senior Drupal partner in Belgium to
                 structure your content, user journeys and technical
-                foundation.|/drupal-agency-belgium
+                foundation.|/en/drupal-agency-belgium
               format: basic_html
   - id: homepage.ai-features
     legacy_uuid: b73c293b-32b3-426d-a86b-adfed1a386a7
@@ -289,8 +298,8 @@ components:
             - value: >-
                 Parlons de votre contexte Drupal et de vos objectifs
                 d’accessibilité. Vous pouvez aussi consulter nos <a
-                href="/services">services Drupal</a> et notre approche <a
-                href="/ia-drupal">IA &amp; Drupal</a>.
+                href="/fr/services">services Drupal</a> et notre approche <a
+                href="/fr/ia-drupal">IA &amp; Drupal</a>.
               format: basic_html
           field_link:
             - uri: 'internal:/contact'
@@ -302,9 +311,9 @@ components:
           field_text:
             - value: >-
                 Let's talk about your Drupal context and your accessibility
-                goals. You can also check out our <a href="/services">Drupal
-                services</a> and our <a href="/ai-drupal">AI &amp; Drupal</a>
-                approach.
+                goals. You can also check out our <a href="/en/services">
+                Drupal services</a> and our <a href="/en/ai-drupal">AI &amp;
+                Drupal</a> approach.
               format: basic_html
           field_link:
             - uri: 'internal:/contact'

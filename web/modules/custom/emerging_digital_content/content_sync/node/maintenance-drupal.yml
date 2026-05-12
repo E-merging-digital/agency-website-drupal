@@ -19,11 +19,11 @@ translations:
           performances, de l'accessibilité et du référencement naturel.</li>
           <li>Petites évolutions fonctionnelles, audits et préparation des
           montées de version.</li></ul><p>Cette offre prolonge notre approche
-          d'<a href="/agence-drupal-belgique">agence Drupal en Belgique</a>.
-          Elle peut compléter une <a href="/creation-site-drupal">création de
-          site Drupal</a>, nos <a href="/services">services Drupal</a> et les
-          usages <a href="/ia-drupal">IA &amp; Drupal</a> utiles aux équipes
-          éditoriales.</p>
+          d'<a href="/fr/agence-drupal-belgique">agence Drupal en Belgique</a>.
+          Elle peut compléter une <a href="/fr/creation-site-drupal">création
+          de site Drupal</a>, nos <a href="/fr/services">services Drupal</a> et
+          les usages <a href="/fr/ia-drupal">IA &amp; Drupal</a> utiles aux
+          équipes éditoriales.</p>
         format: basic_html
   en:
     fields:
@@ -44,10 +44,11 @@ translations:
           workflow improvements.</li><li>Performance, accessibility and organic
           search optimisation.</li><li>Small feature improvements, audits and
           preparation for major upgrades.</li></ul><p>This offer extends our <a
-          href="/drupal-agency-belgium">Drupal agency in Belgium</a> approach.
-          It can support a <a href="/drupal-website-creation">Drupal website
-          creation</a>, our <a href="/services">Drupal services</a> and useful
-          <a href="/ai-drupal">AI &amp; Drupal</a> editorial workflows.</p>
+          href="/en/drupal-agency-belgium">Drupal agency in Belgium</a>
+          approach. It can support a <a href="/en/drupal-website-creation">
+          Drupal website creation</a>, our <a href="/en/services">Drupal
+          services</a> and useful <a href="/en/ai-drupal">AI &amp; Drupal</a>
+          editorial workflows.</p>
         format: basic_html
 promotions:
   - target:
@@ -61,13 +62,13 @@ promotions:
         description: >-
           Mises à jour, sécurité, support et amélioration continue pour garder
           votre site Drupal fiable.
-        url: /maintenance-drupal
+        url: /fr/maintenance-drupal
       en:
         title: 'Drupal Maintenance'
         description: >-
           Updates, security, support and continuous improvement to keep your
           Drupal website reliable.
-        url: /drupal-maintenance
+        url: /en/drupal-maintenance
   - target:
       label: Homepage
       front: true
@@ -80,9 +81,9 @@ promotions:
         description: >-
           Un accompagnement technique régulier pour sécuriser et faire évoluer
           votre site Drupal.
-        url: /maintenance-drupal
+        url: /fr/maintenance-drupal
       en:
         title: 'Drupal Maintenance'
         description: >-
           Regular technical support to secure and evolve your Drupal website.
-        url: /drupal-maintenance
+        url: /en/drupal-maintenance

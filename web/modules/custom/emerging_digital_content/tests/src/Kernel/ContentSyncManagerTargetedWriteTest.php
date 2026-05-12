@@ -203,6 +203,45 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertNotNull($mapping_repository->findByContentId('creation-site-drupal'));
     self::assertNotNull($mapping_repository->findByContentId('maintenance-drupal'));
 
+    $services_items = $this->serviceCardItems($this->loadMappedNodeByContentId('services'), 'fr');
+    self::assertCount(6, $services_items);
+    self::assertContains(
+      'Création de site Drupal|Conception et développement de sites Drupal '
+      . 'clairs, accessibles, performants et prêts pour le SEO.|/fr/creation-site-drupal',
+      $services_items,
+    );
+    self::assertContains(
+      'Maintenance Drupal|Mises à jour, sécurité, support et amélioration '
+      . 'continue pour garder votre site Drupal fiable.|/fr/maintenance-drupal',
+      $services_items,
+    );
+
+    $services_en_items = $this->serviceCardItems($this->loadMappedNodeByContentId('services'), 'en');
+    self::assertCount(6, $services_en_items);
+    self::assertContains(
+      'Drupal Website Creation|Design and development of clear, accessible, '
+      . 'performant Drupal websites ready for SEO.|/en/drupal-website-creation',
+      $services_en_items,
+    );
+    self::assertContains(
+      'Drupal Maintenance|Updates, security, support and continuous '
+      . 'improvement to keep your Drupal website reliable.|/en/drupal-maintenance',
+      $services_en_items,
+    );
+
+    $homepage_items = $this->serviceCardItems($this->loadMappedNodeByContentId('homepage'), 'fr');
+    self::assertCount(6, $homepage_items);
+    self::assertContains(
+      'Création de site Drupal|Un site Drupal conçu pour vos contenus, '
+      . 'vos équipes et votre référencement naturel.|/fr/creation-site-drupal',
+      $homepage_items,
+    );
+    self::assertContains(
+      'Maintenance Drupal|Un accompagnement technique régulier pour sécuriser '
+      . 'et faire évoluer votre site Drupal.|/fr/maintenance-drupal',
+      $homepage_items,
+    );
+
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
     self::assertSame(3, $this->countServiceNodes());
@@ -946,6 +985,53 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertInstanceOf(NodeInterface::class, $node);
 
     return $node;
+  }
+
+  /**
+   * Loads a managed node through its Content Sync mapping.
+   */
+  private function loadMappedNodeByContentId(string $content_id): NodeInterface {
+    $mapping = $this->container
+      ->get('emerging_digital_content.content_sync_mapping_repository')
+      ->findByContentId($content_id);
+    self::assertNotNull($mapping);
+
+    $node = $this->container->get('entity_type.manager')
+      ->getStorage('node')
+      ->load($mapping->entityId());
+    self::assertInstanceOf(NodeInterface::class, $node);
+
+    return $node;
+  }
+
+  /**
+   * Returns the normalized services card values for a page translation.
+   *
+   * @return list<string>
+   *   Services card item values.
+   */
+  private function serviceCardItems(NodeInterface $page, string $langcode): array {
+    $page_translation = $page->hasTranslation($langcode)
+      ? $page->getTranslation($langcode)
+      : $page;
+
+    foreach ($page_translation->get('field_home_components')->referencedEntities() as $component) {
+      if ($component instanceof Paragraph && $component->bundle() === 'services') {
+        $paragraph = $component->hasTranslation($langcode)
+          ? $component->getTranslation($langcode)
+          : $component;
+
+        $items = [];
+        foreach ($paragraph->get('field_items') as $item) {
+          $item_value = $item->getValue();
+          $items[] = (string) ($item_value['value'] ?? '');
+        }
+
+        return $items;
+      }
+    }
+
+    throw new \RuntimeException(sprintf('No services paragraph found for "%s".', $langcode));
   }
 
   /**

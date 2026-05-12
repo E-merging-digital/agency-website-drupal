@@ -104,8 +104,8 @@ components:
           field_text:
             - value: >-
                 Vous avez un projet similaire ? Consultez nos <a
-                href="/services">services</a> ou notre page <a
-                href="/ia-drupal">IA &amp; Drupal</a>, puis discutons-en.
+                href="/fr/services">services</a> ou notre page <a
+                href="/fr/ia-drupal">IA &amp; Drupal</a>, puis discutons-en.
               format: basic_html
           field_link:
             - uri: 'internal:/contact'
@@ -115,8 +115,8 @@ components:
           field_text:
             - value: >-
                 Have a similar project? Explore our <a
-                href="/services">services</a> or our <a href="/ai-drupal">AI
-                &amp; Drupal</a> page, then let’s talk.
+                href="/en/services">services</a> or our <a
+                href="/en/ai-drupal">AI &amp; Drupal</a> page, then let’s talk.
               format: basic_html
           field_link:
             - uri: 'internal:/contact'

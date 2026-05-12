@@ -20,8 +20,9 @@ translations:
           </li><li>Intégration d'usages IA utiles dans les workflows éditoriaux
           Drupal.</li></ul><p>La page est synchronisée avec un identifiant
           métier stable afin de pouvoir être rejouée sans duplication. Vous
-          pouvez aussi consulter nos <a href="/services">services Drupal</a> et
-          notre approche <a href="/ia-drupal">IA &amp; Drupal</a>.</p>
+          pouvez aussi consulter nos <a href="/fr/services">services
+          Drupal</a> et notre approche <a href="/fr/ia-drupal">IA &amp;
+          Drupal</a>.</p>
         format: basic_html
   en:
     fields:
@@ -43,9 +44,9 @@ translations:
           SEO, performance and accessibility optimisation.</li><li>Practical AI
           use cases inside Drupal editorial workflows.</li></ul><p>This page is
           synchronized through a stable business identifier so it can be replayed
-          without duplication. You can also explore our <a href="/services">
-          Drupal services</a> and our <a href="/ia-drupal">AI &amp; Drupal</a>
-          approach.</p>
+          without duplication. You can also explore our <a href="/en/services">
+          Drupal services</a> and our <a href="/en/ai-drupal">AI &amp;
+          Drupal</a> approach.</p>
         format: basic_html
 promotions:
   - target:
@@ -59,13 +60,13 @@ promotions:
         description: >-
           Un accompagnement senior pour créer, refondre, migrer et maintenir des
           sites Drupal accessibles, performants et durables.
-        url: /agence-drupal-belgique
+        url: /fr/agence-drupal-belgique
       en:
         title: 'Drupal Agency Belgium'
         description: >-
           Senior support to build, redesign, migrate and maintain accessible,
           performant and durable Drupal websites.
-        url: /drupal-agency-belgium
+        url: /en/drupal-agency-belgium
   - target:
       label: Homepage
       front: true
@@ -77,10 +78,10 @@ promotions:
         description: >-
           Un partenaire Drupal senior en Belgique pour structurer vos contenus,
           vos parcours et votre socle technique.
-        url: /agence-drupal-belgique
+        url: /fr/agence-drupal-belgique
       en:
         title: 'Drupal Agency Belgium'
         description: >-
           A senior Drupal partner in Belgium to structure your content, user
           journeys and technical foundation.
-        url: /drupal-agency-belgium
+        url: /en/drupal-agency-belgium

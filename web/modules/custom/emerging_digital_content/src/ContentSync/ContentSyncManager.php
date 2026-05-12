@@ -370,7 +370,7 @@ final class ContentSyncManager {
       ];
 
       try {
-        $result = $this->applyValidatedEntry($entry);
+        $result = $this->applyValidatedEntry($entry, FALSE);
         $content_report['actions'] = $result['actions'];
         $content_report['warnings'] = $result['warnings'];
         $report['actions'][] = sprintf('content %s:', $entry->id());
@@ -388,6 +388,23 @@ final class ContentSyncManager {
       }
 
       $report['content_reports'][] = $content_report;
+    }
+
+    if ($this->reportList($report, 'errors') === []) {
+      foreach ($catalog->entries() as $entry) {
+        $definition = $entry->toArray();
+        if (($definition['bundle'] ?? '') !== 'service') {
+          continue;
+        }
+
+        foreach ($this->applyPromotions($definition) as $message) {
+          if (str_starts_with($message, 'warning: ')) {
+            $report['warnings'][] = substr($message, 9);
+            continue;
+          }
+          $report['actions'][] = sprintf('promotion %s: %s', $entry->id(), $message);
+        }
+      }
     }
 
     if ($prune === self::PRUNE_UNPUBLISH) {
@@ -608,10 +625,10 @@ final class ContentSyncManager {
    * @return array{actions: list<string>, warnings: list<string>}
    *   Apply messages.
    */
-  private function applyValidatedEntry(ContentSyncCatalogEntry $entry): array {
+  private function applyValidatedEntry(ContentSyncCatalogEntry $entry, bool $apply_promotions = TRUE): array {
     $this->assertSupportedTarget($entry);
 
-    return $this->applyNode($entry);
+    return $this->applyNode($entry, $apply_promotions);
   }
 
   /**
@@ -620,7 +637,7 @@ final class ContentSyncManager {
    * @return array{actions: list<string>, warnings: list<string>}
    *   Apply messages.
    */
-  private function applyNode(ContentSyncCatalogEntry $entry): array {
+  private function applyNode(ContentSyncCatalogEntry $entry, bool $apply_promotions): array {
     $definition = $entry->toArray();
     $bundle = (string) ($definition['bundle'] ?? '');
     $mapping = $this->mappingRepository->findByContentId($entry->id());
@@ -689,7 +706,7 @@ final class ContentSyncManager {
       implode(', ', array_keys($this->translations($definition))),
     );
 
-    if ($bundle === 'service') {
+    if ($apply_promotions && $bundle === 'service') {
       foreach ($this->applyPromotions($definition) as $message) {
         if (str_starts_with($message, 'warning: ')) {
           $warnings[] = substr($message, 9);

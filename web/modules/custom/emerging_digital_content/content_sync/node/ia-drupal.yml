@@ -153,8 +153,8 @@ components:
           field_text:
             - value: >-
                 Découvrez comment relier vos objectifs éditoriaux à des usages
-                IA concrets. Voir aussi nos <a href="/services">services
-                Drupal</a> et des <a href="/cas-clients">cas clients</a>.
+                IA concrets. Voir aussi nos <a href="/fr/services">services
+                Drupal</a> et des <a href="/fr/cas-clients">cas clients</a>.
               format: basic_html
           field_link:
             - uri: 'internal:/contact'
@@ -164,8 +164,8 @@ components:
           field_text:
             - value: >-
                 Discover how to connect your editorial goals to concrete AI
-                applications. Also, see our <a href="/services">Drupal
-                services</a> and <a href="/cas-clients">client cases</a>.
+                applications. Also, see our <a href="/en/services">Drupal
+                services</a> and <a href="/en/case-studies">client cases</a>.
               format: basic_html
           field_link:
             - uri: 'internal:/contact'

@@ -42,6 +42,48 @@ contents:
       en:
         title: 'Drupal Maintenance'
         alias: /drupal-maintenance
+  - id: migration-drupal
+    entity_type: node
+    bundle: service
+    file: node/migration-drupal.yml
+    business_aliases:
+      fr: /migration-drupal
+      en: /drupal-migration
+    translations:
+      fr:
+        title: 'Migration Drupal'
+        alias: /migration-drupal
+      en:
+        title: 'Drupal Migration'
+        alias: /drupal-migration
+  - id: refonte-site-drupal
+    entity_type: node
+    bundle: service
+    file: node/refonte-site-drupal.yml
+    business_aliases:
+      fr: /refonte-site-drupal
+      en: /drupal-website-redesign
+    translations:
+      fr:
+        title: 'Refonte de site Drupal'
+        alias: /refonte-site-drupal
+      en:
+        title: 'Drupal Website Redesign'
+        alias: /drupal-website-redesign
+  - id: audit-drupal
+    entity_type: node
+    bundle: service
+    file: node/audit-drupal.yml
+    business_aliases:
+      fr: /audit-drupal
+      en: /drupal-audit
+    translations:
+      fr:
+        title: 'Audit Drupal'
+        alias: /audit-drupal
+      en:
+        title: 'Drupal Audit'
+        alias: /drupal-audit
   - id: services
     entity_type: node
     bundle: page

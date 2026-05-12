@@ -1,0 +1,97 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Refonte de site Drupal pour moderniser un site existant : audit,
+          architecture editoriale, UX, performance, accessibilite, SEO et plan
+          de migration.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital accompagne les refontes Drupal lorsque le site ne
+          soutient plus correctement les contenus, les parcours utilisateurs ou
+          les objectifs de conversion.</p><h2>Une refonte Drupal qui protege
+          l'existant</h2><ul><li>Diagnostic des signes de vieillissement :
+          dette technique, lenteurs, edition complexe, contenus disperses.</li>
+          <li>Audit avant refonte pour arbitrer ce qui doit etre conserve,
+          simplifie, migre ou reconstruit.</li><li>Nouvelle architecture
+          editoriale, parcours plus lisibles et experience d'edition plus
+          fluide.</li><li>Plan de migration des contenus, SEO technique,
+          redirections et controle des pages prioritaires.</li><li>Amelioration
+          de la performance, de l'accessibilite et de la maintenabilite Drupal.
+          </li></ul><p>Cette offre s'inscrit dans notre positionnement d'<a
+          href="/fr/agence-drupal-belgique">agence Drupal en Belgique</a>. Elle
+          peut etre precedee d'un <a href="/fr/audit-drupal">audit Drupal</a>,
+          suivie par une <a href="/fr/maintenance-drupal">maintenance Drupal</a>
+          et completee par nos <a href="/fr/services">services Drupal</a>.</p>
+          <p><strong>Votre site Drupal doit evoluer ?</strong> <a
+          href="/fr/contact">Contactez-nous</a> pour cadrer une refonte utile,
+          sobre et mesurable.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Drupal website redesign to modernise an existing site: audit,
+          editorial architecture, UX, performance, accessibility, SEO and
+          migration planning.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital supports Drupal redesigns when an existing website
+          no longer serves its content, user journeys or conversion goals.</p>
+          <h2>A Drupal redesign that protects what matters</h2><ul><li>
+          Diagnosis of ageing signals: technical debt, slow pages, complex
+          editing and scattered content.</li><li>Pre-redesign audit to decide
+          what should be kept, simplified, migrated or rebuilt.</li><li>New
+          editorial architecture, clearer journeys and smoother editorial
+          workflows.</li><li>Content migration plan, technical SEO, redirects
+          and priority page checks.</li><li>Performance, accessibility and
+          Drupal maintainability improvements.</li></ul><p>This service fits
+          our <a href="/en/drupal-agency-belgium">Drupal agency in Belgium</a>
+          positioning. It can start with a <a href="/en/drupal-audit">Drupal
+          audit</a>, continue with <a href="/en/drupal-maintenance">Drupal
+          maintenance</a> and connect with our <a href="/en/services">Drupal
+          services</a>.</p><p><strong>Does your Drupal website need to evolve?
+          </strong> <a href="/en/contact">Contact us</a> to frame a useful,
+          focused and measurable redesign.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Refonte de site Drupal'
+        description: >-
+          Refonte Drupal pour clarifier les contenus, moderniser l'experience
+          et proteger le SEO existant.
+        url: /fr/refonte-site-drupal
+      en:
+        title: 'Drupal Website Redesign'
+        description: >-
+          Drupal redesign to clarify content, modernise the experience and
+          protect existing SEO value.
+        url: /en/drupal-website-redesign
+  - target:
+      label: Homepage
+      front: true
+      aliases:
+        fr: /accueil
+        en: /home
+    translations:
+      fr:
+        title: 'Refonte de site Drupal'
+        description: >-
+          Une refonte Drupal pour remettre contenus, parcours et socle technique
+          au service de vos objectifs.
+        url: /fr/refonte-site-drupal
+      en:
+        title: 'Drupal Website Redesign'
+        description: >-
+          A Drupal redesign to realign content, journeys and the technical
+          foundation with your goals.
+        url: /en/drupal-website-redesign

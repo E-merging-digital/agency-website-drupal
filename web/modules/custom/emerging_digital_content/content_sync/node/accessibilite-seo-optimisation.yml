@@ -1,0 +1,106 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Accessibilite, SEO et optimisation Drupal pour rendre les pages plus
+          lisibles, plus rapides, mieux indexables et plus utiles pour les
+          visiteurs comme pour les moteurs de recherche.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital aide les organisations a ameliorer leurs pages
+          Drupal lorsqu'elles doivent etre plus accessibles, plus visibles et
+          plus performantes sans perdre la maitrise editoriale.</p><h2>Une
+          optimisation Drupal lisible et mesurable</h2><ul><li>Audit des
+          contenus, de la structure HTML, des titres, descriptions, canonicals,
+          hreflang, aliases et liens internes.</li><li>Correction des points
+          d'accessibilite qui freinent la comprehension, la navigation clavier
+          ou l'usage avec technologies d'assistance.</li><li>Optimisation SEO
+          technique et editoriale pour clarifier les intentions de recherche et
+          renforcer les pages services prioritaires.</li><li>Amelioration des
+          performances percue et technique pour reduire les frictions sur les
+          parcours importants.</li><li>Maillage interne entre les services SEO,
+          Drupal et IA afin de relier chaque page a un objectif clair.</li></ul>
+          <p>Cette offre complete un <a href="/fr/audit-drupal">audit Drupal</a>,
+          une <a href="/fr/refonte-site-drupal">refonte de site Drupal</a>, une
+          <a href="/fr/maintenance-drupal">maintenance Drupal</a> et notre page
+          <a href="/fr/ia-drupal">IA &amp; Drupal</a> lorsque les contenus
+          doivent aussi etre prepares pour les usages IA.</p><p>Elle s'integre
+          dans nos <a href="/fr/services">services Drupal</a> et peut renforcer
+          une <a href="/fr/creation-site-drupal">creation de site Drupal</a>
+          des la conception.</p><p><strong>Vous voulez prioriser accessibilite,
+          SEO et performance ?</strong> <a href="/fr/contact">Parlons de vos
+          pages Drupal</a> et des corrections a traiter en premier.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Drupal accessibility, SEO and optimization to make pages clearer,
+          faster, easier to index and more useful for visitors as well as
+          search engines.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital helps organisations improve Drupal pages that
+          need to be more accessible, more visible and more performant without
+          losing editorial control.</p><h2>Clear and measurable Drupal
+          optimization</h2><ul><li>Review of content, HTML structure, titles,
+          descriptions, canonicals, hreflang, aliases and internal links.</li>
+          <li>Correction of accessibility issues that slow comprehension,
+          keyboard navigation or assistive technology use.</li><li>Technical
+          and editorial SEO optimization to clarify search intent and strengthen
+          priority service pages.</li><li>Performance improvements, both
+          perceived and technical, to reduce friction on important journeys.</li>
+          <li>Internal linking between SEO, Drupal and AI services so every
+          page connects to a clear goal.</li></ul><p>This service complements a
+          <a href="/en/drupal-audit">Drupal audit</a>, a <a
+          href="/en/drupal-website-redesign">Drupal website redesign</a>, <a
+          href="/en/drupal-maintenance">Drupal maintenance</a> and our <a
+          href="/en/ai-drupal">AI &amp; Drupal</a> page when content also needs
+          to be prepared for AI use cases.</p><p>It fits within our <a
+          href="/en/services">Drupal services</a> and can strengthen a <a
+          href="/en/drupal-website-creation">Drupal website creation</a> from
+          the design stage.</p><p><strong>Want to prioritise accessibility, SEO
+          and performance?</strong> <a href="/en/contact">Let's discuss your
+          Drupal pages</a> and the fixes to handle first.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Accessibilité, SEO et optimisation'
+        description: >-
+          Lisibilite, referencement naturel, accessibilite et performance pour
+          des pages Drupal plus utiles.
+        url: /fr/accessibilite-seo-optimisation
+      en:
+        title: 'Accessibility, SEO, and optimization'
+        description: >-
+          Readability, organic search, accessibility and performance for more
+          useful Drupal pages.
+        url: /en/ai-accessibility-seo-optimization
+  - target:
+      label: Homepage
+      front: true
+      aliases:
+        fr: /accueil
+        en: /home
+    translations:
+      fr:
+        title: 'Accessibilité, SEO et performance'
+        description: >-
+          Contenus lisibles, parcours clairs et socle technique optimise pour
+          vos publics et les moteurs de recherche.
+        url: /fr/accessibilite-seo-optimisation
+      en:
+        title: 'Accessibility, SEO, and performance'
+        description: >-
+          Readable content, clear pathways, and a technical foundation
+          optimized for your audiences and search engines.
+        url: /en/ai-accessibility-seo-optimization

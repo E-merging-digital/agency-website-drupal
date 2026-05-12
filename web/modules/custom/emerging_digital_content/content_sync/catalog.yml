@@ -84,6 +84,34 @@ contents:
       en:
         title: 'Drupal Audit'
         alias: /drupal-audit
+  - id: accessibilite-seo-optimisation
+    entity_type: node
+    bundle: service
+    file: node/accessibilite-seo-optimisation.yml
+    business_aliases:
+      fr: /accessibilite-seo-optimisation
+      en: /ai-accessibility-seo-optimization
+    translations:
+      fr:
+        title: 'Accessibilité, SEO et optimisation'
+        alias: /accessibilite-seo-optimisation
+      en:
+        title: 'Accessibility, SEO and Optimization'
+        alias: /ai-accessibility-seo-optimization
+  - id: ia-integree
+    entity_type: node
+    bundle: service
+    file: node/ia-integree.yml
+    business_aliases:
+      fr: /ia-integree
+      en: /integrated-ai
+    translations:
+      fr:
+        title: 'IA intégrée'
+        alias: /ia-integree
+      en:
+        title: 'Integrated AI'
+        alias: /integrated-ai
   - id: services
     entity_type: node
     bundle: page

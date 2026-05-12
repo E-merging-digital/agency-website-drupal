@@ -1,0 +1,101 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          IA integree dans Drupal pour aider les equipes editoriales :
+          assistance a la redaction, qualite des contenus, enrichissement,
+          traduction et gouvernance des usages.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital integre des usages IA directement dans Drupal
+          pour soutenir les equipes editoriales sans transformer le CMS en
+          boite noire.</p><h2>Une IA Drupal utile et gouvernable</h2><ul><li>
+          Assistance a la redaction, reformulation, resume et amelioration du
+          ton editorial.</li><li>Suggestions SEO et structuration de contenu en
+          lien avec les objectifs de visibilite.</li><li>Preparation a la
+          traduction automatique multilingue avec controle humain et coherence
+          editoriale.</li><li>Enrichissement de contenus : tags, resumes,
+          metadonnees et aide a la classification.</li><li>Cadre d'usage clair
+          pour securiser les prompts, les workflows et les validations
+          internes.</li></ul><p>Cette offre prolonge notre approche <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a> et se relie a nos services
+          d'<a href="/fr/accessibilite-seo-optimisation">accessibilite, SEO et
+          optimisation</a>, de <a href="/fr/creation-site-drupal">creation de
+          site Drupal</a> et de <a href="/fr/maintenance-drupal">maintenance
+          Drupal</a>.</p><p>Elle peut aussi etre cadree apres un <a
+          href="/fr/audit-drupal">audit Drupal</a> afin de choisir les usages
+          IA qui apportent une valeur reelle aux equipes.</p><p><strong>Vous
+          voulez integrer l'IA sans perdre la qualite editoriale ?</strong> <a
+          href="/fr/contact">Contactez-nous</a> pour cadrer un premier usage
+          concret dans Drupal.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Integrated AI in Drupal for editorial teams: writing assistance,
+          content quality, enrichment, translation and governed use cases.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital integrates AI use cases directly in Drupal to
+          support editorial teams without turning the CMS into a black box.</p>
+          <h2>Useful and governed Drupal AI</h2><ul><li>Writing assistance,
+          rephrasing, summaries and editorial tone improvements.</li><li>SEO
+          suggestions and content structuring connected to visibility goals.</li>
+          <li>Preparation for multilingual machine translation with human
+          review and editorial consistency.</li><li>Content enrichment: tags,
+          summaries, metadata and classification support.</li><li>A clear usage
+          framework to secure prompts, workflows and internal approvals.</li>
+          </ul><p>This service extends our <a href="/en/ai-drupal">AI &amp;
+          Drupal</a> approach and connects with <a
+          href="/en/ai-accessibility-seo-optimization">accessibility, SEO and
+          optimization</a>, <a href="/en/drupal-website-creation">Drupal website
+          creation</a> and <a href="/en/drupal-maintenance">Drupal
+          maintenance</a>.</p><p>It can also be framed after a <a
+          href="/en/drupal-audit">Drupal audit</a> to choose the AI use cases
+          that create real value for teams.</p><p><strong>Want to integrate AI
+          without losing editorial quality?</strong> <a href="/en/contact">
+          Contact us</a> to frame a first concrete use case in Drupal.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'IA intégrée'
+        description: >-
+          Automatisation editoriale utile, qualite des contenus, traduction et
+          gouvernance des usages IA dans Drupal.
+        url: /fr/ia-integree
+      en:
+        title: 'Integrated AI'
+        description: >-
+          Useful editorial automation, content quality, translation and
+          governed AI use cases in Drupal.
+        url: /en/integrated-ai
+  - target:
+      label: Homepage
+      front: true
+      aliases:
+        fr: /accueil
+        en: /home
+    translations:
+      fr:
+        title: 'IA intégrée dans le CMS'
+        description: >-
+          Aide a la redaction, amelioration de la qualite editoriale,
+          enrichissement et preparation a la traduction automatique des
+          contenus.
+        url: /fr/ia-integree
+      en:
+        title: 'AI integrated into the CMS'
+        description: >-
+          Writing assistance, improvement of editorial quality, enrichment and
+          preparation for automatic translation of content.
+        url: /en/integrated-ai

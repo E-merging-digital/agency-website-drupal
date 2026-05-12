@@ -86,14 +86,14 @@ promotions:
         en: /home
     translations:
       fr:
-        title: 'Migration Drupal'
+        title: 'Migration et modernisation'
         description: >-
-          Une migration Drupal preparee pour reduire les risques techniques, SEO
-          et editoriaux.
+          Reprise de sites existants, montee de version Drupal, amelioration
+          de la structure et des performances.
         url: /fr/migration-drupal
       en:
-        title: 'Drupal Migration'
+        title: 'Migration and modernization'
         description: >-
-          A prepared Drupal migration to reduce technical, SEO and editorial
-          risks.
+          Resumption of existing sites, Drupal version upgrade, improvement of
+          structure and performance.
         url: /en/drupal-migration

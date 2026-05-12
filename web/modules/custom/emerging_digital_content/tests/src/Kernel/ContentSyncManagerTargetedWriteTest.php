@@ -191,6 +191,22 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
         'fr_text' => 'audit Drupal actionnable',
         'en_text' => 'actionable Drupal audit',
       ],
+      'accessibilite-seo-optimisation' => [
+        'fr_title' => 'Accessibilité, SEO et optimisation',
+        'en_title' => 'Accessibility, SEO and Optimization',
+        'fr_alias' => '/accessibilite-seo-optimisation',
+        'en_alias' => '/ai-accessibility-seo-optimization',
+        'fr_text' => 'optimisation Drupal lisible et mesurable',
+        'en_text' => 'Clear and measurable Drupal optimization',
+      ],
+      'ia-integree' => [
+        'fr_title' => 'IA intégrée',
+        'en_title' => 'Integrated AI',
+        'fr_alias' => '/ia-integree',
+        'en_alias' => '/integrated-ai',
+        'fr_text' => 'IA Drupal utile et gouvernable',
+        'en_text' => 'Useful and governed Drupal AI',
+      ],
     ];
 
     $expected_count = 0;
@@ -249,7 +265,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(14, $dry_run['content_reports']);
+    self::assertCount(16, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
@@ -259,24 +275,26 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
 
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
-    self::assertSame(6, $this->countServiceNodes());
+    self::assertSame(8, $this->countServiceNodes());
     self::assertSame(8, $this->countPageNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(14, $first_apply['content_reports']);
+    self::assertCount(16, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
     self::assertSame('creation-site-drupal', $first_apply['content_reports'][1]['id']);
     self::assertSame('maintenance-drupal', $first_apply['content_reports'][2]['id']);
     self::assertSame('migration-drupal', $first_apply['content_reports'][3]['id']);
     self::assertSame('refonte-site-drupal', $first_apply['content_reports'][4]['id']);
     self::assertSame('audit-drupal', $first_apply['content_reports'][5]['id']);
-    self::assertSame('services', $first_apply['content_reports'][6]['id']);
-    self::assertSame('ia-drupal', $first_apply['content_reports'][7]['id']);
-    self::assertSame('cas-clients', $first_apply['content_reports'][8]['id']);
-    self::assertSame('contact', $first_apply['content_reports'][9]['id']);
-    self::assertSame('mentions-legales', $first_apply['content_reports'][10]['id']);
-    self::assertSame('politique-confidentialite', $first_apply['content_reports'][11]['id']);
-    self::assertSame('politique-cookies', $first_apply['content_reports'][12]['id']);
-    self::assertSame('homepage', $first_apply['content_reports'][13]['id']);
+    self::assertSame('accessibilite-seo-optimisation', $first_apply['content_reports'][6]['id']);
+    self::assertSame('ia-integree', $first_apply['content_reports'][7]['id']);
+    self::assertSame('services', $first_apply['content_reports'][8]['id']);
+    self::assertSame('ia-drupal', $first_apply['content_reports'][9]['id']);
+    self::assertSame('cas-clients', $first_apply['content_reports'][10]['id']);
+    self::assertSame('contact', $first_apply['content_reports'][11]['id']);
+    self::assertSame('mentions-legales', $first_apply['content_reports'][12]['id']);
+    self::assertSame('politique-confidentialite', $first_apply['content_reports'][13]['id']);
+    self::assertSame('politique-cookies', $first_apply['content_reports'][14]['id']);
+    self::assertSame('homepage', $first_apply['content_reports'][15]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
@@ -286,6 +304,8 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertNotNull($mapping_repository->findByContentId('migration-drupal'));
     self::assertNotNull($mapping_repository->findByContentId('refonte-site-drupal'));
     self::assertNotNull($mapping_repository->findByContentId('audit-drupal'));
+    self::assertNotNull($mapping_repository->findByContentId('accessibilite-seo-optimisation'));
+    self::assertNotNull($mapping_repository->findByContentId('ia-integree'));
 
     $services_items = $this->serviceCardItems($this->loadMappedNodeByContentId('services'), 'fr');
     self::assertCount(8, $services_items);
@@ -312,6 +332,16 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertContains(
       'Audit Drupal|Audit technique, SEO, performance, accessibilite et '
       . 'editorial pour prioriser les bonnes corrections Drupal.|/fr/audit-drupal',
+      $services_items,
+    );
+    self::assertContains(
+      'Accessibilité, SEO et optimisation|Lisibilite, referencement naturel, '
+      . 'accessibilite et performance pour des pages Drupal plus utiles.|/fr/accessibilite-seo-optimisation',
+      $services_items,
+    );
+    self::assertContains(
+      'IA intégrée|Automatisation editoriale utile, qualite des contenus, '
+      . 'traduction et gouvernance des usages IA dans Drupal.|/fr/ia-integree',
       $services_items,
     );
 
@@ -342,9 +372,19 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       . 'audit to prioritise the right Drupal fixes.|/en/drupal-audit',
       $services_en_items,
     );
+    self::assertContains(
+      'Accessibility, SEO, and optimization|Readability, organic search, '
+      . 'accessibility and performance for more useful Drupal pages.|/en/ai-accessibility-seo-optimization',
+      $services_en_items,
+    );
+    self::assertContains(
+      'Integrated AI|Useful editorial automation, content quality, translation '
+      . 'and governed AI use cases in Drupal.|/en/integrated-ai',
+      $services_en_items,
+    );
 
     $homepage_items = $this->serviceCardItems($this->loadMappedNodeByContentId('homepage'), 'fr');
-    self::assertCount(9, $homepage_items);
+    self::assertCount(8, $homepage_items);
     self::assertContains(
       'Création de site Drupal|Un site Drupal conçu pour vos contenus, '
       . 'vos équipes et votre référencement naturel.|/fr/creation-site-drupal',
@@ -356,8 +396,8 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       $homepage_items,
     );
     self::assertContains(
-      'Migration Drupal|Une migration Drupal preparee pour reduire les risques '
-      . 'techniques, SEO et editoriaux.|/fr/migration-drupal',
+      'Migration et modernisation|Reprise de sites existants, montee de '
+      . 'version Drupal, amelioration de la structure et des performances.|/fr/migration-drupal',
       $homepage_items,
     );
     self::assertContains(
@@ -370,12 +410,22 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       . 'et prioriser les actions utiles.|/fr/audit-drupal',
       $homepage_items,
     );
+    self::assertContains(
+      'Accessibilité, SEO et performance|Contenus lisibles, parcours clairs et '
+      . 'socle technique optimise pour vos publics et les moteurs de recherche.|/fr/accessibilite-seo-optimisation',
+      $homepage_items,
+    );
+    self::assertContains(
+      'IA intégrée dans le CMS|Aide a la redaction, amelioration de la qualite '
+      . 'editoriale, enrichissement et preparation a la traduction automatique des contenus.|/fr/ia-integree',
+      $homepage_items,
+    );
 
     $homepage_en_items = $this->serviceCardItems($this->loadMappedNodeByContentId('homepage'), 'en');
-    self::assertCount(9, $homepage_en_items);
+    self::assertCount(8, $homepage_en_items);
     self::assertContains(
-      'Drupal Migration|A prepared Drupal migration to reduce technical, SEO '
-      . 'and editorial risks.|/en/drupal-migration',
+      'Migration and modernization|Resumption of existing sites, Drupal '
+      . 'version upgrade, improvement of structure and performance.|/en/drupal-migration',
       $homepage_en_items,
     );
     self::assertContains(
@@ -388,10 +438,20 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       . 'useful actions.|/en/drupal-audit',
       $homepage_en_items,
     );
+    self::assertContains(
+      'Accessibility, SEO, and performance|Readable content, clear pathways, '
+      . 'and a technical foundation optimized for your audiences and search engines.|/en/ai-accessibility-seo-optimization',
+      $homepage_en_items,
+    );
+    self::assertContains(
+      'AI integrated into the CMS|Writing assistance, improvement of editorial '
+      . 'quality, enrichment and preparation for automatic translation of content.|/en/integrated-ai',
+      $homepage_en_items,
+    );
 
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
-    self::assertSame(6, $this->countServiceNodes());
+    self::assertSame(8, $this->countServiceNodes());
     self::assertSame(8, $this->countPageNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');

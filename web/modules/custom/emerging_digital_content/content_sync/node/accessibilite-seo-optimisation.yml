@@ -3,35 +3,35 @@ translations:
     fields:
       field_short_description:
         value: >-
-          Accessibilite, SEO et optimisation Drupal pour rendre les pages plus
+          Accessibilité, SEO et optimisation Drupal pour rendre les pages plus
           lisibles, plus rapides, mieux indexables et plus utiles pour les
           visiteurs comme pour les moteurs de recherche.
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>Emerging Digital aide les organisations a ameliorer leurs pages
-          Drupal lorsqu'elles doivent etre plus accessibles, plus visibles et
-          plus performantes sans perdre la maitrise editoriale.</p><h2>Une
+          <p>Emerging Digital aide les organisations à améliorer leurs pages
+          Drupal lorsqu'elles doivent être plus accessibles, plus visibles et
+          plus performantes sans perdre la maîtrise éditoriale.</p><h2>Une
           optimisation Drupal lisible et mesurable</h2><ul><li>Audit des
           contenus, de la structure HTML, des titres, descriptions, canonicals,
           hreflang, aliases et liens internes.</li><li>Correction des points
-          d'accessibilite qui freinent la comprehension, la navigation clavier
+          d'accessibilité qui freinent la compréhension, la navigation clavier
           ou l'usage avec technologies d'assistance.</li><li>Optimisation SEO
-          technique et editoriale pour clarifier les intentions de recherche et
-          renforcer les pages services prioritaires.</li><li>Amelioration des
-          performances percue et technique pour reduire les frictions sur les
+          technique et éditoriale pour clarifier les intentions de recherche et
+          renforcer les pages services prioritaires.</li><li>Amélioration des
+          performances perçue et technique pour réduire les frictions sur les
           parcours importants.</li><li>Maillage interne entre les services SEO,
-          Drupal et IA afin de relier chaque page a un objectif clair.</li></ul>
-          <p>Cette offre complete un <a href="/fr/audit-drupal">audit Drupal</a>,
+          Drupal et IA afin de relier chaque page à un objectif clair.</li></ul>
+          <p>Cette offre complète un <a href="/fr/audit-drupal">audit Drupal</a>,
           une <a href="/fr/refonte-site-drupal">refonte de site Drupal</a>, une
           <a href="/fr/maintenance-drupal">maintenance Drupal</a> et notre page
           <a href="/fr/ia-drupal">IA &amp; Drupal</a> lorsque les contenus
-          doivent aussi etre prepares pour les usages IA.</p><p>Elle s'integre
+          doivent aussi être préparés pour les usages IA.</p><p>Elle s'intègre
           dans nos <a href="/fr/services">services Drupal</a> et peut renforcer
-          une <a href="/fr/creation-site-drupal">creation de site Drupal</a>
-          des la conception.</p><p><strong>Vous voulez prioriser accessibilite,
+          une <a href="/fr/creation-site-drupal">création de site Drupal</a>
+          dès la conception.</p><p><strong>Vous voulez prioriser accessibilité,
           SEO et performance ?</strong> <a href="/fr/contact">Parlons de vos
-          pages Drupal</a> et des corrections a traiter en premier.</p>
+          pages Drupal</a> et des corrections à traiter en premier.</p>
         format: basic_html
   en:
     fields:
@@ -76,7 +76,7 @@ promotions:
       fr:
         title: 'Accessibilité, SEO et optimisation'
         description: >-
-          Lisibilite, referencement naturel, accessibilite et performance pour
+          Lisibilité, référencement naturel, accessibilité et performance pour
           des pages Drupal plus utiles.
         url: /fr/accessibilite-seo-optimisation
       en:
@@ -95,7 +95,7 @@ promotions:
       fr:
         title: 'Accessibilité, SEO et performance'
         description: >-
-          Contenus lisibles, parcours clairs et socle technique optimise pour
+          Contenus lisibles, parcours clairs et socle technique optimisé pour
           vos publics et les moteurs de recherche.
         url: /fr/accessibilite-seo-optimisation
       en:

@@ -4,30 +4,32 @@ translations:
       field_short_description:
         value: >-
           Migration Drupal vers Drupal 11 pour sites existants : audit
-          technique, reprise de contenu, securisation, tests et mise en
-          production maitrisee.
+          technique, reprise de contenu, sécurisation, tests et mise en
+          production maîtrisée.
         format: basic_html
       field_detailed_description:
         value: >-
           <p>Emerging Digital accompagne les organisations qui doivent migrer un
           site Drupal vieillissant sans perdre leurs contenus, leur
-          referencement naturel ni la stabilite de leur plateforme.</p><h2>Une
-          migration Drupal preparee et controlee</h2><ul><li>Audit de la
-          version actuelle, des modules, du theme, des integrations et de la
-          dette technique.</li><li>Strategie de migration pour les contenus, la
-          configuration, les medias, les utilisateurs et les traductions.</li>
+          référencement naturel ni la stabilité de leur plateforme.</p><h2>Une
+          migration Drupal préparée et contrôlée</h2><ul><li>Audit de la
+          version actuelle, des modules, du thème, des intégrations et de la
+          dette technique.</li><li>Stratégie de migration pour les contenus, la
+          configuration, les médias, les utilisateurs et les traductions.</li>
           <li>Modernisation du socle vers Drupal 11 avec priorisation des
-          risques de securite et de maintenance.</li><li>Tests fonctionnels,
-          verifications SEO, redirections et controle des aliases
+          risques de sécurité et de maintenance.</li><li>Tests fonctionnels,
+          vérifications SEO, redirections et contrôle des aliases
           multilingues.</li><li>Mise en production progressive et maintenance
           post-migration pour stabiliser la plateforme.</li></ul><p>Cette page
-          complete notre approche d'<a href="/fr/agence-drupal-belgique">agence
-          Drupal en Belgique</a>. Elle s'articule avec nos offres de <a
+          complète notre approche d'<a href="/fr/agence-drupal-belgique">agence
+          Drupal en Belgique</a>. Elle s'articule avec nos <a
+          href="/fr/services">services Drupal</a>, notre approche <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a> et nos offres de <a
           href="/fr/audit-drupal">audit Drupal</a>, de <a
           href="/fr/refonte-site-drupal">refonte de site Drupal</a> et de <a
           href="/fr/maintenance-drupal">maintenance Drupal</a>.</p><p><strong>
           Besoin de migrer sans improviser ?</strong> <a href="/fr/contact">
-          Parlons de votre contexte Drupal</a> et des risques a lever avant la
+          Parlons de votre contexte Drupal</a> et des risques à lever avant la
           mise en production.</p>
         format: basic_html
   en:
@@ -52,7 +54,9 @@ translations:
           and post-migration maintenance to stabilise the platform.</li></ul>
           <p>This page complements our <a href="/en/drupal-agency-belgium">
           Drupal agency in Belgium</a> approach. It connects with our <a
-          href="/en/drupal-audit">Drupal audit</a>, <a
+          href="/en/services">Drupal services</a>, our <a href="/en/ai-drupal">
+          AI &amp; Drupal</a> approach, our <a href="/en/drupal-audit">Drupal
+          audit</a>, <a
           href="/en/drupal-website-redesign">Drupal website redesign</a> and <a
           href="/en/drupal-maintenance">Drupal maintenance</a> services.</p>
           <p><strong>Need to migrate without improvising?</strong> <a
@@ -70,7 +74,7 @@ promotions:
         title: 'Migration Drupal'
         description: >-
           Migration Drupal vers Drupal 11 avec audit, reprise de contenu, tests
-          et securisation du socle technique.
+          et sécurisation du socle technique.
         url: /fr/migration-drupal
       en:
         title: 'Drupal Migration'
@@ -88,7 +92,7 @@ promotions:
       fr:
         title: 'Migration et modernisation'
         description: >-
-          Reprise de sites existants, montee de version Drupal, amelioration
+          Reprise de sites existants, montée de version Drupal, amélioration
           de la structure et des performances.
         url: /fr/migration-drupal
       en:

@@ -3,32 +3,34 @@ translations:
     fields:
       field_short_description:
         value: >-
-          Audit Drupal technique, SEO, performance, accessibilite et editorial
+          Audit Drupal technique, SEO, performance, accessibilité et éditorial
           pour identifier les risques, prioriser les corrections et cadrer les
-          prochaines evolutions.
+          prochaines évolutions.
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>Emerging Digital realise des audits Drupal pour donner une vision
-          claire de l'etat d'un site existant, des risques a traiter et des
-          decisions a prendre avant une refonte, une migration ou une phase de
+          <p>Emerging Digital réalise des audits Drupal pour donner une vision
+          claire de l'état d'un site existant, des risques à traiter et des
+          décisions à prendre avant une refonte, une migration ou une phase de
           maintenance.</p><h2>Un audit Drupal actionnable</h2><ul><li>Audit
-          technique : version Drupal, modules, configuration, securite,
+          technique : version Drupal, modules, configuration, sécurité,
           architecture et dette maintenable.</li><li>Audit SEO : structure des
           pages, titles, descriptions, canonicals, aliases, redirections et
-          maillage interne.</li><li>Audit performance et accessibilite pour
+          maillage interne.</li><li>Audit performance et accessibilité pour
           identifier les obstacles visibles par vos publics.</li><li>Audit
-          editorial : modeles de contenus, workflows, gouvernance et clarte des
-          pages prioritaires.</li><li>Audit IA et LLM SEO pour reperer les
-          usages utiles sans fragiliser la qualite editoriale.</li></ul><p>Les
+          éditorial : modèles de contenus, workflows, gouvernance et clarté des
+          pages prioritaires.</li><li>Audit IA et LLM SEO pour repérer les
+          usages utiles sans fragiliser la qualité éditoriale.</li></ul><p>Les
           conclusions peuvent alimenter une <a href="/fr/refonte-site-drupal">
           refonte Drupal</a>, une <a href="/fr/migration-drupal">migration
           Drupal</a>, une <a href="/fr/maintenance-drupal">maintenance
           Drupal</a> ou un cadrage plus large avec notre <a
-          href="/fr/agence-drupal-belgique">agence Drupal en Belgique</a>.</p>
-          <p><strong>Vous voulez savoir ou agir en premier ?</strong> <a
+          href="/fr/agence-drupal-belgique">agence Drupal en Belgique</a>. Elles
+          peuvent aussi préparer nos <a href="/fr/services">services Drupal</a>
+          et notre approche <a href="/fr/ia-drupal">IA &amp; Drupal</a>.</p>
+          <p><strong>Vous voulez savoir où agir en premier ?</strong> <a
           href="/fr/contact">Demandez un audit Drupal</a> avec livrable clair,
-          priorites et prochaines etapes.</p>
+          priorités et prochaines étapes.</p>
         format: basic_html
   en:
     fields:
@@ -54,7 +56,9 @@ translations:
           redesign</a>, a <a href="/en/drupal-migration">Drupal migration</a>,
           <a href="/en/drupal-maintenance">Drupal maintenance</a> or broader
           framing with our <a href="/en/drupal-agency-belgium">Drupal agency in
-          Belgium</a>.</p><p><strong>Want to know where to act first?</strong>
+          Belgium</a>. They can also prepare our <a href="/en/services">Drupal
+          services</a> and <a href="/en/ai-drupal">AI &amp; Drupal</a>
+          approach.</p><p><strong>Want to know where to act first?</strong>
           <a href="/en/contact">Request a Drupal audit</a> with a clear
           deliverable, priorities and next steps.</p>
         format: basic_html
@@ -68,7 +72,7 @@ promotions:
       fr:
         title: 'Audit Drupal'
         description: >-
-          Audit technique, SEO, performance, accessibilite et editorial pour
+          Audit technique, SEO, performance, accessibilité et éditorial pour
           prioriser les bonnes corrections Drupal.
         url: /fr/audit-drupal
       en:

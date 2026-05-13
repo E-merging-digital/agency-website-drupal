@@ -4,22 +4,24 @@ translations:
       field_short_description:
         value: >-
           IA intégrée dans Drupal pour aider les équipes éditoriales :
-          assistance à la rédaction, qualité des contenus, enrichissement,
-          traduction et gouvernance des usages.
+          cas d’usage concrets pour PME, ASBL et institutions, assistance à la
+          rédaction, qualité des contenus, traduction FR/EN et gouvernance des
+          usages.
         format: basic_html
       field_detailed_description:
         value: >-
           <p>Emerging Digital intègre des usages IA directement dans Drupal
           pour soutenir les équipes éditoriales sans transformer le CMS en
           boite noire.</p><h2>Une IA Drupal utile et gouvernable</h2><ul><li>
-          Assistance à la rédaction, reformulation, résumé et amélioration du
-          ton éditorial.</li><li>Suggestions SEO et structuration de contenu en
-          lien avec les objectifs de visibilité.</li><li>Préparation à la
-          traduction automatique multilingue avec contrôle humain et cohérence
-          éditoriale.</li><li>Enrichissement de contenus : tags, résumés,
-          métadonnées et aide à la classification.</li><li>Cadre d'usage clair
-          pour sécuriser les prompts, les workflows et les validations
-          internes.</li></ul><p>Cette offre prolonge notre approche <a
+          PME : brouillons de pages services, reformulation et amélioration du
+          ton pour publier plus régulièrement.</li><li>ASBL : simplification de
+          contenus, adaptation aux publics et meilleure accessibilité
+          éditoriale.</li><li>Institutions : cohérence des pages
+          d'information, notices, actualités et contenus multilingues.</li><li>
+          Traduction FR/EN : préparation des variantes linguistiques, détection
+          des écarts de sens et relecture humaine.</li><li>SEO et gouvernance :
+          titres, résumés, tags, liens internes localisés, prompts documentés
+          et validations internes.</li></ul><p>Cette offre prolonge notre approche <a
           href="/fr/ia-drupal">IA &amp; Drupal</a> et se relie à nos services
           d'<a href="/fr/accessibilite-seo-optimisation">accessibilité, SEO et
           optimisation</a>, de <a href="/fr/creation-site-drupal">création de
@@ -37,19 +39,22 @@ translations:
       field_short_description:
         value: >-
           Integrated AI in Drupal for editorial teams: writing assistance,
-          content quality, enrichment, translation and governed use cases.
+          concrete use cases for SMEs, non-profits and institutions, content
+          quality, FR/EN translation and governed usage.
         format: basic_html
       field_detailed_description:
         value: >-
           <p>Emerging Digital integrates AI use cases directly in Drupal to
           support editorial teams without turning the CMS into a black box.</p>
-          <h2>Useful and governed Drupal AI</h2><ul><li>Writing assistance,
-          rephrasing, summaries and editorial tone improvements.</li><li>SEO
-          suggestions and content structuring connected to visibility goals.</li>
-          <li>Preparation for multilingual machine translation with human
-          review and editorial consistency.</li><li>Content enrichment: tags,
-          summaries, metadata and classification support.</li><li>A clear usage
-          framework to secure prompts, workflows and internal approvals.</li>
+          <h2>Useful and governed Drupal AI</h2><ul><li>SMEs: service page
+          drafts, rephrasing and tone improvements to publish more regularly.
+          </li><li>Non-profits: content simplification, audience adaptation and
+          better editorial accessibility.</li><li>Institutions: consistency
+          across information pages, notices, news and multilingual content.
+          </li><li>FR/EN translation: preparation of language variants, meaning
+          gap detection and human review.</li><li>SEO and governance: titles,
+          summaries, tags, localised internal links, documented prompts and
+          internal approvals.</li>
           </ul><p>This service extends our <a href="/en/ai-drupal">AI &amp;
           Drupal</a> approach and connects with <a
           href="/en/ai-accessibility-seo-optimization">accessibility, SEO and

@@ -15,10 +15,10 @@ components:
                 quotidien.
               format: basic_html
           field_link:
-            - uri: 'internal:/contact'
+            - uri: 'internal:/fr/contact'
               title: 'Demander un audit'
           field_secondary_link:
-            - uri: 'internal:/services'
+            - uri: 'internal:/fr/services'
               title: 'Explorer les services Drupal'
       en:
         fields:
@@ -31,10 +31,10 @@ components:
                 web accessibility requirements, and useful AI for everyday use.
               format: basic_html
           field_link:
-            - uri: 'internal:/contact'
+            - uri: 'internal:/en/contact'
               title: 'Request an audit'
           field_secondary_link:
-            - uri: 'internal:/services'
+            - uri: 'internal:/en/services'
               title: 'Explore Drupal services'
   - id: homepage.positioning
     legacy_uuid: ad8e2138-9355-4951-90dc-354e07847eca
@@ -146,21 +146,22 @@ components:
             - value: 'Ce que l’IA peut faire dans Drupal'
           field_text:
             - value: >-
-                Des usages IA concrets, intégrés à Drupal, pour aider les
-                équipes éditoriales sans complexifier le travail quotidien.
+                Des usages IA concrets, intégrés à Drupal, pour aider les PME,
+                ASBL et institutions à publier plus vite, relire mieux et
+                garder une gouvernance éditoriale claire.
               format: basic_html
           field_items:
-            - value: 'Correction orthographique et reformulation'
+            - value: 'Brouillons de pages et reformulation contrôlée'
               format: basic_html
-            - value: 'Génération assistée de contenu'
+            - value: 'Correction éditoriale et adaptation du ton'
               format: basic_html
-            - value: 'Préparation à la traduction automatique multilingue'
+            - value: 'Préparation à la traduction FR/EN'
               format: basic_html
-            - value: 'Tags automatiques pour les images'
+            - value: 'Résumés, tags et structuration de contenus'
               format: basic_html
-            - value: 'Suggestions SEO'
+            - value: 'Suggestions SEO et liens internes localisés'
               format: basic_html
-            - value: 'Résumé et structuration de contenu'
+            - value: 'Cadre de validation pour équipes éditoriales'
               format: basic_html
       en:
         fields:
@@ -168,21 +169,22 @@ components:
             - value: 'What AI can do in Drupal'
           field_text:
             - value: >-
-                Concrete AI applications, integrated into Drupal, to assist
-                editorial teams without complicating daily work.
+                Concrete AI applications, integrated into Drupal, to help SMEs,
+                non-profits and institutions publish faster, review better and
+                keep editorial governance clear.
               format: basic_html
           field_items:
-            - value: 'Spelling correction and rephrasing'
+            - value: 'Page drafts and controlled rephrasing'
               format: basic_html
-            - value: 'Assisted content generation'
+            - value: 'Editorial correction and tone adaptation'
               format: basic_html
-            - value: 'Preparation for multilingual machine translation'
+            - value: 'Preparation for FR/EN translation'
               format: basic_html
-            - value: 'Automatic tags for images'
+            - value: 'Summaries, tags and content structuring'
               format: basic_html
-            - value: 'SEO Suggestions'
+            - value: 'SEO suggestions and localised internal links'
               format: basic_html
-            - value: 'Summary and content structuring'
+            - value: 'Approval framework for editorial teams'
               format: basic_html
   - id: homepage.case-studies
     legacy_uuid: 614270dd-1d42-4ea9-a7ae-6321952de65b
@@ -302,7 +304,7 @@ components:
                 href="/fr/ia-drupal">IA &amp; Drupal</a>.
               format: basic_html
           field_link:
-            - uri: 'internal:/contact'
+            - uri: 'internal:/fr/contact'
               title: 'Prendre contact'
       en:
         fields:
@@ -316,5 +318,5 @@ components:
                 Drupal</a> approach.
               format: basic_html
           field_link:
-            - uri: 'internal:/contact'
+            - uri: 'internal:/en/contact'
               title: 'Get in touch'

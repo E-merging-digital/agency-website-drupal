@@ -108,7 +108,7 @@ components:
                 href="/fr/ia-drupal">IA &amp; Drupal</a>, puis discutons-en.
               format: basic_html
           field_link:
-            - uri: 'internal:/contact'
+            - uri: 'internal:/fr/contact'
               title: 'Prendre contact'
       en:
         fields:
@@ -119,5 +119,5 @@ components:
                 href="/en/ai-drupal">AI &amp; Drupal</a> page, then let’s talk.
               format: basic_html
           field_link:
-            - uri: 'internal:/contact'
+            - uri: 'internal:/en/contact'
               title: 'Get in touch'

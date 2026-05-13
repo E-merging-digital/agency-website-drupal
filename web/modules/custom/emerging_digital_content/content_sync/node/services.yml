@@ -151,7 +151,7 @@ components:
                 &amp; Drupal</a> pour les usages éditoriaux.
               format: basic_html
           field_link:
-            - uri: 'internal:/contact'
+            - uri: 'internal:/fr/contact'
               title: 'Prendre contact'
       en:
         fields:
@@ -162,5 +162,5 @@ components:
                 &amp; Drupal</a> for editorial uses.
               format: basic_html
           field_link:
-            - uri: 'internal:/contact'
+            - uri: 'internal:/en/contact'
               title: 'Get in touch'

@@ -7,7 +7,7 @@ dependencies:
 id: node_service
 label: 'Content path pattern (Service fallback)'
 type: 'canonical_entities:node'
-pattern: 'services/[node:title]'
+pattern: '/services/[node:title]'
 selection_criteria:
   5d6066ce-be42-4d75-ae05-c4044020944c:
     id: 'entity_bundle:node'

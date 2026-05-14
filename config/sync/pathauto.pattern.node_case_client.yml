@@ -7,7 +7,7 @@ dependencies:
 id: node_case_client
 label: 'Content path pattern (Cas client fallback)'
 type: 'canonical_entities:node'
-pattern: 'cas-clients/[node:title]'
+pattern: '/cas-clients/[node:title]'
 selection_criteria:
   ca74dee3-e177-4818-91b6-83009a5b3f75:
     id: 'entity_bundle:node'

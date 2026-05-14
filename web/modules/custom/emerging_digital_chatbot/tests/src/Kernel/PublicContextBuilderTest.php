@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\emerging_digital_chatbot\Kernel;
 
 use Drupal\emerging_digital_chatbot\Context\PublicContextBuilder;
+use Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
@@ -162,6 +163,87 @@ final class PublicContextBuilderTest extends KernelTestBase {
     self::assertStringContainsString('Public English Drupal content.', $enText);
     self::assertStringNotContainsString('Page publique FR', $enText);
     self::assertStringNotContainsString('0477 12 34 56', $enText);
+  }
+
+  /**
+   * Tests the future AI context provider contract.
+   */
+  public function testPublicAiContextProviderBuildsSanitizedLanguageContracts(): void {
+    $node = Node::create([
+      'type' => 'page',
+      'langcode' => 'fr',
+      'title' => 'Contexte public FR',
+      'status' => 1,
+      'body' => [
+        'value' => '<h2>Service Drupal FR</h2><script>bad()</script><p>Texte utile FR.</p>',
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->addTranslation('en', [
+      'title' => 'Public context EN',
+      'status' => 1,
+      'body' => [
+        'value' => '<h2>Drupal service EN</h2><p>Useful EN text.</p>',
+        'format' => 'plain_text',
+      ],
+    ]);
+    $node->save();
+
+    $this->createAlias('/node/' . $node->id(), '/public', 'fr');
+    $this->createAlias('/node/' . $node->id(), '/public', 'en');
+
+    $provider = $this->container->get('emerging_digital_chatbot.public_ai_context_provider');
+    self::assertInstanceOf(PublicAiContextProvider::class, $provider);
+
+    $frContract = $provider->buildContextContract('fr');
+    $enContract = $provider->buildContextContract('en');
+
+    self::assertTrue($frContract['enabled']);
+    self::assertSame('fr', $frContract['langcode']);
+    self::assertSame('public_pages_v1', $frContract['profile']);
+    self::assertSame('ready', $frContract['status']);
+    self::assertSame(['/fr/public'], $frContract['paths']);
+    self::assertStringContainsString('Contexte public FR', $frContract['text']);
+    self::assertStringContainsString('Service Drupal FR', $frContract['text']);
+    self::assertStringContainsString('Texte utile FR.', $frContract['text']);
+    self::assertStringNotContainsString('<h2>', $frContract['text']);
+    self::assertStringNotContainsString('<script>', $frContract['text']);
+    self::assertStringNotContainsString('bad()', $frContract['text']);
+
+    self::assertSame('en', $enContract['langcode']);
+    self::assertSame(['/en/public'], $enContract['paths']);
+    self::assertStringContainsString('Public context EN', $enContract['text']);
+    self::assertStringContainsString('Useful EN text.', $enContract['text']);
+    self::assertStringNotContainsString('Contexte public FR', $enContract['text']);
+
+    $promptContext = $provider->buildPromptContext('fr', 220);
+    self::assertLessThanOrEqual(220, mb_strlen($promptContext));
+    self::assertStringContainsString('Context profile: public_pages_v1.', $promptContext);
+    self::assertStringContainsString('Public context status: ready.', $promptContext);
+    self::assertStringNotContainsString('<h2>', $promptContext);
+    self::assertStringNotContainsString('<script>', $promptContext);
+  }
+
+  /**
+   * Tests that an empty public context remains a valid future AI contract.
+   */
+  public function testPublicAiContextProviderAcceptsEmptyContext(): void {
+    $this->config('emerging_digital_chatbot.settings')
+      ->set('future_ai.context.allowed_public_paths.fr', [])
+      ->save();
+
+    $provider = $this->container->get('emerging_digital_chatbot.public_ai_context_provider');
+    self::assertInstanceOf(PublicAiContextProvider::class, $provider);
+
+    $contract = $provider->buildContextContract('fr');
+    $promptContext = $provider->buildPromptContext('fr', 500);
+
+    self::assertTrue($contract['enabled']);
+    self::assertSame('empty', $contract['status']);
+    self::assertSame([], $contract['paths']);
+    self::assertSame('', $contract['text']);
+    self::assertStringContainsString('Public context status: empty.', $promptContext);
+    self::assertStringContainsString('Allowed public paths: none loaded', $promptContext);
   }
 
   /**

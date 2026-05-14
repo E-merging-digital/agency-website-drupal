@@ -206,7 +206,7 @@ final class ChatbotConfig {
   /**
    * Gets a small, non-secret future AI summary for diagnostics.
    *
-   * @return array<string, string|bool>
+   * @return array<string, mixed>
    *   Future AI architecture metadata.
    */
   public function getFutureAiSummary(?string $langcode = NULL): array {
@@ -222,6 +222,12 @@ final class ChatbotConfig {
       'ragProfile' => $this->getFutureAiRagProfile(),
       'retentionPolicy' => (string) ($config->get('future_ai.retention_policy') ?? 'none'),
       'promptPrepared' => is_string($prompt) && $prompt !== '',
+      'context' => [
+        'profile' => $this->getFutureAiRagProfile(),
+        'langcode' => $langcode,
+        'maxContextChars' => $this->getFutureAiMaxContextChars(),
+        'allowedPublicPaths' => $this->getFutureAiAllowedPublicPaths($langcode),
+      ],
     ];
   }
 
@@ -291,6 +297,24 @@ final class ChatbotConfig {
     }
 
     return array_values(array_filter(array_map('strval', $value)));
+  }
+
+  /**
+   * Gets future AI public context paths for one language.
+   *
+   * @return string[]
+   *   Configured public context paths.
+   */
+  private function getFutureAiAllowedPublicPaths(string $langcode): array {
+    $value = $this->configFactory
+      ->get('emerging_digital_chatbot.settings')
+      ->get("future_ai.context.allowed_public_paths.$langcode");
+
+    if (!is_array($value)) {
+      return [];
+    }
+
+    return array_values(array_filter(array_map([$this, 'normalizePath'], array_map('strval', $value))));
   }
 
   /**

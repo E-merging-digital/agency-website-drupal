@@ -19,43 +19,64 @@ final class PublicAiContextProvider {
   }
 
   /**
+   * Builds the public context contract for future AI providers.
+   *
+   * @return array{
+   *   profile: string,
+   *   enabled: bool,
+   *   langcode: string,
+   *   max_context_chars: int,
+   *   paths: list<string>,
+   *   text: string,
+   *   status: string
+   *   }
+   *   Public-only context metadata and sanitized text.
+   */
+  public function buildContextContract(string $langcode): array {
+    $publicContext = $this->contextBuilder->buildContext($langcode);
+
+    return [
+      'profile' => $this->getRagProfile(),
+      'enabled' => (bool) $publicContext['enabled'],
+      'langcode' => $publicContext['langcode'],
+      'max_context_chars' => $publicContext['max_context_chars'],
+      'paths' => $publicContext['paths'],
+      'text' => $publicContext['text'],
+      'status' => $publicContext['text'] === '' ? 'empty' : 'ready',
+    ];
+  }
+
+  /**
    * Builds a short context note for the provider prompt.
    */
   public function buildPromptContext(string $langcode, int $maxChars): string {
-    $paths = $this->getAllowedPublicPaths($langcode);
-    $publicContext = $this->contextBuilder->buildContext($langcode);
+    $contract = $this->buildContextContract($langcode);
     $context = [
-      'Context profile: public_pages_v1.',
+      'Context profile: ' . $contract['profile'] . '.',
+      'Public context status: ' . $contract['status'] . '.',
       'Allowed context: published public pages only.',
       'Excluded context: admin pages, drafts, webform submissions, private files, CRM data, visitor conversations, and personal data.',
       'Retrieval status: Drupal public context builder active; no vector store or autonomous tool call is active.',
-      'Allowed public paths: ' . implode(', ', $paths),
+      'Allowed public paths: ' . ($contract['paths'] === [] ? 'none loaded' : implode(', ', $contract['paths'])),
     ];
 
-    if ($publicContext['text'] !== '') {
+    if ($contract['text'] !== '') {
       $context[] = 'Public Drupal context:';
-      $context[] = $publicContext['text'];
+      $context[] = $contract['text'];
     }
 
     return mb_substr(implode("\n", $context), 0, $maxChars);
   }
 
   /**
-   * Gets configured public paths for one language.
-   *
-   * @return string[]
-   *   Public path list.
+   * Gets the configured RAG profile.
    */
-  private function getAllowedPublicPaths(string $langcode): array {
-    $paths = $this->configFactory
+  private function getRagProfile(): string {
+    $profile = $this->configFactory
       ->get('emerging_digital_chatbot.settings')
-      ->get("future_ai.context.allowed_public_paths.$langcode");
+      ->get('future_ai.rag_profile');
 
-    if (!is_array($paths)) {
-      return [];
-    }
-
-    return array_values(array_filter(array_map('strval', $paths)));
+    return is_string($profile) && trim($profile) !== '' ? trim($profile) : 'public_pages_v1';
   }
 
 }

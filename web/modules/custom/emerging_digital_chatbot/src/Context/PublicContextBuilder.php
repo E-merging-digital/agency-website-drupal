@@ -99,6 +99,8 @@ final class PublicContextBuilder {
     $text = preg_replace('/[[:^print:]\t\r\n]/u', ' ', $text);
     $text = preg_replace('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/iu', ' ', (string) $text);
     $text = preg_replace('/(?:\+?\d[\d\s().-]{7,}\d)/u', ' ', (string) $text);
+    $text = preg_replace('/\b(?:api[_-]?key|secret|token|password)\b\s*[:=]\s*[^\s]+/iu', ' ', (string) $text);
+    $text = preg_replace('/\bsk-[A-Za-z0-9_-]{8,}\b/u', ' ', (string) $text);
 
     $lines = preg_split('/\R/u', (string) $text) ?: [];
     $lines = array_map(static function (string $line): string {

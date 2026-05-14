@@ -1,0 +1,4 @@
+inspect emerging digital chatbot public context:
+  title: 'Inspect Emerging Digital chatbot public context'
+  description: 'View the sanitized public context prepared for the Emerging Digital chatbot.'
+  restrict access: true

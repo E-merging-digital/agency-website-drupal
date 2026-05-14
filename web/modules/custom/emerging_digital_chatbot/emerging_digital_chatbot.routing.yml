@@ -7,3 +7,13 @@ emerging_digital_chatbot.conversation:
     _permission: 'access content'
     _csrf_token: 'TRUE'
     _method: POST
+
+emerging_digital_chatbot.public_context:
+  path: '/admin/config/services/emerging-digital-chatbot/public-context'
+  defaults:
+    _controller: '\Drupal\emerging_digital_chatbot\Controller\PublicContextAdminController::inspect'
+    _title: 'Emerging Digital chatbot public context'
+  requirements:
+    _permission: 'inspect emerging digital chatbot public context'
+  options:
+    _admin_route: TRUE

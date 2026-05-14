@@ -1,0 +1,9 @@
+name: 'Emerging Digital Chatbot'
+type: module
+description: 'Guided contact and light qualification chatbot for E-merging Digital.'
+package: 'Emerging Digital'
+core_version_requirement: '^11'
+dependencies:
+  - drupal:block
+  - drupal:language
+  - drupal:system

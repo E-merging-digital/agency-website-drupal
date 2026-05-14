@@ -1,0 +1,25 @@
+<?php
+
+/**
+ * @file
+ * Theme hooks for the Emerging Digital chatbot module.
+ */
+
+declare(strict_types=1);
+
+/**
+ * Implements hook_theme().
+ */
+function emerging_digital_chatbot_theme(): array {
+  return [
+    'emerging_digital_chatbot' => [
+      'variables' => [
+        'chatbot_id' => NULL,
+        'title' => NULL,
+        'launcher_label' => NULL,
+        'close_label' => NULL,
+        'reset_label' => NULL,
+      ],
+    ],
+  ];
+}

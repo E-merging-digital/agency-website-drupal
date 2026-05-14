@@ -1,0 +1,31 @@
+uuid: 315ead20-d016-42b1-ba9f-2aba31965409
+langcode: fr
+status: true
+dependencies:
+  module:
+    - emerging_digital_chatbot
+    - system
+  theme:
+    - emerging_digital
+id: emerging_digital_chatbot_widget
+theme: emerging_digital
+region: content
+weight: 50
+provider: null
+plugin: emerging_digital_chatbot
+settings:
+  id: emerging_digital_chatbot
+  label: 'Assistant E-merging Digital'
+  label_display: '0'
+  provider: emerging_digital_chatbot
+  suppress_contact_pages: true
+  launcher_variant: labelled
+visibility:
+  request_path:
+    id: request_path
+    negate: true
+    context_mapping: {  }
+    pages: |
+      /fr/contact
+      /en/contact
+      /contact

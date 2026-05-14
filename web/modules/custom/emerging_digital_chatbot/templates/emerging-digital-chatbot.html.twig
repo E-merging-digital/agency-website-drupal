@@ -1,0 +1,33 @@
+{#
+/**
+ * @file
+ * Guided chatbot widget shell.
+ */
+#}
+<div class="ed-chatbot" id="{{ chatbot_id }}" data-chatbot-id="{{ chatbot_id }}">
+  <button class="ed-chatbot__launcher" type="button" aria-expanded="false" aria-controls="{{ chatbot_id }}-panel">
+    <span class="ed-chatbot__launcher-icon" aria-hidden="true"></span>
+    <span class="ed-chatbot__launcher-label">{{ launcher_label }}</span>
+  </button>
+
+  <section class="ed-chatbot__panel" id="{{ chatbot_id }}-panel" role="dialog" aria-modal="true" aria-labelledby="{{ chatbot_id }}-title" hidden>
+    <header class="ed-chatbot__header">
+      <h2 class="ed-chatbot__title" id="{{ chatbot_id }}-title">{{ title }}</h2>
+      <button class="ed-chatbot__close" type="button">
+        <span class="visually-hidden">{{ close_label }}</span>
+        <span aria-hidden="true">×</span>
+      </button>
+    </header>
+
+    <div class="ed-chatbot__body" data-chatbot-body>
+      <div class="ed-chatbot__messages" data-chatbot-messages aria-live="polite"></div>
+      <div class="ed-chatbot__choices" data-chatbot-choices></div>
+      <div class="ed-chatbot__ctas" data-chatbot-ctas hidden></div>
+    </div>
+
+    <footer class="ed-chatbot__footer">
+      <button class="ed-chatbot__reset" type="button">{{ reset_label }}</button>
+      <a class="ed-chatbot__privacy" data-chatbot-privacy href="#"></a>
+    </footer>
+  </section>
+</div>

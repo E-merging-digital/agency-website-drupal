@@ -1,0 +1,166 @@
+enabled: true
+mode: guide
+languages:
+  - fr
+  - en
+allowed_pages:
+  - '*'
+excluded_pages:
+  - /fr/contact
+  - /en/contact
+  - /contact
+future_ai:
+  enabled: false
+  provider: openai_responses
+  prompt_version: mvp_contact_v1
+  rag_profile: public_pages_v1
+  analytics_enabled: false
+  retention_policy: none
+  prompts:
+    fr:
+      system: 'Assistance guidée pour orienter vers les pages publiques et le contact humain. Ne jamais donner de prix, devis, promesse commerciale ou avis engageant.'
+    en:
+      system: 'Guided assistance to route visitors to public pages and human contact. Never provide pricing, quotes, commercial promises, or binding advice.'
+messages:
+  fr:
+    title: 'Assistant E-merging Digital'
+    launcher_label: 'Ouvrir l’assistant'
+    close_label: 'Fermer'
+    reset_label: 'Recommencer'
+    intro: 'Bonjour, je peux vous aider à trouver le bon point d’entrée pour votre projet Drupal ou IA.'
+    transparency: 'Ce MVP fonctionne sans IA générative libre. Les choix restent guidés et aucune conversation n’est stockée durablement.'
+    guardrail: 'Pour un budget, un délai ou une proposition engageante, l’équipe reprend contact avec vous.'
+    choose_label: 'Choisir un besoin'
+    cta_label: 'Actions proposées'
+    privacy_label: 'Confidentialité'
+    privacy_path: '/fr/politique-de-confidentialite'
+    flows:
+      drupal_project:
+        label: 'J’ai un projet Drupal'
+        response: 'Nous pouvons vous orienter selon votre besoin : création, architecture, maintenance ou accompagnement Drupal.'
+        ctas:
+          - label: 'Voir les services Drupal'
+            path: '/fr/services'
+          - label: 'Agence Drupal Belgique'
+            path: '/fr/agence-drupal-belgique'
+          - label: 'Création de site Drupal'
+            path: '/fr/creation-site-drupal'
+          - label: 'Parler à un humain'
+            path: '/fr/contact'
+      modernize:
+        label: 'Je veux moderniser un site existant'
+        response: 'Pour une refonte ou une migration, le plus utile est de clarifier le contexte actuel, les objectifs et les contraintes.'
+        ctas:
+          - label: 'Refonte Drupal'
+            path: '/fr/refonte-site-drupal'
+          - label: 'Migration Drupal'
+            path: '/fr/migration-drupal'
+          - label: 'Maintenance Drupal'
+            path: '/fr/maintenance-drupal'
+          - label: 'Nous contacter'
+            path: '/fr/contact'
+      ai_drupal:
+        label: 'Je cherche de l’aide sur IA & Drupal'
+        response: 'L’approche recommandée est progressive : cadrer les cas d’usage, sécuriser les données, puis intégrer l’IA côté Drupal.'
+        ctas:
+          - label: 'Découvrir IA & Drupal'
+            path: '/fr/ia-drupal'
+          - label: 'IA intégrée'
+            path: '/fr/ia-integree'
+          - label: 'Gouvernance IA'
+            path: '/fr/ia-drupal/gouvernance-validation'
+          - label: 'Échanger avec l’équipe'
+            path: '/fr/contact'
+      seo_accessibility:
+        label: 'Je veux améliorer SEO / accessibilité'
+        response: 'Un audit permet de prioriser les corrections utiles : technique, contenu, accessibilité, performance et maillage interne.'
+        ctas:
+          - label: 'SEO et accessibilité'
+            path: '/fr/accessibilite-seo-optimisation'
+          - label: 'Audit Drupal'
+            path: '/fr/audit-drupal'
+          - label: 'Services'
+            path: '/fr/services'
+          - label: 'Demander un avis humain'
+            path: '/fr/contact'
+      contact:
+        label: 'Je souhaite vous contacter'
+        response: 'Le formulaire de contact reste le meilleur canal. Vous pouvez y décrire votre contexte en quelques lignes, sans partager d’informations sensibles.'
+        ctas:
+          - label: 'Aller au contact'
+            path: '/fr/contact'
+          - label: 'Voir les services'
+            path: '/fr/services'
+          - label: 'Politique de confidentialité'
+            path: '/fr/politique-de-confidentialite'
+  en:
+    title: 'E-merging Digital assistant'
+    launcher_label: 'Open assistant'
+    close_label: 'Close'
+    reset_label: 'Start again'
+    intro: 'Hello, I can help you find the right entry point for your Drupal or AI project.'
+    transparency: 'This MVP runs without free-form generative AI. Choices stay guided and no conversation is stored long term.'
+    guardrail: 'For a budget, timeline, or binding proposal, the team will follow up with you.'
+    choose_label: 'Choose a need'
+    cta_label: 'Suggested actions'
+    privacy_label: 'Privacy'
+    privacy_path: '/en/privacy-policy'
+    flows:
+      drupal_project:
+        label: 'I have a Drupal project'
+        response: 'We can route you by need: creation, architecture, maintenance, or Drupal support.'
+        ctas:
+          - label: 'View Drupal services'
+            path: '/en/services'
+          - label: 'Drupal agency Belgium'
+            path: '/en/drupal-agency-belgium'
+          - label: 'Drupal website creation'
+            path: '/en/drupal-website-creation'
+          - label: 'Talk to a human'
+            path: '/en/contact'
+      modernize:
+        label: 'I want to modernize an existing site'
+        response: 'For a redesign or migration, the useful first step is clarifying the current context, goals, and constraints.'
+        ctas:
+          - label: 'Drupal redesign'
+            path: '/en/drupal-website-redesign'
+          - label: 'Drupal migration'
+            path: '/en/drupal-migration'
+          - label: 'Drupal maintenance'
+            path: '/en/drupal-maintenance'
+          - label: 'Contact us'
+            path: '/en/contact'
+      ai_drupal:
+        label: 'I need help with AI & Drupal'
+        response: 'The recommended approach is progressive: frame the use cases, secure the data, then integrate AI on the Drupal side.'
+        ctas:
+          - label: 'Explore AI & Drupal'
+            path: '/en/ai-drupal'
+          - label: 'Integrated AI'
+            path: '/en/integrated-ai'
+          - label: 'AI governance'
+            path: '/en/ai-drupal/governance-approval'
+          - label: 'Talk to the team'
+            path: '/en/contact'
+      seo_accessibility:
+        label: 'I want to improve SEO / accessibility'
+        response: 'An audit helps prioritize useful fixes: technical SEO, content, accessibility, performance, and internal links.'
+        ctas:
+          - label: 'SEO and accessibility'
+            path: '/en/ai-accessibility-seo-optimization'
+          - label: 'Drupal audit'
+            path: '/en/drupal-audit'
+          - label: 'Services'
+            path: '/en/services'
+          - label: 'Ask for human input'
+            path: '/en/contact'
+      contact:
+        label: 'I would like to contact you'
+        response: 'The contact form is the best channel. You can describe your context in a few lines without sharing sensitive information.'
+        ctas:
+          - label: 'Go to contact'
+            path: '/en/contact'
+          - label: 'View services'
+            path: '/en/services'
+          - label: 'Privacy policy'
+            path: '/en/privacy-policy'

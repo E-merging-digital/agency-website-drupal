@@ -1,0 +1,13 @@
+widget:
+  version: 1.x
+  css:
+    component:
+      css/chatbot-widget.css: {}
+  js:
+    js/chatbot-widget.js:
+      attributes:
+        defer: true
+  dependencies:
+    - core/drupal
+    - core/drupalSettings
+    - core/once

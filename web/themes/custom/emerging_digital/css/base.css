@@ -34,6 +34,7 @@
 
 html {
   font-size: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -42,10 +43,19 @@ body {
   color: var(--color-text);
   background: var(--color-bg);
   line-height: 1.6;
+  overflow-x: clip;
+  text-rendering: optimizeLegibility;
 }
 
 a {
   color: var(--color-primary);
+}
+
+img,
+svg,
+video,
+iframe {
+  max-width: 100%;
 }
 
 a:hover,
@@ -72,6 +82,7 @@ h6 {
   margin-block: 0 0.75em;
   font-family: var(--font-heading);
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 p,
@@ -84,4 +95,11 @@ ol {
 .ed-container {
   width: min(100% - (2 * var(--space-4)), var(--container-width));
   margin-inline: auto;
+}
+
+@media (max-width: 30rem) {
+  .page-container,
+  .ed-container {
+    width: min(100% - (2 * var(--space-3)), var(--container-width));
+  }
 }

@@ -142,6 +142,90 @@ contents:
       en:
         title: 'AI & Drupal'
         alias: /ai-drupal
+  - id: ai-redaction-assistee
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-redaction-assistee.yml
+    business_aliases:
+      fr: /ia-drupal/redaction-assistee
+      en: /ai-drupal/assisted-writing
+    translations:
+      fr:
+        title: 'Rédaction assistée'
+        alias: /ia-drupal/redaction-assistee
+      en:
+        title: 'Assisted writing'
+        alias: /ai-drupal/assisted-writing
+  - id: ai-correction-editoriale
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-correction-editoriale.yml
+    business_aliases:
+      fr: /ia-drupal/correction-editoriale
+      en: /ai-drupal/editorial-review
+    translations:
+      fr:
+        title: 'Correction éditoriale'
+        alias: /ia-drupal/correction-editoriale
+      en:
+        title: 'Editorial review'
+        alias: /ai-drupal/editorial-review
+  - id: ai-traduction-fr-en
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-traduction-fr-en.yml
+    business_aliases:
+      fr: /ia-drupal/traduction-fr-en
+      en: /ai-drupal/fr-en-translation
+    translations:
+      fr:
+        title: 'Préparation traduction FR/EN'
+        alias: /ia-drupal/traduction-fr-en
+      en:
+        title: 'FR/EN translation preparation'
+        alias: /ai-drupal/fr-en-translation
+  - id: ai-resumes-tags-structure
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-resumes-tags-structure.yml
+    business_aliases:
+      fr: /ia-drupal/resumes-tags-structure
+      en: /ai-drupal/summaries-tags-structure
+    translations:
+      fr:
+        title: 'Résumés, tags et structure'
+        alias: /ia-drupal/resumes-tags-structure
+      en:
+        title: 'Summaries, tags and structure'
+        alias: /ai-drupal/summaries-tags-structure
+  - id: ai-seo-liens-internes
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-seo-liens-internes.yml
+    business_aliases:
+      fr: /ia-drupal/seo-liens-internes
+      en: /ai-drupal/seo-internal-links
+    translations:
+      fr:
+        title: 'Suggestions SEO et liens internes'
+        alias: /ia-drupal/seo-liens-internes
+      en:
+        title: 'SEO suggestions and internal links'
+        alias: /ai-drupal/seo-internal-links
+  - id: ai-gouvernance-validation
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-gouvernance-validation.yml
+    business_aliases:
+      fr: /ia-drupal/gouvernance-validation
+      en: /ai-drupal/governance-approval
+    translations:
+      fr:
+        title: 'Gouvernance et validation IA'
+        alias: /ia-drupal/gouvernance-validation
+      en:
+        title: 'AI governance and approval'
+        alias: /ai-drupal/governance-approval
   - id: cas-clients
     entity_type: node
     bundle: page

@@ -27,6 +27,7 @@ final class ContentSyncManager {
 
   private const PRUNE_UNPUBLISH = 'unpublish';
   private const PRUNE_UNPUBLISH_ALLOW_ENV = 'CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH';
+  private const SUPPORTED_NODE_BUNDLES = ['service', 'page', 'ai_feature'];
 
   public function __construct(
     private readonly ContentSyncCatalogLoader $catalogLoader,
@@ -750,7 +751,7 @@ final class ContentSyncManager {
   private function assertSupportedTarget(ContentSyncCatalogEntry $entry): void {
     $definition = $entry->toArray();
     $bundle = (string) ($definition['bundle'] ?? '');
-    if (($definition['entity_type'] ?? NULL) !== 'node' || !in_array($bundle, ['service', 'page'], TRUE)) {
+    if (($definition['entity_type'] ?? NULL) !== 'node' || !in_array($bundle, self::SUPPORTED_NODE_BUNDLES, TRUE)) {
       throw new \RuntimeException(sprintf(
         'Content "%s" is outside the supported targeted write scope.',
         $entry->id(),

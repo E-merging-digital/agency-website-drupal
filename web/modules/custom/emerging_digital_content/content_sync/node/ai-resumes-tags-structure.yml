@@ -1,0 +1,78 @@
+translations:
+  fr:
+    title: 'Résumés, tags et structure'
+    alias: /ia-drupal/resumes-tags-structure
+    fields:
+      field_short_description:
+        value: >-
+          Assistant IA pour générer des résumés, proposer des tags et structurer
+          les contenus Drupal de manière plus exploitable.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Les résumés, tags et aides à la structure rendent les contenus
+          Drupal plus faciles à parcourir, à relier et à maintenir. L’assistant
+          peut proposer un résumé court, identifier des thèmes récurrents ou
+          suggérer une structure plus claire pour un texte long.</p><p>Cette
+          fonctionnalité est utile après une <a href="/fr/migration-drupal">
+          migration Drupal</a>, pendant une <a
+          href="/fr/refonte-site-drupal">refonte Drupal</a> ou dans un travail
+          continu d’<a href="/fr/accessibilite-seo-optimisation">optimisation
+          SEO et accessibilité</a>.</p><p>Elle complète les usages listés sur
+          la page <a href="/fr/ia-drupal">IA &amp; Drupal</a>.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Des contenus plus lisibles, mieux organisés et plus simples à
+          réutiliser dans les parcours éditoriaux.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Après une reprise de contenu, une équipe génère des résumés courts et
+          des tags cohérents pour faciliter la navigation et la relecture.
+        format: basic_html
+      field_use_cases:
+        - value: 'Proposer un résumé court pour une page longue.'
+          format: basic_html
+        - value: 'Suggérer des tags éditoriaux cohérents.'
+          format: basic_html
+        - value: 'Réorganiser un texte en sections plus lisibles.'
+          format: basic_html
+  en:
+    title: 'Summaries, tags and structure'
+    alias: /ai-drupal/summaries-tags-structure
+    fields:
+      field_short_description:
+        value: >-
+          AI assistant to generate summaries, suggest tags and structure Drupal
+          content in a more reusable way.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Summaries, tags and structure suggestions make Drupal content
+          easier to scan, connect and maintain. The assistant can suggest a
+          short summary, identify recurring themes or propose a clearer
+          structure for a long text.</p><p>This feature is useful after a <a
+          href="/en/drupal-migration">Drupal migration</a>, during a <a
+          href="/en/drupal-website-redesign">Drupal redesign</a> or as part of
+          continuous <a href="/en/ai-accessibility-seo-optimization">SEO and
+          accessibility optimization</a>.</p><p>It complements the use cases
+          listed on the <a href="/en/ai-drupal">AI &amp; Drupal</a> page.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Content that is easier to read, better organised and simpler to reuse
+          across editorial journeys.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          After content migration, a team generates short summaries and
+          consistent tags to make navigation and review easier.
+        format: basic_html
+      field_use_cases:
+        - value: 'Suggest a short summary for a long page.'
+          format: basic_html
+        - value: 'Suggest consistent editorial tags.'
+          format: basic_html
+        - value: 'Reorganise a text into clearer sections.'
+          format: basic_html

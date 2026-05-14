@@ -1,0 +1,81 @@
+translations:
+  fr:
+    title: 'Gouvernance et validation IA'
+    alias: /ia-drupal/gouvernance-validation
+    fields:
+      field_short_description:
+        value: >-
+          Cadre IA pour documenter les prompts, contrôler les rôles de
+          validation et éviter les publications automatiques non maîtrisées.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>La gouvernance IA définit comment une équipe utilise l’assistant :
+          champs concernés, prompts documentés, rôles de validation, limites de
+          publication et suivi des contenus modifiés. Elle transforme l’IA en
+          outil éditorial contrôlé plutôt qu’en boîte noire.</p><p>Ce cadre est
+          central pour les PME, ASBL et institutions qui veulent bénéficier de
+          l’IA sans perdre la responsabilité éditoriale. Il complète l’offre <a
+          href="/fr/ia-integree">IA intégrée</a>, les <a
+          href="/fr/services">services Drupal</a> et les usages présentés sur
+          <a href="/fr/ia-drupal">IA &amp; Drupal</a>.</p><p>La validation
+          humaine reste le point de passage avant publication.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Des usages IA plus sûrs, plus explicables et mieux intégrés aux
+          responsabilités éditoriales de l’organisation.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Une institution définit quels champs peuvent recevoir une suggestion
+          IA, qui doit relire, et quelles consignes doivent être respectées
+          avant publication.
+        format: basic_html
+      field_use_cases:
+        - value: 'Documenter les prompts éditoriaux utilisés dans Drupal.'
+          format: basic_html
+        - value: 'Définir les rôles de relecture et de validation.'
+          format: basic_html
+        - value: 'Éviter les publications automatiques sans contrôle humain.'
+          format: basic_html
+  en:
+    title: 'AI governance and approval'
+    alias: /ai-drupal/governance-approval
+    fields:
+      field_short_description:
+        value: >-
+          AI framework to document prompts, control approval roles and avoid
+          unmanaged automatic publication.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>AI governance defines how a team uses the assistant: selected
+          fields, documented prompts, approval roles, publication limits and
+          tracking of changed content. It turns AI into a controlled editorial
+          tool rather than a black box.</p><p>This framework is central for
+          SMEs, non-profits and institutions that want AI benefits without
+          losing editorial responsibility. It complements the <a
+          href="/en/integrated-ai">integrated AI</a> service, <a
+          href="/en/services">Drupal services</a> and the use cases presented
+          on <a href="/en/ai-drupal">AI &amp; Drupal</a>.</p><p>Human approval
+          remains the gate before publication.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          AI use cases that are safer, more explainable and better integrated
+          into the organisation’s editorial responsibilities.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          An institution defines which fields may receive an AI suggestion, who
+          must review it and which guidelines must be respected before
+          publication.
+        format: basic_html
+      field_use_cases:
+        - value: 'Document editorial prompts used in Drupal.'
+          format: basic_html
+        - value: 'Define review and approval roles.'
+          format: basic_html
+        - value: 'Avoid automatic publication without human control.'
+          format: basic_html

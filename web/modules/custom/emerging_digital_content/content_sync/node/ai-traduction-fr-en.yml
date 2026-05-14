@@ -1,0 +1,82 @@
+translations:
+  fr:
+    title: 'Préparation traduction FR/EN'
+    alias: /ia-drupal/traduction-fr-en
+    fields:
+      field_short_description:
+        value: >-
+          Assistant IA pour préparer les variantes françaises et anglaises des
+          contenus Drupal avant relecture humaine.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>La préparation traduction FR/EN aide à produire une première
+          version traduite, à repérer les écarts de sens et à organiser une
+          relecture humaine avant publication. Elle respecte la logique
+          bilingue du site et les URLs localisées.</p><p>Cette fonctionnalité
+          s’inscrit dans la continuité de la page <a href="/fr/ia-drupal">IA
+          &amp; Drupal</a> et de l’offre <a href="/fr/ia-integree">IA
+          intégrée</a>. Elle est pertinente pour les PME qui publient en deux
+          langues, les ASBL qui veulent garder un message clair, et les
+          institutions qui doivent maintenir une cohérence terminologique.</p>
+          <p>Les traductions restent des pré-traductions : la validation humaine
+          demeure obligatoire.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Des contenus bilingues préparés plus vite, avec moins d’écarts de
+          sens et une relecture mieux organisée.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Une institution prépare la version anglaise d’une page d’information,
+          compare les points sensibles avec le français et valide la version
+          finale avant publication.
+        format: basic_html
+      field_use_cases:
+        - value: 'Préparer une pré-traduction anglaise depuis une source française.'
+          format: basic_html
+        - value: 'Repérer les écarts de sens entre deux versions.'
+          format: basic_html
+        - value: 'Organiser une checklist de relecture humaine.'
+          format: basic_html
+  en:
+    title: 'FR/EN translation preparation'
+    alias: /ai-drupal/fr-en-translation
+    fields:
+      field_short_description:
+        value: >-
+          AI assistant to prepare French and English Drupal content variants
+          before human review.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>FR/EN translation preparation helps produce a first translated
+          version, identify meaning gaps and organise human review before
+          publication. It respects the bilingual structure of the site and
+          localised URLs.</p><p>This feature continues the <a
+          href="/en/ai-drupal">AI &amp; Drupal</a> approach and the <a
+          href="/en/integrated-ai">integrated AI</a> service. It is relevant
+          for SMEs publishing in two languages, non-profits that need to keep a
+          clear message, and institutions that must maintain terminology
+          consistency.</p><p>Translations remain pre-translations: human
+          approval is still mandatory.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Bilingual content prepared faster, with fewer meaning gaps and a more
+          organised review process.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          An institution prepares the English version of an information page,
+          compares sensitive points with the French source and approves the
+          final version before publication.
+        format: basic_html
+      field_use_cases:
+        - value: 'Prepare an English pre-translation from a French source.'
+          format: basic_html
+        - value: 'Identify meaning gaps between two versions.'
+          format: basic_html
+        - value: 'Organise a human review checklist.'
+          format: basic_html

@@ -62,7 +62,17 @@ components:
                 Les cas d’usage sont pensés pour des équipes réelles : une PME
                 qui veut publier plus vite, une ASBL qui doit rendre ses textes
                 plus clairs, ou une institution qui doit garder une cohérence
-                multilingue et accessible.
+                multilingue et accessible. Les fiches détaillent la <a
+                href="/fr/ia-drupal/redaction-assistee">rédaction assistée</a>,
+                la <a href="/fr/ia-drupal/correction-editoriale">correction
+                éditoriale</a>, la <a
+                href="/fr/ia-drupal/traduction-fr-en">préparation traduction
+                FR/EN</a>, les <a
+                href="/fr/ia-drupal/resumes-tags-structure">résumés, tags et
+                structure</a>, les <a
+                href="/fr/ia-drupal/seo-liens-internes">suggestions SEO et
+                liens internes</a> et la <a
+                href="/fr/ia-drupal/gouvernance-validation">gouvernance IA</a>.
               format: basic_html
           field_items:
             - value: >-
@@ -96,7 +106,16 @@ components:
                 The use cases are designed for real teams: an SME that needs to
                 publish faster, a non-profit that must make its content clearer,
                 or an institution that needs consistent, multilingual and
-                accessible communication.
+                accessible communication. The dedicated pages describe <a
+                href="/en/ai-drupal/assisted-writing">assisted writing</a>, <a
+                href="/en/ai-drupal/editorial-review">editorial review</a>, <a
+                href="/en/ai-drupal/fr-en-translation">FR/EN translation
+                preparation</a>, <a
+                href="/en/ai-drupal/summaries-tags-structure">summaries, tags
+                and structure</a>, <a
+                href="/en/ai-drupal/seo-internal-links">SEO suggestions and
+                internal links</a> and <a
+                href="/en/ai-drupal/governance-approval">AI governance</a>.
               format: basic_html
           field_items:
             - value: >-

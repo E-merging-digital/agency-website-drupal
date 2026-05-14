@@ -7,7 +7,7 @@ dependencies:
 id: node_ai_feature
 label: 'Content path pattern (Fonctionnalité IA fallback)'
 type: 'canonical_entities:node'
-pattern: 'ia/[node:title]'
+pattern: '/ia/[node:title]'
 selection_criteria:
   8d7f8da3-6ec4-44ed-85e5-00296c84173b:
     id: 'entity_bundle:node'

@@ -3,6 +3,7 @@ _core:
 check_links_types: 0
 default_url_scheme: 'https://'
 base_path: emergingdigital.be
+search_published_contents_only: true
 extract:
   from_a: true
   from_audio: false
@@ -31,7 +32,6 @@ check:
   library: core
   interval: 2419200
   useragent: 'Drupal (+https://drupal.org/)'
-search_published_contents_only: true
 error:
   action_status_code_301: 0
   action_status_code_404: 0

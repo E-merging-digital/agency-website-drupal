@@ -44,4 +44,13 @@ ddev drush linkchecker:clear --uri=http://agency-website-drupal.ddev.site
 ddev drush linkchecker:check --uri=http://agency-website-drupal.ddev.site
 ```
 
+En DDEV, Drupal configure son client HTTP avec le certificat Traefik du projet.
+Cela permet aussi une exécution avec l'URL HTTPS DDEV sans désactiver la
+vérification TLS :
+
+```bash
+ddev drush linkchecker:clear --uri=https://agency-website-drupal.ddev.site
+ddev drush linkchecker:check --uri=https://agency-website-drupal.ddev.site
+```
+
 En environnement public, cron doit utiliser l'URL publique du site afin que les liens internes soient vérifiés contre le domaine canonique.

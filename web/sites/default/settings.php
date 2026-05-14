@@ -25,6 +25,23 @@ if (file_exists(__DIR__ . '/settings.ddev.php')) {
   include __DIR__ . '/settings.ddev.php';
 }
 
+// Let Drupal/Guzzle trust the HTTPS certificate served by the DDEV router.
+if (getenv('IS_DDEV_PROJECT') === 'true') {
+  $ddev_project = getenv('DDEV_PROJECT');
+  $ddev_project_cert = $ddev_project
+    ? '/mnt/ddev_config/traefik/certs/' . $ddev_project . '.crt'
+    : '';
+  $ddev_caroot = getenv('CAROOT') ?: '/mnt/ddev-global-cache/mkcert';
+  $ddev_root_ca = $ddev_caroot . '/rootCA.pem';
+
+  if (is_readable($ddev_project_cert)) {
+    $settings['http_client_config']['verify'] = $ddev_project_cert;
+  }
+  elseif (is_readable($ddev_root_ca)) {
+    $settings['http_client_config']['verify'] = $ddev_root_ca;
+  }
+}
+
 if (file_exists(__DIR__ . '/settings.local.php')) {
   require __DIR__ . '/settings.local.php';
 }

@@ -10,28 +10,45 @@ translations:
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>La préparation traduction FR/EN aide à produire une première
-          version traduite, à repérer les écarts de sens et à organiser une
-          relecture humaine avant publication. Elle respecte la logique
-          bilingue du site et les URLs localisées.</p><p>Cette fonctionnalité
-          s’inscrit dans la continuité de la page <a href="/fr/ia-drupal">IA
-          &amp; Drupal</a> et de l’offre <a href="/fr/ia-integree">IA
-          intégrée</a>. Elle est pertinente pour les PME qui publient en deux
-          langues, les ASBL qui veulent garder un message clair, et les
-          institutions qui doivent maintenir une cohérence terminologique.</p>
-          <p>Les traductions restent des pré-traductions : la validation humaine
-          demeure obligatoire.</p>
+          <p>La préparation traduction FR/EN accélère le travail bilingue sans
+          transformer la traduction en publication automatique. Elle produit
+          une pré-traduction, signale les zones sensibles et aide l’équipe à
+          comparer le sens, le ton et les liens internes entre les versions
+          française et anglaise.</p><p>Cas d’usage concret : une institution
+          publie une page d’information en français et doit produire une version
+          anglaise fiable. L’assistant prépare une première version, indique les
+          termes administratifs à confirmer et propose des liens localisés vers
+          les bonnes pages EN.</p><p><strong>Workflow IA crédible :</strong></p><ol><li>La
+          version source est relue et marquée comme prête à traduire.</li><li>L’assistant
+          génère une variante EN ou FR en conservant la structure Drupal.</li><li>Les
+          écarts de sens, termes métier et CTA sont listés pour contrôle.</li><li>Une
+          personne bilingue valide la version finale, les liens et les hreflang
+          avant publication.</li></ol><p>Pour une PME, ce flux permet de publier
+          plus régulièrement en deux langues. Pour une ASBL, il évite de perdre
+          la nuance d’un message public. Pour une institution, il soutient la
+          cohérence terminologique entre services.</p><p>Les bénéfices sont une
+          traduction mieux préparée, moins d’oublis dans les CTA et un contrôle
+          plus clair des divergences FR/EN. Les limites restent importantes :
+          l’IA peut manquer une nuance juridique, une expression locale ou une
+          terminologie officielle. La relecture humaine et la responsabilité
+          éditoriale restent indispensables.</p><p><strong><a
+          href="/fr/contact">Organiser un workflow de traduction Drupal</a></strong>
+          ou consulter le hub <a href="/fr/ia-drupal">IA &amp; Drupal</a>. Cette
+          fonctionnalité se combine avec les <a
+          href="/fr/ia-drupal/resumes-tags-structure">résumés, tags et
+          structure</a>, l’offre <a href="/fr/ia-integree">IA intégrée</a> et la <a
+          href="/fr/ia-drupal/gouvernance-validation">gouvernance IA</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
           Des contenus bilingues préparés plus vite, avec moins d’écarts de
-          sens et une relecture mieux organisée.
+          sens, des CTA localisés et une relecture mieux organisée.
         format: basic_html
       field_concrete_example:
         value: >-
-          Une institution prépare la version anglaise d’une page d’information,
-          compare les points sensibles avec le français et valide la version
-          finale avant publication.
+          Une institution prépare la version anglaise d’une page d’information :
+          l’IA conserve la structure, signale les termes à vérifier et l’équipe
+          bilingue valide les liens EN avant publication.
         format: basic_html
       field_use_cases:
         - value: 'Préparer une pré-traduction anglaise depuis une source française.'
@@ -51,27 +68,44 @@ translations:
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>FR/EN translation preparation helps produce a first translated
-          version, identify meaning gaps and organise human review before
-          publication. It respects the bilingual structure of the site and
-          localised URLs.</p><p>This feature continues the <a
-          href="/en/ai-drupal">AI &amp; Drupal</a> approach and the <a
-          href="/en/integrated-ai">integrated AI</a> service. It is relevant
-          for SMEs publishing in two languages, non-profits that need to keep a
-          clear message, and institutions that must maintain terminology
-          consistency.</p><p>Translations remain pre-translations: human
-          approval is still mandatory.</p>
+          <p>FR/EN translation preparation speeds up bilingual work without
+          turning translation into automatic publication. It produces a
+          pre-translation, highlights sensitive areas and helps the team compare
+          meaning, tone and internal links between the French and English
+          versions.</p><p>Concrete use case: an institution publishes an
+          information page in French and needs a reliable English version. The
+          assistant prepares a first version, flags administrative terms to
+          confirm and suggests localised links to the right EN pages.</p>
+          <p><strong>Credible AI workflow:</strong></p><ol><li>The source
+          version is reviewed and marked as ready to translate.</li><li>The
+          assistant generates an EN or FR variant while preserving the Drupal
+          structure.</li><li>Meaning gaps, business terms and CTAs are listed
+          for control.</li><li>A bilingual reviewer approves the final version,
+          links and hreflang before publication.</li></ol><p>For an SME, this
+          flow helps publish more regularly in two languages. For a non-profit,
+          it avoids losing nuance in public messaging. For an institution, it
+          supports terminology consistency across departments.</p><p>The
+          benefits are better prepared translation, fewer CTA omissions and
+          clearer control over FR/EN divergences. The limits remain important:
+          AI can miss a legal nuance, local expression or official terminology.
+          Human review and editorial responsibility remain essential.</p>
+          <p><strong><a href="/en/contact">Organise a Drupal translation
+          workflow</a></strong> or visit the <a href="/en/ai-drupal">AI &amp;
+          Drupal</a> hub. This feature combines well with <a
+          href="/en/ai-drupal/summaries-tags-structure">summaries, tags and
+          structure</a>, the <a href="/en/integrated-ai">integrated AI</a>
+          service and <a href="/en/ai-drupal/governance-approval">AI governance</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
-          Bilingual content prepared faster, with fewer meaning gaps and a more
-          organised review process.
+          Bilingual content prepared faster, with fewer meaning gaps, localised
+          CTAs and a more organised review process.
         format: basic_html
       field_concrete_example:
         value: >-
-          An institution prepares the English version of an information page,
-          compares sensitive points with the French source and approves the
-          final version before publication.
+          An institution prepares the English version of an information page:
+          AI preserves the structure, flags terms to verify and the bilingual
+          team approves EN links before publication.
         format: basic_html
       field_use_cases:
         - value: 'Prepare an English pre-translation from a French source.'

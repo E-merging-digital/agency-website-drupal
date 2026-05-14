@@ -5,33 +5,53 @@ translations:
     fields:
       field_short_description:
         value: >-
-          Assistant IA pour préparer des brouillons de pages, reformuler des
-          contenus existants et accélérer la production éditoriale dans Drupal.
+          Assistant IA pour transformer des notes métier en brouillons Drupal
+          structurés, relus et prêts à être finalisés par l’équipe éditoriale.
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>La rédaction assistée aide une équipe à passer plus vite d’une
-          intention éditoriale à un premier texte structuré, sans publier
-          automatiquement. Elle s’intègre dans une démarche <a
-          href="/fr/ia-drupal">IA &amp; Drupal</a> où chaque proposition reste
-          relue, adaptée et validée par un humain.</p><p>Pour une PME, l’usage
-          typique consiste à préparer une page service, clarifier une offre ou
-          reformuler une section vieillissante. Pour une ASBL ou une
-          institution, l’assistant peut aider à rendre un message plus clair,
-          plus homogène et mieux adapté aux publics.</p><p>Cette fonctionnalité
-          complète nos <a href="/fr/services">services Drupal</a> et peut être
-          cadrée avec l’offre <a href="/fr/ia-integree">IA intégrée</a>.</p>
+          <p>La rédaction assistée aide une équipe à passer d’une intention
+          métier à un premier contenu exploitable dans Drupal. Elle ne publie
+          rien seule : elle prépare une base structurée, cohérente avec le ton
+          du site, que l’équipe peut relire, adapter et valider.</p><p>Cas
+          d’usage concret : une PME veut présenter une nouvelle offre mais ne
+          dispose que de notes commerciales, d’un ancien PDF et de quelques
+          questions fréquentes. L’assistant propose un plan, une introduction,
+          des arguments clairs et des variantes de CTA. Le responsable métier
+          corrige les promesses, puis l’éditeur finalise la page dans
+          Drupal.</p><p><strong>Workflow IA crédible :</strong></p><ol><li>Le
+          rédacteur choisit le type de page et renseigne les objectifs, publics
+          et contraintes.</li><li>L’assistant génère un brouillon avec titres,
+          sections, bénéfices et liens internes localisés.</li><li>L’équipe
+          vérifie les faits, ajuste le ton et complète les preuves
+          métier.</li><li>La publication reste soumise au circuit de validation
+          Drupal.</li></ol><p>Pour une ASBL, le même principe permet de rendre
+          une campagne plus claire sans perdre la précision du message. Pour
+          une institution, il aide à harmoniser des notices ou pages
+          d’information entre plusieurs contributeurs.</p><p>Les bénéfices
+          principaux sont le gain de temps, la réduction de la page blanche, une
+          meilleure cohérence éditoriale et une base plus facile à relire. Les
+          limites sont explicites : l’IA peut simplifier à l’excès, inventer une
+          formulation trop commerciale ou manquer un détail réglementaire. Une
+          validation humaine reste donc obligatoire avant publication.</p><p><strong><a
+          href="/fr/contact">Discuter d’un assistant de rédaction Drupal</a></strong>
+          ou revenir au hub <a href="/fr/ia-drupal">IA &amp; Drupal</a>. Cette
+          fonctionnalité peut être combinée avec la <a
+          href="/fr/ia-drupal/correction-editoriale">correction éditoriale</a>
+          et la <a href="/fr/ia-drupal/traduction-fr-en">préparation traduction
+          FR/EN</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
-          Moins de temps perdu devant une page blanche, plus de cohérence entre
-          les contenus et une validation éditoriale qui reste maîtrisée.
+          Moins de temps perdu devant une page blanche, des contenus mieux
+          structurés dès le départ et une validation éditoriale qui reste
+          maîtrisée par les équipes.
         format: basic_html
       field_concrete_example:
         value: >-
-          Une PME prépare le brouillon d’une nouvelle page service à partir de
-          quelques notes commerciales, puis l’équipe ajuste le ton et valide le
-          contenu avant publication.
+          Une PME prépare une page service depuis cinq notes commerciales :
+          l’IA propose le plan, les arguments et deux CTA, puis l’équipe vérifie
+          les preuves, ajuste le ton et publie seulement après validation.
         format: basic_html
       field_use_cases:
         - value: 'Préparer un brouillon de page service dans Drupal.'
@@ -46,33 +66,50 @@ translations:
     fields:
       field_short_description:
         value: >-
-          AI assistant to prepare page drafts, rephrase existing copy and speed
-          up editorial production in Drupal.
+          AI assistant that turns business notes into structured Drupal drafts,
+          ready for editorial review and human approval.
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>Assisted writing helps a team move faster from an editorial intent
-          to a structured first draft, without automatic publication. It fits
-          within an <a href="/en/ai-drupal">AI &amp; Drupal</a> approach where
-          every suggestion remains reviewed, adapted and approved by a human.</p>
-          <p>For an SME, the typical use is to prepare a service page, clarify
-          an offer or rework an ageing section. For a non-profit or an
-          institution, the assistant can help make a message clearer, more
-          consistent and better adapted to audiences.</p><p>This feature
-          complements our <a href="/en/services">Drupal services</a> and can be
-          framed through the <a href="/en/integrated-ai">integrated AI</a>
-          service.</p>
+          <p>Assisted writing helps a team move from a business intent to a
+          usable first draft in Drupal. It never publishes on its own: it
+          prepares a structured version, aligned with the site’s tone, that the
+          team can review, adapt and approve.</p><p>Concrete use case: an SME
+          wants to present a new service but only has sales notes, an old PDF
+          and a few frequently asked questions. The assistant suggests a plan,
+          an introduction, clear arguments and CTA variants. The business owner
+          corrects the claims, then the editor finalises the page in Drupal.</p>
+          <p><strong>Credible AI workflow:</strong></p><ol><li>The editor
+          selects the page type and provides goals, audiences and
+          constraints.</li><li>The assistant generates a draft with headings,
+          sections, benefits and localised internal links.</li><li>The team
+          checks facts, adjusts tone and adds business proof.</li><li>Publishing
+          remains subject to the Drupal approval workflow.</li></ol><p>For a
+          non-profit, the same principle helps make a campaign clearer without
+          weakening the message. For an institution, it helps harmonise notices
+          or information pages across several contributors.</p><p>The main
+          benefits are time saved, fewer blank-page moments, stronger editorial
+          consistency and a draft that is easier to review. The limits are
+          explicit: AI may oversimplify, make wording too commercial or miss a
+          regulatory detail. Human validation is therefore mandatory before
+          publication.</p><p><strong><a href="/en/contact">Discuss a Drupal
+          writing assistant</a></strong> or return to the <a
+          href="/en/ai-drupal">AI &amp; Drupal</a> hub. This feature can be
+          combined with <a href="/en/ai-drupal/editorial-review">editorial
+          review</a> and <a href="/en/ai-drupal/fr-en-translation">FR/EN
+          translation preparation</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
-          Less time lost in front of a blank page, more consistency across
-          content and editorial approval that remains under control.
+          Less time lost in front of a blank page, better structured content
+          from the start and editorial approval that remains controlled by the
+          team.
         format: basic_html
       field_concrete_example:
         value: >-
-          An SME prepares the draft for a new service page from a few
-          commercial notes, then the team adjusts the tone and approves the
-          content before publication.
+          An SME prepares a service page from five sales notes: AI suggests the
+          plan, arguments and two CTAs, then the team checks proof, adjusts tone
+          and publishes only after approval.
         format: basic_html
       field_use_cases:
         - value: 'Prepare a service page draft in Drupal.'

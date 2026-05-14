@@ -147,21 +147,39 @@ components:
           field_text:
             - value: >-
                 Des usages IA concrets, intégrés à Drupal, pour aider les PME,
-                ASBL et institutions à publier plus vite, relire mieux et
-                garder une gouvernance éditoriale claire.
+                ASBL et institutions à produire des brouillons, relire,
+                traduire, structurer et relier leurs contenus sans sortir du
+                cadre éditorial. Explorez le hub <a href="/fr/ia-drupal">IA
+                &amp; Drupal</a> ou demandez un cadrage via <a
+                href="/fr/contact">la page contact</a>.
               format: basic_html
           field_items:
-            - value: 'Brouillons de pages et reformulation contrôlée'
+            - value: >-
+                Rédaction assistée|Transformer des notes métier en brouillons
+                Drupal structurés, avec validation humaine avant
+                publication.|/fr/ia-drupal/redaction-assistee
               format: basic_html
-            - value: 'Correction éditoriale et adaptation du ton'
+            - value: >-
+                Correction éditoriale|Repérer les phrases confuses, harmoniser
+                le ton et préparer une relecture plus efficace.|/fr/ia-drupal/correction-editoriale
               format: basic_html
-            - value: 'Préparation à la traduction FR/EN'
+            - value: >-
+                Traduction FR/EN|Préparer les variantes bilingues, vérifier les
+                écarts de sens et garder des CTA localisés.|/fr/ia-drupal/traduction-fr-en
               format: basic_html
-            - value: 'Résumés, tags et structuration de contenus'
+            - value: >-
+                Résumés, tags et structure|Synthétiser les pages longues,
+                proposer des tags et rendre les contenus plus
+                réutilisables.|/fr/ia-drupal/resumes-tags-structure
               format: basic_html
-            - value: 'Suggestions SEO et liens internes localisés'
+            - value: >-
+                SEO et liens internes|Suggérer des descriptions, angles SEO et
+                liens internes préfixés par langue.|/fr/ia-drupal/seo-liens-internes
               format: basic_html
-            - value: 'Cadre de validation pour équipes éditoriales'
+            - value: >-
+                Gouvernance IA|Documenter les prompts, les rôles de validation
+                et les limites pour éviter toute publication non
+                maîtrisée.|/fr/ia-drupal/gouvernance-validation
               format: basic_html
       en:
         fields:
@@ -170,21 +188,36 @@ components:
           field_text:
             - value: >-
                 Concrete AI applications, integrated into Drupal, to help SMEs,
-                non-profits and institutions publish faster, review better and
-                keep editorial governance clear.
+                non-profits and institutions draft, review, translate,
+                structure and connect their content without leaving the
+                editorial framework. Explore the <a href="/en/ai-drupal">AI
+                &amp; Drupal</a> hub or request scoping through the <a
+                href="/en/contact">contact page</a>.
               format: basic_html
           field_items:
-            - value: 'Page drafts and controlled rephrasing'
+            - value: >-
+                Assisted writing|Turn business notes into structured Drupal
+                drafts, with human approval before publication.|/en/ai-drupal/assisted-writing
               format: basic_html
-            - value: 'Editorial correction and tone adaptation'
+            - value: >-
+                Editorial review|Identify unclear wording, harmonise tone and
+                prepare a more efficient review.|/en/ai-drupal/editorial-review
               format: basic_html
-            - value: 'Preparation for FR/EN translation'
+            - value: >-
+                FR/EN translation|Prepare bilingual variants, check meaning
+                gaps and keep CTAs localised.|/en/ai-drupal/fr-en-translation
               format: basic_html
-            - value: 'Summaries, tags and content structuring'
+            - value: >-
+                Summaries, tags and structure|Summarise long pages, suggest
+                tags and make content easier to reuse.|/en/ai-drupal/summaries-tags-structure
               format: basic_html
-            - value: 'SEO suggestions and localised internal links'
+            - value: >-
+                SEO and internal links|Suggest descriptions, SEO angles and
+                language-prefixed internal links.|/en/ai-drupal/seo-internal-links
               format: basic_html
-            - value: 'Approval framework for editorial teams'
+            - value: >-
+                AI governance|Document prompts, approval roles and limits to
+                avoid unmanaged publication.|/en/ai-drupal/governance-approval
               format: basic_html
   - id: homepage.case-studies
     legacy_uuid: 614270dd-1d42-4ea9-a7ae-6321952de65b

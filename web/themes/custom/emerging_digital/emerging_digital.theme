@@ -77,6 +77,41 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
 }
 
 /**
+ * Implements hook_preprocess_paragraph__ai_features().
+ */
+function emerging_digital_preprocess_paragraph__ai_features(array &$variables): void {
+  $paragraph = $variables['paragraph'] ?? NULL;
+  if (!$paragraph || !$paragraph->hasField('field_items')) {
+    return;
+  }
+
+  $language = $paragraph->language();
+  $langcode = $language->getId();
+  $variables['ai_feature_cards'] = [];
+
+  foreach ($paragraph->get('field_items') as $item) {
+    $parts = array_map('trim', explode('|', (string) $item->value));
+    $url = '';
+
+    if (!empty($parts[2])) {
+      try {
+        $url = Url::fromUserInput($parts[2], ['language' => $language])->toString();
+      }
+      catch (\InvalidArgumentException) {
+        $url = $parts[2];
+      }
+    }
+
+    $variables['ai_feature_cards'][] = [
+      'title' => $parts[0] ?? '',
+      'description' => $parts[1] ?? '',
+      'url' => $url,
+      'cta_label' => $langcode === 'en' ? 'Explore' : 'Explorer',
+    ];
+  }
+}
+
+/**
  * Implements hook_preprocess_paragraph__hero().
  */
 function emerging_digital_preprocess_paragraph__hero(array &$variables): void {

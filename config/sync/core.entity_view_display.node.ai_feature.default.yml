@@ -1,0 +1,70 @@
+uuid: 9aaa4cf0-55a7-4634-8d28-782a67fc0b59
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.ai_feature.field_concrete_example
+    - field.field.node.ai_feature.field_customer_benefit
+    - field.field.node.ai_feature.field_detailed_description
+    - field.field.node.ai_feature.field_feature_image
+    - field.field.node.ai_feature.field_feature_type
+    - field.field.node.ai_feature.field_related_services
+    - field.field.node.ai_feature.field_sector
+    - field.field.node.ai_feature.field_short_description
+    - field.field.node.ai_feature.field_use_cases
+    - node.type.ai_feature
+  module:
+    - text
+    - user
+id: node.ai_feature.default
+targetEntityType: node
+bundle: ai_feature
+mode: default
+content:
+  field_short_description:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_detailed_description:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_concrete_example:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 2
+    region: content
+  field_use_cases:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 3
+    region: content
+  field_customer_benefit:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 4
+    region: content
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden:
+  field_feature_image: true
+  field_feature_type: true
+  field_related_services: true
+  field_sector: true
+  langcode: true
+  search_api_excerpt: true

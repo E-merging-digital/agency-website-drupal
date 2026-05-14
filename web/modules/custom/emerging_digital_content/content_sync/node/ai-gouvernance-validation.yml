@@ -10,16 +10,34 @@ translations:
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>La gouvernance IA définit comment une équipe utilise l’assistant :
-          champs concernés, prompts documentés, rôles de validation, limites de
-          publication et suivi des contenus modifiés. Elle transforme l’IA en
-          outil éditorial contrôlé plutôt qu’en boîte noire.</p><p>Ce cadre est
-          central pour les PME, ASBL et institutions qui veulent bénéficier de
-          l’IA sans perdre la responsabilité éditoriale. Il complète l’offre <a
-          href="/fr/ia-integree">IA intégrée</a>, les <a
-          href="/fr/services">services Drupal</a> et les usages présentés sur
-          <a href="/fr/ia-drupal">IA &amp; Drupal</a>.</p><p>La validation
-          humaine reste le point de passage avant publication.</p>
+          <p>La gouvernance IA définit comment l’assistant est utilisé dans
+          Drupal : champs concernés, prompts documentés, limites d’usage, rôles
+          de validation et suivi des contenus modifiés. Elle transforme l’IA en
+          outil éditorial contrôlé plutôt qu’en automatisation opaque.</p><p>Cas
+          d’usage concret : une institution souhaite autoriser l’IA pour les
+          résumés et la relecture, mais pas pour publier directement. Le cadre
+          précise les champs autorisés, les consignes de ton, les personnes qui
+          relisent et les contenus qui doivent rester hors périmètre.</p>
+          <p><strong>Workflow IA crédible :</strong></p><ol><li>L’équipe liste
+          les usages autorisés : rédaction, correction, traduction, SEO ou
+          résumé.</li><li>Les prompts, contraintes, langues et champs Drupal
+          concernés sont documentés.</li><li>Les rôles de relecture et de
+          validation sont associés au workflow éditorial existant.</li><li>Les
+          décisions sont revues régulièrement pour corriger les dérives et
+          améliorer les consignes.</li></ol><p>Pour une PME, cette gouvernance
+          évite que l’IA devienne un outil dispersé sans méthode. Pour une
+          ASBL, elle protège le message et les publics sensibles. Pour une
+          institution, elle rend les responsabilités explicites.</p><p>Les
+          bénéfices sont des usages IA plus sûrs, plus explicables, mieux
+          intégrés aux responsabilités éditoriales et plus faciles à auditer.
+          Les limites restent présentes : un cadre ne remplace pas la vigilance,
+          et certains contenus sensibles doivent rester exclus ou faire l’objet
+          d’une relecture renforcée.</p><p><strong><a href="/fr/contact">Définir
+          une gouvernance IA dans Drupal</a></strong> ou revenir au hub <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a>. Ce cadre soutient la <a
+          href="/fr/ia-drupal/redaction-assistee">rédaction assistée</a>, la <a
+          href="/fr/ia-drupal/traduction-fr-en">préparation traduction FR/EN</a>
+          et les <a href="/fr/services">services Drupal</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
@@ -28,9 +46,9 @@ translations:
         format: basic_html
       field_concrete_example:
         value: >-
-          Une institution définit quels champs peuvent recevoir une suggestion
-          IA, qui doit relire, et quelles consignes doivent être respectées
-          avant publication.
+          Une institution définit les champs qui peuvent recevoir une suggestion
+          IA, les prompts autorisés, les personnes qui relisent et les contenus
+          sensibles qui nécessitent une validation renforcée.
         format: basic_html
       field_use_cases:
         - value: 'Documenter les prompts éditoriaux utilisés dans Drupal.'
@@ -50,16 +68,32 @@ translations:
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>AI governance defines how a team uses the assistant: selected
-          fields, documented prompts, approval roles, publication limits and
-          tracking of changed content. It turns AI into a controlled editorial
-          tool rather than a black box.</p><p>This framework is central for
-          SMEs, non-profits and institutions that want AI benefits without
-          losing editorial responsibility. It complements the <a
-          href="/en/integrated-ai">integrated AI</a> service, <a
-          href="/en/services">Drupal services</a> and the use cases presented
-          on <a href="/en/ai-drupal">AI &amp; Drupal</a>.</p><p>Human approval
-          remains the gate before publication.</p>
+          <p>AI governance defines how the assistant is used in Drupal: selected
+          fields, documented prompts, usage limits, approval roles and tracking
+          of changed content. It turns AI into a controlled editorial tool
+          instead of opaque automation.</p><p>Concrete use case: an institution
+          wants to allow AI for summaries and review, but not for direct
+          publication. The framework defines authorised fields, tone
+          guidelines, reviewers and content that must remain outside the
+          scope.</p><p><strong>Credible AI workflow:</strong></p><ol><li>The
+          team lists authorised uses: writing, review, translation, SEO or
+          summary.</li><li>Prompts, constraints, languages and Drupal fields are
+          documented.</li><li>Review and approval roles are connected to the
+          existing editorial workflow.</li><li>Decisions are reviewed regularly
+          to correct drift and improve instructions.</li></ol><p>For an SME,
+          this governance prevents AI from becoming a scattered tool with no
+          method. For a non-profit, it protects the message and sensitive
+          audiences. For an institution, it makes responsibilities
+          explicit.</p><p>The benefits are safer, more explainable AI use cases
+          that fit editorial responsibilities and are easier to audit. The
+          limits remain real: a framework does not replace vigilance, and some
+          sensitive content should remain excluded or require stronger
+          review.</p><p><strong><a href="/en/contact">Define AI governance in
+          Drupal</a></strong> or return to the <a href="/en/ai-drupal">AI &amp;
+          Drupal</a> hub. This framework supports <a
+          href="/en/ai-drupal/assisted-writing">assisted writing</a>, <a
+          href="/en/ai-drupal/fr-en-translation">FR/EN translation preparation</a>
+          and <a href="/en/services">Drupal services</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
@@ -68,9 +102,9 @@ translations:
         format: basic_html
       field_concrete_example:
         value: >-
-          An institution defines which fields may receive an AI suggestion, who
-          must review it and which guidelines must be respected before
-          publication.
+          An institution defines which fields may receive an AI suggestion,
+          authorised prompts, reviewers and sensitive content that requires
+          stronger approval.
         format: basic_html
       field_use_cases:
         - value: 'Document editorial prompts used in Drupal.'

@@ -11,25 +11,45 @@ translations:
       field_detailed_description:
         value: >-
           <p>Les résumés, tags et aides à la structure rendent les contenus
-          Drupal plus faciles à parcourir, à relier et à maintenir. L’assistant
-          peut proposer un résumé court, identifier des thèmes récurrents ou
-          suggérer une structure plus claire pour un texte long.</p><p>Cette
-          fonctionnalité est utile après une <a href="/fr/migration-drupal">
-          migration Drupal</a>, pendant une <a
-          href="/fr/refonte-site-drupal">refonte Drupal</a> ou dans un travail
-          continu d’<a href="/fr/accessibilite-seo-optimisation">optimisation
-          SEO et accessibilité</a>.</p><p>Elle complète les usages listés sur
-          la page <a href="/fr/ia-drupal">IA &amp; Drupal</a>.</p>
+          Drupal plus faciles à lire, relier et maintenir. L’assistant analyse
+          un texte long, propose une synthèse, identifie des thèmes récurrents
+          et suggère une organisation plus claire pour l’équipe éditoriale.</p>
+          <p>Cas d’usage concret : après une migration Drupal, une PME récupère
+          cinquante anciennes pages dont les titres, introductions et tags sont
+          hétérogènes. L’IA propose des résumés courts, une nomenclature de tags
+          et une structure de sections pour faciliter la reprise manuelle.</p>
+          <p><strong>Workflow IA crédible :</strong></p><ol><li>L’équipe
+          sélectionne un lot de contenus ou une page longue à restructurer.</li><li>L’assistant
+          extrait les thèmes, propose un résumé, des tags et une hiérarchie de
+          titres.</li><li>Le responsable éditorial vérifie que les catégories
+          correspondent au vocabulaire métier.</li><li>Les contenus validés sont
+          réutilisés dans Drupal pour la navigation, les listes ou le
+          SEO.</li></ol><p>Pour une ASBL, ce travail aide à rendre des dossiers
+          complexes plus accessibles. Pour une institution, il facilite
+          l’harmonisation de notices et la recherche interne.</p><p>Les bénéfices
+          sont une meilleure découvrabilité, des contenus plus scannables, une
+          taxonomie plus cohérente et moins de dette éditoriale après migration
+          ou refonte. Les limites sont claires : l’IA peut proposer des tags
+          trop génériques ou oublier une catégorie métier importante. Les choix
+          de structure restent validés par les personnes responsables du
+          contenu.</p><p><strong><a href="/fr/contact">Préparer un chantier de
+          structuration de contenu</a></strong> ou revenir à <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a>. Ce cas d’usage complète la
+          <a href="/fr/migration-drupal">migration Drupal</a>, la <a
+          href="/fr/refonte-site-drupal">refonte Drupal</a> et les <a
+          href="/fr/ia-drupal/seo-liens-internes">suggestions SEO et liens
+          internes</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
           Des contenus plus lisibles, mieux organisés et plus simples à
-          réutiliser dans les parcours éditoriaux.
+          réutiliser dans les parcours éditoriaux, les listes et le SEO.
         format: basic_html
       field_concrete_example:
         value: >-
-          Après une reprise de contenu, une équipe génère des résumés courts et
-          des tags cohérents pour faciliter la navigation et la relecture.
+          Après une migration, une PME traite cinquante anciennes pages :
+          l’assistant propose des résumés, tags et plans de sections, puis
+          l’équipe valide la taxonomie avant de mettre à jour Drupal.
         format: basic_html
       field_use_cases:
         - value: 'Proposer un résumé court pour une page longue.'
@@ -50,24 +70,42 @@ translations:
       field_detailed_description:
         value: >-
           <p>Summaries, tags and structure suggestions make Drupal content
-          easier to scan, connect and maintain. The assistant can suggest a
-          short summary, identify recurring themes or propose a clearer
-          structure for a long text.</p><p>This feature is useful after a <a
-          href="/en/drupal-migration">Drupal migration</a>, during a <a
-          href="/en/drupal-website-redesign">Drupal redesign</a> or as part of
-          continuous <a href="/en/ai-accessibility-seo-optimization">SEO and
-          accessibility optimization</a>.</p><p>It complements the use cases
-          listed on the <a href="/en/ai-drupal">AI &amp; Drupal</a> page.</p>
+          easier to read, connect and maintain. The assistant analyses a long
+          text, suggests a summary, identifies recurring themes and proposes a
+          clearer organisation for the editorial team.</p><p>Concrete use case:
+          after a Drupal migration, an SME has fifty legacy pages with
+          inconsistent titles, introductions and tags. AI suggests short
+          summaries, a tag nomenclature and a section structure to make manual
+          cleanup easier.</p><p><strong>Credible AI workflow:</strong></p><ol><li>The
+          team selects a content batch or a long page to restructure.</li><li>The
+          assistant extracts themes and suggests a summary, tags and heading
+          hierarchy.</li><li>The editorial owner checks that the categories
+          match the business vocabulary.</li><li>Approved content is reused in
+          Drupal for navigation, lists or SEO.</li></ol><p>For a non-profit,
+          this makes complex resources more accessible. For an institution, it
+          helps harmonise notices and improve internal search.</p><p>The
+          benefits are stronger discoverability, more scannable content, a more
+          coherent taxonomy and less editorial debt after migration or redesign.
+          The limits are clear: AI may suggest tags that are too generic or miss
+          an important business category. Structure choices remain approved by
+          the people accountable for the content.</p><p><strong><a
+          href="/en/contact">Prepare a content structuring project</a></strong>
+          or return to <a href="/en/ai-drupal">AI &amp; Drupal</a>. This use
+          case complements <a href="/en/drupal-migration">Drupal migration</a>,
+          <a href="/en/drupal-website-redesign">Drupal redesign</a> and <a
+          href="/en/ai-drupal/seo-internal-links">SEO suggestions and internal
+          links</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
           Content that is easier to read, better organised and simpler to reuse
-          across editorial journeys.
+          across editorial journeys, lists and SEO.
         format: basic_html
       field_concrete_example:
         value: >-
-          After content migration, a team generates short summaries and
-          consistent tags to make navigation and review easier.
+          After a migration, an SME processes fifty legacy pages: the assistant
+          suggests summaries, tags and section plans, then the team validates
+          the taxonomy before updating Drupal.
         format: basic_html
       field_use_cases:
         - value: 'Suggest a short summary for a long page.'

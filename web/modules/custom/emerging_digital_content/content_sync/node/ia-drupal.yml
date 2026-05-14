@@ -62,40 +62,41 @@ components:
                 Les cas d’usage sont pensés pour des équipes réelles : une PME
                 qui veut publier plus vite, une ASBL qui doit rendre ses textes
                 plus clairs, ou une institution qui doit garder une cohérence
-                multilingue et accessible. Les fiches détaillent la <a
-                href="/fr/ia-drupal/redaction-assistee">rédaction assistée</a>,
-                la <a href="/fr/ia-drupal/correction-editoriale">correction
-                éditoriale</a>, la <a
-                href="/fr/ia-drupal/traduction-fr-en">préparation traduction
-                FR/EN</a>, les <a
-                href="/fr/ia-drupal/resumes-tags-structure">résumés, tags et
-                structure</a>, les <a
-                href="/fr/ia-drupal/seo-liens-internes">suggestions SEO et
-                liens internes</a> et la <a
-                href="/fr/ia-drupal/gouvernance-validation">gouvernance IA</a>.
+                multilingue et accessible. Chaque carte détaille un problème
+                métier, un workflow IA et une validation humaine. Pour cadrer
+                ces usages dans votre Drupal, <a href="/fr/contact">parlons de
+                votre contexte</a>.
               format: basic_html
           field_items:
             - value: >-
-                PME : préparer des brouillons de pages services, reformuler des
-                textes existants et accélérer la publication sans perdre la
-                validation humaine.
+                Rédaction assistée|Préparer des brouillons de pages services,
+                reformuler des textes existants et accélérer la publication
+                sans perdre la validation humaine.|/fr/ia-drupal/redaction-assistee
               format: basic_html
             - value: >-
-                ASBL : simplifier des contenus, adapter le ton aux publics et
-                améliorer l’accessibilité éditoriale des messages importants.
+                Correction éditoriale|Simplifier des contenus, adapter le ton
+                aux publics et améliorer l’accessibilité éditoriale des messages
+                importants.|/fr/ia-drupal/correction-editoriale
               format: basic_html
             - value: >-
-                Institutions : harmoniser les notices, actualités et pages
-                d’information avec des règles de style, de structure et de
-                gouvernance partagées.
+                Préparation traduction FR/EN|Comparer les variantes
+                linguistiques, détecter les écarts de sens et organiser une
+                relecture bilingue.|/fr/ia-drupal/traduction-fr-en
               format: basic_html
             - value: >-
-                Multilingue : préparer les contenus FR/EN, détecter les écarts
-                de sens et organiser une relecture humaine avant publication.
+                Résumés, tags et structure|Rendre les pages longues plus
+                lisibles, mieux catégorisées et plus simples à réutiliser dans
+                Drupal.|/fr/ia-drupal/resumes-tags-structure
               format: basic_html
             - value: >-
-                SEO et contenu : proposer des résumés, titres, tags et liens
-                internes localisés vers les pages clés du site.
+                SEO et liens internes|Proposer descriptions, angles éditoriaux
+                et liens internes localisés vers les bonnes pages du
+                site.|/fr/ia-drupal/seo-liens-internes
+              format: basic_html
+            - value: >-
+                Gouvernance IA|Définir les prompts, les rôles de validation et
+                les limites pour garder un usage IA explicable et
+                maîtrisé.|/fr/ia-drupal/gouvernance-validation
               format: basic_html
       en:
         fields:
@@ -106,37 +107,38 @@ components:
                 The use cases are designed for real teams: an SME that needs to
                 publish faster, a non-profit that must make its content clearer,
                 or an institution that needs consistent, multilingual and
-                accessible communication. The dedicated pages describe <a
-                href="/en/ai-drupal/assisted-writing">assisted writing</a>, <a
-                href="/en/ai-drupal/editorial-review">editorial review</a>, <a
-                href="/en/ai-drupal/fr-en-translation">FR/EN translation
-                preparation</a>, <a
-                href="/en/ai-drupal/summaries-tags-structure">summaries, tags
-                and structure</a>, <a
-                href="/en/ai-drupal/seo-internal-links">SEO suggestions and
-                internal links</a> and <a
-                href="/en/ai-drupal/governance-approval">AI governance</a>.
+                accessible communication. Each card details a business problem,
+                an AI workflow and human validation. To scope these uses in
+                your Drupal site, <a href="/en/contact">let’s discuss your
+                context</a>.
               format: basic_html
           field_items:
             - value: >-
-                SMEs: prepare service page drafts, rephrase existing copy and
-                speed up publication without removing human approval.
+                Assisted writing|Prepare service page drafts, rephrase existing
+                copy and speed up publication without removing human
+                approval.|/en/ai-drupal/assisted-writing
               format: basic_html
             - value: >-
-                Non-profits: simplify content, adapt the tone to audiences and
-                improve the editorial accessibility of important messages.
+                Editorial review|Simplify content, adapt tone to audiences and
+                improve the editorial accessibility of important
+                messages.|/en/ai-drupal/editorial-review
               format: basic_html
             - value: >-
-                Institutions: harmonise notices, news and information pages
-                with shared style, structure and governance rules.
+                FR/EN translation preparation|Compare language variants, detect
+                meaning gaps and organise bilingual review.|/en/ai-drupal/fr-en-translation
               format: basic_html
             - value: >-
-                Multilingual: prepare FR/EN content, detect meaning gaps and
-                organise human review before publication.
+                Summaries, tags and structure|Make long pages easier to read,
+                categorise and reuse in Drupal.|/en/ai-drupal/summaries-tags-structure
               format: basic_html
             - value: >-
-                SEO and content: suggest summaries, titles, tags and localised
-                internal links to key site pages.
+                SEO and internal links|Suggest descriptions, editorial angles
+                and localised internal links to the right site
+                pages.|/en/ai-drupal/seo-internal-links
+              format: basic_html
+            - value: >-
+                AI governance|Define prompts, approval roles and limits to keep
+                AI use explainable and controlled.|/en/ai-drupal/governance-approval
               format: basic_html
   - id: ia-drupal.benefits
     legacy_uuid: f6e32e97-aba4-4f5f-a8ce-89fb2ad2a83d

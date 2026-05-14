@@ -10,17 +10,36 @@ translations:
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>La correction éditoriale IA aide les équipes à détecter les
-          formulations confuses, les incohérences de ton et les passages trop
-          longs. Elle ne remplace pas la relecture métier : elle prépare une
-          meilleure base de travail dans Drupal.</p><p>Cette fonctionnalité est
-          utile pour les pages de services, les actualités institutionnelles,
-          les messages d’ASBL et les contenus qui doivent rester accessibles.
-          Elle s’articule avec notre approche <a href="/fr/ia-drupal">IA &amp;
-          Drupal</a> et les prestations <a
+          <p>La correction éditoriale IA sert à améliorer un contenu déjà écrit
+          avant sa validation. Elle repère les phrases trop longues, les
+          passages ambigus, les incohérences de ton et les formulations qui
+          compliquent la lecture pour un public non spécialiste.</p><p>Cas
+          d’usage concret : une ASBL publie une page d’information sur un
+          dispositif d’aide. Le texte est exact, mais trop administratif.
+          L’assistant propose une version plus directe, signale les mots à
+          expliquer et conserve les points qui doivent être confirmés par
+          l’équipe métier.</p><p><strong>Workflow IA crédible :</strong></p><ol><li>Le
+          contributeur soumet le texte Drupal et choisit les objectifs :
+          clarté, ton, accessibilité ou cohérence.</li><li>L’assistant renvoie
+          des suggestions commentées, sans écraser la version source.</li><li>Le
+          responsable éditorial accepte, modifie ou rejette chaque proposition.</li><li>La
+          version finale est relue par une personne responsable avant
+          publication.</li></ol><p>Pour une PME, cette relecture réduit les
+          allers-retours sur des pages de services. Pour une institution, elle
+          aide à garder un ton stable entre plusieurs services rédacteurs, tout
+          en respectant les exigences d’accessibilité et de précision.</p><p>Les
+          bénéfices métier sont une qualité plus régulière, une meilleure
+          lisibilité, moins de reprises tardives et des textes plus cohérents
+          avec la ligne éditoriale. Les limites sont assumées : l’IA ne connaît
+          pas toujours le contexte juridique, politique ou sectoriel. Les faits,
+          chiffres, obligations et formulations sensibles restent validés par
+          un humain.</p><p><strong><a href="/fr/contact">Auditer un workflow de
+          relecture IA</a></strong> ou explorer le hub <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a>. Cette fonctionnalité
+          complète la <a href="/fr/ia-drupal/redaction-assistee">rédaction
+          assistée</a> et les services d’<a
           href="/fr/accessibilite-seo-optimisation">accessibilité, SEO et
-          optimisation</a>.</p><p>Le résultat attendu est un contenu plus clair,
-          plus cohérent et plus facile à relire avant publication.</p>
+          optimisation</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
@@ -29,8 +48,9 @@ translations:
         format: basic_html
       field_concrete_example:
         value: >-
-          Une ASBL relit une page d’information importante, identifie les
-          phrases trop longues et obtient une version plus claire à valider.
+          Une ASBL relit une page d’aide au public : l’IA simplifie les phrases,
+          liste les points à confirmer et l’équipe valide les formulations
+          sensibles avant publication.
         format: basic_html
       field_use_cases:
         - value: 'Repérer les phrases longues ou ambiguës.'
@@ -50,16 +70,34 @@ translations:
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>AI editorial review helps teams detect unclear wording,
-          inconsistent tone and sections that are too long. It does not replace
-          subject-matter review: it prepares a better working version inside
-          Drupal.</p><p>This feature is useful for service pages,
-          institutional news, non-profit messages and content that must remain
-          accessible. It connects with our <a href="/en/ai-drupal">AI &amp;
-          Drupal</a> approach and our <a
+          <p>AI editorial review improves existing content before approval. It
+          identifies long sentences, ambiguous sections, tone inconsistencies
+          and wording that makes the page harder to understand for a
+          non-specialist audience.</p><p>Concrete use case: a non-profit
+          publishes an information page about a support programme. The text is
+          accurate, but too administrative. The assistant suggests a clearer
+          version, highlights terms that should be explained and preserves the
+          points that need subject-matter confirmation.</p><p><strong>Credible
+          AI workflow:</strong></p><ol><li>The contributor submits the Drupal
+          text and chooses the goals: clarity, tone, accessibility or
+          consistency.</li><li>The assistant returns commented suggestions
+          without overwriting the source version.</li><li>The editorial owner
+          accepts, edits or rejects each proposal.</li><li>The final version is
+          reviewed by an accountable person before publication.</li></ol><p>For
+          an SME, this review reduces back-and-forth on service pages. For an
+          institution, it helps keep a stable tone across several editorial
+          departments while respecting accessibility and precision
+          requirements.</p><p>The business benefits are more regular quality,
+          better readability, fewer late revisions and copy that is more
+          consistent with the editorial line. The limits are explicit: AI does
+          not always know the legal, political or sector context. Facts,
+          figures, obligations and sensitive wording remain validated by a
+          human.</p><p><strong><a href="/en/contact">Audit an AI review
+          workflow</a></strong> or explore the <a href="/en/ai-drupal">AI
+          &amp; Drupal</a> hub. This feature complements <a
+          href="/en/ai-drupal/assisted-writing">assisted writing</a> and <a
           href="/en/ai-accessibility-seo-optimization">accessibility, SEO and
-          optimization</a> work.</p><p>The expected result is clearer, more
-          consistent content that is easier to review before publication.</p>
+          optimization</a> services.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
@@ -68,8 +106,9 @@ translations:
         format: basic_html
       field_concrete_example:
         value: >-
-          A non-profit reviews an important information page, identifies overly
-          long sentences and gets a clearer version to approve.
+          A non-profit reviews a public support page: AI simplifies sentences,
+          lists points to confirm and the team approves sensitive wording before
+          publication.
         format: basic_html
       field_use_cases:
         - value: 'Identify long or ambiguous sentences.'

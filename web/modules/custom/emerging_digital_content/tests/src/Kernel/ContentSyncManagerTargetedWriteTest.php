@@ -491,22 +491,26 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       self::assertTrue($node->hasTranslation('en'));
       self::assertNotEmpty((string) $node->get('field_short_description')->value);
       self::assertNotEmpty((string) $node->get('field_customer_benefit')->value);
+      self::assertNotEmpty((string) $node->get('field_concrete_example')->value);
       self::assertCount(3, $node->get('field_use_cases'));
+      self::assertStringContainsString('Workflow IA crédible', (string) $node->get('field_detailed_description')->value);
       $this->assertLocalizedInternalLinks(
         (string) $node->get('field_detailed_description')->value,
         'fr',
-        [$expected['fr_link']],
+        [$expected['fr_link'], '/fr/contact'],
       );
 
       $english = $node->getTranslation('en');
       self::assertSame($expected['en_title'], $english->label());
       self::assertNotEmpty((string) $english->get('field_short_description')->value);
       self::assertNotEmpty((string) $english->get('field_customer_benefit')->value);
+      self::assertNotEmpty((string) $english->get('field_concrete_example')->value);
       self::assertCount(3, $english->get('field_use_cases'));
+      self::assertStringContainsString('Credible AI workflow', (string) $english->get('field_detailed_description')->value);
       $this->assertLocalizedInternalLinks(
         (string) $english->get('field_detailed_description')->value,
         'en',
-        [$expected['en_link']],
+        [$expected['en_link'], '/en/contact'],
       );
 
       $alias_manager = $this->container->get('path_alias.manager');
@@ -868,7 +872,13 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     );
     self::assertSame('IA utile dans Drupal pour les équipes éditoriales', $paragraphs[0]->get('field_heading')->value);
     self::assertSame('Cas d’usage IA dans Drupal', $paragraphs[2]->get('field_heading')->value);
-    self::assertCount(5, $paragraphs[2]->get('field_items'));
+    self::assertCount(6, $paragraphs[2]->get('field_items'));
+    self::assertContains(
+      'Rédaction assistée|Préparer des brouillons de pages services, '
+      . 'reformuler des textes existants et accélérer la publication sans '
+      . 'perdre la validation humaine.|/fr/ia-drupal/redaction-assistee',
+      $this->paragraphItems($paragraphs[2], 'fr'),
+    );
     self::assertSame('Bénéfices', $paragraphs[3]->get('field_heading')->value);
     self::assertCount(4, $paragraphs[3]->get('field_items'));
     self::assertSame('Intégration dans vos processus CMS', $paragraphs[4]->get('field_heading')->value);
@@ -883,6 +893,12 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertSame(
       'AI use cases in Drupal',
       $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertCount(6, $english_paragraphs[2]->getTranslation('en')->get('field_items'));
+    self::assertContains(
+      'Assisted writing|Prepare service page drafts, rephrase existing copy '
+      . 'and speed up publication without removing human approval.|/en/ai-drupal/assisted-writing',
+      $this->paragraphItems($english_paragraphs[2], 'en'),
     );
     self::assertSame(
       'Benefits',
@@ -1588,6 +1604,26 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     }
 
     throw new \RuntimeException(sprintf('No services paragraph found for "%s".', $langcode));
+  }
+
+  /**
+   * Returns normalized text item values for a paragraph translation.
+   *
+   * @return list<string>
+   *   Paragraph item values.
+   */
+  private function paragraphItems(Paragraph $paragraph, string $langcode): array {
+    $paragraph_translation = $paragraph->hasTranslation($langcode)
+      ? $paragraph->getTranslation($langcode)
+      : $paragraph;
+
+    $items = [];
+    foreach ($paragraph_translation->get('field_items') as $item) {
+      $item_value = $item->getValue();
+      $items[] = (string) ($item_value['value'] ?? '');
+    }
+
+    return $items;
   }
 
   /**

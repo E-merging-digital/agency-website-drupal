@@ -5,9 +5,15 @@
       <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
     <div class="ed-cards ed-cards--ai">
-      {% for item in paragraph.field_items %}
+      {% for card in ai_feature_cards %}
         <article class="ed-card ed-card--ai">
-          <h3>{{ item.value|striptags|trim }}</h3>
+          <h3>{{ card.title }}</h3>
+          {% if card.description %}
+            <p>{{ card.description }}</p>
+          {% endif %}
+          {% if card.url %}
+            <a class="button button--secondary" href="{{ card.url }}">{{ card.cta_label }}</a>
+          {% endif %}
         </article>
       {% endfor %}
     </div>

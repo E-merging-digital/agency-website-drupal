@@ -10,28 +10,47 @@ translations:
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>Les suggestions SEO et liens internes aident à relier chaque page à
-          une intention de recherche et à un parcours utile. L’assistant peut
-          proposer des titres, descriptions, angles éditoriaux et liens vers les
-          bonnes pages localisées.</p><p>Dans Drupal, cette logique soutient les
-          pages de <a href="/fr/services">services</a>, les <a
-          href="/fr/cas-clients">cas clients</a>, la page <a
-          href="/fr/ia-drupal">IA &amp; Drupal</a> et les offres comme <a
-          href="/fr/audit-drupal">audit Drupal</a> ou <a
-          href="/fr/creation-site-drupal">création de site Drupal</a>.</p>
-          <p>Les propositions restent à valider pour éviter les liens
-          artificiels ou redondants.</p>
+          <p>Les suggestions SEO et liens internes aident chaque page Drupal à
+          porter une intention claire : répondre à une recherche, orienter vers
+          la bonne suite et renforcer le maillage sans créer de liens
+          artificiels. L’assistant propose des titres, descriptions, angles
+          éditoriaux et liens localisés, mais l’équipe garde la décision.</p>
+          <p>Cas d’usage concret : une PME rédige une page service sur un audit
+          Drupal. L’IA suggère une meta description, deux liens vers des pages
+          services, un lien vers un cas client et un CTA contact, tous en
+          version FR ou EN selon la langue de la page.</p><p><strong>Workflow IA
+          crédible :</strong></p><ol><li>Le rédacteur indique la page, la langue
+          et l’intention de recherche visée.</li><li>L’assistant analyse le
+          contenu, propose une description courte et 2 à 4 liens internes
+          préfixés.</li><li>L’équipe supprime les liens redondants, vérifie les
+          URLs et ajuste les ancres.</li><li>Le Link Checker et la validation
+          humaine confirment que le maillage reste utile.</li></ol><p>Pour une
+          ASBL, ce flux rend les appels à l’action plus visibles sans forcer le
+          parcours. Pour une institution, il aide à relier des pages
+          d’information, services et formulaires tout en respectant la langue du
+          visiteur.</p><p>Les bénéfices sont une meilleure découvrabilité, des
+          CTA plus cohérents, moins d’oublis de maillage et des contenus mieux
+          reliés à la stratégie SEO. Les limites sont assumées : l’IA peut
+          proposer un lien tentant mais peu utile, ou une ancre trop
+          optimisée. Les liens restent sélectionnés, vérifiés et validés par une
+          personne.</p><p><strong><a href="/fr/contact">Améliorer le maillage
+          interne de votre Drupal</a></strong> ou consulter le hub <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a>. Cette fonctionnalité
+          complète les <a href="/fr/services">services Drupal</a>, la <a
+          href="/fr/ia-drupal/redaction-assistee">rédaction assistée</a> et les
+          <a href="/fr/ia-drupal/resumes-tags-structure">résumés, tags et
+          structure</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
-          Un maillage interne plus cohérent, des contenus mieux orientés SEO et
-          moins d’oublis lors de la publication.
+          Un maillage interne plus cohérent, des contenus mieux orientés SEO,
+          des CTA plus visibles et moins d’oublis lors de la publication.
         format: basic_html
       field_concrete_example:
         value: >-
-          Lors de la rédaction d’une page service, l’assistant propose un lien
-          vers un audit Drupal, un cas client ou la page contact selon
-          l’intention du contenu.
+          Une PME prépare une page d’audit Drupal : l’assistant propose une
+          meta description, deux liens services, un lien vers un cas client et
+          un CTA contact, puis l’équipe vérifie chaque URL localisée.
         format: basic_html
       field_use_cases:
         - value: 'Proposer une meta description alignée avec le contenu.'
@@ -51,28 +70,45 @@ translations:
         format: basic_html
       field_detailed_description:
         value: >-
-          <p>SEO suggestions and internal links help connect each page to a
-          search intent and a useful journey. The assistant can suggest titles,
-          descriptions, editorial angles and links to the right localised
-          pages.</p><p>In Drupal, this logic supports <a
-          href="/en/services">service</a> pages, <a
-          href="/en/case-studies">case studies</a>, the <a
-          href="/en/ai-drupal">AI &amp; Drupal</a> page and offers such as <a
-          href="/en/drupal-audit">Drupal audit</a> or <a
-          href="/en/drupal-website-creation">Drupal website creation</a>.</p>
-          <p>Suggestions remain reviewed to avoid artificial or redundant
-          links.</p>
+          <p>SEO suggestions and internal links help each Drupal page carry a
+          clear intent: answer a search, guide visitors to the right next step
+          and strengthen internal linking without creating artificial links.
+          The assistant suggests titles, descriptions, editorial angles and
+          localised links, but the team keeps the decision.</p><p>Concrete use
+          case: an SME drafts a service page about a Drupal audit. AI suggests
+          a meta description, two links to service pages, one link to a case
+          study and one contact CTA, all in FR or EN according to the page
+          language.</p><p><strong>Credible AI workflow:</strong></p><ol><li>The
+          editor provides the page, language and target search intent.</li><li>The
+          assistant analyses the content and suggests a short description plus
+          2 to 4 prefixed internal links.</li><li>The team removes redundant
+          links, checks URLs and adjusts anchor text.</li><li>Link Checker and
+          human validation confirm that linking remains useful.</li></ol><p>For
+          a non-profit, this flow makes calls to action more visible without
+          forcing the journey. For an institution, it helps connect information
+          pages, services and forms while respecting the visitor’s
+          language.</p><p>The benefits are stronger discoverability, more
+          coherent CTAs, fewer linking omissions and content that better
+          supports the SEO strategy. The limits are explicit: AI may suggest a
+          tempting but weak link, or anchor text that is over-optimised. Links
+          remain selected, checked and approved by a person.</p><p><strong><a
+          href="/en/contact">Improve internal linking in your Drupal
+          site</a></strong> or visit the <a href="/en/ai-drupal">AI &amp;
+          Drupal</a> hub. This feature complements <a href="/en/services">Drupal
+          services</a>, <a href="/en/ai-drupal/assisted-writing">assisted
+          writing</a> and <a href="/en/ai-drupal/summaries-tags-structure">summaries,
+          tags and structure</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
-          More coherent internal linking, more SEO-oriented content and fewer
-          omissions during publication.
+          More coherent internal linking, more SEO-oriented content, more
+          visible CTAs and fewer omissions during publication.
         format: basic_html
       field_concrete_example:
         value: >-
-          While drafting a service page, the assistant suggests a link to a
-          Drupal audit, a case study or the contact page according to the
-          content intent.
+          An SME prepares a Drupal audit page: the assistant suggests a meta
+          description, two service links, one case study link and a contact CTA,
+          then the team checks every localised URL.
         format: basic_html
       field_use_cases:
         - value: 'Suggest a meta description aligned with the content.'

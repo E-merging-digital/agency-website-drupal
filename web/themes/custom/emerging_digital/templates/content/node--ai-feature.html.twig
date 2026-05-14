@@ -1,0 +1,75 @@
+{#
+/**
+ * @file
+ * Theme override for AI feature nodes.
+ */
+#}
+<article{{ attributes.addClass('node', 'node--ai-feature', 'ed-detail-page', 'ed-detail-page--ai-feature') }}>
+  <header class="ed-detail-page__hero ed-detail-page__hero--ai">
+    {% if content.field_short_description %}
+      <div class="ed-detail-page__lede">
+        {{ content.field_short_description }}
+      </div>
+    {% endif %}
+  </header>
+
+  <div class="node__content ed-detail-page__layout ed-detail-page__layout--ai">
+    <div class="ed-detail-page__main ed-prose">
+      {{ content.field_detailed_description }}
+    </div>
+
+    <aside
+      class="ed-detail-page__aside"
+      aria-label="{{ ai_feature_summary_label|default('AI feature summary') }}"
+    >
+      {% if content.field_customer_benefit %}
+        <section class="ed-insight-card ed-insight-card--benefit">
+          <h2 class="ed-insight-card__title">
+            {{ ai_feature_benefit_label|default('Customer benefit') }}
+          </h2>
+          <div class="ed-insight-card__content">
+            {{ content.field_customer_benefit }}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if content.field_concrete_example %}
+        <section class="ed-insight-card">
+          <h2 class="ed-insight-card__title">
+            {{ ai_feature_example_label|default('Concrete example') }}
+          </h2>
+          <div class="ed-insight-card__content">
+            {{ content.field_concrete_example }}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if content.field_use_cases %}
+        <section class="ed-insight-card ed-insight-card--uses">
+          <h2 class="ed-insight-card__title">
+            {{ ai_feature_use_cases_label|default('Use cases') }}
+          </h2>
+          <div class="ed-insight-card__content ed-insight-card__content--uses">
+            {{ content.field_use_cases }}
+          </div>
+        </section>
+      {% endif %}
+    </aside>
+
+    {{ content|without(
+      'field_short_description',
+      'field_detailed_description',
+      'field_customer_benefit',
+      'field_concrete_example',
+      'field_use_cases',
+      'field_related_services'
+    ) }}
+  </div>
+
+  {% if content.field_related_services %}
+    <aside class="node__related ed-related-panel">
+      <h2 class="node__related-title">{{ ai_feature_related_services_label|default('Related services') }}</h2>
+      {{ content.field_related_services }}
+    </aside>
+  {% endif %}
+</article>

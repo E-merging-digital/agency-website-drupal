@@ -11,6 +11,33 @@ use Drupal\Core\Url;
 use Drupal\webform\Entity\Webform;
 
 /**
+ * Implements hook_preprocess_node().
+ */
+function emerging_digital_preprocess_node(array &$variables): void {
+  $node = $variables['node'] ?? NULL;
+  if (!$node || $node->bundle() !== 'ai_feature') {
+    return;
+  }
+
+  $is_english = $node->language()->getId() === 'en';
+  $variables['ai_feature_summary_label'] = $is_english
+    ? 'AI feature summary'
+    : 'Synthèse de la fonctionnalité IA';
+  $variables['ai_feature_benefit_label'] = $is_english
+    ? 'Customer benefit'
+    : 'Bénéfice client';
+  $variables['ai_feature_example_label'] = $is_english
+    ? 'Concrete example'
+    : 'Exemple concret';
+  $variables['ai_feature_use_cases_label'] = $is_english
+    ? 'Use cases'
+    : 'Cas d’usage';
+  $variables['ai_feature_related_services_label'] = $is_english
+    ? 'Related services'
+    : 'Services liés';
+}
+
+/**
  * Implements hook_preprocess_paragraph().
  */
 function emerging_digital_preprocess_paragraph(array &$variables): void {

@@ -4,13 +4,25 @@
  * Theme override for service nodes.
  */
 #}
-<article{{ attributes.addClass('node', 'node--service') }}>
-  <div class="node__content">
-    {{ content|without('field_related_ai_features') }}
+<article{{ attributes.addClass('node', 'node--service', 'ed-detail-page', 'ed-detail-page--service') }}>
+  <header class="ed-detail-page__hero">
+    {% if content.field_short_description %}
+      <div class="ed-detail-page__lede">
+        {{ content.field_short_description }}
+      </div>
+    {% endif %}
+  </header>
+
+  <div class="node__content ed-detail-page__layout">
+    <div class="ed-detail-page__main ed-prose">
+      {{ content.field_detailed_description }}
+    </div>
+
+    {{ content|without('field_short_description', 'field_detailed_description', 'field_related_ai_features') }}
   </div>
 
   {% if content.field_related_ai_features %}
-    <aside class="node__related">
+    <aside class="node__related ed-related-panel">
       <h2 class="node__related-title">Fonctionnalités IA liées</h2>
       {{ content.field_related_ai_features }}
     </aside>

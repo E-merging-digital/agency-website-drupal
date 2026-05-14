@@ -94,6 +94,111 @@ final class ChatbotConfig {
   }
 
   /**
+   * Gets the configured Responses API endpoint.
+   */
+  public function getFutureAiEndpoint(): string {
+    return $this->getFutureAiString('endpoint', 'https://api.openai.com/v1/responses');
+  }
+
+  /**
+   * Gets the configured OpenAI model.
+   */
+  public function getFutureAiModel(): string {
+    return $this->getFutureAiString('model', 'gpt-4o-mini');
+  }
+
+  /**
+   * Gets the configured prompt version.
+   */
+  public function getFutureAiPromptVersion(): string {
+    return $this->getFutureAiString('prompt_version', 'mvp_contact_v1');
+  }
+
+  /**
+   * Gets the configured future RAG profile.
+   */
+  public function getFutureAiRagProfile(): string {
+    return $this->getFutureAiString('rag_profile', 'public_pages_v1');
+  }
+
+  /**
+   * Gets the localized system prompt.
+   */
+  public function getFutureAiSystemPrompt(string $langcode): string {
+    $config = $this->configFactory->get('emerging_digital_chatbot.settings');
+    $prompt = $config->get("future_ai.prompts.$langcode.system");
+    if (!is_string($prompt) || trim($prompt) === '') {
+      $prompt = $config->get('future_ai.prompts.fr.system');
+    }
+
+    return is_string($prompt) ? trim($prompt) : '';
+  }
+
+  /**
+   * Gets the localized fallback message for unavailable AI mode.
+   */
+  public function getFutureAiFallbackMessage(string $langcode): string {
+    $config = $this->configFactory->get('emerging_digital_chatbot.settings');
+    $message = $config->get("future_ai.fallback_message.$langcode");
+    if (!is_string($message) || trim($message) === '') {
+      $message = $config->get('future_ai.fallback_message.fr');
+    }
+
+    return is_string($message) ? trim($message) : 'AI mode is unavailable. Please use the guided choices or contact the team.';
+  }
+
+  /**
+   * Gets the AI response temperature.
+   */
+  public function getFutureAiTemperature(): float {
+    $value = $this->configFactory->get('emerging_digital_chatbot.settings')->get('future_ai.temperature');
+
+    return max(0.0, min(1.0, is_numeric($value) ? (float) $value : 0.2));
+  }
+
+  /**
+   * Gets the maximum output token budget.
+   */
+  public function getFutureAiMaxOutputTokens(): int {
+    return $this->getFutureAiBoundedInt('max_output_tokens', 220, 80, 600);
+  }
+
+  /**
+   * Gets the provider timeout in seconds.
+   */
+  public function getFutureAiTimeoutSeconds(): int {
+    return $this->getFutureAiBoundedInt('timeout_seconds', 8, 2, 30);
+  }
+
+  /**
+   * Gets the maximum visitor message length.
+   */
+  public function getFutureAiMaxInputChars(): int {
+    return $this->getFutureAiBoundedInt('security.max_input_chars', 600, 80, 1200);
+  }
+
+  /**
+   * Gets the maximum prompt context length.
+   */
+  public function getFutureAiMaxContextChars(): int {
+    return $this->getFutureAiBoundedInt('security.max_context_chars', 1200, 200, 4000);
+  }
+
+  /**
+   * Gets the configured rate limit.
+   */
+  public function getFutureAiRateLimit(): int {
+    return $this->getFutureAiBoundedInt('security.rate_limit.limit', 10, 1, 120);
+  }
+
+  /**
+   * Gets the configured rate limit window.
+   */
+  public function getFutureAiRateLimitWindow(): int {
+    return $this->getFutureAiBoundedInt('security.rate_limit.window_seconds', 60, 10, 3600);
+  }
+
+  /**
    * Gets a small, non-secret future AI summary for diagnostics.
    *
    * @return array<string, string|bool>
@@ -107,8 +212,9 @@ final class ChatbotConfig {
     return [
       'enabled' => (bool) $config->get('future_ai.enabled'),
       'provider' => (string) ($config->get('future_ai.provider') ?? 'openai_responses'),
-      'promptVersion' => (string) ($config->get('future_ai.prompt_version') ?? 'mvp_contact_v1'),
-      'ragProfile' => (string) ($config->get('future_ai.rag_profile') ?? 'public_pages_v1'),
+      'model' => $this->getFutureAiModel(),
+      'promptVersion' => $this->getFutureAiPromptVersion(),
+      'ragProfile' => $this->getFutureAiRagProfile(),
       'retentionPolicy' => (string) ($config->get('future_ai.retention_policy') ?? 'none'),
       'promptPrepared' => is_string($prompt) && $prompt !== '',
     ];
@@ -180,6 +286,25 @@ final class ChatbotConfig {
     }
 
     return array_values(array_filter(array_map('strval', $value)));
+  }
+
+  /**
+   * Reads a future AI string setting.
+   */
+  private function getFutureAiString(string $key, string $default): string {
+    $value = $this->configFactory->get('emerging_digital_chatbot.settings')->get("future_ai.$key");
+
+    return is_string($value) && trim($value) !== '' ? trim($value) : $default;
+  }
+
+  /**
+   * Reads and bounds a future AI integer setting.
+   */
+  private function getFutureAiBoundedInt(string $key, int $default, int $min, int $max): int {
+    $value = $this->configFactory->get('emerging_digital_chatbot.settings')->get("future_ai.$key");
+    $value = is_numeric($value) ? (int) $value : $default;
+
+    return max($min, min($max, $value));
   }
 
   /**

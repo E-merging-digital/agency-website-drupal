@@ -8,11 +8,41 @@ services:
       - '@path_alias.manager'
       - '@path.matcher'
 
-  emerging_digital_chatbot.future_ai_gateway:
+  emerging_digital_chatbot.payload_sanitizer:
+    class: Drupal\emerging_digital_chatbot\FutureAi\ChatbotPayloadSanitizer
+    arguments:
+      - '@emerging_digital_chatbot.config'
+
+  emerging_digital_chatbot.public_ai_context_provider:
+    class: Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider
+    arguments:
+      - '@config.factory'
+
+  emerging_digital_chatbot.fallback_ai_gateway:
     class: Drupal\emerging_digital_chatbot\FutureAi\NullFutureAiGateway
+    arguments:
+      - '@emerging_digital_chatbot.config'
+
+  emerging_digital_chatbot.future_ai_gateway:
+    class: Drupal\emerging_digital_chatbot\FutureAi\OpenAiResponsesGateway
+    arguments:
+      - '@emerging_digital_chatbot.config'
+      - '@config.factory'
+      - '@http_client'
+      - '@logger.channel.emerging_digital_chatbot'
+      - '@emerging_digital_chatbot.public_ai_context_provider'
+      - '@emerging_digital_chatbot.fallback_ai_gateway'
+      - '@?key.repository'
+
+  logger.channel.emerging_digital_chatbot:
+    parent: logger.channel_base
+    arguments: ['emerging_digital_chatbot']
 
   emerging_digital_chatbot.endpoint_controller:
     class: Drupal\emerging_digital_chatbot\Controller\ChatbotEndpointController
     arguments:
       - '@emerging_digital_chatbot.config'
       - '@emerging_digital_chatbot.future_ai_gateway'
+      - '@emerging_digital_chatbot.payload_sanitizer'
+      - '@flood'
+      - '@logger.channel.emerging_digital_chatbot'

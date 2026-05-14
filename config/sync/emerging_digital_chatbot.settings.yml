@@ -12,15 +12,80 @@ excluded_pages:
 future_ai:
   enabled: false
   provider: openai_responses
+  endpoint: 'https://api.openai.com/v1/responses'
+  model: 'gpt-4o-mini'
+  openai_key_id: openai_api_key
+  temperature: 0.2
+  max_output_tokens: 220
+  timeout_seconds: 8
   prompt_version: mvp_contact_v1
   rag_profile: public_pages_v1
   analytics_enabled: false
   retention_policy: none
+  fallback_message:
+    fr: 'Je peux vous aider à clarifier votre besoin et vous orienter vers la bonne page. Pour une proposition engageante, l’équipe doit reprendre contact avec vous.'
+    en: 'I can help you clarify your need and point you to the right page. For a binding proposal, the team needs to follow up with you.'
+  security:
+    max_input_chars: 600
+    max_context_chars: 1200
+    rate_limit:
+      limit: 10
+      window_seconds: 60
+  context:
+    allowed_public_paths:
+      fr:
+        - /fr/accueil
+        - /fr/services
+        - /fr/ia-drupal
+        - /fr/agence-drupal-belgique
+        - /fr/creation-site-drupal
+        - /fr/maintenance-drupal
+        - /fr/migration-drupal
+        - /fr/refonte-site-drupal
+        - /fr/audit-drupal
+        - /fr/accessibilite-seo-optimisation
+        - /fr/contact
+      en:
+        - /en/home
+        - /en/services
+        - /en/ai-drupal
+        - /en/drupal-agency-belgium
+        - /en/drupal-website-creation
+        - /en/drupal-maintenance
+        - /en/drupal-migration
+        - /en/drupal-website-redesign
+        - /en/drupal-audit
+        - /en/ai-accessibility-seo-optimization
+        - /en/contact
   prompts:
     fr:
-      system: 'Assistance guidée pour orienter vers les pages publiques et le contact humain. Ne jamais donner de prix, devis, promesse commerciale ou avis engageant.'
+      system: |
+        Vous êtes l’assistance automatisée encadrée d’E-merging Digital. Votre rôle est d’aider un visiteur à clarifier un besoin Drupal, IA Drupal, accessibilité ou SEO, puis à l’orienter vers une page publique utile ou vers le contact humain.
+
+        Règles strictes :
+        - répondez en français, avec un ton sobre, professionnel, rassurant et concis ;
+        - ne donnez jamais de prix, devis, fourchette budgétaire, délai garanti ou validation commerciale ;
+        - ne promettez jamais qu’un projet est accepté ou techniquement validé ;
+        - ne donnez pas d’avis juridique, médical, financier ou contractuel ;
+        - ne demandez pas de données sensibles, mots de passe, secrets, documents privés ou données de tiers ;
+        - ne prétendez pas disposer d’informations hors contexte public fourni par Drupal ;
+        - indiquez que l’équipe doit reprendre contact pour toute proposition engageante.
+
+        Réponse de garde-fou à utiliser si la demande dépasse ces limites : "Je peux vous aider à clarifier votre besoin et vous orienter vers la bonne page. Pour une proposition engageante, l’équipe doit reprendre contact avec vous."
     en:
-      system: 'Guided assistance to route visitors to public pages and human contact. Never provide pricing, quotes, commercial promises, or binding advice.'
+      system: |
+        You are E-merging Digital’s controlled automated assistant. Your role is to help a visitor clarify a Drupal, Drupal AI, accessibility, or SEO need, then point them to a useful public page or human contact.
+
+        Strict rules:
+        - answer in English with a calm, professional, reassuring, and concise tone;
+        - never provide prices, quotes, budget ranges, guaranteed timelines, or commercial validation;
+        - never promise that a project is accepted or technically validated;
+        - do not provide legal, medical, financial, or contractual advice;
+        - do not ask for sensitive data, passwords, secrets, private documents, or third-party data;
+        - do not claim access to information beyond the public context supplied by Drupal;
+        - state that the team must follow up for any binding proposal.
+
+        Guardrail response to use when the request goes beyond these limits: "I can help you clarify your need and point you to the right page. For a binding proposal, the team needs to follow up with you."
 messages:
   fr:
     title: 'Assistant E-merging Digital'

@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Drupal\emerging_digital_chatbot\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Flood\FloodInterface;
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
+use Drupal\emerging_digital_chatbot\FutureAi\ChatbotPayloadSanitizer;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiGatewayInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,6 +22,9 @@ final class ChatbotEndpointController extends ControllerBase {
   public function __construct(
     private readonly ChatbotConfig $chatbotConfig,
     private readonly FutureAiGatewayInterface $futureAiGateway,
+    private readonly ChatbotPayloadSanitizer $payloadSanitizer,
+    private readonly FloodInterface $flood,
+    private readonly LoggerInterface $logger,
   ) {
   }
 
@@ -29,6 +35,9 @@ final class ChatbotEndpointController extends ControllerBase {
     return new self(
       $container->get('emerging_digital_chatbot.config'),
       $container->get('emerging_digital_chatbot.future_ai_gateway'),
+      $container->get('emerging_digital_chatbot.payload_sanitizer'),
+      $container->get('flood'),
+      $container->get('logger.channel.emerging_digital_chatbot'),
     );
   }
 
@@ -36,13 +45,38 @@ final class ChatbotEndpointController extends ControllerBase {
    * Handles a conversation request without storing the submitted content.
    */
   public function conversation(Request $request): JsonResponse {
-    $decoded = json_decode($request->getContent(), TRUE);
-    $payload = is_array($decoded) ? $this->sanitizePayload($decoded) : [];
+    if (!$this->isAllowedByRateLimit($request)) {
+      return $this->jsonResponse([
+        'status' => 'rate_limited',
+        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($this->chatbotConfig->getCurrentLangcode()),
+        'fallback' => TRUE,
+        'stored' => FALSE,
+        'langcode' => $this->chatbotConfig->getCurrentLangcode(),
+      ], 429);
+    }
+
+    try {
+      $decoded = json_decode($request->getContent(), TRUE, 512, JSON_THROW_ON_ERROR);
+    }
+    catch (\JsonException) {
+      $this->logger->notice('Chatbot endpoint rejected invalid JSON.');
+
+      return $this->jsonResponse([
+        'status' => 'invalid_payload',
+        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($this->chatbotConfig->getCurrentLangcode()),
+        'fallback' => TRUE,
+        'stored' => FALSE,
+        'langcode' => $this->chatbotConfig->getCurrentLangcode(),
+      ], 400);
+    }
+
+    $payload = is_array($decoded) ? $this->payloadSanitizer->sanitize($decoded) : [];
 
     if ($this->chatbotConfig->getMode() !== 'ai' || !$this->chatbotConfig->isFutureAiEnabled()) {
       $response = [
         'status' => 'guide_only',
-        'message' => 'This MVP only supports guided choices. No free-form AI response was generated.',
+        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($this->chatbotConfig->getCurrentLangcode()),
+        'fallback' => TRUE,
         'stored' => FALSE,
         'langcode' => $this->chatbotConfig->getCurrentLangcode(),
         'futureAi' => $this->chatbotConfig->getFutureAiSummary(),
@@ -52,32 +86,38 @@ final class ChatbotEndpointController extends ControllerBase {
       $response = $this->futureAiGateway->respond($payload);
     }
 
-    $json = new JsonResponse($response);
-    $json->headers->set('Cache-Control', 'no-store, private');
-    return $json;
+    return $this->jsonResponse($response);
   }
 
   /**
-   * Keeps the prepared endpoint conservative until a real AI phase exists.
-   *
-   * @param array<string, mixed> $payload
-   *   Raw decoded request payload.
-   *
-   * @return array<string, mixed>
-   *   Sanitized payload with scalar values only.
+   * Applies a conservative flood limit to the server endpoint.
    */
-  private function sanitizePayload(array $payload): array {
-    $allowed_keys = ['flow', 'langcode', 'message'];
-    $sanitized = [];
+  private function isAllowedByRateLimit(Request $request): bool {
+    $event = 'emerging_digital_chatbot.conversation';
+    $window = $this->chatbotConfig->getFutureAiRateLimitWindow();
+    $identifier = hash('sha256', (string) ($request->getClientIp() ?: 'unknown'));
 
-    foreach ($allowed_keys as $key) {
-      $value = $payload[$key] ?? NULL;
-      if (is_scalar($value)) {
-        $sanitized[$key] = mb_substr(trim((string) $value), 0, 500);
-      }
+    if (!$this->flood->isAllowed($event, $this->chatbotConfig->getFutureAiRateLimit(), $window, $identifier)) {
+      $this->logger->notice('Chatbot endpoint rate limit reached.');
+      return FALSE;
     }
 
-    return $sanitized;
+    $this->flood->register($event, $window, $identifier);
+    return TRUE;
+  }
+
+  /**
+   * Returns no-store JSON for all endpoint outcomes.
+   *
+   * @param array<string, mixed> $response
+   *   Response payload.
+   * @param int $status
+   *   HTTP status code.
+   */
+  private function jsonResponse(array $response, int $status = 200): JsonResponse {
+    $json = new JsonResponse($response, $status);
+    $json->headers->set('Cache-Control', 'no-store, private');
+    return $json;
   }
 
 }

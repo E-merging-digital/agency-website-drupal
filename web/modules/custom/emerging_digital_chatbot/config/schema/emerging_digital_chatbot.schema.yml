@@ -36,6 +36,24 @@ emerging_digital_chatbot.settings:
         provider:
           type: string
           label: 'Prepared provider'
+        endpoint:
+          type: uri
+          label: 'OpenAI Responses API endpoint'
+        model:
+          type: string
+          label: 'OpenAI model'
+        openai_key_id:
+          type: string
+          label: 'OpenAI key identifier'
+        temperature:
+          type: float
+          label: 'Temperature'
+        max_output_tokens:
+          type: integer
+          label: 'Maximum output tokens'
+        timeout_seconds:
+          type: integer
+          label: 'Provider timeout seconds'
         prompt_version:
           type: string
           label: 'Prompt version'
@@ -48,6 +66,45 @@ emerging_digital_chatbot.settings:
         retention_policy:
           type: string
           label: 'Retention policy'
+        fallback_message:
+          type: sequence
+          label: 'Localized fallback messages'
+          sequence:
+            type: text
+            label: 'Fallback message'
+        security:
+          type: mapping
+          label: 'AI security limits'
+          mapping:
+            max_input_chars:
+              type: integer
+              label: 'Maximum input characters'
+            max_context_chars:
+              type: integer
+              label: 'Maximum context characters'
+            rate_limit:
+              type: mapping
+              label: 'Rate limit'
+              mapping:
+                limit:
+                  type: integer
+                  label: 'Request limit'
+                window_seconds:
+                  type: integer
+                  label: 'Window seconds'
+        context:
+          type: mapping
+          label: 'Future public context'
+          mapping:
+            allowed_public_paths:
+              type: sequence
+              label: 'Allowed public paths'
+              sequence:
+                type: sequence
+                label: 'Language public paths'
+                sequence:
+                  type: string
+                  label: 'Public path'
         prompts:
           type: sequence
           label: 'Prepared prompts'

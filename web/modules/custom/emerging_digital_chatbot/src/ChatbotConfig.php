@@ -181,6 +181,11 @@ final class ChatbotConfig {
    * Gets the maximum prompt context length.
    */
   public function getFutureAiMaxContextChars(): int {
+    $contextValue = $this->configFactory->get('emerging_digital_chatbot.settings')->get('future_ai.context.max_context_chars');
+    if (is_numeric($contextValue)) {
+      return max(1, min(4000, (int) $contextValue));
+    }
+
     return $this->getFutureAiBoundedInt('security.max_context_chars', 1200, 200, 4000);
   }
 

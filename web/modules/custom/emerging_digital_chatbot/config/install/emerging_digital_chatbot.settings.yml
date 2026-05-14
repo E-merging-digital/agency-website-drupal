@@ -32,6 +32,7 @@ future_ai:
       limit: 10
       window_seconds: 60
   context:
+    max_context_chars: 1200
     allowed_public_paths:
       fr:
         - /fr/accueil

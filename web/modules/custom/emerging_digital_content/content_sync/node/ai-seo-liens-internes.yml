@@ -1,0 +1,83 @@
+translations:
+  fr:
+    title: 'Suggestions SEO et liens internes'
+    alias: /ia-drupal/seo-liens-internes
+    fields:
+      field_short_description:
+        value: >-
+          Assistant IA pour proposer titres, descriptions, angles SEO et liens
+          internes localisés dans les contenus Drupal.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Les suggestions SEO et liens internes aident à relier chaque page à
+          une intention de recherche et à un parcours utile. L’assistant peut
+          proposer des titres, descriptions, angles éditoriaux et liens vers les
+          bonnes pages localisées.</p><p>Dans Drupal, cette logique soutient les
+          pages de <a href="/fr/services">services</a>, les <a
+          href="/fr/cas-clients">cas clients</a>, la page <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a> et les offres comme <a
+          href="/fr/audit-drupal">audit Drupal</a> ou <a
+          href="/fr/creation-site-drupal">création de site Drupal</a>.</p>
+          <p>Les propositions restent à valider pour éviter les liens
+          artificiels ou redondants.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Un maillage interne plus cohérent, des contenus mieux orientés SEO et
+          moins d’oublis lors de la publication.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Lors de la rédaction d’une page service, l’assistant propose un lien
+          vers un audit Drupal, un cas client ou la page contact selon
+          l’intention du contenu.
+        format: basic_html
+      field_use_cases:
+        - value: 'Proposer une meta description alignée avec le contenu.'
+          format: basic_html
+        - value: 'Suggérer 2 à 4 liens internes utiles et localisés.'
+          format: basic_html
+        - value: 'Repérer les liens redondants avant publication.'
+          format: basic_html
+  en:
+    title: 'SEO suggestions and internal links'
+    alias: /ai-drupal/seo-internal-links
+    fields:
+      field_short_description:
+        value: >-
+          AI assistant to suggest titles, descriptions, SEO angles and
+          localised internal links in Drupal content.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>SEO suggestions and internal links help connect each page to a
+          search intent and a useful journey. The assistant can suggest titles,
+          descriptions, editorial angles and links to the right localised
+          pages.</p><p>In Drupal, this logic supports <a
+          href="/en/services">service</a> pages, <a
+          href="/en/case-studies">case studies</a>, the <a
+          href="/en/ai-drupal">AI &amp; Drupal</a> page and offers such as <a
+          href="/en/drupal-audit">Drupal audit</a> or <a
+          href="/en/drupal-website-creation">Drupal website creation</a>.</p>
+          <p>Suggestions remain reviewed to avoid artificial or redundant
+          links.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          More coherent internal linking, more SEO-oriented content and fewer
+          omissions during publication.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          While drafting a service page, the assistant suggests a link to a
+          Drupal audit, a case study or the contact page according to the
+          content intent.
+        format: basic_html
+      field_use_cases:
+        - value: 'Suggest a meta description aligned with the content.'
+          format: basic_html
+        - value: 'Suggest 2 to 4 useful, localised internal links.'
+          format: basic_html
+        - value: 'Identify redundant links before publication.'
+          format: basic_html

@@ -1,0 +1,83 @@
+translations:
+  fr:
+    title: 'Rédaction assistée'
+    alias: /ia-drupal/redaction-assistee
+    fields:
+      field_short_description:
+        value: >-
+          Assistant IA pour préparer des brouillons de pages, reformuler des
+          contenus existants et accélérer la production éditoriale dans Drupal.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>La rédaction assistée aide une équipe à passer plus vite d’une
+          intention éditoriale à un premier texte structuré, sans publier
+          automatiquement. Elle s’intègre dans une démarche <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a> où chaque proposition reste
+          relue, adaptée et validée par un humain.</p><p>Pour une PME, l’usage
+          typique consiste à préparer une page service, clarifier une offre ou
+          reformuler une section vieillissante. Pour une ASBL ou une
+          institution, l’assistant peut aider à rendre un message plus clair,
+          plus homogène et mieux adapté aux publics.</p><p>Cette fonctionnalité
+          complète nos <a href="/fr/services">services Drupal</a> et peut être
+          cadrée avec l’offre <a href="/fr/ia-integree">IA intégrée</a>.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Moins de temps perdu devant une page blanche, plus de cohérence entre
+          les contenus et une validation éditoriale qui reste maîtrisée.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Une PME prépare le brouillon d’une nouvelle page service à partir de
+          quelques notes commerciales, puis l’équipe ajuste le ton et valide le
+          contenu avant publication.
+        format: basic_html
+      field_use_cases:
+        - value: 'Préparer un brouillon de page service dans Drupal.'
+          format: basic_html
+        - value: 'Reformuler une section trop technique pour un public non spécialiste.'
+          format: basic_html
+        - value: 'Adapter le ton d’un contenu selon le contexte PME, ASBL ou institutionnel.'
+          format: basic_html
+  en:
+    title: 'Assisted writing'
+    alias: /ai-drupal/assisted-writing
+    fields:
+      field_short_description:
+        value: >-
+          AI assistant to prepare page drafts, rephrase existing copy and speed
+          up editorial production in Drupal.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Assisted writing helps a team move faster from an editorial intent
+          to a structured first draft, without automatic publication. It fits
+          within an <a href="/en/ai-drupal">AI &amp; Drupal</a> approach where
+          every suggestion remains reviewed, adapted and approved by a human.</p>
+          <p>For an SME, the typical use is to prepare a service page, clarify
+          an offer or rework an ageing section. For a non-profit or an
+          institution, the assistant can help make a message clearer, more
+          consistent and better adapted to audiences.</p><p>This feature
+          complements our <a href="/en/services">Drupal services</a> and can be
+          framed through the <a href="/en/integrated-ai">integrated AI</a>
+          service.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Less time lost in front of a blank page, more consistency across
+          content and editorial approval that remains under control.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          An SME prepares the draft for a new service page from a few
+          commercial notes, then the team adjusts the tone and approves the
+          content before publication.
+        format: basic_html
+      field_use_cases:
+        - value: 'Prepare a service page draft in Drupal.'
+          format: basic_html
+        - value: 'Rephrase a technical section for a non-specialist audience.'
+          format: basic_html
+        - value: 'Adapt tone for SME, non-profit or institutional contexts.'
+          format: basic_html

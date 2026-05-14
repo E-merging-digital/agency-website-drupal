@@ -79,6 +79,11 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       'name' => 'Page',
     ])->save();
 
+    NodeType::create([
+      'type' => 'ai_feature',
+      'name' => 'AI Feature',
+    ])->save();
+
     foreach (['hero', 'text_block', 'services', 'ai_features', 'trust_list', 'case_clients', 'cta'] as $paragraph_type) {
       ParagraphsType::create([
         'id' => $paragraph_type,
@@ -86,8 +91,11 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       ])->save();
     }
 
-    $this->createTextLongField('field_short_description', TRUE);
-    $this->createTextLongField('field_detailed_description', FALSE);
+    $this->createNodeTextLongField('field_short_description', ['service', 'ai_feature'], TRUE);
+    $this->createNodeTextLongField('field_detailed_description', ['service', 'ai_feature'], FALSE);
+    $this->createNodeTextLongField('field_customer_benefit', ['ai_feature'], FALSE);
+    $this->createNodeTextLongField('field_concrete_example', ['ai_feature'], FALSE);
+    $this->createNodeTextLongField('field_use_cases', ['ai_feature'], FALSE, FieldStorageConfig::CARDINALITY_UNLIMITED);
     $this->createHomeComponentsField();
     $this->createParagraphField('field_heading', 'string', [
       'hero',
@@ -411,6 +419,116 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
   }
 
   /**
+   * Tests AI Feature content sync creates translated nodes and mappings.
+   */
+  public function testAiFeatureSyncCreatesTranslatedNodesAliasesAndMappings(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
+
+    $expected_features = [
+      'ai-redaction-assistee' => [
+        'fr_title' => 'Rédaction assistée',
+        'en_title' => 'Assisted writing',
+        'fr_alias' => '/ia-drupal/redaction-assistee',
+        'en_alias' => '/ai-drupal/assisted-writing',
+        'fr_link' => '/fr/ia-drupal',
+        'en_link' => '/en/ai-drupal',
+      ],
+      'ai-correction-editoriale' => [
+        'fr_title' => 'Correction éditoriale',
+        'en_title' => 'Editorial review',
+        'fr_alias' => '/ia-drupal/correction-editoriale',
+        'en_alias' => '/ai-drupal/editorial-review',
+        'fr_link' => '/fr/accessibilite-seo-optimisation',
+        'en_link' => '/en/ai-accessibility-seo-optimization',
+      ],
+      'ai-traduction-fr-en' => [
+        'fr_title' => 'Préparation traduction FR/EN',
+        'en_title' => 'FR/EN translation preparation',
+        'fr_alias' => '/ia-drupal/traduction-fr-en',
+        'en_alias' => '/ai-drupal/fr-en-translation',
+        'fr_link' => '/fr/ia-integree',
+        'en_link' => '/en/integrated-ai',
+      ],
+      'ai-resumes-tags-structure' => [
+        'fr_title' => 'Résumés, tags et structure',
+        'en_title' => 'Summaries, tags and structure',
+        'fr_alias' => '/ia-drupal/resumes-tags-structure',
+        'en_alias' => '/ai-drupal/summaries-tags-structure',
+        'fr_link' => '/fr/migration-drupal',
+        'en_link' => '/en/drupal-migration',
+      ],
+      'ai-seo-liens-internes' => [
+        'fr_title' => 'Suggestions SEO et liens internes',
+        'en_title' => 'SEO suggestions and internal links',
+        'fr_alias' => '/ia-drupal/seo-liens-internes',
+        'en_alias' => '/ai-drupal/seo-internal-links',
+        'fr_link' => '/fr/services',
+        'en_link' => '/en/services',
+      ],
+      'ai-gouvernance-validation' => [
+        'fr_title' => 'Gouvernance et validation IA',
+        'en_title' => 'AI governance and approval',
+        'fr_alias' => '/ia-drupal/gouvernance-validation',
+        'en_alias' => '/ai-drupal/governance-approval',
+        'fr_link' => '/fr/ia-drupal',
+        'en_link' => '/en/ai-drupal',
+      ],
+    ];
+
+    foreach ($expected_features as $content_id => $expected) {
+      $dry_run = $manager->sync($content_id, TRUE);
+      self::assertSame([], $dry_run['errors']);
+      self::assertFalse($mapping_repository->exists($content_id));
+
+      $first_apply = $manager->sync($content_id, FALSE);
+      self::assertSame([], $first_apply['errors']);
+
+      $node = $this->loadMappedNodeByContentId($content_id);
+      self::assertSame('ai_feature', $node->bundle());
+      self::assertSame('fr', $node->language()->getId());
+      self::assertSame($expected['fr_title'], $node->label());
+      self::assertTrue($node->hasTranslation('en'));
+      self::assertNotEmpty((string) $node->get('field_short_description')->value);
+      self::assertNotEmpty((string) $node->get('field_customer_benefit')->value);
+      self::assertCount(3, $node->get('field_use_cases'));
+      $this->assertLocalizedInternalLinks(
+        (string) $node->get('field_detailed_description')->value,
+        'fr',
+        [$expected['fr_link']],
+      );
+
+      $english = $node->getTranslation('en');
+      self::assertSame($expected['en_title'], $english->label());
+      self::assertNotEmpty((string) $english->get('field_short_description')->value);
+      self::assertNotEmpty((string) $english->get('field_customer_benefit')->value);
+      self::assertCount(3, $english->get('field_use_cases'));
+      $this->assertLocalizedInternalLinks(
+        (string) $english->get('field_detailed_description')->value,
+        'en',
+        [$expected['en_link']],
+      );
+
+      $alias_manager = $this->container->get('path_alias.manager');
+      $alias_manager->cacheClear('/node/' . $node->id());
+      self::assertSame('/node/' . $node->id(), $alias_manager->getPathByAlias($expected['fr_alias'], 'fr'));
+      self::assertSame('/node/' . $node->id(), $alias_manager->getPathByAlias($expected['en_alias'], 'en'));
+
+      $mapping = $mapping_repository->findByContentId($content_id);
+      self::assertNotNull($mapping);
+      self::assertSame((int) $node->id(), $mapping->entityId());
+      self::assertSame('created', $mapping->lastAction());
+
+      $second_apply = $manager->sync($content_id, FALSE);
+      self::assertSame([], $second_apply['errors']);
+      self::assertSame((int) $node->id(), (int) $this->loadMappedNodeByContentId($content_id)->id());
+      self::assertSame('updated', $mapping_repository->findByContentId($content_id)?->lastAction());
+    }
+
+    self::assertSame(6, $this->countAiFeatureNodes());
+  }
+
+  /**
    * Tests full catalog dry-run safety, apply and idempotence.
    */
   public function testAllSyncCreatesCatalogContentsWithoutDuplication(): void {
@@ -423,20 +541,22 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(16, $dry_run['content_reports']);
+    self::assertCount(22, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
     self::assertFalse($mapping_repository->exists('agence-drupal-belgique'));
     self::assertSame(0, $this->countServiceNodes());
     self::assertSame(0, $this->countPageNodes());
+    self::assertSame(0, $this->countAiFeatureNodes());
 
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
     self::assertSame(8, $this->countServiceNodes());
     self::assertSame(8, $this->countPageNodes());
+    self::assertSame(6, $this->countAiFeatureNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(16, $first_apply['content_reports']);
+    self::assertCount(22, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
     self::assertSame('creation-site-drupal', $first_apply['content_reports'][1]['id']);
     self::assertSame('maintenance-drupal', $first_apply['content_reports'][2]['id']);
@@ -447,12 +567,18 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertSame('ia-integree', $first_apply['content_reports'][7]['id']);
     self::assertSame('services', $first_apply['content_reports'][8]['id']);
     self::assertSame('ia-drupal', $first_apply['content_reports'][9]['id']);
-    self::assertSame('cas-clients', $first_apply['content_reports'][10]['id']);
-    self::assertSame('contact', $first_apply['content_reports'][11]['id']);
-    self::assertSame('mentions-legales', $first_apply['content_reports'][12]['id']);
-    self::assertSame('politique-confidentialite', $first_apply['content_reports'][13]['id']);
-    self::assertSame('politique-cookies', $first_apply['content_reports'][14]['id']);
-    self::assertSame('homepage', $first_apply['content_reports'][15]['id']);
+    self::assertSame('ai-redaction-assistee', $first_apply['content_reports'][10]['id']);
+    self::assertSame('ai-correction-editoriale', $first_apply['content_reports'][11]['id']);
+    self::assertSame('ai-traduction-fr-en', $first_apply['content_reports'][12]['id']);
+    self::assertSame('ai-resumes-tags-structure', $first_apply['content_reports'][13]['id']);
+    self::assertSame('ai-seo-liens-internes', $first_apply['content_reports'][14]['id']);
+    self::assertSame('ai-gouvernance-validation', $first_apply['content_reports'][15]['id']);
+    self::assertSame('cas-clients', $first_apply['content_reports'][16]['id']);
+    self::assertSame('contact', $first_apply['content_reports'][17]['id']);
+    self::assertSame('mentions-legales', $first_apply['content_reports'][18]['id']);
+    self::assertSame('politique-confidentialite', $first_apply['content_reports'][19]['id']);
+    self::assertSame('politique-cookies', $first_apply['content_reports'][20]['id']);
+    self::assertSame('homepage', $first_apply['content_reports'][21]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
@@ -464,6 +590,12 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertNotNull($mapping_repository->findByContentId('audit-drupal'));
     self::assertNotNull($mapping_repository->findByContentId('accessibilite-seo-optimisation'));
     self::assertNotNull($mapping_repository->findByContentId('ia-integree'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-redaction-assistee'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-correction-editoriale'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-traduction-fr-en'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-resumes-tags-structure'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-seo-liens-internes'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-gouvernance-validation'));
 
     $services_items = $this->serviceCardItems($this->loadMappedNodeByContentId('services'), 'fr');
     self::assertCount(8, $services_items);
@@ -611,6 +743,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertSame([], $second_apply['errors']);
     self::assertSame(8, $this->countServiceNodes());
     self::assertSame(8, $this->countPageNodes());
+    self::assertSame(6, $this->countAiFeatureNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($updated_mapping);
@@ -1180,24 +1313,41 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
   }
 
   /**
-   * Creates one translatable text_long field on service nodes.
+   * Creates one translatable text_long field on node bundles.
+   *
+   * @param string $field_name
+   *   Field machine name.
+   * @param list<string> $bundles
+   *   Node bundle IDs.
+   * @param bool $required
+   *   Whether the field is required.
+   * @param int $cardinality
+   *   Field cardinality.
    */
-  private function createTextLongField(string $field_name, bool $required): void {
+  private function createNodeTextLongField(
+    string $field_name,
+    array $bundles,
+    bool $required,
+    int $cardinality = 1,
+  ): void {
     FieldStorageConfig::create([
       'field_name' => $field_name,
       'entity_type' => 'node',
       'type' => 'text_long',
       'translatable' => TRUE,
+      'cardinality' => $cardinality,
     ])->save();
 
-    FieldConfig::create([
-      'field_name' => $field_name,
-      'entity_type' => 'node',
-      'bundle' => 'service',
-      'label' => $field_name,
-      'required' => $required,
-      'translatable' => TRUE,
-    ])->save();
+    foreach ($bundles as $bundle) {
+      FieldConfig::create([
+        'field_name' => $field_name,
+        'entity_type' => 'node',
+        'bundle' => $bundle,
+        'label' => $field_name,
+        'required' => $required,
+        'translatable' => TRUE,
+      ])->save();
+    }
   }
 
   /**
@@ -1288,6 +1438,19 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       ->getQuery()
       ->accessCheck(FALSE)
       ->condition('type', 'page')
+      ->count()
+      ->execute();
+  }
+
+  /**
+   * Counts AI Feature nodes without applying access checks.
+   */
+  private function countAiFeatureNodes(): int {
+    return (int) $this->container->get('entity_type.manager')
+      ->getStorage('node')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('type', 'ai_feature')
       ->count()
       ->execute();
   }

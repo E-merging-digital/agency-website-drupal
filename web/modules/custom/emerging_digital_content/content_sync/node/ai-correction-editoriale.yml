@@ -1,0 +1,80 @@
+translations:
+  fr:
+    title: 'Correction éditoriale'
+    alias: /ia-drupal/correction-editoriale
+    fields:
+      field_short_description:
+        value: >-
+          Assistant IA pour relire, clarifier et harmoniser le ton des contenus
+          Drupal avant validation éditoriale.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>La correction éditoriale IA aide les équipes à détecter les
+          formulations confuses, les incohérences de ton et les passages trop
+          longs. Elle ne remplace pas la relecture métier : elle prépare une
+          meilleure base de travail dans Drupal.</p><p>Cette fonctionnalité est
+          utile pour les pages de services, les actualités institutionnelles,
+          les messages d’ASBL et les contenus qui doivent rester accessibles.
+          Elle s’articule avec notre approche <a href="/fr/ia-drupal">IA &amp;
+          Drupal</a> et les prestations <a
+          href="/fr/accessibilite-seo-optimisation">accessibilité, SEO et
+          optimisation</a>.</p><p>Le résultat attendu est un contenu plus clair,
+          plus cohérent et plus facile à relire avant publication.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Une qualité éditoriale plus régulière, avec moins de reprises tardives
+          et une meilleure lisibilité pour les publics cibles.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Une ASBL relit une page d’information importante, identifie les
+          phrases trop longues et obtient une version plus claire à valider.
+        format: basic_html
+      field_use_cases:
+        - value: 'Repérer les phrases longues ou ambiguës.'
+          format: basic_html
+        - value: 'Harmoniser le ton entre plusieurs pages Drupal.'
+          format: basic_html
+        - value: 'Préparer une relecture accessibilité et contenu.'
+          format: basic_html
+  en:
+    title: 'Editorial review'
+    alias: /ai-drupal/editorial-review
+    fields:
+      field_short_description:
+        value: >-
+          AI assistant to review, clarify and harmonise the tone of Drupal
+          content before editorial approval.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>AI editorial review helps teams detect unclear wording,
+          inconsistent tone and sections that are too long. It does not replace
+          subject-matter review: it prepares a better working version inside
+          Drupal.</p><p>This feature is useful for service pages,
+          institutional news, non-profit messages and content that must remain
+          accessible. It connects with our <a href="/en/ai-drupal">AI &amp;
+          Drupal</a> approach and our <a
+          href="/en/ai-accessibility-seo-optimization">accessibility, SEO and
+          optimization</a> work.</p><p>The expected result is clearer, more
+          consistent content that is easier to review before publication.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          More regular editorial quality, fewer late revisions and better
+          readability for target audiences.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          A non-profit reviews an important information page, identifies overly
+          long sentences and gets a clearer version to approve.
+        format: basic_html
+      field_use_cases:
+        - value: 'Identify long or ambiguous sentences.'
+          format: basic_html
+        - value: 'Harmonise tone across several Drupal pages.'
+          format: basic_html
+        - value: 'Prepare an accessibility and content review.'
+          format: basic_html

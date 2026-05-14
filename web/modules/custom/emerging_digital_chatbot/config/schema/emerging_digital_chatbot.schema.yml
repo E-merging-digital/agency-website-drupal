@@ -96,6 +96,9 @@ emerging_digital_chatbot.settings:
           type: mapping
           label: 'Future public context'
           mapping:
+            max_context_chars:
+              type: integer
+              label: 'Maximum context characters'
             allowed_public_paths:
               type: sequence
               label: 'Allowed public paths'

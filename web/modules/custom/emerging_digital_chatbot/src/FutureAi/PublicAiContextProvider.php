@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\emerging_digital_chatbot\FutureAi;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\emerging_digital_chatbot\Context\PublicContextBuilder;
 
 /**
  * Prepares the public-only context boundary for future retrieval.
@@ -13,6 +14,7 @@ final class PublicAiContextProvider {
 
   public function __construct(
     private readonly ConfigFactoryInterface $configFactory,
+    private readonly PublicContextBuilder $contextBuilder,
   ) {
   }
 
@@ -21,13 +23,19 @@ final class PublicAiContextProvider {
    */
   public function buildPromptContext(string $langcode, int $maxChars): string {
     $paths = $this->getAllowedPublicPaths($langcode);
+    $publicContext = $this->contextBuilder->buildContext($langcode);
     $context = [
       'Context profile: public_pages_v1.',
       'Allowed context: published public pages only.',
       'Excluded context: admin pages, drafts, webform submissions, private files, CRM data, visitor conversations, and personal data.',
-      'Retrieval status: prepared structure only; no vector store or autonomous tool call is active.',
+      'Retrieval status: Drupal public context builder active; no vector store or autonomous tool call is active.',
       'Allowed public paths: ' . implode(', ', $paths),
     ];
+
+    if ($publicContext['text'] !== '') {
+      $context[] = 'Public Drupal context:';
+      $context[] = $publicContext['text'];
+    }
 
     return mb_substr(implode("\n", $context), 0, $maxChars);
   }

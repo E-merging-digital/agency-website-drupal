@@ -17,6 +17,15 @@ services:
     class: Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider
     arguments:
       - '@config.factory'
+      - '@emerging_digital_chatbot.public_context_builder'
+
+  emerging_digital_chatbot.public_context_builder:
+    class: Drupal\emerging_digital_chatbot\Context\PublicContextBuilder
+    arguments:
+      - '@config.factory'
+      - '@language_manager'
+      - '@path_alias.manager'
+      - '@entity_type.manager'
 
   emerging_digital_chatbot.fallback_ai_gateway:
     class: Drupal\emerging_digital_chatbot\FutureAi\NullFutureAiGateway

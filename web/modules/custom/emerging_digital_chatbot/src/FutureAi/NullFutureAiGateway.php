@@ -4,19 +4,30 @@ declare(strict_types=1);
 
 namespace Drupal\emerging_digital_chatbot\FutureAi;
 
+use Drupal\emerging_digital_chatbot\ChatbotConfig;
+
 /**
- * Placeholder gateway: no external AI call is performed in the MVP.
+ * Fallback gateway: no external AI call is performed.
  */
 final class NullFutureAiGateway implements FutureAiGatewayInterface {
+
+  public function __construct(
+    private readonly ChatbotConfig $chatbotConfig,
+  ) {
+  }
 
   /**
    * {@inheritdoc}
    */
   public function respond(array $payload): array {
+    $langcode = (string) ($payload['langcode'] ?? $this->chatbotConfig->getCurrentLangcode());
+
     return [
       'status' => 'guide_only',
-      'message' => 'AI mode is prepared but disabled for this MVP.',
+      'message' => $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
+      'fallback' => TRUE,
       'stored' => FALSE,
+      'langcode' => $langcode,
     ];
   }
 

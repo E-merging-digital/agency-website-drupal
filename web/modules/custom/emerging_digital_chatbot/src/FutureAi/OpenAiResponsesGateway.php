@@ -33,10 +33,15 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
    */
   public function respond(array $payload): array {
     $langcode = $this->getPayloadLangcode($payload);
+    if (!$this->chatbotConfig->isFutureAiEnabled()) {
+      return $this->fallback('future_ai_disabled', $langcode);
+    }
+
     if (!empty($payload['blocked_sensitive_input'])) {
       return $this->fallback('sensitive_input_blocked', $langcode);
     }
 
+    $payload = $this->sanitizePayloadForProvider($payload);
     $message = trim((string) ($payload['message'] ?? ''));
     if ($message === '') {
       return $this->fallback('empty_message', $langcode);
@@ -57,9 +62,20 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
         'timeout' => $this->chatbotConfig->getFutureAiTimeoutSeconds(),
       ]);
 
+      if ($response->getStatusCode() >= 400) {
+        $this->logger->warning('Chatbot AI provider returned an HTTP error: @status', [
+          '@status' => $response->getStatusCode(),
+        ]);
+
+        return $this->fallback('ai_unavailable', $langcode);
+      }
+
       $data = json_decode((string) $response->getBody(), TRUE, 512, JSON_THROW_ON_ERROR);
       $answer = $this->extractOutputText(is_array($data) ? $data : []);
-      if ($answer === '' || $this->violatesCommercialGuardrails($answer)) {
+      if ($answer === '') {
+        return $this->fallback('empty_ai_response', $langcode);
+      }
+      if ($this->violatesCommercialGuardrails($answer)) {
         return $this->fallback('guardrail_fallback', $langcode);
       }
 
@@ -180,7 +196,8 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
    * Normalizes provider text before returning it to the frontend.
    */
   private function sanitizeProviderText(string $text): string {
-    $text = trim(strip_tags($text));
+    $text = preg_replace('/<(script|style)\b[^>]*>.*?<\/\1>/is', '', $text);
+    $text = trim(strip_tags((string) $text));
     $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text);
     $text = preg_replace('/\s+/u', ' ', (string) $text);
 
@@ -192,10 +209,10 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
    */
   private function violatesCommercialGuardrails(string $answer): bool {
     $patterns = [
-      '/(?:€|\$|eur\b|euro\b|euros\b)/i',
+      '/(?:\x{20AC}|\$|eur\b|euro\b|euros\b)/iu',
       '/\b(?:devis|quote|estimate|prix|price|budget)\b/i',
-      '/\b(?:accept[eé]|accepted|approved|valid[eé]|validated|guaranteed)\b/i',
-      '/\b(?:d[eé]lai garanti|guaranteed timeline|contractual deadline)\b/i',
+      '/\b(?:accept(?:e|\x{00E9})|accepted|approved|valid(?:e|\x{00E9})|validated|guaranteed)\b/iu',
+      '/\b(?:d(?:e|\x{00E9})lai garanti|guaranteed timeline|contractual deadline)\b/iu',
     ];
 
     foreach ($patterns as $pattern) {
@@ -237,12 +254,12 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
       $providerConfig->get('api_key_name'),
       $providerConfig->get('key'),
     ]);
-    $providerKey = $this->resolveFromKeyIdOrRawValue($providerKeyId);
+    $providerKey = $this->resolveFromKeyId($providerKeyId);
     if ($providerKey !== '') {
       return $providerKey;
     }
 
-    $configuredKey = $this->resolveFromKeyIdOrRawValue(
+    $configuredKey = $this->resolveFromKeyId(
       (string) $this->configFactory
         ->get('emerging_digital_chatbot.settings')
         ->get('future_ai.openai_key_id'),
@@ -267,15 +284,15 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
   }
 
   /**
-   * Resolves a Drupal Key id or a raw OpenAI key.
+   * Resolves a Drupal Key id.
    */
-  private function resolveFromKeyIdOrRawValue(?string $candidate): string {
+  private function resolveFromKeyId(?string $candidate): string {
     $candidate = trim((string) $candidate);
-    if ($candidate === '') {
+    if ($candidate === '' || !$this->keyRepository) {
       return '';
     }
 
-    if ($this->keyRepository) {
+    try {
       $key = $this->keyRepository->getKey($candidate);
       if ($key) {
         $resolvedValue = trim((string) $key->getKeyValue());
@@ -284,8 +301,13 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
         }
       }
     }
+    catch (\Throwable $exception) {
+      $this->logger->warning('Chatbot AI key lookup failed: @class', [
+        '@class' => $exception::class,
+      ]);
+    }
 
-    return str_starts_with($candidate, 'sk-') ? $candidate : '';
+    return '';
   }
 
   /**
@@ -316,6 +338,57 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
     return in_array($langcode, ['fr', 'en'], TRUE)
       ? $langcode
       : $this->chatbotConfig->getCurrentLangcode();
+  }
+
+  /**
+   * Normalizes all provider-bound visitor fields as a defense in depth.
+   *
+   * @param array<string, mixed> $payload
+   *   Sanitized payload from the endpoint.
+   *
+   * @return array<string, bool|string>
+   *   Provider-safe scalar values.
+   */
+  private function sanitizePayloadForProvider(array $payload): array {
+    return [
+      'flow' => $this->sanitizePayloadText($payload['flow'] ?? '', 80),
+      'langcode' => $this->getPayloadLangcode($payload),
+      'message' => $this->sanitizePayloadText(
+        $payload['message'] ?? '',
+        $this->chatbotConfig->getFutureAiMaxInputChars(),
+      ),
+      'need' => $this->sanitizePayloadText($payload['need'] ?? '', 160),
+      'organization_type' => $this->sanitizePayloadText(
+        $payload['organization_type'] ?? '',
+        80,
+      ),
+      'project_type' => $this->sanitizePayloadText(
+        $payload['project_type'] ?? '',
+        80,
+      ),
+      'url' => $this->sanitizePayloadText($payload['url'] ?? '', 300),
+      'blocked_sensitive_input' => !empty($payload['blocked_sensitive_input']),
+    ];
+  }
+
+  /**
+   * Keeps provider-bound text compact and free of raw HTML/control characters.
+   */
+  private function sanitizePayloadText(mixed $value, int $maxLength): string {
+    if (!is_scalar($value)) {
+      return '';
+    }
+
+    $text = preg_replace(
+      '/<(script|style)\b[^>]*>.*?<\/\1>/is',
+      '',
+      (string) $value,
+    );
+    $text = trim(strip_tags((string) $text));
+    $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text);
+    $text = preg_replace('/\s+/u', ' ', (string) $text);
+
+    return mb_substr(trim((string) $text), 0, $maxLength);
   }
 
 }

@@ -71,15 +71,16 @@ final class ChatbotEndpointController extends ControllerBase {
     }
 
     $payload = is_array($decoded) ? $this->payloadSanitizer->sanitize($decoded) : [];
+    $langcode = (string) ($payload['langcode'] ?? $this->chatbotConfig->getCurrentLangcode());
 
     if ($this->chatbotConfig->getMode() !== 'ai' || !$this->chatbotConfig->isFutureAiEnabled()) {
       $response = [
         'status' => 'guide_only',
-        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($this->chatbotConfig->getCurrentLangcode()),
+        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
         'fallback' => TRUE,
         'stored' => FALSE,
-        'langcode' => $this->chatbotConfig->getCurrentLangcode(),
-        'futureAi' => $this->chatbotConfig->getFutureAiSummary(),
+        'langcode' => $langcode,
+        'futureAi' => $this->chatbotConfig->getFutureAiSummary($langcode),
       ];
     }
     else {

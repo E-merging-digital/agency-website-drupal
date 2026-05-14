@@ -22,6 +22,7 @@ module:
   default_content: 0
   dynamic_page_cache: 0
   editor: 0
+  emerging_digital_chatbot: 0
   emerging_digital_content: 0
   emerging_digital_cookie_consent: 0
   entity_reference_revisions: 0

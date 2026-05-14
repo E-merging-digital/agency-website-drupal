@@ -1,0 +1,137 @@
+emerging_digital_chatbot.settings:
+  type: config_object
+  label: 'Emerging Digital chatbot settings'
+  mapping:
+    enabled:
+      type: boolean
+      label: 'Enabled'
+    mode:
+      type: string
+      label: 'Conversation mode'
+    languages:
+      type: sequence
+      label: 'Enabled languages'
+      sequence:
+        type: string
+        label: 'Language code'
+    allowed_pages:
+      type: sequence
+      label: 'Allowed pages'
+      sequence:
+        type: string
+        label: 'Page path'
+    excluded_pages:
+      type: sequence
+      label: 'Excluded pages'
+      sequence:
+        type: string
+        label: 'Page path'
+    future_ai:
+      type: mapping
+      label: 'Future AI architecture'
+      mapping:
+        enabled:
+          type: boolean
+          label: 'Future AI enabled'
+        provider:
+          type: string
+          label: 'Prepared provider'
+        prompt_version:
+          type: string
+          label: 'Prompt version'
+        rag_profile:
+          type: string
+          label: 'RAG profile'
+        analytics_enabled:
+          type: boolean
+          label: 'Analytics enabled'
+        retention_policy:
+          type: string
+          label: 'Retention policy'
+        prompts:
+          type: sequence
+          label: 'Prepared prompts'
+          sequence:
+            type: mapping
+            label: 'Prompt language'
+            mapping:
+              system:
+                type: text
+                label: 'System prompt'
+    messages:
+      type: sequence
+      label: 'Localized chatbot messages'
+      sequence:
+        type: mapping
+        label: 'Language messages'
+        mapping:
+          title:
+            type: label
+            label: 'Title'
+          launcher_label:
+            type: label
+            label: 'Launcher label'
+          close_label:
+            type: label
+            label: 'Close label'
+          reset_label:
+            type: label
+            label: 'Reset label'
+          intro:
+            type: text
+            label: 'Intro'
+          transparency:
+            type: text
+            label: 'Transparency message'
+          guardrail:
+            type: text
+            label: 'Guardrail message'
+          choose_label:
+            type: label
+            label: 'Choice label'
+          cta_label:
+            type: label
+            label: 'CTA label'
+          privacy_label:
+            type: label
+            label: 'Privacy label'
+          privacy_path:
+            type: string
+            label: 'Privacy path'
+          flows:
+            type: sequence
+            label: 'Guided flows'
+            sequence:
+              type: mapping
+              label: 'Guided flow'
+              mapping:
+                label:
+                  type: label
+                  label: 'Flow label'
+                response:
+                  type: text
+                  label: 'Flow response'
+                ctas:
+                  type: sequence
+                  label: 'Flow CTAs'
+                  sequence:
+                    type: mapping
+                    label: 'CTA'
+                    mapping:
+                      label:
+                        type: label
+                        label: 'CTA label'
+                      path:
+                        type: string
+                        label: 'CTA path'
+
+block.settings.emerging_digital_chatbot:
+  type: block_settings
+  label: 'Emerging Digital chatbot block'
+  mapping:
+    suppress_contact_pages:
+      type: boolean
+      label: 'Suppress on contact pages'
+    launcher_variant:
+      type: string
+      label: 'Launcher variant'

@@ -1,0 +1,18 @@
+services:
+  emerging_digital_chatbot.config:
+    class: Drupal\emerging_digital_chatbot\ChatbotConfig
+    arguments:
+      - '@config.factory'
+      - '@language_manager'
+      - '@path.current'
+      - '@path_alias.manager'
+      - '@path.matcher'
+
+  emerging_digital_chatbot.future_ai_gateway:
+    class: Drupal\emerging_digital_chatbot\FutureAi\NullFutureAiGateway
+
+  emerging_digital_chatbot.endpoint_controller:
+    class: Drupal\emerging_digital_chatbot\Controller\ChatbotEndpointController
+    arguments:
+      - '@emerging_digital_chatbot.config'
+      - '@emerging_digital_chatbot.future_ai_gateway'

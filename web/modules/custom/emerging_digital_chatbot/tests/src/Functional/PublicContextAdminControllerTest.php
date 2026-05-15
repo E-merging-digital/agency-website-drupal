@@ -6,6 +6,7 @@ namespace Drupal\Tests\emerging_digital_chatbot\Functional;
 
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
+use Drupal\key\Entity\Key;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
@@ -30,6 +31,7 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
     'emerging_digital_chatbot',
     'field',
     'filter',
+    'key',
     'language',
     'node',
     'path_alias',
@@ -51,21 +53,37 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
   private UserInterface $authorizedUser;
 
   /**
+   * Previous external AI allowance env value.
+   */
+  private string|false $previousAllowExternalAi;
+
+  /**
+   * Previous OpenAI key env value.
+   */
+  private string|false $previousOpenAiApiKey;
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
     parent::setUp();
 
+    $this->previousAllowExternalAi = getenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI');
+    $this->previousOpenAiApiKey = getenv('OPENAI_API_KEY');
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI');
+    putenv('OPENAI_API_KEY=sk-functional-secret-never-exposed');
+
     if (!ConfigurableLanguage::load('fr')) {
       ConfigurableLanguage::createFromLangcode('fr')->save();
     }
 
+    $this->createOpenAiKey();
     $this->createPageTypeWithBodyField();
 
     $this->config('emerging_digital_chatbot.settings')
       ->set('mode', 'ai')
       ->set('future_ai.enabled', TRUE)
-      ->set('future_ai.openai_key_id', 'secret-key-id-that-must-not-leak')
+      ->set('future_ai.openai_key_id', 'openai_api_key')
       ->set('future_ai.prompts.fr.system', 'Hidden French system prompt.')
       ->set('future_ai.prompts.en.system', 'Hidden English system prompt.')
       ->set('future_ai.context.max_context_chars', 1000)
@@ -120,6 +138,19 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  protected function tearDown(): void {
+    $this->restoreEnv(
+      'EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI',
+      $this->previousAllowExternalAi,
+    );
+    $this->restoreEnv('OPENAI_API_KEY', $this->previousOpenAiApiKey);
+
+    parent::tearDown();
+  }
+
+  /**
    * Tests anonymous and unauthorized users cannot inspect public context.
    */
   public function testAccessIsRestricted(): void {
@@ -152,6 +183,19 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Context length');
     $this->assertSession()->pageTextContains('max_context_chars');
     $this->assertSession()->pageTextContains('1000');
+    $this->assertSession()->pageTextContains('Future AI provider status');
+    $this->assertSession()->pageTextContains('Future AI state');
+    $this->assertSession()->pageTextContains('enabled');
+    $this->assertSession()->pageTextContains('Active provider');
+    $this->assertSession()->pageTextContains('openai_responses');
+    $this->assertSession()->pageTextContains('Environment');
+    $this->assertSession()->pageTextContains('blocked');
+    $this->assertSession()->pageTextContains('Reason');
+    $this->assertSession()->pageTextContains('environment_blocked');
+    $this->assertSession()->pageTextContains('Key status');
+    $this->assertSession()->pageTextContains('available');
+    $this->assertSession()->pageTextContains('External calls allowed');
+    $this->assertSession()->pageTextContains('no');
     $this->assertSession()->pageTextContains('Contexte public FR');
     $this->assertSession()->pageTextContains('Texte public FR inspectable.');
 
@@ -161,7 +205,37 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
     $this->assertSession()->pageTextNotContains('alert("bad")');
     $this->assertSession()->pageTextNotContains('api_key');
     $this->assertSession()->pageTextNotContains('sk-test-secret');
-    $this->assertSession()->pageTextNotContains('secret-key-id-that-must-not-leak');
+    $this->assertSession()->pageTextNotContains('sk-functional-secret');
+    $this->assertSession()->pageTextNotContains('openai_api_key');
+    $this->assertSession()->pageTextNotContains('Hidden French system prompt.');
+  }
+
+  /**
+   * Tests the provider status updates when the environment is explicitly open.
+   */
+  public function testAllowedEnvironmentStatusIsVisible(): void {
+    $this->drupalLogin($this->authorizedUser);
+    $settings['settings']['emerging_digital_chatbot.allow_external_ai'] = (object) [
+      'value' => TRUE,
+      'required' => TRUE,
+    ];
+    $this->writeSettings($settings);
+
+    $this->drupalGet(self::INSPECTION_PATH, ['query' => ['langcode' => 'fr']]);
+
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Future AI provider status');
+    $this->assertSession()->pageTextContains('Environment');
+    $this->assertSession()->pageTextContains('allowed');
+    $this->assertSession()->pageTextContains('Key status');
+    $this->assertSession()->pageTextContains('available');
+    $this->assertSession()->pageTextContains('External calls allowed');
+    $this->assertSession()->pageTextContains('yes');
+    $this->assertSession()->pageTextContains('Reason');
+    $this->assertSession()->pageTextContains('none');
+
+    $this->assertSession()->pageTextNotContains('sk-functional-secret');
+    $this->assertSession()->pageTextNotContains('openai_api_key');
     $this->assertSession()->pageTextNotContains('Hidden French system prompt.');
   }
 
@@ -197,6 +271,9 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
     $this->drupalGet(self::INSPECTION_PATH, ['query' => ['langcode' => 'fr']]);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('disabled');
+    $this->assertSession()->pageTextContains('future_ai_disabled');
+    $this->assertSession()->pageTextContains('External calls allowed');
+    $this->assertSession()->pageTextContains('no');
     $this->assertSession()->pageTextContains('future_ai.enabled is disabled.');
     $this->assertSession()->pageTextContains('The public context is empty for this language.');
     $this->assertSession()->pageTextContains('/fr/public-context');
@@ -209,7 +286,9 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
     $this->drupalGet(self::INSPECTION_PATH, ['query' => ['langcode' => 'fr']]);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('empty');
-    $this->assertSession()->pageTextContains('No allowed public paths are configured for this language.');
+    $this->assertSession()->pageTextContains(
+      'No allowed public paths are configured for this language.',
+    );
     $this->assertSession()->pageTextContains('No public context text was generated.');
   }
 
@@ -241,6 +320,42 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
         'label' => 'Body',
       ])->save();
     }
+  }
+
+  /**
+   * Creates a Key entity backed by the OPENAI_API_KEY environment variable.
+   */
+  private function createOpenAiKey(): void {
+    if (Key::load('openai_api_key')) {
+      return;
+    }
+
+    Key::create([
+      'id' => 'openai_api_key',
+      'label' => 'OpenAI API key',
+      'key_type' => 'authentication',
+      'key_type_settings' => [],
+      'key_provider' => 'env',
+      'key_provider_settings' => [
+        'env_variable' => 'OPENAI_API_KEY',
+        'base64_encoded' => FALSE,
+        'strip_line_breaks' => FALSE,
+      ],
+      'key_input' => 'none',
+      'key_input_settings' => [],
+    ])->save();
+  }
+
+  /**
+   * Restores an environment variable after a test-only override.
+   */
+  private function restoreEnv(string $name, string|false $value): void {
+    if ($value === FALSE) {
+      putenv($name);
+      return;
+    }
+
+    putenv($name . '=' . $value);
   }
 
 }

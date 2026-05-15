@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\emerging_digital_chatbot\Kernel;
 
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiEnvironmentGuard;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiGatewayInterface;
 use Drupal\emerging_digital_chatbot\FutureAi\OpenAiResponsesGateway;
 use Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider;
@@ -250,48 +251,57 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
   public function testMissingKeyUsesFallbackWithoutHttpCall(): void {
     $this->configureEnabledGateway();
 
-    $openAiApiKey = getenv('OPENAI_API_KEY');
-    $moduleApiKey = getenv('EMERGING_DIGITAL_CHATBOT_OPENAI_API_KEY');
-    putenv('OPENAI_API_KEY');
-    putenv('EMERGING_DIGITAL_CHATBOT_OPENAI_API_KEY');
-
     $history = [];
     $gateway = $this->createGateway([
       new Response(200, [], '{"output_text":"Unexpected"}'),
     ], $history, NULL, '');
 
-    try {
-      $response = $gateway->respond([
-        'langcode' => 'fr',
-        'message' => 'Question Drupal',
-      ]);
-    }
-    finally {
-      $this->restoreEnv('OPENAI_API_KEY', $openAiApiKey);
-      $this->restoreEnv('EMERGING_DIGITAL_CHATBOT_OPENAI_API_KEY', $moduleApiKey);
-    }
+    $response = $gateway->respond([
+      'langcode' => 'fr',
+      'message' => 'Question Drupal',
+    ]);
 
     self::assertCount(0, $history);
     self::assertTrue($response['fallback']);
-    self::assertSame('ai_unconfigured', $response['status']);
+    self::assertSame('key_missing', $response['status']);
   }
 
   /**
-   * Restores an environment variable after a test-only override.
+   * Tests a blocked environment prevents any provider request.
    */
-  private function restoreEnv(string $name, string|false $value): void {
-    if ($value === FALSE) {
-      putenv($name);
-      return;
-    }
+  public function testBlockedEnvironmentUsesFallbackWithoutHttpCall(): void {
+    $this->config('emerging_digital_chatbot.settings')
+      ->set('future_ai.enabled', TRUE)
+      ->set('future_ai.openai_key_id', 'openai_api_key')
+      ->save();
 
-    putenv($name . '=' . $value);
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI');
+    $history = [];
+    $logger = new MemoryLogger();
+    $gateway = $this->createGateway([
+      new Response(200, [], '{"output_text":"Unexpected"}'),
+    ], $history, $logger);
+
+    $response = $gateway->respond([
+      'langcode' => 'fr',
+      'message' => 'Question Drupal',
+    ]);
+
+    self::assertCount(0, $history);
+    self::assertTrue($response['fallback']);
+    self::assertSame('environment_blocked', $response['status']);
+
+    $exposed = json_encode([$response, $logger->records], JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString(self::API_KEY, $exposed);
+    self::assertStringNotContainsString('Question Drupal', $exposed);
   }
 
   /**
    * Configures future AI for gateway tests.
    */
   private function configureEnabledGateway(): void {
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true');
+
     $this->config('emerging_digital_chatbot.settings')
       ->set('future_ai.enabled', TRUE)
       ->set('future_ai.openai_key_id', 'openai_api_key')
@@ -354,12 +364,15 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
 
     return new OpenAiResponsesGateway(
       $this->getChatbotConfig(),
-      $this->container->get('config.factory'),
       new Client(['handler' => $stack]),
       $logger ?? new MemoryLogger(),
       $this->getPublicAiContextProvider(),
       $this->getFallbackGateway(),
-      $this->getKeyRepository($apiKey),
+      new FutureAiEnvironmentGuard(
+        $this->getChatbotConfig(),
+        $this->container->get('config.factory'),
+        $this->getKeyRepository($apiKey),
+      ),
     );
   }
 

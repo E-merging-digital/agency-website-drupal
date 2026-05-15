@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\emerging_digital_chatbot\Functional;
 
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiMonitoring;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\key\Entity\Key;
@@ -135,6 +136,8 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
       self::fail('Could not create a user with the inspection permission.');
     }
     $this->authorizedUser = $authorizedUser;
+
+    $this->seedMonitoringSummary();
   }
 
   /**
@@ -196,6 +199,16 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('available');
     $this->assertSession()->pageTextContains('External calls allowed');
     $this->assertSession()->pageTextContains('no');
+    $this->assertSession()->pageTextContains('Future AI monitoring');
+    $this->assertSession()->pageTextContains('Period');
+    $this->assertSession()->pageTextContains('since_last_cache_clear');
+    $this->assertSession()->pageTextContains('Technical events');
+    $this->assertSession()->pageTextContains('Successes');
+    $this->assertSession()->pageTextContains('Blocked calls');
+    $this->assertSession()->pageTextContains('Provider errors');
+    $this->assertSession()->pageTextContains('Fallbacks returned');
+    $this->assertSession()->pageTextContains('provider_timeout');
+    $this->assertSession()->pageTextContains('fallback_used');
     $this->assertSession()->pageTextContains('Contexte public FR');
     $this->assertSession()->pageTextContains('Texte public FR inspectable.');
 
@@ -208,6 +221,8 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
     $this->assertSession()->pageTextNotContains('sk-functional-secret');
     $this->assertSession()->pageTextNotContains('openai_api_key');
     $this->assertSession()->pageTextNotContains('Hidden French system prompt.');
+    $this->assertSession()->pageTextNotContains('visitor message');
+    $this->assertSession()->pageTextNotContains('provider payload');
   }
 
   /**
@@ -387,6 +402,20 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
       'key_input' => 'none',
       'key_input_settings' => [],
     ])->save();
+  }
+
+  /**
+   * Seeds anonymous technical counters for the admin summary assertions.
+   */
+  private function seedMonitoringSummary(): void {
+    $monitoring = $this->container
+      ->get('emerging_digital_chatbot.future_ai_monitoring');
+    self::assertInstanceOf(FutureAiMonitoring::class, $monitoring);
+
+    $monitoring->recordSuccess();
+    $monitoring->recordBlocked('environment_blocked');
+    $monitoring->recordProviderError('provider_timeout');
+    $monitoring->recordFallback();
   }
 
   /**

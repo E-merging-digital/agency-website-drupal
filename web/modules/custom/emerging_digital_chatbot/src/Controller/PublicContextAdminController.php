@@ -8,6 +8,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Url;
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiEnvironmentGuard;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiMonitoring;
 use Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,6 +24,7 @@ final class PublicContextAdminController extends ControllerBase {
     private readonly PublicAiContextProvider $contextProvider,
     private readonly ChatbotConfig $chatbotConfig,
     private readonly FutureAiEnvironmentGuard $environmentGuard,
+    private readonly FutureAiMonitoring $monitoring,
   ) {
   }
 
@@ -34,6 +36,7 @@ final class PublicContextAdminController extends ControllerBase {
       $container->get('emerging_digital_chatbot.public_ai_context_provider'),
       $container->get('emerging_digital_chatbot.config'),
       $container->get('emerging_digital_chatbot.future_ai_environment_guard'),
+      $container->get('emerging_digital_chatbot.future_ai_monitoring'),
     );
   }
 
@@ -58,6 +61,7 @@ final class PublicContextAdminController extends ControllerBase {
     $contextLength = mb_strlen($contextText);
     $status = $this->getStatus($contract);
     $providerStatus = $this->environmentGuard->getAdminSummary();
+    $monitoringSummary = $this->monitoring->getAdminSummary();
 
     $build = [
       '#cache' => [
@@ -138,6 +142,19 @@ final class PublicContextAdminController extends ControllerBase {
         ],
         '#rows' => $this->buildProviderStatusRows($providerStatus),
       ],
+      'monitoring_title' => [
+        '#type' => 'html_tag',
+        '#tag' => 'h2',
+        '#value' => $this->t('Future AI monitoring'),
+      ],
+      'monitoring' => [
+        '#type' => 'table',
+        '#header' => [
+          $this->t('Metric'),
+          $this->t('Value'),
+        ],
+        '#rows' => $this->buildMonitoringRows($monitoringSummary),
+      ],
       'allowed_paths_title' => [
         '#type' => 'html_tag',
         '#tag' => 'h2',
@@ -192,6 +209,51 @@ final class PublicContextAdminController extends ControllerBase {
         [
           'data' => [
             '#plain_text' => $providerStatus[$key],
+          ],
+        ],
+      ];
+    }
+
+    return $rows;
+  }
+
+  /**
+   * Builds sanitized monitoring rows for the admin screen.
+   *
+   * @param array<string, string> $summary
+   *   Sanitized monitoring counters.
+   *
+   * @return list<array<int, mixed>>
+   *   Table rows.
+   */
+  private function buildMonitoringRows(array $summary): array {
+    $labels = [
+      'period' => $this->t('Period'),
+      'since' => $this->t('Since timestamp'),
+      'updated' => $this->t('Last event timestamp'),
+      'events' => $this->t('Technical events'),
+      'successes' => $this->t('Successes'),
+      'blocks' => $this->t('Blocked calls'),
+      'provider_errors' => $this->t('Provider errors'),
+      'fallbacks' => $this->t('Fallbacks returned'),
+      'reason_environment_blocked' => $this->t('environment_blocked'),
+      'reason_future_ai_disabled' => $this->t('future_ai_disabled'),
+      'reason_key_missing' => $this->t('key_missing'),
+      'reason_key_unreadable' => $this->t('key_unreadable'),
+      'reason_unsupported_provider' => $this->t('unsupported_provider'),
+      'reason_provider_timeout' => $this->t('provider_timeout'),
+      'reason_provider_error' => $this->t('provider_error'),
+      'reason_fallback_used' => $this->t('fallback_used'),
+      'reason_success' => $this->t('success'),
+    ];
+
+    $rows = [];
+    foreach ($labels as $key => $label) {
+      $rows[] = [
+        $label,
+        [
+          'data' => [
+            '#plain_text' => $summary[$key],
           ],
         ],
       ];

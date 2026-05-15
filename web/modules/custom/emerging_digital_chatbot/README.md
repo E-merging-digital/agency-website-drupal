@@ -98,7 +98,7 @@ Runtime diagnostics are available at:
 
 `/admin/config/services/emerging-digital-chatbot/public-context`
 
-The screen exposes only sanitized status values:
+The screen exposes only sanitized status and monitoring values:
 
 - Future AI state: `enabled` or `disabled`.
 - Active provider: provider id only.
@@ -107,6 +107,22 @@ The screen exposes only sanitized status values:
   `unsupported_provider`, `key_missing` or `key_unreadable`.
 - Key status: `available`, `missing` or `unreadable`.
 - External calls allowed: `yes` only when every guard passes.
+- Monitoring period: counters since the last Drupal cache clear.
+- Technical counters: events, successes, blocked calls, provider errors and
+  fallbacks returned.
+- Controlled monitoring reasons only: `environment_blocked`,
+  `future_ai_disabled`, `key_missing`, `key_unreadable`,
+  `unsupported_provider`, `provider_timeout`, `provider_error`,
+  `fallback_used` and `success`.
+
+Monitoring is intentionally minimal and anonymous. It stores volatile counters
+in Drupal cache and emits sanitized Drupal log events with controlled reason
+codes only. It never stores visitor messages, prompts, public RAG context,
+provider payloads, API keys, Key ids, session ids, user ids, IP addresses,
+marketing identifiers or conversation state. It does not add external calls,
+queues, analytics scripts, a custom SQL business table or durable conversation
+storage. Cache clears reset the admin counters; logs remain subject to the
+site's normal Drupal logging retention.
 
 Expected behavior:
 

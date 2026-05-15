@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\emerging_digital_chatbot\Kernel;
 
+use Drupal\Component\Datetime\TimeInterface;
+use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiEnvironmentGuard;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiGatewayInterface;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiMonitoring;
 use Drupal\emerging_digital_chatbot\FutureAi\OpenAiResponsesGateway;
 use Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider;
 use Drupal\field\Entity\FieldConfig;
@@ -67,6 +70,9 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
     $this->installEntitySchema('path_alias');
     $this->installEntitySchema('user');
     $this->installConfig(['emerging_digital_chatbot', 'filter', 'node']);
+    $this->container
+      ->get('cache.default')
+      ->delete('emerging_digital_chatbot.future_ai_monitoring');
 
     ConfigurableLanguage::createFromLangcode('fr')->save();
 
@@ -195,6 +201,11 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
       JSON_THROW_ON_ERROR,
     );
     self::assertStringNotContainsString(self::API_KEY, $exposed);
+
+    $summary = $this->getMonitoringSummary();
+    self::assertSame('1', $summary['events']);
+    self::assertSame('1', $summary['successes']);
+    self::assertSame('1', $summary['reason_success']);
   }
 
   /**
@@ -225,6 +236,12 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
     $exposed = json_encode([$response, $logger->records], JSON_THROW_ON_ERROR);
     self::assertStringNotContainsString(self::API_KEY, $exposed);
     self::assertStringNotContainsString('Aider mon site Drupal', $exposed);
+
+    $summary = $this->getMonitoringSummary();
+    self::assertSame('1', $summary['events']);
+    self::assertSame('1', $summary['provider_errors']);
+    self::assertSame('1', $summary['fallbacks']);
+    self::assertSame('1', $summary['reason_provider_error']);
   }
 
   /**
@@ -356,6 +373,12 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
     self::assertStringNotContainsString(self::API_KEY, $exposed);
     self::assertStringNotContainsString('Question Drupal timeout', $exposed);
     self::assertStringNotContainsString('Timeout while sending', $exposed);
+
+    $summary = $this->getMonitoringSummary();
+    self::assertSame('1', $summary['events']);
+    self::assertSame('1', $summary['provider_errors']);
+    self::assertSame('1', $summary['fallbacks']);
+    self::assertSame('1', $summary['reason_provider_timeout']);
   }
 
   /**
@@ -405,6 +428,12 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
     self::assertCount(0, $history);
     self::assertTrue($response['fallback']);
     self::assertSame('key_missing', $response['status']);
+
+    $summary = $this->getMonitoringSummary();
+    self::assertSame('1', $summary['events']);
+    self::assertSame('1', $summary['blocks']);
+    self::assertSame('1', $summary['fallbacks']);
+    self::assertSame('1', $summary['reason_key_missing']);
   }
 
   /**
@@ -490,6 +519,12 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
     $exposed = json_encode([$response, $logger->records], JSON_THROW_ON_ERROR);
     self::assertStringNotContainsString(self::API_KEY, $exposed);
     self::assertStringNotContainsString('Question Drupal', $exposed);
+
+    $summary = $this->getMonitoringSummary();
+    self::assertSame('1', $summary['events']);
+    self::assertSame('1', $summary['blocks']);
+    self::assertSame('1', $summary['fallbacks']);
+    self::assertSame('1', $summary['reason_environment_blocked']);
   }
 
   /**
@@ -569,6 +604,7 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
         $this->container->get('config.factory'),
         $this->getKeyRepository($apiKey),
       ),
+      $this->getMonitoring($logger ?? new MemoryLogger()),
     );
   }
 
@@ -590,7 +626,36 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
         $this->container->get('config.factory'),
         $this->getKeyRepository(self::API_KEY),
       ),
+      $this->getMonitoring($logger),
     );
+  }
+
+  /**
+   * Gets the Future AI monitoring service used by gateway tests.
+   */
+  private function getMonitoring(MemoryLogger $logger): FutureAiMonitoring {
+    $cache = $this->container->get('cache.default');
+    $time = $this->container->get('datetime.time');
+    self::assertInstanceOf(CacheBackendInterface::class, $cache);
+    self::assertInstanceOf(TimeInterface::class, $time);
+
+    return new FutureAiMonitoring(
+      $cache,
+      $time,
+      $logger,
+    );
+  }
+
+  /**
+   * Gets the sanitized monitoring summary.
+   *
+   * @return array<string, string>
+   *   Monitoring summary.
+   */
+  private function getMonitoringSummary(): array {
+    $monitoring = $this->getMonitoring(new MemoryLogger());
+
+    return $monitoring->getAdminSummary();
   }
 
   /**

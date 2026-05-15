@@ -19,11 +19,17 @@ use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
 use Drupal\path_alias\Entity\PathAlias;
 use GuzzleHttp\Client;
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Request as Psr7Request;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Log\AbstractLogger;
 
 /**
@@ -152,6 +158,10 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
 
     self::assertSame('POST', $request->getMethod());
     self::assertSame(
+      'https://api.openai.com/v1/responses',
+      (string) $request->getUri(),
+    );
+    self::assertSame(
       'Bearer ' . self::API_KEY,
       $request->getHeaderLine('Authorization'),
     );
@@ -218,6 +228,137 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
   }
 
   /**
+   * Tests invalid provider credentials fall back without leaking provider data.
+   */
+  public function testInvalidProviderKeyUsesFallbackWithoutLeakingSecrets(): void {
+    $this->configureEnabledGateway();
+
+    $history = [];
+    $logger = new MemoryLogger();
+    $gateway = $this->createGateway([
+      new Response(401, [], implode(' ', [
+        'invalid_api_key',
+        self::API_KEY,
+        'System prompt configured for tests.',
+        'Aider mon site Drupal',
+      ])),
+    ], $history, $logger);
+
+    $response = $gateway->respond([
+      'langcode' => 'fr',
+      'message' => 'Aider mon site Drupal',
+    ]);
+
+    self::assertCount(1, $history);
+    self::assertTrue($response['fallback']);
+    self::assertSame('ai_unavailable', $response['status']);
+
+    $exposed = json_encode([$response, $logger->records], JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString(self::API_KEY, $exposed);
+    self::assertStringNotContainsString('invalid_api_key', $exposed);
+    self::assertStringNotContainsString(
+      'System prompt configured for tests.',
+      $exposed,
+    );
+    self::assertStringNotContainsString('Aider mon site Drupal', $exposed);
+  }
+
+  /**
+   * Tests provider timeouts use fallback without logging request content.
+   */
+  public function testProviderTimeoutUsesFallbackWithoutLeakingPayload(): void {
+    $this->configureEnabledGateway();
+
+    $logger = new MemoryLogger();
+    $httpClient = new class(self::API_KEY) implements ClientInterface {
+
+      /**
+       * Number of request attempts.
+       */
+      public int $requests = 0;
+
+      public function __construct(
+        private readonly string $apiKey,
+      ) {
+      }
+
+      /**
+       * {@inheritdoc}
+       */
+      public function send(
+        RequestInterface $request,
+        array $options = [],
+      ): ResponseInterface {
+        throw new \BadMethodCallException('send() is not used in this test.');
+      }
+
+      /**
+       * {@inheritdoc}
+       */
+      public function sendAsync(
+        RequestInterface $request,
+        array $options = [],
+      ): PromiseInterface {
+        throw new \BadMethodCallException(
+          'sendAsync() is not used in this test.',
+        );
+      }
+
+      /**
+       * {@inheritdoc}
+       */
+      public function request(
+        string $method,
+        $uri,
+        array $options = [],
+      ): ResponseInterface {
+        $this->requests++;
+
+        throw new ConnectException(
+          'Timeout while sending ' . $this->apiKey,
+          new Psr7Request($method, (string) $uri),
+        );
+      }
+
+      /**
+       * {@inheritdoc}
+       */
+      public function requestAsync(
+        string $method,
+        $uri,
+        array $options = [],
+      ): PromiseInterface {
+        throw new \BadMethodCallException(
+          'requestAsync() is not used in this test.',
+        );
+      }
+
+      /**
+       * {@inheritdoc}
+       */
+      public function getConfig(?string $option = NULL) {
+        return NULL;
+      }
+
+    };
+    $gateway = $this->createGatewayWithHttpClient($httpClient, $logger);
+
+    $response = $gateway->respond([
+      'langcode' => 'fr',
+      'message' => 'Question Drupal timeout',
+    ]);
+
+    self::assertSame(1, $httpClient->requests);
+    self::assertTrue($response['fallback']);
+    self::assertSame('ai_unavailable', $response['status']);
+
+    $exposed = json_encode([$response, $logger->records], JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString(self::API_KEY, $exposed);
+    self::assertStringNotContainsString('Question Drupal timeout', $exposed);
+    self::assertStringNotContainsString('Timeout while sending', $exposed);
+  }
+
+  /**
    * Tests empty and invalid provider responses fall back.
    */
   public function testEmptyAndInvalidResponsesUseFallback(): void {
@@ -264,6 +405,61 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
     self::assertCount(0, $history);
     self::assertTrue($response['fallback']);
     self::assertSame('key_missing', $response['status']);
+  }
+
+  /**
+   * Tests unsupported providers prevent provider requests.
+   */
+  public function testUnsupportedProviderUsesFallbackWithoutHttpCall(): void {
+    $this->configureEnabledGateway();
+    $this->config('emerging_digital_chatbot.settings')
+      ->set('future_ai.provider', 'disabled_provider')
+      ->save();
+
+    $history = [];
+    $logger = new MemoryLogger();
+    $gateway = $this->createGateway([
+      new Response(200, [], '{"output_text":"Unexpected"}'),
+    ], $history, $logger);
+
+    $response = $gateway->respond([
+      'langcode' => 'fr',
+      'message' => 'Question Drupal',
+    ]);
+
+    self::assertCount(0, $history);
+    self::assertTrue($response['fallback']);
+    self::assertSame('unsupported_provider', $response['status']);
+
+    $exposed = json_encode([$response, $logger->records], JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString(self::API_KEY, $exposed);
+    self::assertStringNotContainsString('Question Drupal', $exposed);
+  }
+
+  /**
+   * Tests sensitive visitor input is blocked before any provider request.
+   */
+  public function testSensitiveInputUsesFallbackWithoutHttpCall(): void {
+    $this->configureEnabledGateway();
+
+    $history = [];
+    $logger = new MemoryLogger();
+    $gateway = $this->createGateway([
+      new Response(200, [], '{"output_text":"Unexpected"}'),
+    ], $history, $logger);
+
+    $response = $gateway->respond([
+      'langcode' => 'fr',
+      'message' => '',
+      'blocked_sensitive_input' => TRUE,
+    ]);
+
+    self::assertCount(0, $history);
+    self::assertTrue($response['fallback']);
+    self::assertSame('sensitive_input_blocked', $response['status']);
+
+    $exposed = json_encode([$response, $logger->records], JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString(self::API_KEY, $exposed);
   }
 
   /**
@@ -372,6 +568,27 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
         $this->getChatbotConfig(),
         $this->container->get('config.factory'),
         $this->getKeyRepository($apiKey),
+      ),
+    );
+  }
+
+  /**
+   * Creates the gateway with a custom HTTP client.
+   */
+  private function createGatewayWithHttpClient(
+    ClientInterface $httpClient,
+    MemoryLogger $logger,
+  ): OpenAiResponsesGateway {
+    return new OpenAiResponsesGateway(
+      $this->getChatbotConfig(),
+      $httpClient,
+      $logger,
+      $this->getPublicAiContextProvider(),
+      $this->getFallbackGateway(),
+      new FutureAiEnvironmentGuard(
+        $this->getChatbotConfig(),
+        $this->container->get('config.factory'),
+        $this->getKeyRepository(self::API_KEY),
       ),
     );
   }

@@ -49,6 +49,77 @@ available through the Drupal Key module. Resolution order is:
    module.
 2. `future_ai.openai_key_id`, interpreted as a Drupal Key id.
 
+## Controlled local/staging runtime activation
+
+Future AI can be tested only in an explicitly trusted local or staging runtime.
+Do not enable it in exported `config/sync` to carry a secret or an environment
+decision between environments.
+
+Required runtime conditions:
+
+- `mode` is set to `ai` in the active Drupal configuration.
+- `future_ai.enabled` is `true` in the active Drupal configuration.
+- `future_ai.provider` is `openai_responses`.
+- the runtime explicitly allows external AI calls.
+- the Drupal Key module can resolve the configured OpenAI key.
+
+Recommended `settings.local.php` allowance for local/staging:
+
+```php
+$settings['emerging_digital_chatbot.allow_external_ai'] = TRUE;
+```
+
+Equivalent environment-variable allowance:
+
+```bash
+export EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true
+```
+
+The setting wins when it is a boolean. If it is absent, the environment variable
+is accepted only for `1`, `true`, `yes` or `on`, case-insensitively. Any other
+value leaves external calls blocked.
+
+Configure the secret through Key module, not configuration export. The expected
+setup is an environment-backed Key:
+
+```bash
+export OPENAI_API_KEY=sk-...
+```
+
+Create a Key with id `openai_api_key`, type `Authentication`, provider
+`Environment`, and environment variable `OPENAI_API_KEY`. The key input stays
+`None` because the value is read at runtime from the environment.
+
+Then either let `ai_provider_openai` reference that Key id, or keep the
+non-secret fallback id in `future_ai.openai_key_id`. Never put the key value in
+`config/sync`, `settings.php`, `settings.local.php`, exported YAML or logs.
+
+Runtime diagnostics are available at:
+
+`/admin/config/services/emerging-digital-chatbot/public-context`
+
+The screen exposes only sanitized status values:
+
+- Future AI state: `enabled` or `disabled`.
+- Active provider: provider id only.
+- Environment: `allowed` or `blocked`.
+- Reason: for example `environment_blocked`, `future_ai_disabled`,
+  `unsupported_provider`, `key_missing` or `key_unreadable`.
+- Key status: `available`, `missing` or `unreadable`.
+- External calls allowed: `yes` only when every guard passes.
+
+Expected behavior:
+
+- allowed environment plus readable Key: one server-side OpenAI Responses call
+  can be made with `store: false`, no tools and no conversation state.
+- blocked environment, disabled Future AI, unsupported provider or missing Key:
+  no external HTTP call is made and the guided fallback is returned.
+- provider error, invalid JSON, timeout, empty answer or guardrail violation:
+  the guided fallback is returned.
+- sensitive visitor input is rejected before any provider request.
+- logs contain only technical reason/status/class values, never prompts, API
+  keys, raw provider payloads, full context or visitor messages.
+
 The default block hides the widget on contact pages so it does not cover the
 human contact form.
 

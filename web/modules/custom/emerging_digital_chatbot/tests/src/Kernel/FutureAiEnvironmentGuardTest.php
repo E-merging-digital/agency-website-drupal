@@ -100,6 +100,28 @@ final class FutureAiEnvironmentGuardTest extends KernelTestBase {
   }
 
   /**
+   * Tests unsupported providers block external calls even with a valid Key.
+   */
+  public function testUnsupportedProviderBlocksCalls(): void {
+    $this->configureFutureAi(TRUE);
+    $this->config('emerging_digital_chatbot.settings')
+      ->set('future_ai.provider', 'disabled_provider')
+      ->save();
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true');
+
+    $guard = $this->createGuard($this->getKeyRepository(self::API_KEY));
+
+    self::assertFalse($guard->allowsExternalCalls());
+    self::assertSame('unsupported_provider', $guard->getBlockReason());
+    self::assertSame('', $guard->resolveApiKey());
+
+    $summary = $guard->getAdminSummary();
+    self::assertSame('disabled_provider', $summary['provider']);
+    self::assertSame('unsupported_provider', $summary['reason']);
+    self::assertSame('no', $summary['external_calls_allowed']);
+  }
+
+  /**
    * Tests a missing Key entity blocks external calls.
    */
   public function testMissingKeyBlocksCalls(): void {

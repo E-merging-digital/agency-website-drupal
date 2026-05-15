@@ -240,6 +240,49 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
   }
 
   /**
+   * Tests provider and Key blockers are visible without leaking identifiers.
+   */
+  public function testProviderAndKeyBlockersAreVisibleWithoutLeaks(): void {
+    $this->drupalLogin($this->authorizedUser);
+    $settings['settings']['emerging_digital_chatbot.allow_external_ai'] = (object) [
+      'value' => TRUE,
+      'required' => TRUE,
+    ];
+    $this->writeSettings($settings);
+
+    $this->config('emerging_digital_chatbot.settings')
+      ->set('future_ai.provider', 'disabled_provider')
+      ->set('future_ai.openai_key_id', 'missing_openai_key')
+      ->save();
+
+    $this->drupalGet(self::INSPECTION_PATH, ['query' => ['langcode' => 'fr']]);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Active provider');
+    $this->assertSession()->pageTextContains('disabled_provider');
+    $this->assertSession()->pageTextContains('Reason');
+    $this->assertSession()->pageTextContains('unsupported_provider');
+    $this->assertSession()->pageTextContains('Key status');
+    $this->assertSession()->pageTextContains('missing');
+    $this->assertSession()->pageTextContains('External calls allowed');
+    $this->assertSession()->pageTextContains('no');
+    $this->assertSession()->pageTextNotContains('missing_openai_key');
+
+    $this->config('emerging_digital_chatbot.settings')
+      ->set('future_ai.provider', 'openai_responses')
+      ->save();
+
+    $this->drupalGet(self::INSPECTION_PATH, ['query' => ['langcode' => 'fr']]);
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('openai_responses');
+    $this->assertSession()->pageTextContains('key_missing');
+    $this->assertSession()->pageTextContains('missing');
+    $this->assertSession()->pageTextContains('no');
+    $this->assertSession()->pageTextNotContains('missing_openai_key');
+    $this->assertSession()->pageTextNotContains('sk-functional-secret');
+    $this->assertSession()->pageTextNotContains('Hidden French system prompt.');
+  }
+
+  /**
    * Tests French and English contexts are inspectable independently.
    */
   public function testFrenchAndEnglishContextsAreInspectable(): void {

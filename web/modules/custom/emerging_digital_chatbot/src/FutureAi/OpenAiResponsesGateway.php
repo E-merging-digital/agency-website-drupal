@@ -25,6 +25,20 @@ final class OpenAiResponsesGateway implements FutureAiProviderGatewayInterface {
   /**
    * {@inheritdoc}
    */
+  public function getProviderId(): string {
+    return FutureAiProviderRegistry::PROVIDER_OPENAI;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isEnabled(): bool {
+    return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
   public function respond(
     array $payload,
     string $langcode,

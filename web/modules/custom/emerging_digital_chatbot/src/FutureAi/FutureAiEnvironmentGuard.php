@@ -14,12 +14,11 @@ use Drupal\key\KeyRepositoryInterface;
  */
 final class FutureAiEnvironmentGuard {
 
-  private const PROVIDER_OPENAI_RESPONSES = 'openai_responses';
-
   public function __construct(
     private readonly ChatbotConfig $chatbotConfig,
     private readonly ConfigFactoryInterface $configFactory,
     private readonly ?KeyRepositoryInterface $keyRepository = NULL,
+    private readonly ?FutureAiProviderRegistry $providerRegistry = NULL,
   ) {
   }
 
@@ -38,7 +37,7 @@ final class FutureAiEnvironmentGuard {
       return 'future_ai_disabled';
     }
 
-    if ($this->getProvider() !== self::PROVIDER_OPENAI_RESPONSES) {
+    if (!$this->hasSupportedActiveProvider()) {
       return 'unsupported_provider';
     }
 
@@ -59,7 +58,7 @@ final class FutureAiEnvironmentGuard {
    */
   public function resolveApiKey(): string {
     if (!$this->chatbotConfig->isFutureAiEnabled()
-      || $this->getProvider() !== self::PROVIDER_OPENAI_RESPONSES
+      || !$this->hasSupportedActiveProvider()
       || !$this->isEnvironmentExplicitlyAllowed()) {
       return '';
     }
@@ -82,7 +81,7 @@ final class FutureAiEnvironmentGuard {
       'future_ai_state' => $this->chatbotConfig->isFutureAiEnabled()
         ? 'enabled'
         : 'disabled',
-      'provider' => $this->getProvider(),
+      'provider' => $this->getActiveProviderId(),
       'environment' => $this->isEnvironmentExplicitlyAllowed()
         ? 'allowed'
         : 'blocked',
@@ -127,7 +126,39 @@ final class FutureAiEnvironmentGuard {
 
     return is_string($provider) && trim($provider) !== ''
       ? trim($provider)
-      : self::PROVIDER_OPENAI_RESPONSES;
+      : FutureAiProviderRegistry::PROVIDER_OPENAI;
+  }
+
+  /**
+   * Determines whether the active provider can use the current guard policy.
+   */
+  private function hasSupportedActiveProvider(): bool {
+    if ($this->providerRegistry) {
+      $provider = $this->providerRegistry->getActiveProvider();
+
+      return $provider !== NULL
+        && $provider->isEnabled()
+        && $provider->getProviderId() === FutureAiProviderRegistry::PROVIDER_OPENAI;
+    }
+
+    return $this->getActiveProviderId() === FutureAiProviderRegistry::PROVIDER_OPENAI;
+  }
+
+  /**
+   * Gets the normalized active provider id without adjacent configuration.
+   */
+  private function getActiveProviderId(): string {
+    if ($this->providerRegistry) {
+      $providerId = $this->providerRegistry->getActiveProviderId();
+
+      return $providerId !== '' ? $providerId : 'invalid';
+    }
+
+    $providerId = FutureAiProviderRegistry::normalizeProviderId(
+      $this->getProvider(),
+    );
+
+    return $providerId !== '' ? $providerId : 'invalid';
   }
 
   /**

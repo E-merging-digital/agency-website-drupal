@@ -11,6 +11,7 @@ use Drupal\emerging_digital_chatbot\FutureAi\FutureAiGatewayInterface;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiMonitoring;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiOrchestrator;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderGatewayInterface;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderRegistry;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseReason;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseStatus;
@@ -178,6 +179,27 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
   }
 
   /**
+   * Tests missing provider services prevent provider dispatch.
+   */
+  public function testMissingProviderServiceFallsBack(): void {
+    $this->configureEnabledFutureAi();
+
+    $registry = new FutureAiProviderRegistry(
+      $this->container->get('config.factory'),
+      [],
+    );
+    $response = $this->createOrchestratorWithRegistry($registry)
+      ->respond([
+        'langcode' => 'fr',
+        'message' => 'Question Drupal',
+      ])->toArray();
+
+    self::assertTrue($response['fallback']);
+    self::assertSame('unsupported_provider', $response['status']);
+    self::assertSame('1', $this->getMonitoringSummary()['reason_unsupported_provider']);
+  }
+
+  /**
    * Tests empty public context prevents provider use.
    */
   public function testEmptyContextFallsBackWithoutProviderCall(): void {
@@ -335,6 +357,26 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
     string $apiKey = self::API_KEY,
     ?OrchestratorMemoryLogger $logger = NULL,
   ): FutureAiOrchestrator {
+    $providerRegistry = new FutureAiProviderRegistry(
+      $this->container->get('config.factory'),
+      [$providerGateway],
+    );
+
+    return $this->createOrchestratorWithRegistry(
+      $providerRegistry,
+      $apiKey,
+      $logger,
+    );
+  }
+
+  /**
+   * Creates an orchestrator under test with a specific provider registry.
+   */
+  private function createOrchestratorWithRegistry(
+    FutureAiProviderRegistry $providerRegistry,
+    string $apiKey = self::API_KEY,
+    ?OrchestratorMemoryLogger $logger = NULL,
+  ): FutureAiOrchestrator {
     $logger ??= new OrchestratorMemoryLogger();
 
     return new FutureAiOrchestrator(
@@ -343,9 +385,10 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
         $this->getChatbotConfig(),
         $this->container->get('config.factory'),
         $this->getKeyRepository($apiKey),
+        $providerRegistry,
       ),
       $this->getPublicAiContextProvider(),
-      $providerGateway,
+      $providerRegistry,
       $this->getFallbackGateway(),
       $this->getMonitoring($logger),
       $logger,
@@ -534,6 +577,20 @@ final class RecordingProviderGateway implements FutureAiProviderGatewayInterface
     private readonly string $status = 'ai_response',
     private readonly string $message = '',
   ) {
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getProviderId(): string {
+    return FutureAiProviderRegistry::PROVIDER_OPENAI;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isEnabled(): bool {
+    return TRUE;
   }
 
   /**

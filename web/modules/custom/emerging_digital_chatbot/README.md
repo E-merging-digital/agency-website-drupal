@@ -37,15 +37,17 @@ The settings file controls:
 - input, context, timeout and rate-limit safeguards;
 - future public-context profile for mini-RAG preparation.
 
-The OpenAI API key must never be stored in exportable configuration. Resolution
-order is:
+External AI calls are blocked by default, even if `future_ai.enabled` is true.
+They require an explicit runtime allowance through
+`$settings['emerging_digital_chatbot.allow_external_ai'] = TRUE` or
+`EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true`.
+
+The OpenAI API key must never be stored in exportable configuration. It must be
+available through the Drupal Key module. Resolution order is:
 
 1. OpenAI provider configuration from `ai_provider_openai` through the Key
    module.
 2. `future_ai.openai_key_id`, interpreted as a Drupal Key id.
-3. `$settings['emerging_digital_chatbot.openai_api_key']`.
-4. `EMERGING_DIGITAL_CHATBOT_OPENAI_API_KEY`.
-5. `OPENAI_API_KEY`.
 
 The default block hides the widget on contact pages so it does not cover the
 human contact form.

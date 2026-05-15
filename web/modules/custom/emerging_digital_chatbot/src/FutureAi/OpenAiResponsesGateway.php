@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\emerging_digital_chatbot\FutureAi;
 
-use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Core\Site\Settings;
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
-use Drupal\key\KeyRepositoryInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Log\LoggerInterface;
@@ -19,12 +16,11 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
 
   public function __construct(
     private readonly ChatbotConfig $chatbotConfig,
-    private readonly ConfigFactoryInterface $configFactory,
     private readonly ClientInterface $httpClient,
     private readonly LoggerInterface $logger,
     private readonly PublicAiContextProvider $contextProvider,
     private readonly FutureAiGatewayInterface $fallbackGateway,
-    private readonly ?KeyRepositoryInterface $keyRepository = NULL,
+    private readonly FutureAiEnvironmentGuard $environmentGuard,
   ) {
   }
 
@@ -33,8 +29,13 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
    */
   public function respond(array $payload): array {
     $langcode = $this->getPayloadLangcode($payload);
-    if (!$this->chatbotConfig->isFutureAiEnabled()) {
-      return $this->fallback('future_ai_disabled', $langcode);
+    if (!$this->environmentGuard->allowsExternalCalls()) {
+      $reason = $this->environmentGuard->getBlockReason();
+      $this->logger->warning('Chatbot AI provider blocked: @reason', [
+        '@reason' => $reason,
+      ]);
+
+      return $this->fallback($reason, $langcode);
     }
 
     if (!empty($payload['blocked_sensitive_input'])) {
@@ -47,7 +48,7 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
       return $this->fallback('empty_message', $langcode);
     }
 
-    $apiKey = $this->resolveApiKey();
+    $apiKey = $this->environmentGuard->resolveApiKey();
     if ($apiKey === '') {
       return $this->fallback('ai_unconfigured', $langcode);
     }
@@ -241,89 +242,6 @@ final class OpenAiResponsesGateway implements FutureAiGatewayInterface {
     $response['langcode'] = $langcode;
 
     return $response;
-  }
-
-  /**
-   * Resolves the API key without using exportable config for the secret value.
-   */
-  private function resolveApiKey(): string {
-    $providerConfig = $this->configFactory->get('ai_provider_openai.settings');
-    $providerKeyId = $this->firstNonEmptyString([
-      $providerConfig->get('key_id'),
-      $providerConfig->get('api_key'),
-      $providerConfig->get('api_key_name'),
-      $providerConfig->get('key'),
-    ]);
-    $providerKey = $this->resolveFromKeyId($providerKeyId);
-    if ($providerKey !== '') {
-      return $providerKey;
-    }
-
-    $configuredKey = $this->resolveFromKeyId(
-      (string) $this->configFactory
-        ->get('emerging_digital_chatbot.settings')
-        ->get('future_ai.openai_key_id'),
-    );
-    if ($configuredKey !== '') {
-      return $configuredKey;
-    }
-
-    $settingsKey = Settings::get('emerging_digital_chatbot.openai_api_key', '');
-    if (is_string($settingsKey) && $settingsKey !== '') {
-      return $settingsKey;
-    }
-
-    foreach (['EMERGING_DIGITAL_CHATBOT_OPENAI_API_KEY', 'OPENAI_API_KEY'] as $envName) {
-      $envKey = getenv($envName);
-      if (is_string($envKey) && $envKey !== '') {
-        return $envKey;
-      }
-    }
-
-    return '';
-  }
-
-  /**
-   * Resolves a Drupal Key id.
-   */
-  private function resolveFromKeyId(?string $candidate): string {
-    $candidate = trim((string) $candidate);
-    if ($candidate === '' || !$this->keyRepository) {
-      return '';
-    }
-
-    try {
-      $key = $this->keyRepository->getKey($candidate);
-      if ($key) {
-        $resolvedValue = trim((string) $key->getKeyValue());
-        if ($resolvedValue !== '') {
-          return $resolvedValue;
-        }
-      }
-    }
-    catch (\Throwable $exception) {
-      $this->logger->warning('Chatbot AI key lookup failed: @class', [
-        '@class' => $exception::class,
-      ]);
-    }
-
-    return '';
-  }
-
-  /**
-   * Returns the first non-empty string from config candidates.
-   *
-   * @param array<int, mixed> $values
-   *   Candidate values.
-   */
-  private function firstNonEmptyString(array $values): ?string {
-    foreach ($values as $value) {
-      if (is_string($value) && trim($value) !== '') {
-        return trim($value);
-      }
-    }
-
-    return NULL;
   }
 
   /**

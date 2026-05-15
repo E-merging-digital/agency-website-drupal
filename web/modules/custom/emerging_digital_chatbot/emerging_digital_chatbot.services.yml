@@ -27,6 +27,13 @@ services:
       - '@path_alias.manager'
       - '@entity_type.manager'
 
+  emerging_digital_chatbot.future_ai_environment_guard:
+    class: Drupal\emerging_digital_chatbot\FutureAi\FutureAiEnvironmentGuard
+    arguments:
+      - '@emerging_digital_chatbot.config'
+      - '@config.factory'
+      - '@?key.repository'
+
   emerging_digital_chatbot.fallback_ai_gateway:
     class: Drupal\emerging_digital_chatbot\FutureAi\NullFutureAiGateway
     arguments:
@@ -36,12 +43,11 @@ services:
     class: Drupal\emerging_digital_chatbot\FutureAi\OpenAiResponsesGateway
     arguments:
       - '@emerging_digital_chatbot.config'
-      - '@config.factory'
       - '@http_client'
       - '@logger.channel.emerging_digital_chatbot'
       - '@emerging_digital_chatbot.public_ai_context_provider'
       - '@emerging_digital_chatbot.fallback_ai_gateway'
-      - '@?key.repository'
+      - '@emerging_digital_chatbot.future_ai_environment_guard'
 
   logger.channel.emerging_digital_chatbot:
     parent: logger.channel_base

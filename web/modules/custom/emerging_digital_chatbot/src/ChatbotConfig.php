@@ -65,7 +65,9 @@ final class ChatbotConfig {
       'langcode' => $langcode,
       'mode' => $this->getMode(),
       'futureAiEnabled' => $this->isFutureAiEnabled(),
-      'futureAi' => $this->getFutureAiSummary($langcode),
+      'futureAi' => [
+        'enabled' => $this->isFutureAiEnabled(),
+      ],
       'messages' => $messages,
     ];
   }

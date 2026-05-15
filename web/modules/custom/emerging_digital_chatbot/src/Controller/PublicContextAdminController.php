@@ -7,6 +7,7 @@ namespace Drupal\emerging_digital_chatbot\Controller;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Url;
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiEnvironmentGuard;
 use Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -21,6 +22,7 @@ final class PublicContextAdminController extends ControllerBase {
   public function __construct(
     private readonly PublicAiContextProvider $contextProvider,
     private readonly ChatbotConfig $chatbotConfig,
+    private readonly FutureAiEnvironmentGuard $environmentGuard,
   ) {
   }
 
@@ -31,6 +33,7 @@ final class PublicContextAdminController extends ControllerBase {
     return new self(
       $container->get('emerging_digital_chatbot.public_ai_context_provider'),
       $container->get('emerging_digital_chatbot.config'),
+      $container->get('emerging_digital_chatbot.future_ai_environment_guard'),
     );
   }
 
@@ -44,7 +47,8 @@ final class PublicContextAdminController extends ControllerBase {
    */
   public function inspect(Request $request): array {
     $requestedLangcode = $request->query->get('langcode');
-    $langcode = is_string($requestedLangcode) && in_array($requestedLangcode, self::SUPPORTED_LANGCODES, TRUE)
+    $langcode = is_string($requestedLangcode)
+      && in_array($requestedLangcode, self::SUPPORTED_LANGCODES, TRUE)
       ? $requestedLangcode
       : 'fr';
 
@@ -53,6 +57,7 @@ final class PublicContextAdminController extends ControllerBase {
     $contextText = $contract['text'];
     $contextLength = mb_strlen($contextText);
     $status = $this->getStatus($contract);
+    $providerStatus = $this->environmentGuard->getAdminSummary();
 
     $build = [
       '#cache' => [
@@ -120,6 +125,19 @@ final class PublicContextAdminController extends ControllerBase {
           ],
         ],
       ],
+      'provider_status_title' => [
+        '#type' => 'html_tag',
+        '#tag' => 'h2',
+        '#value' => $this->t('Future AI provider status'),
+      ],
+      'provider_status' => [
+        '#type' => 'table',
+        '#header' => [
+          $this->t('Property'),
+          $this->t('Value'),
+        ],
+        '#rows' => $this->buildProviderStatusRows($providerStatus),
+      ],
       'allowed_paths_title' => [
         '#type' => 'html_tag',
         '#tag' => 'h2',
@@ -146,6 +164,40 @@ final class PublicContextAdminController extends ControllerBase {
     ];
 
     return $build;
+  }
+
+  /**
+   * Builds sanitized provider status rows for the admin screen.
+   *
+   * @param array<string, string> $providerStatus
+   *   Sanitized provider status.
+   *
+   * @return list<array<int, mixed>>
+   *   Table rows.
+   */
+  private function buildProviderStatusRows(array $providerStatus): array {
+    $labels = [
+      'future_ai_state' => $this->t('Future AI state'),
+      'provider' => $this->t('Active provider'),
+      'environment' => $this->t('Environment'),
+      'reason' => $this->t('Reason'),
+      'key_status' => $this->t('Key status'),
+      'external_calls_allowed' => $this->t('External calls allowed'),
+    ];
+
+    $rows = [];
+    foreach ($labels as $key => $label) {
+      $rows[] = [
+        $label,
+        [
+          'data' => [
+            '#plain_text' => $providerStatus[$key],
+          ],
+        ],
+      ];
+    }
+
+    return $rows;
   }
 
   /**

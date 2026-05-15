@@ -9,6 +9,9 @@ use Drupal\Core\Flood\FloodInterface;
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
 use Drupal\emerging_digital_chatbot\FutureAi\ChatbotPayloadSanitizer;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiGatewayInterface;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseReason;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseStatus;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -48,13 +51,12 @@ final class ChatbotEndpointController extends ControllerBase {
     if (!$this->isAllowedByRateLimit($request)) {
       $langcode = $this->chatbotConfig->getCurrentLangcode();
 
-      return $this->jsonResponse([
-        'status' => 'rate_limited',
-        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
-        'fallback' => TRUE,
-        'stored' => FALSE,
-        'langcode' => $langcode,
-      ], 429);
+      return $this->jsonResponse(FutureAiResponse::fallback(
+        FutureAiResponseStatus::RateLimited,
+        FutureAiResponseReason::RateLimited,
+        $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
+        $langcode,
+      )->toArray(), 429);
     }
 
     try {
@@ -64,17 +66,16 @@ final class ChatbotEndpointController extends ControllerBase {
       $this->logger->notice('Chatbot endpoint rejected invalid JSON.');
       $langcode = $this->chatbotConfig->getCurrentLangcode();
 
-      return $this->jsonResponse([
-        'status' => 'invalid_payload',
-        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
-        'fallback' => TRUE,
-        'stored' => FALSE,
-        'langcode' => $langcode,
-      ], 400);
+      return $this->jsonResponse(FutureAiResponse::fallback(
+        FutureAiResponseStatus::InvalidPayload,
+        FutureAiResponseReason::InvalidPayload,
+        $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
+        $langcode,
+      )->toArray(), 400);
     }
 
     $payload = is_array($decoded) ? $this->payloadSanitizer->sanitize($decoded) : [];
-    $response = $this->futureAiOrchestrator->respond($payload);
+    $response = $this->futureAiOrchestrator->respond($payload)->toArray();
 
     return $this->jsonResponse($response);
   }

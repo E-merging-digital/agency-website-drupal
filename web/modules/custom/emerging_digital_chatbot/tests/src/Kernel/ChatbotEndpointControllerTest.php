@@ -9,6 +9,9 @@ use Drupal\emerging_digital_chatbot\ChatbotConfig;
 use Drupal\emerging_digital_chatbot\Controller\ChatbotEndpointController;
 use Drupal\emerging_digital_chatbot\FutureAi\ChatbotPayloadSanitizer;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiGatewayInterface;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseReason;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseStatus;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Psr\Log\NullLogger;
@@ -57,16 +60,15 @@ final class ChatbotEndpointControllerTest extends KernelTestBase {
       /**
        * {@inheritdoc}
        */
-      public function respond(array $payload): array {
+      public function respond(array $payload): FutureAiResponse {
         $this->payload = $payload;
 
-        return [
-          'status' => 'guide_only',
-          'message' => 'Fallback stable.',
-          'fallback' => TRUE,
-          'stored' => FALSE,
-          'langcode' => 'fr',
-        ];
+        return FutureAiResponse::fallback(
+          FutureAiResponseStatus::GuideOnly,
+          FutureAiResponseReason::GuideOnly,
+          'Fallback stable.',
+          'fr',
+        );
       }
 
     };

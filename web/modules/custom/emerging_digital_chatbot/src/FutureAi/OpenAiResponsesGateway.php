@@ -30,11 +30,14 @@ final class OpenAiResponsesGateway implements FutureAiProviderGatewayInterface {
     string $langcode,
     string $promptContext,
     string $apiKey,
-  ): array {
+  ): FutureAiResponse {
     $payload = $this->sanitizePayloadForProvider($payload);
     $message = trim((string) ($payload['message'] ?? ''));
     if ($message === '') {
-      return $this->providerFailure('empty_ai_response', $langcode);
+      return $this->providerFailure(
+        FutureAiResponseStatus::EmptyAiResponse,
+        $langcode,
+      );
     }
 
     try {
@@ -52,44 +55,56 @@ final class OpenAiResponsesGateway implements FutureAiProviderGatewayInterface {
           '@status' => $response->getStatusCode(),
         ]);
 
-        return $this->providerFailure('provider_error', $langcode);
+        return $this->providerFailure(
+          FutureAiResponseStatus::ProviderError,
+          $langcode,
+        );
       }
 
       $data = json_decode((string) $response->getBody(), TRUE, 512, JSON_THROW_ON_ERROR);
       $answer = $this->extractOutputText(is_array($data) ? $data : []);
       if ($answer === '') {
-        return $this->providerFailure('empty_ai_response', $langcode);
+        return $this->providerFailure(
+          FutureAiResponseStatus::EmptyAiResponse,
+          $langcode,
+        );
       }
       if ($this->violatesCommercialGuardrails($answer)) {
-        return $this->providerFailure('guardrail_fallback', $langcode);
+        return $this->providerFailure(
+          FutureAiResponseStatus::GuardrailFallback,
+          $langcode,
+        );
       }
 
-      return [
-        'status' => 'ai_response',
-        'message' => $answer,
-        'fallback' => FALSE,
-        'stored' => FALSE,
-        'langcode' => $langcode,
-      ];
+      return FutureAiResponse::aiResponse($answer, $langcode);
     }
     catch (ConnectException $exception) {
       $this->logger->warning('Chatbot AI provider request failed: @class', [
         '@class' => $exception::class,
       ]);
 
-      return $this->providerFailure('provider_timeout', $langcode);
+      return $this->providerFailure(
+        FutureAiResponseStatus::ProviderTimeout,
+        $langcode,
+      );
     }
     catch (GuzzleException $exception) {
       $this->logger->warning('Chatbot AI provider request failed: @class', [
         '@class' => $exception::class,
       ]);
 
-      return $this->providerFailure('provider_error', $langcode);
+      return $this->providerFailure(
+        FutureAiResponseStatus::ProviderError,
+        $langcode,
+      );
     }
     catch (\JsonException) {
       $this->logger->warning('Chatbot AI provider returned invalid JSON.');
 
-      return $this->providerFailure('provider_error', $langcode);
+      return $this->providerFailure(
+        FutureAiResponseStatus::ProviderError,
+        $langcode,
+      );
     }
   }
 
@@ -222,20 +237,14 @@ final class OpenAiResponsesGateway implements FutureAiProviderGatewayInterface {
   /**
    * Gets a safe provider failure result.
    *
-   * @return array<string, mixed>
+   * @return \Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse
    *   Provider failure result.
    */
   private function providerFailure(
-    string $status,
+    FutureAiResponseStatus $status,
     string $langcode,
-  ): array {
-    return [
-      'status' => $status,
-      'message' => '',
-      'fallback' => TRUE,
-      'stored' => FALSE,
-      'langcode' => $langcode,
-    ];
+  ): FutureAiResponse {
+    return FutureAiResponse::providerFailure($status, $langcode);
   }
 
   /**

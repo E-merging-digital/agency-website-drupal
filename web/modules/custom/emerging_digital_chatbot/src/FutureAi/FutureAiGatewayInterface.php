@@ -15,9 +15,9 @@ interface FutureAiGatewayInterface {
    * @param array<string, mixed> $payload
    *   Sanitized request payload.
    *
-   * @return array<string, mixed>
-   *   A response payload safe to expose as JSON.
+   * @return \Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse
+   *   A response contract safe to expose as JSON through serialization.
    */
-  public function respond(array $payload): array;
+  public function respond(array $payload): FutureAiResponse;
 
 }

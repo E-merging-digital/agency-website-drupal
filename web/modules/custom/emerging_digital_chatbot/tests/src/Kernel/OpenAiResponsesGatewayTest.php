@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\emerging_digital_chatbot\Kernel;
 
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse;
 use Drupal\emerging_digital_chatbot\FutureAi\OpenAiResponsesGateway;
 use Drupal\KernelTests\KernelTestBase;
 use GuzzleHttp\Client;
@@ -62,7 +63,7 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
       new Response(200, [], '{"output_text":"Orientation utile."}'),
     ], $history, $logger);
 
-    $response = $gateway->respond(
+    $responseContract = $gateway->respond(
       [
         'langcode' => 'fr',
         'message' => '<strong>Je veux un site Drupal</strong><script>bad()</script>',
@@ -75,7 +76,9 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
       'Public Drupal context: Page publique gateway',
       self::API_KEY,
     );
+    $response = $responseContract->toArray();
 
+    self::assertInstanceOf(FutureAiResponse::class, $responseContract);
     self::assertSame('ai_response', $response['status']);
     self::assertSame('Orientation utile.', $response['message']);
     self::assertFalse($response['fallback']);
@@ -141,12 +144,13 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
       new Response(500, [], 'provider error ' . self::API_KEY),
     ], $history, $logger);
 
-    $response = $gateway->respond(
+    $responseContract = $gateway->respond(
       ['langcode' => 'fr', 'message' => 'Aider mon site Drupal'],
       'fr',
       'Public Drupal context: Page publique gateway',
       self::API_KEY,
     );
+    $response = $responseContract->toArray();
 
     self::assertCount(1, $history);
     self::assertTrue($response['fallback']);
@@ -241,12 +245,13 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
       $logger,
     );
 
-    $response = $gateway->respond(
+    $responseContract = $gateway->respond(
       ['langcode' => 'fr', 'message' => 'Question Drupal timeout'],
       'fr',
       'Public Drupal context: Page publique gateway',
       self::API_KEY,
     );
+    $response = $responseContract->toArray();
 
     self::assertSame(1, $httpClient->requests);
     self::assertTrue($response['fallback']);
@@ -277,7 +282,7 @@ final class OpenAiResponsesGatewayTest extends KernelTestBase {
         'fr',
         'Public Drupal context: Page publique gateway',
         self::API_KEY,
-      );
+      )->toArray();
 
       self::assertCount(1, $history);
       self::assertTrue($response['fallback']);

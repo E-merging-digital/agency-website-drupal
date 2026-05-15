@@ -26,56 +26,88 @@ final class FutureAiOrchestrator implements FutureAiGatewayInterface {
   /**
    * {@inheritdoc}
    */
-  public function respond(array $payload): array {
+  public function respond(array $payload): FutureAiResponse {
     $langcode = $this->getPayloadLangcode($payload);
 
     if ($this->chatbotConfig->getMode() !== 'ai') {
       $this->monitoring->recordFallback();
 
-      return $this->fallback('guide_only', $langcode, TRUE);
+      return $this->fallback(
+        FutureAiResponseStatus::GuideOnly,
+        FutureAiResponseReason::GuideOnly,
+        $langcode,
+        TRUE,
+      );
     }
 
     if (!$this->chatbotConfig->isFutureAiEnabled()) {
-      $this->monitoring->recordBlocked('future_ai_disabled');
+      $this->monitoring->recordBlocked(FutureAiResponseReason::FutureAiDisabled);
 
-      return $this->fallback('guide_only', $langcode, TRUE);
+      return $this->fallback(
+        FutureAiResponseStatus::GuideOnly,
+        FutureAiResponseReason::FutureAiDisabled,
+        $langcode,
+        TRUE,
+      );
     }
 
     if (!empty($payload['blocked_sensitive_input'])) {
       $this->monitoring->recordFallback();
 
-      return $this->fallback('sensitive_input_blocked', $langcode);
+      return $this->fallback(
+        FutureAiResponseStatus::SensitiveInputBlocked,
+        FutureAiResponseReason::SensitiveInputBlocked,
+        $langcode,
+      );
     }
 
     $message = trim((string) ($payload['message'] ?? ''));
     if ($message === '') {
       $this->monitoring->recordFallback();
 
-      return $this->fallback('empty_message', $langcode);
+      return $this->fallback(
+        FutureAiResponseStatus::EmptyMessage,
+        FutureAiResponseReason::EmptyMessage,
+        $langcode,
+      );
     }
 
     if (!$this->environmentGuard->allowsExternalCalls()) {
-      $reason = $this->environmentGuard->getBlockReason();
+      $reason = $this->getControlledReason(
+        $this->environmentGuard->getBlockReason(),
+      );
       $this->logger->warning('Chatbot AI provider blocked: @reason', [
-        '@reason' => $reason,
+        '@reason' => $reason->value,
       ]);
       $this->monitoring->recordBlocked($reason);
 
-      return $this->fallback($reason, $langcode);
+      return $this->fallback(
+        $this->getStatusForReason($reason),
+        $reason,
+        $langcode,
+      );
     }
 
     $apiKey = $this->environmentGuard->resolveApiKey();
     if ($apiKey === '') {
-      $this->monitoring->recordBlocked('key_missing');
+      $this->monitoring->recordBlocked(FutureAiResponseReason::KeyMissing);
 
-      return $this->fallback('key_missing', $langcode);
+      return $this->fallback(
+        FutureAiResponseStatus::KeyMissing,
+        FutureAiResponseReason::KeyMissing,
+        $langcode,
+      );
     }
 
     $context = $this->contextProvider->buildContextContract($langcode);
     if (!$context['enabled'] || $context['status'] !== 'ready') {
-      $this->monitoring->recordBlocked('context_empty');
+      $this->monitoring->recordBlocked(FutureAiResponseReason::ContextEmpty);
 
-      return $this->fallback('context_empty', $langcode);
+      return $this->fallback(
+        FutureAiResponseStatus::ContextEmpty,
+        FutureAiResponseReason::ContextEmpty,
+        $langcode,
+      );
     }
 
     $providerResult = $this->providerGateway->respond(
@@ -85,33 +117,29 @@ final class FutureAiOrchestrator implements FutureAiGatewayInterface {
       $apiKey,
     );
 
-    if (($providerResult['status'] ?? '') === 'ai_response'
-      && empty($providerResult['fallback'])
-      && is_string($providerResult['message'] ?? NULL)
-      && trim((string) $providerResult['message']) !== '') {
+    if ($providerResult->isAiResponse()) {
       $this->monitoring->recordSuccess();
 
-      return [
-        'status' => 'ai_response',
-        'message' => (string) $providerResult['message'],
-        'fallback' => FALSE,
-        'stored' => FALSE,
-        'langcode' => $langcode,
-      ];
+      return $providerResult;
     }
 
     $status = $this->getProviderFailureStatus($providerResult);
-    if ($status === 'provider_timeout') {
-      $this->monitoring->recordProviderError('provider_timeout');
+    $reason = $providerResult->getReason();
+    if ($status === FutureAiResponseStatus::ProviderTimeout) {
+      $this->monitoring->recordProviderError(
+        FutureAiResponseReason::ProviderTimeout,
+      );
     }
-    elseif ($status === 'provider_error') {
-      $this->monitoring->recordProviderError('provider_error');
+    elseif ($status === FutureAiResponseStatus::ProviderError) {
+      $this->monitoring->recordProviderError(
+        FutureAiResponseReason::ProviderError,
+      );
     }
     else {
       $this->monitoring->recordFallback();
     }
 
-    return $this->fallback($status, $langcode);
+    return $this->fallback($status, $reason, $langcode);
   }
 
   /**
@@ -158,45 +186,68 @@ final class FutureAiOrchestrator implements FutureAiGatewayInterface {
   /**
    * Normalizes provider failures to the controlled public status vocabulary.
    *
-   * @param array<string, mixed> $providerResult
-   *   Provider result.
+   * @param \Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse $providerResult
+   *   Provider response.
    */
-  private function getProviderFailureStatus(array $providerResult): string {
-    $status = (string) ($providerResult['status'] ?? 'provider_error');
-
-    return in_array($status, [
-      'provider_timeout',
-      'provider_error',
-      'guardrail_fallback',
-      'empty_ai_response',
-    ], TRUE) ? $status : 'provider_error';
+  private function getProviderFailureStatus(
+    FutureAiResponse $providerResult,
+  ): FutureAiResponseStatus {
+    return FutureAiResponseStatus::providerFailureFromValue(
+      $providerResult->getStatus()->value,
+    );
   }
 
   /**
    * Gets a deterministic local fallback response.
-   *
-   * @return array<string, mixed>
-   *   Fallback response.
    */
   private function fallback(
-    string $status,
+    FutureAiResponseStatus $status,
+    FutureAiResponseReason $reason,
     string $langcode,
     bool $includeSummary = FALSE,
-  ): array {
+  ): FutureAiResponse {
     $response = $this->fallbackGateway->respond([
       'langcode' => $langcode,
-      'reason' => $status,
+      'reason' => $reason->value,
     ]);
-    $response['status'] = $status;
-    $response['fallback'] = TRUE;
-    $response['stored'] = FALSE;
-    $response['langcode'] = $langcode;
 
-    if ($includeSummary) {
-      $response['futureAi'] = $this->chatbotConfig->getFutureAiSummary($langcode);
-    }
+    return FutureAiResponse::fallback(
+      $status,
+      $reason,
+      $response->getMessage(),
+      $langcode,
+      $includeSummary
+        ? $this->chatbotConfig->getFutureAiSummary($langcode)
+        : NULL,
+    );
+  }
 
-    return $response;
+  /**
+   * Gets a controlled reason from environment guard values.
+   */
+  private function getControlledReason(string $reason): FutureAiResponseReason {
+    return FutureAiResponseReason::fromValue($reason)
+      ?? FutureAiResponseReason::FallbackUsed;
+  }
+
+  /**
+   * Maps a controlled reason to the compatible public status value.
+   */
+  private function getStatusForReason(
+    FutureAiResponseReason $reason,
+  ): FutureAiResponseStatus {
+    return match ($reason) {
+      FutureAiResponseReason::ContextEmpty => FutureAiResponseStatus::ContextEmpty,
+      FutureAiResponseReason::EnvironmentBlocked =>
+        FutureAiResponseStatus::EnvironmentBlocked,
+      FutureAiResponseReason::KeyMissing => FutureAiResponseStatus::KeyMissing,
+      FutureAiResponseReason::KeyUnreadable => FutureAiResponseStatus::KeyUnreadable,
+      FutureAiResponseReason::ProviderTimeout =>
+        FutureAiResponseStatus::ProviderTimeout,
+      FutureAiResponseReason::UnsupportedProvider =>
+        FutureAiResponseStatus::UnsupportedProvider,
+      default => FutureAiResponseStatus::ProviderError,
+    };
   }
 
 }

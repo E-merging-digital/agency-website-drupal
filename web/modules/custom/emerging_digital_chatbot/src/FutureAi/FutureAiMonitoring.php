@@ -21,6 +21,7 @@ final class FutureAiMonitoring {
     'key_missing' => TRUE,
     'key_unreadable' => TRUE,
     'unsupported_provider' => TRUE,
+    'context_empty' => TRUE,
     'provider_timeout' => TRUE,
     'provider_error' => TRUE,
     'fallback_used' => TRUE,

@@ -34,6 +34,13 @@ services:
       - '@config.factory'
       - '@?key.repository'
 
+  emerging_digital_chatbot.future_ai_monitoring:
+    class: Drupal\emerging_digital_chatbot\FutureAi\FutureAiMonitoring
+    arguments:
+      - '@cache.default'
+      - '@datetime.time'
+      - '@logger.channel.emerging_digital_chatbot'
+
   emerging_digital_chatbot.fallback_ai_gateway:
     class: Drupal\emerging_digital_chatbot\FutureAi\NullFutureAiGateway
     arguments:
@@ -48,6 +55,7 @@ services:
       - '@emerging_digital_chatbot.public_ai_context_provider'
       - '@emerging_digital_chatbot.fallback_ai_gateway'
       - '@emerging_digital_chatbot.future_ai_environment_guard'
+      - '@emerging_digital_chatbot.future_ai_monitoring'
 
   logger.channel.emerging_digital_chatbot:
     parent: logger.channel_base

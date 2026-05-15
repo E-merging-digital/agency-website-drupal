@@ -15,7 +15,7 @@ use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Tests the chatbot endpoint future AI safety gate.
+ * Tests the chatbot endpoint HTTP boundary.
  *
  * @group emerging_digital_chatbot
  */
@@ -42,32 +42,29 @@ final class ChatbotEndpointControllerTest extends KernelTestBase {
   }
 
   /**
-   * Tests disabled future AI keeps the guided MVP and skips the gateway.
+   * Tests the controller delegates sanitized payloads to the orchestrator.
    */
-  public function testDisabledFutureAiKeepsGuidedResponseWithoutGatewayCall(): void {
-    $this->config('emerging_digital_chatbot.settings')
-      ->set('mode', 'ai')
-      ->set('future_ai.enabled', FALSE)
-      ->save();
-
-    $gateway = new class() implements FutureAiGatewayInterface {
+  public function testEndpointDelegatesToFutureAiOrchestrator(): void {
+    $orchestrator = new class() implements FutureAiGatewayInterface {
 
       /**
-       * Number of calls to the gateway boundary.
+       * Captured sanitized payload.
+       *
+       * @var array<string, mixed>
        */
-      public int $calls = 0;
+      public array $payload = [];
 
       /**
        * {@inheritdoc}
        */
       public function respond(array $payload): array {
-        $this->calls++;
+        $this->payload = $payload;
 
         return [
-          'status' => 'unexpected_external_gateway',
-          'message' => 'Unexpected gateway call.',
-          'fallback' => FALSE,
-          'stored' => TRUE,
+          'status' => 'guide_only',
+          'message' => 'Fallback stable.',
+          'fallback' => TRUE,
+          'stored' => FALSE,
           'langcode' => 'fr',
         ];
       }
@@ -76,7 +73,7 @@ final class ChatbotEndpointControllerTest extends KernelTestBase {
 
     $controller = new ChatbotEndpointController(
       $this->getChatbotConfig(),
-      $gateway,
+      $orchestrator,
       $this->getPayloadSanitizer(),
       $this->getAllowingFlood(),
       new NullLogger(),
@@ -91,28 +88,26 @@ final class ChatbotEndpointControllerTest extends KernelTestBase {
       ['REMOTE_ADDR' => '127.0.0.1'],
       json_encode([
         'langcode' => 'fr',
-        'message' => 'Je cherche une aide Drupal.',
+        'message' => '<strong>Je cherche une aide Drupal.</strong>',
+        'unexpected_object' => ['ignored' => TRUE],
       ], JSON_THROW_ON_ERROR),
     );
     $response = $controller->conversation($request);
-    $data = json_decode((string) $response->getContent(), TRUE, 512, JSON_THROW_ON_ERROR);
+    $data = json_decode(
+      (string) $response->getContent(),
+      TRUE,
+      512,
+      JSON_THROW_ON_ERROR,
+    );
 
-    self::assertSame(0, $gateway->calls);
     self::assertSame(200, $response->getStatusCode());
     self::assertSame('guide_only', $data['status']);
-    self::assertTrue($data['fallback']);
-    self::assertFalse($data['stored']);
-    self::assertSame('fr', $data['langcode']);
+    self::assertSame('fr', $orchestrator->payload['langcode']);
     self::assertSame(
-      $this->getChatbotConfig()->getFutureAiFallbackMessage('fr'),
-      $data['message'],
+      'Je cherche une aide Drupal.',
+      $orchestrator->payload['message'],
     );
-    self::assertIsArray($data['futureAi']);
-    self::assertFalse($data['futureAi']['enabled']);
-    self::assertSame('none', $data['futureAi']['retentionPolicy']);
-    self::assertIsArray($data['futureAi']['context']);
-    self::assertSame('public_pages_v1', $data['futureAi']['context']['profile']);
-    self::assertSame('fr', $data['futureAi']['context']['langcode']);
+    self::assertArrayNotHasKey('unexpected_object', $orchestrator->payload);
   }
 
   /**
@@ -156,7 +151,12 @@ final class ChatbotEndpointControllerTest extends KernelTestBase {
       /**
        * {@inheritdoc}
        */
-      public function isAllowed($name, $threshold, $window = 3600, $identifier = NULL): bool {
+      public function isAllowed(
+        $name,
+        $threshold,
+        $window = 3600,
+        $identifier = NULL,
+      ): bool {
         return TRUE;
       }
 

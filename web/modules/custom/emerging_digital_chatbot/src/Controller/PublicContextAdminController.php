@@ -241,6 +241,7 @@ final class PublicContextAdminController extends ControllerBase {
       'reason_key_missing' => $this->t('key_missing'),
       'reason_key_unreadable' => $this->t('key_unreadable'),
       'reason_unsupported_provider' => $this->t('unsupported_provider'),
+      'reason_context_empty' => $this->t('context_empty'),
       'reason_provider_timeout' => $this->t('provider_timeout'),
       'reason_provider_error' => $this->t('provider_error'),
       'reason_fallback_used' => $this->t('fallback_used'),

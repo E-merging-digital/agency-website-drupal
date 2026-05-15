@@ -112,7 +112,7 @@ The screen exposes only sanitized status and monitoring values:
   fallbacks returned.
 - Controlled monitoring reasons only: `environment_blocked`,
   `future_ai_disabled`, `key_missing`, `key_unreadable`,
-  `unsupported_provider`, `provider_timeout`, `provider_error`,
+  `unsupported_provider`, `context_empty`, `provider_timeout`, `provider_error`,
   `fallback_used` and `success`.
 
 Monitoring is intentionally minimal and anonymous. It stores volatile counters
@@ -146,13 +146,24 @@ human contact form.
 - `ChatbotConfig` normalizes Config API values, language selection and path
   visibility.
 - `ChatbotEndpointController` exposes a prepared POST endpoint for later server
-  conversation handling, with CSRF protection, no-store responses and flood
-  limiting.
+  conversation handling, with CSRF protection, no-store responses, flood
+  limiting and delegation to the Future AI orchestrator.
 - `ChatbotPayloadSanitizer` keeps only minimal scalar visitor input and blocks
   obvious sensitive data before any provider call.
 - `FutureAiGatewayInterface` defines the server-side AI boundary.
+- `FutureAiOrchestrator` centralizes Future AI activation, environment checks,
+  public context retrieval, fallback decisions, provider dispatch and sanitized
+  monitoring. It is deterministic: every blocked, empty, timed-out or invalid
+  provider path returns the local guided fallback and `stored: false`.
+- `FutureAiEnvironmentGuard` validates only the runtime environment, provider
+  id and runtime Key availability. It does not build prompts or call providers.
+- `FutureAiProviderGatewayInterface` defines a stateless provider adapter
+  contract so future providers can be added behind the orchestrator without
+  changing the controller.
 - `OpenAiResponsesGateway` prepares OpenAI Responses API calls with `store:
-  false`, no tools, no conversation state and prompt/context limits.
+  false`, no tools, no conversation state and prompt/context limits, then
+  parses and sanitizes provider results. It does not decide activation,
+  fallback policy, environment access or monitoring.
 - `PublicAiContextProvider` prepares a public-pages-only context contract for a
   future mini-RAG without adding vector stores.
 - `NullFutureAiGateway` provides the local guided fallback when AI is disabled,
@@ -169,4 +180,6 @@ clarification and orientation only.
 
 OpenAI calls remain server-side. Drupal owns UX, CSRF/rate limiting,
 sanitization, prompts, public context, fallback, logging policy and
-multilingual behavior. The frontend never receives prompts or API keys.
+multilingual behavior. The orchestration layer owns Future AI business
+decisions; provider gateways only adapt one provider's HTTP contract. The
+frontend never receives prompts or API keys.

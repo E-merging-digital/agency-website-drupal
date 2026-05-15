@@ -21,7 +21,7 @@ final class ChatbotEndpointController extends ControllerBase {
 
   public function __construct(
     private readonly ChatbotConfig $chatbotConfig,
-    private readonly FutureAiGatewayInterface $futureAiGateway,
+    private readonly FutureAiGatewayInterface $futureAiOrchestrator,
     private readonly ChatbotPayloadSanitizer $payloadSanitizer,
     private readonly FloodInterface $flood,
     private readonly LoggerInterface $logger,
@@ -34,7 +34,7 @@ final class ChatbotEndpointController extends ControllerBase {
   public static function create(ContainerInterface $container): self {
     return new self(
       $container->get('emerging_digital_chatbot.config'),
-      $container->get('emerging_digital_chatbot.future_ai_gateway'),
+      $container->get('emerging_digital_chatbot.future_ai_orchestrator'),
       $container->get('emerging_digital_chatbot.payload_sanitizer'),
       $container->get('flood'),
       $container->get('logger.channel.emerging_digital_chatbot'),
@@ -46,12 +46,14 @@ final class ChatbotEndpointController extends ControllerBase {
    */
   public function conversation(Request $request): JsonResponse {
     if (!$this->isAllowedByRateLimit($request)) {
+      $langcode = $this->chatbotConfig->getCurrentLangcode();
+
       return $this->jsonResponse([
         'status' => 'rate_limited',
-        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($this->chatbotConfig->getCurrentLangcode()),
+        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
         'fallback' => TRUE,
         'stored' => FALSE,
-        'langcode' => $this->chatbotConfig->getCurrentLangcode(),
+        'langcode' => $langcode,
       ], 429);
     }
 
@@ -60,32 +62,19 @@ final class ChatbotEndpointController extends ControllerBase {
     }
     catch (\JsonException) {
       $this->logger->notice('Chatbot endpoint rejected invalid JSON.');
+      $langcode = $this->chatbotConfig->getCurrentLangcode();
 
       return $this->jsonResponse([
         'status' => 'invalid_payload',
-        'message' => $this->chatbotConfig->getFutureAiFallbackMessage($this->chatbotConfig->getCurrentLangcode()),
-        'fallback' => TRUE,
-        'stored' => FALSE,
-        'langcode' => $this->chatbotConfig->getCurrentLangcode(),
-      ], 400);
-    }
-
-    $payload = is_array($decoded) ? $this->payloadSanitizer->sanitize($decoded) : [];
-    $langcode = (string) ($payload['langcode'] ?? $this->chatbotConfig->getCurrentLangcode());
-
-    if ($this->chatbotConfig->getMode() !== 'ai' || !$this->chatbotConfig->isFutureAiEnabled()) {
-      $response = [
-        'status' => 'guide_only',
         'message' => $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
         'fallback' => TRUE,
         'stored' => FALSE,
         'langcode' => $langcode,
-        'futureAi' => $this->chatbotConfig->getFutureAiSummary($langcode),
-      ];
+      ], 400);
     }
-    else {
-      $response = $this->futureAiGateway->respond($payload);
-    }
+
+    $payload = is_array($decoded) ? $this->payloadSanitizer->sanitize($decoded) : [];
+    $response = $this->futureAiOrchestrator->respond($payload);
 
     return $this->jsonResponse($response);
   }
@@ -98,7 +87,12 @@ final class ChatbotEndpointController extends ControllerBase {
     $window = $this->chatbotConfig->getFutureAiRateLimitWindow();
     $identifier = hash('sha256', (string) ($request->getClientIp() ?: 'unknown'));
 
-    if (!$this->flood->isAllowed($event, $this->chatbotConfig->getFutureAiRateLimit(), $window, $identifier)) {
+    if (!$this->flood->isAllowed(
+      $event,
+      $this->chatbotConfig->getFutureAiRateLimit(),
+      $window,
+      $identifier,
+    )) {
       $this->logger->notice('Chatbot endpoint rate limit reached.');
       return FALSE;
     }

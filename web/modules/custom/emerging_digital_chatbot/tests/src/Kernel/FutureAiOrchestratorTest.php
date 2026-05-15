@@ -11,6 +11,9 @@ use Drupal\emerging_digital_chatbot\FutureAi\FutureAiGatewayInterface;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiMonitoring;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiOrchestrator;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderGatewayInterface;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseReason;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseStatus;
 use Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
@@ -97,11 +100,13 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
       ->save();
 
     $provider = new RecordingProviderGateway();
-    $response = $this->createOrchestrator($provider)->respond([
+    $responseContract = $this->createOrchestrator($provider)->respond([
       'langcode' => 'fr',
       'message' => 'Question Drupal',
     ]);
+    $response = $responseContract->toArray();
 
+    self::assertInstanceOf(FutureAiResponse::class, $responseContract);
     self::assertSame(0, $provider->calls);
     self::assertTrue($response['fallback']);
     self::assertSame('guide_only', $response['status']);
@@ -123,7 +128,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
     $response = $this->createOrchestrator($provider)->respond([
       'langcode' => 'fr',
       'message' => 'Question Drupal',
-    ]);
+    ])->toArray();
 
     self::assertSame(0, $provider->calls);
     self::assertTrue($response['fallback']);
@@ -143,7 +148,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
       ->respond([
         'langcode' => 'fr',
         'message' => 'Question Drupal',
-      ]);
+      ])->toArray();
 
     self::assertSame(0, $provider->calls);
     self::assertTrue($response['fallback']);
@@ -164,7 +169,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
     $response = $this->createOrchestrator($provider)->respond([
       'langcode' => 'fr',
       'message' => 'Question Drupal',
-    ]);
+    ])->toArray();
 
     self::assertSame(0, $provider->calls);
     self::assertTrue($response['fallback']);
@@ -182,7 +187,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
     $response = $this->createOrchestrator($provider)->respond([
       'langcode' => 'fr',
       'message' => 'Question Drupal',
-    ]);
+    ])->toArray();
 
     self::assertSame(0, $provider->calls);
     self::assertTrue($response['fallback']);
@@ -202,7 +207,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
       'langcode' => 'fr',
       'message' => '',
       'blocked_sensitive_input' => TRUE,
-    ]);
+    ])->toArray();
 
     self::assertSame(0, $provider->calls);
     self::assertTrue($response['fallback']);
@@ -221,7 +226,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
     $response = $this->createOrchestrator($provider)->respond([
       'langcode' => 'fr',
       'message' => 'Question Drupal',
-    ]);
+    ])->toArray();
 
     self::assertSame(1, $provider->calls);
     self::assertTrue($response['fallback']);
@@ -238,13 +243,15 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
 
     $provider = new RecordingProviderGateway('ai_response', 'Orientation utile.');
     $logger = new OrchestratorMemoryLogger();
-    $response = $this->createOrchestrator($provider, self::API_KEY, $logger)
+    $responseContract = $this->createOrchestrator($provider, self::API_KEY, $logger)
       ->respond([
         'langcode' => 'fr',
         'message' => 'Question Drupal',
       ]);
+    $response = $responseContract->toArray();
 
     self::assertSame(1, $provider->calls);
+    self::assertSame(FutureAiResponseReason::Success, $responseContract->getReason());
     self::assertSame(self::API_KEY, $provider->apiKey);
     self::assertStringContainsString('Public Drupal context:', $provider->context);
     self::assertStringContainsString('Contexte orchestrateur', $provider->context);
@@ -537,18 +544,18 @@ final class RecordingProviderGateway implements FutureAiProviderGatewayInterface
     string $langcode,
     string $promptContext,
     string $apiKey,
-  ): array {
+  ): FutureAiResponse {
     $this->calls++;
     $this->context = $promptContext;
     $this->apiKey = $apiKey;
 
-    return [
-      'status' => $this->status,
-      'message' => $this->message,
-      'fallback' => $this->status !== 'ai_response',
-      'stored' => FALSE,
-      'langcode' => $langcode,
-    ];
+    if ($this->status === FutureAiResponseStatus::AiResponse->value) {
+      return FutureAiResponse::aiResponse($this->message, $langcode);
+    }
+
+    $status = FutureAiResponseStatus::providerFailureFromValue($this->status);
+
+    return FutureAiResponse::providerFailure($status, $langcode);
   }
 
 }

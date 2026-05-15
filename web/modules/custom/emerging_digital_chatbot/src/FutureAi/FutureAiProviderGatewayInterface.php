@@ -21,7 +21,7 @@ interface FutureAiProviderGatewayInterface {
    * @param string $apiKey
    *   Runtime provider secret resolved outside the gateway.
    *
-   * @return array<string, mixed>
+   * @return \Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse
    *   Provider result safe for the orchestrator to inspect.
    */
   public function respond(
@@ -29,6 +29,6 @@ interface FutureAiProviderGatewayInterface {
     string $langcode,
     string $promptContext,
     string $apiKey,
-  ): array;
+  ): FutureAiResponse;
 
 }

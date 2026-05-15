@@ -19,16 +19,15 @@ final class NullFutureAiGateway implements FutureAiGatewayInterface {
   /**
    * {@inheritdoc}
    */
-  public function respond(array $payload): array {
+  public function respond(array $payload): FutureAiResponse {
     $langcode = (string) ($payload['langcode'] ?? $this->chatbotConfig->getCurrentLangcode());
 
-    return [
-      'status' => 'guide_only',
-      'message' => $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
-      'fallback' => TRUE,
-      'stored' => FALSE,
-      'langcode' => $langcode,
-    ];
+    return FutureAiResponse::fallback(
+      FutureAiResponseStatus::GuideOnly,
+      FutureAiResponseReason::GuideOnly,
+      $this->chatbotConfig->getFutureAiFallbackMessage($langcode),
+      $langcode,
+    );
   }
 
 }

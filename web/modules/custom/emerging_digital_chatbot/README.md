@@ -115,6 +115,21 @@ The screen exposes only sanitized status and monitoring values:
   `unsupported_provider`, `context_empty`, `provider_timeout`, `provider_error`,
   `fallback_used` and `success`.
 
+Future AI response contracts are typed before they reach the HTTP controller:
+
+- `FutureAiResponse` carries only controlled public fields: `status`,
+  `message`, `fallback`, `stored`, `langcode` and the optional sanitized
+  `futureAi` summary.
+- `FutureAiResponseStatus` is the public status vocabulary serialized by
+  `FutureAiResponse::toArray()`. It preserves the existing endpoint values such
+  as `ai_response`, `guide_only`, `provider_error` and `provider_timeout`.
+- `FutureAiResponseReason` is the internal reason vocabulary used by the
+  orchestrator and monitoring. Detailed local reasons that are not part of the
+  admin monitoring vocabulary are folded into `fallback_used` before storage.
+- The contract has no extension bag for prompts, visitor payloads, provider
+  payloads, RAG context text, API keys or Key ids. The optional `futureAi`
+  summary is allow-listed and sanitized during construction.
+
 Monitoring is intentionally minimal and anonymous. It stores volatile counters
 in Drupal cache and emits sanitized Drupal log events with controlled reason
 codes only. It never stores visitor messages, prompts, public RAG context,
@@ -155,6 +170,9 @@ human contact form.
   public context retrieval, fallback decisions, provider dispatch and sanitized
   monitoring. It is deterministic: every blocked, empty, timed-out or invalid
   provider path returns the local guided fallback and `stored: false`.
+- `FutureAiResponse`, `FutureAiResponseStatus` and `FutureAiResponseReason`
+  define the typed response contract used between the orchestrator, provider
+  gateway and controller before final JSON serialization.
 - `FutureAiEnvironmentGuard` validates only the runtime environment, provider
   id and runtime Key availability. It does not build prompts or call providers.
 - `FutureAiProviderGatewayInterface` defines a stateless provider adapter

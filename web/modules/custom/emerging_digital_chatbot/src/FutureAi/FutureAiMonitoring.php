@@ -15,19 +15,6 @@ final class FutureAiMonitoring {
 
   private const CACHE_ID = 'emerging_digital_chatbot.future_ai_monitoring';
 
-  private const REASONS = [
-    'environment_blocked' => TRUE,
-    'future_ai_disabled' => TRUE,
-    'key_missing' => TRUE,
-    'key_unreadable' => TRUE,
-    'unsupported_provider' => TRUE,
-    'context_empty' => TRUE,
-    'provider_timeout' => TRUE,
-    'provider_error' => TRUE,
-    'fallback_used' => TRUE,
-    'success' => TRUE,
-  ];
-
   public function __construct(
     private readonly CacheBackendInterface $cache,
     private readonly TimeInterface $time,
@@ -39,20 +26,20 @@ final class FutureAiMonitoring {
    * Records a successful provider response.
    */
   public function recordSuccess(): void {
-    $this->record('success', 'successes', FALSE);
+    $this->record(FutureAiResponseReason::Success, 'successes', FALSE);
   }
 
   /**
    * Records a blocked external call.
    */
-  public function recordBlocked(string $reason): void {
+  public function recordBlocked(FutureAiResponseReason|string $reason): void {
     $this->record($reason, 'blocks', TRUE);
   }
 
   /**
    * Records a provider-side technical error.
    */
-  public function recordProviderError(string $reason): void {
+  public function recordProviderError(FutureAiResponseReason|string $reason): void {
     $this->record($reason, 'provider_errors', TRUE);
   }
 
@@ -60,7 +47,7 @@ final class FutureAiMonitoring {
    * Records a local fallback that is not a provider or guard failure.
    */
   public function recordFallback(): void {
-    $this->record('fallback_used', 'local_fallbacks', TRUE);
+    $this->record(FutureAiResponseReason::FallbackUsed, 'local_fallbacks', TRUE);
   }
 
   /**
@@ -82,7 +69,7 @@ final class FutureAiMonitoring {
       'fallbacks' => (string) $summary['fallbacks'],
     ];
 
-    foreach (array_keys(self::REASONS) as $reason) {
+    foreach (FutureAiResponseReason::monitoringValues() as $reason) {
       $rows['reason_' . $reason] = (string) $summary['reasons'][$reason];
     }
 
@@ -92,7 +79,7 @@ final class FutureAiMonitoring {
   /**
    * Records a controlled technical event.
    *
-   * @param string $reason
+   * @param \Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseReason|string $reason
    *   Controlled reason candidate.
    * @param string $counter
    *   Counter to increment.
@@ -102,7 +89,7 @@ final class FutureAiMonitoring {
    * @phpstan-param 'successes'|'blocks'|'provider_errors'|'local_fallbacks' $counter
    */
   private function record(
-    string $reason,
+    FutureAiResponseReason|string $reason,
     string $counter,
     bool $fallback,
   ): void {
@@ -129,8 +116,15 @@ final class FutureAiMonitoring {
   /**
    * Keeps reasons in a short controlled vocabulary.
    */
-  private function sanitizeReason(string $reason): string {
-    return isset(self::REASONS[$reason]) ? $reason : 'fallback_used';
+  private function sanitizeReason(
+    FutureAiResponseReason|string $reason,
+  ): string {
+    if ($reason instanceof FutureAiResponseReason) {
+      return $reason->toMonitoringValue();
+    }
+
+    return FutureAiResponseReason::fromValue($reason)?->toMonitoringValue()
+      ?? FutureAiResponseReason::FallbackUsed->value;
   }
 
   /**
@@ -184,7 +178,7 @@ final class FutureAiMonitoring {
       ? $data['reasons']
       : [];
 
-    foreach (array_keys(self::REASONS) as $reason) {
+    foreach (FutureAiResponseReason::monitoringValues() as $reason) {
       $value = $cachedReasons[$reason] ?? 0;
       $reasons[$reason] = is_int($value) ? max(0, $value) : 0;
     }

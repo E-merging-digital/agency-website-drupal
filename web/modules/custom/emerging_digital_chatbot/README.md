@@ -32,7 +32,7 @@ The settings file controls:
 - guide mode versus future AI mode;
 - localized FR/EN messages;
 - guided flows and CTAs;
-- OpenAI Responses API endpoint/model metadata;
+- Future AI provider id, plus OpenAI Responses API endpoint/model metadata;
 - FR/EN system prompts and fallback messages;
 - input, context, timeout and rate-limit safeguards;
 - future public-context profile for mini-RAG preparation.
@@ -59,9 +59,13 @@ Required runtime conditions:
 
 - `mode` is set to `ai` in the active Drupal configuration.
 - `future_ai.enabled` is `true` in the active Drupal configuration.
-- `future_ai.provider` is `openai_responses`.
+- `future_ai.provider` is `openai`.
 - the runtime explicitly allows external AI calls.
 - the Drupal Key module can resolve the configured OpenAI key.
+
+The legacy `openai_responses` provider id is still accepted as a compatibility
+alias and resolves to the stable `openai` provider id. New configuration should
+use `future_ai.provider: openai`.
 
 Recommended `settings.local.php` allowance for local/staging:
 
@@ -174,14 +178,22 @@ human contact form.
   define the typed response contract used between the orchestrator, provider
   gateway and controller before final JSON serialization.
 - `FutureAiEnvironmentGuard` validates only the runtime environment, provider
-  id and runtime Key availability. It does not build prompts or call providers.
+  availability and runtime Key availability. It does not build prompts or call
+  providers.
 - `FutureAiProviderGatewayInterface` defines a stateless provider adapter
   contract so future providers can be added behind the orchestrator without
   changing the controller.
+- `FutureAiProviderRegistry` is the provider manager. Provider services are
+  registered with the `emerging_digital_chatbot.future_ai_provider` service tag,
+  expose a stable id through `getProviderId()`, and are resolved from
+  `future_ai.provider`. Unknown, invalid, missing or disabled providers resolve
+  to a safe blocked path before any external call.
 - `OpenAiResponsesGateway` prepares OpenAI Responses API calls with `store:
   false`, no tools, no conversation state and prompt/context limits, then
   parses and sanitizes provider results. It does not decide activation,
   fallback policy, environment access or monitoring.
+- `NullFutureAiProviderGateway` registers the reserved `null` provider id as a
+  disabled provider so explicit null selection remains fail-closed.
 - `PublicAiContextProvider` prepares a public-pages-only context contract for a
   future mini-RAG without adding vector stores.
 - `NullFutureAiGateway` provides the local guided fallback when AI is disabled,

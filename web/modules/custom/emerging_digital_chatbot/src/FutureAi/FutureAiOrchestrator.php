@@ -16,7 +16,7 @@ final class FutureAiOrchestrator implements FutureAiGatewayInterface {
     private readonly ChatbotConfig $chatbotConfig,
     private readonly FutureAiEnvironmentGuard $environmentGuard,
     private readonly PublicAiContextProvider $contextProvider,
-    private readonly FutureAiProviderGatewayInterface $providerGateway,
+    private readonly FutureAiProviderRegistry $providerRegistry,
     private readonly FutureAiGatewayInterface $fallbackGateway,
     private readonly FutureAiMonitoring $monitoring,
     private readonly LoggerInterface $logger,
@@ -72,6 +72,22 @@ final class FutureAiOrchestrator implements FutureAiGatewayInterface {
       );
     }
 
+    $providerGateway = $this->providerRegistry->getActiveProvider();
+    if ($providerGateway === NULL || !$providerGateway->isEnabled()) {
+      $this->logger->warning('Chatbot AI provider blocked: @reason', [
+        '@reason' => FutureAiResponseReason::UnsupportedProvider->value,
+      ]);
+      $this->monitoring->recordBlocked(
+        FutureAiResponseReason::UnsupportedProvider,
+      );
+
+      return $this->fallback(
+        FutureAiResponseStatus::UnsupportedProvider,
+        FutureAiResponseReason::UnsupportedProvider,
+        $langcode,
+      );
+    }
+
     if (!$this->environmentGuard->allowsExternalCalls()) {
       $reason = $this->getControlledReason(
         $this->environmentGuard->getBlockReason(),
@@ -110,7 +126,7 @@ final class FutureAiOrchestrator implements FutureAiGatewayInterface {
       );
     }
 
-    $providerResult = $this->providerGateway->respond(
+    $providerResult = $providerGateway->respond(
       $payload,
       $langcode,
       $this->buildPromptContext($context),

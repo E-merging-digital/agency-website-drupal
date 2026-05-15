@@ -11,7 +11,7 @@ excluded_pages:
   - /contact
 future_ai:
   enabled: false
-  provider: openai_responses
+  provider: openai
   endpoint: 'https://api.openai.com/v1/responses'
   model: 'gpt-4o-mini'
   openai_key_id: openai_api_key

@@ -218,7 +218,7 @@ final class ChatbotConfig {
 
     return [
       'enabled' => (bool) $config->get('future_ai.enabled'),
-      'provider' => (string) ($config->get('future_ai.provider') ?? 'openai_responses'),
+      'provider' => (string) ($config->get('future_ai.provider') ?? 'openai'),
       'model' => $this->getFutureAiModel(),
       'promptVersion' => $this->getFutureAiPromptVersion(),
       'ragProfile' => $this->getFutureAiRagProfile(),

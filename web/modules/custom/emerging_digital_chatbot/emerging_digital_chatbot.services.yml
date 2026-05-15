@@ -33,6 +33,7 @@ services:
       - '@emerging_digital_chatbot.config'
       - '@config.factory'
       - '@?key.repository'
+      - '@emerging_digital_chatbot.future_ai_provider_registry'
 
   emerging_digital_chatbot.future_ai_monitoring:
     class: Drupal\emerging_digital_chatbot\FutureAi\FutureAiMonitoring
@@ -46,12 +47,25 @@ services:
     arguments:
       - '@emerging_digital_chatbot.config'
 
+  emerging_digital_chatbot.null_future_ai_provider_gateway:
+    class: Drupal\emerging_digital_chatbot\FutureAi\NullFutureAiProviderGateway
+    tags:
+      - { name: emerging_digital_chatbot.future_ai_provider }
+
   emerging_digital_chatbot.openai_responses_gateway:
     class: Drupal\emerging_digital_chatbot\FutureAi\OpenAiResponsesGateway
     arguments:
       - '@emerging_digital_chatbot.config'
       - '@http_client'
       - '@logger.channel.emerging_digital_chatbot'
+    tags:
+      - { name: emerging_digital_chatbot.future_ai_provider }
+
+  emerging_digital_chatbot.future_ai_provider_registry:
+    class: Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderRegistry
+    arguments:
+      - '@config.factory'
+      - !tagged_iterator emerging_digital_chatbot.future_ai_provider
 
   emerging_digital_chatbot.future_ai_orchestrator:
     class: Drupal\emerging_digital_chatbot\FutureAi\FutureAiOrchestrator
@@ -59,7 +73,7 @@ services:
       - '@emerging_digital_chatbot.config'
       - '@emerging_digital_chatbot.future_ai_environment_guard'
       - '@emerging_digital_chatbot.public_ai_context_provider'
-      - '@emerging_digital_chatbot.openai_responses_gateway'
+      - '@emerging_digital_chatbot.future_ai_provider_registry'
       - '@emerging_digital_chatbot.fallback_ai_gateway'
       - '@emerging_digital_chatbot.future_ai_monitoring'
       - '@logger.channel.emerging_digital_chatbot'

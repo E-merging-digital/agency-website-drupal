@@ -6,6 +6,9 @@ namespace Drupal\Tests\emerging_digital_chatbot\Kernel;
 
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiEnvironmentGuard;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderGatewayInterface;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderRegistry;
+use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\key\Entity\Key;
 use Drupal\key\KeyRepositoryInterface;
@@ -55,7 +58,7 @@ final class FutureAiEnvironmentGuardTest extends KernelTestBase {
 
     $summary = $guard->getAdminSummary();
     self::assertSame('enabled', $summary['future_ai_state']);
-    self::assertSame('openai_responses', $summary['provider']);
+    self::assertSame('openai', $summary['provider']);
     self::assertSame('blocked', $summary['environment']);
     self::assertSame('environment_blocked', $summary['reason']);
     self::assertSame('available', $summary['key_status']);
@@ -157,7 +160,7 @@ final class FutureAiEnvironmentGuardTest extends KernelTestBase {
   private function configureFutureAi(bool $enabled): void {
     $this->config('emerging_digital_chatbot.settings')
       ->set('future_ai.enabled', $enabled)
-      ->set('future_ai.provider', 'openai_responses')
+      ->set('future_ai.provider', 'openai')
       ->set('future_ai.openai_key_id', 'openai_api_key')
       ->save();
   }
@@ -166,10 +169,16 @@ final class FutureAiEnvironmentGuardTest extends KernelTestBase {
    * Creates the guard under test.
    */
   private function createGuard(KeyRepositoryInterface $keyRepository): FutureAiEnvironmentGuard {
+    $providerRegistry = new FutureAiProviderRegistry(
+      $this->container->get('config.factory'),
+      [new EnvironmentGuardProviderGateway()],
+    );
+
     return new FutureAiEnvironmentGuard(
       $this->getChatbotConfig(),
       $this->container->get('config.factory'),
       $keyRepository,
+      $providerRegistry,
     );
   }
 
@@ -350,6 +359,39 @@ final class FutureAiEnvironmentGuardTest extends KernelTestBase {
       }
 
     };
+  }
+
+}
+
+/**
+ * Minimal enabled OpenAI provider for guard tests.
+ */
+final class EnvironmentGuardProviderGateway implements FutureAiProviderGatewayInterface {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getProviderId(): string {
+    return FutureAiProviderRegistry::PROVIDER_OPENAI;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function isEnabled(): bool {
+    return TRUE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function respond(
+    array $payload,
+    string $langcode,
+    string $promptContext,
+    string $apiKey,
+  ): FutureAiResponse {
+    return FutureAiResponse::aiResponse('', $langcode);
   }
 
 }

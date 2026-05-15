@@ -10,6 +10,16 @@ namespace Drupal\emerging_digital_chatbot\FutureAi;
 interface FutureAiProviderGatewayInterface {
 
   /**
+   * Gets the stable provider identifier used in configuration.
+   */
+  public function getProviderId(): string;
+
+  /**
+   * Determines whether this provider can be selected for real AI dispatch.
+   */
+  public function isEnabled(): bool;
+
+  /**
    * Sends one already-authorized request to a provider.
    *
    * @param array<string, mixed> $payload

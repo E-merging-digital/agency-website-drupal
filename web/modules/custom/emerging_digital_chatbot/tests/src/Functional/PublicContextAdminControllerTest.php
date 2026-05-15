@@ -190,7 +190,7 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Future AI state');
     $this->assertSession()->pageTextContains('enabled');
     $this->assertSession()->pageTextContains('Active provider');
-    $this->assertSession()->pageTextContains('openai_responses');
+    $this->assertSession()->pageTextContains('openai');
     $this->assertSession()->pageTextContains('Environment');
     $this->assertSession()->pageTextContains('blocked');
     $this->assertSession()->pageTextContains('Reason');
@@ -288,7 +288,7 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
 
     $this->drupalGet(self::INSPECTION_PATH, ['query' => ['langcode' => 'fr']]);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->pageTextContains('openai_responses');
+    $this->assertSession()->pageTextContains('openai');
     $this->assertSession()->pageTextContains('key_missing');
     $this->assertSession()->pageTextContains('missing');
     $this->assertSession()->pageTextContains('no');

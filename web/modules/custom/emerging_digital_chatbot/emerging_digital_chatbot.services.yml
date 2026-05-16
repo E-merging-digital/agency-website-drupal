@@ -52,6 +52,11 @@ services:
     tags:
       - { name: emerging_digital_chatbot.future_ai_provider }
 
+  emerging_digital_chatbot.mock_future_ai_provider_gateway:
+    class: Drupal\emerging_digital_chatbot\FutureAi\MockFutureAiProviderGateway
+    tags:
+      - { name: emerging_digital_chatbot.future_ai_provider }
+
   emerging_digital_chatbot.openai_responses_gateway:
     class: Drupal\emerging_digital_chatbot\FutureAi\OpenAiResponsesGateway
     arguments:

@@ -15,6 +15,7 @@ use Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderRegistry;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseReason;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponseStatus;
+use Drupal\emerging_digital_chatbot\FutureAi\MockFutureAiProviderGateway;
 use Drupal\emerging_digital_chatbot\FutureAi\PublicAiContextProvider;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
@@ -66,6 +67,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
 
     $this->previousAllowExternalAi = getenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI');
     putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI');
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER');
 
     $this->installEntitySchema('node');
     $this->installEntitySchema('path_alias');
@@ -87,6 +89,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
       'EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI',
       $this->previousAllowExternalAi,
     );
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER');
 
     parent::tearDown();
   }
@@ -289,14 +292,79 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
   }
 
   /**
+   * Tests mock selection remains fail-closed without runtime allowance.
+   */
+  public function testMockProviderSelectionRequiresRuntimeAllowance(): void {
+    $this->configureEnabledFutureAi('mock');
+    $this->createPublicContextPage();
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER');
+
+    $registry = new FutureAiProviderRegistry(
+      $this->container->get('config.factory'),
+      [new MockFutureAiProviderGateway()],
+    );
+    $response = $this
+      ->createOrchestratorWithRegistry($registry, '')
+      ->respond([
+        'langcode' => 'fr',
+        'message' => 'Question Drupal',
+      ])->toArray();
+
+    self::assertTrue($response['fallback']);
+    self::assertSame('unsupported_provider', $response['status']);
+    self::assertSame('1', $this->getMonitoringSummary()['reason_unsupported_provider']);
+  }
+
+  /**
+   * Tests the mock provider returns a controlled response without leaks.
+   */
+  public function testMockProviderReturnsControlledResponseWithoutSecrets(): void {
+    $this->configureEnabledFutureAi('mock');
+    $this->createPublicContextPage();
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER=true');
+
+    $logger = new OrchestratorMemoryLogger();
+    $registry = new FutureAiProviderRegistry(
+      $this->container->get('config.factory'),
+      [new MockFutureAiProviderGateway()],
+    );
+    $responseContract = $this
+      ->createOrchestratorWithRegistry($registry, '', $logger)
+      ->respond([
+        'langcode' => 'fr',
+        'message' => 'Question Drupal avec sk-mock-secret',
+      ]);
+    $response = $responseContract->toArray();
+
+    self::assertSame(FutureAiResponseReason::Success, $responseContract->getReason());
+    self::assertSame('ai_response', $response['status']);
+    self::assertSame(
+      'Reponse de demonstration controlee. Un membre de l\'equipe peut '
+        . 'reprendre votre demande.',
+      $response['message'],
+    );
+    self::assertFalse($response['fallback']);
+    self::assertFalse($response['stored']);
+    self::assertSame('fr', $response['langcode']);
+
+    $exposed = json_encode([$response, $logger->records], JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString('sk-mock-secret', $exposed);
+    self::assertStringNotContainsString('Question Drupal', $exposed);
+    self::assertStringNotContainsString('Contexte orchestrateur', $exposed);
+    self::assertStringNotContainsString('Texte public pour Future AI.', $exposed);
+    self::assertSame('1', $this->getMonitoringSummary()['reason_success']);
+  }
+
+  /**
    * Configures the active Future AI mode for orchestration tests.
    */
-  private function configureEnabledFutureAi(): void {
+  private function configureEnabledFutureAi(string $provider = 'openai'): void {
     putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true');
 
     $this->config('emerging_digital_chatbot.settings')
       ->set('mode', 'ai')
       ->set('future_ai.enabled', TRUE)
+      ->set('future_ai.provider', $provider)
       ->set('future_ai.openai_key_id', 'openai_api_key')
       ->set('future_ai.context.allowed_public_paths.fr', [
         '/fr/orchestrator-public',

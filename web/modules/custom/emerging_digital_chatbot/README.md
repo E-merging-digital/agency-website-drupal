@@ -42,6 +42,12 @@ They require an explicit runtime allowance through
 `$settings['emerging_digital_chatbot.allow_external_ai'] = TRUE` or
 `EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true`.
 
+The local mock provider is also blocked by default. Selecting
+`future_ai.provider: mock` in active configuration is not enough: local/staging
+runtimes must explicitly opt in through
+`$settings['emerging_digital_chatbot.allow_mock_provider'] = TRUE` or
+`EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER=true`.
+
 The OpenAI API key must never be stored in exportable configuration. It must be
 available through the Drupal Key module. Resolution order is:
 
@@ -59,9 +65,10 @@ Required runtime conditions:
 
 - `mode` is set to `ai` in the active Drupal configuration.
 - `future_ai.enabled` is `true` in the active Drupal configuration.
-- `future_ai.provider` is `openai`.
-- the runtime explicitly allows external AI calls.
-- the Drupal Key module can resolve the configured OpenAI key.
+- `future_ai.provider` is `openai` or `mock`.
+- OpenAI only: the runtime explicitly allows external AI calls.
+- OpenAI only: the Drupal Key module can resolve the configured OpenAI key.
+- Mock only: the runtime explicitly allows the mock provider.
 
 The legacy `openai_responses` provider id is still accepted as a compatibility
 alias and resolves to the stable `openai` provider id. New configuration should
@@ -82,6 +89,25 @@ export EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true
 The setting wins when it is a boolean. If it is absent, the environment variable
 is accepted only for `1`, `true`, `yes` or `on`, case-insensitively. Any other
 value leaves external calls blocked.
+
+Recommended mock allowance for controlled local/staging demos:
+
+```php
+$settings['emerging_digital_chatbot.allow_mock_provider'] = TRUE;
+```
+
+Equivalent environment-variable allowance:
+
+```bash
+export EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER=true
+```
+
+The mock provider id is `mock`. It makes no HTTP request, reads no API key and
+returns a deterministic public response. It ignores visitor messages, prompt
+context, public RAG context and provider payload material, so it must not be used
+as a memory, logging, replay or analytics mechanism. If `mock` is selected
+without the runtime allowance above, the orchestrator follows the existing
+fail-closed unsupported-provider fallback.
 
 Configure the secret through Key module, not configuration export. The expected
 setup is an environment-backed Key:
@@ -188,6 +214,10 @@ human contact form.
   expose a stable id through `getProviderId()`, and are resolved from
   `future_ai.provider`. Unknown, invalid, missing or disabled providers resolve
   to a safe blocked path before any external call.
+- `MockFutureAiProviderGateway` registers the local `mock` provider. It is
+  disabled by default, requires explicit runtime allowance, performs no external
+  call, reads no key, stores no prompt/message/context/payload and returns a
+  deterministic controlled response for local/staging demonstrations.
 - `OpenAiResponsesGateway` prepares OpenAI Responses API calls with `store:
   false`, no tools, no conversation state and prompt/context limits, then
   parses and sanitizes provider results. It does not decide activation,

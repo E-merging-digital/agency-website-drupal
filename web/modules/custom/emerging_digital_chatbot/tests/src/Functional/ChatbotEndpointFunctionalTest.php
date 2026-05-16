@@ -6,6 +6,8 @@ namespace Drupal\Tests\emerging_digital_chatbot\Functional;
 
 use Drupal\Tests\block\Traits\BlockCreationTrait;
 use Drupal\Tests\BrowserTestBase;
+use Drupal\user\Entity\Role;
+use Drupal\user\RoleInterface;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
@@ -33,6 +35,19 @@ final class ChatbotEndpointFunctionalTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected $defaultTheme = 'stark';
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+
+    $anonymousRole = Role::load(RoleInterface::ANONYMOUS_ID);
+    if (!$anonymousRole instanceof RoleInterface) {
+      self::fail('Could not load the anonymous role.');
+    }
+    $this->grantPermissions($anonymousRole, ['access content']);
+  }
 
   /**
    * Tests the widget exposes a tokenized endpoint and CSRF remains enforced.

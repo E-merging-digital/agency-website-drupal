@@ -9,6 +9,7 @@ use Drupal\emerging_digital_chatbot\FutureAi\FutureAiEnvironmentGuard;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderGatewayInterface;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiProviderRegistry;
 use Drupal\emerging_digital_chatbot\FutureAi\FutureAiResponse;
+use Drupal\emerging_digital_chatbot\FutureAi\MockFutureAiProviderGateway;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\key\Entity\Key;
 use Drupal\key\KeyRepositoryInterface;
@@ -42,6 +43,7 @@ final class FutureAiEnvironmentGuardTest extends KernelTestBase {
 
     $this->installConfig(['emerging_digital_chatbot']);
     putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI');
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER');
   }
 
   /**
@@ -155,23 +157,84 @@ final class FutureAiEnvironmentGuardTest extends KernelTestBase {
   }
 
   /**
+   * Tests the mock provider is blocked unless its runtime flag is explicit.
+   */
+  public function testMockProviderBlocksByDefaultWithoutKeyLookup(): void {
+    $this->configureFutureAi(TRUE, 'mock');
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true');
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER');
+
+    $guard = $this->createGuard(
+      $this->getUnreadableKeyRepository(),
+      [new MockFutureAiProviderGateway()],
+    );
+
+    self::assertFalse($guard->allowsProviderDispatch());
+    self::assertFalse($guard->allowsExternalCalls());
+    self::assertSame('unsupported_provider', $guard->getBlockReason());
+    self::assertSame('', $guard->resolveApiKey());
+
+    $summary = $guard->getAdminSummary();
+    self::assertSame('mock', $summary['provider']);
+    self::assertSame('blocked', $summary['environment']);
+    self::assertSame('unsupported_provider', $summary['reason']);
+    self::assertSame('not_required', $summary['key_status']);
+    self::assertSame('no', $summary['external_calls_allowed']);
+  }
+
+  /**
+   * Tests the mock provider needs no external allowance or API key.
+   */
+  public function testMockProviderAllowsLocalDispatchOnlyWhenExplicit(): void {
+    $this->configureFutureAi(TRUE, 'mock');
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI');
+    putenv('EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER=true');
+
+    $guard = $this->createGuard(
+      $this->getUnreadableKeyRepository(),
+      [new MockFutureAiProviderGateway()],
+    );
+
+    self::assertTrue($guard->allowsProviderDispatch());
+    self::assertFalse($guard->allowsExternalCalls());
+    self::assertFalse($guard->requiresProviderApiKey());
+    self::assertSame('', $guard->getBlockReason());
+    self::assertSame('', $guard->resolveApiKey());
+
+    $summary = $guard->getAdminSummary();
+    self::assertSame('mock', $summary['provider']);
+    self::assertSame('allowed', $summary['environment']);
+    self::assertSame('none', $summary['reason']);
+    self::assertSame('not_required', $summary['key_status']);
+    self::assertSame('no', $summary['external_calls_allowed']);
+  }
+
+  /**
    * Configures the Future AI switch and Key id.
    */
-  private function configureFutureAi(bool $enabled): void {
+  private function configureFutureAi(bool $enabled, string $provider = 'openai'): void {
     $this->config('emerging_digital_chatbot.settings')
       ->set('future_ai.enabled', $enabled)
-      ->set('future_ai.provider', 'openai')
+      ->set('future_ai.provider', $provider)
       ->set('future_ai.openai_key_id', 'openai_api_key')
       ->save();
   }
 
   /**
    * Creates the guard under test.
+   *
+   * @param \Drupal\key\KeyRepositoryInterface $keyRepository
+   *   Key repository.
+   * @param iterable|null $providers
+   *   Provider gateways.
    */
-  private function createGuard(KeyRepositoryInterface $keyRepository): FutureAiEnvironmentGuard {
+  private function createGuard(
+    KeyRepositoryInterface $keyRepository,
+    ?iterable $providers = NULL,
+  ): FutureAiEnvironmentGuard {
     $providerRegistry = new FutureAiProviderRegistry(
       $this->container->get('config.factory'),
-      [new EnvironmentGuardProviderGateway()],
+      $providers ?? [new EnvironmentGuardProviderGateway()],
     );
 
     return new FutureAiEnvironmentGuard(

@@ -88,7 +88,7 @@ final class FutureAiOrchestrator implements FutureAiGatewayInterface {
       );
     }
 
-    if (!$this->environmentGuard->allowsExternalCalls()) {
+    if (!$this->environmentGuard->allowsProviderDispatch()) {
       $reason = $this->getControlledReason(
         $this->environmentGuard->getBlockReason(),
       );
@@ -105,7 +105,7 @@ final class FutureAiOrchestrator implements FutureAiGatewayInterface {
     }
 
     $apiKey = $this->environmentGuard->resolveApiKey();
-    if ($apiKey === '') {
+    if ($this->environmentGuard->requiresProviderApiKey() && $apiKey === '') {
       $this->monitoring->recordBlocked(FutureAiResponseReason::KeyMissing);
 
       return $this->fallback(

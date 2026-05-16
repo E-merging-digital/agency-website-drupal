@@ -298,6 +298,44 @@ final class PublicContextAdminControllerTest extends BrowserTestBase {
   }
 
   /**
+   * Tests the mock provider status is visible without exposing data.
+   */
+  public function testMockProviderStatusIsVisibleWithoutLeaks(): void {
+    $this->drupalLogin($this->authorizedUser);
+    $settings['settings']['emerging_digital_chatbot.allow_mock_provider'] = (object) [
+      'value' => TRUE,
+      'required' => TRUE,
+    ];
+    $this->writeSettings($settings);
+
+    $this->config('emerging_digital_chatbot.settings')
+      ->set('future_ai.provider', 'mock')
+      ->set('future_ai.prompts.fr.system', 'Hidden mock system prompt.')
+      ->save();
+
+    $this->drupalGet(self::INSPECTION_PATH, ['query' => ['langcode' => 'fr']]);
+
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Future AI provider status');
+    $this->assertSession()->pageTextContains('Active provider');
+    $this->assertSession()->pageTextContains('mock');
+    $this->assertSession()->pageTextContains('Environment');
+    $this->assertSession()->pageTextContains('allowed');
+    $this->assertSession()->pageTextContains('Reason');
+    $this->assertSession()->pageTextContains('none');
+    $this->assertSession()->pageTextContains('Key status');
+    $this->assertSession()->pageTextContains('not_required');
+    $this->assertSession()->pageTextContains('External calls allowed');
+    $this->assertSession()->pageTextContains('no');
+
+    $this->assertSession()->pageTextNotContains('sk-functional-secret');
+    $this->assertSession()->pageTextNotContains('openai_api_key');
+    $this->assertSession()->pageTextNotContains('Hidden mock system prompt.');
+    $this->assertSession()->pageTextNotContains('visitor message');
+    $this->assertSession()->pageTextNotContains('provider payload');
+  }
+
+  /**
    * Tests French and English contexts are inspectable independently.
    */
   public function testFrenchAndEnglishContextsAreInspectable(): void {

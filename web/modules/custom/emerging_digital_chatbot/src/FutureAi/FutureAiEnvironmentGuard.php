@@ -26,7 +26,22 @@ final class FutureAiEnvironmentGuard {
    * Determines whether an external Future AI call is currently allowed.
    */
   public function allowsExternalCalls(): bool {
+    return $this->activeProviderRequiresExternalAllowance()
+      && $this->getBlockReason() === '';
+  }
+
+  /**
+   * Determines whether the active provider can be dispatched.
+   */
+  public function allowsProviderDispatch(): bool {
     return $this->getBlockReason() === '';
+  }
+
+  /**
+   * Determines whether the active provider needs a runtime API key.
+   */
+  public function requiresProviderApiKey(): bool {
+    return $this->activeProviderRequiresApiKey();
   }
 
   /**
@@ -41,12 +56,13 @@ final class FutureAiEnvironmentGuard {
       return 'unsupported_provider';
     }
 
-    if (!$this->isEnvironmentExplicitlyAllowed()) {
+    if ($this->activeProviderRequiresExternalAllowance()
+      && !$this->isEnvironmentExplicitlyAllowed()) {
       return 'environment_blocked';
     }
 
     $keyStatus = $this->getKeyStatus();
-    if ($keyStatus !== 'available') {
+    if ($this->activeProviderRequiresApiKey() && $keyStatus !== 'available') {
       return 'key_' . $keyStatus;
     }
 
@@ -59,7 +75,9 @@ final class FutureAiEnvironmentGuard {
   public function resolveApiKey(): string {
     if (!$this->chatbotConfig->isFutureAiEnabled()
       || !$this->hasSupportedActiveProvider()
-      || !$this->isEnvironmentExplicitlyAllowed()) {
+      || ($this->activeProviderRequiresExternalAllowance()
+        && !$this->isEnvironmentExplicitlyAllowed())
+      || !$this->activeProviderRequiresApiKey()) {
       return '';
     }
 
@@ -82,12 +100,12 @@ final class FutureAiEnvironmentGuard {
         ? 'enabled'
         : 'disabled',
       'provider' => $this->getActiveProviderId(),
-      'environment' => $this->isEnvironmentExplicitlyAllowed()
+      'environment' => $this->isRuntimeExplicitlyAllowed()
         ? 'allowed'
         : 'blocked',
       'reason' => $reason !== '' ? $reason : 'none',
       'key_status' => $this->getKeyStatus(),
-      'external_calls_allowed' => $reason === '' ? 'yes' : 'no',
+      'external_calls_allowed' => $this->allowsExternalCalls() ? 'yes' : 'no',
     ];
   }
 
@@ -117,6 +135,17 @@ final class FutureAiEnvironmentGuard {
   }
 
   /**
+   * Checks whether the current runtime allows the selected provider.
+   */
+  private function isRuntimeExplicitlyAllowed(): bool {
+    if ($this->getActiveProviderId() === FutureAiProviderRegistry::PROVIDER_MOCK) {
+      return $this->allowsProviderDispatch();
+    }
+
+    return $this->isEnvironmentExplicitlyAllowed();
+  }
+
+  /**
    * Gets the active provider id without exposing adjacent configuration.
    */
   private function getProvider(): string {
@@ -138,7 +167,10 @@ final class FutureAiEnvironmentGuard {
 
       return $provider !== NULL
         && $provider->isEnabled()
-        && $provider->getProviderId() === FutureAiProviderRegistry::PROVIDER_OPENAI;
+        && in_array($provider->getProviderId(), [
+          FutureAiProviderRegistry::PROVIDER_OPENAI,
+          FutureAiProviderRegistry::PROVIDER_MOCK,
+        ], TRUE);
     }
 
     return $this->getActiveProviderId() === FutureAiProviderRegistry::PROVIDER_OPENAI;
@@ -165,7 +197,25 @@ final class FutureAiEnvironmentGuard {
    * Returns the configured Key status without exposing its id or value.
    */
   private function getKeyStatus(): string {
+    if ($this->getActiveProviderId() === FutureAiProviderRegistry::PROVIDER_MOCK) {
+      return 'not_required';
+    }
+
     return $this->resolveConfiguredKey()['status'];
+  }
+
+  /**
+   * Determines whether the active provider can make external calls.
+   */
+  private function activeProviderRequiresExternalAllowance(): bool {
+    return $this->getActiveProviderId() === FutureAiProviderRegistry::PROVIDER_OPENAI;
+  }
+
+  /**
+   * Determines whether the active provider requires a Drupal Key secret.
+   */
+  private function activeProviderRequiresApiKey(): bool {
+    return $this->getActiveProviderId() === FutureAiProviderRegistry::PROVIDER_OPENAI;
   }
 
   /**

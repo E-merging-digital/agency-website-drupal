@@ -13,6 +13,7 @@ final class FutureAiProviderRegistry {
 
   public const PROVIDER_OPENAI = 'openai';
   public const PROVIDER_OPENAI_RESPONSES_LEGACY = 'openai_responses';
+  public const PROVIDER_MOCK = 'mock';
   public const PROVIDER_NULL = 'null';
 
   /**

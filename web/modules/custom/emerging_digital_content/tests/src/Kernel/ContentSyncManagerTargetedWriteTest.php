@@ -967,39 +967,44 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       ['hero', 'text_block', 'case_clients', 'cta'],
       array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
     );
-    self::assertSame('Cas clients Drupal sur des contextes structurés', $paragraphs[0]->get('field_heading')->value);
-    self::assertStringContainsString('Chaque projet répond à des besoins réels', (string) $paragraphs[1]->get('field_text')->value);
+    self::assertSame('Cas clients Drupal : des projets utiles, sobres et durables', $paragraphs[0]->get('field_heading')->value);
+    self::assertStringContainsString('Des exemples concrets', (string) $paragraphs[1]->get('field_text')->value);
     self::assertCount(3, $paragraphs[2]->get('field_items'));
-    self::assertSame('Refonte d’un site institutionnel', $paragraphs[2]->get('field_items')->first()->value);
-    self::assertSame('Site difficile à maintenir et à faire évoluer', $paragraphs[2]->get('field_case_problem')->first()->value);
-    self::assertSame('refonte Drupal', $paragraphs[2]->get('field_case_solution')->first()->value);
-    self::assertSame('meilleure structure, plus simple à éditer', $paragraphs[2]->get('field_case_result')->first()->value);
+    self::assertSame('Trois contextes représentatifs', $paragraphs[2]->get('field_heading')->value);
+    self::assertSame('Site agence E-merging Digital', $paragraphs[2]->get('field_items')->first()->value);
+    self::assertStringContainsString('expertise Drupal', $paragraphs[2]->get('field_case_problem')->first()->value);
+    self::assertStringContainsString('/fr/agence-drupal-belgique', $paragraphs[2]->get('field_case_solution')->first()->value);
+    self::assertStringContainsString('SEO longue traîne', $paragraphs[2]->get('field_case_result')->first()->value);
     self::assertSame('Prendre contact', $paragraphs[3]->get('field_link')->title);
 
     $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
     self::assertCount(4, $english_paragraphs);
     self::assertSame(
-      'Drupal case studies for structured contexts',
+      'Drupal case studies: useful, sober and durable projects',
       $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertStringContainsString(
-      'Each project responds to real needs',
+      'Concrete examples',
       (string) $english_paragraphs[1]->getTranslation('en')->get('field_text')->value,
     );
     self::assertSame(
-      'Institutional website redesign',
+      'Three representative contexts',
+      $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertSame(
+      'E-merging Digital agency website',
       $english_paragraphs[2]->getTranslation('en')->get('field_items')->first()->value,
     );
-    self::assertSame(
-      'Site difficult to maintain and evolve',
+    self::assertStringContainsString(
+      'Drupal expertise',
       $english_paragraphs[2]->getTranslation('en')->get('field_case_problem')->first()->value,
     );
-    self::assertSame(
-      'Drupal redesign',
+    self::assertStringContainsString(
+      '/en/drupal-agency-belgium',
       $english_paragraphs[2]->getTranslation('en')->get('field_case_solution')->first()->value,
     );
-    self::assertSame(
-      'better structure, easier to edit',
+    self::assertStringContainsString(
+      'long-tail SEO',
       $english_paragraphs[2]->getTranslation('en')->get('field_case_result')->first()->value,
     );
     self::assertSame(

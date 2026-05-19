@@ -5,13 +5,23 @@
       <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
     <div class="ed-cards ed-cards--cases">
+      {% set case_labels = paragraph.langcode.value == 'en'
+        ? {'problem': 'Challenge', 'solution': 'Approach', 'result': 'Outcome'}
+        : {'problem': 'Contexte', 'solution': 'Réponse', 'result': 'Effet'}
+      %}
       {% for item in paragraph.field_items %}
         {% set idx = loop.index0 %}
         <article class="ed-card ed-card--case">
           <h3>{{ item.value|striptags|trim }}</h3>
-          <p><strong>Problème :</strong> {{ paragraph.field_case_problem[idx].value|striptags|trim }}</p>
-          <p><strong>Solution :</strong> {{ paragraph.field_case_solution[idx].value|striptags|trim }}</p>
-          <p><strong>Résultat :</strong> {{ paragraph.field_case_result[idx].value|striptags|trim }}</p>
+          {% if paragraph.field_case_problem[idx].processed|default('') %}
+            <p><strong>{{ case_labels.problem }} :</strong> {{ paragraph.field_case_problem[idx].processed|raw }}</p>
+          {% endif %}
+          {% if paragraph.field_case_solution[idx].processed|default('') %}
+            <p><strong>{{ case_labels.solution }} :</strong> {{ paragraph.field_case_solution[idx].processed|raw }}</p>
+          {% endif %}
+          {% if paragraph.field_case_result[idx].processed|default('') %}
+            <p><strong>{{ case_labels.result }} :</strong> {{ paragraph.field_case_result[idx].processed|raw }}</p>
+          {% endif %}
         </article>
       {% endfor %}
     </div>

@@ -6,11 +6,11 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Cas clients Drupal sur des contextes structurés'
+            - value: 'Cas clients Drupal : des projets utiles, sobres et durables'
       en:
         fields:
           field_heading:
-            - value: 'Drupal case studies for structured contexts'
+            - value: 'Drupal case studies: useful, sober and durable projects'
   - id: cas-clients.intro
     legacy_uuid: 25892a5a-3c09-4f64-86d7-cda8058e1875
     bundle: text_block
@@ -19,17 +19,19 @@ components:
         fields:
           field_text:
             - value: >-
-                Chaque projet répond à des besoins réels avec une approche
-                pragmatique : robustesse Drupal, clarté éditoriale,
-                accessibilité et intégration d’IA utile.
+                Des exemples concrets pour comprendre comment nous abordons un
+                <a href="/fr/services">projet Drupal</a> : cadrage,
+                architecture éditoriale, migration, SEO, accessibilité et IA
+                utile quand elle sert vraiment les équipes.
               format: basic_html
       en:
         fields:
           field_text:
             - value: >-
-                Each project responds to real needs with a pragmatic approach:
-                Drupal robustness, editorial clarity, accessibility, and useful
-                AI integration.
+                Concrete examples to understand how we approach a <a
+                href="/en/services">Drupal project</a>: scoping, editorial
+                architecture, migration, SEO, accessibility and useful AI when
+                it genuinely supports teams.
               format: basic_html
   - id: cas-clients.case-studies
     legacy_uuid: 83435955-44bb-40df-8e8c-eda848d40301
@@ -37,63 +39,146 @@ components:
     translations:
       fr:
         fields:
+          field_heading:
+            - value: 'Trois contextes représentatifs'
+          field_text:
+            - value: >-
+                Ces cas restent volontairement sobres : pas de logos inventés,
+                pas de témoignages fictifs, pas de résultats chiffrés sans
+                mesure vérifiable. L’objectif est de montrer la méthode, les
+                arbitrages et les liens avec les services utiles.
+              format: basic_html
           field_items:
-            - value: 'Refonte d’un site institutionnel'
+            - value: 'Site agence E-merging Digital'
               format: basic_html
-            - value: 'Migration Drupal'
+            - value: 'Migration Drupal complexe anonymisée'
               format: basic_html
-            - value: 'Structuration éditoriale accessible'
+            - value: 'Chatbot IA Drupal pour qualifier les projets'
               format: basic_html
           field_case_problem:
-            - value: 'Site difficile à maintenir et à faire évoluer'
+            - value: >-
+                La présence commerciale devait démontrer l’expertise Drupal de
+                l’agence, rester bilingue et rendre les offres lisibles sans
+                surcharger les visiteurs.
               format: basic_html
-            - value: 'version obsolète'
+            - value: >-
+                Un site Drupal existant cumulait dette technique, contenus
+                sensibles, contraintes multilingues et risque SEO au moment de
+                préparer une montée de version.
               format: basic_html
-            - value: 'Contenus peu lisibles pour les publics'
+            - value: >-
+                Les premiers échanges projet arrivaient avec des niveaux de
+                précision très variables, ce qui compliquait le cadrage avant un
+                audit ou une proposition.
               format: basic_html
           field_case_solution:
-            - value: 'refonte Drupal'
+            - value: >-
+                Construction d’un socle Drupal 11 maintenable, catalogue
+                Content Sync idempotent, pages services SEO et maillage vers
+                <a href="/fr/agence-drupal-belgique">l’agence Drupal
+                Belgique</a>, <a href="/fr/services">les services</a> et <a
+                href="/fr/contact">la prise de contact</a>.
               format: basic_html
-            - value: 'migration complète'
+            - value: >-
+                Cadrage technique, inventaire des contenus, conservation des
+                aliases pertinents et migration progressive reliée aux services
+                <a href="/fr/migration-drupal">migration Drupal</a>, <a
+                href="/fr/audit-drupal">audit Drupal</a> et <a
+                href="/fr/maintenance-drupal">maintenance Drupal</a>.
               format: basic_html
-            - value: 'Architecture claire et règles éditoriales partagées'
+            - value: >-
+                Mise en place d’un assistant IA dans Drupal pour collecter le
+                contexte, orienter les demandes et préparer un brief exploitable
+                avant l’échange humain, en cohérence avec <a
+                href="/fr/ia-drupal">IA &amp; Drupal</a> et <a
+                href="/fr/ia-integree">l’IA intégrée</a>.
               format: basic_html
           field_case_result:
-            - value: 'meilleure structure, plus simple à éditer'
+            - value: >-
+                Un site vitrine plus clair, plus cohérent pour le SEO longue
+                traîne et plus simple à faire évoluer côté contenu, sans
+                dépendre de contenus hardcodés dans le thème.
               format: basic_html
-            - value: 'sécurité et performance améliorées'
+            - value: >-
+                Une trajectoire de migration plus lisible, avec risques
+                priorisés, contenus structurés et continuité éditoriale
+                préservée plutôt qu’une refonte improvisée.
               format: basic_html
-            - value: 'Meilleure lisibilité et accessibilité web'
+            - value: >-
+                Des demandes mieux qualifiées en amont, un dialogue commercial
+                plus précis et une meilleure orientation vers le bon service
+                Drupal ou IA.
               format: basic_html
       en:
         fields:
+          field_heading:
+            - value: 'Three representative contexts'
+          field_text:
+            - value: >-
+                These cases are intentionally sober: no invented logos, no fake
+                testimonials, no quantified outcomes without verifiable
+                measurement. The goal is to show the method, the trade-offs and
+                the connection with useful services.
+              format: basic_html
           field_items:
-            - value: 'Institutional website redesign'
+            - value: 'E-merging Digital agency website'
               format: basic_html
-            - value: 'Drupal migration'
+            - value: 'Anonymised complex Drupal migration'
               format: basic_html
-            - value: 'Accessible editorial structuring'
+            - value: 'Drupal AI chatbot for project qualification'
               format: basic_html
           field_case_problem:
-            - value: 'Site difficult to maintain and evolve'
+            - value: >-
+                The commercial presence needed to demonstrate the agency’s
+                Drupal expertise, remain bilingual and make the offers readable
+                without overloading visitors.
               format: basic_html
-            - value: 'outdated version'
+            - value: >-
+                An existing Drupal site combined technical debt, sensitive
+                content, multilingual constraints and SEO risk while preparing
+                for a version upgrade.
               format: basic_html
-            - value: 'Content that was hard for audiences to read'
+            - value: >-
+                Early project conversations arrived with very different levels
+                of precision, making scoping harder before an audit or a
+                proposal.
               format: basic_html
           field_case_solution:
-            - value: 'Drupal redesign'
+            - value: >-
+                A maintainable Drupal 11 foundation, an idempotent Content Sync
+                catalog, SEO service pages and internal linking to the <a
+                href="/en/drupal-agency-belgium">Drupal agency in Belgium</a>,
+                <a href="/en/services">services</a> and <a
+                href="/en/contact">contact</a> paths.
               format: basic_html
-            - value: 'complete migration'
+            - value: >-
+                Technical scoping, content inventory, preservation of relevant
+                aliases and a progressive migration connected to <a
+                href="/en/drupal-migration">Drupal migration</a>, <a
+                href="/en/drupal-audit">Drupal audit</a> and <a
+                href="/en/drupal-maintenance">Drupal maintenance</a> services.
               format: basic_html
-            - value: 'Clear architecture and shared editorial rules'
+            - value: >-
+                An AI assistant inside Drupal to collect context, route
+                requests and prepare a usable brief before the human discussion,
+                aligned with <a href="/en/ai-drupal">AI &amp; Drupal</a> and
+                <a href="/en/integrated-ai">integrated AI</a>.
               format: basic_html
           field_case_result:
-            - value: 'better structure, easier to edit'
+            - value: >-
+                A clearer agency website, more coherent for long-tail SEO and
+                easier to evolve editorially, without hardcoded business content
+                in the theme.
               format: basic_html
-            - value: 'improved security and performance'
+            - value: >-
+                A clearer migration path, with prioritised risks, structured
+                content and preserved editorial continuity instead of an
+                improvised redesign.
               format: basic_html
-            - value: 'Better readability and web accessibility'
+            - value: >-
+                Better-qualified requests upstream, a more precise commercial
+                discussion and clearer routing toward the right Drupal or AI
+                service.
               format: basic_html
   - id: cas-clients.cta
     legacy_uuid: d36b8734-7d9e-4782-a2e5-efa82d8ecfea
@@ -103,9 +188,10 @@ components:
         fields:
           field_text:
             - value: >-
-                Vous avez un projet similaire ? Consultez nos <a
-                href="/fr/services">services</a> ou notre page <a
-                href="/fr/ia-drupal">IA &amp; Drupal</a>, puis discutons-en.
+                Vous avez un contexte proche : migration sensible, refonte
+                Drupal, structuration SEO ou qualification par IA ? Consultez
+                nos <a href="/fr/services">services Drupal</a>, puis
+                discutons-en avec un cadrage clair.
               format: basic_html
           field_link:
             - uri: 'internal:/fr/contact'
@@ -114,9 +200,10 @@ components:
         fields:
           field_text:
             - value: >-
-                Have a similar project? Explore our <a
-                href="/en/services">services</a> or our <a
-                href="/en/ai-drupal">AI &amp; Drupal</a> page, then let’s talk.
+                Working with a similar context: sensitive migration, Drupal
+                redesign, SEO structuring or AI-assisted qualification? Explore
+                our <a href="/en/services">Drupal services</a>, then let’s
+                discuss it with a clear scope.
               format: basic_html
           field_link:
             - uri: 'internal:/en/contact'

@@ -1,3 +1,19 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Découvrez comment E-merging Digital traite les données envoyées via le
+          formulaire de contact, vos droits RGPD et les canaux pour toute
+          demande.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Learn how E-merging Digital processes data sent through the contact
+          form, your GDPR rights and the channels available for any request.
+        format: basic_html
 components:
   - id: politique-confidentialite.content
     legacy_uuid: 50c557e0-a74e-4124-acb2-115ab84e402b

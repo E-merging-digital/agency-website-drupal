@@ -1,3 +1,19 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Contactez E-merging Digital pour cadrer un projet Drupal, une refonte,
+          un audit ou une évolution IA avec une réponse humaine et claire depuis
+          la Belgique.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Contact E-merging Digital to frame a Drupal project, redesign, audit
+          or AI evolution with a clear, human response from Belgium.
+        format: basic_html
 components:
   - id: contact.hero
     legacy_uuid: dc4e80eb-e338-4dfb-a7b3-ce0f4e1eba92

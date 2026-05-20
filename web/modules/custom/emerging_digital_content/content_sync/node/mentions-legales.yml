@@ -1,3 +1,20 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Retrouvez les mentions légales d’E-merging Digital SRL : coordonnées,
+          numéro d’entreprise, siège social, responsabilité éditoriale et
+          informations juridiques.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Read the legal notices for E-merging Digital SRL: contact details,
+          company number, registered office, editorial responsibility and legal
+          information.
+        format: basic_html
 components:
   - id: mentions-legales.content
     legacy_uuid: d88c477b-b568-4353-8c4a-e159644325bf

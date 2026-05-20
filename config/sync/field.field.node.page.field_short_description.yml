@@ -1,0 +1,20 @@
+uuid: 0a23c23e-b9c7-46eb-b2af-80a9d9ec60f9
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_short_description
+    - node.type.page
+id: node.page.field_short_description
+field_name: field_short_description
+entity_type: node
+bundle: page
+label: 'Description courte'
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  allowed_formats: {  }
+field_type: text_long

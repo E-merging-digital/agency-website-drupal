@@ -3,16 +3,17 @@ translations:
     fields:
       field_short_description:
         value: >-
-          Découvrez des cas clients Drupal concrets : problèmes rencontrés,
-          solutions mises en œuvre et résultats pour des sites structurés,
-          accessibles et durables.
+          Cas clients orientés transformation : modernisation Drupal, reprise
+          d'existant, IA encadrée, SEO et gouvernance pour des plateformes
+          durables.
         format: basic_html
   en:
     fields:
       field_short_description:
         value: >-
-          Explore practical Drupal case studies: challenges, solutions delivered
-          and results for structured, accessible and durable websites.
+          Transformation-focused case studies: Drupal modernization, existing
+          platform takeover, governed AI, SEO and governance for durable
+          platforms.
         format: basic_html
 components:
   - id: cas-clients.hero
@@ -22,11 +23,24 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Cas clients Drupal : des projets utiles, sobres et durables'
+            - value: 'Cas clients : des transformations web durables'
+          field_text:
+            - value: >-
+                Des projets où Drupal, PHP moderne, SEO technique et IA
+                encadrée servent d'abord un enjeu métier : clarifier, moderniser,
+                gouverner et faire évoluer une plateforme sans perdre le
+                contrôle.
+              format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Drupal case studies: useful, sober and durable projects'
+            - value: 'Case studies: durable web transformations'
+          field_text:
+            - value: >-
+                Projects where Drupal, modern PHP, technical SEO and governed AI
+                first serve a business need: clarify, modernize, govern and
+                evolve a platform without losing control.
+              format: basic_html
   - id: cas-clients.intro
     legacy_uuid: 25892a5a-3c09-4f64-86d7-cda8058e1875
     bundle: text_block
@@ -35,19 +49,37 @@ components:
         fields:
           field_text:
             - value: >-
-                Des exemples concrets pour comprendre comment nous abordons un
-                <a href="/fr/services">projet Drupal</a> : cadrage,
-                architecture éditoriale, migration, SEO, accessibilité et IA
-                utile quand elle sert vraiment les équipes.
+                Les cas ci-dessous ne sont pas un portfolio technique. Ils
+                montrent comment nous accompagnons une organisation depuis le
+                problème initial jusqu'à une base plus lisible, plus gouvernable
+                et plus maintenable. Drupal reste visible comme expertise
+                premium pour les plateformes structurées, mais la discussion
+                commence toujours par le besoin : <a
+                href="/fr/agence-web-belgique">cadrage web senior</a>, <a
+                href="/fr/refonte-site-internet">refonte</a>, <a
+                href="/fr/site-web-pme">site PME</a>, <a
+                href="/fr/ia-pour-pme">IA utile</a> ou <a
+                href="/fr/contact">prise de contact</a>. Cette approche prépare
+                aussi les futures reprises d'existants WordPress lorsque
+                l'audit, la dette technique ou une migration vers Drupal devient
+                nécessaire.
               format: basic_html
       en:
         fields:
           field_text:
             - value: >-
-                Concrete examples to understand how we approach a <a
-                href="/en/services">Drupal project</a>: scoping, editorial
-                architecture, migration, SEO, accessibility and useful AI when
-                it genuinely supports teams.
+                The cases below are not a technical portfolio. They show how we
+                support an organization from the initial problem to a clearer,
+                more governable and more maintainable foundation. Drupal remains
+                visible as premium expertise for structured platforms, but the
+                discussion always starts with the need: <a
+                href="/en/web-agency-belgium">senior web scoping</a>, <a
+                href="/en/website-redesign">redesign</a>, <a
+                href="/en/sme-website">SME website</a>, <a
+                href="/en/ai-for-smes">useful AI</a> or <a
+                href="/en/contact">contact</a>. This approach also prepares
+                future takeovers of existing WordPress sites when audit,
+                technical debt or a migration to Drupal becomes necessary.
               format: basic_html
   - id: cas-clients.case-studies
     legacy_uuid: 83435955-44bb-40df-8e8c-eda848d40301
@@ -56,145 +88,165 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Trois contextes représentatifs'
+            - value: 'Trois transformations représentatives'
           field_text:
             - value: >-
                 Ces cas restent volontairement sobres : pas de logos inventés,
                 pas de témoignages fictifs, pas de résultats chiffrés sans
-                mesure vérifiable. L’objectif est de montrer la méthode, les
-                arbitrages et les liens avec les services utiles.
+                mesure vérifiable. Ils mettent en avant la problématique, les
+                arbitrages, l'accompagnement et les effets observables pour le
+                client ou l'équipe.
               format: basic_html
           field_items:
-            - value: 'Site agence E-merging Digital'
+            - value: "Repositionnement business d'une présence Drupal"
               format: basic_html
-            - value: 'Migration Drupal complexe anonymisée'
+            - value: "Modernisation d'une plateforme Drupal existante"
               format: basic_html
-            - value: 'Chatbot IA Drupal pour qualifier les projets'
+            - value: 'Qualification IA encadrée dans Drupal'
               format: basic_html
           field_case_problem:
             - value: >-
-                La présence commerciale devait démontrer l’expertise Drupal de
-                l’agence, rester bilingue et rendre les offres lisibles sans
-                surcharger les visiteurs.
+                L'organisation devait rendre son offre plus lisible pour des
+                prospects non techniques, prouver son niveau d'expertise Drupal
+                et relier services, contenus SEO et conversion sans transformer
+                le site en brochure marketing.
               format: basic_html
             - value: >-
-                Un site Drupal existant cumulait dette technique, contenus
-                sensibles, contraintes multilingues et risque SEO au moment de
-                préparer une montée de version.
+                Une plateforme existante cumulait dette technique, contenus
+                sensibles, contraintes multilingues, risques SEO et dépendance à
+                quelques choix historiques. Le besoin n'était pas seulement de
+                migrer, mais de retrouver une trajectoire de gouvernance.
               format: basic_html
             - value: >-
-                Les premiers échanges projet arrivaient avec des niveaux de
-                précision très variables, ce qui compliquait le cadrage avant un
-                audit ou une proposition.
+                Les demandes entrantes arrivaient avec des niveaux de précision
+                très variables. Il fallait qualifier le contexte, distinguer
+                création, refonte, audit ou IA, et éviter une automatisation
+                opaque dans le premier échange.
               format: basic_html
           field_case_solution:
             - value: >-
-                Construction d’un socle Drupal 11 maintenable, catalogue
-                Content Sync idempotent, pages services SEO et maillage vers
-                <a href="/fr/agence-drupal-belgique">l’agence Drupal
-                Belgique</a>, <a href="/fr/services">les services</a> et <a
-                href="/fr/contact">la prise de contact</a>.
+                Cadrage éditorial, hiérarchie des offres, socle Drupal 11
+                maintenable, Content Sync idempotent et maillage vers <a
+                href="/fr/agence-web-belgique">l'agence web senior</a>, <a
+                href="/fr/agence-drupal-belgique">l'expertise Drupal</a>, <a
+                href="/fr/creation-site-web-professionnel">la création de site
+                professionnel</a> et <a href="/fr/contact">la prise de
+                contact</a>.
               format: basic_html
             - value: >-
-                Cadrage technique, inventaire des contenus, conservation des
-                aliases pertinents et migration progressive reliée aux services
-                <a href="/fr/migration-drupal">migration Drupal</a>, <a
-                href="/fr/audit-drupal">audit Drupal</a> et <a
-                href="/fr/maintenance-drupal">maintenance Drupal</a>.
+                Audit de l'existant, inventaire des contenus, arbitrage des
+                risques, préservation des aliases utiles et plan de
+                modernisation relié à la <a href="/fr/migration-drupal">migration
+                Drupal</a>, à l'<a href="/fr/audit-drupal">audit Drupal</a>, à
+                la <a href="/fr/maintenance-drupal">maintenance Drupal</a> et à
+                la <a href="/fr/refonte-site-internet">refonte de site
+                internet</a>.
               format: basic_html
             - value: >-
-                Mise en place d’un assistant IA dans Drupal pour collecter le
-                contexte, orienter les demandes et préparer un brief exploitable
-                avant l’échange humain, en cohérence avec <a
-                href="/fr/ia-drupal">IA &amp; Drupal</a> et <a
-                href="/fr/ia-integree">l’IA intégrée</a>.
+                Mise en place d'un assistant IA intégré dans Drupal pour
+                collecter le contexte, orienter la demande et préparer un brief
+                exploitable avant l'échange humain, en cohérence avec <a
+                href="/fr/ia-drupal">IA &amp; Drupal</a>, <a
+                href="/fr/ia-integree">l'IA intégrée</a> et les usages <a
+                href="/fr/ia-pour-pme">IA pour PME</a>.
               format: basic_html
           field_case_result:
             - value: >-
-                Un site vitrine plus clair, plus cohérent pour le SEO longue
-                traîne et plus simple à faire évoluer côté contenu, sans
-                dépendre de contenus hardcodés dans le thème.
+                Un parcours commercial plus clair, une visibilité Drupal
+                maintenue comme preuve premium, un maillage SEO plus cohérent et
+                une base éditoriale que l'équipe peut faire évoluer sans contenu
+                métier hardcodé dans le thème.
               format: basic_html
             - value: >-
-                Une trajectoire de migration plus lisible, avec risques
-                priorisés, contenus structurés et continuité éditoriale
-                préservée plutôt qu’une refonte improvisée.
+                Une trajectoire de modernisation priorisée : risques rendus
+                visibles, continuité éditoriale préservée, gouvernance renforcée
+                et préparation possible de futures reprises WordPress vers
+                Drupal lorsque l'audit confirme ce besoin.
               format: basic_html
             - value: >-
-                Des demandes mieux qualifiées en amont, un dialogue commercial
-                plus précis et une meilleure orientation vers le bon service
-                Drupal ou IA.
+                Des échanges commerciaux mieux qualifiés, une orientation plus
+                nette vers le bon service, une IA utile mais validée humainement
+                et une meilleure cohérence entre preuve client, service Drupal
+                et projet IA.
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Three representative contexts'
+            - value: 'Three representative transformations'
           field_text:
             - value: >-
                 These cases are intentionally sober: no invented logos, no fake
                 testimonials, no quantified outcomes without verifiable
-                measurement. The goal is to show the method, the trade-offs and
-                the connection with useful services.
+                measurement. They highlight the problem, trade-offs, support and
+                observable effects for the client or team.
               format: basic_html
           field_items:
-            - value: 'E-merging Digital agency website'
+            - value: 'Business repositioning of a Drupal presence'
               format: basic_html
-            - value: 'Anonymised complex Drupal migration'
+            - value: 'Modernization of an existing Drupal platform'
               format: basic_html
-            - value: 'Drupal AI chatbot for project qualification'
+            - value: 'Governed AI qualification inside Drupal'
               format: basic_html
           field_case_problem:
             - value: >-
-                The commercial presence needed to demonstrate the agency’s
-                Drupal expertise, remain bilingual and make the offers readable
-                without overloading visitors.
+                The organization needed to make its offer clearer for
+                non-technical prospects, prove its level of Drupal expertise and
+                connect services, SEO content and conversion without turning the
+                website into a marketing brochure.
               format: basic_html
             - value: >-
-                An existing Drupal site combined technical debt, sensitive
-                content, multilingual constraints and SEO risk while preparing
-                for a version upgrade.
+                An existing platform combined technical debt, sensitive content,
+                multilingual constraints, SEO risks and dependency on historical
+                decisions. The need was not only to migrate, but to regain a
+                governance path.
               format: basic_html
             - value: >-
-                Early project conversations arrived with very different levels
-                of precision, making scoping harder before an audit or a
-                proposal.
+                Inbound requests arrived with very different levels of
+                precision. The challenge was to qualify the context, distinguish
+                creation, redesign, audit or AI needs, and avoid opaque
+                automation in the first exchange.
               format: basic_html
           field_case_solution:
             - value: >-
-                A maintainable Drupal 11 foundation, an idempotent Content Sync
-                catalog, SEO service pages and internal linking to the <a
-                href="/en/drupal-agency-belgium">Drupal agency in Belgium</a>,
-                <a href="/en/services">services</a> and <a
-                href="/en/contact">contact</a> paths.
+                Editorial scoping, offer hierarchy, maintainable Drupal 11
+                foundation, idempotent Content Sync and internal linking to the
+                <a href="/en/web-agency-belgium">senior web agency</a>, <a
+                href="/en/drupal-agency-belgium">Drupal expertise</a>, <a
+                href="/en/professional-website-creation">professional website
+                creation</a> and <a href="/en/contact">contact</a> paths.
               format: basic_html
             - value: >-
-                Technical scoping, content inventory, preservation of relevant
-                aliases and a progressive migration connected to <a
-                href="/en/drupal-migration">Drupal migration</a>, <a
-                href="/en/drupal-audit">Drupal audit</a> and <a
-                href="/en/drupal-maintenance">Drupal maintenance</a> services.
+                Existing platform audit, content inventory, risk arbitration,
+                preservation of useful aliases and a modernization plan
+                connected to <a href="/en/drupal-migration">Drupal migration</a>,
+                <a href="/en/drupal-audit">Drupal audit</a>, <a
+                href="/en/drupal-maintenance">Drupal maintenance</a> and <a
+                href="/en/website-redesign">website redesign</a>.
               format: basic_html
             - value: >-
-                An AI assistant inside Drupal to collect context, route
-                requests and prepare a usable brief before the human discussion,
-                aligned with <a href="/en/ai-drupal">AI &amp; Drupal</a> and
-                <a href="/en/integrated-ai">integrated AI</a>.
+                An AI assistant integrated inside Drupal to collect context,
+                route the request and prepare a usable brief before the human
+                discussion, aligned with <a href="/en/ai-drupal">AI &amp;
+                Drupal</a>, <a href="/en/integrated-ai">integrated AI</a> and
+                <a href="/en/ai-for-smes">AI for SMEs</a> use cases.
               format: basic_html
           field_case_result:
             - value: >-
-                A clearer agency website, more coherent for long-tail SEO and
-                easier to evolve editorially, without hardcoded business content
-                in the theme.
+                A clearer commercial journey, Drupal visibility maintained as a
+                premium proof point, more coherent SEO linking and an editorial
+                foundation the team can evolve without hardcoded business
+                content in the theme.
               format: basic_html
             - value: >-
-                A clearer migration path, with prioritised risks, structured
-                content and preserved editorial continuity instead of an
-                improvised redesign.
+                A prioritized modernization path: visible risks, preserved
+                editorial continuity, stronger governance and the ability to
+                prepare future WordPress-to-Drupal takeovers when the audit
+                confirms that need.
               format: basic_html
             - value: >-
-                Better-qualified requests upstream, a more precise commercial
-                discussion and clearer routing toward the right Drupal or AI
-                service.
+                Better-qualified commercial conversations, clearer routing to
+                the right service, useful AI with human validation and stronger
+                coherence between client proof, Drupal service and AI project.
               format: basic_html
   - id: cas-clients.cta
     legacy_uuid: d36b8734-7d9e-4782-a2e5-efa82d8ecfea
@@ -204,23 +256,25 @@ components:
         fields:
           field_text:
             - value: >-
-                Vous avez un contexte proche : migration sensible, refonte
-                Drupal, structuration SEO ou qualification par IA ? Consultez
-                nos <a href="/fr/services">services Drupal</a>, puis
-                discutons-en avec un cadrage clair.
+                Vous préparez une refonte, une reprise d'existant, une
+                modernisation Drupal ou un usage IA encadré ? Consultez nos <a
+                href="/fr/services">services web senior</a>, puis demandons-nous
+                ensemble ce qui doit être audité, conservé, simplifié ou
+                reconstruit.
               format: basic_html
           field_link:
             - uri: 'internal:/fr/contact'
-              title: 'Prendre contact'
+              title: 'Parler de votre projet'
       en:
         fields:
           field_text:
             - value: >-
-                Working with a similar context: sensitive migration, Drupal
-                redesign, SEO structuring or AI-assisted qualification? Explore
-                our <a href="/en/services">Drupal services</a>, then let’s
-                discuss it with a clear scope.
+                Planning a redesign, an existing platform takeover, a Drupal
+                modernization or a governed AI use case? Explore our <a
+                href="/en/services">senior web services</a>, then let us
+                identify what should be audited, preserved, simplified or
+                rebuilt.
               format: basic_html
           field_link:
             - uri: 'internal:/en/contact'
-              title: 'Get in touch'
+              title: 'Discuss your project'

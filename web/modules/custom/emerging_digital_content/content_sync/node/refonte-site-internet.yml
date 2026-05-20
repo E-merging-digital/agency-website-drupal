@@ -1,0 +1,89 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Refonte de site internet pour moderniser l'expérience, préserver le
+          SEO utile, clarifier les contenus et stabiliser le socle technique.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Une refonte utile ne consiste pas à changer d'apparence. Elle sert
+          à corriger ce qui freine la compréhension, la visibilité, l'édition,
+          la performance ou l'évolution technique du site.</p><h2>Les signaux
+          qui justifient une refonte</h2><ul><li>Offre devenue confuse, pages
+          importantes difficiles à trouver ou conversion trop faible.</li><li>
+          Performance, sécurité, accessibilité ou maintenance devenues
+          coûteuses.</li><li>Contenus dispersés, multilingue fragile ou équipe
+          éditoriale ralentie.</li><li>Existant Drupal, WordPress ou spécifique
+          à auditer avant optimisation, migration ou reconstruction.</li></ul>
+          <h2>Notre méthode</h2><p>Nous commençons par l'audit de l'existant :
+          contenus à conserver, pages SEO sensibles, redirections, dette
+          technique, composants réutilisables et risques de migration. Ensuite,
+          nous cadrons une feuille de route réaliste plutôt qu'une refonte
+          décorative.</p><h2>Résultats attendus</h2><p>La refonte doit produire
+          une structure plus claire, une meilleure base SEO, des parcours plus
+          lisibles, une administration plus simple et un socle technique prêt à
+          évoluer vers Drupal, PHP moderne ou des usages IA encadrés.</p><p>Pour
+          un socle Drupal existant, consultez la <a
+          href="/fr/refonte-site-drupal">refonte de site Drupal</a>. La démarche
+          peut aussi préparer une <a href="/fr/migration-drupal">migration
+          Drupal</a> ou renforcer l'<a
+          href="/fr/accessibilite-seo-optimisation">accessibilité, le SEO et la
+          performance</a>.</p><p><strong>Votre site doit évoluer sans perdre ce
+          qui fonctionne ?</strong> <a href="/fr/contact">Contactez-nous</a>
+          pour cadrer une refonte priorisée.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Website redesign to modernize the experience, protect useful SEO,
+          clarify content and stabilize the technical foundation.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>A useful redesign is not just a visual change. It fixes what slows
+          down understanding, visibility, editing, performance or technical
+          evolution.</p><h2>Signals that justify a redesign</h2><ul><li>The
+          offer has become unclear, important pages are hard to find or
+          conversion is too weak.</li><li>Performance, security, accessibility
+          or maintenance have become costly.</li><li>Content is scattered,
+          multilingual workflows are fragile or editorial teams are slowed
+          down.</li><li>An existing Drupal, WordPress or custom site needs to be
+          audited before optimization, migration or rebuild.</li></ul><h2>Our
+          method</h2><p>We start with an audit of the existing site: content to
+          keep, sensitive SEO pages, redirects, technical debt, reusable
+          components and migration risks. Then we frame a realistic roadmap
+          instead of a decorative redesign.</p><h2>Expected results</h2><p>The
+          redesign should produce a clearer structure, a stronger SEO
+          foundation, more readable journeys, easier administration and a
+          technical base ready to evolve toward Drupal, modern PHP or governed
+          AI use cases.</p><p>For an existing Drupal foundation, explore <a
+          href="/en/drupal-website-redesign">Drupal website redesign</a>. The
+          approach can also prepare a <a href="/en/drupal-migration">Drupal
+          migration</a> or reinforce <a
+          href="/en/ai-accessibility-seo-optimization">accessibility, SEO and
+          performance</a>.</p><p><strong>Does your site need to evolve without
+          losing what works?</strong> <a href="/en/contact">Contact us</a> to
+          frame a prioritized redesign.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Refonte de site internet'
+        description: >-
+          Une refonte priorisée pour clarifier l'offre, préserver le SEO,
+          moderniser les parcours et réduire la dette technique.
+        url: /fr/refonte-site-internet
+      en:
+        title: 'Website Redesign'
+        description: >-
+          A prioritized redesign to clarify the offer, protect SEO, modernize
+          journeys and reduce technical debt.
+        url: /en/website-redesign

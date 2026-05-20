@@ -1,0 +1,89 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Site web PME clair, visible et maintenable : priorisation, contenu,
+          SEO technique, Drupal si utile, PHP durable et IA encadrée.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Une PME n'a pas besoin d'un discours digital compliqué. Elle a
+          besoin d'un site qui explique l'offre, rassure les prospects, facilite
+          la prise de contact et reste maintenable avec un budget réaliste.</p>
+          <h2>Les priorités d'un site web PME</h2><ul><li>Clarifier les
+          services, publics, preuves, zones géographiques et CTA.</li><li>
+          Structurer les contenus pour le référencement naturel sans remplir les
+          pages de texte générique.</li><li>Choisir une base technique durable :
+          Drupal lorsque les contenus, rôles et langues deviennent importants ;
+          PHP sur mesure lorsque le besoin dépasse le CMS.</li><li>Prévoir la
+          maintenance, la mesure, la performance et les futures automatisations
+          IA.</li></ul><h2>Ce que nous évitons</h2><p>Nous évitons les sites
+          "vitrine" figés, les empilements de plugins, les promesses SEO vagues
+          et les automatisations IA sans contrôle. WordPress peut être repris ou
+          audité si l'existant doit être stabilisé, optimisé ou migré, mais nous
+          ne le présentons pas comme une offre de création généraliste.</p><h2>
+          Une feuille de route lisible</h2><p>Le projet peut commencer par une
+          création, une refonte ou un audit court. L'objectif est de prioriser ce
+          qui crée de la valeur : pages clés, formulaires, contenus, performance,
+          accessibilité, maintenance et premiers usages IA mesurables.</p><p>
+          Consultez aussi la <a href="/fr/creation-site-web-professionnel">
+          création de site web professionnel</a>, la <a
+          href="/fr/refonte-site-internet">refonte de site internet</a> et notre
+          approche <a href="/fr/ia-pour-pme">IA pour PME</a>.</p><p><strong>
+          Vous voulez un site PME plus utile et plus durable ?</strong> <a
+          href="/fr/contact">Contactez-nous</a> pour prioriser les prochaines
+          étapes.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Clear, visible and maintainable SME website: prioritization, content,
+          technical SEO, Drupal when useful, durable PHP and governed AI.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>An SME does not need complicated digital talk. It needs a website
+          that explains the offer, reassures prospects, makes contact easier and
+          remains maintainable with a realistic budget.</p><h2>Priorities for
+          an SME website</h2><ul><li>Clarify services, audiences, proof points,
+          geographic areas and CTAs.</li><li>Structure content for organic
+          search without filling pages with generic copy.</li><li>Choose a
+          durable technical foundation: Drupal when content, roles and languages
+          matter; custom PHP when the need goes beyond the CMS.</li><li>Plan
+          maintenance, measurement, performance and future AI automations.</li>
+          </ul><h2>What we avoid</h2><p>We avoid frozen brochure sites, plugin
+          stacking, vague SEO promises and uncontrolled AI automation. WordPress
+          can be taken over or audited when an existing site needs to be
+          stabilized, optimized or migrated, but we do not present it as a
+          generalist build offer.</p><h2>A readable roadmap</h2><p>The project
+          can start with a build, a redesign or a short audit. The goal is to
+          prioritize what creates value: key pages, forms, content, performance,
+          accessibility, maintenance and first measurable AI use cases.</p><p>
+          Explore <a href="/en/professional-website-creation">professional
+          website creation</a>, <a href="/en/website-redesign">website
+          redesign</a> and our <a href="/en/ai-for-smes">AI for SMEs</a>
+          approach.</p><p><strong>Want a more useful and durable SME website?
+          </strong> <a href="/en/contact">Contact us</a> to prioritize the next
+          steps.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Site web PME'
+        description: >-
+          Un site PME pensé pour clarifier l'offre, générer des contacts utiles
+          et rester maintenable dans le temps.
+        url: /fr/site-web-pme
+      en:
+        title: 'SME Website'
+        description: >-
+          An SME website designed to clarify the offer, generate useful contacts
+          and remain maintainable over time.
+        url: /en/sme-website

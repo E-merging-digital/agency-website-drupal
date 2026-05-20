@@ -3,17 +3,17 @@ translations:
     fields:
       field_short_description:
         value: >-
-          Explorez les services Drupal d’E-merging Digital : création, refonte,
-          migration, maintenance, accessibilité, SEO et IA utile pour projets
-          structurés.
+          Services web senior pour projets Drupal, sites PME et IA utile :
+          cadrage, refonte, maintenance, accessibilité, SEO et automatisations
+          maîtrisées.
         format: basic_html
   en:
     fields:
       field_short_description:
         value: >-
-          Explore E-merging Digital’s Drupal services: builds, redesigns,
-          migrations, maintenance, accessibility, SEO and useful AI for
-          structured projects.
+          Senior web services for Drupal projects, SME websites and useful AI:
+          scoping, redesign, maintenance, accessibility, SEO and controlled
+          automations.
         format: basic_html
 components:
   - id: services.hero
@@ -23,22 +23,24 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Services Drupal pour projets structurés et institutionnels'
+            - value: 'Services web senior, avec Drupal comme socle premium'
           field_text:
             - value: >-
-                Nous accompagnons PME, ASBL et organisations publiques dans la
-                création, la modernisation et l’évolution de sites Drupal
-                robustes, accessibles et éditorialement maîtrisés.
+                Nous aidons PME, ASBL et organisations publiques à créer,
+                moderniser et faire évoluer des plateformes web durables :
+                Drupal pour les projets structurés, parcours business lisibles
+                et IA utile avec validation humaine.
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Drupal services for structured and institutional projects'
+            - value: 'Senior web services, with Drupal as the premium foundation'
           field_text:
             - value: >-
-                We support SMEs, non-profits, and public organizations in the
-                creation, modernization, and evolution of robust, accessible,
-                and editorially controlled Drupal sites.
+                We help SMEs, non-profits and public organizations build,
+                modernize and evolve durable web platforms: Drupal for
+                structured projects, clear business journeys and useful AI with
+                human validation.
               format: basic_html
   - id: services.intro
     legacy_uuid: 2eb8e4b6-37d0-47cc-8702-7a850dd94c15
@@ -48,17 +50,18 @@ components:
         fields:
           field_text:
             - value: >-
-                Votre site doit rester clair, fiable et évolutif. Nous
-                structurons vos contenus, sécurisons la base technique Drupal
-                et intégrons les exigences d’accessibilité dès la conception.
+                La page Services n’est pas un catalogue : elle sert à choisir
+                le bon parcours. Commencez par le besoin métier, vérifiez le
+                niveau d’exigence technique, puis cadrez l’IA uniquement quand
+                elle apporte une valeur mesurable.
               format: basic_html
       en:
         fields:
           field_text:
             - value: >-
-                Your site must remain clear, reliable, and scalable. We
-                structure your content, secure the Drupal technical foundation,
-                and integrate accessibility requirements from the design stage.
+                The Services page is not a catalogue: it helps choose the right
+                path. Start with the business need, check the technical level
+                required, then frame AI only when it creates measurable value.
               format: basic_html
   - id: services.grid
     legacy_uuid: 11c3e2e1-78c9-491d-814c-b204bc2f5338
@@ -67,16 +70,35 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Nos services'
+            - value: 'Trois parcours pour cadrer votre projet'
+          field_text:
+            - value: >-
+                Drupal reste notre expertise premium pour les plateformes
+                structurées. Les services business rendent les besoins de
+                création, refonte et visibilité plus lisibles. Les usages IA
+                sont cadrés avec prudence, sources claires et validation
+                humaine.
+              format: basic_html
           field_items:
+            - value: >-
+                Agence Drupal Belgique|Accompagnement senior pour créer,
+                refondre, migrer et maintenir des sites Drupal accessibles,
+                performants et durables.|/fr/agence-drupal-belgique
+              format: basic_html
             - value: >-
                 Création de site Drupal|Conception et développement de sites
                 Drupal clairs, accessibles, performants et prêts pour le
                 SEO.|/fr/creation-site-drupal
               format: basic_html
             - value: >-
+                Refonte de site Drupal|Modernisation d’un Drupal existant pour
+                clarifier les contenus, protéger le SEO et retrouver une base
+                durable.|/fr/refonte-site-drupal
+              format: basic_html
+            - value: >-
                 Migration Drupal|Mise à jour de versions anciennes,
-                sécurisation et modernisation de votre plateforme.
+                sécurisation, reprise de contenus et modernisation de votre
+                plateforme.|/fr/migration-drupal
               format: basic_html
             - value: >-
                 Maintenance Drupal|Mises à jour, sécurité, support et
@@ -84,33 +106,101 @@ components:
                 fiable.|/fr/maintenance-drupal
               format: basic_html
             - value: >-
+                Audit Drupal|Diagnostic technique, SEO, performance,
+                accessibilité et éditorial pour prioriser les bonnes
+                corrections.|/fr/audit-drupal
+              format: basic_html
+            - value: >-
                 Accessibilité, SEO et optimisation|Amélioration de la
                 lisibilité, du référencement naturel et des performances
-                techniques.
+                techniques.|/fr/accessibilite-seo-optimisation
               format: basic_html
             - value: >-
                 IA intégrée|Automatisation de tâches éditoriales utiles,
                 amélioration de la qualité et préparation à la traduction
-                automatique.
+                automatique dans Drupal.|/fr/ia-integree
               format: basic_html
             - value: >-
-                Agence Drupal Belgique|Un accompagnement senior pour créer,
-                refondre, migrer et maintenir des sites Drupal accessibles,
-                performants et durables.|/fr/agence-drupal-belgique
+                Création de site web professionnel|Un site clair, maintenable
+                et crédible pour présenter l’offre, rassurer les publics et
+                préparer la conversion.|/fr/creation-site-web-professionnel
+              format: basic_html
+            - value: >-
+                Refonte site internet|Moderniser l’expérience, clarifier les
+                parcours, préserver le SEO existant et prioriser les
+                améliorations utiles.|/fr/refonte-site-internet
+              format: basic_html
+            - value: >-
+                Site web PME|Un site PME pensé pour clarifier l’offre, générer
+                des contacts utiles et rester maintenable avec un budget
+                réaliste.|/fr/site-web-pme
+              format: basic_html
+            - value: >-
+                Agence web Belgique|Un partenaire web senior pour cadrer le
+                besoin, arbitrer la technologie et construire une base
+                durable.|/fr/agence-web-belgique
+              format: basic_html
+            - value: >-
+                Agence web Liège|Un accompagnement de proximité pour les
+                organisations liégeoises qui veulent un site clair, robuste et
+                mesurable.|/fr/agence-web-liege
+              format: basic_html
+            - value: >-
+                IA pour PME|Cas d’usage IA cadrés pour gagner du temps sans
+                perdre la qualité, la validation humaine ni la maîtrise des
+                données.|/fr/ia-pour-pme
+              format: basic_html
+            - value: >-
+                Automatisation IA cadrée|Identifier les tâches répétitives qui
+                peuvent être assistées sans automatisation aveugle ni perte de
+                contrôle.|/fr/ia-pour-pme|ai
+              format: basic_html
+            - value: >-
+                IA documentaire|Structurer des contenus, synthèses et
+                connaissances internes avec des sources claires et une
+                validation humaine.|/fr/ia-drupal|ai
+              format: basic_html
+            - value: >-
+                Workflows IA éditoriaux|Préparer rédaction, relecture,
+                traduction, tags et liens internes avec des règles documentées
+                dans Drupal.|/fr/ia-integree|ai
+              format: basic_html
+            - value: >-
+                Chatbot IA encadré|Cadrer les usages de qualification et
+                d’orientation sans décision automatique ni collecte excessive
+                de données.|/fr/contact|ai
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Our services'
+            - value: 'Three paths to frame your project'
+          field_text:
+            - value: >-
+                Drupal remains our premium expertise for structured platforms.
+                Business services make creation, redesign and visibility needs
+                easier to understand. AI use cases are framed carefully, with
+                clear sources and human validation.
+              format: basic_html
           field_items:
+            - value: >-
+                Drupal Agency Belgium|Senior support to build, redesign,
+                migrate and maintain accessible, performant and durable Drupal
+                websites.|/en/drupal-agency-belgium
+              format: basic_html
             - value: >-
                 Drupal Website Creation|Design and development of clear,
                 accessible, performant Drupal websites ready for
                 SEO.|/en/drupal-website-creation
               format: basic_html
             - value: >-
-                Drupal Migration | Updating old versions, securing and
-                modernizing your platform.
+                Drupal Website Redesign|Modernize an existing Drupal site,
+                clarify content, protect SEO and recover a durable
+                foundation.|/en/drupal-website-redesign
+              format: basic_html
+            - value: >-
+                Drupal Migration|Update older versions, secure the platform,
+                migrate content and modernize the technical
+                foundation.|/en/drupal-migration
               format: basic_html
             - value: >-
                 Drupal Maintenance|Updates, security, support and continuous
@@ -118,17 +208,68 @@ components:
                 reliable.|/en/drupal-maintenance
               format: basic_html
             - value: >-
-                Accessibility, SEO, and optimization | Improvement of
-                readability, organic search, and technical performance.
+                Drupal Audit|Technical, SEO, performance, accessibility and
+                editorial diagnosis to prioritize the right
+                fixes.|/en/drupal-audit
               format: basic_html
             - value: >-
-                Integrated AI | Automation of useful editorial tasks, quality
-                enhancement, and preparation for machine translation.
+                Accessibility, SEO, and optimization|Improve readability,
+                organic search visibility and technical
+                performance.|/en/ai-accessibility-seo-optimization
               format: basic_html
             - value: >-
-                Drupal Agency Belgium|Senior support to build, redesign,
-                migrate and maintain accessible, performant and durable Drupal
-                websites.|/en/drupal-agency-belgium
+                Integrated AI|Useful editorial automation, content quality,
+                translation preparation and governed AI use cases in
+                Drupal.|/en/integrated-ai
+              format: basic_html
+            - value: >-
+                Professional Website Creation|A clear, maintainable and
+                credible website to explain the offer, reassure audiences and
+                prepare conversion.|/en/professional-website-creation
+              format: basic_html
+            - value: >-
+                Website Redesign|Modernize the experience, clarify journeys,
+                preserve existing SEO and prioritize useful
+                improvements.|/en/website-redesign
+              format: basic_html
+            - value: >-
+                SME Website|An SME website designed to clarify the offer,
+                generate useful contacts and remain maintainable with a
+                realistic budget.|/en/sme-website
+              format: basic_html
+            - value: >-
+                Web Agency Belgium|A senior web partner to frame the need,
+                choose the right technology and build a durable
+                foundation.|/en/web-agency-belgium
+              format: basic_html
+            - value: >-
+                Web Agency Liège|Local support for Liège organizations that
+                need a clear, robust and measurable website.|/en/web-agency-liege
+              format: basic_html
+            - value: >-
+                AI for SMEs|Scoped AI use cases to save time without losing
+                quality, human validation or control over
+                data.|/en/ai-for-smes
+              format: basic_html
+            - value: >-
+                Governed AI automation|Identify repetitive tasks that can be
+                assisted without blind automation or loss of
+                control.|/en/ai-for-smes|ai
+              format: basic_html
+            - value: >-
+                Document AI|Structure content, summaries and internal
+                knowledge with clear sources and human
+                validation.|/en/ai-drupal|ai
+              format: basic_html
+            - value: >-
+                Editorial AI workflows|Prepare writing, review, translation,
+                tags and internal links with documented rules in
+                Drupal.|/en/integrated-ai|ai
+              format: basic_html
+            - value: >-
+                Governed AI chatbot|Frame qualification and orientation use
+                cases without automated decisions or excessive data
+                collection.|/en/contact|ai
               format: basic_html
   - id: services.why-drupal
     legacy_uuid: 2f4f723a-90d5-4a95-84dc-333363d51655
@@ -140,10 +281,11 @@ components:
             - value: 'Pourquoi Drupal pour des projets exigeants'
           field_text:
             - value: >-
-                Drupal est une plateforme robuste et flexible,
-                particulièrement adaptée aux projets institutionnels et aux
-                écosystèmes de contenus complexes, avec des besoins
-                d’accessibilité et de gouvernance.
+                Drupal reste mis en avant parce qu’il répond aux projets qui
+                doivent durer : contenus nombreux, multilingue, rôles
+                éditoriaux, sécurité, accessibilité, maintenance et évolutions
+                maîtrisées. Les parcours business et IA complètent ce socle ;
+                ils ne le remplacent pas.
               format: basic_html
       en:
         fields:
@@ -151,9 +293,11 @@ components:
             - value: 'Why choose Drupal for demanding projects'
           field_text:
             - value: >-
-                Drupal is a robust and flexible platform, particularly suited
-                for institutional projects and complex content ecosystems, with
-                needs for accessibility and governance.
+                Drupal remains visible because it fits projects that must last:
+                rich content, multilingual publishing, editorial roles,
+                security, accessibility, maintenance and controlled evolution.
+                Business and AI paths complement this foundation; they do not
+                replace it.
               format: basic_html
   - id: services.cta
     legacy_uuid: cfe7d994-e099-44b4-a0cc-12c69760288e
@@ -163,21 +307,22 @@ components:
         fields:
           field_text:
             - value: >-
-                Parlons de votre projet et identifions la solution la plus
-                adaptée. Consultez aussi notre page <a href="/fr/ia-drupal">IA
-                &amp; Drupal</a> pour les usages éditoriaux.
+                Vous préparez une création, une refonte ou une évolution Drupal
+                avec des enjeux de contenu, de SEO ou d’IA ? Nous pouvons
+                clarifier le besoin, prioriser les risques et proposer un
+                chemin réaliste, durable et maintenable.
               format: basic_html
           field_link:
             - uri: 'internal:/fr/contact'
-              title: 'Prendre contact'
+              title: 'Parler de votre projet'
       en:
         fields:
           field_text:
             - value: >-
-                Let's talk about your project and identify the most suitable
-                solution. Also, check out our page <a href="/en/ai-drupal">AI
-                &amp; Drupal</a> for editorial uses.
+                Planning a build, redesign or Drupal evolution with content,
+                SEO or AI constraints? We can clarify the need, prioritize
+                risks and propose a realistic, durable and maintainable path.
               format: basic_html
           field_link:
             - uri: 'internal:/en/contact'
-              title: 'Get in touch'
+              title: 'Discuss your project'

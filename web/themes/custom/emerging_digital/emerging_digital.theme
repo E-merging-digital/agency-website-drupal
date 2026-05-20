@@ -7,6 +7,7 @@
 
 declare(strict_types=1);
 
+use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Url;
 use Drupal\webform\Entity\Webform;
 
@@ -79,6 +80,7 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
 
   $language = $paragraph->language();
   $langcode = $language->getId();
+  $service_groups = emerging_digital_service_group_definitions($langcode, $language);
   $variables['service_cards'] = [];
 
   foreach ($paragraph->get('field_items') as $item) {
@@ -94,13 +96,198 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
       }
     }
 
-    $variables['service_cards'][] = [
+    $card = [
       'title' => $parts[0] ?? '',
       'description' => $parts[1] ?? '',
       'url' => $url,
       'cta_label' => $langcode === 'en' ? 'Discover' : 'Découvrir',
     ];
+
+    $group_key = $parts[3] ?? emerging_digital_service_card_group($card);
+    if (!isset($service_groups[$group_key])) {
+      $group_key = 'other';
+    }
+
+    $service_groups[$group_key]['cards'][] = $card;
+    $variables['service_cards'][] = $card;
   }
+
+  $variables['service_groups'] = array_values(array_filter(
+    $service_groups,
+    static fn (array $group): bool => !empty($group['cards']),
+  ));
+}
+
+/**
+ * Returns display groups for the Services hub.
+ *
+ * @return array<string, array<string, mixed>>
+ *   Group definitions keyed by editorial family.
+ */
+function emerging_digital_service_group_definitions(
+  string $langcode,
+  LanguageInterface $language,
+): array {
+  if ($langcode === 'en') {
+    return [
+      'drupal' => [
+        'key' => 'drupal',
+        'eyebrow' => 'Premium Drupal foundation',
+        'title' => 'Drupal expertise',
+        'description' => 'For structured, multilingual and durable platforms '
+        . 'where content governance, security and maintainability matter.',
+        'cta_label' => 'Discuss a Drupal project',
+        'cta_url' => emerging_digital_service_url('/en/contact', $language),
+        'cards' => [],
+      ],
+      'business' => [
+        'key' => 'business',
+        'eyebrow' => 'Business journeys',
+        'title' => 'Web solutions for SMEs',
+        'description' => 'For creation, redesign and visibility needs that '
+        . 'must stay clear for non-technical teams and credible for '
+        . 'decision makers.',
+        'cta_label' => 'Structure your website',
+        'cta_url' => emerging_digital_service_url('/en/contact', $language),
+        'cards' => [],
+      ],
+      'ai' => [
+        'key' => 'ai',
+        'eyebrow' => 'Governed AI',
+        'title' => 'AI and automation',
+        'description' => 'Useful AI use cases, documented workflows and human '
+        . 'validation, without turning the website into an uncontrolled '
+        . 'black box.',
+        'cta_label' => 'Frame an AI use case',
+        'cta_url' => emerging_digital_service_url('/en/contact', $language),
+        'cards' => [],
+      ],
+      'other' => [
+        'key' => 'other',
+        'eyebrow' => 'Related expertise',
+        'title' => 'Other services',
+        'description' => '',
+        'cta_label' => 'Get in touch',
+        'cta_url' => emerging_digital_service_url('/en/contact', $language),
+        'cards' => [],
+      ],
+    ];
+  }
+
+  return [
+    'drupal' => [
+      'key' => 'drupal',
+      'eyebrow' => 'Socle Drupal premium',
+      'title' => 'Expertises Drupal',
+      'description' => 'Pour les plateformes structurées, multilingues et '
+      . 'durables, où la gouvernance de contenu, la sécurité et la '
+      . 'maintenabilité comptent.',
+      'cta_label' => 'Parler d’un projet Drupal',
+      'cta_url' => emerging_digital_service_url('/fr/contact', $language),
+      'cards' => [],
+    ],
+    'business' => [
+      'key' => 'business',
+      'eyebrow' => 'Parcours business',
+      'title' => 'Solutions web pour PME',
+      'description' => 'Pour les besoins de création, de refonte et de '
+      . 'visibilité qui doivent rester lisibles pour les équipes et '
+      . 'crédibles pour les décideurs.',
+      'cta_label' => 'Structurer votre site web',
+      'cta_url' => emerging_digital_service_url('/fr/contact', $language),
+      'cards' => [],
+    ],
+    'ai' => [
+      'key' => 'ai',
+      'eyebrow' => 'IA encadrée',
+      'title' => 'IA et automatisation',
+      'description' => 'Des usages IA utiles, des workflows documentés et une '
+      . 'validation humaine, sans transformer le site en boîte noire '
+      . 'incontrôlée.',
+      'cta_label' => 'Cadrer un usage IA',
+      'cta_url' => emerging_digital_service_url('/fr/contact', $language),
+      'cards' => [],
+    ],
+    'other' => [
+      'key' => 'other',
+      'eyebrow' => 'Expertises liées',
+      'title' => 'Autres services',
+      'description' => '',
+      'cta_label' => 'Prendre contact',
+      'cta_url' => emerging_digital_service_url('/fr/contact', $language),
+      'cards' => [],
+    ],
+  ];
+}
+
+/**
+ * Converts a content path into a rendered URL for the active language.
+ */
+function emerging_digital_service_url(string $path, LanguageInterface $language): string {
+  return Url::fromUserInput($path, ['language' => $language])->toString();
+}
+
+/**
+ * Classifies a service card into the Services hub families.
+ *
+ * @param array<string, string> $card
+ *   Parsed card data.
+ */
+function emerging_digital_service_card_group(array $card): string {
+  $haystack = strtolower(sprintf(
+    '%s %s',
+    $card['title'] ?? '',
+    $card['url'] ?? '',
+  ));
+
+  $ai_markers = [
+    'ia-pour-pme',
+    'ai-for-smes',
+    'ia-drupal',
+    'ai-drupal',
+    'automatisation',
+    'automation',
+    'documentaire',
+    'document',
+    'workflow',
+    'chatbot',
+  ];
+  foreach ($ai_markers as $marker) {
+    if (str_contains($haystack, $marker)) {
+      return 'ai';
+    }
+  }
+
+  $drupal_markers = [
+    'drupal',
+    'accessibilite-seo-optimisation',
+    'accessibility-seo',
+    'ia-integree',
+    'integrated-ai',
+  ];
+  foreach ($drupal_markers as $marker) {
+    if (str_contains($haystack, $marker)) {
+      return 'drupal';
+    }
+  }
+
+  $business_markers = [
+    'agence-web',
+    'web-agency',
+    'creation-site-web-professionnel',
+    'professional-website-creation',
+    'refonte-site-internet',
+    'website-redesign',
+    'site-web-pme',
+    'sme-website',
+  ];
+  foreach ($business_markers as $marker) {
+    if (str_contains($haystack, $marker)) {
+      return 'business';
+    }
+  }
+
+  return 'other';
 }
 
 /**

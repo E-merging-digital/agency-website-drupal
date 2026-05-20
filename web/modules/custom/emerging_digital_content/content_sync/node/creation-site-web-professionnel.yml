@@ -1,0 +1,87 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Création de site web professionnel pour PME et ASBL : contenus clairs,
+          SEO technique, accessibilité, performance et socle PHP durable.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Un site professionnel ne doit pas seulement être joli au lancement.
+          Il doit rester compréhensible, administrable, mesurable et capable
+          d'accompagner votre organisation dans le temps.</p><h2>Créer un site
+          web sur une base saine</h2><ul><li>Cadrage des publics, objectifs,
+          contenus clés et parcours de conversion.</li><li>Architecture de
+          contenu lisible pour les visiteurs, les moteurs de recherche et les
+          équipes internes.</li><li>Choix technique expliqué : Drupal lorsque la
+          gouvernance et le multilingue comptent, PHP sur mesure lorsque le
+          besoin devient applicatif.</li><li>Accessibilité, performance, SEO
+          technique et maintenance intégrés dès la conception.</li></ul><h2>Ce
+          que vous obtenez</h2><p>La création aboutit à un site plus clair, avec
+          une structure éditoriale durable, des CTA sobres, des contenus
+          priorisés et une base prête pour les évolutions Drupal, IA, Symfony ou
+          Laravel lorsque le besoin le justifie.</p><h2>Quand une solution plus
+          simple suffit</h2><p>Nous ne poussons pas Drupal par réflexe. Si le
+          besoin est très limité, nous l'indiquons. Si l'existant WordPress peut
+          être stabilisé avant une migration, nous le traitons comme une reprise
+          ou un audit, pas comme une offre WordPress généraliste.</p><p>Cette
+          page se relie à notre approche <a href="/fr/site-web-pme">site web
+          PME</a>, à la <a href="/fr/creation-site-drupal">création de site
+          Drupal</a> et à l'<a href="/fr/agence-web-belgique">agence web
+          Belgique</a>.</p><p><strong>Vous préparez une création de site ?
+          </strong> <a href="/fr/contact">Contactez-nous</a> pour cadrer les
+          priorités avant de choisir la technologie.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Professional website creation for SMEs and non-profits: clear content,
+          technical SEO, accessibility, performance and a durable PHP
+          foundation.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>A professional website should not only look good at launch. It
+          must remain understandable, manageable, measurable and able to support
+          your organisation over time.</p><h2>Build a website on a healthy
+          foundation</h2><ul><li>Framing audiences, goals, key content and
+          conversion journeys.</li><li>Content architecture that is readable for
+          visitors, search engines and internal teams.</li><li>Clear technical
+          choice: Drupal when governance and multilingual content matter, custom
+          PHP when the need becomes application-driven.</li><li>Accessibility,
+          performance, technical SEO and maintenance considered from the start.
+          </li></ul><h2>What you get</h2><p>The build results in a clearer site
+          with a durable editorial structure, focused CTAs, prioritized content
+          and a foundation ready for Drupal, AI, Symfony or Laravel evolutions
+          when justified by the need.</p><h2>When a simpler solution is enough
+          </h2><p>We do not push Drupal by reflex. If the need is very limited,
+          we say so. If an existing WordPress site can be stabilized before a
+          migration, we treat it as takeover or audit work, not as a generalist
+          WordPress offer.</p><p>This page connects with our <a
+          href="/en/sme-website">SME website</a> approach, <a
+          href="/en/drupal-website-creation">Drupal website creation</a> and
+          <a href="/en/web-agency-belgium">web agency in Belgium</a> page.</p>
+          <p><strong>Planning a website build?</strong> <a href="/en/contact">
+          Contact us</a> to frame priorities before choosing the technology.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Création de site web professionnel'
+        description: >-
+          Un site clair, administrable et durable, pensé pour vos publics, vos
+          contenus, votre SEO et vos futures évolutions.
+        url: /fr/creation-site-web-professionnel
+      en:
+        title: 'Professional Website Creation'
+        description: >-
+          A clear, manageable and durable website designed for your audiences,
+          content, SEO and future evolutions.
+        url: /en/professional-website-creation

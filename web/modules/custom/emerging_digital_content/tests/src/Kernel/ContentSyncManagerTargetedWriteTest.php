@@ -967,36 +967,36 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       ['hero', 'text_block', 'case_clients', 'cta'],
       array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
     );
-    self::assertSame('Cas clients Drupal : des projets utiles, sobres et durables', $paragraphs[0]->get('field_heading')->value);
-    self::assertStringContainsString('Des exemples concrets', (string) $paragraphs[1]->get('field_text')->value);
+    self::assertSame('Cas clients : des transformations web durables', $paragraphs[0]->get('field_heading')->value);
+    self::assertStringContainsString('ne sont pas un portfolio technique', (string) $paragraphs[1]->get('field_text')->value);
     self::assertCount(3, $paragraphs[2]->get('field_items'));
-    self::assertSame('Trois contextes représentatifs', $paragraphs[2]->get('field_heading')->value);
-    self::assertSame('Site agence E-merging Digital', $paragraphs[2]->get('field_items')->first()->value);
-    self::assertStringContainsString('expertise Drupal', $paragraphs[2]->get('field_case_problem')->first()->value);
+    self::assertSame('Trois transformations représentatives', $paragraphs[2]->get('field_heading')->value);
+    self::assertSame('Repositionnement business d\'une présence Drupal', $paragraphs[2]->get('field_items')->first()->value);
+    self::assertStringContainsString('niveau d\'expertise Drupal', $paragraphs[2]->get('field_case_problem')->first()->value);
     self::assertStringContainsString('/fr/agence-drupal-belgique', $paragraphs[2]->get('field_case_solution')->first()->value);
-    self::assertStringContainsString('SEO longue traîne', $paragraphs[2]->get('field_case_result')->first()->value);
-    self::assertSame('Prendre contact', $paragraphs[3]->get('field_link')->title);
+    self::assertStringContainsString('visibilité Drupal', $paragraphs[2]->get('field_case_result')->first()->value);
+    self::assertSame('Parler de votre projet', $paragraphs[3]->get('field_link')->title);
 
     $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
     self::assertCount(4, $english_paragraphs);
     self::assertSame(
-      'Drupal case studies: useful, sober and durable projects',
+      'Case studies: durable web transformations',
       $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertStringContainsString(
-      'Concrete examples',
+      'not a technical portfolio',
       (string) $english_paragraphs[1]->getTranslation('en')->get('field_text')->value,
     );
     self::assertSame(
-      'Three representative contexts',
+      'Three representative transformations',
       $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertSame(
-      'E-merging Digital agency website',
+      'Business repositioning of a Drupal presence',
       $english_paragraphs[2]->getTranslation('en')->get('field_items')->first()->value,
     );
     self::assertStringContainsString(
-      'Drupal expertise',
+      'level of Drupal expertise',
       $english_paragraphs[2]->getTranslation('en')->get('field_case_problem')->first()->value,
     );
     self::assertStringContainsString(
@@ -1004,11 +1004,11 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       $english_paragraphs[2]->getTranslation('en')->get('field_case_solution')->first()->value,
     );
     self::assertStringContainsString(
-      'long-tail SEO',
+      'Drupal visibility',
       $english_paragraphs[2]->getTranslation('en')->get('field_case_result')->first()->value,
     );
     self::assertSame(
-      'Get in touch',
+      'Discuss your project',
       $english_paragraphs[3]->getTranslation('en')->get('field_link')->title,
     );
 

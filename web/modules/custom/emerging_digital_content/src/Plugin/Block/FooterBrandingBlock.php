@@ -6,6 +6,7 @@ namespace Drupal\emerging_digital_content\Plugin\Block;
 
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Url;
 
 /**
  * Provides a footer branding block.
@@ -27,6 +28,9 @@ final class FooterBrandingBlock extends BlockBase {
       'legal_name' => '',
       'company_number' => '',
       'company_address' => '',
+      'company_phone_label' => '',
+      'company_phone' => '',
+      'company_phone_uri' => '',
     ] + parent::defaultConfiguration();
   }
 
@@ -68,6 +72,30 @@ final class FooterBrandingBlock extends BlockBase {
       '#rows' => 3,
     ];
 
+    $form['company_phone_label'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Libellé du téléphone public'),
+      '#default_value' => $this->configuration['company_phone_label'] ?? '',
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
+      '#maxlength' => 255,
+    ];
+
+    $form['company_phone'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Téléphone public'),
+      '#default_value' => $this->configuration['company_phone'] ?? '',
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
+      '#maxlength' => 255,
+    ];
+
+    $form['company_phone_uri'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Lien téléphone'),
+      '#default_value' => $this->configuration['company_phone_uri'] ?? '',
+      '#description' => $this->t('URI tel: utilisée pour le lien du numéro public.'),
+      '#maxlength' => 255,
+    ];
+
     return $form;
   }
 
@@ -80,6 +108,9 @@ final class FooterBrandingBlock extends BlockBase {
     $this->configuration['legal_name'] = trim((string) $form_state->getValue('legal_name'));
     $this->configuration['company_number'] = trim((string) $form_state->getValue('company_number'));
     $this->configuration['company_address'] = trim((string) $form_state->getValue('company_address'));
+    $this->configuration['company_phone_label'] = trim((string) $form_state->getValue('company_phone_label'));
+    $this->configuration['company_phone'] = trim((string) $form_state->getValue('company_phone'));
+    $this->configuration['company_phone_uri'] = trim((string) $form_state->getValue('company_phone_uri'));
   }
 
   /**
@@ -90,8 +121,11 @@ final class FooterBrandingBlock extends BlockBase {
     $legal_name = trim((string) ($this->configuration['legal_name'] ?? ''));
     $company_number = trim((string) ($this->configuration['company_number'] ?? ''));
     $company_address = trim((string) ($this->configuration['company_address'] ?? ''));
+    $company_phone_label = trim((string) ($this->configuration['company_phone_label'] ?? ''));
+    $company_phone = trim((string) ($this->configuration['company_phone'] ?? ''));
+    $company_phone_uri = trim((string) ($this->configuration['company_phone_uri'] ?? ''));
 
-    return [
+    $build = [
       'tagline' => [
         '#plain_text' => $tagline,
       ],
@@ -104,7 +138,23 @@ final class FooterBrandingBlock extends BlockBase {
       'company_address' => [
         '#plain_text' => $company_address,
       ],
+      'company_phone_label' => [
+        '#plain_text' => $company_phone_label,
+      ],
     ];
+
+    if ($company_phone !== '' && $company_phone_uri !== '') {
+      $build['company_phone'] = [
+        '#type' => 'link',
+        '#title' => $company_phone,
+        '#url' => Url::fromUri($company_phone_uri),
+      ];
+    }
+    else {
+      $build['company_phone'] = [];
+    }
+
+    return $build;
   }
 
 }

@@ -14,3 +14,15 @@ block.settings.emerging_digital_footer_branding:
     company_address:
       type: text
       label: 'Company address'
+    company_phone_label:
+      type: label
+      label: 'Company public phone label'
+    company_phone:
+      type: label
+      label: 'Company public phone number'
+    company_phone_uri:
+      type: uri
+      label: 'Company public phone link URI'
+    status:
+      type: boolean
+      label: 'Status'

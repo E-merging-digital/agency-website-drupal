@@ -1,0 +1,277 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Découvrez l'approche hybride de E-merging Digital : expertise Drupal
+          humaine et assistants IA spécialisés pour PME, ASBL et projets
+          institutionnels.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Discover E-merging Digital's hybrid approach: human Drupal expertise
+          and specialized AI assistants for SMEs, non-profits and institutional
+          projects.
+        format: basic_html
+components:
+  - id: equipe.hero
+    legacy_uuid: aa21f82a-4d16-4f70-a6f9-6d3241a9be4c
+    bundle: hero
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: "Une expertise humaine augmentée par l'IA"
+          field_text:
+            - value: >-
+                E-merging Digital accompagne les organisations qui veulent un
+                site Drupal clair, durable et bien gouverné. La méthode combine
+                un pilotage humain senior, des assistants IA explicitement
+                encadrés et des validations éditoriales et techniques
+                systématiques.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/fr/contact'
+              title: 'Parler de votre projet'
+          field_secondary_link:
+            - uri: 'internal:/fr/services'
+              title: 'Voir les services'
+      en:
+        fields:
+          field_heading:
+            - value: 'Human expertise enhanced by AI'
+          field_text:
+            - value: >-
+                E-merging Digital supports organizations that need a clear,
+                durable and well-governed Drupal site. The method combines
+                senior human leadership, explicitly supervised AI assistants and
+                systematic editorial and technical validation.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/en/contact'
+              title: 'Discuss your project'
+          field_secondary_link:
+            - uri: 'internal:/en/services'
+              title: 'View services'
+  - id: equipe.founder
+    legacy_uuid: eabaf63a-cd47-444e-88c1-e12f3d36e3bb
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Un interlocuteur humain pour cadrer, décider et valider'
+          field_text:
+            - value: >-
+                <p>Jonathan Maerckaert est votre interlocuteur principal pour le
+                cadrage, l'architecture Drupal, le SEO, l'intégration raisonnée
+                de l'IA et la stratégie digitale. L'accompagnement s'adresse aux
+                PME, ASBL et organisations qui ont besoin d'un site fiable,
+                lisible et simple à faire évoluer.</p><p>Les décisions
+                importantes restent humaines : priorités, arbitrages
+                fonctionnels, validation des contenus, qualité technique et
+                cohérence avec vos objectifs. Les assistants IA accélèrent la
+                préparation, mais ne remplacent ni l'expertise Drupal ni la
+                responsabilité éditoriale.</p>
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'A human lead to scope, decide and approve'
+          field_text:
+            - value: >-
+                <p>Jonathan Maerckaert is your main contact for scoping, Drupal
+                architecture, SEO, carefully governed AI integration and digital
+                strategy. The support is designed for SMEs, non-profits and
+                organizations that need a reliable, readable website that can
+                evolve without friction.</p><p>Important decisions remain human:
+                priorities, functional trade-offs, content approval, technical
+                quality and consistency with your objectives. AI assistants
+                accelerate preparation, but they do not replace Drupal expertise
+                or editorial responsibility.</p>
+              format: basic_html
+  - id: equipe.assistants
+    legacy_uuid: 15f4ffb1-aaed-4ed4-b298-0a3062e097fd
+    bundle: ai_features
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Des assistants virtuels spécialisés, pas de profils fictifs'
+          field_text:
+            - value: >-
+                Les agents IA sont présentés pour ce qu'ils sont : des assistants
+                virtuels spécialisés. Ils aident à structurer, comparer,
+                documenter et vérifier, sous supervision humaine constante.
+              format: basic_html
+          field_items:
+            - value: >-
+                Assistant virtuel stratégie & cadrage|Prépare les questions de
+                cadrage, clarifie les objectifs et aide à transformer un besoin
+                métier en trajectoire Drupal exploitable.
+              format: basic_html
+            - value: >-
+                Assistant virtuel développement Drupal|Aide à analyser des
+                configurations, préparer des options techniques et documenter
+                les implications avant validation humaine.
+              format: basic_html
+            - value: >-
+                Assistant virtuel SEO & contenu|Propose des angles éditoriaux,
+                des descriptions et des liens internes cohérents avec la
+                stratégie de référencement.
+              format: basic_html
+            - value: >-
+                Assistant virtuel QA & validation|Soutient les contrôles de
+                cohérence, la relecture des parcours et la préparation des tests
+                sans publier automatiquement.
+              format: basic_html
+            - value: >-
+                Assistant virtuel documentation technique|Aide à produire des
+                notes claires, des comptes rendus et des explications utiles
+                pour maintenir les décisions dans le temps.
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Specialized virtual assistants, not fictional profiles'
+          field_text:
+            - value: >-
+                AI agents are presented for what they are: specialized virtual
+                assistants. They help structure, compare, document and verify
+                work under constant human supervision.
+              format: basic_html
+          field_items:
+            - value: >-
+                Strategy & scoping virtual assistant|Prepares scoping questions,
+                clarifies objectives and helps turn a business need into a
+                practical Drupal path.
+              format: basic_html
+            - value: >-
+                Drupal development virtual assistant|Helps analyze
+                configurations, prepare technical options and document
+                implications before human approval.
+              format: basic_html
+            - value: >-
+                SEO & content virtual assistant|Suggests editorial angles,
+                descriptions and internal links aligned with the search
+                strategy.
+              format: basic_html
+            - value: >-
+                QA & validation virtual assistant|Supports consistency checks,
+                journey review and test preparation without publishing
+                automatically.
+              format: basic_html
+            - value: >-
+                Technical documentation virtual assistant|Helps produce clear
+                notes, summaries and explanations so decisions remain
+                maintainable over time.
+              format: basic_html
+  - id: equipe.method
+    legacy_uuid: 3105995b-ef01-42e8-ba5e-33cc9754f004
+    bundle: trust_list
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Une méthode de travail contrôlée'
+          field_items:
+            - value: 'Accélération des tâches préparatoires sans automatisation aveugle'
+              format: basic_html
+            - value: 'Structuration des contenus, des priorités et des décisions'
+              format: basic_html
+            - value: 'Documentation claire des choix techniques et éditoriaux'
+              format: basic_html
+            - value: 'Automatisation contrôlée pour gagner du temps sur les tâches répétitives'
+              format: basic_html
+            - value: 'Cohérence entre architecture Drupal, SEO, accessibilité et parcours utilisateurs'
+              format: basic_html
+            - value: 'Supervision humaine systématique avant toute validation importante'
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'A controlled working method'
+          field_items:
+            - value: 'Acceleration of preparation tasks without blind automation'
+              format: basic_html
+            - value: 'Structured content, priorities and decisions'
+              format: basic_html
+            - value: 'Clear documentation of technical and editorial choices'
+              format: basic_html
+            - value: 'Controlled automation to save time on repetitive tasks'
+              format: basic_html
+            - value: 'Consistency between Drupal architecture, SEO, accessibility and user journeys'
+              format: basic_html
+            - value: 'Systematic human supervision before any important approval'
+              format: basic_html
+  - id: equipe.positioning
+    legacy_uuid: bdf194b8-a1cb-4ad5-8312-c8057063a5d1
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Une approche hybride au service du projet'
+          field_text:
+            - value: >-
+                <p>Cette organisation permet de cadrer plus vite, de mieux
+                documenter les choix et de garder une continuité entre les
+                <a href="/fr/services">services Drupal</a>, les usages
+                <a href="/fr/ia-drupal">IA &amp; Drupal</a> et les exemples de
+                <a href="/fr/cas-clients">cas clients</a>. Elle reste sobre :
+                pas de promesse magique, pas de faux membre d'équipe, pas de
+                décision importante laissée à un modèle.</p><p>Pour un nouveau
+                site, une refonte, une migration ou une amélioration SEO,
+                l'objectif est de produire un travail plus clair, mieux relu et
+                plus facile à maintenir. La discussion humaine reste le point de
+                départ et le point de validation.</p>
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'A hybrid approach designed for the project'
+          field_text:
+            - value: >-
+                <p>This organization makes scoping faster, documents decisions
+                more clearly and keeps continuity between <a
+                href="/en/services">Drupal services</a>, <a
+                href="/en/ai-drupal">AI &amp; Drupal</a> uses and <a
+                href="/en/case-studies">case studies</a>. It remains sober: no
+                magic promise, no fake team member, no important decision left
+                to a model.</p><p>For a new site, a redesign, a migration or an
+                SEO improvement, the goal is to produce clearer, better-reviewed
+                and more maintainable work. The human discussion remains both
+                the starting point and the approval point.</p>
+              format: basic_html
+  - id: equipe.cta
+    legacy_uuid: 0c5443e9-9629-44a2-b462-8ce1c4885a04
+    bundle: cta
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Construire un projet Drupal avec une méthode claire'
+          field_text:
+            - value: >-
+                Présentez votre contexte, vos contraintes et vos objectifs. Nous
+                verrons ensemble comment associer expertise humaine, Drupal et
+                assistants IA spécialisés de façon utile et maîtrisée.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/fr/contact'
+              title: 'Prendre contact'
+      en:
+        fields:
+          field_heading:
+            - value: 'Build a Drupal project with a clear method'
+          field_text:
+            - value: >-
+                Share your context, constraints and objectives. Together we can
+                decide how to combine human expertise, Drupal and specialized AI
+                assistants in a useful and controlled way.
+              format: basic_html
+          field_link:
+            - uri: 'internal:/en/contact'
+              title: 'Get in touch'

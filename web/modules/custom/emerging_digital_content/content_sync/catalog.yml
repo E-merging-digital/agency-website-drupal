@@ -241,6 +241,20 @@ contents:
       en:
         title: 'Case studies'
         alias: /case-studies
+  - id: equipe
+    entity_type: node
+    bundle: page
+    file: node/equipe.yml
+    business_aliases:
+      fr: /equipe
+      en: /team
+    translations:
+      fr:
+        title: 'Équipe'
+        alias: /equipe
+      en:
+        title: 'Team'
+        alias: /team
   - id: contact
     entity_type: node
     bundle: page

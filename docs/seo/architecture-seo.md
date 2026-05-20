@@ -1,6 +1,8 @@
 # Architecture SEO cible
 
-Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/284
+Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/286
+
+Ticket : 110 - Audit SEO strategique et repositionnement commercial
 
 Date : 2026-05-20
 
@@ -20,6 +22,22 @@ plus comprehensibles pour des prospects non techniques :
 
 Cette architecture est editoriale. Elle ne demande aucune modification de menu
 dans ce ticket.
+
+## Modele strategique en 3 familles
+
+Le futur cocon SEO doit rester lisible pour un prospect non technique. Les pages
+peuvent etre organisees en trois familles principales, puis declinees en pages
+services ou guides.
+
+| Famille | Role SEO | Pages prioritaires | Fonction dans le tunnel |
+| --- | --- | --- | --- |
+| Business | Capter les recherches non techniques | creation site web professionnel, refonte site internet, agence web Belgique, site PME, site ASBL, audit site web | Transformer un besoin business en demande qualifiee |
+| Expertise | Prouver la profondeur technique | Drupal, Symfony, Laravel, PHP, architecture, accessibilite, performance, SEO technique | Rassurer et orienter vers la solution durable |
+| IA | Occuper les intentions IA sans surpromesse | IA pour PME, automatisation IA, chatbot IA, IA + Drupal, IA documentaire, workflows IA | Montrer des cas utiles avec validation humaine |
+
+Regle : une page business ne doit pas commencer par la technologie. Une page
+expertise doit expliquer le cas d'usage. Une page IA doit toujours cadrer les
+limites, la confidentialite, la validation et la mesure.
 
 ## Etat actuel
 

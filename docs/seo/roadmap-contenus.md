@@ -1,6 +1,8 @@
 # Roadmap contenus SEO
 
-Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/284
+Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/286
+
+Ticket : 110 - Audit SEO strategique et repositionnement commercial
 
 Date : 2026-05-20
 
@@ -478,6 +480,64 @@ Validations :
 | P2 | 13 a 16 | Occuper IA/GEO sans surpromesse |
 | P3 | 17 a 20 | Relier le nouveau cocon aux pages existantes |
 | P3 | Articles | Construire l'autorite longue traine |
+
+## Priorites issues du ticket 110
+
+### Priorite haute
+
+Ces tickets doivent ouvrir l'acquisition hors Drupal tout en gardant une preuve
+technique forte :
+
+- repositionnement homepage ;
+- creation site web professionnel ;
+- refonte site internet ;
+- agence web Belgique ;
+- site web PME ;
+- IA pour PME.
+
+### Priorite moyenne
+
+Ces contenus renforcent le positionnement "PHP, IA et architectures durables" :
+
+- developpement Symfony ;
+- developpement Laravel ;
+- audit WordPress ;
+- migration WordPress vers Drupal ;
+- maintenance site web ;
+- automatisation IA.
+
+### Priorite expertise
+
+Ces contenus consolident l'autorite existante et doivent etre relies aux futures
+pages business :
+
+- audit Drupal ;
+- maintenance Drupal ;
+- accessibilite ;
+- performance Drupal ;
+- architecture SEO.
+
+## Tickets WordPress autorises
+
+Les tickets WordPress doivent rester des tickets de reprise, audit,
+optimisation, maintenance ou migration. Ils ne doivent pas creer d'offre de
+creation WordPress generaliste.
+
+Tickets possibles :
+
+1. Guide "WordPress ou Drupal pour une PME/ASBL : comment choisir ?"
+2. Article "Quand migrer un site WordPress vers Drupal ?"
+3. Section dans `/audit-site-web` sur lenteur, securite, plugins et dette
+   technique WordPress.
+4. Checklist "reprendre un site WordPress existant sans casser le SEO".
+
+Contraintes communes :
+
+- ne pas promettre de creation WordPress ;
+- toujours ramener vers audit, optimisation, migration ou maturite technique ;
+- lier vers `/audit-site-web`, `/migration-drupal`, `/refonte-site-internet` et
+  `/contact` lorsque ces pages existent ;
+- garder le ton senior et decisionnel.
 
 ## Definition de termine pour cette roadmap
 

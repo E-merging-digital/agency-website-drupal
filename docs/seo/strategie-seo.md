@@ -1,6 +1,8 @@
 # Strategie SEO et positionnement editorial
 
-Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/284
+Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/286
+
+Ticket : 110 - Audit SEO strategique et repositionnement commercial
 
 Date : 2026-05-20
 
@@ -78,6 +80,24 @@ Message long :
 > SEO technique, accessibilite et usages IA concrets, avec validation humaine a
 > chaque etape sensible.
 
+## Hierarchie des expertises
+
+La hierarchie editoriale doit eviter deux risques : reduire le site a Drupal ou
+donner l'impression d'une agence qui fait tout. L'ordre recommande est :
+
+1. Besoin business : creation, refonte, audit, visibilite, maintenance,
+   automatisation utile.
+2. Socle technique : PHP moderne, architecture durable, securite, tests,
+   maintenabilite.
+3. Solution CMS ou framework : Drupal, Symfony ou Laravel selon le besoin.
+4. IA encadree : assistants, automatisations, contenu, recherche documentaire,
+   qualification et support avec validation humaine.
+5. Qualite web : SEO technique, accessibilite, performance, gouvernance de
+   contenu et mesure.
+
+Drupal reste une expertise forte, mais il devient une preuve de maturite
+technique plutot que l'unique porte d'entree commerciale.
+
 ## Piliers editoriaux
 
 | Pilier | Role SEO | Angle editorial | Pages concernees |
@@ -137,6 +157,24 @@ L'utilisateur est proche d'une demande.
 | refonte site web devis | Obtenir une estimation | Decrire le projet |
 
 Objectif : limiter la friction et orienter vers `/contact`.
+
+### Opportunites WordPress cadrees
+
+WordPress ne doit pas devenir une offre generaliste. Il peut toutefois ouvrir
+des intentions SEO utiles lorsque le prospect cherche une sortie de crise, une
+reprise ou une montee en maturite :
+
+| Requete type | Besoin reel | Page ou contenu cible |
+| --- | --- | --- |
+| audit site WordPress | Comprendre lenteur, securite, plugins, SEO | Guide ou page audit site web |
+| migration WordPress Drupal | Sortir d'un CMS devenu limite | Article decisionnel puis page migration |
+| reprendre site WordPress | Stabiliser un existant fragile | Page audit site web |
+| WordPress ou Drupal PME | Arbitrer sans jargon | Guide comparatif |
+| maintenance WordPress vers Drupal | Preparer une evolution durable | Article ou section dans audit site web |
+
+Regle editoriale : parler de WordPress uniquement comme existant a auditer,
+optimiser, maintenir temporairement ou migrer. Ne pas creer de promesse
+"creation site WordPress".
 
 ## Familles de mots-cles prioritaires
 
@@ -334,6 +372,37 @@ Chaque page SEO doit suivre ce schema :
 6. Preuves ou exemples.
 7. Liens internes vers pages proches.
 8. CTA unique vers `/contact` ou vers audit selon l'intention.
+
+## Preparation du repositionnement homepage
+
+La homepage devra etre ajustee dans un ticket ulterieur, via Content Sync, sans
+modifier Twig ni `system.site:page.front`. Le role de ce ticket est uniquement
+de cadrer le message cible.
+
+Message de premier ecran recommande :
+
+> Agence web senior pour sites professionnels, PHP moderne et IA utile.
+
+Sous-message recommande :
+
+> Nous aidons PME, ASBL et institutions a creer, refondre et faire evoluer des
+> plateformes web durables : Drupal, Symfony, Laravel, SEO technique et
+> automatisations IA encadrees.
+
+Points a rendre visibles au-dessus de la ligne de flottaison :
+
+- creation et refonte de sites professionnels ;
+- expertise PHP, Drupal, Symfony et Laravel ;
+- IA utile, documentee et validee humainement ;
+- publics PME, ASBL et institutions ;
+- CTA unique vers contact ou audit.
+
+Points a eviter :
+
+- transformer l'accueil en page "agence 360" ;
+- faire disparaitre Drupal ;
+- promettre l'automatisation totale ;
+- ajouter WordPress comme offre de creation.
 
 ## Mesure
 

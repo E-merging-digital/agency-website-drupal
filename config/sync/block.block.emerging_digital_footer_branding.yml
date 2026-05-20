@@ -21,6 +21,9 @@ settings:
   legal_name: 'E-merging Digital SRL'
   company_number: 'BE 0746.356.206'
   company_address: 'Rue des Peupliers 1, 4254 Ligney (Geer), Belgique'
+  company_email_label: Email
+  company_email: contact@emergingdigital.be
+  company_email_uri: 'mailto:contact@emergingdigital.be'
   company_phone_label: 'Téléphone'
   company_phone: '+32 19 86 06 98'
   company_phone_uri: 'tel:+3219860698'

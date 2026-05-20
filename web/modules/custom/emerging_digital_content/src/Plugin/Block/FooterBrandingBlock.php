@@ -28,6 +28,9 @@ final class FooterBrandingBlock extends BlockBase {
       'legal_name' => '',
       'company_number' => '',
       'company_address' => '',
+      'company_email_label' => '',
+      'company_email' => '',
+      'company_email_uri' => '',
       'company_phone_label' => '',
       'company_phone' => '',
       'company_phone_uri' => '',
@@ -72,6 +75,30 @@ final class FooterBrandingBlock extends BlockBase {
       '#rows' => 3,
     ];
 
+    $form['company_email_label'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t("Libelle de l'email public"),
+      '#default_value' => $this->configuration['company_email_label'] ?? '',
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
+      '#maxlength' => 255,
+    ];
+
+    $form['company_email'] = [
+      '#type' => 'email',
+      '#title' => $this->t('Email public'),
+      '#default_value' => $this->configuration['company_email'] ?? '',
+      '#description' => $this->t("Laissez vide si cette information n'est pas encore disponible."),
+      '#maxlength' => 255,
+    ];
+
+    $form['company_email_uri'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Lien email'),
+      '#default_value' => $this->configuration['company_email_uri'] ?? '',
+      '#description' => $this->t('URI mailto: utilisee pour le lien email public.'),
+      '#maxlength' => 255,
+    ];
+
     $form['company_phone_label'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Libellé du téléphone public'),
@@ -108,6 +135,9 @@ final class FooterBrandingBlock extends BlockBase {
     $this->configuration['legal_name'] = trim((string) $form_state->getValue('legal_name'));
     $this->configuration['company_number'] = trim((string) $form_state->getValue('company_number'));
     $this->configuration['company_address'] = trim((string) $form_state->getValue('company_address'));
+    $this->configuration['company_email_label'] = trim((string) $form_state->getValue('company_email_label'));
+    $this->configuration['company_email'] = trim((string) $form_state->getValue('company_email'));
+    $this->configuration['company_email_uri'] = trim((string) $form_state->getValue('company_email_uri'));
     $this->configuration['company_phone_label'] = trim((string) $form_state->getValue('company_phone_label'));
     $this->configuration['company_phone'] = trim((string) $form_state->getValue('company_phone'));
     $this->configuration['company_phone_uri'] = trim((string) $form_state->getValue('company_phone_uri'));
@@ -121,6 +151,9 @@ final class FooterBrandingBlock extends BlockBase {
     $legal_name = trim((string) ($this->configuration['legal_name'] ?? ''));
     $company_number = trim((string) ($this->configuration['company_number'] ?? ''));
     $company_address = trim((string) ($this->configuration['company_address'] ?? ''));
+    $company_email_label = trim((string) ($this->configuration['company_email_label'] ?? ''));
+    $company_email = trim((string) ($this->configuration['company_email'] ?? ''));
+    $company_email_uri = trim((string) ($this->configuration['company_email_uri'] ?? ''));
     $company_phone_label = trim((string) ($this->configuration['company_phone_label'] ?? ''));
     $company_phone = trim((string) ($this->configuration['company_phone'] ?? ''));
     $company_phone_uri = trim((string) ($this->configuration['company_phone_uri'] ?? ''));
@@ -138,10 +171,24 @@ final class FooterBrandingBlock extends BlockBase {
       'company_address' => [
         '#plain_text' => $company_address,
       ],
+      'company_email_label' => [
+        '#plain_text' => $company_email_label,
+      ],
       'company_phone_label' => [
         '#plain_text' => $company_phone_label,
       ],
     ];
+
+    if ($company_email !== '' && $company_email_uri !== '') {
+      $build['company_email'] = [
+        '#type' => 'link',
+        '#title' => $company_email,
+        '#url' => Url::fromUri($company_email_uri),
+      ];
+    }
+    else {
+      $build['company_email'] = [];
+    }
 
     if ($company_phone !== '' && $company_phone_uri !== '') {
       $build['company_phone'] = [

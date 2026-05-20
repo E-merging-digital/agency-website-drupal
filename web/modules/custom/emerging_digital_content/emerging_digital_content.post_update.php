@@ -582,7 +582,7 @@ function _emerging_digital_content_contact_coordinates_values(): array {
     'status' => TRUE,
     'field_heading' => 'Coordonnées',
     'field_text' => [
-      'value' => '<p><strong>Adresse :</strong> Rue des Peupliers 1, 4254 Ligney (Geer)</p><p><strong>Email :</strong> <a href="mailto:jonathan@emergingdigital.be">jonathan@emergingdigital.be</a></p><p><strong>Téléphone :</strong> <a href="tel:+32475722884">+32 475/72.28.84</a></p><p>E-MERGING DIGITAL SRL<br>BE 0746.356.206</p>',
+      'value' => '<p><strong>Adresse :</strong> Rue des Peupliers 1, 4254 Ligney (Geer)</p><p><strong>Email :</strong> <a href="mailto:contact@emergingdigital.be">contact@emergingdigital.be</a></p><p><strong>Téléphone :</strong> <a href="tel:+3219860698">+32 19 86 06 98</a></p><p>E-MERGING DIGITAL SRL<br>BE 0746.356.206</p>',
       'format' => 'basic_html',
     ],
   ];
@@ -645,8 +645,8 @@ function emerging_digital_content_post_update_legal_notice_and_footer_links(arra
 <strong>Numéro d’entreprise&nbsp;:</strong> BE 0746.356.206<br>
 <strong>Adresse du siège&nbsp;:</strong> Rue des Peupliers 1, 4254 Ligney (Geer), Belgique</p>
 <h2>Contact</h2>
-<p><strong>Email&nbsp;:</strong> <a href="mailto:jonathan@emergingdigital.be">jonathan@emergingdigital.be</a><br>
-<strong>Téléphone&nbsp;:</strong> <a href="tel:+32475722884">+32 475 72 28 84</a></p>
+<p><strong>Email&nbsp;:</strong> <a href="mailto:contact@emergingdigital.be">contact@emergingdigital.be</a><br>
+<strong>Téléphone&nbsp;:</strong> <a href="tel:+3219860698">+32 19 86 06 98</a></p>
 <h2>Hébergement</h2>
 <p>Informations d’hébergement disponibles sur demande.</p>
 HTML;

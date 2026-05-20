@@ -1,3 +1,19 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Comprenez l’usage des cookies et contenus externes sur le site
+          E-merging Digital, avec des choix de consentement simples et
+          modifiables.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Understand how cookies and external content are used on the E-merging
+          Digital website, with simple consent choices you can change.
+        format: basic_html
 components:
   - id: politique-cookies.content
     legacy_uuid: 4629b8a1-71cd-4298-9d0c-e668e27f6e99

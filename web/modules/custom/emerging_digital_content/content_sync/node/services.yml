@@ -1,3 +1,20 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Explorez les services Drupal d’E-merging Digital : création, refonte,
+          migration, maintenance, accessibilité, SEO et IA utile pour projets
+          structurés.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Explore E-merging Digital’s Drupal services: builds, redesigns,
+          migrations, maintenance, accessibility, SEO and useful AI for
+          structured projects.
+        format: basic_html
 components:
   - id: services.hero
     legacy_uuid: 50c9c0ef-85f8-49a3-819c-4aa63ddd1737

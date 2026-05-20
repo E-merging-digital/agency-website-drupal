@@ -4,6 +4,7 @@ status: true
 dependencies:
   config:
     - field.field.node.page.field_home_components
+    - field.field.node.page.field_short_description
     - node.type.page
   module:
     - entity_reference_revisions
@@ -27,4 +28,5 @@ content:
     third_party_settings: {  }
     weight: 100
     region: content
-hidden: {  }
+hidden:
+  field_short_description: true

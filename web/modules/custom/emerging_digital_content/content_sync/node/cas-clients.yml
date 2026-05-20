@@ -1,3 +1,19 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Découvrez des cas clients Drupal concrets : problèmes rencontrés,
+          solutions mises en œuvre et résultats pour des sites structurés,
+          accessibles et durables.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Explore practical Drupal case studies: challenges, solutions delivered
+          and results for structured, accessible and durable websites.
+        format: basic_html
 components:
   - id: cas-clients.hero
     legacy_uuid: b878853f-1368-47be-bee9-8cdc1dba826a

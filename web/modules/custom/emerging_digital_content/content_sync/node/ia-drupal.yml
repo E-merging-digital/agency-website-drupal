@@ -1,3 +1,20 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Découvrez comment E-merging Digital intègre l’IA dans Drupal pour
+          aider les équipes éditoriales : rédaction, traduction, SEO, synthèses
+          et validation humaine.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          See how E-merging Digital integrates AI into Drupal to support
+          editorial teams: writing, translation, SEO, summaries and human
+          approval.
+        format: basic_html
 components:
   - id: ia-drupal.hero
     legacy_uuid: bfa1a9d3-2715-4a04-8758-d14ece990e6e

@@ -11,7 +11,7 @@ components:
             - value: |
                 <p>Cette page explique de manière claire comment nous traitons les données personnelles envoyées via notre formulaire de contact.</p>
                 <h2>Données collectées</h2>
-                <p>Lorsque vous nous contactez, nous collectons uniquement les informations que vous nous transmettez dans le formulaire&nbsp;: votre nom, votre adresse e-mail et votre message.</p>
+                <p>Lorsque vous nous contactez, nous collectons uniquement les informations que vous nous transmettez dans le formulaire&nbsp;: votre nom, votre adresse e-mail, votre message et les éventuelles informations de qualification utiles à votre demande, comme votre organisation, votre type de projet, votre budget indicatif ou votre délai.</p>
                 <h2>Finalités du traitement</h2>
                 <p>Ces données sont utilisées uniquement pour répondre à votre demande et assurer le suivi de nos échanges.</p>
                 <h2>Base légale</h2>
@@ -31,7 +31,7 @@ components:
             - value: |
                 <p>This page clearly explains how we process personal data sent via our contact form.</p>
                 <h2>Data Collected</h2>
-                <p>When you contact us, we only collect the information you provide in the form: your name, your email address, and your message.</p>
+                <p>When you contact us, we only collect the information you provide in the form: your name, your email address, your message, and any qualification details useful to your request, such as your organization, project type, indicative budget, or timeline.</p>
                 <h2>Purposes of Processing</h2>
                 <p>This data is used solely to respond to your request and ensure follow-up on our exchanges.</p>
                 <h2>Legal Basis</h2>

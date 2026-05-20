@@ -6,13 +6,15 @@
     {% if paragraph.field_text.value %}
       <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
-    <div class="ed-actions">
-      {% if content.field_link %}
-        <span class="ed-actions__primary">{{ content.field_link }}</span>
-      {% endif %}
-      {% if content.field_secondary_link %}
-        <span class="ed-actions__secondary">{{ content.field_secondary_link }}</span>
-      {% endif %}
-    </div>
+    {% if content.field_link[0] is defined or content.field_secondary_link[0] is defined %}
+      <div class="ed-actions">
+        {% if content.field_link[0] is defined %}
+          <span class="ed-actions__primary">{{ content.field_link }}</span>
+        {% endif %}
+        {% if content.field_secondary_link[0] is defined %}
+          <span class="ed-actions__secondary">{{ content.field_secondary_link }}</span>
+        {% endif %}
+      </div>
+    {% endif %}
   </div>
 </section>

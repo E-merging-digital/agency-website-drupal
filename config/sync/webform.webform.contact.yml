@@ -24,10 +24,64 @@ elements: |-
     '#required': true
     '#default_value': '[current-user:display-name]'
   email:
-    '#title': 'Votre Email'
     '#type': email
+    '#title': 'Votre email'
     '#required': true
     '#default_value': '[current-user:mail]'
+  organization:
+    '#type': textfield
+    '#title': 'Organisation'
+    '#placeholder': 'Nom de votre structure'
+  organization_type:
+    '#type': select
+    '#title': 'Type de structure'
+    '#options':
+      sme: 'PME / entreprise'
+      nonprofit: 'ASBL'
+      public: 'Institution publique'
+      agency: 'Agence / partenaire'
+      other: 'Autre'
+    '#empty_option': 'Non précisé'
+  project_type:
+    '#type': select
+    '#title': 'Type de projet'
+    '#options':
+      new_site: 'Nouveau site Drupal'
+      redesign: 'Refonte ou modernisation'
+      audit: 'Audit Drupal'
+      maintenance: 'Maintenance ou support'
+      ai: 'IA & Drupal'
+      other: 'Autre besoin'
+    '#empty_option': 'Non précisé'
+  main_need:
+    '#type': select
+    '#title': 'Besoin principal'
+    '#options':
+      frame: 'Cadrer le projet'
+      estimate: 'Obtenir une estimation'
+      improve: 'Améliorer un site existant'
+      secure: 'Sécuriser ou maintenir'
+      discuss: 'Discuter d’une idée'
+    '#empty_option': 'Non précisé'
+  budget:
+    '#type': select
+    '#title': 'Budget indicatif'
+    '#options':
+      unknown: 'À définir'
+      under_5k: 'Moins de 5 000 €'
+      5k_15k: '5 000 à 15 000 €'
+      15k_30k: '15 000 à 30 000 €'
+      over_30k: 'Plus de 30 000 €'
+    '#empty_option': 'Non précisé'
+  timeline:
+    '#type': select
+    '#title': 'Délai envisagé'
+    '#options':
+      urgent: 'Dès que possible'
+      one_three_months: '1 à 3 mois'
+      three_six_months: '3 à 6 mois'
+      later: 'Plus tard / à planifier'
+    '#empty_option': 'Non précisé'
   subject:
     '#title': Objet
     '#type': textfield
@@ -37,11 +91,13 @@ elements: |-
     '#title': Message
     '#type': textarea
     '#required': true
+    '#rows': 5
+    '#placeholder': 'Décrivez brièvement votre contexte, votre objectif et les contraintes utiles.'
     '#test': 'Please ignore this email.'
   rgpd_consent:
     '#type': checkbox
     '#title': "J’accepte que mes données soient utilisées pour traiter ma demande, conformément à la"
-    '#description': '<a href="/politique-confidentialite">politique de confidentialité</a>.'
+    '#description': '<a href="/fr/politique-de-confidentialite">politique de confidentialité</a>.'
     '#required': true
     '#default_value': 0
   actions:
@@ -257,7 +313,7 @@ handlers:
       sender_mail: ''
       sender_name: ''
       subject: '[webform_submission:values:subject:raw]'
-      body: '[webform_submission:values:message:value]'
+      body: "Merci pour votre message. Nous revenons vers vous rapidement.\r\n\r\n[webform_submission:values]"
       excluded_elements: {  }
       ignore_access: false
       exclude_empty: true
@@ -295,7 +351,7 @@ handlers:
       sender_mail: ''
       sender_name: ''
       subject: '[webform_submission:values:subject:raw]'
-      body: '[webform_submission:values:message:value]'
+      body: '[webform_submission:values]'
       excluded_elements: {  }
       ignore_access: false
       exclude_empty: true

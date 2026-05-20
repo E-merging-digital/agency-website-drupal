@@ -1,0 +1,66 @@
+<?php
+
+/**
+ * @file
+ * Runtime hooks for Emerging Digital content.
+ */
+
+declare(strict_types=1);
+
+use Drupal\node\NodeInterface;
+
+/**
+ * Implements hook_metatags_alter().
+ */
+function emerging_digital_content_metatags_alter(array &$metatags, array &$context): void {
+  $entity = $context['entity'] ?? NULL;
+  if (
+    !$entity instanceof NodeInterface
+    || $entity->uuid() !== 'd962ec05-25ec-4446-b645-0959a57964e7'
+  ) {
+    return;
+  }
+
+  $description = _emerging_digital_content_contact_meta_description($entity);
+  if ($description === '') {
+    return;
+  }
+
+  $description_tags = [
+    'description',
+    'og_description',
+    'twitter_cards_description',
+    'schema_web_page_description',
+  ];
+  foreach ($description_tags as $tag) {
+    $metatags[$tag] = $description;
+  }
+}
+
+/**
+ * Builds the Contact page meta description from versioned editorial content.
+ */
+function _emerging_digital_content_contact_meta_description(NodeInterface $node): string {
+  if (!$node->hasField('field_home_components')) {
+    return '';
+  }
+
+  foreach ($node->get('field_home_components')->referencedEntities() as $paragraph) {
+    if ($paragraph->uuid() !== 'dc4e80eb-e338-4dfb-a7b3-ce0f4e1eba92') {
+      continue;
+    }
+
+    $translation = $paragraph->hasTranslation($node->language()->getId())
+      ? $paragraph->getTranslation($node->language()->getId())
+      : $paragraph;
+
+    if (!$translation->hasField('field_text') || $translation->get('field_text')->isEmpty()) {
+      return '';
+    }
+
+    $text = strip_tags((string) $translation->get('field_text')->value);
+    return trim(preg_replace('/\s+/', ' ', $text) ?? '');
+  }
+
+  return '';
+}

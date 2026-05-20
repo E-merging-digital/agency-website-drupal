@@ -1065,34 +1065,39 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       ['hero', 'text_block', 'text_block', 'text_block', 'text_block', 'text_block'],
       array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
     );
-    self::assertSame('Parlons de votre projet', $paragraphs[0]->get('field_heading')->value);
-    self::assertSame('Intro', $paragraphs[1]->get('field_heading')->value);
-    self::assertStringContainsString('réponse claire', (string) $paragraphs[1]->get('field_text')->value);
-    self::assertSame('Coordonnées', $paragraphs[2]->get('field_heading')->value);
-    self::assertStringContainsString('jonathan@emergingdigital.be', (string) $paragraphs[2]->get('field_text')->value);
-    self::assertSame('Informations', $paragraphs[3]->get('field_heading')->value);
-    self::assertStringContainsString('Premier échange sans engagement', (string) $paragraphs[3]->get('field_text')->value);
-    self::assertSame('Formulaire', $paragraphs[4]->get('field_heading')->value);
-    self::assertSame('Nom / Email / Organisation / Message', $paragraphs[4]->get('field_text')->value);
+    self::assertSame('Un projet Drupal à cadrer ? Parlons-en simplement', $paragraphs[0]->get('field_heading')->value);
+    self::assertStringContainsString('Contactez E-merging Digital', (string) $paragraphs[0]->get('field_text')->value);
+    self::assertSame('Décrivez votre besoin', $paragraphs[1]->get('field_heading')->value);
+    self::assertStringContainsString('qualification sont optionnels', (string) $paragraphs[1]->get('field_text')->value);
+    self::assertSame('Vous cherchez le bon point d’entrée ?', $paragraphs[2]->get('field_heading')->value);
+    self::assertStringContainsString('/fr/audit-drupal', (string) $paragraphs[2]->get('field_text')->value);
+    self::assertSame('Un premier échange utile et sans engagement', $paragraphs[3]->get('field_heading')->value);
+    self::assertStringContainsString('deux jours ouvrables', (string) $paragraphs[3]->get('field_text')->value);
+    self::assertSame('Coordonnées', $paragraphs[4]->get('field_heading')->value);
+    self::assertStringContainsString('jonathan@emergingdigital.be', (string) $paragraphs[4]->get('field_text')->value);
     self::assertSame('Carte', $paragraphs[5]->get('field_heading')->value);
     self::assertStringContainsString('Localisation Emerging Digital', (string) $paragraphs[5]->get('field_text')->value);
 
     $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
     self::assertCount(6, $english_paragraphs);
     self::assertSame(
-      'Let’s talk about your project',
+      'A Drupal project to frame? Let’s make it clear',
       $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertSame(
-      'Contact details',
-      $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
+      'Describe your need',
+      $english_paragraphs[1]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertStringContainsString(
-      'Available for projects in Wallonia and Brussels',
+      '/en/ai-drupal',
+      (string) $english_paragraphs[2]->getTranslation('en')->get('field_text')->value,
+    );
+    self::assertStringContainsString(
+      'within two business days',
       (string) $english_paragraphs[3]->getTranslation('en')->get('field_text')->value,
     );
     self::assertSame(
-      'Form',
+      'Contact details',
       $english_paragraphs[4]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertSame(

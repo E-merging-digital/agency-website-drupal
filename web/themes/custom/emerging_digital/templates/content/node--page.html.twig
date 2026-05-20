@@ -1,4 +1,9 @@
-<article{{ attributes.addClass('node', 'node--page', 'strategic-page') }}>
+{% set node_classes = ['node', 'node--page', 'strategic-page'] %}
+{% if node.uuid.value == 'd962ec05-25ec-4446-b645-0959a57964e7' %}
+  {% set node_classes = node_classes|merge(['node--contact-page']) %}
+{% endif %}
+
+<article{{ attributes.addClass(node_classes) }}>
   <div class="node__content strategic-page__content">
     {{ content }}
   </div>

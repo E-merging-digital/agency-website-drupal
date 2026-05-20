@@ -6,11 +6,45 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Parlons de votre projet'
+            - value: 'Un projet Drupal à cadrer ? Parlons-en simplement'
+          field_text:
+            - value: >-
+                Contactez E-merging Digital pour cadrer un projet Drupal, un
+                audit, une refonte ou une évolution IA avec une réponse claire
+                et humaine.
+              format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Let’s talk about your project'
+            - value: 'A Drupal project to frame? Let’s make it clear'
+          field_text:
+            - value: >-
+                Contact E-merging Digital to frame a Drupal project, audit,
+                redesign, or AI evolution with a clear and human response.
+              format: basic_html
+  - id: contact.form
+    legacy_uuid: 855b08da-0ec9-4261-883a-d27f214606e6
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Décrivez votre besoin'
+          field_text:
+            - value: >-
+                Les champs de qualification sont optionnels : ils nous aident à
+                répondre plus vite, sans rallonger inutilement la prise de
+                contact.
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Describe your need'
+          field_text:
+            - value: >-
+                The qualification fields are optional: they help us respond
+                faster without making the first contact unnecessarily long.
+              format: basic_html
   - id: contact.intro
     legacy_uuid: 88affed2-d7e1-44bc-8607-28f0111fc123
     bundle: text_block
@@ -18,16 +52,57 @@ components:
       fr:
         fields:
           field_heading:
-            - value: Intro
+            - value: 'Vous cherchez le bon point d’entrée ?'
           field_text:
-            - value: '<p>Parlons de votre projet digital. Décrivez vos objectifs : nous revenons vers vous avec une réponse claire, structurée et orientée résultats.</p>'
+            - value: >-
+                <p>Pour préparer votre demande, vous pouvez aussi consulter nos
+                <a href="/fr/services">services Drupal</a>, l’offre
+                <a href="/fr/audit-drupal">audit Drupal</a>, les usages
+                <a href="/fr/ia-drupal">IA &amp; Drupal</a> ou quelques
+                <a href="/fr/cas-clients">cas clients</a>.</p>
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: Intro
+            - value: 'Looking for the right entry point?'
           field_text:
-            - value: '<p>Tell us about your digital project. Describe your goals: we will come back to you with a clear, structured, results-oriented response.</p>'
+            - value: >-
+                <p>To prepare your request, you can also review our
+                <a href="/en/services">Drupal services</a>,
+                <a href="/en/drupal-audit">Drupal audit</a>,
+                <a href="/en/ai-drupal">AI &amp; Drupal</a> use cases, or a
+                few <a href="/en/case-studies">case studies</a>.</p>
+              format: basic_html
+  - id: contact.information
+    legacy_uuid: 8236e39f-2bcf-4758-a441-c9f6eb8f75f6
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Un premier échange utile et sans engagement'
+          field_text:
+            - value: >-
+                <p>Réponse humaine, généralement sous deux jours ouvrables.</p>
+                <p>Accompagnement senior pour PME, ASBL et institutions en
+                Belgique.</p>
+                <p>Attention portée à l’accessibilité, au SEO, à la gouvernance
+                éditoriale et à la maintenabilité Drupal.</p>
+                <p>Pas de proposition automatique : nous qualifions d’abord le
+                besoin réel.</p>
+              format: basic_html
+      en:
+        fields:
+          field_heading:
+            - value: 'A useful first conversation, without commitment'
+          field_text:
+            - value: >-
+                <p>Human response, usually within two business days.</p>
+                <p>Senior support for SMEs, non-profits, and institutions in
+                Belgium.</p>
+                <p>Attention to accessibility, SEO, editorial governance, and
+                Drupal maintainability.</p>
+                <p>No automated proposal: we first qualify the real need.</p>
               format: basic_html
   - id: contact.coordinates
     legacy_uuid: aace78f7-e456-4e99-a6bb-29d3129696ad
@@ -46,42 +121,6 @@ components:
             - value: 'Contact details'
           field_text:
             - value: '<p><strong>Address:</strong> Rue des Peupliers 1, 4254 Ligney (Geer), Belgium</p><p><strong>Email:</strong> <a href="mailto:jonathan@emergingdigital.be">jonathan@emergingdigital.be</a></p><p><strong>Phone:</strong> <a href="tel:+32475722884">+32 475/72.28.84</a></p><p>E-MERGING DIGITAL SRL<br>BE 0746.356.206</p>'
-              format: basic_html
-  - id: contact.information
-    legacy_uuid: 8236e39f-2bcf-4758-a441-c9f6eb8f75f6
-    bundle: text_block
-    translations:
-      fr:
-        fields:
-          field_heading:
-            - value: Informations
-          field_text:
-            - value: '<p>Disponible pour projets en Wallonie et Bruxelles.</p><p>Interventions pour PME, ASBL et organisations publiques.</p><p>Habitué à travailler sur des projets structurés et exigeants.</p><p>Premier échange sans engagement.</p>'
-              format: basic_html
-      en:
-        fields:
-          field_heading:
-            - value: Information
-          field_text:
-            - value: '<p>Available for projects in Wallonia and Brussels.</p><p>Support for SMEs, non-profits, and public organizations.</p><p>Used to working on structured and demanding projects.</p><p>First conversation without commitment.</p>'
-              format: basic_html
-  - id: contact.form
-    legacy_uuid: 855b08da-0ec9-4261-883a-d27f214606e6
-    bundle: text_block
-    translations:
-      fr:
-        fields:
-          field_heading:
-            - value: Formulaire
-          field_text:
-            - value: 'Nom / Email / Organisation / Message'
-              format: basic_html
-      en:
-        fields:
-          field_heading:
-            - value: Form
-          field_text:
-            - value: 'Name / Email / Organization / Message'
               format: basic_html
   - id: contact.map
     legacy_uuid: be01c4d4-b45d-4b08-aeb5-9ad05c860b6a

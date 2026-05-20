@@ -1,7 +1,21 @@
-<section{{ attributes.addClass('ed-section', 'ed-section--text-block') }}>
+{% set section_classes = ['ed-section', 'ed-section--text-block'] %}
+{% if contact_webform is defined %}
+  {% set section_classes = section_classes|merge(['ed-section--contact-form']) %}
+  {% set attributes = attributes.setAttribute('id', 'contact-form') %}
+{% endif %}
+{% if paragraph.uuid.value == 'aace78f7-e456-4e99-a6bb-29d3129696ad' %}
+  {% set section_classes = section_classes|merge(['ed-section--contact-details']) %}
+{% elseif paragraph.uuid.value == 'be01c4d4-b45d-4b08-aeb5-9ad05c860b6a' %}
+  {% set section_classes = section_classes|merge(['ed-section--contact-map']) %}
+{% endif %}
+
+<section{{ attributes.addClass(section_classes) }}>
   <div class="ed-container">
     {% if paragraph.field_heading.value %}
       <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
+    {% endif %}
+    {% if contact_webform is defined and paragraph.field_text.value %}
+      <div class="ed-section__intro ed-section__intro--contact-form">{{ content.field_text }}</div>
     {% endif %}
     <div class="ed-section__content{% if contact_webform is defined %} ed-section__content--contact-form{% endif %}">
       {% if contact_webform is defined %}

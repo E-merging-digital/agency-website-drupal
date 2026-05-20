@@ -1,3 +1,20 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Agence web senior pour PME et ASBL : création de site professionnel,
+          refonte, développement PHP sur mesure, IA utile, SEO technique,
+          performance et accessibilité.
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Senior web agency for SMEs and non-profits: professional websites,
+          redesigns, custom PHP development, useful AI, technical SEO,
+          performance and accessibility.
+        format: basic_html
 components:
   - id: homepage.hero
     legacy_uuid: 3b376be4-852e-4fa2-85ba-a64ff0fefa9d
@@ -6,36 +23,37 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Drupal pour projets structurés, accessibles et évolutifs'
+            - value: 'Agence web senior pour sites professionnels, IA et PHP durable'
           field_text:
             - value: >-
-                Nous accompagnons PME, ASBL et organisations publiques dans des
-                projets Drupal robustes, avec une architecture éditoriale
-                claire, des exigences d’accessibilité web et une IA utile au
-                quotidien.
+                Nous aidons les PME, ASBL et organisations publiques à créer,
+                refondre et moderniser des sites web fiables : architecture PHP
+                robuste, IA utile, SEO technique, accessibilité et performance
+                dès la conception.
               format: basic_html
           field_link:
             - uri: 'internal:/fr/contact'
-              title: 'Demander un audit'
+              title: 'Parler de votre projet'
           field_secondary_link:
             - uri: 'internal:/fr/services'
-              title: 'Explorer les services Drupal'
+              title: 'Voir les expertises'
       en:
         fields:
           field_heading:
-            - value: 'Drupal for structured, accessible, and scalable projects'
+            - value: 'Senior web agency for professional websites, AI and durable PHP'
           field_text:
             - value: >-
-                We support SMEs, non-profits, and public organizations in
-                robust Drupal projects, with a clear editorial architecture,
-                web accessibility requirements, and useful AI for everyday use.
+                We help SMEs, non-profits and public organizations build,
+                redesign and modernize reliable websites: robust PHP
+                architecture, useful AI, technical SEO, accessibility and
+                performance from the start.
               format: basic_html
           field_link:
             - uri: 'internal:/en/contact'
-              title: 'Request an audit'
+              title: 'Discuss your project'
           field_secondary_link:
             - uri: 'internal:/en/services'
-              title: 'Explore Drupal services'
+              title: 'See our expertise'
   - id: homepage.positioning
     legacy_uuid: ad8e2138-9355-4951-90dc-354e07847eca
     bundle: text_block
@@ -43,25 +61,26 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Positionnement éditorial clair pour environnements exigeants'
+            - value: 'Business, IA et expertise technique dans un même cadre'
           field_text:
             - value: >-
-                Notre approche Drupal s’adresse aux contextes structurés et
-                institutionnels : gouvernance de contenu, parcours d’édition
-                fiables, accessibilité web et intégration d’outils IA pour la
-                rédaction assistée, le SEO éditorial et l’ouverture vers la
-                traduction automatique.
+                Emerging Digital accompagne les organisations qui veulent un
+                site clair pour leurs publics, solide pour leurs équipes et
+                prêt à évoluer. Nous partons des enjeux métier, cadrons les
+                bons usages IA et construisons sur un socle PHP moderne :
+                Drupal, Symfony ou Laravel selon le contexte.
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Clear editorial positioning for demanding environments'
+            - value: 'Business, AI and technical expertise in one framework'
           field_text:
             - value: >-
-                Our Drupal approach is aimed at structured and institutional
-                contexts: content governance, reliable editing workflows, web
-                accessibility, and integration of AI tools for assisted
-                writing, editorial SEO, and openness to machine translation.
+                Emerging Digital supports organizations that need a website
+                clear for their audiences, solid for their teams and ready to
+                evolve. We start from business needs, frame the right AI uses
+                and build on a modern PHP foundation: Drupal, Symfony or
+                Laravel depending on the context.
               format: basic_html
   - id: homepage.services
     legacy_uuid: efdbbfe1-aec4-4cbb-be3d-33f3fe5966ac
@@ -70,71 +89,72 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Nos services'
+            - value: 'Business : créer, refondre et faire évoluer votre site'
           field_items:
             - value: >-
-                Création de site Drupal|Un site Drupal conçu pour vos contenus,
-                vos équipes et votre référencement
-                naturel.|/fr/creation-site-drupal
+                Création de site web professionnel|Un site clair, rapide et
+                administrable, pensé pour vos publics, vos contenus et votre
+                acquisition.|/fr/services
               format: basic_html
             - value: >-
-                Maintenance Drupal|Un accompagnement technique régulier pour
-                sécuriser et faire évoluer votre site
-                Drupal.|/fr/maintenance-drupal
+                Refonte de site internet|Clarifier l’offre, préserver le SEO
+                utile, améliorer les parcours et moderniser le socle
+                technique.|/fr/refonte-site-drupal
               format: basic_html
             - value: >-
-                Migration et modernisation|Reprise de sites existants, montée
-                de version Drupal, amélioration de la structure et des
-                performances.|/fr/migration-drupal
+                Développement web sur mesure|Fonctionnalités métier,
+                intégrations, workflows et architecture PHP durable, sans
+                empiler des solutions fragiles.|/fr/services
               format: basic_html
             - value: >-
-                Accessibilité, SEO et performance|Contenus lisibles, parcours
-                clairs et socle technique optimisé pour vos publics et les
-                moteurs de recherche.
+                Maintenance et accompagnement long terme|Sécurité, mises à
+                jour, support, amélioration continue et arbitrages techniques
+                avec un partenaire senior.|/fr/maintenance-drupal
               format: basic_html
             - value: >-
-                IA intégrée dans le CMS|Aide à la rédaction, amélioration de la
-                qualité éditoriale, enrichissement et préparation à la
-                traduction automatique des contenus.
+                Audit et modernisation d’existant|Reprise de sites Drupal,
+                WordPress ou développements spécifiques pour sécuriser,
+                optimiser ou migrer vers une architecture plus durable.|/fr/audit-drupal
               format: basic_html
             - value: >-
-                Agence Drupal Belgique|Un partenaire Drupal senior en Belgique
-                pour structurer vos contenus, vos parcours et votre socle
-                technique.|/fr/agence-drupal-belgique
+                SEO technique, performance et accessibilité|Un socle lisible
+                par les visiteurs, les moteurs de recherche et les équipes qui
+                le maintiennent.|/fr/accessibilite-seo-optimisation
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Our services'
+            - value: 'Business: build, redesign and evolve your website'
           field_items:
             - value: >-
-                Drupal Website Creation|A Drupal website designed for your
-                content, your teams and your organic search
-                visibility.|/en/drupal-website-creation
+                Professional website creation|A clear, fast and manageable
+                website designed for your audiences, your content and your
+                acquisition.|/en/services
               format: basic_html
             - value: >-
-                Drupal Maintenance|Regular technical support to secure and
-                evolve your Drupal website.|/en/drupal-maintenance
+                Website redesign|Clarify the offer, protect useful SEO,
+                improve journeys and modernize the technical
+                foundation.|/en/drupal-website-redesign
               format: basic_html
             - value: >-
-                Migration and modernization | Resumption of existing sites,
-                Drupal version upgrade, improvement of structure and
-                performance.|/en/drupal-migration
+                Custom web development|Business features, integrations,
+                workflows and durable PHP architecture without stacking fragile
+                solutions.|/en/services
               format: basic_html
             - value: >-
-                Accessibility, SEO, and performance | Readable content, clear
-                pathways, and a technical foundation optimized for your
-                audiences and search engines.
+                Maintenance and long-term support|Security, updates, support,
+                continuous improvement and technical decisions with a senior
+                partner.|/en/drupal-maintenance
               format: basic_html
             - value: >-
-                AI integrated into the CMS | Writing assistance, improvement of
-                editorial quality, enrichment and preparation for automatic
-                translation of content.
+                Audit and modernization of existing sites|Taking over Drupal,
+                WordPress or custom builds to secure, optimize or migrate
+                toward a more durable architecture.|/en/drupal-audit
               format: basic_html
             - value: >-
-                Drupal Agency Belgium|A senior Drupal partner in Belgium to
-                structure your content, user journeys and technical
-                foundation.|/en/drupal-agency-belgium
+                Technical SEO, performance and accessibility|A foundation that
+                is readable for visitors, search engines and the teams who
+                maintain it.|/en/ai-accessibility-seo-optimization
               format: basic_html
   - id: homepage.ai-features
     legacy_uuid: b73c293b-32b3-426d-a86b-adfed1a386a7
@@ -143,81 +163,80 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Ce que l’IA peut faire dans Drupal'
+            - value: 'IA : automatiser sans perdre la maîtrise'
           field_text:
             - value: >-
-                Des usages IA concrets, intégrés à Drupal, pour aider les PME,
-                ASBL et institutions à produire des brouillons, relire,
-                traduire, structurer et relier leurs contenus sans sortir du
-                cadre éditorial. Explorez le hub <a href="/fr/ia-drupal">IA
-                &amp; Drupal</a> ou demandez un cadrage via <a
-                href="/fr/contact">la page contact</a>.
+                L’IA doit servir les équipes, pas remplacer leur jugement. Nous
+                cadrons des automatisations utiles pour les PME et ASBL :
+                contenus, documents, support, traduction, SEO et workflows, avec
+                validation humaine et limites explicites. Explorez notre hub <a
+                href="/fr/ia-drupal">IA &amp; Drupal</a> ou demandez un cadrage
+                via <a href="/fr/contact">la page contact</a>.
               format: basic_html
           field_items:
             - value: >-
-                Rédaction assistée|Transformer des notes métier en brouillons
-                Drupal structurés, avec validation humaine avant
-                publication.|/fr/ia-drupal/redaction-assistee
+                IA pour PME et ASBL|Identifier les cas d’usage réellement
+                utiles avant de brancher des outils dans vos processus.|/fr/ia-integree
               format: basic_html
             - value: >-
-                Correction éditoriale|Repérer les phrases confuses, harmoniser
-                le ton et préparer une relecture plus efficace.|/fr/ia-drupal/correction-editoriale
+                Automatisation IA|Transformer des tâches répétitives en
+                workflows relisibles, testables et gouvernables.|/fr/ia-drupal/gouvernance-validation
               format: basic_html
             - value: >-
-                Traduction FR/EN|Préparer les variantes bilingues, vérifier les
-                écarts de sens et garder des CTA localisés.|/fr/ia-drupal/traduction-fr-en
+                Chatbot IA et support documentaire|Répondre à partir de vos
+                contenus maîtrisés, avec périmètre clair et escalade
+                humaine.|/fr/ia-drupal
               format: basic_html
             - value: >-
-                Résumés, tags et structure|Synthétiser les pages longues,
-                proposer des tags et rendre les contenus plus
-                réutilisables.|/fr/ia-drupal/resumes-tags-structure
+                IA documentaire|Structurer, résumer, classer et réutiliser des
+                contenus longs sans perdre la traçabilité.|/fr/ia-drupal/resumes-tags-structure
               format: basic_html
             - value: >-
-                SEO et liens internes|Suggérer des descriptions, angles SEO et
-                liens internes préfixés par langue.|/fr/ia-drupal/seo-liens-internes
+                Rédaction, relecture et traduction|Préparer des variantes
+                FR/EN, améliorer la clarté et garder les CTA
+                localisés.|/fr/ia-drupal/traduction-fr-en
               format: basic_html
             - value: >-
-                Gouvernance IA|Documenter les prompts, les rôles de validation
-                et les limites pour éviter toute publication non
-                maîtrisée.|/fr/ia-drupal/gouvernance-validation
+                SEO et maillage interne assistés|Suggérer des angles, résumés
+                et liens internes sans publier automatiquement.|/fr/ia-drupal/seo-liens-internes
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'What AI can do in Drupal'
+            - value: 'AI: automate without losing control'
           field_text:
             - value: >-
-                Concrete AI applications, integrated into Drupal, to help SMEs,
-                non-profits and institutions draft, review, translate,
-                structure and connect their content without leaving the
-                editorial framework. Explore the <a href="/en/ai-drupal">AI
-                &amp; Drupal</a> hub or request scoping through the <a
-                href="/en/contact">contact page</a>.
+                AI should serve teams, not replace their judgement. We frame
+                useful automations for SMEs and non-profits: content,
+                documents, support, translation, SEO and workflows, with human
+                approval and explicit limits. Explore our <a
+                href="/en/ai-drupal">AI &amp; Drupal</a> hub or request scoping
+                through the <a href="/en/contact">contact page</a>.
               format: basic_html
           field_items:
             - value: >-
-                Assisted writing|Turn business notes into structured Drupal
-                drafts, with human approval before publication.|/en/ai-drupal/assisted-writing
+                AI for SMEs and non-profits|Identify genuinely useful use cases
+                before connecting tools to your processes.|/en/integrated-ai
               format: basic_html
             - value: >-
-                Editorial review|Identify unclear wording, harmonise tone and
-                prepare a more efficient review.|/en/ai-drupal/editorial-review
+                AI automation|Turn repetitive tasks into workflows that remain
+                readable, testable and governable.|/en/ai-drupal/governance-approval
               format: basic_html
             - value: >-
-                FR/EN translation|Prepare bilingual variants, check meaning
-                gaps and keep CTAs localised.|/en/ai-drupal/fr-en-translation
+                AI chatbot and document support|Answer from controlled content,
+                with a clear scope and human escalation.|/en/ai-drupal
               format: basic_html
             - value: >-
-                Summaries, tags and structure|Summarise long pages, suggest
-                tags and make content easier to reuse.|/en/ai-drupal/summaries-tags-structure
+                Document AI|Structure, summarize, classify and reuse long
+                content without losing traceability.|/en/ai-drupal/summaries-tags-structure
               format: basic_html
             - value: >-
-                SEO and internal links|Suggest descriptions, SEO angles and
-                language-prefixed internal links.|/en/ai-drupal/seo-internal-links
+                Writing, review and translation|Prepare FR/EN variants, improve
+                clarity and keep CTAs localized.|/en/ai-drupal/fr-en-translation
               format: basic_html
             - value: >-
-                AI governance|Document prompts, approval roles and limits to
-                avoid unmanaged publication.|/en/ai-drupal/governance-approval
+                Assisted SEO and internal linking|Suggest angles, summaries and
+                internal links without automatic publication.|/en/ai-drupal/seo-internal-links
               format: basic_html
   - id: homepage.case-studies
     legacy_uuid: 614270dd-1d42-4ea9-a7ae-6321952de65b
@@ -226,66 +245,66 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Des projets clairs, utiles et durables'
+            - value: 'Des projets pensés pour durer'
           field_items:
-            - value: 'Refonte d’un site institutionnel Drupal'
+            - value: 'Refonte d’un site institutionnel'
               format: basic_html
-            - value: 'Modernisation d’un site existant'
+            - value: 'Modernisation d’un socle web existant'
               format: basic_html
-            - value: 'Mise en valeur de services complexes'
+            - value: 'Intégration d’usages IA maîtrisés'
               format: basic_html
           field_case_problem:
-            - value: 'Site institutionnel difficile à maintenir.'
+            - value: 'Offre confuse, parcours peu lisibles et SEO fragile.'
               format: basic_html
-            - value: 'Socle Drupal vieillissant et dette technique.'
+            - value: 'Dette technique, performance limitée et maintenance lourde.'
               format: basic_html
-            - value: 'Offres perçues comme complexes et confuses.'
+            - value: 'Envie d’automatiser sans exposer les contenus ni la qualité.'
               format: basic_html
           field_case_solution:
-            - value: 'Structure clarifiée et parcours d’édition simplifié.'
+            - value: 'Structure clarifiée, messages hiérarchisés et liens utiles.'
               format: basic_html
-            - value: 'Migration maîtrisée et assainissement technique.'
+            - value: 'Audit, arbitrages techniques et modernisation progressive.'
               format: basic_html
-            - value: 'Contenus simplifiés et hiérarchie clarifiée.'
+            - value: 'Cadrage des cas d’usage, garde-fous et validation humaine.'
               format: basic_html
           field_case_result:
-            - value: 'Édition facilitée et meilleures performances.'
+            - value: 'Meilleure compréhension et parcours plus commercial.'
               format: basic_html
-            - value: 'Base technique stabilisée.'
+            - value: 'Base plus stable, plus rapide et plus facile à faire évoluer.'
               format: basic_html
-            - value: 'Meilleure lisibilité et meilleure conversion.'
+            - value: 'Automatisation utile sans perdre la maîtrise éditoriale.'
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Clear, useful, and sustainable projects'
+            - value: 'Projects designed to last'
           field_items:
-            - value: 'Redesign of an institutional Drupal website'
+            - value: 'Redesign of an institutional website'
               format: basic_html
-            - value: 'Modernization of an existing site'
+            - value: 'Modernization of an existing web foundation'
               format: basic_html
-            - value: 'Showcasing complex services'
+            - value: 'Integration of controlled AI use cases'
               format: basic_html
           field_case_problem:
-            - value: 'Institutional site difficult to maintain.'
+            - value: 'Unclear offer, weak journeys and fragile SEO.'
               format: basic_html
-            - value: 'Aging Drupal foundation and technical debt.'
+            - value: 'Technical debt, limited performance and heavy maintenance.'
               format: basic_html
-            - value: 'Offers perceived as complex and confusing.'
+            - value: 'A need to automate without exposing content or quality.'
               format: basic_html
           field_case_solution:
-            - value: 'Clarified structure and simplified editing process.'
+            - value: 'Clarified structure, prioritized messages and useful links.'
               format: basic_html
-            - value: 'Controlled migration and technical sanitation.'
+            - value: 'Audit, technical decisions and progressive modernization.'
               format: basic_html
-            - value: 'Simplified content and clarified hierarchy.'
+            - value: 'Use case scoping, guardrails and human approval.'
               format: basic_html
           field_case_result:
-            - value: 'Easier editing and better performance.'
+            - value: 'Clearer understanding and a more commercial journey.'
               format: basic_html
-            - value: 'Stabilized technical base.'
+            - value: 'A more stable, faster and easier-to-evolve foundation.'
               format: basic_html
-            - value: 'Better readability and better conversion.'
+            - value: 'Useful automation without losing editorial control.'
               format: basic_html
   - id: homepage.trust
     legacy_uuid: 33873ed7-004d-4a7f-b69e-b8f64dc4fa9b
@@ -294,32 +313,32 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Pourquoi travailler avec nous'
+            - value: 'Expertise : PHP moderne, Drupal, Symfony, Laravel'
           field_items:
-            - value: 'Expertise Drupal'
+            - value: 'Architecture PHP durable et maintenable'
               format: basic_html
-            - value: 'Expérience des contextes institutionnels'
+            - value: 'Drupal pour les contenus structurés et les équipes éditoriales'
               format: basic_html
-            - value: 'Maîtrise des enjeux d’accessibilité web'
+            - value: 'Symfony et Laravel pour les développements métier'
               format: basic_html
-            - value: 'IA utile, pas gadget'
+            - value: 'SEO technique, performance et accessibilité intégrés'
               format: basic_html
-            - value: 'Compréhension des réalités PME / ASBL'
+            - value: 'IA utile, gouvernée et reliée à vos processus'
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Why work with us'
+            - value: 'Expertise: modern PHP, Drupal, Symfony, Laravel'
           field_items:
-            - value: 'Drupal Expertise'
+            - value: 'Durable and maintainable PHP architecture'
               format: basic_html
-            - value: 'Experience of institutional contexts'
+            - value: 'Drupal for structured content and editorial teams'
               format: basic_html
-            - value: 'Mastery of web accessibility issues'
+            - value: 'Symfony and Laravel for business-specific development'
               format: basic_html
-            - value: 'Useful AI, not a gimmick'
+            - value: 'Technical SEO, performance and accessibility built in'
               format: basic_html
-            - value: 'Understanding the realities of SMEs / NGOs'
+            - value: 'Useful AI governed and connected to your processes'
               format: basic_html
   - id: homepage.cta
     legacy_uuid: 88bc3809-2c51-4ec1-93a8-2eed9ce6930c
@@ -328,28 +347,31 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Vous avez un projet Drupal ou un site à moderniser ?'
+            - value: 'Vous préparez une création, une refonte ou une automatisation ?'
           field_text:
             - value: >-
-                Parlons de votre contexte Drupal et de vos objectifs
-                d’accessibilité. Vous pouvez aussi consulter nos <a
-                href="/fr/services">services Drupal</a> et notre approche <a
+                Parlons de votre contexte, de vos priorités business et du
+                niveau de maturité technique attendu. Nous pouvons cadrer une
+                création de site, une refonte, un audit, une modernisation PHP
+                ou un premier workflow IA. Vous pouvez aussi consulter nos <a
+                href="/fr/services">services</a> et notre approche <a
                 href="/fr/ia-drupal">IA &amp; Drupal</a>.
               format: basic_html
           field_link:
             - uri: 'internal:/fr/contact'
-              title: 'Prendre contact'
+              title: 'Demander un cadrage'
       en:
         fields:
           field_heading:
-            - value: 'Do you have a Drupal project or a website to modernize?'
+            - value: 'Planning a build, a redesign or an automation?'
           field_text:
             - value: >-
-                Let's talk about your Drupal context and your accessibility
-                goals. You can also check out our <a href="/en/services">
-                Drupal services</a> and our <a href="/en/ai-drupal">AI &amp;
-                Drupal</a> approach.
+                Let's discuss your context, business priorities and expected
+                technical maturity. We can scope a website build, redesign,
+                audit, PHP modernization or a first AI workflow. You can also
+                explore our <a href="/en/services">services</a> and our <a
+                href="/en/ai-drupal">AI &amp; Drupal</a> approach.
               format: basic_html
           field_link:
             - uri: 'internal:/en/contact'
-              title: 'Get in touch'
+              title: 'Request scoping'

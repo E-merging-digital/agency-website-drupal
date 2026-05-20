@@ -1074,7 +1074,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertSame('Un premier échange utile et sans engagement', $paragraphs[3]->get('field_heading')->value);
     self::assertStringContainsString('deux jours ouvrables', (string) $paragraphs[3]->get('field_text')->value);
     self::assertSame('Coordonnées', $paragraphs[4]->get('field_heading')->value);
-    self::assertStringContainsString('jonathan@emergingdigital.be', (string) $paragraphs[4]->get('field_text')->value);
+    self::assertStringContainsString('contact@emergingdigital.be', (string) $paragraphs[4]->get('field_text')->value);
     self::assertSame('Carte', $paragraphs[5]->get('field_heading')->value);
     self::assertStringContainsString('Localisation Emerging Digital', (string) $paragraphs[5]->get('field_text')->value);
 

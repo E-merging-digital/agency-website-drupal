@@ -1,3 +1,4 @@
 settings:
   tagline: 'Commercial, readable, and scalable Drupal websites for SMEs and non-profits.'
+  company_email_label: Email
   company_phone_label: Phone

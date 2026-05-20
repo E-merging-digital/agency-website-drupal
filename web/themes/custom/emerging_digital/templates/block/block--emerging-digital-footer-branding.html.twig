@@ -19,7 +19,7 @@
     </p>
   {% endif %}
 
-  {% set has_legal_details = content.legal_name is not empty or content.company_number is not empty or content.company_address is not empty or content.company_phone is not empty %}
+  {% set has_legal_details = content.legal_name is not empty or content.company_number is not empty or content.company_address is not empty or content.company_email is not empty or content.company_phone is not empty %}
   {% if has_legal_details %}
     <section class="page-footer__company" aria-label="{{ 'Company legal details'|t }}">
       <h3 class="visually-hidden">{{ 'Company legal details'|t }}</h3>
@@ -42,6 +42,12 @@
             <dd>
               <address>{{ content.company_address }}</address>
             </dd>
+          </div>
+        {% endif %}
+        {% if content.company_email is not empty %}
+          <div class="page-footer__company-item">
+            <dt>{{ content.company_email_label }}</dt>
+            <dd>{{ content.company_email }}</dd>
           </div>
         {% endif %}
         {% if content.company_phone is not empty %}

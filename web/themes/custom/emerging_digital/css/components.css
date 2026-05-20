@@ -377,6 +377,66 @@ button:focus-visible,
   margin-top: clamp(1.5rem, 2.5vw, 2rem);
 }
 
+.ed-service-groups {
+  display: grid;
+  gap: clamp(var(--space-5), 5vw, var(--space-7));
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+
+.ed-service-group {
+  display: grid;
+  gap: clamp(var(--space-3), 3vw, var(--space-5));
+  padding-top: clamp(var(--space-4), 4vw, var(--space-6));
+  border-top: 1px solid #dbe3f0;
+}
+
+.ed-service-group--drupal {
+  border-top: 3px solid var(--color-primary);
+}
+
+.ed-service-group--business {
+  border-top-color: #89c540;
+}
+
+.ed-service-group--ai {
+  border-top-color: #8aa7e6;
+}
+
+.ed-service-group__header {
+  display: grid;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.ed-service-group__copy {
+  max-width: 68ch;
+}
+
+.ed-service-group__eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ed-service-group__title {
+  margin: 0;
+  font-size: clamp(1.35rem, 2vw, 1.85rem);
+}
+
+.ed-service-group__description {
+  margin: var(--space-2) 0 0;
+  color: var(--color-muted);
+  font-size: 1.02rem;
+  line-height: 1.65;
+}
+
+.ed-service-group__cta {
+  justify-self: start;
+}
+
 .ed-card {
   display: flex;
   flex-direction: column;
@@ -407,10 +467,57 @@ button:focus-visible,
   font-size: clamp(1.05rem, 2.2vw, 1.18rem);
 }
 
+.ed-card h4 {
+  margin: 0;
+  font-size: clamp(1.02rem, 2vw, 1.14rem);
+}
+
 .ed-card p {
   margin: 0;
   color: var(--color-muted);
   overflow-wrap: anywhere;
+}
+
+.ed-card--service {
+  position: relative;
+}
+
+.ed-card__link {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.ed-card__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.ed-card__link:hover,
+.ed-card__link:focus-visible {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+.ed-card__link:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 0.25rem;
+  border-radius: var(--radius-sm);
+}
+
+.ed-card--service-drupal {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.ed-card--service-business {
+  border-color: #d7e8c3;
+}
+
+.ed-card--service-ai {
+  border-color: #d5def8;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
 }
 
 .ed-card .button,
@@ -445,7 +552,8 @@ button:focus-visible,
 }
 
 .ed-card--ai h3::before,
-.ed-card--service h3::before {
+.ed-card--service h3::before,
+.ed-card--service h4::before {
   content: "";
   display: block;
   width: 2rem;
@@ -744,6 +852,10 @@ button:focus-visible,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .ed-service-group__header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .ed-cards--ai,
   .ed-cards--cases {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -801,6 +913,10 @@ button:focus-visible,
     position: sticky;
     top: 8rem;
   }
+
+  .ed-service-group .ed-cards--services {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 48rem) {
@@ -848,6 +964,11 @@ button:focus-visible,
 
   .ed-card .button,
   .ed-card a.button {
+    width: 100%;
+  }
+
+  .ed-service-group__cta {
+    justify-self: stretch;
     width: 100%;
   }
 

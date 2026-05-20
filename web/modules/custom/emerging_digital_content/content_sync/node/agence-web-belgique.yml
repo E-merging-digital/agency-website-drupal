@@ -1,0 +1,93 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Agence web senior en Belgique pour PME et ASBL : création, refonte,
+          Drupal, PHP moderne, IA encadrée, SEO technique et architecture
+          durable.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital accompagne les organisations belges qui veulent un
+          site web professionnel clair, maintenable et capable d'évoluer sans
+          empiler des choix techniques fragiles.</p><h2>Une agence web senior,
+          pas une agence généraliste interchangeable</h2><p>Nous partons du
+          besoin métier : visibilité, conversion, contenus, gouvernance,
+          performance, dette technique ou automatisation utile. La technologie
+          vient ensuite, avec un arbitrage expliqué entre Drupal, PHP moderne,
+          Symfony, Laravel ou une évolution progressive de l'existant.</p><h2>Ce
+          que nous cadrons</h2><ul><li>Création ou refonte de sites web
+          professionnels pour PME, ASBL et institutions.</li><li>Architecture de
+          contenu, SEO technique, accessibilité, performance et sécurité.</li>
+          <li>Reprise d'un existant Drupal, WordPress ou spécifique pour
+          l'auditer, l'optimiser, le stabiliser ou préparer une migration.</li>
+          <li>Usages IA concrets : assistance éditoriale, synthèse, support
+          documentaire et workflows validés humainement.</li></ul><h2>Quand
+          Drupal devient pertinent</h2><p>Drupal reste une expertise forte
+          lorsque le multilingue, les rôles éditoriaux, les contenus structurés,
+          la durée de vie et la gouvernance deviennent importants. Pour un
+          besoin applicatif très spécifique, un développement PHP sur mesure
+          peut aussi être plus juste.</p><p>Explorez nos pages sur la <a
+          href="/fr/creation-site-web-professionnel">création de site web
+          professionnel</a>, l'<a href="/fr/agence-drupal-belgique">expertise
+          Drupal en Belgique</a> et l'<a href="/fr/ia-pour-pme">IA pour PME</a>.
+          </p><p><strong>Vous cherchez un partenaire web senior en Belgique ?
+          </strong> <a href="/fr/contact">Contactez-nous</a> pour cadrer votre
+          projet sans jargon inutile.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Senior web agency in Belgium for SMEs and non-profits: website
+          creation, redesign, Drupal, modern PHP, governed AI, technical SEO and
+          durable architecture.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital supports Belgian organisations that need a
+          professional website that is clear, maintainable and able to evolve
+          without stacking fragile technical choices.</p><h2>A senior web
+          agency, not an interchangeable generalist agency</h2><p>We start from
+          the business need: visibility, conversion, content, governance,
+          performance, technical debt or useful automation. Technology comes
+          next, with a clear decision between Drupal, modern PHP, Symfony,
+          Laravel or a progressive evolution of the existing platform.</p><h2>
+          What we frame</h2><ul><li>Professional website creation or redesign
+          for SMEs, non-profits and institutions.</li><li>Content architecture,
+          technical SEO, accessibility, performance and security.</li><li>
+          Taking over an existing Drupal, WordPress or custom site to audit,
+          optimize, stabilize or prepare a migration.</li><li>Concrete AI use
+          cases: editorial assistance, summarization, document support and
+          human-approved workflows.</li></ul><h2>When Drupal becomes relevant
+          </h2><p>Drupal remains a strong expertise when multilingual content,
+          editorial roles, structured content, long lifecycle and governance
+          matter. For a very specific application need, custom PHP development
+          can also be the better choice.</p><p>Explore our pages on <a
+          href="/en/professional-website-creation">professional website
+          creation</a>, <a href="/en/drupal-agency-belgium">Drupal expertise in
+          Belgium</a> and <a href="/en/ai-for-smes">AI for SMEs</a>.</p><p>
+          <strong>Looking for a senior web partner in Belgium?</strong> <a
+          href="/en/contact">Contact us</a> to frame your project without
+          unnecessary jargon.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Agence web Belgique'
+        description: >-
+          Un partenaire web senior pour cadrer création, refonte, Drupal, PHP et
+          IA utile sans discours d'agence généraliste.
+        url: /fr/agence-web-belgique
+      en:
+        title: 'Web Agency Belgium'
+        description: >-
+          A senior web partner to frame website creation, redesign, Drupal, PHP
+          and useful AI without generic agency talk.
+        url: /en/web-agency-belgium

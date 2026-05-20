@@ -4,18 +4,55 @@
     {% if paragraph.field_text.value %}
       <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
-    <div class="ed-cards ed-cards--services">
-      {% for card in service_cards %}
-        <article class="ed-card ed-card--service">
-          <h3>{{ card.title }}</h3>
-          {% if card.description %}
-            <p>{{ card.description }}</p>
-          {% endif %}
-          {% if card.url %}
-            <a class="button button--secondary" href="{{ card.url }}">{{ card.cta_label }}</a>
-          {% endif %}
-        </article>
-      {% endfor %}
-    </div>
+    {% if service_groups is defined and service_groups %}
+      <div class="ed-service-groups">
+        {% for group in service_groups %}
+          <div class="ed-service-group ed-service-group--{{ group.key }}">
+            <div class="ed-service-group__header">
+              <div class="ed-service-group__copy">
+                <p class="ed-service-group__eyebrow">{{ group.eyebrow }}</p>
+                <h3 class="ed-service-group__title">{{ group.title }}</h3>
+                {% if group.description %}
+                  <p class="ed-service-group__description">{{ group.description }}</p>
+                {% endif %}
+              </div>
+              {% if group.cta_url %}
+                <a class="button button--secondary ed-service-group__cta" href="{{ group.cta_url }}">{{ group.cta_label }}</a>
+              {% endif %}
+            </div>
+            <div class="ed-cards ed-cards--services">
+              {% for card in group.cards %}
+                <article class="ed-card ed-card--service ed-card--service-{{ group.key }}">
+                  <h4>
+                    {% if card.url %}
+                      <a class="ed-card__link" href="{{ card.url }}">{{ card.title }}</a>
+                    {% else %}
+                      {{ card.title }}
+                    {% endif %}
+                  </h4>
+                  {% if card.description %}
+                    <p>{{ card.description }}</p>
+                  {% endif %}
+                </article>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="ed-cards ed-cards--services">
+        {% for card in service_cards %}
+          <article class="ed-card ed-card--service">
+            <h3>{{ card.title }}</h3>
+            {% if card.description %}
+              <p>{{ card.description }}</p>
+            {% endif %}
+            {% if card.url %}
+              <a class="button button--secondary" href="{{ card.url }}">{{ card.cta_label }}</a>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
   </div>
 </section>

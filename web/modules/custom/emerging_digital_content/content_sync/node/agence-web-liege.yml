@@ -1,0 +1,90 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Agence web senior à Liège pour PME, ASBL et organisations locales :
+          création, refonte, Drupal, PHP durable, IA encadrée et SEO technique.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital accompagne les organisations liégeoises et
+          wallonnes qui veulent un site web plus clair, plus stable et plus
+          utile pour leurs publics.</p><h2>Un partenaire local avec une approche
+          senior</h2><p>Le point de départ n'est pas une technologie à vendre,
+          mais une décision à clarifier : faut-il créer, refondre, stabiliser,
+          migrer ou automatiser une partie du travail éditorial ? Nous cadrons
+          les priorités avant de choisir Drupal, PHP sur mesure ou une évolution
+          progressive de l'existant.</p><h2>Pour quels projets à Liège ?</h2>
+          <ul><li>PME qui veulent un site professionnel plus visible et plus
+          facile à maintenir.</li><li>ASBL et acteurs publics avec contenus,
+          formulaires, accessibilité et multilingue à maîtriser.</li><li>Sites
+          existants à reprendre, auditer, optimiser ou migrer lorsque la dette
+          technique devient trop lourde.</li><li>Premiers usages IA utiles :
+          contenus, synthèses, support documentaire et workflows validés.</li>
+          </ul><h2>Une crédibilité Drupal sans tunnel unique</h2><p>Drupal est
+          pertinent pour les contenus structurés, les rôles, le multilingue et
+          les projets qui doivent durer. Mais un besoin applicatif peut appeler
+          Symfony, Laravel ou un socle PHP dédié.</p><p>Cette page complète
+          notre positionnement d'<a href="/fr/agence-web-belgique">agence web
+          en Belgique</a>, nos services de <a
+          href="/fr/creation-site-web-professionnel">création de site web
+          professionnel</a> et de <a href="/fr/refonte-site-internet">refonte
+          de site internet</a>.</p><p><strong>Vous cherchez une agence web à
+          Liège avec une vraie profondeur technique ?</strong> <a
+          href="/fr/contact">Contactez-nous</a> pour cadrer votre besoin.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Senior web agency in Liège for SMEs, non-profits and local
+          organisations: website creation, redesign, Drupal, durable PHP,
+          governed AI and technical SEO.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Emerging Digital supports organisations in Liège and Wallonia that
+          need a clearer, more stable and more useful website for their
+          audiences.</p><h2>A local partner with a senior approach</h2><p>The
+          starting point is not a technology to sell, but a decision to clarify:
+          should you build, redesign, stabilize, migrate or automate part of the
+          editorial work? We frame priorities before choosing Drupal, custom PHP
+          or a progressive evolution of the existing platform.</p><h2>Which
+          projects in Liège?</h2><ul><li>SMEs that need a professional website
+          with better visibility and easier maintenance.</li><li>Non-profits
+          and public organisations with content, forms, accessibility and
+          multilingual needs to govern.</li><li>Existing sites to take over,
+          audit, optimize or migrate when technical debt becomes too heavy.</li>
+          <li>First useful AI use cases: content, summaries, document support
+          and approved workflows.</li></ul><h2>Drupal credibility without a
+          single tunnel</h2><p>Drupal is relevant for structured content, roles,
+          multilingual workflows and projects that need to last. But an
+          application need can call for Symfony, Laravel or a dedicated PHP
+          foundation.</p><p>This page extends our <a
+          href="/en/web-agency-belgium">web agency in Belgium</a> positioning,
+          our <a href="/en/professional-website-creation">professional website
+          creation</a> service and our <a href="/en/website-redesign">website
+          redesign</a> approach.</p><p><strong>Looking for a web agency in
+          Liège with real technical depth?</strong> <a href="/en/contact">
+          Contact us</a> to frame your need.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'Agence web Liège'
+        description: >-
+          Un accompagnement local et senior pour les organisations liégeoises
+          qui veulent un site clair, robuste et évolutif.
+        url: /fr/agence-web-liege
+      en:
+        title: 'Web Agency Liège'
+        description: >-
+          Local senior support for organisations in Liège that need a clear,
+          robust and scalable website.
+        url: /en/web-agency-liege

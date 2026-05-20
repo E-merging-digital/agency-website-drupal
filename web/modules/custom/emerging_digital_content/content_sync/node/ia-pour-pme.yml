@@ -1,0 +1,86 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          IA pour PME avec cadrage, validation humaine et intégration prudente :
+          contenu, support, synthèse, reporting et automatisations utiles.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>L'IA peut aider une PME, mais elle doit être cadrée comme un outil
+          de qualité et de productivité, pas comme une promesse magique. Nous
+          commençons par les cas d'usage, les données disponibles, les risques
+          et la validation humaine.</p><h2>Cas d'usage utiles</h2><ul><li>
+          Préparer des brouillons, résumés, FAQ et variantes de contenus sans
+          publication automatique.</li><li>Classer ou synthétiser des demandes,
+          documents, notes ou contenus longs.</li><li>Assister le support ou la
+          qualification commerciale à partir d'un périmètre documentaire clair.
+          </li><li>Améliorer les workflows éditoriaux : relecture, traduction,
+          SEO, liens internes et cohérence de ton.</li></ul><h2>Garde-fous
+          indispensables</h2><p>Chaque usage doit préciser les sources, les
+          données sensibles, les limites, le responsable de validation et la
+          mesure du gain réel. L'IA assiste l'équipe ; elle ne remplace pas le
+          jugement métier ni les contrôles éditoriaux.</p><h2>Intégration dans
+          le site et les outils</h2><p>Les premiers scénarios peuvent rester
+          simples. Les usages plus avancés peuvent ensuite être reliés à Drupal,
+          à un chatbot encadré, à des workflows de contenu ou à des intégrations
+          PHP selon la maturité de l'organisation.</p><p>Cette page complète
+          notre hub <a href="/fr/ia-drupal">IA &amp; Drupal</a>, notre service
+          d'<a href="/fr/ia-integree">IA intégrée</a> et l'approche <a
+          href="/fr/site-web-pme">site web PME</a>.</p><p><strong>Vous voulez
+          identifier un premier cas d'usage IA réaliste ?</strong> <a
+          href="/fr/contact">Contactez-nous</a> pour cadrer les limites, les
+          données et la valeur attendue.</p>
+        format: basic_html
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          AI for SMEs with scoping, human validation and careful integration:
+          content, support, summaries, reporting and useful automations.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>AI can help an SME, but it should be framed as a quality and
+          productivity tool, not as a magic promise. We start with use cases,
+          available data, risks and human validation.</p><h2>Useful use cases
+          </h2><ul><li>Prepare drafts, summaries, FAQs and content variants
+          without automatic publication.</li><li>Classify or summarize
+          requests, documents, notes or long-form content.</li><li>Assist
+          support or commercial qualification from a clear document scope.</li>
+          <li>Improve editorial workflows: review, translation, SEO, internal
+          links and tone consistency.</li></ul><h2>Essential guardrails</h2><p>
+          Each use case must define sources, sensitive data, limits, validation
+          ownership and measurement of the real gain. AI assists the team; it
+          does not replace business judgement or editorial checks.</p><h2>
+          Integration with the website and tools</h2><p>First scenarios can
+          remain simple. More advanced uses can later connect with Drupal, a
+          governed chatbot, content workflows or PHP integrations depending on
+          the organisation's maturity.</p><p>This page complements our <a
+          href="/en/ai-drupal">AI &amp; Drupal</a> hub, our <a
+          href="/en/integrated-ai">integrated AI</a> service and the <a
+          href="/en/sme-website">SME website</a> approach.</p><p><strong>Want
+          to identify a realistic first AI use case?</strong> <a
+          href="/en/contact">Contact us</a> to frame limits, data and expected
+          value.</p>
+        format: basic_html
+promotions:
+  - target:
+      label: 'Services page'
+      aliases:
+        fr: /services
+        en: /services
+    translations:
+      fr:
+        title: 'IA pour PME'
+        description: >-
+          Des cas d'usage IA cadrés pour gagner du temps sans perdre la qualité,
+          la validation humaine ni la maîtrise des données.
+        url: /fr/ia-pour-pme
+      en:
+        title: 'AI for SMEs'
+        description: >-
+          Scoped AI use cases to save time without losing quality, human
+          validation or control over data.
+        url: /en/ai-for-smes

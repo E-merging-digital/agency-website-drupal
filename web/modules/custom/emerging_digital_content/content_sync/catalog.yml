@@ -112,6 +112,90 @@ contents:
       en:
         title: 'Integrated AI'
         alias: /integrated-ai
+  - id: creation-site-web-professionnel
+    entity_type: node
+    bundle: service
+    file: node/creation-site-web-professionnel.yml
+    business_aliases:
+      fr: /creation-site-web-professionnel
+      en: /professional-website-creation
+    translations:
+      fr:
+        title: 'Création de site web professionnel'
+        alias: /creation-site-web-professionnel
+      en:
+        title: 'Professional Website Creation'
+        alias: /professional-website-creation
+  - id: refonte-site-internet
+    entity_type: node
+    bundle: service
+    file: node/refonte-site-internet.yml
+    business_aliases:
+      fr: /refonte-site-internet
+      en: /website-redesign
+    translations:
+      fr:
+        title: 'Refonte de site internet'
+        alias: /refonte-site-internet
+      en:
+        title: 'Website Redesign'
+        alias: /website-redesign
+  - id: agence-web-belgique
+    entity_type: node
+    bundle: service
+    file: node/agence-web-belgique.yml
+    business_aliases:
+      fr: /agence-web-belgique
+      en: /web-agency-belgium
+    translations:
+      fr:
+        title: 'Agence web Belgique'
+        alias: /agence-web-belgique
+      en:
+        title: 'Web Agency Belgium'
+        alias: /web-agency-belgium
+  - id: agence-web-liege
+    entity_type: node
+    bundle: service
+    file: node/agence-web-liege.yml
+    business_aliases:
+      fr: /agence-web-liege
+      en: /web-agency-liege
+    translations:
+      fr:
+        title: 'Agence web Liège'
+        alias: /agence-web-liege
+      en:
+        title: 'Web Agency Liège'
+        alias: /web-agency-liege
+  - id: site-web-pme
+    entity_type: node
+    bundle: service
+    file: node/site-web-pme.yml
+    business_aliases:
+      fr: /site-web-pme
+      en: /sme-website
+    translations:
+      fr:
+        title: 'Site web PME'
+        alias: /site-web-pme
+      en:
+        title: 'SME Website'
+        alias: /sme-website
+  - id: ia-pour-pme
+    entity_type: node
+    bundle: service
+    file: node/ia-pour-pme.yml
+    business_aliases:
+      fr: /ia-pour-pme
+      en: /ai-for-smes
+    translations:
+      fr:
+        title: 'IA pour PME'
+        alias: /ia-pour-pme
+      en:
+        title: 'AI for SMEs'
+        alias: /ai-for-smes
   - id: services
     entity_type: node
     bundle: page

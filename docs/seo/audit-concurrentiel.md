@@ -1,6 +1,8 @@
-# Audit concurrentiel SEO
+# Audit concurrentiel SEO strategique
 
-Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/284
+Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/286
+
+Ticket : 110 - Audit SEO strategique et repositionnement commercial
 
 Date : 2026-05-20
 
@@ -49,6 +51,11 @@ Sources externes qualitatives consultees :
 - Smidjan : https://smidjan.be/
 - LTC AI : https://www.ltcai.be/
 - SYNAPZ : https://www.synapz.be/
+- Agent IA PME : https://agentia-pme.com/
+- Pulse IA : https://www.pulseia.tech/
+- Processia : https://www.processia.be/
+- BEWAIZE : https://www.bewaize.com/
+- Corellia : https://www.corellia.be/
 
 Limite : cet audit est qualitatif. Les volumes, positions et difficultes de
 mots-cles devront etre valides plus tard via Google Search Console, Keyword
@@ -61,8 +68,9 @@ Planner, Semrush, Ahrefs ou SE Ranking.
 | Grandes agences Drupal / DXP | Dropsolid, iO, Actency, Adimeo | Capacite, equipe, references, plateformes complexes | Autorite forte sur "Drupal", "DXP", "agence Drupal" | Se positionner comme partenaire senior plus direct, moins lourd, adapte PME/ASBL/institutions |
 | Studios Drupal / Symfony locaux | Minsky, Caravane Media | Proximite, Drupal, Symfony, applications web, integrations | Concurrence directe sur Bruxelles et Belgique | Ajouter l'angle IA encadree, SEO technique, contenu structure et gouvernance |
 | Agences web generalistes | Qreative, Pushweb, Webiris, WebKrea, agences locales | Creation site web, SEO, visibilite, prix, rapidite | Captent les recherches non techniques avant que Drupal soit considere | Creer des pages "creation site web professionnel" et "refonte site internet" sans perdre le niveau senior |
-| Agences SEO / GEO / IA | Inside Web, Adimeo GEO, Smidjan, LTC AI, SYNAPZ | Visibilite Google + IA, automatisation, agents IA, ROI | Occupent vite le vocabulaire "IA pour PME", "GEO", "automatisation" | Relier IA a des cas CMS concrets, validation humaine, RGPD, contenus et workflows |
+| Agences SEO / GEO / IA | Inside Web, Adimeo GEO, Smidjan, LTC AI, SYNAPZ, Agent IA PME, Pulse IA, Processia, BEWAIZE | Visibilite Google + IA, automatisation, agents IA, ROI | Occupent vite le vocabulaire "IA pour PME", "GEO", "automatisation" | Relier IA a des cas CMS concrets, validation humaine, RGPD, contenus et workflows |
 | Freelances PHP / Symfony / Laravel | Consultants et petites structures | Flexibilite, developpement sur mesure, cout plus bas | Captent les besoins applicatifs hors CMS | Expliquer quand Drupal suffit, quand Symfony/Laravel est pertinent, et comment PHP sert l'architecture globale |
+| Developpeurs web sur mesure | Corellia, E-dem, studios PHP locaux | Applications metier, ERP, API, modernisation, IA integree | Captent les besoins "developpement web sur mesure" sans logique CMS | Positionner PHP comme socle durable reliant CMS, outils metier, automatisation et qualite |
 
 ## Lectures par acteur
 
@@ -227,7 +235,8 @@ Angle E-merging Digital :
 
 ### Agences IA / automatisation
 
-Exemples : LTC AI, SYNAPZ, Pulse IA, Processia, Skalia, Smidjan.
+Exemples : LTC AI, SYNAPZ, Agent IA PME, Pulse IA, Processia, BEWAIZE, Skys,
+Advisia, Smidjan.
 
 Forces observees :
 
@@ -235,6 +244,8 @@ Forces observees :
   gratuit, ROI, process en etapes.
 - Ciblage PME explicite.
 - CTA simples et promesse de resultat rapide.
+- Offres souvent packagisees autour d'un diagnostic, d'un audit gratuit ou d'un
+  premier cas d'usage livre rapidement.
 
 Faiblesses exploitables :
 
@@ -242,11 +253,62 @@ Faiblesses exploitables :
   SEO et la gouvernance.
 - Promesses parfois tres agressives ou difficiles a tenir dans des contextes
   sensibles.
+- Faible differenciation sur la maintenabilite, la documentation, les droits
+  editoriaux, le multilingue et la securite long terme.
 
 Angle E-merging Digital :
 
 - IA encadree, pas gadget : cas d'usage lies au contenu, au SEO, a la traduction,
   au support editorial et aux workflows Drupal/PHP, avec validation humaine.
+- Promesse opposee aux raccourcis : diagnostic, cadrage, integration, mesure,
+  documentation et limites explicites.
+
+### Acteurs PHP / applications sur mesure
+
+Exemples : Corellia, E-dem, freelances Symfony/Laravel, studios applicatifs.
+
+Forces observees :
+
+- Vocabulaire oriente metier : applications, ERP, API, modernisation, workflows,
+  integration d'outils existants.
+- Bonne adequation aux requetes "developpement web sur mesure", "application
+  metier", "Symfony" et "Laravel".
+- Capacite a parler de dette technique, maintenance et evolution logicielle.
+
+Faiblesses exploitables :
+
+- Le CMS, la gouvernance editoriale, le SEO de contenu et le multilingue sont
+  souvent secondaires.
+- Le prospect non technique peut avoir du mal a comprendre quand il faut une
+  application, un CMS ou une combinaison des deux.
+
+Angle E-merging Digital :
+
+- Devenir l'acteur qui arbitre clairement entre site professionnel, Drupal,
+  Symfony, Laravel, integration et IA, sans pousser une technologie par reflexe.
+
+## Positionnement WordPress dans la concurrence
+
+Le marche generaliste et PME reste tres expose a WordPress : cout d'entree,
+ecosysteme large, nombreux studios, promesses rapides. E-merging Digital ne doit
+pas chercher a concurrencer ces acteurs comme agence WordPress generaliste.
+
+Les opportunites SEO WordPress doivent rester limitees a des situations ou
+l'expertise senior apporte une valeur claire :
+
+- audit d'un site WordPress devenu lent, fragile ou difficile a maintenir ;
+- reprise d'un existant avec dette technique, plugins nombreux ou securite
+  incertaine ;
+- migration WordPress vers Drupal quand le contenu, les roles, le multilingue
+  ou la gouvernance depassent les limites de l'existant ;
+- optimisation SEO technique, accessibilite, performance et stabilite ;
+- montee en maturite technique sans promesse de "refonte pas chere".
+
+Message a tenir :
+
+> WordPress peut rester pertinent pour des besoins simples. E-merging Digital
+> intervient lorsque l'existant doit etre audite, securise, optimise, migre ou
+> transforme en plateforme plus durable.
 
 ## Opportunites SEO non exploitees
 

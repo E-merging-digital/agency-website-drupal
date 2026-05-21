@@ -28,6 +28,18 @@ Vérifier avant tout déploiement :
 - fichier partagé `settings.php` déjà présent :
   `/var/www/agency/shared/settings/settings.php`.
 
+Le fichier partagé `settings.php` de production doit activer le split production
+avant `drush cim` avec :
+
+```php
+$config['config_split.config_split.production']['status'] = TRUE;
+```
+
+Le `settings.php` versionné reste local-safe et garde ce split désactivé pour
+que GA4 soit absent en local/DDEV. Sans cette activation dans le settings de
+production, la configuration GA4 stockée dans `config/splits/production` reste
+volontairement inactive.
+
 ## 3) Procédure de déploiement manuel
 
 > Exemple avec la branche `main`. Adapter `BRANCH` selon la version à déployer.

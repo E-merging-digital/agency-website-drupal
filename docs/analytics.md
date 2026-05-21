@@ -19,7 +19,8 @@ Le module historique `google_analytics` n'est pas retenu ici pour éviter une ap
 
 - Le module `google_tag` est activé dans la config Drupal.
 - La configuration `google_tag.container.default` existe en base mais est **inactive par défaut** dans `config/sync` (local/DDEV).
-- Le split `production` porte la version active de `google_tag.container.default` avec un ID de mesure.
+- Le split `production` porte la configuration active `google_tag.settings` et
+  le conteneur `google_tag.container.G-K5TDNZCPTY.69f8b7287a84a3.47771255`.
 
 Valeur placeholder utilisée si l'ID réel n'est pas encore fourni :
 
@@ -37,7 +38,7 @@ Exemple attendu pour GA4 en production :
 
 ```yaml
 tag_container_ids:
-  google_tag: G-K5TDNZCPTY
+  - G-K5TDNZCPTY
 ```
 
 ⚠️ Attention : selon la version majeure du module, la structure YAML peut différer. Toujours vérifier le schéma attendu par la version installée avant de modifier la config.
@@ -47,7 +48,10 @@ tag_container_ids:
 Le split concerné est : `config_split.config_split.production`.
 
 - Dans `config/sync`, ce split reste avec `status: false`.
-- En production uniquement, `settings.php` force son activation avec :
+- Dans le `settings.php` versionné, ce split est explicitement désactivé pour
+  garantir l'absence de tracking en local/DDEV.
+- En production uniquement, le `settings.php` propre au serveur doit activer le
+  split avec :
 
 ```php
 $config['config_split.config_split.production']['status'] = TRUE;
@@ -58,7 +62,8 @@ Ce mécanisme permet de conserver une base locale/dev sûre (tracking désactiv�
 ### Important
 
 - `settings.php` de production n'est **pas versionné** dans ce dépôt.
-- Cette ligne ne doit **pas** être ajoutée dans la configuration locale/DDEV.
+- La ligne d'activation doit rester dans le `settings.php` de production, pas
+  dans le `settings.php` local/versionné.
 - En local (DDEV), le split `production` doit rester désactivé.
 
 ### Effet attendu
@@ -73,6 +78,12 @@ Méthodes recommandées :
 1. Ouvrir la home en production puis inspecter le HTML rendu.
 2. Vérifier la présence des marqueurs Google Tag (`gtag` / chargement Google tag).
 3. Utiliser Tag Assistant (ou DevTools réseau) pour confirmer le chargement.
+4. Après déploiement, contrôler aussi les pages publiques FR/EN avec :
+
+```powershell
+(Invoke-WebRequest "https://emergingdigital.be/fr").Content | Select-String "googletagmanager|gtag|G-K5TDNZCPTY"
+(Invoke-WebRequest "https://emergingdigital.be/en").Content | Select-String "googletagmanager|gtag|G-K5TDNZCPTY"
+```
 
 ## Vérifier qu'il est absent en local/DDEV
 

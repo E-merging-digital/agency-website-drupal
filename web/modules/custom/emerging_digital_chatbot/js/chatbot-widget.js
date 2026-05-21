@@ -39,10 +39,16 @@
           'textarea:not([disabled])',
           'input:not([disabled])',
           'select:not([disabled])',
+          'summary',
           '[tabindex]:not([tabindex="-1"])',
         ].join(',');
 
         const openPanel = () => {
+          const transparency = widget.querySelector('.ed-chatbot__transparency');
+          if (transparency instanceof HTMLDetailsElement) {
+            transparency.open = false;
+          }
+
           panel.hidden = false;
           launcher.setAttribute('aria-expanded', 'true');
           widget.classList.add('is-open');
@@ -70,6 +76,30 @@
           body.scrollTop = body.scrollHeight;
         };
 
+        const addTransparency = (text) => {
+          if (!text) {
+            return;
+          }
+
+          const details = document.createElement('details');
+          details.className = 'ed-chatbot__transparency';
+
+          const summary = document.createElement('summary');
+          summary.className = 'ed-chatbot__transparency-summary';
+          summary.textContent = payload.langcode === 'fr'
+            ? 'Assistant guidé - pas de conservation durable'
+            : 'Guided assistant - no long-term storage';
+          details.appendChild(summary);
+
+          const detail = document.createElement('p');
+          detail.className = 'ed-chatbot__transparency-detail';
+          detail.textContent = text;
+          details.appendChild(detail);
+
+          messageList.appendChild(details);
+          body.scrollTop = body.scrollHeight;
+        };
+
         const createButton = (label, flowId) => {
           const button = document.createElement('button');
           button.type = 'button';
@@ -89,7 +119,7 @@
 
         const getBackLabel = () => (payload.langcode === 'fr' ? 'Changer de besoin' : 'Change need');
 
-        const getChoiceLabel = () => (payload.langcode === 'fr' ? 'Que souhaitez-vous faire ?' : 'What would you like to do?');
+        const getChoiceLabel = () => messages.choose_label || (payload.langcode === 'fr' ? 'Que souhaitez-vous faire ?' : 'What would you like to do?');
 
         const getSelectedLabel = () => (payload.langcode === 'fr' ? 'Besoin sélectionné' : 'Selected need');
 
@@ -151,7 +181,7 @@
 
           const list = document.createElement('div');
           list.className = 'ed-chatbot__choice-list';
-          Object.keys(messages.flows || {}).slice(0, 5).forEach((flowId) => {
+          Object.keys(messages.flows || {}).forEach((flowId) => {
             const flow = messages.flows[flowId];
             if (flow && flow.label) {
               list.appendChild(createButton(flow.label, flowId));
@@ -164,7 +194,7 @@
         const renderWelcome = () => {
           clear(messageList);
           addMessage(messages.intro || '', 'assistant');
-          addMessage(messages.transparency || '', 'note');
+          addTransparency(messages.transparency || '');
         };
 
         const renderFlowResponse = (flow) => {

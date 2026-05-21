@@ -26,8 +26,9 @@ components:
           field_text:
             - value: >-
                 Contactez E-merging Digital pour cadrer un projet Drupal, un
-                audit, une refonte ou une évolution IA avec une réponse claire
-                et humaine.
+                audit, une refonte ou une évolution IA. Plus votre contexte est
+                clair, plus notre réponse humaine peut être utile dès le premier
+                échange.
               format: basic_html
       en:
         fields:
@@ -36,7 +37,8 @@ components:
           field_text:
             - value: >-
                 Contact E-merging Digital to frame a Drupal project, audit,
-                redesign, or AI evolution with a clear and human response.
+                redesign, or AI evolution. The clearer your context, the more
+                useful our human response can be from the first exchange.
               format: basic_html
   - id: contact.form
     legacy_uuid: 855b08da-0ec9-4261-883a-d27f214606e6
@@ -45,21 +47,27 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Décrivez votre besoin'
+            - value: 'Qualifier votre demande'
           field_text:
             - value: >-
-                Les champs de qualification sont optionnels : ils nous aident à
-                répondre plus vite, sans rallonger inutilement la prise de
-                contact.
+                Vous pouvez indiquer le contexte du projet, le type de besoin
+                (création, refonte, maintenance, audit, IA), l’URL du site
+                existant, un budget indicatif optionnel, les délais souhaités
+                et votre niveau de maturité. Ne transmettez pas de mots de
+                passe, secrets, données sensibles, documents confidentiels ou
+                données personnelles de tiers.
               format: basic_html
       en:
         fields:
           field_heading:
-            - value: 'Describe your need'
+            - value: 'Qualify your request'
           field_text:
             - value: >-
-                The qualification fields are optional: they help us respond
-                faster without making the first contact unnecessarily long.
+                You can share the project context, need type (build, redesign,
+                maintenance, audit, AI), existing website URL, optional
+                indicative budget, desired timeline and maturity level. Do not
+                send passwords, secrets, sensitive data, confidential documents
+                or third-party personal data.
               format: basic_html
   - id: contact.intro
     legacy_uuid: 88affed2-d7e1-44bc-8607-28f0111fc123
@@ -75,7 +83,9 @@ components:
                 <a href="/fr/services">services Drupal</a>, l’offre
                 <a href="/fr/audit-drupal">audit Drupal</a>, les usages
                 <a href="/fr/ia-drupal">IA &amp; Drupal</a> ou quelques
-                <a href="/fr/cas-clients">cas clients</a>.</p>
+                <a href="/fr/cas-clients">cas clients</a>. Si vous hésitez,
+                décrivez simplement le problème à résoudre et les contraintes à
+                respecter.</p>
               format: basic_html
       en:
         fields:
@@ -87,7 +97,9 @@ components:
                 <a href="/en/services">Drupal services</a>,
                 <a href="/en/drupal-audit">Drupal audit</a>,
                 <a href="/en/ai-drupal">AI &amp; Drupal</a> use cases, or a
-                few <a href="/en/case-studies">case studies</a>.</p>
+                few <a href="/en/case-studies">case studies</a>. If you are
+                unsure, simply describe the problem to solve and the constraints
+                to respect.</p>
               format: basic_html
   - id: contact.information
     legacy_uuid: 8236e39f-2bcf-4758-a441-c9f6eb8f75f6
@@ -106,6 +118,9 @@ components:
                 éditoriale et à la maintenabilité Drupal.</p>
                 <p>Pas de proposition automatique : nous qualifions d’abord le
                 besoin réel.</p>
+                <p>Pour un premier échange efficace, précisez ce qui existe
+                déjà, ce qui doit changer, les publics concernés, l’urgence
+                éventuelle et les décisions déjà prises.</p>
               format: basic_html
       en:
         fields:
@@ -119,6 +134,9 @@ components:
                 <p>Attention to accessibility, SEO, editorial governance, and
                 Drupal maintainability.</p>
                 <p>No automated proposal: we first qualify the real need.</p>
+                <p>For an efficient first conversation, mention what already
+                exists, what needs to change, the audiences involved, any
+                urgency and decisions already made.</p>
               format: basic_html
   - id: contact.coordinates
     legacy_uuid: aace78f7-e456-4e99-a6bb-29d3129696ad

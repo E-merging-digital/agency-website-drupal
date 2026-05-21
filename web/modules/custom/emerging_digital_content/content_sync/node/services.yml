@@ -31,6 +31,12 @@ components:
                 Drupal pour les projets structurés, parcours business lisibles
                 et IA utile avec validation humaine.
               format: basic_html
+          field_link:
+            - uri: 'internal:/fr/contact'
+              title: 'Qualifier mon projet'
+          field_secondary_link:
+            - uri: 'internal:/fr/cas-clients'
+              title: 'Voir des cas similaires'
       en:
         fields:
           field_heading:
@@ -42,6 +48,12 @@ components:
                 structured projects, clear business journeys and useful AI with
                 human validation.
               format: basic_html
+          field_link:
+            - uri: 'internal:/en/contact'
+              title: 'Qualify my project'
+          field_secondary_link:
+            - uri: 'internal:/en/case-studies'
+              title: 'See similar cases'
   - id: services.intro
     legacy_uuid: 2eb8e4b6-37d0-47cc-8702-7a850dd94c15
     bundle: text_block
@@ -53,7 +65,9 @@ components:
                 La page Services n’est pas un catalogue : elle sert à choisir
                 le bon parcours. Commencez par le besoin métier, vérifiez le
                 niveau d’exigence technique, puis cadrez l’IA uniquement quand
-                elle apporte une valeur mesurable.
+                elle apporte une valeur mesurable. Si le périmètre reste flou,
+                préparez d’abord votre contexte, vos contraintes, votre horizon
+                et votre niveau de maturité avant de nous contacter.
               format: basic_html
       en:
         fields:
@@ -62,6 +76,8 @@ components:
                 The Services page is not a catalogue: it helps choose the right
                 path. Start with the business need, check the technical level
                 required, then frame AI only when it creates measurable value.
+                If the scope is still unclear, first prepare your context,
+                constraints, timeline and maturity level before contacting us.
               format: basic_html
   - id: services.grid
     legacy_uuid: 11c3e2e1-78c9-491d-814c-b204bc2f5338
@@ -310,11 +326,15 @@ components:
                 Vous préparez une création, une refonte ou une évolution Drupal
                 avec des enjeux de contenu, de SEO ou d’IA ? Nous pouvons
                 clarifier le besoin, prioriser les risques et proposer un
-                chemin réaliste, durable et maintenable.
+                chemin réaliste, durable et maintenable. Pour gagner du temps,
+                indiquez le contexte, le type de besoin, l’état de l’existant,
+                le délai souhaité et le niveau de maturité. Ne transmettez pas
+                de données sensibles, secrets ou accès techniques via le
+                formulaire.
               format: basic_html
           field_link:
             - uri: 'internal:/fr/contact'
-              title: 'Parler de votre projet'
+              title: 'Qualifier mon projet'
       en:
         fields:
           field_text:
@@ -322,7 +342,10 @@ components:
                 Planning a build, redesign or Drupal evolution with content,
                 SEO or AI constraints? We can clarify the need, prioritize
                 risks and propose a realistic, durable and maintainable path.
+                To save time, include the context, need type, current state,
+                desired timeline and maturity level. Do not send sensitive
+                data, secrets or technical access through the form.
               format: basic_html
           field_link:
             - uri: 'internal:/en/contact'
-              title: 'Discuss your project'
+              title: 'Qualify my project'

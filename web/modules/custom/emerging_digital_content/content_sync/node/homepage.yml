@@ -33,7 +33,7 @@ components:
               format: basic_html
           field_link:
             - uri: 'internal:/fr/contact'
-              title: 'Parler de votre projet'
+              title: 'Qualifier mon projet'
           field_secondary_link:
             - uri: 'internal:/fr/services'
               title: 'Voir les expertises'
@@ -50,7 +50,7 @@ components:
               format: basic_html
           field_link:
             - uri: 'internal:/en/contact'
-              title: 'Discuss your project'
+              title: 'Qualify my project'
           field_secondary_link:
             - uri: 'internal:/en/services'
               title: 'See our expertise'
@@ -66,9 +66,10 @@ components:
             - value: >-
                 Emerging Digital accompagne les organisations qui veulent un
                 site clair pour leurs publics, solide pour leurs équipes et
-                prêt à évoluer. Nous partons des enjeux métier, cadrons les
-                bons usages IA et construisons sur un socle PHP moderne :
-                Drupal, Symfony ou Laravel selon le contexte.
+                prêt à évoluer. Nous partons des enjeux métier, qualifions les
+                priorités, cadrons les bons usages IA et construisons sur un
+                socle PHP moderne : Drupal, Symfony ou Laravel selon le
+                contexte.
               format: basic_html
       en:
         fields:
@@ -78,9 +79,9 @@ components:
             - value: >-
                 Emerging Digital supports organizations that need a website
                 clear for their audiences, solid for their teams and ready to
-                evolve. We start from business needs, frame the right AI uses
-                and build on a modern PHP foundation: Drupal, Symfony or
-                Laravel depending on the context.
+                evolve. We start from business needs, qualify priorities,
+                frame the right AI uses and build on a modern PHP foundation:
+                Drupal, Symfony or Laravel depending on the context.
               format: basic_html
   - id: homepage.services
     legacy_uuid: efdbbfe1-aec4-4cbb-be3d-33f3fe5966ac
@@ -347,31 +348,35 @@ components:
       fr:
         fields:
           field_heading:
-            - value: 'Vous préparez une création, une refonte ou une automatisation ?'
+            - value: 'Prêt à qualifier votre projet ?'
           field_text:
             - value: >-
-                Parlons de votre contexte, de vos priorités business et du
-                niveau de maturité technique attendu. Nous pouvons cadrer une
-                création de site, une refonte, un audit, une modernisation PHP
-                ou un premier workflow IA. Vous pouvez aussi consulter nos <a
-                href="/fr/services">services</a> et notre approche <a
-                href="/fr/ia-drupal">IA &amp; Drupal</a>.
+                Préparez le contexte, le type de besoin, l’état de votre site
+                existant, l’horizon souhaité et les contraintes principales.
+                Nous pourrons ensuite cadrer une création, une refonte, un
+                audit, une modernisation PHP ou un premier workflow IA. Merci
+                de ne pas transmettre de mots de passe, secrets, données
+                sensibles ou documents confidentiels via le formulaire. Vous
+                pouvez aussi consulter nos <a href="/fr/services">services</a>
+                et notre approche <a href="/fr/ia-drupal">IA &amp; Drupal</a>.
               format: basic_html
           field_link:
             - uri: 'internal:/fr/contact'
-              title: 'Demander un cadrage'
+              title: 'Qualifier mon projet'
       en:
         fields:
           field_heading:
-            - value: 'Planning a build, a redesign or an automation?'
+            - value: 'Ready to qualify your project?'
           field_text:
             - value: >-
-                Let's discuss your context, business priorities and expected
-                technical maturity. We can scope a website build, redesign,
-                audit, PHP modernization or a first AI workflow. You can also
+                Prepare the context, need type, existing website status,
+                desired timeline and main constraints. We can then scope a
+                website build, redesign, audit, PHP modernization or first AI
+                workflow. Please do not send passwords, secrets, sensitive data
+                or confidential documents through the form. You can also
                 explore our <a href="/en/services">services</a> and our <a
                 href="/en/ai-drupal">AI &amp; Drupal</a> approach.
               format: basic_html
           field_link:
             - uri: 'internal:/en/contact'
-              title: 'Request scoping'
+              title: 'Qualify my project'

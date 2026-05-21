@@ -1,0 +1,94 @@
+translations:
+  fr:
+    title: 'Chatbot de qualification'
+    alias: /ia-drupal/chatbot-qualification
+    fields:
+      field_short_description:
+        value: >-
+          Cadrer un chatbot de qualification relié aux contenus Drupal, sans
+          collecte inutile ni réponse automatique hors contrôle.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Le chatbot de qualification présenté ici reste un contenu de
+          cadrage éditorial : il décrit comment orienter un visiteur vers la
+          bonne page, le bon service ou le formulaire de contact, sans ajouter
+          d’implémentation chatbot dans ce ticket.</p><p>Cas d’usage concret :
+          une PME reçoit des demandes très variées. Le futur assistant pourrait
+          distinguer création, refonte, maintenance ou audit Drupal, puis
+          proposer les pages utiles avant le contact.</p><p><strong>Workflow IA
+          crédible :</strong></p><ol><li>Les intentions de qualification sont
+          listées depuis les contenus existants.</li><li>Les réponses restent
+          limitées aux pages validées et à des messages non sensibles.</li><li>Les
+          chemins vers <a href="/fr/services">services</a>, <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a> et <a
+          href="/fr/contact">contact</a> sont localisés.</li><li>Les échanges
+          sensibles sont renvoyés vers une personne.</li></ol><p>Cette fiche
+          documente le besoin sans créer d’appel OpenAI, sans modifier le
+          chatbot et sans changer les menus.</p><p><strong><a
+          href="/fr/contact">Discuter d’une qualification IA encadrée</a></strong>
+          à partir de vos parcours Drupal existants.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Des demandes mieux orientées vers les bons services, avec un cadre
+          clair pour éviter la collecte inutile de données.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Un visiteur hésite entre audit et maintenance : le parcours l’oriente
+          vers les pages Drupal pertinentes puis vers le contact si le besoin
+          est confirmé.
+        format: basic_html
+      field_use_cases:
+        - value: 'Qualifier une demande avant le formulaire de contact.'
+          format: basic_html
+        - value: 'Orienter vers les pages services localisées.'
+          format: basic_html
+        - value: 'Limiter les réponses aux contenus validés.'
+          format: basic_html
+  en:
+    title: 'Qualification chatbot'
+    alias: /ai-drupal/qualification-chatbot
+    fields:
+      field_short_description:
+        value: >-
+          Scope a qualification chatbot connected to Drupal content, without
+          unnecessary data collection or unmanaged automatic answers.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>The qualification chatbot described here remains editorial scoping:
+          it explains how to guide a visitor to the right page, service or
+          contact form, without adding chatbot implementation in this ticket.</p>
+          <p>Concrete use case: an SME receives very different requests. A
+          future assistant could distinguish Drupal build, redesign,
+          maintenance or audit needs, then suggest useful pages before
+          contact.</p><p><strong>Credible AI workflow:</strong></p><ol><li>Qualification
+          intents are listed from existing content.</li><li>Answers remain
+          limited to approved pages and non-sensitive messages.</li><li>Paths
+          to <a href="/en/services">services</a>, <a href="/en/ai-drupal">AI
+          &amp; Drupal</a> and <a href="/en/contact">contact</a> are
+          localised.</li><li>Sensitive exchanges are redirected to a person.</li></ol>
+          <p>This page documents the need without creating OpenAI calls, without
+          modifying the chatbot and without changing menus.</p><p><strong><a
+          href="/en/contact">Discuss governed AI qualification</a></strong>
+          based on your existing Drupal journeys.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Requests better routed to the right services, with a clear framework
+          to avoid unnecessary data collection.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          A visitor hesitates between audit and maintenance: the journey points
+          to relevant Drupal pages, then to contact when the need is confirmed.
+        format: basic_html
+      field_use_cases:
+        - value: 'Qualify a request before the contact form.'
+          format: basic_html
+        - value: 'Guide visitors to localised service pages.'
+          format: basic_html
+        - value: 'Limit answers to approved content.'
+          format: basic_html

@@ -226,6 +226,62 @@ contents:
       en:
         title: 'AI & Drupal'
         alias: /ai-drupal
+  - id: ai-automatisation-contenu-drupal
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-automatisation-contenu-drupal.yml
+    business_aliases:
+      fr: /ia-drupal/automatisation-contenu-drupal
+      en: /ai-drupal/drupal-content-automation
+    translations:
+      fr:
+        title: 'Automatisation de contenu Drupal'
+        alias: /ia-drupal/automatisation-contenu-drupal
+      en:
+        title: 'Drupal content automation'
+        alias: /ai-drupal/drupal-content-automation
+  - id: ai-generation-multilingue
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-generation-multilingue.yml
+    business_aliases:
+      fr: /ia-drupal/generation-multilingue
+      en: /ai-drupal/multilingual-generation
+    translations:
+      fr:
+        title: 'Génération multilingue'
+        alias: /ia-drupal/generation-multilingue
+      en:
+        title: 'Multilingual generation'
+        alias: /ai-drupal/multilingual-generation
+  - id: ai-chatbot-qualification
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-chatbot-qualification.yml
+    business_aliases:
+      fr: /ia-drupal/chatbot-qualification
+      en: /ai-drupal/qualification-chatbot
+    translations:
+      fr:
+        title: 'Chatbot de qualification'
+        alias: /ia-drupal/chatbot-qualification
+      en:
+        title: 'Qualification chatbot'
+        alias: /ai-drupal/qualification-chatbot
+  - id: ai-audit-intelligent
+    entity_type: node
+    bundle: ai_feature
+    file: node/ai-audit-intelligent.yml
+    business_aliases:
+      fr: /ia-drupal/audit-intelligent
+      en: /ai-drupal/intelligent-audit
+    translations:
+      fr:
+        title: 'Audit intelligent'
+        alias: /ia-drupal/audit-intelligent
+      en:
+        title: 'Intelligent audit'
+        alias: /ai-drupal/intelligent-audit
   - id: ai-redaction-assistee
     entity_type: node
     bundle: ai_feature

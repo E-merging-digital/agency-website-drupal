@@ -1,0 +1,93 @@
+translations:
+  fr:
+    title: 'Génération multilingue'
+    alias: /ia-drupal/generation-multilingue
+    fields:
+      field_short_description:
+        value: >-
+          Générer des variantes FR/EN cohérentes dans Drupal, avec liens
+          localisés, contrôle du sens et relecture bilingue.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>La génération multilingue prépare des variantes françaises et
+          anglaises adaptées au contexte du site. Elle ne remplace pas la
+          traduction professionnelle : elle structure une première base,
+          conserve les liens localisés et signale les points à relire.</p><p>Cas
+          d’usage concret : une institution publie une page en français et veut
+          préparer une version anglaise alignée. L’assistant conserve les H2,
+          adapte les CTA vers les pages EN et liste les termes sensibles à
+          vérifier.</p><p><strong>Workflow IA crédible :</strong></p><ol><li>La
+          source est validée dans Drupal avant génération.</li><li>L’assistant
+          prépare la variante dans l’autre langue avec des liens préfixés.</li>
+          <li>Une personne bilingue vérifie le sens, le ton et les termes
+          métier.</li><li>Les deux versions sont publiées avec aliases et
+          hreflang cohérents.</li></ol><p>Cette approche renforce la page <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a>, l’offre <a
+          href="/fr/ia-integree">IA intégrée</a> et les <a
+          href="/fr/services">services Drupal</a>.</p><p><strong><a
+          href="/fr/contact">Préparer un workflow multilingue Drupal</a></strong>
+          pour vos contenus FR/EN prioritaires.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Des variantes FR/EN produites plus vite, mieux reliées entre elles et
+          contrôlées avant publication.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Une page d’information FR est préparée en EN avec les mêmes sections,
+          des CTA localisés et une liste de termes à confirmer.
+        format: basic_html
+      field_use_cases:
+        - value: 'Préparer une variante anglaise depuis une page française.'
+          format: basic_html
+        - value: 'Localiser les liens internes dans chaque langue.'
+          format: basic_html
+        - value: 'Comparer le sens avant validation bilingue.'
+          format: basic_html
+  en:
+    title: 'Multilingual generation'
+    alias: /ai-drupal/multilingual-generation
+    fields:
+      field_short_description:
+        value: >-
+          Generate coherent FR/EN variants in Drupal, with localised links,
+          meaning checks and bilingual review.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Multilingual generation prepares French and English variants that
+          fit the site context. It does not replace professional translation:
+          it structures a first base, preserves localised links and flags points
+          for review.</p><p>Concrete use case: an institution publishes a page
+          in French and wants an aligned English version. The assistant keeps
+          H2 headings, adapts CTAs to EN pages and lists sensitive terms to
+          verify.</p><p><strong>Credible AI workflow:</strong></p><ol><li>The
+          source is approved in Drupal before generation.</li><li>The assistant
+          prepares the other-language variant with prefixed links.</li><li>A
+          bilingual reviewer checks meaning, tone and business terms.</li><li>Both
+          versions are published with coherent aliases and hreflang.</li></ol>
+          <p>This approach strengthens the <a href="/en/ai-drupal">AI &amp;
+          Drupal</a> page, the <a href="/en/integrated-ai">integrated AI</a>
+          service and <a href="/en/services">Drupal services</a>.</p><p><strong><a
+          href="/en/contact">Prepare a multilingual Drupal workflow</a></strong>
+          for your priority FR/EN content.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          FR/EN variants produced faster, better connected to each other and
+          checked before publication.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          A French information page is prepared in English with the same
+          sections, localised CTAs and a list of terms to confirm.
+        format: basic_html
+      field_use_cases:
+        - value: 'Prepare an English variant from a French page.'
+          format: basic_html
+        - value: 'Localise internal links in each language.'
+          format: basic_html
+        - value: 'Compare meaning before bilingual approval.'
+          format: basic_html

@@ -426,6 +426,38 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $mapping_repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
 
     $expected_features = [
+      'ai-automatisation-contenu-drupal' => [
+        'fr_title' => 'Automatisation de contenu Drupal',
+        'en_title' => 'Drupal content automation',
+        'fr_alias' => '/ia-drupal/automatisation-contenu-drupal',
+        'en_alias' => '/ai-drupal/drupal-content-automation',
+        'fr_link' => '/fr/services',
+        'en_link' => '/en/services',
+      ],
+      'ai-generation-multilingue' => [
+        'fr_title' => 'Génération multilingue',
+        'en_title' => 'Multilingual generation',
+        'fr_alias' => '/ia-drupal/generation-multilingue',
+        'en_alias' => '/ai-drupal/multilingual-generation',
+        'fr_link' => '/fr/ia-integree',
+        'en_link' => '/en/integrated-ai',
+      ],
+      'ai-chatbot-qualification' => [
+        'fr_title' => 'Chatbot de qualification',
+        'en_title' => 'Qualification chatbot',
+        'fr_alias' => '/ia-drupal/chatbot-qualification',
+        'en_alias' => '/ai-drupal/qualification-chatbot',
+        'fr_link' => '/fr/services',
+        'en_link' => '/en/services',
+      ],
+      'ai-audit-intelligent' => [
+        'fr_title' => 'Audit intelligent',
+        'en_title' => 'Intelligent audit',
+        'fr_alias' => '/ia-drupal/audit-intelligent',
+        'en_alias' => '/ai-drupal/intelligent-audit',
+        'fr_link' => '/fr/audit-drupal',
+        'en_link' => '/en/drupal-audit',
+      ],
       'ai-redaction-assistee' => [
         'fr_title' => 'Rédaction assistée',
         'en_title' => 'Assisted writing',
@@ -529,7 +561,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       self::assertSame('updated', $mapping_repository->findByContentId($content_id)?->lastAction());
     }
 
-    self::assertSame(6, $this->countAiFeatureNodes());
+    self::assertSame(10, $this->countAiFeatureNodes());
   }
 
   /**
@@ -545,7 +577,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertTrue($dry_run['summary']['all']);
     self::assertTrue($dry_run['summary']['dry_run']);
     self::assertFalse($dry_run['summary']['blocking_errors']);
-    self::assertCount(22, $dry_run['content_reports']);
+    self::assertCount(33, $dry_run['content_reports']);
     self::assertSame('agence-drupal-belgique', $dry_run['content_reports'][0]['id']);
     self::assertSame('would create managed entity', $dry_run['content_reports'][0]['planned_operation']);
     self::assertSame('unmapped', $dry_run['content_reports'][0]['mapping_status']);
@@ -556,11 +588,11 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
 
     $first_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $first_apply['errors']);
-    self::assertSame(8, $this->countServiceNodes());
-    self::assertSame(8, $this->countPageNodes());
-    self::assertSame(6, $this->countAiFeatureNodes());
+    self::assertSame(14, $this->countServiceNodes());
+    self::assertSame(9, $this->countPageNodes());
+    self::assertSame(10, $this->countAiFeatureNodes());
     self::assertArrayHasKey('content_reports', $first_apply);
-    self::assertCount(22, $first_apply['content_reports']);
+    self::assertCount(33, $first_apply['content_reports']);
     self::assertSame('agence-drupal-belgique', $first_apply['content_reports'][0]['id']);
     self::assertSame('creation-site-drupal', $first_apply['content_reports'][1]['id']);
     self::assertSame('maintenance-drupal', $first_apply['content_reports'][2]['id']);
@@ -569,20 +601,31 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertSame('audit-drupal', $first_apply['content_reports'][5]['id']);
     self::assertSame('accessibilite-seo-optimisation', $first_apply['content_reports'][6]['id']);
     self::assertSame('ia-integree', $first_apply['content_reports'][7]['id']);
-    self::assertSame('services', $first_apply['content_reports'][8]['id']);
-    self::assertSame('ia-drupal', $first_apply['content_reports'][9]['id']);
-    self::assertSame('ai-redaction-assistee', $first_apply['content_reports'][10]['id']);
-    self::assertSame('ai-correction-editoriale', $first_apply['content_reports'][11]['id']);
-    self::assertSame('ai-traduction-fr-en', $first_apply['content_reports'][12]['id']);
-    self::assertSame('ai-resumes-tags-structure', $first_apply['content_reports'][13]['id']);
-    self::assertSame('ai-seo-liens-internes', $first_apply['content_reports'][14]['id']);
-    self::assertSame('ai-gouvernance-validation', $first_apply['content_reports'][15]['id']);
-    self::assertSame('cas-clients', $first_apply['content_reports'][16]['id']);
-    self::assertSame('contact', $first_apply['content_reports'][17]['id']);
-    self::assertSame('mentions-legales', $first_apply['content_reports'][18]['id']);
-    self::assertSame('politique-confidentialite', $first_apply['content_reports'][19]['id']);
-    self::assertSame('politique-cookies', $first_apply['content_reports'][20]['id']);
-    self::assertSame('homepage', $first_apply['content_reports'][21]['id']);
+    self::assertSame('creation-site-web-professionnel', $first_apply['content_reports'][8]['id']);
+    self::assertSame('refonte-site-internet', $first_apply['content_reports'][9]['id']);
+    self::assertSame('agence-web-belgique', $first_apply['content_reports'][10]['id']);
+    self::assertSame('agence-web-liege', $first_apply['content_reports'][11]['id']);
+    self::assertSame('site-web-pme', $first_apply['content_reports'][12]['id']);
+    self::assertSame('ia-pour-pme', $first_apply['content_reports'][13]['id']);
+    self::assertSame('services', $first_apply['content_reports'][14]['id']);
+    self::assertSame('ia-drupal', $first_apply['content_reports'][15]['id']);
+    self::assertSame('ai-automatisation-contenu-drupal', $first_apply['content_reports'][16]['id']);
+    self::assertSame('ai-generation-multilingue', $first_apply['content_reports'][17]['id']);
+    self::assertSame('ai-chatbot-qualification', $first_apply['content_reports'][18]['id']);
+    self::assertSame('ai-audit-intelligent', $first_apply['content_reports'][19]['id']);
+    self::assertSame('ai-redaction-assistee', $first_apply['content_reports'][20]['id']);
+    self::assertSame('ai-correction-editoriale', $first_apply['content_reports'][21]['id']);
+    self::assertSame('ai-traduction-fr-en', $first_apply['content_reports'][22]['id']);
+    self::assertSame('ai-resumes-tags-structure', $first_apply['content_reports'][23]['id']);
+    self::assertSame('ai-seo-liens-internes', $first_apply['content_reports'][24]['id']);
+    self::assertSame('ai-gouvernance-validation', $first_apply['content_reports'][25]['id']);
+    self::assertSame('cas-clients', $first_apply['content_reports'][26]['id']);
+    self::assertSame('equipe', $first_apply['content_reports'][27]['id']);
+    self::assertSame('contact', $first_apply['content_reports'][28]['id']);
+    self::assertSame('mentions-legales', $first_apply['content_reports'][29]['id']);
+    self::assertSame('politique-confidentialite', $first_apply['content_reports'][30]['id']);
+    self::assertSame('politique-cookies', $first_apply['content_reports'][31]['id']);
+    self::assertSame('homepage', $first_apply['content_reports'][32]['id']);
 
     $mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($mapping);
@@ -594,15 +637,29 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertNotNull($mapping_repository->findByContentId('audit-drupal'));
     self::assertNotNull($mapping_repository->findByContentId('accessibilite-seo-optimisation'));
     self::assertNotNull($mapping_repository->findByContentId('ia-integree'));
+    self::assertNotNull($mapping_repository->findByContentId('creation-site-web-professionnel'));
+    self::assertNotNull($mapping_repository->findByContentId('refonte-site-internet'));
+    self::assertNotNull($mapping_repository->findByContentId('agence-web-belgique'));
+    self::assertNotNull($mapping_repository->findByContentId('agence-web-liege'));
+    self::assertNotNull($mapping_repository->findByContentId('site-web-pme'));
+    self::assertNotNull($mapping_repository->findByContentId('ia-pour-pme'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-automatisation-contenu-drupal'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-generation-multilingue'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-chatbot-qualification'));
+    self::assertNotNull($mapping_repository->findByContentId('ai-audit-intelligent'));
     self::assertNotNull($mapping_repository->findByContentId('ai-redaction-assistee'));
     self::assertNotNull($mapping_repository->findByContentId('ai-correction-editoriale'));
     self::assertNotNull($mapping_repository->findByContentId('ai-traduction-fr-en'));
     self::assertNotNull($mapping_repository->findByContentId('ai-resumes-tags-structure'));
     self::assertNotNull($mapping_repository->findByContentId('ai-seo-liens-internes'));
     self::assertNotNull($mapping_repository->findByContentId('ai-gouvernance-validation'));
+    self::assertNotNull($mapping_repository->findByContentId('cas-clients'));
+    self::assertNotNull($mapping_repository->findByContentId('equipe'));
+    self::assertNotNull($mapping_repository->findByContentId('contact'));
+    self::assertNotNull($mapping_repository->findByContentId('homepage'));
 
     $services_items = $this->serviceCardItems($this->loadMappedNodeByContentId('services'), 'fr');
-    self::assertCount(8, $services_items);
+    self::assertCount(18, $services_items);
     self::assertContains(
       'Création de site Drupal|Conception et développement de sites Drupal '
       . 'clairs, accessibles, performants et prêts pour le SEO.|/fr/creation-site-drupal',
@@ -640,7 +697,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     );
 
     $services_en_items = $this->serviceCardItems($this->loadMappedNodeByContentId('services'), 'en');
-    self::assertCount(8, $services_en_items);
+    self::assertCount(18, $services_en_items);
     self::assertContains(
       'Drupal Website Creation|Design and development of clear, accessible, '
       . 'performant Drupal websites ready for SEO.|/en/drupal-website-creation',
@@ -678,7 +735,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     );
 
     $homepage_items = $this->serviceCardItems($this->loadMappedNodeByContentId('homepage'), 'fr');
-    self::assertCount(8, $homepage_items);
+    self::assertCount(10, $homepage_items);
     self::assertContains(
       'Création de site Drupal|Un site Drupal conçu pour vos contenus, '
       . 'vos équipes et votre référencement naturel.|/fr/creation-site-drupal',
@@ -716,7 +773,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     );
 
     $homepage_en_items = $this->serviceCardItems($this->loadMappedNodeByContentId('homepage'), 'en');
-    self::assertCount(8, $homepage_en_items);
+    self::assertCount(10, $homepage_en_items);
     self::assertContains(
       'Migration and modernization|Resumption of existing sites, Drupal '
       . 'version upgrade, improvement of structure and performance.|/en/drupal-migration',
@@ -745,9 +802,9 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
 
     $second_apply = $manager->sync('', FALSE, TRUE);
     self::assertSame([], $second_apply['errors']);
-    self::assertSame(8, $this->countServiceNodes());
-    self::assertSame(8, $this->countPageNodes());
-    self::assertSame(6, $this->countAiFeatureNodes());
+    self::assertSame(14, $this->countServiceNodes());
+    self::assertSame(9, $this->countPageNodes());
+    self::assertSame(10, $this->countAiFeatureNodes());
 
     $updated_mapping = $mapping_repository->findByContentId('agence-drupal-belgique');
     self::assertNotNull($updated_mapping);
@@ -791,29 +848,30 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
     );
     self::assertSame(
-      'Services Drupal pour projets structurés et institutionnels',
+      'Services web senior, avec Drupal comme socle premium',
       $paragraphs[0]->get('field_heading')->value,
     );
-    self::assertSame('Nos services', $paragraphs[2]->get('field_heading')->value);
-    self::assertCount(6, $paragraphs[2]->get('field_items'));
+    self::assertSame('Trois parcours pour cadrer votre projet', $paragraphs[2]->get('field_heading')->value);
+    self::assertCount(18, $paragraphs[2]->get('field_items'));
     self::assertSame(
       'Pourquoi Drupal pour des projets exigeants',
       $paragraphs[3]->get('field_heading')->value,
     );
-    self::assertSame('Prendre contact', $paragraphs[4]->get('field_link')->title);
+    self::assertSame('Qualifier mon projet', $paragraphs[4]->get('field_link')->title);
 
     $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
     self::assertCount(5, $english_paragraphs);
     self::assertSame(
-      'Drupal services for structured and institutional projects',
+      'Senior web services, with Drupal as the premium foundation',
       $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertSame(
-      'Our services',
+      'Three paths to frame your project',
       $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
     );
+    self::assertCount(18, $english_paragraphs[2]->getTranslation('en')->get('field_items'));
     self::assertSame(
-      'Get in touch',
+      'Qualify my project',
       $english_paragraphs[4]->getTranslation('en')->get('field_link')->title,
     );
 
@@ -872,11 +930,11 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     );
     self::assertSame('IA utile dans Drupal pour les équipes éditoriales', $paragraphs[0]->get('field_heading')->value);
     self::assertSame('Cas d’usage IA dans Drupal', $paragraphs[2]->get('field_heading')->value);
-    self::assertCount(6, $paragraphs[2]->get('field_items'));
+    self::assertCount(10, $paragraphs[2]->get('field_items'));
     self::assertContains(
-      'Rédaction assistée|Préparer des brouillons de pages services, '
-      . 'reformuler des textes existants et accélérer la publication sans '
-      . 'perdre la validation humaine.|/fr/ia-drupal/redaction-assistee',
+      'Automatisation de contenu Drupal|Automatiser les tâches éditoriales '
+      . 'répétitives dans Drupal avec des suggestions IA relues, traçables et '
+      . 'validées.|/fr/ia-drupal/automatisation-contenu-drupal',
       $this->paragraphItems($paragraphs[2], 'fr'),
     );
     self::assertSame('Bénéfices', $paragraphs[3]->get('field_heading')->value);
@@ -894,10 +952,10 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       'AI use cases in Drupal',
       $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
     );
-    self::assertCount(6, $english_paragraphs[2]->getTranslation('en')->get('field_items'));
+    self::assertCount(10, $english_paragraphs[2]->getTranslation('en')->get('field_items'));
     self::assertContains(
-      'Assisted writing|Prepare service page drafts, rephrase existing copy '
-      . 'and speed up publication without removing human approval.|/en/ai-drupal/assisted-writing',
+      'Drupal content automation|Automate repetitive editorial tasks in Drupal '
+      . 'with reviewed, traceable and approved AI suggestions.|/en/ai-drupal/drupal-content-automation',
       $this->paragraphItems($english_paragraphs[2], 'en'),
     );
     self::assertSame(
@@ -1067,8 +1125,8 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     );
     self::assertSame('Un projet Drupal à cadrer ? Parlons-en simplement', $paragraphs[0]->get('field_heading')->value);
     self::assertStringContainsString('Contactez E-merging Digital', (string) $paragraphs[0]->get('field_text')->value);
-    self::assertSame('Décrivez votre besoin', $paragraphs[1]->get('field_heading')->value);
-    self::assertStringContainsString('qualification sont optionnels', (string) $paragraphs[1]->get('field_text')->value);
+    self::assertSame('Qualifier votre demande', $paragraphs[1]->get('field_heading')->value);
+    self::assertStringContainsString('Ne transmettez pas de mots de passe', (string) $paragraphs[1]->get('field_text')->value);
     self::assertSame('Vous cherchez le bon point d’entrée ?', $paragraphs[2]->get('field_heading')->value);
     self::assertStringContainsString('/fr/audit-drupal', (string) $paragraphs[2]->get('field_text')->value);
     self::assertSame('Un premier échange utile et sans engagement', $paragraphs[3]->get('field_heading')->value);
@@ -1085,8 +1143,12 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertSame(
-      'Describe your need',
+      'Qualify your request',
       $english_paragraphs[1]->getTranslation('en')->get('field_heading')->value,
+    );
+    self::assertStringContainsString(
+      'Do not send passwords',
+      (string) $english_paragraphs[1]->getTranslation('en')->get('field_text')->value,
     );
     self::assertStringContainsString(
       '/en/ai-drupal',

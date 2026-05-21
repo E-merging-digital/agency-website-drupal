@@ -1,0 +1,95 @@
+translations:
+  fr:
+    title: 'Automatisation de contenu Drupal'
+    alias: /ia-drupal/automatisation-contenu-drupal
+    fields:
+      field_short_description:
+        value: >-
+          Automatiser les tâches éditoriales Drupal répétitives avec des
+          suggestions IA relues, traçables et validées par l’équipe.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>L’automatisation de contenu Drupal aide les équipes à préparer les
+          tâches répétitives sans publier à leur place : brouillons de sections,
+          résumés, variantes de CTA, listes de vérification et suggestions de
+          liens internes.</p><p>Cas d’usage concret : une PME publie plusieurs
+          pages services et veut harmoniser les introductions, les bénéfices et
+          les CTA. L’assistant prépare les éléments réutilisables, puis
+          l’éditeur vérifie les preuves métier et finalise chaque page dans
+          Drupal.</p><p><strong>Workflow IA crédible :</strong></p><ol><li>Les
+          champs Drupal concernés et les règles éditoriales sont définis.</li>
+          <li>L’assistant génère des propositions structurées pour la langue de
+          travail.</li><li>L’équipe relit, corrige les promesses et supprime les
+          éléments trop génériques.</li><li>La publication reste gérée par le
+          workflow Drupal existant.</li></ol><p>Cette fonctionnalité complète
+          les <a href="/fr/services">services Drupal</a>, l’offre <a
+          href="/fr/ia-integree">IA intégrée</a> et le hub <a
+          href="/fr/ia-drupal">IA &amp; Drupal</a>.</p><p><strong><a
+          href="/fr/contact">Cadrer une automatisation de contenu Drupal</a></strong>
+          avec une première tâche utile et mesurable.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Moins de tâches répétitives, des contenus plus cohérents et une
+          validation humaine conservée dans Drupal.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Une équipe prépare trois pages services : l’IA propose structures,
+          CTA et résumés, puis chaque responsable valide les faits avant
+          publication.
+        format: basic_html
+      field_use_cases:
+        - value: 'Préparer des brouillons de sections réutilisables.'
+          format: basic_html
+        - value: 'Générer des résumés et CTA à relire.'
+          format: basic_html
+        - value: 'Standardiser une checklist éditoriale Drupal.'
+          format: basic_html
+  en:
+    title: 'Drupal content automation'
+    alias: /ai-drupal/drupal-content-automation
+    fields:
+      field_short_description:
+        value: >-
+          Automate repetitive Drupal editorial tasks with AI suggestions that
+          remain reviewed, traceable and approved by the team.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Drupal content automation helps teams prepare repetitive tasks
+          without publishing for them: section drafts, summaries, CTA variants,
+          checklists and internal link suggestions.</p><p>Concrete use case: an
+          SME publishes several service pages and wants consistent
+          introductions, benefits and CTAs. The assistant prepares reusable
+          elements, then the editor checks business proof and finalises each
+          page in Drupal.</p><p><strong>Credible AI workflow:</strong></p><ol><li>The
+          selected Drupal fields and editorial rules are defined.</li><li>The
+          assistant generates structured suggestions for the working
+          language.</li><li>The team reviews, corrects claims and removes
+          generic elements.</li><li>Publication remains handled by the existing
+          Drupal workflow.</li></ol><p>This feature complements <a
+          href="/en/services">Drupal services</a>, the <a
+          href="/en/integrated-ai">integrated AI</a> service and the <a
+          href="/en/ai-drupal">AI &amp; Drupal</a> hub.</p><p><strong><a
+          href="/en/contact">Scope Drupal content automation</a></strong> around
+          one useful and measurable first task.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Fewer repetitive tasks, more coherent content and human approval kept
+          inside Drupal.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          A team prepares three service pages: AI suggests structures, CTAs and
+          summaries, then each owner approves facts before publication.
+        format: basic_html
+      field_use_cases:
+        - value: 'Prepare reusable section drafts.'
+          format: basic_html
+        - value: 'Generate summaries and CTAs for review.'
+          format: basic_html
+        - value: 'Standardise a Drupal editorial checklist.'
+          format: basic_html

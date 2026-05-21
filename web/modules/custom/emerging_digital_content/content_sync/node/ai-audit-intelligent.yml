@@ -1,0 +1,94 @@
+translations:
+  fr:
+    title: 'Audit intelligent'
+    alias: /ia-drupal/audit-intelligent
+    fields:
+      field_short_description:
+        value: >-
+          Utiliser l’IA comme aide d’analyse pour prioriser les contenus,
+          risques SEO et chantiers Drupal à vérifier humainement.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>L’audit intelligent aide à trier de grands volumes de contenus,
+          repérer des signaux faibles et préparer une priorisation. Il ne
+          remplace pas l’audit Drupal : il accélère la préparation et rend les
+          points de contrôle plus lisibles.</p><p>Cas d’usage concret : une
+          organisation veut moderniser son site Drupal. L’assistant regroupe les
+          pages proches, repère les descriptions manquantes et propose une
+          première liste de risques SEO, accessibilité et maillage.</p><p><strong>Workflow
+          IA crédible :</strong></p><ol><li>Les contenus et objectifs d’audit
+          sont exportés ou listés depuis Drupal.</li><li>L’assistant classe les
+          pages par thème, risque et priorité supposée.</li><li>L’équipe vérifie
+          les constats, corrige les faux positifs et choisit les actions.</li><li>Le
+          plan final rejoint un <a href="/fr/audit-drupal">audit Drupal</a> ou
+          une <a href="/fr/refonte-site-drupal">refonte Drupal</a>.</li></ol>
+          <p>Cette fiche relie l’approche <a href="/fr/ia-drupal">IA &amp;
+          Drupal</a>, les <a href="/fr/services">services Drupal</a> et la page
+          <a href="/fr/accessibilite-seo-optimisation">accessibilité, SEO et
+          optimisation</a>.</p><p><strong><a href="/fr/contact">Prioriser un
+          audit Drupal assisté par IA</a></strong> avec des critères contrôlés.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Une priorisation plus rapide des contenus à corriger, avec validation
+          humaine des risques et des actions.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Avant une refonte, l’IA regroupe les pages proches, signale les
+          descriptions absentes et prépare une liste d’actions à vérifier.
+        format: basic_html
+      field_use_cases:
+        - value: 'Regrouper les contenus proches avant audit.'
+          format: basic_html
+        - value: 'Repérer les descriptions ou liens manquants.'
+          format: basic_html
+        - value: 'Préparer une priorisation SEO et Drupal.'
+          format: basic_html
+  en:
+    title: 'Intelligent audit'
+    alias: /ai-drupal/intelligent-audit
+    fields:
+      field_short_description:
+        value: >-
+          Use AI as an analysis aid to prioritise content, SEO risks and Drupal
+          workstreams that still need human verification.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <p>Intelligent audit helps sort large content sets, identify weak
+          signals and prepare prioritisation. It does not replace a Drupal
+          audit: it speeds up preparation and makes checkpoints easier to
+          review.</p><p>Concrete use case: an organisation wants to modernise
+          its Drupal site. The assistant groups similar pages, spots missing
+          descriptions and suggests a first list of SEO, accessibility and
+          internal linking risks.</p><p><strong>Credible AI workflow:</strong></p><ol><li>Content
+          and audit goals are exported or listed from Drupal.</li><li>The
+          assistant classifies pages by topic, risk and assumed priority.</li><li>The
+          team checks findings, corrects false positives and chooses actions.</li><li>The
+          final plan feeds a <a href="/en/drupal-audit">Drupal audit</a> or <a
+          href="/en/drupal-website-redesign">Drupal redesign</a>.</li></ol><p>This
+          page connects the <a href="/en/ai-drupal">AI &amp; Drupal</a>
+          approach, <a href="/en/services">Drupal services</a> and <a
+          href="/en/ai-accessibility-seo-optimization">accessibility, SEO and
+          optimization</a>.</p><p><strong><a href="/en/contact">Prioritise an
+          AI-assisted Drupal audit</a></strong> with controlled criteria.</p>
+        format: basic_html
+      field_customer_benefit:
+        value: >-
+          Faster prioritisation of content to fix, with human validation of
+          risks and actions.
+        format: basic_html
+      field_concrete_example:
+        value: >-
+          Before a redesign, AI groups similar pages, flags missing
+          descriptions and prepares a list of actions to verify.
+        format: basic_html
+      field_use_cases:
+        - value: 'Group similar content before an audit.'
+          format: basic_html
+        - value: 'Spot missing descriptions or links.'
+          format: basic_html
+        - value: 'Prepare SEO and Drupal prioritisation.'
+          format: basic_html

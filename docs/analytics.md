@@ -57,7 +57,12 @@ Le split concerné est : `config_split.config_split.production`.
 $config['config_split.config_split.production']['status'] = TRUE;
 ```
 
-Ce mécanisme permet de conserver une base locale/dev sûre (tracking désactivé), puis d'activer GA4 uniquement en production au moment du `drush cim`.
+Ce mécanisme permet de conserver une base locale/dev sûre (tracking désactivé),
+puis d'activer GA4 uniquement en production pendant le déploiement. Le pipeline
+exécute d'abord `drush cim`, puis applique explicitement le répertoire
+`config/splits/production` en import partiel afin que les configurations
+complètement splittées, comme Google Tag, soient présentes sans dépendre d'une
+seconde intervention manuelle.
 
 ### Important
 

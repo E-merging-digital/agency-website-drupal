@@ -121,10 +121,17 @@ ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"
 
 "$CURRENT_LINK/vendor/bin/drush" updb -y
 "$CURRENT_LINK/vendor/bin/drush" cim -y
+PRODUCTION_SPLIT_DIR="$CURRENT_LINK/config/splits/production"
+if [[ ! -d "$PRODUCTION_SPLIT_DIR" ]]; then
+  log "ERROR: Production config split directory not found: ${PRODUCTION_SPLIT_DIR}"
+  exit 1
+fi
+log "[deploy] Production Config Split"
+"$CURRENT_LINK/vendor/bin/drush" config:import --source="$PRODUCTION_SPLIT_DIR" --partial -y
 log "[deploy] Content Sync"
 "$CURRENT_LINK/vendor/bin/drush" emerging:content-sync --all
 "$CURRENT_LINK/vendor/bin/drush" cr
-log "Drupal update, config import, content sync and cache rebuild completed."
+log "Drupal update, config import, production config split import, content sync and cache rebuild completed."
 
 log "[deploy] Maintenance OFF"
 "$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 0 --input-format=integer

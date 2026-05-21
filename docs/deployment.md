@@ -118,6 +118,7 @@ cd "$PROJECT_ROOT/current"
 ```bash
 vendor/bin/drush updb -y
 vendor/bin/drush cim -y
+vendor/bin/drush config:import --source="$PWD/config/splits/production" --partial -y
 vendor/bin/drush cr
 ```
 
@@ -166,6 +167,19 @@ Puis compléter par :
 
 - vérification visuelle des pages clés du site ;
 - vérification des logs Drupal (watchdog / journal système).
+
+## 5.1) Config Split production
+
+Le split production contient des configurations complètement séparées du
+répertoire `config/sync`, notamment Google Tag. Le `drush cim` global reste
+nécessaire pour appliquer la configuration principale, mais il ne suffit pas à
+garantir que ces fichiers complètement splittés soient importés pendant le
+déploiement autonome.
+
+Le déploiement applique donc explicitement `config/splits/production` en import
+partiel juste après `drush cim`. Le mode partiel ajoute ou met à jour les
+configurations attendues sans supprimer les autres configurations actives, puis
+Content Sync peut s'exécuter sur une configuration production complète.
 
 ## 6) Commandes de maintenance utiles
 
@@ -273,7 +287,10 @@ Exemple avec reload Nginx :
 REPO_URL=git@github.com:E-merging-digital/agency-website-drupal.git bash scripts/deploy-production.sh main
 ```
 
-Le script applique la même logique que la procédure manuelle : validation GitHub, clone timestampé, `composer install`, symlinks partagés, bascule `current`, `drush updb`, `drush cim`, `drush cr`, puis nettoyage des anciennes releases.
+Le script applique la même logique que la procédure manuelle : validation
+GitHub, clone timestampé, `composer install`, symlinks partagés, bascule
+`current`, `drush updb`, `drush cim`, import partiel du split production,
+`drush cr`, puis nettoyage des anciennes releases.
 
 ## 11) Déploiement automatisé
 
@@ -290,7 +307,8 @@ bash scripts/deploy-production.sh main
 - crée une nouvelle release timestampée dans `/var/www/agency/releases` ;
 - exécute un backup de base de données (si une release `current` existe) dans `/var/www/agency/shared/backups` ;
 - active le mode maintenance Drupal juste avant la bascule de release ;
-- bascule `current` vers la nouvelle release puis exécute `drush updb`, `drush cim`, `drush cr` ;
+- bascule `current` vers la nouvelle release puis exécute `drush updb`,
+  `drush cim`, l'import partiel de `config/splits/production`, `drush cr` ;
 - désactive le mode maintenance après succès ;
 - écrit un journal persistant dans `/var/www/agency/shared/deployments.log` (statuts `START`, `SUCCESS`, `FAILURE`) ;
 - conserve les 3 dernières releases sans supprimer celle pointée par `current` ;

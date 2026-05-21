@@ -86,6 +86,31 @@ components:
               format: basic_html
           field_items:
             - value: >-
+                Automatisation de contenu Drupal|Automatiser les tâches
+                éditoriales répétitives dans Drupal avec des suggestions IA
+                relues, traçables et validées.|/fr/ia-drupal/automatisation-contenu-drupal
+              format: basic_html
+            - value: >-
+                SEO assisté par IA|Proposer descriptions, angles éditoriaux et
+                liens internes localisés vers les bonnes pages du
+                site.|/fr/ia-drupal/seo-liens-internes
+              format: basic_html
+            - value: >-
+                Chatbot de qualification|Cadrer un parcours de qualification
+                relié aux contenus Drupal, aux services et au contact, sans
+                implémenter le chatbot ici.|/fr/ia-drupal/chatbot-qualification
+              format: basic_html
+            - value: >-
+                Génération multilingue|Préparer des variantes FR/EN cohérentes,
+                avec liens localisés et relecture bilingue avant
+                publication.|/fr/ia-drupal/generation-multilingue
+              format: basic_html
+            - value: >-
+                Audit intelligent|Aider à trier les contenus, repérer les
+                risques SEO ou Drupal et préparer une priorisation à vérifier
+                humainement.|/fr/ia-drupal/audit-intelligent
+              format: basic_html
+            - value: >-
                 Rédaction assistée|Préparer des brouillons de pages services,
                 reformuler des textes existants et accélérer la publication
                 sans perdre la validation humaine.|/fr/ia-drupal/redaction-assistee
@@ -104,11 +129,6 @@ components:
                 Résumés, tags et structure|Rendre les pages longues plus
                 lisibles, mieux catégorisées et plus simples à réutiliser dans
                 Drupal.|/fr/ia-drupal/resumes-tags-structure
-              format: basic_html
-            - value: >-
-                SEO et liens internes|Proposer descriptions, angles éditoriaux
-                et liens internes localisés vers les bonnes pages du
-                site.|/fr/ia-drupal/seo-liens-internes
               format: basic_html
             - value: >-
                 Gouvernance IA|Définir les prompts, les rôles de validation et
@@ -131,6 +151,31 @@ components:
               format: basic_html
           field_items:
             - value: >-
+                Drupal content automation|Automate repetitive editorial tasks
+                in Drupal with reviewed, traceable and approved AI
+                suggestions.|/en/ai-drupal/drupal-content-automation
+              format: basic_html
+            - value: >-
+                AI-assisted SEO|Suggest descriptions, editorial angles and
+                localised internal links to the right site
+                pages.|/en/ai-drupal/seo-internal-links
+              format: basic_html
+            - value: >-
+                Qualification chatbot|Scope a qualification journey connected
+                to Drupal content, services and contact, without implementing
+                the chatbot here.|/en/ai-drupal/qualification-chatbot
+              format: basic_html
+            - value: >-
+                Multilingual generation|Prepare coherent FR/EN variants with
+                localised links and bilingual review before
+                publication.|/en/ai-drupal/multilingual-generation
+              format: basic_html
+            - value: >-
+                Intelligent audit|Help sort content, identify SEO or Drupal
+                risks and prepare prioritisation for human
+                verification.|/en/ai-drupal/intelligent-audit
+              format: basic_html
+            - value: >-
                 Assisted writing|Prepare service page drafts, rephrase existing
                 copy and speed up publication without removing human
                 approval.|/en/ai-drupal/assisted-writing
@@ -147,11 +192,6 @@ components:
             - value: >-
                 Summaries, tags and structure|Make long pages easier to read,
                 categorise and reuse in Drupal.|/en/ai-drupal/summaries-tags-structure
-              format: basic_html
-            - value: >-
-                SEO and internal links|Suggest descriptions, editorial angles
-                and localised internal links to the right site
-                pages.|/en/ai-drupal/seo-internal-links
               format: basic_html
             - value: >-
                 AI governance|Define prompts, approval roles and limits to keep

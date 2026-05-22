@@ -474,6 +474,96 @@
     return summary;
   }
 
+  function getContactConfirmationLabels(langcode) {
+    var isEnglish = langcode === 'en';
+    return {
+      title: isEnglish ? 'Message sent' : 'Message envoyé',
+      body: isEnglish
+        ? 'Thank you, your request has been successfully received.\nWe will get back to you shortly.'
+        : 'Merci, votre demande a bien été enregistrée.\nNous revenons vers vous rapidement.',
+      legacySnippets: isEnglish
+        ? [
+          'Thank you, your request has been successfully received.',
+          'Thank you, your message has been sent.'
+        ]
+        : [
+          'Merci, votre demande a bien été enregistrée.',
+          'Merci, votre message a bien été envoyé.'
+        ]
+    };
+  }
+
+  function buildContactConfirmation(labels) {
+    var confirmation = document.createElement('div');
+    confirmation.className = 'contact-confirmation';
+    confirmation.setAttribute('role', 'status');
+    confirmation.setAttribute('aria-live', 'polite');
+    confirmation.setAttribute('tabindex', '-1');
+
+    var icon = document.createElement('span');
+    icon.className = 'contact-confirmation__icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '✓';
+    confirmation.appendChild(icon);
+
+    var title = document.createElement('h3');
+    title.className = 'contact-confirmation__title';
+    title.textContent = labels.title;
+    confirmation.appendChild(title);
+
+    var body = document.createElement('p');
+    body.className = 'contact-confirmation__body';
+    labels.body.split('\n').forEach(function (line, index) {
+      if (index > 0) {
+        body.appendChild(document.createElement('br'));
+      }
+      body.appendChild(document.createTextNode(line));
+    });
+    confirmation.appendChild(body);
+
+    return confirmation;
+  }
+
+  function findContactConfirmationMessage(labels) {
+    var messages = document.querySelectorAll('.messages--status, [data-drupal-messages] .messages, [role="contentinfo"]');
+    return Array.prototype.find.call(messages, function (message) {
+      var text = (message.textContent || '').replace(/\s+/g, ' ').trim();
+      return labels.legacySnippets.some(function (snippet) {
+        return text.indexOf(snippet) !== -1;
+      });
+    });
+  }
+
+  function initContactConfirmation() {
+    var form = document.querySelector('.ed-section__content--contact-form form');
+    if (!form) {
+      return;
+    }
+
+    var content = form.closest('.ed-section__content--contact-form');
+    if (!content || content.querySelector('.contact-confirmation')) {
+      return;
+    }
+
+    var langcode = (document.documentElement.lang || 'fr').substring(0, 2);
+    var labels = getContactConfirmationLabels(langcode);
+    var sourceMessage = findContactConfirmationMessage(labels);
+    if (!sourceMessage) {
+      return;
+    }
+
+    if (sourceMessage) {
+      sourceMessage.hidden = true;
+    }
+
+    var confirmation = buildContactConfirmation(labels);
+    content.insertBefore(confirmation, form);
+    window.requestAnimationFrame(function () {
+      confirmation.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      confirmation.focus({ preventScroll: true });
+    });
+  }
+
   function initContactQualification() {
     var form = document.querySelector('.ed-section__content--contact-form form');
     var formSection = document.getElementById('contact-form');
@@ -540,12 +630,14 @@
   initLanguageSwitchers();
   initMobileNavigation(document.querySelector('.page-header'));
   initContactQualification();
+  initContactConfirmation();
 
   var observer = new MutationObserver(function () {
     ensureCookiePolicyLinks();
     initLanguageSwitchers();
     initMobileNavigation(document.querySelector('.page-header'));
     initContactQualification();
+    initContactConfirmation();
   });
   observer.observe(document.documentElement, {
     childList: true,

@@ -5,8 +5,6 @@ dependencies:
   enforced:
     module:
       - webform
-_core:
-  default_config_hash: _je-MWeeJB6gfm6iECiqjcyNetfMFbn-YIInYwZ1gIk
 weight: 0
 open: null
 close: null
@@ -18,6 +16,9 @@ title: Contact
 description: 'Basic email contact webform.'
 categories: {  }
 elements: |-
+  required_notice:
+    '#type': webform_markup
+    '#markup': '<p class="contact-required-note">Les champs marqués d’un astérisque sont obligatoires.</p>'
   name:
     '#type': textfield
     '#title': 'Votre nom'
@@ -98,9 +99,11 @@ elements: |-
   rgpd_consent:
     '#type': checkbox
     '#title': "J’accepte que mes données soient utilisées pour traiter ma demande, conformément à la"
-    '#description': '<a href="/fr/politique-de-confidentialite">politique de confidentialité</a>.'
+    '#description': '<a href="/fr/politique-de-confidentialite">politique de confidentialité</a>.<span id="rgpd-consent-help" class="contact-consent-help">Ce consentement est obligatoire pour envoyer le formulaire.</span>'
     '#required': true
     '#default_value': 0
+    '#attributes':
+      aria-describedby: rgpd-consent-help
   actions:
     '#type': webform_actions
     '#title': 'Submit button(s)'
@@ -209,12 +212,16 @@ settings:
   draft_loaded_message: ''
   draft_pending_single_message: ''
   draft_pending_multiple_message: ''
-  confirmation_type: url_message
-  confirmation_url: '<front>'
+  confirmation_type: message
+  confirmation_url: ''
   confirmation_title: ''
-  confirmation_message: 'Your message has been sent.'
-  confirmation_attributes: {  }
-  confirmation_back: true
+  confirmation_message: "Merci, votre demande a bien été enregistrée.\r\nNous revenons vers vous rapidement."
+  confirmation_attributes:
+    class:
+      - contact-confirmation
+    role: status
+    aria-live: polite
+  confirmation_back: false
   confirmation_back_label: ''
   confirmation_back_attributes: {  }
   confirmation_exclude_query: false
@@ -338,7 +345,7 @@ handlers:
     settings:
       states:
         - completed
-      to_mail: _default
+      to_mail: contact@emergingdigital.be
       to_options: {  }
       bcc_mail: ''
       bcc_options: {  }

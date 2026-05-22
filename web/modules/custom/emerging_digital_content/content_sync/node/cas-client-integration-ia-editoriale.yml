@@ -1,0 +1,77 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Cas client démonstratif : intégration IA éditoriale dans Drupal pour
+          aider les équipes à préparer, relire et structurer les contenus avec
+          validation humaine.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <h2>Contexte</h2><p>Une équipe éditoriale devait produire des contenus
+          FR/EN plus réguliers, améliorer les descriptions SEO et garder une
+          cohérence de ton sans déléguer la décision éditoriale à un outil
+          externe.</p><h2>Problème</h2><p>Les tâches répétitives prenaient du
+          temps : reformulation, préparation de traductions, résumés, tags et
+          liens internes. Le risque principal était d'introduire une IA opaque,
+          mal gouvernée ou déconnectée du CMS.</p><h2>Solution</h2><p>L'IA a été
+          cadrée comme une aide éditoriale intégrée à Drupal : suggestions
+          relues, sources explicites, validation humaine et liens vers les
+          parcours utiles. Le cas relie <a href="/fr/ia-integree">l'IA intégrée</a>,
+          <a href="/fr/ia-drupal">IA &amp; Drupal</a>, la <a
+          href="/fr/ia-drupal/redaction-assistee">rédaction assistée</a> et la
+          <a href="/fr/ia-drupal/traduction-fr-en">préparation FR/EN</a>.</p>
+          <h2>Stack</h2><ul><li>Drupal 11 comme espace de contribution.</li>
+          <li>Workflows éditoriaux avec validation humaine.</li><li>Champs
+          structurés pour descriptions, contenus longs et maillage interne.</li>
+          </ul><h2>Résultats</h2><ul><li>Moins de temps perdu sur les tâches
+          répétitives.</li><li>Contenus plus cohérents entre FR et EN.</li><li>IA
+          utile, contrôlée et compréhensible pour les contributeurs.</li></ul>
+          <h2>CTA</h2><p><strong>Vous voulez tester un premier usage IA éditorial dans
+          Drupal ?</strong> <a href="/fr/contact">Cadrons-le ensemble</a>.</p>
+        format: basic_html
+      field_related_services:
+        - content_id: ia-integree
+        - content_id: ia-pour-pme
+      field_related_ai_features:
+        - content_id: ai-redaction-assistee
+        - content_id: ai-traduction-fr-en
+        - content_id: ai-gouvernance-validation
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Demonstrative case study: editorial AI integration in Drupal to help
+          teams prepare, review and structure content with human approval.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <h2>Context</h2><p>An editorial team needed to produce FR/EN content
+          more regularly, improve SEO descriptions and keep a consistent tone
+          without delegating editorial decisions to an external tool.</p><h2>Problem</h2>
+          <p>Repetitive tasks took time: rewriting, translation preparation,
+          summaries, tags and internal links. The main risk was introducing
+          opaque AI that was poorly governed or disconnected from the CMS.</p>
+          <h2>Solution</h2><p>AI was framed as editorial assistance inside
+          Drupal: reviewed suggestions, explicit sources, human approval and
+          links to useful journeys. The case connects <a href="/en/integrated-ai">
+          integrated AI</a>, <a href="/en/ai-drupal">AI &amp; Drupal</a>, <a
+          href="/en/ai-drupal/assisted-writing">assisted writing</a> and <a
+          href="/en/ai-drupal/fr-en-translation">FR/EN preparation</a>.</p>
+          <h2>Stack</h2><ul><li>Drupal 11 as the contribution workspace.</li>
+          <li>Editorial workflows with human approval.</li><li>Structured fields
+          for descriptions, long-form content and internal linking.</li></ul>
+          <h2>Results</h2><ul><li>Less time lost on repetitive tasks.</li><li>More
+          consistent content across FR and EN.</li><li>Useful, controlled AI
+          that contributors can understand.</li></ul><h2>CTA</h2><p><strong>Want to test a
+          first editorial AI use case in Drupal?</strong> <a
+          href="/en/contact">Let's frame it together</a>.</p>
+        format: basic_html
+      field_related_services:
+        - content_id: ia-integree
+        - content_id: ia-pour-pme
+      field_related_ai_features:
+        - content_id: ai-redaction-assistee
+        - content_id: ai-traduction-fr-en
+        - content_id: ai-gouvernance-validation

@@ -1,0 +1,76 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Cas client démonstratif : refonte Drupal institutionnelle pour
+          clarifier les parcours, sécuriser la gouvernance éditoriale et mieux
+          convertir les demandes entrantes.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <h2>Contexte</h2><p>Une organisation institutionnelle disposait d'un
+          site Drupal riche, mais devenu difficile à lire pour ses publics :
+          contenus dispersés, parcours de contact peu visibles et contribution
+          éditoriale trop dépendante de quelques personnes clés.</p><h2>Problème</h2>
+          <p>Le site devait rassurer des publics variés, guider les demandes
+          qualifiées et rester maintenable sans refonte permanente. La priorité
+          n'était pas d'ajouter des effets visuels, mais de retrouver une
+          architecture claire et une gouvernance durable.</p><h2>Solution</h2>
+          <p>La refonte a combiné audit éditorial, simplification des gabarits,
+          hiérarchie des contenus et maillage vers les services clés. Le projet
+          s'appuie sur Drupal 11, une structure multilingue FR/EN, des contenus
+          synchronisés et des liens internes vers la <a
+          href="/fr/refonte-site-drupal">refonte Drupal</a>, l'<a
+          href="/fr/audit-drupal">audit Drupal</a> et les <a
+          href="/fr/services">services Drupal</a>.</p><h2>Stack</h2><ul><li>Drupal
+          11 et PHP moderne.</li><li>Content Sync pour garder les contenus
+          démonstratifs versionnés.</li><li>SEO technique, aliases localisés et
+          gouvernance éditoriale.</li></ul><h2>Résultats</h2><ul><li>Parcours
+          de contact plus explicites.</li><li>Contenus institutionnels mieux
+          structurés.</li><li>Base Drupal plus lisible pour les évolutions
+          futures.</li></ul><h2>CTA</h2><p><strong>Vous préparez une refonte Drupal
+          institutionnelle ?</strong> <a href="/fr/contact">Parlons de votre
+          projet</a>.</p>
+        format: basic_html
+      field_related_services:
+        - content_id: refonte-site-drupal
+        - content_id: audit-drupal
+      field_related_ai_features:
+        - content_id: ai-seo-liens-internes
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Demonstrative case study: institutional Drupal redesign to clarify
+          journeys, secure editorial governance and improve qualified inbound
+          conversion.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <h2>Context</h2><p>An institutional organization had a rich Drupal
+          website that had become hard for its audiences to read: scattered
+          content, weak contact paths and editorial work too dependent on a few
+          key people.</p><h2>Problem</h2><p>The website had to reassure several
+          audiences, guide qualified requests and remain maintainable without a
+          permanent redesign cycle. The priority was not to add visual effects,
+          but to regain a clear architecture and durable governance.</p><h2>Solution</h2>
+          <p>The redesign combined editorial audit, simpler templates, content
+          hierarchy and links to key services. The project relies on Drupal 11,
+          a FR/EN multilingual structure, synchronized content and internal
+          links to <a href="/en/drupal-website-redesign">Drupal redesign</a>,
+          <a href="/en/drupal-audit">Drupal audit</a> and <a
+          href="/en/services">Drupal services</a>.</p><h2>Stack</h2><ul><li>Drupal
+          11 and modern PHP.</li><li>Content Sync to keep demonstrative content
+          versioned.</li><li>Technical SEO, localized aliases and editorial
+          governance.</li></ul><h2>Results</h2><ul><li>Clearer contact journeys.</li>
+          <li>Better structured institutional content.</li><li>A Drupal
+          foundation easier to evolve.</li></ul><h2>CTA</h2><p><strong>Planning an
+          institutional Drupal redesign?</strong> <a href="/en/contact">Let's
+          discuss your project</a>.</p>
+        format: basic_html
+      field_related_services:
+        - content_id: refonte-site-drupal
+        - content_id: audit-drupal
+      field_related_ai_features:
+        - content_id: ai-seo-liens-internes

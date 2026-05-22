@@ -39,7 +39,9 @@ translations:
           fonctionnalité peut être combinée avec la <a
           href="/fr/ia-drupal/correction-editoriale">correction éditoriale</a>
           et la <a href="/fr/ia-drupal/traduction-fr-en">préparation traduction
-          FR/EN</a>.</p>
+          FR/EN</a>. Voir le cas <a
+          href="/fr/cas-clients/integration-ia-editoriale">intégration IA
+          éditoriale</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
@@ -97,7 +99,9 @@ translations:
           href="/en/ai-drupal">AI &amp; Drupal</a> hub. This feature can be
           combined with <a href="/en/ai-drupal/editorial-review">editorial
           review</a> and <a href="/en/ai-drupal/fr-en-translation">FR/EN
-          translation preparation</a>.</p>
+          translation preparation</a>. See the <a
+          href="/en/case-studies/editorial-ai-integration">editorial AI
+          integration</a> case study.</p>
         format: basic_html
       field_customer_benefit:
         value: >-

@@ -62,7 +62,14 @@ components:
                 href="/fr/contact">prise de contact</a>. Cette approche prépare
                 aussi les futures reprises d'existants WordPress lorsque
                 l'audit, la dette technique ou une migration vers Drupal devient
-                nécessaire.
+                nécessaire. Vous pouvez maintenant consulter les fiches
+                détaillées : <a
+                href="/fr/cas-clients/refonte-drupal-institutionnelle">refonte
+                Drupal institutionnelle</a>, <a
+                href="/fr/cas-clients/migration-drupal-11">migration vers
+                Drupal 11</a> et <a
+                href="/fr/cas-clients/integration-ia-editoriale">intégration IA
+                éditoriale</a>.
               format: basic_html
       en:
         fields:
@@ -79,7 +86,14 @@ components:
                 href="/en/ai-for-smes">useful AI</a> or <a
                 href="/en/contact">contact</a>. This approach also prepares
                 future takeovers of existing WordPress sites when audit,
-                technical debt or a migration to Drupal becomes necessary.
+                technical debt or a migration to Drupal becomes necessary. You
+                can now read the detailed pages: <a
+                href="/en/case-studies/institutional-drupal-redesign">
+                institutional Drupal redesign</a>, <a
+                href="/en/case-studies/drupal-11-migration">migration to Drupal
+                11</a> and <a
+                href="/en/case-studies/editorial-ai-integration">editorial AI
+                integration</a>.
               format: basic_html
   - id: cas-clients.case-studies
     legacy_uuid: 83435955-44bb-40df-8e8c-eda848d40301

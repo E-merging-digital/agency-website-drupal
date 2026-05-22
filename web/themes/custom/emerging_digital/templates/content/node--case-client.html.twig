@@ -4,24 +4,53 @@
  * Theme override for case client nodes.
  */
 #}
-<article{{ attributes.addClass('node', 'node--case-client') }}>
-  <div class="node__content">
-    {{ content|without('field_related_services', 'field_related_ai_features') }}
+{% set langcode = node.langcode.value|default('fr') %}
+{% set is_english = langcode == 'en' %}
+{% set badge_label = is_english ? 'Demonstrative case study' : 'Cas client démonstratif' %}
+{% set related_services_label = is_english ? 'Related services' : 'Services liés' %}
+{% set related_ai_label = is_english ? 'Related AI features' : 'Fonctionnalités IA liées' %}
+
+<article{{ attributes.addClass('node', 'node--case-client', 'ed-detail-page', 'ed-detail-page--case-client') }}>
+  <header class="ed-detail-page__hero ed-detail-page__hero--case-client">
+    <p class="ed-detail-page__eyebrow">{{ badge_label }}</p>
+
+    {% if content.field_short_description %}
+      <div class="ed-detail-page__lede">
+        {{ content.field_short_description }}
+      </div>
+    {% endif %}
+  </header>
+
+  <div class="node__content ed-detail-page__layout">
+    <div class="ed-detail-page__main ed-prose">
+      {% if content.field_detailed_description %}
+        {{ content.field_detailed_description }}
+      {% endif %}
+    </div>
+
+    {{ content|without(
+      'field_short_description',
+      'field_detailed_description',
+      'field_related_services',
+      'field_related_ai_features'
+    ) }}
   </div>
 
-  <div class="node__references">
-    {% if content.field_related_services %}
-      <section class="node__related">
-        <h2 class="node__related-title">Services associés</h2>
-        {{ content.field_related_services }}
-      </section>
-    {% endif %}
+  {% if content.field_related_services or content.field_related_ai_features %}
+    <aside class="node__references ed-detail-page__references">
+      {% if content.field_related_services %}
+        <section class="node__related ed-related-panel">
+          <h2 class="node__related-title">{{ related_services_label }}</h2>
+          {{ content.field_related_services }}
+        </section>
+      {% endif %}
 
-    {% if content.field_related_ai_features %}
-      <section class="node__related">
-        <h2 class="node__related-title">Fonctionnalités IA mobilisées</h2>
-        {{ content.field_related_ai_features }}
-      </section>
-    {% endif %}
-  </div>
+      {% if content.field_related_ai_features %}
+        <section class="node__related ed-related-panel">
+          <h2 class="node__related-title">{{ related_ai_label }}</h2>
+          {{ content.field_related_ai_features }}
+        </section>
+      {% endif %}
+    </aside>
+  {% endif %}
 </article>

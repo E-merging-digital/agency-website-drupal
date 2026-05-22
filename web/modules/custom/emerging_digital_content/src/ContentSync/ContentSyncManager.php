@@ -27,7 +27,7 @@ final class ContentSyncManager {
 
   private const PRUNE_UNPUBLISH = 'unpublish';
   private const PRUNE_UNPUBLISH_ALLOW_ENV = 'CONTENT_SYNC_ALLOW_PRUNE_UNPUBLISH';
-  private const SUPPORTED_NODE_BUNDLES = ['service', 'page', 'ai_feature'];
+  private const SUPPORTED_NODE_BUNDLES = ['service', 'page', 'ai_feature', 'case_client'];
 
   public function __construct(
     private readonly ContentSyncCatalogLoader $catalogLoader,
@@ -887,7 +887,7 @@ final class ContentSyncManager {
         : [];
       foreach ($fields as $field_name => $value) {
         if (is_string($field_name) && $translation->hasField($field_name)) {
-          $translation->set($field_name, $value);
+          $translation->set($field_name, $this->normalizeNodeFieldValue($field_name, $value));
         }
       }
 
@@ -1088,6 +1088,41 @@ final class ContentSyncManager {
     }
 
     return $node->addTranslation($langcode, $node->toArray());
+  }
+
+  /**
+   * Normalizes special node field values before assignment.
+   */
+  private function normalizeNodeFieldValue(string $field_name, mixed $value): mixed {
+    if (!in_array($field_name, ['field_related_services', 'field_related_ai_features'], TRUE)) {
+      return $value;
+    }
+
+    if (!is_array($value)) {
+      return $value;
+    }
+
+    $references = [];
+    foreach ($value as $item) {
+      if (!is_array($item) || !isset($item['content_id']) || !is_string($item['content_id'])) {
+        $references[] = $item;
+        continue;
+      }
+
+      $mapping = $this->mappingRepository->findByContentId($item['content_id']);
+      $node = $this->loadMappedNode($mapping);
+      if (!$node instanceof NodeInterface) {
+        throw new \RuntimeException(sprintf(
+          'Referenced content "%s" for field "%s" could not be resolved.',
+          $item['content_id'],
+          $field_name,
+        ));
+      }
+
+      $references[] = ['target_id' => (int) $node->id()];
+    }
+
+    return $references;
   }
 
   /**

@@ -1,0 +1,56 @@
+uuid: 7a66fcc9-9147-4123-9403-bc6a4afdddd0
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.case_client.field_detailed_description
+    - field.field.node.case_client.field_related_ai_features
+    - field.field.node.case_client.field_related_services
+    - field.field.node.case_client.field_short_description
+    - node.type.case_client
+  module:
+    - text
+    - user
+id: node.case_client.default
+targetEntityType: node
+bundle: case_client
+mode: default
+content:
+  field_detailed_description:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_related_ai_features:
+    type: entity_reference_label
+    label: hidden
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 3
+    region: content
+  field_related_services:
+    type: entity_reference_label
+    label: hidden
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 2
+    region: content
+  field_short_description:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden:
+  langcode: true
+  search_api_excerpt: true

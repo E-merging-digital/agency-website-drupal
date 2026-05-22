@@ -1,0 +1,74 @@
+translations:
+  fr:
+    fields:
+      field_short_description:
+        value: >-
+          Cas client démonstratif : migration vers Drupal 11 avec audit,
+          préservation SEO, reprise des contenus et trajectoire de maintenance
+          claire.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <h2>Contexte</h2><p>Une plateforme Drupal vieillissante portait des
+          contenus importants, plusieurs langues et des dépendances techniques
+          devenues difficiles à maintenir. L'équipe voulait moderniser sans
+          perdre les acquis éditoriaux et SEO.</p><h2>Problème</h2><p>La dette
+          technique ralentissait les évolutions, les modules devaient être
+          arbitrés et les aliases publics ne pouvaient pas être traités comme un
+          détail secondaire.</p><h2>Solution</h2><p>Le projet a démarré par un
+          inventaire des contenus, des modules, des risques et des URLs. La
+          migration a ensuite été organisée par lots, avec validation avant
+          écriture, dry-run et maintien des parcours importants vers la <a
+          href="/fr/migration-drupal">migration Drupal</a>, la <a
+          href="/fr/maintenance-drupal">maintenance Drupal</a> et l'<a
+          href="/fr/audit-drupal">audit Drupal</a>.</p><h2>Stack</h2><ul><li>Drupal
+          11, PHP 8.4 et MariaDB.</li><li>DDEV pour les validations locales.</li>
+          <li>Drush, Composer, Content Sync et contrôles de qualité.</li></ul>
+          <h2>Résultats</h2><ul><li>Migration cadrée par les risques réels.</li>
+          <li>Continuité SEO mieux protégée.</li><li>Maintenance future plus
+          prévisible.</li></ul><h2>CTA</h2><p><strong>Votre Drupal doit évoluer vers une
+          version maintenable ?</strong> <a href="/fr/contact">Contactez-nous
+          pour cadrer la migration</a>.</p>
+        format: basic_html
+      field_related_services:
+        - content_id: migration-drupal
+        - content_id: maintenance-drupal
+        - content_id: audit-drupal
+      field_related_ai_features:
+        - content_id: ai-audit-intelligent
+        - content_id: ai-resumes-tags-structure
+  en:
+    fields:
+      field_short_description:
+        value: >-
+          Demonstrative case study: migration to Drupal 11 with audit, SEO
+          preservation, content takeover and a clear maintenance path.
+        format: basic_html
+      field_detailed_description:
+        value: >-
+          <h2>Context</h2><p>An aging Drupal platform carried important content,
+          several languages and technical dependencies that had become difficult
+          to maintain. The team needed to modernize without losing editorial and
+          SEO value.</p><h2>Problem</h2><p>Technical debt slowed down changes,
+          modules had to be assessed and public aliases could not be treated as
+          a secondary detail.</p><h2>Solution</h2><p>The project started with an
+          inventory of content, modules, risks and URLs. The migration was then
+          organized in batches, with validation before writing, dry-runs and
+          continuity for important journeys toward <a
+          href="/en/drupal-migration">Drupal migration</a>, <a
+          href="/en/drupal-maintenance">Drupal maintenance</a> and <a
+          href="/en/drupal-audit">Drupal audit</a>.</p><h2>Stack</h2><ul><li>Drupal
+          11, PHP 8.4 and MariaDB.</li><li>DDEV for local validation.</li><li>Drush,
+          Composer, Content Sync and quality checks.</li></ul><h2>Results</h2>
+          <ul><li>Migration framed around real risks.</li><li>Better protected
+          SEO continuity.</li><li>More predictable future maintenance.</li></ul>
+          <h2>CTA</h2><p><strong>Does your Drupal platform need a maintainable upgrade?</strong>
+          <a href="/en/contact">Contact us to frame the migration</a>.</p>
+        format: basic_html
+      field_related_services:
+        - content_id: migration-drupal
+        - content_id: maintenance-drupal
+        - content_id: audit-drupal
+      field_related_ai_features:
+        - content_id: ai-audit-intelligent
+        - content_id: ai-resumes-tags-structure

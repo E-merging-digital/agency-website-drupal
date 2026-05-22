@@ -26,7 +26,9 @@ translations:
           <p>Cette fiche relie l’approche <a href="/fr/ia-drupal">IA &amp;
           Drupal</a>, les <a href="/fr/services">services Drupal</a> et la page
           <a href="/fr/accessibilite-seo-optimisation">accessibilité, SEO et
-          optimisation</a>.</p><p><strong><a href="/fr/contact">Prioriser un
+          optimisation</a>. Voir le cas <a
+          href="/fr/cas-clients/migration-drupal-11">migration vers Drupal
+          11</a>.</p><p><strong><a href="/fr/contact">Prioriser un
           audit Drupal assisté par IA</a></strong> avec des critères contrôlés.</p>
         format: basic_html
       field_customer_benefit:
@@ -72,7 +74,9 @@ translations:
           page connects the <a href="/en/ai-drupal">AI &amp; Drupal</a>
           approach, <a href="/en/services">Drupal services</a> and <a
           href="/en/ai-accessibility-seo-optimization">accessibility, SEO and
-          optimization</a>.</p><p><strong><a href="/en/contact">Prioritise an
+          optimization</a>. See the <a
+          href="/en/case-studies/drupal-11-migration">migration to Drupal
+          11</a> case study.</p><p><strong><a href="/en/contact">Prioritise an
           AI-assisted Drupal audit</a></strong> with controlled criteria.</p>
         format: basic_html
       field_customer_benefit:

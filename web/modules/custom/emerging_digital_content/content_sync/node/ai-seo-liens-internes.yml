@@ -39,7 +39,9 @@ translations:
           complète les <a href="/fr/services">services Drupal</a>, la <a
           href="/fr/ia-drupal/redaction-assistee">rédaction assistée</a> et les
           <a href="/fr/ia-drupal/resumes-tags-structure">résumés, tags et
-          structure</a>.</p>
+          structure</a>. Voir le cas <a
+          href="/fr/cas-clients/refonte-drupal-institutionnelle">refonte Drupal
+          institutionnelle</a>.</p>
         format: basic_html
       field_customer_benefit:
         value: >-
@@ -97,7 +99,9 @@ translations:
           Drupal</a> hub. This feature complements <a href="/en/services">Drupal
           services</a>, <a href="/en/ai-drupal/assisted-writing">assisted
           writing</a> and <a href="/en/ai-drupal/summaries-tags-structure">summaries,
-          tags and structure</a>.</p>
+          tags and structure</a>. See the <a
+          href="/en/case-studies/institutional-drupal-redesign">institutional
+          Drupal redesign</a> case study.</p>
         format: basic_html
       field_customer_benefit:
         value: >-

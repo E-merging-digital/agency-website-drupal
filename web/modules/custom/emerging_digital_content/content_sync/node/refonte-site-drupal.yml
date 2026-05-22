@@ -25,7 +25,9 @@ translations:
           peut être précédée d'un <a href="/fr/audit-drupal">audit Drupal</a>,
           suivie par une <a href="/fr/maintenance-drupal">maintenance Drupal</a>
           et complétée par nos <a href="/fr/services">services Drupal</a> ou
-          notre approche <a href="/fr/ia-drupal">IA &amp; Drupal</a>.</p>
+          notre approche <a href="/fr/ia-drupal">IA &amp; Drupal</a>. Voir aussi
+          le cas <a href="/fr/cas-clients/refonte-drupal-institutionnelle">
+          refonte Drupal institutionnelle</a>.</p>
           <p><strong>Votre site Drupal doit évoluer ?</strong> <a
           href="/fr/contact">Contactez-nous</a> pour cadrer une refonte utile,
           sobre et mesurable.</p>
@@ -55,7 +57,9 @@ translations:
           audit</a>, continue with <a href="/en/drupal-maintenance">Drupal
           maintenance</a> and connect with our <a href="/en/services">Drupal
           services</a> or <a href="/en/ai-drupal">AI &amp; Drupal</a>
-          approach.</p><p><strong>Does your Drupal website need to evolve?
+          approach. See also the <a
+          href="/en/case-studies/institutional-drupal-redesign">institutional
+          Drupal redesign</a> case study.</p><p><strong>Does your Drupal website need to evolve?
           </strong> <a href="/en/contact">Contact us</a> to frame a useful,
           focused and measurable redesign.</p>
         format: basic_html

@@ -366,6 +366,48 @@ contents:
       en:
         title: 'AI governance and approval'
         alias: /ai-drupal/governance-approval
+  - id: cas-client-refonte-drupal-institutionnelle
+    entity_type: node
+    bundle: case_client
+    file: node/cas-client-refonte-drupal-institutionnelle.yml
+    business_aliases:
+      fr: /cas-clients/refonte-drupal-institutionnelle
+      en: /case-studies/institutional-drupal-redesign
+    translations:
+      fr:
+        title: 'Cas client — Refonte Drupal institutionnelle'
+        alias: /cas-clients/refonte-drupal-institutionnelle
+      en:
+        title: 'Case Study — Institutional Drupal Redesign'
+        alias: /case-studies/institutional-drupal-redesign
+  - id: cas-client-migration-drupal-11
+    entity_type: node
+    bundle: case_client
+    file: node/cas-client-migration-drupal-11.yml
+    business_aliases:
+      fr: /cas-clients/migration-drupal-11
+      en: /case-studies/drupal-11-migration
+    translations:
+      fr:
+        title: 'Cas client — Migration maîtrisée vers Drupal 11'
+        alias: /cas-clients/migration-drupal-11
+      en:
+        title: 'Case Study — Controlled Migration to Drupal 11'
+        alias: /case-studies/drupal-11-migration
+  - id: cas-client-integration-ia-editoriale
+    entity_type: node
+    bundle: case_client
+    file: node/cas-client-integration-ia-editoriale.yml
+    business_aliases:
+      fr: /cas-clients/integration-ia-editoriale
+      en: /case-studies/editorial-ai-integration
+    translations:
+      fr:
+        title: 'Cas client — Intégration IA éditoriale'
+        alias: /cas-clients/integration-ia-editoriale
+      en:
+        title: 'Case Study — Editorial AI Integration'
+        alias: /case-studies/editorial-ai-integration
   - id: cas-clients
     entity_type: node
     bundle: page

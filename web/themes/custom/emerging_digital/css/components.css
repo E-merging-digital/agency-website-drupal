@@ -690,6 +690,29 @@ button:focus-visible,
     linear-gradient(130deg, #005bbb 0%, #89c540 100%);
 }
 
+.ed-detail-page__hero--case-client {
+  border-color: #d6e2d2;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 96%) 0%, rgb(247 251 246 / 98%) 100%),
+    linear-gradient(130deg, #89c540 0%, #005bbb 100%);
+}
+
+.ed-detail-page__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 2rem;
+  margin: 0 0 var(--space-3);
+  padding: 0.35rem 0.65rem;
+  border: 1px solid #cfe0ca;
+  border-radius: var(--radius-sm);
+  background: #f4faf2;
+  color: #25461f;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .ed-detail-page__lede {
   max-width: 72ch;
   color: #1f2f46;
@@ -825,6 +848,11 @@ button:focus-visible,
 
 .node__related {
   margin-top: 0;
+}
+
+.ed-detail-page__references {
+  display: grid;
+  gap: var(--space-4);
 }
 
 .node__related .field__items {

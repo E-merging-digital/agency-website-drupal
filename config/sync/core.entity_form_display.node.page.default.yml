@@ -14,14 +14,6 @@ targetEntityType: node
 bundle: page
 mode: default
 content:
-  field_short_description:
-    type: text_textarea
-    weight: 10
-    region: content
-    settings:
-      rows: 3
-      placeholder: ''
-    third_party_settings: {  }
   field_home_components:
     type: paragraphs
     weight: 20
@@ -41,6 +33,14 @@ content:
         collapse_edit_all: ''
         convert: ''
         duplicate: ''
+    third_party_settings: {  }
+  field_short_description:
+    type: text_textarea
+    weight: 10
+    region: content
+    settings:
+      rows: 3
+      placeholder: ''
     third_party_settings: {  }
   langcode:
     type: language_select

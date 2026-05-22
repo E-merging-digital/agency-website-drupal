@@ -24,7 +24,7 @@ settings:
   company_email_label: Email
   company_email: contact@emergingdigital.be
   company_email_uri: 'mailto:contact@emergingdigital.be'
-  company_phone_label: 'Téléphone'
+  company_phone_label: Téléphone
   company_phone: '+32 19 86 06 98'
   company_phone_uri: 'tel:+3219860698'
   status: true

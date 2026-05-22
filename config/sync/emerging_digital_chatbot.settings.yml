@@ -13,7 +13,7 @@ future_ai:
   enabled: false
   provider: openai
   endpoint: 'https://api.openai.com/v1/responses'
-  model: 'gpt-4o-mini'
+  model: gpt-4o-mini
   openai_key_id: openai_api_key
   temperature: 0.2
   max_output_tokens: 220

@@ -1291,7 +1291,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     $first_apply = $manager->sync('contact', FALSE);
     self::assertSame([], $first_apply['errors']);
     self::assertSame(1, $this->countPageNodes());
-    self::assertSame(6, $this->countParagraphs());
+    self::assertSame(7, $this->countParagraphs());
 
     $page = $this->loadOnlyPageNode();
     self::assertSame('fr', $page->language()->getId());
@@ -1305,53 +1305,64 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertSame('/node/' . $page->id(), $alias_manager->getPathByAlias('/contact', 'en'));
 
     $paragraphs = $page->get('field_home_components')->referencedEntities();
-    self::assertCount(6, $paragraphs);
+    self::assertCount(7, $paragraphs);
     self::assertSame(
-      ['hero', 'text_block', 'text_block', 'text_block', 'text_block', 'text_block'],
+      ['hero', 'text_block', 'text_block', 'text_block', 'text_block', 'text_block', 'text_block'],
       array_map(static fn ($paragraph): string => $paragraph->bundle(), $paragraphs),
     );
     self::assertSame('Un projet Drupal à cadrer ? Parlons-en simplement', $paragraphs[0]->get('field_heading')->value);
     self::assertStringContainsString('Contactez E-merging Digital', (string) $paragraphs[0]->get('field_text')->value);
-    self::assertSame('Qualifier votre demande', $paragraphs[1]->get('field_heading')->value);
-    self::assertStringContainsString('Ne transmettez pas de mots de passe', (string) $paragraphs[1]->get('field_text')->value);
-    self::assertSame('Vous cherchez le bon point d’entrée ?', $paragraphs[2]->get('field_heading')->value);
-    self::assertStringContainsString('/fr/audit-drupal', (string) $paragraphs[2]->get('field_text')->value);
-    self::assertSame('Un premier échange utile et sans engagement', $paragraphs[3]->get('field_heading')->value);
-    self::assertStringContainsString('deux jours ouvrables', (string) $paragraphs[3]->get('field_text')->value);
-    self::assertSame('Coordonnées', $paragraphs[4]->get('field_heading')->value);
-    self::assertStringContainsString('contact@emergingdigital.be', (string) $paragraphs[4]->get('field_text')->value);
-    self::assertSame('Carte', $paragraphs[5]->get('field_heading')->value);
-    self::assertStringContainsString('Localisation Emerging Digital', (string) $paragraphs[5]->get('field_text')->value);
+    self::assertSame('Choisir un contexte de qualification', $paragraphs[1]->get('field_heading')->value);
+    self::assertStringContainsString('id="qualification-contact"', (string) $paragraphs[1]->get('field_text')->value);
+    self::assertStringContainsString('/fr/contact?type=audit', (string) $paragraphs[1]->get('field_text')->value);
+    self::assertSame('Qualifier votre demande', $paragraphs[2]->get('field_heading')->value);
+    self::assertStringContainsString('Ne transmettez pas de mots de passe', (string) $paragraphs[2]->get('field_text')->value);
+    self::assertSame('Vous cherchez le bon point d’entrée ?', $paragraphs[3]->get('field_heading')->value);
+    self::assertStringContainsString('/fr/audit-drupal', (string) $paragraphs[3]->get('field_text')->value);
+    self::assertSame('Un premier échange utile et sans engagement', $paragraphs[4]->get('field_heading')->value);
+    self::assertStringContainsString('deux jours ouvrables', (string) $paragraphs[4]->get('field_text')->value);
+    self::assertSame('Coordonnées', $paragraphs[5]->get('field_heading')->value);
+    self::assertStringContainsString('contact@emergingdigital.be', (string) $paragraphs[5]->get('field_text')->value);
+    self::assertSame('Carte', $paragraphs[6]->get('field_heading')->value);
+    self::assertStringContainsString('Localisation Emerging Digital', (string) $paragraphs[6]->get('field_text')->value);
 
     $english_paragraphs = $page->getTranslation('en')->get('field_home_components')->referencedEntities();
-    self::assertCount(6, $english_paragraphs);
+    self::assertCount(7, $english_paragraphs);
     self::assertSame(
       'A Drupal project to frame? Let’s make it clear',
       $english_paragraphs[0]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertSame(
-      'Qualify your request',
+      'Choose a qualification context',
       $english_paragraphs[1]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertStringContainsString(
-      'Do not send passwords',
+      '/en/contact?type=audit',
       (string) $english_paragraphs[1]->getTranslation('en')->get('field_text')->value,
     );
+    self::assertSame(
+      'Qualify your request',
+      $english_paragraphs[2]->getTranslation('en')->get('field_heading')->value,
+    );
     self::assertStringContainsString(
-      '/en/ai-drupal',
+      'Do not send passwords',
       (string) $english_paragraphs[2]->getTranslation('en')->get('field_text')->value,
     );
     self::assertStringContainsString(
-      'within two business days',
+      '/en/ai-drupal',
       (string) $english_paragraphs[3]->getTranslation('en')->get('field_text')->value,
+    );
+    self::assertStringContainsString(
+      'within two business days',
+      (string) $english_paragraphs[4]->getTranslation('en')->get('field_text')->value,
     );
     self::assertSame(
       'Contact details',
-      $english_paragraphs[4]->getTranslation('en')->get('field_heading')->value,
+      $english_paragraphs[5]->getTranslation('en')->get('field_heading')->value,
     );
     self::assertSame(
       'Map',
-      $english_paragraphs[5]->getTranslation('en')->get('field_heading')->value,
+      $english_paragraphs[6]->getTranslation('en')->get('field_heading')->value,
     );
 
     $mapping = $mapping_repository->findByContentId('contact');
@@ -1361,12 +1372,13 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
     self::assertNotNull($mapping_repository->findByContentId('contact.coordinates'));
     self::assertNotNull($mapping_repository->findByContentId('contact.form'));
     self::assertNotNull($mapping_repository->findByContentId('contact.map'));
+    self::assertNotNull($mapping_repository->findByContentId('contact.qualification_paths'));
 
     $component_ids = array_map(static fn ($paragraph): int => (int) $paragraph->id(), $paragraphs);
     $second_apply = $manager->sync('contact', FALSE);
     self::assertSame([], $second_apply['errors']);
     self::assertSame(1, $this->countPageNodes());
-    self::assertSame(6, $this->countParagraphs());
+    self::assertSame(7, $this->countParagraphs());
     self::assertSame($component_ids, array_map(
       static fn ($paragraph): int => (int) $paragraph->id(),
       $this->loadOnlyPageNode()->get('field_home_components')->referencedEntities(),

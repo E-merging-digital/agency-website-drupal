@@ -27,6 +27,7 @@
         "drupal/default_content": "^2.0@alpha",
         "drupal/google_tag": "^2.0",
         "drupal/hal": "^2.0",
+        "drupal/honeypot": "^2.2",
         "drupal/key": "^1.20",
         "drupal/lang_dropdown": "^2.4",
         "drupal/linkchecker": "^2.1",

@@ -48,6 +48,7 @@ elements: |-
     '#options':
       new_site: 'Nouveau site Drupal'
       redesign: 'Refonte ou modernisation'
+      migration: 'Migration Drupal'
       audit: 'Audit Drupal'
       maintenance: 'Maintenance ou support'
       ai: 'IA & Drupal'

@@ -16,11 +16,22 @@ use Drupal\webform\Entity\Webform;
  */
 function emerging_digital_preprocess_node(array &$variables): void {
   $node = $variables['node'] ?? NULL;
-  if (!$node || $node->bundle() !== 'ai_feature') {
+  if (!$node) {
     return;
   }
 
+  $bundle = $node->bundle();
   $is_english = $node->language()->getId() === 'en';
+  $variables['contact_qualification_cta'] = emerging_digital_contact_qualification_cta(
+    $bundle,
+    $node->label(),
+    $is_english,
+  );
+
+  if ($bundle !== 'ai_feature') {
+    return;
+  }
+
   $variables['ai_feature_summary_label'] = $is_english
     ? 'AI feature summary'
     : 'Synthèse de la fonctionnalité IA';
@@ -36,6 +47,103 @@ function emerging_digital_preprocess_node(array &$variables): void {
   $variables['ai_feature_related_services_label'] = $is_english
     ? 'Related services'
     : 'Services liés';
+}
+
+/**
+ * Builds a localized contact qualification CTA for detail pages.
+ *
+ * @return array<string, string>
+ *   CTA metadata for Twig templates, or an empty array when unsupported.
+ */
+function emerging_digital_contact_qualification_cta(
+  string $bundle,
+  string $title,
+  bool $is_english,
+): array {
+  $definitions = [
+    'service' => [
+      'type' => emerging_digital_contact_qualification_type($title),
+      'source' => 'service',
+      'label' => $is_english
+        ? 'Qualify this service need'
+        : 'Qualifier ce besoin service',
+      'title' => $is_english
+        ? 'Ready to frame this service?'
+        : 'Prêt à cadrer ce service ?',
+      'text' => $is_english
+        ? 'Continue to the contact form with this service context already prepared.'
+        : 'Poursuivez vers le formulaire avec ce contexte service déjà préparé.',
+    ],
+    'ai_feature' => [
+      'type' => 'ai',
+      'source' => 'ai_feature',
+      'label' => $is_english
+        ? 'Frame this AI use case'
+        : 'Cadrer cet usage IA',
+      'title' => $is_english
+        ? 'Need to qualify this AI use case?'
+        : 'Besoin de qualifier cet usage IA ?',
+      'text' => $is_english
+        ? 'Share this AI context through the contact form without adding automation or chatbot steps.'
+        : 'Transmettez ce contexte IA via le formulaire, sans automatisation ni chatbot.',
+    ],
+    'case_client' => [
+      'type' => emerging_digital_contact_qualification_type($title),
+      'source' => 'case_client',
+      'label' => $is_english
+        ? 'Discuss a similar project'
+        : 'Parler d’un projet similaire',
+      'title' => $is_english
+        ? 'Want to discuss a similar path?'
+        : 'Envie d’échanger sur un parcours similaire ?',
+      'text' => $is_english
+        ? 'Use the contact form with this case-study context to make the first exchange more useful.'
+        : 'Utilisez le formulaire avec ce contexte de cas client pour rendre le premier échange plus utile.',
+    ],
+  ];
+
+  if (!isset($definitions[$bundle])) {
+    return [];
+  }
+
+  $definition = $definitions[$bundle];
+  $path = $is_english ? '/en/contact' : '/fr/contact';
+  $query = http_build_query([
+    'type' => $definition['type'],
+    'source' => $definition['source'],
+    'context' => $title,
+  ]);
+
+  return [
+    'label' => $definition['label'],
+    'title' => $definition['title'],
+    'text' => $definition['text'],
+    'url' => $path . '?' . $query . '#contact-form',
+  ];
+}
+
+/**
+ * Infers the qualification type from a page title.
+ */
+function emerging_digital_contact_qualification_type(string $title): string {
+  $normalized = strtolower($title);
+  $markers = [
+    'audit' => ['audit'],
+    'redesign' => ['refonte', 'redesign'],
+    'migration' => ['migration'],
+    'maintenance' => ['maintenance', 'support'],
+    'ai' => ['ia', 'ai'],
+  ];
+
+  foreach ($markers as $type => $needles) {
+    foreach ($needles as $needle) {
+      if (str_contains($normalized, $needle)) {
+        return $type;
+      }
+    }
+  }
+
+  return 'redesign';
 }
 
 /**

@@ -72,4 +72,12 @@
       {{ content.field_related_services }}
     </aside>
   {% endif %}
+
+  {% if contact_qualification_cta %}
+    <aside class="ed-qualification-cta" aria-label="{{ contact_qualification_cta.title }}">
+      <h2 class="ed-qualification-cta__title">{{ contact_qualification_cta.title }}</h2>
+      <p>{{ contact_qualification_cta.text }}</p>
+      <a class="button button--primary" href="{{ contact_qualification_cta.url }}">{{ contact_qualification_cta.label }}</a>
+    </aside>
+  {% endif %}
 </article>

@@ -349,6 +349,174 @@
     header.dataset.mobileNavReady = 'true';
   }
 
+  function getContactQualificationLabels(langcode) {
+    var isEnglish = langcode === 'en';
+
+    return {
+      summaryTitle: isEnglish ? 'Selected context' : 'Contexte choisi',
+      summaryFallback: isEnglish ? 'Contact request' : 'Demande de contact',
+      summaryIntro: isEnglish
+        ? 'This context will be added to the form. You can adjust the message before sending.'
+        : 'Ce contexte sera repris dans le formulaire. Vous pouvez ajuster le message avant envoi.',
+      subjectPrefix: isEnglish ? 'Contact request' : 'Demande de contact',
+      messageIntro: isEnglish
+        ? 'Context selected from the website:'
+        : 'Contexte choisi depuis le site :',
+      sourceLabel: isEnglish ? 'Source' : 'Source',
+      typeLabel: isEnglish ? 'Need type' : 'Type de besoin',
+      contextLabel: isEnglish ? 'Context' : 'Contexte',
+      typeLabels: isEnglish ? {
+        audit: 'Drupal audit',
+        redesign: 'Redesign or modernization',
+        migration: 'Drupal migration',
+        ai: 'AI & Drupal',
+        maintenance: 'Maintenance or support'
+      } : {
+        audit: 'Audit Drupal',
+        redesign: 'Refonte ou modernisation',
+        migration: 'Migration Drupal',
+        ai: 'IA & Drupal',
+        maintenance: 'Maintenance ou support'
+      },
+      sourceLabels: isEnglish ? {
+        service: 'Service page',
+        ai_feature: 'AI feature page',
+        case_client: 'Case study',
+        contact: 'Contact page'
+      } : {
+        service: 'Page service',
+        ai_feature: 'Page fonctionnalité IA',
+        case_client: 'Cas client',
+        contact: 'Page contact'
+      }
+    };
+  }
+
+  function getContactQualification() {
+    var params = new URLSearchParams(window.location.search);
+    var type = params.get('type') || params.get('besoin');
+    var source = params.get('source');
+    var context = params.get('context') || params.get('contexte');
+
+    if (!type && !source && !context) {
+      return null;
+    }
+
+    return {
+      type: type || '',
+      source: source || '',
+      context: context || ''
+    };
+  }
+
+  function setFormValue(form, fieldName, value) {
+    if (!value) {
+      return;
+    }
+
+    var field = form.querySelector('[name="' + fieldName + '"]');
+    if (!field) {
+      return;
+    }
+
+    field.value = value;
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function appendMessageContext(form, lines) {
+    var message = form.querySelector('[name="message"]');
+    if (!message || !lines.length) {
+      return;
+    }
+
+    var prefix = lines.join('\n');
+    if (message.value.indexOf(prefix) !== -1) {
+      return;
+    }
+
+    message.value = message.value ? prefix + '\n\n' + message.value : prefix;
+    message.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function buildContactQualificationSummary(qualification, labels) {
+    var summary = document.createElement('div');
+    summary.className = 'ed-contact-context-summary';
+    summary.setAttribute('aria-live', 'polite');
+
+    var title = document.createElement('h3');
+    title.className = 'ed-contact-context-summary__title';
+    title.textContent = labels.summaryTitle;
+    summary.appendChild(title);
+
+    var intro = document.createElement('p');
+    intro.textContent = labels.summaryIntro;
+    summary.appendChild(intro);
+
+    var list = document.createElement('dl');
+    [
+      [labels.typeLabel, labels.typeLabels[qualification.type] || qualification.type],
+      [labels.contextLabel, qualification.context || labels.summaryFallback],
+      [labels.sourceLabel, labels.sourceLabels[qualification.source] || qualification.source]
+    ].forEach(function (item) {
+      if (!item[1]) {
+        return;
+      }
+
+      var term = document.createElement('dt');
+      term.textContent = item[0];
+      var description = document.createElement('dd');
+      description.textContent = item[1];
+      list.appendChild(term);
+      list.appendChild(description);
+    });
+    summary.appendChild(list);
+
+    return summary;
+  }
+
+  function initContactQualification() {
+    var form = document.querySelector('.ed-section__content--contact-form form');
+    var formSection = document.getElementById('contact-form');
+    if (!form || !formSection || form.dataset.qualificationReady === 'true') {
+      return;
+    }
+
+    var qualification = getContactQualification();
+    if (!qualification) {
+      return;
+    }
+
+    form.dataset.qualificationReady = 'true';
+
+    var langcode = document.documentElement.lang || 'fr';
+    var labels = getContactQualificationLabels(langcode.substring(0, 2));
+    var summary = buildContactQualificationSummary(qualification, labels);
+    var content = form.closest('.ed-section__content--contact-form');
+    if (content) {
+      content.insertBefore(summary, form);
+    }
+
+    setFormValue(form, 'project_type', qualification.type);
+
+    var subjectContext = qualification.context || labels.typeLabels[qualification.type] || labels.summaryFallback;
+    setFormValue(form, 'subject', labels.subjectPrefix + ' - ' + subjectContext);
+
+    var messageLines = [labels.messageIntro];
+    if (qualification.type) {
+      messageLines.push(labels.typeLabel + ': ' + (labels.typeLabels[qualification.type] || qualification.type));
+    }
+    if (qualification.context) {
+      messageLines.push(labels.contextLabel + ': ' + qualification.context);
+    }
+    if (qualification.source) {
+      messageLines.push(
+        labels.sourceLabel + ': ' +
+        (labels.sourceLabels[qualification.source] || qualification.source)
+      );
+    }
+    appendMessageContext(form, messageLines);
+  }
+
   document.addEventListener('click', function (event) {
     var clickedInSwitcher = event.target.closest('[data-language-switcher]');
     if (!clickedInSwitcher) {
@@ -371,11 +539,13 @@
   ensureCookiePolicyLinks();
   initLanguageSwitchers();
   initMobileNavigation(document.querySelector('.page-header'));
+  initContactQualification();
 
   var observer = new MutationObserver(function () {
     ensureCookiePolicyLinks();
     initLanguageSwitchers();
     initMobileNavigation(document.querySelector('.page-header'));
+    initContactQualification();
   });
   observer.observe(document.documentElement, {
     childList: true,

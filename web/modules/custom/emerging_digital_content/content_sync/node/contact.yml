@@ -40,6 +40,52 @@ components:
                 redesign, or AI evolution. The clearer your context, the more
                 useful our human response can be from the first exchange.
               format: basic_html
+  - id: contact.qualification_paths
+    legacy_uuid: 1dd03c6b-d313-48af-9971-151a0b13d7f4
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_heading:
+            - value: 'Choisir un contexte de qualification'
+          field_text:
+            - value: >-
+                <div id="qualification-contact" class="ed-contact-paths"><p>Choisissez
+                le point de départ le plus proche de votre besoin. Le formulaire
+                reprendra ce contexte et vous pourrez le compléter librement.</p>
+                <ul><li><a class="button button--secondary"
+                href="/fr/contact?type=audit&amp;source=contact&amp;context=Audit%20Drupal#contact-form">Demander
+                un audit</a></li><li><a class="button button--secondary"
+                href="/fr/contact?type=redesign&amp;source=contact&amp;context=Refonte%20Drupal#contact-form">Cadrer
+                une refonte</a></li><li><a class="button button--secondary"
+                href="/fr/contact?type=migration&amp;source=contact&amp;context=Migration%20Drupal#contact-form">Préparer
+                une migration</a></li><li><a class="button button--secondary"
+                href="/fr/contact?type=ai&amp;source=contact&amp;context=IA%20et%20Drupal#contact-form">Qualifier
+                un besoin IA</a></li><li><a class="button button--secondary"
+                href="/fr/contact?type=maintenance&amp;source=contact&amp;context=Maintenance%20Drupal#contact-form">Organiser
+                la maintenance</a></li></ul></div>
+              format: full_html
+      en:
+        fields:
+          field_heading:
+            - value: 'Choose a qualification context'
+          field_text:
+            - value: >-
+                <div id="qualification-contact" class="ed-contact-paths"><p>Choose
+                the starting point closest to your need. The form will reuse
+                this context and you can adjust it freely.</p><ul><li><a
+                class="button button--secondary"
+                href="/en/contact?type=audit&amp;source=contact&amp;context=Drupal%20audit#contact-form">Request
+                an audit</a></li><li><a class="button button--secondary"
+                href="/en/contact?type=redesign&amp;source=contact&amp;context=Drupal%20redesign#contact-form">Frame
+                a redesign</a></li><li><a class="button button--secondary"
+                href="/en/contact?type=migration&amp;source=contact&amp;context=Drupal%20migration#contact-form">Prepare
+                a migration</a></li><li><a class="button button--secondary"
+                href="/en/contact?type=ai&amp;source=contact&amp;context=AI%20and%20Drupal#contact-form">Qualify
+                an AI need</a></li><li><a class="button button--secondary"
+                href="/en/contact?type=maintenance&amp;source=contact&amp;context=Drupal%20maintenance#contact-form">Organise
+                maintenance</a></li></ul></div>
+              format: full_html
   - id: contact.form
     legacy_uuid: 855b08da-0ec9-4261-883a-d27f214606e6
     bundle: text_block

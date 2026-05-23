@@ -29,9 +29,12 @@ La meme configuration est exportee dans :
 
 La couche preparatoire Future AI reste presente pour un ticket ulterieur :
 interfaces gateway/provider, garde d'environnement, contexte public sanitise et
-objets de reponse. Elle est desactivee par configuration, n'est pas exposee par
-le widget public et aucune route publique de conversation n'est declaree dans
-le MVP.
+objets de reponse. Elle est desactivee par configuration, le provider OpenAI
+reste verrouille cote service, elle n'est pas exposee par le widget public et
+aucune route publique de conversation n'est declaree dans le MVP.
+
+La note d'exploitation liee au verrouillage est documentee dans
+`docs/ticket-321-future-ai-sans-activation.md`.
 
 ## Tests
 

@@ -30,6 +30,17 @@ final class PublicContextBuilder {
     'field_detailed_description',
   ];
 
+  /**
+   * Path prefixes that must never be considered public context.
+   */
+  private const BLOCKED_PATH_PREFIXES = [
+    '/admin',
+    '/batch',
+    '/core',
+    '/system',
+    '/user',
+  ];
+
   public function __construct(
     private readonly ConfigFactoryInterface $configFactory,
     private readonly LanguageManagerInterface $languageManager,
@@ -146,7 +157,7 @@ final class PublicContextBuilder {
     }
 
     $paths = array_map(fn(mixed $path): string => $this->normalizePath((string) $path), $paths);
-    $paths = array_filter($paths, static fn(string $path): bool => $path !== '');
+    $paths = array_filter($paths, fn(string $path): bool => $this->isAllowedPublicPath($path));
 
     return array_values(array_unique($paths));
   }
@@ -306,6 +317,23 @@ final class PublicContextBuilder {
     }
 
     return '/' . ltrim($path, '/');
+  }
+
+  /**
+   * Keeps context retrieval scoped to explicit public page aliases only.
+   */
+  private function isAllowedPublicPath(string $path): bool {
+    if ($path === '' || str_contains($path, '?') || str_contains($path, '#')) {
+      return FALSE;
+    }
+
+    foreach (self::BLOCKED_PATH_PREFIXES as $prefix) {
+      if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
+        return FALSE;
+      }
+    }
+
+    return TRUE;
   }
 
   /**

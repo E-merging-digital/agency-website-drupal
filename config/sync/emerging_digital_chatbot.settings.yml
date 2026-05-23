@@ -98,6 +98,9 @@ messages:
     guardrail: 'Pour un budget, un délai ou une proposition engageante, l’équipe reprend contact avec vous.'
     choose_label: 'Choisir un parcours'
     cta_label: 'Actions proposées'
+    transparency_summary: 'Assistant guidé - pas de conservation durable'
+    back_label: 'Changer de besoin'
+    selected_label: 'Besoin sélectionné'
     privacy_label: Confidentialité
     privacy_path: /fr/politique-de-confidentialite
     flows:
@@ -204,6 +207,9 @@ messages:
     guardrail: 'For a budget, timeline, or binding proposal, the team will follow up with you.'
     choose_label: 'Choose a path'
     cta_label: 'Suggested actions'
+    transparency_summary: 'Guided assistant - no long-term storage'
+    back_label: 'Change need'
+    selected_label: 'Selected need'
     privacy_label: Privacy
     privacy_path: /en/privacy-policy
     flows:

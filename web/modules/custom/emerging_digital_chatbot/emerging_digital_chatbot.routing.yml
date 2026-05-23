@@ -1,13 +1,3 @@
-emerging_digital_chatbot.conversation:
-  path: '/api/emerging-digital-chatbot/conversation'
-  defaults:
-    _controller: '\Drupal\emerging_digital_chatbot\Controller\ChatbotEndpointController::conversation'
-    _format: json
-  requirements:
-    _permission: 'access content'
-    _csrf_token: 'TRUE'
-    _method: POST
-
 emerging_digital_chatbot.public_context:
   path: '/admin/config/services/emerging-digital-chatbot/public-context'
   defaults:

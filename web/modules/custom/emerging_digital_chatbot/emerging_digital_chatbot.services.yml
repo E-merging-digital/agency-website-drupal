@@ -8,6 +8,11 @@ services:
       - '@path_alias.manager'
       - '@path.matcher'
 
+  emerging_digital_chatbot.qualification_engine:
+    class: Drupal\emerging_digital_chatbot\QualificationEngine
+    arguments:
+      - '@emerging_digital_chatbot.config'
+
   emerging_digital_chatbot.payload_sanitizer:
     class: Drupal\emerging_digital_chatbot\FutureAi\ChatbotPayloadSanitizer
     arguments:
@@ -89,12 +94,3 @@ services:
   logger.channel.emerging_digital_chatbot:
     parent: logger.channel_base
     arguments: ['emerging_digital_chatbot']
-
-  emerging_digital_chatbot.endpoint_controller:
-    class: Drupal\emerging_digital_chatbot\Controller\ChatbotEndpointController
-    arguments:
-      - '@emerging_digital_chatbot.config'
-      - '@emerging_digital_chatbot.future_ai_orchestrator'
-      - '@emerging_digital_chatbot.payload_sanitizer'
-      - '@flood'
-      - '@logger.channel.emerging_digital_chatbot'

@@ -9,8 +9,8 @@ use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
-use Drupal\Core\Url;
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
+use Drupal\emerging_digital_chatbot\QualificationEngine;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -29,6 +29,7 @@ final class ChatbotBlock extends BlockBase implements ContainerFactoryPluginInte
     $plugin_id,
     $plugin_definition,
     private readonly ChatbotConfig $chatbotConfig,
+    private readonly QualificationEngine $qualificationEngine,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -42,6 +43,7 @@ final class ChatbotBlock extends BlockBase implements ContainerFactoryPluginInte
       $plugin_id,
       $plugin_definition,
       $container->get('emerging_digital_chatbot.config'),
+      $container->get('emerging_digital_chatbot.qualification_engine'),
     );
   }
 
@@ -108,7 +110,7 @@ final class ChatbotBlock extends BlockBase implements ContainerFactoryPluginInte
       return $build;
     }
 
-    $payload = $this->chatbotConfig->getWidgetPayload();
+    $payload = $this->qualificationEngine->buildPayload();
     $messages = is_array($payload['messages'] ?? NULL) ? $payload['messages'] : [];
     $chatbot_id = 'emerging-digital-chatbot';
     $variant = (string) ($this->configuration['launcher_variant'] ?? 'compact');
@@ -127,7 +129,6 @@ final class ChatbotBlock extends BlockBase implements ContainerFactoryPluginInte
         'drupalSettings' => [
           'emergingDigitalChatbot' => [
             $chatbot_id => [
-              'endpoint' => Url::fromRoute('emerging_digital_chatbot.conversation')->toString(),
               'launcherVariant' => $variant,
               'payload' => $payload,
             ],

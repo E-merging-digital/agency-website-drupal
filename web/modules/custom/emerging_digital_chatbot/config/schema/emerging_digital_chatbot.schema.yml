@@ -152,6 +152,15 @@ emerging_digital_chatbot.settings:
           cta_label:
             type: label
             label: 'CTA label'
+          transparency_summary:
+            type: label
+            label: 'Transparency summary'
+          back_label:
+            type: label
+            label: 'Back label'
+          selected_label:
+            type: label
+            label: 'Selected label'
           privacy_label:
             type: label
             label: 'Privacy label'

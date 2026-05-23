@@ -30,7 +30,7 @@
           launcherLabel.classList.add('visually-hidden');
         }
 
-        privacy.textContent = messages.privacy_label || 'Privacy';
+        privacy.textContent = messages.privacy_label || '';
         privacy.setAttribute('href', messages.privacy_path || '#');
 
         const focusableSelector = [
@@ -86,9 +86,7 @@
 
           const summary = document.createElement('summary');
           summary.className = 'ed-chatbot__transparency-summary';
-          summary.textContent = payload.langcode === 'fr'
-            ? 'Assistant guidé - pas de conservation durable'
-            : 'Guided assistant - no long-term storage';
+          summary.textContent = messages.transparency_summary || '';
           details.appendChild(summary);
 
           const detail = document.createElement('p');
@@ -117,11 +115,11 @@
           return link;
         };
 
-        const getBackLabel = () => (payload.langcode === 'fr' ? 'Changer de besoin' : 'Change need');
+        const getBackLabel = () => messages.back_label || '';
 
-        const getChoiceLabel = () => messages.choose_label || (payload.langcode === 'fr' ? 'Que souhaitez-vous faire ?' : 'What would you like to do?');
+        const getChoiceLabel = () => messages.choose_label || '';
 
-        const getSelectedLabel = () => (payload.langcode === 'fr' ? 'Besoin sélectionné' : 'Selected need');
+        const getSelectedLabel = () => messages.selected_label || '';
 
         const isContactCta = (cta) => typeof cta.path === 'string' && cta.path.endsWith('/contact');
 
@@ -156,7 +154,7 @@
 
           const label = document.createElement('p');
           label.className = 'ed-chatbot__section-label';
-          label.textContent = messages.cta_label || 'Suggested actions';
+          label.textContent = messages.cta_label || '';
           ctas.appendChild(label);
 
           const list = document.createElement('div');

@@ -11,7 +11,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use Psr\Log\LoggerInterface;
 
 /**
- * Server-side OpenAI Responses API gateway.
+ * Server-side OpenAI Responses API gateway, kept locked until activation.
  */
 final class OpenAiResponsesGateway implements FutureAiProviderGatewayInterface {
 
@@ -33,7 +33,7 @@ final class OpenAiResponsesGateway implements FutureAiProviderGatewayInterface {
    * {@inheritdoc}
    */
   public function isEnabled(): bool {
-    return TRUE;
+    return FALSE;
   }
 
   /**
@@ -45,6 +45,17 @@ final class OpenAiResponsesGateway implements FutureAiProviderGatewayInterface {
     string $promptContext,
     string $apiKey,
   ): FutureAiResponse {
+    if (!$this->isEnabled()) {
+      $this->logger->warning(
+        'Chatbot OpenAI provider is locked until a dedicated activation ticket.',
+      );
+
+      return $this->providerFailure(
+        FutureAiResponseStatus::UnsupportedProvider,
+        $langcode,
+      );
+    }
+
     $payload = $this->sanitizePayloadForProvider($payload);
     $message = trim((string) ($payload['message'] ?? ''));
     if ($message === '') {

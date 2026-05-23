@@ -76,6 +76,7 @@ final class PublicContextBuilderTest extends KernelTestBase {
         '/fr/public',
         '/fr/unpublished',
         '/admin/content',
+        '/fr/public?debug=1',
       ])
       ->set('future_ai.context.allowed_public_paths.en', [
         '/en/public',
@@ -135,6 +136,7 @@ final class PublicContextBuilderTest extends KernelTestBase {
     $this->createAlias('/node/' . $published->id(), '/public', 'en');
     $this->createAlias('/node/' . $unpublished->id(), '/unpublished', 'fr');
     $this->createAlias('/node/' . $forbidden->id(), '/forbidden', 'fr');
+    $this->createAlias('/node/' . $forbidden->id(), '/admin/content', 'fr');
 
     $builder = $this->container->get('emerging_digital_chatbot.public_context_builder');
     self::assertInstanceOf(PublicContextBuilder::class, $builder);
@@ -149,6 +151,7 @@ final class PublicContextBuilderTest extends KernelTestBase {
     self::assertStringNotContainsString('Chemin interdit', $frText);
     self::assertStringNotContainsString('/fr/forbidden', $frText);
     self::assertStringNotContainsString('/admin/content', $frText);
+    self::assertStringNotContainsString('/fr/public?debug=1', $frText);
     self::assertStringNotContainsString('<h2>', $frText);
     self::assertStringNotContainsString('<script>', $frText);
     self::assertStringNotContainsString('bad()', $frText);

@@ -15,4 +15,5 @@ theme: {  }
 complete_list:
   - google_tag.settings
   - google_tag.container.G-K5TDNZCPTY.69f8b7287a84a3.47771255
+  - system.mail
 partial_list: {  }

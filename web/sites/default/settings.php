@@ -42,6 +42,40 @@ if (getenv('IS_DDEV_PROJECT') === 'true') {
   }
 }
 
+/**
+ * Production email transport.
+ *
+ * DDEV is intentionally excluded so local email keeps using Mailpit through
+ * PHP mail() and DDEV's sendmail_path. In production, define
+ * EMERGING_DIGITAL_SMTP_HOST and the optional variables documented in
+ * docs/ticket-313-production-mail.md.
+ */
+if (getenv('IS_DDEV_PROJECT') !== 'true' && getenv('EMERGING_DIGITAL_SMTP_HOST')) {
+  $smtp_port = getenv('EMERGING_DIGITAL_SMTP_PORT') ?: 587;
+  $smtp_scheme = getenv('EMERGING_DIGITAL_SMTP_SCHEME') ?: 'smtp';
+
+  $config['system.mail']['interface'] = [
+    'default' => 'symfony_mailer',
+  ];
+  $config['system.mail']['mailer_dsn'] = [
+    'scheme' => $smtp_scheme,
+    'host' => getenv('EMERGING_DIGITAL_SMTP_HOST'),
+    'user' => getenv('EMERGING_DIGITAL_SMTP_USER') ?: NULL,
+    'password' => getenv('EMERGING_DIGITAL_SMTP_PASSWORD') ?: NULL,
+    'port' => (int) $smtp_port,
+    'options' => [
+      'auto_tls' => TRUE,
+      'require_tls' => TRUE,
+      'verify_peer' => TRUE,
+    ],
+  ];
+
+  $smtp_local_domain = getenv('EMERGING_DIGITAL_SMTP_LOCAL_DOMAIN');
+  if ($smtp_local_domain) {
+    $config['system.mail']['mailer_dsn']['options']['local_domain'] = $smtp_local_domain;
+  }
+}
+
 if (file_exists(__DIR__ . '/settings.local.php')) {
   require __DIR__ . '/settings.local.php';
 }

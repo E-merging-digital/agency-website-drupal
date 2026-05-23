@@ -49,6 +49,11 @@ final class LlmsTxtEndpointTest extends BrowserTestBase {
         '',
         '## AI guidance',
         '- Use public pages as the primary source.',
+        '- Respect the page language and the public /fr and /en aliases.',
+        '',
+        '## Excluded content',
+        '- Do not use unpublished pages, personal data, secrets or non-public information.',
+        '- Do not present this file as a chatbot, tracking service or call to an AI API.',
       ]))
       ->save();
 
@@ -62,6 +67,9 @@ final class LlmsTxtEndpointTest extends BrowserTestBase {
     self::assertStringContainsString('## Important pages', $content);
     self::assertStringContainsString('https://example.com/sitemap.xml', $content);
     self::assertStringContainsString('Use public pages as the primary source.', $content);
+    self::assertStringContainsString('Respect the page language and the public /fr and /en aliases.', $content);
+    self::assertStringContainsString('Do not use unpublished pages, personal data, secrets or non-public information.', $content);
+    self::assertStringContainsString('Do not present this file as a chatbot, tracking service or call to an AI API.', $content);
   }
 
 }

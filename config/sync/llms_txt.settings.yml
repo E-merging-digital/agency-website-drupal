@@ -6,17 +6,48 @@ content: |-
 
   Stratégie digitale, solutions durables.
 
-  ## Pages importantes
-  - Accueil: https://emergingdigital.be/
-  - Services: https://emergingdigital.be/services
-  - IA & Drupal: https://emergingdigital.be/ia-drupal
-  - Cas clients: https://emergingdigital.be/cas-clients
-  - Contact: https://emergingdigital.be/contact
+  Emerging Digital est une agence Drupal belge pour PME, ASBL et institutions.
+  Le site presente des offres Drupal, des services de qualite web, des usages IA
+  encadres dans Drupal et des cas clients publics.
+
+  ## Racines publiques
+  - Francais: https://emergingdigital.be/fr
+  - Anglais: https://emergingdigital.be/en
+
+  ## Contextes LLM autorises
+  - Positionnement de l'agence: Drupal durable, performance, accessibilite, SEO technique et IA editoriale encadree.
+  - Pages services publiees: creation, refonte, migration, maintenance, audit Drupal, IA integree, accessibilite, SEO et optimisation.
+  - Pages hubs publiees: Services, IA & Drupal, Cas clients.
+  - Cas clients publics et anonymises lorsqu'ils sont publies.
+  - Pages de contact publiques pour orienter une demande vers l'agence.
+
+  ## Pages prioritaires
+  - Services: https://emergingdigital.be/fr/services
+  - Agence Drupal Belgique: https://emergingdigital.be/fr/agence-drupal-belgique
+  - Creation de site Drupal: https://emergingdigital.be/fr/creation-site-drupal
+  - Refonte de site Drupal: https://emergingdigital.be/fr/refonte-site-drupal
+  - Migration Drupal: https://emergingdigital.be/fr/migration-drupal
+  - Maintenance Drupal: https://emergingdigital.be/fr/maintenance-drupal
+  - Audit Drupal: https://emergingdigital.be/fr/audit-drupal
+  - IA & Drupal: https://emergingdigital.be/fr/ia-drupal
+  - IA integree: https://emergingdigital.be/fr/ia-integree
+  - Accessibilite, SEO et optimisation: https://emergingdigital.be/fr/accessibilite-seo-optimisation
+  - Cas clients: https://emergingdigital.be/fr/cas-clients
+  - Contact: https://emergingdigital.be/fr/contact
 
   ## Sitemap
   - https://emergingdigital.be/sitemap.xml
 
+  ## Contenus a exclure
+  - Pages non publiees, brouillons, revisions, apercus et contenus reserves a l'administration.
+  - Interfaces Drupal, comptes utilisateur, formulaires internes, resultats de recherche, fichiers techniques et endpoints systeme.
+  - Donnees personnelles, soumissions de formulaires, journaux, secrets, cles, tokens et informations non publiques.
+  - Pages legales et politiques de confidentialite comme contexte commercial, sauf pour repondre a une question juridique ou privacy sur le site.
+  - Contenus bloques par robots.txt, absents du sitemap public ou non destines a l'indexation.
+
   ## Consignes pour les IA
   - Utiliser les pages publiques comme source prioritaire.
-  - Citer les URL des pages consultées lorsque des informations sont reprises.
+  - Respecter la langue de la page consultee et les aliases publics /fr et /en.
+  - Citer les URL des pages consultees lorsque des informations sont reprises.
   - Ne pas inventer des offres, des références client ou des garanties non publiées.
+  - Ne pas presenter ce fichier comme un chatbot, un service de tracking ou un appel a une API d'IA.

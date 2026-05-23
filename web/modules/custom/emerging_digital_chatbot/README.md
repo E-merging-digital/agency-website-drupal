@@ -1,245 +1,40 @@
 # Emerging Digital Chatbot
 
-Guided Drupal chatbot MVP for contact orientation and light qualification,
-with a prepared server-side AI boundary.
+MVP de chatbot de qualification local pour le site E-merging Digital.
 
-## Scope
-
-This module provides a discreet floating widget through a Drupal block. The MVP
-uses quick choices, guarded responses and CTA links by default. The optional AI
-mode is disabled in exported configuration and remains controlled by Drupal. It
-does not calculate prices, produce quotes, make commercial decisions, expose API
-keys, or store conversation history.
-
-## Installation
-
-Enable the module and place the `Guided chatbot` block, or import the project
-configuration that places `emerging_digital_chatbot_widget` in the
-`emerging_digital` content region.
-
-The exported settings live in:
-
-- `emerging_digital_chatbot.settings`
-- `block.block.emerging_digital_chatbot_widget`
-
-## Configuration
-
-The settings file controls:
-
-- global activation;
-- enabled languages;
-- allowed and excluded pages;
-- guide mode versus future AI mode;
-- localized FR/EN messages;
-- guided flows and CTAs;
-- Future AI provider id, plus OpenAI Responses API endpoint/model metadata;
-- FR/EN system prompts and fallback messages;
-- input, context, timeout and rate-limit safeguards;
-- future public-context profile for mini-RAG preparation.
-
-External AI calls are blocked by default, even if `future_ai.enabled` is true.
-They require an explicit runtime allowance through
-`$settings['emerging_digital_chatbot.allow_external_ai'] = TRUE` or
-`EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true`.
-
-The local mock provider is also blocked by default. Selecting
-`future_ai.provider: mock` in active configuration is not enough: local/staging
-runtimes must explicitly opt in through
-`$settings['emerging_digital_chatbot.allow_mock_provider'] = TRUE` or
-`EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER=true`.
-
-The OpenAI API key must never be stored in exportable configuration. It must be
-available through the Drupal Key module. Resolution order is:
-
-1. OpenAI provider configuration from `ai_provider_openai` through the Key
-   module.
-2. `future_ai.openai_key_id`, interpreted as a Drupal Key id.
-
-## Controlled local/staging runtime activation
-
-Future AI can be tested only in an explicitly trusted local or staging runtime.
-Do not enable it in exported `config/sync` to carry a secret or an environment
-decision between environments.
-
-Required runtime conditions:
-
-- `mode` is set to `ai` in the active Drupal configuration.
-- `future_ai.enabled` is `true` in the active Drupal configuration.
-- `future_ai.provider` is `openai` or `mock`.
-- OpenAI only: the runtime explicitly allows external AI calls.
-- OpenAI only: the Drupal Key module can resolve the configured OpenAI key.
-- Mock only: the runtime explicitly allows the mock provider.
-
-The legacy `openai_responses` provider id is still accepted as a compatibility
-alias and resolves to the stable `openai` provider id. New configuration should
-use `future_ai.provider: openai`.
-
-Recommended `settings.local.php` allowance for local/staging:
-
-```php
-$settings['emerging_digital_chatbot.allow_external_ai'] = TRUE;
-```
-
-Equivalent environment-variable allowance:
-
-```bash
-export EMERGING_DIGITAL_CHATBOT_ALLOW_EXTERNAL_AI=true
-```
-
-The setting wins when it is a boolean. If it is absent, the environment variable
-is accepted only for `1`, `true`, `yes` or `on`, case-insensitively. Any other
-value leaves external calls blocked.
-
-Recommended mock allowance for controlled local/staging demos:
-
-```php
-$settings['emerging_digital_chatbot.allow_mock_provider'] = TRUE;
-```
-
-Equivalent environment-variable allowance:
-
-```bash
-export EMERGING_DIGITAL_CHATBOT_ALLOW_MOCK_PROVIDER=true
-```
-
-The mock provider id is `mock`. It makes no HTTP request, reads no API key and
-returns a deterministic public response. It ignores visitor messages, prompt
-context, public RAG context and provider payload material, so it must not be used
-as a memory, logging, replay or analytics mechanism. If `mock` is selected
-without the runtime allowance above, the orchestrator follows the existing
-fail-closed unsupported-provider fallback.
-
-Configure the secret through Key module, not configuration export. The expected
-setup is an environment-backed Key:
-
-```bash
-export OPENAI_API_KEY=sk-...
-```
-
-Create a Key with id `openai_api_key`, type `Authentication`, provider
-`Environment`, and environment variable `OPENAI_API_KEY`. The key input stays
-`None` because the value is read at runtime from the environment.
-
-Then either let `ai_provider_openai` reference that Key id, or keep the
-non-secret fallback id in `future_ai.openai_key_id`. Never put the key value in
-`config/sync`, `settings.php`, `settings.local.php`, exported YAML or logs.
-
-Runtime diagnostics are available at:
-
-`/admin/config/services/emerging-digital-chatbot/public-context`
-
-The screen exposes only sanitized status and monitoring values:
-
-- Future AI state: `enabled` or `disabled`.
-- Active provider: provider id only.
-- Environment: `allowed` or `blocked`.
-- Reason: for example `environment_blocked`, `future_ai_disabled`,
-  `unsupported_provider`, `key_missing` or `key_unreadable`.
-- Key status: `available`, `missing` or `unreadable`.
-- External calls allowed: `yes` only when every guard passes.
-- Monitoring period: counters since the last Drupal cache clear.
-- Technical counters: events, successes, blocked calls, provider errors and
-  fallbacks returned.
-- Controlled monitoring reasons only: `environment_blocked`,
-  `future_ai_disabled`, `key_missing`, `key_unreadable`,
-  `unsupported_provider`, `context_empty`, `provider_timeout`, `provider_error`,
-  `fallback_used` and `success`.
-
-Future AI response contracts are typed before they reach the HTTP controller:
-
-- `FutureAiResponse` carries only controlled public fields: `status`,
-  `message`, `fallback`, `stored`, `langcode` and the optional sanitized
-  `futureAi` summary.
-- `FutureAiResponseStatus` is the public status vocabulary serialized by
-  `FutureAiResponse::toArray()`. It preserves the existing endpoint values such
-  as `ai_response`, `guide_only`, `provider_error` and `provider_timeout`.
-- `FutureAiResponseReason` is the internal reason vocabulary used by the
-  orchestrator and monitoring. Detailed local reasons that are not part of the
-  admin monitoring vocabulary are folded into `fallback_used` before storage.
-- The contract has no extension bag for prompts, visitor payloads, provider
-  payloads, RAG context text, API keys or Key ids. The optional `futureAi`
-  summary is allow-listed and sanitized during construction.
-
-Monitoring is intentionally minimal and anonymous. It stores volatile counters
-in Drupal cache and emits sanitized Drupal log events with controlled reason
-codes only. It never stores visitor messages, prompts, public RAG context,
-provider payloads, API keys, Key ids, session ids, user ids, IP addresses,
-marketing identifiers or conversation state. It does not add external calls,
-queues, analytics scripts, a custom SQL business table or durable conversation
-storage. Cache clears reset the admin counters; logs remain subject to the
-site's normal Drupal logging retention.
-
-Expected behavior:
-
-- allowed environment plus readable Key: one server-side OpenAI Responses call
-  can be made with `store: false`, no tools and no conversation state.
-- blocked environment, disabled Future AI, unsupported provider or missing Key:
-  no external HTTP call is made and the guided fallback is returned.
-- provider error, invalid JSON, timeout, empty answer or guardrail violation:
-  the guided fallback is returned.
-- sensitive visitor input is rejected before any provider request.
-- logs contain only technical reason/status/class values, never prompts, API
-  keys, raw provider payloads, full context or visitor messages.
-
-The default block hides the widget on contact pages so it does not cover the
-human contact form.
+Le module fournit un widget accessible base sur un arbre de decision
+configure dans `emerging_digital_chatbot.settings`. Il ne fait aucun appel
+HTTP externe, ne contacte aucun service d'IA, ne stocke aucune conversation,
+ne cree aucune entite metier, ne pose aucun cookie et n'ajoute aucun tracking.
 
 ## Architecture
 
-- `ChatbotBlock` renders a cacheable Drupal block and attaches the widget
-  library.
-- `ChatbotConfig` normalizes Config API values, language selection and path
-  visibility.
-- `ChatbotEndpointController` exposes a prepared POST endpoint for later server
-  conversation handling, with CSRF protection, no-store responses, flood
-  limiting and delegation to the Future AI orchestrator.
-- `ChatbotPayloadSanitizer` keeps only minimal scalar visitor input and blocks
-  obvious sensitive data before any provider call.
-- `FutureAiGatewayInterface` defines the server-side AI boundary.
-- `FutureAiOrchestrator` centralizes Future AI activation, environment checks,
-  public context retrieval, fallback decisions, provider dispatch and sanitized
-  monitoring. It is deterministic: every blocked, empty, timed-out or invalid
-  provider path returns the local guided fallback and `stored: false`.
-- `FutureAiResponse`, `FutureAiResponseStatus` and `FutureAiResponseReason`
-  define the typed response contract used between the orchestrator, provider
-  gateway and controller before final JSON serialization.
-- `FutureAiEnvironmentGuard` validates only the runtime environment, provider
-  availability and runtime Key availability. It does not build prompts or call
-  providers.
-- `FutureAiProviderGatewayInterface` defines a stateless provider adapter
-  contract so future providers can be added behind the orchestrator without
-  changing the controller.
-- `FutureAiProviderRegistry` is the provider manager. Provider services are
-  registered with the `emerging_digital_chatbot.future_ai_provider` service tag,
-  expose a stable id through `getProviderId()`, and are resolved from
-  `future_ai.provider`. Unknown, invalid, missing or disabled providers resolve
-  to a safe blocked path before any external call.
-- `MockFutureAiProviderGateway` registers the local `mock` provider. It is
-  disabled by default, requires explicit runtime allowance, performs no external
-  call, reads no key, stores no prompt/message/context/payload and returns a
-  deterministic controlled response for local/staging demonstrations.
-- `OpenAiResponsesGateway` prepares OpenAI Responses API calls with `store:
-  false`, no tools, no conversation state and prompt/context limits, then
-  parses and sanitizes provider results. It does not decide activation,
-  fallback policy, environment access or monitoring.
-- `NullFutureAiProviderGateway` registers the reserved `null` provider id as a
-  disabled provider so explicit null selection remains fail-closed.
-- `PublicAiContextProvider` prepares a public-pages-only context contract for a
-  future mini-RAG without adding vector stores.
-- `NullFutureAiGateway` provides the local guided fallback when AI is disabled,
-  unavailable, unsafe, unconfigured or empty.
-- `js/chatbot-widget.js` is vanilla JS with keyboard support and a focus trap.
-- `css/chatbot-widget.css` keeps the visual layer lightweight and module-owned.
+- `ChatbotConfig` lit la configuration Drupal et verifie les conditions
+  d'affichage.
+- `QualificationEngine` normalise les etapes et garde uniquement des CTA
+  internes.
+- `ChatbotBlock` separe le rendu Drupal de la logique metier.
+- `chatbot-widget.js` gere uniquement l'interaction locale dans le navigateur.
+- `chatbot-widget.css` porte le rendu responsive.
 
-## Limits of the MVP
+## Configuration
 
-The widget guides visitors toward public pages and human contact. It deliberately
-avoids pricing, binding promises, autonomous decisions, advanced analytics,
-conversation memory and CRM integration. AI mode must stay an assistant for
-clarification and orientation only.
+Les libelles, messages, etapes et CTA FR/EN sont dans :
 
-OpenAI calls remain server-side. Drupal owns UX, CSRF/rate limiting,
-sanitization, prompts, public context, fallback, logging policy and
-multilingual behavior. The orchestration layer owns Future AI business
-decisions; provider gateways only adapt one provider's HTTP contract. The
-frontend never receives prompts or API keys.
+`config/install/emerging_digital_chatbot.settings.yml`
+
+La meme configuration est exportee dans :
+
+`config/sync/emerging_digital_chatbot.settings.yml`
+
+La couche preparatoire Future AI reste presente pour un ticket ulterieur :
+interfaces gateway/provider, garde d'environnement, contexte public sanitise et
+objets de reponse. Elle est desactivee par configuration, n'est pas exposee par
+le widget public et aucune route publique de conversation n'est declaree dans
+le MVP.
+
+## Tests
+
+Le test fonctionnel principal est :
+
+`web/modules/custom/agency_project_tests/tests/src/Functional/ChatbotMvpTest.php`

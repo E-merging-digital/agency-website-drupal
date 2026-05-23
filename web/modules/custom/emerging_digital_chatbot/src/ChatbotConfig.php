@@ -12,7 +12,7 @@ use Drupal\Core\Path\PathMatcherInterface;
 use Drupal\path_alias\AliasManagerInterface;
 
 /**
- * Reads and normalizes chatbot configuration for rendering and endpoints.
+ * Reads and normalizes chatbot configuration for rendering and Future AI.
  */
 final class ChatbotConfig {
 
@@ -39,7 +39,9 @@ final class ChatbotConfig {
     }
 
     $paths = $this->getCurrentPathCandidates($langcode);
-    if ($suppress_contact_pages && $this->matchesAny($paths, ['/fr/contact', '/en/contact', '/contact'])) {
+    if ($suppress_contact_pages
+      && $this->matchesAny($paths, ['/fr/contact', '/en/contact', '/contact'])
+    ) {
       return FALSE;
     }
 
@@ -153,7 +155,9 @@ final class ChatbotConfig {
    * Gets the AI response temperature.
    */
   public function getFutureAiTemperature(): float {
-    $value = $this->configFactory->get('emerging_digital_chatbot.settings')->get('future_ai.temperature');
+    $value = $this->configFactory
+      ->get('emerging_digital_chatbot.settings')
+      ->get('future_ai.temperature');
 
     return max(0.0, min(1.0, is_numeric($value) ? (float) $value : 0.2));
   }
@@ -183,7 +187,9 @@ final class ChatbotConfig {
    * Gets the maximum prompt context length.
    */
   public function getFutureAiMaxContextChars(): int {
-    $contextValue = $this->configFactory->get('emerging_digital_chatbot.settings')->get('future_ai.context.max_context_chars');
+    $contextValue = $this->configFactory
+      ->get('emerging_digital_chatbot.settings')
+      ->get('future_ai.context.max_context_chars');
     if (is_numeric($contextValue)) {
       return max(1, min(4000, (int) $contextValue));
     }
@@ -316,7 +322,10 @@ final class ChatbotConfig {
       return [];
     }
 
-    return array_values(array_filter(array_map([$this, 'normalizePath'], array_map('strval', $value))));
+    return array_values(array_filter(array_map(
+      [$this, 'normalizePath'],
+      array_map('strval', $value)
+    )));
   }
 
   /**
@@ -372,7 +381,9 @@ final class ChatbotConfig {
         if ($pattern === '*' || $pattern === $path) {
           return TRUE;
         }
-        if (str_ends_with($pattern, '*') && str_starts_with($path, rtrim($pattern, '*'))) {
+        if (str_ends_with($pattern, '*')
+          && str_starts_with($path, rtrim($pattern, '*'))
+        ) {
           return TRUE;
         }
       }

@@ -106,6 +106,10 @@ rm -f "$NEW_RELEASE/web/sites/default/settings.php"
 ln -sfn "$SHARED_DIR/settings/settings.php" "$NEW_RELEASE/web/sites/default/settings.php"
 ```
 
+Les fichiers publics Drupal sont partagés entre releases via
+`/var/www/agency/shared/files`. Vérifier ou réparer les permissions du dossier
+partagé après chaque release si le serveur signale des erreurs d'écriture.
+
 ### 3.6 Activation de la nouvelle release
 
 ```bash
@@ -121,6 +125,11 @@ vendor/bin/drush cim -y
 vendor/bin/drush config:import --source="$PWD/config/splits/production" --partial -y
 vendor/bin/drush cr
 ```
+
+Le split production contient aussi `system.mail` pour activer le transport SMTP
+Proton sans secret. Le mot de passe reste injecté par les variables
+`EMERGING_DIGITAL_SMTP_*` lues dans le `settings.php` de production partagé,
+hors Git.
 
 ### 3.8 Nginx
 
@@ -160,7 +169,16 @@ Exécuter les contrôles suivants :
 cd /var/www/agency/current
 vendor/bin/drush status
 vendor/bin/drush config:status
+vendor/bin/drush php:eval 'echo \Drupal::config("system.mail")->get("mailer_dsn.scheme")."\n";'
 curl -I http://emergingdigital.be
+```
+
+Si les droits fichiers sont cassés après la bascule de release :
+
+```bash
+sudo chown -R www-data:www-data /var/www/agency/shared/files
+sudo find /var/www/agency/shared/files -type d -exec chmod 2775 {} +
+sudo find /var/www/agency/shared/files -type f -exec chmod 664 {} +
 ```
 
 Puis compléter par :

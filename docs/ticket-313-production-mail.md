@@ -6,99 +6,186 @@ Date : 2026-05-22
 
 ## Objectif
 
-Configurer le socle d'envoi email Drupal pour que le formulaire Webform
-`contact` reste capture par Mailpit en DDEV et utilise un transport SMTP
-securise en production, sans secret versionne.
+Configurer l'envoi email Drupal pour que le formulaire Webform `contact` reste
+capture par Mailpit en DDEV et utilise Proton SMTP en production, sans secret
+versionne.
 
-## Audit
+## Synthese
 
-- `system.mail` utilisait `php_mail` et `webform_php_mail`.
-- Drupal 11 fournit deja le plugin mail `symfony_mailer`, base sur le composant
-  Symfony Mailer present dans Drupal Core.
-- Le transport exporte reste `native://default`, ce qui delegue a `mail()` et
-  preserve Mailpit en DDEV via le `sendmail_path` PHP configure par DDEV.
-- Le Webform `contact` envoie la notification a `contact@emergingdigital.be`.
-- Le handler de notification utilisait auparavant l'adresse visiteur en `From`.
-  Pour respecter SPF/DMARC, le `From` utilise maintenant l'adresse par defaut
-  du site et l'adresse visiteur est conservee en `Reply-To`.
+- `config/sync/system.mail.yml` reste sur `symfony_mailer` avec
+  `native://default`.
+- En DDEV, `settings.php` ignore les variables SMTP et Mailpit continue de
+  capturer les emails via `mail()`.
+- En production, `settings.php` construit le transport Symfony Mailer depuis
+  les variables `EMERGING_DIGITAL_SMTP_*`.
+- Le mot de passe SMTP reste uniquement dans l'environnement serveur.
+- L'adresse principale du site est `contact@emergingdigital.be`.
+- La timezone Drupal est `Europe/Brussels`.
+
+## Regles Proton
+
+Proton impose que l'adresse utilisee comme identite SMTP soit autorisee dans le
+compte SMTP :
+
+- `EMERGING_DIGITAL_SMTP_USER=jonathan@emergingdigital.be`
+- `EMERGING_DIGITAL_SMTP_FROM=jonathan@emergingdigital.be`
+
+`contact@emergingdigital.be` reste le destinataire metier du formulaire. Dans
+l'etat actuel, cette adresse est une redirection ou une adresse non autorisee
+comme `From` SMTP Proton. Elle ne doit donc pas etre utilisee comme `From`,
+`Sender` ou `Return-Path` pour les emails Webform envoyes via Proton.
+
+Si un jeton SMTP Proton a ete expose dans un terminal partage, un ticket, une
+documentation ou Git, il faut le revoquer et regenerer un nouveau jeton cote
+Proton avant de relancer la production.
 
 ## Configuration Drupal
 
-- `config/sync/system.mail.yml` utilise `symfony_mailer` par defaut, donc aussi
-  pour Webform, avec `native://default` comme transport local.
-- `config/sync/system.site.yml` declare `contact@emergingdigital.be` comme
-  adresse email du site.
-- `config/sync/webform.webform.contact.yml` conserve :
-  - notification vers `contact@emergingdigital.be` ;
-  - confirmation vers l'adresse saisie dans le champ `email` ;
-  - `From` domaine site ;
-  - `Reply-To` visiteur pour la notification entrante.
+- `system.mail` :
+  - interface par defaut : `symfony_mailer` ;
+  - transport exporte : `native://default` ;
+  - aucun mot de passe SMTP dans `config/sync`.
+- `system.site` :
+  - `mail: contact@emergingdigital.be`.
+- `system.date` :
+  - `timezone.default: Europe/Brussels`.
+- `webform.webform.contact` :
+  - notification interne active vers `contact@emergingdigital.be` ;
+  - `From`, `Sender` et `Return-Path` sur `jonathan@emergingdigital.be` ;
+  - `From name` sur `E-MERGING DIGITAL` ;
+  - `Reply-To` vide temporairement pour maximiser la fiabilite Proton ;
+  - confirmation visiteur desactivee temporairement.
 
 DSM+ / Mailer Plus n'est pas ajoute dans ce ticket : le besoin immediat est le
-transport SMTP securise, couvert par Drupal Core. DSM+ reste le candidat naturel
-si le projet ajoute ensuite des templates transactionnels HTML avances,
-attachements, politiques par type d'email ou transports multiples.
+transport SMTP securise, couvert par Drupal Core et Symfony Mailer.
 
-## Variables d'environnement production
+## Variables serveur
 
-Activer le SMTP uniquement en production en definissant au minimum :
+Creer le fichier serveur non versionne :
 
 ```bash
-EMERGING_DIGITAL_SMTP_HOST=smtp.example.com
+sudo nano /etc/emergingdigital.env
+```
+
+Contenu attendu, sans jamais commiter le jeton :
+
+```bash
+EMERGING_DIGITAL_SMTP_HOST=smtp.protonmail.ch
 EMERGING_DIGITAL_SMTP_PORT=587
-EMERGING_DIGITAL_SMTP_SCHEME=smtp
-EMERGING_DIGITAL_SMTP_USER=utilisateur-smtp
-EMERGING_DIGITAL_SMTP_PASSWORD=<mot-de-passe-smtp-non-versionne>
-EMERGING_DIGITAL_SMTP_LOCAL_DOMAIN=emergingdigital.be
+EMERGING_DIGITAL_SMTP_USER=jonathan@emergingdigital.be
+EMERGING_DIGITAL_SMTP_PASSWORD=<jeton SMTP Proton>
+EMERGING_DIGITAL_SMTP_ENCRYPTION=tls
+EMERGING_DIGITAL_SMTP_FROM=jonathan@emergingdigital.be
 ```
 
-Notes :
+Droits attendus :
 
-- `EMERGING_DIGITAL_SMTP_HOST` active l'override SMTP production.
-- `EMERGING_DIGITAL_SMTP_PORT` vaut `587` par defaut.
-- `EMERGING_DIGITAL_SMTP_SCHEME` vaut `smtp` par defaut avec STARTTLS requis.
-- Utiliser `smtps` avec le port `465` si le fournisseur impose TLS implicite.
-- `EMERGING_DIGITAL_SMTP_USER` et `EMERGING_DIGITAL_SMTP_PASSWORD` sont des
-  secrets d'environnement et ne doivent jamais etre commites.
-- `require_tls` et `verify_peer` sont forces a `TRUE` dans `settings.php`.
-- En DDEV, ces overrides sont ignores afin de laisser Mailpit capturer les
-  emails localement via `mail()`.
-
-## DNS email
-
-Avant activation production, verifier chez le fournisseur DNS du domaine
-`emergingdigital.be` :
-
-- SPF : autoriser le fournisseur SMTP a emettre pour le domaine.
-- DKIM : publier la cle DKIM fournie par le SMTP et activer la signature cote
-  fournisseur.
-- DMARC : publier une politique DMARC, commencer en observation si necessaire,
-  puis durcir progressivement.
-
-Exemples indicatifs a adapter au fournisseur :
-
-```text
-emergingdigital.be. TXT "v=spf1 include:spf.fournisseur.example -all"
-selector._domainkey.emergingdigital.be. TXT "v=DKIM1; k=rsa; p=..."
-_dmarc.emergingdigital.be. TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@emergingdigital.be; adkim=s; aspf=s"
+```bash
+sudo chown root:www-data /etc/emergingdigital.env
+sudo chmod 640 /etc/emergingdigital.env
 ```
 
-## Verification manuelle DDEV
+## PHP-FPM
 
-1. Importer la configuration : `ddev drush cim -y`.
-2. Vider le cache : `ddev drush cr`.
-3. Tester `mail()` dans DDEV :
+Le service PHP-FPM doit charger `/etc/emergingdigital.env`. Creer ou modifier
+l'override systemd :
 
-   ```bash
-   ddev exec php -r "mail('contact@emergingdigital.be', 'Test PHP Mailpit', 'Message de test PHP mail()', 'From: contact@emergingdigital.be');"
-   ```
+```bash
+sudo systemctl edit php8.4-fpm
+```
 
-4. Ouvrir Mailpit : `ddev launch -m`.
-5. Verifier que l'email PHP est recu dans Mailpit.
-6. Soumettre `/fr/contact`.
-7. Verifier dans Mailpit :
-   - notification a `contact@emergingdigital.be` ;
-   - confirmation a l'adresse saisie ;
-   - `From` = adresse du site ;
-   - `Reply-To` = adresse visiteur sur la notification ;
-   - aucun secret SMTP dans le message ni dans `git diff`.
+Contenu :
+
+```ini
+[Service]
+EnvironmentFile=/etc/emergingdigital.env
+```
+
+Le pool PHP-FPM doit ensuite exposer les variables necessaires a Drupal. Dans
+`/etc/php/8.4/fpm/pool.d/www.conf`, conserver `clear_env = no` ou declarer
+explicitement les variables :
+
+```ini
+env[EMERGING_DIGITAL_SMTP_HOST] = $EMERGING_DIGITAL_SMTP_HOST
+env[EMERGING_DIGITAL_SMTP_PORT] = $EMERGING_DIGITAL_SMTP_PORT
+env[EMERGING_DIGITAL_SMTP_USER] = $EMERGING_DIGITAL_SMTP_USER
+env[EMERGING_DIGITAL_SMTP_PASSWORD] = $EMERGING_DIGITAL_SMTP_PASSWORD
+env[EMERGING_DIGITAL_SMTP_ENCRYPTION] = $EMERGING_DIGITAL_SMTP_ENCRYPTION
+env[EMERGING_DIGITAL_SMTP_FROM] = $EMERGING_DIGITAL_SMTP_FROM
+```
+
+Apres modification :
+
+```bash
+sudo php-fpm8.4 -t
+sudo systemctl restart php8.4-fpm
+vendor/bin/drush cr
+```
+
+## Verification production
+
+Verifier la configuration effective :
+
+```bash
+vendor/bin/drush cget system.site mail
+vendor/bin/drush cget system.date timezone.default
+vendor/bin/drush cget system.mail
+vendor/bin/drush cget webform.webform.contact handlers.email_notification.settings
+```
+
+Attendus :
+
+- `system.site mail` vaut `contact@emergingdigital.be`.
+- `system.date timezone.default` vaut `Europe/Brussels`.
+- `system.mail` ne doit jamais afficher de mot de passe SMTP reel dans la
+  configuration exportee.
+- Le handler `email_notification` utilise `jonathan@emergingdigital.be` comme
+  `from_mail`, `sender_mail` et `return_path`, et envoie vers
+  `contact@emergingdigital.be`.
+
+Test direct SMTP :
+
+```bash
+vendor/bin/drush php:eval '
+$transport = \Symfony\Component\Mailer\Transport::fromDsn(
+"smtp://".rawurlencode(getenv("EMERGING_DIGITAL_SMTP_USER")).":".rawurlencode(getenv("EMERGING_DIGITAL_SMTP_PASSWORD"))."@smtp.protonmail.ch:587?encryption=tls"
+);
+$mailer = new \Symfony\Component\Mailer\Mailer($transport);
+$email = (new \Symfony\Component\Mime\Email())
+->from(new \Symfony\Component\Mime\Address("jonathan@emergingdigital.be", "E-MERGING DIGITAL"))
+->sender("jonathan@emergingdigital.be")
+->returnPath("jonathan@emergingdigital.be")
+->to("contact@emergingdigital.be")
+->subject("SMTP Webform equivalent")
+->html("<p>Test Webform equivalent</p>");
+$mailer->send($email);
+echo "MAIL_OK\n";
+'
+```
+
+Puis tester :
+
+- soumission reelle de `/fr/contact` ;
+- email recu sur `contact@emergingdigital.be` ;
+- logs Drupal sans erreur Symfony Mailer ;
+- timezone correcte ;
+- aucun `Permission denied` dans les derniers logs PHP-FPM / Drupal.
+
+## Verification DDEV
+
+En local :
+
+```bash
+ddev drush cim -y
+ddev drush cr
+ddev drush config:status
+ddev exec php -r "mail('contact@emergingdigital.be', 'Test PHP Mailpit', 'Message de test PHP mail()', 'From: jonathan@emergingdigital.be');"
+ddev launch -m
+```
+
+Verifier :
+
+- Mailpit recoit l'email de test PHP ;
+- une soumission `/fr/contact` arrive dans Mailpit ;
+- aucun SMTP externe n'est appele en DDEV ;
+- aucun secret SMTP n'apparait dans `git diff`.

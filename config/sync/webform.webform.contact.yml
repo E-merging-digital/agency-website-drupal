@@ -301,24 +301,24 @@ handlers:
     handler_id: email_confirmation
     label: 'Email confirmation'
     notes: ''
-    status: true
+    status: false
     conditions: {  }
     weight: 1
     settings:
       states:
         - completed
-      to_mail: '[current-user:mail]'
+      to_mail: '[webform_submission:values:email:raw]'
       to_options: {  }
       bcc_mail: ''
       bcc_options: {  }
       cc_mail: ''
       cc_options: {  }
-      from_mail: _default
+      from_mail: jonathan@emergingdigital.be
       from_options: {  }
-      from_name: _default
-      reply_to: ''
-      return_path: ''
-      sender_mail: ''
+      from_name: 'E-MERGING DIGITAL'
+      reply_to: contact@emergingdigital.be
+      return_path: jonathan@emergingdigital.be
+      sender_mail: jonathan@emergingdigital.be
       sender_name: ''
       subject: '[webform_submission:values:subject:raw]'
       body: "Merci pour votre message. Nous revenons vers vous rapidement.\r\n\r\n[webform_submission:values]"
@@ -351,12 +351,12 @@ handlers:
       bcc_options: {  }
       cc_mail: ''
       cc_options: {  }
-      from_mail: '[webform_submission:values:email:raw]'
+      from_mail: jonathan@emergingdigital.be
       from_options: {  }
-      from_name: '[webform_submission:values:name:raw]'
+      from_name: 'E-MERGING DIGITAL'
       reply_to: ''
-      return_path: ''
-      sender_mail: ''
+      return_path: jonathan@emergingdigital.be
+      sender_mail: jonathan@emergingdigital.be
       sender_name: ''
       subject: '[webform_submission:values:subject:raw]'
       body: '[webform_submission:values]'

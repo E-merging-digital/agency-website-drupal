@@ -51,6 +51,34 @@ function emerging_digital_preprocess_node(array &$variables): void {
 }
 
 /**
+ * Implements hook_preprocess_form().
+ */
+function emerging_digital_preprocess_form(array &$variables): void {
+  $form_id = (string) ($variables['element']['#form_id'] ?? '');
+  $is_admin_route = \Drupal::service('router.admin_context')->isAdminRoute();
+
+  if ($form_id === '' || $is_admin_route) {
+    return;
+  }
+
+  $system_form_ids = [
+    'user_login_form' => 'login',
+    'user_pass' => 'password-reset',
+    'user_register_form' => 'register',
+    'search_form' => 'search',
+    'search_block_form' => 'search-block',
+  ];
+
+  if (!isset($system_form_ids[$form_id])) {
+    return;
+  }
+
+  $variant = $system_form_ids[$form_id];
+  $variables['element']['#attributes']['class'][] = 'ed-system-form';
+  $variables['element']['#attributes']['class'][] = 'ed-system-form--' . $variant;
+}
+
+/**
  * Builds a localized contact qualification CTA for detail pages.
  *
  * @return array<string, string>

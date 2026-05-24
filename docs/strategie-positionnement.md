@@ -1,6 +1,7 @@
 # Strategie de positionnement hero et expertise technique
 
 Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/323
+Complement documentaire : https://github.com/E-merging-digital/agency-website-drupal/issues/326
 
 Date : 2026-05-24
 
@@ -113,11 +114,39 @@ Une liste de technologies comme message principal creerait plusieurs risques :
 Les technologies doivent donc apparaitre comme preuves de competence et comme
 criteres d'arbitrage, pas comme promesse principale.
 
+## Technologies = moyen, pas promesse principale
+
+La strategie validee reste inchangee : les technologies sont un moyen au
+service du besoin client. Elles prouvent la capacite d'execution, la profondeur
+technique et la qualite d'arbitrage, mais elles ne doivent pas remplacer le
+message principal du site.
+
+Dans les contenus publics, une technologie doit donc toujours etre reliee a un
+usage concret :
+
+- clarifier un besoin metier ;
+- rendre un site plus maintenable ;
+- structurer des contenus ou des workflows ;
+- integrer des outils, API ou donnees ;
+- reduire une dette technique ;
+- ameliorer performance, securite, accessibilite ou SEO technique.
+
+Une mention technologique isolee, sans probleme client ni critere de choix, est
+a eviter. Elle donnerait une impression de catalogue et pourrait affaiblir la
+strategie validee.
+
 ## Role de PHP, Symfony, Laravel et Magento
 
 PHP est le socle technique elargi. Il montre que l'agence ne choisit pas Drupal
 par reflexe et qu'elle sait raisonner en architecture, maintenabilite,
 integrations et dette technique.
+
+PHP a un role particulier : il est le langage et l'ecosysteme communs qui
+relient Drupal, Symfony, Laravel, Magento, les integrations sur mesure et une
+part importante de la dette applicative reprise chez les clients. Il ne doit pas
+etre presente comme une mode ou une offre separee de tout contexte, mais comme
+un socle durable pour construire, reprendre, auditer et faire evoluer des sites
+et applications web.
 
 Symfony, Laravel et Magento doivent rester secondaires :
 
@@ -130,6 +159,28 @@ Symfony, Laravel et Magento doivent rester secondaires :
 Cette hierarchie protege le positionnement : Drupal reste le centre de gravite,
 PHP prouve la profondeur technique, les autres technologies montrent la capacite
 d'arbitrage.
+
+## Regles d'ajout de technologies
+
+Toute nouvelle technologie mentionnee dans un contenu public ou une future page
+doit respecter ces regles :
+
+- conserver Drupal comme expertise principale quand le sujet concerne le CMS,
+  les contenus structures, le multilingue, l'accessibilite ou le SEO technique ;
+- expliquer le cas d'usage avant de nommer l'outil ;
+- decrire pourquoi cette technologie aide le projet, pas seulement qu'elle est
+  disponible ;
+- rester proportionnee aux preuves et references publiques disponibles ;
+- eviter de creer une nouvelle promesse commerciale sans ticket dedie ;
+- ne pas placer une technologie complementaire au meme niveau que Drupal sur la
+  homepage sans decision strategique explicite ;
+- verifier les risques de cannibalisation avec les pages Drupal et PHP
+  existantes ou prevues ;
+- garder le vocabulaire comprehensible pour des decideurs non techniques.
+
+Une technologie peut etre ajoutee si elle sert l'arbitrage, la reassurance ou la
+clarification d'un cas client. Elle ne doit pas etre ajoutee pour allonger une
+liste d'expertises.
 
 ## Contribution SEO et conversion
 

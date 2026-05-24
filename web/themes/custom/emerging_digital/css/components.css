@@ -458,7 +458,7 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
 }
 
 .ed-section--hero::after {
-  content: "";
+  content: none;
   position: absolute;
   right: clamp(-6rem, -2vw, -2rem);
   top: 50%;
@@ -468,6 +468,32 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
   opacity: 0.9;
   pointer-events: none;
   z-index: -1;
+}
+
+.ed-section__hero-layout {
+  display: grid;
+  gap: clamp(var(--space-4), 4vw, var(--space-6));
+  align-items: center;
+}
+
+.ed-section__hero-content {
+  min-width: 0;
+}
+
+.ed-section__hero-illustration {
+  display: none;
+  width: min(100%, 20rem);
+  height: auto;
+  justify-self: center;
+  filter: drop-shadow(0 18px 28px rgb(17 24 39 / 10%));
+}
+
+.ed-section__hero-illustration--media img,
+.ed-section__hero-illustration--media picture,
+.ed-section__hero-illustration--media svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
 }
 
 .ed-section__title--hero {
@@ -1050,8 +1076,14 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
 }
 
 @media (min-width: 48rem) {
-  .ed-section--hero::after {
-    background: url("../images/home/home-hero-ia-drupal.svg") no-repeat center / contain;
+  .ed-section__hero-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 24vw);
+  }
+
+  .ed-section__hero-illustration {
+    display: block;
+    width: min(22rem, 100%);
+    justify-self: end;
   }
 
   .ed-section__content--contact-form form {

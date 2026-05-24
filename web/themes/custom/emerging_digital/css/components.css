@@ -480,6 +480,29 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
   max-width: 62ch;
 }
 
+.ed-section--expertise-reassurance {
+  padding-block: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.ed-section--expertise-reassurance .ed-container {
+  display: flex;
+}
+
+.ed-section--expertise-reassurance .ed-section__content {
+  max-width: 100%;
+  color: #24364f;
+  font-size: clamp(0.98rem, 1.4vw, 1.08rem);
+  line-height: 1.55;
+}
+
+.ed-section--expertise-reassurance .ed-section__content p {
+  margin: 0;
+}
+
+.ed-section--expertise-reassurance strong {
+  color: #0f2a4a;
+}
+
 .ed-actions {
   display: flex;
   flex-wrap: wrap;

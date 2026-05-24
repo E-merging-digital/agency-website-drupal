@@ -54,6 +54,24 @@ components:
           field_secondary_link:
             - uri: 'internal:/en/services'
               title: 'See our expertise'
+  - id: homepage.expertise-reassurance
+    legacy_uuid: 517059c5-0767-4b95-903a-f2e1d96d887f
+    bundle: text_block
+    translations:
+      fr:
+        fields:
+          field_text:
+            - value: >-
+                <p><strong>Expertise principale :</strong> Drupal • PHP sur
+                mesure • Symfony • Laravel • Magento</p>
+              format: basic_html
+      en:
+        fields:
+          field_text:
+            - value: >-
+                <p><strong>Core expertise:</strong> Drupal • Custom PHP •
+                Symfony • Laravel • Magento</p>
+              format: basic_html
   - id: homepage.positioning
     legacy_uuid: ad8e2138-9355-4951-90dc-354e07847eca
     bundle: text_block

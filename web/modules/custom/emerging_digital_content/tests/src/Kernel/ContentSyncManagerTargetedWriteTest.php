@@ -920,7 +920,38 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       $services_en_items,
     );
 
-    $homepage_items = $this->serviceCardItems($this->loadMappedNodeByContentId('homepage'), 'fr');
+    $homepage = $this->loadMappedNodeByContentId('homepage');
+    $homepage_components = $homepage->get('field_home_components')
+      ->referencedEntities();
+    self::assertSame(
+      ['hero', 'text_block', 'text_block'],
+      array_map(
+        static fn (Paragraph $paragraph): string => $paragraph->bundle(),
+        array_slice($homepage_components, 0, 3),
+      ),
+    );
+    self::assertStringContainsString(
+      'Expertise principale :',
+      $homepage_components[1]->getTranslation('fr')->get('field_text')->value,
+    );
+    self::assertStringContainsString(
+      'Drupal • PHP sur mesure • Symfony • Laravel • Magento',
+      $homepage_components[1]->getTranslation('fr')->get('field_text')->value,
+    );
+
+    $homepage_en_components = $homepage->getTranslation('en')
+      ->get('field_home_components')
+      ->referencedEntities();
+    self::assertStringContainsString(
+      'Core expertise:',
+      $homepage_en_components[1]->getTranslation('en')->get('field_text')->value,
+    );
+    self::assertStringContainsString(
+      'Drupal • Custom PHP • Symfony • Laravel • Magento',
+      $homepage_en_components[1]->getTranslation('en')->get('field_text')->value,
+    );
+
+    $homepage_items = $this->serviceCardItems($homepage, 'fr');
     self::assertCount(10, $homepage_items);
     self::assertContains(
       'Création de site Drupal|Un site Drupal conçu pour vos contenus, '

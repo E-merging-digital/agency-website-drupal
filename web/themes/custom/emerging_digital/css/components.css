@@ -89,6 +89,517 @@ button:focus-visible,
   opacity: 1;
   visibility: visible;
 }
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  width: min(100%, 34rem);
+  margin-block: var(--space-4) var(--space-2);
+  padding: clamp(var(--space-4), 4vw, var(--space-6));
+  border: 1px solid #dbe3f0;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 14px 34px rgb(17 24 39 / 8%);
+}
+
+:where(.ed-system-form--search, .ed-system-form--search-block, .search-form, .search-block-form) {
+  width: min(100%, 42rem);
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-item,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-actions {
+  min-width: 0;
+  margin: 0;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-item + .form-item,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-actions {
+  margin-top: var(--space-1);
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) label,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-item__label {
+  display: inline-block;
+  max-width: 100%;
+  margin-bottom: 0.4rem;
+  color: var(--color-text);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-required::after,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .js-form-required::after {
+  content: " *";
+  color: #6f3b00;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input:not(
+  [type="submit"],
+  [type="button"],
+  [type="reset"],
+  [type="hidden"],
+  [type="checkbox"],
+  [type="radio"],
+  [type="file"]
+),
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) textarea,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.875rem;
+  padding: 0.68rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  line-height: 1.35;
+  box-shadow: inset 0 1px 1px rgb(17 24 39 / 4%);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+:where(.ed-system-form, .user-login-form, .user-pass, .user-register-form, .search-form, .search-block-form) textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+:where(.ed-system-form, .user-login-form, .user-pass, .user-register-form, .search-form, .search-block-form) select {
+  padding-right: 2.35rem;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input:not(
+  [type="submit"],
+  [type="button"],
+  [type="reset"],
+  [type="hidden"],
+  [type="checkbox"],
+  [type="radio"],
+  [type="file"]
+):hover,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) textarea:hover,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) select:hover {
+  border-color: #b9c4d6;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input:not(
+  [type="submit"],
+  [type="button"],
+  [type="reset"],
+  [type="hidden"],
+  [type="checkbox"],
+  [type="radio"],
+  [type="file"]
+):focus-visible,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) textarea:focus-visible,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) select:focus-visible,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input[type="checkbox"]:focus-visible,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input[type="radio"]:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 2px;
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgb(0 91 187 / 14%);
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input[type="checkbox"],
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0.28rem 0.45rem 0 0;
+  accent-color: var(--color-primary);
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .description,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-item__description,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .password-suggestions {
+  max-width: 64ch;
+  margin-top: 0.4rem;
+  color: #334155;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .password-suggestions {
+  padding: var(--space-3);
+  border: 1px solid #cddbf8;
+  border-radius: var(--radius-sm);
+  background: #f8fbff;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-item--error-message,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-item .description.error {
+  color: #8a1f11;
+  font-size: 0.98rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input.error,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) textarea.error,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) select.error {
+  border-color: #b42318;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) input[type="submit"],
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-submit,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) button[type="submit"] {
+  width: auto;
+  max-width: 100%;
+}
+
+:where(.ed-system-form--login, .user-login-form) .form-actions,
+:where(.ed-system-form--password-reset, .user-pass) .form-actions,
+:where(.ed-system-form--register, .user-register-form) .form-actions {
+  margin-top: var(--space-2);
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) .form-wrapper,
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) details {
+  min-width: 0;
+}
+
+:where(.ed-system-form, .user-login-form, .user-pass, .user-register-form, .search-form, .search-block-form) details {
+  padding: var(--space-3);
+  border: 1px solid #dbe3f0;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+:where(.ed-system-form, .user-login-form, .user-pass, .user-register-form, .search-form, .search-block-form) summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+:where(
+  .ed-system-form,
+  .user-login-form,
+  .user-pass,
+  .user-register-form,
+  .search-form,
+  .search-block-form
+) summary:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 30rem) {
+  :where(
+    .ed-system-form,
+    .user-login-form,
+    .user-pass,
+    .user-register-form,
+    .search-form,
+    .search-block-form
+  ) {
+    width: 100%;
+    padding: var(--space-4);
+  }
+
+  :where(
+    .ed-system-form,
+    .user-login-form,
+    .user-pass,
+    .user-register-form,
+    .search-form,
+    .search-block-form
+  ) .form-actions,
+  :where(
+    .ed-system-form,
+    .user-login-form,
+    .user-pass,
+    .user-register-form,
+    .search-form,
+    .search-block-form
+  ) input[type="submit"],
+  :where(
+    .ed-system-form,
+    .user-login-form,
+    .user-pass,
+    .user-register-form,
+    .search-form,
+    .search-block-form
+  ) .form-submit,
+  :where(
+    .ed-system-form,
+    .user-login-form,
+    .user-pass,
+    .user-register-form,
+    .search-form,
+    .search-block-form
+  ) button[type="submit"] {
+    width: 100%;
+  }
+}
+
 .ed-section {
   position: relative;
   padding-block: clamp(2.25rem, 6vw, 5rem);

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Url;
+use Drupal\node\NodeInterface;
 use Drupal\webform\Entity\Webform;
 
 /**
@@ -437,7 +438,122 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
  * Implements hook_preprocess_paragraph__hero().
  */
 function emerging_digital_preprocess_paragraph__hero(array &$variables): void {
-  $variables['heading_tag'] = !empty($variables['is_front']) ? 'h1' : 'h2';
+  $is_front = !empty($variables['is_front']);
+  $variables['heading_tag'] = $is_front ? 'h1' : 'h2';
+  $illustration = emerging_digital_hero_illustration($is_front);
+  $variables['hero_illustration_class'] = 'ed-section--hero-' . $illustration['variant'];
+  $variables['hero_illustration_src'] = $illustration['src'];
+  $variables['hero_illustration_alt'] = $illustration['alt'];
+  $variables['hero_illustration_loading'] = !empty($variables['is_front']) ? 'eager' : 'lazy';
+
+  if (isset($variables['content']['field_hero_media'][0])) {
+    $variables['hero_media'] = $variables['content']['field_hero_media'];
+    unset($variables['content']['field_hero_media']);
+  }
+}
+
+/**
+ * Selects the business illustration for a hero paragraph.
+ *
+ * Media-rendered illustrations are handled first in Twig when a project field
+ * exists. The theme SVG map keeps Content Sync pages deterministic and provides
+ * the mandatory fallback when no media is available.
+ *
+ * @return array{variant: string, src: string, alt: string}
+ *   Selected hero illustration metadata.
+ */
+function emerging_digital_hero_illustration(bool $is_front = FALSE): array {
+  $variant = 'home';
+  $langcode = \Drupal::languageManager()->getCurrentLanguage()->getId();
+  if (!$is_front) {
+    $current_path = \Drupal::service('path.current')->getPath();
+    $alias = \Drupal::service('path_alias.manager')
+      ->getAliasByPath($current_path, $langcode);
+    $node = \Drupal::routeMatch()->getParameter('node');
+
+    if ($alias === $current_path && $node instanceof NodeInterface) {
+      if ($node->hasField('path') && !$node->get('path')->isEmpty()) {
+        $alias = (string) ($node->get('path')->alias ?? '');
+      }
+    }
+
+    $variant_by_alias = [
+      '/accueil' => 'home',
+      '/home' => 'home',
+      '/ia-drupal' => 'ia-drupal',
+      '/ai-drupal' => 'ia-drupal',
+      '/services' => 'services',
+      '/contact' => 'contact',
+      '/cas-clients' => 'case-clients',
+      '/case-studies' => 'case-clients',
+      '/equipe' => 'team',
+      '/team' => 'team',
+    ];
+    $variant = $variant_by_alias[$alias] ?? $variant;
+  }
+
+  $theme_path = \Drupal::service('extension.list.theme')->getPath('emerging_digital');
+  $definitions = emerging_digital_hero_illustration_definitions();
+  $definition = $definitions[$variant] ?? $definitions['home'];
+
+  return [
+    'variant' => $variant,
+    'src' => base_path() . $theme_path . '/' . $definition['path'],
+    'alt' => $definition['alt'][$langcode] ?? $definition['alt']['fr'],
+  ];
+}
+
+/**
+ * Returns hero illustration definitions keyed by business context.
+ *
+ * @return array<string, array{path: string, alt: array<string, string>}>
+ *   Illustration paths relative to the theme and localized alt text.
+ */
+function emerging_digital_hero_illustration_definitions(): array {
+  return [
+    'home' => [
+      'path' => 'images/home/home-hero-ia-drupal.svg',
+      'alt' => [
+        'fr' => 'Plateforme web structurée et performante.',
+        'en' => 'Structured and performant web platform.',
+      ],
+    ],
+    'ia-drupal' => [
+      'path' => 'images/ia-drupal/ia-drupal-page-hero.svg',
+      'alt' => [
+        'fr' => 'Modules éditoriaux, flux et gouvernance de contenus.',
+        'en' => 'Editorial modules, workflows and content governance.',
+      ],
+    ],
+    'services' => [
+      'path' => 'images/services/services-page-hero.svg',
+      'alt' => [
+        'fr' => 'Architecture de services web en composants et parcours.',
+        'en' => 'Web service architecture in components and journeys.',
+      ],
+    ],
+    'contact' => [
+      'path' => 'images/contact/contact-page-hero.svg',
+      'alt' => [
+        'fr' => 'Cadrage de projet avec planning et accompagnement humain.',
+        'en' => 'Project scoping with planning, priorities and human support.',
+      ],
+    ],
+    'case-clients' => [
+      'path' => 'images/case-clients/case-clients-page-hero.svg',
+      'alt' => [
+        'fr' => 'Progression de projet vers des résultats maîtrisés.',
+        'en' => 'Project progression toward controlled outcomes.',
+      ],
+    ],
+    'team' => [
+      'path' => 'images/team/team-page-hero.svg',
+      'alt' => [
+        'fr' => 'Collaboration humaine autour de décisions projet structurées.',
+        'en' => 'Human collaboration around structured project decisions.',
+      ],
+    ],
+  ];
 }
 
 /**

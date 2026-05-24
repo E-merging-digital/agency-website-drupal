@@ -1,22 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
-  <title>IA Drupal page hero</title>
-  <desc>Placeholder visuel à remplacer par une image finale libre de droit ou générée.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" role="img" aria-labelledby="title desc">
+  <title>Gouvernance editoriale Drupal</title>
+  <desc>Illustration de modules editoriaux, flux de validation et gouvernance de contenus.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ecf2ff"/>
-      <stop offset="100%" stop-color="#dce8ff"/>
+    <linearGradient id="panel" x1="104" y1="82" x2="618" y2="636" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="178" y1="160" x2="544" y2="570" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f8bff"/>
+      <stop offset="1" stop-color="#10b981"/>
     </linearGradient>
   </defs>
-  <rect width="1200" height="720" fill="url(#bg)"/>
-  <rect x="90" y="90" width="1020" height="540" rx="24" fill="#ffffff" stroke="#c8d7f8" stroke-width="3"/>
-  <circle cx="220" cy="210" r="42" fill="#5f7fbd" opacity="0.22"/>
-  <rect x="300" y="170" width="620" height="24" rx="12" fill="#5f7fbd" opacity="0.25"/>
-  <rect x="300" y="214" width="460" height="18" rx="9" fill="#5f7fbd" opacity="0.18"/>
-  <rect x="180" y="310" width="840" height="220" rx="16" fill="#f4f7ff" stroke="#d7e1fa"/>
-  <rect x="220" y="356" width="320" height="136" rx="10" fill="#e2ebff"/>
-  <rect x="570" y="356" width="410" height="22" rx="11" fill="#5f7fbd" opacity="0.22"/>
-  <rect x="570" y="394" width="360" height="16" rx="8" fill="#5f7fbd" opacity="0.15"/>
-  <rect x="570" y="424" width="290" height="16" rx="8" fill="#5f7fbd" opacity="0.15"/>
-  <text x="600" y="590" text-anchor="middle" fill="#35538f" font-family="Arial, sans-serif" font-size="28" font-weight="700">IA Drupal page hero</text>
-  <text x="600" y="626" text-anchor="middle" fill="#5776ae" font-family="Arial, sans-serif" font-size="20">Placeholder à remplacer</text>
+  <rect x="104" y="82" width="512" height="556" rx="42" fill="url(#panel)" stroke="#b8c7dd" stroke-width="6"/>
+  <rect x="172" y="140" width="376" height="92" rx="24" fill="#fff" stroke="#c6d4e6" stroke-width="6"/>
+  <path d="M220 186h122M378 186h86" fill="none" stroke="#1f3b57" stroke-linecap="round" stroke-width="14"/>
+  <rect x="172" y="302" width="152" height="148" rx="26" fill="#fff" stroke="#c6d4e6" stroke-width="6"/>
+  <rect x="396" y="302" width="152" height="148" rx="26" fill="#fff" stroke="#c6d4e6" stroke-width="6"/>
+  <rect x="244" y="512" width="232" height="78" rx="26" fill="#fff" stroke="#c6d4e6" stroke-width="6"/>
+  <path d="M324 376h72M360 232v70M248 450v62M472 450v62" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="12"/>
+  <path d="M214 350h68M214 396h42M438 350h68M438 396h42M294 552h132" fill="none" stroke="#1f3b57" stroke-linecap="round" stroke-width="12"/>
+  <circle cx="360" cy="232" r="24" fill="url(#accent)"/>
+  <path d="M350 226l8 8 17-20" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+  <circle cx="248" cy="450" r="18" fill="#0f8bff"/>
+  <circle cx="472" cy="450" r="18" fill="#10b981"/>
+  <path d="M124 594h72M540 126h54M126 244h48M536 608h58" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="12" opacity=".75"/>
 </svg>

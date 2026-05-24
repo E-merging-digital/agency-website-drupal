@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720" role="img" aria-labelledby="title desc">
+  <title>Collaboration humaine</title>
+  <desc>Illustration sobre d'une collaboration humaine autour de decisions projet structurees.</desc>
+  <defs>
+    <linearGradient id="panel" x1="100" y1="82" x2="620" y2="638" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="172" y1="164" x2="548" y2="568" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f8bff"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="82" width="520" height="556" rx="42" fill="url(#panel)" stroke="#b8c7dd" stroke-width="6"/>
+  <rect x="186" y="176" width="348" height="238" rx="30" fill="#fff" stroke="#c6d4e6" stroke-width="6"/>
+  <path d="M236 248h96M236 304h248M236 360h184" fill="none" stroke="#1f3b57" stroke-linecap="round" stroke-width="12"/>
+  <circle cx="488" cy="246" r="24" fill="url(#accent)"/>
+  <path d="M478 240l8 8 20-24" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
+  <circle cx="246" cy="518" r="46" fill="#fff" stroke="#c6d4e6" stroke-width="6"/>
+  <circle cx="474" cy="518" r="46" fill="#fff" stroke="#c6d4e6" stroke-width="6"/>
+  <path d="M292 518h136" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="14"/>
+  <path d="M224 518h44M452 518h44" fill="none" stroke="#1f3b57" stroke-linecap="round" stroke-width="12"/>
+  <path d="M246 472v-58M474 472v-58" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="12"/>
+  <circle cx="360" cy="518" r="18" fill="#10b981"/>
+  <path d="M132 594h68M518 130h70M130 236h50M536 610h54" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="12" opacity=".75"/>
+</svg>

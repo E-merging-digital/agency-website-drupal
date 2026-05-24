@@ -1,20 +1,45 @@
-<section{{ attributes.addClass('ed-section', 'ed-section--hero') }}>
-  <div class="ed-container">
-    {% if paragraph.field_heading.value %}
-      <{{ heading_tag|default('h2') }} class="ed-section__title ed-section__title--hero">{{ paragraph.field_heading.value }}</{{ heading_tag|default('h2') }}>
-    {% endif %}
-    {% if paragraph.field_text.value %}
-      <div class="ed-section__intro">{{ content.field_text }}</div>
-    {% endif %}
-    {% if content.field_link[0] is defined or content.field_secondary_link[0] is defined %}
-      <div class="ed-actions">
-        {% if content.field_link[0] is defined %}
-          <span class="ed-actions__primary">{{ content.field_link }}</span>
-        {% endif %}
-        {% if content.field_secondary_link[0] is defined %}
-          <span class="ed-actions__secondary">{{ content.field_secondary_link }}</span>
-        {% endif %}
+{% set hero_classes = [
+  'ed-section',
+  'ed-section--hero',
+  hero_illustration_class|default('ed-section--hero-default'),
+] %}
+
+<section{{ attributes.addClass(hero_classes) }}>
+  <div class="ed-container ed-section__hero-layout">
+    <div class="ed-section__hero-content">
+      {% if paragraph.field_heading.value %}
+        <{{ heading_tag|default('h2') }} class="ed-section__title ed-section__title--hero">
+          {{ paragraph.field_heading.value }}
+        </{{ heading_tag|default('h2') }}>
+      {% endif %}
+      {% if paragraph.field_text.value %}
+        <div class="ed-section__intro">{{ content.field_text }}</div>
+      {% endif %}
+      {% if content.field_link[0] is defined or content.field_secondary_link[0] is defined %}
+        <div class="ed-actions">
+          {% if content.field_link[0] is defined %}
+            <span class="ed-actions__primary">{{ content.field_link }}</span>
+          {% endif %}
+          {% if content.field_secondary_link[0] is defined %}
+            <span class="ed-actions__secondary">{{ content.field_secondary_link }}</span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    {% if hero_media is defined and hero_media %}
+      <div class="ed-section__hero-illustration ed-section__hero-illustration--media">
+        {{ hero_media }}
       </div>
+    {% elseif hero_illustration_src is defined and hero_illustration_src %}
+      <img
+        class="ed-section__hero-illustration"
+        src="{{ hero_illustration_src }}"
+        alt="{{ hero_illustration_alt }}"
+        width="720"
+        height="720"
+        loading="{{ hero_illustration_loading|default('lazy') }}"
+        decoding="async"
+      >
     {% endif %}
   </div>
 </section>

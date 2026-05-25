@@ -50,7 +50,7 @@ settings:
         - '<dl>'
         - '<dt>'
         - '<dd>'
-        - '<a hreflang>'
+        - '<a target rel>'
         - '<blockquote cite>'
         - '<h2 id>'
         - '<h3 id>'

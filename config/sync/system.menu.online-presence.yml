@@ -1,0 +1,8 @@
+uuid: 7de80e05-5a05-45f8-bf12-f0e4c47e17f8
+langcode: fr
+status: true
+dependencies: {  }
+id: online-presence
+label: 'Présence en ligne'
+description: 'Liens institutionnels externes'
+locked: false

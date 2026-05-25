@@ -1,0 +1,11 @@
+emerging_digital_content.online_presence.drupal_org:
+  title: 'Drupal.org'
+  url: 'https://www.drupal.org/e-merging-digital'
+  menu_name: online-presence
+  weight: 0
+
+emerging_digital_content.online_presence.linkedin:
+  title: 'LinkedIn'
+  url: 'https://www.linkedin.com/company/e-merging-digital'
+  menu_name: online-presence
+  weight: 1

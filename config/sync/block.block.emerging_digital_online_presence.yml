@@ -1,0 +1,25 @@
+uuid: 8c2703d8-077e-44e9-bd9a-a6d96c5cf080
+langcode: fr
+status: true
+dependencies:
+  config:
+    - system.menu.online-presence
+  module:
+    - system
+  theme:
+    - emerging_digital
+id: emerging_digital_online_presence
+theme: emerging_digital
+region: footer
+weight: 1
+provider: null
+plugin: 'system_menu_block:online-presence'
+settings:
+  id: 'system_menu_block:online-presence'
+  label: 'Présence en ligne'
+  label_display: visible
+  provider: system
+  level: 1
+  depth: 1
+  expand_all_items: false
+visibility: {  }

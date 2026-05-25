@@ -74,7 +74,8 @@ components:
                 fonctionnels, validation des contenus, qualité technique et
                 cohérence avec vos objectifs. Les assistants IA accélèrent la
                 préparation, mais ne remplacent ni l'expertise Drupal ni la
-                responsabilité éditoriale.</p>
+                responsabilité éditoriale.</p><p><strong>Profils :</strong></p>
+                <ul><li><a href="https://www.linkedin.com/in/jonathan-maerckaert/" target="_blank" rel="noopener noreferrer">LinkedIn</a></li><li><a href="https://www.drupal.org/u/jmaerckaert" target="_blank" rel="noopener noreferrer">Drupal.org</a></li></ul>
               format: basic_html
       en:
         fields:
@@ -90,7 +91,8 @@ components:
                 priorities, functional trade-offs, content approval, technical
                 quality and consistency with your objectives. AI assistants
                 accelerate preparation, but they do not replace Drupal expertise
-                or editorial responsibility.</p>
+                or editorial responsibility.</p><p><strong>Profiles:</strong></p>
+                <ul><li><a href="https://www.linkedin.com/in/jonathan-maerckaert/" target="_blank" rel="noopener noreferrer">LinkedIn</a></li><li><a href="https://www.drupal.org/u/jmaerckaert" target="_blank" rel="noopener noreferrer">Drupal.org</a></li></ul>
               format: basic_html
   - id: equipe.assistants
     legacy_uuid: 15f4ffb1-aaed-4ed4-b298-0a3062e097fd

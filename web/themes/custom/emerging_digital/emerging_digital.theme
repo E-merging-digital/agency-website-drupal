@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\Core\Language\LanguageInterface;
+use Drupal\Core\Render\Element;
 use Drupal\Core\Url;
 use Drupal\node\NodeInterface;
 use Drupal\webform\Entity\Webform;
@@ -468,15 +469,23 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
 function emerging_digital_preprocess_paragraph__hero(array &$variables): void {
   $is_front = !empty($variables['is_front']);
   $variables['heading_tag'] = $is_front ? 'h1' : 'h2';
+
+  $hero_media = $variables['content']['field_hero_media'] ?? NULL;
+  if (is_array($hero_media)) {
+    unset($variables['content']['field_hero_media']);
+
+    if (Element::children($hero_media) !== []) {
+      $variables['hero_media'] = $hero_media;
+    }
+  }
+
   $illustration = emerging_digital_hero_illustration($is_front);
   $variables['hero_illustration_class'] = 'ed-section--hero-' . $illustration['variant'];
-  $variables['hero_illustration_src'] = $illustration['src'];
-  $variables['hero_illustration_alt'] = $illustration['alt'];
-  $variables['hero_illustration_loading'] = !empty($variables['is_front']) ? 'eager' : 'lazy';
 
-  if (isset($variables['content']['field_hero_media'][0])) {
-    $variables['hero_media'] = $variables['content']['field_hero_media'];
-    unset($variables['content']['field_hero_media']);
+  if (empty($variables['hero_media'])) {
+    $variables['hero_illustration_src'] = $illustration['src'];
+    $variables['hero_illustration_alt'] = $illustration['alt'];
+    $variables['hero_illustration_loading'] = !empty($variables['is_front']) ? 'eager' : 'lazy';
   }
 }
 

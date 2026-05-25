@@ -14,8 +14,11 @@ CURRENT_LINK="$PROJECT_ROOT/current"
 NEW_RELEASE="$RELEASES_DIR/$TIMESTAMP"
 ACTIVE_RELEASE=""
 DEPLOY_USER="$(id -un)"
+FILES_OWNER="deploy"
 GIT_COMMIT="unknown"
 MAINTENANCE_ENABLED=0
+SHARED_FILES_DIR="$SHARED_DIR/files"
+RELEASE_FILES_LINK="$NEW_RELEASE/web/sites/default/files"
 
 log() {
   local message="$1"
@@ -53,6 +56,60 @@ fail_trap() {
 
 trap 'fail_trap $LINENO' ERR
 
+prepare_public_files() {
+  log "[deploy] Public files symlink"
+
+  mkdir -p "$SHARED_FILES_DIR"
+
+  if [[ -e "$RELEASE_FILES_LINK" && ! -L "$RELEASE_FILES_LINK" ]]; then
+    rm -rf "$RELEASE_FILES_LINK"
+  fi
+
+  ln -sfn "$SHARED_FILES_DIR" "$RELEASE_FILES_LINK"
+  if [[ "$(id -u)" -eq 0 ]]; then
+    chown -R "${FILES_OWNER}:www-data" "$SHARED_FILES_DIR"
+    chmod -R ug+rwX "$SHARED_FILES_DIR"
+    find "$SHARED_FILES_DIR" -type d -exec chmod g+s {} +
+  else
+    chgrp www-data "$SHARED_FILES_DIR"
+    chmod ug+rwX "$SHARED_FILES_DIR"
+    chmod g+s "$SHARED_FILES_DIR"
+  fi
+
+  if [[ ! -L "$RELEASE_FILES_LINK" ]]; then
+    log "ERROR: ${RELEASE_FILES_LINK} is not a symlink."
+    exit 1
+  fi
+
+  local expected_target
+  local actual_target
+  expected_target="$(readlink -f "$SHARED_FILES_DIR")"
+  actual_target="$(readlink -f "$RELEASE_FILES_LINK")"
+  if [[ "$actual_target" != "$expected_target" ]]; then
+    log "ERROR: ${RELEASE_FILES_LINK} points to ${actual_target}, expected ${expected_target}."
+    exit 1
+  fi
+
+  if [[ "$(stat -c '%G' "$SHARED_FILES_DIR")" != "www-data" ]]; then
+    log "ERROR: ${SHARED_FILES_DIR} group is not www-data."
+    exit 1
+  fi
+
+  if [[ "$(stat -c '%U' "$SHARED_FILES_DIR")" != "$FILES_OWNER" ]]; then
+    log "ERROR: ${SHARED_FILES_DIR} owner is not ${FILES_OWNER}."
+    exit 1
+  fi
+
+  local shared_files_mode
+  shared_files_mode="$(stat -c '%a' "$SHARED_FILES_DIR")"
+  if (( ((10#$shared_files_mode / 10) % 10 & 2) == 0 )); then
+    log "ERROR: ${SHARED_FILES_DIR} is not group-writable."
+    exit 1
+  fi
+
+  log "Public files ready: ${RELEASE_FILES_LINK} -> ${SHARED_FILES_DIR}."
+}
+
 if [[ -z "$REPO_URL" ]] || [[ "$REPO_URL" == *"<org>/<repo>"* ]]; then
   echo "REPO_URL invalide: $REPO_URL" >&2
   exit 1
@@ -80,8 +137,8 @@ log "Repository cloned at commit ${GIT_COMMIT}."
 log "[deploy] Composer"
 composer --working-dir="$NEW_RELEASE" install --no-dev --optimize-autoloader
 
-mkdir -p "$SHARED_DIR/files" "$SHARED_DIR/private" "$SHARED_DIR/settings"
-ln -sfn "$SHARED_DIR/files" "$NEW_RELEASE/web/sites/default/files"
+mkdir -p "$SHARED_DIR/private" "$SHARED_DIR/settings"
+prepare_public_files
 ln -sfn "$SHARED_DIR/settings/settings.php" "$NEW_RELEASE/web/sites/default/settings.php"
 log "Shared symlinks created for files and settings.php."
 

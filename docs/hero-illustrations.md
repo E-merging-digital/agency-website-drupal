@@ -9,6 +9,12 @@ Le paragraphe `hero` rend d'abord un éventuel champ Drupal Media
 `field_hero_media` si le projet l'ajoute plus tard. Sans média, le thème
 sélectionne une illustration SVG déterministe selon la page courante.
 
+Le choix est exclusif : si `field_hero_media` produit un rendu Drupal, le SVG
+fallback n'est pas exposé au template. Si aucun média n'est rendu, le fallback
+SVG est utilisé. Cela évite les différences entre rendu anonyme et rendu
+connecté, notamment quand les permissions ou métadonnées de rendu du champ média
+varient.
+
 Le fallback obligatoire est `images/home/home-hero-ia-drupal.svg`.
 
 ## Bibliothèque SVG

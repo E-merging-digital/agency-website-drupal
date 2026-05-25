@@ -100,6 +100,9 @@ composer install --no-dev --optimize-autoloader
 # Fichiers publics Drupal
 rm -rf "$NEW_RELEASE/web/sites/default/files"
 ln -sfn "$SHARED_DIR/files" "$NEW_RELEASE/web/sites/default/files"
+chgrp www-data "$SHARED_DIR/files"
+chmod ug+rwX "$SHARED_DIR/files"
+chmod g+s "$SHARED_DIR/files"
 
 # settings.php partagé
 rm -f "$NEW_RELEASE/web/sites/default/settings.php"
@@ -107,8 +110,30 @@ ln -sfn "$SHARED_DIR/settings/settings.php" "$NEW_RELEASE/web/sites/default/sett
 ```
 
 Les fichiers publics Drupal sont partagés entre releases via
-`/var/www/agency/shared/files`. Vérifier ou réparer les permissions du dossier
-partagé après chaque release si le serveur signale des erreurs d'écriture.
+`/var/www/agency/shared/files`.
+
+Le chemin public attendu par Drupal est donc toujours :
+
+```text
+/var/www/agency/current/web/sites/default/files -> /var/www/agency/shared/files
+```
+
+Ne pas créer de vrai dossier `web/sites/default/files` dans une release. Si un
+dossier réel existe à cet emplacement avant la création du lien symbolique, le
+supprimer dans la release en cours de préparation uniquement, puis recréer le
+lien vers `$SHARED_DIR/files`. Les fichiers persistants doivent rester dans
+`/var/www/agency/shared/files`, jamais dans `/var/www/agency/releases/<timestamp>`.
+
+Le dossier partagé doit être accessible en écriture par PHP-FPM sans rendre le
+code applicatif writable. Sur cette installation, la correction porte donc sur
+`/var/www/agency/shared/files` uniquement, avec l'utilisateur `deploy`, le
+groupe `www-data`, l'écriture groupe et le bit setgid sur les dossiers pour
+conserver le groupe des nouveaux fichiers.
+
+Le script `scripts/deploy-production.sh` applique ce garde-fou à chaque release
+et échoue explicitement si `web/sites/default/files` n'est pas un symlink, si la
+cible n'est pas `/var/www/agency/shared/files`, ou si le dossier partagé n'est
+pas group-writable pour `www-data`.
 
 ### 3.6 Activation de la nouvelle release
 
@@ -136,6 +161,34 @@ hors Git.
 En général, le changement de symlink suffit. Recharger Nginx uniquement si nécessaire :
 
 ```bash
+sudo systemctl reload nginx
+```
+
+La configuration Nginx de production n'est pas versionnée dans ce dépôt Drupal.
+Le warning Drupal `Public files directory not fully protected` peut rester actif
+si Drupal ne peut pas vérifier une protection équivalente au `.htaccess`
+Apache. Sous Nginx, la protection attendue doit être portée par le vhost.
+
+La règle doit rester ciblée : elle doit empêcher l'exécution de fichiers PHP
+dans le dossier public `files`, sans bloquer les assets Drupal légitimes
+(`sites/default/files/css`, `sites/default/files/js`, `themes`, `modules`,
+`core`, images, documents, styles d'images).
+
+Principe de configuration à appliquer côté serveur :
+
+```nginx
+location ~* ^/sites/.*/files/.*\.php$ {
+    deny all;
+}
+```
+
+Ne pas remplacer cette règle par un bloc large sur `/sites/` ou
+`/sites/default/files`, car cela casserait les CSS/JS agrégés, les images
+publiques ou les fichiers dérivés de Drupal. Après toute modification du vhost,
+valider puis recharger Nginx côté serveur :
+
+```bash
+sudo nginx -t
 sudo systemctl reload nginx
 ```
 
@@ -176,9 +229,9 @@ curl -I http://emergingdigital.be
 Si les droits fichiers sont cassés après la bascule de release :
 
 ```bash
-sudo chown -R www-data:www-data /var/www/agency/shared/files
-sudo find /var/www/agency/shared/files -type d -exec chmod 2775 {} +
-sudo find /var/www/agency/shared/files -type f -exec chmod 664 {} +
+sudo chown -R deploy:www-data /var/www/agency/shared/files
+sudo chmod -R ug+rwX /var/www/agency/shared/files
+sudo find /var/www/agency/shared/files -type d -exec chmod g+s {} +
 ```
 
 Puis compléter par :
@@ -255,10 +308,16 @@ Si l’erreur persiste, vérifier que la deploy key GitHub est bien attachée au
 - Ne jamais versionner de secrets (tokens, mots de passe, clés privées).
 - Ne jamais supprimer le dossier `/var/www/agency/shared`.
 - Ne pas appliquer de permissions globales de type `chmod 664` sur tout le projet : cela casse les exécutables (Composer/Drush).
-- Si correction de permissions nécessaire, préférer :
+- Ne pas rendre `/var/www/agency/current`, les releases, `vendor`, `web/core`,
+  `web/modules` ou `web/themes` writable par le serveur web pour corriger les
+  fichiers publics.
+- Si correction de permissions nécessaire pour les fichiers publics, limiter
+  l'action au dossier partagé :
 
 ```bash
-chmod -R ug+rwX /var/www/agency/current
+sudo chown -R deploy:www-data /var/www/agency/shared/files
+sudo chmod -R ug+rwX /var/www/agency/shared/files
+sudo find /var/www/agency/shared/files -type d -exec chmod g+s {} +
 ```
 
 ## 9) Perspective CI/CD

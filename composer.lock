@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1230ae3a43439cb157ed9674c3d9e04b",
+    "content-hash": "54e5ec4d721c9f9cee9cb0911e7d5e08",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -1051,17 +1051,17 @@
         },
         {
             "name": "drupal/ai",
-            "version": "1.4.3",
+            "version": "1.4.4",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/ai.git",
-                "reference": "1.4.3"
+                "reference": "1.4.4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/ai-1.4.3.zip",
-                "reference": "1.4.3",
-                "shasum": "b4370be47117ef3dbfadaa1356b310c21acab58e"
+                "url": "https://ftp.drupal.org/files/projects/ai-1.4.4.zip",
+                "reference": "1.4.4",
+                "shasum": "cb2188358266caa6365258cf61f316b019bb4c6a"
             },
             "require": {
                 "drupal/core": "^10.5 || ^11.2",
@@ -1091,8 +1091,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.4.3",
-                    "datestamp": "1782325927",
+                    "version": "1.4.4",
+                    "datestamp": "1783520097",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -1193,17 +1193,17 @@
         },
         {
             "name": "drupal/ai_provider_openai",
-            "version": "1.2.2",
+            "version": "1.2.3",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/ai_provider_openai.git",
-                "reference": "1.2.2"
+                "reference": "1.2.3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/ai_provider_openai-1.2.2.zip",
-                "reference": "1.2.2",
-                "shasum": "0f6b7d7631fddff38b128edb53f3fed4860719a4"
+                "url": "https://ftp.drupal.org/files/projects/ai_provider_openai-1.2.3.zip",
+                "reference": "1.2.3",
+                "shasum": "8698bda2b03cb2d99a2911a19321ef4039314a6f"
             },
             "require": {
                 "drupal/ai": "^1.2.0",
@@ -1213,8 +1213,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.2.2",
-                    "datestamp": "1782325859",
+                    "version": "1.2.3",
+                    "datestamp": "1783612214",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"
@@ -2990,17 +2990,17 @@
         },
         {
             "name": "drupal/webform",
-            "version": "6.3.0-rc2",
+            "version": "6.3.0",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/webform.git",
-                "reference": "6.3.0-rc2"
+                "reference": "6.3.0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/webform-6.3.0-rc2.zip",
-                "reference": "6.3.0-rc2",
-                "shasum": "833904081e5eab7e8e36250fea3652c797ddfb28"
+                "url": "https://ftp.drupal.org/files/projects/webform-6.3.0.zip",
+                "reference": "6.3.0",
+                "shasum": "67b09271edfd2fb38dc699ff733911ad500ae5d7"
             },
             "require": {
                 "drupal/core": "^10.3 || ^11.0"
@@ -3045,11 +3045,11 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "6.3.0-rc2",
-                    "datestamp": "1782137794",
+                    "version": "6.3.0",
+                    "datestamp": "1783989705",
                     "security-coverage": {
-                        "status": "not-covered",
-                        "message": "RC releases are not covered by Drupal security advisories."
+                        "status": "covered",
+                        "message": "Covered by Drupal's security advisory policy"
                     }
                 },
                 "drush": {
@@ -14635,8 +14635,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "drupal/default_content": 15,
-        "drupal/webform": 10
+        "drupal/default_content": 15
     },
     "prefer-stable": true,
     "prefer-lowest": false,

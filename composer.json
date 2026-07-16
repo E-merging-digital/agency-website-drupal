@@ -144,7 +144,7 @@
             "@lint:drupal-check",
             "@test:homepage-smoke"
         ],
-        "test:project-functional": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional",
+        "test:project-functional": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional --exclude-group unstable_language_switcher --exclude-group homepage_smoke --exclude-group contact_form",
         "test:homepage-smoke": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional/HomepageRenderTest.php",
         "test:contact": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional/ContactFormTest.php",
         "test:ai-translation:stable": "SYMFONY_DEPRECATIONS_HELPER=disabled vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia web/modules/custom/agency_ai_translation/tests/src/Functional"

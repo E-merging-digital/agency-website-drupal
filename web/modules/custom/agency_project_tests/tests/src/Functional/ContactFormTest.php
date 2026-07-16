@@ -7,14 +7,17 @@ namespace Drupal\Tests\agency_project_tests\Functional;
 use Drupal\contact\Entity\ContactForm;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\user\Entity\Role;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Couvre le formulaire de contact public.
  *
  * @group agency_project_tests
+ * @group contact_form
  */
 #[RunTestsInSeparateProcesses]
+#[Group('contact_form')]
 final class ContactFormTest extends BrowserTestBase {
 
   /**

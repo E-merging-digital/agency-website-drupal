@@ -30,9 +30,9 @@ final class ChatbotMvpTest extends BrowserTestBase {
   protected $profile = 'standard';
 
   /**
-   * Tests the widget shell and local deterministic payload.
+   * Tests the widget shell and local deterministic behavior.
    */
-  public function testChatbotWidgetRendersLocalGuidedPayload(): void {
+  public function testChatbotMvpStaysLocalAndDeterministic(): void {
     $this->placeBlock('emerging_digital_chatbot', [
       'id' => 'chatbot_mvp_test',
       'suppress_contact_pages' => FALSE,
@@ -63,23 +63,7 @@ final class ChatbotMvpTest extends BrowserTestBase {
       '/en/contact',
       $settings['payload']['messages']['flows']['qualify_project']['ctas'][0]['path'] ?? NULL,
     );
-  }
 
-  /**
-   * Tests that the MVP exposes no backend conversation endpoint.
-   */
-  public function testChatbotDoesNotExposeConversationEndpoint(): void {
-    $this->expectException(RouteNotFoundException::class);
-
-    $this->container
-      ->get('router.route_provider')
-      ->getRouteByName('emerging_digital_chatbot.conversation');
-  }
-
-  /**
-   * Tests the deterministic engine drops external CTA URLs.
-   */
-  public function testQualificationEngineKeepsCtasInternal(): void {
     $this->config('emerging_digital_chatbot.settings')
       ->set('messages.en.flows.external_test', [
         'label' => 'External test',
@@ -107,6 +91,16 @@ final class ChatbotMvpTest extends BrowserTestBase {
         'path' => '/fr/contact',
       ],
     ], $payload['messages']['flows']['external_test']['ctas']);
+
+    try {
+      $this->container
+        ->get('router.route_provider')
+        ->getRouteByName('emerging_digital_chatbot.conversation');
+      self::fail('The chatbot MVP must not expose a conversation endpoint.');
+    }
+    catch (RouteNotFoundException) {
+      self::assertTrue(TRUE);
+    }
   }
 
   /**

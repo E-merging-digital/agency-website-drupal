@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Functional;
 
 use Drupal\Tests\BrowserTestBase;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Smoke test de la homepage.
  *
  * @group agency_project_tests
+ * @group homepage_smoke
  */
 #[RunTestsInSeparateProcesses]
+#[Group('homepage_smoke')]
 final class HomepageRenderTest extends BrowserTestBase {
 
   /**

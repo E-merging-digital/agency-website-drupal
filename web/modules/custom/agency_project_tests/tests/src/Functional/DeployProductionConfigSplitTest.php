@@ -4,21 +4,14 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Functional;
 
-use Drupal\Tests\BrowserTestBase;
-use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\TestCase;
 
 /**
  * Couvre la séquence Config Split du script de déploiement production.
- *
- * @group agency_project_tests
  */
-#[RunTestsInSeparateProcesses]
-final class DeployProductionConfigSplitTest extends BrowserTestBase {
-
-  /**
-   * {@inheritdoc}
-   */
-  protected $defaultTheme = 'stark';
+#[Group('agency_project_tests')]
+final class DeployProductionConfigSplitTest extends TestCase {
 
   /**
    * Charge le script de déploiement production.

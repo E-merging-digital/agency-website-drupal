@@ -8,6 +8,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 TEST_PATH="$1"
+shift
 
 export SYMFONY_DEPRECATIONS_HELPER="${SYMFONY_DEPRECATIONS_HELPER:-disabled}"
 export BROWSERTEST_OUTPUT_DIRECTORY="${BROWSERTEST_OUTPUT_DIRECTORY:-/tmp/browsertest_output}"
@@ -36,5 +37,4 @@ cleanup() {
 }
 trap cleanup EXIT
 
-vendor/bin/phpunit -c web/core/phpunit.xml.dist "$TEST_PATH"
-
+vendor/bin/phpunit -c web/core/phpunit.xml.dist "$@" "$TEST_PATH"

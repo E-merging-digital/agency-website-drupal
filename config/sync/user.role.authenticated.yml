@@ -9,7 +9,6 @@ dependencies:
     - comment
     - file
     - filter
-    - search
     - shortcut
     - system
 _core:
@@ -24,7 +23,6 @@ permissions:
   - 'access shortcuts'
   - 'delete own files'
   - 'post comments'
-  - 'search content'
   - 'skip comment approval'
   - 'use text format basic_html'
   - 'use text format webform_default'

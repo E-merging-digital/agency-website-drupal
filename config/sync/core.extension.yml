@@ -33,7 +33,6 @@ module:
   google_tag: 0
   hal: 0
   help: 0
-  history: 0
   honeypot: 0
   image: 0
   key: 0
@@ -61,7 +60,6 @@ module:
   schema_organization: 0
   schema_web_page: 0
   schema_web_site: 0
-  search: 0
   serialization: 0
   shortcut: 0
   simple_sitemap: 0

@@ -61,7 +61,8 @@ exécuté et vérifié sur le serveur.
 
 ## 2026-07-17 — Mise à jour système et PHP de production
 
-- Issue / PR : issue #350 créée pour formaliser la procédure et ce journal
+- Issue / PR : issue #350 créée après l'intervention pour formaliser la procédure
+  et ce journal
 - Environnement : production
 - Résultat : succès
 
@@ -72,7 +73,7 @@ exécuté et vérifié sur le serveur.
 | Ubuntu | 24.04.4 LTS | 24.04.4 LTS | Paquets standards mis à jour |
 | Noyau actif | 6.8.0-110-generic | 6.8.0-136-generic | Nouveau noyau installé et VM redémarrée |
 | Nginx | 1.24.0 Ubuntu | 1.24.0 Ubuntu | Service validé, version inchangée |
-| PHP CLI / PHP-FPM | 8.4.20 | 8.4.23 | Mise à jour corrective de sécurité |
+| PHP | 8.4.20 | 8.4.23 | Mise à jour corrective de la branche 8.4 |
 | MariaDB | 10.11.14 Ubuntu | 10.11.14 Ubuntu | Aucune mise à jour disponible dans les dépôts configurés |
 | Drupal | 11.4.4 | 11.4.4 | Bootstrap et cache validés, version inchangée |
 | Drush | 13.7.4 | 13.7.4 | Version inchangée |
@@ -93,16 +94,17 @@ exécuté et vérifié sur le serveur.
 
 ### Sauvegardes et retour arrière
 
-- La procédure a prévu un snapshot de VM et une sauvegarde de base avant les
-  opérations sensibles.
-- Le noyau 6.8.0-134 a été conservé comme solution de repli.
+- La création préalable d'un snapshot de VM et d'une sauvegarde SQL avait été
+  recommandée, mais leur exécution n'est pas confirmée dans les sorties conservées
+  pour cette intervention.
+- Le noyau 6.8.0-134 a été conservé comme solution de repli vérifiable.
 - Aucun retour arrière n'a été nécessaire.
 
 ### Validations
 
 - Noyau actif confirmé : `6.8.0-136-generic`.
 - PHP CLI confirmé : `8.4.23`.
-- Drupal utilise PHP `8.4.23`.
+- Drupal utilise PHP `8.4.23` pour Drush.
 - MariaDB confirmée : `10.11.14-MariaDB-0ubuntu0.24.04.1`.
 - Nginx, PHP-FPM et MariaDB actifs.
 - Aucun service systemd en échec.

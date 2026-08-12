@@ -4,24 +4,25 @@ declare(strict_types=1);
 
 namespace Drupal\emerging_digital_chatbot\Plugin\Block;
 
+use Drupal\Core\Block\Attribute\Block;
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\emerging_digital_chatbot\ChatbotConfig;
 use Drupal\emerging_digital_chatbot\QualificationEngine;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Provides the guided chatbot widget.
- *
- * @Block(
- *   id = "emerging_digital_chatbot",
- *   admin_label = @Translation("Guided chatbot"),
- *   category = @Translation("Emerging Digital")
- * )
  */
+#[Block(
+  id: 'emerging_digital_chatbot',
+  admin_label: new TranslatableMarkup('Guided chatbot'),
+  category: new TranslatableMarkup('Emerging Digital'),
+)]
 final class ChatbotBlock extends BlockBase implements ContainerFactoryPluginInterface {
 
   public function __construct(

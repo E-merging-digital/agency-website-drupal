@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Functional;
 
-use Drupal\contact\Entity\ContactForm;
 use Drupal\Tests\BrowserTestBase;
-use Drupal\user\Entity\Role;
+use Drupal\webform\Entity\Webform;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Symfony\Component\Yaml\Yaml;
 
 /**
- * Couvre le formulaire de contact public.
+ * Couvre le vrai Webform de contact public du projet.
  *
  * @group agency_project_tests
  * @group contact_form
@@ -24,7 +24,7 @@ final class ContactFormTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected static $modules = [
-    'contact',
+    'webform',
   ];
 
   /**
@@ -33,56 +33,85 @@ final class ContactFormTest extends BrowserTestBase {
   protected $defaultTheme = 'stark';
 
   /**
+   * Webform Contact construit depuis la configuration versionnée du projet.
+   */
+  private Webform $contactWebform;
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
     parent::setUp();
 
-    if (!ContactForm::load('feedback')) {
-      ContactForm::create([
-        'id' => 'feedback',
-        'label' => 'Website feedback',
-        'recipients' => ['contact@example.com'],
-        'reply' => '',
-        'weight' => 0,
-      ])->save();
+    $config_file = dirname(DRUPAL_ROOT) . '/config/sync/webform.webform.contact.yml';
+    self::assertFileExists($config_file);
+
+    $configuration = Yaml::parseFile($config_file);
+    self::assertIsArray($configuration);
+
+    // Les handlers email appartiennent au comportement de production. Le test
+    // fonctionnel vérifie le formulaire et la persistance sans envoyer d'email.
+    foreach ($configuration['handlers'] ?? [] as &$handler) {
+      $handler['status'] = FALSE;
+    }
+    unset($handler);
+
+    $existing_webform = Webform::load('contact');
+    if ($existing_webform) {
+      $existing_webform->delete();
     }
 
-    $anonymousRole = Role::load('anonymous');
-    self::assertNotNull($anonymousRole);
-    $anonymousRole->grantPermission('access site-wide contact form');
-    $anonymousRole->save();
+    $this->contactWebform = Webform::create($configuration);
+    $this->contactWebform->save();
   }
 
   /**
-   * Vérifie affichage, cas invalide et cas valide.
+   * Vérifie affichage, validation invalide et soumission valide.
    */
   public function testContactFormValidationAndSubmit(): void {
-    $this->drupalGet('/contact/feedback');
+    $this->drupalGet($this->contactWebform->toUrl());
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->fieldExists('name');
-    $this->assertSession()->fieldExists('mail');
-    $this->assertSession()->fieldExists('subject[0][value]');
-    $this->assertSession()->fieldExists('message[0][value]');
-    $this->assertSession()->buttonExists('Send message');
+    $this->assertSession()->fieldExists('email');
+    $this->assertSession()->fieldExists('subject');
+    $this->assertSession()->fieldExists('message');
+    $this->assertSession()->fieldExists('rgpd_consent');
+    $this->assertSession()->buttonExists('Envoyer le message');
 
     $this->submitForm([
       'name' => 'Test Contact',
-      'mail' => 'email-invalide',
-      'subject[0][value]' => 'Sujet test',
-      'message[0][value]' => 'Message test',
-    ], 'Send message');
+      'email' => 'email-invalide',
+      'subject' => 'Sujet test',
+      'message' => 'Message test',
+      'rgpd_consent' => '1',
+    ], 'Envoyer le message');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->elementExists('css', '[role="alert"]');
+    self::assertSame(0, $this->countContactSubmissions());
 
     $this->submitForm([
       'name' => 'Test Contact',
-      'mail' => 'contact@example.com',
-      'subject[0][value]' => 'Sujet valide',
-      'message[0][value]' => 'Message valide',
-    ], 'Send message');
+      'email' => 'contact@example.com',
+      'subject' => 'Sujet valide',
+      'message' => 'Message valide',
+      'rgpd_consent' => '1',
+    ], 'Envoyer le message');
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->elementNotExists('css', '[role="alert"]');
+    $this->assertSession()->pageTextContains('Merci, votre demande a bien été enregistrée.');
+    self::assertSame(1, $this->countContactSubmissions());
+  }
+
+  /**
+   * Compte les soumissions persistées du Webform Contact.
+   */
+  private function countContactSubmissions(): int {
+    return (int) \Drupal::entityTypeManager()
+      ->getStorage('webform_submission')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('webform_id', 'contact')
+      ->count()
+      ->execute();
   }
 
 }

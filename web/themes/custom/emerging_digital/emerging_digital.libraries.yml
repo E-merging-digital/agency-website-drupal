@@ -6,6 +6,7 @@ global-styling:
     theme:
       css/layout.css: {}
       css/components.css: {}
+      css/blog.css: {}
   js:
     js/main.js:
       attributes:

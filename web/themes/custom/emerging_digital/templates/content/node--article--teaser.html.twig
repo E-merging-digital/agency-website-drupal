@@ -1,0 +1,46 @@
+{#
+/**
+ * @file
+ * Teaser card for Article nodes in Blog listings.
+ */
+#}
+{% set is_french = node.langcode.value == 'fr' %}
+<article{{ attributes.addClass('node', 'node--article', 'node--view-mode-teaser', 'ed-blog-card') }}>
+  {% if node.field_feature_image.0 %}
+    <div class="ed-blog-card__media">
+      {{ content.field_feature_image }}
+    </div>
+  {% endif %}
+
+  <div class="ed-blog-card__body">
+    {% if node.field_blog_category.0 %}
+      <div class="ed-blog-card__category">
+        {{ content.field_blog_category }}
+      </div>
+    {% endif %}
+
+    <h2 class="ed-blog-card__title">
+      <a href="{{ url }}" rel="bookmark">{{ label }}</a>
+    </h2>
+
+    {% if display_submitted %}
+      <div class="ed-blog-card__meta">
+        <time class="ed-blog-card__date" datetime="{{ node.getCreatedTime()|date('Y-m-d') }}">
+          {{ node.getCreatedTime()|date('d/m/Y') }}
+        </time>
+      </div>
+    {% endif %}
+
+    {% if node.field_short_description.0 %}
+      <div class="ed-blog-card__summary">
+        {{ content.field_short_description }}
+      </div>
+    {% endif %}
+
+    <div class="ed-blog-card__links">
+      <a href="{{ url }}" rel="bookmark">
+        {{ is_french ? 'Lire l’article' : 'Read article' }}
+      </a>
+    </div>
+  </div>
+</article>

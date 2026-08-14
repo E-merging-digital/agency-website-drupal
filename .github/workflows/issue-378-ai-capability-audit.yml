@@ -1,0 +1,75 @@
+name: Issue 378 Drupal AI Capability Audit
+
+on:
+  push:
+    branches:
+      - feature/issue-378-drupal-ai-blog-audit
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install locked dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Report exact AI package versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== drupal/ai ==='
+          composer show drupal/ai --no-ansi
+          echo '=== drupal/ai_provider_openai ==='
+          composer show drupal/ai_provider_openai --no-ansi
+          echo '=== drupal/key ==='
+          composer show drupal/key --no-ansi
+
+      - name: Inventory AI submodules shipped by locked package
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== AI info files ==='
+          find web/modules/contrib/ai -name '*.info.yml' -print | sort
+          echo '=== Target capability info ==='
+          for module in ai_ckeditor ai_automators ai_content_suggestions ai_translate; do
+            info="web/modules/contrib/ai/modules/${module}/${module}.info.yml"
+            if [[ -f "$info" ]]; then
+              echo "--- ${info} ---"
+              cat "$info"
+            else
+              echo "MISSING: ${info}"
+            fi
+          done
+          echo '=== Guardrail source/config inventory ==='
+          find web/modules/contrib/ai -iname '*guardrail*' -print | sort
+
+      - name: Report repository AI activation and provider reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== Enabled AI-related modules in exported core.extension ==='
+          grep -E '^  (ai|ai_[a-z0-9_]+|key):' config/sync/core.extension.yml || true
+          echo '=== Exported OpenAI provider settings keys (values intentionally redacted) ==='
+          php -r '$d=file("config/sync/ai_provider_openai.settings.yml", FILE_IGNORE_NEW_LINES|FILE_SKIP_EMPTY_LINES); foreach($d as $l){ if(preg_match("/^([A-Za-z0-9_.-]+):/",$l,$m)){ echo $m[1],": <redacted>\n"; }}'
+
+      - name: Confirm audit is non-mutating
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          test -z "$(git status --porcelain)" || {
+            echo 'Unexpected tracked/untracked changes after audit.' >&2
+            exit 1
+          }

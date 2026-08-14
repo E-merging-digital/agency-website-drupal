@@ -4,19 +4,20 @@ declare(strict_types=1);
 
 namespace Drupal\emerging_digital_content\Plugin\Block;
 
+use Drupal\Core\Block\Attribute\Block;
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 
 /**
  * Provides a footer branding block.
- *
- * @Block(
- *   id = "emerging_digital_footer_branding",
- *   admin_label = @Translation("Footer branding"),
- *   category = @Translation("Emerging Digital")
- * )
  */
+#[Block(
+  id: 'emerging_digital_footer_branding',
+  admin_label: new TranslatableMarkup('Footer branding'),
+  category: new TranslatableMarkup('Emerging Digital'),
+)]
 final class FooterBrandingBlock extends BlockBase {
 
   /**

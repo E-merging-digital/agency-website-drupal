@@ -25,7 +25,7 @@ jobs:
 
       - name: Rescan application diagnostics without application ignores
         run: |
-          cat > /tmp/phpstan-374.neon <<'EOF'
+          cat > .phpstan-374.neon <<'EOF'
           parameters:
             level: 5
 
@@ -52,7 +52,7 @@ jobs:
           EOF
 
           set +e
-          vendor/bin/phpstan analyse -c /tmp/phpstan-374.neon --error-format=json > /tmp/phpstan-374.json
+          vendor/bin/phpstan analyse -c .phpstan-374.neon --error-format=json > /tmp/phpstan-374.json
           RC=$?
           set -e
 
@@ -82,4 +82,5 @@ jobs:
           print(f'PHPSTAN_TOTAL_ERRORS={data.get("totals", {}).get("file_errors", 0)}')
           PY
 
+          rm -f .phpstan-374.neon
           echo "PHPSTAN_RC=$RC"

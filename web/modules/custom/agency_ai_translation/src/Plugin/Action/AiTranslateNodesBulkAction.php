@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Drupal\agency_ai_translation\Plugin\Action;
 
 use Drupal\agency_ai_translation\Service\AiTranslationManager;
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Action\Attribute\Action;
 use Drupal\Core\Action\ConfigurableActionBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -19,13 +21,12 @@ use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Action de masse de traduction IA.
- *
- * @Action(
- *   id = "agency_ai_translate_nodes_bulk_action",
- *   label = @Translation("Traduire avec IA vers une langue cible"),
- *   type = "node"
- * )
  */
+#[Action(
+  id: 'agency_ai_translate_nodes_bulk_action',
+  label: new TranslatableMarkup('Traduire avec IA vers une langue cible'),
+  type: 'node',
+)]
 final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements ContainerFactoryPluginInterface {
 
   public function __construct(

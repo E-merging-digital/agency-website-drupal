@@ -59,7 +59,48 @@ function emerging_digital_content_update_11001(array &$sandbox): string {
 function emerging_digital_content_update_11002(array &$sandbox): string {
   unset($sandbox);
 
+  $changed = _emerging_digital_content_ensure_blog_navigation_position();
+
+  return sprintf('%d main navigation values were created or updated for Blog.', $changed);
+}
+
+/**
+ * Normalizes Blog and Contact weights relative to the existing navigation.
+ */
+function emerging_digital_content_update_11003(array &$sandbox): string {
+  unset($sandbox);
+
+  $changed = _emerging_digital_content_ensure_blog_navigation_position();
+
+  return sprintf('%d Blog navigation values were normalized.', $changed);
+}
+
+/**
+ * Ensures one Blog link immediately precedes Contact without reweighting others.
+ */
+function _emerging_digital_content_ensure_blog_navigation_position(): int {
   $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+  $all_ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->execute();
+  $all_links = $storage->loadMultiple($all_ids);
+
+  $max_other_weight = NULL;
+  foreach ($all_links as $link) {
+    $title = (string) $link->label();
+    if (in_array($title, ['Blog', 'Contact'], TRUE)) {
+      continue;
+    }
+
+    $weight = (int) $link->get('weight')->value;
+    $max_other_weight = $max_other_weight === NULL
+      ? $weight
+      : max($max_other_weight, $weight);
+  }
+
+  $blog_weight = ($max_other_weight ?? -1) + 1;
+  $contact_weight = $blog_weight + 1;
   $changed = 0;
 
   $blog_ids = \Drupal::entityQuery('menu_link_content')
@@ -83,8 +124,8 @@ function emerging_digital_content_update_11002(array &$sandbox): string {
         $blog->set('enabled', TRUE);
         $changed++;
       }
-      if ((int) $blog->get('weight')->value !== 4) {
-        $blog->set('weight', 4);
+      if ((int) $blog->get('weight')->value !== $blog_weight) {
+        $blog->set('weight', $blog_weight);
         $changed++;
       }
       $blog->save();
@@ -102,7 +143,7 @@ function emerging_digital_content_update_11002(array &$sandbox): string {
       'link' => ['uri' => 'internal:/blog'],
       'expanded' => FALSE,
       'enabled' => TRUE,
-      'weight' => 4,
+      'weight' => $blog_weight,
     ])->save();
     $changed++;
   }
@@ -114,16 +155,16 @@ function emerging_digital_content_update_11002(array &$sandbox): string {
     ->execute();
 
   foreach ($storage->loadMultiple($contact_ids) as $contact) {
-    if ((int) $contact->get('weight')->value === 5) {
+    if ((int) $contact->get('weight')->value === $contact_weight) {
       continue;
     }
 
-    $contact->set('weight', 5);
+    $contact->set('weight', $contact_weight);
     $contact->save();
     $changed++;
   }
 
-  return sprintf('%d main navigation values were created or updated for Blog.', $changed);
+  return $changed;
 }
 
 /**
@@ -172,7 +213,7 @@ function _emerging_digital_content_sync_mapping_schema(): array {
         'default' => '',
       ],
       'catalog_hash' => [
-        'description' => 'Hash of the catalog definition used during the last sync.',
+        'description' => 'Hash of the catalog definition used during the latest sync.',
         'type' => 'varchar',
         'length' => 64,
         'not null' => TRUE,

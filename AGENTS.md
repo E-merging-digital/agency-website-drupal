@@ -23,6 +23,24 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Documentation projet dans `docs/`.
 - Scripts d'exploitation dans `scripts/`.
 
+## 2.1 Doctrine Drupal AI
+
+- Pour toute tache touchant l'IA, la traduction IA ou une fonctionnalite IA du
+  blog, lire **obligatoirement** `docs/drupal-ai-architecture.md` avant toute
+  modification.
+- Drupal AI est l'abstraction par defaut : ne pas ajouter d'appel direct a un
+  provider/SDK IA sans exception explicitement decidee dans un ticket.
+- L'IA assiste le workflow Drupal ; elle ne contourne pas permissions,
+  traductions, revisions ou validation humaine et ne publie pas automatiquement
+  par defaut.
+- Aucun secret IA n'est versionne ; utiliser Drupal Key/configuration locale
+  securisee.
+- Preferer les composants Drupal AI stables aux implementations custom et ne pas
+  introduire de branche `-dev`/experimentale sans ticket et preuve dedies.
+- `agency_ai_translation` est une implementation legacy a converger avec Drupal
+  AI/AI Translate seulement apres preuve de parite ; ne pas la supprimer ou
+  l'etendre avec de nouveaux appels provider directs par habitude.
+
 ## 3. Workflow Git/branches
 
 - 1 ticket GitHub = 1 branche Git = 1 Pull Request.

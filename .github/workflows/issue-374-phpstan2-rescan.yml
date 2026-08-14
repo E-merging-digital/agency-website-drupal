@@ -1,17 +1,23 @@
-name: Issue 374 PHPStan 2 rescan
+name: Issue 374 PHPStan 2 cleanup
 
 on:
   push:
     branches:
       - feature/issue-374-phpstan2-application-cleanup
 
-# Temporary diagnostic harness for #374; delete before merge.
+permissions:
+  contents: write
+
+# Temporary implementation harness for #374; delete before merge.
 jobs:
-  rescan:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: feature/issue-374-phpstan2-application-cleanup
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
@@ -23,9 +29,85 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
-      - name: Rescan application diagnostics without application ignores
+      - name: Apply bounded PHPStan 2 cleanup
         run: |
-          cat > .phpstan-374.neon <<'EOF'
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path_s: str, old: str, new: str) -> None:
+              path = Path(path_s)
+              text = path.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{path}: expected exactly one match, got {count}')
+              path.write_text(text.replace(old, new, 1))
+
+          replace_exact(
+              'web/modules/custom/emerging_digital_chatbot/src/Context/PublicContextBuilder.php',
+              'use Drupal\\Core\\Field\\FieldItemListInterface;\n',
+              '',
+          )
+          replace_exact(
+              'web/modules/custom/emerging_digital_chatbot/src/Context/PublicContextBuilder.php',
+              "    $field = $node->get($fieldName);\n    if (!$field instanceof FieldItemListInterface) {\n      return '';\n    }\n\n    $values = [];",
+              "    $field = $node->get($fieldName);\n\n    $values = [];",
+          )
+          replace_exact(
+              'web/modules/custom/emerging_digital_chatbot/src/Context/PublicContextBuilder.php',
+              "  private function getNodeStorage(): NodeStorageInterface {\n    $storage = $this->entityTypeManager->getStorage('node');\n    assert($storage instanceof NodeStorageInterface);\n\n    return $storage;\n  }",
+              "  private function getNodeStorage(): NodeStorageInterface {\n    return $this->entityTypeManager->getStorage('node');\n  }",
+          )
+
+          replace_exact(
+              'web/modules/custom/agency_content_seed/agency_content_seed.post_update.php',
+              "  $indexed = [];\n  foreach ($nodes as $node) {\n    if ($node instanceof NodeInterface) {\n      $indexed[$node->label()] = $node;\n    }\n  }",
+              "  $indexed = [];\n  foreach ($nodes as $node) {\n    $indexed[$node->label()] = $node;\n  }",
+          )
+
+          replace_exact(
+              'web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php',
+              "      if (!$node instanceof NodeInterface) {\n        throw new \\RuntimeException(sprintf('Could not create node for \\\"%s\\\".', $entry->id()));\n      }\n      $created = TRUE;",
+              "      $created = TRUE;",
+          )
+          replace_exact(
+              'web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php',
+              "      $translation = $page->getTranslation($langcode);\n      if ($translation instanceof NodeInterface) {\n        $page_translation = $translation;\n      }",
+              "      $page_translation = $page->getTranslation($langcode);",
+          )
+          replace_exact(
+              'web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php',
+              "        ($parts[0] ?? '') === $title",
+              "        $parts[0] === $title",
+          )
+
+          for key in ('node', 'paragraph', 'menu_link_content', 'path_alias'):
+              replace_exact(
+                  'web/modules/custom/emerging_digital_content/emerging_digital_content.post_update.php',
+                  f"    $counts['{key}'] ?? 0,",
+                  f"    $counts['{key}'],",
+              )
+
+          theme = 'web/themes/custom/emerging_digital/emerging_digital.theme'
+          text = Path(theme).read_text()
+          old = "      'title' => $parts[0] ?? '',"
+          if text.count(old) != 2:
+              raise RuntimeError(f'{theme}: expected two title fallbacks, got {text.count(old)}')
+          Path(theme).write_text(text.replace(old, "      'title' => $parts[0],"))
+
+          Path('phpstan.neon').write_text('''parameters:\n  level: 5\n\n  paths:\n    - web/modules/custom\n    - web/themes/custom\n    - web/profiles/custom\n\n  excludePaths:\n    - web/core\n    - web/modules/contrib\n    - web/themes/contrib (?)\n    - web/profiles/contrib (?)\n    - vendor\n\n  # PHPStan 2 and the Drupal/PHPUnit extensions can prove some runtime guards\n  # from service metadata and PHPDoc alone. Keep those test assertions because\n  # they still protect real runtime behaviour.\n  ignoreErrors:\n    -\n      identifiers:\n        - staticMethod.alreadyNarrowedType\n        - instanceof.alwaysTrue\n      path: web/modules/custom/*/tests/*\n      reportUnmatched: false\n    -\n      # Configuration arrays can still contain numeric keys at runtime. Keep the\n      # defensive is_string() guard even though the method PHPDoc promises strings.\n      identifier: function.alreadyNarrowedType\n      path: web/modules/custom/emerging_digital_chatbot/src/QualificationEngine.php\n      reportUnmatched: false\n''')
+          PY
+
+      - name: Validate standard gates
+        run: |
+          composer validate --strict
+          composer audit
+          composer lint:phpcs
+          composer lint:phpstan
+          composer lint:drupal-check
+
+      - name: Prove only one justified application diagnostic remains
+        run: |
+          cat > .phpstan-374-proof.neon <<'EOF'
           parameters:
             level: 5
 
@@ -46,41 +128,53 @@ jobs:
                 identifiers:
                   - staticMethod.alreadyNarrowedType
                   - instanceof.alwaysTrue
-                  - dependencySerializationTraitProperty.unsupportedPrivateProperty
                 path: web/modules/custom/*/tests/*
                 reportUnmatched: false
           EOF
 
           set +e
-          vendor/bin/phpstan analyse -c .phpstan-374.neon --error-format=json > /tmp/phpstan-374.json
+          vendor/bin/phpstan analyse -c .phpstan-374-proof.neon --error-format=json > /tmp/phpstan-374-proof.json
           RC=$?
           set -e
 
           python3 <<'PY'
           import json
-          from collections import Counter
 
-          with open('/tmp/phpstan-374.json') as fh:
+          with open('/tmp/phpstan-374-proof.json') as fh:
               data = json.load(fh)
 
-          targeted = {'function.alreadyNarrowedType', 'instanceof.alwaysTrue', 'nullCoalesce.offset'}
-          findings = []
+          messages = []
           for path, detail in data.get('files', {}).items():
-              for msg in detail.get('messages', []):
-                  ident = msg.get('identifier', '<none>')
-                  if ident in targeted:
-                      findings.append((path, msg.get('line', 0), ident, msg.get('message', '')))
+              for message in detail.get('messages', []):
+                  messages.append((path, message.get('line', 0), message.get('identifier'), message.get('message', '')))
 
-          counts = Counter(item[2] for item in findings)
-          print(f'TARGETED_TOTAL={len(findings)}')
-          for ident in sorted(counts):
-              print(f'TARGETED_{ident}={counts[ident]}')
-          print('TARGETED_FINDINGS_BEGIN')
-          for path, line, ident, message in findings:
-              print(f'{path}|{line}|{ident}|{message}')
-          print('TARGETED_FINDINGS_END')
-          print(f'PHPSTAN_TOTAL_ERRORS={data.get("totals", {}).get("file_errors", 0)}')
+          print(f'REMAINING_TOTAL={len(messages)}')
+          for item in messages:
+              print('|'.join(map(str, item)))
+
+          if len(messages) != 1:
+              raise SystemExit(f'Expected exactly one justified diagnostic, got {len(messages)}')
+          path, _line, identifier, message = messages[0]
+          if not path.endswith('/web/modules/custom/emerging_digital_chatbot/src/QualificationEngine.php'):
+              raise SystemExit(f'Unexpected remaining path: {path}')
+          if identifier != 'function.alreadyNarrowedType' or 'is_string()' not in message:
+              raise SystemExit(f'Unexpected remaining diagnostic: {identifier}: {message}')
           PY
 
-          rm -f .phpstan-374.neon
-          echo "PHPSTAN_RC=$RC"
+          rm -f .phpstan-374-proof.neon
+          test "$RC" -eq 1
+
+      - name: Commit bounded cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            phpstan.neon \
+            web/modules/custom/agency_content_seed/agency_content_seed.post_update.php \
+            web/modules/custom/emerging_digital_chatbot/src/Context/PublicContextBuilder.php \
+            web/modules/custom/emerging_digital_content/emerging_digital_content.post_update.php \
+            web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php \
+            web/themes/custom/emerging_digital/emerging_digital.theme
+          git diff --cached --quiet && exit 0
+          git commit -m "Issue #374: clean remaining PHPStan 2 application diagnostics"
+          git push origin HEAD:feature/issue-374-phpstan2-application-cleanup

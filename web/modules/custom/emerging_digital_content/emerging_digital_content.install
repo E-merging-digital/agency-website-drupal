@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\emerging_digital_content\MainNavigationManager;
+use Drupal\menu_link_content\Entity\MenuLinkContent;
 
 /**
  * Implements hook_schema().
@@ -50,6 +51,72 @@ function emerging_digital_content_update_11001(array &$sandbox): string {
   }
 
   return 'Content Sync mapping table already exists.';
+}
+
+/**
+ * Adds Blog to the main navigation without rewriting unrelated links.
+ */
+function emerging_digital_content_update_11002(array &$sandbox): string {
+  unset($sandbox);
+
+  $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+  $changed = 0;
+
+  $blog_ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->condition('title', 'Blog')
+    ->execute();
+
+  if ($blog_ids) {
+    $blog = reset($storage->loadMultiple($blog_ids));
+    if ($blog instanceof MenuLinkContent) {
+      $link_item = $blog->get('link')->first();
+      $uri = $link_item ? ($link_item->getValue()['uri'] ?? '') : '';
+      if ($uri !== 'internal:/blog') {
+        $blog->set('link', ['uri' => 'internal:/blog']);
+        $changed++;
+      }
+      if (!$blog->isEnabled()) {
+        $blog->set('enabled', TRUE);
+        $changed++;
+      }
+      if ((int) $blog->get('weight')->value !== 4) {
+        $blog->set('weight', 4);
+        $changed++;
+      }
+      $blog->save();
+    }
+  }
+  else {
+    MenuLinkContent::create([
+      'title' => 'Blog',
+      'menu_name' => 'main',
+      'link' => ['uri' => 'internal:/blog'],
+      'expanded' => FALSE,
+      'enabled' => TRUE,
+      'weight' => 4,
+    ])->save();
+    $changed++;
+  }
+
+  $contact_ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->condition('title', 'Contact')
+    ->execute();
+
+  foreach ($storage->loadMultiple($contact_ids) as $contact) {
+    if ((int) $contact->get('weight')->value === 5) {
+      continue;
+    }
+
+    $contact->set('weight', 5);
+    $contact->save();
+    $changed++;
+  }
+
+  return sprintf('%d main navigation values were created or updated for Blog.', $changed);
 }
 
 /**

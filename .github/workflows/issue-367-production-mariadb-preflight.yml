@@ -1,4 +1,4 @@
-name: Issue 367 Production MariaDB Post-Simulation Verification
+name: Issue 367 Production MariaDB Package Simulation Resume
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - feature/issue-367-production-mariadb-11-8
 
 jobs:
-  verify:
+  simulate:
     runs-on: ubuntu-latest
     steps:
       - name: Configure SSH key
@@ -37,7 +37,7 @@ jobs:
           printf '%s' "$SERVER_SUDO_PASSWORD" | ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" "umask 077; cat > '$REMOTE_PASS'"
           echo "REMOTE_PASS=$REMOTE_PASS" >> "$GITHUB_ENV"
 
-      - name: Verify source state and backups read-only
+      - name: Simulate MariaDB 11.8 package migration from verified backups
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -46,33 +46,62 @@ jobs:
           set -Eeuo pipefail
           cd /var/www/agency/current
           BACKUP_ROOT='/var/www/agency/shared/backups/issue367-mariadb-20260814162501'
+          APT_STATE="${BACKUP_ROOT}-apt-state.tar.gz"
+          REPO_TOUCHED=0
+
+          cleanup() {
+            if [[ "$REPO_TOUCHED" -eq 1 ]]; then
+              sudo -S -p '' rm -rf /etc/apt < "$PASSFILE" || true
+              sudo -S -p '' tar -C / -xzf "$APT_STATE" < "$PASSFILE" || true
+              sudo -S -p '' apt-get update >/dev/null 2>&1 < "$PASSFILE" || true
+            fi
+            rm -f "$PASSFILE" /tmp/mariadb_repo_setup /tmp/issue367-apt-sim.txt || true
+          }
+          trap cleanup EXIT
+
+          sudo_cmd() {
+            sudo -S -p '' "$@" < "$PASSFILE"
+          }
 
           VERSION="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r')"
-          echo "DB_VERSION=$VERSION"
-          case "$VERSION" in 10.11.*) ;; *) exit 30 ;; esac
-          echo "SERVICE_ACTIVE=$(systemctl is-active mariadb)"
-          vendor/bin/drush status --fields=bootstrap,db-status,drupal-version --format=list
-
-          echo "BACKUP_TOOL_VERSION=$(mariadb-backup --version 2>&1 | sed -n '1p')"
+          case "$VERSION" in 10.11.*) ;; *) echo "Unexpected source: $VERSION" >&2; exit 40 ;; esac
+          sudo_cmd test -s "$APT_STATE"
+          sudo_cmd test -s "${BACKUP_ROOT}-physical/xtrabackup_checkpoints"
           test -s "${BACKUP_ROOT}.sql.gz"
-          gzip -t "${BACKUP_ROOT}.sql.gz"
-          sudo -S -p '' test -s "${BACKUP_ROOT}-physical/xtrabackup_checkpoints" < "$PASSFILE"
-          sudo -S -p '' test -s "${BACKUP_ROOT}-etc-mysql.tar.gz" < "$PASSFILE"
-          test -s "${BACKUP_ROOT}-packages.txt"
-          sudo -S -p '' test -s "${BACKUP_ROOT}-apt-state.tar.gz" < "$PASSFILE"
-          echo 'BACKUPS_VERIFIED=yes'
+          echo 'RESUME_GATES=ok'
 
-          if grep -RqsE 'dlm\.mariadb\.com/repo/mariadb-server/11\.8|mariadb-server/11\.8' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
-            echo 'MARIADB_11_8_REPO_ACTIVE=yes'
-            exit 31
-          else
-            echo 'MARIADB_11_8_REPO_ACTIVE=no'
-          fi
+          curl -fsSL https://r.mariadb.com/downloads/mariadb_repo_setup -o /tmp/mariadb_repo_setup
+          chmod 700 /tmp/mariadb_repo_setup
+          REPO_TOUCHED=1
+          sudo_cmd bash /tmp/mariadb_repo_setup \
+            --mariadb-server-version=mariadb-11.8 \
+            --os-type=ubuntu \
+            --os-version=noble \
+            --skip-maxscale
+          sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get update
 
           CANDIDATE="$(apt-cache policy mariadb-server | awk '/Candidate:/ && !seen {print $2; seen=1} END {if (!seen) exit 1}')"
-          echo "APT_CANDIDATE=$CANDIDATE"
-          case "$CANDIDATE" in *10.11*) ;; *) exit 32 ;; esac
-          echo 'SOURCE_STATE_RESTORED=yes'
+          echo "MARIADB_SERVER_CANDIDATE=$CANDIDATE"
+          case "$CANDIDATE" in *11.8*) ;; *) echo '11.8 candidate missing' >&2; exit 41 ;; esac
+
+          apt-get -s install mariadb-server mariadb-client mariadb-backup > /tmp/issue367-apt-sim.txt
+          echo 'APT_SIMULATION_SUMMARY_BEGIN'
+          grep -E '^(Inst|Remv|Conf) ' /tmp/issue367-apt-sim.txt || true
+          echo 'APT_SIMULATION_SUMMARY_END'
+
+          if grep -Eq '^Remv (nginx|openssh-server|php8\.4-fpm|php8\.4-cli|php8\.4-common)\b' /tmp/issue367-apt-sim.txt; then
+            echo 'CRITICAL_PACKAGE_REMOVAL=yes' >&2
+            exit 42
+          fi
+          if grep -Eq '^Remv mariadb-server($|[-: ])' /tmp/issue367-apt-sim.txt; then
+            echo 'MARIADB_SERVER_REMOVAL=yes' >&2
+            exit 43
+          fi
+
+          VERSION_AFTER="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r')"
+          case "$VERSION_AFTER" in 10.11.*) ;; *) echo "Server mutated during simulation: $VERSION_AFTER" >&2; exit 44 ;; esac
+          echo "SERVER_STILL_SOURCE_VERSION=$VERSION_AFTER"
+          echo 'PACKAGE_SIMULATION_GREEN=yes'
           EOF
 
       - name: Cleanup temporary sudo credential

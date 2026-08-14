@@ -1,0 +1,9 @@
+uuid: 2a5319eb-4524-41d2-bf33-646a42b2f2d3
+langcode: en
+status: true
+dependencies: {  }
+name: 'Catégories du blog'
+vid: blog_categories
+description: 'Catégories éditoriales principales du blog.'
+weight: 0
+new_revision: false

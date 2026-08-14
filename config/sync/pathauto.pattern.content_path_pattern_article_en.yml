@@ -8,24 +8,24 @@ dependencies:
 id: content_path_pattern_article_en
 label: 'Content path pattern (Article)'
 type: 'canonical_entities:node'
-pattern: '/news/[node:title]'
+pattern: '/blog/[node:title]'
 selection_criteria:
   a5b1ccb7-e39a-434a-899b-706a49ef615f:
     id: 'entity_bundle:node'
     negate: false
-    uuid: a5b1ccb7-e39a-434a-899b-706a49ef615f
     context_mapping:
       node: node
     bundles:
       article: article
+    uuid: a5b1ccb7-e39a-434a-899b-706a49ef615f
   894c4bf9-3b01-45e9-bab9-c2a5df03155a:
     id: language
     negate: false
-    uuid: 894c4bf9-3b01-45e9-bab9-c2a5df03155a
     context_mapping:
       language: 'node:langcode:language'
     langcodes:
       en: en
+    uuid: 894c4bf9-3b01-45e9-bab9-c2a5df03155a
 selection_logic: and
 weight: -10
 relationships:

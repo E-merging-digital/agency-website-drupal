@@ -22,7 +22,8 @@ final class MainNavigationManager {
       ['title' => 'Services', 'uri' => 'internal:/services', 'weight' => 1],
       ['title' => 'IA & Drupal', 'uri' => 'internal:/ia-drupal', 'weight' => 2],
       ['title' => 'Cas clients', 'uri' => 'internal:/cas-clients', 'weight' => 3],
-      ['title' => 'Contact', 'uri' => 'internal:/contact', 'weight' => 4],
+      ['title' => 'Blog', 'uri' => 'internal:/blog', 'weight' => 4],
+      ['title' => 'Contact', 'uri' => 'internal:/contact', 'weight' => 5],
     ];
 
     $created_or_updated = 0;

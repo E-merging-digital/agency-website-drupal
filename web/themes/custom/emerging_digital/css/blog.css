@@ -307,7 +307,7 @@
   color: var(--color-primary-contrast);
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 36rem) {
   .view-blog .view-content {
     grid-template-columns: repeat(auto-fit, minmax(18rem, 21rem));
     justify-content: start;

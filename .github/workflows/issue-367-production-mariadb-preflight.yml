@@ -1,13 +1,157 @@
-name: Issue 367 Production MariaDB Maintenance Harness
+name: Issue 367 Production MariaDB Backup and Upgrade Simulation
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - feature/issue-367-production-mariadb-11-8
 
 jobs:
-  gated:
+  backup-and-simulate:
     runs-on: ubuntu-latest
     steps:
-      - name: Gate
+      - name: Configure SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          echo 'Issue #367 maintenance harness is intentionally manual/gated.'
-          echo 'Snapshot exists. Current deploy sudo secret was rejected and root SSH with the deploy key is unavailable.'
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Add server to known_hosts
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Stage temporary sudo credential on production
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SUDO_PASSWORD: ${{ secrets.SERVER_SUDO_PASSWORD }}
+        run: |
+          test -n "$SERVER_SUDO_PASSWORD"
+          REMOTE_PASS="/tmp/.issue367-sudo-${GITHUB_RUN_ID}"
+          printf '%s' "$SERVER_SUDO_PASSWORD" | ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" "umask 077; cat > '$REMOTE_PASS'; nohup sh -c 'sleep 900; rm -f \"$REMOTE_PASS\"' >/dev/null 2>&1 &"
+          echo "REMOTE_PASS=$REMOTE_PASS" >> "$GITHUB_ENV"
+
+      - name: Backup production and simulate MariaDB 11.8 package migration
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" "PASSFILE='$REMOTE_PASS' bash -s" <<'EOF'
+          set -Eeuo pipefail
+          umask 077
+          cd /var/www/agency/current
+
+          cleanup() {
+            rm -f "$PASSFILE" /tmp/mariadb_repo_setup /tmp/issue367-apt-sim.txt || true
+          }
+          trap cleanup EXIT
+
+          sudo_cmd() {
+            sudo -S -p '' "$@" < "$PASSFILE"
+          }
+
+          echo 'PHASE1_BEGIN'
+          sudo -S -k -p '' true < "$PASSFILE"
+          echo 'SUDO_AUTH=ok'
+
+          BEFORE_VERSION="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r' | head -n1)"
+          case "$BEFORE_VERSION" in
+            10.11.*) ;;
+            *) echo "Unexpected source MariaDB version: $BEFORE_VERSION" >&2; exit 20 ;;
+          esac
+          echo "SOURCE_VERSION=$BEFORE_VERSION"
+
+          TIMESTAMP="$(date +%Y%m%d%H%M%S)"
+          BACKUP_ROOT="/var/www/agency/shared/backups/issue367-mariadb-${TIMESTAMP}"
+          SQL_BACKUP="${BACKUP_ROOT}.sql.gz"
+          PHYSICAL_BACKUP="${BACKUP_ROOT}-physical"
+          CONFIG_BACKUP="${BACKUP_ROOT}-etc-mysql.tar.gz"
+          PACKAGE_MANIFEST="${BACKUP_ROOT}-packages.txt"
+
+          vendor/bin/drush sql:dump --gzip --result-file="$SQL_BACKUP"
+          test -s "$SQL_BACKUP"
+          gzip -t "$SQL_BACKUP"
+          echo 'SQL_BACKUP_OK=yes'
+          echo "SQL_BACKUP_BYTES=$(stat -c '%s' "$SQL_BACKUP")"
+
+          sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get update
+          sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-backup
+
+          BACKUP_TOOL_VERSION="$(mariadb-backup --version 2>&1 | head -n1)"
+          case "$BACKUP_TOOL_VERSION" in
+            *10.11*) ;;
+            *) echo "mariadb-backup is not compatible with source 10.11: $BACKUP_TOOL_VERSION" >&2; exit 21 ;;
+          esac
+          echo 'BACKUP_TOOL_SOURCE_COMPATIBLE=yes'
+
+          sudo_cmd rm -rf "$PHYSICAL_BACKUP"
+          sudo_cmd mariadb-backup --backup --target-dir="$PHYSICAL_BACKUP" --user=root
+          sudo_cmd mariadb-backup --prepare --target-dir="$PHYSICAL_BACKUP"
+          sudo_cmd test -s "$PHYSICAL_BACKUP/xtrabackup_checkpoints"
+          echo 'PHYSICAL_BACKUP_PREPARED=yes'
+
+          sudo_cmd tar -C / -czf "$CONFIG_BACKUP" etc/mysql
+          sudo_cmd test -s "$CONFIG_BACKUP"
+          echo 'MYSQL_CONFIG_BACKUP_OK=yes'
+
+          dpkg-query -W -f='${binary:Package}\t${Version}\n' 'mariadb*' 2>/dev/null > "$PACKAGE_MANIFEST" || true
+          test -s "$PACKAGE_MANIFEST"
+          echo 'PACKAGE_MANIFEST_OK=yes'
+
+          curl -fsSL https://r.mariadb.com/downloads/mariadb_repo_setup -o /tmp/mariadb_repo_setup
+          chmod 700 /tmp/mariadb_repo_setup
+          echo "REPO_SETUP_SHA256=$(sha256sum /tmp/mariadb_repo_setup | awk '{print $1}')"
+
+          sudo_cmd bash /tmp/mariadb_repo_setup \
+            --mariadb-server-version=mariadb-11.8 \
+            --os-type=ubuntu \
+            --os-version=noble
+
+          sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get update
+
+          CANDIDATE="$(apt-cache policy mariadb-server | awk '/Candidate:/ {print $2; exit}')"
+          echo "MARIADB_SERVER_CANDIDATE=$CANDIDATE"
+          case "$CANDIDATE" in
+            *11.8*) ;;
+            *) echo "MariaDB 11.8 candidate not available: $CANDIDATE" >&2; exit 22 ;;
+          esac
+
+          apt-get -s install mariadb-server mariadb-client mariadb-backup | tee /tmp/issue367-apt-sim.txt
+
+          if grep -Eq '^Remv (nginx|openssh-server|php8\.4-fpm|php8\.4-cli|php8\.4-common)\b' /tmp/issue367-apt-sim.txt; then
+            echo 'Unexpected critical package removal in simulation.' >&2
+            exit 23
+          fi
+
+          echo 'APT_SIMULATION_SUMMARY_BEGIN'
+          grep -E '^(Inst|Remv|Conf) ' /tmp/issue367-apt-sim.txt || true
+          echo 'APT_SIMULATION_SUMMARY_END'
+
+          AFTER_VERSION="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r' | head -n1)"
+          case "$AFTER_VERSION" in
+            10.11.*) ;;
+            *) echo "MariaDB changed during simulation unexpectedly: $AFTER_VERSION" >&2; exit 24 ;;
+          esac
+          echo "SERVER_STILL_SOURCE_VERSION=$AFTER_VERSION"
+          echo "SERVICE_ACTIVE=$(systemctl is-active mariadb || true)"
+          vendor/bin/drush status --fields=bootstrap,db-status,drupal-version --format=list
+
+          echo "BACKUP_ROOT=$BACKUP_ROOT"
+          echo 'PHASE1_SUCCESS'
+          EOF
+
+      - name: Cleanup temporary sudo credential
+        if: always()
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          if [ -n "${REMOTE_PASS:-}" ]; then
+            ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" "rm -f '$REMOTE_PASS'" || true
+          fi

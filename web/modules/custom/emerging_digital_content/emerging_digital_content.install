@@ -76,7 +76,7 @@ function emerging_digital_content_update_11003(array &$sandbox): string {
 }
 
 /**
- * Ensures one Blog link immediately precedes Contact without reweighting others.
+ * Ensures Blog immediately precedes Contact without reweighting other links.
  */
 function _emerging_digital_content_ensure_blog_navigation_position(): int {
   $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
@@ -213,7 +213,7 @@ function _emerging_digital_content_sync_mapping_schema(): array {
         'default' => '',
       ],
       'catalog_hash' => [
-        'description' => 'Hash of the catalog definition used during the latest sync.',
+        'description' => 'Hash of the catalog definition used during the last sync.',
         'type' => 'varchar',
         'length' => 64,
         'not null' => TRUE,

@@ -5,6 +5,7 @@ on:
     branches:
       - feature/issue-374-phpstan2-application-cleanup
 
+# Temporary diagnostic harness for #374; delete before merge.
 jobs:
   rescan:
     runs-on: ubuntu-latest

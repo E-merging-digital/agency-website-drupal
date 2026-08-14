@@ -66,7 +66,7 @@ jobs:
 
           replace_exact(
               'web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php',
-              "      if (!$node instanceof NodeInterface) {\n        throw new \\RuntimeException(sprintf('Could not create node for \\\"%s\\\".', $entry->id()));\n      }\n      $created = TRUE;",
+              "      if (!$node instanceof NodeInterface) {\n        throw new \\RuntimeException(sprintf('Could not create node for \"%s\".', $entry->id()));\n      }\n      $created = TRUE;",
               "      $created = TRUE;",
           )
           replace_exact(

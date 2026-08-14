@@ -1,4 +1,4 @@
-name: Issue 367 Production MariaDB 11.8 Migration
+name: Issue 367 Production MariaDB Unprivileged Postcheck
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - feature/issue-367-production-mariadb-11-8
 
 jobs:
-  migrate:
+  postcheck:
     runs-on: ubuntu-latest
     steps:
       - name: Configure SSH key
@@ -26,164 +26,48 @@ jobs:
           ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Stage temporary sudo credential
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_SUDO_PASSWORD: ${{ secrets.SERVER_SUDO_PASSWORD }}
-        run: |
-          test -n "$SERVER_SUDO_PASSWORD"
-          REMOTE_PASS="/tmp/.issue367-sudo-${GITHUB_RUN_ID}"
-          printf '%s' "$SERVER_SUDO_PASSWORD" | ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" "umask 077; cat > '$REMOTE_PASS'; nohup sh -c 'sleep 1800; rm -f \"$REMOTE_PASS\"' >/dev/null 2>&1 &"
-          echo "REMOTE_PASS=$REMOTE_PASS" >> "$GITHUB_ENV"
-
-      - name: Migrate production MariaDB 10.11 to 11.8
+      - name: Verify production without sudo
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
-          ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" "PASSFILE='$REMOTE_PASS' bash -s" <<'EOF'
+          ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" <<'EOF'
           set -Eeuo pipefail
-          umask 077
           cd /var/www/agency/current
 
-          BACKUP_ROOT='/var/www/agency/shared/backups/issue367-mariadb-20260814162501'
-          APT_STATE="${BACKUP_ROOT}-apt-state.tar.gz"
-          MIGRATION_STARTED=0
-          REPO_CONFIGURED=0
-          MAINTENANCE_ON=0
-          DB_STOPPED=0
-          MIGRATION_START="$(date --iso-8601=seconds)"
+          VERSION="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r')"
+          echo "DB_VERSION=$VERSION"
+          case "$VERSION" in 11.8.*) ;; *) exit 60 ;; esac
 
-          sudo_cmd() {
-            sudo -S -p '' "$@" < "$PASSFILE"
-          }
-
-          fail_trap() {
-            rc=$?
-            set +e
-            echo "MIGRATION_FAILURE_RC=$rc"
-            echo "MIGRATION_STARTED=$MIGRATION_STARTED"
-
-            if [[ "$MIGRATION_STARTED" -eq 0 ]]; then
-              if [[ "$REPO_CONFIGURED" -eq 1 ]]; then
-                echo 'Restoring source APT state before package migration.'
-                sudo_cmd rm -rf /etc/apt
-                sudo_cmd tar -C / -xzf "$APT_STATE"
-                sudo_cmd apt-get update >/dev/null 2>&1
-              fi
-              if [[ "$DB_STOPPED" -eq 1 ]]; then
-                sudo_cmd systemctl start mariadb || true
-              fi
-              if [[ "$MAINTENANCE_ON" -eq 1 ]] && systemctl is-active --quiet mariadb; then
-                vendor/bin/drush state:set system.maintenance_mode 0 --input-format=integer || true
-                vendor/bin/drush cr || true
-              fi
-            else
-              echo 'Package migration had started: no automatic downgrade/physical restore is attempted.'
-              echo "MARIADB_SERVICE=$(systemctl is-active mariadb 2>/dev/null || true)"
-              sudo_cmd systemctl --no-pager --full status mariadb || true
-              sudo_cmd journalctl -u mariadb --since "$MIGRATION_START" --no-pager -n 120 || true
-              echo 'Drupal maintenance is intentionally left ON until recovery/diagnosis.'
-            fi
-            rm -f "$PASSFILE" /tmp/mariadb_repo_setup || true
-            exit "$rc"
-          }
-          trap fail_trap ERR
-
-          echo 'MIGRATION_GATE_BEGIN'
-          sudo -S -k -p '' true < "$PASSFILE"
-          SOURCE_VERSION="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r')"
-          case "$SOURCE_VERSION" in 10.11.*) ;; *) echo "Unexpected source: $SOURCE_VERSION" >&2; exit 50 ;; esac
+          echo "SERVICE_ACTIVE=$(systemctl is-active mariadb)"
           [[ "$(systemctl is-active mariadb)" == 'active' ]]
-          [[ "$(vendor/bin/drush sqlq 'SELECT @@GLOBAL.innodb_fast_shutdown;' | tr -d '\r')" != '2' ]]
-          test -s "${BACKUP_ROOT}.sql.gz"
-          gzip -t "${BACKUP_ROOT}.sql.gz"
-          sudo_cmd test -s "${BACKUP_ROOT}-physical/xtrabackup_checkpoints"
-          sudo_cmd test -s "${BACKUP_ROOT}-etc-mysql.tar.gz"
-          sudo_cmd test -s "$APT_STATE"
-          echo "SOURCE_VERSION=$SOURCE_VERSION"
-          echo 'BACKUPS_GATE=green'
-
-          if grep -RqsE 'dlm\.mariadb\.com/repo/mariadb-server/11\.8|mariadb-server/11\.8' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
-            echo 'Unexpected active 11.8 repo before migration.' >&2
-            exit 51
-          fi
-
-          curl -fsSL https://r.mariadb.com/downloads/mariadb_repo_setup -o /tmp/mariadb_repo_setup
-          chmod 700 /tmp/mariadb_repo_setup
-          sudo_cmd bash /tmp/mariadb_repo_setup \
-            --mariadb-server-version=mariadb-11.8 \
-            --os-type=ubuntu \
-            --os-version=noble \
-            --skip-maxscale
-          REPO_CONFIGURED=1
-          sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get update
-          CANDIDATE="$(apt-cache policy mariadb-server | awk '/Candidate:/ && !seen {print $2; seen=1} END {if (!seen) exit 1}')"
-          echo "TARGET_CANDIDATE=$CANDIDATE"
-          case "$CANDIDATE" in *11.8*) ;; *) exit 52 ;; esac
-
-          vendor/bin/drush state:set system.maintenance_mode 1 --input-format=integer
-          vendor/bin/drush cr
-          MAINTENANCE_ON=1
-          echo 'DRUPAL_MAINTENANCE=on'
-
-          sudo_cmd systemctl stop mariadb
-          DB_STOPPED=1
-          if systemctl is-active --quiet mariadb; then
-            echo 'MariaDB did not stop cleanly.' >&2
-            exit 53
-          fi
-          echo 'SOURCE_MARIADB_STOPPED=yes'
-
-          MIGRATION_STARTED=1
-          sudo_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            -o Dpkg::Options::='--force-confold' \
-            mariadb-server mariadb-client mariadb-backup
-
-          if ! systemctl is-active --quiet mariadb; then
-            sudo_cmd systemctl start mariadb
-          fi
-          DB_STOPPED=0
-          [[ "$(systemctl is-active mariadb)" == 'active' ]]
-
-          TARGET_VERSION="$(sudo_cmd mariadb -NBe 'SELECT VERSION();' | tr -d '\r')"
-          echo "TARGET_VERSION=$TARGET_VERSION"
-          case "$TARGET_VERSION" in 11.8.*) ;; *) echo 'Target server is not MariaDB 11.8.' >&2; exit 54 ;; esac
-
-          sudo_cmd mariadb-upgrade --force
-          echo 'MARIADB_UPGRADE=green'
-          sudo_cmd mariadb-check --all-databases --check-upgrade
-          echo 'MARIADB_CHECK_UPGRADE=green'
-          sudo_cmd systemctl restart mariadb
-          [[ "$(systemctl is-active mariadb)" == 'active' ]]
-
-          FINAL_VERSION="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r')"
-          case "$FINAL_VERSION" in 11.8.*) ;; *) echo "Drupal sees unexpected DB version: $FINAL_VERSION" >&2; exit 55 ;; esac
-          APP_TABLES="$(vendor/bin/drush sqlq 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE();' | tr -d '\r')"
-          echo "APP_TABLES=$APP_TABLES"
-          [[ "$APP_TABLES" == '140' ]]
-
           vendor/bin/drush status --fields=bootstrap,db-status,drupal-version --format=list
-          vendor/bin/drush cr
 
-          FAILED_UNITS="$(sudo_cmd systemctl --failed --no-legend --plain | wc -l | tr -d ' ')"
-          echo "FAILED_SYSTEMD_UNITS=$FAILED_UNITS"
-          [[ "$FAILED_UNITS" == '0' ]]
+          TABLES="$(vendor/bin/drush sqlq 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE();' | tr -d '\r')"
+          echo "APP_TABLES=$TABLES"
+          [[ "$TABLES" == '140' ]]
 
-          JOURNAL_ERRORS="$(sudo_cmd journalctl -u mariadb --since "$MIGRATION_START" -p err..alert --no-pager --output=cat || true)"
-          if [[ -n "$JOURNAL_ERRORS" ]]; then
-            echo 'MARIADB_JOURNAL_ERRORS_BEGIN'
-            printf '%s\n' "$JOURNAL_ERRORS"
-            echo 'MARIADB_JOURNAL_ERRORS_END'
-            exit 56
+          MAINTENANCE="$(vendor/bin/drush state:get system.maintenance_mode 2>/dev/null | tr -d '\r[:space:]')"
+          echo "DRUPAL_MAINTENANCE=$MAINTENANCE"
+          [[ "$MAINTENANCE" == '0' ]]
+
+          CANDIDATE="$(apt-cache policy mariadb-server | awk '/Candidate:/ && !seen {print $2; seen=1} END {if (!seen) exit 1}')"
+          INSTALLED="$(dpkg-query -W -f='${Version}' mariadb-server)"
+          echo "MARIADB_PACKAGE_INSTALLED=$INSTALLED"
+          echo "MARIADB_PACKAGE_CANDIDATE=$CANDIDATE"
+          case "$INSTALLED" in *11.8.8*) ;; *) exit 61 ;; esac
+          case "$CANDIDATE" in *11.8.8*) ;; *) exit 62 ;; esac
+
+          grep -RqsE 'dlm\.mariadb\.com/repo/mariadb-server/11\.8|mariadb-server/11\.8' /etc/apt/sources.list /etc/apt/sources.list.d
+          echo 'MARIADB_11_8_REPO_ACTIVE=yes'
+          echo "MARIADB_BACKUP_VERSION=$(mariadb-backup --version 2>&1 | sed -n '1p')"
+
+          if [[ -e /etc/sudoers.d/issue367-deploy ]]; then
+            echo 'TEMP_SUDOERS_PRESENT=yes'
+            exit 63
+          else
+            echo 'TEMP_SUDOERS_PRESENT=no'
           fi
-          echo 'MARIADB_JOURNAL_ERRORS=none'
-
-          vendor/bin/drush state:set system.maintenance_mode 0 --input-format=integer
-          vendor/bin/drush cr
-          MAINTENANCE_ON=0
-          echo 'DRUPAL_MAINTENANCE=off'
 
           HOME_STATUS="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 20 https://emergingdigital.be/)"
           CONTACT_STATUS="$(curl -L -sS -o /dev/null -w '%{http_code}' --max-time 20 https://emergingdigital.be/contact)"
@@ -191,27 +75,5 @@ jobs:
           echo "CONTACT_HTTP=$CONTACT_STATUS"
           [[ "$HOME_STATUS" == '200' ]]
           [[ "$CONTACT_STATUS" == '200' ]]
-
-          FINAL_VERSION="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r')"
-          case "$FINAL_VERSION" in 11.8.*) ;; *) exit 57 ;; esac
-          echo "FINAL_DB_VERSION=$FINAL_VERSION"
-          echo 'APPLICATION_VALIDATION=green'
-
-          # Remove the temporary sudoers grant only after every privileged and application gate is green.
-          sudo_cmd rm -f /etc/sudoers.d/issue367-deploy
-          echo 'TEMP_SUDOERS_REMOVED=yes'
-
-          trap - ERR
-          rm -f "$PASSFILE" /tmp/mariadb_repo_setup || true
-          echo 'MIGRATION_SUCCESS'
+          echo 'UNPRIVILEGED_POSTCHECK=green'
           EOF
-
-      - name: Cleanup temporary sudo credential
-        if: always()
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-        run: |
-          if [ -n "${REMOTE_PASS:-}" ]; then
-            ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" "rm -f '$REMOTE_PASS'" || true
-          fi

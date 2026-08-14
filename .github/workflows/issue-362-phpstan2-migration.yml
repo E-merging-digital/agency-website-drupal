@@ -127,6 +127,9 @@ jobs:
           - upstream issue liée : `mglaman/drupal-check#318`.
           EOF
 
+      - name: Diagnose PHPStan 2 constraints
+        run: composer prohibits phpstan/phpstan 2.2.8 -t || true
+
       - name: Resolve PHPStan 2 toolchain
         run: |
           composer update \
@@ -134,6 +137,8 @@ jobs:
             mglaman/phpstan-drupal \
             phpstan/phpstan \
             phpstan/phpstan-deprecation-rules \
+            phpstan/phpstan-phpunit \
+            phpstan/phpstan-strict-rules \
             jangregor/phpstan-prophecy \
             webflo/drupal-finder \
             --with-all-dependencies \

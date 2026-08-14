@@ -14,8 +14,9 @@
 
     {% if display_submitted %}
       <div class="ed-article__meta">
-        <span class="ed-article__date">{{ date }}</span>
-        <span class="ed-article__author">{{ author_name }}</span>
+        <time class="ed-article__date" datetime="{{ node.getCreatedTime()|date('Y-m-d') }}">
+          {{ node.getCreatedTime()|date('d/m/Y') }}
+        </time>
       </div>
     {% endif %}
 

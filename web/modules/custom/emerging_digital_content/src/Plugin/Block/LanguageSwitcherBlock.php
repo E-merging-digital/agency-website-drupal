@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\emerging_digital_content\Plugin\Block;
 
+use Drupal\Core\Block\Attribute\Block;
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Entity\ContentEntityInterface;
@@ -12,18 +13,18 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Path\PathMatcherInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Provides a cacheable language switcher block.
- *
- * @Block(
- *   id = "emerging_digital_language_switcher",
- *   admin_label = @Translation("Language switcher"),
- *   category = @Translation("Emerging Digital")
- * )
  */
+#[Block(
+  id: 'emerging_digital_language_switcher',
+  admin_label: new TranslatableMarkup('Language switcher'),
+  category: new TranslatableMarkup('Emerging Digital'),
+)]
 final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryPluginInterface {
 
   public function __construct(

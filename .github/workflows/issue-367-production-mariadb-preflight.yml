@@ -1,54 +1,13 @@
-name: Issue 367 Sudo Capability Probe
+name: Issue 367 Production MariaDB Maintenance Harness
 
 on:
-  push:
-    branches:
-      - feature/issue-367-production-mariadb-11-8
+  workflow_dispatch:
 
 jobs:
-  probe:
+  gated:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Configure SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Gate
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-
-      - name: Add server to known_hosts
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-
-      - name: Probe sudo capability read-only
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-        run: |
-          ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" <<'EOF'
-          set -u
-          echo 'SUDO_PROBE_BEGIN'
-          if id -nG | tr ' ' '\n' | grep -qx sudo; then
-            echo 'MEMBER_OF_SUDO_GROUP=yes'
-          else
-            echo 'MEMBER_OF_SUDO_GROUP=no'
-          fi
-          set +e
-          SUDO_OUTPUT="$(sudo -n -l 2>&1)"
-          SUDO_EXIT=$?
-          set -e
-          echo "SUDO_LIST_EXIT=${SUDO_EXIT}"
-          case "$SUDO_OUTPUT" in
-            *"a password is required"*|*"password is required"*) echo 'SUDO_PASSWORD_REQUIRED=yes' ;;
-            *"not allowed to run sudo"*|*"may not run sudo"*) echo 'SUDO_ALLOWED=no' ;;
-            *) echo 'SUDO_PASSWORD_REQUIRED=unknown' ;;
-          esac
-          echo 'SUDO_PROBE_END'
-          EOF
+          echo 'Issue #367 maintenance harness is intentionally manual/gated.'
+          echo 'Do not run until snapshot + temporary sudo credential are available.'

@@ -1,0 +1,123 @@
+name: Issue 367 Production MariaDB Preflight
+
+on:
+  push:
+    branches:
+      - feature/issue-367-production-mariadb-11-8
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Add server to known_hosts
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Read-only MariaDB production preflight
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          ssh -o BatchMode=yes "$SERVER_USER@$SERVER_HOST" <<'EOF'
+          set -Eeuo pipefail
+          cd /var/www/agency/current
+
+          echo 'PREFLIGHT_BEGIN'
+
+          if [[ -r /etc/os-release ]]; then
+            . /etc/os-release
+            echo "OS_ID=${ID:-unknown}"
+            echo "OS_VERSION=${VERSION_ID:-unknown}"
+          else
+            echo 'OS_ID=unknown'
+            echo 'OS_VERSION=unknown'
+          fi
+
+          echo "SERVICE_ACTIVE=$(systemctl is-active mariadb 2>/dev/null || true)"
+
+          if sudo -n true 2>/dev/null; then
+            echo 'PASSWORDLESS_SUDO=yes'
+          else
+            echo 'PASSWORDLESS_SUDO=no'
+          fi
+
+          DB_VERSION="$(vendor/bin/drush sqlq 'SELECT VERSION();' | tr -d '\r' | head -n1)"
+          DB_TABLES="$(vendor/bin/drush sqlq 'SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE();' | tr -d '\r' | head -n1)"
+          DB_SIZE_MB="$(vendor/bin/drush sqlq 'SELECT ROUND(COALESCE(SUM(DATA_LENGTH + INDEX_LENGTH), 0) / 1024 / 1024, 1) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE();' | tr -d '\r' | head -n1)"
+          SYSTEM_VERSIONED="$(vendor/bin/drush sqlq "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='SYSTEM VERSIONED';" | tr -d '\r' | head -n1)"
+          ENGINES="$(vendor/bin/drush sqlq "SELECT GROUP_CONCAT(DISTINCT ENGINE ORDER BY ENGINE SEPARATOR ',') FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND ENGINE IS NOT NULL;" | tr -d '\r' | head -n1)"
+          FAST_SHUTDOWN="$(vendor/bin/drush sqlq 'SELECT @@GLOBAL.innodb_fast_shutdown;' | tr -d '\r' | head -n1)"
+
+          echo "DB_VERSION=${DB_VERSION}"
+          echo "DB_TABLES=${DB_TABLES}"
+          echo "DB_SIZE_MB=${DB_SIZE_MB}"
+          echo "SYSTEM_VERSIONED_TABLES=${SYSTEM_VERSIONED}"
+          echo "STORAGE_ENGINES=${ENGINES:-none}"
+          echo "INNODB_FAST_SHUTDOWN=${FAST_SHUTDOWN}"
+
+          WSREP="$(vendor/bin/drush sqlq "SHOW VARIABLES LIKE 'wsrep_on';" 2>/dev/null | awk '{print $2}' | head -n1 || true)"
+          echo "WSREP_ON=${WSREP:-not_present}"
+
+          if REPLICA_COUNT="$(vendor/bin/drush sqlq 'SELECT COUNT(*) FROM information_schema.SLAVE_STATUS;' 2>/dev/null | tr -d '\r' | head -n1)"; then
+            echo "REPLICATION_CHANNELS=${REPLICA_COUNT:-0}"
+          else
+            echo 'REPLICATION_CHANNELS=unknown'
+          fi
+
+          if command -v mariadb-backup >/dev/null 2>&1; then
+            echo 'MARIADB_BACKUP_AVAILABLE=yes'
+            echo "MARIADB_BACKUP_VERSION=$(mariadb-backup --version 2>/dev/null | sed -E 's/[[:space:]]+/ /g' | head -n1)"
+          else
+            echo 'MARIADB_BACKUP_AVAILABLE=no'
+          fi
+
+          PKG_VERSION="$(dpkg-query -W -f='${Version}' mariadb-server 2>/dev/null || true)"
+          echo "MARIADB_SERVER_PACKAGE=${PKG_VERSION:-not_dpkg_managed}"
+
+          if grep -RqsEi 'mariadb\.(org|com)|downloads\.mariadb' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
+            echo 'MARIADB_APT_SOURCE=external_mariadb_repository'
+          else
+            echo 'MARIADB_APT_SOURCE=distribution_or_other'
+          fi
+
+          if [[ -d /var/lib/mysql ]]; then
+            FREE_MB="$(df -Pm /var/lib/mysql | awk 'NR==2 {print $4}')"
+          else
+            FREE_MB="$(df -Pm / | awk 'NR==2 {print $4}')"
+          fi
+          echo "DB_FILESYSTEM_FREE_MB=${FREE_MB}"
+
+          echo 'CONFIG_OPTION_KEYS_BEGIN'
+          if [[ -d /etc/mysql ]]; then
+            find /etc/mysql -type f \( -name '*.cnf' -o -name 'my.cnf' \) -readable -print0 2>/dev/null \
+              | xargs -0 -r awk '
+                  /^[[:space:]]*[#;]/ || /^[[:space:]]*$/ { next }
+                  /^[[:space:]]*\[/ { gsub(/[[:space:]]/, ""); section=$0; print section; next }
+                  {
+                    line=$0
+                    sub(/^[[:space:]]*/, "", line)
+                    split(line, parts, /[=[:space:]]/)
+                    if (parts[1] != "") print parts[1]
+                  }
+                ' \
+              | sort -u
+          fi
+          echo 'CONFIG_OPTION_KEYS_END'
+
+          vendor/bin/drush status --fields=bootstrap,db-status,drupal-version --format=list
+          echo 'PREFLIGHT_END'
+          EOF

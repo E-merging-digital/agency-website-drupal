@@ -63,7 +63,7 @@ jobs:
                   "bin": ["drupal-check"],
                   "autoload": {
                       "psr-4": {
-                          "DrupalCheck\\\\": "src"
+                          "DrupalCheck\\": "src"
                       }
                   }
               }
@@ -164,11 +164,14 @@ jobs:
 
           identifiers = Counter()
           files = Counter()
+          findings = []
           for path, detail in data.get('files', {}).items():
               messages = detail.get('messages', [])
               files[path] += len(messages)
               for message in messages:
-                  identifiers[message.get('identifier', '<none>')] += 1
+                  identifier = message.get('identifier', '<none>')
+                  identifiers[identifier] += 1
+                  findings.append((path, message.get('line', 0), identifier, message.get('message', '')))
 
           print('PHPStan 2 findings by identifier:')
           for key, count in identifiers.most_common():
@@ -176,6 +179,9 @@ jobs:
           print('PHPStan 2 findings by file:')
           for key, count in files.most_common():
               print(f'{count:3}  {key}')
+          print('PHPStan 2 compact findings:')
+          for path, line, identifier, message in findings:
+              print(f'{path}|{line}|{identifier}|{message}')
           PY
 
           composer show phpstan/phpstan

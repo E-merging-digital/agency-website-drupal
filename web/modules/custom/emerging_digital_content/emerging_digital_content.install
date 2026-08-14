@@ -160,7 +160,7 @@ function _emerging_digital_content_sync_mapping_schema(): array {
         'unsigned' => TRUE,
       ],
       'entity_uuid' => [
-        'description' => 'Drupal entity UUID managed by Content Sync.',
+        'description' => 'Drupal entity UUID.',
         'type' => 'varchar',
         'length' => 128,
       ],

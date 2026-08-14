@@ -1,9 +1,7 @@
 name: Issue 367 Production MariaDB Preflight
 
 on:
-  push:
-    branches:
-      - feature/issue-367-production-mariadb-11-8
+  workflow_dispatch:
 
 jobs:
   preflight:

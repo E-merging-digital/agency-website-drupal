@@ -127,9 +127,6 @@ jobs:
           - upstream issue liée : `mglaman/drupal-check#318`.
           EOF
 
-      - name: Diagnose PHPStan 2 constraints
-        run: composer prohibits phpstan/phpstan 2.2.8 -t || true
-
       - name: Resolve PHPStan 2 toolchain
         run: |
           composer update \
@@ -138,21 +135,58 @@ jobs:
             phpstan/phpstan \
             phpstan/phpstan-deprecation-rules \
             phpstan/phpstan-phpunit \
-            phpstan/phpstan-strict-rules \
             jangregor/phpstan-prophecy \
             webflo/drupal-finder \
             --with-all-dependencies \
             --no-interaction \
             --no-progress
 
-      - name: Validate migrated toolchain
+      - name: Validate and classify migrated toolchain
+        shell: bash
         run: |
           composer validate --strict
           composer audit
           composer lint:phpcs
-          composer lint:phpstan
+
+          set +e
+          vendor/bin/phpstan analyse -c phpstan.neon --error-format=json > /tmp/phpstan.json
+          PHPSTAN_RC=$?
           composer lint:drupal-check
-          composer show phpstan/phpstan mglaman/phpstan-drupal mglaman/drupal-check phpstan/phpstan-deprecation-rules
+          DRUPAL_CHECK_RC=$?
+          set -e
+
+          python3 <<'PY'
+          import json
+          from collections import Counter
+
+          with open('/tmp/phpstan.json') as f:
+              data = json.load(f)
+
+          identifiers = Counter()
+          files = Counter()
+          for path, detail in data.get('files', {}).items():
+              messages = detail.get('messages', [])
+              files[path] += len(messages)
+              for message in messages:
+                  identifiers[message.get('identifier', '<none>')] += 1
+
+          print('PHPStan 2 findings by identifier:')
+          for key, count in identifiers.most_common():
+              print(f'{count:3}  {key}')
+          print('PHPStan 2 findings by file:')
+          for key, count in files.most_common():
+              print(f'{count:3}  {key}')
+          PY
+
+          composer show phpstan/phpstan
+          composer show mglaman/phpstan-drupal
+          composer show mglaman/drupal-check
+          composer show phpstan/phpstan-deprecation-rules
+
+          if [ "$PHPSTAN_RC" -ne 0 ] || [ "$DRUPAL_CHECK_RC" -ne 0 ]; then
+            echo "PHPSTAN_RC=$PHPSTAN_RC DRUPAL_CHECK_RC=$DRUPAL_CHECK_RC"
+            exit 1
+          fi
 
       - name: Commit generated migration
         run: |

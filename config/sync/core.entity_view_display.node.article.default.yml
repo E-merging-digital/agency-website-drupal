@@ -19,6 +19,21 @@ targetEntityType: node
 bundle: article
 mode: default
 content:
+  body:
+    type: text_default
+    label: hidden
+    settings: {  }
+    third_party_settings: {  }
+    weight: 3
+    region: content
+  field_blog_category:
+    type: entity_reference_label
+    label: hidden
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 1
+    region: content
   field_feature_image:
     type: image
     label: hidden
@@ -30,27 +45,12 @@ content:
     third_party_settings: {  }
     weight: 0
     region: content
-  field_blog_category:
-    type: entity_reference_label
-    label: hidden
-    settings:
-      link: true
-    third_party_settings: {  }
-    weight: 1
-    region: content
   field_short_description:
     type: text_default
     label: hidden
     settings: {  }
     third_party_settings: {  }
     weight: 2
-    region: content
-  body:
-    type: text_default
-    label: hidden
-    settings: {  }
-    third_party_settings: {  }
-    weight: 3
     region: content
   links:
     settings: {  }

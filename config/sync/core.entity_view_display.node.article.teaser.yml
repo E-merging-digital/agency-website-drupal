@@ -20,6 +20,14 @@ targetEntityType: node
 bundle: article
 mode: teaser
 content:
+  field_blog_category:
+    type: entity_reference_label
+    label: hidden
+    settings:
+      link: true
+    third_party_settings: {  }
+    weight: 1
+    region: content
   field_feature_image:
     type: image
     label: hidden
@@ -30,14 +38,6 @@ content:
         attribute: lazy
     third_party_settings: {  }
     weight: 0
-    region: content
-  field_blog_category:
-    type: entity_reference_label
-    label: hidden
-    settings:
-      link: true
-    third_party_settings: {  }
-    weight: 1
     region: content
   field_short_description:
     type: text_default

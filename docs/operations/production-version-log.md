@@ -59,6 +59,100 @@ exécuté et vérifié sur le serveur.
 - ...
 ```
 
+## 2026-08-14 — Migration MariaDB de production vers 11.8
+
+- Issue / PR : #367 / #371
+- Opérateur : workflow GitHub Actions temporaire piloté via le compte de déploiement
+- Environnement : production
+- Résultat : succès
+- Preuve principale : run GitHub Actions `31819641406`
+- Postchecks : runs `31819857255` et `31819928915`
+
+### Versions
+
+| Composant | Avant | Après | Action |
+| --- | --- | --- | --- |
+| Ubuntu | 24.04.4 LTS | 24.04.4 LTS | Version inchangée |
+| Noyau actif | 6.8.0-137-generic | 6.8.0-137-generic | Version inchangée |
+| MariaDB | 10.11.14-MariaDB-0ubuntu0.24.04.1 | 11.8.8-MariaDB-ubu2404 | Migration majeure |
+| Drupal | 11.4.5 | 11.4.5 | Bootstrap et connexion DB validés, version inchangée |
+
+### Opérations réellement exécutées
+
+- Validation préalable sur DDEV en MariaDB 11.8 dans #366.
+- Vérification de la version source, de `innodb_fast_shutdown`, du service MariaDB
+  et du bootstrap Drupal.
+- Création et vérification d'un dump SQL compressé.
+- Installation de `mariadb-backup` 10.11, création puis préparation d'une
+  sauvegarde physique cohérente de la base source.
+- Sauvegarde de `/etc/mysql`, de l'état APT et du manifeste des paquets MariaDB.
+- Simulation préalable de l'installation MariaDB 11.8.8 : 13 paquets mis à jour,
+  3 paquets ajoutés, aucune suppression de paquet critique.
+- Ajout du dépôt officiel MariaDB 11.8 pour Ubuntu Noble.
+- Activation temporaire du mode maintenance Drupal.
+- Arrêt propre de MariaDB 10.11.
+- Mise à jour de `mariadb-server`, `mariadb-client`, `mariadb-backup`, des
+  bibliothèques et providers associés vers 11.8.8.
+- Exécution de `mariadb-upgrade --force` puis de
+  `mariadb-check --all-databases --check-upgrade`.
+- Redémarrage de MariaDB et reconstruction du cache Drupal.
+- Désactivation du mode maintenance Drupal après validation.
+- Marquage explicite comme paquets manuels des providers de compression MariaDB
+  `bzip2`, `lz4`, `lzma`, `lzo` et `snappy` afin d'empêcher leur suppression par
+  un futur `apt autoremove`.
+- Suppression du sudoers temporaire utilisé pour l'intervention.
+
+### Sauvegardes et retour arrière
+
+- Racine des sauvegardes de l'intervention :
+  `/var/www/agency/shared/backups/issue367-mariadb-20260814162501`.
+- Dump SQL vérifié par `gzip -t`.
+- Sauvegarde physique `mariadb-backup` 10.11 préparée et vérifiée avant la
+  migration.
+- Copie de `/etc/mysql`, état APT et inventaire des paquets conservés avec le même
+  préfixe de sauvegarde.
+- Snapshot de VM préparé avant l'intervention.
+- Aucun retour arrière n'a été nécessaire.
+
+### Validations
+
+- MariaDB finale : `11.8.8-MariaDB-ubu2404`.
+- Paquet installé et candidat APT : `1:11.8.8+maria~ubu2404`.
+- Dépôt MariaDB 11.8 confirmé actif après l'intervention.
+- `mariadb-upgrade` : succès.
+- `mariadb-check --all-databases --check-upgrade` : succès sur les tables système
+  et applicatives.
+- Nombre de tables applicatives avant/après : `140`.
+- Service MariaDB : actif.
+- Aucun service systemd en échec au contrôle post-migration.
+- Aucun message MariaDB de niveau erreur dans le journal de la fenêtre de
+  migration.
+- Bootstrap Drupal : `Successful` ; base de données : `Connected`.
+- Mode maintenance Drupal : `0` après intervention.
+- Homepage : HTTP 200.
+- Page contact : HTTP 200.
+- Postcheck indépendant sans sudo : succès.
+- Sudoers temporaire : absent au postcheck indépendant.
+- Simulation finale `apt-get -s autoremove` : aucune suppression proposée ; aucun
+  composant MariaDB n'est exposé à `autoremove`.
+
+### Anomalies, non-actions et risques résiduels
+
+- Plusieurs itérations du workflow temporaire de migration se sont arrêtées avant
+  mutation à cause de défauts de script (suffixe `.gz` puis SIGPIPE). Ces runs
+  n'ont pas modifié la version MariaDB ; les sauvegardes et l'état source ont été
+  revalidés avant la migration réelle.
+- L'installation 11.8 a remplacé certains fichiers de configuration fournis par le
+  paquet, notamment `50-server.cnf` et `60-galera.cnf`. Les contrôles de service,
+  intégrité et application sont restés GREEN après redémarrage.
+- Les providers de compression MariaDB étaient initialement marqués comme
+  auto-removables après la migration ; ils ont été marqués manuels puis un
+  `apt-get -s autoremove` a confirmé qu'aucune suppression n'était encore proposée.
+- Ubuntu signale encore des mises à jour standards disponibles et des correctifs
+  ESM Apps non activés ; ils sont hors périmètre de #367.
+- Aucun code applicatif, contenu, menu, tracking, secret de production ni workflow
+  permanent de déploiement n'a été modifié par la migration.
+
 ## 2026-07-17 — Mise à jour système et PHP de production
 
 - Issue / PR : issue #350 créée après l'intervention pour formaliser la procédure

@@ -23,7 +23,6 @@ display:
     position: 0
     display_options:
       title: Blog
-      css_class: view-blog
       fields: {  }
       pager:
         type: full
@@ -244,6 +243,7 @@ display:
           replica: false
           query_tags: {  }
       relationships: {  }
+      css_class: view-blog
       header: {  }
       footer: {  }
       display_extenders: {  }

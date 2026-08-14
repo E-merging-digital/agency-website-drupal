@@ -583,7 +583,7 @@ final class FutureAiOrchestratorTest extends KernelTestBase {
         return new class($this->apiKey) extends Key {
 
           public function __construct(
-            private readonly string $apiKey,
+            protected readonly string $apiKey,
           ) {
           }
 

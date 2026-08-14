@@ -22,21 +22,21 @@ final class TranslateNodeConfirmForm extends ConfirmFormBase {
   /**
    * Nœud source à traduire.
    */
-  private ?NodeInterface $node = NULL;
+  protected ?NodeInterface $node = NULL;
 
   /**
    * Langue source.
    */
-  private string $sourceLangcode = 'fr';
+  protected string $sourceLangcode = 'fr';
 
   /**
    * Langue cible.
    */
-  private string $targetLangcode = 'en';
+  protected string $targetLangcode = 'en';
 
   public function __construct(
-    private readonly AiTranslationManager $translationManager,
-    private readonly LanguageManagerInterface $languageManager,
+    protected AiTranslationManager $translationManager,
+    protected LanguageManagerInterface $languageManager,
   ) {}
 
   /**

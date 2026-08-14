@@ -33,10 +33,10 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
     array $configuration,
     $plugin_id,
     $plugin_definition,
-    private readonly AiTranslationManager $translationManager,
-    private readonly LanguageManagerInterface $languageManager,
-    private readonly LoggerInterface $logger,
-    private readonly RequestStack $requestStack,
+    protected AiTranslationManager $translationManager,
+    protected LanguageManagerInterface $languageManager,
+    protected LoggerInterface $logger,
+    protected RequestStack $requestStack,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }

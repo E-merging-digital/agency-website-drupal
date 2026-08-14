@@ -31,9 +31,9 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
     array $configuration,
     $plugin_id,
     $plugin_definition,
-    private readonly LanguageManagerInterface $languageManager,
-    private readonly PathMatcherInterface $pathMatcher,
-    private readonly RouteMatchInterface $routeMatch,
+    protected LanguageManagerInterface $languageManager,
+    protected PathMatcherInterface $pathMatcher,
+    protected RouteMatchInterface $routeMatch,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }

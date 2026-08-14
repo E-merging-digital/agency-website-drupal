@@ -7,6 +7,7 @@
 
 declare(strict_types=1);
 
+use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Language\LanguageInterface;
@@ -16,7 +17,7 @@ use Drupal\node\NodeInterface;
 /**
  * Implements hook_entity_operation().
  */
-function agency_ai_translation_entity_operation(EntityInterface $entity): array {
+function agency_ai_translation_entity_operation(EntityInterface $entity, CacheableMetadata $cacheability): array {
   if (!$entity instanceof NodeInterface) {
     return [];
   }
@@ -193,9 +194,7 @@ function agency_ai_translation_bulk_action_validate(array &$form, FormStateInter
   }
   if ($selectedAction === '' && is_array($form_state->getValue('header'))) {
     $headerValues = $form_state->getValue('header');
-    if (is_array($headerValues)) {
-      $selectedAction = (string) ($headerValues['action'] ?? ($headerValues['actions']['action'] ?? ''));
-    }
+    $selectedAction = (string) ($headerValues['action'] ?? ($headerValues['actions']['action'] ?? ''));
   }
 
   if ($selectedAction !== 'agency_ai_translate_nodes_bulk_action') {
@@ -211,9 +210,7 @@ function agency_ai_translation_bulk_action_validate(array &$form, FormStateInter
   }
   if ($targetLangcode === '' && is_array($form_state->getValue('header'))) {
     $headerValues = $form_state->getValue('header');
-    if (is_array($headerValues)) {
-      $targetLangcode = (string) ($headerValues['agency_ai_translation_target_langcode'] ?? ($headerValues['actions']['agency_ai_translation_target_langcode'] ?? ''));
-    }
+    $targetLangcode = (string) ($headerValues['agency_ai_translation_target_langcode'] ?? ($headerValues['actions']['agency_ai_translation_target_langcode'] ?? ''));
   }
 
   if ($targetLangcode === '') {

@@ -5,9 +5,11 @@ dependencies:
   config:
     - node.type.article
     - node.type.page
+    - taxonomy.vocabulary.blog_categories
     - taxonomy.vocabulary.tags
   module:
     - comment
+    - content_translation
     - contextual
     - file
     - node
@@ -30,6 +32,7 @@ permissions:
   - 'administer url aliases'
   - 'create article content'
   - 'create page content'
+  - 'create terms in blog_categories'
   - 'create terms in tags'
   - 'create url aliases'
   - 'delete article revisions'
@@ -40,8 +43,11 @@ permissions:
   - 'edit own article content'
   - 'edit own comments'
   - 'edit own page content'
+  - 'edit terms in blog_categories'
   - 'edit terms in tags'
   - 'revert all revisions'
+  - 'translate article node'
+  - 'translate blog_categories taxonomy_term'
   - 'view all revisions'
   - 'view own unpublished content'
   - 'view the administration theme'

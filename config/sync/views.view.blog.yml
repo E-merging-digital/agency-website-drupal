@@ -23,6 +23,7 @@ display:
     position: 0
     display_options:
       title: Blog
+      css_class: view-blog
       fields: {  }
       pager:
         type: full

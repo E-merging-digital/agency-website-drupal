@@ -14,33 +14,18 @@ parameters:
     - vendor
 
   # PHPStan 2 and the Drupal/PHPUnit extensions can prove some runtime guards
-  # from service metadata and PHPDoc alone. Keep those guards/assertions because
-  # they still protect real runtime behaviour, but scope the exceptions narrowly.
+  # from service metadata and PHPDoc alone. Keep those test assertions because
+  # they still protect real runtime behaviour.
   ignoreErrors:
     -
       identifiers:
         - staticMethod.alreadyNarrowedType
         - instanceof.alwaysTrue
-        - dependencySerializationTraitProperty.unsupportedPrivateProperty
       path: web/modules/custom/*/tests/*
       reportUnmatched: false
     -
+      # Configuration arrays can still contain numeric keys at runtime. Keep the
+      # defensive is_string() guard even though the method PHPDoc promises strings.
       identifier: function.alreadyNarrowedType
-      paths:
-        - web/modules/custom/emerging_digital_chatbot/src/Context/PublicContextBuilder.php
-        - web/modules/custom/emerging_digital_chatbot/src/QualificationEngine.php
-      reportUnmatched: false
-    -
-      identifier: instanceof.alwaysTrue
-      paths:
-        - web/modules/custom/agency_content_seed/agency_content_seed.post_update.php
-        - web/modules/custom/emerging_digital_chatbot/src/Context/PublicContextBuilder.php
-        - web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php
-      reportUnmatched: false
-    -
-      identifier: nullCoalesce.offset
-      paths:
-        - web/modules/custom/emerging_digital_content/emerging_digital_content.post_update.php
-        - web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php
-        - web/themes/custom/emerging_digital/emerging_digital.theme
+      path: web/modules/custom/emerging_digital_chatbot/src/QualificationEngine.php
       reportUnmatched: false

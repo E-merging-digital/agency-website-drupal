@@ -1371,10 +1371,10 @@ function emerging_digital_content_post_update_issue_25_normalize_fr_source(array
     '%s Front page set to %s. Updated langcode en->fr rows: node=%d, paragraph=%d, menu_link_content=%d, path_alias=%d.',
     $language_status,
     $front_path,
-    $counts['node'] ?? 0,
-    $counts['paragraph'] ?? 0,
-    $counts['menu_link_content'] ?? 0,
-    $counts['path_alias'] ?? 0,
+    $counts['node'],
+    $counts['paragraph'],
+    $counts['menu_link_content'],
+    $counts['path_alias'],
   );
 }
 

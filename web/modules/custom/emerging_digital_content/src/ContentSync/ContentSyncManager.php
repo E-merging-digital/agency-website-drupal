@@ -672,9 +672,6 @@ final class ContentSyncManager {
         'status' => NodeInterface::PUBLISHED,
         'uid' => 1,
       ]);
-      if (!$node instanceof NodeInterface) {
-        throw new \RuntimeException(sprintf('Could not create node for "%s".', $entry->id()));
-      }
       $created = TRUE;
       $actions[] = sprintf('created new node:%s for %s', $bundle, $entry->id());
     }
@@ -1274,10 +1271,7 @@ final class ContentSyncManager {
   private function findServicesParagraph(NodeInterface $page, string $langcode): ?ParagraphInterface {
     $page_translation = $page;
     if ($page->hasTranslation($langcode)) {
-      $translation = $page->getTranslation($langcode);
-      if ($translation instanceof NodeInterface) {
-        $page_translation = $translation;
-      }
+      $page_translation = $page->getTranslation($langcode);
     }
 
     if (!$page_translation->hasField('field_home_components')) {
@@ -1333,7 +1327,7 @@ final class ContentSyncManager {
       $value = (string) ($item_value['value'] ?? '');
       $parts = array_map('trim', explode('|', $value));
       $is_match = !$updated && (
-        ($parts[0] ?? '') === $title
+        $parts[0] === $title
         || ($parts[2] ?? '') === $url
       );
 

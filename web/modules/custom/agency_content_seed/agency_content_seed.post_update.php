@@ -230,9 +230,7 @@ function _agency_content_seed_load_strategic_pages(array $titles): array {
 
   $indexed = [];
   foreach ($nodes as $node) {
-    if ($node instanceof NodeInterface) {
-      $indexed[$node->label()] = $node;
-    }
+    $indexed[$node->label()] = $node;
   }
 
   return $indexed;

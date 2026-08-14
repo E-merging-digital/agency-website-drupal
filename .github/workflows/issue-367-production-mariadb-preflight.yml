@@ -51,7 +51,7 @@ jobs:
           REPO_TOUCHED=0
           cleanup() {
             if [[ "$REPO_TOUCHED" -eq 1 && -n "$APT_STATE" && -s "$APT_STATE" ]]; then
-              sudo -S -p '' rm -rf /etc/apt/sources.list.d /etc/apt/preferences.d /etc/apt/keyrings < "$PASSFILE" || true
+              sudo -S -p '' rm -rf /etc/apt < "$PASSFILE" || true
               sudo -S -p '' tar -C / -xzf "$APT_STATE" < "$PASSFILE" || true
               sudo -S -p '' apt-get update >/dev/null 2>&1 < "$PASSFILE" || true
             fi
@@ -86,7 +86,7 @@ jobs:
           PACKAGE_MANIFEST="${BACKUP_ROOT}-packages.txt"
           APT_STATE="${BACKUP_ROOT}-apt-state.tar.gz"
 
-          vendor/bin/drush sql:dump --gzip --result-file="$SQL_BACKUP"
+          vendor/bin/drush sql:dump --gzip --result-file="${BACKUP_ROOT}.sql"
           test -s "$SQL_BACKUP"
           gzip -t "$SQL_BACKUP"
           echo 'SQL_BACKUP_OK=yes'
@@ -116,7 +116,7 @@ jobs:
           test -s "$PACKAGE_MANIFEST"
           echo 'PACKAGE_MANIFEST_OK=yes'
 
-          sudo_cmd tar -C / -czf "$APT_STATE" etc/apt/sources.list etc/apt/sources.list.d etc/apt/preferences.d etc/apt/keyrings
+          sudo_cmd tar -C / -czf "$APT_STATE" etc/apt
           sudo_cmd test -s "$APT_STATE"
           echo 'APT_STATE_BACKUP_OK=yes'
 

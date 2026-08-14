@@ -47,9 +47,9 @@ final class BlogSeoConfigTest extends TestCase {
   }
 
   /**
-   * Verifies that the existing Article metadata follows the canonical node URL.
+   * Verifies canonical and social metadata for Blog Articles.
    */
-  public function testArticleMetatagUsesCanonicalNodeUrl(): void {
+  public function testArticleMetatagUsesCanonicalUrlAndFeatureImage(): void {
     $configuration = $this->loadConfiguration('metatag.metatag_defaults.node__article.yml');
     $tags = $configuration['tags'] ?? [];
 
@@ -59,6 +59,9 @@ final class BlogSeoConfigTest extends TestCase {
     self::assertSame('[node:url]', $tags['schema_article_id'] ?? NULL);
     self::assertSame('[node:url]', $tags['schema_article_main_entity_of_page'] ?? NULL);
     self::assertSame('[node:field_short_description:value]', $tags['description'] ?? NULL);
+    self::assertSame('[node:field_feature_image:entity:url]', $tags['og_image'] ?? NULL);
+    self::assertSame('[node:field_feature_image:entity:url]', $tags['twitter_cards_image'] ?? NULL);
+    self::assertSame('summary_large_image', $tags['twitter_cards_type'] ?? NULL);
   }
 
   /**

@@ -29,8 +29,8 @@ final class ChatbotBlock extends BlockBase implements ContainerFactoryPluginInte
     array $configuration,
     $plugin_id,
     $plugin_definition,
-    private readonly ChatbotConfig $chatbotConfig,
-    private readonly QualificationEngine $qualificationEngine,
+    protected ChatbotConfig $chatbotConfig,
+    protected QualificationEngine $qualificationEngine,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }

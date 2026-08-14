@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Functional;
 
 use Drupal\node\Entity\Node;
+use Drupal\node\Entity\NodeType;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\views\Entity\View;
 use PHPUnit\Framework\Attributes\Group;
@@ -35,6 +36,13 @@ final class BlogViewTest extends BrowserTestBase {
    * Verifies published filtering, ordering and pagination on /blog.
    */
   public function testBlogListsPublishedArticlesWithPager(): void {
+    NodeType::create([
+      'type' => 'article',
+      'name' => 'Article',
+      'new_revision' => TRUE,
+      'display_submitted' => TRUE,
+    ])->save();
+
     $definition = Yaml::parseFile(DRUPAL_ROOT . '/../config/sync/views.view.blog.yml');
     if (!is_array($definition)) {
       throw new \RuntimeException('The Blog view configuration must be a YAML mapping.');

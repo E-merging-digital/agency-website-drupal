@@ -4,6 +4,7 @@
  * Teaser card for Article nodes in Blog listings.
  */
 #}
+{% set is_french = node.langcode.value == 'fr' %}
 <article{{ attributes.addClass('node', 'node--article', 'node--view-mode-teaser', 'ed-blog-card') }}>
   {% if node.field_feature_image.0 %}
     <div class="ed-blog-card__media">
@@ -24,8 +25,9 @@
 
     {% if display_submitted %}
       <div class="ed-blog-card__meta">
-        <span class="ed-blog-card__date">{{ date }}</span>
-        <span class="ed-blog-card__author">{{ author_name }}</span>
+        <time class="ed-blog-card__date" datetime="{{ node.getCreatedTime()|date('Y-m-d') }}">
+          {{ node.getCreatedTime()|date('d/m/Y') }}
+        </time>
       </div>
     {% endif %}
 
@@ -35,10 +37,10 @@
       </div>
     {% endif %}
 
-    {% if content.links %}
-      <div class="ed-blog-card__links">
-        {{ content.links }}
-      </div>
-    {% endif %}
+    <div class="ed-blog-card__links">
+      <a href="{{ url }}" rel="bookmark">
+        {{ is_french ? 'Lire l’article' : 'Read article' }}
+      </a>
+    </div>
   </div>
 </article>

@@ -83,7 +83,7 @@ final class BlogViewTest extends BrowserTestBase {
     $this->assertSession()->pageTextNotContains('Draft article must stay hidden');
     $this->assertSession()->elementExists('css', '.pager');
 
-    $this->drupalGet('/blog?page=1');
+    $this->drupalGet('/blog', ['query' => ['page' => 1]]);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Oldest published article');
     $this->assertSession()->pageTextNotContains('Draft article must stay hidden');

@@ -235,7 +235,7 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
     }
 
     $card = [
-      'title' => $parts[0] ?? '',
+      'title' => $parts[0],
       'description' => $parts[1] ?? '',
       'url' => $url,
       'cta_label' => $langcode === 'en' ? 'Discover' : 'Découvrir',
@@ -455,7 +455,7 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
     }
 
     $variables['ai_feature_cards'][] = [
-      'title' => $parts[0] ?? '',
+      'title' => $parts[0],
       'description' => $parts[1] ?? '',
       'url' => $url,
       'cta_label' => $langcode === 'en' ? 'Explore' : 'Explorer',

@@ -7,7 +7,6 @@ namespace Drupal\emerging_digital_chatbot\Context;
 use Drupal\Component\Utility\Html;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\node\NodeInterface;
@@ -235,9 +234,6 @@ final class PublicContextBuilder {
     }
 
     $field = $node->get($fieldName);
-    if (!$field instanceof FieldItemListInterface) {
-      return '';
-    }
 
     $values = [];
     foreach ($field as $item) {
@@ -340,10 +336,7 @@ final class PublicContextBuilder {
    * Gets node storage.
    */
   private function getNodeStorage(): NodeStorageInterface {
-    $storage = $this->entityTypeManager->getStorage('node');
-    assert($storage instanceof NodeStorageInterface);
-
-    return $storage;
+    return $this->entityTypeManager->getStorage('node');
   }
 
 }

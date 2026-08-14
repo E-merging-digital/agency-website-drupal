@@ -1,0 +1,44 @@
+{#
+/**
+ * @file
+ * Teaser card for Article nodes in Blog listings.
+ */
+#}
+<article{{ attributes.addClass('node', 'node--article', 'node--view-mode-teaser', 'ed-blog-card') }}>
+  {% if node.field_feature_image.0 %}
+    <div class="ed-blog-card__media">
+      {{ content.field_feature_image }}
+    </div>
+  {% endif %}
+
+  <div class="ed-blog-card__body">
+    {% if node.field_blog_category.0 %}
+      <div class="ed-blog-card__category">
+        {{ content.field_blog_category }}
+      </div>
+    {% endif %}
+
+    <h2 class="ed-blog-card__title">
+      <a href="{{ url }}" rel="bookmark">{{ label }}</a>
+    </h2>
+
+    {% if display_submitted %}
+      <div class="ed-blog-card__meta">
+        <span class="ed-blog-card__date">{{ date }}</span>
+        <span class="ed-blog-card__author">{{ author_name }}</span>
+      </div>
+    {% endif %}
+
+    {% if node.field_short_description.0 %}
+      <div class="ed-blog-card__summary">
+        {{ content.field_short_description }}
+      </div>
+    {% endif %}
+
+    {% if content.links %}
+      <div class="ed-blog-card__links">
+        {{ content.links }}
+      </div>
+    {% endif %}
+  </div>
+</article>

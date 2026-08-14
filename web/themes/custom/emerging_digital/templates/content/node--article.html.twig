@@ -1,11 +1,46 @@
 {#
 /**
  * @file
- * Theme override for article nodes.
+ * Theme override for full Article nodes.
  */
 #}
-<article{{ attributes.addClass('node', 'node--article') }}>
-  <div class="node__content">
-    {{ content }}
+<article{{ attributes.addClass('node', 'node--article', 'ed-article') }}>
+  <div class="ed-article__shell">
+    {% if node.field_blog_category.0 %}
+      <div class="ed-article__category">
+        {{ content.field_blog_category }}
+      </div>
+    {% endif %}
+
+    {% if display_submitted %}
+      <div class="ed-article__meta">
+        <span class="ed-article__date">{{ date }}</span>
+        <span class="ed-article__author">{{ author_name }}</span>
+      </div>
+    {% endif %}
+
+    {% if node.field_short_description.0 %}
+      <div class="ed-article__lead">
+        {{ content.field_short_description }}
+      </div>
+    {% endif %}
+
+    {% if node.field_feature_image.0 %}
+      <figure class="ed-article__media">
+        {{ content.field_feature_image }}
+      </figure>
+    {% endif %}
+
+    {% if node.body.0 %}
+      <div class="ed-article__body ed-prose">
+        {{ content.body }}
+      </div>
+    {% endif %}
+
+    {% if content.links %}
+      <div class="ed-article__links">
+        {{ content.links }}
+      </div>
+    {% endif %}
   </div>
 </article>

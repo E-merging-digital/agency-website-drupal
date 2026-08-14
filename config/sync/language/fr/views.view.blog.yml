@@ -1,0 +1,13 @@
+display:
+  default:
+    display_options:
+      pager:
+        options:
+          tags:
+            next: 'Suivant ›'
+            previous: '‹ Précédent'
+            first: '« Premier'
+            last: 'Dernier »'
+      empty:
+        area_text_custom:
+          content: 'Aucun article n’est disponible pour le moment.'

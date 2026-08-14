@@ -69,7 +69,9 @@ function emerging_digital_content_update_11002(array &$sandbox): string {
     ->execute();
 
   if ($blog_ids) {
-    $blog = reset($storage->loadMultiple($blog_ids));
+    $blogs = array_values($storage->loadMultiple($blog_ids));
+    $blog = array_shift($blogs);
+
     if ($blog instanceof MenuLinkContent) {
       $link_item = $blog->get('link')->first();
       $uri = $link_item ? ($link_item->getValue()['uri'] ?? '') : '';
@@ -77,7 +79,7 @@ function emerging_digital_content_update_11002(array &$sandbox): string {
         $blog->set('link', ['uri' => 'internal:/blog']);
         $changed++;
       }
-      if (!$blog->isEnabled()) {
+      if (!(bool) $blog->get('enabled')->value) {
         $blog->set('enabled', TRUE);
         $changed++;
       }
@@ -86,6 +88,11 @@ function emerging_digital_content_update_11002(array &$sandbox): string {
         $changed++;
       }
       $blog->save();
+    }
+
+    foreach ($blogs as $duplicate) {
+      $duplicate->delete();
+      $changed++;
     }
   }
   else {
@@ -153,7 +160,7 @@ function _emerging_digital_content_sync_mapping_schema(): array {
         'unsigned' => TRUE,
       ],
       'entity_uuid' => [
-        'description' => 'Drupal entity UUID.',
+        'description' => 'Drupal entity UUID managed by Content Sync.',
         'type' => 'varchar',
         'length' => 128,
       ],

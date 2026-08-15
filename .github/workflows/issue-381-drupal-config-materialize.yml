@@ -104,6 +104,15 @@ jobs:
             throw new Error(message);
           }
 
+          async function dismissCookieBanner() {
+            const banner = page.locator('#ed-cookie-banner');
+            if (!(await banner.isVisible().catch(() => false))) return;
+            const reject = await firstVisible(banner.getByRole('button', { name: /Refuser|Reject|Decline/i }));
+            if (!reject) await fail('Cookie banner is visible but reject control is unavailable.', banner);
+            await reject.click();
+            await banner.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+          }
+
           async function openDetails(scope, pattern, description) {
             const summary = await firstVisible(scope.locator('summary').filter({ hasText: pattern }));
             if (!summary) await fail(`Missing ${description}.`, scope);
@@ -138,6 +147,7 @@ jobs:
 
           async function configureAutomator({ route, typePattern, baseFieldValue, prompt, screenshotName }) {
             await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded' });
+            await dismissCookieBanner();
 
             const enabled = await firstVisible(page.getByLabel(/Enable AI Automator|Activer.*AI Automator/i));
             if (!enabled) await fail('Enable AI Automator control not found.');
@@ -181,6 +191,7 @@ jobs:
 
           async function openWidgetRow(fieldName, fallbackText) {
             await page.goto(`${baseURL}/admin/structure/types/manage/article/form-display`, { waitUntil: 'domcontentloaded' });
+            await dismissCookieBanner();
             let row = await firstVisible(page.locator(`tr[data-drupal-selector*="${fieldName.replaceAll('_', '-')}"]`));
             if (!row) row = await firstVisible(page.locator('tr').filter({ hasText: fallbackText }));
             if (!row) await fail(`Form display row missing for ${fieldName}`);
@@ -273,6 +284,7 @@ jobs:
           try {
             await page.goto(loginURL, { waitUntil: 'domcontentloaded' });
             if (!/\/user\//.test(page.url()) && !/admin/.test(page.url())) await fail('One-time administrator login failed.');
+            await dismissCookieBanner();
 
             await configureAutomator({
               route: '/admin/structure/types/manage/article/fields/node.article.field_short_description',
@@ -309,6 +321,7 @@ jobs:
             });
 
             await page.goto(`${baseURL}/node/add/article`, { waitUntil: 'domcontentloaded' });
+            await dismissCookieBanner();
             await shot('article-form-after-config');
           } finally {
             await browser.close();

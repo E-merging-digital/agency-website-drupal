@@ -20,23 +20,25 @@ RUNNER_HOME="/home/${RUNNER_USER}"
 RUNNER_DIR="/opt/actions-runner-agency"
 RUNNER_NAME="${AGENCY_RUNNER_NAME:-agency-browser-runner-01}"
 RUNNER_LABELS="agency,ddev,browser"
-PLAYWRIGHT_VERSION="1.62.1"
 
-for command in curl tar sha256sum docker ddev node npm runuser openssl; do
+for command in apt-get curl tar sha256sum docker ddev runuser openssl; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Missing prerequisite on host: $command" >&2
     exit 1
   fi
 done
 
-docker info >/dev/null
-ddev version
-node_version="$(node -p 'process.versions.node')"
-node_major="${node_version%%.*}"
-if (( node_major < 20 )); then
-  echo "Node.js >=20 is required on the host; found ${node_version}." >&2
+# Playwright 1.62.1 declares a concrete Ubuntu 24.04 dependency set.
+# Keep this bootstrap fail-closed rather than silently installing packages for a
+# different distribution/version.
+source /etc/os-release
+if [[ "${ID:-}" != "ubuntu" || "${VERSION_ID:-}" != "24.04" ]]; then
+  echo "Expected Ubuntu 24.04, found ${ID:-unknown} ${VERSION_ID:-unknown}." >&2
   exit 1
 fi
+
+docker info >/dev/null
+ddev version
 
 if [[ -z "${AGENCY_RUNNER_REGISTRATION_TOKEN:-}" ]]; then
   if [[ ! -t 0 ]]; then
@@ -63,18 +65,48 @@ else
   exit 1
 fi
 
-# Install browser OS dependencies once at host level. Browser binaries themselves
-# are installed per workflow under the runner account.
-playwright_tmp="$(mktemp -d)"
-cleanup_tmp() {
-  rm -rf "$playwright_tmp"
-}
-trap cleanup_tmp EXIT
-pushd "$playwright_tmp" >/dev/null
-npm init -y >/dev/null 2>&1
-npm install --no-audit --no-fund --silent --save-dev "@playwright/test@${PLAYWRIGHT_VERSION}"
-npx playwright install-deps chromium
-popd >/dev/null
+# One-time browser runtime dependencies, copied from the Playwright 1.62.1
+# ubuntu24.04-x64 tools + chromium dependency groups. Node itself is intentionally
+# not installed globally: actions/setup-node@v6 provisions Node 24 per workflow.
+playwright_packages=(
+  xvfb
+  fonts-noto-color-emoji
+  fonts-unifont
+  libfontconfig1
+  libfreetype6
+  xfonts-cyrillic
+  xfonts-scalable
+  fonts-liberation
+  fonts-ipafont-gothic
+  fonts-wqy-zenhei
+  fonts-tlwg-loma-otf
+  fonts-freefont-ttf
+  libasound2t64
+  libatk-bridge2.0-0t64
+  libatk1.0-0t64
+  libatspi2.0-0t64
+  libcairo2
+  libcups2t64
+  libdbus-1-3
+  libdrm2
+  libgbm1
+  libglib2.0-0t64
+  libnspr4
+  libnss3
+  libpango-1.0-0
+  libx11-6
+  libxcb1
+  libxcomposite1
+  libxdamage1
+  libxext6
+  libxfixes3
+  libxkbcommon0
+  libxrandr2
+)
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y --no-install-recommends "${playwright_packages[@]}"
 
 if [[ -e "$RUNNER_DIR/.runner" ]]; then
   echo "Agency runner already appears configured at $RUNNER_DIR; refusing replacement." >&2
@@ -82,7 +114,13 @@ if [[ -e "$RUNNER_DIR/.runner" ]]; then
 fi
 
 mkdir -p "$RUNNER_DIR"
-archive_path="${playwright_tmp}/${RUNNER_ARCHIVE}"
+bootstrap_tmp="$(mktemp -d)"
+cleanup_tmp() {
+  rm -rf "$bootstrap_tmp"
+}
+trap cleanup_tmp EXIT
+archive_path="${bootstrap_tmp}/${RUNNER_ARCHIVE}"
+
 curl --fail --location --silent --show-error "$RUNNER_URL" --output "$archive_path"
 printf '%s  %s\n' "$RUNNER_SHA256" "$archive_path" | sha256sum --check --status || {
   echo "GitHub Actions runner archive checksum mismatch." >&2
@@ -112,18 +150,18 @@ unset AGENCY_RUNNER_REGISTRATION_TOKEN
 ./svc.sh status
 popd >/dev/null
 
-# A new login/session is needed for docker-group membership to be reflected.
+# A new login/session is represented by runuser; docker-group membership must be
+# effective and DDEV must remain available to the isolated Agency account.
 runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" bash -lc '
   set -euo pipefail
   id
   docker info --format "ServerVersion={{.ServerVersion}} Driver={{.Driver}}"
   ddev version
-  node --version
-  npm --version
 '
 
 echo
 printf 'Agency runner provisioned: %s\n' "$RUNNER_NAME"
 printf 'Labels: self-hosted, linux, x64, %s\n' "$RUNNER_LABELS"
 printf 'Repository: %s\n' "$REPOSITORY_URL"
+printf 'Node is provisioned per job by actions/setup-node@v6; no host Node install is required.\n'
 printf 'Existing Preflight runner was not modified.\n'

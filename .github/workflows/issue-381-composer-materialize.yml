@@ -1,0 +1,50 @@
+name: Issue 381 Composer Materialization
+
+on:
+  push:
+    branches:
+      - feature/issue-381-ai-automators-article-field-widget
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout issue branch
+        uses: actions/checkout@v5
+        with:
+          ref: feature/issue-381-ai-automators-article-field-widget
+          fetch-depth: 0
+
+      - name: Setup PHP 8.4 and Composer 2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Composer dry-run
+        run: composer require 'drupal/field_widget_actions:^1.3' --dry-run --no-interaction --no-progress
+
+      - name: Materialize dependency
+        run: composer require 'drupal/field_widget_actions:^1.3' --no-interaction --no-progress
+
+      - name: Validate generated dependency state
+        run: |
+          composer validate --strict
+          git diff --check
+          git diff -- composer.json composer.lock
+
+      - name: Commit generated Composer state and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/issue-381-composer-materialize.yml
+          git add composer.json composer.lock
+          git diff --cached --check
+          git commit -m 'Issue #381: add Field Widget Actions dependency'
+          git push origin HEAD:feature/issue-381-ai-automators-article-field-widget

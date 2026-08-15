@@ -5,6 +5,7 @@ dependencies:
   config:
     - filter.format.basic_html
   module:
+    - ai_ckeditor
     - ckeditor5
 _core:
   default_config_hash: JrKgrmvARpUBMILom2cUF4pz3mwrBnCYSlHjGwsKZ64
@@ -27,8 +28,46 @@ settings:
       - heading
       - code
       - '|'
+      - aickeditor
       - sourceEditing
   plugins:
+    ai_ckeditor_ai:
+      dialog:
+        autoresize: 'min-width: 600px'
+        height: '750'
+        width: '900'
+        dialog_class: ai-ckeditor-modal
+      plugins:
+        ai_ckeditor_completion:
+          enabled: true
+          provider: ''
+        ai_ckeditor_help:
+          enabled: false
+        ai_ckeditor_modify_prompt:
+          enabled: true
+          provider: ''
+        ai_ckeditor_reformat_html:
+          enabled: false
+          provider: ''
+        ai_ckeditor_spellfix:
+          enabled: true
+          provider: ''
+        ai_ckeditor_summarize:
+          enabled: true
+          provider: ''
+        ai_ckeditor_tone:
+          enabled: false
+          provider: ''
+          autocreate: false
+          tone_vocabulary: tags
+          use_description: false
+        ai_ckeditor_translate:
+          enabled: false
+          provider: ''
+          language_source: lang
+          autocreate: false
+          translate_vocabulary: tags
+          use_description: false
     ckeditor5_heading:
       enabled_headings:
         - heading2

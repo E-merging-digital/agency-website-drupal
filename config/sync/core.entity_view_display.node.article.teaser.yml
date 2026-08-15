@@ -4,6 +4,7 @@ status: true
 dependencies:
   config:
     - core.entity_view_mode.node.teaser
+    - field.field.node.article.ai_automator_status
     - field.field.node.article.body
     - field.field.node.article.field_blog_category
     - field.field.node.article.field_feature_image
@@ -52,6 +53,7 @@ content:
     weight: 100
     region: content
 hidden:
+  ai_automator_status: true
   body: true
   field_sector: true
   langcode: true

@@ -1,0 +1,34 @@
+uuid: 39183251-6af4-416f-ba4e-d9c6b6e5cd11
+langcode: fr
+status: true
+dependencies:
+  config:
+    - field.field.node.article.field_feature_image
+id: node.article.field_feature_image.default
+label: 'Image principale Default'
+rule: llm_image_alt_text
+input_mode: base
+weight: 100
+worker_type: field_widget_actions
+entity_type: node
+bundle: article
+field_name: field_feature_image
+edit_mode: false
+base_field: revision_log
+prompt: 'Write concise, meaningful alternative text in the same language as the article. Describe only relevant visible information. Do not start with “image of” and do not invent details or add SEO keyword stuffing.'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: llm_image_alt_text
+  automator_mode: base
+  automator_base_field: revision_log
+  automator_prompt: 'Write concise, meaningful alternative text in the same language as the article. Describe only relevant visible information. Do not start with “image of” and do not invent details or add SEO keyword stuffing.'
+  automator_token: ''
+  automator_edit_mode: 0
+  automator_label: 'Image principale Default'
+  automator_weight: '100'
+  automator_worker_type: field_widget_actions
+  automator_queue_allow_requeue: 0
+  automator_guardrail_set_id: ''
+  automator_ai_provider: default_json

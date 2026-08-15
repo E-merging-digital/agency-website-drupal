@@ -11,9 +11,9 @@ dependencies:
 third_party_settings:
   content_translation:
     translation_sync:
+      file: file
       alt: '0'
       title: '0'
-      file: file
 id: node.article.field_feature_image
 field_name: field_feature_image
 entity_type: node
@@ -37,7 +37,7 @@ settings:
   title_field: false
   title_field_required: false
   default_image:
-    uuid: null
+    uuid: ''
     alt: ''
     title: ''
     width: null

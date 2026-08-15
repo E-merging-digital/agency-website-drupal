@@ -8,8 +8,8 @@ dependencies:
 _core:
   default_config_hash: d4mxS_CxdzHZK4WaGQf1H3m-Uubm5HPbu9U4ydzscuo
 id: state_province_names
-label: 'State/Province names'
-category: Geographic
+label: 'Noms des États et provinces'
+category: Géographique
 likert: false
 options: |
   Alabama: Alabama

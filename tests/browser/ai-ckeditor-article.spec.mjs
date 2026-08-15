@@ -111,8 +111,20 @@ function aiAssistantButton(page) {
   }).first();
 }
 
-test.describe('Issue #380 authenticated AI CKEditor proof', () => {
-  test('Article exposes the guarded AI menu only to an authorized editor', async ({
+function automatorTextSuggestionButton(page) {
+  return page.getByRole('button', {
+    name: /Automator Text Suggestion/i,
+  }).first();
+}
+
+function automatorAltTextButton(page) {
+  return page.getByRole('button', {
+    name: /Automator Alt Text/i,
+  }).first();
+}
+
+test.describe('Authenticated Article AI authoring proof', () => {
+  test('Article exposes only explicit, human-triggered AI authoring controls', async ({
     page,
     baseURL,
   }, testInfo) => {
@@ -186,6 +198,16 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
       await logIn(page, editorUsername, editorPassword);
       const editable = await openArticleForm(page);
 
+      const manualAutomatorButton = automatorTextSuggestionButton(page);
+      await expect(
+        manualAutomatorButton,
+        'The Article short description must expose an explicit manual Automator action.',
+      ).toBeVisible();
+      await expect(
+        editable,
+        'The editor must remain manually editable without an AI provider.',
+      ).toBeEditable();
+
       const aiButton = aiAssistantButton(page);
       await expect(aiButton).toBeVisible();
       await aiButton.click();
@@ -211,8 +233,52 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
         path: menuScreenshot,
         fullPage: true,
       });
+      await page.keyboard.press('Escape');
 
-      const title = `Agency AI CKEditor proof ${Date.now()}`;
+      const addImageButton = page.getByRole('button', {
+        name: /Ajouter un nouveau fichier|Add a new file/i,
+      }).first();
+      await expect(
+        addImageButton,
+        'The primary image widget must expose its real file chooser.',
+      ).toBeVisible();
+      const fileChooserPromise = page.waitForEvent('filechooser');
+      await addImageButton.click();
+      const fileChooser = await fileChooserPromise;
+      await fileChooser.setFiles({
+        name: 'issue-381-alt-proof.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAALUlEQVR4nGP8Oo+bARv4tcwSqzgTVlE8YFQDMYBl2r7XWCVaS7upY8OoBmIAADqqB11MvKZkAAAAAElFTkSuQmCC',
+          'base64',
+        ),
+      });
+
+      const altInput = page.locator('input[name="field_feature_image[0][alt]"]');
+      await expect(
+        altInput,
+        'Uploading the primary image must expose its editable alt-text field.',
+      ).toBeVisible({ timeout: 15_000 });
+      await expect(
+        automatorAltTextButton(page),
+        'The primary image must expose an explicit manual alt-text Automator action.',
+      ).toBeVisible({ timeout: 15_000 });
+      await expect(
+        altInput,
+        'Image alt text must remain manually editable without an AI provider.',
+      ).toBeEditable();
+      await altInput.fill('Illustration de preuve pour le texte alternatif.');
+
+      const imageAltScreenshot = path.join(
+        screenshotDirectory,
+        'ai-automators-article-image-alt-desktop.png',
+      );
+      await page.screenshot({
+        path: imageAltScreenshot,
+        fullPage: true,
+      });
+
+      const title = `Agency AI authoring proof ${Date.now()}`;
       await page.locator('input[name="title[0][value]"]').fill(title);
       await editable.fill('Contenu éditorial saisi sans provider AI configuré.');
       await page.locator('#edit-submit').click();
@@ -222,6 +288,18 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
           level: 1,
         }),
       ).toBeVisible({ timeout: 15_000 });
+
+      const savedImage = page.getByRole('img', {
+        name: 'Illustration de preuve pour le texte alternatif.',
+      });
+      await expect(
+        savedImage,
+        'The saved Article must render the uploaded primary image.',
+      ).toBeVisible({ timeout: 15_000 });
+      expect(
+        await savedImage.evaluate((image) => image.naturalWidth),
+        'The saved primary image must be decoded by the browser.',
+      ).toBeGreaterThan(0);
 
       const savedScreenshot = path.join(
         screenshotDirectory,
@@ -239,8 +317,8 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
 
       const evidence = {
         schema_version: 1,
-        contract: 'ai-ckeditor-article-authenticated',
-        issue: 380,
+        contract: 'article-authenticated-ai-authoring',
+        issues: [380, 381],
         actor: 'ephemeral content_editor',
         negative_actor: 'ephemeral editor without use ai ckeditor',
         result: 'PASS',
@@ -250,6 +328,11 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
           authorized_ai_button: 'PASS',
           authorized_menu_subset: 'PASS',
           unauthorized_ai_button_absent: 'PASS',
+          manual_short_description_automator_action: 'PASS',
+          manual_feature_image_alt_automator_action: 'PASS',
+          manual_editing_without_provider: 'PASS',
+          manual_image_alt_without_provider: 'PASS',
+          saved_feature_image_decoded: 'PASS',
           normal_save_without_provider: 'PASS',
           console: 'PASS',
           network: 'PASS',
@@ -257,6 +340,7 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
         screenshots: [
           'screenshots/ai-ckeditor-article-no-permission-desktop.png',
           'screenshots/ai-ckeditor-article-authorized-menu-desktop.png',
+          'screenshots/ai-automators-article-image-alt-desktop.png',
           'screenshots/ai-ckeditor-article-normal-save-desktop.png',
         ],
         generated_at: new Date().toISOString(),

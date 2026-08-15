@@ -1,0 +1,36 @@
+uuid: 95942a76-ab52-4e2d-9997-2f4c80e45e1b
+langcode: fr
+status: true
+dependencies:
+  config:
+    - field.field.node.article.field_short_description
+id: node.article.field_short_description.default
+label: 'Description courte Default'
+rule: llm_simple_text_long
+input_mode: base
+weight: 100
+worker_type: field_widget_actions
+entity_type: node
+bundle: article
+field_name: field_short_description
+edit_mode: false
+base_field: body
+prompt: 'Create a concise editorial short description from the article body in the same language as the source. Return one or two short sentences only. Do not invent facts. Return plain text without Markdown or HTML.'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: llm_simple_text_long
+  automator_mode: base
+  automator_base_field: body
+  automator_prompt: 'Create a concise editorial short description from the article body in the same language as the source. Return one or two short sentences only. Do not invent facts. Return plain text without Markdown or HTML.'
+  automator_token: ''
+  automator_edit_mode: 0
+  automator_label: 'Description courte Default'
+  automator_weight: '100'
+  automator_worker_type: field_widget_actions
+  automator_queue_allow_requeue: 0
+  automator_guardrail_set_id: ''
+  automator_ai_provider: default_json
+  automator_code_block_type: html
+  automator_use_text_format: ''

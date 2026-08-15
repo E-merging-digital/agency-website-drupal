@@ -3,6 +3,7 @@ langcode: en
 status: true
 dependencies:
   config:
+    - field.field.node.article.ai_automator_status
     - field.field.node.article.body
     - field.field.node.article.field_blog_category
     - field.field.node.article.field_feature_image
@@ -11,6 +12,7 @@ dependencies:
     - image.style.thumbnail
     - node.type.article
   module:
+    - field_widget_actions
     - image
     - text
 id: node.article.default
@@ -45,7 +47,17 @@ content:
     settings:
       progress_indicator: throbber
       preview_image_style: thumbnail
-    third_party_settings: {  }
+    third_party_settings:
+      field_widget_actions:
+        e0591308-9f78-4778-966e-7669aa785aa5:
+          plugin_id: automator_alt_text
+          enabled: true
+          automatic: false
+          button_label: 'Automator Alt Text'
+          multiple: true
+          weight: 0
+          settings:
+            automator_id: node.article.field_feature_image.default
   field_short_description:
     type: text_textarea
     weight: -5
@@ -53,7 +65,17 @@ content:
     settings:
       rows: 3
       placeholder: ''
-    third_party_settings: {  }
+    third_party_settings:
+      field_widget_actions:
+        429db108-b3ad-4713-bcf9-0ad6f2595568:
+          plugin_id: automator_text
+          enabled: true
+          automatic: false
+          button_label: 'Automator Text Suggestion'
+          multiple: true
+          weight: 0
+          settings:
+            automator_id: node.article.field_short_description.default
   langcode:
     type: language_select
     weight: 20
@@ -85,6 +107,7 @@ content:
     settings: {  }
     third_party_settings: {  }
 hidden:
+  ai_automator_status: true
   created: true
   field_sector: true
   path: true

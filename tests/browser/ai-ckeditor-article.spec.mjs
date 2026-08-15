@@ -249,7 +249,7 @@ test.describe('Authenticated Article AI authoring proof', () => {
         name: 'issue-381-alt-proof.png',
         mimeType: 'image/png',
         buffer: Buffer.from(
-          'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8//8/AwMDEwMDAwMDAwAkBgMB/DXemwAAAABJRU5ErkJggg==',
+          'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAALUlEQVR4nGP8Oo+bARv4tcwSqzgTVlE8YFQDMYBl2r7XWCVaS7upY8OoBmIAADqqB11MvKZkAAAAAElFTkSuQmCC',
           'base64',
         ),
       });
@@ -289,6 +289,18 @@ test.describe('Authenticated Article AI authoring proof', () => {
         }),
       ).toBeVisible({ timeout: 15_000 });
 
+      const savedImage = page.getByRole('img', {
+        name: 'Illustration de preuve pour le texte alternatif.',
+      });
+      await expect(
+        savedImage,
+        'The saved Article must render the uploaded primary image.',
+      ).toBeVisible({ timeout: 15_000 });
+      expect(
+        await savedImage.evaluate((image) => image.naturalWidth),
+        'The saved primary image must be decoded by the browser.',
+      ).toBeGreaterThan(0);
+
       const savedScreenshot = path.join(
         screenshotDirectory,
         'ai-ckeditor-article-normal-save-desktop.png',
@@ -320,6 +332,7 @@ test.describe('Authenticated Article AI authoring proof', () => {
           manual_feature_image_alt_automator_action: 'PASS',
           manual_editing_without_provider: 'PASS',
           manual_image_alt_without_provider: 'PASS',
+          saved_feature_image_decoded: 'PASS',
           normal_save_without_provider: 'PASS',
           console: 'PASS',
           network: 'PASS',

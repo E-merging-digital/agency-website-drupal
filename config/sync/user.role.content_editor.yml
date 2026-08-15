@@ -8,6 +8,7 @@ dependencies:
     - taxonomy.vocabulary.blog_categories
     - taxonomy.vocabulary.tags
   module:
+    - ai_ckeditor
     - comment
     - content_translation
     - contextual
@@ -48,6 +49,7 @@ permissions:
   - 'revert all revisions'
   - 'translate article node'
   - 'translate blog_categories taxonomy_term'
+  - 'use ai ckeditor'
   - 'view all revisions'
   - 'view own unpublished content'
   - 'view the administration theme'

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Functional;
 
+use Drupal\agency_ai_translation\Access\AiTranslationAccess;
 use Drupal\agency_ai_translation\Service\AiTranslationClient;
 use Drupal\agency_ai_translation\Service\AiTranslationManager;
 use Drupal\language\Entity\ConfigurableLanguage;
@@ -143,6 +144,38 @@ final class AiTranslationRetainedGuardrailsTest extends BrowserTestBase {
       'Human reviewed English title',
       $reloaded->getTranslation('en')->label(),
     );
+  }
+
+  /**
+   * The AI permission never replaces native bundle translation permission.
+   */
+  public function testAccessRequiresNativeTranslationPermission(): void {
+    $aiOnlyAccount = $this->drupalCreateUser([
+      'create page content',
+      'edit own page content',
+      'trigger ai translation',
+    ]);
+    self::assertNotFalse($aiOnlyAccount);
+    $aiOnlyNode = $this->drupalCreateNode([
+      'type' => 'page',
+      'uid' => $aiOnlyAccount->id(),
+      'langcode' => 'fr',
+    ]);
+    self::assertFalse(AiTranslationAccess::allowed($aiOnlyNode, $aiOnlyAccount));
+
+    $translatorAccount = $this->drupalCreateUser([
+      'create page content',
+      'edit own page content',
+      'translate page node',
+      'trigger ai translation',
+    ]);
+    self::assertNotFalse($translatorAccount);
+    $translatorNode = $this->drupalCreateNode([
+      'type' => 'page',
+      'uid' => $translatorAccount->id(),
+      'langcode' => 'fr',
+    ]);
+    self::assertTrue(AiTranslationAccess::allowed($translatorNode, $translatorAccount));
   }
 
   /**

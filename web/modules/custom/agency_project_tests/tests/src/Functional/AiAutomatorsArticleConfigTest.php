@@ -89,10 +89,12 @@ final class AiAutomatorsArticleConfigTest extends TestCase {
       'core.entity_form_display.node.article.default.yml',
     );
 
-    $short_actions = $display['content']['field_short_description']
-      ['third_party_settings']['field_widget_actions'] ?? [];
-    $image_actions = $display['content']['field_feature_image']
-      ['third_party_settings']['field_widget_actions'] ?? [];
+    $short_field = $display['content']['field_short_description'] ?? [];
+    $image_field = $display['content']['field_feature_image'] ?? [];
+    $short_actions = $short_field['third_party_settings']['field_widget_actions']
+      ?? [];
+    $image_actions = $image_field['third_party_settings']['field_widget_actions']
+      ?? [];
 
     self::assertCount(1, $short_actions);
     self::assertCount(1, $image_actions);
@@ -118,7 +120,8 @@ final class AiAutomatorsArticleConfigTest extends TestCase {
   }
 
   /**
-   * Verifies the module-owned status field remains an internal implementation detail.
+   * Verifies the module-owned status field remains an internal
+   * implementation detail.
    */
   public function testAutomatorStatusFieldIsHiddenFromArticleDisplays(): void {
     foreach (['default', 'teaser'] as $view_mode) {

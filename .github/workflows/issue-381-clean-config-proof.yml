@@ -52,25 +52,36 @@ jobs:
           $image = \Drupal::config("ai_automators.ai_automator.node.article.field_feature_image.default");
           $display = \Drupal::config("core.entity_form_display.node.article.default");
 
+          $short_rule = $short->get("automator_rule") ?? [];
+          $image_rule = $image->get("automator_rule") ?? [];
+          $content = $display->get("content") ?? [];
+          $short_actions = $content["field_short_description"]["third_party_settings"]["field_widget_actions"] ?? [];
+          $image_actions = $content["field_feature_image"]["third_party_settings"]["field_widget_actions"] ?? [];
+
+          print "SHORT_RULE=" . json_encode($short_rule, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+          print "IMAGE_RULE=" . json_encode($image_rule, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+          print "SHORT_ACTIONS=" . json_encode($short_actions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+          print "IMAGE_ACTIONS=" . json_encode($image_actions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+
           $require = static function (bool $condition, string $message): void {
             if (!$condition) {
               throw new \RuntimeException($message);
             }
           };
 
-          $require($short->get("automator_rule.plugin_config.automator_worker_type") === "field_widget_actions", "Short description worker is not Field Widget.");
-          $require($image->get("automator_rule.plugin_config.automator_worker_type") === "field_widget_actions", "Feature image worker is not Field Widget.");
-          $require($short->get("automator_rule.plugin_config.automator_ai_model") === "", "Short description hard-codes an AI model.");
-          $require($image->get("automator_rule.plugin_config.automator_ai_model") === "", "Feature image hard-codes an AI model.");
-          $require($short->get("automator_rule.plugin_config.automator_base_field") === "body", "Short description does not use the Article body as source.");
-          $require($short->get("automator_rule.ai_automator") === "llm_simple_text_long", "Unexpected short description Automator plugin.");
-          $require($image->get("automator_rule.ai_automator") === "llm_image_alt_text", "Unexpected image alt Automator plugin.");
+          $short_plugin = $short_rule["plugin_config"] ?? [];
+          $image_plugin = $image_rule["plugin_config"] ?? [];
 
-          $short_actions = $display->get("content.field_short_description.third_party_settings.field_widget_actions") ?? [];
-          $image_actions = $display->get("content.field_feature_image.third_party_settings.field_widget_actions") ?? [];
+          $require(($short_plugin["automator_worker_type"] ?? NULL) === "field_widget_actions", "Short description worker is not Field Widget.");
+          $require(($image_plugin["automator_worker_type"] ?? NULL) === "field_widget_actions", "Feature image worker is not Field Widget.");
+          $require(($short_plugin["automator_ai_model"] ?? NULL) === "", "Short description hard-codes an AI model.");
+          $require(($image_plugin["automator_ai_model"] ?? NULL) === "", "Feature image hard-codes an AI model.");
+          $require(($short_plugin["automator_base_field"] ?? NULL) === "body", "Short description does not use the Article body as source.");
+          $require(($short_rule["ai_automator"] ?? NULL) === "llm_simple_text_long", "Unexpected short description Automator plugin.");
+          $require(($image_rule["ai_automator"] ?? NULL) === "llm_image_alt_text", "Unexpected image alt Automator plugin.");
+
           $require(count($short_actions) === 1, "Expected exactly one short-description Field Widget Action.");
           $require(count($image_actions) === 1, "Expected exactly one feature-image Field Widget Action.");
-
           $short_action = reset($short_actions);
           $image_action = reset($image_actions);
           $require(($short_action["plugin_id"] ?? NULL) === "automator_text_suggestion", "Unexpected short-description action plugin.");

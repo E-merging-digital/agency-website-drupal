@@ -133,6 +133,7 @@ jobs:
           persist-credentials: false
 
       - name: Verify exact checkout and immutable infrastructure
+        id: checkout
         shell: bash
         env:
           EXPECTED_HEAD_SHA: ${{ needs.validate-request.outputs.head_sha }}
@@ -142,11 +143,51 @@ jobs:
           test -f AGENTS.md
           test -f .ddev/config.yaml
           test -f package.json
-          test -f package-lock.json
           test -f scripts/run-browser-validation.mjs
+
+          if [[ -f package-lock.json ]]; then
+            echo "lockfile_present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "lockfile_present=false" >> "$GITHUB_OUTPUT"
+          fi
+
           git diff --check
 
+      - name: Setup Node 24 for lockfile bootstrap
+        if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Generate missing npm lockfile
+        if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          test -f package-lock.json
+          git diff --check -- package-lock.json
+
+      - name: Upload generated npm lockfile
+        if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-package-lock-bootstrap-${{ github.run_id }}-${{ github.run_attempt }}
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop after lockfile bootstrap
+        if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
+        shell: bash
+        run: |
+          echo "package-lock.json was absent from the trusted target. A registry-resolved lockfile was generated and uploaded as an artifact; version that exact file before browser validation." >&2
+          exit 1
+
       - name: Setup Node 24
+        if: ${{ steps.checkout.outputs.lockfile_present == 'true' }}
         uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -211,10 +252,15 @@ jobs:
       - name: Clean DDEV and verify workspace
         if: ${{ always() }}
         shell: bash
+        env:
+          LOCKFILE_WAS_PRESENT: ${{ steps.checkout.outputs.lockfile_present }}
         run: |
           set +e
           ddev delete --omit-snapshot --yes
           rm -f .ddev/config.gate-browser-ci.yaml
+          if [[ "$LOCKFILE_WAS_PRESENT" == "false" ]]; then
+            rm -f package-lock.json
+          fi
           git diff --check
           status="$(git status --porcelain)"
           if [[ -n "$status" ]]; then

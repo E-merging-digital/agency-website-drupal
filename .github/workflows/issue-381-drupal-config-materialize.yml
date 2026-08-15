@@ -74,64 +74,34 @@ jobs:
           await mkdir(artifactDir, { recursive: true });
 
           const browser = await chromium.launch({ headless: true });
-          const page = await browser.newPage({
-            viewport: { width: 1440, height: 1100 },
-            ignoreHTTPSErrors: true,
-          });
+          const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, ignoreHTTPSErrors: true });
 
-          async function screenshot(name) {
+          async function firstVisible(locator) {
+            for (let i = 0; i < await locator.count(); i += 1) {
+              const item = locator.nth(i);
+              if (await item.isVisible().catch(() => false)) return item;
+            }
+            return null;
+          }
+
+          async function shot(name) {
             await page.screenshot({ path: path.join(artifactDir, `${name}.png`), fullPage: true });
           }
 
           async function fail(message, scope = page.locator('body')) {
             console.error(message);
             console.error('URL:', page.url());
-            console.error('VISIBLE TEXT:', (await scope.innerText().catch(() => page.locator('body').innerText())).slice(0, 16000));
+            console.error('VISIBLE TEXT:', (await scope.innerText().catch(() => '')).slice(0, 16000));
+            console.error('LABELS:', await scope.locator('label').allTextContents().catch(() => []));
+            console.error('INPUTS:', await scope.locator('input').evaluateAll((nodes) => nodes.map((node) => ({
+              type: node.type, name: node.name, id: node.id, value: node.value, checked: node.checked,
+            }))).catch(() => []));
             console.error('SELECTS:', await scope.locator('select').evaluateAll((nodes) => nodes.map((node) => ({
-              name: node.getAttribute('name'),
-              id: node.id,
-              value: node.value,
+              name: node.name, id: node.id, value: node.value,
               options: [...node.options].map((option) => ({ value: option.value, label: option.textContent.trim() })),
             }))).catch(() => []));
-            console.error('INPUT LABELS:', await scope.locator('label').allTextContents().catch(() => []));
-            await screenshot('failure');
+            await shot('failure');
             throw new Error(message);
-          }
-
-          async function firstVisible(locator) {
-            const count = await locator.count();
-            for (let index = 0; index < count; index += 1) {
-              const item = locator.nth(index);
-              if (await item.isVisible().catch(() => false)) return item;
-            }
-            return null;
-          }
-
-          async function labeled(pattern) {
-            return firstVisible(page.getByLabel(pattern));
-          }
-
-          async function selectWithOption(scope, pattern, description) {
-            const selects = scope.locator('select');
-            const count = await selects.count();
-            for (let index = 0; index < count; index += 1) {
-              const select = selects.nth(index);
-              if (!(await select.isVisible().catch(() => false))) continue;
-              const options = await select.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
-              const match = options.find((option) => pattern.test(option.label));
-              if (match) {
-                console.log(description, { value: match.value, label: match.label });
-                await select.selectOption(match.value);
-                return select;
-              }
-            }
-            await fail(`No select containing ${description} was found.`, scope);
-          }
-
-          async function selectMachineValue(select, value, description) {
-            const options = await select.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
-            if (!options.some((option) => option.value === value)) await fail(`Missing ${description} machine value: ${value}`);
-            await select.selectOption(value);
           }
 
           async function openDetails(scope, pattern, description) {
@@ -145,41 +115,62 @@ jobs:
             return details;
           }
 
+          async function selectOptionMatching(select, pattern, description) {
+            const options = await select.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
+            const match = options.find((option) => pattern.test(option.label));
+            if (!match) await fail(`Missing option for ${description}: ${pattern}`);
+            await select.selectOption(match.value);
+          }
+
+          async function selectContainingOption(scope, pattern, description) {
+            const selects = scope.locator('select');
+            for (let i = 0; i < await selects.count(); i += 1) {
+              const select = selects.nth(i);
+              if (!(await select.isVisible().catch(() => false))) continue;
+              const options = await select.locator('option').allTextContents();
+              if (options.some((label) => pattern.test(label.trim()))) {
+                await selectOptionMatching(select, pattern, description);
+                return select;
+              }
+            }
+            await fail(`No select contains ${description}.`, scope);
+          }
+
           async function configureAutomator({ route, typePattern, baseFieldValue, prompt, screenshotName }) {
             await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded' });
 
-            const enabled = await labeled(/Enable AI Automator|Activer.*AI Automator/i);
+            const enabled = await firstVisible(page.getByLabel(/Enable AI Automator|Activer.*AI Automator/i));
             if (!enabled) await fail('Enable AI Automator control not found.');
             if (!(await enabled.isChecked())) await enabled.check();
 
-            const type = await labeled(/Choose AI Automator Type|AI Automator Type|Type.*AI Automator/i);
+            const type = await firstVisible(page.getByLabel(/Choose AI Automator Type|AI Automator Type|Type.*AI Automator/i));
             if (!type) await fail('AI Automator Type control not found.');
-            const typeOptions = await type.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
-            const typeMatch = typeOptions.find((option) => typePattern.test(option.label));
-            if (!typeMatch) await fail(`Required Automator type missing: ${typePattern}`);
-            await type.selectOption(typeMatch.value);
+            await selectOptionMatching(type, typePattern, 'AI Automator Type');
             await page.waitForTimeout(350);
 
-            const baseMode = await labeled(/Base Mode|Mode de base/i);
+            const baseMode = await firstVisible(page.getByLabel(/Base Mode|Mode de base/i));
             if (baseMode && (await baseMode.getAttribute('type')) === 'radio' && !(await baseMode.isChecked())) await baseMode.check();
 
             if (baseFieldValue) {
-              const baseField = await labeled(/Automator Base Field|Champ de base.*Automator/i);
-              if (!baseField) await fail('Automator Base Field control not found.');
-              await selectMachineValue(baseField, baseFieldValue, 'Automator Base Field');
+              const base = await firstVisible(page.getByLabel(/Automator Base Field|Champ de base.*Automator/i));
+              if (!base) await fail('Automator Base Field control not found.');
+              const values = await base.locator('option').evaluateAll((nodes) => nodes.map((node) => node.value));
+              if (!values.includes(baseFieldValue)) await fail(`Automator Base Field machine value missing: ${baseFieldValue}`);
+              await base.selectOption(baseFieldValue);
             }
 
-            const promptField = await labeled(/Automator Prompt|Prompt.*Automator|Invite.*Automator/i);
+            const promptField = await firstVisible(page.getByLabel(/Automator Prompt|Prompt.*Automator|Invite.*Automator/i));
             if (promptField) await promptField.fill(prompt);
 
             const advanced = await openDetails(page.locator('body'), /Advanced Settings|Paramètres Avancés/i, 'Automator Advanced Settings');
-            await selectWithOption(advanced, /^Field Widget\b/i, 'Automator Worker = Field Widget');
+            const fieldWidgetWorker = await firstVisible(advanced.getByLabel(/^Field Widget\b/i));
+            if (!fieldWidgetWorker) await fail('Field Widget Automator Worker radio not found.', advanced);
+            if ((await fieldWidgetWorker.getAttribute('type')) !== 'radio') await fail('Field Widget Automator Worker is not a radio control.', advanced);
+            if (!(await fieldWidgetWorker.isChecked())) await fieldWidgetWorker.check();
 
-            // Keep provider/model environment-owned. Do not choose OpenAI or any concrete model here.
-            const provider = await firstVisible(advanced.locator('select').filter({ has: advanced.locator('option') }));
-            void provider;
+            // Provider/model stay environment-owned. Do not select OpenAI or a concrete model here.
+            await shot(screenshotName);
 
-            await screenshot(screenshotName);
             const save = await firstVisible(page.getByRole('button', { name: /Save settings|Enregistrer les paramètres|Save|Enregistrer/i }));
             if (!save) await fail('Field settings save button not found.');
             await save.click();
@@ -194,45 +185,35 @@ jobs:
             if (!row) row = await firstVisible(page.locator('tr').filter({ hasText: fallbackText }));
             if (!row) await fail(`Form display row missing for ${fieldName}`);
 
-            const edit = await firstVisible(row.locator('button, input[type="submit"]').filter({ hasText: /settings|paramètres|configure|configurer|edit|modifier/i }));
-            if (edit) {
-              await edit.click();
-            } else {
-              const candidates = row.locator('[data-drupal-selector$="settings-edit"], input[value="Edit"], input[value="Modifier"]');
-              const toggle = await firstVisible(candidates);
-              if (!toggle) await fail(`Widget settings trigger missing for ${fieldName}`, row);
-              await toggle.click();
-            }
+            let trigger = await firstVisible(row.locator('[data-drupal-selector$="settings-edit"], input[value="Edit"], input[value="Modifier"]'));
+            if (!trigger) trigger = await firstVisible(row.getByRole('button', { name: /settings|paramètres|configure|configurer|edit|modifier/i }));
+            if (!trigger) await fail(`Widget settings trigger missing for ${fieldName}`, row);
+            await trigger.click();
             await page.waitForTimeout(700);
             return row;
           }
 
-          async function enableAutomatorChoice(scope, automatorPattern) {
-            const labeledChoice = await firstVisible(scope.getByLabel(automatorPattern));
-            if (labeledChoice) {
-              const type = await labeledChoice.getAttribute('type');
+          async function enableAutomatorChoice(scope, pattern) {
+            const labeled = await firstVisible(scope.getByLabel(pattern));
+            if (labeled) {
+              const type = await labeled.getAttribute('type');
               if (type === 'checkbox' || type === 'radio') {
-                if (!(await labeledChoice.isChecked())) await labeledChoice.check();
+                if (!(await labeled.isChecked())) await labeled.check();
                 return;
               }
-              if (await labeledChoice.evaluate((node) => node.tagName === 'SELECT')) {
-                const options = await labeledChoice.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
-                const match = options.find((option) => automatorPattern.test(option.label));
-                if (match) {
-                  await labeledChoice.selectOption(match.value);
-                  return;
-                }
+              if (await labeled.evaluate((node) => node.tagName === 'SELECT')) {
+                await selectOptionMatching(labeled, pattern, 'Automator choice');
+                return;
               }
             }
 
             const labels = scope.locator('label');
-            const count = await labels.count();
-            for (let index = 0; index < count; index += 1) {
-              const label = labels.nth(index);
-              if (!automatorPattern.test((await label.innerText().catch(() => '')).trim())) continue;
+            for (let i = 0; i < await labels.count(); i += 1) {
+              const label = labels.nth(i);
+              if (!pattern.test((await label.innerText().catch(() => '')).trim())) continue;
               const forId = await label.getAttribute('for');
               if (!forId) continue;
-              const input = scope.locator(`#${CSS.escape(forId)}`);
+              const input = scope.locator(`[id="${forId.replaceAll('"', '\\"')}"]`);
               if (await input.isVisible().catch(() => false)) {
                 if (!(await input.isChecked().catch(() => false))) await input.check();
                 return;
@@ -240,23 +221,21 @@ jobs:
             }
 
             const selects = scope.locator('select');
-            const selectCount = await selects.count();
-            for (let index = 0; index < selectCount; index += 1) {
-              const select = selects.nth(index);
-              const options = await select.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
-              const match = options.find((option) => automatorPattern.test(option.label));
-              if (match) {
-                await select.selectOption(match.value);
+            for (let i = 0; i < await selects.count(); i += 1) {
+              const select = selects.nth(i);
+              const options = await select.locator('option').allTextContents();
+              if (options.some((label) => pattern.test(label.trim()))) {
+                await selectOptionMatching(select, pattern, 'Automator choice');
                 return;
               }
             }
-            await fail(`Automator choice missing: ${automatorPattern}`, scope);
+            await fail(`Automator choice missing: ${pattern}`, scope);
           }
 
           async function configureWidgetAction({ fieldName, fallbackText, actionPattern, automatorPattern, buttonLabel, screenshotName }) {
             const row = await openWidgetRow(fieldName, fallbackText);
             const actionDetails = await openDetails(row, /Field Widget Actions/i, `Field Widget Actions settings for ${fieldName}`);
-            await selectWithOption(actionDetails, actionPattern, `action for ${fieldName}`);
+            await selectContainingOption(actionDetails, actionPattern, `action for ${fieldName}`);
 
             const add = await firstVisible(actionDetails.getByRole('button', { name: /Add action|Add|Ajouter/i }));
             if (!add) await fail(`Add action button missing for ${fieldName}`, actionDetails);
@@ -266,20 +245,25 @@ jobs:
             const enable = await firstVisible(row.getByLabel(/Enable Automators|Activer.*Automator/i));
             if (enable && !(await enable.isChecked())) await enable.check();
 
-            const buttonLabelInput = await firstVisible(row.getByLabel(/Button label|Libellé.*bouton/i));
-            if (buttonLabelInput) await buttonLabelInput.fill(buttonLabel);
+            const labelInput = await firstVisible(row.getByLabel(/Button label|Libellé.*bouton/i));
+            if (labelInput) await labelInput.fill(buttonLabel);
 
-            const automatorDetails = await firstVisible(row.locator('details').filter({ hasText: /Enable an Automator|Automator/i }));
-            const automatorScope = automatorDetails ?? row;
-            if (automatorDetails && (await automatorDetails.getAttribute('open')) === null) await automatorDetails.locator('summary').click();
+            let automatorScope = row;
+            const automatorSummary = await firstVisible(row.locator('summary').filter({ hasText: /Enable an Automator|Automator/i }));
+            if (automatorSummary) {
+              const details = automatorSummary.locator('xpath=ancestor::details[1]');
+              if ((await details.getAttribute('open')) === null) await automatorSummary.click();
+              automatorScope = details;
+            }
             await enableAutomatorChoice(automatorScope, automatorPattern);
 
-            await screenshot(screenshotName);
+            await shot(screenshotName);
             const update = await firstVisible(row.getByRole('button', { name: /Update|Mettre à jour|Apply|Appliquer/i }));
             if (update) {
               await update.click();
               await page.waitForTimeout(400);
             }
+
             const save = await firstVisible(page.getByRole('button', { name: /^Save$|^Enregistrer$/i }));
             if (!save) await fail('Form display Save button missing.');
             await save.click();
@@ -325,7 +309,7 @@ jobs:
             });
 
             await page.goto(`${baseURL}/node/add/article`, { waitUntil: 'domcontentloaded' });
-            await screenshot('article-form-after-config');
+            await shot('article-form-after-config');
           } finally {
             await browser.close();
           }

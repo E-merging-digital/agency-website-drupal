@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ARTIFACT_DIR: artifacts/issue-382-ai-translate
+      SIMPLETEST_BASE_URL: http://127.0.0.1:8888
+      SIMPLETEST_DB: sqlite://localhost/tmp/simpletest.sqlite
 
     steps:
       - name: Checkout
@@ -28,6 +30,14 @@ jobs:
 
       - name: Install repository dependencies
         run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Run retained custom guardrail regression
+        run: |
+          set -euo pipefail
+          php -S 127.0.0.1:8888 -t web >/tmp/php-server.log 2>&1 &
+          mkdir -p web/sites/simpletest/browser_output sites/simpletest/browser_output
+          chmod -R 777 web/sites/simpletest sites/simpletest
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional/AiTranslationRetainedGuardrailsTest.php
 
       - name: Prove Composer dry-run resolution
         run: |
@@ -76,8 +86,12 @@ jobs:
           git status --short
 
       - name: Upload inspection evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: issue-382-ai-translate-inspection-${{ github.run_id }}
-          path: artifacts/issue-382-ai-translate
+          path: |
+            artifacts/issue-382-ai-translate
+            web/sites/simpletest/browser_output
+            sites/simpletest/browser_output
           retention-days: 14

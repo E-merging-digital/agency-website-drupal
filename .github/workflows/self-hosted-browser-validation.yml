@@ -220,7 +220,22 @@ jobs:
             local config_status
             config_status="$(ddev drush config:status 2>&1)"
             printf '%s\n' "$config_status"
-            grep -Fq 'No differences' <<<"$config_status"
+            if grep -Fq 'No differences' <<<"$config_status"; then
+              return 0
+            fi
+
+            mkdir -p artifacts/config-canonicalization
+            printf '%s\n' "$config_status" > artifacts/config-canonicalization/config-status.txt
+
+            # Materialize the exact canonical export produced by the freshly
+            # rebuilt Drupal runtime so maintainers can review a deterministic
+            # patch instead of guessing which YAML normalization is required.
+            ddev drush cex -y
+            git status --short config/sync > artifacts/config-canonicalization/git-status.txt
+            git diff --binary -- config/sync > artifacts/config-canonicalization/canonical-config.patch
+
+            echo "Canonical configuration drift detected; exported patch evidence." >&2
+            return 1
           }
 
           ddev start -y
@@ -252,13 +267,14 @@ jobs:
           set -euo pipefail
           npm run browser:validate
 
-      - name: Upload browser evidence
+      - name: Upload browser and config evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-browser-validation-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/browser-validation
+            artifacts/config-canonicalization
             playwright-report
             test-results
           if-no-files-found: warn
@@ -273,7 +289,8 @@ jobs:
           set +e
           ddev delete --omit-snapshot --yes
           rm -f .ddev/config.gate-browser-ci.yaml
-          git restore --worktree -- web/robots.txt
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
           if [[ "$LOCKFILE_WAS_PRESENT" == "false" ]]; then
             rm -f package-lock.json
           fi

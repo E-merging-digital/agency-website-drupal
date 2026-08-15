@@ -6,6 +6,7 @@ package: Custom
 dependencies:
   - drupal:default_content
   - drupal:language
+  - drupal:menu_link_content
   - drupal:node
   - drupal:path
   - drupal:path_alias

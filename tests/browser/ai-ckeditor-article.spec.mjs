@@ -249,7 +249,7 @@ test.describe('Authenticated Article AI authoring proof', () => {
         name: 'issue-381-alt-proof.png',
         mimeType: 'image/png',
         buffer: Buffer.from(
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZPpAAAAAASUVORK5CYII=',
+          'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8//8/AwMDEwMDAwMDAwAkBgMB/DXemwAAAABJRU5ErkJggg==',
           'base64',
         ),
       });

@@ -7,7 +7,6 @@
 
 declare(strict_types=1);
 
-use Drupal\emerging_digital_content\MainNavigationManager;
 use Drupal\menu_link_content\Entity\MenuLinkContent;
 
 /**
@@ -31,8 +30,6 @@ function emerging_digital_content_install(): void {
     ->save(TRUE);
 
   \Drupal::state()->set('system.maintenance_mode', 0);
-
-  MainNavigationManager::ensureMainNavigationLinks();
 }
 
 /**

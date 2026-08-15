@@ -1,0 +1,36 @@
+_meta:
+  version: '1.0'
+  entity_type: menu_link_content
+  uuid: 6f2663ee-2902-4e9f-887e-3e14a53026c6
+  bundle: menu_link_content
+  default_langcode: fr
+default:
+  enabled:
+    -
+      value: true
+  title:
+    -
+      value: Contact
+  menu_name:
+    -
+      value: main
+  link:
+    -
+      uri: 'internal:/contact'
+      title: ''
+      options: {  }
+  external:
+    -
+      value: false
+  rediscover:
+    -
+      value: false
+  weight:
+    -
+      value: 5
+  expanded:
+    -
+      value: false
+  revision_translation_affected:
+    -
+      value: true

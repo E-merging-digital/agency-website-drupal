@@ -177,8 +177,10 @@
             "@lint:phpcs",
             "@lint:phpstan",
             "@lint:drupal-check",
+            "@test:content-sync-queue-bootstrap",
             "@test:homepage-smoke"
         ],
+        "test:content-sync-queue-bootstrap": "bash scripts/run-browser-test.sh web/modules/custom/emerging_digital_content/tests/src/Kernel/QueueStorageBootstrapTest.php",
         "test:project-functional": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional --exclude-group unstable_language_switcher --exclude-group homepage_smoke --exclude-group contact_form",
         "test:homepage-smoke": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional/HomepageRenderTest.php",
         "test:contact": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional/ContactFormTest.php",

@@ -1,0 +1,10 @@
+id: agency_editorial_input_length
+label: 'Agency editorial input length'
+description: 'Blocks excessively long AI input before it reaches a provider.'
+guardrail: input_length_limit
+guardrail_settings:
+  max_length: 20000
+  use_tokens: false
+  tokenizer_model: gpt-4
+  check_all_messages: false
+  violation_message: 'This AI input contains @count @unit and exceeds the Agency limit of @max @unit. Reduce the submitted content and try again.'

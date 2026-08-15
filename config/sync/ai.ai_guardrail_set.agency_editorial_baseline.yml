@@ -1,0 +1,9 @@
+id: agency_editorial_baseline
+label: 'Agency editorial baseline'
+description: 'Deterministic baseline applied before Drupal AI provider calls.'
+pre_generate_guardrails:
+  plugin_id:
+    - agency_editorial_input_length
+post_generate_guardrails:
+  plugin_id: []
+stop_threshold: 1.0

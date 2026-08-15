@@ -52,14 +52,14 @@ jobs:
           $image = \Drupal::config("ai_automators.ai_automator.node.article.field_feature_image.default");
           $display = \Drupal::config("core.entity_form_display.node.article.default");
 
-          $short_rule = $short->get("automator_rule") ?? [];
-          $image_rule = $image->get("automator_rule") ?? [];
+          $short_data = $short->getRawData();
+          $image_data = $image->getRawData();
           $content = $display->get("content") ?? [];
           $short_actions = $content["field_short_description"]["third_party_settings"]["field_widget_actions"] ?? [];
           $image_actions = $content["field_feature_image"]["third_party_settings"]["field_widget_actions"] ?? [];
 
-          print "SHORT_RULE=" . json_encode($short_rule, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-          print "IMAGE_RULE=" . json_encode($image_rule, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+          print "SHORT_AUTOMATOR=" . json_encode($short_data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+          print "IMAGE_AUTOMATOR=" . json_encode($image_data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
           print "SHORT_ACTIONS=" . json_encode($short_actions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
           print "IMAGE_ACTIONS=" . json_encode($image_actions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
@@ -69,24 +69,32 @@ jobs:
             }
           };
 
-          $short_plugin = $short_rule["plugin_config"] ?? [];
-          $image_plugin = $image_rule["plugin_config"] ?? [];
+          $short_plugin = $short_data["plugin_config"] ?? [];
+          $image_plugin = $image_data["plugin_config"] ?? [];
 
-          $require(($short_plugin["automator_worker_type"] ?? NULL) === "field_widget_actions", "Short description worker is not Field Widget.");
-          $require(($image_plugin["automator_worker_type"] ?? NULL) === "field_widget_actions", "Feature image worker is not Field Widget.");
-          $require(($short_plugin["automator_ai_model"] ?? NULL) === "", "Short description hard-codes an AI model.");
-          $require(($image_plugin["automator_ai_model"] ?? NULL) === "", "Feature image hard-codes an AI model.");
-          $require(($short_plugin["automator_base_field"] ?? NULL) === "body", "Short description does not use the Article body as source.");
-          $require(($short_rule["ai_automator"] ?? NULL) === "llm_simple_text_long", "Unexpected short description Automator plugin.");
-          $require(($image_rule["ai_automator"] ?? NULL) === "llm_image_alt_text", "Unexpected image alt Automator plugin.");
+          $require(($short_data["rule"] ?? NULL) === "llm_simple_text_long", "Unexpected short-description Automator plugin.");
+          $require(($image_data["rule"] ?? NULL) === "llm_image_alt_text", "Unexpected image-alt Automator plugin.");
+          $require(($short_data["worker_type"] ?? NULL) === "field_widget_actions", "Short-description worker is not Field Widget.");
+          $require(($image_data["worker_type"] ?? NULL) === "field_widget_actions", "Feature-image worker is not Field Widget.");
+          $require(($short_plugin["automator_worker_type"] ?? NULL) === "field_widget_actions", "Short-description plugin config is not Field Widget.");
+          $require(($image_plugin["automator_worker_type"] ?? NULL) === "field_widget_actions", "Feature-image plugin config is not Field Widget.");
+          $require(($short_data["base_field"] ?? NULL) === "body", "Short description does not use the Article body as source.");
+          $require(($short_data["input_mode"] ?? NULL) === "base", "Short description is not in Base input mode.");
+          $require(($image_data["input_mode"] ?? NULL) === "base", "Feature image is not in Base input mode.");
+          $require(($short_plugin["automator_ai_provider"] ?? NULL) === "default_json", "Short description does not keep provider selection environment-owned.");
+          $require(($image_plugin["automator_ai_provider"] ?? NULL) === "default_json", "Feature image does not keep provider selection environment-owned.");
+          $require(!array_key_exists("automator_ai_model", $short_plugin) || $short_plugin["automator_ai_model"] === "", "Short description hard-codes an AI model.");
+          $require(!array_key_exists("automator_ai_model", $image_plugin) || $image_plugin["automator_ai_model"] === "", "Feature image hard-codes an AI model.");
 
           $require(count($short_actions) === 1, "Expected exactly one short-description Field Widget Action.");
           $require(count($image_actions) === 1, "Expected exactly one feature-image Field Widget Action.");
           $short_action = reset($short_actions);
           $image_action = reset($image_actions);
-          $require(($short_action["plugin_id"] ?? NULL) === "automator_text_suggestion", "Unexpected short-description action plugin.");
+          $require(($short_action["plugin_id"] ?? NULL) === "automator_text", "Unexpected short-description action plugin.");
           $require(($image_action["plugin_id"] ?? NULL) === "automator_alt_text", "Unexpected feature-image action plugin.");
-          $require(($short_action["settings"]["automators"]["node.article.field_short_description.default"] ?? NULL) === "node.article.field_short_description.default", "Short-description action is not linked to its Automator.");
+          $require(($short_action["automatic"] ?? NULL) === false, "Short-description action must remain manual.");
+          $require(($image_action["automatic"] ?? NULL) === false, "Feature-image action must remain manual.");
+          $require(($short_action["settings"]["automator_id"] ?? NULL) === "node.article.field_short_description.default", "Short-description action is not linked to its Automator.");
           $require(($image_action["settings"]["automator_id"] ?? NULL) === "node.article.field_feature_image.default", "Feature-image action is not linked to its Automator.");
 
           print "Active #381 Automators contract verified.\n";

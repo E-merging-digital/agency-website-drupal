@@ -7,6 +7,7 @@
 
 declare(strict_types=1);
 
+use Drupal\agency_ai_translation\Access\AiTranslationAccess;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormStateInterface;
@@ -23,10 +24,7 @@ function agency_ai_translation_entity_operation(EntityInterface $entity, Cacheab
   }
 
   $account = \Drupal::currentUser();
-  $hasTranslationPermission = $account->hasPermission('trigger ai translation')
-    || $account->hasPermission('administer nodes');
-
-  if (!$hasTranslationPermission || !$entity->access('update', $account)) {
+  if (!AiTranslationAccess::allowed($entity, $account)) {
     return [];
   }
 

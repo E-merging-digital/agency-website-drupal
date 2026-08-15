@@ -101,20 +101,49 @@ jobs:
           print "Active #381 Automators contract verified after canonical config import.\n";
           '
 
-      - name: Prove canonical configuration is clean
+      - name: Diagnose and prove canonical configuration
+        id: canonical
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts/issue-381-clean-proof
+
           config_status="$(ddev drush config:status 2>&1)"
-          printf '%s\n' "$config_status"
-          if ! grep -Fq 'No differences' <<<"$config_status"; then
-            echo 'Canonical configuration drift remains after fresh install + canonical import.' >&2
-            exit 1
+          printf '%s\n' "$config_status" | tee artifacts/issue-381-clean-proof/config-status.txt
+
+          if grep -Fq 'No differences' <<<"$config_status"; then
+            echo 'clean=true' >> "$GITHUB_OUTPUT"
+            git diff --check
+            git status --short
+            exit 0
           fi
-          git diff --check
-          git status --short
+
+          echo 'clean=false' >> "$GITHUB_OUTPUT"
+          echo 'Canonical configuration drift remains after fresh install + canonical import.' >&2
+
+          # Diagnostic only: export active config to expose the precise residual delta.
+          # Nothing from this step is committed.
+          ddev drush cex -y
+          git diff --name-status -- config/sync > artifacts/issue-381-clean-proof/config-diff-names.txt
+          git diff --stat -- config/sync > artifacts/issue-381-clean-proof/config-diff-stat.txt
+          git diff -- config/sync > artifacts/issue-381-clean-proof/config-diff.patch
+          printf '%s\n' '=== residual files ==='
+          cat artifacts/issue-381-clean-proof/config-diff-names.txt
+          printf '%s\n' '=== residual stat ==='
+          cat artifacts/issue-381-clean-proof/config-diff-stat.txt
+          exit 1
+
+      - name: Upload canonical config diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-381-clean-config-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/issue-381-clean-proof
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Remove temporary proof workflow
+        if: steps.canonical.outputs.clean == 'true'
         shell: bash
         run: |
           set -euo pipefail

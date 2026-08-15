@@ -57,8 +57,8 @@ jobs:
           LOGIN_URL="$(ddev drush uli --uid=1 --uri="$BASE_URL" --no-browser)"
           export BASE_URL LOGIN_URL
 
-          cat > /tmp/issue-381-materialize.mjs <<'NODE'
-          import { chromium } from 'playwright';
+          cat > .issue-381-materialize.mjs <<'NODE'
+          import { chromium } from '@playwright/test';
           import { mkdir } from 'node:fs/promises';
           import path from 'node:path';
 
@@ -257,7 +257,8 @@ jobs:
           }
           NODE
 
-          node /tmp/issue-381-materialize.mjs
+          node ./.issue-381-materialize.mjs
+          rm -f .issue-381-materialize.mjs
 
       - name: Export canonical Drupal configuration
         run: |

@@ -28,11 +28,17 @@ jobs:
           autostart: false
 
       - name: Rebuild Drupal from repository state
+        shell: bash
         run: |
           set -euo pipefail
           ddev start
           ddev composer install --no-interaction --prefer-dist --no-progress
-          ddev drush site:install --existing-config -y
+          if ! ddev drush site:install --existing-config -y > /tmp/issue-381-site-install.log 2>&1; then
+            cat /tmp/issue-381-site-install.log >&2
+            exit 1
+          fi
+          echo 'Drupal installation completed; generated administrator credentials intentionally suppressed.'
+          rm -f /tmp/issue-381-site-install.log
           ddev drush en ai_automators field_widget_actions -y
           ddev drush cr
 
@@ -77,197 +83,244 @@ jobs:
             await page.screenshot({ path: path.join(artifactDir, `${name}.png`), fullPage: true });
           }
 
-          async function fail(message) {
+          async function fail(message, scope = page.locator('body')) {
             console.error(message);
             console.error('URL:', page.url());
-            console.error('BODY:', (await page.locator('body').innerText()).slice(0, 12000));
+            console.error('VISIBLE TEXT:', (await scope.innerText().catch(() => page.locator('body').innerText())).slice(0, 16000));
+            console.error('SELECTS:', await scope.locator('select').evaluateAll((nodes) => nodes.map((node) => ({
+              name: node.getAttribute('name'),
+              id: node.id,
+              value: node.value,
+              options: [...node.options].map((option) => ({ value: option.value, label: option.textContent.trim() })),
+            }))).catch(() => []));
+            console.error('INPUT LABELS:', await scope.locator('label').allTextContents().catch(() => []));
             await screenshot('failure');
             throw new Error(message);
           }
 
-          async function firstVisibleByLabel(pattern) {
-            const locator = page.getByLabel(pattern);
+          async function firstVisible(locator) {
             const count = await locator.count();
-            for (let i = 0; i < count; i += 1) {
-              const item = locator.nth(i);
+            for (let index = 0; index < count; index += 1) {
+              const item = locator.nth(index);
               if (await item.isVisible().catch(() => false)) return item;
             }
             return null;
           }
 
-          async function requireLabeled(pattern, description) {
-            const item = await firstVisibleByLabel(pattern);
-            if (!item) await fail(`Missing ${description}: ${pattern}`);
-            return item;
+          async function labeled(pattern) {
+            return firstVisible(page.getByLabel(pattern));
           }
 
-          async function chooseByLabel(select, labelPattern, description) {
-            const options = await select.locator('option').evaluateAll((nodes) => nodes.map((n) => ({ value: n.value, label: n.textContent.trim() })));
-            console.log(description, options);
-            const match = options.find((option) => labelPattern.test(option.label));
-            if (!match) await fail(`Missing option for ${description}: ${labelPattern}`);
-            await select.selectOption(match.value);
+          async function selectWithOption(scope, pattern, description) {
+            const selects = scope.locator('select');
+            const count = await selects.count();
+            for (let index = 0; index < count; index += 1) {
+              const select = selects.nth(index);
+              if (!(await select.isVisible().catch(() => false))) continue;
+              const options = await select.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
+              const match = options.find((option) => pattern.test(option.label));
+              if (match) {
+                console.log(description, { value: match.value, label: match.label });
+                await select.selectOption(match.value);
+                return select;
+              }
+            }
+            await fail(`No select containing ${description} was found.`, scope);
           }
 
-          async function chooseByValue(select, value, description) {
-            const options = await select.locator('option').evaluateAll((nodes) => nodes.map((n) => ({ value: n.value, label: n.textContent.trim() })));
-            console.log(description, options);
-            if (!options.some((option) => option.value === value)) await fail(`Missing machine value for ${description}: ${value}`);
+          async function selectMachineValue(select, value, description) {
+            const options = await select.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
+            if (!options.some((option) => option.value === value)) await fail(`Missing ${description} machine value: ${value}`);
             await select.selectOption(value);
           }
 
-          async function openAdvancedSettings() {
-            const summary = page.locator('summary').filter({ hasText: /Advanced Settings|Paramètres Avancés/i }).last();
-            if (!(await summary.isVisible().catch(() => false))) await fail('Automator Advanced Settings summary not found.');
+          async function openDetails(scope, pattern, description) {
+            const summary = await firstVisible(scope.locator('summary').filter({ hasText: pattern }));
+            if (!summary) await fail(`Missing ${description}.`, scope);
             const details = summary.locator('xpath=ancestor::details[1]');
-            if (!(await details.getAttribute('open'))) {
+            if ((await details.getAttribute('open')) === null) {
               await summary.click();
-              await page.waitForTimeout(200);
+              await page.waitForTimeout(250);
             }
+            return details;
           }
 
-          async function saveField() {
-            const save = page.getByRole('button', { name: /Save settings|Enregistrer les paramètres|Save|Enregistrer/i }).last();
-            if (!(await save.isVisible().catch(() => false))) await fail('Field save button not found.');
-            await Promise.all([
-              page.waitForLoadState('domcontentloaded'),
-              save.click(),
-            ]);
-            if (/error|erreur/i.test(await page.locator('[data-drupal-messages], .messages--error').allInnerTexts().then((v) => v.join('\n')).catch(() => ''))) {
-              await fail('Drupal reported an error while saving field configuration.');
-            }
-          }
-
-          async function configureField({ route, typePattern, baseFieldValue, prompt, screenshotName }) {
+          async function configureAutomator({ route, typePattern, baseFieldValue, prompt, screenshotName }) {
             await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded' });
-            const enabled = await requireLabeled(/Enable AI Automator|Activer.*AI Automator/i, 'Enable AI Automator');
+
+            const enabled = await labeled(/Enable AI Automator|Activer.*AI Automator/i);
+            if (!enabled) await fail('Enable AI Automator control not found.');
             if (!(await enabled.isChecked())) await enabled.check();
 
-            const type = await requireLabeled(/Choose AI Automator Type|AI Automator Type|Type.*AI Automator/i, 'AI Automator Type');
-            await chooseByLabel(type, typePattern, 'AI Automator Type');
-            await page.waitForTimeout(400);
+            const type = await labeled(/Choose AI Automator Type|AI Automator Type|Type.*AI Automator/i);
+            if (!type) await fail('AI Automator Type control not found.');
+            const typeOptions = await type.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
+            const typeMatch = typeOptions.find((option) => typePattern.test(option.label));
+            if (!typeMatch) await fail(`Required Automator type missing: ${typePattern}`);
+            await type.selectOption(typeMatch.value);
+            await page.waitForTimeout(350);
 
-            const inputMode = await firstVisibleByLabel(/Base Mode|Mode de base/i);
-            if (inputMode) {
-              if (await inputMode.getAttribute('type') === 'radio') await inputMode.check();
-              else if (await inputMode.evaluate((el) => el.tagName === 'SELECT')) await chooseByLabel(inputMode, /Base/i, 'Automator Input Mode');
-            }
+            const baseMode = await labeled(/Base Mode|Mode de base/i);
+            if (baseMode && (await baseMode.getAttribute('type')) === 'radio' && !(await baseMode.isChecked())) await baseMode.check();
 
             if (baseFieldValue) {
-              const baseField = await requireLabeled(/Automator Base Field|Champ de base.*Automator/i, 'Automator Base Field');
-              await chooseByValue(baseField, baseFieldValue, 'Automator Base Field');
+              const baseField = await labeled(/Automator Base Field|Champ de base.*Automator/i);
+              if (!baseField) await fail('Automator Base Field control not found.');
+              await selectMachineValue(baseField, baseFieldValue, 'Automator Base Field');
             }
 
-            const promptField = await firstVisibleByLabel(/Automator Prompt|Prompt.*Automator|Invite.*Automator/i);
+            const promptField = await labeled(/Automator Prompt|Prompt.*Automator|Invite.*Automator/i);
             if (promptField) await promptField.fill(prompt);
 
-            await openAdvancedSettings();
-            const worker = await requireLabeled(/Automator Worker|Worker.*Automator|Traitement.*Automator/i, 'Automator Worker');
-            await chooseByLabel(worker, /Field Widget/i, 'Automator Worker');
+            const advanced = await openDetails(page.locator('body'), /Advanced Settings|Paramètres Avancés/i, 'Automator Advanced Settings');
+            await selectWithOption(advanced, /^Field Widget\b/i, 'Automator Worker = Field Widget');
 
-            const provider = await firstVisibleByLabel(/AI Provider|Provider|Fournisseur/i);
-            if (provider && await provider.evaluate((el) => el.tagName === 'SELECT')) {
-              const options = await provider.locator('option').evaluateAll((nodes) => nodes.map((n) => ({ value: n.value, label: n.textContent.trim() })));
-              const defaultOption = options.find((option) => /default|défaut/i.test(option.label) || option.value === '');
-              if (defaultOption) await provider.selectOption(defaultOption.value);
-            }
+            // Keep provider/model environment-owned. Do not choose OpenAI or any concrete model here.
+            const provider = await firstVisible(advanced.locator('select').filter({ has: advanced.locator('option') }));
+            void provider;
 
             await screenshot(screenshotName);
-            await saveField();
+            const save = await firstVisible(page.getByRole('button', { name: /Save settings|Enregistrer les paramètres|Save|Enregistrer/i }));
+            if (!save) await fail('Field settings save button not found.');
+            await save.click();
+            await page.waitForLoadState('domcontentloaded');
+            const errors = await page.locator('.messages--error, [data-drupal-messages] .messages--error').allInnerTexts().catch(() => []);
+            if (errors.length) await fail(`Drupal rejected Automator configuration: ${errors.join(' | ')}`);
           }
 
-          async function openWidgetSettings(fieldName) {
+          async function openWidgetRow(fieldName, fallbackText) {
             await page.goto(`${baseURL}/admin/structure/types/manage/article/form-display`, { waitUntil: 'domcontentloaded' });
-            const row = page.locator(`tr[data-drupal-selector*="${fieldName.replaceAll('_', '-')}"]`).first();
-            if (!(await row.isVisible().catch(() => false))) {
-              const fallback = page.locator('tr').filter({ hasText: fieldName === 'field_short_description' ? /Description courte/i : /Image principale/i }).first();
-              if (!(await fallback.isVisible().catch(() => false))) await fail(`Form display row not found for ${fieldName}`);
-              const button = fallback.getByRole('button', { name: /settings|paramètres|configure|configurer/i }).last();
-              if (!(await button.isVisible().catch(() => false))) await fail(`Widget settings button not found for ${fieldName}`);
-              await button.click();
-              return fallback;
-            }
-            const button = row.getByRole('button', { name: /settings|paramètres|configure|configurer/i }).last();
-            if (await button.isVisible().catch(() => false)) {
-              await button.click();
+            let row = await firstVisible(page.locator(`tr[data-drupal-selector*="${fieldName.replaceAll('_', '-')}"]`));
+            if (!row) row = await firstVisible(page.locator('tr').filter({ hasText: fallbackText }));
+            if (!row) await fail(`Form display row missing for ${fieldName}`);
+
+            const edit = await firstVisible(row.locator('button, input[type="submit"]').filter({ hasText: /settings|paramètres|configure|configurer|edit|modifier/i }));
+            if (edit) {
+              await edit.click();
             } else {
-              const toggle = row.locator('[data-drupal-selector$="settings-edit"], input[value="Edit"], input[value="Modifier"]').last();
-              if (!(await toggle.isVisible().catch(() => false))) await fail(`Widget settings toggle not found for ${fieldName}`);
+              const candidates = row.locator('[data-drupal-selector$="settings-edit"], input[value="Edit"], input[value="Modifier"]');
+              const toggle = await firstVisible(candidates);
+              if (!toggle) await fail(`Widget settings trigger missing for ${fieldName}`, row);
               await toggle.click();
             }
+            await page.waitForTimeout(700);
             return row;
           }
 
-          async function addFieldWidgetAction({ fieldName, actionPattern, buttonLabel, automatorPattern, screenshotName }) {
-            const row = await openWidgetSettings(fieldName);
-            await page.waitForTimeout(500);
-            const scope = row;
-
-            const addSelect = scope.locator('select').filter({ has: page.locator('option') }).filter({ hasText: /Automator|Action/i }).last();
-            if (!(await addSelect.isVisible().catch(() => false))) {
-              console.log('ROW TEXT:', await scope.innerText());
-              await fail(`Field Widget Actions add selector not found for ${fieldName}`);
+          async function enableAutomatorChoice(scope, automatorPattern) {
+            const labeledChoice = await firstVisible(scope.getByLabel(automatorPattern));
+            if (labeledChoice) {
+              const type = await labeledChoice.getAttribute('type');
+              if (type === 'checkbox' || type === 'radio') {
+                if (!(await labeledChoice.isChecked())) await labeledChoice.check();
+                return;
+              }
+              if (await labeledChoice.evaluate((node) => node.tagName === 'SELECT')) {
+                const options = await labeledChoice.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
+                const match = options.find((option) => automatorPattern.test(option.label));
+                if (match) {
+                  await labeledChoice.selectOption(match.value);
+                  return;
+                }
+              }
             }
-            await chooseByLabel(addSelect, actionPattern, `Field Widget Action for ${fieldName}`);
 
-            const addButton = scope.getByRole('button', { name: /Add|Ajouter/i }).last();
-            if (!(await addButton.isVisible().catch(() => false))) await fail(`Add action button not found for ${fieldName}`);
-            await addButton.click();
-            await page.waitForTimeout(500);
+            const labels = scope.locator('label');
+            const count = await labels.count();
+            for (let index = 0; index < count; index += 1) {
+              const label = labels.nth(index);
+              if (!automatorPattern.test((await label.innerText().catch(() => '')).trim())) continue;
+              const forId = await label.getAttribute('for');
+              if (!forId) continue;
+              const input = scope.locator(`#${CSS.escape(forId)}`);
+              if (await input.isVisible().catch(() => false)) {
+                if (!(await input.isChecked().catch(() => false))) await input.check();
+                return;
+              }
+            }
 
-            const enable = scope.getByLabel(/Enable Automators|Activer.*Automator/i).last();
-            if (await enable.isVisible().catch(() => false)) await enable.check();
+            const selects = scope.locator('select');
+            const selectCount = await selects.count();
+            for (let index = 0; index < selectCount; index += 1) {
+              const select = selects.nth(index);
+              const options = await select.locator('option').evaluateAll((nodes) => nodes.map((node) => ({ value: node.value, label: node.textContent.trim() })));
+              const match = options.find((option) => automatorPattern.test(option.label));
+              if (match) {
+                await select.selectOption(match.value);
+                return;
+              }
+            }
+            await fail(`Automator choice missing: ${automatorPattern}`, scope);
+          }
 
-            const label = scope.getByLabel(/Button label|Libellé.*bouton/i).last();
-            if (await label.isVisible().catch(() => false)) await label.fill(buttonLabel);
+          async function configureWidgetAction({ fieldName, fallbackText, actionPattern, automatorPattern, buttonLabel, screenshotName }) {
+            const row = await openWidgetRow(fieldName, fallbackText);
+            const actionDetails = await openDetails(row, /Field Widget Actions/i, `Field Widget Actions settings for ${fieldName}`);
+            await selectWithOption(actionDetails, actionPattern, `action for ${fieldName}`);
 
-            const automator = scope.getByLabel(/Automator to use for suggestions|Automator.*suggest|Automator.*utiliser/i).last();
-            if (!(await automator.isVisible().catch(() => false))) await fail(`Automator selector not found for ${fieldName}`);
-            await chooseByLabel(automator, automatorPattern, `Automator selector for ${fieldName}`);
+            const add = await firstVisible(actionDetails.getByRole('button', { name: /Add action|Add|Ajouter/i }));
+            if (!add) await fail(`Add action button missing for ${fieldName}`, actionDetails);
+            await add.click();
+            await page.waitForTimeout(600);
+
+            const enable = await firstVisible(row.getByLabel(/Enable Automators|Activer.*Automator/i));
+            if (enable && !(await enable.isChecked())) await enable.check();
+
+            const buttonLabelInput = await firstVisible(row.getByLabel(/Button label|Libellé.*bouton/i));
+            if (buttonLabelInput) await buttonLabelInput.fill(buttonLabel);
+
+            const automatorDetails = await firstVisible(row.locator('details').filter({ hasText: /Enable an Automator|Automator/i }));
+            const automatorScope = automatorDetails ?? row;
+            if (automatorDetails && (await automatorDetails.getAttribute('open')) === null) await automatorDetails.locator('summary').click();
+            await enableAutomatorChoice(automatorScope, automatorPattern);
 
             await screenshot(screenshotName);
-            const update = scope.getByRole('button', { name: /Update|Mettre à jour|Apply|Appliquer/i }).last();
-            if (await update.isVisible().catch(() => false)) await update.click();
-            await page.waitForTimeout(300);
-
-            const save = page.getByRole('button', { name: /Save|Enregistrer/i }).last();
-            if (!(await save.isVisible().catch(() => false))) await fail('Form display save button not found.');
-            await Promise.all([page.waitForLoadState('domcontentloaded'), save.click()]);
+            const update = await firstVisible(row.getByRole('button', { name: /Update|Mettre à jour|Apply|Appliquer/i }));
+            if (update) {
+              await update.click();
+              await page.waitForTimeout(400);
+            }
+            const save = await firstVisible(page.getByRole('button', { name: /^Save$|^Enregistrer$/i }));
+            if (!save) await fail('Form display Save button missing.');
+            await save.click();
+            await page.waitForLoadState('domcontentloaded');
           }
 
           try {
             await page.goto(loginURL, { waitUntil: 'domcontentloaded' });
-            if (!/\/user\//.test(page.url()) && !/admin/.test(page.url())) await fail('One-time admin login failed.');
+            if (!/\/user\//.test(page.url()) && !/admin/.test(page.url())) await fail('One-time administrator login failed.');
 
-            await configureField({
+            await configureAutomator({
               route: '/admin/structure/types/manage/article/fields/node.article.field_short_description',
-              typePattern: /LLM:\s*Text.*simple.*Text Long|LLM:\s*Text.*simple/i,
+              typePattern: /LLM:\s*Text.*simple/i,
               baseFieldValue: 'body',
               prompt: 'Create a concise editorial short description from the article body in the same language as the source. Return one or two short sentences only. Do not invent facts. Return plain text without Markdown or HTML.',
               screenshotName: 'short-description-field-config',
             });
 
-            await configureField({
+            await configureAutomator({
               route: '/admin/structure/types/manage/article/fields/node.article.field_feature_image',
-              typePattern: /LLM:\s*Image Alt Text|Image Alt Text/i,
+              typePattern: /Image Alt Text/i,
               baseFieldValue: null,
               prompt: 'Write concise, meaningful alternative text in the same language as the article. Describe only relevant visible information. Do not start with “image of” and do not invent details or add SEO keyword stuffing.',
               screenshotName: 'feature-image-field-config',
             });
 
-            await addFieldWidgetAction({
+            await configureWidgetAction({
               fieldName: 'field_short_description',
+              fallbackText: /Description courte/i,
               actionPattern: /Automator Text Suggestion|Automator Text/i,
-              buttonLabel: 'Générer le résumé',
               automatorPattern: /Description courte.*Default|Short description.*Default|field_short_description/i,
+              buttonLabel: 'Générer le résumé',
               screenshotName: 'short-description-widget-action',
             });
 
-            await addFieldWidgetAction({
+            await configureWidgetAction({
               fieldName: 'field_feature_image',
+              fallbackText: /Image principale/i,
               actionPattern: /Alt Text|Alternative text|texte alternatif/i,
-              buttonLabel: 'Générer le texte alternatif',
               automatorPattern: /Image principale.*Default|Feature image.*Default|field_feature_image/i,
+              buttonLabel: 'Générer le texte alternatif',
               screenshotName: 'feature-image-widget-action',
             });
 

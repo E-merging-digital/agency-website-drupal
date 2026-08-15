@@ -1,0 +1,89 @@
+name: Issue 381 Clean Config Proof
+
+on:
+  push:
+    branches:
+      - feature/issue-381-ai-automators-article-field-widget
+
+permissions:
+  contents: write
+
+jobs:
+  prove:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout clean issue branch
+        uses: actions/checkout@v5
+        with:
+          ref: feature/issue-381-ai-automators-article-field-widget
+          fetch-depth: 0
+
+      - name: Setup DDEV
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          version: 1.25.3
+          autostart: false
+
+      - name: Fresh install from canonical config
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start
+          ddev composer install --no-interaction --prefer-dist --no-progress
+          if ! ddev drush site:install --existing-config -y > /tmp/issue-381-clean-install.log 2>&1; then
+            cat /tmp/issue-381-clean-install.log >&2
+            exit 1
+          fi
+          echo 'Fresh Drupal install succeeded; generated administrator credentials intentionally suppressed.'
+          rm -f /tmp/issue-381-clean-install.log
+
+      - name: Verify Automators contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush pm:list --status=enabled --type=module --field=name | grep -Fx ai_automators
+          ddev drush pm:list --status=enabled --type=module --field=name | grep -Fx field_widget_actions
+
+          short_worker="$(ddev drush cget ai_automators.ai_automator.node.article.field_short_description.default automator_rule.plugin_config.automator_worker_type --format=string)"
+          image_worker="$(ddev drush cget ai_automators.ai_automator.node.article.field_feature_image.default automator_rule.plugin_config.automator_worker_type --format=string)"
+          test "$short_worker" = 'field_widget_actions'
+          test "$image_worker" = 'field_widget_actions'
+
+          short_model="$(ddev drush cget ai_automators.ai_automator.node.article.field_short_description.default automator_rule.plugin_config.automator_ai_model --format=string)"
+          image_model="$(ddev drush cget ai_automators.ai_automator.node.article.field_feature_image.default automator_rule.plugin_config.automator_ai_model --format=string)"
+          test -z "$short_model"
+          test -z "$image_model"
+
+          ddev drush cget core.entity_form_display.node.article.default content.field_short_description.third_party_settings.field_widget_actions
+          ddev drush cget core.entity_form_display.node.article.default content.field_feature_image.third_party_settings.field_widget_actions
+
+      - name: Prove canonical configuration is clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush cr
+          status="$(ddev drush config:status --format=list 2>/dev/null || true)"
+          if [[ -n "$status" ]]; then
+            echo 'Unexpected configuration drift after fresh install:' >&2
+            echo "$status" >&2
+            exit 1
+          fi
+          git diff --check
+          git status --short
+
+      - name: Remove temporary proof workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/issue-381-clean-config-proof.yml
+          git commit -m 'Issue #381: record clean canonical config proof'
+          git push origin HEAD:feature/issue-381-ai-automators-article-field-widget
+
+      - name: Stop DDEV
+        if: always()
+        run: ddev delete -Oy || true

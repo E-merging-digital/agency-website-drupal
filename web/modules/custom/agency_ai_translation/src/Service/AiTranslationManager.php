@@ -6,6 +6,7 @@ namespace Drupal\agency_ai_translation\Service;
 
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
+use Drupal\Core\Entity\EntityPublishedInterface;
 
 /**
  * Orchestre la traduction éditoriale FR -> EN pour noeuds et paragraphs.
@@ -61,6 +62,10 @@ final class AiTranslationManager {
       : $entity->addTranslation($targetLangcode);
 
     $translatedCount = $this->translateFields($sourceEntity, $translatedEntity, $sourceLangcode, $targetLangcode);
+
+    if ($translatedEntity instanceof EntityPublishedInterface) {
+      $translatedEntity->setUnpublished();
+    }
 
     $this->preparePathAliasGeneration($translatedEntity, $targetLangcode);
     $translatedEntity->getUntranslated()->save();

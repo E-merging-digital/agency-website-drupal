@@ -8,25 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\emerging_digital_content\MainNavigationManager;
 use Drupal\node\NodeInterface;
-
-/**
- * Implements hook_modules_installed().
- *
- * Drupal 11.2+ can install modules in bulk before the final installed state is
- * available to hook_install(). Re-ensuring the idempotent content-entity menu
- * links here guarantees the public navigation after the install batch finishes.
- */
-function emerging_digital_content_modules_installed(array $modules, bool $is_syncing): void {
-  unset($is_syncing);
-
-  if (!in_array('emerging_digital_content', $modules, TRUE)) {
-    return;
-  }
-
-  MainNavigationManager::ensureMainNavigationLinks();
-}
 
 /**
  * Implements hook_form_alter().

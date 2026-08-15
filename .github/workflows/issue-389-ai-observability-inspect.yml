@@ -1,0 +1,73 @@
+name: Issue 389 AI Observability inspection
+
+on:
+  push:
+    branches:
+      - feature/issue-389-drupal-ai-observability-baseline
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-ai-observability:
+    runs-on: ubuntu-latest
+    env:
+      ARTIFACT_DIR: artifacts/issue-389-ai-observability
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install exact repository lock
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Capture locked AI Observability source
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_DIR"
+          composer show drupal/ai > "$ARTIFACT_DIR/composer-show-ai.txt"
+          grep -F 'versions' "$ARTIFACT_DIR/composer-show-ai.txt" | grep -F '1.4.6'
+          test -d web/modules/contrib/ai/modules/ai_observability
+          cp -a web/modules/contrib/ai/modules/ai_observability "$ARTIFACT_DIR/ai_observability-source"
+          find web/modules/contrib/ai/modules/ai_observability -maxdepth 6 -type f -print | sort > "$ARTIFACT_DIR/source-files.txt"
+
+      - name: Record privacy and telemetry signals
+        run: |
+          set -euo pipefail
+          {
+            echo '=== info ==='
+            cat web/modules/contrib/ai/modules/ai_observability/ai_observability.info.yml
+            echo
+            echo '=== default config ==='
+            find web/modules/contrib/ai/modules/ai_observability/config -type f -maxdepth 3 -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
+            echo
+            echo '=== services ==='
+            cat web/modules/contrib/ai/modules/ai_observability/ai_observability.services.yml 2>/dev/null || true
+            echo
+            echo '=== routes / permissions ==='
+            cat web/modules/contrib/ai/modules/ai_observability/ai_observability.routing.yml 2>/dev/null || true
+            cat web/modules/contrib/ai/modules/ai_observability/ai_observability.permissions.yml 2>/dev/null || true
+            echo
+            echo '=== logging fields and sensitive payload signals ==='
+            grep -RniE 'prompt|input|output|response|token|provider|model|duration|latency|cost|price|user|uid|request|metadata|context|logger|telemetry|otel|trace|span|rate' web/modules/contrib/ai/modules/ai_observability || true
+          } > "$ARTIFACT_DIR/observability-signals.txt"
+
+      - name: Verify inspection did not mutate repository state
+        run: |
+          set -euo pipefail
+          git status --short
+          test -z "$(git status --porcelain)"
+
+      - name: Upload exact-source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-389-ai-observability-${{ github.run_id }}
+          path: artifacts/issue-389-ai-observability
+          retention-days: 14

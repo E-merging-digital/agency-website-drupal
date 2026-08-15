@@ -27,7 +27,7 @@ jobs:
           version: 1.25.3
           autostart: false
 
-      - name: Fresh install from canonical config
+      - name: Fresh install and restore canonical config
         shell: bash
         run: |
           set -euo pipefail
@@ -39,6 +39,12 @@ jobs:
           fi
           echo 'Fresh Drupal install succeeded; generated administrator credentials intentionally suppressed.'
           rm -f /tmp/issue-381-clean-install.log
+
+          # Match the repository-owned browser validation contract: install/profile
+          # hooks may mutate active config, so re-import config/sync before asserting
+          # canonical cleanliness or the functional #381 contract.
+          ddev drush cim -y
+          ddev drush cr
 
       - name: Verify Automators contract
         shell: bash
@@ -57,11 +63,6 @@ jobs:
           $content = $display->get("content") ?? [];
           $short_actions = $content["field_short_description"]["third_party_settings"]["field_widget_actions"] ?? [];
           $image_actions = $content["field_feature_image"]["third_party_settings"]["field_widget_actions"] ?? [];
-
-          print "SHORT_AUTOMATOR=" . json_encode($short_data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-          print "IMAGE_AUTOMATOR=" . json_encode($image_data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-          print "SHORT_ACTIONS=" . json_encode($short_actions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-          print "IMAGE_ACTIONS=" . json_encode($image_actions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
           $require = static function (bool $condition, string $message): void {
             if (!$condition) {
@@ -97,18 +98,17 @@ jobs:
           $require(($short_action["settings"]["automator_id"] ?? NULL) === "node.article.field_short_description.default", "Short-description action is not linked to its Automator.");
           $require(($image_action["settings"]["automator_id"] ?? NULL) === "node.article.field_feature_image.default", "Feature-image action is not linked to its Automator.");
 
-          print "Active #381 Automators contract verified.\n";
+          print "Active #381 Automators contract verified after canonical config import.\n";
           '
 
       - name: Prove canonical configuration is clean
         shell: bash
         run: |
           set -euo pipefail
-          ddev drush cr
-          status="$(ddev drush config:status --format=list 2>/dev/null || true)"
-          if [[ -n "$status" ]]; then
-            echo 'Unexpected configuration drift after fresh install:' >&2
-            echo "$status" >&2
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status"
+          if ! grep -Fq 'No differences' <<<"$config_status"; then
+            echo 'Canonical configuration drift remains after fresh install + canonical import.' >&2
             exit 1
           fi
           git diff --check

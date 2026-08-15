@@ -220,7 +220,7 @@ jobs:
             local config_status
             config_status="$(ddev drush config:status 2>&1)"
             printf '%s\n' "$config_status"
-            grep -Fq 'No differences between DB and sync directory.' <<<"$config_status"
+            grep -Fq 'No differences' <<<"$config_status"
           }
 
           ddev start -y

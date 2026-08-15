@@ -1,3 +1,7 @@
+uuid: 8d6bba0b-d68f-4135-97b6-579e1f5c419e
+langcode: en
+status: true
+dependencies: {  }
 id: agency_editorial_input_length
 label: 'Agency editorial input length'
 description: 'Blocks excessively long AI input before it reaches a provider.'

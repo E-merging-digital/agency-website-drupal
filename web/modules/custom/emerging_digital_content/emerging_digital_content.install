@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\emerging_digital_content\MainNavigationManager;
+use Drupal\menu_link_content\Entity\MenuLinkContent;
 
 /**
  * Implements hook_schema().
@@ -50,6 +51,120 @@ function emerging_digital_content_update_11001(array &$sandbox): string {
   }
 
   return 'Content Sync mapping table already exists.';
+}
+
+/**
+ * Adds Blog to the main navigation without rewriting unrelated links.
+ */
+function emerging_digital_content_update_11002(array &$sandbox): string {
+  unset($sandbox);
+
+  $changed = _emerging_digital_content_ensure_blog_navigation_position();
+
+  return sprintf('%d main navigation values were created or updated for Blog.', $changed);
+}
+
+/**
+ * Normalizes Blog and Contact weights relative to the existing navigation.
+ */
+function emerging_digital_content_update_11003(array &$sandbox): string {
+  unset($sandbox);
+
+  $changed = _emerging_digital_content_ensure_blog_navigation_position();
+
+  return sprintf('%d Blog navigation values were normalized.', $changed);
+}
+
+/**
+ * Ensures Blog immediately precedes Contact without reweighting other links.
+ */
+function _emerging_digital_content_ensure_blog_navigation_position(): int {
+  $storage = \Drupal::entityTypeManager()->getStorage('menu_link_content');
+  $all_ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->execute();
+  $all_links = $storage->loadMultiple($all_ids);
+
+  $max_other_weight = NULL;
+  foreach ($all_links as $link) {
+    $title = (string) $link->label();
+    if (in_array($title, ['Blog', 'Contact'], TRUE)) {
+      continue;
+    }
+
+    $weight = (int) $link->get('weight')->value;
+    $max_other_weight = $max_other_weight === NULL
+      ? $weight
+      : max($max_other_weight, $weight);
+  }
+
+  $blog_weight = ($max_other_weight ?? -1) + 1;
+  $contact_weight = $blog_weight + 1;
+  $changed = 0;
+
+  $blog_ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->condition('title', 'Blog')
+    ->execute();
+
+  if ($blog_ids) {
+    $blogs = array_values($storage->loadMultiple($blog_ids));
+    $blog = array_shift($blogs);
+
+    if ($blog instanceof MenuLinkContent) {
+      $link_item = $blog->get('link')->first();
+      $uri = $link_item ? ($link_item->getValue()['uri'] ?? '') : '';
+      if ($uri !== 'internal:/blog') {
+        $blog->set('link', ['uri' => 'internal:/blog']);
+        $changed++;
+      }
+      if (!(bool) $blog->get('enabled')->value) {
+        $blog->set('enabled', TRUE);
+        $changed++;
+      }
+      if ((int) $blog->get('weight')->value !== $blog_weight) {
+        $blog->set('weight', $blog_weight);
+        $changed++;
+      }
+      $blog->save();
+    }
+
+    foreach ($blogs as $duplicate) {
+      $duplicate->delete();
+      $changed++;
+    }
+  }
+  else {
+    MenuLinkContent::create([
+      'title' => 'Blog',
+      'menu_name' => 'main',
+      'link' => ['uri' => 'internal:/blog'],
+      'expanded' => FALSE,
+      'enabled' => TRUE,
+      'weight' => $blog_weight,
+    ])->save();
+    $changed++;
+  }
+
+  $contact_ids = \Drupal::entityQuery('menu_link_content')
+    ->accessCheck(FALSE)
+    ->condition('menu_name', 'main')
+    ->condition('title', 'Contact')
+    ->execute();
+
+  foreach ($storage->loadMultiple($contact_ids) as $contact) {
+    if ((int) $contact->get('weight')->value === $contact_weight) {
+      continue;
+    }
+
+    $contact->set('weight', $contact_weight);
+    $contact->save();
+    $changed++;
+  }
+
+  return $changed;
 }
 
 /**

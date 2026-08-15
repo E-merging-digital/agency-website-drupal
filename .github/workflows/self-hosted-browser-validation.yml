@@ -215,6 +215,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          verify_config_clean() {
+            local config_status
+            config_status="$(ddev drush config:status 2>&1)"
+            printf '%s\n' "$config_status"
+            grep -Fq 'No differences' <<<"$config_status"
+          }
+
           ddev start -y
           ddev composer install --no-interaction --no-progress --prefer-dist
 
@@ -222,12 +230,19 @@ jobs:
           ddev drush site:install --existing-config -y --account-pass="$admin_pass"
           unset admin_pass
 
+          # Module/profile install hooks can mutate active configuration after the
+          # initial install-time import. Re-import the repository-owned sync
+          # directory so the browser proof always starts from canonical config.
+          ddev drush cim -y
+          ddev drush cr
+          verify_config_clean
+
           ddev drush emerging:content-sync:validate
           ddev drush emerging:content-sync --all --dry-run
           ddev drush emerging:content-sync --all
           ddev drush cr
           ddev drush status
-          ddev drush config:status
+          verify_config_clean
 
       - name: Run unattended real-browser validation
         shell: bash

@@ -258,6 +258,7 @@ jobs:
           set +e
           ddev delete --omit-snapshot --yes
           rm -f .ddev/config.gate-browser-ci.yaml
+          git restore --worktree -- web/robots.txt
           if [[ "$LOCKFILE_WAS_PRESENT" == "false" ]]; then
             rm -f package-lock.json
           fi

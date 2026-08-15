@@ -31,15 +31,6 @@ final class AiInputLengthGuardrailTest extends KernelTestBase {
   ];
 
   /**
-   * Guardrail plugin settings are dynamic across AI Core patch releases.
-   *
-   * The project-level contract is asserted separately from config/sync.
-   *
-   * @var bool
-   */
-  protected $strictConfigSchema = FALSE;
-
-  /**
    * Verifies the configured character boundary passes and then stops.
    */
   public function testCharacterLimitStopsBeforeProviderUse(): void {

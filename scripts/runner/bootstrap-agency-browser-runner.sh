@@ -21,7 +21,7 @@ RUNNER_DIR="/opt/actions-runner-agency"
 RUNNER_NAME="${AGENCY_RUNNER_NAME:-agency-browser-runner-01}"
 RUNNER_LABELS="agency,ddev,browser"
 
-for command in apt-get curl tar sha256sum docker ddev runuser openssl; do
+for command in apt-get curl tar sha256sum docker ddev runuser openssl getent; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Missing prerequisite on host: $command" >&2
     exit 1
@@ -38,7 +38,25 @@ if [[ "${ID:-}" != "ubuntu" || "${VERSION_ID:-}" != "24.04" ]]; then
 fi
 
 docker info >/dev/null
-ddev version
+
+# DDEV deliberately refuses to run as root. Validate it under the sudo caller
+# before making any host mutation, then validate it again under agency-runner at
+# the end of the bootstrap.
+DDEV_CHECK_USER="${SUDO_USER:-}"
+if [[ -z "$DDEV_CHECK_USER" || "$DDEV_CHECK_USER" == "root" ]]; then
+  echo "Run this script through sudo from a non-root account so DDEV can be validated safely." >&2
+  exit 1
+fi
+if ! id "$DDEV_CHECK_USER" >/dev/null 2>&1; then
+  echo "Unable to resolve sudo caller for DDEV validation: $DDEV_CHECK_USER" >&2
+  exit 1
+fi
+DDEV_CHECK_HOME="$(getent passwd "$DDEV_CHECK_USER" | cut -d: -f6)"
+if [[ -z "$DDEV_CHECK_HOME" ]]; then
+  echo "Unable to resolve home directory for DDEV validation user: $DDEV_CHECK_USER" >&2
+  exit 1
+fi
+runuser -u "$DDEV_CHECK_USER" -- env HOME="$DDEV_CHECK_HOME" ddev version
 
 if [[ -z "${AGENCY_RUNNER_REGISTRATION_TOKEN:-}" ]]; then
   if [[ ! -t 0 ]]; then

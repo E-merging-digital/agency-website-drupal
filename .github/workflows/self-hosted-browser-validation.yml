@@ -42,13 +42,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          case "$GITHUB_ACTOR" in
-            E-merging-digital|github-actions[bot]) ;;
-            *)
-              echo "Refusing self-hosted dispatch actor: $GITHUB_ACTOR" >&2
-              exit 1
-              ;;
-          esac
+          if [[ "$GITHUB_ACTOR" != "E-merging-digital" && "$GITHUB_ACTOR" != "github-actions[bot]" ]]; then
+            echo "Refusing self-hosted dispatch actor: $GITHUB_ACTOR" >&2
+            exit 1
+          fi
 
           if [[ ! "$REQUEST_ID" =~ ^[A-Za-z0-9._-]{8,80}$ ]]; then
             echo "Invalid request_id." >&2

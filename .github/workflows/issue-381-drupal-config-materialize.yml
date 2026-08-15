@@ -113,6 +113,17 @@ jobs:
             await banner.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
           }
 
+          async function waitForAutomatorAjax(description) {
+            const advancedSummary = page.locator('summary').filter({ hasText: /Advanced Settings|Paramètres Avancés/i }).last();
+            try {
+              await advancedSummary.waitFor({ state: 'visible', timeout: 15000 });
+              await page.locator('.ajax-progress, .ajax-progress-throbber').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+              await page.waitForTimeout(150);
+            } catch {
+              await fail(`Drupal Automator AJAX did not finish after selecting ${description}.`);
+            }
+          }
+
           async function openDetails(scope, pattern, description) {
             const summary = await firstVisible(scope.locator('summary').filter({ hasText: pattern }));
             if (!summary) await fail(`Missing ${description}.`, scope);
@@ -156,7 +167,7 @@ jobs:
             const type = await firstVisible(page.getByLabel(/Choose AI Automator Type|AI Automator Type|Type.*AI Automator/i));
             if (!type) await fail('AI Automator Type control not found.');
             await selectOptionMatching(type, typePattern, 'AI Automator Type');
-            await page.waitForTimeout(350);
+            await waitForAutomatorAjax(typePattern.toString());
 
             const baseMode = await firstVisible(page.getByLabel(/Base Mode|Mode de base/i));
             if (baseMode && (await baseMode.getAttribute('type')) === 'radio' && !(await baseMode.isChecked())) await baseMode.check();

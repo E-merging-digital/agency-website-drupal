@@ -119,6 +119,10 @@ runs-on:
   - browser
 ```
 
+Node n'est pas un prérequis global de la VM. Le job utilise
+`actions/setup-node@v6` avec Node 24, puis `npm ci` et installe uniquement le
+Chromium correspondant au lockfile/Playwright du projet.
+
 ## 4. État Drupal reproductible
 
 Aucun dump local n'est utilisé.
@@ -127,6 +131,7 @@ Chaque run crée un nom DDEV éphémère avec un `config.*.yaml` local, puis :
 
 ```text
 checkout exact
+-> actions/setup-node Node 24
 -> npm ci
 -> Chromium Playwright
 -> ddev start
@@ -198,12 +203,16 @@ Retention initiale : 14 jours.
 La machine cible est `preflight-runner-01`, déjà prouvée pour Docker et DDEV.
 Le bootstrap vérifie aussi :
 
-- `curl`, `tar`, `sha256sum` ;
+- Ubuntu 24.04 exact ;
+- `apt-get`, `curl`, `tar`, `sha256sum` ;
 - Docker fonctionnel ;
 - DDEV fonctionnel ;
-- Node.js >= 20 et npm ;
-- accès réseau à GitHub/npm ;
+- accès réseau à GitHub ;
 - droits root pour l'installation one-shot.
+
+**Node/npm ne sont pas requis sur l'hôte.** La version Node est apportée par
+`actions/setup-node@v6` dans chaque job, ce qui évite un runtime Node global
+mutable sur la VM.
 
 Le script :
 
@@ -224,9 +233,11 @@ runner = agency-browser-runner-01
 labels = agency,ddev,browser (+ labels GitHub par défaut)
 ```
 
-Il ajoute uniquement `agency-runner` au groupe Docker et installe une fois les
-dépendances système Chromium requises par Playwright. Aucun `sudo` n'est donné
-au compte runner pour les jobs ordinaires.
+Il ajoute uniquement `agency-runner` au groupe Docker et installe une fois, via
+`apt-get`, les groupes `tools + chromium` déclarés par Playwright 1.62.1 pour
+`ubuntu24.04-x64`. Aucun `sudo` n'est donné au compte runner pour les jobs
+ordinaires. Les binaires Chromium sont téléchargés sous le compte runner par le
+workflow et restent indépendants du bootstrap système.
 
 ### Seul gate humain de provisioning
 
@@ -291,7 +302,7 @@ workflow GitHub-hosted vérifie et déclenche la browser validation.
 
 ## 9. Première preuve unattended
 
-Une fois #399 et #400 présents sur `main` :
+Une fois #399 et les workflows #400 présents sur `main` :
 
 1. créer/mettre à jour la requête de contrôle avec `pr_number=0` et le SHA exact
    de `main` ;
@@ -309,13 +320,18 @@ Ce run constitue la preuve DoD « unattended Agency réel ».
 
 MCP est optionnel et ne participe jamais au verdict CI.
 
-Sur la machine Agency, la voie préférée pour un agent local est **stdio** :
+Sur la machine Agency, la voie préférée pour un agent local est **stdio**. Node
+sera fourni explicitement à la session d'agent (ou par un runtime gouverné) avant
+d'enregistrer le serveur MCP ; le runner système n'a pas besoin de Node global.
 
-```bash
-codex mcp add playwright npx "@playwright/mcp@latest"
+Configuration cible conceptuelle :
+
+```text
+Codex CLI local
+-> Playwright MCP en stdio
+-> Chromium
+-> Agency DDEV
 ```
-
-ou configuration Codex équivalente.
 
 Le serveur Playwright MCP officiel utilise localhost par défaut lorsqu'un
 transport réseau est demandé. Agency interdit :

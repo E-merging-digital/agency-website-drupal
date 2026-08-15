@@ -84,7 +84,13 @@ async function logIn(page, username, password) {
   await page.locator('input[name="name"]').fill(username);
   await page.locator('input[name="pass"]').fill(password);
   await page.locator('#edit-submit').click();
-  await page.waitForLoadState('domcontentloaded');
+  await expect(
+    page.getByRole('heading', {
+      name: username,
+      level: 1,
+    }),
+    'A successful Drupal login must land on the authenticated user page.',
+  ).toBeVisible({ timeout: 15_000 });
 }
 
 async function openArticleForm(page) {
@@ -110,6 +116,7 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
     page,
     baseURL,
   }, testInfo) => {
+    test.setTimeout(90_000);
     test.skip(
       testInfo.project.name !== 'desktop',
       'The authenticated admin proof is intentionally desktop-only.',
@@ -209,7 +216,6 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
       await page.locator('input[name="title[0][value]"]').fill(title);
       await editable.fill('Contenu éditorial saisi sans provider AI configuré.');
       await page.locator('#edit-submit').click();
-      await page.waitForLoadState('domcontentloaded');
       await expect(
         page.getByRole('heading', {
           name: title,

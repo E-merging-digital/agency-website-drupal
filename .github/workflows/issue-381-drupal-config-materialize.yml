@@ -109,6 +109,13 @@ jobs:
             await select.selectOption(match.value);
           }
 
+          async function chooseByValue(select, value, description) {
+            const options = await select.locator('option').evaluateAll((nodes) => nodes.map((n) => ({ value: n.value, label: n.textContent.trim() })));
+            console.log(description, options);
+            if (!options.some((option) => option.value === value)) await fail(`Missing machine value for ${description}: ${value}`);
+            await select.selectOption(value);
+          }
+
           async function saveField() {
             const save = page.getByRole('button', { name: /Save settings|Enregistrer les paramètres|Save|Enregistrer/i }).last();
             if (!(await save.isVisible().catch(() => false))) await fail('Field save button not found.');
@@ -121,7 +128,7 @@ jobs:
             }
           }
 
-          async function configureField({ route, typePattern, baseFieldPattern, prompt, screenshotName }) {
+          async function configureField({ route, typePattern, baseFieldValue, prompt, screenshotName }) {
             await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded' });
             const enabled = await requireLabeled(/Enable AI Automator|Activer.*AI Automator/i, 'Enable AI Automator');
             if (!(await enabled.isChecked())) await enabled.check();
@@ -136,9 +143,9 @@ jobs:
               else if (await inputMode.evaluate((el) => el.tagName === 'SELECT')) await chooseByLabel(inputMode, /Base/i, 'Automator Input Mode');
             }
 
-            if (baseFieldPattern) {
+            if (baseFieldValue) {
               const baseField = await requireLabeled(/Automator Base Field|Champ de base.*Automator/i, 'Automator Base Field');
-              await chooseByLabel(baseField, baseFieldPattern, 'Automator Base Field');
+              await chooseByValue(baseField, baseFieldValue, 'Automator Base Field');
             }
 
             const promptField = await firstVisibleByLabel(/Automator Prompt|Prompt.*Automator|Invite.*Automator/i);
@@ -224,7 +231,7 @@ jobs:
             await configureField({
               route: '/admin/structure/types/manage/article/fields/node.article.field_short_description',
               typePattern: /LLM:\s*Text.*simple.*Text Long|LLM:\s*Text.*simple/i,
-              baseFieldPattern: /^Body$|^Corps$/i,
+              baseFieldValue: 'body',
               prompt: 'Create a concise editorial short description from the article body in the same language as the source. Return one or two short sentences only. Do not invent facts. Return plain text without Markdown or HTML.',
               screenshotName: 'short-description-field-config',
             });
@@ -232,7 +239,7 @@ jobs:
             await configureField({
               route: '/admin/structure/types/manage/article/fields/node.article.field_feature_image',
               typePattern: /LLM:\s*Image Alt Text|Image Alt Text/i,
-              baseFieldPattern: null,
+              baseFieldValue: null,
               prompt: 'Write concise, meaningful alternative text in the same language as the article. Describe only relevant visible information. Do not start with “image of” and do not invent details or add SEO keyword stuffing.',
               screenshotName: 'feature-image-field-config',
             });

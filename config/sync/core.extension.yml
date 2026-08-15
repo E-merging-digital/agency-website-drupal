@@ -4,6 +4,7 @@ module:
   admin_toolbar: 0
   agency_ai_translation: 0
   ai: 0
+  ai_ckeditor: 0
   ai_provider_openai: 0
   announcements_feed: 0
   automated_cron: 0

@@ -1,144 +1,157 @@
 # Validation navigateur et UI
 
-## Pourquoi
+## Objectif
 
-Les tests Drupal existants restent la preuve de référence pour la logique serveur,
-la configuration et les parcours couverts par `BrowserTestBase`. Ils ne remplacent
-pas l'observation d'un vrai navigateur JavaScript.
+Les tests Drupal existants restent la preuve de référence pour la logique
+serveur, la configuration et les parcours couverts par `BrowserTestBase`.
+Agency dispose en complément d'une validation dans un vrai navigateur
+JavaScript pour les changements visibles ou interactifs.
 
-La validation navigateur ajoute une preuve complémentaire pour les changements
-visibles ou interactifs :
+La chaîne de preuve cible est :
 
 ```text
-implémentation
+implementation
 -> tests techniques ciblés
--> vrai navigateur
+-> vrai Chromium
 -> interaction
 -> DOM rendu
 -> console / erreurs page
 -> réseau same-origin
 -> desktop + mobile
--> preuve PASS / FAIL
+-> screenshots / traces
+-> PASS / FAIL
 ```
 
-Cette première capacité est volontairement petite. Elle n'est pas encore un
-merge gate et ne constitue pas une suite de visual regression pixel-perfect.
+La source de vérité sur les capacités machine disponibles est :
 
-## Stack
+```text
+docs/operations/execution-capabilities.md
+```
+
+Tout agent doit la relire avant de conclure qu'un runner, Playwright,
+Playwright MCP ou Chrome DevTools MCP est indisponible.
+
+## Stack et capacités
+
+Le vertical slice reproductible utilise :
 
 - Playwright Test ;
-- Chromium uniquement pour le vertical slice initial ;
-- Node.js 20 ou plus récent ;
+- Chromium ;
+- Node.js 20+ (Node 24 sur le runner gouverné actuel) ;
 - DDEV comme environnement Agency réel ;
-- aucun MCP obligatoire.
+- desktop 1440x900 ;
+- mobile 390x844.
 
-Playwright MCP peut être utilisé par un agent pour l'inspection interactive, mais
-la validation reproductible décrite ici ne dépend jamais d'un LLM ou d'un MCP.
+Le runner auto-hébergé Agency dispose également de :
 
-## Installation
+```text
+Playwright MCP      = AVAILABLE
+Chrome DevTools MCP = AVAILABLE
+```
 
-Depuis la racine du projet :
+Ces MCP sont des capacités du project executor. Ils sont optionnels pour le
+diagnostic interactif et ne participent jamais au verdict reproductible CI.
+
+Invariant :
+
+```text
+operator-surface capability
+!=
+project-executor capability
+```
+
+L'absence d'un bouton ou d'un outil MCP directement visible dans un cockpit
+ChatGPT ne signifie donc pas que le MCP est absent du runner.
+
+## Exécution locale
+
+Depuis la racine :
 
 ```bash
-npm install
+npm ci
 npm run browser:install
-```
-
-La version de Playwright Test est épinglée dans `package.json`. Le navigateur
-Chromium doit être installé une fois par environnement avec
-`npm run browser:install`.
-
-Les binaires Node et les artefacts Playwright ne sont pas versionnés.
-
-## Lancer la preuve Agency réelle
-
-Démarrer d'abord Drupal :
-
-```bash
 ddev start
-```
-
-Puis :
-
-```bash
 npm run browser:validate
 ```
 
-Le runner :
+Le runner choisit la cible dans cet ordre :
 
-1. utilise `BROWSER_VALIDATION_BASE_URL`, `PLAYWRIGHT_BASE_URL` ou
-   `DDEV_PRIMARY_URL` si l'une de ces variables est définie ;
-2. sinon exécute `ddev describe -j` et détecte l'URL primaire ;
-3. attend que la cible du contrat réponde réellement ;
-4. lance Playwright contre cette URL ;
-5. exécute le scénario en desktop et mobile ;
-6. écrit un résultat machine-readable.
+1. `BROWSER_VALIDATION_BASE_URL` ;
+2. `PLAYWRIGHT_BASE_URL` ;
+3. `DDEV_PRIMARY_URL` ;
+4. sinon `ddev describe -j`.
 
-Pour forcer une autre cible d'environnement sans modifier le code :
+Pour forcer une cible :
 
 ```bash
 BROWSER_VALIDATION_BASE_URL=https://example.test npm run browser:validate
 ```
 
-Sous PowerShell :
-
-```powershell
-$env:BROWSER_VALIDATION_BASE_URL = "https://example.test"
-npm run browser:validate
-Remove-Item Env:BROWSER_VALIDATION_BASE_URL
-```
-
-## Lancer un seul contexte
-
-Exemple desktop :
+Exécution partielle :
 
 ```bash
 npm run browser:validate -- --project=desktop
-```
-
-Exemple mobile :
-
-```bash
 npm run browser:validate -- --project=mobile
 ```
 
-Un run partiel est utile pour diagnostiquer un problème, mais le contrat complet
-attend les deux projets pour une preuve finale.
+Un run partiel sert au diagnostic ; la preuve complète attend les deux projets.
 
-## Vertical slice initial
+## Exécution gouvernée sur le runner Agency
 
-Le contrat versionné est :
+La route unattended est documentée dans :
+
+```text
+docs/operations/agency-self-hosted-browser-runner.md
+```
+
+Elle reconstruit un environnement isolé :
+
+```text
+exact checkout
+-> Node / npm ci
+-> Playwright Chromium
+-> DDEV isolé
+-> Composer
+-> drush site:install --existing-config
+-> Content Sync validate / dry-run / apply
+-> browser validation
+-> GitHub artifacts
+-> cleanup DDEV / workspace propre
+```
+
+Le runner est `agency-browser-runner-01` sur `preflight-runner-01` et la route
+self-hosted reste trusted-dispatch-only.
+
+## Contrat public initial
+
+Le contrat est :
 
 ```text
 tests/browser/contracts/public-blog.json
 ```
 
-Il utilise un acteur `anonymous` et la cible `/fr/blog`.
+Acteur : `anonymous`. Cible : `/fr/blog`.
 
 Le scénario :
 
-- ouvre le Blog public Agency ;
-- vérifie la réponse HTTP initiale ;
-- vérifie le H1 et le `<main>` dans le DOM final ;
-- clique réellement `Services`, puis revient au Blog via la navigation ;
-- vérifie qu'il n'existe qu'un H1 ;
-- vérifie `lang="fr"` ;
+- ouvre réellement le Blog ;
+- vérifie le statut HTTP initial et le DOM ;
+- navigue `Services -> Blog` avec des locators sémantiques ;
+- vérifie le H1 et `lang="fr"` ;
 - détecte un débordement horizontal évident ;
-- collecte les erreurs console et les exceptions non gérées ;
-- collecte les réponses same-origin 4xx/5xx et requêtes réseau échouées ;
-- prend une capture pleine page desktop et mobile.
-
-Les sélecteurs privilégient les rôles et noms accessibles.
+- collecte erreurs console et exceptions page ;
+- collecte 4xx/5xx same-origin inattendus et requêtes échouées ;
+- produit une preuve desktop et mobile.
 
 ## Résultat machine-readable
 
-Le fichier principal est :
+La preuve principale est :
 
 ```text
 artifacts/browser-validation/result.json
 ```
 
-Exemple de forme :
+Forme attendue :
 
 ```json
 {
@@ -153,197 +166,100 @@ Exemple de forme :
 }
 ```
 
-Les verdicts possibles sont :
+Verdicts :
 
 - `PASS` : preuve complète réussie ;
-- `FAIL` : la validation a été exécutée et au moins un contrôle a échoué ;
-- `NOT_RUN` : l'environnement nécessaire n'était pas disponible.
+- `FAIL` : la validation a été exécutée et un contrôle a échoué ;
+- `NOT_RUN` : l'environnement requis n'était pas disponible.
 
-`NOT_RUN` ne doit jamais être interprété comme un succès.
+`NOT_RUN` n'est jamais un succès.
 
-## Preuves et diagnostic
+## Preuves et revue visuelle
 
-Les artefacts sont générés sous :
+Les artifacts peuvent contenir :
 
 ```text
-artifacts/browser-validation/
+artifacts/browser-validation/result.json
+artifacts/browser-validation/evidence/desktop.json
+artifacts/browser-validation/evidence/mobile.json
+artifacts/browser-validation/screenshots/*.png
+artifacts/browser-validation/test-results/**/test-failed-1.png
+artifacts/browser-validation/test-results/**/trace.zip
+playwright-report/
 ```
 
-Sur succès :
-
-- `result.json` ;
-- `evidence/desktop.json` ;
-- `evidence/mobile.json` ;
-- captures `screenshots/public-blog-desktop.png` et
-  `screenshots/public-blog-mobile.png`.
-
-Sur échec, Playwright conserve aussi sa sortie de test et une trace lorsque la
-création de trace a pu commencer. Les artefacts sont locaux et ignorés par Git.
-
-Pour ouvrir une trace :
-
-```bash
-npx playwright show-trace <chemin-vers-trace.zip>
-```
+Un agent peut récupérer ces artifacts GitHub et examiner lui-même les captures.
+La revue graphique ne dépend donc pas uniquement des assertions ou des logs.
 
 Ordre de diagnostic recommandé :
 
 1. lire `result.json` ;
 2. lire l'evidence du projet en échec ;
-3. ouvrir la capture ;
-4. examiner la trace ;
-5. identifier console, exception page ou requête fautive ;
-6. corriger ;
-7. relancer la validation.
+3. examiner la capture desktop/mobile ;
+4. examiner l'accessibility snapshot / error context ;
+5. ouvrir la trace si nécessaire ;
+6. utiliser Playwright MCP ou Chrome DevTools MCP sur le runner pour une
+   investigation interactive plus profonde si le cas le justifie ;
+7. corriger puis relancer la preuve reproductible.
 
-## Browser validation contract
+## Playwright MCP
 
-Un contrat reste un JSON simple contenant :
+Playwright MCP est disponible sur le runner Agency pour une boucle interactive :
 
-- `id` ;
-- `target` ;
-- `actor` ;
-- attentes humaines lisibles ;
-- catégories de checks ;
-- preuves attendues.
+- navigation ;
+- interaction ;
+- snapshot d'accessibilité ;
+- DOM rendu ;
+- diagnostic avant de formaliser un test.
 
-Il ne doit pas devenir un DSL. Le test Playwright porte la logique exécutable.
+Il complète Playwright Test mais ne le remplace pas.
 
-Pour une future tâche frontend, le ticket ou la PR peut exprimer le contrat ainsi :
+## Chrome DevTools MCP
 
-```text
-BROWSER VALIDATION
+Chrome DevTools MCP est également disponible sur le runner Agency. Il est
+pertinent lorsque le diagnostic nécessite davantage de profondeur DevTools,
+notamment :
 
-Target:
-<URL ou parcours>
+- console ;
+- réseau ;
+- CSS / layout ;
+- JavaScript/runtime ;
+- inspection navigateur détaillée.
 
-Actor:
-<anonymous | authenticated | role>
+Il n'est pas un prérequis de la browser validation déterministe.
 
-Expected:
-- comportement attendu
+## Authentification future
 
-Checks:
-- functional
-- rendered DOM
-- browser console
-- unexpected HTTP failures
-- desktop rendering
-- mobile rendering
+Le scénario public ne nécessite aucun secret.
 
-Evidence:
-- screenshots
-- machine-readable result
-- trace on failure
-```
-
-## Utilisation par un agent IA
-
-Après un changement frontend ou interactif, l'agent doit :
-
-1. identifier les pages réellement touchées ;
-2. exécuter les tests techniques ciblés utiles ;
-3. exécuter `npm run browser:validate` ou un contrat dédié ;
-4. lire `result.json` ;
-5. inspecter les captures desktop/mobile ;
-6. en cas d'échec, inspecter la trace, le DOM, la console et le réseau ;
-7. corriger puis relancer ;
-8. joindre le verdict et les preuves pertinentes à la PR.
-
-La règle cible est :
-
-```text
-frontend-impacting change
--> browser validation expected
-```
-
-Elle reste volontaire dans ce premier incrément. Elle pourra devenir un merge
-gate uniquement après stabilisation et preuve CI fiable.
-
-## Authentification et rôles Drupal
-
-Le vertical slice public ne nécessite aucun secret.
-
-Pour les futurs scénarios authentifiés, utiliser les primitives Playwright de
-`storageState` afin de créer une session puis la réutiliser dans un projet ou un
-contexte dédié.
-
-Les fichiers de session doivent rester sous :
+Pour les futurs parcours authentifiés, utiliser une session éphémère et
+Playwright `storageState` sous :
 
 ```text
 tests/browser/.auth/
 ```
 
-Ce dossier est ignoré par Git.
-
-Ne jamais :
-
-- committer un mot de passe, cookie ou état authentifié ;
-- imprimer les secrets dans les logs ;
-- capturer un écran contenant un secret ;
-- improviser une nouvelle gestion de secrets.
-
-Les rôles devront être ajoutés seulement lorsqu'un scénario réel le nécessite.
-
-## Playwright MCP
-
-Pour une inspection agent-driven interactive, Playwright MCP peut être lancé dans
-un client MCP compatible, par exemple :
-
-```bash
-npx @playwright/mcp@latest
-```
-
-Usage attendu :
-
-- ouvrir Agency ;
-- interagir ;
-- demander un snapshot d'accessibilité ;
-- inspecter le DOM rendu ;
-- diagnostiquer un état avant de formaliser ou corriger un test.
-
-MCP disponible n'implique jamais MCP requis pour CI.
-
-Chrome DevTools MCP n'est pas ajouté dans ce premier incrément : Playwright
-couvre déjà la preuve nécessaire. Il pourra être évalué plus tard uniquement si
-un besoin de diagnostic DevTools non couvert apparaît.
+Ce répertoire reste ignoré. Ne jamais committer ni publier comme artifact
+standard : mot de passe, cookie, état authentifié ou profil navigateur sensible.
 
 ## Accessibilité
 
-Cette capacité n'est pas encore un audit WCAG.
+Cette capacité n'est pas encore un audit WCAG exhaustif. Les locators
+sémantiques (`getByRole`) alignent déjà les interactions sur l'arbre
+d'accessibilité. Des contrôles dédiés pourront être ajoutés dans des tickets
+séparés.
 
-Le vertical slice utilise déjà des locators sémantiques (`getByRole`) afin que les
-interactions restent alignées sur l'arbre d'accessibilité. Une future tâche pourra
-ajouter axe ou des assertions ciblées sans refondre la base Playwright.
+## Politique de merge gate
 
-## CI
-
-La CI GitHub actuelle n'est pas modifiée dans ce premier incrément.
-
-Raison : elle exécute actuellement Drupal via serveur PHP + SQLite pour
-`BrowserTestBase`, et ne possède pas encore une installation Agency équivalente au
-DDEV réel. Rendre Playwright bloquant contre cet environnement incomplet
-donnerait une preuve trompeuse.
-
-Adoption prévue :
+La Browser Validation n'est pas encore un required check GitHub. La séquence est :
 
 ```text
-preuve DDEV locale
--> usage volontaire sur changements frontend
--> stabilisation
--> environnement CI navigateur fiable
--> upload des artefacts CI
--> éventuel merge gate
+runner opérationnel
+-> preuves réelles stables
+-> corrections des défauts de bootstrap
+-> plusieurs runs PASS
+-> décision séparée sur un éventuel required check
 ```
 
-## Limites actuelles
-
-- un seul contrat public de preuve ;
-- Chromium uniquement ;
-- aucun état authentifié versionné ;
-- pas de visual regression pixel-perfect ;
-- pas d'audit WCAG exhaustif ;
-- pas encore de job GitHub Actions navigateur.
-
-Ces limites sont intentionnelles : le but initial est de permettre à un agent de
-voir et vérifier réellement ce qu'il vient de développer.
+Pour tout changement frontend ou interactif significatif, la validation
+navigateur réelle et l'examen des preuves visuelles sont néanmoins attendus.

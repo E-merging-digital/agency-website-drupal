@@ -20,19 +20,24 @@ async function getVisiblePrimaryNavigationLink(page, name) {
     name: 'Ouvrir le menu principal',
     exact: true,
   });
-  const drawer = page.getByRole('dialog', {
-    name: 'Menu principal',
-    exact: true,
-  });
+  const drawer = page.locator('[data-mobile-nav-drawer]');
 
   await expect(toggle).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(drawer).toHaveAttribute('role', 'dialog');
+  await expect(drawer).toHaveAttribute('aria-label', 'Menu principal');
   await expect(drawer).toHaveAttribute('aria-hidden', 'true');
 
   await toggle.click();
 
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   await expect(drawer).toHaveAttribute('aria-hidden', 'false');
+  await expect(
+    page.getByRole('dialog', {
+      name: 'Menu principal',
+      exact: true,
+    }),
+  ).toBeVisible();
   await expect(link).toBeVisible();
 
   return link;

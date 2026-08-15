@@ -116,6 +116,16 @@ jobs:
             await select.selectOption(value);
           }
 
+          async function openAdvancedSettings() {
+            const summary = page.locator('summary').filter({ hasText: /Advanced Settings|Paramètres Avancés/i }).last();
+            if (!(await summary.isVisible().catch(() => false))) await fail('Automator Advanced Settings summary not found.');
+            const details = summary.locator('xpath=ancestor::details[1]');
+            if (!(await details.getAttribute('open'))) {
+              await summary.click();
+              await page.waitForTimeout(200);
+            }
+          }
+
           async function saveField() {
             const save = page.getByRole('button', { name: /Save settings|Enregistrer les paramètres|Save|Enregistrer/i }).last();
             if (!(await save.isVisible().catch(() => false))) await fail('Field save button not found.');
@@ -151,6 +161,7 @@ jobs:
             const promptField = await firstVisibleByLabel(/Automator Prompt|Prompt.*Automator|Invite.*Automator/i);
             if (promptField) await promptField.fill(prompt);
 
+            await openAdvancedSettings();
             const worker = await requireLabeled(/Automator Worker|Worker.*Automator|Traitement.*Automator/i, 'Automator Worker');
             await chooseByLabel(worker, /Field Widget/i, 'Automator Worker');
 

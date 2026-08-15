@@ -120,8 +120,7 @@ final class AiAutomatorsArticleConfigTest extends TestCase {
   }
 
   /**
-   * Verifies the module-owned status field remains an internal
-   * implementation detail.
+   * Verifies the internal Automator status field stays hidden.
    */
   public function testAutomatorStatusFieldIsHiddenFromArticleDisplays(): void {
     foreach (['default', 'teaser'] as $view_mode) {

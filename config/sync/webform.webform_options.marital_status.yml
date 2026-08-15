@@ -8,7 +8,11 @@ dependencies:
 _core:
   default_config_hash: cjVDbAE5BlopGrY-tfxsxMoyEibwBBNgdQwDdxOSkow
 id: marital_status
-label: 'Statut marital'
-category: Démographique
+label: 'Marital status'
+category: Demographic
 likert: false
-options: "Single: Célibataire\r\nMarried: Marié\r\nDivorced: Divorcé\r\nWidowed: Veuf(ve)\n"
+options: |
+  Single: Single
+  Married: Married
+  Divorced: Divorced
+  Widowed: Widowed

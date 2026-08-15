@@ -19,7 +19,7 @@ base_field: lid
 display:
   default:
     id: default
-    display_title: Principal
+    display_title: Master
     display_plugin: default
     position: 0
     display_options:
@@ -35,7 +35,7 @@ display:
           entity_type: linkcheckerlink
           entity_field: entity_field
           plugin_id: field
-          label: 'Champs entité'
+          label: 'Entity field'
           exclude: true
           alter:
             alter_text: false
@@ -100,7 +100,7 @@ display:
           entity_type: linkcheckerlink
           entity_field: entity_langcode
           plugin_id: field
-          label: "Langue de l'entité"
+          label: 'Entity language'
           exclude: true
           alter:
             alter_text: false
@@ -281,7 +281,7 @@ display:
           entity_type: linkcheckerlink
           entity_field: last_check
           plugin_id: field
-          label: 'Vérifié pour la dernière fois'
+          label: 'Last checked'
           exclude: false
           alter:
             alter_text: false
@@ -348,7 +348,7 @@ display:
           entity_type: linkcheckerlink
           entity_field: method
           plugin_id: field
-          label: Méthode
+          label: Method
           exclude: false
           alter:
             alter_text: false
@@ -413,7 +413,7 @@ display:
           entity_type: linkcheckerlink
           entity_field: code
           plugin_id: field
-          label: 'Code du statut'
+          label: 'Status code'
           exclude: false
           alter:
             alter_text: false
@@ -479,7 +479,7 @@ display:
           entity_type: linkcheckerlink
           entity_field: error
           plugin_id: field
-          label: Erreur
+          label: Error
           exclude: false
           alter:
             alter_text: false
@@ -725,7 +725,7 @@ display:
           entity_type: null
           entity_field: null
           plugin_id: entity_operations
-          label: Actions
+          label: Operations
           exclude: false
           alter:
             alter_text: false
@@ -777,24 +777,24 @@ display:
           tags:
             next: ››
             previous: ‹‹
-            first: '« Premier'
-            last: 'Dernier »'
+            first: '« First'
+            last: 'Last »'
           expose:
             items_per_page: true
-            items_per_page_label: 'Éléments par page'
+            items_per_page_label: 'Items per page'
             items_per_page_options: '10, 25, 50, 100'
             items_per_page_options_all: false
-            items_per_page_options_all_label: '- Tout -'
+            items_per_page_options_all_label: '- All -'
             offset: false
-            offset_label: Décalage
+            offset_label: Offset
           quantity: 9
       exposed_form:
         type: basic
         options:
-          submit_button: Appliquer
+          submit_button: Apply
           reset_button: false
-          reset_button_label: Réinitialiser
-          exposed_sorts_label: 'Trier par'
+          reset_button_label: Reset
+          exposed_sorts_label: 'Sort by'
           expose_sort_order: true
           sort_asc_label: Asc
           sort_desc_label: Desc
@@ -869,7 +869,7 @@ display:
           exposed: true
           expose:
             operator_id: code_1_op
-            label: 'Code du statut'
+            label: 'Status code'
             description: null
             use_operator: false
             operator: code_1_op
@@ -886,7 +886,7 @@ display:
             placeholder: null
           is_grouped: true
           group_info:
-            label: Résultat
+            label: Result
             description: ''
             identifier: result
             optional: true
@@ -897,7 +897,7 @@ display:
             default_group_multiple: {  }
             group_items:
               1:
-                title: Échec
+                title: Failed
                 operator: 'not between'
                 value:
                   min: '200'
@@ -950,7 +950,7 @@ display:
           exposed: true
           expose:
             operator_id: code_op
-            label: 'Code du statut'
+            label: 'Status code'
             description: ''
             use_operator: false
             operator: code_op
@@ -993,7 +993,7 @@ display:
           exposed: true
           expose:
             operator_id: entity_langcode_op
-            label: "Langue de l'entité"
+            label: 'Entity language'
             description: ''
             use_operator: false
             operator: entity_langcode_op
@@ -1146,7 +1146,7 @@ display:
           admin_label: ''
           plugin_id: result
           empty: false
-          content: 'Affichage de @start à @end sur @total'
+          content: 'Displaying @start - @end of @total'
       display_extenders: {  }
     cache_metadata:
       max-age: -1
@@ -1167,8 +1167,8 @@ display:
       path: admin/reports/linkchecker
       menu:
         type: normal
-        title: 'Liens brisés'
-        description: 'Montre une liste des liens brisés dans les contenus.'
+        title: 'Broken links'
+        description: 'Shows a list of broken links in content.'
         weight: 0
         expanded: false
         menu_name: admin

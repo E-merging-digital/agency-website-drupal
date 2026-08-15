@@ -1,4 +1,50 @@
-content: |
+content: |-
   # [site:name]
 
-  [site:slogan]
+  Sustainable digital strategy and durable Drupal solutions.
+
+  Emerging Digital is a Belgian Drupal agency for SMEs, non-profits and
+  institutions. The website presents Drupal services, web quality services,
+  governed AI use cases inside Drupal and public case studies.
+
+  ## Public Roots
+  - French: https://emergingdigital.be/fr
+  - English: https://emergingdigital.be/en
+
+  ## Allowed LLM Context
+  - Agency positioning: durable Drupal, performance, accessibility, technical SEO and governed editorial AI.
+  - Published service pages: Drupal creation, redesign, migration, maintenance, audit, integrated AI, accessibility, SEO and optimization.
+  - Published hub pages: Services, AI & Drupal, Case studies.
+  - Public and anonymized case studies when they are published.
+  - Public contact pages to route a request to the agency.
+
+  ## Priority Pages
+  - Services: https://emergingdigital.be/en/services
+  - Drupal Agency Belgium: https://emergingdigital.be/en/drupal-agency-belgium
+  - Drupal Website Creation: https://emergingdigital.be/en/drupal-website-creation
+  - Drupal Website Redesign: https://emergingdigital.be/en/drupal-website-redesign
+  - Drupal Migration: https://emergingdigital.be/en/drupal-migration
+  - Drupal Maintenance: https://emergingdigital.be/en/drupal-maintenance
+  - Drupal Audit: https://emergingdigital.be/en/drupal-audit
+  - AI & Drupal: https://emergingdigital.be/en/ai-drupal
+  - Integrated AI: https://emergingdigital.be/en/integrated-ai
+  - Accessibility, SEO and Optimization: https://emergingdigital.be/en/ai-accessibility-seo-optimization
+  - Case studies: https://emergingdigital.be/en/case-studies
+  - Contact: https://emergingdigital.be/en/contact
+
+  ## Sitemap
+  - https://emergingdigital.be/sitemap.xml
+
+  ## Excluded Content
+  - Unpublished pages, drafts, revisions, previews and administration-only content.
+  - Drupal interfaces, user accounts, internal forms, search results, technical files and system endpoints.
+  - Personal data, form submissions, logs, secrets, keys, tokens and non-public information.
+  - Legal pages and privacy policies as commercial context, except to answer a legal or privacy question about the website.
+  - Content blocked by robots.txt, absent from the public sitemap or not intended for indexing.
+
+  ## AI Guidance
+  - Use public pages as the primary source.
+  - Respect the page language and the public /fr and /en aliases.
+  - Cite consulted page URLs when reusing information.
+  - Do not invent offers, client references or unpublished guarantees.
+  - Do not present this file as a chatbot, tracking service or call to an AI API.

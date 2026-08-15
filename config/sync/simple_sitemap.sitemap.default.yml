@@ -7,7 +7,7 @@ dependencies:
 _core:
   default_config_hash: rzLPapRSW-bgTs4MObzlqsqwj5IxPGO9EQZolw2ZzFc
 id: default
-label: 'Par défaut'
+label: Default
 description: 'The default hreflang sitemap - lists URLs to be indexed by modern search engines.'
 type: default_hreflang
 weight: 0

@@ -9,7 +9,7 @@ _core:
   default_config_hash: aaEeYBWoWETLKX2ivmZBpUAd3uPe2iPNydaxBuLPXKc
 id: province_names
 label: 'Province names'
-category: Géographique
+category: Geographic
 likert: false
 options: |
   Alberta: Alberta

@@ -9,7 +9,7 @@ dependencies:
 _core:
   default_config_hash: R4FShcAoHQitwldw35QBvyxJvDjLveQ5aDWqjJ8cBvM
 id: redirect
-label: Rediriger
+label: Redirect
 module: views
 description: 'List of redirects'
 tag: ''
@@ -18,11 +18,11 @@ base_field: rid
 display:
   default:
     id: default
-    display_title: Principal
+    display_title: Master
     display_plugin: default
     position: 0
     display_options:
-      title: Rediriger
+      title: Redirect
       fields:
         redirect_bulk_form:
           id: redirect_bulk_form
@@ -87,7 +87,7 @@ display:
           entity_type: redirect
           entity_field: redirect_source
           plugin_id: field
-          label: 'A partir de'
+          label: From
           exclude: false
           alter:
             alter_text: false
@@ -158,7 +158,7 @@ display:
           entity_type: redirect
           entity_field: enabled
           plugin_id: field
-          label: Activé
+          label: Enabled
           exclude: false
           alter:
             alter_text: false
@@ -239,7 +239,7 @@ display:
           entity_type: redirect
           entity_field: created
           plugin_id: date
-          label: Créé
+          label: Created
           exclude: false
           alter:
             alter_text: false
@@ -303,20 +303,20 @@ display:
             last: 'last »'
           expose:
             items_per_page: false
-            items_per_page_label: 'Éléments par page'
+            items_per_page_label: 'Items per page'
             items_per_page_options: '5, 10, 25, 50'
             items_per_page_options_all: false
-            items_per_page_options_all_label: '- Tout -'
+            items_per_page_options_all_label: '- All -'
             offset: false
-            offset_label: Décalage
+            offset_label: Offset
           quantity: 9
       exposed_form:
         type: basic
         options:
-          submit_button: Filtrer
+          submit_button: Filter
           reset_button: true
-          reset_button_label: Réinitialiser
-          exposed_sorts_label: 'Trier par'
+          reset_button_label: Reset
+          exposed_sorts_label: 'Sort by'
           expose_sort_order: true
           sort_asc_label: Asc
           sort_desc_label: Desc
@@ -358,7 +358,7 @@ display:
           exposed: true
           expose:
             operator_id: redirect_source__path_op
-            label: 'A partir de'
+            label: From
             description: ''
             use_operator: false
             operator: redirect_source__path_op
@@ -398,7 +398,7 @@ display:
           exposed: true
           expose:
             operator_id: redirect_redirect__uri_op
-            label: À
+            label: To
             description: ''
             use_operator: false
             operator: redirect_redirect__uri_op
@@ -441,7 +441,7 @@ display:
           exposed: true
           expose:
             operator_id: status_code_op
-            label: 'Code du statut'
+            label: 'Status code'
             description: ''
             use_operator: false
             operator: status_code_op
@@ -455,7 +455,7 @@ display:
               authenticated: authenticated
           is_grouped: true
           group_info:
-            label: 'Code du statut'
+            label: 'Status code'
             description: ''
             identifier: status_code
             optional: true
@@ -466,49 +466,49 @@ display:
             default_group_multiple: {  }
             group_items:
               1:
-                title: '300 Choix Multiples'
+                title: '300 Multiple Choices'
                 operator: '='
                 value:
                   min: ''
                   max: ''
                   value: '300'
               2:
-                title: '301 Redirection Permanente'
+                title: '301 Moved Permanently'
                 operator: '='
                 value:
                   min: ''
                   max: ''
                   value: '301'
               3:
-                title: '302 Trouvé'
+                title: '302 Found'
                 operator: '='
                 value:
                   min: ''
                   max: ''
                   value: '302'
               4:
-                title: '303 Voir Ailleurs'
+                title: '303 See Other'
                 operator: '='
                 value:
                   min: ''
                   max: ''
                   value: '303'
               5:
-                title: '304 Non Modifié'
+                title: '304 Not Modified'
                 operator: '='
                 value:
                   min: ''
                   max: ''
                   value: '304'
               6:
-                title: '305 Utilise un Proxy'
+                title: '305 Use Proxy'
                 operator: '='
                 value:
                   min: ''
                   max: ''
                   value: '305'
               7:
-                title: '307 Redirection Temporaire'
+                title: '307 Temporary Redirect'
                 operator: '='
                 value:
                   min: ''
@@ -530,7 +530,7 @@ display:
           exposed: true
           expose:
             operator_id: language_op
-            label: 'Langue initiale'
+            label: 'Original language'
             description: ''
             use_operator: false
             operator: language_op

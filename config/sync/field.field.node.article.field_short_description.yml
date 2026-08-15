@@ -7,7 +7,6 @@ dependencies:
     - node.type.article
   module:
     - linkchecker
-    - text
 third_party_settings:
   linkchecker:
     scan: true

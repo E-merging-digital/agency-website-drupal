@@ -117,6 +117,12 @@ function automatorTextSuggestionButton(page) {
   }).first();
 }
 
+function automatorAltTextButton(page) {
+  return page.getByRole('button', {
+    name: /Automator Alt Text/i,
+  }).first();
+}
+
 test.describe('Authenticated Article AI authoring proof', () => {
   test('Article exposes only explicit, human-triggered AI authoring controls', async ({
     page,
@@ -227,6 +233,42 @@ test.describe('Authenticated Article AI authoring proof', () => {
         path: menuScreenshot,
         fullPage: true,
       });
+      await page.keyboard.press('Escape');
+
+      const imageInput = page.locator('input[type="file"]').first();
+      await expect(imageInput).toBeVisible();
+      await imageInput.setInputFiles({
+        name: 'issue-381-alt-proof.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZPpAAAAAASUVORK5CYII=',
+          'base64',
+        ),
+      });
+
+      const altInput = page.locator('input[name="field_feature_image[0][alt]"]');
+      await expect(
+        altInput,
+        'Uploading the primary image must expose its editable alt-text field.',
+      ).toBeVisible({ timeout: 15_000 });
+      await expect(
+        automatorAltTextButton(page),
+        'The primary image must expose an explicit manual alt-text Automator action.',
+      ).toBeVisible({ timeout: 15_000 });
+      await expect(
+        altInput,
+        'Image alt text must remain manually editable without an AI provider.',
+      ).toBeEditable();
+      await altInput.fill('Illustration de preuve pour le texte alternatif.');
+
+      const imageAltScreenshot = path.join(
+        screenshotDirectory,
+        'ai-automators-article-image-alt-desktop.png',
+      );
+      await page.screenshot({
+        path: imageAltScreenshot,
+        fullPage: true,
+      });
 
       const title = `Agency AI authoring proof ${Date.now()}`;
       await page.locator('input[name="title[0][value]"]').fill(title);
@@ -267,7 +309,9 @@ test.describe('Authenticated Article AI authoring proof', () => {
           authorized_menu_subset: 'PASS',
           unauthorized_ai_button_absent: 'PASS',
           manual_short_description_automator_action: 'PASS',
+          manual_feature_image_alt_automator_action: 'PASS',
           manual_editing_without_provider: 'PASS',
+          manual_image_alt_without_provider: 'PASS',
           normal_save_without_provider: 'PASS',
           console: 'PASS',
           network: 'PASS',
@@ -275,6 +319,7 @@ test.describe('Authenticated Article AI authoring proof', () => {
         screenshots: [
           'screenshots/ai-ckeditor-article-no-permission-desktop.png',
           'screenshots/ai-ckeditor-article-authorized-menu-desktop.png',
+          'screenshots/ai-automators-article-image-alt-desktop.png',
           'screenshots/ai-ckeditor-article-normal-save-desktop.png',
         ],
         generated_at: new Date().toISOString(),

@@ -1,9 +1,13 @@
+uuid: db254538-d766-40f9-9366-5989afb0289b
+langcode: en
+status: true
+dependencies: {  }
 id: agency_editorial_baseline
 label: 'Agency editorial baseline'
 description: 'Deterministic baseline applied before Drupal AI provider calls.'
+stop_threshold: 1.0
 pre_generate_guardrails:
   plugin_id:
     - agency_editorial_input_length
 post_generate_guardrails:
-  plugin_id: []
-stop_threshold: 1.0
+  plugin_id: {  }

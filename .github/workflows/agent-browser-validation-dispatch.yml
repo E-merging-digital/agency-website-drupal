@@ -1,0 +1,121 @@
+name: Agent browser validation dispatch
+
+on:
+  push:
+    branches:
+      - agency/browser-validation-dispatch-control
+    paths:
+      - .agency/browser-validation-request.json
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  dispatch:
+    name: Validate governed request and dispatch trusted workflow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout control branch history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate control mutation
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_ACTOR" != "E-merging-digital" ]]; then
+            echo "Unauthorized control actor: $GITHUB_ACTOR" >&2
+            exit 1
+          fi
+
+          changed="$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA")"
+          if [[ "$changed" != ".agency/browser-validation-request.json" ]]; then
+            echo "Control branch mutations must change exactly .agency/browser-validation-request.json" >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+      - name: Validate request schema and live target
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY' > /tmp/browser-request.env
+          import json
+          import re
+          from pathlib import Path
+
+          path = Path('.agency/browser-validation-request.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          expected = {'request_id', 'pr_number', 'head_sha'}
+          if set(data) != expected:
+              raise SystemExit(f'Expected exactly {sorted(expected)}, got {sorted(data)}')
+
+          request_id = data['request_id']
+          pr_number = data['pr_number']
+          head_sha = data['head_sha']
+
+          if not isinstance(request_id, str) or not re.fullmatch(r'[A-Za-z0-9._-]{8,80}', request_id):
+              raise SystemExit('Invalid request_id')
+          if not isinstance(pr_number, int) or pr_number < 0:
+              raise SystemExit('pr_number must be a non-negative integer')
+          if not isinstance(head_sha, str) or not re.fullmatch(r'[0-9a-f]{40}', head_sha):
+              raise SystemExit('head_sha must be a lowercase 40-character SHA')
+
+          print(f'REQUEST_ID={request_id}')
+          print(f'PR_NUMBER={pr_number}')
+          print(f'HEAD_SHA={head_sha}')
+          PY
+
+          source /tmp/browser-request.env
+
+          if [[ "$PR_NUMBER" == "0" ]]; then
+            live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+            test "$HEAD_SHA" = "$live_main" || {
+              echo "Requested main SHA is stale." >&2
+              exit 1
+            }
+          else
+            pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+            test "$(jq -r '.state' <<<"$pr_json")" = "open"
+            test "$(jq -r '.base.ref' <<<"$pr_json")" = "main"
+            test "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" = "$GITHUB_REPOSITORY" || {
+              echo "Fork PRs are not dispatchable." >&2
+              exit 1
+            }
+            test "$(jq -r '.head.sha' <<<"$pr_json")" = "$HEAD_SHA" || {
+              echo "Requested PR SHA is stale." >&2
+              exit 1
+            }
+          fi
+
+          echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch trusted self-hosted validation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.request.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          gh workflow run self-hosted-browser-validation.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "request_id=$REQUEST_ID" \
+            -f "pr_number=$PR_NUMBER" \
+            -f "head_sha=$HEAD_SHA"

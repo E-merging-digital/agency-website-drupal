@@ -35,8 +35,8 @@ Jonathan to perform a mechanical step.
 
 ## 2. Self-hosted Agency runner
 
-Agency has a dedicated repository-scoped self-hosted runner on the already
-managed Linux host:
+Agency has a dedicated repository-scoped self-hosted runner on the managed Linux
+host:
 
 ```text
 host                 = preflight-runner-01
@@ -65,8 +65,8 @@ Chromium              = Playwright-managed
 ```
 
 The repository `.ddev/config.yaml` also targets MariaDB 11.8. Any older
-reference to MariaDB 10.11 is historical documentation debt, not the current
-Agency DDEV runtime.
+reference to MariaDB 10.11 in DDEV documentation is historical debt, not the
+current Agency DDEV runtime.
 
 ## 3. Browser and UI capabilities available on the runner
 
@@ -91,7 +91,7 @@ chat`.
 
 ## 4. Governed browser validation route
 
-The currently proven unattended route is:
+The unattended route is:
 
 ```text
 ChatGPT / authorized operator
@@ -102,11 +102,20 @@ ChatGPT / authorized operator
 -> exact checkout
 -> Node / Playwright / Chromium
 -> isolated DDEV
--> Drupal --existing-config
--> Content Sync
+-> Drupal site:install --existing-config
+-> final drush config:import
+-> fail-closed config:status
+-> Content Sync validate / dry-run / apply
+-> fail-closed config:status
 -> browser validation
 -> GitHub artifacts
+-> DDEV/workspace cleanup
 ```
+
+The final `config:import` is intentional. Install-profile and module lifecycle
+work can mutate active configuration after the install-time import. A browser
+proof is only canonical when active configuration is converged back to the
+repository sync directory and `config:status` reports no differences.
 
 The runner is never reached directly by an untrusted pull request. Agency is a
 public repository, so self-hosted execution remains trusted-dispatch only.
@@ -131,16 +140,12 @@ playwright-report
 ```
 
 These GitHub Actions artifacts can be fetched by the agent and the screenshots
-can be inspected visually. This means an agent can already perform an
-asynchronous real-UI review from the runner output rather than relying only on
-DOM assertions or log text.
+can be inspected visually. This means an agent can perform a real UI review from
+the runner output rather than relying only on DOM assertions or log text.
 
-Example of proven use on 2026-08-15: the agent downloaded the runner artifact
-for self-hosted run `31881266521` and visually inspected both desktop and mobile
-failure screenshots. The desktop screenshot showed the public Blog header with
-no primary navigation links. The mobile screenshot showed an opened navigation
-drawer with no navigation entries. Those observations independently confirmed
-the browser assertions.
+The final #399 proof on 2026-08-15 demonstrated this end-to-end: Playwright
+passed desktop/mobile and the agent downloaded and visually reviewed the
+screenshots before merge.
 
 ## 6. Interactive MCP versus artifact review
 
@@ -148,7 +153,7 @@ Do not conflate these two paths.
 
 ### Artifact-based review
 
-This path is already reachable from the current ChatGPT/GitHub control surface:
+This path is reachable from the ChatGPT/GitHub control surface:
 
 ```text
 runner executes Playwright
@@ -157,13 +162,13 @@ runner executes Playwright
 -> agent examines screenshot / trace / result
 ```
 
-It is asynchronous but gives the agent the final rendered browser evidence.
+It is asynchronous but gives the agent final rendered browser evidence.
 
 ### Interactive Playwright MCP / Chrome DevTools MCP
 
 Both MCP servers are available on the self-hosted runner. They support a more
-interactive diagnostic loop from an agent runtime that is attached to the
-runner and permitted to invoke them.
+interactive diagnostic loop from an agent runtime attached to the runner and
+permitted to invoke them.
 
 Availability on the runner does **not** imply that every ChatGPT conversation
 has a direct MCP transport attached to that runner. If the current cockpit lacks
@@ -187,25 +192,22 @@ cannot invoke the installed capability.
 
 ## 7. Tool responsibilities
 
-Use the tools for complementary purposes:
-
 ```text
 Drupal BrowserTestBase
   -> server-side/runtime Drupal functional confidence
 
 Playwright Test
-  -> deterministic real-browser merge/delivery evidence
+  -> deterministic real-browser delivery evidence
 
 Playwright MCP
   -> interactive browser navigation and inspection by an agent
 
 Chrome DevTools MCP
-  -> deeper DevTools diagnosis when console/network/CSS/JS/runtime inspection
-     beyond the Playwright interaction layer is useful
+  -> deeper DevTools diagnosis for console/network/CSS/JS/runtime work
 ```
 
-MCP is not a replacement for deterministic tests and deterministic tests are not
-a replacement for visual inspection.
+MCP is not a replacement for deterministic tests, and deterministic tests are
+not a replacement for visual inspection.
 
 ## 8. Secrets and authenticated UI
 
@@ -213,14 +215,13 @@ Public validation requires no secret.
 
 For future authenticated Drupal scenarios:
 
-- use ephemeral credentials supplied to the runner through a governed secret
-  surface;
+- use ephemeral credentials supplied through a governed secret surface;
 - use Playwright `storageState` only as ephemeral runtime state;
 - keep `tests/browser/.auth/` ignored;
 - never commit cookies, passwords or browser profiles;
 - never upload auth state as a normal artifact;
-- exclude sensitive/private pages from screenshots unless the task explicitly
-  requires them and the artifact policy is safe.
+- exclude sensitive/private pages from screenshots unless explicitly required
+  and safe.
 
 ## 9. Reload rule for future agents
 
@@ -243,5 +244,4 @@ reload, in this order:
 4. only then decide whether a capability or governed route is actually missing.
 
 If repository documentation and live executor evidence disagree, live evidence
-wins and this registry must be corrected in the same bounded task or a dedicated
-documentation task.
+wins and this registry must be corrected rather than forgetting the capability.

@@ -215,6 +215,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          verify_config_clean() {
+            local config_status
+            config_status="$(ddev drush config:status 2>&1)"
+            printf '%s\n' "$config_status"
+            if grep -Fq 'No differences' <<<"$config_status"; then
+              return 0
+            fi
+
+            mkdir -p artifacts/config-canonicalization
+            printf '%s\n' "$config_status" > artifacts/config-canonicalization/config-status.txt
+
+            # Materialize the exact canonical export produced by the freshly
+            # rebuilt Drupal runtime so maintainers can review a deterministic
+            # patch instead of guessing which YAML normalization is required.
+            ddev drush cex -y
+            git status --short config/sync > artifacts/config-canonicalization/git-status.txt
+            git diff --binary -- config/sync > artifacts/config-canonicalization/canonical-config.patch
+
+            echo "Canonical configuration drift detected; exported patch evidence." >&2
+            return 1
+          }
+
           ddev start -y
           ddev composer install --no-interaction --no-progress --prefer-dist
 
@@ -222,12 +245,19 @@ jobs:
           ddev drush site:install --existing-config -y --account-pass="$admin_pass"
           unset admin_pass
 
+          # Module/profile install hooks can mutate active configuration after the
+          # initial install-time import. Re-import the repository-owned sync
+          # directory so the browser proof always starts from canonical config.
+          ddev drush cim -y
+          ddev drush cr
+          verify_config_clean
+
           ddev drush emerging:content-sync:validate
           ddev drush emerging:content-sync --all --dry-run
           ddev drush emerging:content-sync --all
           ddev drush cr
           ddev drush status
-          ddev drush config:status
+          verify_config_clean
 
       - name: Run unattended real-browser validation
         shell: bash
@@ -237,13 +267,14 @@ jobs:
           set -euo pipefail
           npm run browser:validate
 
-      - name: Upload browser evidence
+      - name: Upload browser and config evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-browser-validation-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/browser-validation
+            artifacts/config-canonicalization
             playwright-report
             test-results
           if-no-files-found: warn
@@ -258,7 +289,8 @@ jobs:
           set +e
           ddev delete --omit-snapshot --yes
           rm -f .ddev/config.gate-browser-ci.yaml
-          git restore --worktree -- web/robots.txt
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
           if [[ "$LOCKFILE_WAS_PRESENT" == "false" ]]; then
             rm -f package-lock.json
           fi

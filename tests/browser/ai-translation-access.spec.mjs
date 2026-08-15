@@ -140,9 +140,10 @@ test.describe('Issue #382 AI translation access proof', () => {
       expect(articleResponse.status()).toBe(200);
       await expect(
         page.getByRole('heading', {
-          name: /Confirmer la génération de traduction \(IA\)/i,
+          name: /Générer\/mettre à jour la traduction EN de "Preuve accès traduction IA Article" \?/i,
           level: 1,
         }),
+        'The Article route must render the explicit translation confirmation question.',
       ).toBeVisible();
       await expect(
         page.getByRole('button', {

@@ -235,9 +235,17 @@ test.describe('Authenticated Article AI authoring proof', () => {
       });
       await page.keyboard.press('Escape');
 
-      const imageInput = page.locator('input[type="file"]').first();
-      await expect(imageInput).toBeVisible();
-      await imageInput.setInputFiles({
+      const addImageButton = page.getByRole('button', {
+        name: /Ajouter un nouveau fichier|Add a new file/i,
+      }).first();
+      await expect(
+        addImageButton,
+        'The primary image widget must expose its real file chooser.',
+      ).toBeVisible();
+      const fileChooserPromise = page.waitForEvent('filechooser');
+      await addImageButton.click();
+      const fileChooser = await fileChooserPromise;
+      await fileChooser.setFiles({
         name: 'issue-381-alt-proof.png',
         mimeType: 'image/png',
         buffer: Buffer.from(

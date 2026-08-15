@@ -111,8 +111,14 @@ function aiAssistantButton(page) {
   }).first();
 }
 
-test.describe('Issue #380 authenticated AI CKEditor proof', () => {
-  test('Article exposes the guarded AI menu only to an authorized editor', async ({
+function automatorTextSuggestionButton(page) {
+  return page.getByRole('button', {
+    name: /Automator Text Suggestion/i,
+  }).first();
+}
+
+test.describe('Authenticated Article AI authoring proof', () => {
+  test('Article exposes only explicit, human-triggered AI authoring controls', async ({
     page,
     baseURL,
   }, testInfo) => {
@@ -186,6 +192,16 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
       await logIn(page, editorUsername, editorPassword);
       const editable = await openArticleForm(page);
 
+      const manualAutomatorButton = automatorTextSuggestionButton(page);
+      await expect(
+        manualAutomatorButton,
+        'The Article short description must expose an explicit manual Automator action.',
+      ).toBeVisible();
+      await expect(
+        editable,
+        'The editor must remain manually editable without an AI provider.',
+      ).toBeEditable();
+
       const aiButton = aiAssistantButton(page);
       await expect(aiButton).toBeVisible();
       await aiButton.click();
@@ -212,7 +228,7 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
         fullPage: true,
       });
 
-      const title = `Agency AI CKEditor proof ${Date.now()}`;
+      const title = `Agency AI authoring proof ${Date.now()}`;
       await page.locator('input[name="title[0][value]"]').fill(title);
       await editable.fill('Contenu éditorial saisi sans provider AI configuré.');
       await page.locator('#edit-submit').click();
@@ -239,8 +255,8 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
 
       const evidence = {
         schema_version: 1,
-        contract: 'ai-ckeditor-article-authenticated',
-        issue: 380,
+        contract: 'article-authenticated-ai-authoring',
+        issues: [380, 381],
         actor: 'ephemeral content_editor',
         negative_actor: 'ephemeral editor without use ai ckeditor',
         result: 'PASS',
@@ -250,6 +266,8 @@ test.describe('Issue #380 authenticated AI CKEditor proof', () => {
           authorized_ai_button: 'PASS',
           authorized_menu_subset: 'PASS',
           unauthorized_ai_button_absent: 'PASS',
+          manual_short_description_automator_action: 'PASS',
+          manual_editing_without_provider: 'PASS',
           normal_save_without_provider: 'PASS',
           console: 'PASS',
           network: 'PASS',

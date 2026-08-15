@@ -6,6 +6,38 @@ const contract = JSON.parse(
   await readFile(new URL('./contracts/public-blog.json', import.meta.url), 'utf8'),
 );
 
+async function getVisiblePrimaryNavigationLink(page, name) {
+  const link = page.getByRole('link', {
+    name,
+    exact: true,
+  }).first();
+
+  if (await link.isVisible()) {
+    return link;
+  }
+
+  const toggle = page.getByRole('button', {
+    name: 'Ouvrir le menu principal',
+    exact: true,
+  });
+  const drawer = page.getByRole('dialog', {
+    name: 'Menu principal',
+    exact: true,
+  });
+
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(drawer).toHaveAttribute('aria-hidden', 'true');
+
+  await toggle.click();
+
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(drawer).toHaveAttribute('aria-hidden', 'false');
+  await expect(link).toBeVisible();
+
+  return link;
+}
+
 test.describe('Browser validation capability proof', () => {
   test(`${contract.id}: public Blog is usable and rendered cleanly`, async ({
     page,
@@ -26,19 +58,11 @@ test.describe('Browser validation capability proof', () => {
     ).toBeVisible();
     await expect(page.locator('main')).toBeVisible();
 
-    const servicesLink = page.getByRole('link', {
-      name: 'Services',
-      exact: true,
-    }).first();
-    await expect(servicesLink).toBeVisible();
+    const servicesLink = await getVisiblePrimaryNavigationLink(page, 'Services');
     await servicesLink.click();
     await expect(page).toHaveURL(/\/fr\/services(?:[/?#]|$)/);
 
-    const blogLink = page.getByRole('link', {
-      name: 'Blog',
-      exact: true,
-    }).first();
-    await expect(blogLink).toBeVisible();
+    const blogLink = await getVisiblePrimaryNavigationLink(page, 'Blog');
     await blogLink.click();
     await expect(page).toHaveURL(/\/fr\/blog(?:[/?#]|$)/);
     await expect(
@@ -69,10 +93,8 @@ test.describe('Browser validation capability proof', () => {
       'artifacts/browser-validation/screenshots',
     );
     await mkdir(screenshotDirectory, { recursive: true });
-    const screenshotPath = path.join(
-      screenshotDirectory,
-      `public-blog-${testInfo.project.name}.png`,
-    );
+    const screenshotFile = `public-blog-${testInfo.project.name}.png`;
+    const screenshotPath = path.join(screenshotDirectory, screenshotFile);
 
     await page.screenshot({
       path: screenshotPath,
@@ -82,6 +104,7 @@ test.describe('Browser validation capability proof', () => {
       path: screenshotPath,
       contentType: 'image/png',
     });
+    audit.screenshot = `screenshots/${screenshotFile}`;
 
     audit.checks.visual = 'PASS';
 

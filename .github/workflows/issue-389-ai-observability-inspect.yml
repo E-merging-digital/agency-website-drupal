@@ -59,13 +59,15 @@ jobs:
             grep -RniE 'prompt|input|output|response|token|provider|model|duration|latency|cost|price|user|uid|request|metadata|context|logger|telemetry|otel|trace|span|rate' web/modules/contrib/ai/modules/ai_observability || true
           } > "$ARTIFACT_DIR/observability-signals.txt"
 
-      - name: Verify inspection did not mutate repository state
+      - name: Restore Composer scaffold and verify repository state
         run: |
           set -euo pipefail
+          git restore --worktree -- web/robots.txt
           git status --short
           test -z "$(git status --porcelain)"
 
       - name: Upload exact-source evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: issue-389-ai-observability-${{ github.run_id }}

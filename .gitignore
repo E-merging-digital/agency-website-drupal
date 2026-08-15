@@ -42,6 +42,11 @@ composer.phar
 /dist/
 /build/
 
+# --- Browser validation ---
+/artifacts/browser-validation/
+/playwright-report/
+/tests/browser/.auth/
+
 # --- ddev (keep config, ignore local state) ---
 .ddev/config.local.yaml
 .ddev/.dbimageBuild/

@@ -1,0 +1,25 @@
+{
+  "id": "public-blog",
+  "target": "/fr/blog",
+  "actor": "anonymous",
+  "expected": [
+    "La page Blog publique répond sans erreur HTTP.",
+    "Le titre Blog est visible dans le DOM rendu.",
+    "La navigation Services -> Blog fonctionne réellement.",
+    "La page ne présente pas de débordement horizontal évident."
+  ],
+  "checks": [
+    "functional",
+    "rendered_dom",
+    "browser_console",
+    "page_errors",
+    "unexpected_http_failures",
+    "desktop_rendering",
+    "mobile_rendering"
+  ],
+  "evidence": [
+    "screenshots",
+    "machine_readable_result",
+    "trace_on_failure"
+  ]
+}

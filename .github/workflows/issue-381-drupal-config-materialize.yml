@@ -104,6 +104,30 @@ jobs:
             throw new Error(message);
           }
 
+          async function settleAfterSubmit() {
+            await page.waitForLoadState('domcontentloaded', { timeout: 8000 }).catch(() => {});
+            await page.locator('.ajax-progress, .ajax-progress-throbber').waitFor({ state: 'hidden', timeout: 4000 }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
+            await page.waitForTimeout(200);
+          }
+
+          async function gotoStable(url, description) {
+            await settleAfterSubmit();
+            let lastError = null;
+            for (let attempt = 1; attempt <= 3; attempt += 1) {
+              try {
+                await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+                return;
+              } catch (error) {
+                lastError = error;
+                if (!String(error).includes('ERR_ABORTED') || attempt === 3) break;
+                console.log(`Navigation to ${description} was aborted; retrying (${attempt}/3).`);
+                await page.waitForTimeout(500 * attempt);
+              }
+            }
+            await fail(`Navigation failed for ${description}: ${String(lastError)}`);
+          }
+
           async function dismissCookieBanner() {
             const banner = page.locator('#ed-cookie-banner');
             if (!(await banner.isVisible().catch(() => false))) return;
@@ -157,7 +181,7 @@ jobs:
           }
 
           async function configureAutomator({ route, typePattern, baseFieldValue, prompt, screenshotName }) {
-            await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded' });
+            await gotoStable(`${baseURL}${route}`, `Automator field ${route}`);
             await dismissCookieBanner();
 
             const enabled = await firstVisible(page.getByLabel(/Enable AI Automator|Activer.*AI Automator/i));
@@ -195,13 +219,13 @@ jobs:
             const save = await firstVisible(page.getByRole('button', { name: /Save settings|Enregistrer les paramètres|Save|Enregistrer/i }));
             if (!save) await fail('Field settings save button not found.');
             await save.click();
-            await page.waitForLoadState('domcontentloaded');
+            await settleAfterSubmit();
             const errors = await page.locator('.messages--error, [data-drupal-messages] .messages--error').allInnerTexts().catch(() => []);
             if (errors.length) await fail(`Drupal rejected Automator configuration: ${errors.join(' | ')}`);
           }
 
           async function openWidgetRow(fieldName, fallbackText) {
-            await page.goto(`${baseURL}/admin/structure/types/manage/article/form-display`, { waitUntil: 'domcontentloaded' });
+            await gotoStable(`${baseURL}/admin/structure/types/manage/article/form-display`, 'Article form display');
             await dismissCookieBanner();
             let row = await firstVisible(page.locator(`tr[data-drupal-selector*="${fieldName.replaceAll('_', '-')}"]`));
             if (!row) row = await firstVisible(page.locator('tr').filter({ hasText: fallbackText }));
@@ -283,17 +307,17 @@ jobs:
             const update = await firstVisible(row.getByRole('button', { name: /Update|Mettre à jour|Apply|Appliquer/i }));
             if (update) {
               await update.click();
-              await page.waitForTimeout(400);
+              await settleAfterSubmit();
             }
 
             const save = await firstVisible(page.getByRole('button', { name: /^Save$|^Enregistrer$/i }));
             if (!save) await fail('Form display Save button missing.');
             await save.click();
-            await page.waitForLoadState('domcontentloaded');
+            await settleAfterSubmit();
           }
 
           try {
-            await page.goto(loginURL, { waitUntil: 'domcontentloaded' });
+            await gotoStable(loginURL, 'one-time administrator login');
             if (!/\/user\//.test(page.url()) && !/admin/.test(page.url())) await fail('One-time administrator login failed.');
             await dismissCookieBanner();
 
@@ -331,7 +355,7 @@ jobs:
               screenshotName: 'feature-image-widget-action',
             });
 
-            await page.goto(`${baseURL}/node/add/article`, { waitUntil: 'domcontentloaded' });
+            await gotoStable(`${baseURL}/node/add/article`, 'Article creation form');
             await dismissCookieBanner();
             await shot('article-form-after-config');
           } finally {

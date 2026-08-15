@@ -1,0 +1,298 @@
+name: Issue 381 Drupal Config Materialization
+
+on:
+  push:
+    branches:
+      - feature/issue-381-ai-automators-article-field-widget
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout issue branch
+        uses: actions/checkout@v5
+        with:
+          ref: feature/issue-381-ai-automators-article-field-widget
+          fetch-depth: 0
+
+      - name: Setup DDEV
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          version: 1.25.3
+          autostart: false
+
+      - name: Rebuild Drupal from repository state
+        run: |
+          set -euo pipefail
+          ddev start
+          ddev composer install --no-interaction --prefer-dist --no-progress
+          ddev drush site:install --existing-config -y
+          ddev drush en ai_automators field_widget_actions -y
+          ddev drush cr
+
+      - name: Setup Node and Chromium
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install browser dependencies
+        run: |
+          npm ci
+          npx playwright install chromium
+
+      - name: Configure Automators through Drupal UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/issue-381-materialization
+          BASE_URL="$(ddev describe -j | jq -r '.. | objects | .primary_url? // empty' | head -n 1)"
+          test -n "$BASE_URL"
+          LOGIN_URL="$(ddev drush uli --uid=1 --uri="$BASE_URL" --no-browser)"
+          export BASE_URL LOGIN_URL
+
+          cat > /tmp/issue-381-materialize.mjs <<'NODE'
+          import { chromium } from 'playwright';
+          import { mkdir } from 'node:fs/promises';
+          import path from 'node:path';
+
+          const baseURL = process.env.BASE_URL.replace(/\/+$/, '');
+          const loginURL = process.env.LOGIN_URL.trim();
+          const artifactDir = path.resolve('artifacts/issue-381-materialization');
+          await mkdir(artifactDir, { recursive: true });
+
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+
+          async function screenshot(name) {
+            await page.screenshot({ path: path.join(artifactDir, `${name}.png`), fullPage: true });
+          }
+
+          async function fail(message) {
+            console.error(message);
+            console.error('URL:', page.url());
+            console.error('BODY:', (await page.locator('body').innerText()).slice(0, 12000));
+            await screenshot('failure');
+            throw new Error(message);
+          }
+
+          async function firstVisibleByLabel(pattern) {
+            const locator = page.getByLabel(pattern);
+            const count = await locator.count();
+            for (let i = 0; i < count; i += 1) {
+              const item = locator.nth(i);
+              if (await item.isVisible().catch(() => false)) return item;
+            }
+            return null;
+          }
+
+          async function requireLabeled(pattern, description) {
+            const item = await firstVisibleByLabel(pattern);
+            if (!item) await fail(`Missing ${description}: ${pattern}`);
+            return item;
+          }
+
+          async function chooseByLabel(select, labelPattern, description) {
+            const options = await select.locator('option').evaluateAll((nodes) => nodes.map((n) => ({ value: n.value, label: n.textContent.trim() })));
+            console.log(description, options);
+            const match = options.find((option) => labelPattern.test(option.label));
+            if (!match) await fail(`Missing option for ${description}: ${labelPattern}`);
+            await select.selectOption(match.value);
+          }
+
+          async function saveField() {
+            const save = page.getByRole('button', { name: /Save settings|Enregistrer les paramètres|Save|Enregistrer/i }).last();
+            if (!(await save.isVisible().catch(() => false))) await fail('Field save button not found.');
+            await Promise.all([
+              page.waitForLoadState('domcontentloaded'),
+              save.click(),
+            ]);
+            if (/error|erreur/i.test(await page.locator('[data-drupal-messages], .messages--error').allInnerTexts().then((v) => v.join('\n')).catch(() => ''))) {
+              await fail('Drupal reported an error while saving field configuration.');
+            }
+          }
+
+          async function configureField({ route, typePattern, baseFieldPattern, prompt, screenshotName }) {
+            await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded' });
+            const enabled = await requireLabeled(/Enable AI Automator|Activer.*AI Automator/i, 'Enable AI Automator');
+            if (!(await enabled.isChecked())) await enabled.check();
+
+            const type = await requireLabeled(/Choose AI Automator Type|AI Automator Type|Type.*AI Automator/i, 'AI Automator Type');
+            await chooseByLabel(type, typePattern, 'AI Automator Type');
+            await page.waitForTimeout(400);
+
+            const inputMode = await firstVisibleByLabel(/Base Mode|Mode de base/i);
+            if (inputMode) {
+              if (await inputMode.getAttribute('type') === 'radio') await inputMode.check();
+              else if (await inputMode.evaluate((el) => el.tagName === 'SELECT')) await chooseByLabel(inputMode, /Base/i, 'Automator Input Mode');
+            }
+
+            if (baseFieldPattern) {
+              const baseField = await requireLabeled(/Automator Base Field|Champ de base.*Automator/i, 'Automator Base Field');
+              await chooseByLabel(baseField, baseFieldPattern, 'Automator Base Field');
+            }
+
+            const promptField = await firstVisibleByLabel(/Automator Prompt|Prompt.*Automator|Invite.*Automator/i);
+            if (promptField) await promptField.fill(prompt);
+
+            const worker = await requireLabeled(/Automator Worker|Worker.*Automator|Traitement.*Automator/i, 'Automator Worker');
+            await chooseByLabel(worker, /Field Widget/i, 'Automator Worker');
+
+            const provider = await firstVisibleByLabel(/AI Provider|Provider|Fournisseur/i);
+            if (provider && await provider.evaluate((el) => el.tagName === 'SELECT')) {
+              const options = await provider.locator('option').evaluateAll((nodes) => nodes.map((n) => ({ value: n.value, label: n.textContent.trim() })));
+              const defaultOption = options.find((option) => /default|défaut/i.test(option.label) || option.value === '');
+              if (defaultOption) await provider.selectOption(defaultOption.value);
+            }
+
+            await screenshot(screenshotName);
+            await saveField();
+          }
+
+          async function openWidgetSettings(fieldName) {
+            await page.goto(`${baseURL}/admin/structure/types/manage/article/form-display`, { waitUntil: 'domcontentloaded' });
+            const row = page.locator(`tr[data-drupal-selector*="${fieldName.replaceAll('_', '-')}"]`).first();
+            if (!(await row.isVisible().catch(() => false))) {
+              const fallback = page.locator('tr').filter({ hasText: fieldName === 'field_short_description' ? /Description courte/i : /Image principale/i }).first();
+              if (!(await fallback.isVisible().catch(() => false))) await fail(`Form display row not found for ${fieldName}`);
+              const button = fallback.getByRole('button', { name: /settings|paramètres|configure|configurer/i }).last();
+              if (!(await button.isVisible().catch(() => false))) await fail(`Widget settings button not found for ${fieldName}`);
+              await button.click();
+              return fallback;
+            }
+            const button = row.getByRole('button', { name: /settings|paramètres|configure|configurer/i }).last();
+            if (await button.isVisible().catch(() => false)) {
+              await button.click();
+            } else {
+              const toggle = row.locator('[data-drupal-selector$="settings-edit"], input[value="Edit"], input[value="Modifier"]').last();
+              if (!(await toggle.isVisible().catch(() => false))) await fail(`Widget settings toggle not found for ${fieldName}`);
+              await toggle.click();
+            }
+            return row;
+          }
+
+          async function addFieldWidgetAction({ fieldName, actionPattern, buttonLabel, automatorPattern, screenshotName }) {
+            const row = await openWidgetSettings(fieldName);
+            await page.waitForTimeout(500);
+            const scope = row;
+
+            const addSelect = scope.locator('select').filter({ has: page.locator('option') }).filter({ hasText: /Automator|Action/i }).last();
+            if (!(await addSelect.isVisible().catch(() => false))) {
+              console.log('ROW TEXT:', await scope.innerText());
+              await fail(`Field Widget Actions add selector not found for ${fieldName}`);
+            }
+            await chooseByLabel(addSelect, actionPattern, `Field Widget Action for ${fieldName}`);
+
+            const addButton = scope.getByRole('button', { name: /Add|Ajouter/i }).last();
+            if (!(await addButton.isVisible().catch(() => false))) await fail(`Add action button not found for ${fieldName}`);
+            await addButton.click();
+            await page.waitForTimeout(500);
+
+            const enable = scope.getByLabel(/Enable Automators|Activer.*Automator/i).last();
+            if (await enable.isVisible().catch(() => false)) await enable.check();
+
+            const label = scope.getByLabel(/Button label|Libellé.*bouton/i).last();
+            if (await label.isVisible().catch(() => false)) await label.fill(buttonLabel);
+
+            const automator = scope.getByLabel(/Automator to use for suggestions|Automator.*suggest|Automator.*utiliser/i).last();
+            if (!(await automator.isVisible().catch(() => false))) await fail(`Automator selector not found for ${fieldName}`);
+            await chooseByLabel(automator, automatorPattern, `Automator selector for ${fieldName}`);
+
+            await screenshot(screenshotName);
+            const update = scope.getByRole('button', { name: /Update|Mettre à jour|Apply|Appliquer/i }).last();
+            if (await update.isVisible().catch(() => false)) await update.click();
+            await page.waitForTimeout(300);
+
+            const save = page.getByRole('button', { name: /Save|Enregistrer/i }).last();
+            if (!(await save.isVisible().catch(() => false))) await fail('Form display save button not found.');
+            await Promise.all([page.waitForLoadState('domcontentloaded'), save.click()]);
+          }
+
+          try {
+            await page.goto(loginURL, { waitUntil: 'domcontentloaded' });
+            if (!/\/user\//.test(page.url()) && !/admin/.test(page.url())) await fail('One-time admin login failed.');
+
+            await configureField({
+              route: '/admin/structure/types/manage/article/fields/node.article.field_short_description',
+              typePattern: /LLM:\s*Text.*simple.*Text Long|LLM:\s*Text.*simple/i,
+              baseFieldPattern: /^Body$|^Corps$/i,
+              prompt: 'Create a concise editorial short description from the article body in the same language as the source. Return one or two short sentences only. Do not invent facts. Return plain text without Markdown or HTML.',
+              screenshotName: 'short-description-field-config',
+            });
+
+            await configureField({
+              route: '/admin/structure/types/manage/article/fields/node.article.field_feature_image',
+              typePattern: /LLM:\s*Image Alt Text|Image Alt Text/i,
+              baseFieldPattern: null,
+              prompt: 'Write concise, meaningful alternative text in the same language as the article. Describe only relevant visible information. Do not start with “image of” and do not invent details or add SEO keyword stuffing.',
+              screenshotName: 'feature-image-field-config',
+            });
+
+            await addFieldWidgetAction({
+              fieldName: 'field_short_description',
+              actionPattern: /Automator Text Suggestion|Automator Text/i,
+              buttonLabel: 'Générer le résumé',
+              automatorPattern: /Description courte.*Default|Short description.*Default|field_short_description/i,
+              screenshotName: 'short-description-widget-action',
+            });
+
+            await addFieldWidgetAction({
+              fieldName: 'field_feature_image',
+              actionPattern: /Alt Text|Alternative text|texte alternatif/i,
+              buttonLabel: 'Générer le texte alternatif',
+              automatorPattern: /Image principale.*Default|Feature image.*Default|field_feature_image/i,
+              screenshotName: 'feature-image-widget-action',
+            });
+
+            await page.goto(`${baseURL}/node/add/article`, { waitUntil: 'domcontentloaded' });
+            await screenshot('article-form-after-config');
+          } finally {
+            await browser.close();
+          }
+          NODE
+
+          node /tmp/issue-381-materialize.mjs
+
+      - name: Export canonical Drupal configuration
+        run: |
+          set -euo pipefail
+          ddev drush cex -y
+          ddev drush cr
+          status="$(ddev drush config:status --format=list 2>/dev/null || true)"
+          if [[ -n "$status" ]]; then
+            echo "$status" >&2
+            exit 1
+          fi
+          git diff --check
+          git status --short
+          git diff -- config/sync composer.json composer.lock
+
+      - name: Upload diagnostic UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-381-drupal-config-materialization-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/issue-381-materialization
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Commit Drupal-generated configuration and remove temporary workflow
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/issue-381-drupal-config-materialize.yml
+          git add config/sync composer.json composer.lock
+          git diff --cached --check
+          git commit -m 'Issue #381: configure Article Field Widget Automators'
+          git push origin HEAD:feature/issue-381-ai-automators-article-field-widget
+
+      - name: Stop DDEV
+        if: always()
+        run: ddev delete -Oy || true

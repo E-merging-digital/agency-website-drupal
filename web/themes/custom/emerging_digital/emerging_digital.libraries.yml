@@ -11,5 +11,8 @@ global-styling:
     js/main.js:
       attributes:
         defer: true
+    js/cookie-policy-links.js:
+      attributes:
+        defer: true
   dependencies:
     - core/drupal

@@ -10,6 +10,7 @@ use Drupal\ai\OperationType\Chat\ChatInput;
 use Drupal\ai\OperationType\Chat\ChatMessage;
 use Drupal\KernelTests\KernelTestBase;
 use PHPUnit\Framework\Attributes\Group;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Verifies deterministic Input Length Limit behavior without a provider call.
@@ -82,6 +83,53 @@ final class AiInputLengthGuardrailTest extends KernelTestBase {
     ]);
 
     self::assertInstanceOf(PassResult::class, $plugin->processInput($input));
+  }
+
+  /**
+   * Verifies the versioned YAML can be saved as real AI config entities.
+   */
+  public function testVersionedGuardrailEntitiesCanBeSaved(): void {
+    $entity_type_manager = $this->container->get('entity_type.manager');
+
+    $guardrail_configuration = $this->loadConfiguration(
+      'ai.ai_guardrail.agency_editorial_input_length.yml',
+    );
+    $guardrail_storage = $entity_type_manager->getStorage('ai_guardrail');
+    $guardrail = $guardrail_storage->create($guardrail_configuration);
+    $guardrail->save();
+
+    self::assertNotNull(
+      $guardrail_storage->load('agency_editorial_input_length'),
+    );
+
+    $set_configuration = $this->loadConfiguration(
+      'ai.ai_guardrail_set.agency_editorial_baseline.yml',
+    );
+    $set_storage = $entity_type_manager->getStorage('ai_guardrail_set');
+    $set = $set_storage->create($set_configuration);
+    $set->save();
+
+    self::assertNotNull($set_storage->load('agency_editorial_baseline'));
+
+    $settings = $this->loadConfiguration('ai.settings.yml');
+    $this->config('ai.settings')->setData($settings)->save();
+    self::assertSame(
+      ['agency_editorial_baseline'],
+      $this->config('ai.settings')->get('global_guardrails'),
+    );
+  }
+
+  /**
+   * Loads one configuration file from the repository sync directory.
+   */
+  private function loadConfiguration(string $filename): array {
+    $path = dirname(DRUPAL_ROOT) . '/config/sync/' . $filename;
+    self::assertFileExists($path);
+
+    $configuration = Yaml::parseFile($path);
+    self::assertIsArray($configuration);
+
+    return $configuration;
   }
 
 }

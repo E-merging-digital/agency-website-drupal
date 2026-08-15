@@ -33,6 +33,7 @@ export const test = base.extend({
       unexpectedHttp4xx: [],
       http5xx: [],
       failedRequests: [],
+      screenshot: null,
     };
 
     const onConsole = (message) => {
@@ -127,7 +128,7 @@ export const test = base.extend({
         http_5xx: audit.http5xx,
         failed_requests: audit.failedRequests,
       },
-      screenshot: `screenshots/public-blog-${project}.png`,
+      screenshot: audit.screenshot,
       trace: result === 'FAIL' ? 'See test-results trace.zip for this project.' : null,
     };
 

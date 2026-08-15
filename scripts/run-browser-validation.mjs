@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import https from 'node:https';
@@ -208,6 +209,14 @@ catch (error) {
 }
 
 const executable = playwrightExecutable();
+if (!existsSync(executable)) {
+  await writeNotRun(
+    contract,
+    'Playwright n’est pas installé. Exécutez `npm install` puis `npm run browser:install`.',
+  );
+  process.exit(2);
+}
+
 const extraArgs = process.argv.slice(2);
 const child = spawnSync(
   executable,
@@ -251,6 +260,7 @@ const missingProjects = expectedProjects.filter(
 const overallResult =
   child.status === 0
   && evidence.length > 0
+  && missingProjects.length === 0
   && evidence.every((entry) => entry.result === 'PASS')
     ? 'PASS'
     : evidence.length === 0

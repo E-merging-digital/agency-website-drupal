@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Functional;
 
 use Drupal\editor\Entity\Editor;
+use Drupal\node\Entity\NodeType;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Proves AI CKEditor does not make normal Article authoring provider-dependent.
@@ -15,6 +17,7 @@ use PHPUnit\Framework\Attributes\Group;
  * @group agency_ai
  */
 #[Group('agency_ai')]
+#[RunTestsInSeparateProcesses]
 final class AiCkeditorProviderFailureTest extends BrowserTestBase {
 
   /**
@@ -40,6 +43,13 @@ final class AiCkeditorProviderFailureTest extends BrowserTestBase {
    */
   protected function setUp(): void {
     parent::setUp();
+
+    if (!NodeType::load('article')) {
+      $this->drupalCreateContentType([
+        'type' => 'article',
+        'name' => 'Article',
+      ]);
+    }
 
     $editor = Editor::load('basic_html');
     self::assertInstanceOf(Editor::class, $editor);

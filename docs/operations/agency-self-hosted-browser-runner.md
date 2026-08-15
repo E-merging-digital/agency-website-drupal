@@ -1,113 +1,99 @@
 # Agency self-hosted browser validation runner
 
-Status: **PROVISIONING**  
+Status: **OPERATIONAL — browser validation stabilization in progress**  
 Issue: #400  
 Repository: `E-merging-digital/agency-website-drupal`
 
-## 1. Architecture retenue
+The authoritative inventory of machine capabilities is:
 
-Agency réutilise la machine déjà éprouvée `preflight-runner-01`, mais **pas** le
-runner GitHub Preflight lui-même.
+```text
+docs/operations/execution-capabilities.md
+```
 
-La machine héberge deux runners repository-scoped distincts :
+Every agent must reload that registry before concluding that a runner, browser,
+Playwright MCP or Chrome DevTools MCP capability is absent.
+
+## 1. Architecture
+
+Agency reuses the already managed host `preflight-runner-01`, but it does **not**
+reuse the Preflight GitHub runner process/account.
 
 ```text
 preflight-runner-01
 |
-+-- runner Preflight existant
++-- Preflight runner
 |   account: preflight-runner
 |   labels: self-hosted, linux, x64, preflight, ddev
 |
-+-- runner Agency Browser
++-- Agency Browser runner
     account: agency-runner
     name: agency-browser-runner-01
     labels: self-hosted, linux, x64, agency, ddev, browser
 ```
 
-Le compte, le répertoire d'installation, le workdir et le service systemd du
-runner Agency sont séparés de Preflight. #400 n'autorise aucune modification du
-runner/service Preflight.
+The Agency runner has a separate Unix account, installation directory, workdir
+and service.
 
-## 2. Pourquoi le runner n'est jamais déclenché directement par une PR
-
-Le dépôt Agency est public. Un self-hosted runner ne doit pas exécuter du code
-d'une fork PR ou d'un workflow modifiable par un contributeur non fiable.
-
-La browser validation self-hosted est donc **trusted dispatch only** :
+Observed runtime on trusted Agency runs:
 
 ```text
-agent / opérateur autorisé
-        |
-        v
-branche de contrôle dédiée
-        |
-        v
-workflow GitHub-hosted de validation/dispatch
-        |
-        v
-validation cible same-repository + exact HEAD
-        |
-        v
-workflow trusted sur main
-        |
-        v
-runner Agency self-hosted
+runner               = agency-browser-runner-01
+host                 = preflight-runner-01
+account              = agency-runner
+GitHub Actions runner= 2.336.0
+Docker               = 29.7.2
+DDEV                 = 1.25.3
+MariaDB              = 11.8
+PHP                  = 8.4
+Node browser jobs    = 24 via actions/setup-node
 ```
 
-Le workflow self-hosted n'a aucun trigger `pull_request` ou `push`.
+## 2. Security model
 
-## 3. Workflows
+Agency is a public repository. Untrusted pull-request code must never run
+directly on the self-hosted runner.
+
+The browser validation route is therefore **trusted dispatch only**:
+
+```text
+agent / authorized operator
+        |
+        v
+control branch request
+        |
+        v
+GitHub-hosted validation gateway
+        |
+        v
+same-repository + exact-head validation
+        |
+        v
+trusted workflow from main
+        |
+        v
+agency-browser-runner-01
+```
+
+The self-hosted workflow has no direct `pull_request` or `push` trigger.
+
+## 3. Governed workflows
 
 ### `.github/workflows/agent-browser-validation-dispatch.yml`
 
-Surface de contrôle GitHub-hosted. Elle observe uniquement :
+The GitHub-hosted control surface observes only:
 
 ```text
 branch = agency/browser-validation-dispatch-control
-file = .agency/browser-validation-request.json
+file   = .agency/browser-validation-request.json
 ```
 
-Elle exige :
-
-- acteur `E-merging-digital` ;
-- exactement un fichier modifié ;
-- schéma JSON strict ;
-- `request_id` borné ;
-- SHA exact ;
-- soit `pr_number=0` et SHA égal au `main` live ;
-- soit PR `OPEN`, base `main`, same-repository et HEAD exact.
-
-Le job ne reçoit aucun secret externe. Son `GITHUB_TOKEN` est limité à
-`actions: write`, `contents: read`, `pull-requests: read` et sert uniquement à
-dispatcher le workflow allowlisté.
-
-Format de requête :
-
-```json
-{
-  "request_id": "agency-browser-20260815-001",
-  "pr_number": 0,
-  "head_sha": "40-character-lowercase-sha"
-}
-```
-
-`pr_number=0` sert à la preuve bootstrap sur `main`. Pour une PR normale,
-`pr_number` doit porter le numéro exact de la PR et `head_sha` son HEAD live.
+A request contains a bounded request id, exact SHA and optional PR number. The
+gateway validates the authorized actor, exact target, same-repository PR state
+and allowed infrastructure before dispatching the trusted self-hosted workflow.
 
 ### `.github/workflows/self-hosted-browser-validation.yml`
 
-Workflow trusted, `workflow_dispatch` uniquement.
-
-Avant qu'un job atteigne la machine self-hosted, un job GitHub-hosted valide :
-
-- acteur autorisé (`E-merging-digital` ou `github-actions[bot]`) ;
-- request id ;
-- SHA exact ;
-- PR same-repository / base `main` / OPEN ;
-- absence de changement de l'infrastructure `.github/`, `.ddev/`, `.agency/`
-  ou `scripts/runner/` sur une cible PR.
-
-Le job self-hosted cible uniquement :
+The trusted workflow targets only:
 
 ```yaml
 runs-on:
@@ -119,65 +105,38 @@ runs-on:
   - browser
 ```
 
-Node n'est pas un prérequis global de la VM. Le job utilise
-`actions/setup-node@v6` avec Node 24, puis `npm ci` et installe uniquement le
-Chromium correspondant au lockfile/Playwright du projet.
+Before reaching the runner, a GitHub-hosted preflight validates the dispatch
+actor and exact target.
 
-## 4. État Drupal reproductible
+## 4. Reproducible Agency rebuild
 
-Aucun dump local n'est utilisé.
+No mutable local database dump is required.
 
-Chaque run crée un nom DDEV éphémère avec un `config.*.yaml` local, puis :
+Each run creates an isolated DDEV project and executes the equivalent of:
 
 ```text
-checkout exact
--> actions/setup-node Node 24
+exact checkout
+-> Node 24
 -> npm ci
--> Chromium Playwright
+-> Playwright Chromium
 -> ddev start
 -> composer install
 -> drush site:install --existing-config
--> emerging:content-sync:validate
--> emerging:content-sync --all --dry-run
--> emerging:content-sync --all
--> drush cr/status/config:status
+-> Content Sync validate
+-> Content Sync dry-run
+-> Content Sync apply
+-> drush cr / status / config:status
 -> npm run browser:validate
 ```
 
-Le vertical slice `/fr/blog` n'exige pas l'Article1 local : il vérifie la page
-Blog, le DOM, la navigation `Services -> Blog`, console/réseau et les rendus
-mobile/desktop. La config versionnée + Content Sync constituent donc la source
-de données de validation.
+The DDEV database image is MariaDB 11.8.
 
-## 5. DDEV isolation et nettoyage
+The temporary DDEV project is deleted at the end of the run and the workflow
+verifies that the workspace returns clean.
 
-Le fichier créé par le workflow :
+## 5. Browser validation evidence
 
-```text
-.ddev/config.gate-browser-ci.yaml
-```
-
-porte un nom :
-
-```text
-agency-browser-<run_id>-<attempt>
-```
-
-Les `config.*.yaml` sont des overrides DDEV supportés. Le run finit par :
-
-```bash
-ddev delete --omit-snapshot --yes
-rm -f .ddev/config.gate-browser-ci.yaml
-git diff --check
-git status --porcelain
-```
-
-La suppression omet volontairement le snapshot : la base est une fixture
-reconstructible, pas une donnée à conserver.
-
-## 6. Preuves publiées
-
-Le workflow upload avec `actions/upload-artifact` :
+The workflow publishes:
 
 ```text
 artifacts/browser-validation/
@@ -185,205 +144,187 @@ playwright-report/
 test-results/
 ```
 
-La preuve principale reste :
+The primary machine-readable verdict is:
 
 ```text
 artifacts/browser-validation/result.json
 ```
 
-et les screenshots desktop/mobile. Les traces ne sont attendues qu'en cas de
-besoin/échec selon la configuration Playwright.
+Evidence can include:
 
-Retention initiale : 14 jours.
+- desktop/mobile result JSON;
+- success screenshots;
+- Playwright failure screenshots;
+- traces on failure;
+- console/network details;
+- Playwright HTML report.
 
-## 7. Provisioning du runner Agency
+These artifacts are not merely diagnostic attachments. An agent can fetch them
+from GitHub and visually inspect the rendered interface itself.
 
-### Prérequis hôte
+On 2026-08-15 the agent downloaded and inspected the desktop and mobile failure
+screenshots from run `31881266521`. The desktop screenshot visibly showed the
+Blog page without primary navigation links. The mobile screenshot visibly showed
+an opened navigation drawer with no links. This independently confirmed the
+functional assertions.
 
-La machine cible est `preflight-runner-01`, déjà prouvée pour Docker et DDEV.
-Le bootstrap vérifie aussi :
+## 6. Browser validation state on 2026-08-15
 
-- Ubuntu 24.04 exact ;
-- `apt-get`, `curl`, `tar`, `sha256sum` ;
-- Docker fonctionnel ;
-- DDEV fonctionnel ;
-- accès réseau à GitHub ;
-- droits root pour l'installation one-shot.
+The executor itself is proven operational:
 
-**Node/npm ne sont pas requis sur l'hôte.** La version Node est apportée par
-`actions/setup-node@v6` dans chaque job, ce qui évite un runtime Node global
-mutable sur la VM.
+- trusted dispatch works;
+- exact SHA checkout works;
+- Node/Chromium installation works;
+- DDEV isolated rebuild works;
+- Drupal `--existing-config` installation works;
+- Content Sync validation/dry-run/apply works;
+- artifacts upload works;
+- cleanup returns the runner workspace clean.
 
-Le script :
+Run `31881409021` executed against PR #399 exact HEAD
+`493232b4b3076543ccc58bb56df49681d33882ae`.
 
-```text
-scripts/runner/bootstrap-agency-browser-runner.sh
-```
-
-utilise actuellement le runner GitHub officiel `2.336.0` et vérifie le SHA-256
-de l'archive Linux x64 avant extraction.
-
-Il crée :
-
-```text
-account = agency-runner
-dir = /opt/actions-runner-agency
-workdir = /opt/actions-runner-agency/_work
-runner = agency-browser-runner-01
-labels = agency,ddev,browser (+ labels GitHub par défaut)
-```
-
-Il ajoute uniquement `agency-runner` au groupe Docker et installe une fois, via
-`apt-get`, les groupes `tools + chromium` déclarés par Playwright 1.62.1 pour
-`ubuntu24.04-x64`. Aucun `sudo` n'est donné au compte runner pour les jobs
-ordinaires. Les binaires Chromium sont téléchargés sous le compte runner par le
-workflow et restent indépendants du bootstrap système.
-
-### Seul gate humain de provisioning
-
-L'intégration GitHub utilisée par l'agent ne possède pas la permission
-`Self-hosted runners`; elle ne peut donc pas obtenir le token éphémère
-d'enregistrement.
-
-Dans GitHub :
+It proved that the previous `/cookies` 404 is fixed:
 
 ```text
-Agency repository
--> Settings
--> Actions
--> Runners
--> New self-hosted runner
--> Linux / x64
+console_errors        = 0
+unexpected_http_4xx   = 0
+http_5xx              = 0
+failed_requests       = 0
 ```
 
-Copier uniquement le **registration token** éphémère. Ne jamais le committer.
+The run still fails because the fresh installation renders no primary navigation
+links. That application bootstrap defect is being fixed before #399 can merge.
+The failure is **not** a runner/Playwright infrastructure failure.
 
-Sur `preflight-runner-01`, depuis un checkout de la branche #400 ou après merge :
+## 7. Playwright Test
 
-```bash
-sudo bash scripts/runner/bootstrap-agency-browser-runner.sh
-```
+Playwright Test is the deterministic browser-validation layer.
 
-Le script demande le token sans écho. Variante non interactive :
+Current vertical slice checks the public Blog in desktop and mobile contexts and
+is intended to cover real navigation, final DOM, console, network and visual
+evidence.
 
-```bash
-sudo env AGENCY_RUNNER_REGISTRATION_TOKEN='...' \
-  bash scripts/runner/bootstrap-agency-browser-runner.sh
-```
+Playwright Test complements Drupal `BrowserTestBase`; neither replaces the
+other.
 
-Éviter de mettre ce token dans l'historique shell. La saisie interactive est
-préférée.
+## 8. Playwright MCP and Chrome DevTools MCP
 
-Après exécution, vérifier dans GitHub que :
+Both MCP capabilities are available on the Agency self-hosted runner:
 
 ```text
-agency-browser-runner-01 = Idle/Online
-labels = self-hosted, Linux, X64, agency, ddev, browser
+Playwright MCP      = AVAILABLE
+Chrome DevTools MCP = AVAILABLE
 ```
 
-## 8. Bootstrap de la branche de contrôle
+They are project-executor capabilities.
 
-À faire seulement une fois les workflows #400 fusionnés sur `main` :
+Important invariant:
 
 ```text
-branch = agency/browser-validation-dispatch-control
-base = main exact
+operator-surface capability
+!=
+project-executor capability
 ```
 
-Aucun fichier métier ne vit sur cette branche. Les requêtes successives ne
-modifient que :
+Therefore, a ChatGPT conversation that does not expose a direct MCP tool must
+never conclude that the MCP server is absent from Agency.
+
+Correct interpretation when direct transport is missing:
 
 ```text
-.agency/browser-validation-request.json
+MCP AVAILABLE ON RUNNER
+DIRECT COCKPIT MCP ROUTE NOT EXPOSED IN THIS SESSION
 ```
 
-L'agent GitHub peut ensuite produire un commit de requête sans clic humain ; le
-workflow GitHub-hosted vérifie et déclenche la browser validation.
+Playwright MCP is useful for interactive browser navigation, accessibility/DOM
+inspection and iterative diagnosis.
 
-## 9. Première preuve unattended
+Chrome DevTools MCP is useful when deeper DevTools-level inspection is required,
+for example console/network/CSS/JS/runtime diagnosis beyond the deterministic
+Playwright contract.
 
-Une fois #399 et les workflows #400 présents sur `main` :
+Neither MCP is required for the CI verdict. The deterministic Playwright suite
+remains the reproducible proof.
 
-1. créer/mettre à jour la requête de contrôle avec `pr_number=0` et le SHA exact
-   de `main` ;
-2. observer le gateway GitHub-hosted ;
-3. observer le run self-hosted ;
-4. exiger `result.json = PASS` ;
-5. vérifier les screenshots desktop/mobile ;
-6. vérifier console/network sans erreurs inattendues ;
-7. vérifier l'artifact GitHub ;
-8. vérifier cleanup DDEV + workspace propre.
+## 9. Private-only MCP rule
 
-Ce run constitue la preuve DoD « unattended Agency réel ».
+MCP must not be exposed publicly.
 
-## 10. Playwright MCP
+Allowed architecture is local/private/governed execution on the managed runner.
+Do not expose MCP using `0.0.0.0`, a public forwarded port or a browser profile
+containing uncontrolled persistent credentials.
 
-MCP est optionnel et ne participe jamais au verdict CI.
+A direct remote control-plane route must remain private and governed if/when it
+is materialized.
 
-Sur la machine Agency, la voie préférée pour un agent local est **stdio**. Node
-sera fourni explicitement à la session d'agent (ou par un runtime gouverné) avant
-d'enregistrer le serveur MCP ; le runner système n'a pas besoin de Node global.
+## 10. Authentication strategy
 
-Configuration cible conceptuelle :
+The current public Blog validation needs no secret.
 
-```text
-Codex CLI local
--> Playwright MCP en stdio
--> Chromium
--> Agency DDEV
-```
-
-Le serveur Playwright MCP officiel utilise localhost par défaut lorsqu'un
-transport réseau est demandé. Agency interdit :
-
-```text
---host 0.0.0.0
-exposition Internet
-port forwarding public
-profil navigateur contenant des credentials persistants non maîtrisés
-```
-
-Un futur transport HTTP, s'il devient nécessaire, doit rester `127.0.0.1` et
-être atteint par une route privée/gouvernée. Le simple fait que MCP soit installé
-ne prouve pas qu'un control plane distant peut l'atteindre.
-
-## 11. Authentification Drupal future
-
-Les scénarios authentifiés ne sont pas nécessaires à #400.
-
-La stratégie cible reste `storageState` Playwright sous :
+Future authenticated scenarios should use ephemeral credentials and Playwright
+`storageState` under:
 
 ```text
 tests/browser/.auth/
 ```
 
-Ce répertoire doit rester ignoré. Aucun mot de passe, cookie ou état de session
-n'est uploadé comme artifact par défaut.
+That directory remains ignored. Passwords, cookies, storage state and sensitive
+browser profiles must never be committed or uploaded as normal artifacts.
 
-Avant d'ajouter un rôle Drupal :
+## 11. Provisioning reference
 
-- créer un ticket/use case réel ;
-- fournir le secret au runtime via une surface sécurisée ;
-- créer la session pendant le job ;
-- exclure auth state, pages privées et secrets des screenshots/logs/artifacts.
-
-## 12. Merge gate
-
-La browser validation ne devient **pas** un required check dans #400.
-
-Séquence :
+The repository-owned bootstrap script is:
 
 ```text
-runner provisionné
--> première preuve unattended PASS
--> quelques runs réels stables
--> seulement ensuite décision séparée sur un merge gate
+scripts/runner/bootstrap-agency-browser-runner.sh
 ```
 
-## 13. Sources techniques
+It creates the dedicated `agency-runner` account and installs/configures the
+repository-scoped runner under:
 
-- GitHub self-hosted runners / labels / accès : documentation GitHub Actions.
-- DDEV `config.*.yaml` et `ddev delete --omit-snapshot --yes` : documentation DDEV.
-- Drush `site:install --existing-config` : documentation Drush.
-- Playwright CI / Chromium : documentation Playwright.
-- Playwright MCP : dépôt officiel `microsoft/playwright-mcp`.
+```text
+/opt/actions-runner-agency
+```
+
+The runner registration token is ephemeral and must never be committed.
+Provisioning is already completed for the live runner; this section is retained
+for recovery/rebuild purposes.
+
+## 12. Merge-gate policy
+
+Browser Validation is not yet a required GitHub merge check.
+
+Target sequence remains:
+
+```text
+executor operational
+-> stable real runs
+-> application bootstrap defects corrected
+-> complete PASS evidence
+-> repeated confidence
+-> separate decision on required merge gate
+```
+
+## 13. Reload rule
+
+Before stating any of the following:
+
+```text
+there is no Agency runner
+Playwright is unavailable
+Playwright MCP is unavailable
+Chrome DevTools MCP is unavailable
+UI cannot be inspected
+manual human execution is required
+```
+
+reload:
+
+1. `docs/operations/execution-capabilities.md`;
+2. this document;
+3. the latest issue/PR state;
+4. the latest trusted workflow runs and artifacts.
+
+Live executor evidence wins over stale documentation; when they disagree, fix
+the documentation rather than forgetting the capability.

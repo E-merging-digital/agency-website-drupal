@@ -7,7 +7,7 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 
 - Drupal 11, base `drupal/recommended-project`.
 - PHP DDEV : 8.4. Plateforme Composer : 8.3 dans `composer.json`.
-- MariaDB 10.11 via DDEV.
+- MariaDB 11.8 via DDEV.
 - Docroot : `web/`.
 - Theme custom : `web/themes/custom/emerging_digital`.
 - Modules custom principaux : `emerging_digital_content`,
@@ -40,6 +40,24 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - `agency_ai_translation` est une implementation legacy a converger avec Drupal
   AI/AI Translate seulement apres preuve de parite ; ne pas la supprimer ou
   l'etendre avec de nouveaux appels provider directs par habitude.
+
+## 2.2 Capacites d'execution et d'inspection UI
+
+- Lire **obligatoirement** `docs/operations/execution-capabilities.md` avant de
+  conclure qu'un runner, DDEV, navigateur, Playwright, Playwright MCP, Chrome
+  DevTools MCP ou une capacite d'inspection UI est indisponible.
+- Agency dispose du runner auto-heberge dedie `agency-browser-runner-01` sur
+  `preflight-runner-01`, compte `agency-runner`.
+- Playwright Test, Chromium, Playwright MCP et Chrome DevTools MCP sont des
+  capacites disponibles sur ce runner.
+- Invariant : `operator-surface capability != project-executor capability`.
+  L'absence d'un outil MCP directement visible dans un cockpit ChatGPT ne
+  signifie pas que la capacite n'existe pas sur le runner.
+- Les artifacts GitHub de Browser Validation (result JSON, evidence,
+  screenshots, traces) peuvent etre recuperes et examines par un agent pour une
+  revue visuelle reelle du rendu final.
+- Avant `HUMAN_REQUIRED`, recharger le registre de capacites et verifier les
+  routes machine gouvernees existantes.
 
 ## 3. Workflow Git/branches
 
@@ -171,14 +189,21 @@ ddev composer test:contact
 ddev composer test:project-functional
 ddev composer test:ai-translation:stable
 ddev composer ci
+npm run browser:validate
 ```
 
 Le CI doit inclure un smoke test Drupal `BrowserTestBase` minimal sur
 `<front>` et echouer en cas d'erreur de rendu runtime.
 
+Pour un changement frontend ou interactif, utiliser la Browser Validation
+Playwright sur le runner Agency lorsque le ticket l'exige et examiner les
+preuves visuelles publiees.
+
 ## 15. Bonnes pratiques Codex
 
 - Lire le ticket, `AGENTS.md`, puis les fichiers touches avant modification.
+- Lire `docs/operations/execution-capabilities.md` avant toute conclusion sur
+  les capacites machine ou UI disponibles.
 - Limiter les changements au perimetre exact du ticket.
 - Preferer les patterns existants aux nouvelles abstractions.
 - Ne jamais reformater ou refactoriser hors necessite.
@@ -190,6 +215,8 @@ Le CI doit inclure un smoke test Drupal `BrowserTestBase` minimal sur
 ## 16. Pieges connus
 
 - DDEV utilise PHP 8.4 mais `composer.json` declare une plateforme PHP 8.3.
+- L'absence d'un MCP dans la surface operateur courante n'implique pas son
+  absence du runner Agency ; relire le registre de capacites.
 - Les pages `service` ne portent pas directement les paragraphes
   `field_home_components`; les grilles sont enrichies via promotions.
 - `node:page` a une meta description plus generique que `node:service`.
@@ -202,7 +229,7 @@ Le CI doit inclure un smoke test Drupal `BrowserTestBase` minimal sur
 
 - Ne pas modifier les menus.
 - Ne pas modifier `system.site:page.front`.
-- Ne pas modifier les workflows GitHub Actions.
+- Ne pas modifier les workflows GitHub Actions sans ticket dedie.
 - Ne pas modifier `scripts/deploy-production.sh`.
 - Ne pas modifier les content types sans ticket dedie.
 - Ne pas modifier les contenus YAML hors ticket de contenu explicite.

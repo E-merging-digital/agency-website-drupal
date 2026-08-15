@@ -52,6 +52,7 @@ content:
     weight: 100
     region: content
 hidden:
+  ai_automator_status: true
   body: true
   field_sector: true
   langcode: true

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\agency_ai_translation\Controller;
 
+use Drupal\agency_ai_translation\Access\AiTranslationAccess;
 use Drupal\agency_ai_translation\Service\AiTranslationManager;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\node\NodeInterface;
@@ -33,10 +34,7 @@ final class TranslateNodeController extends ControllerBase {
    * Lance la traduction IA puis redirige vers l'édition de la traduction cible.
    */
   public function translate(NodeInterface $node, string $target_langcode): RedirectResponse {
-    $hasPermission = $this->currentUser()->hasPermission('trigger ai translation')
-      || $this->currentUser()->hasPermission('administer nodes');
-
-    if (!$hasPermission || !$node->access('update', $this->currentUser())) {
+    if (!AiTranslationAccess::allowed($node, $this->currentUser())) {
       throw new AccessDeniedHttpException();
     }
 

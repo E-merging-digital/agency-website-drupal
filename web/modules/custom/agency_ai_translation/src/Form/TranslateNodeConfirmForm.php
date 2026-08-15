@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\agency_ai_translation\Form;
 
+use Drupal\agency_ai_translation\Access\AiTranslationAccess;
 use Drupal\agency_ai_translation\Service\AiTranslationManager;
 use Drupal\Core\Form\ConfirmFormBase;
 use Drupal\Core\Form\FormStateInterface;
@@ -11,8 +12,8 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 use Drupal\node\NodeInterface;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
  * Confirmation manuelle de traduction IA.
@@ -106,7 +107,7 @@ final class TranslateNodeConfirmForm extends ConfirmFormBase {
     if ($this->targetLangcode === $this->sourceLangcode) {
       throw new \InvalidArgumentException('La langue cible doit être différente de la langue source.');
     }
-    if (!$node->access('update', $this->currentUser())) {
+    if (!AiTranslationAccess::allowed($node, $this->currentUser())) {
       throw new AccessDeniedHttpException();
     }
     $this->node = $node;

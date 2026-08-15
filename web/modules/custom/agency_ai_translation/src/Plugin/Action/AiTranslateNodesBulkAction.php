@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\agency_ai_translation\Plugin\Action;
 
+use Drupal\agency_ai_translation\Access\AiTranslationAccess;
 use Drupal\agency_ai_translation\Service\AiTranslationManager;
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Action\Attribute\Action;
@@ -199,9 +200,11 @@ final class AiTranslateNodesBulkAction extends ConfigurableActionBase implements
    * {@inheritdoc}
    */
   public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE) {
-    $accessResult = AccessResult::allowedIf($object instanceof NodeInterface
-      && $object->access('update', $account)
-      && ($account?->hasPermission('trigger ai translation') || $account?->hasPermission('administer nodes')));
+    $accessResult = AccessResult::allowedIf(
+      $object instanceof NodeInterface
+      && $account instanceof AccountInterface
+      && AiTranslationAccess::allowed($object, $account),
+    );
 
     return $return_as_object ? $accessResult : $accessResult->isAllowed();
   }

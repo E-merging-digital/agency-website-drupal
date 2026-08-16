@@ -1,7 +1,7 @@
 {
-  "request_id": "agency-governed-pr444-proof-001",
-  "pr_number": 444,
-  "head_sha": "017064d2bc6f385bf983b319751eb96626d327ea",
-  "release_sha": "2db8c76f903c32f01e60c01e9cacf0b2b0bee09a",
-  "proof_profile": "case-studies-440"
+  "request_id": "agency-pr452-ai-features-proof-001",
+  "pr_number": 452,
+  "head_sha": "960b16d3a041846bd65adcc31a3100d8f5d144c9",
+  "release_sha": "bf6d3aaaaa5e697ecd3a319001c4800e611f9ddb",
+  "proof_profile": "ai-features-441"
 }

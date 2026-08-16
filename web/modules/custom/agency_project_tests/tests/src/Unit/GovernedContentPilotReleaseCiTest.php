@@ -23,35 +23,35 @@ final class GovernedContentPilotReleaseCiTest extends TestCase {
    * The three pilot case studies are absent and the pending set is down to 30.
    */
   public function testPilotReleaseContractIsVisibleToStandardCi(): void {
-    $projectRoot = dirname(DRUPAL_ROOT);
-    $moduleRoot = $projectRoot . '/web/modules/custom/emerging_digital_content';
+    $project_root = dirname(DRUPAL_ROOT);
+    $module_root = $project_root . '/web/modules/custom/emerging_digital_content';
 
-    require_once $moduleRoot . '/src/ContentSync/Policy/GovernedContentPolicy.php';
+    require_once $module_root . '/src/ContentSync/Policy/GovernedContentPolicy.php';
 
-    $policyClass = 'Drupal\\emerging_digital_content\\ContentSync\\Policy\\GovernedContentPolicy';
-    self::assertCount(3, $policyClass::GOVERNED_CONTENT_IDS);
-    self::assertCount(30, $policyClass::LEGACY_RELEASE_PENDING_IDS);
+    $policy_class = 'Drupal\\emerging_digital_content\\ContentSync\\Policy\\GovernedContentPolicy';
+    self::assertCount(3, $policy_class::GOVERNED_CONTENT_IDS);
+    self::assertCount(30, $policy_class::LEGACY_RELEASE_PENDING_IDS);
 
-    $catalog = Yaml::decode((string) file_get_contents($moduleRoot . '/content_sync/catalog.yml'));
+    $catalog = Yaml::decode((string) file_get_contents($module_root . '/content_sync/catalog.yml'));
     self::assertIsArray($catalog);
     self::assertIsArray($catalog['contents'] ?? NULL);
     self::assertCount(33, $catalog['contents']);
 
-    $catalogIds = array_column($catalog['contents'], 'id');
-    $releasedCaseStudies = [
+    $catalog_ids = array_column($catalog['contents'], 'id');
+    $released_case_studies = [
       'cas-client-refonte-drupal-institutionnelle',
       'cas-client-migration-drupal-11',
       'cas-client-integration-ia-editoriale',
     ];
 
-    foreach ($releasedCaseStudies as $contentId) {
-      self::assertNotContains($contentId, $catalogIds);
-      self::assertNotContains($contentId, $policyClass::LEGACY_RELEASE_PENDING_IDS);
-      self::assertFileDoesNotExist($moduleRoot . '/content_sync/node/' . $contentId . '.yml');
+    foreach ($released_case_studies as $content_id) {
+      self::assertNotContains($content_id, $catalog_ids);
+      self::assertNotContains($content_id, $policy_class::LEGACY_RELEASE_PENDING_IDS);
+      self::assertFileDoesNotExist($module_root . '/content_sync/node/' . $content_id . '.yml');
     }
 
-    foreach ($policyClass::GOVERNED_CONTENT_IDS as $contentId) {
-      self::assertContains($contentId, $catalogIds);
+    foreach ($policy_class::GOVERNED_CONTENT_IDS as $content_id) {
+      self::assertContains($content_id, $catalog_ids);
     }
   }
 

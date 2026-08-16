@@ -9,7 +9,7 @@ use Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Keeps the #440 pilot release contract inside the standard project CI suite.
+ * Keeps completed Governed Content release batches visible to standard CI.
  *
  * The module-local Governed Content tests remain the detailed owner tests. This
  * project-level gate exists because the standard CI suite executes
@@ -21,9 +21,9 @@ use PHPUnit\Framework\TestCase;
 final class GovernedContentPilotReleaseCiTest extends TestCase {
 
   /**
-   * The three pilot case studies are absent and the pending set is down to 30.
+   * Completed release batches stay outside Git and pending is down to 20.
    */
-  public function testPilotReleaseContractIsVisibleToStandardCi(): void {
+  public function testReleasedBatchesAreVisibleToStandardCi(): void {
     $project_root = dirname(DRUPAL_ROOT);
     $module_root = $project_root
       . '/web/modules/custom/emerging_digital_content';
@@ -34,7 +34,7 @@ final class GovernedContentPilotReleaseCiTest extends TestCase {
 
     self::assertCount(3, GovernedContentPolicy::GOVERNED_CONTENT_IDS);
     self::assertCount(
-      30,
+      20,
       GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
     );
 
@@ -42,16 +42,26 @@ final class GovernedContentPilotReleaseCiTest extends TestCase {
     $catalog = Yaml::decode((string) file_get_contents($catalog_path));
     self::assertIsArray($catalog);
     self::assertIsArray($catalog['contents'] ?? NULL);
-    self::assertCount(33, $catalog['contents']);
+    self::assertCount(23, $catalog['contents']);
 
     $catalog_ids = array_column($catalog['contents'], 'id');
-    $released_case_studies = [
+    $released_ids = [
       'cas-client-refonte-drupal-institutionnelle',
       'cas-client-migration-drupal-11',
       'cas-client-integration-ia-editoriale',
+      'ai-automatisation-contenu-drupal',
+      'ai-generation-multilingue',
+      'ai-chatbot-qualification',
+      'ai-audit-intelligent',
+      'ai-redaction-assistee',
+      'ai-correction-editoriale',
+      'ai-traduction-fr-en',
+      'ai-resumes-tags-structure',
+      'ai-seo-liens-internes',
+      'ai-gouvernance-validation',
     ];
 
-    foreach ($released_case_studies as $content_id) {
+    foreach ($released_ids as $content_id) {
       self::assertNotContains($content_id, $catalog_ids);
       self::assertNotContains(
         $content_id,

@@ -1,0 +1,233 @@
+name: Agency governed content transition proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Auditable request identifier
+        required: true
+        type: string
+      pr_number:
+        description: Pull request number to prove
+        required: true
+        type: string
+      head_sha:
+        description: Exact 40-character PR HEAD SHA
+        required: true
+        type: string
+      proof_profile:
+        description: Trusted transition proof profile
+        required: true
+        default: case-studies-440
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: agency-governed-content-transition-proof
+  cancel-in-progress: false
+
+jobs:
+  validate-request:
+    name: Validate governed transition target
+    runs-on: ubuntu-latest
+    outputs:
+      base_sha: ${{ steps.validate.outputs.base_sha }}
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+      pr_number: ${{ steps.validate.outputs.pr_number }}
+      request_id: ${{ steps.validate.outputs.request_id }}
+    steps:
+      - name: Validate dispatch actor, profile and live PR
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REQUESTED_HEAD_SHA: ${{ inputs.head_sha }}
+          PROOF_PROFILE: ${{ inputs.proof_profile }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_ACTOR" != "E-merging-digital" && "$GITHUB_ACTOR" != "github-actions[bot]" ]]; then
+            echo "Refusing self-hosted transition dispatch actor: $GITHUB_ACTOR" >&2
+            exit 1
+          fi
+
+          if [[ ! "$REQUEST_ID" =~ ^[A-Za-z0-9._-]{8,80}$ ]]; then
+            echo "Invalid request_id." >&2
+            exit 1
+          fi
+          if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "pr_number must identify a pull request." >&2
+            exit 1
+          fi
+          if [[ ! "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "head_sha must be an exact lowercase 40-character SHA." >&2
+            exit 1
+          fi
+          if [[ "$PROOF_PROFILE" != "case-studies-440" ]]; then
+            echo "Unsupported governed transition proof profile: $PROOF_PROFILE" >&2
+            exit 1
+          fi
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          state="$(jq -r '.state' <<<"$pr_json")"
+          base_ref="$(jq -r '.base.ref' <<<"$pr_json")"
+          base_sha="$(jq -r '.base.sha' <<<"$pr_json")"
+          head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+
+          if [[ "$state" != "open" || "$base_ref" != "main" ]]; then
+            echo "Transition proof target must be an OPEN PR based on main." >&2
+            exit 1
+          fi
+          if [[ "$head_repo" != "$GITHUB_REPOSITORY" ]]; then
+            echo "Fork PRs are never allowed on the self-hosted transition runner." >&2
+            exit 1
+          fi
+          if [[ "$head_sha" != "$REQUESTED_HEAD_SHA" ]]; then
+            echo "Requested SHA is not the live PR HEAD." >&2
+            exit 1
+          fi
+          if [[ ! "$base_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Live PR base SHA is invalid." >&2
+            exit 1
+          fi
+
+          changed_files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename')"
+          if grep -Eq '^(\.github/|\.ddev/|\.agency/|scripts/runner/|tests/browser/|package\.json$|package-lock\.json$|playwright\.config\.mjs$)' <<<"$changed_files"; then
+            echo "Target PR changes trusted runner/browser infrastructure and cannot execute on this proof route." >&2
+            printf '%s\n' "$changed_files" >&2
+            exit 1
+          fi
+
+          required_paths=(
+            "web/modules/custom/emerging_digital_content/content_sync/catalog.yml"
+            "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-refonte-drupal-institutionnelle.yml"
+            "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-migration-drupal-11.yml"
+            "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-integration-ia-editoriale.yml"
+            "web/modules/custom/emerging_digital_content/src/ContentSync/Policy/GovernedContentPolicy.php"
+          )
+          for required_path in "${required_paths[@]}"; do
+            grep -Fxq "$required_path" <<<"$changed_files" || {
+              echo "Pilot #440 transition proof requires changed path: $required_path" >&2
+              exit 1
+            }
+          done
+
+          echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+  transition-proof:
+    name: Prove base to released target on persistent DDEV database
+    needs: validate-request
+    timeout-minutes: 60
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+
+    steps:
+      - name: Verify runner identity and trusted toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+          jq --version
+          command -v python3
+          python3 --version
+
+      - name: Checkout trusted proof implementation from main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify trusted proof implementation
+        shell: bash
+        env:
+          TRUSTED_MAIN_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN_SHA"
+          test -f scripts/runner/run-governed-content-transition-proof.sh
+          test -f package-lock.json
+          git diff --check
+          cp scripts/runner/run-governed-content-transition-proof.sh \
+            "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install trusted browser dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install chromium
+
+      - name: Run governed content transition proof
+        shell: bash
+        env:
+          BASE_SHA: ${{ needs.validate-request.outputs.base_sha }}
+          TARGET_SHA: ${{ needs.validate-request.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.validate-request.outputs.pr_number }}
+          REQUEST_ID: ${{ needs.validate-request.outputs.request_id }}
+        run: |
+          set -euo pipefail
+          bash "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+
+      - name: Upload governed transition evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-governed-content-transition-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/governed-content-transition
+            test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Clean DDEV and verify trusted workspace
+        if: ${{ always() }}
+        shell: bash
+        env:
+          TRUSTED_MAIN_SHA: ${{ github.sha }}
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-governed-content-proof.yaml
+          rm -f tests/browser/governed-content-transition-proof.spec.mjs
+          rm -f "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+          git reset --hard "$TRUSTED_MAIN_SHA"
+          git clean -fd -- .ddev tests/browser
+          rm -rf artifacts/governed-content-transition test-results
+          rmdir artifacts 2>/dev/null || true
+
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi

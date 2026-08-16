@@ -22,10 +22,13 @@ jobs:
           tools: composer:v2
           coverage: none
 
-      - name: Validate current lock and probe standalone compatibility
+      - name: Validate lock, install standalone temporarily and capture source evidence
         shell: bash
         run: |
           set -euo pipefail
+          cp composer.json /tmp/issue-383-composer.json
+          cp composer.lock /tmp/issue-383-composer.lock
+
           {
             echo "BASE_SHA=${GITHUB_SHA}"
             composer validate --strict
@@ -33,25 +36,39 @@ jobs:
             composer show drupal/ai --locked
             echo "--- locked Field Widget Actions ---"
             composer show drupal/field_widget_actions --locked
-            echo "--- dry-run AI Content Suggestions ---"
+            echo "--- package repository metadata before install ---"
+            composer show drupal/ai_content_suggestions 1.5.0 --all || true
+            echo "--- install standalone into disposable workspace ---"
           } | tee issue-383-proof.txt
 
-          set +e
-          composer require 'drupal/ai_content_suggestions:^1.4' --dry-run --with-all-dependencies --no-interaction 2>&1 | tee -a issue-383-proof.txt
-          status=${PIPESTATUS[0]}
-          set -e
+          composer require 'drupal/ai_content_suggestions:^1.4' --with-all-dependencies --no-interaction 2>&1 | tee -a issue-383-proof.txt
 
-          echo "DRY_RUN_EXIT=${status}" | tee -a issue-383-proof.txt
-          if [ "${status}" -eq 0 ]; then
-            echo "COMPATIBILITY=COMPATIBLE" | tee -a issue-383-proof.txt
-          else
-            echo "COMPATIBILITY=INCOMPATIBLE" | tee -a issue-383-proof.txt
-          fi
+          {
+            echo "COMPATIBILITY=COMPATIBLE"
+            echo "--- installed standalone ---"
+            composer show drupal/ai_content_suggestions
+            echo "--- installed dependency invariants ---"
+            composer show drupal/ai | grep -E '^(versions|name)' || true
+            composer show drupal/field_widget_actions | grep -E '^(versions|name)' || true
+          } | tee -a issue-383-proof.txt
 
+          mkdir -p issue-383-package
+          cp web/modules/contrib/ai_content_suggestions/composer.json issue-383-package/ 2>/dev/null || true
+          cp web/modules/contrib/ai_content_suggestions/*.info.yml issue-383-package/ 2>/dev/null || true
+          cp web/modules/contrib/ai_content_suggestions/*.permissions.yml issue-383-package/ 2>/dev/null || true
+          cp web/modules/contrib/ai_content_suggestions/*.routing.yml issue-383-package/ 2>/dev/null || true
+          cp web/modules/contrib/ai_content_suggestions/*.services.yml issue-383-package/ 2>/dev/null || true
+          cp -R web/modules/contrib/ai_content_suggestions/config issue-383-package/ 2>/dev/null || true
+          cp -R web/modules/contrib/ai_content_suggestions/src issue-383-package/ 2>/dev/null || true
+
+          cp /tmp/issue-383-composer.json composer.json
+          cp /tmp/issue-383-composer.lock composer.lock
           git diff --exit-code -- composer.json composer.lock
 
       - name: Upload proof
         uses: actions/upload-artifact@v4
         with:
-          name: issue-383-content-suggestions-proof-${{ github.run_id }}
-          path: issue-383-proof.txt
+          name: issue-383-content-suggestions-inspection-${{ github.run_id }}
+          path: |
+            issue-383-proof.txt
+            issue-383-package

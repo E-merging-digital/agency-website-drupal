@@ -1,0 +1,302 @@
+name: Agency self-hosted browser validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Auditable request identifier
+        required: true
+        type: string
+      pr_number:
+        description: Pull request number, or 0 to validate current main
+        required: true
+        type: string
+      head_sha:
+        description: Exact 40-character commit SHA to validate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: agency-self-hosted-browser-validation
+  cancel-in-progress: false
+
+jobs:
+  validate-request:
+    name: Validate trusted target before self-hosted execution
+    runs-on: ubuntu-latest
+    outputs:
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+    steps:
+      - name: Validate dispatch actor and target
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REQUESTED_HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_ACTOR" != "E-merging-digital" && "$GITHUB_ACTOR" != "github-actions[bot]" ]]; then
+            echo "Refusing self-hosted dispatch actor: $GITHUB_ACTOR" >&2
+            exit 1
+          fi
+
+          if [[ ! "$REQUEST_ID" =~ ^[A-Za-z0-9._-]{8,80}$ ]]; then
+            echo "Invalid request_id." >&2
+            exit 1
+          fi
+
+          if [[ ! "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "head_sha must be an exact lowercase 40-character SHA." >&2
+            exit 1
+          fi
+
+          if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "pr_number must be numeric." >&2
+            exit 1
+          fi
+
+          if [[ "$PR_NUMBER" == "0" ]]; then
+            main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+            if [[ "$REQUESTED_HEAD_SHA" != "$main_sha" ]]; then
+              echo "Main validation requires the live main SHA." >&2
+              exit 1
+            fi
+          else
+            pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+            state="$(jq -r '.state' <<<"$pr_json")"
+            base_ref="$(jq -r '.base.ref' <<<"$pr_json")"
+            head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
+            head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+
+            if [[ "$state" != "open" || "$base_ref" != "main" ]]; then
+              echo "Target must be an OPEN PR based on main." >&2
+              exit 1
+            fi
+            if [[ "$head_repo" != "$GITHUB_REPOSITORY" ]]; then
+              echo "Fork PRs are never allowed on the self-hosted runner." >&2
+              exit 1
+            fi
+            if [[ "$head_sha" != "$REQUESTED_HEAD_SHA" ]]; then
+              echo "Requested SHA is not the live PR HEAD." >&2
+              exit 1
+            fi
+
+            changed_files="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename')"
+            if grep -Eq '^(\.github/|\.ddev/|\.agency/|scripts/runner/)' <<<"$changed_files"; then
+              echo "Runner/workflow/DDEV infrastructure changes require a trusted main merge before execution." >&2
+              exit 1
+            fi
+          fi
+
+          echo "head_sha=$REQUESTED_HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+  browser-validation:
+    name: Rebuild Agency and run real browser validation
+    needs: validate-request
+    timeout-minutes: 45
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          docker info --format 'ServerVersion={{.ServerVersion}} Driver={{.Driver}}'
+          command -v ddev
+          ddev version
+
+      - name: Checkout exact trusted target
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact checkout and immutable infrastructure
+        id: checkout
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.validate-request.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -f AGENTS.md
+          test -f .ddev/config.yaml
+          test -f package.json
+          test -f scripts/run-browser-validation.mjs
+
+          if [[ -f package-lock.json ]]; then
+            echo "lockfile_present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "lockfile_present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          git diff --check
+
+      - name: Setup Node 24 for lockfile bootstrap
+        if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Generate missing npm lockfile
+        if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          test -f package-lock.json
+          git diff --check -- package-lock.json
+
+      - name: Upload generated npm lockfile
+        if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-package-lock-bootstrap-${{ github.run_id }}-${{ github.run_attempt }}
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop after lockfile bootstrap
+        if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
+        shell: bash
+        run: |
+          echo "package-lock.json was absent from the trusted target. A registry-resolved lockfile was generated and uploaded as an artifact; version that exact file before browser validation." >&2
+          exit 1
+
+      - name: Setup Node 24
+        if: ${{ steps.checkout.outputs.lockfile_present == 'true' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install Node dependencies and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          npm ci
+          npx playwright install chromium
+
+      - name: Isolate DDEV project for this run
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-browser-ci.yaml <<EOF
+          name: agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild Drupal from repository-owned state
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          verify_config_clean() {
+            local config_status
+            config_status="$(ddev drush config:status 2>&1)"
+            printf '%s\n' "$config_status"
+            if grep -Fq 'No differences' <<<"$config_status"; then
+              return 0
+            fi
+
+            mkdir -p artifacts/config-canonicalization
+            printf '%s\n' "$config_status" > artifacts/config-canonicalization/config-status.txt
+
+            # Materialize the exact canonical export produced by the freshly
+            # rebuilt Drupal runtime so maintainers can review a deterministic
+            # patch instead of guessing which YAML normalization is required.
+            ddev drush cex -y
+            git status --short config/sync > artifacts/config-canonicalization/git-status.txt
+            git diff --binary -- config/sync > artifacts/config-canonicalization/canonical-config.patch
+
+            echo "Canonical configuration drift detected; exported patch evidence." >&2
+            return 1
+          }
+
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+
+          # Module/profile install hooks can mutate active configuration after the
+          # initial install-time import. Re-import the repository-owned sync
+          # directory so the browser proof always starts from canonical config.
+          ddev drush cim -y
+          ddev drush cr
+          verify_config_clean
+
+          ddev drush emerging:content-sync:validate
+          ddev drush emerging:content-sync --all --dry-run
+          ddev drush emerging:content-sync --all
+          ddev drush cr
+          ddev drush status
+          verify_config_clean
+
+      - name: Run unattended real-browser validation
+        shell: bash
+        env:
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          npm run browser:validate
+
+      - name: Upload browser and config evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-browser-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/browser-validation
+            artifacts/config-canonicalization
+            playwright-report
+            test-results
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        env:
+          LOCKFILE_WAS_PRESENT: ${{ steps.checkout.outputs.lockfile_present }}
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-browser-ci.yaml
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
+          if [[ "$LOCKFILE_WAS_PRESENT" == "false" ]]; then
+            rm -f package-lock.json
+          fi
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi

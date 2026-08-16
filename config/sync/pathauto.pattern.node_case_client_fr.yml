@@ -13,19 +13,19 @@ selection_criteria:
   3c90b4a5-d7f6-452f-a9e6-02282c89dc50:
     id: 'entity_bundle:node'
     negate: false
-    uuid: 3c90b4a5-d7f6-452f-a9e6-02282c89dc50
     context_mapping:
       node: node
     bundles:
       case_client: case_client
+    uuid: 3c90b4a5-d7f6-452f-a9e6-02282c89dc50
   63c0d07e-3aed-4aad-8717-6e740eeb8f78:
     id: language
     negate: false
-    uuid: 63c0d07e-3aed-4aad-8717-6e740eeb8f78
     context_mapping:
       language: 'node:langcode:language'
     langcodes:
       fr: fr
+    uuid: 63c0d07e-3aed-4aad-8717-6e740eeb8f78
 selection_logic: and
 weight: -12
 relationships:

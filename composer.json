@@ -59,6 +59,7 @@
         "drupal/core-recipe-unpack": "^11.4",
         "drupal/core-recommended": "^11.4",
         "drupal/default_content": "^2.0@alpha",
+        "drupal/field_widget_actions": "^1.3",
         "drupal/google_tag": "^2.0",
         "drupal/hal": "^2.0",
         "drupal/honeypot": "^2.2",
@@ -177,8 +178,10 @@
             "@lint:phpcs",
             "@lint:phpstan",
             "@lint:drupal-check",
+            "@test:content-sync-queue-bootstrap",
             "@test:homepage-smoke"
         ],
+        "test:content-sync-queue-bootstrap": "bash scripts/run-browser-test.sh web/modules/custom/emerging_digital_content/tests/src/Kernel/QueueStorageBootstrapTest.php",
         "test:project-functional": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional --exclude-group unstable_language_switcher --exclude-group homepage_smoke --exclude-group contact_form",
         "test:homepage-smoke": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional/HomepageRenderTest.php",
         "test:contact": "bash scripts/run-browser-test.sh web/modules/custom/agency_project_tests/tests/src/Functional/ContactFormTest.php",

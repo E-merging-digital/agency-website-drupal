@@ -13,19 +13,19 @@ selection_criteria:
   2a32eac6-0667-429e-a6de-78caeb3f4c02:
     id: 'entity_bundle:node'
     negate: false
-    uuid: 2a32eac6-0667-429e-a6de-78caeb3f4c02
     context_mapping:
       node: node
     bundles:
       ai_feature: ai_feature
+    uuid: 2a32eac6-0667-429e-a6de-78caeb3f4c02
   6daf2124-4901-4ac8-bc97-317b8c2f2b97:
     id: language
     negate: false
-    uuid: 6daf2124-4901-4ac8-bc97-317b8c2f2b97
     context_mapping:
       language: 'node:langcode:language'
     langcodes:
       fr: fr
+    uuid: 6daf2124-4901-4ac8-bc97-317b8c2f2b97
 selection_logic: and
 weight: -12
 relationships:

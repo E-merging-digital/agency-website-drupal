@@ -1,0 +1,36 @@
+_meta:
+  version: '1.0'
+  entity_type: menu_link_content
+  uuid: 18daf97a-ac29-4a89-8b90-85eeb7f6739c
+  bundle: menu_link_content
+  default_langcode: fr
+default:
+  enabled:
+    -
+      value: true
+  title:
+    -
+      value: 'IA & Drupal'
+  menu_name:
+    -
+      value: main
+  link:
+    -
+      uri: 'internal:/ia-drupal'
+      title: ''
+      options: {  }
+  external:
+    -
+      value: false
+  rediscover:
+    -
+      value: false
+  weight:
+    -
+      value: 2
+  expanded:
+    -
+      value: false
+  revision_translation_affected:
+    -
+      value: true

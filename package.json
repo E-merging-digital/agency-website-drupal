@@ -1,0 +1,16 @@
+{
+  "name": "agency-website-browser-validation",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "browser:install": "playwright install chromium",
+    "browser:validate": "node scripts/run-browser-validation.mjs",
+    "browser:validate:direct": "playwright test --config=playwright.config.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

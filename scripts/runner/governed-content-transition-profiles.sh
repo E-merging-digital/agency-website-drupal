@@ -63,6 +63,37 @@ case "$PROOF_PROFILE" in
     PROOF_EDITORIAL_MARKER="[proof-441-ai-features-editorial-survives]"
     ;;
 
+  services-drupal-441)
+    PROOF_CONTENT_IDS=(
+      "agence-drupal-belgique"
+      "creation-site-drupal"
+      "maintenance-drupal"
+      "migration-drupal"
+      "refonte-site-drupal"
+      "audit-drupal"
+      "accessibilite-seo-optimisation"
+    )
+    PROOF_PUBLIC_PATHS=(
+      "/fr/agence-drupal-belgique"
+      "/en/drupal-agency-belgium"
+      "/fr/creation-site-drupal"
+      "/en/drupal-website-creation"
+      "/fr/maintenance-drupal"
+      "/en/drupal-maintenance"
+      "/fr/migration-drupal"
+      "/en/drupal-migration"
+      "/fr/refonte-site-drupal"
+      "/en/drupal-website-redesign"
+      "/fr/audit-drupal"
+      "/en/drupal-audit"
+      "/fr/accessibilite-seo-optimisation"
+      "/en/ai-accessibility-seo-optimization"
+    )
+    PROOF_EDITORIAL_CONTENT_ID="audit-drupal"
+    PROOF_EDITORIAL_PATH="/fr/audit-drupal"
+    PROOF_EDITORIAL_MARKER="[proof-441-services-drupal-editorial-survives]"
+    ;;
+
   *)
     echo "Unsupported governed transition proof profile: $PROOF_PROFILE" >&2
     return 1 2>/dev/null || exit 1

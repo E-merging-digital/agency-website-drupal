@@ -1,0 +1,64 @@
+name: Issue 439 patch released mapping guard
+
+on:
+  push:
+    branches:
+      - feature/issue-439-governed-content-release-mapping
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feature/issue-439-governed-content-release-mapping
+
+      - name: Patch released mapping preflight guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php')
+          text = path.read_text()
+
+          old = """      $catalog_hash = $this->catalogHash($definition);\n      $planned_operation = $mapping === NULL\n        ? 'would create managed entity'\n        : 'would update mapped entity';\n\n      $report['content_reports'][] = [\n"""
+          new = """      $catalog_hash = $this->catalogHash($definition);\n      $released_mapping = $mapping !== NULL\n        && $mapping->status() === ContentSyncMappingRecord::STATUS_RELEASED;\n      if ($released_mapping) {\n        $report['errors'][] = sprintf(\n          'Content \"%s\" has a released mapping; readmit it explicitly before normal Content Sync.',\n          $entry->id(),\n        );\n      }\n      $planned_operation = $mapping === NULL\n        ? 'would create managed entity'\n        : ($released_mapping\n          ? 'blocked: released mapping requires explicit readmission'\n          : 'would update mapped entity');\n\n      $report['content_reports'][] = [\n"""
+          if old not in text:
+              raise SystemExit('dry-run planning anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = """        'mapping_status' => $mapping === NULL ? 'unmapped' : 'mapped',\n"""
+          new = """        'mapping_status' => $mapping === NULL\n          ? 'unmapped'\n          : ($released_mapping ? ContentSyncMappingRecord::STATUS_RELEASED : 'mapped'),\n"""
+          if old not in text:
+              raise SystemExit('mapping status anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = """    if (isset($report['invalid_contents'][$content_id . '#' . $entry->index()])) {\n      $report['errors'][] = sprintf('Content \"%s\" is invalid and was not applied.', $content_id);\n      return $this->withSummary($report, 'targeted_apply', FALSE, FALSE, '', FALSE);\n    }\n\n    try {\n      $result = $this->applyValidatedEntry($entry);\n"""
+          new = """    if (isset($report['invalid_contents'][$content_id . '#' . $entry->index()])) {\n      $report['errors'][] = sprintf('Content \"%s\" is invalid and was not applied.', $content_id);\n      return $this->withSummary($report, 'targeted_apply', FALSE, FALSE, '', FALSE);\n    }\n\n    $mapping = $this->mappingRepository->findByContentId($content_id);\n    if ($mapping !== NULL && $mapping->status() === ContentSyncMappingRecord::STATUS_RELEASED) {\n      $report['errors'][] = sprintf(\n        'Content \"%s\" has a released mapping; readmit it explicitly before normal Content Sync.',\n        $content_id,\n      );\n      $report['actions'][] = 'released mapping guard: no Drupal entity or mapping writes were executed';\n      $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';\n      return $this->withSummary($report, 'targeted_apply', FALSE, FALSE, '', FALSE);\n    }\n\n    try {\n      $result = $this->applyValidatedEntry($entry);\n"""
+          if old not in text:
+              raise SystemExit('targeted apply anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = """    foreach ($catalog->entries() as $entry) {\n      try {\n        $this->assertSupportedTarget($entry);\n"""
+          new = """    foreach ($catalog->entries() as $entry) {\n      $mapping = $this->mappingRepository->findByContentId($entry->id());\n      if ($mapping !== NULL && $mapping->status() === ContentSyncMappingRecord::STATUS_RELEASED) {\n        $report['errors'][] = sprintf(\n          'Content \"%s\" has a released mapping; readmit it explicitly before normal Content Sync.',\n          $entry->id(),\n        );\n        continue;\n      }\n\n      try {\n        $this->assertSupportedTarget($entry);\n"""
+          if old not in text:
+              raise SystemExit('full apply preflight anchor not found')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+          git diff --check
+          git diff -- web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php
+          git commit -m 'Issue #439: block normal sync for released mappings'
+          git push origin HEAD:feature/issue-439-governed-content-release-mapping

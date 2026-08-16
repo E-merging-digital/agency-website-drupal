@@ -19,10 +19,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Validate governed transition proof shell syntax
+      - name: Validate governed transition proof shell syntax and profiles
         run: |
+          set -euo pipefail
+          bash -n scripts/runner/governed-content-transition-profiles.sh
           bash -n scripts/runner/run-governed-content-transition-proof.sh
           bash -n scripts/runner/finalize-governed-content-transition-proof.sh
+
+          PROOF_PROFILE=case-studies-440 bash -c '
+            set -euo pipefail
+            source scripts/runner/governed-content-transition-profiles.sh
+            test "$PROOF_MAPPING_COUNT" = "3"
+            test "$PROOF_EDITORIAL_CONTENT_ID" = "cas-client-migration-drupal-11"
+            test "${#PROOF_PUBLIC_PATHS[@]}" = "6"
+          '
+
+          PROOF_PROFILE=ai-features-441 bash -c '
+            set -euo pipefail
+            source scripts/runner/governed-content-transition-profiles.sh
+            test "$PROOF_MAPPING_COUNT" = "10"
+            test "$PROOF_EDITORIAL_CONTENT_ID" = "ai-redaction-assistee"
+            test "${#PROOF_PUBLIC_PATHS[@]}" = "20"
+          '
+
+          if PROOF_PROFILE=unsupported-profile bash -c '
+            set -euo pipefail
+            source scripts/runner/governed-content-transition-profiles.sh
+          '; then
+            echo "Unsupported proof profile was accepted." >&2
+            exit 1
+          fi
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2

@@ -5,28 +5,28 @@ set -euo pipefail
 : "${TARGET_SHA:?TARGET_SHA is required}"
 : "${PR_NUMBER:?PR_NUMBER is required}"
 : "${REQUEST_ID:?REQUEST_ID is required}"
+: "${PROOF_PROFILE:?PROOF_PROFILE is required}"
+: "${PROOF_PROFILE_HELPER:?PROOF_PROFILE_HELPER is required}"
+
+# The helper is copied from trusted main by the workflow before any target SHA is
+# checked out. Do not source profile data from the PR under proof.
+# shellcheck source=/dev/null
+source "$PROOF_PROFILE_HELPER"
 
 ARTIFACT_ROOT="artifacts/governed-content-transition"
 SNAPSHOT_ROOT="$ARTIFACT_ROOT/snapshots"
 BROWSER_ROOT="$ARTIFACT_ROOT/browser"
 LOG_ROOT="$ARTIFACT_ROOT/logs"
 RESULT_PATH="$ARTIFACT_ROOT/result.json"
-EDITORIAL_MARKER="[proof-440-editorial-survives]"
-
-PILOT_IDS=(
-  "cas-client-refonte-drupal-institutionnelle"
-  "cas-client-migration-drupal-11"
-  "cas-client-integration-ia-editoriale"
-)
-
-PILOT_PAYLOADS=(
-  "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-refonte-drupal-institutionnelle.yml"
-  "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-migration-drupal-11.yml"
-  "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-integration-ia-editoriale.yml"
-)
-
+EDITORIAL_MARKER="$PROOF_EDITORIAL_MARKER"
+PILOT_IDS=("${PROOF_CONTENT_IDS[@]}")
+PILOT_PAYLOADS=("${PROOF_PAYLOADS[@]}")
+EXPECTED_ALIASES=("${PROOF_PUBLIC_PATHS[@]}")
+EXPECTED_MAPPING_COUNT="$PROOF_MAPPING_COUNT"
+EDITORIAL_CONTENT_ID="$PROOF_EDITORIAL_CONTENT_ID"
+EDITORIAL_PATH="$PROOF_EDITORIAL_PATH"
 CATALOG_PATH="web/modules/custom/emerging_digital_content/content_sync/catalog.yml"
-SQL_IDS="'cas-client-refonte-drupal-institutionnelle','cas-client-migration-drupal-11','cas-client-integration-ia-editoriale'"
+SQL_IDS="$PROOF_SQL_IDS"
 
 mkdir -p "$SNAPSHOT_ROOT" "$BROWSER_ROOT" "$LOG_ROOT"
 
@@ -35,6 +35,9 @@ proof_phase="bootstrap"
 
 write_result() {
   local exit_code="$1"
+  local pilot_ids_json
+  pilot_ids_json="$(printf '%s\n' "${PILOT_IDS[@]}" | jq -R -s 'split("\n")[:-1]')"
+
   jq -n \
     --arg result "$proof_status" \
     --arg phase "$proof_phase" \
@@ -42,7 +45,9 @@ write_result() {
     --arg pr_number "$PR_NUMBER" \
     --arg base_sha "$BASE_SHA" \
     --arg target_sha "$TARGET_SHA" \
+    --arg proof_profile "$PROOF_PROFILE" \
     --arg marker "$EDITORIAL_MARKER" \
+    --argjson pilot_content_ids "$pilot_ids_json" \
     --argjson exit_code "$exit_code" \
     '{
       result: $result,
@@ -51,11 +56,8 @@ write_result() {
       pr_number: $pr_number,
       base_sha: $base_sha,
       target_sha: $target_sha,
-      pilot_content_ids: [
-        "cas-client-refonte-drupal-institutionnelle",
-        "cas-client-migration-drupal-11",
-        "cas-client-integration-ia-editoriale"
-      ],
+      proof_profile: $proof_profile,
+      pilot_content_ids: $pilot_content_ids,
       editorial_marker: $marker,
       exit_code: $exit_code
     }' > "$RESULT_PATH"
@@ -129,8 +131,8 @@ assert_mapping_status() {
   local count
 
   count="$(wc -l < "$snapshot" | tr -d ' ')"
-  [[ "$count" == "3" ]] || {
-    echo "Expected exactly 3 pilot mappings, found ${count}." >&2
+  [[ "$count" == "$EXPECTED_MAPPING_COUNT" ]] || {
+    echo "Expected exactly ${EXPECTED_MAPPING_COUNT} proof mappings, found ${count}." >&2
     return 1
   }
 
@@ -150,16 +152,10 @@ mapping_identity() {
 assert_public_aliases() {
   local snapshot="$1"
   local alias
-  local expected_aliases=(
-    "/cas-clients/refonte-drupal-institutionnelle"
-    "/case-studies/institutional-drupal-redesign"
-    "/cas-clients/migration-drupal-11"
-    "/case-studies/drupal-11-migration"
-    "/cas-clients/integration-ia-editoriale"
-    "/case-studies/editorial-ai-integration"
-  )
 
-  for alias in "${expected_aliases[@]}"; do
+  for alias in "${EXPECTED_ALIASES[@]}"; do
+    alias="${alias#/fr}"
+    alias="${alias#/en}"
     grep -Fq $'\t'"${alias}" "$snapshot" || {
       echo "Expected alias missing from runtime snapshot: ${alias}" >&2
       return 1
@@ -168,7 +164,7 @@ assert_public_aliases() {
 
   awk -F '\t' '
     $5 != "1" {
-      printf "Pilot node %s translation %s is not published.\n", $1, $4 > "/dev/stderr"
+      printf "Proof node %s translation %s is not published.\n", $1, $4 > "/dev/stderr"
       bad = 1
     }
     END { exit bad }
@@ -207,28 +203,57 @@ readmit_pilot() {
 }
 
 apply_editorial_edit() {
-  ddev drush php:eval '
-    $database = \Drupal::database();
-    $nid = $database->select("emerging_digital_content_sync_mapping", "m")
-      ->fields("m", ["entity_id"])
-      ->condition("content_id", "cas-client-migration-drupal-11")
-      ->execute()
-      ->fetchField();
-    if (!$nid) {
-      throw new \RuntimeException("Pilot mapping not found for editorial proof.");
-    }
-    $node = \Drupal\node\Entity\Node::load((int) $nid);
-    if (!$node) {
-      throw new \RuntimeException("Pilot node not found for editorial proof.");
-    }
-    $node->setNewRevision(TRUE);
-    $node->setRevisionLogMessage("Governed Content transition proof #440");
-    $translation = $node->hasTranslation("fr") ? $node->getTranslation("fr") : $node;
-    if (!str_contains((string) $translation->label(), "[proof-440-editorial-survives]")) {
-      $translation->setTitle($translation->label() . " [proof-440-editorial-survives]");
-    }
-    $node->save();
-  '
+  case "$PROOF_PROFILE" in
+    case-studies-440)
+      ddev drush php:eval '
+        $database = \Drupal::database();
+        $nid = $database->select("emerging_digital_content_sync_mapping", "m")
+          ->fields("m", ["entity_id"])
+          ->condition("content_id", "cas-client-migration-drupal-11")
+          ->execute()
+          ->fetchField();
+        if (!$nid) {
+          throw new \RuntimeException("Pilot mapping not found for editorial proof.");
+        }
+        $node = \Drupal\node\Entity\Node::load((int) $nid);
+        if (!$node) {
+          throw new \RuntimeException("Pilot node not found for editorial proof.");
+        }
+        $node->setNewRevision(TRUE);
+        $node->setRevisionLogMessage("Governed Content transition proof #440");
+        $translation = $node->hasTranslation("fr") ? $node->getTranslation("fr") : $node;
+        if (!str_contains((string) $translation->label(), "[proof-440-editorial-survives]")) {
+          $translation->setTitle($translation->label() . " [proof-440-editorial-survives]");
+        }
+        $node->save();
+      '
+      ;;
+
+    ai-features-441)
+      ddev drush php:eval '
+        $database = \Drupal::database();
+        $nid = $database->select("emerging_digital_content_sync_mapping", "m")
+          ->fields("m", ["entity_id"])
+          ->condition("content_id", "ai-redaction-assistee")
+          ->execute()
+          ->fetchField();
+        if (!$nid) {
+          throw new \RuntimeException("AI feature mapping not found for editorial proof.");
+        }
+        $node = \Drupal\node\Entity\Node::load((int) $nid);
+        if (!$node) {
+          throw new \RuntimeException("AI feature node not found for editorial proof.");
+        }
+        $node->setNewRevision(TRUE);
+        $node->setRevisionLogMessage("Governed Content transition proof #441 ai_feature");
+        $translation = $node->hasTranslation("fr") ? $node->getTranslation("fr") : $node;
+        if (!str_contains((string) $translation->label(), "[proof-441-ai-features-editorial-survives]")) {
+          $translation->setTitle($translation->label() . " [proof-441-ai-features-editorial-survives]");
+        }
+        $node->save();
+      '
+      ;;
+  esac
 }
 
 assert_editorial_edit_survives() {
@@ -236,7 +261,7 @@ assert_editorial_edit_survives() {
     SELECT nfd.title
       FROM emerging_digital_content_sync_mapping m
       JOIN node_field_data nfd ON nfd.nid = m.entity_id AND nfd.langcode = 'fr'
-     WHERE m.content_id = 'cas-client-migration-drupal-11';
+     WHERE m.content_id = '${EDITORIAL_CONTENT_ID}';
   " | grep -Fq "$EDITORIAL_MARKER"
 }
 
@@ -273,25 +298,26 @@ print(url.rstrip("/"))
 '
 }
 
+browser_pages_json() {
+  printf '%s\n' "${EXPECTED_ALIASES[@]}" \
+    | jq -R -s --arg editorial "$EDITORIAL_PATH" \
+      'split("\n")[:-1] | map([., . == $editorial])'
+}
+
 run_browser_proof() {
   local base_url
+  local pages_json
   base_url="$(detect_ddev_url)"
+  pages_json="$(browser_pages_json)"
 
   cat > tests/browser/governed-content-transition-proof.spec.mjs <<'EOF'
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 
-const pages = [
-  ['/fr/cas-clients/refonte-drupal-institutionnelle', false],
-  ['/en/case-studies/institutional-drupal-redesign', false],
-  ['/fr/cas-clients/migration-drupal-11', true],
-  ['/en/case-studies/drupal-11-migration', false],
-  ['/fr/cas-clients/integration-ia-editoriale', false],
-  ['/en/case-studies/editorial-ai-integration', false],
-];
+const pages = JSON.parse(process.env.PROOF_PAGES_JSON);
 
 for (const [path, expectsMarker] of pages) {
-  test(`released case study remains public: ${path}`, async ({ page }, testInfo) => {
+  test(`released governed-content item remains public: ${path}`, async ({ page }, testInfo) => {
     const runtimeErrors = [];
     page.on('console', (message) => {
       if (message.type() === 'error') {
@@ -323,6 +349,7 @@ EOF
 
   PLAYWRIGHT_BASE_URL="$base_url" \
   PROOF_EDITORIAL_MARKER="$EDITORIAL_MARKER" \
+  PROOF_PAGES_JSON="$pages_json" \
     npx playwright test tests/browser/governed-content-transition-proof.spec.mjs \
       | tee "$LOG_ROOT/playwright.txt"
 }

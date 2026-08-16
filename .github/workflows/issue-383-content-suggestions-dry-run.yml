@@ -1,0 +1,57 @@
+name: Issue 383 AI Content Suggestions compatibility
+
+on:
+  push:
+    branches:
+      - feature/issue-383-ai-content-suggestions-verdict
+
+permissions:
+  contents: read
+
+jobs:
+  composer-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate current lock and probe standalone compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "BASE_SHA=${GITHUB_SHA}"
+            composer validate --strict
+            echo "--- locked Drupal AI ---"
+            composer show drupal/ai --locked
+            echo "--- locked Field Widget Actions ---"
+            composer show drupal/field_widget_actions --locked
+            echo "--- dry-run AI Content Suggestions ---"
+          } | tee issue-383-proof.txt
+
+          set +e
+          composer require 'drupal/ai_content_suggestions:^1.4' --dry-run --with-all-dependencies --no-interaction 2>&1 | tee -a issue-383-proof.txt
+          status=${PIPESTATUS[0]}
+          set -e
+
+          echo "DRY_RUN_EXIT=${status}" | tee -a issue-383-proof.txt
+          if [ "${status}" -eq 0 ]; then
+            echo "COMPATIBILITY=COMPATIBLE" | tee -a issue-383-proof.txt
+          else
+            echo "COMPATIBILITY=INCOMPATIBLE" | tee -a issue-383-proof.txt
+          fi
+
+          git diff --exit-code -- composer.json composer.lock
+
+      - name: Upload proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-383-content-suggestions-proof-${{ github.run_id }}
+          path: issue-383-proof.txt

@@ -22,23 +22,16 @@ final class GovernedContentPolicy {
    * Ordinary content still waiting for a controlled release from Git.
    */
   public const LEGACY_RELEASE_PENDING_IDS = [
-    'accessibilite-seo-optimisation',
-    'agence-drupal-belgique',
     'agence-web-belgique',
     'agence-web-liege',
-    'audit-drupal',
     'cas-clients',
     'contact',
-    'creation-site-drupal',
     'creation-site-web-professionnel',
     'equipe',
     'homepage',
     'ia-drupal',
     'ia-integree',
     'ia-pour-pme',
-    'maintenance-drupal',
-    'migration-drupal',
-    'refonte-site-drupal',
     'refonte-site-internet',
     'services',
     'site-web-pme',

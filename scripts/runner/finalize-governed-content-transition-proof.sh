@@ -230,6 +230,31 @@ apply_editorial_edit() {
         $node->save();
       '
       ;;
+
+    services-drupal-441)
+      ddev drush php:eval '
+        $nid = \Drupal::database()
+          ->select("emerging_digital_content_sync_mapping", "m")
+          ->fields("m", ["entity_id"])
+          ->condition("content_id", "audit-drupal")
+          ->execute()
+          ->fetchField();
+        if (!$nid) {
+          throw new \RuntimeException("Drupal service mapping not found.");
+        }
+        $node = \Drupal\node\Entity\Node::load((int) $nid);
+        if (!$node) {
+          throw new \RuntimeException("Drupal service node not found.");
+        }
+        $node->setNewRevision(TRUE);
+        $node->setRevisionLogMessage("Governed Content exact-head proof #441 services Drupal");
+        $translation = $node->hasTranslation("fr") ? $node->getTranslation("fr") : $node;
+        if (!str_contains((string) $translation->label(), "[proof-441-services-drupal-editorial-survives]")) {
+          $translation->setTitle($translation->label() . " [proof-441-services-drupal-editorial-survives]");
+        }
+        $node->save();
+      '
+      ;;
   esac
 }
 

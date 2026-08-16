@@ -75,26 +75,34 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Le catalogue actuel est en **migration controlee** d'un bootstrap massif vers
   un petit ensemble Governed Content ; il ne doit plus servir de precedent pour
   versionner tout nouveau contenu marketing/editorial.
-- Source versionnee de transition :
-  `web/modules/custom/emerging_digital_content/content_sync/catalog.yml`.
+- Les sources machine autoritatives de la transition sont le catalogue
+  `web/modules/custom/emerging_digital_content/content_sync/catalog.yml` et la
+  policy `Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy`.
+  La documentation explique cet etat mais ne constitue pas une seconde liste
+  d'admission.
 - Fichiers de contenu de transition :
   `web/modules/custom/emerging_digital_content/content_sync/node/*.yml`.
 - Trois IDs sont explicitement Governed Content : `mentions-legales`,
   `politique-confidentialite`, `politique-cookies`.
-- Les 33 autres IDs actuels sont grandfathered `LEGACY_RELEASE_PENDING` : aucun
-  nouvel ID ne peut etre ajoute a cette classe et leur retrait doit suivre la
-  procedure de liberation documentee.
+- Depuis le pilote #440, **30** autres IDs sont encore grandfathered
+  `LEGACY_RELEASE_PENDING`. Aucun nouvel ID ne peut etre ajoute a cette classe
+  et leur retrait doit suivre la procedure de liberation documentee.
+- Les trois cas clients pilotes `cas-client-refonte-drupal-institutionnelle`,
+  `cas-client-migration-drupal-11` et `cas-client-integration-ia-editoriale`
+  sont `RELEASED` depuis #440 et ne doivent pas etre readmis par inadvertance.
 - Ne jamais ajouter un Article ou un nouveau contenu marketing/editorial
   ordinaire au catalogue. Une nouvelle admission exige un ticket, une classe
   gouvernee justifiee, une identite stable, une procedure de review/promotion et
   un rollback explicite.
 - Ne jamais retirer un ID grandfathered du catalogue avant qu'un etat de mapping
-  `released` ignore par le prune soit implemente et prouve en staging/preprod.
-  Retirer de la gouvernance Git ne signifie jamais supprimer/depublier Drupal.
+  `released` ignore par le prune soit applique et prouve sur l'environnement de
+  transition concerne. Retirer de la gouvernance Git ne signifie jamais
+  supprimer/depublier Drupal.
 - Apres liberation, le contenu ordinaire devient editor-owned dans Drupal et ne
   doit plus etre ecrase par Content Sync lors des deploiements suivants.
-- Le test `GovernedContentCatalogPolicyTest` est la barriere CI de transition :
-  toute admission ou liberation doit mettre a jour explicitement cette policy.
+- `GovernedContentCatalogPolicyTest` et la policy runtime sont les barrieres CI
+  de transition : toute admission ou liberation doit mettre a jour explicitement
+  `LEGACY_RELEASE_PENDING_IDS`.
 - Valider avant toute application :
   `ddev drush emerging:content-sync:validate`.
 - Toujours tester en lecture seule avant ecriture :

@@ -37,7 +37,8 @@ final class ContentSyncReleaseManager {
         [sprintf(
           'Content "%s" is not in the explicit LEGACY_RELEASE_PENDING allowlist and cannot be released.',
           $content_id,
-        )],
+          ),
+        ],
       );
     }
 
@@ -63,7 +64,8 @@ final class ContentSyncReleaseManager {
         [sprintf(
           'Content "%s" mapping lacks a complete target identity and cannot be released safely.',
           $content_id,
-        )],
+          ),
+        ],
       );
     }
 
@@ -78,7 +80,8 @@ final class ContentSyncReleaseManager {
           $content_id,
           $mapping->entityType(),
           $mapping->entityId(),
-        )],
+          ),
+        ],
         [],
       );
     }
@@ -94,7 +97,8 @@ final class ContentSyncReleaseManager {
           'Content "%s" mapping status "%s" cannot transition to released.',
           $content_id,
           $mapping->status(),
-        )],
+          ),
+        ],
       );
     }
 
@@ -110,7 +114,8 @@ final class ContentSyncReleaseManager {
           $mapping->entityType(),
           $mapping->entityId(),
           $mapping->entityUuid(),
-        )],
+          ),
+        ],
         [],
       );
     }
@@ -128,7 +133,8 @@ final class ContentSyncReleaseManager {
         $released->entityType(),
         $released->entityId(),
         $released->entityUuid(),
-      )],
+        ),
+      ],
       [],
     );
   }
@@ -163,7 +169,8 @@ final class ContentSyncReleaseManager {
           'Content "%s" mapping status is "%s"; only released mappings can be readmitted.',
           $content_id,
           $mapping->status(),
-        )],
+          ),
+        ],
       );
     }
 
@@ -191,7 +198,8 @@ final class ContentSyncReleaseManager {
         [sprintf(
           'Content "%s" must be explicitly restored to the catalog before its mapping can be readmitted.',
           $content_id,
-        )],
+          ),
+        ],
       );
     }
 
@@ -204,7 +212,8 @@ final class ContentSyncReleaseManager {
         [sprintf(
           'would readmit mapping for "%s" because the content is present in the catalog again',
           $content_id,
-        )],
+          ),
+        ],
         [],
       );
     }
@@ -219,7 +228,8 @@ final class ContentSyncReleaseManager {
       [sprintf(
         'readmitted mapping for "%s"; normal Content Sync writes may resume explicitly',
         $content_id,
-      )],
+        ),
+      ],
       [],
     );
   }
@@ -227,6 +237,14 @@ final class ContentSyncReleaseManager {
   /**
    * Builds a compact structured lifecycle report.
    *
+   * @param string $content_id
+   *   Stable Content Sync business identifier.
+   * @param bool $dry_run
+   *   Whether the operation is read-only.
+   * @param string $operation
+   *   Lifecycle operation name.
+   * @param \Drupal\emerging_digital_content\ContentSync\Entity\ContentSyncMappingRecord|null $mapping
+   *   Current mapping, when available.
    * @param list<string> $actions
    *   Actions performed or planned.
    * @param list<string> $errors

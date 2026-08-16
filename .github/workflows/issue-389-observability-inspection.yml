@@ -41,34 +41,65 @@ jobs:
         run: |
           set -euo pipefail
           out=artifacts/issue-389-observability
-          mkdir -p "$out/source" "$out/config"
+          mkdir -p "$out/source" "$out/config" "$out/reflection"
           module=web/modules/contrib/ai/modules/ai_observability
+          ai=web/modules/contrib/ai
           test -d "$module"
-          cp "$module/ai_observability.info.yml" "$out/source/"
-          find "$module" -maxdepth 3 -type f | sort > "$out/source/file-list.txt"
+
           for f in \
+            "$module/README.md" \
+            "$module/ai_observability.info.yml" \
             "$module/ai_observability.services.yml" \
-            "$module/ai_observability.module" \
+            "$module/ai_observability.install" \
             "$module/config/install/ai_observability.settings.yml" \
             "$module/config/schema/ai_observability.schema.yml" \
-            "$module/src/EventSubscriber/AiEventSubscriber.php" \
-            "$module/src/Form/SettingsForm.php"; do
+            "$module/src/AiLogEventType.php" \
+            "$module/src/AiObservabilityUtils.php" \
+            "$module/src/EventSubscriber/AiLoggingEventSubscriber.php" \
+            "$module/src/Form/SettingsForm.php" \
+            "$ai/src/Event/AiProviderRequestBaseEvent.php" \
+            "$ai/src/Event/AiProviderResponseBaseEvent.php" \
+            "$ai/src/Event/PreGenerateResponseEvent.php" \
+            "$ai/src/Event/PostGenerateResponseEvent.php" \
+            "$ai/src/Event/PostStreamingResponseEvent.php" \
+            "$ai/src/Event/ProviderDisabledEvent.php"; do
             if [[ -f "$f" ]]; then
-              cp "$f" "$out/source/$(basename "$f")"
+              cp "$f" "$out/source/$(echo "$f" | sed 's#/#__#g')"
             fi
           done
+
+          find "$module" -maxdepth 4 -type f | sort > "$out/source/file-list.txt"
+          find "$ai" -type f | grep -Ei '(test|mock|fake).*(provider)|(provider).*(test|mock|fake)' | sort > "$out/source/test-provider-candidates.txt" || true
+          grep -RniE 'class .*Provider|provider_id|providerId' "$ai/tests" "$ai/modules" 2>/dev/null | head -1000 > "$out/source/provider-test-search.txt" || true
+
           ddev drush en dblog ai_observability -y
           ddev drush cr >/dev/null
           ddev drush pm:list --status=enabled --type=module --format=list | grep -E '^(ai_observability|dblog)$' | sort > "$out/config/enabled-modules.txt"
-          ddev drush config:list --prefix=ai_observability --format=list | sort > "$out/config/config-list.txt" || true
-          while IFS= read -r config_name; do
-            [[ -n "$config_name" ]] || continue
-            ddev drush config:get "$config_name" --format=yaml > "$out/config/${config_name}.yml"
-          done < "$out/config/config-list.txt"
+          ddev drush config:get ai_observability.settings --format=yaml > "$out/config/ai_observability.settings.yml"
+
+          classes=(
+            'Drupal\\ai\\Event\\AiProviderRequestBaseEvent'
+            'Drupal\\ai\\Event\\AiProviderResponseBaseEvent'
+            'Drupal\\ai\\Event\\PreGenerateResponseEvent'
+            'Drupal\\ai\\Event\\PostGenerateResponseEvent'
+            'Drupal\\ai\\Event\\PostStreamingResponseEvent'
+            'Drupal\\ai\\Event\\ProviderDisabledEvent'
+            'Drupal\\ai\\OperationType\\Chat\\ChatInput'
+            'Drupal\\ai\\OperationType\\Chat\\ChatOutput'
+            'Drupal\\ai\\OperationType\\Chat\\ChatMessage'
+          )
+          : > "$out/reflection/constructors.txt"
+          for class in "${classes[@]}"; do
+            ddev drush php:eval '$c='"'"'"$class"'"'"'; if (!class_exists($c)) { print "MISSING $c\n"; return; } $r=new ReflectionClass($c); print "CLASS $c\n"; $m=$r->getConstructor(); if (!$m) { print "  constructor: none\n\n"; return; } foreach ($m->getParameters() as $p) { $t=$p->getType(); print "  $".$p->getName()." : ".($t ? (string) $t : "mixed").($p->isOptional() ? " optional" : " required")."\n"; } print "\n";' >> "$out/reflection/constructors.txt"
+          done
+
+          ddev drush php:eval '$d=Drupal::service("event_dispatcher"); $e=new Drupal\\ai\\Event\\ProviderDisabledEvent("issue389_synthetic_provider"); $d->dispatch($e, Drupal\\ai\\Event\\ProviderDisabledEvent::EVENT_NAME); print "DISPATCHED ".Drupal\\ai\\Event\\ProviderDisabledEvent::EVENT_NAME."\n";' > "$out/reflection/provider-disabled-dispatch.txt"
+          ddev drush sql:query "SELECT type, severity, message, variables FROM watchdog WHERE type='ai_observability' ORDER BY wid DESC LIMIT 5" > "$out/reflection/watchdog-ai-observability.txt" || true
+
           ddev drush cex -y >/dev/null
           git status --short config/sync > "$out/config/export-status.txt"
           git diff -- config/sync > "$out/config/export.patch"
-          grep -RniE 'prompt|input|output|token|duration|provider|model|logger|context|request|response' "$module" > "$out/source/relevant-lines.txt" || true
+          grep -RniE 'prompt|input|output|token|duration|provider|model|logger|context|request|response|configuration|guardrail' "$module" > "$out/source/relevant-lines.txt" || true
           ddev drush config:status > "$out/config/status-after-export.txt" || true
       - name: Upload inspection evidence
         uses: actions/upload-artifact@v4

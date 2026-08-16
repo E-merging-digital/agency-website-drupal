@@ -42,6 +42,14 @@ jobs:
             test "${#PROOF_PUBLIC_PATHS[@]}" = "20"
           '
 
+          PROOF_PROFILE=services-drupal-441 bash -c '
+            set -euo pipefail
+            source scripts/runner/governed-content-transition-profiles.sh
+            test "$PROOF_MAPPING_COUNT" = "7"
+            test "$PROOF_EDITORIAL_CONTENT_ID" = "audit-drupal"
+            test "${#PROOF_PUBLIC_PATHS[@]}" = "14"
+          '
+
           if PROOF_PROFILE=unsupported-profile bash -c '
             set -euo pipefail
             source scripts/runner/governed-content-transition-profiles.sh

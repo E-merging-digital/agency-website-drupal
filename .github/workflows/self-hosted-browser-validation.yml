@@ -294,6 +294,17 @@ jobs:
           if [[ "$LOCKFILE_WAS_PRESENT" == "false" ]]; then
             rm -f package-lock.json
           fi
+
+          # Evidence has already been uploaded above. Remove only workflow-owned
+          # runtime output so PASS and fail-closed paths end on the same clean
+          # repository workspace without deleting any versioned file.
+          rm -rf \
+            artifacts/browser-validation \
+            artifacts/config-canonicalization \
+            playwright-report \
+            test-results
+          rmdir artifacts 2>/dev/null || true
+
           git diff --check
           status="$(git status --porcelain)"
           if [[ -n "$status" ]]; then

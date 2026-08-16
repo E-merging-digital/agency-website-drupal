@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\emerging_digital_content\Kernel;
 
+use Drupal\emerging_digital_content\ContentSync\ContentSyncManager;
 use Drupal\emerging_digital_content\ContentSync\ContentSyncReleaseManager;
 use Drupal\emerging_digital_content\ContentSync\Entity\ContentSyncMappingRecord;
 use Drupal\emerging_digital_content\ContentSync\Repository\ContentSyncMappingRepository;
@@ -51,7 +52,7 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
   }
 
   /**
-   * Tests release safety, idempotence, prune exclusion and readmission.
+   * Tests release safety, idempotence, sync guards and readmission.
    */
   public function testReleasePreservesMappedNodeAndRequiresExplicitReadmission(): void {
     $repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
@@ -59,6 +60,9 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
 
     $release_manager = $this->container->get('emerging_digital_content.content_sync_release_manager');
     self::assertInstanceOf(ContentSyncReleaseManager::class, $release_manager);
+
+    $content_sync_manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    self::assertInstanceOf(ContentSyncManager::class, $content_sync_manager);
 
     $node = Node::create([
       'type' => 'service',
@@ -112,6 +116,23 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
     self::assertSame($original_synced, $released->lastSynced());
     self::assertSame([], $repository->findActiveMissingFromCatalog([]));
 
+    $blocked_dry_run = $content_sync_manager->sync('services/drupal', TRUE);
+    self::assertNotSame([], $blocked_dry_run['errors']);
+    self::assertStringContainsString('released mapping', (string) $blocked_dry_run['errors'][0]);
+    self::assertSame('released', $blocked_dry_run['content_reports'][0]['mapping_status']);
+    self::assertSame(
+      'blocked: released mapping requires explicit readmission',
+      $blocked_dry_run['content_reports'][0]['planned_operation'],
+    );
+
+    $blocked_apply = $content_sync_manager->sync('services/drupal', FALSE);
+    self::assertNotSame([], $blocked_apply['errors']);
+    self::assertStringContainsString('released mapping', (string) $blocked_apply['errors'][0]);
+    self::assertContains(
+      'released mapping guard: no Drupal entity or mapping writes were executed',
+      $blocked_apply['actions'],
+    );
+
     $node_storage = $this->container->get('entity_type.manager')->getStorage('node');
     $node_storage->resetCache([$original_id]);
     $unchanged_node = $node_storage->load($original_id);
@@ -119,6 +140,11 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
     self::assertTrue($unchanged_node->isPublished());
     self::assertSame($original_uuid, $unchanged_node->uuid());
     self::assertSame($original_title, $unchanged_node->label());
+
+    $still_released_after_sync = $repository->findByContentId('services/drupal');
+    self::assertNotNull($still_released_after_sync);
+    self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $still_released_after_sync->status());
+    self::assertSame($original_hash, $still_released_after_sync->catalogHash());
 
     $idempotent = $release_manager->release('services/drupal', FALSE);
     self::assertSame([], $idempotent['errors']);

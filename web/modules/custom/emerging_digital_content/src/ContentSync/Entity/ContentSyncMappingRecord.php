@@ -9,6 +9,9 @@ namespace Drupal\emerging_digital_content\ContentSync\Entity;
  */
 final class ContentSyncMappingRecord {
 
+  public const STATUS_ACTIVE = 'active';
+  public const STATUS_RELEASED = 'released';
+
   public function __construct(
     private readonly string $contentId,
     private readonly string $entityType,
@@ -41,7 +44,7 @@ final class ContentSyncMappingRecord {
       (string) ($row['catalog_hash'] ?? ''),
       isset($row['last_synced']) ? (int) $row['last_synced'] : NULL,
       (string) ($row['last_action'] ?? ''),
-      (string) ($row['status'] ?? 'active'),
+      (string) ($row['status'] ?? self::STATUS_ACTIVE),
       (int) ($row['created'] ?? 0),
       (int) ($row['changed'] ?? 0),
       isset($row['id']) ? (int) $row['id'] : NULL,

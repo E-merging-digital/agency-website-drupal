@@ -9,18 +9,28 @@ use Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Guards the first controlled release from legacy Content Sync governance.
+ * Guards completed controlled releases from legacy Content Sync governance.
  */
 final class GovernedContentPilotReleaseTest extends TestCase {
 
   /**
-   * The three released case studies must stay outside the Git catalogue.
+   * Released batches must stay outside the Git catalogue and policy.
    */
-  public function testPilotCaseStudiesAreReleasedFromCatalog(): void {
+  public function testReleasedContentStaysOutsideCatalog(): void {
     $released = [
       'cas-client-refonte-drupal-institutionnelle' => 'cas-client-refonte-drupal-institutionnelle.yml',
       'cas-client-migration-drupal-11' => 'cas-client-migration-drupal-11.yml',
       'cas-client-integration-ia-editoriale' => 'cas-client-integration-ia-editoriale.yml',
+      'ai-automatisation-contenu-drupal' => 'ai-automatisation-contenu-drupal.yml',
+      'ai-generation-multilingue' => 'ai-generation-multilingue.yml',
+      'ai-chatbot-qualification' => 'ai-chatbot-qualification.yml',
+      'ai-audit-intelligent' => 'ai-audit-intelligent.yml',
+      'ai-redaction-assistee' => 'ai-redaction-assistee.yml',
+      'ai-correction-editoriale' => 'ai-correction-editoriale.yml',
+      'ai-traduction-fr-en' => 'ai-traduction-fr-en.yml',
+      'ai-resumes-tags-structure' => 'ai-resumes-tags-structure.yml',
+      'ai-seo-liens-internes' => 'ai-seo-liens-internes.yml',
+      'ai-gouvernance-validation' => 'ai-gouvernance-validation.yml',
     ];
 
     $module_root = dirname(__DIR__, 3);
@@ -30,8 +40,8 @@ final class GovernedContentPilotReleaseTest extends TestCase {
     self::assertIsArray($decoded);
     self::assertArrayHasKey('contents', $decoded);
     self::assertIsArray($decoded['contents']);
-    self::assertCount(33, $decoded['contents']);
-    self::assertCount(30, GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS);
+    self::assertCount(23, $decoded['contents']);
+    self::assertCount(20, GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS);
 
     $catalogue_ids = array_column($decoded['contents'], 'id');
 

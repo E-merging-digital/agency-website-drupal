@@ -104,6 +104,18 @@ jobs:
               )
               release_policy_must_change="no"
               ;;
+            services-drupal-441)
+              target_ids=(
+                "agence-drupal-belgique"
+                "creation-site-drupal"
+                "maintenance-drupal"
+                "migration-drupal"
+                "refonte-site-drupal"
+                "audit-drupal"
+                "accessibilite-seo-optimisation"
+              )
+              release_policy_must_change="no"
+              ;;
             *)
               echo "Unsupported governed transition proof profile: $PROOF_PROFILE" >&2
               exit 1

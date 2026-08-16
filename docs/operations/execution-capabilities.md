@@ -3,7 +3,7 @@
 Status: **AUTHORITATIVE CAPABILITY REGISTRY**  
 Repository: `E-merging-digital/agency-website-drupal`  
 Owner issue: #421  
-Last materialized: 2026-08-15
+Last materialized: 2026-08-16
 
 ## 1. Purpose
 
@@ -124,6 +124,41 @@ The implementation is documented in:
 
 ```text
 docs/operations/agency-self-hosted-browser-runner.md
+```
+
+### Governed Content transition proof route
+
+Issue #446 adds a second trusted-dispatch route for migrations that must preserve
+the **same Drupal database** while repository governance changes across commits.
+It is not interchangeable with the fresh-install browser route.
+
+The transition route is:
+
+```text
+agency/governed-content-transition-dispatch-control
+-> strict JSON request
+-> GitHub-hosted validation of PR / base / release candidate / exact HEAD
+-> trusted workflow on main
+-> agency-browser-runner-01
+-> one isolated DDEV database
+-> base state + active mappings
+-> reviewed release candidate + explicit release
+-> exact final HEAD + Content Sync persistence proof
+-> browser evidence
+-> controlled rollback / readmission
+-> artifact
+-> cleanup always()
+```
+
+For the #440 pilot the profile is fixed to `case-studies-440`; callers may not
+supply arbitrary content IDs or shell commands. The request carries an exact PR
+HEAD and a reviewed `release_sha`, and the trusted gateway proves the ancestry
+and expected path set before the self-hosted runner is allocated.
+
+The implementation and artifact contract are documented in:
+
+```text
+docs/operations/governed-content-transition-proof.md
 ```
 
 ## 5. What the agent can verify visually today

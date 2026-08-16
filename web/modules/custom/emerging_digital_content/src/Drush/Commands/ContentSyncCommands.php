@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\emerging_digital_content\Drush\Commands;
 
 use Drupal\emerging_digital_content\ContentSync\ContentSyncManager;
+use Drupal\emerging_digital_content\ContentSync\ContentSyncReleaseManager;
 use Drush\Attributes as CLI;
 use Drush\Commands\AutowireTrait;
 use Drush\Commands\DrushCommands;
@@ -20,6 +21,8 @@ final class ContentSyncCommands extends DrushCommands {
   public function __construct(
     #[Autowire(service: 'emerging_digital_content.content_sync_manager')]
     private readonly ContentSyncManager $contentSyncManager,
+    #[Autowire(service: 'emerging_digital_content.content_sync_release_manager')]
+    private readonly ContentSyncReleaseManager $contentSyncReleaseManager,
   ) {
     parent::__construct();
   }
@@ -110,6 +113,82 @@ final class ContentSyncCommands extends DrushCommands {
   }
 
   /**
+   * Releases one grandfathered mapping from Git governance.
+   */
+  #[CLI\Command(name: 'emerging:content-sync:release')]
+  #[CLI\Argument(name: 'content_id', description: 'Grandfathered Content Sync business identifier to release.')]
+  #[CLI\Option(name: 'dry-run', description: 'Explicitly preview the release. This is also the safe default.')]
+  #[CLI\Option(name: 'apply', description: 'Apply the release mapping transition. Required for any mutation.')]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync:release services/drupal --dry-run',
+    description: 'Preview release of a grandfathered mapping without changing Drupal or its mapping.',
+  )]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync:release services/drupal --apply',
+    description: 'Mark the mapping released without deleting, unpublishing or rewriting its Drupal entity.',
+  )]
+  public function release(
+    string $content_id,
+    array $options = [
+      'dry-run' => FALSE,
+      'apply' => FALSE,
+    ],
+  ): int {
+    try {
+      $dry_run = $this->lifecycleDryRun($options);
+      $report = $this->contentSyncReleaseManager->release($content_id, $dry_run);
+    }
+    catch (\Throwable $exception) {
+      $this->logger()->error($exception->getMessage());
+      return self::EXIT_FAILURE;
+    }
+
+    $this->printLifecycleReport($report, 'Content Sync governed release');
+
+    return $this->reportList($report, 'errors') === []
+      ? self::EXIT_SUCCESS
+      : self::EXIT_FAILURE;
+  }
+
+  /**
+   * Explicitly readmits one released mapping after catalog restoration.
+   */
+  #[CLI\Command(name: 'emerging:content-sync:readmit')]
+  #[CLI\Argument(name: 'content_id', description: 'Released Content Sync business identifier to readmit.')]
+  #[CLI\Option(name: 'dry-run', description: 'Explicitly preview the readmission. This is also the safe default.')]
+  #[CLI\Option(name: 'apply', description: 'Apply the readmission mapping transition. Required for any mutation.')]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync:readmit services/drupal --dry-run',
+    description: 'Preview explicit readmission after restoring the content to the catalog.',
+  )]
+  #[CLI\Usage(
+    name: 'drush emerging:content-sync:readmit services/drupal --apply',
+    description: 'Return a released mapping to active after the content has been explicitly restored to the catalog.',
+  )]
+  public function readmit(
+    string $content_id,
+    array $options = [
+      'dry-run' => FALSE,
+      'apply' => FALSE,
+    ],
+  ): int {
+    try {
+      $dry_run = $this->lifecycleDryRun($options);
+      $report = $this->contentSyncReleaseManager->readmit($content_id, $dry_run);
+    }
+    catch (\Throwable $exception) {
+      $this->logger()->error($exception->getMessage());
+      return self::EXIT_FAILURE;
+    }
+
+    $this->printLifecycleReport($report, 'Content Sync explicit readmission');
+
+    return $this->reportList($report, 'errors') === []
+      ? self::EXIT_SUCCESS
+      : self::EXIT_FAILURE;
+  }
+
+  /**
    * Returns the command report title.
    */
   private function reportTitle(bool $dry_run, bool $all, string $prune): string {
@@ -126,6 +205,61 @@ final class ContentSyncCommands extends DrushCommands {
     }
 
     return $all ? 'Content Sync full catalog apply' : 'Content Sync targeted apply';
+  }
+
+  /**
+   * Resolves lifecycle command safety options.
+   *
+   * No option means dry-run. Mutation always requires --apply.
+   *
+   * @param array<string, mixed> $options
+   *   Drush command options.
+   */
+  private function lifecycleDryRun(array $options): bool {
+    $explicit_dry_run = (bool) ($options['dry-run'] ?? FALSE);
+    $apply = (bool) ($options['apply'] ?? FALSE);
+
+    if ($explicit_dry_run && $apply) {
+      throw new \InvalidArgumentException('Choose either --dry-run or --apply, not both.');
+    }
+
+    return !$apply;
+  }
+
+  /**
+   * Prints a compact mapping lifecycle report.
+   *
+   * @param array<string, mixed> $report
+   *   Structured lifecycle report.
+   * @param string $title
+   *   Report title.
+   */
+  private function printLifecycleReport(array $report, string $title): void {
+    $this->logger()->notice($title);
+    $this->logger()->notice(sprintf('Content ID: %s', (string) ($report['content_id'] ?? '')));
+    $this->logger()->notice(sprintf('Dry-run: %s', ($report['dry_run'] ?? FALSE) ? 'true' : 'false'));
+    $this->logger()->notice(sprintf('Mapping status: %s', (string) ($report['mapping_status'] ?? 'unknown')));
+
+    if ((string) ($report['mapped_entity'] ?? '') !== '') {
+      $this->logger()->notice(sprintf('Mapped entity: %s', (string) $report['mapped_entity']));
+    }
+    if ((string) ($report['mapped_uuid'] ?? '') !== '') {
+      $this->logger()->notice(sprintf('Mapped UUID: %s', (string) $report['mapped_uuid']));
+    }
+
+    foreach ($this->reportList($report, 'actions') as $action) {
+      $this->logger()->notice(' - ' . (string) $action);
+    }
+    foreach ($this->reportList($report, 'warnings') as $warning) {
+      $this->logger()->warning(' - ' . (string) $warning);
+    }
+    foreach ($this->reportList($report, 'errors') as $error) {
+      $this->logger()->error(' - ' . (string) $error);
+    }
+
+    if (($report['menus_touched'] ?? FALSE) === FALSE) {
+      $this->logger()->notice('Menu entities untouched.');
+    }
   }
 
   /**

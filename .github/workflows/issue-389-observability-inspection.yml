@@ -1,0 +1,81 @@
+name: Issue 389 observability inspection
+
+on:
+  push:
+    branches:
+      - feature/issue-389-ai-observability
+    paths:
+      - '.github/workflows/issue-389-observability-inspection.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+      - name: Install DDEV
+        uses: ddev/github-action-setup-ddev@v1
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Rebuild disposable Drupal
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass" >/dev/null
+          unset admin_pass
+          ddev drush cim -y >/dev/null
+          ddev drush cr >/dev/null
+          ddev drush config:status
+      - name: Inspect exact AI Observability source and local activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=artifacts/issue-389-observability
+          mkdir -p "$out/source" "$out/config"
+          module=web/modules/contrib/ai/modules/ai_observability
+          test -d "$module"
+          cp "$module/ai_observability.info.yml" "$out/source/"
+          find "$module" -maxdepth 3 -type f | sort > "$out/source/file-list.txt"
+          for f in \
+            "$module/ai_observability.services.yml" \
+            "$module/ai_observability.module" \
+            "$module/config/install/ai_observability.settings.yml" \
+            "$module/config/schema/ai_observability.schema.yml" \
+            "$module/src/EventSubscriber/AiEventSubscriber.php" \
+            "$module/src/Form/SettingsForm.php"; do
+            if [[ -f "$f" ]]; then
+              cp "$f" "$out/source/$(basename "$f")"
+            fi
+          done
+          ddev drush en dblog ai_observability -y
+          ddev drush cr >/dev/null
+          ddev drush pm:list --status=enabled --type=module --format=list | grep -E '^(ai_observability|dblog)$' | sort > "$out/config/enabled-modules.txt"
+          ddev drush config:list --prefix=ai_observability --format=list | sort > "$out/config/config-list.txt" || true
+          while IFS= read -r config_name; do
+            [[ -n "$config_name" ]] || continue
+            ddev drush config:get "$config_name" --format=yaml > "$out/config/${config_name}.yml"
+          done < "$out/config/config-list.txt"
+          ddev drush cex -y >/dev/null
+          git status --short config/sync > "$out/config/export-status.txt"
+          git diff -- config/sync > "$out/config/export.patch"
+          grep -RniE 'prompt|input|output|token|duration|provider|model|logger|context|request|response' "$module" > "$out/source/relevant-lines.txt" || true
+          ddev drush config:status > "$out/config/status-after-export.txt" || true
+      - name: Upload inspection evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-389-observability-inspection-${{ github.run_id }}
+          path: artifacts/issue-389-observability
+          retention-days: 14
+      - name: Cleanup DDEV
+        if: always()
+        run: ddev delete --omit-snapshot --yes || true

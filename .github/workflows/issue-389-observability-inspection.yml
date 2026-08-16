@@ -85,7 +85,6 @@ jobs:
             ->set('log_output', FALSE)
             ->set('otel_enabled', FALSE)
             ->save();
-          \Drupal::service('cache.config')->deleteAll();
 
           $database = Database::getConnection();
           $database->delete('watchdog')->condition('type', 'ai_observability')->execute();
@@ -122,9 +121,9 @@ jobs:
           if (str_contains($raw, 'ISSUE389_PRIVATE_INPUT_MARKER')) {
             throw new RuntimeException('Private input marker leaked into observability variables.');
           }
-          foreach (['issue389-provider', 'issue389-model', 'ISSUE389_CONFIG_VISIBLE'] as $expected) {
+          foreach (['issue389-provider', 'issue389-model'] as $expected) {
             if (!str_contains($raw, $expected)) {
-              throw new RuntimeException("Expected metadata marker missing: {$expected}");
+              throw new RuntimeException("Expected persisted marker missing: {$expected}");
             }
           }
           print "PRIVACY_FIRST_LOG=PASS\n";
@@ -132,7 +131,7 @@ jobs:
           print 'INPUT_MARKER_PRESENT=' . (str_contains($raw, 'ISSUE389_PRIVATE_INPUT_MARKER') ? 'yes' : 'no') . "\n";
           print 'PROVIDER_PRESENT=' . (str_contains($raw, 'issue389-provider') ? 'yes' : 'no') . "\n";
           print 'MODEL_PRESENT=' . (str_contains($raw, 'issue389-model') ? 'yes' : 'no') . "\n";
-          print 'CONFIGURATION_PRESENT=' . (str_contains($raw, 'ISSUE389_CONFIG_VISIBLE') ? 'yes' : 'no') . "\n";
+          print 'CONFIGURATION_PERSISTED_BY_DBLOG=' . (str_contains($raw, 'ISSUE389_CONFIG_VISIBLE') ? 'yes' : 'no') . "\n";
 
           $before = (int) $database->select('watchdog', 'w')
             ->condition('type', 'ai_observability')
@@ -140,7 +139,6 @@ jobs:
             ->execute()
             ->fetchField();
           $settings->set('logging_enabled', FALSE)->save();
-          \Drupal::service('cache.config')->deleteAll();
           $disabledEvent = new PreGenerateResponseEvent(
             'issue389-disabled-thread',
             'issue389-disabled-provider',

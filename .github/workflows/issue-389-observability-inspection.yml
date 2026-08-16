@@ -77,24 +77,39 @@ jobs:
           ddev drush pm:list --status=enabled --type=module --format=list | grep -E '^(ai_observability|dblog)$' | sort > "$out/config/enabled-modules.txt"
           ddev drush config:get ai_observability.settings --format=yaml > "$out/config/ai_observability.settings.yml"
 
-          classes=(
-            'Drupal\\ai\\Event\\AiProviderRequestBaseEvent'
-            'Drupal\\ai\\Event\\AiProviderResponseBaseEvent'
-            'Drupal\\ai\\Event\\PreGenerateResponseEvent'
-            'Drupal\\ai\\Event\\PostGenerateResponseEvent'
-            'Drupal\\ai\\Event\\PostStreamingResponseEvent'
-            'Drupal\\ai\\Event\\ProviderDisabledEvent'
-            'Drupal\\ai\\OperationType\\Chat\\ChatInput'
-            'Drupal\\ai\\OperationType\\Chat\\ChatOutput'
-            'Drupal\\ai\\OperationType\\Chat\\ChatMessage'
-          )
-          : > "$out/reflection/constructors.txt"
-          for class in "${classes[@]}"; do
-            ddev drush php:eval '$c='"'"'"$class"'"'"'; if (!class_exists($c)) { print "MISSING $c\n"; return; } $r=new ReflectionClass($c); print "CLASS $c\n"; $m=$r->getConstructor(); if (!$m) { print "  constructor: none\n\n"; return; } foreach ($m->getParameters() as $p) { $t=$p->getType(); print "  $".$p->getName()." : ".($t ? (string) $t : "mixed").($p->isOptional() ? " optional" : " required")."\n"; } print "\n";' >> "$out/reflection/constructors.txt"
-          done
-
-          ddev drush php:eval '$d=Drupal::service("event_dispatcher"); $e=new Drupal\\ai\\Event\\ProviderDisabledEvent("issue389_synthetic_provider"); $d->dispatch($e, Drupal\\ai\\Event\\ProviderDisabledEvent::EVENT_NAME); print "DISPATCHED ".Drupal\\ai\\Event\\ProviderDisabledEvent::EVENT_NAME."\n";' > "$out/reflection/provider-disabled-dispatch.txt"
-          ddev drush sql:query "SELECT type, severity, message, variables FROM watchdog WHERE type='ai_observability' ORDER BY wid DESC LIMIT 5" > "$out/reflection/watchdog-ai-observability.txt" || true
+          cat > "$out/reflection/probe.php" <<'PHP'
+          <?php
+          $classes = [
+            'Drupal\\ai\\Event\\AiProviderRequestBaseEvent',
+            'Drupal\\ai\\Event\\AiProviderResponseBaseEvent',
+            'Drupal\\ai\\Event\\PreGenerateResponseEvent',
+            'Drupal\\ai\\Event\\PostGenerateResponseEvent',
+            'Drupal\\ai\\Event\\PostStreamingResponseEvent',
+            'Drupal\\ai\\Event\\ProviderDisabledEvent',
+            'Drupal\\ai\\OperationType\\Chat\\ChatInput',
+            'Drupal\\ai\\OperationType\\Chat\\ChatOutput',
+            'Drupal\\ai\\OperationType\\Chat\\ChatMessage',
+          ];
+          foreach ($classes as $class) {
+            if (!class_exists($class)) {
+              print "MISSING {$class}\n\n";
+              continue;
+            }
+            $reflection = new ReflectionClass($class);
+            print "CLASS {$class}\n";
+            $constructor = $reflection->getConstructor();
+            if (!$constructor) {
+              print "  constructor: none\n\n";
+              continue;
+            }
+            foreach ($constructor->getParameters() as $parameter) {
+              $type = $parameter->getType();
+              print '  $' . $parameter->getName() . ' : ' . ($type ? (string) $type : 'mixed') . ($parameter->isOptional() ? ' optional' : ' required') . "\n";
+            }
+            print "\n";
+          }
+          PHP
+          ddev drush scr "$out/reflection/probe.php" > "$out/reflection/constructors.txt"
 
           ddev drush cex -y >/dev/null
           git status --short config/sync > "$out/config/export-status.txt"
@@ -102,6 +117,7 @@ jobs:
           grep -RniE 'prompt|input|output|token|duration|provider|model|logger|context|request|response|configuration|guardrail' "$module" > "$out/source/relevant-lines.txt" || true
           ddev drush config:status > "$out/config/status-after-export.txt" || true
       - name: Upload inspection evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: issue-389-observability-inspection-${{ github.run_id }}

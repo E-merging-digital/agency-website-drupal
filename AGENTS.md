@@ -68,23 +68,46 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - La PR doit cibler `main` et referencer le ticket avec `Closes #X`.
 - Aucun changement hors perimetre du ticket.
 
-## 4. Workflow Content Sync
+## 4. Governed Content / Content Sync de transition
 
-- Source editoriale versionnee :
+- Lire `docs/governed-content-trajectory.md` avant toute modification du
+  catalogue Content Sync.
+- Le catalogue actuel est en **migration controlee** d'un bootstrap massif vers
+  un petit ensemble Governed Content ; il ne doit plus servir de precedent pour
+  versionner tout nouveau contenu marketing/editorial.
+- Source versionnee de transition :
   `web/modules/custom/emerging_digital_content/content_sync/catalog.yml`.
-- Fichiers de contenu :
+- Fichiers de contenu de transition :
   `web/modules/custom/emerging_digital_content/content_sync/node/*.yml`.
+- Trois IDs sont explicitement Governed Content : `mentions-legales`,
+  `politique-confidentialite`, `politique-cookies`.
+- Les 33 autres IDs actuels sont grandfathered `LEGACY_RELEASE_PENDING` : aucun
+  nouvel ID ne peut etre ajoute a cette classe et leur retrait doit suivre la
+  procedure de liberation documentee.
+- Ne jamais ajouter un Article ou un nouveau contenu marketing/editorial
+  ordinaire au catalogue. Une nouvelle admission exige un ticket, une classe
+  gouvernee justifiee, une identite stable, une procedure de review/promotion et
+  un rollback explicite.
+- Ne jamais retirer un ID grandfathered du catalogue avant qu'un etat de mapping
+  `released` ignore par le prune soit implemente et prouve en staging/preprod.
+  Retirer de la gouvernance Git ne signifie jamais supprimer/depublier Drupal.
+- Apres liberation, le contenu ordinaire devient editor-owned dans Drupal et ne
+  doit plus etre ecrase par Content Sync lors des deploiements suivants.
+- Le test `GovernedContentCatalogPolicyTest` est la barriere CI de transition :
+  toute admission ou liberation doit mettre a jour explicitement cette policy.
 - Valider avant toute application :
   `ddev drush emerging:content-sync:validate`.
 - Toujours tester en lecture seule avant ecriture :
   `ddev drush emerging:content-sync --all --dry-run`.
-- Application globale : `ddev drush emerging:content-sync --all`.
+- Application globale de transition : `ddev drush emerging:content-sync --all`.
 - Application ciblee :
   `ddev drush emerging:content-sync <content-id> --dry-run`, puis sans
   `--dry-run`.
 - Content Sync doit rester idempotent, lisible en dry-run et prudent en
   production.
 - Ne pas recycler les `legacy_uuid`, mappings ou identifiants metier existants.
+- Governed Content ne doit jamais contenir de secret, token, mot de passe, cle
+  privee ou credential ; les references a Drupal Key restent des references.
 
 ## 5. Regles SEO
 
@@ -207,8 +230,8 @@ preuves visuelles publiees.
 - Limiter les changements au perimetre exact du ticket.
 - Preferer les patterns existants aux nouvelles abstractions.
 - Ne jamais reformater ou refactoriser hors necessite.
-- Pour les changements Content Sync, toujours valider le catalogue et faire un
-  dry-run.
+- Pour les changements Content Sync, toujours lire la trajectoire Governed
+  Content, valider le catalogue et faire un dry-run.
 - Pour les changements frontend, verifier le rendu public concerne.
 - Mentionner clairement les validations lancees et leurs resultats.
 
@@ -223,7 +246,7 @@ preuves visuelles publiees.
 - Modifier les aliases peut casser le SEO, les hreflang et le Link Checker.
 - Modifier les menus peut casser les traductions et le language switcher.
 - `--prune=unpublish` est reserve aux cas maitrises ; ne jamais l'utiliser par
-  habitude.
+  habitude ni comme mecanisme de liberation d'un contenu ordinaire.
 
 ## 17. Interdictions importantes
 

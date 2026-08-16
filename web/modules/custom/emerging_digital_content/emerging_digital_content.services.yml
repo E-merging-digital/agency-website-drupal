@@ -20,6 +20,12 @@ services:
       - '@datetime.time'
       - '@logger.channel.emerging_digital_content'
 
+  emerging_digital_content.content_sync_release_manager:
+    class: Drupal\emerging_digital_content\ContentSync\ContentSyncReleaseManager
+    arguments:
+      - '@emerging_digital_content.content_sync_catalog_loader'
+      - '@emerging_digital_content.content_sync_mapping_repository'
+
   emerging_digital_content.content_sync_manager:
     class: Drupal\emerging_digital_content\ContentSync\ContentSyncManager
     arguments:

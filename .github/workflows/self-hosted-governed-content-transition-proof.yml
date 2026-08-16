@@ -43,6 +43,7 @@ jobs:
       head_sha: ${{ steps.validate.outputs.head_sha }}
       pr_number: ${{ steps.validate.outputs.pr_number }}
       request_id: ${{ steps.validate.outputs.request_id }}
+      proof_profile: ${{ steps.validate.outputs.proof_profile }}
     steps:
       - name: Validate dispatch actor, profile and live PR
         id: validate
@@ -78,10 +79,36 @@ jobs:
             echo "release_sha must be an exact lowercase 40-character SHA." >&2
             exit 1
           fi
-          if [[ "$PROOF_PROFILE" != "case-studies-440" ]]; then
-            echo "Unsupported governed transition proof profile: $PROOF_PROFILE" >&2
-            exit 1
-          fi
+
+          case "$PROOF_PROFILE" in
+            case-studies-440)
+              target_ids=(
+                "cas-client-refonte-drupal-institutionnelle"
+                "cas-client-migration-drupal-11"
+                "cas-client-integration-ia-editoriale"
+              )
+              release_policy_must_change="yes"
+              ;;
+            ai-features-441)
+              target_ids=(
+                "ai-automatisation-contenu-drupal"
+                "ai-generation-multilingue"
+                "ai-chatbot-qualification"
+                "ai-audit-intelligent"
+                "ai-redaction-assistee"
+                "ai-correction-editoriale"
+                "ai-traduction-fr-en"
+                "ai-resumes-tags-structure"
+                "ai-seo-liens-internes"
+                "ai-gouvernance-validation"
+              )
+              release_policy_must_change="no"
+              ;;
+            *)
+              echo "Unsupported governed transition proof profile: $PROOF_PROFILE" >&2
+              exit 1
+              ;;
+          esac
 
           pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           state="$(jq -r '.state' <<<"$pr_json")"
@@ -114,16 +141,17 @@ jobs:
             exit 1
           fi
 
-          required_target_paths=(
-            "web/modules/custom/emerging_digital_content/content_sync/catalog.yml"
-            "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-refonte-drupal-institutionnelle.yml"
-            "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-migration-drupal-11.yml"
-            "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-integration-ia-editoriale.yml"
-            "web/modules/custom/emerging_digital_content/src/ContentSync/Policy/GovernedContentPolicy.php"
-          )
+          catalog_path="web/modules/custom/emerging_digital_content/content_sync/catalog.yml"
+          policy_path="web/modules/custom/emerging_digital_content/src/ContentSync/Policy/GovernedContentPolicy.php"
+          required_target_paths=("$catalog_path" "$policy_path")
+          for content_id in "${target_ids[@]}"; do
+            required_target_paths+=(
+              "web/modules/custom/emerging_digital_content/content_sync/node/${content_id}.yml"
+            )
+          done
           for required_path in "${required_target_paths[@]}"; do
             grep -Fxq "$required_path" <<<"$changed_files" || {
-              echo "Pilot #440 transition proof requires changed path: $required_path" >&2
+              echo "Transition profile ${PROOF_PROFILE} requires changed path: $required_path" >&2
               exit 1
             }
           done
@@ -136,19 +164,21 @@ jobs:
             exit 1
           fi
 
+          expected_release_paths=("$catalog_path")
+          for content_id in "${target_ids[@]}"; do
+            expected_release_paths+=(
+              "web/modules/custom/emerging_digital_content/content_sync/node/${content_id}.yml"
+            )
+          done
+          if [[ "$release_policy_must_change" == "yes" ]]; then
+            expected_release_paths+=("$policy_path")
+          fi
+
           release_changed="$(jq -r '.files[].filename' <<<"$release_compare" | sort)"
-          expected_release_changed="$(
-            printf '%s\n' \
-              "web/modules/custom/emerging_digital_content/content_sync/catalog.yml" \
-              "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-integration-ia-editoriale.yml" \
-              "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-migration-drupal-11.yml" \
-              "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-refonte-drupal-institutionnelle.yml" \
-              "web/modules/custom/emerging_digital_content/src/ContentSync/Policy/GovernedContentPolicy.php" \
-              | sort
-          )"
+          expected_release_changed="$(printf '%s\n' "${expected_release_paths[@]}" | sort)"
           if [[ "$release_changed" != "$expected_release_changed" ]]; then
-            echo "Release candidate must contain exactly the reviewed #440 transition paths." >&2
-            printf 'Observed:\n%s\n' "$release_changed" >&2
+            echo "Release candidate does not contain exactly the trusted ${PROOF_PROFILE} transition paths." >&2
+            printf 'Observed:\n%s\nExpected:\n%s\n' "$release_changed" "$expected_release_changed" >&2
             exit 1
           fi
 
@@ -159,9 +189,6 @@ jobs:
             echo "Release candidate must be an ancestor of the live PR HEAD." >&2
             exit 1
           fi
-
-          policy_path="web/modules/custom/emerging_digital_content/src/ContentSync/Policy/GovernedContentPolicy.php"
-          catalog_path="web/modules/custom/emerging_digital_content/content_sync/catalog.yml"
 
           release_policy="$(
             gh api "repos/$GITHUB_REPOSITORY/contents/$policy_path?ref=$REQUESTED_RELEASE_SHA" --jq '.content' \
@@ -180,34 +207,31 @@ jobs:
               | base64 --decode
           )"
 
-          for content_id in \
-            cas-client-refonte-drupal-institutionnelle \
-            cas-client-migration-drupal-11 \
-            cas-client-integration-ia-editoriale; do
+          for content_id in "${target_ids[@]}"; do
             grep -Fq "'${content_id}'" <<<"$release_policy" || {
-              echo "Release candidate policy does not admit pilot content: $content_id" >&2
+              echo "Release candidate policy does not admit transition content: $content_id" >&2
               exit 1
             }
             if grep -Fq "id: ${content_id}" <<<"$release_catalog"; then
-              echo "Release candidate still contains pilot catalog entry: $content_id" >&2
+              echo "Release candidate still contains catalog entry: $content_id" >&2
               exit 1
             fi
             if grep -Fq "'${content_id}'" <<<"$final_policy"; then
-              echo "Final policy still admits already released pilot content: $content_id" >&2
+              echo "Final policy still admits already released content: $content_id" >&2
               exit 1
             fi
             if grep -Fq "id: ${content_id}" <<<"$final_catalog"; then
-              echo "Final HEAD contains released pilot catalog entry: $content_id" >&2
+              echo "Final HEAD contains released catalog entry: $content_id" >&2
               exit 1
             fi
 
             payload_path="web/modules/custom/emerging_digital_content/content_sync/node/${content_id}.yml"
             if gh api "repos/$GITHUB_REPOSITORY/contents/$payload_path?ref=$REQUESTED_RELEASE_SHA" >/dev/null 2>&1; then
-              echo "Release candidate still contains pilot payload: $payload_path" >&2
+              echo "Release candidate still contains payload: $payload_path" >&2
               exit 1
             fi
             if gh api "repos/$GITHUB_REPOSITORY/contents/$payload_path?ref=$head_sha" >/dev/null 2>&1; then
-              echo "Final HEAD still contains pilot payload: $payload_path" >&2
+              echo "Final HEAD still contains payload: $payload_path" >&2
               exit 1
             fi
           done
@@ -217,6 +241,7 @@ jobs:
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
           echo "release_sha=$REQUESTED_RELEASE_SHA" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "proof_profile=$PROOF_PROFILE" >> "$GITHUB_OUTPUT"
 
   transition-proof:
     name: Prove base, release candidate and exact final HEAD
@@ -263,10 +288,13 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN_SHA"
+          test -f scripts/runner/governed-content-transition-profiles.sh
           test -f scripts/runner/run-governed-content-transition-proof.sh
           test -f scripts/runner/finalize-governed-content-transition-proof.sh
           test -f package-lock.json
           git diff --check
+          cp scripts/runner/governed-content-transition-profiles.sh \
+            "/tmp/agency-governed-transition-profiles-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
           cp scripts/runner/run-governed-content-transition-proof.sh \
             "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
           cp scripts/runner/finalize-governed-content-transition-proof.sh \
@@ -292,6 +320,8 @@ jobs:
           TARGET_SHA: ${{ needs.validate-request.outputs.release_sha }}
           PR_NUMBER: ${{ needs.validate-request.outputs.pr_number }}
           REQUEST_ID: ${{ needs.validate-request.outputs.request_id }}
+          PROOF_PROFILE: ${{ needs.validate-request.outputs.proof_profile }}
+          PROOF_PROFILE_HELPER: /tmp/agency-governed-transition-profiles-${{ github.run_id }}-${{ github.run_attempt }}.sh
         run: |
           set -euo pipefail
           bash "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
@@ -304,6 +334,8 @@ jobs:
           TARGET_SHA: ${{ needs.validate-request.outputs.head_sha }}
           PR_NUMBER: ${{ needs.validate-request.outputs.pr_number }}
           REQUEST_ID: ${{ needs.validate-request.outputs.request_id }}
+          PROOF_PROFILE: ${{ needs.validate-request.outputs.proof_profile }}
+          PROOF_PROFILE_HELPER: /tmp/agency-governed-transition-profiles-${{ github.run_id }}-${{ github.run_attempt }}.sh
         run: |
           set -euo pipefail
           mkdir -p artifacts/governed-content-transition/browser/release-candidate
@@ -334,6 +366,7 @@ jobs:
           ddev delete --omit-snapshot --yes
           rm -f .ddev/config.gate-governed-content-proof.yaml
           rm -f tests/browser/governed-content-transition-proof.spec.mjs
+          rm -f "/tmp/agency-governed-transition-profiles-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
           rm -f "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
           rm -f "/tmp/agency-governed-transition-finalize-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
           git reset --hard "$TRUSTED_MAIN_SHA"

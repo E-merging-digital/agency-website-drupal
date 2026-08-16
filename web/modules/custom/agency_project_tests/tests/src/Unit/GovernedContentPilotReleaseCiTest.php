@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use Drupal\Component\Serialization\Yaml;
+use Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -24,15 +25,21 @@ final class GovernedContentPilotReleaseCiTest extends TestCase {
    */
   public function testPilotReleaseContractIsVisibleToStandardCi(): void {
     $project_root = dirname(DRUPAL_ROOT);
-    $module_root = $project_root . '/web/modules/custom/emerging_digital_content';
+    $module_root = $project_root
+      . '/web/modules/custom/emerging_digital_content';
+    $policy_path = $module_root
+      . '/src/ContentSync/Policy/GovernedContentPolicy.php';
 
-    require_once $module_root . '/src/ContentSync/Policy/GovernedContentPolicy.php';
+    require_once $policy_path;
 
-    $policy_class = 'Drupal\\emerging_digital_content\\ContentSync\\Policy\\GovernedContentPolicy';
-    self::assertCount(3, $policy_class::GOVERNED_CONTENT_IDS);
-    self::assertCount(30, $policy_class::LEGACY_RELEASE_PENDING_IDS);
+    self::assertCount(3, GovernedContentPolicy::GOVERNED_CONTENT_IDS);
+    self::assertCount(
+      30,
+      GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
+    );
 
-    $catalog = Yaml::decode((string) file_get_contents($module_root . '/content_sync/catalog.yml'));
+    $catalog_path = $module_root . '/content_sync/catalog.yml';
+    $catalog = Yaml::decode((string) file_get_contents($catalog_path));
     self::assertIsArray($catalog);
     self::assertIsArray($catalog['contents'] ?? NULL);
     self::assertCount(33, $catalog['contents']);
@@ -46,11 +53,16 @@ final class GovernedContentPilotReleaseCiTest extends TestCase {
 
     foreach ($released_case_studies as $content_id) {
       self::assertNotContains($content_id, $catalog_ids);
-      self::assertNotContains($content_id, $policy_class::LEGACY_RELEASE_PENDING_IDS);
-      self::assertFileDoesNotExist($module_root . '/content_sync/node/' . $content_id . '.yml');
+      self::assertNotContains(
+        $content_id,
+        GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
+      );
+      self::assertFileDoesNotExist(
+        $module_root . '/content_sync/node/' . $content_id . '.yml',
+      );
     }
 
-    foreach ($policy_class::GOVERNED_CONTENT_IDS as $content_id) {
+    foreach (GovernedContentPolicy::GOVERNED_CONTENT_IDS as $content_id) {
       self::assertContains($content_id, $catalog_ids);
     }
   }

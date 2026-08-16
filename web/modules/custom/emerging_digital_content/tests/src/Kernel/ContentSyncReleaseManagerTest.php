@@ -55,6 +55,8 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
    * Tests release safety, idempotence, sync guards and readmission.
    */
   public function testReleasePreservesMappedNodeAndRequiresExplicitReadmission(): void {
+    $content_id = 'agence-drupal-belgique';
+
     $repository = $this->container->get('emerging_digital_content.content_sync_mapping_repository');
     self::assertInstanceOf(ContentSyncMappingRepository::class, $repository);
 
@@ -79,7 +81,7 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
     $original_synced = 1_700_000_000;
 
     $repository->createOrUpdate(new ContentSyncMappingRecord(
-      'services/drupal',
+      $content_id,
       'node',
       $original_id,
       $original_uuid,
@@ -90,23 +92,23 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
       ContentSyncMappingRecord::STATUS_ACTIVE,
     ));
 
-    $dry_run = $release_manager->release('services/drupal', TRUE);
+    $dry_run = $release_manager->release($content_id, TRUE);
     self::assertSame([], $dry_run['errors']);
     self::assertTrue($dry_run['dry_run']);
     self::assertSame(ContentSyncMappingRecord::STATUS_ACTIVE, $dry_run['mapping_status']);
 
-    $after_dry_run = $repository->findByContentId('services/drupal');
+    $after_dry_run = $repository->findByContentId($content_id);
     self::assertNotNull($after_dry_run);
     self::assertSame(ContentSyncMappingRecord::STATUS_ACTIVE, $after_dry_run->status());
 
-    $released_report = $release_manager->release('services/drupal', FALSE);
+    $released_report = $release_manager->release($content_id, FALSE);
     self::assertSame([], $released_report['errors']);
     self::assertFalse($released_report['dry_run']);
     self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $released_report['mapping_status']);
     self::assertSame('node:' . $original_id, $released_report['mapped_entity']);
     self::assertSame($original_uuid, $released_report['mapped_uuid']);
 
-    $released = $repository->findByContentId('services/drupal');
+    $released = $repository->findByContentId($content_id);
     self::assertNotNull($released);
     self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $released->status());
     self::assertSame('released', $released->lastAction());
@@ -116,7 +118,7 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
     self::assertSame($original_synced, $released->lastSynced());
     self::assertSame([], $repository->findActiveMissingFromCatalog([]));
 
-    $blocked_dry_run = $content_sync_manager->sync('services/drupal', TRUE);
+    $blocked_dry_run = $content_sync_manager->sync($content_id, TRUE);
     self::assertNotSame([], $blocked_dry_run['errors']);
     self::assertStringContainsString('released mapping', (string) $blocked_dry_run['errors'][0]);
     self::assertSame('released', $blocked_dry_run['content_reports'][0]['mapping_status']);
@@ -125,7 +127,7 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
       $blocked_dry_run['content_reports'][0]['planned_operation'],
     );
 
-    $blocked_apply = $content_sync_manager->sync('services/drupal', FALSE);
+    $blocked_apply = $content_sync_manager->sync($content_id, FALSE);
     self::assertNotSame([], $blocked_apply['errors']);
     self::assertStringContainsString('released mapping', (string) $blocked_apply['errors'][0]);
     self::assertContains(
@@ -141,12 +143,12 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
     self::assertSame($original_uuid, $unchanged_node->uuid());
     self::assertSame($original_title, $unchanged_node->label());
 
-    $still_released_after_sync = $repository->findByContentId('services/drupal');
+    $still_released_after_sync = $repository->findByContentId($content_id);
     self::assertNotNull($still_released_after_sync);
     self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $still_released_after_sync->status());
     self::assertSame($original_hash, $still_released_after_sync->catalogHash());
 
-    $idempotent = $release_manager->release('services/drupal', FALSE);
+    $idempotent = $release_manager->release($content_id, FALSE);
     self::assertSame([], $idempotent['errors']);
     self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $idempotent['mapping_status']);
 
@@ -154,20 +156,20 @@ final class ContentSyncReleaseManagerTest extends KernelTestBase {
     self::assertNotSame([], $legal_block['errors']);
     self::assertStringContainsString('not in the explicit LEGACY_RELEASE_PENDING allowlist', (string) $legal_block['errors'][0]);
 
-    $readmit_dry_run = $release_manager->readmit('services/drupal', TRUE);
+    $readmit_dry_run = $release_manager->readmit($content_id, TRUE);
     self::assertSame([], $readmit_dry_run['errors']);
     self::assertTrue($readmit_dry_run['dry_run']);
     self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $readmit_dry_run['mapping_status']);
 
-    $still_released = $repository->findByContentId('services/drupal');
+    $still_released = $repository->findByContentId($content_id);
     self::assertNotNull($still_released);
     self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $still_released->status());
 
-    $readmitted_report = $release_manager->readmit('services/drupal', FALSE);
+    $readmitted_report = $release_manager->readmit($content_id, FALSE);
     self::assertSame([], $readmitted_report['errors']);
     self::assertSame(ContentSyncMappingRecord::STATUS_ACTIVE, $readmitted_report['mapping_status']);
 
-    $readmitted = $repository->findByContentId('services/drupal');
+    $readmitted = $repository->findByContentId($content_id);
     self::assertNotNull($readmitted);
     self::assertSame(ContentSyncMappingRecord::STATUS_ACTIVE, $readmitted->status());
     self::assertSame('readmitted', $readmitted->lastAction());

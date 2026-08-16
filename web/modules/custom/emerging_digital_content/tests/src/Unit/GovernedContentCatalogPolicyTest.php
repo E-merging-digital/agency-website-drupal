@@ -79,6 +79,12 @@ final class GovernedContentCatalogPolicyTest extends TestCase {
       $entriesById[$entry['id']] = $entry;
     }
 
+    self::assertCount(
+      count($decoded['contents']),
+      $entriesById,
+      'Content Sync source IDs must remain unique.',
+    );
+
     $actualIds = array_keys($entriesById);
     sort($actualIds);
 

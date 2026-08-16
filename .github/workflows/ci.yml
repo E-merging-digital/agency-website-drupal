@@ -20,7 +20,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Validate governed transition proof shell syntax
-        run: bash -n scripts/runner/run-governed-content-transition-proof.sh
+        run: |
+          bash -n scripts/runner/run-governed-content-transition-proof.sh
+          bash -n scripts/runner/finalize-governed-content-transition-proof.sh
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2

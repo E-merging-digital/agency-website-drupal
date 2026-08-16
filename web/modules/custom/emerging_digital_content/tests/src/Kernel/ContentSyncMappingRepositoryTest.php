@@ -27,7 +27,7 @@ final class ContentSyncMappingRepositoryTest extends KernelTestBase {
   ];
 
   /**
-   * Tests create, read, update and remove operations.
+   * Tests CRUD and explicit lifecycle transitions.
    */
   public function testRepositoryPersistsMappingByUniqueContentId(): void {
     $this->installSchema('emerging_digital_content', ['emerging_digital_content_sync_mapping']);
@@ -46,7 +46,7 @@ final class ContentSyncMappingRepositoryTest extends KernelTestBase {
       str_repeat('a', 64),
       1_700_000_000,
       'created',
-      'active',
+      ContentSyncMappingRecord::STATUS_ACTIVE,
     ));
 
     self::assertNotNull($created->id());
@@ -66,12 +66,50 @@ final class ContentSyncMappingRepositoryTest extends KernelTestBase {
       str_repeat('b', 64),
       1_700_000_100,
       'updated',
-      'active',
+      ContentSyncMappingRecord::STATUS_ACTIVE,
     ));
 
     self::assertSame($created->id(), $updated->id());
     self::assertSame(456, $updated->entityId());
     self::assertSame('updated', $updated->lastAction());
+
+    $released = $repository->markReleased('agence-drupal-belgique');
+    self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $released->status());
+    self::assertSame('released', $released->lastAction());
+    self::assertSame($updated->id(), $released->id());
+    self::assertSame($updated->entityId(), $released->entityId());
+    self::assertSame($updated->entityUuid(), $released->entityUuid());
+    self::assertSame($updated->catalogHash(), $released->catalogHash());
+    self::assertSame($updated->lastSynced(), $released->lastSynced());
+    self::assertSame([], $repository->findActiveMissingFromCatalog([]));
+
+    try {
+      $repository->createOrUpdate(new ContentSyncMappingRecord(
+        'agence-drupal-belgique',
+        'node',
+        456,
+        '22222222-2222-2222-2222-222222222222',
+        'fr',
+        str_repeat('c', 64),
+        1_700_000_200,
+        'updated',
+        ContentSyncMappingRecord::STATUS_ACTIVE,
+      ));
+      self::fail('A normal sync must not implicitly reactivate a released mapping.');
+    }
+    catch (\RuntimeException $exception) {
+      self::assertStringContainsString('explicitly first', $exception->getMessage());
+    }
+
+    $still_released = $repository->findByContentId('agence-drupal-belgique');
+    self::assertNotNull($still_released);
+    self::assertSame(ContentSyncMappingRecord::STATUS_RELEASED, $still_released->status());
+    self::assertSame(str_repeat('b', 64), $still_released->catalogHash());
+
+    $readmitted = $repository->markActive('agence-drupal-belgique');
+    self::assertSame(ContentSyncMappingRecord::STATUS_ACTIVE, $readmitted->status());
+    self::assertSame('readmitted', $readmitted->lastAction());
+    self::assertCount(1, $repository->findActiveMissingFromCatalog([]));
 
     $count = (int) $this->container->get('database')
       ->select('emerging_digital_content_sync_mapping', 'm')

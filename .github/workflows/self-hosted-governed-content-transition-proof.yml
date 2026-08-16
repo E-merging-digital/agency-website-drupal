@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       release_sha:
-        description: Reviewed prerelease SHA that admits the pilot IDs before removal
+        description: Reviewed release-candidate SHA before final policy removal
         required: true
         type: string
       proof_profile:
@@ -114,56 +114,94 @@ jobs:
             exit 1
           fi
 
-          required_paths=(
+          required_target_paths=(
             "web/modules/custom/emerging_digital_content/content_sync/catalog.yml"
             "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-refonte-drupal-institutionnelle.yml"
             "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-migration-drupal-11.yml"
             "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-integration-ia-editoriale.yml"
             "web/modules/custom/emerging_digital_content/src/ContentSync/Policy/GovernedContentPolicy.php"
           )
-          for required_path in "${required_paths[@]}"; do
+          for required_path in "${required_target_paths[@]}"; do
             grep -Fxq "$required_path" <<<"$changed_files" || {
               echo "Pilot #440 transition proof requires changed path: $required_path" >&2
               exit 1
             }
           done
 
-          release_json="$(gh api "repos/$GITHUB_REPOSITORY/commits/$REQUESTED_RELEASE_SHA")"
-          parent_count="$(jq '.parents | length' <<<"$release_json")"
-          release_parent="$(jq -r '.parents[0].sha // ""' <<<"$release_json")"
-          release_files="$(jq -r '.files[].filename' <<<"$release_json")"
+          release_compare="$(gh api "repos/$GITHUB_REPOSITORY/compare/$base_sha...$REQUESTED_RELEASE_SHA")"
+          release_status="$(jq -r '.status' <<<"$release_compare")"
+          release_merge_base="$(jq -r '.merge_base_commit.sha' <<<"$release_compare")"
+          if [[ "$release_status" != "ahead" || "$release_merge_base" != "$base_sha" ]]; then
+            echo "Release candidate must be a descendant of the live PR base SHA." >&2
+            exit 1
+          fi
+
+          release_changed="$(jq -r '.files[].filename' <<<"$release_compare" | sort)"
+          expected_release_changed="$(
+            printf '%s\n' \
+              "web/modules/custom/emerging_digital_content/content_sync/catalog.yml" \
+              "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-integration-ia-editoriale.yml" \
+              "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-migration-drupal-11.yml" \
+              "web/modules/custom/emerging_digital_content/content_sync/node/cas-client-refonte-drupal-institutionnelle.yml" \
+              "web/modules/custom/emerging_digital_content/src/ContentSync/Policy/GovernedContentPolicy.php" \
+              | sort
+          )"
+          if [[ "$release_changed" != "$expected_release_changed" ]]; then
+            echo "Release candidate must contain exactly the reviewed #440 transition paths." >&2
+            printf 'Observed:\n%s\n' "$release_changed" >&2
+            exit 1
+          fi
+
+          target_compare="$(gh api "repos/$GITHUB_REPOSITORY/compare/$REQUESTED_RELEASE_SHA...$head_sha")"
+          target_status="$(jq -r '.status' <<<"$target_compare")"
+          target_merge_base="$(jq -r '.merge_base_commit.sha' <<<"$target_compare")"
+          if [[ "$target_status" != "ahead" || "$target_merge_base" != "$REQUESTED_RELEASE_SHA" ]]; then
+            echo "Release candidate must be an ancestor of the live PR HEAD." >&2
+            exit 1
+          fi
+
           policy_path="web/modules/custom/emerging_digital_content/src/ContentSync/Policy/GovernedContentPolicy.php"
+          catalog_path="web/modules/custom/emerging_digital_content/content_sync/catalog.yml"
 
-          if [[ "$parent_count" != "1" || "$release_parent" != "$base_sha" ]]; then
-            echo "Prerelease SHA must be a single-parent direct child of the PR base SHA." >&2
-            exit 1
-          fi
-          if [[ "$release_files" != "$policy_path" ]]; then
-            echo "Prerelease SHA must change exactly GovernedContentPolicy.php." >&2
-            printf '%s\n' "$release_files" >&2
-            exit 1
-          fi
-
-          compare_json="$(gh api "repos/$GITHUB_REPOSITORY/compare/$REQUESTED_RELEASE_SHA...$head_sha")"
-          compare_status="$(jq -r '.status' <<<"$compare_json")"
-          merge_base="$(jq -r '.merge_base_commit.sha' <<<"$compare_json")"
-          if [[ "$compare_status" != "ahead" || "$merge_base" != "$REQUESTED_RELEASE_SHA" ]]; then
-            echo "Prerelease SHA must be an ancestor of the live PR HEAD." >&2
-            exit 1
-          fi
-
-          policy_content="$(
+          release_policy="$(
             gh api "repos/$GITHUB_REPOSITORY/contents/$policy_path?ref=$REQUESTED_RELEASE_SHA" --jq '.content' \
               | base64 --decode
           )"
+          release_catalog="$(
+            gh api "repos/$GITHUB_REPOSITORY/contents/$catalog_path?ref=$REQUESTED_RELEASE_SHA" --jq '.content' \
+              | base64 --decode
+          )"
+          final_policy="$(
+            gh api "repos/$GITHUB_REPOSITORY/contents/$policy_path?ref=$head_sha" --jq '.content' \
+              | base64 --decode
+          )"
+
           for content_id in \
             cas-client-refonte-drupal-institutionnelle \
             cas-client-migration-drupal-11 \
             cas-client-integration-ia-editoriale; do
-            grep -Fq "'${content_id}'" <<<"$policy_content" || {
-              echo "Prerelease policy does not admit pilot content: $content_id" >&2
+            grep -Fq "'${content_id}'" <<<"$release_policy" || {
+              echo "Release candidate policy does not admit pilot content: $content_id" >&2
               exit 1
             }
+            if grep -Fq "id: ${content_id}" <<<"$release_catalog"; then
+              echo "Release candidate still contains pilot catalog entry: $content_id" >&2
+              exit 1
+            fi
+            if grep -Fq "'${content_id}'" <<<"$final_policy"; then
+              echo "Final policy still admits already released pilot content: $content_id" >&2
+              exit 1
+            fi
+
+            payload_path="web/modules/custom/emerging_digital_content/content_sync/node/${content_id}.yml"
+            if gh api "repos/$GITHUB_REPOSITORY/contents/$payload_path?ref=$REQUESTED_RELEASE_SHA" >/dev/null 2>&1; then
+              echo "Release candidate still contains pilot payload: $payload_path" >&2
+              exit 1
+            fi
+            if gh api "repos/$GITHUB_REPOSITORY/contents/$payload_path?ref=$head_sha" >/dev/null 2>&1; then
+              echo "Final HEAD still contains pilot payload: $payload_path" >&2
+              exit 1
+            fi
           done
 
           echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
@@ -173,9 +211,9 @@ jobs:
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
 
   transition-proof:
-    name: Prove base to released target on persistent DDEV database
+    name: Prove base, release candidate and exact final HEAD
     needs: validate-request
-    timeout-minutes: 60
+    timeout-minutes: 75
     runs-on:
       - self-hosted
       - linux
@@ -210,7 +248,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Verify trusted proof implementation
+      - name: Verify and preserve trusted proof implementation
         shell: bash
         env:
           TRUSTED_MAIN_SHA: ${{ github.sha }}
@@ -218,10 +256,13 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN_SHA"
           test -f scripts/runner/run-governed-content-transition-proof.sh
+          test -f scripts/runner/finalize-governed-content-transition-proof.sh
           test -f package-lock.json
           git diff --check
           cp scripts/runner/run-governed-content-transition-proof.sh \
             "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+          cp scripts/runner/finalize-governed-content-transition-proof.sh \
+            "/tmp/agency-governed-transition-finalize-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
 
       - name: Setup Node 24
         uses: actions/setup-node@v6
@@ -236,7 +277,18 @@ jobs:
           npm ci
           npx playwright install chromium
 
-      - name: Run governed content transition proof
+      - name: Prove base to reviewed release candidate
+        shell: bash
+        env:
+          BASE_SHA: ${{ needs.validate-request.outputs.base_sha }}
+          TARGET_SHA: ${{ needs.validate-request.outputs.release_sha }}
+          PR_NUMBER: ${{ needs.validate-request.outputs.pr_number }}
+          REQUEST_ID: ${{ needs.validate-request.outputs.request_id }}
+        run: |
+          set -euo pipefail
+          bash "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+
+      - name: Prove reviewed release candidate to exact final HEAD
         shell: bash
         env:
           BASE_SHA: ${{ needs.validate-request.outputs.base_sha }}
@@ -246,7 +298,8 @@ jobs:
           REQUEST_ID: ${{ needs.validate-request.outputs.request_id }}
         run: |
           set -euo pipefail
-          bash "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+          git fetch --no-tags origin "$BASE_SHA" "$RELEASE_SHA" "$TARGET_SHA"
+          bash "/tmp/agency-governed-transition-finalize-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
 
       - name: Upload governed transition evidence
         if: ${{ always() }}
@@ -269,6 +322,7 @@ jobs:
           rm -f .ddev/config.gate-governed-content-proof.yaml
           rm -f tests/browser/governed-content-transition-proof.spec.mjs
           rm -f "/tmp/agency-governed-transition-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
+          rm -f "/tmp/agency-governed-transition-finalize-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
           git reset --hard "$TRUSTED_MAIN_SHA"
           git clean -fd -- .ddev tests/browser
           rm -rf artifacts/governed-content-transition

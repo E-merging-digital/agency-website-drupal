@@ -11,6 +11,9 @@ permissions:
 jobs:
   composer-compatibility:
     runs-on: ubuntu-latest
+    env:
+      SIMPLETEST_BASE_URL: http://127.0.0.1:8888
+      SIMPLETEST_DB: sqlite://localhost/tmp/issue383-simpletest.sqlite
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -21,8 +24,9 @@ jobs:
           php-version: '8.4'
           tools: composer:v2
           coverage: none
+          extensions: sqlite3
 
-      - name: Validate lock, install standalone temporarily and capture source evidence
+      - name: Install standalone temporarily and capture package evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -37,7 +41,7 @@ jobs:
             echo "--- locked Field Widget Actions ---"
             composer show drupal/field_widget_actions --locked
             echo "--- package repository metadata before install ---"
-            composer show drupal/ai_content_suggestions 1.5.0 --all || true
+            composer show drupal/ai_content_suggestions 1.5.0 --all
             echo "--- install standalone into disposable workspace ---"
           } | tee issue-383-proof.txt
 
@@ -53,22 +57,122 @@ jobs:
           } | tee -a issue-383-proof.txt
 
           mkdir -p issue-383-package
-          cp web/modules/contrib/ai_content_suggestions/composer.json issue-383-package/ 2>/dev/null || true
-          cp web/modules/contrib/ai_content_suggestions/*.info.yml issue-383-package/ 2>/dev/null || true
-          cp web/modules/contrib/ai_content_suggestions/*.permissions.yml issue-383-package/ 2>/dev/null || true
-          cp web/modules/contrib/ai_content_suggestions/*.routing.yml issue-383-package/ 2>/dev/null || true
-          cp web/modules/contrib/ai_content_suggestions/*.services.yml issue-383-package/ 2>/dev/null || true
-          cp -R web/modules/contrib/ai_content_suggestions/config issue-383-package/ 2>/dev/null || true
-          cp -R web/modules/contrib/ai_content_suggestions/src issue-383-package/ 2>/dev/null || true
+          cp web/modules/contrib/ai_content_suggestions/composer.json issue-383-package/
+          cp web/modules/contrib/ai_content_suggestions/*.info.yml issue-383-package/
+          cp web/modules/contrib/ai_content_suggestions/*.permissions.yml issue-383-package/
+          cp web/modules/contrib/ai_content_suggestions/*.routing.yml issue-383-package/
+          cp web/modules/contrib/ai_content_suggestions/*.services.yml issue-383-package/
+          cp -R web/modules/contrib/ai_content_suggestions/config issue-383-package/
+          cp -R web/modules/contrib/ai_content_suggestions/src issue-383-package/
 
+          cat > web/modules/custom/agency_project_tests/tests/src/Functional/Issue383DisposableContentSuggestionsTest.php <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          namespace Drupal\Tests\agency_project_tests\Functional;
+
+          use Drupal\node\Entity\NodeType;
+          use Drupal\Tests\BrowserTestBase;
+          use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+
+          #[RunTestsInSeparateProcesses]
+          final class Issue383DisposableContentSuggestionsTest extends BrowserTestBase {
+
+            protected static $modules = [
+              'ai',
+              'field_widget_actions',
+              'ai_content_suggestions',
+            ];
+
+            protected $defaultTheme = 'stark';
+            protected $profile = 'standard';
+
+            protected function setUp(): void {
+              parent::setUp();
+              if (!NodeType::load('article')) {
+                $this->drupalCreateContentType([
+                  'type' => 'article',
+                  'name' => 'Article',
+                ]);
+              }
+            }
+
+            public function testNoProviderUxAndNormalEditing(): void {
+              self::assertSame([], $this->config('ai.settings')->get('default_providers') ?? []);
+
+              $admin = $this->drupalCreateUser(['administer ai']);
+              self::assertNotFalse($admin);
+              $this->drupalLogin($admin);
+              $this->drupalGet('/admin/config/ai/suggestions');
+              $this->assertSession()->statusCodeEquals(200);
+              $this->assertSession()->pageTextContains('No AI content suggestion plugins are currently available.');
+              $this->drupalLogout();
+
+              $this->config('ai_content_suggestions.settings')
+                ->set('plugins.readability', [
+                  'enabled' => TRUE,
+                  'model' => NULL,
+                  'prompt' => 'Evaluate readability.',
+                ])
+                ->set('entity_types.node', [
+                  'mode' => 'enable',
+                  'bundles' => ['article' => 'article'],
+                ])
+                ->save();
+
+              $withoutPermission = $this->drupalCreateUser(['create article content']);
+              self::assertNotFalse($withoutPermission);
+              $this->drupalLogin($withoutPermission);
+              $this->drupalGet('/node/add/article');
+              $this->assertSession()->statusCodeEquals(200);
+              $this->assertSession()->pageTextNotContains('Evaluate Readability');
+              $this->drupalLogout();
+
+              $editor = $this->drupalCreateUser([
+                'create article content',
+                'access ai content suggestion tools',
+              ]);
+              self::assertNotFalse($editor);
+              $this->drupalLogin($editor);
+              $this->drupalGet('/node/add/article');
+              $this->assertSession()->statusCodeEquals(200);
+              $this->assertSession()->pageTextContains('Evaluate Readability');
+
+              $this->submitForm([
+                'title[0][value]' => 'Human article with unavailable AI suggestions',
+                'body[0][value]' => '<p>Normal editing remains available without an AI provider.</p>',
+              ], 'Save');
+              $this->assertSession()->statusCodeEquals(200);
+              $this->assertSession()->pageTextContains('Human article with unavailable AI suggestions');
+              $this->assertSession()->pageTextContains('has been created');
+            }
+          }
+          PHP
+
+          php -S 127.0.0.1:8888 -t web >/tmp/issue383-php-server.log 2>&1 &
+          mkdir -p web/sites/simpletest/browser_output sites/simpletest/browser_output
+          chmod -R 777 web/sites/simpletest sites/simpletest
+
+          set +e
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional/Issue383DisposableContentSuggestionsTest.php 2>&1 | tee issue-383-functional-proof.txt
+          test_status=${PIPESTATUS[0]}
+          set -e
+          echo "FUNCTIONAL_TEST_EXIT=${test_status}" | tee -a issue-383-proof.txt
+          test "${test_status}" -eq 0
+
+          rm web/modules/custom/agency_project_tests/tests/src/Functional/Issue383DisposableContentSuggestionsTest.php
           cp /tmp/issue-383-composer.json composer.json
           cp /tmp/issue-383-composer.lock composer.lock
-          git diff --exit-code -- composer.json composer.lock
+          git diff --exit-code -- composer.json composer.lock web/modules/custom/agency_project_tests/tests/src/Functional/Issue383DisposableContentSuggestionsTest.php
 
       - name: Upload proof
         uses: actions/upload-artifact@v4
         with:
-          name: issue-383-content-suggestions-inspection-${{ github.run_id }}
+          name: issue-383-content-suggestions-functional-${{ github.run_id }}
           path: |
             issue-383-proof.txt
+            issue-383-functional-proof.txt
             issue-383-package
+            web/sites/simpletest/browser_output
+            sites/simpletest/browser_output

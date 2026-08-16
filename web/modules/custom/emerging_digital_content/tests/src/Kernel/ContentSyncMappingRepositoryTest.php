@@ -109,7 +109,7 @@ final class ContentSyncMappingRepositoryTest extends KernelTestBase {
     $readmitted = $repository->markActive('agence-drupal-belgique');
     self::assertSame(ContentSyncMappingRecord::STATUS_ACTIVE, $readmitted->status());
     self::assertSame('readmitted', $readmitted->lastAction());
-    self::assertCount(1, $repository->findActiveMissingFromCatalog([]));
+    self::assertCount(1, $repository->findActiveMissingFromCatalog(['unrelated-content-id']));
 
     $count = (int) $this->container->get('database')
       ->select('emerging_digital_content_sync_mapping', 'm')

@@ -36,12 +36,12 @@ jobs:
           ddev drush cim -y >/dev/null
           ddev drush cr >/dev/null
           ddev drush config:status
-      - name: Inspect exact AI Observability source and local activation
+      - name: Prove AI Observability privacy-first runtime
         shell: bash
         run: |
           set -euo pipefail
           out=artifacts/issue-389-observability
-          mkdir -p "$out/source" "$out/config" "$out/reflection"
+          mkdir -p "$out/source" "$out/config" "$out/runtime"
           module=web/modules/contrib/ai/modules/ai_observability
           ai=web/modules/contrib/ai
           test -d "$module"
@@ -60,62 +60,112 @@ jobs:
             "$ai/src/Event/AiProviderRequestBaseEvent.php" \
             "$ai/src/Event/AiProviderResponseBaseEvent.php" \
             "$ai/src/Event/PreGenerateResponseEvent.php" \
-            "$ai/src/Event/PostGenerateResponseEvent.php" \
-            "$ai/src/Event/PostStreamingResponseEvent.php" \
-            "$ai/src/Event/ProviderDisabledEvent.php"; do
+            "$ai/src/Event/PostGenerateResponseEvent.php"; do
             if [[ -f "$f" ]]; then
               cp "$f" "$out/source/$(echo "$f" | sed 's#/#__#g')"
             fi
           done
-
-          find "$module" -maxdepth 4 -type f | sort > "$out/source/file-list.txt"
-          find "$ai" -type f | grep -Ei '(test|mock|fake).*(provider)|(provider).*(test|mock|fake)' | sort > "$out/source/test-provider-candidates.txt" || true
-          grep -RniE 'class .*Provider|provider_id|providerId' "$ai/tests" "$ai/modules" 2>/dev/null | head -1000 > "$out/source/provider-test-search.txt" || true
+          grep -Rni -B20 -A35 'new PreGenerateResponseEvent' "$ai/src" > "$out/source/pre-event-construction.txt" || true
 
           ddev drush en dblog ai_observability -y
           ddev drush cr >/dev/null
-          ddev drush pm:list --status=enabled --type=module --format=list | grep -E '^(ai_observability|dblog)$' | sort > "$out/config/enabled-modules.txt"
           ddev drush config:get ai_observability.settings --format=yaml > "$out/config/ai_observability.settings.yml"
 
-          cat > "$out/reflection/probe.php" <<'PHP'
+          cat > "$out/runtime/probe.php" <<'PHP'
           <?php
-          $classes = [
-            'Drupal\\ai\\Event\\AiProviderRequestBaseEvent',
-            'Drupal\\ai\\Event\\AiProviderResponseBaseEvent',
-            'Drupal\\ai\\Event\\PreGenerateResponseEvent',
-            'Drupal\\ai\\Event\\PostGenerateResponseEvent',
-            'Drupal\\ai\\Event\\PostStreamingResponseEvent',
-            'Drupal\\ai\\Event\\ProviderDisabledEvent',
-            'Drupal\\ai\\OperationType\\Chat\\ChatInput',
-            'Drupal\\ai\\OperationType\\Chat\\ChatOutput',
-            'Drupal\\ai\\OperationType\\Chat\\ChatMessage',
-          ];
-          foreach ($classes as $class) {
-            if (!class_exists($class)) {
-              print "MISSING {$class}\n\n";
-              continue;
-            }
-            $reflection = new ReflectionClass($class);
-            print "CLASS {$class}\n";
-            $constructor = $reflection->getConstructor();
-            if (!$constructor) {
-              print "  constructor: none\n\n";
-              continue;
-            }
-            foreach ($constructor->getParameters() as $parameter) {
-              $type = $parameter->getType();
-              print '  $' . $parameter->getName() . ' : ' . ($type ? (string) $type : 'mixed') . ($parameter->isOptional() ? ' optional' : ' required') . "\n";
-            }
-            print "\n";
+          use Drupal\ai\Event\PreGenerateResponseEvent;
+          use Drupal\ai\OperationType\Chat\ChatInput;
+          use Drupal\ai\OperationType\Chat\ChatMessage;
+          use Drupal\Core\Database\Database;
+
+          $settings = \Drupal::configFactory()->getEditable('ai_observability.settings');
+          $settings
+            ->set('logging_enabled', TRUE)
+            ->set('log_input', FALSE)
+            ->set('log_output', FALSE)
+            ->set('otel_enabled', FALSE)
+            ->save();
+          \Drupal::service('cache.config')->deleteAll();
+
+          $database = Database::getConnection();
+          $database->delete('watchdog')->condition('type', 'ai_observability')->execute();
+
+          $input = new ChatInput([
+            new ChatMessage('user', 'ISSUE389_PRIVATE_INPUT_MARKER'),
+          ]);
+          $event = new PreGenerateResponseEvent(
+            'issue389-thread',
+            'issue389-provider',
+            'chat',
+            [
+              'temperature' => 0.2,
+              'max_tokens' => 64,
+              'probe' => 'ISSUE389_CONFIG_VISIBLE',
+            ],
+            $input,
+            'issue389-model',
+            ['issue389-probe'],
+          );
+          \Drupal::service('event_dispatcher')->dispatch($event, PreGenerateResponseEvent::EVENT_NAME);
+
+          $row = $database->select('watchdog', 'w')
+            ->fields('w', ['message', 'variables'])
+            ->condition('type', 'ai_observability')
+            ->orderBy('wid', 'DESC')
+            ->range(0, 1)
+            ->execute()
+            ->fetchObject();
+          if (!$row) {
+            throw new RuntimeException('Expected an ai_observability watchdog row.');
           }
+          $raw = (string) $row->variables;
+          if (str_contains($raw, 'ISSUE389_PRIVATE_INPUT_MARKER')) {
+            throw new RuntimeException('Private input marker leaked into observability variables.');
+          }
+          foreach (['issue389-provider', 'issue389-model', 'ISSUE389_CONFIG_VISIBLE'] as $expected) {
+            if (!str_contains($raw, $expected)) {
+              throw new RuntimeException("Expected metadata marker missing: {$expected}");
+            }
+          }
+          print "PRIVACY_FIRST_LOG=PASS\n";
+          print 'MESSAGE=' . $row->message . "\n";
+          print 'INPUT_MARKER_PRESENT=' . (str_contains($raw, 'ISSUE389_PRIVATE_INPUT_MARKER') ? 'yes' : 'no') . "\n";
+          print 'PROVIDER_PRESENT=' . (str_contains($raw, 'issue389-provider') ? 'yes' : 'no') . "\n";
+          print 'MODEL_PRESENT=' . (str_contains($raw, 'issue389-model') ? 'yes' : 'no') . "\n";
+          print 'CONFIGURATION_PRESENT=' . (str_contains($raw, 'ISSUE389_CONFIG_VISIBLE') ? 'yes' : 'no') . "\n";
+
+          $before = (int) $database->select('watchdog', 'w')
+            ->condition('type', 'ai_observability')
+            ->countQuery()
+            ->execute()
+            ->fetchField();
+          $settings->set('logging_enabled', FALSE)->save();
+          \Drupal::service('cache.config')->deleteAll();
+          $disabledEvent = new PreGenerateResponseEvent(
+            'issue389-disabled-thread',
+            'issue389-disabled-provider',
+            'chat',
+            [],
+            new ChatInput([new ChatMessage('user', 'ISSUE389_DISABLED_INPUT')]),
+            'issue389-disabled-model',
+          );
+          \Drupal::service('event_dispatcher')->dispatch($disabledEvent, PreGenerateResponseEvent::EVENT_NAME);
+          $after = (int) $database->select('watchdog', 'w')
+            ->condition('type', 'ai_observability')
+            ->countQuery()
+            ->execute()
+            ->fetchField();
+          if ($after !== $before) {
+            throw new RuntimeException('Logging-disabled event unexpectedly created an observability row.');
+          }
+          print "DISABLED_LOGGING_BYPASS=PASS\n";
           PHP
-          ddev drush scr "$out/reflection/probe.php" > "$out/reflection/constructors.txt"
+          ddev drush scr "$out/runtime/probe.php" > "$out/runtime/result.txt"
+          cat "$out/runtime/result.txt"
 
           ddev drush cex -y >/dev/null
           git status --short config/sync > "$out/config/export-status.txt"
           git diff -- config/sync > "$out/config/export.patch"
-          grep -RniE 'prompt|input|output|token|duration|provider|model|logger|context|request|response|configuration|guardrail' "$module" > "$out/source/relevant-lines.txt" || true
-          ddev drush config:status > "$out/config/status-after-export.txt" || true
       - name: Upload inspection evidence
         if: always()
         uses: actions/upload-artifact@v4

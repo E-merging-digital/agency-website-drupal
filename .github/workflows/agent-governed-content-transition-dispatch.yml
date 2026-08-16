@@ -1,0 +1,120 @@
+name: Agent governed content transition dispatch
+
+on:
+  push:
+    branches:
+      - agency/governed-content-transition-dispatch-control
+    paths:
+      - .agency/governed-content-transition-request.json
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  dispatch:
+    name: Validate governed transition request and dispatch trusted workflow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout control branch history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate control mutation
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_ACTOR" != "E-merging-digital" ]]; then
+            echo "Unauthorized control actor: $GITHUB_ACTOR" >&2
+            exit 1
+          fi
+
+          changed="$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA")"
+          if [[ "$changed" != ".agency/governed-content-transition-request.json" ]]; then
+            echo "Control branch mutations must change exactly the governed transition request." >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+      - name: Validate request schema and live target
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY' > /tmp/governed-transition-request.env
+          import json
+          import re
+          from pathlib import Path
+
+          path = Path('.agency/governed-content-transition-request.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          expected = {'request_id', 'pr_number', 'head_sha', 'proof_profile'}
+          if set(data) != expected:
+              raise SystemExit(f'Expected exactly {sorted(expected)}, got {sorted(data)}')
+
+          request_id = data['request_id']
+          pr_number = data['pr_number']
+          head_sha = data['head_sha']
+          proof_profile = data['proof_profile']
+
+          if not isinstance(request_id, str) or not re.fullmatch(r'[A-Za-z0-9._-]{8,80}', request_id):
+              raise SystemExit('Invalid request_id')
+          if not isinstance(pr_number, int) or pr_number < 1:
+              raise SystemExit('pr_number must be a positive integer')
+          if not isinstance(head_sha, str) or not re.fullmatch(r'[0-9a-f]{40}', head_sha):
+              raise SystemExit('head_sha must be a lowercase 40-character SHA')
+          if proof_profile != 'case-studies-440':
+              raise SystemExit(f'Unsupported proof_profile: {proof_profile}')
+
+          print(f'REQUEST_ID={request_id}')
+          print(f'PR_NUMBER={pr_number}')
+          print(f'HEAD_SHA={head_sha}')
+          print(f'PROOF_PROFILE={proof_profile}')
+          PY
+
+          source /tmp/governed-transition-request.env
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+
+          test "$(jq -r '.state' <<<"$pr_json")" = "open"
+          test "$(jq -r '.base.ref' <<<"$pr_json")" = "main"
+          test "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" = "$GITHUB_REPOSITORY" || {
+            echo "Fork PRs are not dispatchable." >&2
+            exit 1
+          }
+          test "$(jq -r '.head.sha' <<<"$pr_json")" = "$HEAD_SHA" || {
+            echo "Requested PR SHA is stale." >&2
+            exit 1
+          }
+
+          echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "proof_profile=$PROOF_PROFILE" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch trusted governed transition proof
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.request.outputs.head_sha }}
+          PROOF_PROFILE: ${{ steps.request.outputs.proof_profile }}
+        run: |
+          set -euo pipefail
+          gh workflow run self-hosted-governed-content-transition-proof.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "request_id=$REQUEST_ID" \
+            -f "pr_number=$PR_NUMBER" \
+            -f "head_sha=$HEAD_SHA" \
+            -f "proof_profile=$PROOF_PROFILE"

@@ -5,60 +5,13 @@ declare(strict_types=1);
 namespace Drupal\Tests\emerging_digital_content\Unit;
 
 use Drupal\Component\Serialization\Yaml;
+use Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Guards the transitional admission policy for the Content Sync catalogue.
  */
 final class GovernedContentCatalogPolicyTest extends TestCase {
-
-  /**
-   * Content intentionally kept under Git governance.
-   */
-  private const GOVERNED_CONTENT_IDS = [
-    'mentions-legales',
-    'politique-confidentialite',
-    'politique-cookies',
-  ];
-
-  /**
-   * Ordinary content grandfathered only until controlled release is proven.
-   */
-  private const LEGACY_ORDINARY_CONTENT_IDS = [
-    'ai-features/agent-workflows',
-    'ai-features/brief-wizard',
-    'ai-features/chatbot',
-    'ai-features/content-assistant',
-    'ai-features/document-search',
-    'ai-features/observability',
-    'ai-features/privacy-guardrails',
-    'ai-features/rewrite-blocks',
-    'ai-features/semantic-search',
-    'ai-features/seo-assistant',
-    'cas-clients/industrie-site-haute-disponibilite',
-    'cas-clients/plateforme-contenus-api-first',
-    'cas-clients/refonte-drupal-b2b',
-    'cas-clients',
-    'contact',
-    'equipe',
-    'homepage',
-    'ia-drupal',
-    'services/architecture',
-    'services/communication',
-    'services/contenus',
-    'services/drupal',
-    'services/hebergement',
-    'services/ia-drupal',
-    'services/infogerance',
-    'services/migration',
-    'services/sauvegardes',
-    'services/securite',
-    'services/seo',
-    'services/support',
-    'services/formation',
-    'services/web',
-    'services',
-  ];
 
   /**
    * Any catalogue admission or release must update the explicit policy.
@@ -89,8 +42,8 @@ final class GovernedContentCatalogPolicyTest extends TestCase {
     sort($actualIds);
 
     $expectedIds = array_merge(
-      self::GOVERNED_CONTENT_IDS,
-      self::LEGACY_ORDINARY_CONTENT_IDS,
+      GovernedContentPolicy::GOVERNED_CONTENT_IDS,
+      GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
     );
     sort($expectedIds);
 
@@ -102,11 +55,14 @@ final class GovernedContentCatalogPolicyTest extends TestCase {
 
     self::assertSame(
       [],
-      array_values(array_intersect(self::GOVERNED_CONTENT_IDS, self::LEGACY_ORDINARY_CONTENT_IDS)),
+      array_values(array_intersect(
+        GovernedContentPolicy::GOVERNED_CONTENT_IDS,
+        GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
+      )),
       'Governed and grandfathered ordinary content sets must remain disjoint.',
     );
 
-    foreach (self::GOVERNED_CONTENT_IDS as $sourceId) {
+    foreach (GovernedContentPolicy::GOVERNED_CONTENT_IDS as $sourceId) {
       $entry = $entriesById[$sourceId];
       self::assertSame('page', $entry['bundle'] ?? NULL, sprintf('%s must remain a governed page.', $sourceId));
       self::assertNotEmpty($entry['legacy_uuid'] ?? NULL, sprintf('%s must retain its migration UUID.', $sourceId));

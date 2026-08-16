@@ -175,6 +175,10 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/contents/$policy_path?ref=$head_sha" --jq '.content' \
               | base64 --decode
           )"
+          final_catalog="$(
+            gh api "repos/$GITHUB_REPOSITORY/contents/$catalog_path?ref=$head_sha" --jq '.content' \
+              | base64 --decode
+          )"
 
           for content_id in \
             cas-client-refonte-drupal-institutionnelle \
@@ -190,6 +194,10 @@ jobs:
             fi
             if grep -Fq "'${content_id}'" <<<"$final_policy"; then
               echo "Final policy still admits already released pilot content: $content_id" >&2
+              exit 1
+            fi
+            if grep -Fq "id: ${content_id}" <<<"$final_catalog"; then
+              echo "Final HEAD contains released pilot catalog entry: $content_id" >&2
               exit 1
             fi
 
@@ -298,6 +306,10 @@ jobs:
           REQUEST_ID: ${{ needs.validate-request.outputs.request_id }}
         run: |
           set -euo pipefail
+          mkdir -p artifacts/governed-content-transition/browser/release-candidate
+          find artifacts/governed-content-transition/browser \
+            -maxdepth 1 -type f -name '*.png' \
+            -exec mv -t artifacts/governed-content-transition/browser/release-candidate {} +
           git fetch --no-tags origin "$BASE_SHA" "$RELEASE_SHA" "$TARGET_SHA"
           bash "/tmp/agency-governed-transition-finalize-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sh"
 
@@ -308,6 +320,7 @@ jobs:
           name: agency-governed-content-transition-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/governed-content-transition
+            artifacts/browser-validation
           if-no-files-found: warn
           retention-days: 14
 
@@ -326,6 +339,8 @@ jobs:
           git reset --hard "$TRUSTED_MAIN_SHA"
           git clean -fd -- .ddev tests/browser
           rm -rf artifacts/governed-content-transition
+          rm -rf artifacts/browser-validation
+          rm -rf test-results playwright-report
           rmdir artifacts 2>/dev/null || true
 
           git diff --check

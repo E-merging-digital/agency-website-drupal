@@ -110,8 +110,8 @@ final class GovernedContentCatalogPolicyTest extends TestCase {
       $entry = $entriesById[$sourceId];
       self::assertSame('page', $entry['bundle'] ?? NULL, sprintf('%s must remain a governed page.', $sourceId));
       self::assertNotEmpty($entry['legacy_uuid'] ?? NULL, sprintf('%s must retain its migration UUID.', $sourceId));
-      self::assertArrayHasKey('fr', $entry['translations'] ?? [], sprintf('%s must retain its FR translation.', $sourceId));
-      self::assertArrayHasKey('en', $entry['translations'] ?? [], sprintf('%s must retain its EN translation.', $sourceId));
+      self::assertArrayHasKey('fr', $entry['translations'], sprintf('%s must retain its FR translation.', $sourceId));
+      self::assertArrayHasKey('en', $entry['translations'], sprintf('%s must retain its EN translation.', $sourceId));
     }
 
     $bundles = array_column($decoded['contents'], 'bundle');

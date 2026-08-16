@@ -167,16 +167,28 @@ final class ContentSyncManager {
         ? $definition['translations']
         : [];
       $catalog_hash = $this->catalogHash($definition);
+      $released_mapping = $mapping !== NULL
+        && $mapping->status() === ContentSyncMappingRecord::STATUS_RELEASED;
+      if ($released_mapping) {
+        $report['errors'][] = sprintf(
+          'Content "%s" has a released mapping; readmit it explicitly before normal Content Sync.',
+          $entry->id(),
+        );
+      }
       $planned_operation = $mapping === NULL
         ? 'would create managed entity'
-        : 'would update mapped entity';
+        : ($released_mapping
+          ? 'blocked: released mapping requires explicit readmission'
+          : 'would update mapped entity');
 
       $report['content_reports'][] = [
         'id' => $entry->id(),
         'entity_type' => (string) ($definition['entity_type'] ?? 'unknown'),
         'bundle' => (string) ($definition['bundle'] ?? 'unknown'),
         'translations' => array_keys($translations),
-        'mapping_status' => $mapping === NULL ? 'unmapped' : 'mapped',
+        'mapping_status' => $mapping === NULL
+          ? 'unmapped'
+          : ($released_mapping ? ContentSyncMappingRecord::STATUS_RELEASED : 'mapped'),
         'mapped_entity' => $mapping === NULL
           ? ''
           : sprintf('%s:%s', $mapping->entityType(), (string) ($mapping->entityId() ?? 'unknown')),
@@ -294,6 +306,17 @@ final class ContentSyncManager {
       return $this->withSummary($report, 'targeted_apply', FALSE, FALSE, '', FALSE);
     }
 
+    $mapping = $this->mappingRepository->findByContentId($content_id);
+    if ($mapping !== NULL && $mapping->status() === ContentSyncMappingRecord::STATUS_RELEASED) {
+      $report['errors'][] = sprintf(
+        'Content "%s" has a released mapping; readmit it explicitly before normal Content Sync.',
+        $content_id,
+      );
+      $report['actions'][] = 'released mapping guard: no Drupal entity or mapping writes were executed';
+      $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
+      return $this->withSummary($report, 'targeted_apply', FALSE, FALSE, '', FALSE);
+    }
+
     try {
       $result = $this->applyValidatedEntry($entry);
       $report['actions'] = array_merge($report['actions'], $result['actions']);
@@ -348,6 +371,15 @@ final class ContentSyncManager {
     }
 
     foreach ($catalog->entries() as $entry) {
+      $mapping = $this->mappingRepository->findByContentId($entry->id());
+      if ($mapping !== NULL && $mapping->status() === ContentSyncMappingRecord::STATUS_RELEASED) {
+        $report['errors'][] = sprintf(
+          'Content "%s" has a released mapping; readmit it explicitly before normal Content Sync.',
+          $entry->id(),
+        );
+        continue;
+      }
+
       try {
         $this->assertSupportedTarget($entry);
       }

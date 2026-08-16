@@ -1,136 +1,199 @@
 # Observabilité, coûts et provenance Drupal AI
 
-Statut : **PREFLIGHT — ACTIVATION TECHNIQUE ENCORE À PROUVER**  
+Statut : **BASELINE LOCALE PROUVÉE — PRIVACY-FIRST**  
 Issue : #389  
 Parent : #32  
-Date : 2026-08-15
+Date : 2026-08-16
 
-## 1. Objectif
+## 1. Décision
 
-Les futurs usages Drupal AI doivent être observables sans transformer les logs
-en copie secondaire des prompts, contenus ou données personnelles.
-
-La baseline Agency doit permettre de répondre à :
-
-- quelle capacité a déclenché l'appel ?
-- quel provider/modèle/opération a été utilisé ?
-- l'appel a-t-il réussi ou échoué ?
-- quelle latence ?
-- combien de tokens lorsque le provider les expose ?
-- quel coût peut être estimé ?
-- un guardrail a-t-il bloqué l'appel ?
-- quelle provenance minimale permet de relier l'appel au workflow concerné ?
-
-Elle ne doit pas journaliser par défaut le contenu complet envoyé ou reçu.
-
-## 2. État projet actuel
-
-Au moment de ce preflight :
-
-- `drupal/ai 1.4.6` est verrouillé ;
-- `ai` et `ai_provider_openai` sont activés dans la configuration projet ;
-- `ai_observability` est fourni par le package AI mais **n'est pas activé** dans
-  `config/sync/core.extension.yml` ;
-- aucune configuration `ai_observability` n'est actuellement versionnée ;
-- les nouveaux consumers Inside AI (#380/#381/#382) ne sont pas encore activés ;
-- `FutureAi` chatbot reste désactivé ;
-- `agency_ai_translation` utilise encore un appel provider direct et ne traverse
-  donc pas l'observabilité Drupal AI.
-
-Conséquence : activer le module maintenant sans consumer upstream réel donnerait
-une preuve faible. #389 prépare la politique et le protocole de validation ; le
-module ne sera exporté dans `config/sync` qu'après inspection de son comportement
-réel sur Agency.
-
-## 3. Capacité upstream
-
-AI Observability écoute les événements de provider Drupal AI et écrit dans le
-logger Drupal. La documentation upstream expose notamment :
-
-- provider ;
-- modèle ;
-- operation type ;
-- durée ;
-- token usage lorsque disponible ;
-- métadonnées de requête/réponse ;
-- possibilité de journaliser plus de détails, y compris input/output selon la
-  configuration/implémentation.
-
-Cette richesse impose une politique privacy-first avant activation production.
-
-## 4. Principe : metadata-first
-
-Baseline Agency :
+Agency active le sous-module upstream `ai_observability` livré par `drupal/ai
+1.4.6` avec sa baseline privacy-first :
 
 ```text
-metadata technique nécessaire
--> LOG
+Drupal AI provider events
+-> Drupal logger metadata
 
-prompt/input complet
--> OFF par défaut
+full input / prompt
+-> OFF
 
-output/réponse complète
--> OFF par défaut
+full output / response
+-> OFF
 
-raw provider payload
--> OFF par défaut
+OpenTelemetry export
+-> OFF
 
-secret/key/auth header
+provider secret / key / auth header
 -> NEVER
 ```
 
-L'objectif est d'observer la plateforme, pas de reconstruire le contenu traité.
+Aucun backend SaaS, endpoint OpenTelemetry, provider concret ou secret n'est
+versionné par #389.
 
-## 5. Métadonnées minimales
+## 2. Configuration versionnée
 
-Lorsque disponibles sans parser un payload brut, les champs suivants sont
-utiles :
+`config/sync/ai_observability.settings.yml` fixe explicitement :
 
-| Donnée | Politique |
-| --- | --- |
-| timestamp | LOG |
-| capability/use-case | LOG |
-| operation type | LOG |
-| provider | LOG |
-| model | LOG |
-| success/error class | LOG |
-| duration | LOG |
-| input tokens | LOG si fourni |
-| output tokens | LOG si fourni |
-| total tokens | LOG si fourni |
-| cached/reasoning tokens | LOG si fourni et utile |
-| rate-limit metadata | LOG si fourni sans secret |
-| guardrail result/id | LOG sous forme minimale |
-| actor uid | LOG seulement si nécessaire à l'audit Inside AI |
-| entity type/bundle | LOG si utile, sans contenu |
-| entity id/revision id | LOG si provenance nécessaire |
-| context scope ids | LOG, pas le contenu du contexte |
-| tool/agent id | LOG lorsque cette capacité existera |
+```yaml
+logging_enabled: true
+log_event_types:
+  - Drupal\ai\Event\PreGenerateResponseEvent
+  - Drupal\ai\Event\PostGenerateResponseEvent
+  - Drupal\ai\Event\PostStreamingResponseEvent
+log_input: false
+log_output: false
+log_tags: {  }
+fallback_log_message_mode: true
+otel_enabled: false
+otel_spans: true
+otel_spans_store_input: false
+otel_spans_store_output: false
+otel_metrics: true
+```
 
-## 6. Données interdites par défaut
+`ai_observability` est activé dans `core.extension.yml`. `dblog` était déjà
+activé par le profil projet et reste le backend de preuve locale ; ce choix ne
+constitue pas une architecture de production imposée.
 
-Ne pas journaliser par défaut :
+## 3. Preuve runtime sans provider externe
+
+La preuve technique a été exécutée dans un DDEV jetable reconstruit depuis
+l'état repository-owned, sans clé, sans provider réel et sans appel réseau LLM.
+
+Run GitHub Actions : `31935274537`  
+Artifact : `9260477630`  
+Digest : `sha256:7304ff1620bf1ccb352d9da5c038f395bc6cbe6b983f116642f9ff4404b05440`
+
+La probe a dispatché un vrai `PreGenerateResponseEvent` Drupal AI avec des
+données synthétiques et a vérifié le stockage DBLog réel :
+
+```text
+PRIVACY_FIRST_LOG=PASS
+INPUT_MARKER_PRESENT=no
+PROVIDER_PRESENT=yes
+MODEL_PRESENT=yes
+CONFIGURATION_PERSISTED_BY_DBLOG=no
+DISABLED_LOGGING_BYPASS=PASS
+```
+
+Le message persistant observé suit le format fallback upstream :
+
+```text
+Call provider <provider>: model: <model>, operation type: <operation>.
+```
+
+Le contenu synthétique placé dans `ChatInput` n'est pas présent dans les
+variables DBLog quand `log_input=false`.
+
+Quand `logging_enabled=false`, le même type d'événement ne crée aucune nouvelle
+entrée `ai_observability`.
+
+## 4. Ce que `ai_observability` 1.4.6 émet réellement
+
+L'inspection de `AiLoggingEventSubscriber` de la version verrouillée montre que
+le context PSR construit par upstream contient, pour les événements provider :
+
+- event name ;
+- tags ;
+- provider ;
+- operation type ;
+- model ;
+- provider request id ;
+- parent request id ;
+- configuration provider de l'événement ;
+- token usage sur les outputs qui exposent `getTokenUsage()`.
+
+Input et output ne sont ajoutés au context que si `log_input` ou `log_output`
+sont explicitement activés.
+
+### Nuance DBLog
+
+Le backend Database Logging ne persiste pas tout le context PSR arbitraire. En
+mode fallback 1.4.6, le message expose essentiellement provider, modèle,
+opération et token total lorsqu'il existe. La probe confirme notamment que la
+configuration synthétique présente dans le context PSR n'est pas persistée dans
+`watchdog.variables`.
+
+Donc :
+
+```text
+metadata construite par AI Observability
+!=
+metadata nécessairement persistée par chaque backend PSR
+```
+
+Un futur backend structuré devra être évalué sur ce qu'il conserve réellement.
+
+## 5. Politique de confidentialité
+
+Ne jamais journaliser par défaut :
 
 - prompt système complet ;
-- contenu CKEditor complet ;
-- body/champs Drupal complets ;
-- traduction source ou résultat complet ;
+- contenu CKEditor ou body complet ;
+- traduction source/résultat complet ;
 - message visiteur public ;
 - webform submission ;
 - document uploadé ;
-- email/téléphone/adresse personnelle ;
+- données personnelles inutiles ;
 - secret, API key, bearer token, cookie/session ;
 - raw HTTP request/response provider ;
-- contenu des context items #387.
+- contenu complet d'un futur context item.
 
-Un debug temporaire avec contenu complet exige un ticket/incident explicite,
-un environnement non production ou données synthétiques, une durée bornée et
-une suppression après diagnostic.
+Un debug contenant du contenu exige un ticket/incident explicite, des données
+synthétiques ou un environnement approprié, une durée bornée et un nettoyage
+après diagnostic.
 
-## 7. Provenance par capacité
+## 6. Configuration provider : règle de sécurité
 
-Les futurs consumers doivent pouvoir fournir une identité de capacité stable.
-Convention cible :
+Le subscriber upstream met `getConfiguration()` dans son context PSR sans
+filtrage spécifique.
+
+Le `ProviderProxy` 1.4.6 construit l'événement à partir de :
+
+```php
+configuration: $this->plugin->configuration
+```
+
+Conséquence : les configurations d'opération/provider doivent rester
+**non secrètes et sans contenu utilisateur**. Les credentials doivent continuer
+à vivre dans le mécanisme Key/provider runtime prévu par le projet et ne doivent
+jamais être injectés dans cette configuration événementielle.
+
+DBLog n'a pas persisté cette configuration dans la preuve, mais la règle reste
+obligatoire car un autre logger PSR structuré pourrait le faire.
+
+## 7. Tokens et coûts
+
+Le token usage est journalisable quand l'output provider expose
+`getTokenUsage()`. Ne pas inventer de tokens lorsqu'ils ne sont pas fournis.
+
+Les tokens ne sont pas un coût monétaire :
+
+```text
+token usage observé
+!=
+coût calculé
+```
+
+Un coût estimé futur nécessite provider, modèle/version, catégories de tokens
+pertinentes et une table tarifaire datée. #389 n'intègre aucun prix en dur.
+
+## 8. Latence, erreurs et rate limits : gaps 1.4.6
+
+La documentation générale de AI Observability présente la durée parmi les
+données d'observabilité, mais le subscriber Drupal Logger exact inspecté en
+`1.4.6` ne construit pas de champ de durée explicite pour DBLog.
+
+De même, #389 ne prétend pas que DBLog 1.4.6 fournit aujourd'hui une couverture
+complète des erreurs provider, rate limits ou coûts.
+
+Décision : **ne pas créer une seconde couche custom générique** pour combler ces
+gaps dans cette issue. Ils restent des besoins à réévaluer lors d'une évolution
+upstream ou d'un futur backend structuré/OpenTelemetry.
+
+## 9. Provenance par capacité
+
+Convention cible pour les consumers :
 
 ```text
 agency:<capability>:<operation>
@@ -147,293 +210,102 @@ agency:chatbot:public
 agency:agent:<agent-id>
 ```
 
-Cette identité n'est pas un provider tag. Elle décrit **pourquoi** Agency a fait
-l'appel.
+Drupal AI 1.4.6 transporte déjà des tags sur les événements. Les futurs
+consumers doivent préférer ces mécanismes upstream pour identifier leur
+capacité plutôt qu'ajouter une télémétrie parallèle.
 
-Si Drupal AI permet de transmettre des tags/metadata de manière stable, les
-consumers doivent l'utiliser. Sinon un adapter minimal peut enrichir le contexte
-de log sans modifier le payload métier.
+Pour une entité, la provenance utile est au plus : entity type, bundle, id,
+revision id si nécessaire, langcode et opération/champ. Ne pas recopier la
+valeur du champ.
 
-## 8. Provenance de contenu
+## 10. Guardrails
 
-Pour une opération Inside AI sur une entité :
+La baseline #379 reste autoritative pour les guardrails. Les détails de
+guardrail ne sont ajoutés par le subscriber upstream que dans la branche de
+logging de l'input ; comme `log_input=false`, #389 ne revendique pas aujourd'hui
+une télémétrie DBLog complète des guardrails.
 
-- type d'entité ;
-- bundle ;
-- id ;
-- revision id si applicable ;
-- langcode ;
-- champ/opération lorsque pertinent.
+Si cette métrique devient nécessaire, elle devra être ajoutée sans réactiver la
+journalisation des contenus complets.
 
-Ne pas loguer la valeur du champ.
+## 11. `FutureAiMonitoring` : KEEP / CONVERGE / RETIRE LATER
 
-Pour #387, enregistrer au plus les ids/scopes de contexte utilisés et leur
-provenance/version, pas le texte complet des contextes.
+### KEEP
 
-## 9. Acteur humain
-
-Un `uid` peut être utile pour :
-
-- audit d'usage ;
-- quotas ;
-- diagnostic d'une opération initiée dans l'admin.
-
-Mais :
-
-- pas de nom/email dans le message de log si l'uid suffit ;
-- ne pas créer de profil comportemental éditorial ;
-- pas d'identifiant visiteur persistant pour un futur chatbot public sans besoin
-  et base explicites.
-
-## 10. Coûts
-
-Les tokens ne sont pas un coût monétaire en eux-mêmes.
-
-La baseline distingue :
-
-```text
-token usage observé
-!=
-coût calculé
-```
-
-Un coût estimé nécessite :
-
-- provider ;
-- modèle/version ;
-- input/output/cached/reasoning tokens selon tarification ;
-- table tarifaire datée et versionnée ou source externe fiable.
-
-#389 n'intègre pas de prix en dur dans le code. Les futurs rapports peuvent
-calculer un coût estimé à partir des tokens observés et d'un catalogue tarifaire
-maintenu séparément.
-
-Si le provider ne retourne pas les tokens, afficher `unknown` plutôt que les
-inventer.
-
-## 11. Rate limits
-
-Quand Drupal AI/provider expose des limites :
-
-- remaining requests/tokens ;
-- reset time ;
-- erreur de quota/rate limit ;
-
-elles peuvent être loguées comme données techniques. Aucun header
-`Authorization` ni payload brut ne doit être conservé.
-
-## 12. Guardrails
-
-#379 définit la baseline Guardrails.
-
-L'observabilité doit distinguer :
-
-```text
-guardrail PASS
-provider appelé
-
-vs
-
-guardrail STOP
-provider non appelé
-```
-
-Pour une violation : loguer idéalement :
-
-- guardrail/set id ;
-- phase pre/post ;
-- résultat ;
-- capacité ;
-- timestamp ;
-
-sans recopier l'entrée fautive.
-
-## 13. `FutureAiMonitoring` : stratégie de convergence
-
-`FutureAiMonitoring` compte actuellement :
-
-- succès ;
-- blocages ;
-- erreurs provider ;
-- fallbacks ;
-- raisons.
-
-Décision issue de #388 et précisée ici :
-
-### KEEP temporaire
-
-Conserver les compteurs tant que le flux FutureAi legacy existe. Ils servent à
-son comportement/fallback spécifique et leur suppression n'apporte rien avant
-migration.
+Conserver les compteurs spécifiques du flux FutureAi tant que ce flux existe :
+succès, blocages, erreurs provider, fallbacks et raisons.
 
 ### CONVERGE
 
-Ne plus développer dans `FutureAiMonitoring` :
-
-- tokens ;
-- coût ;
-- latence provider générique ;
-- modèle/provider telemetry ;
-- tracing ;
-- raw prompts/responses.
-
-Ces responsabilités appartiennent à Drupal AI / AI Observability.
+Ne plus étendre `FutureAiMonitoring` avec les responsabilités génériques :
+provider/modèle, tokens, coût, tracing, latence provider ou raw payloads. Ces
+responsabilités doivent converger vers Drupal AI / AI Observability quand
+upstream les expose de façon suffisante.
 
 ### RETIRE LATER
 
-Après migration FutureAi vers Drupal AI :
+Après migration complète des anciens chemins vers Drupal AI, supprimer les
+compteurs génériques devenus doublons. Ne conserver que de vraies métriques
+métier distinctes si elles servent une décision produit.
 
-- supprimer les compteurs génériques devenus doublons ;
-- ne conserver que des métriques métier distinctes si une décision produit les
-  utilise réellement, par exemple le taux de fallback guide-only.
+## 12. Consumers actuels
 
-## 14. Limite legacy traduction
+Depuis le preflight initial de #389 :
 
-`agency_ai_translation` effectue encore un appel HTTP provider direct.
+- #380 AI CKEditor est fusionné ;
+- #381 AI Automators Article est fusionné ;
+- #382 AI Translate a été évalué et le chemin custom existant reste gouverné
+  lorsqu'il offre encore des garanties non couvertes par upstream.
 
-Donc :
+La configuration provider reste volontairement runtime-owned. L'absence de
+provider doit continuer à laisser fonctionner la saisie/sauvegarde éditoriale
+normale ; le browser gate du dépôt vérifie déjà cette propriété sur Article.
 
-```text
-AI Observability Drupal AI
--> ne couvre pas ce chemin legacy
-```
-
-Ne pas ajouter une seconde instrumentation custom sophistiquée autour de ce
-client uniquement pour combler cet écart. #382 doit d'abord prouver la parité AI
-Translate et faire converger le chemin provider.
-
-## 15. Stockage et rétention
-
-AI Observability écrit via le logger Drupal ; le backend de log reste une
-décision d'exploitation.
+## 13. Résilience
 
 Baseline :
 
-- aucun SaaS d'observabilité imposé ;
-- DBLog acceptable pour développement/preuve bornée ;
-- ne pas utiliser DBLog comme entrepôt massif de prompts ;
-- production : backend de logs adapté seulement si le volume/besoin le justifie ;
-- durée de rétention proportionnée au diagnostic/audit ;
-- rotation/purge doivent exister avant une collecte volumineuse.
-
-OpenTelemetry reste une direction possible, pas un prérequis Agency.
-
-## 16. Résilience
-
-Invariant :
-
 ```text
-observabilité indisponible
-!=
-fonctionnalité IA indisponible
+observability disabled
+-> no observability log
+-> AI/event flow continues
 ```
 
-Un échec de logger/export ne doit pas empêcher un éditeur autorisé d'utiliser
-une capacité IA.
+La probe locale démontre le premier point : le subscriber retourne sans écrire
+quand `logging_enabled=false`.
 
-Exception : si une politique future impose un audit obligatoire pour une action
-particulièrement sensible, cette exigence doit être décidée dans un ticket
-spécifique. Ce n'est pas la baseline actuelle.
+Attention : le subscriber 1.4.6 n'encapsule pas arbitrairement tout backend de
+logger défaillant dans un `try/catch`. #389 ne prétend donc pas qu'un backend PSR
+qui lève une exception serait automatiquement fail-open. Aucun backend externe
+n'est imposé par cette baseline.
 
-## 17. Gate avant activation dans `config/sync`
+## 14. OpenTelemetry
 
-Avant de versionner `ai_observability` comme module actif :
-
-1. partir d'un DDEV Agency propre ;
-2. vérifier `config:status` avant activation ;
-3. activer `ai_observability` localement ;
-4. inspecter les configs créées et le config schema ;
-5. lancer **un appel Drupal AI non sensible et synthétique** ;
-6. inspecter `/admin/reports/dblog` ou le logger configuré ;
-7. vérifier ce qui est réellement présent dans message + context ;
-8. confirmer : aucun secret ;
-9. confirmer : prompts/outputs complets non collectés par défaut ou configurer
-   explicitement leur exclusion ;
-10. confirmer provider/modèle/durée/token usage lorsqu'exposés ;
-11. désactiver/simuler indisponibilité du logger et vérifier que le use case ne
-    casse pas ;
-12. exporter uniquement la config minimale nécessaire ;
-13. `cim` de contrôle + `config:status` propre ;
-14. tests/CI exact-head.
-
-## 18. Appel de preuve
-
-La preuve ne doit pas utiliser un contenu réel du site. Prompt synthétique
-recommandé :
+Le module expose des options OTel, mais Agency garde :
 
 ```text
-Return exactly: OBSERVABILITY_OK
+otel_enabled: false
 ```
 
-Aucune donnée client, article, formulaire ou document interne.
+Pas de collector, SaaS ou endpoint à exploiter tant qu'un besoin de production
+mesuré ne le justifie pas. Les options de spans/metrics restent aux defaults
+upstream mais sont inertes tant que OTel est désactivé.
 
-Le résultat attendu n'est pas la qualité du LLM mais le log technique.
+## 15. Critères de sortie #389
 
-## 19. Critères de PASS de la preuve
+La baseline est acceptable car :
 
-```text
-provider                 présent
-model                    présent
-operation type           présent
-success/error            observable
-duration                 présente
-token usage              présent si provider le fournit
-capability provenance    possible ou plan documenté
-raw secret               absent
-prompt complet           absent de la baseline
-output complet           absent de la baseline
-fonction sans logger     préservée
-```
+- module upstream stable déjà livré par le lock ;
+- activation/config exportables sans dépendance additionnelle ;
+- full input/output désactivés explicitement ;
+- provider et modèle prouvés dans DBLog ;
+- opération présente dans le message fallback ;
+- input synthétique prouvé absent ;
+- mode logging désactivé prouvé sans écriture ;
+- token usage supporté lorsque l'output upstream l'expose ;
+- limites de durée/erreur/rate-limit documentées au lieu d'être inventées ;
+- stratégie FutureAiMonitoring explicitement KEEP / CONVERGE / RETIRE LATER ;
+- aucun secret, provider concret, prix ou backend SaaS versionné.
 
-Si l'implémentation upstream actuelle force la journalisation de contenu complet
-sans moyen sûr de la désactiver, verdict : **DO NOT ENABLE IN PRODUCTION** et
-attendre/corriger upstream plutôt que contourner avec un fork custom.
-
-## 20. Interaction avec #380 / #381 / #382
-
-- #380 AI CKEditor : premier consumer idéal pour la preuve finale observability,
-  avec contenu synthétique uniquement ;
-- #381 Automators : ajouter capability id et provenance d'entité, sans valeur de
-  champ ;
-- #382 AI Translate : après convergence, mesurer tokens/latence via Drupal AI au
-  lieu du client HTTP legacy.
-
-#389 doit être fusionné avant de considérer l'observabilité comme une exigence
-transversale, mais l'activation module peut rester attachée au premier consumer
-si la preuve montre que c'est plus sûr.
-
-## 21. Décision actuelle
-
-```text
-Doctrine privacy-first
--> READY
-
-FutureAiMonitoring generic expansion
--> FROZEN
-
-ai_observability installation package
--> AVAILABLE via drupal/ai
-
-ai_observability actif dans Agency
--> NOT YET
-
-activation production
--> PENDING REAL DDEV EVIDENCE
-```
-
-Cette décision évite deux erreurs : développer notre propre observability stack,
-ou activer aveuglément un logger très riche avant d'avoir inspecté ses données.
-
-## 22. Sources upstream vérifiées
-
-Sources officielles consultées le 2026-08-15 :
-
-- AI Observability : `https://project.pages.drupalcode.org/ai/1.2.x/modules/ai_observability/`
-- Full patch test branche AI 1.4.x :
-  `https://project.pages.drupalcode.org/ai/1.4.x/contribute/testing/full_patch_test/`
-- issue/report upstream sur la réduction/summarization des payloads de logs :
-  projet `drupal/ai`, issue `#3566762`.
-
-La documentation officielle confirme que l'observabilité expose durée et token
-usage et peut inclure des informations d'input/output ; cette capacité est la
-raison de la politique metadata-first du projet.
+La prochaine gate reste le fresh install/config-status + CI/browser validation
+sur le HEAD final de la PR, après suppression du workflow temporaire de preuve.

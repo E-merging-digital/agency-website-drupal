@@ -225,7 +225,7 @@ ddev composer test:homepage-smoke
 ddev composer test:contact
 ddev composer test:project-functional
 ddev composer test:ai-translation:stable
- ddev composer ci
+ddev composer ci
 npm run browser:validate
 ```
 

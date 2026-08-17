@@ -128,6 +128,14 @@ jobs:
               )
               release_policy_must_change="no"
               ;;
+            pages-medium-441)
+              target_ids=(
+                "cas-clients"
+                "equipe"
+                "ia-drupal"
+              )
+              release_policy_must_change="no"
+              ;;
             *)
               echo "Unsupported governed transition proof profile: $PROOF_PROFILE" >&2
               exit 1

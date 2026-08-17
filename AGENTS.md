@@ -84,14 +84,17 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
   `web/modules/custom/emerging_digital_content/content_sync/node/*.yml`.
 - Trois IDs sont explicitement Governed Content : `mentions-legales`,
   `politique-confidentialite`, `politique-cookies`.
-- Apres le pilote #440 puis le lot `ai_feature` #451, **20** IDs sont encore
-  grandfathered `LEGACY_RELEASE_PENDING`. Aucun nouvel ID ne peut etre ajoute a
-  cette classe et leur retrait doit suivre la procedure de liberation documentee.
+- Apres le pilote #440, le lot `ai_feature` #451 et le premier lot services
+  #458, **13** IDs sont encore grandfathered `LEGACY_RELEASE_PENDING`. Aucun
+  nouvel ID ne peut etre ajoute a cette classe et leur retrait doit suivre la
+  procedure de liberation documentee.
 - Les trois cas clients pilotes `cas-client-refonte-drupal-institutionnelle`,
   `cas-client-migration-drupal-11` et `cas-client-integration-ia-editoriale`
   sont `RELEASED` depuis #440 et ne doivent pas etre readmis par inadvertance.
-- Les 10 contenus `ai_feature` du lot #451 sont egalement `RELEASED`; la liste
-  machine autoritative des contenus encore pending reste exclusivement celle de
+- Les 10 contenus `ai_feature` du lot #451 sont egalement `RELEASED`.
+- Les 7 services Drupal/qualite du lot #458 sont egalement `RELEASED`; il reste
+  7 services ordinaires et 6 pages ordinaires pending. La liste machine
+  autoritative des contenus encore pending reste exclusivement celle de
   `GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS`.
 - Ne jamais ajouter un Article ou un nouveau contenu marketing/editorial
   ordinaire au catalogue. Une nouvelle admission exige un ticket, une classe
@@ -222,7 +225,7 @@ ddev composer test:homepage-smoke
 ddev composer test:contact
 ddev composer test:project-functional
 ddev composer test:ai-translation:stable
-ddev composer ci
+ ddev composer ci
 npm run browser:validate
 ```
 

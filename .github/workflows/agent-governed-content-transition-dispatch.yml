@@ -81,7 +81,7 @@ jobs:
           for name, value in [('head_sha', head_sha), ('release_sha', release_sha)]:
               if not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{40}', value):
                   raise SystemExit(f'{name} must be a lowercase 40-character SHA')
-          if proof_profile not in {'case-studies-440', 'ai-features-441', 'services-drupal-441', 'services-general-441'}:
+          if proof_profile not in {'case-studies-440', 'ai-features-441', 'services-drupal-441', 'services-general-441', 'pages-medium-441'}:
               raise SystemExit(f'Unsupported proof_profile: {proof_profile}')
 
           print(f'REQUEST_ID={request_id}')

@@ -303,6 +303,31 @@ apply_editorial_edit() {
         $node->save();
       '
       ;;
+
+    pages-medium-441)
+      ddev drush php:eval '
+        $database = \Drupal::database();
+        $nid = $database->select("emerging_digital_content_sync_mapping", "m")
+          ->fields("m", ["entity_id"])
+          ->condition("content_id", "equipe")
+          ->execute()
+          ->fetchField();
+        if (!$nid) {
+          throw new \RuntimeException("Medium page mapping not found for editorial proof.");
+        }
+        $node = \Drupal\node\Entity\Node::load((int) $nid);
+        if (!$node) {
+          throw new \RuntimeException("Medium page node not found for editorial proof.");
+        }
+        $node->setNewRevision(TRUE);
+        $node->setRevisionLogMessage("Governed Content transition proof #441 medium pages");
+        $translation = $node->hasTranslation("fr") ? $node->getTranslation("fr") : $node;
+        if (!str_contains((string) $translation->label(), "[proof-441-medium-pages-editorial-survives]")) {
+          $translation->setTitle($translation->label() . " [proof-441-medium-pages-editorial-survives]");
+        }
+        $node->save();
+      '
+      ;;
   esac
 }
 

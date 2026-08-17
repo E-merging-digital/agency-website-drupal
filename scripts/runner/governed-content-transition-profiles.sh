@@ -125,6 +125,25 @@ case "$PROOF_PROFILE" in
     PROOF_EDITORIAL_MARKER="[proof-441-services-general-editorial-survives]"
     ;;
 
+  pages-medium-441)
+    PROOF_CONTENT_IDS=(
+      "cas-clients"
+      "equipe"
+      "ia-drupal"
+    )
+    PROOF_PUBLIC_PATHS=(
+      "/fr/cas-clients"
+      "/en/case-studies"
+      "/fr/equipe"
+      "/en/team"
+      "/fr/ia-drupal"
+      "/en/ai-drupal"
+    )
+    PROOF_EDITORIAL_CONTENT_ID="equipe"
+    PROOF_EDITORIAL_PATH="/fr/equipe"
+    PROOF_EDITORIAL_MARKER="[proof-441-medium-pages-editorial-survives]"
+    ;;
+
   *)
     echo "Unsupported governed transition proof profile: $PROOF_PROFILE" >&2
     return 1 2>/dev/null || exit 1

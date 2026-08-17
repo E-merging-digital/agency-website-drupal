@@ -58,6 +58,14 @@ jobs:
             test "${#PROOF_PUBLIC_PATHS[@]}" = "14"
           '
 
+          PROOF_PROFILE=pages-medium-441 bash -c '
+            set -euo pipefail
+            source scripts/runner/governed-content-transition-profiles.sh
+            test "$PROOF_MAPPING_COUNT" = "3"
+            test "$PROOF_EDITORIAL_CONTENT_ID" = "equipe"
+            test "${#PROOF_PUBLIC_PATHS[@]}" = "6"
+          '
+
           if PROOF_PROFILE=unsupported-profile bash -c '
             set -euo pipefail
             source scripts/runner/governed-content-transition-profiles.sh

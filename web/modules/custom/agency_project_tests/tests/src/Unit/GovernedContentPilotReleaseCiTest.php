@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 final class GovernedContentPilotReleaseCiTest extends TestCase {
 
   /**
-   * Completed release batches stay outside Git and pending is down to 20.
+   * Completed release batches stay outside Git and pending is down to 13.
    */
   public function testReleasedBatchesAreVisibleToStandardCi(): void {
     $project_root = dirname(DRUPAL_ROOT);
@@ -34,7 +34,7 @@ final class GovernedContentPilotReleaseCiTest extends TestCase {
 
     self::assertCount(3, GovernedContentPolicy::GOVERNED_CONTENT_IDS);
     self::assertCount(
-      20,
+      13,
       GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
     );
 
@@ -42,7 +42,7 @@ final class GovernedContentPilotReleaseCiTest extends TestCase {
     $catalog = Yaml::decode((string) file_get_contents($catalog_path));
     self::assertIsArray($catalog);
     self::assertIsArray($catalog['contents'] ?? NULL);
-    self::assertCount(23, $catalog['contents']);
+    self::assertCount(16, $catalog['contents']);
 
     $catalog_ids = array_column($catalog['contents'], 'id');
     $released_ids = [
@@ -59,6 +59,13 @@ final class GovernedContentPilotReleaseCiTest extends TestCase {
       'ai-resumes-tags-structure',
       'ai-seo-liens-internes',
       'ai-gouvernance-validation',
+      'agence-drupal-belgique',
+      'creation-site-drupal',
+      'maintenance-drupal',
+      'migration-drupal',
+      'refonte-site-drupal',
+      'audit-drupal',
+      'accessibilite-seo-optimisation',
     ];
 
     foreach ($released_ids as $content_id) {

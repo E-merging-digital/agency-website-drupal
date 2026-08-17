@@ -31,6 +31,13 @@ final class GovernedContentPilotReleaseTest extends TestCase {
       'ai-resumes-tags-structure' => 'ai-resumes-tags-structure.yml',
       'ai-seo-liens-internes' => 'ai-seo-liens-internes.yml',
       'ai-gouvernance-validation' => 'ai-gouvernance-validation.yml',
+      'agence-drupal-belgique' => 'agence-drupal-belgique.yml',
+      'creation-site-drupal' => 'creation-site-drupal.yml',
+      'maintenance-drupal' => 'maintenance-drupal.yml',
+      'migration-drupal' => 'migration-drupal.yml',
+      'refonte-site-drupal' => 'refonte-site-drupal.yml',
+      'audit-drupal' => 'audit-drupal.yml',
+      'accessibilite-seo-optimisation' => 'accessibilite-seo-optimisation.yml',
     ];
 
     $module_root = dirname(__DIR__, 3);
@@ -40,8 +47,8 @@ final class GovernedContentPilotReleaseTest extends TestCase {
     self::assertIsArray($decoded);
     self::assertArrayHasKey('contents', $decoded);
     self::assertIsArray($decoded['contents']);
-    self::assertCount(23, $decoded['contents']);
-    self::assertCount(20, GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS);
+    self::assertCount(16, $decoded['contents']);
+    self::assertCount(13, GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS);
 
     $catalogue_ids = array_column($decoded['contents'], 'id');
 

@@ -1,9 +1,9 @@
 # Governed Content — trajectoire de convergence de Content Sync
 
-Statut : **transition active — pilote #440 et lot `ai_feature` #451 terminés**  
-Date : **2026-08-16**  
+Statut : **transition active — pilote #440, lot `ai_feature` #451 et premier lot services #458 terminés**  
+Date : **2026-08-17**  
 Ticket d'origine : **#385**  
-Mises à jour d'inventaire : **#445, #453**  
+Mises à jour d'inventaire : **#445, #453, #460**  
 Parent : **#60**
 
 ## 1. Décision
@@ -34,7 +34,8 @@ La migration est progressive :
   les protections fail-closed ;
 - #440 a libéré et prouvé les trois cas clients pilotes ;
 - #451 a libéré et prouvé le lot complet des dix contenus `ai_feature` ;
-- #441 poursuit maintenant les vingt contenus ordinaires restants par lots
+- #458 a libéré et prouvé un premier lot de sept services Drupal/qualité ;
+- #441 poursuit maintenant les treize contenus ordinaires restants par lots
   bornés.
 
 ## 2. Sources de vérité
@@ -59,15 +60,15 @@ LEGACY_RELEASE_PENDING_IDS
 La documentation explique la trajectoire, les invariants et les étapes. Elle ne
 doit jamais devenir une seconde allowlist copiée à la main.
 
-## 3. Inventaire courant après #451
+## 3. Inventaire courant après #458
 
 Inventaire recalculé depuis le catalogue et la policy versionnés sur `main`
-après le merge de #451 :
+après le merge de #458 :
 
 ```text
 CATALOG_VERSION=1
-CATALOG_COUNT=23
-BUNDLE_COUNTS={"page":9,"service":14}
+CATALOG_COUNT=16
+BUNDLE_COUNTS={"page":9,"service":7}
 MISSING_REFERENCED_FILES=[]
 UNREFERENCED_NODE_FILES=[]
 DUPLICATE_IDS=[]
@@ -83,15 +84,15 @@ La policy runtime contient :
 
 ```text
 3 IDs = GOVERNED
-20 IDs = LEGACY_RELEASE_PENDING
+13 IDs = LEGACY_RELEASE_PENDING
 ```
 
 Donc :
 
 ```text
-23 entrées cataloguées
+16 entrées cataloguées
 = 3 Governed Content
-+ 20 contenus ordinaires encore en transition
++ 13 contenus ordinaires encore en transition
 ```
 
 ### 3.1 Governed Content conservé sous Git
@@ -109,14 +110,14 @@ explicite.
 
 ### 3.2 Contenu ordinaire encore pending
 
-La liste exacte des 20 contenus encore `LEGACY_RELEASE_PENDING` appartient à
+La liste exacte des 13 contenus encore `LEGACY_RELEASE_PENDING` appartient à
 `GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS` et ne doit pas être recopiée
 ici.
 
 Répartition actuelle, dérivée du catalogue :
 
 ```text
-service pending: 14
+service pending: 7
 page ordinaire pending: 6
 ```
 
@@ -182,6 +183,47 @@ sha256:36dcb51eba0ca2146b68214c91e9b3ed07df5e43fd9f72607c040d1a40218aca
 Les dix mappings conservent la même identité node/UUID/hash pendant la release,
 restent `released` au HEAD exact et retrouvent `active` pendant le rollback.
 Les diffs d'identité et d'état node de la preuve sont vides.
+
+#### Premier lot services Drupal/qualité — #458
+
+Sept landing pages de service ont ensuite été libérées avec le profil trusted
+`services-drupal-441`.
+
+La preuve a couvert la même séquence complète :
+
+```text
+base active
+-> release candidate released
+-> Content Sync sans réadmission
+-> modification éditoriale Drupal persistante
+-> HEAD final exact released
+-> Browser Validation FR/EN desktop/mobile
+-> rollback/readmission active
+```
+
+Résultat de preuve :
+
+```text
+workflow run: 31953623538
+profile: services-drupal-441
+release candidate: 0b40245817d3781046e5d596a1febee3323eed4e
+exact HEAD: feff40159e973ecd242d2b7041bf38833c86d8ab
+result: PASS
+browser: 28/28 release candidate + 28/28 exact HEAD
+```
+
+L'artefact de preuve du run porte le digest :
+
+```text
+sha256:f0e03f4846a40201ff838a52a71d0e71d7d70361a1564122a7d6b677b8b2b5eb
+```
+
+Les sept mappings conservent exactement leurs node IDs, UUID et catalog hashes
+pendant la release et au HEAD final. Tous les diffs d'identité et d'état node
+sont vides. La modification éditoriale de `audit-drupal` crée une nouvelle
+révision et survit à un Content Sync complet. Les 28 captures du HEAD final sont
+bit-à-bit identiques aux 28 captures du release candidate. Le rollback remet
+les sept mappings à `active` avec la même identité.
 
 ## 4. Pourquoi la migration ne doit pas être brutale
 
@@ -360,7 +402,7 @@ Pendant la migration, la policy runtime contient deux ensembles explicites :
 
 ```text
 GOVERNED_CONTENT_IDS = 3 IDs légaux
-LEGACY_RELEASE_PENDING_IDS = 20 IDs grandfathered
+LEGACY_RELEASE_PENDING_IDS = 13 IDs grandfathered
 ```
 
 La liste pending ne peut que diminuer.
@@ -465,10 +507,11 @@ rollback a été prouvé avant merge.
 Progression :
 
 ```text
-case clients (3) -> RELEASED #440
-ai_feature (10)  -> RELEASED #451
-services (14)    -> NEXT, par lots bornés
-pages ordinaires (6) -> ensuite
+case clients (3)              -> RELEASED #440
+ai_feature (10)               -> RELEASED #451
+services Drupal/qualité (7)   -> RELEASED #458
+services ordinaires (7)       -> NEXT, lot borné
+pages ordinaires (6)          -> ensuite
 homepage / services / contact -> en dernier avec browser gates dédiés
 ```
 
@@ -489,9 +532,9 @@ Lorsque le catalogue ne contient plus que le Governed Content :
 La preuve d'inventaire #385 correspond à l'état initial de transition. Elle
 reste historique et ne doit pas être utilisée comme inventaire courant.
 
-Les preuves #440 et #451 démontrent successivement que la primitive de release
-peut être appliquée à plusieurs formes de contenu sans perte d'identité ni
-reprise de contrôle par Content Sync.
+Les preuves #440, #451 et #458 démontrent successivement que la primitive de
+release peut être appliquée à plusieurs formes de contenu sans perte d'identité
+ni reprise de contrôle par Content Sync.
 
 La preuve autoritative de l'inventaire courant reste le couple :
 
@@ -504,9 +547,9 @@ Les tests projet/module vérifient désormais :
 
 ```text
 GOVERNED count = 3
-LEGACY_RELEASE_PENDING count = 20
-catalog count = 23
-3 case_client + 10 ai_feature libérés absents du catalogue/policy/payloads
+LEGACY_RELEASE_PENDING count = 13
+catalog count = 16
+3 case_client + 10 ai_feature + 7 services libérés absents du catalogue/policy/payloads
 ```
 
 ## 18. Conclusion
@@ -529,9 +572,11 @@ La trajectoire réelle est désormais :
 bootstrap historique : 36 entrées
 après pilote #440 :    33 entrées = 3 GOV + 30 pending
 après lot #451 :       23 entrées = 3 GOV + 20 pending
+après lot #458 :       16 entrées = 3 GOV + 13 pending
 cible :                 noyau Governed Content justifié
 ```
 
-Le mécanisme de transition a maintenant été prouvé sur treize contenus
-ordinaires. #441 peut poursuivre les services par lots bornés en réutilisant les
-mêmes invariants de release, preuve exact-head, Browser Validation et rollback.
+Le mécanisme de transition a maintenant été prouvé sur vingt contenus
+ordinaires. #441 peut poursuivre les sept services restants par un lot borné,
+puis les six pages ordinaires, en réutilisant les mêmes invariants de release,
+preuve exact-head, Browser Validation et rollback.

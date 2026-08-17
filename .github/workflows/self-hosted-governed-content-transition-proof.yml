@@ -116,6 +116,18 @@ jobs:
               )
               release_policy_must_change="no"
               ;;
+            services-general-441)
+              target_ids=(
+                "agence-web-belgique"
+                "agence-web-liege"
+                "creation-site-web-professionnel"
+                "refonte-site-internet"
+                "site-web-pme"
+                "ia-integree"
+                "ia-pour-pme"
+              )
+              release_policy_must_change="no"
+              ;;
             *)
               echo "Unsupported governed transition proof profile: $PROOF_PROFILE" >&2
               exit 1

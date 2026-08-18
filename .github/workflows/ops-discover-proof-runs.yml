@@ -14,7 +14,7 @@ jobs:
       - name: Query public GitHub Actions metadata
         shell: bash
         env:
-          DISPATCH_SHA: c2d7d80233f88c6fcb5936a5ce786a2bdac43b0c
+          POST_MERGE_SHA: 7511588f9b23366e4132b773236366ed57e6159c
         run: |
           set -euo pipefail
 
@@ -25,14 +25,15 @@ jobs:
             -H "User-Agent: agency-proof-observer"
           )
 
-          echo "=== GATEWAY_RUNS_FOR_DISPATCH_SHA ==="
+          echo "=== RUNS_FOR_POST_MERGE_SHA ==="
           curl -fsSL "${headers[@]}" \
-            "${api}/actions/runs?head_sha=${DISPATCH_SHA}&per_page=20" \
+            "${api}/actions/runs?head_sha=${POST_MERGE_SHA}&per_page=30" \
             | jq -c '.workflow_runs[] | {
                 id,
                 name,
                 run_number,
                 event,
+                head_branch,
                 head_sha,
                 created_at,
                 updated_at,
@@ -41,16 +42,17 @@ jobs:
                 html_url
               }'
 
-          echo "=== RECENT_GOVERNED_PROOF_RUNS ==="
+          echo "=== RECENT_DEPLOY_PRODUCTION_RUNS ==="
           curl -fsSL "${headers[@]}" \
-            "${api}/actions/runs?event=workflow_dispatch&per_page=50" \
+            "${api}/actions/runs?per_page=50" \
             | jq -c '.workflow_runs[]
-              | select(.name == "Agency governed content transition proof")
+              | select(.name == "Deploy Production")
               | {
                   id,
                   name,
                   run_number,
                   event,
+                  head_branch,
                   head_sha,
                   created_at,
                   updated_at,

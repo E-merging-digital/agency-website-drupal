@@ -87,6 +87,11 @@ une future couche indépendante de vérification et de gouvernance.
 - thème custom `emerging_digital` ;
 - Paragraphs et templates Twig explicites ;
 - tokens CSS dans `web/themes/custom/emerging_digital/css/base.css` ;
+- catalogue SDC gouverné et admission machine-readable issus de #519 ;
+- Hero, CTA et Trust list admis pour composition ;
+- Drupal Canvas verrouillé par Composer et configuration Canvas/Media versionnée ;
+- allowlist Canvas dérivée du catalogue Agency approuvé ;
+- Canvas Page de preuve core-native `/canvas-governed-sdc-baseline` ;
 - validation Playwright réelle desktop/mobile ;
 - Playwright MCP et Chrome DevTools MCP disponibles sur le runner ;
 - preuve DEV-ONLY de `drupal/ai_playwright` ;
@@ -94,11 +99,7 @@ une future couche indépendante de vérification et de gouvernance.
 
 ### Pas encore présent
 
-- intégration Drupal Canvas dans le produit Agency ;
-- catalogue SDC Agency gouverné ;
-- catalogue d’admission de composants pour composition IA ;
 - intégration technique Figma ;
-- validation automatique de conformité à un catalogue SDC ;
 - Context Control Center en production ;
 - génération de pages Canvas AI activée comme capacité produit.
 
@@ -164,8 +165,9 @@ variantes ?**
 
 ## 6. Catalogue de composants gouverné
 
-Le catalogue d’admission sera matérialisé dans #519. Il doit rester dérivable du
-code et ne pas devenir une seconde implémentation des composants.
+Le catalogue d’admission est matérialisé depuis #519 dans
+`docs/design-system/component-catalog.yml`. Il reste dérivable du code et ne
+devient pas une seconde implémentation des composants.
 
 Un composant admis devra au minimum avoir :
 
@@ -304,7 +306,7 @@ Cible de conception : WCAG 2.2 AA, sauf exigence de ticket plus stricte.
 
 ### Design system
 
-À mesure que #519 matérialise le catalogue :
+Avec le catalogue matérialisé par #519 :
 
 - aucun composant non approuvé dans le candidat ;
 - props/variantes conformes ;
@@ -354,8 +356,8 @@ Ordre architectural :
    admission gouvernée.
 3. **Validation** : renforcer l’accessibilité et la conformité composants dans la
    preuve navigateur existante, sans créer un second framework de test.
-4. **Canvas** : vertical slice de composition visuelle avec les SDC approuvés.
-5. **Canvas AI** : pilote borné de sélection/composition de ces mêmes composants.
+4. **#526 / Canvas** : baseline de composition visuelle avec les SDC approuvés ; voir `docs/canvas-baseline.md`.
+5. **Canvas AI** : seulement après admission finale de #526, pilote borné de sélection/composition de ces mêmes composants.
 6. **#387 / contexte** : brancher le contexte de marque gouverné lorsque la
    maturité upstream le permet ; ne pas dupliquer CCC.
 7. **Page generation contrôlée** : brief -> composition candidate -> preuves ->

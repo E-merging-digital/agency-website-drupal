@@ -1,0 +1,24 @@
+uuid: d0bbef9b-8ec1-4733-b6d2-6b286278155d
+langcode: fr
+status: true
+dependencies:
+  module:
+    - canvas
+    - content_translation
+third_party_settings:
+  content_translation:
+    translation_sync:
+      inputs: inputs
+      tree: '0'
+id: canvas_page.canvas_page.components
+field_name: components
+entity_type: canvas_page
+bundle: canvas_page
+label: Composants
+description: ''
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: component_tree

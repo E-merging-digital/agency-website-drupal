@@ -9,12 +9,13 @@ dependencies:
     - comment
     - file
     - filter
+    - media
     - shortcut
     - system
 _core:
   default_config_hash: hcfESiA8tr3D1muRk2KF7tbcun16ZJlG1R5SzKGed6g
 id: authenticated
-label: 'Authenticated user'
+label: 'Utilisateur authentifié'
 weight: 1
 is_admin: false
 permissions:
@@ -26,3 +27,4 @@ permissions:
   - 'skip comment approval'
   - 'use text format basic_html'
   - 'use text format webform_default'
+  - 'view media'

@@ -1,0 +1,53 @@
+uuid: 1cecdc83-2742-4623-944a-a645f55fe164
+langcode: fr
+status: true
+dependencies:
+  module:
+    - options
+  theme:
+    - emerging_digital
+active_version: b4f165563eb02357
+versioned_properties:
+  active:
+    settings:
+      prop_field_definitions:
+        heading:
+          required: false
+          field_type: string
+          field_storage_settings: {  }
+          field_instance_settings: {  }
+          field_widget: string_textfield
+          default_value:
+            -
+              value: 'Ready to frame the next step?'
+          expression: ℹ︎string␟value
+          derived_schema_metadata:
+            string_shape: {  }
+        heading_level:
+          required: false
+          field_type: list_string
+          field_storage_settings:
+            allowed_values_function: canvas_load_allowed_values_for_component_prop
+          field_instance_settings: {  }
+          field_widget: options_select
+          default_value:
+            -
+              value: h2
+          expression: ℹ︎list_string␟value
+          derived_schema_metadata: {  }
+    fallback_metadata:
+      slot_definitions:
+        intro:
+          title: Introduction
+          description: 'Rendered CTA explanatory content.'
+        primary_action:
+          title: 'Primary action'
+          description: 'Primary governed action renderable.'
+        secondary_action:
+          title: 'Secondary action'
+          description: 'Optional secondary governed action renderable.'
+label: CTA
+id: sdc.emerging_digital.cta
+provider: emerging_digital
+source: sdc
+source_local_id: 'emerging_digital:cta'

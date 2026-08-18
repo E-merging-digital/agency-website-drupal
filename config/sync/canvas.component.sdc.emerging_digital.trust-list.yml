@@ -1,0 +1,47 @@
+uuid: 2da80941-11df-4d38-a635-810658730450
+langcode: fr
+status: true
+dependencies:
+  theme:
+    - emerging_digital
+active_version: 61b25a47f367765e
+versioned_properties:
+  active:
+    settings:
+      prop_field_definitions:
+        heading:
+          required: true
+          field_type: string
+          field_storage_settings: {  }
+          field_instance_settings: {  }
+          field_widget: string_textfield
+          default_value:
+            -
+              value: Benefits
+          expression: ℹ︎string␟value
+          derived_schema_metadata:
+            string_shape: {  }
+        items:
+          required: true
+          field_type: string
+          cardinality: 12
+          field_storage_settings: {  }
+          field_instance_settings: {  }
+          field_widget: string_textfield
+          default_value:
+            -
+              value: 'Drupal expertise'
+            -
+              value: 'Human validation'
+            -
+              value: 'Accessible by design'
+          expression: ℹ︎string␟value
+          derived_schema_metadata:
+            string_shape: {  }
+    fallback_metadata:
+      slot_definitions: {  }
+label: 'Trust list'
+id: sdc.emerging_digital.trust-list
+provider: emerging_digital
+source: sdc
+source_local_id: 'emerging_digital:trust-list'

@@ -1,9 +1,7 @@
 uuid: 8e02b788-24ab-40ac-a71c-09a0e74e2a29
 langcode: fr
 status: true
-dependencies:
-  module:
-    - language
+dependencies: {  }
 id: fr
 label: Français
 direction: ltr

@@ -5,7 +5,7 @@ dependencies: {  }
 _core:
   default_config_hash: 1noCXlegCr5HFehQRF1ViXy1jhU1jZ_sNN99a8Sj5jo
 id: front
-label: 'Front page'
+label: "Page d'accueil"
 tags:
   canonical_url: '[site:url]'
   description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibles, évolutifs et IA utile dans le CMS.'

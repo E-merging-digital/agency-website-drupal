@@ -1,0 +1,27 @@
+uuid: bc83a3aa-4e35-41d9-a1f9-489e7813a09b
+langcode: fr
+status: false
+dependencies:
+  config:
+    - system.menu.tools
+  module:
+    - system
+active_version: dc00bb5ae0ddd301
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: 'system_menu_block:tools'
+        label: Outils
+        label_display: '0'
+        provider: system
+        level: 1
+        depth: null
+        expand_all_items: false
+    fallback_metadata:
+      slot_definitions: null
+label: Outils
+id: block.system_menu_block.tools
+provider: system
+source: block
+source_local_id: 'system_menu_block:tools'

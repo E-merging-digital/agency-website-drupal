@@ -1,0 +1,27 @@
+uuid: 44c36e20-794e-4811-a5be-28edd2d8b494
+langcode: fr
+status: true
+dependencies:
+  config:
+    - system.menu.footer
+  module:
+    - system
+active_version: cd7800ec2bf2b77f
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: 'system_menu_block:footer'
+        label: 'Pied de page'
+        label_display: '0'
+        provider: system
+        level: 1
+        depth: null
+        expand_all_items: false
+    fallback_metadata:
+      slot_definitions: null
+label: 'Pied de page'
+id: block.system_menu_block.footer
+provider: system
+source: block
+source_local_id: 'system_menu_block:footer'

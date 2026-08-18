@@ -8,6 +8,13 @@ on:
       - composer.json
       - composer.lock
       - .github/workflows/issue-526-materialize-canvas-config.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - composer.json
+      - composer.lock
+      - .github/workflows/issue-526-materialize-canvas-config.yml
 
 permissions:
   contents: write
@@ -17,7 +24,7 @@ jobs:
     name: Materialize Canvas config on hosted Drupal
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact issue branch
+      - name: Checkout exact target
         uses: actions/checkout@v6
         with:
           persist-credentials: true
@@ -46,8 +53,10 @@ jobs:
           vendor/bin/drush config:status
 
       - name: Commit only repository config created by Canvas
+        if: github.event_name == 'push'
         run: |
           set -euo pipefail
+          test "$GITHUB_REF_NAME" = "feature/issue-526-canvas-baseline"
           git add config/sync
           changed="$(git diff --cached --name-only)"
           test -n "$changed"

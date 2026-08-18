@@ -129,7 +129,10 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $generate,
     );
 
-    self::assertStringContainsString('ddev list --json-output', $generate);
+    self::assertStringContainsString(
+      'ddev list --json-output 2>&1',
+      $generate,
+    );
     self::assertStringContainsString(
       'python3 trusted/scripts/runner/'
       . 'extract-stale-composer-ddev-projects.py',
@@ -182,6 +185,11 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $script,
     );
     self::assertStringContainsString('_PATTERN.findall(item)', $script);
+    self::assertStringContainsString('decoder.raw_decode(raw, offset)', $script);
+    self::assertStringContainsString(
+      'Non-JSON data in DDEV output',
+      $script,
+    );
 
     $output = [];
     $exitCode = 0;

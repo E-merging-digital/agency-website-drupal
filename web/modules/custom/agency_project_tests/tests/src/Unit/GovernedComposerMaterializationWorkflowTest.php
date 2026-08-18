@@ -80,7 +80,7 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertStringContainsString(
-      "if [[ \"$CONCLUSION\" == 'success' ]]",
+      'if [[ "$CONCLUSION" == \'success\' ]]',
       $workflow,
     );
     self::assertStringContainsString(
@@ -88,7 +88,7 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertStringContainsString(
-      "test \"$state\" = 'success'",
+      'test "$state" = \'success\'',
       $workflow,
     );
   }

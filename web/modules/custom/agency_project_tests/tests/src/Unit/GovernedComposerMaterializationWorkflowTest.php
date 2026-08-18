@@ -53,6 +53,47 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   }
 
   /**
+   * Every valid dispatch must expose its exact trusted run and conclusion.
+   */
+  public function testDispatchGatewayPublishesObservableRunStatus(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root
+      . '/.github/workflows/agent-composer-materialization-dispatch.yml';
+    $workflow = (string) file_get_contents($path);
+
+    self::assertStringContainsString('statuses: write', $workflow);
+    self::assertStringContainsString(
+      "context='agency/composer-materialization'",
+      $workflow,
+    );
+    self::assertStringContainsString("state='pending'", $workflow);
+    self::assertStringContainsString(
+      '--workflow trusted-composer-materialization.yml',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'Trusted Composer workflow run was not discoverable.',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'gh run view "$TRUSTED_RUN_ID"',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'if [[ "$CONCLUSION" == \'success\' ]]',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'Inspect the linked status run for the failing job',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'test "$state" = \'success\'',
+      $workflow,
+    );
+  }
+
+  /**
    * The self-hosted job must never receive repository write authority.
    */
   public function testSelfHostedResolverIsReadOnly(): void {

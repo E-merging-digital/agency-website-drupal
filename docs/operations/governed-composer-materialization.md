@@ -136,6 +136,36 @@ the lockfile to a different target.
 A successful run comments on the target PR with the input SHA, new SHA,
 resolved package version, lockfile SHA-256 and workflow run ID.
 
+## Observability contract
+
+Issue #534 adds fail-closed observability without changing the self-hosted
+permission model.
+
+After a request has passed schema, PR, exact-HEAD and semantic Composer checks,
+the GitHub-hosted gateway snapshots the existing trusted workflow run IDs,
+dispatches the trusted workflow and discovers the newly created run by set
+difference. The target commit then receives:
+
+```text
+context    = agency/composer-materialization
+state      = pending
+ target_url = exact trusted workflow run
+```
+
+The gateway remains on GitHub-hosted infrastructure while it observes that exact
+run. When the trusted run completes it publishes `success` or `failure` on the
+input HEAD. On success, if the publisher created the expected direct-child
+lockfile commit, the same `success` status is also published on that new HEAD.
+
+The target PR receives a final diagnostic comment containing the request ID,
+trusted run ID, input HEAD and observed output HEAD. This makes failures before
+`publish-lock` diagnosable from the cockpit instead of leaving a request with no
+observable result.
+
+The observable gateway does not receive product secrets and does not make the
+self-hosted job write-capable. A failure remains a failure; the gateway exits
+non-zero after publishing the diagnostic state.
+
 ## Explicit non-capabilities
 
 This route does **not** provide:

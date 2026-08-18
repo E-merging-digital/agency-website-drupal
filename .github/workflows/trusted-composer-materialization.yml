@@ -204,6 +204,43 @@ jobs:
               )
           PY
 
+      - name: Remove stale governed Composer DDEV registrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev list --json-output > /tmp/ddev-projects.json
+          python3 - <<'PY' > /tmp/stale-composer-projects.txt
+          import json
+          import re
+
+          with open('/tmp/ddev-projects.json', encoding='utf-8') as handle:
+              data = json.load(handle)
+
+          matches = set()
+
+          def walk(value):
+              if isinstance(value, dict):
+                  for child in value.values():
+                      walk(child)
+              elif isinstance(value, list):
+                  for child in value:
+                      walk(child)
+              elif isinstance(value, str) and re.fullmatch(
+                  r'agency-composer-[0-9]+-[0-9]+', value
+              ):
+                  matches.add(value)
+
+          walk(data)
+          for project in sorted(matches):
+              print(project)
+          PY
+
+          while IFS= read -r stale_project; do
+            [[ -n "$stale_project" ]] || continue
+            echo "Removing stale governed Composer DDEV project: $stale_project"
+            ddev stop --unlist --omit-snapshot "$stale_project"
+          done < /tmp/stale-composer-projects.txt
+
       - name: Isolate DDEV project
         shell: bash
         working-directory: target
@@ -234,6 +271,7 @@ jobs:
 
           ddev composer update "$COMPOSER_PACKAGE" \
             --with-all-dependencies \
+            --no-install \
             --no-interaction \
             --no-progress \
             --no-scripts
@@ -307,11 +345,13 @@ jobs:
         shell: bash
         run: |
           set +e
+          isolated_name="agency-composer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           if [[ -d target ]]; then
             (
               cd target
+              ddev delete --omit-snapshot --yes "$isolated_name" || \
+                ddev stop --unlist --omit-snapshot "$isolated_name" || true
               rm -f .ddev/config.gate-composer-ci.yaml
-              ddev delete --omit-snapshot --yes
             )
           fi
           cd "$GITHUB_WORKSPACE"

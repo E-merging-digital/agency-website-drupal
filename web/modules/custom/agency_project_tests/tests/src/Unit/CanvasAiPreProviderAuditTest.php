@@ -28,7 +28,7 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
     self::assertSame('pre_provider', $policy['status'] ?? NULL);
     self::assertSame('forbidden', $policy['runtime']['provider_call'] ?? NULL);
     self::assertSame(
-      'derive_from_installed_info_yml',
+      'validate_by_exact_head_drupal_rebuild',
       $policy['runtime']['dependency_closure'] ?? NULL,
     );
     self::assertSame(
@@ -84,11 +84,6 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
     self::assertIsArray($aiAgentsInfo);
     $aiAgentsDependencies = $aiAgentsInfo['dependencies'] ?? [];
     self::assertIsArray($aiAgentsDependencies);
-    $this->assertDrupalDependenciesEnabled(
-      $aiAgentsDependencies,
-      $enabledModules,
-      'AI Agents',
-    );
 
     $agentConfigs = $this->findAgentConfigs($canvasRoot);
     self::assertNotEmpty(
@@ -173,17 +168,13 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
       $this->dependencyListContainsModule($canvasAiDependencies, 'ai_agents'),
       'Canvas AI no longer declares AI Agents as a dependency.',
     );
-    $this->assertDrupalDependenciesEnabled(
-      $canvasAiDependencies,
-      $enabledModules,
-      'Canvas AI',
-    );
 
     $audit = [
       'canvas_version' => $canvasVersion,
       'ai_agents_version' => $agentsVersion,
       'modeler_api_package_version' => $modelerVersion,
       'canonical_runtime_modules' => $policy['runtime']['enabled_modules'],
+      'dependency_closure_authority' => $policy['runtime']['dependency_closure'],
       'ai_agents_dependencies' => $aiAgentsDependencies,
       'canvas_ai_dependencies' => $canvasAiDependencies,
       'canvas_ai_info' => $this->relativePath($projectRoot, $canvasAiInfo),
@@ -259,38 +250,6 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
       }
     }
     return $canvasRoot . '/canvas_ai.info.yml';
-  }
-
-  /**
-   * Ensures every declared Drupal module dependency is canonical.
-   *
-   * @param array<int|string, mixed> $dependencies
-   *   Drupal info dependencies.
-   * @param array<string, mixed> $enabledModules
-   *   Canonically enabled modules from core.extension.yml.
-   * @param string $owner
-   *   Human-readable module owner for assertion messages.
-   */
-  private function assertDrupalDependenciesEnabled(
-    array $dependencies,
-    array $enabledModules,
-    string $owner,
-  ): void {
-    foreach ($dependencies as $dependency) {
-      if (!is_string($dependency)) {
-        continue;
-      }
-      $module = $this->dependencyModuleName($dependency);
-      self::assertArrayHasKey(
-        $module,
-        $enabledModules,
-        sprintf(
-          '%s dependency %s is not enabled canonically.',
-          $owner,
-          $module,
-        ),
-      );
-    }
   }
 
   /**

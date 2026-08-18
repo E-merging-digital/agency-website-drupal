@@ -1,0 +1,42 @@
+version: 1
+status: pre_provider
+owner_issue: 530
+purpose: >-
+  Prove Canvas AI composition with existing approved Agency SDCs only, before
+  admitting any provider-backed capability.
+
+execution:
+  allowed_agent_labels:
+    - Drupal Canvas Page Builder Agent
+  forbidden_agent_labels:
+    - Drupal Canvas Component Agent
+    - Drupal Canvas Template Builder Agent
+  required_mutation_tools:
+    - canvas_ai:set_component_structure
+  provider_route: drupal_ai
+  direct_provider_sdk: forbidden
+  arbitrary_html_css: forbidden
+  new_code_components: forbidden
+  automatic_publication: forbidden
+  human_review: required
+
+components:
+  allowlist:
+    - sdc.emerging_digital.hero
+    - sdc.emerging_digital.trust-list
+    - sdc.emerging_digital.cta
+  source_of_truth: docs/design-system/component-catalog.yml
+  required_catalog_status: approved
+  required_ai_composable: true
+
+proof:
+  prompt: >-
+    Use the existing approved Hero, Trust list and CTA components to build a
+    simple Agency landing page. Do not create any new component.
+  expected_order:
+    - sdc.emerging_digital.hero
+    - sdc.emerging_digital.trust-list
+    - sdc.emerging_digital.cta
+  state: candidate_only
+  browser_validation: required
+  provider_call: forbidden_until_pre_provider_gate

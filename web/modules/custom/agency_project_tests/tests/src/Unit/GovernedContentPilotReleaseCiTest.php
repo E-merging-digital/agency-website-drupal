@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 final class GovernedContentPilotReleaseCiTest extends TestCase {
 
   /**
-   * Completed release batches stay outside Git and no ordinary content is pending.
+   * Completed releases stay outside Git with no ordinary content pending.
    */
   public function testReleasedBatchesAreVisibleToStandardCi(): void {
     $project_root = dirname(DRUPAL_ROOT);

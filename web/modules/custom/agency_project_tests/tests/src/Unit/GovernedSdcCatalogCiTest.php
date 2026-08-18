@@ -16,7 +16,7 @@ use Symfony\Component\Yaml\Yaml;
 final class GovernedSdcCatalogCiTest extends TestCase {
 
   /**
-   * Candidate/approved entries must resolve to typed SDC contracts and adapters.
+   * Candidate/approved entries must resolve to typed SDC contracts.
    */
   public function testGovernedCatalogResolvesToSdcContracts(): void {
     $projectRoot = dirname(DRUPAL_ROOT);

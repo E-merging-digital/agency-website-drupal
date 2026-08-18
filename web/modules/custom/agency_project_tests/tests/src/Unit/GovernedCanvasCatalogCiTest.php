@@ -16,7 +16,7 @@ use Symfony\Component\Yaml\Yaml;
 final class GovernedCanvasCatalogCiTest extends TestCase {
 
   /**
-   * Only Agency components approved for AI composition may be enabled in Canvas.
+   * Only Agency-approved components may be enabled for Canvas composition.
    */
   public function testCanvasEnabledComponentsMatchApprovedCatalog(): void {
     $projectRoot = dirname(DRUPAL_ROOT);

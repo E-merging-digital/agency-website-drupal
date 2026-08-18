@@ -7,16 +7,14 @@ dependencies:
   module:
     - comment
     - filter
-    - media
     - system
 _core:
   default_config_hash: xLG41YbRo2NP-0SgRNTkMzLEuaeibanGXgUTbdIcIIg
 id: anonymous
-label: 'Utilisateur anonyme'
+label: 'Anonymous user'
 weight: 0
 is_admin: false
 permissions:
   - 'access comments'
   - 'access content'
   - 'use text format restricted_html'
-  - 'view media'

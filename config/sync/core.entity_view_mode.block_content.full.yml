@@ -7,7 +7,7 @@ dependencies:
 _core:
   default_config_hash: Q7yUUYeRLByl-MCGveKKF_KhAtNICLCMJuKWfugCvso
 id: block_content.full
-label: Complet
+label: Full
 description: ''
 targetEntityType: block_content
 cache: true

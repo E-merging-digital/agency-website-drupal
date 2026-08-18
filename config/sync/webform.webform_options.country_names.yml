@@ -8,7 +8,7 @@ dependencies:
 _core:
   default_config_hash: zsfFP124dAM-sJkuEfnwaA7DN6o3-IsaXLgdNmObbYg
 id: country_names
-label: 'Noms des pays'
-category: Géographique
+label: 'Country names'
+category: Geographic
 likert: false
 options: ''

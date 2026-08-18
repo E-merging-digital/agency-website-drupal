@@ -8,8 +8,8 @@ dependencies:
 _core:
   default_config_hash: 4J2RPG4JmsD4Fm1NlIQY0JHkrJ08UUl0qTF0_EjUxvw
 id: relationship
-label: Relation
-category: Démographique
+label: Relationship
+category: Demographic
 likert: false
 options: |
   Parent: Parent

@@ -8,8 +8,8 @@ dependencies:
 _core:
   default_config_hash: s_SXZn2HbRGvTex-TLOCxz2oOnMYqtEZh8HD4_318QI
 id: industry
-label: Secteur
-category: Démographique
+label: Industry
+category: Demographic
 likert: false
 options: |
   Accounting/Finance: Accounting/Finance

@@ -5,6 +5,6 @@ dependencies: {  }
 _core:
   default_config_hash: pQP5iQy4SdhAMVcjDUncCfkJmTofnHVtXrsMzx4k6Yk
 id: basic
-label: 'Bloc simple'
+label: 'Basic block'
 revision: false
-description: 'Un bloc simple contient un titre et un corps.'
+description: 'A basic block contains a title and a body.'

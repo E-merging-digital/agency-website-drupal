@@ -8,7 +8,7 @@ dependencies:
 _core:
   default_config_hash: LTTOi-7sByeB_teJJcm_LiTiEciHUIU-ZdjYcnQS--I
 id: files
-label: Fichiers
+label: Files
 module: file
 description: 'Find and manage files.'
 tag: default
@@ -17,11 +17,11 @@ base_field: fid
 display:
   default:
     id: default
-    display_title: 'Par défaut'
+    display_title: Default
     display_plugin: default
     position: 0
     display_options:
-      title: Fichiers
+      title: Files
       fields:
         fid:
           id: fid
@@ -66,7 +66,7 @@ display:
           entity_type: file
           entity_field: filename
           plugin_id: field
-          label: Nom
+          label: Name
           exclude: false
           alter:
             alter_text: false
@@ -129,7 +129,7 @@ display:
           entity_type: file
           entity_field: filemime
           plugin_id: field
-          label: 'Type MIME'
+          label: 'MIME type'
           exclude: false
           alter:
             alter_text: false
@@ -181,7 +181,7 @@ display:
           entity_type: file
           entity_field: filesize
           plugin_id: field
-          label: Taille
+          label: Size
           exclude: false
           alter:
             alter_text: false
@@ -233,7 +233,7 @@ display:
           entity_type: file
           entity_field: status
           plugin_id: field
-          label: État
+          label: Status
           exclude: false
           alter:
             alter_text: false
@@ -277,7 +277,7 @@ display:
           type: boolean
           settings:
             format: custom
-            format_custom_false: Temporaire
+            format_custom_false: Temporary
             format_custom_true: Permanent
         created:
           id: created
@@ -354,7 +354,7 @@ display:
           entity_type: file
           entity_field: changed
           plugin_id: field
-          label: 'Date de modification'
+          label: 'Changed date'
           exclude: false
           alter:
             alter_text: false
@@ -417,7 +417,7 @@ display:
           group_type: sum
           admin_label: ''
           plugin_id: numeric
-          label: 'Utilisé dans'
+          label: 'Used in'
           exclude: false
           alter:
             alter_text: false
@@ -475,7 +475,7 @@ display:
           admin_label: ''
           entity_type: file
           plugin_id: entity_operations
-          label: Actions
+          label: Operations
           exclude: false
           alter:
             alter_text: false
@@ -526,23 +526,23 @@ display:
           total_pages: 0
           id: 0
           tags:
-            next: 'Suivant ›'
-            previous: '‹ Précédent'
+            next: 'Next ›'
+            previous: '‹ Previous'
           expose:
             items_per_page: false
-            items_per_page_label: 'Éléments par page'
+            items_per_page_label: 'Items per page'
             items_per_page_options: '5, 10, 25, 50'
             items_per_page_options_all: false
-            items_per_page_options_all_label: '- Tout -'
+            items_per_page_options_all_label: '- All -'
             offset: false
-            offset_label: Décalage
+            offset_label: Offset
       exposed_form:
         type: basic
         options:
-          submit_button: Filtrer
+          submit_button: Filter
           reset_button: false
-          reset_button_label: Réinitialiser
-          exposed_sorts_label: 'Trier par'
+          reset_button_label: Reset
+          exposed_sorts_label: 'Sort by'
           expose_sort_order: true
           sort_asc_label: Asc
           sort_desc_label: Desc
@@ -580,7 +580,7 @@ display:
           exposed: true
           expose:
             operator_id: filemime_op
-            label: 'Nom du fichier'
+            label: Filename
             description: ''
             use_operator: false
             operator: filename_op
@@ -620,7 +620,7 @@ display:
           exposed: true
           expose:
             operator_id: filemime_op
-            label: 'Type MIME'
+            label: 'MIME type'
             description: ''
             use_operator: false
             operator: filemime_op
@@ -660,7 +660,7 @@ display:
           exposed: true
           expose:
             operator_id: status_op
-            label: État
+            label: Status
             description: ''
             use_operator: false
             operator: status_op
@@ -821,7 +821,7 @@ display:
       path: admin/content/files
       menu:
         type: tab
-        title: Fichiers
+        title: Files
         description: ''
         weight: 0
         menu_name: admin
@@ -837,11 +837,11 @@ display:
       tags: {  }
   page_2:
     id: page_2
-    display_title: 'Utilisation du fichier'
+    display_title: 'File usage'
     display_plugin: page
     position: 2
     display_options:
-      title: 'Utilisation du fichier'
+      title: 'File usage'
       fields:
         entity_label:
           id: entity_label
@@ -851,7 +851,7 @@ display:
           group_type: group
           admin_label: ''
           plugin_id: entity_label
-          label: Entité
+          label: Entity
           exclude: false
           alter:
             alter_text: false
@@ -901,7 +901,7 @@ display:
           group_type: group
           admin_label: ''
           plugin_id: standard
-          label: "Type d'entité"
+          label: 'Entity type'
           exclude: false
           alter:
             alter_text: false
@@ -999,7 +999,7 @@ display:
           group_type: group
           admin_label: ''
           plugin_id: numeric
-          label: "Nombre d'utilisations"
+          label: 'Use count'
           exclude: false
           alter:
             alter_text: false
@@ -1057,16 +1057,16 @@ display:
           total_pages: 0
           id: 0
           tags:
-            next: 'Suivant ›'
-            previous: '‹ Précédent'
+            next: 'Next ›'
+            previous: '‹ Previous'
           expose:
             items_per_page: false
-            items_per_page_label: 'Éléments par page'
+            items_per_page_label: 'Items per page'
             items_per_page_options: '5, 10, 25, 50'
             items_per_page_options_all: false
-            items_per_page_options_all_label: '- Tout -'
+            items_per_page_options_all_label: '- All -'
             offset: false
-            offset_label: Décalage
+            offset_label: Offset
       empty: {  }
       arguments:
         fid:
@@ -1083,7 +1083,7 @@ display:
           exception:
             value: all
             title_enable: false
-            title: Tout
+            title: All
           title_enable: true
           title: 'File usage information for {{ arguments.fid }}'
           default_argument_type: fixed

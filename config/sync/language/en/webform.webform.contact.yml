@@ -94,8 +94,8 @@ elements: |
     '#title': 'Submit button(s)'
     '#submit__label': 'Send message'
 settings:
-  confirmation_url: ''
   confirmation_message: "Thank you, your request has been successfully received.\r\nWe will get back to you shortly."
+  confirmation_url: ''
 handlers:
   email_confirmation:
     label: 'Email confirmation'

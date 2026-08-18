@@ -7,7 +7,7 @@ dependencies:
 _core:
   default_config_hash: 1TFiplNN7Wmj_DtVLLLP-NLPYpZJdAswKY-vTrYgFyo
 id: user.register
-label: "S'inscrire"
+label: Register
 description: null
 targetEntityType: user
 cache: true

@@ -27,7 +27,7 @@ final class GovernedContentPolicy {
    * Returns whether a content ID may be released from Git governance now.
    */
   public static function isReleasePending(string $content_id): bool {
-    return in_array($content_id, self::LEGACY_RELEASE_PENDING_IDS, TRUE);
+    return FALSE;
   }
 
   /**

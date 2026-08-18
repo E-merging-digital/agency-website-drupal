@@ -41,6 +41,31 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
   AI/AI Translate seulement apres preuve de parite ; ne pas la supprimer ou
   l'etendre avec de nouveaux appels provider directs par habitude.
 
+## 2.1.1 Governed AI Experience / frontend
+
+- Avant toute decision concernant frontend, design system, Figma, SDC, Drupal
+  Canvas, Drupal AI applique a l'experience, generation de composants ou
+  generation de pages, lire **obligatoirement** :
+  `docs/decisions/0001-governed-ai-experience.md`, `DESIGN.md` et
+  `docs/governed-ai-experience.md`.
+- Ces documents sont autoritatifs sauf nouvel ADR `ACCEPTED` qui supersede
+  explicitement ADR-0001. Une conversation, un handoff ou un prompt ne les
+  remplace pas.
+- Invariant : **COMPOSE BEFORE CREATE**. Rechercher et composer les primitives
+  approuvees avant de creer un nouveau composant.
+- Une IA de page building ne doit pas contourner le design system par du
+  HTML/CSS arbitraire ou des classes inventees pendant la composition.
+- Avant tout developpement AI/page-builder, revalider Drupal core, SDC, Canvas,
+  Drupal AI et les modules contrib pertinents, puis classifier la decision :
+  `USE DRUPAL`, `EXTEND DRUPAL`, `BUILD IN AGENCY` ou
+  `DEFER / EXPERIMENTAL`. Preferer `USE > EXTEND > BUILD`.
+- Le contexte de marque, tone of voice, audiences et terminologie suit
+  `docs/drupal-ai-context-architecture.md` ; ne pas le dupliquer dans
+  `DESIGN.md`.
+- Toute sortie frontend significative doit rester reviewable et validable par
+  la chaine navigateur independante. Agency compose l'experience ; une future
+  integration Preflight verifiera les preuves et la gouvernance independamment.
+
 ## 2.2 Capacites d'execution et d'inspection UI
 
 - Lire **obligatoirement** `docs/operations/execution-capabilities.md` avant de

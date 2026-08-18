@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use Drupal\emerging_digital_content\Drush\Commands\ContentSyncCommands;
-use Drush\Attributes as CLI;
+use Drush\Attributes\Command;
 use PHPUnit\Framework\TestCase;
-use ReflectionMethod;
 
 /**
  * Keeps the Governed Content CLI compatibility facade visible to standard CI.
@@ -63,9 +62,9 @@ final class GovernedContentCliFacadeCiTest extends TestCase {
   /**
    * Returns the single Drush command attribute for a command method.
    */
-  private function commandAttribute(string $method): CLI\Command {
-    $attributes = (new ReflectionMethod(ContentSyncCommands::class, $method))
-      ->getAttributes(CLI\Command::class);
+  private function commandAttribute(string $method): Command {
+    $attributes = (new \ReflectionMethod(ContentSyncCommands::class, $method))
+      ->getAttributes(Command::class);
 
     self::assertCount(1, $attributes);
 

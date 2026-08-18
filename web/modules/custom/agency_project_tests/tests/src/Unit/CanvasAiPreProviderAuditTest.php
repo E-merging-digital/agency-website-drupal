@@ -101,17 +101,26 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
     $catalogComponents = $catalog['components'] ?? [];
     self::assertIsArray($catalogComponents);
 
-    foreach ($policy['components']['allowlist'] as $componentId) {
-      self::assertArrayHasKey($componentId, $catalogComponents);
+    $canvasAllowlist = [];
+    foreach ($policy['components']['allowlist'] as $component) {
+      self::assertIsArray($component);
+      $canvasId = $component['canvas_id'] ?? NULL;
+      $catalogId = $component['catalog_id'] ?? NULL;
+      self::assertIsString($canvasId);
+      self::assertIsString($catalogId);
+      self::assertStringStartsWith('sdc.', $canvasId);
+      self::assertArrayHasKey($catalogId, $catalogComponents);
       self::assertSame(
         $policy['components']['required_catalog_status'],
-        $catalogComponents[$componentId]['status'] ?? NULL,
+        $catalogComponents[$catalogId]['status'] ?? NULL,
       );
       self::assertSame(
         $policy['components']['required_ai_composable'],
-        $catalogComponents[$componentId]['approved_for_ai_composition'] ?? NULL,
+        $catalogComponents[$catalogId]['approved_for_ai_composition'] ?? NULL,
       );
+      $canvasAllowlist[] = $canvasId;
     }
+    self::assertSame($canvasAllowlist, $policy['proof']['expected_order']);
 
     $canvasAiInfo = $this->findCanvasAiInfo($canvasRoot);
     self::assertFileExists($canvasAiInfo);

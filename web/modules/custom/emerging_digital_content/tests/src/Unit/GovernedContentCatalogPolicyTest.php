@@ -9,14 +9,14 @@ use Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Guards the transitional admission policy for the Content Sync catalogue.
+ * Guards the durable admission policy for the Governed Content catalogue.
  */
 final class GovernedContentCatalogPolicyTest extends TestCase {
 
   /**
-   * Any catalogue admission or release must update the explicit policy.
+   * Every catalogue entry must be explicitly admitted as Governed Content.
    */
-  public function testCatalogueAdmissionAndReleasePolicyIsExplicit(): void {
+  public function testCatalogueAdmissionPolicyIsExplicit(): void {
     $moduleRoot = dirname(__DIR__, 3);
     $cataloguePath = $moduleRoot . '/content_sync/catalog.yml';
     $decoded = Yaml::decode((string) file_get_contents($cataloguePath));
@@ -24,6 +24,12 @@ final class GovernedContentCatalogPolicyTest extends TestCase {
     self::assertIsArray($decoded);
     self::assertArrayHasKey('contents', $decoded);
     self::assertIsArray($decoded['contents']);
+
+    self::assertSame(
+      [],
+      GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
+      'The legacy ordinary release queue must remain empty after #441.',
+    );
 
     $entriesById = [];
     foreach ($decoded['contents'] as $entry) {
@@ -35,31 +41,19 @@ final class GovernedContentCatalogPolicyTest extends TestCase {
     self::assertCount(
       count($decoded['contents']),
       $entriesById,
-      'Content Sync source IDs must remain unique.',
+      'Governed Content source IDs must remain unique.',
     );
 
     $actualIds = array_keys($entriesById);
     sort($actualIds);
 
-    $expectedIds = array_merge(
-      GovernedContentPolicy::GOVERNED_CONTENT_IDS,
-      GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
-    );
+    $expectedIds = GovernedContentPolicy::GOVERNED_CONTENT_IDS;
     sort($expectedIds);
 
     self::assertSame(
       $expectedIds,
       $actualIds,
-      'Any Content Sync catalogue admission or release requires an explicit Governed Content policy change.',
-    );
-
-    self::assertSame(
-      [],
-      array_values(array_intersect(
-        GovernedContentPolicy::GOVERNED_CONTENT_IDS,
-        GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS,
-      )),
-      'Governed and grandfathered ordinary content sets must remain disjoint.',
+      'Every catalogue admission requires an explicit Governed Content policy change.',
     );
 
     foreach (GovernedContentPolicy::GOVERNED_CONTENT_IDS as $sourceId) {
@@ -74,7 +68,7 @@ final class GovernedContentCatalogPolicyTest extends TestCase {
     self::assertNotContains(
       'article',
       $bundles,
-      'Ordinary editorial Article content must never be admitted to the Governed Content transition catalogue.',
+      'Ordinary Article content must never be admitted to the Governed Content catalogue.',
     );
   }
 

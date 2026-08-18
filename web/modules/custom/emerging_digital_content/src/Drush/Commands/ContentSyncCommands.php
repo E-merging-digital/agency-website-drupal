@@ -30,7 +30,10 @@ final class ContentSyncCommands extends DrushCommands {
   /**
    * Validates the versioned Content Sync catalog.
    */
-  #[CLI\Command(name: 'emerging:content-sync:validate')]
+  #[CLI\Command(
+    name: 'emerging:content-sync:validate',
+    aliases: ['emerging:governed-content:validate'],
+  )]
   #[CLI\Usage(
     name: 'drush emerging:content-sync:validate',
     description: 'Validate the Content Sync catalog without writing entities.',
@@ -52,7 +55,10 @@ final class ContentSyncCommands extends DrushCommands {
   /**
    * Synchronizes versioned content by business identifier or full catalog.
    */
-  #[CLI\Command(name: 'emerging:content-sync')]
+  #[CLI\Command(
+    name: 'emerging:content-sync',
+    aliases: ['emerging:governed-content'],
+  )]
   #[CLI\Argument(name: 'content_id', description: 'Optional stable business identifier, for example agence-drupal-belgique.')]
   #[CLI\Option(name: 'all', description: 'Synchronize every content item declared in the catalog.')]
   #[CLI\Option(name: 'dry-run', description: 'Read and report only without writing entities or mappings.')]

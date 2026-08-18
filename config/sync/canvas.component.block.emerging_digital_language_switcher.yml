@@ -1,0 +1,22 @@
+uuid: 7f4ec166-2b33-4c87-b4ab-486642a5a127
+langcode: fr
+status: true
+dependencies:
+  module:
+    - emerging_digital_content
+active_version: 7d042542a8deddbf
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: emerging_digital_language_switcher
+        label: 'Sélecteur de langue'
+        label_display: '0'
+        provider: emerging_digital_content
+    fallback_metadata:
+      slot_definitions: null
+label: 'Sélecteur de langue'
+id: block.emerging_digital_language_switcher
+provider: emerging_digital_content
+source: block
+source_local_id: emerging_digital_language_switcher

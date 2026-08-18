@@ -1,0 +1,11 @@
+uuid: 9a089432-d347-4dc3-94c1-c5d5e6f0eddd
+langcode: fr
+status: true
+dependencies:
+  config:
+    - canvas.component.sdc.olivero.teaser
+name: Autre
+configEntityTypeId: component
+weight: 0
+items:
+  - sdc.olivero.teaser

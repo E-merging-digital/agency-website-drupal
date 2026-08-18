@@ -1,0 +1,22 @@
+uuid: 715dfbe7-daf8-47a9-94ea-13c9c8506e35
+langcode: fr
+status: false
+dependencies: {  }
+active_version: 067c47f16b04d8d4
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: local_tasks_block
+        label: Onglets
+        label_display: '0'
+        provider: core
+        primary: true
+        secondary: true
+    fallback_metadata:
+      slot_definitions: null
+label: Onglets
+id: block.local_tasks_block
+provider: core
+source: block
+source_local_id: local_tasks_block

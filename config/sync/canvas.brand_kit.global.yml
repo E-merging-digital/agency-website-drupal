@@ -1,0 +1,11 @@
+uuid: e49df8a4-a596-4dc2-acf0-6c4c99025fd1
+langcode: fr
+status: true
+dependencies:
+  enforced:
+    module:
+      - canvas
+_core:
+  default_config_hash: 0jybTkVJanZ1dzDEISt8KuVGlp4LQE3Mho6mOlS9VL0
+id: global
+label: 'Global brand kit'

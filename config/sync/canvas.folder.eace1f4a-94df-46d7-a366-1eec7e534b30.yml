@@ -1,0 +1,11 @@
+uuid: eace1f4a-94df-46d7-a366-1eec7e534b30
+langcode: fr
+status: true
+dependencies:
+  config:
+    - canvas.component.block.user_login_block
+name: Formulaires
+configEntityTypeId: component
+weight: 0
+items:
+  - block.user_login_block

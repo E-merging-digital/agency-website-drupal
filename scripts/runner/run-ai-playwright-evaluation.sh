@@ -43,7 +43,7 @@ before_lock="$(sha256sum composer.lock | awk '{print $1}')"
 # evaluation workspace. It is never committed to main by this route.
 ddev composer require "${EXPECTED_PACKAGE}:${EXPECTED_VERSION}" --no-interaction --no-progress
 
-installed_version="$(ddev composer show "$EXPECTED_PACKAGE" --format=json | jq -r '.versions[0]')"
+installed_version="$(ddev composer show "$EXPECTED_PACKAGE" --format=json | jq -r '.versions[]' | sed 's/^\* //' | head -n 1)"
 if [[ "$installed_version" != "$EXPECTED_VERSION" ]]; then
   write_failure 'composer' "Expected $EXPECTED_VERSION, got $installed_version"
   exit 1
@@ -98,25 +98,25 @@ capture_page() {
   local json_file="$ARTIFACT_DIR/${label}.json"
   local fid uri host_path
 
-  ddev drush php:eval '
-    $path = getenv("AI_PLAYWRIGHT_TEST_PATH");
-    $result = \Drupal::service("ai_playwright.runner")->capture($path, FALSE);
-    echo json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-  ' --env="AI_PLAYWRIGHT_TEST_PATH=$path" > "$json_file"
+  # `path` is selected only from the trusted constants above; no caller input is
+  # interpolated into this PHP expression.
+  ddev drush php:eval "
+    \$result = \\Drupal::service('ai_playwright.runner')->capture('$path', FALSE);
+    echo json_encode(\$result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  " > "$json_file"
 
   jq -e '.ok == true' "$json_file" >/dev/null
   jq -e '.title | type == "string" and length > 0' "$json_file" >/dev/null
   jq -e '.text | type == "string" and length > 0' "$json_file" >/dev/null
   jq -e '.console_errors | type == "array"' "$json_file" >/dev/null
   fid="$(jq -r '.fid // empty' "$json_file")"
-  test -n "$fid"
+  [[ "$fid" =~ ^[0-9]+$ ]]
 
-  uri="$(ddev drush php:eval '
-    $fid = (int) getenv("AI_PLAYWRIGHT_TEST_FID");
-    $file = \Drupal\file\Entity\File::load($fid);
-    if (!$file) { throw new \RuntimeException("Screenshot file not found."); }
-    echo $file->getFileUri();
-  ' --env="AI_PLAYWRIGHT_TEST_FID=$fid")"
+  uri="$(ddev drush php:eval "
+    \$file = \\Drupal\\file\\Entity\\File::load($fid);
+    if (!\$file) { throw new \\RuntimeException('Screenshot file not found.'); }
+    echo \$file->getFileUri();
+  ")"
   [[ "$uri" == public://ai_playwright/* ]]
   host_path="web/sites/default/files/${uri#public://}"
   test -s "$host_path"

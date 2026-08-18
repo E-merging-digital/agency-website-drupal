@@ -39,6 +39,7 @@ final class ContentSyncManager {
     private readonly LanguageManagerInterface $languageManager,
     private readonly ConfigFactoryInterface $configFactory,
     private readonly TimeInterface $time,
+    private readonly GovernedCoreDefaultContentImporter $governedCoreDefaultContentImporter,
   ) {
   }
 
@@ -390,6 +391,19 @@ final class ContentSyncManager {
 
     if ($this->reportList($report, 'errors') !== []) {
       $report['actions'][] = 'catalog apply preflight failed: no content or mapping writes were executed';
+      $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
+      return $this->withSummary($report, 'full_apply', TRUE, FALSE, $prune, FALSE);
+    }
+
+    try {
+      $report['actions'] = array_merge(
+        $report['actions'],
+        $this->governedCoreDefaultContentImporter->import(),
+      );
+    }
+    catch (\RuntimeException $exception) {
+      $report['errors'][] = $exception->getMessage();
+      $report['actions'][] = 'core default content import failed: no catalog writes were executed';
       $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';
       return $this->withSummary($report, 'full_apply', TRUE, FALSE, $prune, FALSE);
     }

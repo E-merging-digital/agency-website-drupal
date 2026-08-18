@@ -22,9 +22,12 @@ execution:
 
 components:
   allowlist:
-    - sdc.emerging_digital.hero
-    - sdc.emerging_digital.trust-list
-    - sdc.emerging_digital.cta
+    - canvas_id: sdc.emerging_digital.hero
+      catalog_id: 'emerging_digital:hero'
+    - canvas_id: sdc.emerging_digital.trust-list
+      catalog_id: 'emerging_digital:trust-list'
+    - canvas_id: sdc.emerging_digital.cta
+      catalog_id: 'emerging_digital:cta'
   source_of_truth: docs/design-system/component-catalog.yml
   required_catalog_status: approved
   required_ai_composable: true

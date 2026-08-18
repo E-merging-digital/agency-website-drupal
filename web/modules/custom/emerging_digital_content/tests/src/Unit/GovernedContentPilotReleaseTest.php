@@ -48,6 +48,9 @@ final class GovernedContentPilotReleaseTest extends TestCase {
       'cas-clients' => 'cas-clients.yml',
       'equipe' => 'equipe.yml',
       'ia-drupal' => 'ia-drupal.yml',
+      'homepage' => 'homepage.yml',
+      'services' => 'services.yml',
+      'contact' => 'contact.yml',
     ];
 
     $module_root = dirname(__DIR__, 3);
@@ -57,8 +60,8 @@ final class GovernedContentPilotReleaseTest extends TestCase {
     self::assertIsArray($decoded);
     self::assertArrayHasKey('contents', $decoded);
     self::assertIsArray($decoded['contents']);
-    self::assertCount(6, $decoded['contents']);
-    self::assertCount(3, GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS);
+    self::assertCount(3, $decoded['contents']);
+    self::assertCount(0, GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS);
 
     $catalogue_ids = array_column($decoded['contents'], 'id');
 

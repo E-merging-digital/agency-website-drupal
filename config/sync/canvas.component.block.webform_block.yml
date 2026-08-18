@@ -1,0 +1,26 @@
+uuid: 92d15b3f-b4ac-47b7-be51-a930a1c4878a
+langcode: fr
+status: false
+dependencies:
+  module:
+    - webform
+active_version: 7b80cf2c7bac74c9
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: webform_block
+        label: Webform
+        label_display: '0'
+        provider: webform
+        webform_id: ''
+        default_data: ''
+        redirect: false
+        lazy: false
+    fallback_metadata:
+      slot_definitions: null
+label: Webform
+id: block.webform_block
+provider: webform
+source: block
+source_local_id: webform_block

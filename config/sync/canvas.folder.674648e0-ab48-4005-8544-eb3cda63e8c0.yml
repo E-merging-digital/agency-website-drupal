@@ -1,0 +1,11 @@
+uuid: 674648e0-ab48-4005-8544-eb3cda63e8c0
+langcode: fr
+status: true
+dependencies:
+  config:
+    - canvas.component.block.emerging_digital_language_switcher
+name: 'Emerging Digital'
+configEntityTypeId: component
+weight: 0
+items:
+  - block.emerging_digital_language_switcher

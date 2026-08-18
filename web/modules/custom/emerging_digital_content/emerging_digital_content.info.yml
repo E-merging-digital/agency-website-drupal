@@ -4,6 +4,7 @@ description: 'Default content package for strategic pages.'
 core_version_requirement: ^11
 package: Custom
 dependencies:
+  - drupal:canvas
   - drupal:default_content
   - drupal:language
   - drupal:menu_link_content

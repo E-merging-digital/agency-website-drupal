@@ -1,0 +1,15 @@
+uuid: 614ea4f1-16fc-4c8e-8588-9beee8d7c77e
+langcode: fr
+status: true
+dependencies:
+  config:
+    - canvas.component.block.local_actions_block
+    - canvas.component.block.local_tasks_block
+    - canvas.component.block.page_title_block
+name: core
+configEntityTypeId: component
+weight: 0
+items:
+  - block.local_actions_block
+  - block.local_tasks_block
+  - block.page_title_block

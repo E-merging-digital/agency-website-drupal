@@ -1,0 +1,26 @@
+uuid: 0fa39633-210d-4c2b-8c7c-37f71f8f962c
+langcode: fr
+status: false
+dependencies:
+  config:
+    - views.view.who_s_new
+  module:
+    - views
+active_version: b4a64f67987209ff
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: 'views_block:who_s_new-block_1'
+        label: "Who's new"
+        label_display: '0'
+        provider: views
+        views_label: ''
+        items_per_page: null
+    fallback_metadata:
+      slot_definitions: null
+label: "Who's new"
+id: block.views_block.who_s_new-block_1
+provider: views
+source: block
+source_local_id: 'views_block:who_s_new-block_1'

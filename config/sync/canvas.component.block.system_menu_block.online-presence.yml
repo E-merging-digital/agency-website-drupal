@@ -1,0 +1,27 @@
+uuid: 92f1d97c-a511-46f1-92da-b45681fc431f
+langcode: fr
+status: false
+dependencies:
+  config:
+    - system.menu.online-presence
+  module:
+    - system
+active_version: 0c19d1c26dcb92a4
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: 'system_menu_block:online-presence'
+        label: 'Présence en ligne'
+        label_display: '0'
+        provider: system
+        level: 1
+        depth: null
+        expand_all_items: false
+    fallback_metadata:
+      slot_definitions: null
+label: 'Présence en ligne'
+id: block.system_menu_block.online-presence
+provider: system
+source: block
+source_local_id: 'system_menu_block:online-presence'

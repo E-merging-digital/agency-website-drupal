@@ -208,32 +208,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ddev list --json-output > /tmp/ddev-projects.json
-          python3 - <<'PY' > /tmp/stale-composer-projects.txt
-          import json
-          import re
-
-          with open('/tmp/ddev-projects.json', encoding='utf-8') as handle:
-              data = json.load(handle)
-
-          matches = set()
-
-          def walk(value):
-              if isinstance(value, dict):
-                  for child in value.values():
-                      walk(child)
-              elif isinstance(value, list):
-                  for child in value:
-                      walk(child)
-              elif isinstance(value, str) and re.fullmatch(
-                  r'agency-composer-[0-9]+-[0-9]+', value
-              ):
-                  matches.add(value)
-
-          walk(data)
-          for project in sorted(matches):
-              print(project)
-          PY
+          ddev list --json-output \
+            | python3 trusted/scripts/runner/extract-stale-composer-ddev-projects.py \
+            > /tmp/stale-composer-projects.txt
 
           while IFS= read -r stale_project; do
             [[ -n "$stale_project" ]] || continue

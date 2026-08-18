@@ -18,7 +18,7 @@ concurrency:
 jobs:
   validate-target:
     name: Validate fixed AI Playwright pilot target
-    if: ${{ github.event.pull_request.head.ref == 'feature/issue-498-ai-playwright-ddev-pilot' }}
+    if: ${{ github.event.pull_request.head.ref == 'feature/issue-499-ai-playwright-ddev-pilot' }}
     runs-on: ubuntu-24.04
     outputs:
       head_sha: ${{ steps.validate.outputs.head_sha }}
@@ -53,7 +53,7 @@ jobs:
 
           [[ "$state" == "open" ]]
           [[ "$base_ref" == "main" ]]
-          [[ "$head_ref" == "feature/issue-498-ai-playwright-ddev-pilot" ]]
+          [[ "$head_ref" == "feature/issue-499-ai-playwright-ddev-pilot" ]]
           [[ "$head_repo" == "$GITHUB_REPOSITORY" ]]
           [[ "$head_sha" == "$EVENT_HEAD_SHA" ]]
           [[ "$base_sha" == "$EVENT_BASE_SHA" ]]

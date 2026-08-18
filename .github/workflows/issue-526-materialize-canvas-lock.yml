@@ -7,6 +7,12 @@ on:
     paths:
       - composer.json
       - .github/workflows/issue-526-materialize-canvas-lock.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - composer.json
+      - .github/workflows/issue-526-materialize-canvas-lock.yml
 
 permissions:
   contents: read

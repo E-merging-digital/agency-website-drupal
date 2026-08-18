@@ -25,6 +25,7 @@ jobs:
           bash -n scripts/runner/governed-content-transition-profiles.sh
           bash -n scripts/runner/run-governed-content-transition-proof.sh
           bash -n scripts/runner/finalize-governed-content-transition-proof.sh
+          bash -n scripts/runner/prove-governed-content-cli-facade.sh
 
           PROOF_PROFILE=case-studies-440 bash -c '
             set -euo pipefail

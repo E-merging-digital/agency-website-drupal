@@ -1,6 +1,6 @@
 # Governed Drupal Canvas baseline
 
-Status: **IMPLEMENTED — FINAL EXACT-HEAD PROOF PENDING**  
+Status: **IMPLEMENTED — ADMISSION GOVERNED BY #526**  
 Owner: #526  
 Strategic decision: `docs/decisions/ADR-001-governed-ai-experience.md`  
 Design contract: `DESIGN.md`
@@ -142,10 +142,10 @@ not define another content format or composition engine.
 native theme viewport configuration:
 
 ```text
-mobile       = 390
- tablet       = 1024
- desktop      = 1440
- large_desktop= 1920
+mobile        = 390
+tablet        = 1024
+desktop       = 1440
+large_desktop = 1920
 ```
 
 The 390px and 1440px widths align with Agency's existing deterministic browser
@@ -164,8 +164,8 @@ Permanent automated checks include:
 - desktop/mobile rendering, semantic headings/list, no horizontal overflow,
   browser console/page errors, and success screenshots.
 
-A final exact-head self-hosted Browser Validation and human visual review remain
-the admission gate for #526.
+Admission under #526 requires exact-head hosted CI, self-hosted Browser Validation
+and human visual review before merge.
 
 ## 9. Explicit non-goals
 

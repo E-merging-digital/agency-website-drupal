@@ -22,11 +22,8 @@ final class GovernedContentPolicy {
    * Ordinary content still waiting for a controlled release from Git.
    */
   public const LEGACY_RELEASE_PENDING_IDS = [
-    'cas-clients',
     'contact',
-    'equipe',
     'homepage',
-    'ia-drupal',
     'services',
   ];
 

@@ -24,6 +24,8 @@ SQL_IDS="$PROOF_SQL_IDS"
 PILOT_IDS=("${PROOF_CONTENT_IDS[@]}")
 PILOT_PAYLOADS=("${PROOF_PAYLOADS[@]}")
 EXPECTED_ALIASES=("${PROOF_PUBLIC_PATHS[@]}")
+EXPECTED_BROWSER_ONLY_PATHS=("${PROOF_BROWSER_ONLY_PATHS[@]}")
+CONTACT_FORM_PATHS=("${PROOF_CONTACT_FORM_PATHS[@]}")
 EXPECTED_MAPPING_COUNT="$PROOF_MAPPING_COUNT"
 EDITORIAL_CONTENT_ID="$PROOF_EDITORIAL_CONTENT_ID"
 EDITORIAL_PATH="$PROOF_EDITORIAL_PATH"
@@ -305,6 +307,31 @@ apply_editorial_edit() {
         $node->save();
       '
       ;;
+
+    pages-final-441)
+      ddev drush php:eval '
+        $nid = \Drupal::database()
+          ->select("emerging_digital_content_sync_mapping", "m")
+          ->fields("m", ["entity_id"])
+          ->condition("content_id", "services")
+          ->execute()
+          ->fetchField();
+        if (!$nid) {
+          throw new \RuntimeException("Final services page mapping not found.");
+        }
+        $node = \Drupal\node\Entity\Node::load((int) $nid);
+        if (!$node) {
+          throw new \RuntimeException("Final services page node not found.");
+        }
+        $node->setNewRevision(TRUE);
+        $node->setRevisionLogMessage("Governed Content exact-head proof #441 final pages");
+        $translation = $node->hasTranslation("fr") ? $node->getTranslation("fr") : $node;
+        if (!str_contains((string) $translation->label(), "[proof-441-final-pages-editorial-survives]")) {
+          $translation->setTitle($translation->label() . " [proof-441-final-pages-editorial-survives]");
+        }
+        $node->save();
+      '
+      ;;
   esac
 }
 
@@ -348,10 +375,34 @@ print(url.rstrip("/"))
 '
 }
 
+path_is_contact_form() {
+  local candidate="$1"
+  local path
+  for path in "${CONTACT_FORM_PATHS[@]}"; do
+    [[ "$candidate" == "$path" ]] && return 0
+  done
+  return 1
+}
+
 browser_pages_json() {
-  printf '%s\n' "${EXPECTED_ALIASES[@]}" \
-    | jq -R -s --arg editorial "$EDITORIAL_PATH" \
-      'split("\n")[:-1] | map([., . == $editorial])'
+  local path
+  local contact
+  {
+    for path in "${EXPECTED_ALIASES[@]}"; do
+      contact=false
+      if path_is_contact_form "$path"; then
+        contact=true
+      fi
+      jq -nc \
+        --arg path "$path" \
+        --arg editorial "$EDITORIAL_PATH" \
+        --argjson contact "$contact" \
+        '[$path, $path == $editorial, $contact]'
+    done
+    for path in "${EXPECTED_BROWSER_ONLY_PATHS[@]}"; do
+      jq -nc --arg path "$path" '[$path, false, false]'
+    done
+  } | jq -s '.'
 }
 
 proof_phase="replay-release-candidate"

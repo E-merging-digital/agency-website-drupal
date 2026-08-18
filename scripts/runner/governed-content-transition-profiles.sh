@@ -3,6 +3,9 @@ set -euo pipefail
 
 : "${PROOF_PROFILE:?PROOF_PROFILE is required}"
 
+PROOF_BROWSER_ONLY_PATHS=()
+PROOF_CONTACT_FORM_PATHS=()
+
 case "$PROOF_PROFILE" in
   case-studies-440)
     PROOF_CONTENT_IDS=(
@@ -142,6 +145,33 @@ case "$PROOF_PROFILE" in
     PROOF_EDITORIAL_CONTENT_ID="equipe"
     PROOF_EDITORIAL_PATH="/fr/equipe"
     PROOF_EDITORIAL_MARKER="[proof-441-medium-pages-editorial-survives]"
+    ;;
+
+  pages-final-441)
+    PROOF_CONTENT_IDS=(
+      "homepage"
+      "services"
+      "contact"
+    )
+    PROOF_PUBLIC_PATHS=(
+      "/fr/accueil"
+      "/en/home"
+      "/fr/services"
+      "/en/services"
+      "/fr/contact"
+      "/en/contact"
+    )
+    PROOF_BROWSER_ONLY_PATHS=(
+      "/fr/"
+      "/en/"
+    )
+    PROOF_CONTACT_FORM_PATHS=(
+      "/fr/contact"
+      "/en/contact"
+    )
+    PROOF_EDITORIAL_CONTENT_ID="services"
+    PROOF_EDITORIAL_PATH="/fr/services"
+    PROOF_EDITORIAL_MARKER="[proof-441-final-pages-editorial-survives]"
     ;;
 
   *)

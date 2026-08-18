@@ -66,7 +66,37 @@ fi
 
 module_dir='/var/www/html/web/modules/contrib/ai_playwright'
 ddev exec bash -lc "cd '$module_dir' && npm install --no-audit --no-fund"
-ddev exec bash -lc "cd '$module_dir' && npx playwright install chromium"
+
+# Match the server prerequisite published by ai_playwright itself. Browser
+# binaries alone are insufficient on a fresh Linux/DDEV image: Playwright also
+# needs the matching shared-library/system dependencies.
+if ! ddev exec bash -lc "cd '$module_dir' && npx playwright install --with-deps chromium" \
+  > "$ARTIFACT_DIR/chromium-install.txt" 2>&1; then
+  install_error="$(tail -n 8 "$ARTIFACT_DIR/chromium-install.txt" | tr '\r\n' '  ' | cut -c1-300)"
+  write_failure 'chromium-install' "${install_error:-Playwright Chromium dependency installation failed.}"
+  exit 1
+fi
+
+# Prove Chromium can launch directly from the exact Playwright installation
+# before involving Drupal. This separates browser/runtime failures from the
+# Drupal service contract and keeps a bounded diagnostic in the artifact.
+if ! ddev exec bash -lc "cd '$module_dir' && node - <<'NODE'
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const version = browser.version();
+  await browser.close();
+  process.stdout.write(JSON.stringify({ ok: true, version }));
+})().catch((error) => {
+  console.error(error && error.stack ? error.stack : String(error));
+  process.exit(1);
+});
+NODE" > "$ARTIFACT_DIR/chromium-smoke.json" 2> "$ARTIFACT_DIR/chromium-smoke-error.txt"; then
+  smoke_error="$(tr '\r\n' '  ' < "$ARTIFACT_DIR/chromium-smoke-error.txt" | cut -c1-300)"
+  write_failure 'chromium-smoke' "${smoke_error:-Chromium direct launch failed.}"
+  exit 1
+fi
+jq -e '.ok == true and (.version | type == "string" and length > 0)' "$ARTIFACT_DIR/chromium-smoke.json" >/dev/null
 
 admin_pass="$(openssl rand -hex 24)"
 ddev drush site:install --existing-config -y --account-pass="$admin_pass"
@@ -96,7 +126,7 @@ capture_page() {
   local label="$1"
   local path="$2"
   local json_file="$ARTIFACT_DIR/${label}.json"
-  local fid uri host_path
+  local capture_error fid uri host_path
 
   # `path` is selected only from the trusted constants above; no caller input is
   # interpolated into this PHP expression.
@@ -105,7 +135,11 @@ capture_page() {
     echo json_encode(\$result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
   " > "$json_file"
 
-  jq -e '.ok == true' "$json_file" >/dev/null
+  if ! jq -e '.ok == true' "$json_file" >/dev/null; then
+    capture_error="$(jq -r '.error // "AI Playwright capture returned ok=false without an error message."' "$json_file" | tr '\r\n' '  ' | cut -c1-300)"
+    write_failure "$label" "$capture_error"
+    exit 1
+  fi
   jq -e '.title | type == "string" and length > 0' "$json_file" >/dev/null
   jq -e '.text | type == "string" and length > 0' "$json_file" >/dev/null
   jq -e '.console_errors | type == "array"' "$json_file" >/dev/null

@@ -19,6 +19,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Discover governed proof run ids for issue 476
+        shell: bash
+        env:
+          DISPATCH_SHA: c2d7d80233f88c6fcb5936a5ce786a2bdac43b0c
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+
+          echo "=== GATEWAY_RUNS_FOR_DISPATCH_SHA ==="
+          curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "User-Agent: agency-proof-observer" \
+            "${api}/actions/runs?head_sha=${DISPATCH_SHA}&per_page=20" \
+            | jq -c '.workflow_runs[] | {
+                id,
+                name,
+                run_number,
+                event,
+                head_sha,
+                created_at,
+                updated_at,
+                status,
+                conclusion,
+                html_url
+              }'
+
+          echo "=== RECENT_GOVERNED_PROOF_RUNS ==="
+          curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "User-Agent: agency-proof-observer" \
+            "${api}/actions/runs?event=workflow_dispatch&per_page=50" \
+            | jq -c '.workflow_runs[]
+              | select(.name == "Agency governed content transition proof")
+              | {
+                  id,
+                  name,
+                  run_number,
+                  event,
+                  head_sha,
+                  created_at,
+                  updated_at,
+                  status,
+                  conclusion,
+                  html_url
+                }'
+
       - name: Validate governed transition proof shell syntax and profiles
         run: |
           set -euo pipefail

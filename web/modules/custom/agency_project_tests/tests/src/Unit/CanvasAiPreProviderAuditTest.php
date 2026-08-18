@@ -1,0 +1,227 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\Tests\agency_project_tests\Unit;
+
+use Composer\InstalledVersions;
+use PHPUnit\Framework\TestCase;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use SplFileInfo;
+use Symfony\Component\Yaml\Yaml;
+
+/**
+ * Audits the exact installed Canvas AI defaults before provider-backed proof.
+ *
+ * @group agency_project_tests
+ * @group canvas_ai_pre_provider
+ */
+final class CanvasAiPreProviderAuditTest extends TestCase {
+
+  /**
+   * Canvas AI upstream and the Agency proof policy must agree fail closed.
+   */
+  public function testInstalledCanvasAiDefaultsMatchBoundedProofPolicy(): void {
+    $projectRoot = dirname(DRUPAL_ROOT);
+    $policyPath = $projectRoot . '/docs/ai/canvas-ai-proof-policy.yml';
+    self::assertFileExists($policyPath);
+    $policy = Yaml::parseFile($policyPath);
+    self::assertIsArray($policy);
+    self::assertSame('pre_provider', $policy['status'] ?? NULL);
+    self::assertSame(
+      'forbidden_until_pre_provider_gate',
+      $policy['proof']['provider_call'] ?? NULL,
+    );
+
+    self::assertTrue(InstalledVersions::isInstalled('drupal/canvas'));
+    self::assertTrue(InstalledVersions::isInstalled('drupal/ai_agents'));
+    $canvasVersion = InstalledVersions::getPrettyVersion('drupal/canvas');
+    $agentsVersion = InstalledVersions::getPrettyVersion('drupal/ai_agents');
+    self::assertNotNull($canvasVersion);
+    self::assertNotNull($agentsVersion);
+    self::assertMatchesRegularExpression('/^1\.10\./', ltrim($canvasVersion, 'v'));
+    self::assertMatchesRegularExpression('/^1\.3\./', ltrim($agentsVersion, 'v'));
+
+    $canvasRoot = DRUPAL_ROOT . '/modules/contrib/canvas';
+    self::assertDirectoryExists($canvasRoot);
+
+    $agentConfigs = $this->findAgentConfigs($canvasRoot);
+    self::assertNotEmpty($agentConfigs, 'Canvas AI agent defaults were not found.');
+
+    $byLabel = [];
+    foreach ($agentConfigs as $path => $config) {
+      $label = $config['label'] ?? NULL;
+      if (is_string($label) && $label !== '') {
+        $byLabel[$label] = [
+          'path' => $path,
+          'config' => $config,
+        ];
+      }
+    }
+
+    foreach ($policy['execution']['allowed_agent_labels'] as $label) {
+      self::assertArrayHasKey($label, $byLabel);
+    }
+    foreach ($policy['execution']['forbidden_agent_labels'] as $label) {
+      self::assertArrayHasKey(
+        $label,
+        $byLabel,
+        sprintf('Expected upstream agent %s was not found for fail-closed exclusion.', $label),
+      );
+    }
+
+    $pageBuilderLabel = $policy['execution']['allowed_agent_labels'][0];
+    $pageBuilder = $byLabel[$pageBuilderLabel]['config'];
+    $pageBuilderScalars = $this->flattenScalars($pageBuilder);
+    foreach ($policy['execution']['required_mutation_tools'] as $tool) {
+      self::assertContains(
+        $tool,
+        $pageBuilderScalars,
+        sprintf('Required upstream Page Builder tool %s is unavailable.', $tool),
+      );
+    }
+
+    $catalogPath = $projectRoot . '/docs/design-system/component-catalog.yml';
+    self::assertFileExists($catalogPath);
+    $catalog = Yaml::parseFile($catalogPath);
+    self::assertIsArray($catalog);
+    $catalogComponents = $catalog['components'] ?? [];
+    self::assertIsArray($catalogComponents);
+
+    foreach ($policy['components']['allowlist'] as $componentId) {
+      self::assertArrayHasKey($componentId, $catalogComponents);
+      self::assertSame(
+        $policy['components']['required_catalog_status'],
+        $catalogComponents[$componentId]['status'] ?? NULL,
+      );
+      self::assertSame(
+        $policy['components']['required_ai_composable'],
+        $catalogComponents[$componentId]['approved_for_ai_composition'] ?? NULL,
+      );
+    }
+
+    $canvasAiInfo = $this->findCanvasAiInfo($canvasRoot);
+    self::assertFileExists($canvasAiInfo);
+    $info = Yaml::parseFile($canvasAiInfo);
+    self::assertIsArray($info);
+    $dependencies = $info['dependencies'] ?? [];
+    self::assertIsArray($dependencies);
+    self::assertTrue(
+      (bool) array_filter(
+        $dependencies,
+        static fn (mixed $dependency): bool => is_string($dependency)
+          && str_contains($dependency, 'ai_agents'),
+      ),
+      'Canvas AI no longer declares AI Agents as a dependency.',
+    );
+
+    $audit = [
+      'canvas_version' => $canvasVersion,
+      'ai_agents_version' => $agentsVersion,
+      'canvas_ai_info' => $this->relativePath($projectRoot, $canvasAiInfo),
+      'agents' => [],
+    ];
+    foreach ($byLabel as $label => $agent) {
+      $config = $agent['config'];
+      $audit['agents'][] = [
+        'id' => $config['id'] ?? NULL,
+        'label' => $label,
+        'path' => $this->relativePath($projectRoot, $agent['path']),
+        'canvas_ai_tools' => array_values(array_unique(array_filter(
+          $this->flattenScalars($config),
+          static fn (mixed $value): bool => is_string($value)
+            && str_starts_with($value, 'canvas_ai:'),
+        ))),
+        'hostname_settings' => $this->findMatchingKeys($config, 'hostname'),
+      ];
+    }
+
+    fwrite(
+      STDERR,
+      "CANVAS_AI_PRE_PROVIDER_AUDIT="
+      . json_encode($audit, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+      . PHP_EOL,
+    );
+  }
+
+  /**
+   * @return array<string, array<string, mixed>>
+   */
+  private function findAgentConfigs(string $canvasRoot): array {
+    $configs = [];
+    $iterator = new RecursiveIteratorIterator(
+      new RecursiveDirectoryIterator($canvasRoot),
+    );
+    foreach ($iterator as $file) {
+      if (!$file instanceof SplFileInfo || !$file->isFile()) {
+        continue;
+      }
+      if (!str_starts_with($file->getFilename(), 'ai_agents.ai_agent.')) {
+        continue;
+      }
+      if ($file->getExtension() !== 'yml') {
+        continue;
+      }
+      $parsed = Yaml::parseFile($file->getPathname());
+      if (is_array($parsed)) {
+        $configs[$file->getPathname()] = $parsed;
+      }
+    }
+    return $configs;
+  }
+
+  private function findCanvasAiInfo(string $canvasRoot): string {
+    $iterator = new RecursiveIteratorIterator(
+      new RecursiveDirectoryIterator($canvasRoot),
+    );
+    foreach ($iterator as $file) {
+      if ($file instanceof SplFileInfo
+        && $file->isFile()
+        && $file->getFilename() === 'canvas_ai.info.yml') {
+        return $file->getPathname();
+      }
+    }
+    return $canvasRoot . '/canvas_ai.info.yml';
+  }
+
+  /**
+   * @return list<mixed>
+   */
+  private function flattenScalars(mixed $value): array {
+    if (!is_array($value)) {
+      return [$value];
+    }
+    $values = [];
+    foreach ($value as $child) {
+      array_push($values, ...$this->flattenScalars($child));
+    }
+    return $values;
+  }
+
+  /**
+   * @return array<string, mixed>
+   */
+  private function findMatchingKeys(mixed $value, string $needle, string $path = ''): array {
+    if (!is_array($value)) {
+      return [];
+    }
+    $matches = [];
+    foreach ($value as $key => $child) {
+      $childPath = $path === '' ? (string) $key : $path . '.' . $key;
+      if (str_contains(strtolower((string) $key), strtolower($needle))) {
+        $matches[$childPath] = $child;
+      }
+      $matches += $this->findMatchingKeys($child, $needle, $childPath);
+    }
+    return $matches;
+  }
+
+  private function relativePath(string $root, string $path): string {
+    $prefix = rtrim($root, '/') . '/';
+    return str_starts_with($path, $prefix)
+      ? substr($path, strlen($prefix))
+      : $path;
+  }
+
+}

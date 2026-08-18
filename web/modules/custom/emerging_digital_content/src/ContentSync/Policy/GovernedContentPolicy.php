@@ -21,11 +21,7 @@ final class GovernedContentPolicy {
   /**
    * Ordinary content still waiting for a controlled release from Git.
    */
-  public const LEGACY_RELEASE_PENDING_IDS = [
-    'contact',
-    'homepage',
-    'services',
-  ];
+  public const LEGACY_RELEASE_PENDING_IDS = [];
 
   /**
    * Returns whether a content ID may be released from Git governance now.

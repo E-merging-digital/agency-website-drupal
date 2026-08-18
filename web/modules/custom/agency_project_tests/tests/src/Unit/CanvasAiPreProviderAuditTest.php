@@ -26,6 +26,7 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
     $policy = Yaml::parseFile($policyPath);
     self::assertIsArray($policy);
     self::assertSame('pre_provider', $policy['status'] ?? NULL);
+    self::assertSame('forbidden', $policy['runtime']['provider_call'] ?? NULL);
     self::assertSame(
       'forbidden_until_pre_provider_gate',
       $policy['proof']['provider_call'] ?? NULL,
@@ -48,6 +49,34 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
 
     $canvasRoot = DRUPAL_ROOT . '/modules/contrib/canvas';
     self::assertDirectoryExists($canvasRoot);
+    $agentsRoot = InstalledVersions::getInstallPath('drupal/ai_agents');
+    self::assertNotNull($agentsRoot);
+    self::assertDirectoryExists($agentsRoot);
+
+    $coreExtensionPath = $projectRoot . '/config/sync/core.extension.yml';
+    self::assertFileExists($coreExtensionPath);
+    $coreExtension = Yaml::parseFile($coreExtensionPath);
+    self::assertIsArray($coreExtension);
+    $enabledModules = $coreExtension['module'] ?? [];
+    self::assertIsArray($enabledModules);
+    foreach ($policy['runtime']['enabled_modules'] as $module) {
+      self::assertArrayHasKey(
+        $module,
+        $enabledModules,
+        sprintf('Required PRE-PROVIDER module %s is not canonical.', $module),
+      );
+    }
+
+    $aiAgentsInfoPath = $agentsRoot . '/ai_agents.info.yml';
+    self::assertFileExists($aiAgentsInfoPath);
+    $aiAgentsInfo = Yaml::parseFile($aiAgentsInfoPath);
+    self::assertIsArray($aiAgentsInfo);
+    $aiAgentsDependencies = $aiAgentsInfo['dependencies'] ?? [];
+    self::assertIsArray($aiAgentsDependencies);
+    self::assertTrue(
+      $this->dependencyListContainsModule($aiAgentsDependencies, 'modeler_api'),
+      'AI Agents no longer declares Modeler API as a dependency.',
+    );
 
     $agentConfigs = $this->findAgentConfigs($canvasRoot);
     self::assertNotEmpty(
@@ -129,17 +158,16 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
     $dependencies = $info['dependencies'] ?? [];
     self::assertIsArray($dependencies);
     self::assertTrue(
-      (bool) array_filter(
-        $dependencies,
-        static fn (mixed $dependency): bool => is_string($dependency)
-          && str_contains($dependency, 'ai_agents'),
-      ),
+      $this->dependencyListContainsModule($dependencies, 'ai_agents'),
       'Canvas AI no longer declares AI Agents as a dependency.',
     );
 
     $audit = [
       'canvas_version' => $canvasVersion,
       'ai_agents_version' => $agentsVersion,
+      'canonical_runtime_modules' => $policy['runtime']['enabled_modules'],
+      'ai_agents_dependencies' => $aiAgentsDependencies,
+      'canvas_ai_dependencies' => $dependencies,
       'canvas_ai_info' => $this->relativePath($projectRoot, $canvasAiInfo),
       'agents' => [],
     ];
@@ -213,6 +241,27 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
       }
     }
     return $canvasRoot . '/canvas_ai.info.yml';
+  }
+
+  /**
+   * Checks a Drupal info dependency list for a module machine name.
+   */
+  private function dependencyListContainsModule(
+    array $dependencies,
+    string $module,
+  ): bool {
+    foreach ($dependencies as $dependency) {
+      if (!is_string($dependency)) {
+        continue;
+      }
+      $withoutConstraint = trim((string) preg_replace('/\s+\(.+$/', '', $dependency));
+      $parts = explode(':', $withoutConstraint, 2);
+      $machineName = count($parts) === 2 ? $parts[1] : $parts[0];
+      if ($machineName === $module) {
+        return TRUE;
+      }
+    }
+    return FALSE;
   }
 
   /**

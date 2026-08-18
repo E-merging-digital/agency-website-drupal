@@ -19,38 +19,41 @@ policy:
     - human_review
 components:
   'emerging_digital:cta':
-    status: candidate
-    approved_for_ai_composition: false
+    status: approved
+    approved_for_ai_composition: true
     classification: WRAP_OR_MIGRATE_TO_SDC
     source: web/themes/custom/emerging_digital/components/cta/cta.component.yml
     template: web/themes/custom/emerging_digital/components/cta/cta.twig
     adapter: web/themes/custom/emerging_digital/templates/paragraphs/paragraph--cta.html.twig
-    canvas: schema_ready_candidate
+    canvas: schema_ready_approved
     evidence:
       contract_test: web/modules/custom/agency_project_tests/tests/src/Unit/GovernedSdcCatalogCiTest.php
       browser_spec: tests/browser/governed-sdc.spec.mjs
-      browser_run: pending
+      browser_run: run:32164426799
+      human_review: project-owner-approved-2026-08-18
   'emerging_digital:hero':
-    status: candidate
-    approved_for_ai_composition: false
+    status: approved
+    approved_for_ai_composition: true
     classification: WRAP_OR_MIGRATE_TO_SDC
     source: web/themes/custom/emerging_digital/components/hero/hero.component.yml
     template: web/themes/custom/emerging_digital/components/hero/hero.twig
     adapter: web/themes/custom/emerging_digital/templates/paragraphs/paragraph--hero.html.twig
-    canvas: schema_ready_candidate
+    canvas: schema_ready_approved
     evidence:
       contract_test: web/modules/custom/agency_project_tests/tests/src/Unit/GovernedSdcCatalogCiTest.php
       browser_spec: tests/browser/governed-sdc.spec.mjs
-      browser_run: pending
+      browser_run: run:32164426799
+      human_review: project-owner-approved-2026-08-18
   'emerging_digital:trust-list':
-    status: candidate
-    approved_for_ai_composition: false
+    status: approved
+    approved_for_ai_composition: true
     classification: WRAP_OR_MIGRATE_TO_SDC
     source: web/themes/custom/emerging_digital/components/trust-list/trust-list.component.yml
     template: web/themes/custom/emerging_digital/components/trust-list/trust-list.twig
     adapter: web/themes/custom/emerging_digital/templates/paragraphs/paragraph--trust-list.html.twig
-    canvas: schema_ready_candidate
+    canvas: schema_ready_approved
     evidence:
       contract_test: web/modules/custom/agency_project_tests/tests/src/Unit/GovernedSdcCatalogCiTest.php
       browser_spec: tests/browser/governed-sdc.spec.mjs
-      browser_run: pending
+      browser_run: run:32164426799
+      human_review: project-owner-approved-2026-08-18

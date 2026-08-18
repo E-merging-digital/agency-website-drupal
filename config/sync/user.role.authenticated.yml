@@ -9,7 +9,6 @@ dependencies:
     - comment
     - file
     - filter
-    - media
     - shortcut
     - system
 _core:
@@ -27,4 +26,3 @@ permissions:
   - 'skip comment approval'
   - 'use text format basic_html'
   - 'use text format webform_default'
-  - 'view media'

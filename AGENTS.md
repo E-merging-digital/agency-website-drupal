@@ -59,6 +59,28 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Avant `HUMAN_REQUIRED`, recharger le registre de capacites et verifier les
   routes machine gouvernees existantes.
 
+## 2.3 Governed AI Experience / design system
+
+- Avant toute decision concernant frontend, design system, Figma, SDC, Drupal
+  Canvas, Drupal AI applique a l'interface, generation de composants ou
+  generation/composition de pages, lire **obligatoirement** :
+  `docs/decisions/ADR-001-governed-ai-experience.md`, `DESIGN.md` et
+  `docs/governed-ai-experience.md`.
+- `ADR-001` est **ACCEPTED** et autoritative tant qu'une ADR ulterieure ne la
+  supersede pas explicitement.
+- Invariant : **COMPOSE BEFORE CREATE**. Rechercher les primitives approuvees,
+  composer avec elles et leurs variantes, puis ouvrir un gap de composant
+  separe seulement si elles ne peuvent raisonnablement pas couvrir le besoin.
+- Agency ne construit pas de moteur generique `prompt -> HTML/CSS/page
+  arbitraire`. Pour toute nouvelle capacite, classifier d'abord `USE DRUPAL`,
+  `EXTEND DRUPAL`, `BUILD IN AGENCY` ou `DEFER / EXPERIMENTAL`, avec preference
+  `USE DRUPAL > EXTEND DRUPAL > BUILD IN AGENCY`.
+- Le contexte de marque, tone of voice, audiences, terminologie et regles
+  editoriales suit `docs/drupal-ai-context-architecture.md`; ne pas le recopier
+  dans `DESIGN.md`.
+- AI Playwright peut servir d'auto-inspection DEV-ONLY ; la Browser Validation
+  Playwright de `docs/browser-validation.md` reste la preuve independante.
+
 ## 3. Workflow Git/branches
 
 - 1 ticket GitHub = 1 branche Git = 1 Pull Request.

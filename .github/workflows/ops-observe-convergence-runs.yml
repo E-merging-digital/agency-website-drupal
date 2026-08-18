@@ -14,8 +14,8 @@ jobs:
       - name: Query public GitHub Actions metadata
         shell: bash
         env:
-          DISPATCH_SHA: bed1efb7ce70bec5a6a726d66f6091bea3b5b826
-          TARGET_SHA: 5b65d6af002eec08eb34b8d3ff6fb8955e39c123
+          DISPATCH_SHA: f77de43b587b42968405ced2ba1715dfcae0f8bc
+          TARGET_SHA: f77de43b587b42968405ced2ba1715dfcae0f8bc
         run: |
           set -euo pipefail
 

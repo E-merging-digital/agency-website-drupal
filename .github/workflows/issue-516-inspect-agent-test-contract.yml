@@ -31,6 +31,15 @@ jobs:
           out=/tmp/agent-contract.txt
           : > "$out"
           section() { printf '\n===== %s =====\n' "$1" | tee -a "$out"; }
+          dump_file() {
+            local file="$1"
+            printf '\n--- %s ---\n' "$file" | tee -a "$out"
+            if [[ -f "$file" ]]; then
+              sed -n '1,760p' "$file" | tee -a "$out"
+            else
+              printf 'missing\n' | tee -a "$out"
+            fi
+          }
           dump_matches() {
             local root="$1" pattern="$2" limit="$3"
             local matches
@@ -40,8 +49,7 @@ jobs:
               return 0
             fi
             while IFS= read -r f; do
-              printf '\n--- %s ---\n' "$f" | tee -a "$out"
-              sed -n '1,360p' "$f" | tee -a "$out"
+              dump_file "$f"
             done <<< "$matches"
           }
 
@@ -51,7 +59,7 @@ jobs:
           done
 
           section 'AI AGENT ENTITY'
-          sed -n '1,360p' web/modules/contrib/ai_agents/src/Entity/AiAgent.php | tee -a "$out"
+          dump_file web/modules/contrib/ai_agents/src/Entity/AiAgent.php
 
           section 'AI AGENT MANAGER-LIKE SOURCES'
           dump_matches web/modules/contrib/ai_agents/src '*AgentManager*.php' 10
@@ -59,34 +67,32 @@ jobs:
 
           section 'AGENT RUNNER SOURCES'
           dump_matches web/modules/contrib/ai/modules '*AgentRunner*.php' 10
-          grep -R -n -E 'function runAsAgent|runAsAgent\(' web/modules/contrib/ai/modules web/modules/contrib/ai_agents/src \
-            | head -n 80 | tee -a "$out" || true
 
           section 'SAMPLE AGENT CONFIGS'
-          find web/modules/contrib/ai_agents/config -maxdepth 3 -type f -name '*.yml' -print 2>/dev/null | sort | head -n 30 | tee -a "$out" || true
           for f in $(find web/modules/contrib/ai_agents/config/install -type f -name '*.yml' 2>/dev/null | sort | head -n 8); do
-            printf '\n--- %s ---\n' "$f" | tee -a "$out"
-            cat "$f" | tee -a "$out"
+            dump_file "$f"
           done
 
-          section 'AI TEST PROVIDER FILES'
-          find web/modules/contrib/ai/tests/modules/ai_test -maxdepth 6 -type f 2>/dev/null | sort | tee -a "$out" || true
-
-          section 'AI TEST PROVIDER IMPLEMENTATION'
+          section 'AI TEST MODULE CONTRACT'
+          dump_file web/modules/contrib/ai/tests/modules/ai_test/ai_test.info.yml
+          dump_file web/modules/contrib/ai/tests/modules/ai_test/ai_test.services.yml
           dump_matches web/modules/contrib/ai/tests/modules/ai_test/src '*Provider*.php' 20
           dump_matches web/modules/contrib/ai/tests/modules/ai_test/src '*Chat*.php' 20
+          dump_matches web/modules/contrib/ai/tests/modules/ai_test/src 'EchoProvider.php' 20
 
-          section 'AI TEST CHAT REQUEST EXAMPLES'
-          find web/modules/contrib/ai -path '*/resources/ai_test/requests/chat/*' -type f -print 2>/dev/null | sort | head -n 30 | tee -a "$out" || true
-          for f in $(find web/modules/contrib/ai -path '*/resources/ai_test/requests/chat/*' -type f 2>/dev/null | sort | head -n 12); do
-            printf '\n--- %s ---\n' "$f" | tee -a "$out"
-            cat "$f" | tee -a "$out"
-          done
+          section 'EXTERNALLY DRIVEN AGENT LOOP TEST'
+          dump_file web/modules/contrib/ai_agents/tests/src/Kernel/PluginBase/AiAgentExternallyDrivenLoopTest.php
 
-          section 'TOOL CALL TYPES AND TEST REFERENCES'
-          grep -R -n -E 'setChatTools|FunctionCall|tool_calls|function_call|runAsAgent\(' \
-            web/modules/contrib/ai/tests web/modules/contrib/ai_agents/tests \
-            | head -n 320 | tee -a "$out" || true
+          section 'ENTITY WRAPPER TEST'
+          dump_file web/modules/contrib/ai_agents/tests/src/Kernel/PluginBase/AiAgentEntityWrapperTest.php
+
+          section 'AI TEST TOOL CALL REQUEST'
+          dump_file web/modules/contrib/ai/tests/modules/ai_test/tests/resources/ai_test/requests/chat/HostnameFilterToolBugTrigger.yml
+
+          section 'TOOL CALL DTO SOURCES'
+          dump_matches web/modules/contrib/ai/src '*Tool*.php' 30
+          dump_matches web/modules/contrib/ai/src '*ChatMessage*.php' 10
+          dump_matches web/modules/contrib/ai/src '*ChatOutput*.php' 10
 
           cp "$out" agent-contract.txt
       - uses: actions/upload-artifact@v4

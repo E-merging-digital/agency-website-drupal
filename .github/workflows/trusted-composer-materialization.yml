@@ -208,7 +208,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ddev list --json-output \
+          ddev list --json-output 2>&1 \
             | python3 trusted/scripts/runner/extract-stale-composer-ddev-projects.py \
             > /tmp/stale-composer-projects.txt
 

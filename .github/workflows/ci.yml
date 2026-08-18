@@ -32,6 +32,8 @@ jobs:
             test "$PROOF_MAPPING_COUNT" = "3"
             test "$PROOF_EDITORIAL_CONTENT_ID" = "cas-client-migration-drupal-11"
             test "${#PROOF_PUBLIC_PATHS[@]}" = "6"
+            test "${#PROOF_BROWSER_ONLY_PATHS[@]}" = "0"
+            test "${#PROOF_CONTACT_FORM_PATHS[@]}" = "0"
           '
 
           PROOF_PROFILE=ai-features-441 bash -c '
@@ -40,6 +42,8 @@ jobs:
             test "$PROOF_MAPPING_COUNT" = "10"
             test "$PROOF_EDITORIAL_CONTENT_ID" = "ai-redaction-assistee"
             test "${#PROOF_PUBLIC_PATHS[@]}" = "20"
+            test "${#PROOF_BROWSER_ONLY_PATHS[@]}" = "0"
+            test "${#PROOF_CONTACT_FORM_PATHS[@]}" = "0"
           '
 
           PROOF_PROFILE=services-drupal-441 bash -c '
@@ -48,6 +52,8 @@ jobs:
             test "$PROOF_MAPPING_COUNT" = "7"
             test "$PROOF_EDITORIAL_CONTENT_ID" = "audit-drupal"
             test "${#PROOF_PUBLIC_PATHS[@]}" = "14"
+            test "${#PROOF_BROWSER_ONLY_PATHS[@]}" = "0"
+            test "${#PROOF_CONTACT_FORM_PATHS[@]}" = "0"
           '
 
           PROOF_PROFILE=services-general-441 bash -c '
@@ -56,6 +62,8 @@ jobs:
             test "$PROOF_MAPPING_COUNT" = "7"
             test "$PROOF_EDITORIAL_CONTENT_ID" = "creation-site-web-professionnel"
             test "${#PROOF_PUBLIC_PATHS[@]}" = "14"
+            test "${#PROOF_BROWSER_ONLY_PATHS[@]}" = "0"
+            test "${#PROOF_CONTACT_FORM_PATHS[@]}" = "0"
           '
 
           PROOF_PROFILE=pages-medium-441 bash -c '
@@ -64,6 +72,23 @@ jobs:
             test "$PROOF_MAPPING_COUNT" = "3"
             test "$PROOF_EDITORIAL_CONTENT_ID" = "equipe"
             test "${#PROOF_PUBLIC_PATHS[@]}" = "6"
+            test "${#PROOF_BROWSER_ONLY_PATHS[@]}" = "0"
+            test "${#PROOF_CONTACT_FORM_PATHS[@]}" = "0"
+          '
+
+          PROOF_PROFILE=pages-final-441 bash -c '
+            set -euo pipefail
+            source scripts/runner/governed-content-transition-profiles.sh
+            test "$PROOF_MAPPING_COUNT" = "3"
+            test "$PROOF_EDITORIAL_CONTENT_ID" = "services"
+            test "$PROOF_EDITORIAL_MARKER" = "[proof-441-final-pages-editorial-survives]"
+            test "${#PROOF_PUBLIC_PATHS[@]}" = "6"
+            test "${#PROOF_BROWSER_ONLY_PATHS[@]}" = "2"
+            test "${PROOF_BROWSER_ONLY_PATHS[0]}" = "/fr/"
+            test "${PROOF_BROWSER_ONLY_PATHS[1]}" = "/en/"
+            test "${#PROOF_CONTACT_FORM_PATHS[@]}" = "2"
+            test "${PROOF_CONTACT_FORM_PATHS[0]}" = "/fr/contact"
+            test "${PROOF_CONTACT_FORM_PATHS[1]}" = "/en/contact"
           '
 
           if PROOF_PROFILE=unsupported-profile bash -c '

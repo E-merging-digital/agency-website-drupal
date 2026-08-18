@@ -1,0 +1,484 @@
+name: Trusted Composer materialization
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Governed request identifier
+        required: true
+        type: string
+      pr_number:
+        description: Same-repository target pull request
+        required: true
+        type: string
+      head_sha:
+        description: Exact target pull request HEAD
+        required: true
+        type: string
+      profile:
+        description: Repository-owned Composer profile
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate exact dependency-only target
+    runs-on: ubuntu-24.04
+    outputs:
+      head_ref: ${{ steps.validate.outputs.head_ref }}
+      base_sha: ${{ steps.validate.outputs.base_sha }}
+      package: ${{ steps.profile.outputs.package }}
+      constraint: ${{ steps.profile.outputs.constraint }}
+      version_regex: ${{ steps.profile.outputs.version_regex }}
+      owner_issue: ${{ steps.profile.outputs.owner_issue }}
+    steps:
+      - name: Checkout trusted workflow source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve reviewed profile
+        id: profile
+        shell: bash
+        env:
+          COMPOSER_PROFILE: ${{ inputs.profile }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/main'
+          [[ "${{ inputs.request_id }}" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
+          [[ "${{ inputs.pr_number }}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${{ inputs.head_sha }}" =~ ^[0-9a-f]{40}$ ]]
+          source scripts/runner/composer-materialization-profiles.sh
+          echo "package=$COMPOSER_PACKAGE" >> "$GITHUB_OUTPUT"
+          echo "constraint=$COMPOSER_CONSTRAINT" >> "$GITHUB_OUTPUT"
+          echo "version_regex=$COMPOSER_VERSION_REGEX" >> "$GITHUB_OUTPUT"
+          echo "owner_issue=$COMPOSER_OWNER_ISSUE" >> "$GITHUB_OUTPUT"
+
+      - name: Revalidate live PR and semantic composer.json delta
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+          EXPECTED_PACKAGE: ${{ steps.profile.outputs.package }}
+          EXPECTED_CONSTRAINT: ${{ steps.profile.outputs.constraint }}
+        run: |
+          set -euo pipefail
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r '.state' <<<"$pr_json")" = 'open'
+          test "$(jq -r '.base.ref' <<<"$pr_json")" = 'main'
+          test "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" \
+            = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.sha' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"
+
+          base_sha="$(jq -r '.base.sha' <<<"$pr_json")"
+          head_ref="$(jq -r '.head.ref' <<<"$pr_json")"
+          changed="$(
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[].filename'
+          )"
+          if [[ "$changed" != 'composer.json' ]]; then
+            echo 'Target PR must change exactly composer.json before resolution.' >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+          gh api \
+            "repos/$GITHUB_REPOSITORY/contents/composer.json?ref=$base_sha" \
+            --jq '.content' | tr -d '\n' | base64 --decode \
+            > /tmp/composer-base.json
+          gh api \
+            "repos/$GITHUB_REPOSITORY/contents/composer.json?ref=$EXPECTED_HEAD_SHA" \
+            --jq '.content' | tr -d '\n' | base64 --decode \
+            > /tmp/composer-target.json
+
+          EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
+          EXPECTED_CONSTRAINT="$EXPECTED_CONSTRAINT" \
+          python3 - <<'PY'
+          import copy
+          import json
+          import os
+
+          with open('/tmp/composer-base.json', encoding='utf-8') as handle:
+              base = json.load(handle)
+          with open('/tmp/composer-target.json', encoding='utf-8') as handle:
+              target = json.load(handle)
+
+          expected = copy.deepcopy(base)
+          expected.setdefault('require', {})[os.environ['EXPECTED_PACKAGE']] = (
+              os.environ['EXPECTED_CONSTRAINT']
+          )
+          if target != expected:
+              raise SystemExit(
+                  'Target composer.json contains changes outside the reviewed '
+                  'Composer profile.'
+              )
+          PY
+
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+  generate-lock:
+    name: Resolve lockfile on trusted self-hosted DDEV
+    needs: validate-target
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v python3
+          command -v sha256sum
+
+      - name: Checkout trusted profile implementation
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact target without write credentials
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.head_sha }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact immutable inputs
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+          COMPOSER_PROFILE: ${{ inputs.profile }}
+          EXPECTED_PACKAGE: ${{ needs.validate-target.outputs.package }}
+          EXPECTED_CONSTRAINT: ${{ needs.validate-target.outputs.constraint }}
+        run: |
+          set -euo pipefail
+          test "$(git -C trusted rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C target rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          source trusted/scripts/runner/composer-materialization-profiles.sh
+          test "$COMPOSER_PACKAGE" = "$EXPECTED_PACKAGE"
+          test "$COMPOSER_CONSTRAINT" = "$EXPECTED_CONSTRAINT"
+
+          EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
+          EXPECTED_CONSTRAINT="$EXPECTED_CONSTRAINT" \
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open('target/composer.json', encoding='utf-8') as handle:
+              composer = json.load(handle)
+          actual = composer.get('require', {}).get(os.environ['EXPECTED_PACKAGE'])
+          if actual != os.environ['EXPECTED_CONSTRAINT']:
+              raise SystemExit(
+                  f'Unexpected target constraint: {actual!r}'
+              )
+          PY
+
+      - name: Isolate DDEV project
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-composer-ci.yaml <<EOF
+          name: agency-composer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml \
+            | grep -F "agency-composer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev start -y
+
+      - name: Resolve reviewed Composer profile
+        shell: bash
+        working-directory: target
+        env:
+          COMPOSER_PROFILE: ${{ inputs.profile }}
+          EXPECTED_PACKAGE: ${{ needs.validate-target.outputs.package }}
+          EXPECTED_CONSTRAINT: ${{ needs.validate-target.outputs.constraint }}
+          EXPECTED_VERSION_REGEX: ${{ needs.validate-target.outputs.version_regex }}
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+          REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          source ../trusted/scripts/runner/composer-materialization-profiles.sh
+          test "$COMPOSER_PACKAGE" = "$EXPECTED_PACKAGE"
+          test "$COMPOSER_CONSTRAINT" = "$EXPECTED_CONSTRAINT"
+
+          ddev composer update "$COMPOSER_PACKAGE" \
+            --with-all-dependencies \
+            --no-interaction \
+            --no-progress \
+            --no-scripts
+
+          rm -f .ddev/config.gate-composer-ci.yaml
+
+          test -z "$(git ls-files --others --exclude-standard)"
+          test -z "$(git diff --cached --name-only)"
+          changed="$(git diff --name-only)"
+          if [[ "$changed" != 'composer.lock' ]]; then
+            echo 'Composer resolution must modify exactly composer.lock.' >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+          mkdir -p ../composer-materialization-artifact
+          cp composer.lock ../composer-materialization-artifact/composer.lock
+
+          EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
+          EXPECTED_VERSION_REGEX="$EXPECTED_VERSION_REGEX" \
+          EXPECTED_HEAD_SHA="$EXPECTED_HEAD_SHA" \
+          REQUEST_ID="$REQUEST_ID" \
+          COMPOSER_PROFILE="$COMPOSER_PROFILE" \
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          lock_path = Path('../composer-materialization-artifact/composer.lock')
+          lock = json.loads(lock_path.read_text(encoding='utf-8'))
+          packages = [
+              package for package in lock.get('packages', [])
+              if package.get('name') == os.environ['EXPECTED_PACKAGE']
+          ]
+          if len(packages) != 1:
+              raise SystemExit('Expected package missing or duplicated in lockfile.')
+
+          version = packages[0].get('version', '').lstrip('v')
+          if not re.fullmatch(os.environ['EXPECTED_VERSION_REGEX'], version):
+              raise SystemExit(f'Unexpected resolved package version: {version!r}')
+
+          digest = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+          result = {
+              'status': 'PASS',
+              'request_id': os.environ['REQUEST_ID'],
+              'profile': os.environ['COMPOSER_PROFILE'],
+              'target_head_sha': os.environ['EXPECTED_HEAD_SHA'],
+              'package': os.environ['EXPECTED_PACKAGE'],
+              'resolved_version': version,
+              'composer_lock_sha256': digest,
+          }
+          Path('../composer-materialization-artifact/result.json').write_text(
+              json.dumps(result, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(json.dumps(result, sort_keys=True))
+          PY
+
+      - name: Upload bounded Composer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-composer-materialization-${{ github.run_id }}-${{ github.run_attempt }}
+          path: composer-materialization-artifact
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Clean isolated DDEV and workspaces
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          if [[ -d target ]]; then
+            (
+              cd target
+              rm -f .ddev/config.gate-composer-ci.yaml
+              ddev delete --omit-snapshot --yes
+            )
+          fi
+          cd "$GITHUB_WORKSPACE"
+          rm -rf target trusted composer-materialization-artifact
+
+  publish-lock:
+    name: Revalidate artifact and publish lockfile from hosted runner
+    needs:
+      - validate-target
+      - generate-lock
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout exact target commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.head_sha }}
+          fetch-depth: 1
+
+      - name: Download generated Composer artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: agency-composer-materialization-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/composer-materialization
+
+      - name: Revalidate live HEAD and bounded artifact
+        id: validate-artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+          EXPECTED_HEAD_REF: ${{ needs.validate-target.outputs.head_ref }}
+          EXPECTED_PACKAGE: ${{ needs.validate-target.outputs.package }}
+          EXPECTED_VERSION_REGEX: ${{ needs.validate-target.outputs.version_regex }}
+          EXPECTED_PROFILE: ${{ inputs.profile }}
+          EXPECTED_REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r '.state' <<<"$pr_json")" = 'open'
+          test "$(jq -r '.base.ref' <<<"$pr_json")" = 'main'
+          test "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" \
+            = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.ref' <<<"$pr_json")" = "$EXPECTED_HEAD_REF"
+          test "$(jq -r '.head.sha' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"
+
+          EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
+          EXPECTED_VERSION_REGEX="$EXPECTED_VERSION_REGEX" \
+          EXPECTED_PROFILE="$EXPECTED_PROFILE" \
+          EXPECTED_REQUEST_ID="$EXPECTED_REQUEST_ID" \
+          EXPECTED_HEAD_SHA="$EXPECTED_HEAD_SHA" \
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          artifact = Path('/tmp/composer-materialization')
+          result = json.loads((artifact / 'result.json').read_text(encoding='utf-8'))
+          lock_path = artifact / 'composer.lock'
+          lock = json.loads(lock_path.read_text(encoding='utf-8'))
+
+          expected = {
+              'status': 'PASS',
+              'request_id': os.environ['EXPECTED_REQUEST_ID'],
+              'profile': os.environ['EXPECTED_PROFILE'],
+              'target_head_sha': os.environ['EXPECTED_HEAD_SHA'],
+              'package': os.environ['EXPECTED_PACKAGE'],
+          }
+          for key, value in expected.items():
+              if result.get(key) != value:
+                  raise SystemExit(f'Artifact mismatch for {key}.')
+
+          digest = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+          if result.get('composer_lock_sha256') != digest:
+              raise SystemExit('Artifact lockfile digest mismatch.')
+
+          packages = [
+              package for package in lock.get('packages', [])
+              if package.get('name') == os.environ['EXPECTED_PACKAGE']
+          ]
+          if len(packages) != 1:
+              raise SystemExit('Expected package missing or duplicated in lockfile.')
+          version = packages[0].get('version', '').lstrip('v')
+          if not re.fullmatch(os.environ['EXPECTED_VERSION_REGEX'], version):
+              raise SystemExit(f'Unexpected resolved package version: {version!r}')
+          if result.get('resolved_version') != version:
+              raise SystemExit('Artifact version metadata does not match lockfile.')
+          print(f'Validated {os.environ["EXPECTED_PACKAGE"]} {version} ({digest})')
+          PY
+
+          cp /tmp/composer-materialization/composer.lock composer.lock
+          test -z "$(git ls-files --others --exclude-standard)"
+          test -z "$(git diff --cached --name-only)"
+          changed="$(git diff --name-only)"
+          if [[ "$changed" != 'composer.lock' ]]; then
+            echo 'Hosted publisher may change exactly composer.lock.' >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+          resolved_version="$(jq -r '.resolved_version' /tmp/composer-materialization/result.json)"
+          lock_sha256="$(jq -r '.composer_lock_sha256' /tmp/composer-materialization/result.json)"
+          echo "resolved_version=$resolved_version" >> "$GITHUB_OUTPUT"
+          echo "lock_sha256=$lock_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push lockfile fast-forward only
+        id: publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+          EXPECTED_HEAD_REF: ${{ needs.validate-target.outputs.head_ref }}
+          OWNER_ISSUE: ${{ needs.validate-target.outputs.owner_issue }}
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add composer.lock
+          staged="$(git diff --cached --name-only)"
+          test "$staged" = 'composer.lock'
+          git commit -m "Issue #${OWNER_ISSUE}: materialize Composer lock (${PROFILE})"
+
+          live_head="$(
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha'
+          )"
+          test "$live_head" = "$EXPECTED_HEAD_SHA" || {
+            echo 'Target PR advanced before Composer lock publication.' >&2
+            exit 1
+          }
+
+          git push origin "HEAD:$EXPECTED_HEAD_REF"
+          echo "new_head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish bounded result on target PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          PROFILE: ${{ inputs.profile }}
+          PACKAGE: ${{ needs.validate-target.outputs.package }}
+          VERSION: ${{ steps.validate-artifact.outputs.resolved_version }}
+          LOCK_SHA256: ${{ steps.validate-artifact.outputs.lock_sha256 }}
+          OLD_HEAD: ${{ inputs.head_sha }}
+          NEW_HEAD: ${{ steps.publish.outputs.new_head_sha }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ### Governed Composer materialization — SUCCESS
+
+          - request: \`${REQUEST_ID}\`
+          - profile: \`${PROFILE}\`
+          - package: \`${PACKAGE}\`
+          - resolved version: \`${VERSION}\`
+          - input HEAD: \`${OLD_HEAD}\`
+          - published HEAD: \`${NEW_HEAD}\`
+          - composer.lock SHA-256: \`${LOCK_SHA256}\`
+          - workflow run: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)
+
+          The self-hosted runner had read-only repository permissions. The lockfile was transferred as an artifact, revalidated on GitHub-hosted infrastructure, and published only after a final live-HEAD check.
+          EOF
+          )"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

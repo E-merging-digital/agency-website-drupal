@@ -94,9 +94,9 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   }
 
   /**
-   * The self-hosted job must never receive repository write authority.
+   * The self-hosted job must remain read-only and lockfile-only.
    */
-  public function testSelfHostedResolverIsReadOnly(): void {
+  public function testSelfHostedResolverIsReadOnlyAndLockOnly(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root
       . '/.github/workflows/trusted-composer-materialization.yml';
@@ -122,11 +122,38 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     self::assertStringContainsString('contents: read', $generate);
     self::assertStringNotContainsString('contents: write', $generate);
     self::assertStringContainsString('persist-credentials: false', $generate);
+    self::assertStringContainsString('--no-install', $generate);
     self::assertStringContainsString('--no-scripts', $generate);
     self::assertStringContainsString(
       "changed\" != 'composer.lock'",
       $generate,
     );
+
+    self::assertStringContainsString('ddev list --json-output', $generate);
+    self::assertStringContainsString(
+      "r'agency-composer-[0-9]+-[0-9]+'",
+      $generate,
+    );
+    self::assertStringContainsString(
+      'ddev stop --unlist --omit-snapshot "$stale_project"',
+      $generate,
+    );
+    self::assertStringContainsString(
+      'ddev delete --omit-snapshot --yes "$isolated_name"',
+      $generate,
+    );
+
+    $deletePosition = strpos(
+      $generate,
+      'ddev delete --omit-snapshot --yes "$isolated_name"',
+    );
+    $removeOverridePosition = strrpos(
+      $generate,
+      'rm -f .ddev/config.gate-composer-ci.yaml',
+    );
+    self::assertIsInt($deletePosition);
+    self::assertIsInt($removeOverridePosition);
+    self::assertLessThan($removeOverridePosition, $deletePosition);
 
     self::assertStringContainsString('contents: write', $publish);
     self::assertStringContainsString(

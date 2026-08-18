@@ -31,38 +31,54 @@ jobs:
           out=/tmp/agent-contract.txt
           : > "$out"
           section() { printf '\n===== %s =====\n' "$1" | tee -a "$out"; }
+          dump_matches() {
+            local root="$1" pattern="$2" limit="$3"
+            local matches
+            matches="$(find "$root" -type f -iname "$pattern" 2>/dev/null | sort | head -n "$limit" || true)"
+            if [[ -z "$matches" ]]; then
+              printf 'No matches for %s under %s\n' "$pattern" "$root" | tee -a "$out"
+              return 0
+            fi
+            while IFS= read -r f; do
+              printf '\n--- %s ---\n' "$f" | tee -a "$out"
+              sed -n '1,360p' "$f" | tee -a "$out"
+            done <<< "$matches"
+          }
 
           section 'RESOLVED PACKAGES'
-          composer show drupal/ai drupal/ai_agents drupal/ai_playwright 2>&1 | tee -a "$out" || true
+          for p in drupal/ai drupal/ai_agents drupal/ai_playwright; do
+            composer show "$p" --format=json | jq '{name,versions}' | tee -a "$out"
+          done
 
           section 'AI AGENT ENTITY'
-          sed -n '1,320p' web/modules/contrib/ai_agents/src/Entity/AiAgent.php | tee -a "$out"
+          sed -n '1,360p' web/modules/contrib/ai_agents/src/Entity/AiAgent.php | tee -a "$out"
 
-          section 'AI AGENT MANAGER'
-          sed -n '1,280p' web/modules/contrib/ai_agents/src/AiAgentManager.php | tee -a "$out"
+          section 'AI AGENT MANAGER-LIKE SOURCES'
+          dump_matches web/modules/contrib/ai_agents/src '*AgentManager*.php' 10
+          dump_matches web/modules/contrib/ai_agents/src '*PluginManager*.php' 10
 
-          section 'AGENT RUNNER'
-          sed -n '1,240p' web/modules/contrib/ai/modules/ai_assistant_api/src/Service/AgentRunner.php | tee -a "$out"
+          section 'AGENT RUNNER SOURCES'
+          dump_matches web/modules/contrib/ai/modules '*AgentRunner*.php' 10
+          grep -R -n -E 'function runAsAgent|runAsAgent\(' web/modules/contrib/ai/modules web/modules/contrib/ai_agents/src \
+            | head -n 80 | tee -a "$out" || true
 
           section 'SAMPLE AGENT CONFIGS'
-          find web/modules/contrib/ai_agents/config -type f -maxdepth 3 -name '*.yml' -print | sort | head -n 20 | tee -a "$out"
-          for f in $(find web/modules/contrib/ai_agents/config/install -type f -name '*.yml' 2>/dev/null | sort | head -n 5); do
+          find web/modules/contrib/ai_agents/config -maxdepth 3 -type f -name '*.yml' -print 2>/dev/null | sort | head -n 30 | tee -a "$out" || true
+          for f in $(find web/modules/contrib/ai_agents/config/install -type f -name '*.yml' 2>/dev/null | sort | head -n 8); do
             printf '\n--- %s ---\n' "$f" | tee -a "$out"
             cat "$f" | tee -a "$out"
           done
 
           section 'AI TEST PROVIDER FILES'
-          find web/modules/contrib/ai/tests/modules/ai_test -maxdepth 5 -type f | sort | tee -a "$out"
+          find web/modules/contrib/ai/tests/modules/ai_test -maxdepth 6 -type f 2>/dev/null | sort | tee -a "$out" || true
 
           section 'AI TEST PROVIDER IMPLEMENTATION'
-          for f in $(find web/modules/contrib/ai/tests/modules/ai_test/src -type f \( -iname '*Provider*.php' -o -iname '*Chat*.php' \) | sort); do
-            printf '\n--- %s ---\n' "$f" | tee -a "$out"
-            sed -n '1,340p' "$f" | tee -a "$out"
-          done
+          dump_matches web/modules/contrib/ai/tests/modules/ai_test/src '*Provider*.php' 20
+          dump_matches web/modules/contrib/ai/tests/modules/ai_test/src '*Chat*.php' 20
 
           section 'AI TEST CHAT REQUEST EXAMPLES'
-          find web/modules/contrib/ai -path '*/resources/ai_test/requests/chat/*' -type f -print | sort | head -n 20 | tee -a "$out"
-          for f in $(find web/modules/contrib/ai -path '*/resources/ai_test/requests/chat/*' -type f | sort | head -n 8); do
+          find web/modules/contrib/ai -path '*/resources/ai_test/requests/chat/*' -type f -print 2>/dev/null | sort | head -n 30 | tee -a "$out" || true
+          for f in $(find web/modules/contrib/ai -path '*/resources/ai_test/requests/chat/*' -type f 2>/dev/null | sort | head -n 12); do
             printf '\n--- %s ---\n' "$f" | tee -a "$out"
             cat "$f" | tee -a "$out"
           done
@@ -70,7 +86,7 @@ jobs:
           section 'TOOL CALL TYPES AND TEST REFERENCES'
           grep -R -n -E 'setChatTools|FunctionCall|tool_calls|function_call|runAsAgent\(' \
             web/modules/contrib/ai/tests web/modules/contrib/ai_agents/tests \
-            | head -n 240 | tee -a "$out" || true
+            | head -n 320 | tee -a "$out" || true
 
           cp "$out" agent-contract.txt
       - uses: actions/upload-artifact@v4

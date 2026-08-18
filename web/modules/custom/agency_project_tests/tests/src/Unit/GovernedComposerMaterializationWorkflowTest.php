@@ -60,6 +60,8 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     self::assertFileExists($path);
 
     $workflow = (string) file_get_contents($path);
+    self::assertStringNotContainsString('[[ "${{ inputs.', $workflow);
+
     $generateStart = strpos($workflow, "  generate-lock:\n");
     $publishStart = strpos($workflow, "  publish-lock:\n");
     self::assertIsInt($generateStart);

@@ -1,0 +1,51 @@
+_meta:
+  version: '1.0'
+  entity_type: canvas_page
+  uuid: 52600000-0000-4000-8000-000000000001
+  default_langcode: fr
+default:
+  status:
+    -
+      value: true
+  owner:
+    -
+      target_id: 0
+  title:
+    -
+      value: 'Canvas gouverné — baseline SDC'
+  description:
+    -
+      value: 'Preuve de composition Drupal Canvas bornée aux composants SDC approuvés du design system Agency.'
+  components:
+    -
+      uuid: 52600000-0000-4000-8000-000000000101
+      component_id: sdc.emerging_digital.hero
+      inputs:
+        heading: 'Canvas gouverné par le design system Agency'
+        heading_level: h1
+        variant: home
+    -
+      uuid: 52600000-0000-4000-8000-000000000102
+      component_id: sdc.emerging_digital.trust-list
+      inputs:
+        heading: 'Contrôles de composition'
+        items:
+          - 'Composants SDC approuvés'
+          - 'Props typées et variantes bornées'
+          - 'Validation desktop et mobile'
+    -
+      uuid: 52600000-0000-4000-8000-000000000103
+      component_id: sdc.emerging_digital.cta
+      inputs:
+        heading: 'Composition Canvas bornée'
+        heading_level: h2
+  path:
+    -
+      alias: /canvas-governed-sdc-baseline
+      langcode: fr
+  revision_translation_affected:
+    -
+      value: true
+  metatags:
+    -
+      value: '{"canonical_url":"[canvas_page:url]","description":"[canvas_page:description]","image_src":"[canvas_page:image:entity:field_media_image:entity:url]","title":"[canvas_page:title] | [site:name]"}'

@@ -17,19 +17,19 @@ use PHPUnit\Framework\TestCase;
 final class GovernedContentCliFacadeCiTest extends TestCase {
 
   /**
-   * Runtime sync and validation expose additive Governed Content aliases.
+   * Governed Content is canonical and Content Sync remains compatible.
    */
-  public function testGovernedContentRuntimeAliasesAreAdditive(): void {
+  public function testGovernedContentRuntimeNamesAreCanonical(): void {
     $this->loadCommandClass();
 
     $sync = $this->commandAttribute('sync');
-    self::assertSame('emerging:content-sync', $sync->name);
-    self::assertSame(['emerging:governed-content'], $sync->aliases);
+    self::assertSame('emerging:governed-content', $sync->name);
+    self::assertSame(['emerging:content-sync'], $sync->aliases);
 
     $validate = $this->commandAttribute('validate');
-    self::assertSame('emerging:content-sync:validate', $validate->name);
+    self::assertSame('emerging:governed-content:validate', $validate->name);
     self::assertSame(
-      ['emerging:governed-content:validate'],
+      ['emerging:content-sync:validate'],
       $validate->aliases,
     );
   }

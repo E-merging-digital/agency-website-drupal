@@ -10,12 +10,15 @@ on:
 permissions:
   actions: write
   contents: read
-  pull-requests: read
+  issues: write
+  pull-requests: write
+  statuses: write
 
 jobs:
   dispatch:
-    name: Validate governed Composer request and dispatch trusted workflow
+    name: Validate, dispatch and observe governed Composer materialization
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout control branch history
         uses: actions/checkout@v6
@@ -142,6 +145,22 @@ jobs:
           echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
           echo "profile=$PROFILE" >> "$GITHUB_OUTPUT"
 
+      - name: Snapshot trusted workflow run IDs
+        id: before
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow trusted-composer-materialization.yml \
+            --event workflow_dispatch \
+            --limit 30 \
+            --json databaseId \
+            --jq '.[].databaseId' \
+            | sort -n > /tmp/composer-runs-before.txt
+
       - name: Dispatch trusted Composer materialization
         shell: bash
         env:
@@ -159,3 +178,151 @@ jobs:
             -f "pr_number=$PR_NUMBER" \
             -f "head_sha=$HEAD_SHA" \
             -f "profile=$PROFILE"
+
+      - name: Discover exact trusted workflow run
+        id: trusted
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          trusted_run_id=''
+          for _ in $(seq 1 30); do
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow trusted-composer-materialization.yml \
+              --event workflow_dispatch \
+              --limit 30 \
+              --json databaseId \
+              --jq '.[].databaseId' \
+              | sort -n > /tmp/composer-runs-after.txt
+
+            trusted_run_id="$(
+              comm -13 \
+                /tmp/composer-runs-before.txt \
+                /tmp/composer-runs-after.txt \
+                | tail -n 1
+            )"
+            if [[ -n "$trusted_run_id" ]]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [[ -z "$trusted_run_id" ]]; then
+            echo 'Trusted Composer workflow run was not discoverable.' >&2
+            exit 1
+          fi
+
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${trusted_run_id}"
+          echo "run_id=$trusted_run_id" >> "$GITHUB_OUTPUT"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+
+      - name: Publish pending target status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.request.outputs.head_sha }}
+          RUN_URL: ${{ steps.trusted.outputs.run_url }}
+        run: |
+          set -euo pipefail
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+            -f state='pending' \
+            -f context='agency/composer-materialization' \
+            -f description='Governed Composer materialization running' \
+            -f target_url="$RUN_URL" >/dev/null
+
+      - name: Observe trusted workflow conclusion
+        id: conclusion
+        if: ${{ always() && steps.trusted.outputs.run_id != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_RUN_ID: ${{ steps.trusted.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          conclusion=''
+          for _ in $(seq 1 900); do
+            run_json="$(
+              gh run view "$TRUSTED_RUN_ID" \
+                --repo "$GITHUB_REPOSITORY" \
+                --json status,conclusion
+            )"
+            status="$(jq -r '.status' <<<"$run_json")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$run_json")"
+            if [[ "$status" == 'completed' ]]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [[ -z "$conclusion" ]]; then
+            conclusion='timed_out'
+          fi
+          echo "conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+
+      - name: Publish final target status and diagnostic comment
+        if: ${{ always() && steps.trusted.outputs.run_id != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.request.outputs.pr_number }}
+          INPUT_HEAD_SHA: ${{ steps.request.outputs.head_sha }}
+          TRUSTED_RUN_ID: ${{ steps.trusted.outputs.run_id }}
+          RUN_URL: ${{ steps.trusted.outputs.run_url }}
+          CONCLUSION: ${{ steps.conclusion.outputs.conclusion }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+        run: |
+          set -euo pipefail
+
+          state='failure'
+          description="Composer materialization ${CONCLUSION:-unknown}"
+          if [[ "$CONCLUSION" == 'success' ]]; then
+            state='success'
+            description='Governed Composer materialization succeeded'
+          fi
+
+          publish_status() {
+            local sha="$1"
+            gh api --method POST \
+              "repos/$GITHUB_REPOSITORY/statuses/$sha" \
+              -f state="$state" \
+              -f context='agency/composer-materialization' \
+              -f description="$description" \
+              -f target_url="$RUN_URL" >/dev/null
+          }
+
+          publish_status "$INPUT_HEAD_SHA"
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          live_head="$(jq -r '.head.sha' <<<"$pr_json")"
+          output_head="$INPUT_HEAD_SHA"
+          if [[ "$state" == 'success' && "$live_head" != "$INPUT_HEAD_SHA" ]]; then
+            parent_sha="$(
+              gh api "repos/$GITHUB_REPOSITORY/commits/$live_head" \
+                --jq '.parents[0].sha // ""'
+            )"
+            if [[ "$parent_sha" == "$INPUT_HEAD_SHA" ]]; then
+              publish_status "$live_head"
+              output_head="$live_head"
+            fi
+          fi
+
+          body="$(cat <<EOF
+          ### Governed Composer materialization — ${CONCLUSION:-unknown}
+
+          - request: \`${REQUEST_ID}\`
+          - trusted workflow run: \`${TRUSTED_RUN_ID}\`
+          - input HEAD: \`${INPUT_HEAD_SHA}\`
+          - observed output HEAD: \`${output_head}\`
+          - status context: \`agency/composer-materialization\`
+
+          The observable gateway tracked the exact trusted run. Inspect the linked status run for the failing job when the conclusion is not success.
+          EOF
+          )"
+          gh pr comment "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "$body"
+
+          test "$state" = 'success'

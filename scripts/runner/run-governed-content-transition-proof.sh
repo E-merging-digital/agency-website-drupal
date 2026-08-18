@@ -22,6 +22,8 @@ EDITORIAL_MARKER="$PROOF_EDITORIAL_MARKER"
 PILOT_IDS=("${PROOF_CONTENT_IDS[@]}")
 PILOT_PAYLOADS=("${PROOF_PAYLOADS[@]}")
 EXPECTED_ALIASES=("${PROOF_PUBLIC_PATHS[@]}")
+EXPECTED_BROWSER_ONLY_PATHS=("${PROOF_BROWSER_ONLY_PATHS[@]}")
+CONTACT_FORM_PATHS=("${PROOF_CONTACT_FORM_PATHS[@]}")
 EXPECTED_MAPPING_COUNT="$PROOF_MAPPING_COUNT"
 EDITORIAL_CONTENT_ID="$PROOF_EDITORIAL_CONTENT_ID"
 EDITORIAL_PATH="$PROOF_EDITORIAL_PATH"
@@ -103,7 +105,7 @@ snapshot_nodes() {
            nfd.title, COALESCE(pa.alias, '')
       FROM emerging_digital_content_sync_mapping m
       JOIN node n ON n.nid = m.entity_id
-      JOIN node_field_data nfd ON nfd.nid = n.nid
+      JOIN node_field_data nfd ON nfd.nid = m.entity_id
       LEFT JOIN path_alias pa
         ON pa.path = CONCAT('/node/', n.nid)
        AND pa.langcode = nfd.langcode
@@ -328,6 +330,31 @@ apply_editorial_edit() {
         $node->save();
       '
       ;;
+
+    pages-final-441)
+      ddev drush php:eval '
+        $database = \Drupal::database();
+        $nid = $database->select("emerging_digital_content_sync_mapping", "m")
+          ->fields("m", ["entity_id"])
+          ->condition("content_id", "services")
+          ->execute()
+          ->fetchField();
+        if (!$nid) {
+          throw new \RuntimeException("Final services page mapping not found for editorial proof.");
+        }
+        $node = \Drupal\node\Entity\Node::load((int) $nid);
+        if (!$node) {
+          throw new \RuntimeException("Final services page node not found for editorial proof.");
+        }
+        $node->setNewRevision(TRUE);
+        $node->setRevisionLogMessage("Governed Content transition proof #441 final pages");
+        $translation = $node->hasTranslation("fr") ? $node->getTranslation("fr") : $node;
+        if (!str_contains((string) $translation->label(), "[proof-441-final-pages-editorial-survives]")) {
+          $translation->setTitle($translation->label() . " [proof-441-final-pages-editorial-survives]");
+        }
+        $node->save();
+      '
+      ;;
   esac
 }
 
@@ -373,10 +400,34 @@ print(url.rstrip("/"))
 '
 }
 
+path_is_contact_form() {
+  local candidate="$1"
+  local path
+  for path in "${CONTACT_FORM_PATHS[@]}"; do
+    [[ "$candidate" == "$path" ]] && return 0
+  done
+  return 1
+}
+
 browser_pages_json() {
-  printf '%s\n' "${EXPECTED_ALIASES[@]}" \
-    | jq -R -s --arg editorial "$EDITORIAL_PATH" \
-      'split("\n")[:-1] | map([., . == $editorial])'
+  local path
+  local contact
+  {
+    for path in "${EXPECTED_ALIASES[@]}"; do
+      contact=false
+      if path_is_contact_form "$path"; then
+        contact=true
+      fi
+      jq -nc \
+        --arg path "$path" \
+        --arg editorial "$EDITORIAL_PATH" \
+        --argjson contact "$contact" \
+        '[$path, $path == $editorial, $contact]'
+    done
+    for path in "${EXPECTED_BROWSER_ONLY_PATHS[@]}"; do
+      jq -nc --arg path "$path" '[$path, false, false]'
+    done
+  } | jq -s '.'
 }
 
 run_browser_proof() {
@@ -391,7 +442,7 @@ import { mkdir } from 'node:fs/promises';
 
 const pages = JSON.parse(process.env.PROOF_PAGES_JSON);
 
-for (const [path, expectsMarker] of pages) {
+for (const [path, expectsMarker, expectsContactForm] of pages) {
   test(`released governed-content item remains public: ${path}`, async ({ page }, testInfo) => {
     const runtimeErrors = [];
     page.on('console', (message) => {
@@ -408,6 +459,15 @@ for (const [path, expectsMarker] of pages) {
 
     if (expectsMarker) {
       await expect(page.locator('body')).toContainText(process.env.PROOF_EDITORIAL_MARKER);
+    }
+
+    if (expectsContactForm) {
+      const form = page.locator('form').filter({ has: page.locator('[name="email"]') }).first();
+      await expect(form).toBeVisible();
+      for (const fieldName of ['name', 'email', 'subject', 'message', 'rgpd_consent']) {
+        await expect(form.locator(`[name="${fieldName}"]`), `Missing contact field ${fieldName} on ${path}`).toBeVisible();
+      }
+      await expect(form.locator('button[type="submit"], input[type="submit"]').first()).toBeVisible();
     }
 
     expect(runtimeErrors, `Browser runtime errors for ${path}`).toEqual([]);

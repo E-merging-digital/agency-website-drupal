@@ -1,0 +1,153 @@
+name: Issue 526 materialize Canvas page
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/issue-526-materialize-canvas-page.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-page:
+    name: Create and export governed Canvas page
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Checkout exact issue branch
+        uses: actions/checkout@v6
+        with:
+          ref: feature/issue-526-canvas-baseline
+          persist-credentials: true
+
+      - name: Setup PHP 8.4 and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          extensions: mysqli,pdo_mysql
+          coverage: none
+
+      - name: Install locked project dependencies
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Rebuild canonical Agency state
+        run: |
+          set -euo pipefail
+          vendor/bin/drush site:install --existing-config -y \
+            --db-url='mysql://root:root@127.0.0.1:3306/db'
+          vendor/bin/drush config:import -y
+          vendor/bin/drush config:status
+
+      - name: Create native governed Canvas page
+        run: |
+          set -euo pipefail
+          vendor/bin/drush php:eval '
+            $page = \Drupal\canvas\Entity\Page::create([
+              "uuid" => "52600000-0000-4000-8000-000000000001",
+              "langcode" => "fr",
+              "status" => TRUE,
+              "title" => "Canvas gouverné — baseline SDC",
+              "description" => "Preuve de composition Drupal Canvas bornée aux composants SDC approuvés du design system Agency.",
+              "path" => [
+                "alias" => "/canvas-governed-sdc-baseline",
+                "pathauto" => FALSE,
+              ],
+              "components" => [
+                [
+                  "uuid" => "52600000-0000-4000-8000-000000000101",
+                  "component_id" => "sdc.emerging_digital.hero",
+                  "component_version" => "f6ebbdd7632bea80",
+                  "inputs" => [
+                    "heading" => "Canvas gouverné par le design system Agency",
+                    "heading_level" => "h1",
+                    "variant" => "home",
+                  ],
+                ],
+                [
+                  "uuid" => "52600000-0000-4000-8000-000000000102",
+                  "component_id" => "sdc.emerging_digital.trust-list",
+                  "component_version" => "61b25a47f367765e",
+                  "inputs" => [
+                    "heading" => "Contrôles de composition",
+                    "items" => [
+                      "Composants SDC approuvés",
+                      "Props typées et variantes bornées",
+                      "Validation desktop et mobile",
+                    ],
+                  ],
+                ],
+                [
+                  "uuid" => "52600000-0000-4000-8000-000000000103",
+                  "component_id" => "sdc.emerging_digital.cta",
+                  "component_version" => "b4f165563eb02357",
+                  "inputs" => [
+                    "heading" => "Composition Canvas bornée",
+                    "heading_level" => "h2",
+                  ],
+                ],
+              ],
+            ]);
+            $violations = $page->validate();
+            if (count($violations) > 0) {
+              foreach ($violations as $violation) {
+                fwrite(STDERR, $violation->getPropertyPath() . ": " . $violation->getMessage() . PHP_EOL);
+              }
+              throw new \RuntimeException("Canvas page validation failed.");
+            }
+            $page->save();
+            print "Saved canvas_page id=" . $page->id() . " uuid=" . $page->uuid() . PHP_EOL;
+          '
+
+      - name: Extend default-content manifest locally and export through Drupal
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('web/modules/custom/emerging_digital_content/emerging_digital_content.info.yml')
+          text = path.read_text(encoding='utf-8')
+          if '  - drupal:canvas\n' not in text:
+              text = text.replace('  - drupal:paragraphs\n', '  - drupal:paragraphs\n  - drupal:canvas\n')
+          marker = '  canvas_page:\n    - 52600000-0000-4000-8000-000000000001\n'
+          if marker not in text:
+              text = text.rstrip() + '\n' + marker
+          path.write_text(text, encoding='utf-8')
+          PY
+          vendor/bin/drush default-content:export-module emerging_digital_content
+
+      - name: Verify and commit only native Canvas page export
+        run: |
+          set -euo pipefail
+          page='web/modules/custom/emerging_digital_content/content/canvas_page/52600000-0000-4000-8000-000000000001.yml'
+          info='web/modules/custom/emerging_digital_content/emerging_digital_content.info.yml'
+          test -f "$page"
+          grep -q 'sdc.emerging_digital.hero' "$page"
+          grep -q 'sdc.emerging_digital.trust-list' "$page"
+          grep -q 'sdc.emerging_digital.cta' "$page"
+          grep -q 'f6ebbdd7632bea80' "$page"
+          grep -q '61b25a47f367765e' "$page"
+          grep -q 'b4f165563eb02357' "$page"
+          git reset
+          git add "$page" "$info"
+          changed="$(git diff --cached --name-only)"
+          expected="$(printf '%s\n%s\n' "$page" "$info" | sort)"
+          test "$(printf '%s\n' "$changed" | sort)" = "$expected"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Issue #526: add governed Canvas proof page"
+          git push origin "HEAD:feature/issue-526-canvas-baseline"

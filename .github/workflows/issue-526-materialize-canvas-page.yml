@@ -113,28 +113,33 @@ jobs:
             print "Saved canvas_page id=" . $page->id() . " uuid=" . $page->uuid() . PHP_EOL;
           '
 
-      - name: Extend default-content manifest locally and export through Drupal
+      - name: Export native Canvas page with Drupal core
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
+          page_id="$(vendor/bin/drush php:eval '
+            $ids = \Drupal::entityTypeManager()
+              ->getStorage("canvas_page")
+              ->getQuery()
+              ->accessCheck(FALSE)
+              ->condition("uuid", "52600000-0000-4000-8000-000000000001")
+              ->execute();
+            if (count($ids) !== 1) {
+              throw new \RuntimeException("Expected exactly one governed Canvas page.");
+            }
+            print (string) reset($ids);
+          ')"
+          test -n "$page_id"
+          rm -rf web/modules/custom/emerging_digital_content/core_default_content/canvas_page
+          (
+            cd web
+            php core/scripts/drupal content:export canvas_page "$page_id" \
+              --dir=modules/custom/emerging_digital_content/core_default_content
+          )
 
-          path = Path('web/modules/custom/emerging_digital_content/emerging_digital_content.info.yml')
-          text = path.read_text(encoding='utf-8')
-          if '  - drupal:canvas\n' not in text:
-              text = text.replace('  - drupal:paragraphs\n', '  - drupal:paragraphs\n  - drupal:canvas\n')
-          marker = '  canvas_page:\n    - 52600000-0000-4000-8000-000000000001\n'
-          if marker not in text:
-              text = text.rstrip() + '\n' + marker
-          path.write_text(text, encoding='utf-8')
-          PY
-          vendor/bin/drush default-content:export-module emerging_digital_content
-
-      - name: Verify and commit only native Canvas page export
+      - name: Verify and commit only core-native Canvas page export
         run: |
           set -euo pipefail
-          page='web/modules/custom/emerging_digital_content/content/canvas_page/52600000-0000-4000-8000-000000000001.yml'
-          info='web/modules/custom/emerging_digital_content/emerging_digital_content.info.yml'
+          page='web/modules/custom/emerging_digital_content/core_default_content/canvas_page/52600000-0000-4000-8000-000000000001.yml'
           test -f "$page"
           grep -q 'sdc.emerging_digital.hero' "$page"
           grep -q 'sdc.emerging_digital.trust-list' "$page"
@@ -143,11 +148,10 @@ jobs:
           grep -q '61b25a47f367765e' "$page"
           grep -q 'b4f165563eb02357' "$page"
           git reset
-          git add "$page" "$info"
+          git add "$page"
           changed="$(git diff --cached --name-only)"
-          expected="$(printf '%s\n%s\n' "$page" "$info" | sort)"
-          test "$(printf '%s\n' "$changed" | sort)" = "$expected"
+          test "$changed" = "$page"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Issue #526: add governed Canvas proof page"
+          git commit -m "Issue #526: add core-native governed Canvas proof page"
           git push origin "HEAD:feature/issue-526-canvas-baseline"

@@ -75,6 +75,37 @@ jobs:
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
 
+  report-start:
+    name: Report trusted run locator before self-hosted wait
+    needs: validate-target
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Publish validated run locator on pilot PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          VALIDATED_BASE_SHA: ${{ needs.validate-target.outputs.base_sha }}
+          VALIDATED_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ### Trusted AI Playwright evaluation — run locator
+
+          - Run ID: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)
+          - PR: \`#${PR_NUMBER}\`
+          - Trusted base: \`${VALIDATED_BASE_SHA}\`
+          - Pilot HEAD: \`${VALIDATED_HEAD_SHA}\`
+          - State: \`validated; self-hosted pending\`
+
+          The validation gate completed on GitHub-hosted infrastructure. The self-hosted job may still be queued, running, or waiting for runner capacity. Use this Run ID for Actions inspection; no product decision should be made until the final bounded report and artifact are inspected.
+          EOF
+          )"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
+
   ai-playwright-evaluation:
     name: Run isolated provider-free DDEV evaluation
     needs: validate-target

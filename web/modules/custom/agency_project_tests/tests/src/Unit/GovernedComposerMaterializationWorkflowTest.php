@@ -131,7 +131,8 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
 
     self::assertStringContainsString('ddev list --json-output', $generate);
     self::assertStringContainsString(
-      "r'agency-composer-[0-9]+-[0-9]+'",
+      'python3 trusted/scripts/runner/'
+      . 'extract-stale-composer-ddev-projects.py',
       $generate,
     );
     self::assertStringContainsString(
@@ -164,6 +165,33 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       'git push origin "HEAD:$EXPECTED_HEAD_REF"',
       $publish,
     );
+  }
+
+  /**
+   * DDEV warnings must be parsed without widening the cleanup namespace.
+   */
+  public function testStaleDdevProjectExtractorIsBounded(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root
+      . '/scripts/runner/extract-stale-composer-ddev-projects.py';
+    self::assertFileExists($path);
+
+    $script = (string) file_get_contents($path);
+    self::assertStringContainsString(
+      'agency-composer-[0-9]+-[0-9]+',
+      $script,
+    );
+    self::assertStringContainsString('_PATTERN.findall(item)', $script);
+
+    $output = [];
+    $exitCode = 0;
+    exec(
+      'python3 ' . escapeshellarg($path) . ' --self-test 2>&1',
+      $output,
+      $exitCode,
+    );
+    self::assertSame(0, $exitCode, implode("\n", $output));
+    self::assertContains('PASS', $output);
   }
 
   /**

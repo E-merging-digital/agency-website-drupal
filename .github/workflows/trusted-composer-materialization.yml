@@ -46,13 +46,16 @@ jobs:
         id: profile
         shell: bash
         env:
+          INPUT_REQUEST_ID: ${{ inputs.request_id }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+          INPUT_HEAD_SHA: ${{ inputs.head_sha }}
           COMPOSER_PROFILE: ${{ inputs.profile }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = 'refs/heads/main'
-          [[ "${{ inputs.request_id }}" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
-          [[ "${{ inputs.pr_number }}" =~ ^[1-9][0-9]*$ ]]
-          [[ "${{ inputs.head_sha }}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$INPUT_REQUEST_ID" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
+          [[ "$INPUT_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          [[ "$INPUT_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           source scripts/runner/composer-materialization-profiles.sh
           echo "package=$COMPOSER_PACKAGE" >> "$GITHUB_OUTPUT"
           echo "constraint=$COMPOSER_CONSTRAINT" >> "$GITHUB_OUTPUT"

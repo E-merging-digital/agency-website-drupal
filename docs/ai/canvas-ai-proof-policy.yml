@@ -8,8 +8,8 @@ purpose: >-
 runtime:
   enabled_modules:
     - ai_agents
-    - modeler_api
     - canvas_ai
+  dependency_closure: derive_from_installed_info_yml
   provider_configuration: unchanged
   provider_call: forbidden
 

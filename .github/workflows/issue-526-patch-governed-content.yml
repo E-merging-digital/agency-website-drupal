@@ -1,0 +1,51 @@
+name: Issue 526 patch Governed Content
+
+on:
+  push:
+    branches:
+      - feature/issue-526-canvas-baseline
+    paths:
+      - .github/workflows/issue-526-patch-governed-content.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+
+      - name: Apply bounded ContentSyncManager patch
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php')
+          text = path.read_text(encoding='utf-8')
+
+          old_ctor = """    private readonly ConfigFactoryInterface $configFactory,\n    private readonly TimeInterface $time,\n  ) {\n"""
+          new_ctor = """    private readonly ConfigFactoryInterface $configFactory,\n    private readonly TimeInterface $time,\n    private readonly GovernedCoreDefaultContentImporter $governedCoreDefaultContentImporter,\n  ) {\n"""
+          if text.count(old_ctor) != 1:
+              raise SystemExit('Constructor anchor mismatch.')
+          text = text.replace(old_ctor, new_ctor)
+
+          old_gate = """    if ($this->reportList($report, 'errors') !== []) {\n      $report['actions'][] = 'catalog apply preflight failed: no content or mapping writes were executed';\n      $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';\n      return $this->withSummary($report, 'full_apply', TRUE, FALSE, $prune, FALSE);\n    }\n\n    foreach ($catalog->entries() as $entry) {\n      $content_report = [\n"""
+          new_gate = """    if ($this->reportList($report, 'errors') !== []) {\n      $report['actions'][] = 'catalog apply preflight failed: no content or mapping writes were executed';\n      $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';\n      return $this->withSummary($report, 'full_apply', TRUE, FALSE, $prune, FALSE);\n    }\n\n    try {\n      $report['actions'] = array_merge(\n        $report['actions'],\n        $this->governedCoreDefaultContentImporter->import(),\n      );\n    }\n    catch (\\RuntimeException $exception) {\n      $report['errors'][] = $exception->getMessage();\n      $report['actions'][] = 'core default content import failed: no catalog writes were executed';\n      $report['actions'][] = 'skip menu_link_content: menus are intentionally out of scope';\n      return $this->withSummary($report, 'full_apply', TRUE, FALSE, $prune, FALSE);\n    }\n\n    foreach ($catalog->entries() as $entry) {\n      $content_report = [\n"""
+          if text.count(old_gate) != 1:
+              raise SystemExit('Full-apply gate anchor mismatch.')
+          text = text.replace(old_gate, new_gate)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          git diff --check
+          changed="$(git diff --name-only)"
+          test "$changed" = "web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/modules/custom/emerging_digital_content/src/ContentSync/ContentSyncManager.php
+          git commit -m "Issue #526: import core Canvas content in governed full apply"
+          git push origin "HEAD:$GITHUB_REF_NAME"

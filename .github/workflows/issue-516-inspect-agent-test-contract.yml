@@ -35,7 +35,7 @@ jobs:
             local file="$1"
             printf '\n--- %s ---\n' "$file" | tee -a "$out"
             if [[ -f "$file" ]]; then
-              sed -n '1,760p' "$file" | tee -a "$out"
+              sed -n '1,900p' "$file" | tee -a "$out"
             else
               printf 'missing\n' | tee -a "$out"
             fi
@@ -48,9 +48,7 @@ jobs:
               printf 'No matches for %s under %s\n' "$pattern" "$root" | tee -a "$out"
               return 0
             fi
-            while IFS= read -r f; do
-              dump_file "$f"
-            done <<< "$matches"
+            while IFS= read -r f; do dump_file "$f"; done <<< "$matches"
           }
 
           section 'RESOLVED PACKAGES'
@@ -58,41 +56,34 @@ jobs:
             composer show "$p" --format=json | jq '{name,versions}' | tee -a "$out"
           done
 
-          section 'AI AGENT ENTITY'
+          section 'AI AGENT ENTITY AND RUNNER'
           dump_file web/modules/contrib/ai_agents/src/Entity/AiAgent.php
-
-          section 'AI AGENT MANAGER-LIKE SOURCES'
           dump_matches web/modules/contrib/ai_agents/src '*AgentManager*.php' 10
-          dump_matches web/modules/contrib/ai_agents/src '*PluginManager*.php' 10
-
-          section 'AGENT RUNNER SOURCES'
           dump_matches web/modules/contrib/ai/modules '*AgentRunner*.php' 10
 
           section 'SAMPLE AGENT CONFIGS'
-          for f in $(find web/modules/contrib/ai_agents/config/install -type f -name '*.yml' 2>/dev/null | sort | head -n 8); do
-            dump_file "$f"
-          done
+          for f in $(find web/modules/contrib/ai_agents/config/install -type f -name '*.yml' 2>/dev/null | sort | head -n 8); do dump_file "$f"; done
 
-          section 'AI TEST MODULE CONTRACT'
+          section 'AI TEST PROVIDER'
           dump_file web/modules/contrib/ai/tests/modules/ai_test/ai_test.info.yml
           dump_file web/modules/contrib/ai/tests/modules/ai_test/ai_test.services.yml
-          dump_matches web/modules/contrib/ai/tests/modules/ai_test/src '*Provider*.php' 20
-          dump_matches web/modules/contrib/ai/tests/modules/ai_test/src '*Chat*.php' 20
           dump_matches web/modules/contrib/ai/tests/modules/ai_test/src 'EchoProvider.php' 20
 
-          section 'EXTERNALLY DRIVEN AGENT LOOP TEST'
-          dump_file web/modules/contrib/ai_agents/tests/src/Kernel/PluginBase/AiAgentExternallyDrivenLoopTest.php
+          section 'FUNCTION CALL REFERENCE PLUGINS'
+          dump_file web/modules/contrib/ai/tests/modules/ai_test/src/Plugin/AiFunctionCall/Calculator.php
+          dump_file web/modules/contrib/ai/tests/modules/ai_test/src/Plugin/AiFunctionCall/Trigger.php
+          dump_file web/modules/contrib/ai/tests/modules/ai_test/src/Plugin/AiFunctionCall/UrlTest.php
 
-          section 'ENTITY WRAPPER TEST'
-          dump_file web/modules/contrib/ai_agents/tests/src/Kernel/PluginBase/AiAgentEntityWrapperTest.php
+          section 'EXTERNALLY DRIVEN LOOP TEST AND CONFIG'
+          dump_file web/modules/contrib/ai_agents/tests/src/Kernel/PluginBase/AiAgentExternallyDrivenLoopTest.php
+          dump_file web/modules/contrib/ai_agents/tests/assets/config/ai_agents.ai_agent.loop_test_agent.yml
+
+          section 'EXACT LOOP FIXTURES'
+          find web/modules/contrib/ai_agents/tests -type f -path '*/resources/ai_test/requests/chat/*' -print | sort | tee -a "$out" || true
+          for f in $(find web/modules/contrib/ai_agents/tests -type f -path '*/resources/ai_test/requests/chat/*' 2>/dev/null | sort | head -n 30); do dump_file "$f"; done
 
           section 'AI TEST TOOL CALL REQUEST'
           dump_file web/modules/contrib/ai/tests/modules/ai_test/tests/resources/ai_test/requests/chat/HostnameFilterToolBugTrigger.yml
-
-          section 'TOOL CALL DTO SOURCES'
-          dump_matches web/modules/contrib/ai/src '*Tool*.php' 30
-          dump_matches web/modules/contrib/ai/src '*ChatMessage*.php' 10
-          dump_matches web/modules/contrib/ai/src '*ChatOutput*.php' 10
 
           cp "$out" agent-contract.txt
       - uses: actions/upload-artifact@v4

@@ -20,20 +20,7 @@ final class GovernedCanvasCatalogCiTest extends TestCase {
    */
   public function testCanvasEnabledComponentsMatchApprovedCatalog(): void {
     $projectRoot = dirname(DRUPAL_ROOT);
-    $catalog = Yaml::parseFile(
-      $projectRoot . '/docs/design-system/component-catalog.yml',
-    );
-
-    $expected = [];
-    foreach ($catalog['components'] ?? [] as $componentId => $definition) {
-      if (
-        ($definition['status'] ?? NULL) === 'approved'
-        && ($definition['approved_for_ai_composition'] ?? FALSE) === TRUE
-      ) {
-        $expected[] = 'sdc.' . str_replace(':', '.', (string) $componentId);
-      }
-    }
-    sort($expected);
+    $expected = $this->approvedCanvasComponentIds($projectRoot);
 
     self::assertNotEmpty($expected);
 
@@ -58,6 +45,44 @@ final class GovernedCanvasCatalogCiTest extends TestCase {
   }
 
   /**
+   * The core-native proof page may compose only approved Agency components.
+   */
+  public function testGovernedCanvasProofPageUsesApprovedCatalog(): void {
+    $projectRoot = dirname(DRUPAL_ROOT);
+    $path = $projectRoot
+      . '/web/modules/custom/emerging_digital_content/core_default_content/'
+      . 'canvas_page/52600000-0000-4000-8000-000000000001.yml';
+    self::assertFileExists($path);
+
+    $page = Yaml::parseFile($path);
+    self::assertSame('canvas_page', $page['_meta']['entity_type'] ?? NULL);
+    self::assertSame(
+      '52600000-0000-4000-8000-000000000001',
+      $page['_meta']['uuid'] ?? NULL,
+    );
+
+    $components = [];
+    foreach ($page['default']['components'] ?? [] as $component) {
+      $components[] = (string) ($component['component_id'] ?? '');
+      self::assertArrayNotHasKey(
+        'component_version',
+        $component,
+        'Core export must stay portable; Canvas resolves active versions on import.',
+      );
+    }
+    sort($components);
+
+    self::assertSame(
+      $this->approvedCanvasComponentIds($projectRoot),
+      $components,
+    );
+    self::assertSame(
+      '/canvas-governed-sdc-baseline',
+      $page['default']['path'][0]['alias'] ?? NULL,
+    );
+  }
+
+  /**
    * Canvas and its required media surface must be repository-owned config.
    */
   public function testCanvasRuntimeIsMaterializedInCanonicalConfig(): void {
@@ -78,6 +103,31 @@ final class GovernedCanvasCatalogCiTest extends TestCase {
 
     self::assertArrayHasKey('drupal/canvas', $packages);
     self::assertSame('1.10.1', $packages['drupal/canvas']['version'] ?? NULL);
+  }
+
+  /**
+   * Returns approved Canvas component ids derived from the Agency catalog.
+   *
+   * @return string[]
+   *   Sorted Canvas component ids.
+   */
+  private function approvedCanvasComponentIds(string $projectRoot): array {
+    $catalog = Yaml::parseFile(
+      $projectRoot . '/docs/design-system/component-catalog.yml',
+    );
+
+    $expected = [];
+    foreach ($catalog['components'] ?? [] as $componentId => $definition) {
+      if (
+        ($definition['status'] ?? NULL) === 'approved'
+        && ($definition['approved_for_ai_composition'] ?? FALSE) === TRUE
+      ) {
+        $expected[] = 'sdc.' . str_replace(':', '.', (string) $componentId);
+      }
+    }
+    sort($expected);
+
+    return $expected;
   }
 
 }

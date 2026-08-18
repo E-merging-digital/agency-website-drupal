@@ -43,11 +43,11 @@ jobs:
       - name: Rebuild existing config and enable Canvas
         run: |
           set -euo pipefail
-          rm -f /tmp/agency-issue-526.sqlite
+          rm -f web/sites/default/files/issue-526.sqlite
           mkdir -p web/sites/default/files
           chmod 0777 web/sites/default/files
           vendor/bin/drush site:install --existing-config -y \
-            --db-url=sqlite:////tmp/agency-issue-526.sqlite
+            --db-url='sqlite://sites/default/files/issue-526.sqlite?module=sqlite'
           vendor/bin/drush en canvas -y
           vendor/bin/drush cex -y
           vendor/bin/drush config:status

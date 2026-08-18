@@ -59,7 +59,7 @@ write_result() {
       base_sha: $base_sha,
       target_sha: $target_sha,
       proof_profile: $proof_profile,
-      pilot_content_ids: $pilot_content_ids,
+      pilot_content_ids: $pilot_ids_json,
       editorial_marker: $marker,
       exit_code: $exit_code
     }' > "$RESULT_PATH"
@@ -105,7 +105,7 @@ snapshot_nodes() {
            nfd.title, COALESCE(pa.alias, '')
       FROM emerging_digital_content_sync_mapping m
       JOIN node n ON n.nid = m.entity_id
-      JOIN node_field_data nfd ON nfd.nid = m.entity_id
+      JOIN node_field_data nfd ON nfd.nid = n.nid
       LEFT JOIN path_alias pa
         ON pa.path = CONCAT('/node/', n.nid)
        AND pa.langcode = nfd.langcode

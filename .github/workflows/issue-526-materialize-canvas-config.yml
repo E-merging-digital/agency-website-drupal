@@ -1,0 +1,65 @@
+name: Issue 526 materialize Canvas config
+
+on:
+  push:
+    branches:
+      - feature/issue-526-canvas-baseline
+    paths:
+      - composer.json
+      - composer.lock
+      - .github/workflows/issue-526-materialize-canvas-config.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-config:
+    name: Materialize Canvas config on hosted Drupal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact issue branch
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+
+      - name: Setup PHP 8.4 and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          extensions: sqlite3
+          coverage: none
+
+      - name: Install locked project dependencies
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Rebuild existing config and enable Canvas
+        run: |
+          set -euo pipefail
+          rm -f /tmp/agency-issue-526.sqlite
+          mkdir -p web/sites/default/files
+          chmod 0777 web/sites/default/files
+          vendor/bin/drush site:install --existing-config -y \
+            --db-url=sqlite:////tmp/agency-issue-526.sqlite
+          vendor/bin/drush en canvas -y
+          vendor/bin/drush cex -y
+          vendor/bin/drush config:status
+
+      - name: Commit only repository config created by Canvas
+        run: |
+          set -euo pipefail
+          git add config/sync
+          changed="$(git diff --cached --name-only)"
+          test -n "$changed"
+          while IFS= read -r path; do
+            case "$path" in
+              config/sync/*) ;;
+              *) echo "Unexpected generated path: $path" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
+          echo "Canvas config files:"
+          printf '%s\n' "$changed"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Issue #526: enable Drupal Canvas in repository config"
+          git push origin "HEAD:$GITHUB_REF_NAME"

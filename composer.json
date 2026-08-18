@@ -141,10 +141,10 @@
                 "type:drupal-custom-module"
             ],
             "web/profiles/custom/{$name}": [
-                "type:drupal-profile"
+                "type:drupal-custom-profile"
             ],
             "web/themes/custom/{$name}": [
-                "type:drupal-theme"
+                "type:drupal-custom-theme"
             ],
             "recipes/{$name}": [
                 "type:drupal-recipe"
@@ -161,7 +161,7 @@
                 "<bg=blue;fg=white>  from the drupal/recommended-project template!          </>",
                 "<bg=blue;fg=white>                                                         </>",
                 "",
-                "<bg=yellow;fg=black>Next steps</>",
+                "<bg=yellow;fg=black>Next steps</>:",
                 "  * Install the site: https://www.drupal.org/docs/installing-drupal",
                 "  * Read the user guide: https://www.drupal.org/docs/user_guide/en/index.html",
                 "  * Get support: https://www.drupal.org/support",

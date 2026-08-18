@@ -1,0 +1,56 @@
+version: 1
+policy:
+  decision: docs/decisions/ADR-001-governed-ai-experience.md
+  design_contract: DESIGN.md
+  architecture: docs/governed-ai-experience.md
+  ai_composable_status: approved
+  allowed_statuses:
+    - candidate
+    - approved
+    - deprecated
+    - retired
+  approval_requires:
+    - sdc_schema
+    - legacy_adapter
+    - hosted_ci
+    - browser_desktop
+    - browser_mobile
+    - accessibility_baseline
+    - human_review
+components:
+  'emerging_digital:cta':
+    status: candidate
+    approved_for_ai_composition: false
+    classification: WRAP_OR_MIGRATE_TO_SDC
+    source: web/themes/custom/emerging_digital/components/cta/cta.component.yml
+    template: web/themes/custom/emerging_digital/components/cta/cta.twig
+    adapter: web/themes/custom/emerging_digital/templates/paragraphs/paragraph--cta.html.twig
+    canvas: schema_ready_candidate
+    evidence:
+      contract_test: web/modules/custom/agency_project_tests/tests/src/Unit/GovernedSdcCatalogCiTest.php
+      browser_spec: tests/browser/governed-sdc.spec.mjs
+      browser_run: pending
+  'emerging_digital:hero':
+    status: candidate
+    approved_for_ai_composition: false
+    classification: WRAP_OR_MIGRATE_TO_SDC
+    source: web/themes/custom/emerging_digital/components/hero/hero.component.yml
+    template: web/themes/custom/emerging_digital/components/hero/hero.twig
+    adapter: web/themes/custom/emerging_digital/templates/paragraphs/paragraph--hero.html.twig
+    canvas: schema_ready_candidate
+    evidence:
+      contract_test: web/modules/custom/agency_project_tests/tests/src/Unit/GovernedSdcCatalogCiTest.php
+      browser_spec: tests/browser/governed-sdc.spec.mjs
+      browser_run: pending
+  'emerging_digital:trust-list':
+    status: candidate
+    approved_for_ai_composition: false
+    classification: WRAP_OR_MIGRATE_TO_SDC
+    source: web/themes/custom/emerging_digital/components/trust-list/trust-list.component.yml
+    template: web/themes/custom/emerging_digital/components/trust-list/trust-list.twig
+    adapter: web/themes/custom/emerging_digital/templates/paragraphs/paragraph--trust-list.html.twig
+    canvas: schema_ready_candidate
+    evidence:
+      contract_test: web/modules/custom/agency_project_tests/tests/src/Unit/GovernedSdcCatalogCiTest.php
+      browser_spec: tests/browser/governed-sdc.spec.mjs
+      browser_run: pending

@@ -1,22 +1,8 @@
-<section{{ attributes.addClass('ed-section', 'ed-section--cta-block') }}>
-  <div class="ed-container">
-    <div class="ed-cta">
-      {% if paragraph.field_heading.value %}
-        <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
-      {% endif %}
-      {% if paragraph.field_text.value %}
-        <div class="ed-section__intro">{{ content.field_text }}</div>
-      {% endif %}
-      {% if content.field_link or content.field_secondary_link %}
-        <div class="ed-actions">
-          {% if content.field_link %}
-            <span class="ed-actions__primary">{{ content.field_link }}</span>
-          {% endif %}
-          {% if content.field_secondary_link %}
-            <span class="ed-actions__secondary">{{ content.field_secondary_link }}</span>
-          {% endif %}
-        </div>
-      {% endif %}
-    </div>
-  </div>
-</section>
+{{ include('emerging_digital:cta', {
+  attributes: attributes,
+  heading: paragraph.field_heading.value|default(''),
+  heading_level: 'h2',
+  intro: paragraph.field_text.value ? content.field_text : null,
+  primary_action: content.field_link[0] is defined ? content.field_link : null,
+  secondary_action: content.field_secondary_link[0] is defined ? content.field_secondary_link : null,
+}, with_context = false) }}

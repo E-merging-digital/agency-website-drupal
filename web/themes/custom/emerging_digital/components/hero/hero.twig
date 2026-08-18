@@ -1,0 +1,49 @@
+{% set allowed_variants = ['home', 'ia-drupal', 'services', 'case-clients', 'team'] %}
+{% set safe_variant = variant in allowed_variants ? variant : 'home' %}
+{% set safe_heading_level = heading_level in ['h1', 'h2'] ? heading_level : 'h2' %}
+{% set safe_image_loading = image_loading == 'eager' ? 'eager' : 'lazy' %}
+{% set hero_classes = [
+  'ed-section',
+  'ed-section--hero',
+  'ed-section--hero-' ~ safe_variant,
+] %}
+
+<section{{ attributes.addClass(hero_classes).setAttribute('data-ed-component', 'emerging_digital:hero') }}>
+  <div class="ed-container ed-section__hero-layout">
+    <div class="ed-section__hero-content">
+      {% if heading %}
+        <{{ safe_heading_level }} class="ed-section__title ed-section__title--hero">
+          {{ heading }}
+        </{{ safe_heading_level }}>
+      {% endif %}
+      {% if intro %}
+        <div class="ed-section__intro">{{ intro }}</div>
+      {% endif %}
+      {% if primary_action or secondary_action %}
+        <div class="ed-actions">
+          {% if primary_action %}
+            <span class="ed-actions__primary">{{ primary_action }}</span>
+          {% endif %}
+          {% if secondary_action %}
+            <span class="ed-actions__secondary">{{ secondary_action }}</span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    {% if media %}
+      <div class="ed-section__hero-illustration ed-section__hero-illustration--media">
+        {{ media }}
+      </div>
+    {% elseif image_src %}
+      <img
+        class="ed-section__hero-illustration"
+        src="{{ image_src }}"
+        alt="{{ image_alt|default('') }}"
+        width="720"
+        height="720"
+        loading="{{ safe_image_loading }}"
+        decoding="async"
+      >
+    {% endif %}
+  </div>
+</section>

@@ -1,0 +1,24 @@
+{% set safe_heading_level = heading_level in ['h2', 'h3'] ? heading_level : 'h2' %}
+
+<section{{ attributes.addClass('ed-section', 'ed-section--cta-block').setAttribute('data-ed-component', 'emerging_digital:cta') }}>
+  <div class="ed-container">
+    <div class="ed-cta">
+      {% if heading %}
+        <{{ safe_heading_level }} class="ed-section__title">{{ heading }}</{{ safe_heading_level }}>
+      {% endif %}
+      {% if intro %}
+        <div class="ed-section__intro">{{ intro }}</div>
+      {% endif %}
+      {% if primary_action or secondary_action %}
+        <div class="ed-actions">
+          {% if primary_action %}
+            <span class="ed-actions__primary">{{ primary_action }}</span>
+          {% endif %}
+          {% if secondary_action %}
+            <span class="ed-actions__secondary">{{ secondary_action }}</span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>

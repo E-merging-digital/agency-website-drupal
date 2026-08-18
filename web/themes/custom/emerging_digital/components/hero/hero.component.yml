@@ -1,0 +1,85 @@
+'$schema': 'https://git.drupalcode.org/project/drupal/-/raw/HEAD/core/assets/schemas/v1/metadata.schema.json'
+name: Hero
+status: stable
+group: 'Agency governed'
+description: 'Governed hero primitive for a page or major section introduction.'
+props:
+  type: object
+  required:
+    - heading
+    - heading_level
+    - variant
+  properties:
+    heading:
+      type: string
+      title: Heading
+      description: 'Primary heading rendered by the hero.'
+      examples:
+        - 'Drupal experiences, governed by design'
+    heading_level:
+      type: string
+      title: Heading level
+      description: 'Semantic heading level allowed by the component contract.'
+      enum:
+        - h1
+        - h2
+      meta:enum:
+        h1: 'H1 — page title'
+        h2: 'H2 — section title'
+      examples:
+        - h2
+    variant:
+      type: string
+      title: Visual variant
+      description: 'Approved visual context. Arbitrary CSS classes are not accepted.'
+      enum:
+        - home
+        - ia-drupal
+        - services
+        - case-clients
+        - team
+      meta:enum:
+        home: Home
+        ia-drupal: 'AI & Drupal'
+        services: Services
+        case-clients: 'Case studies'
+        team: Team
+      examples:
+        - home
+    image_src:
+      type: string
+      format: uri-reference
+      title: Fallback image URL
+      description: 'Optional governed fallback illustration URL when no media slot is provided.'
+      examples:
+        - '/themes/custom/emerging_digital/images/home/home-hero-ia-drupal.svg'
+    image_alt:
+      type: string
+      title: Fallback image alternative text
+      description: 'Alternative text for the fallback illustration.'
+      examples:
+        - 'Structured web platform illustration.'
+    image_loading:
+      type: string
+      title: Image loading strategy
+      enum:
+        - eager
+        - lazy
+      meta:enum:
+        eager: Eager
+        lazy: Lazy
+      examples:
+        - lazy
+slots:
+  intro:
+    title: Introduction
+    description: 'Rendered introductory content.'
+  primary_action:
+    title: Primary action
+    description: 'Primary governed action renderable.'
+  secondary_action:
+    title: Secondary action
+    description: 'Optional secondary governed action renderable.'
+  media:
+    title: Media
+    description: 'Optional Drupal-rendered media replacing the fallback image.'

@@ -59,7 +59,7 @@ write_result() {
       base_sha: $base_sha,
       target_sha: $target_sha,
       proof_profile: $proof_profile,
-      pilot_content_ids: $pilot_ids_json,
+      pilot_content_ids: $pilot_content_ids,
       editorial_marker: $marker,
       exit_code: $exit_code
     }' > "$RESULT_PATH"

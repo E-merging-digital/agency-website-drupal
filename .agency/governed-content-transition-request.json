@@ -1,7 +1,7 @@
 {
-  "request_id": "agency-pr471-medium-pages-proof-001",
-  "pr_number": 471,
-  "head_sha": "a3097178391830c2df1690bdc3387f4f5fbc2407",
-  "release_sha": "edf8b8e5208cfc6fb7d5f3a79dc8c0babb72d586",
-  "proof_profile": "pages-medium-441"
+  "request_id": "agency-pr475-final-pages-proof-001",
+  "pr_number": 475,
+  "head_sha": "6c420c65403ee036c3f5773f2157c5a99ac5dac2",
+  "release_sha": "9d9d615679d345ddacbd11a3c4fcdbba35580fb5",
+  "proof_profile": "pages-final-441"
 }

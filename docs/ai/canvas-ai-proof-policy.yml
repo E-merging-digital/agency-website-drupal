@@ -9,7 +9,7 @@ runtime:
   enabled_modules:
     - ai_agents
     - canvas_ai
-  dependency_closure: derive_from_installed_info_yml
+  dependency_closure: validate_by_exact_head_drupal_rebuild
   provider_configuration: unchanged
   provider_call: forbidden
 

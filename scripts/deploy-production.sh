@@ -6,7 +6,7 @@ TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 
 PROJECT_ROOT="/var/www/agency"
 RELEASES_DIR="/var/www/agency/releases"
-SHARED_DIR="$PROJECT_ROOT/shared"
+SHARED_DIR="/var/www/agency/shared"
 BACKUPS_DIR="$SHARED_DIR/backups"
 LOG_FILE="$SHARED_DIR/deployments.log"
 REPO_URL="${REPO_URL:-git@github.com:E-merging-digital/agency-website-drupal.git}"

@@ -1,10 +1,13 @@
-<section{{ attributes.addClass('ed-section', 'ed-section--trust-list') }}>
-  <div class="ed-container">
-    <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
-    <ul class="ed-trust-list">
-      {% for item in paragraph.field_items %}
-        <li>{{ item.value|striptags|trim }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-</section>
+{% set trust_items = [] %}
+{% for item in paragraph.field_items %}
+  {% set clean_item = item.value|striptags|trim %}
+  {% if clean_item %}
+    {% set trust_items = trust_items|merge([clean_item]) %}
+  {% endif %}
+{% endfor %}
+
+{{ include('emerging_digital:trust-list', {
+  attributes: attributes,
+  heading: paragraph.field_heading.value|default(''),
+  items: trust_items,
+}, with_context = false) }}

@@ -1,0 +1,12 @@
+<section{{ attributes.addClass('ed-section', 'ed-section--trust-list').setAttribute('data-ed-component', 'emerging_digital:trust-list') }}>
+  <div class="ed-container">
+    {% if heading %}
+      <h2 class="ed-section__title">{{ heading }}</h2>
+    {% endif %}
+    <ul class="ed-trust-list">
+      {% for item in items %}
+        <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>

@@ -6,9 +6,6 @@ namespace Drupal\Tests\agency_project_tests\Unit;
 
 use Composer\InstalledVersions;
 use PHPUnit\Framework\TestCase;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -40,14 +37,23 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
     $agentsVersion = InstalledVersions::getPrettyVersion('drupal/ai_agents');
     self::assertNotNull($canvasVersion);
     self::assertNotNull($agentsVersion);
-    self::assertMatchesRegularExpression('/^1\.10\./', ltrim($canvasVersion, 'v'));
-    self::assertMatchesRegularExpression('/^1\.3\./', ltrim($agentsVersion, 'v'));
+    self::assertMatchesRegularExpression(
+      '/^1\.10\./',
+      ltrim($canvasVersion, 'v'),
+    );
+    self::assertMatchesRegularExpression(
+      '/^1\.3\./',
+      ltrim($agentsVersion, 'v'),
+    );
 
     $canvasRoot = DRUPAL_ROOT . '/modules/contrib/canvas';
     self::assertDirectoryExists($canvasRoot);
 
     $agentConfigs = $this->findAgentConfigs($canvasRoot);
-    self::assertNotEmpty($agentConfigs, 'Canvas AI agent defaults were not found.');
+    self::assertNotEmpty(
+      $agentConfigs,
+      'Canvas AI agent defaults were not found.',
+    );
 
     $byLabel = [];
     foreach ($agentConfigs as $path => $config) {
@@ -67,7 +73,10 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
       self::assertArrayHasKey(
         $label,
         $byLabel,
-        sprintf('Expected upstream agent %s was not found for fail-closed exclusion.', $label),
+        sprintf(
+          'Expected upstream agent %s was not found for exclusion.',
+          $label,
+        ),
       );
     }
 
@@ -78,7 +87,10 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
       self::assertContains(
         $tool,
         $pageBuilderScalars,
-        sprintf('Required upstream Page Builder tool %s is unavailable.', $tool),
+        sprintf(
+          'Required upstream Page Builder tool %s is unavailable.',
+          $tool,
+        ),
       );
     }
 
@@ -139,22 +151,28 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
 
     fwrite(
       STDERR,
-      "CANVAS_AI_PRE_PROVIDER_AUDIT="
-      . json_encode($audit, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+      'CANVAS_AI_PRE_PROVIDER_AUDIT='
+      . json_encode(
+        $audit,
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
+      )
       . PHP_EOL,
     );
   }
 
   /**
+   * Finds every Canvas AI agent default configuration file.
+   *
    * @return array<string, array<string, mixed>>
+   *   Configurations keyed by absolute file path.
    */
   private function findAgentConfigs(string $canvasRoot): array {
     $configs = [];
-    $iterator = new RecursiveIteratorIterator(
-      new RecursiveDirectoryIterator($canvasRoot),
+    $iterator = new \RecursiveIteratorIterator(
+      new \RecursiveDirectoryIterator($canvasRoot),
     );
     foreach ($iterator as $file) {
-      if (!$file instanceof SplFileInfo || !$file->isFile()) {
+      if (!$file instanceof \SplFileInfo || !$file->isFile()) {
         continue;
       }
       if (!str_starts_with($file->getFilename(), 'ai_agents.ai_agent.')) {
@@ -171,12 +189,15 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
     return $configs;
   }
 
+  /**
+   * Finds the Canvas AI module info file.
+   */
   private function findCanvasAiInfo(string $canvasRoot): string {
-    $iterator = new RecursiveIteratorIterator(
-      new RecursiveDirectoryIterator($canvasRoot),
+    $iterator = new \RecursiveIteratorIterator(
+      new \RecursiveDirectoryIterator($canvasRoot),
     );
     foreach ($iterator as $file) {
-      if ($file instanceof SplFileInfo
+      if ($file instanceof \SplFileInfo
         && $file->isFile()
         && $file->getFilename() === 'canvas_ai.info.yml') {
         return $file->getPathname();
@@ -186,7 +207,10 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
   }
 
   /**
+   * Flattens nested configuration values to scalars.
+   *
    * @return list<mixed>
+   *   Scalar values discovered recursively.
    */
   private function flattenScalars(mixed $value): array {
     if (!is_array($value)) {
@@ -200,9 +224,16 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
   }
 
   /**
+   * Finds nested configuration keys containing a case-insensitive needle.
+   *
    * @return array<string, mixed>
+   *   Matching values keyed by dot-separated configuration path.
    */
-  private function findMatchingKeys(mixed $value, string $needle, string $path = ''): array {
+  private function findMatchingKeys(
+    mixed $value,
+    string $needle,
+    string $path = '',
+  ): array {
     if (!is_array($value)) {
       return [];
     }
@@ -217,6 +248,9 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
     return $matches;
   }
 
+  /**
+   * Converts an absolute repository path into a relative path.
+   */
   private function relativePath(string $root, string $path): string {
     $prefix = rtrim($root, '/') . '/';
     return str_starts_with($path, $prefix)

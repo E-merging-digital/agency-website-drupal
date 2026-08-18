@@ -12,7 +12,7 @@ use Drush\Commands\DrushCommands;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
- * Drush commands for Content Sync catalog checks and writes.
+ * Drush commands for Governed Content catalog checks and writes.
  */
 final class ContentSyncCommands extends DrushCommands {
 
@@ -28,15 +28,15 @@ final class ContentSyncCommands extends DrushCommands {
   }
 
   /**
-   * Validates the versioned Content Sync catalog.
+   * Validates the versioned Governed Content catalog.
    */
   #[CLI\Command(
-    name: 'emerging:content-sync:validate',
-    aliases: ['emerging:governed-content:validate'],
+    name: 'emerging:governed-content:validate',
+    aliases: ['emerging:content-sync:validate'],
   )]
   #[CLI\Usage(
-    name: 'drush emerging:content-sync:validate',
-    description: 'Validate the Content Sync catalog without writing entities.',
+    name: 'drush emerging:governed-content:validate',
+    description: 'Validate the Governed Content catalog without writing entities.',
   )]
   public function validate(): int {
     try {
@@ -47,45 +47,45 @@ final class ContentSyncCommands extends DrushCommands {
       return self::EXIT_FAILURE;
     }
 
-    $this->printReport($report, 'Content Sync catalog validation');
+    $this->printReport($report, 'Governed Content catalog validation');
 
     return $this->reportList($report, 'errors') === [] ? self::EXIT_SUCCESS : self::EXIT_FAILURE;
   }
 
   /**
-   * Synchronizes versioned content by business identifier or full catalog.
+   * Synchronizes governed content by business identifier or full catalog.
    */
   #[CLI\Command(
-    name: 'emerging:content-sync',
-    aliases: ['emerging:governed-content'],
+    name: 'emerging:governed-content',
+    aliases: ['emerging:content-sync'],
   )]
-  #[CLI\Argument(name: 'content_id', description: 'Optional stable business identifier, for example agence-drupal-belgique.')]
+  #[CLI\Argument(name: 'content_id', description: 'Optional stable business identifier, for example mentions-legales.')]
   #[CLI\Option(name: 'all', description: 'Synchronize every content item declared in the catalog.')]
   #[CLI\Option(name: 'dry-run', description: 'Read and report only without writing entities or mappings.')]
   #[CLI\Option(name: 'prune', description: 'Prune mode for --all. Supported value: unpublish.')]
   #[CLI\Usage(
-    name: 'drush emerging:content-sync --all --dry-run',
+    name: 'drush emerging:governed-content --all --dry-run',
     description: 'Preview every catalog content item without saving content.',
   )]
   #[CLI\Usage(
-    name: 'drush emerging:content-sync --all',
-    description: 'Create or update every managed content item declared in the catalog.',
+    name: 'drush emerging:governed-content --all',
+    description: 'Create or update every governed content item declared in the catalog.',
   )]
   #[CLI\Usage(
-    name: 'drush emerging:content-sync --all --prune=unpublish --dry-run',
+    name: 'drush emerging:governed-content --all --prune=unpublish --dry-run',
     description: 'Preview managed nodes absent from the catalog that would be unpublished.',
   )]
   #[CLI\Usage(
-    name: 'drush emerging:content-sync --all --prune=unpublish',
+    name: 'drush emerging:governed-content --all --prune=unpublish',
     description: 'Unpublish managed nodes absent from the catalog after applying the catalog.',
   )]
   #[CLI\Usage(
-    name: 'drush emerging:content-sync agence-drupal-belgique --dry-run',
+    name: 'drush emerging:governed-content mentions-legales --dry-run',
     description: 'Preview catalog reading without saving content.',
   )]
   #[CLI\Usage(
-    name: 'drush emerging:content-sync agence-drupal-belgique',
-    description: 'Create or update the targeted managed content item.',
+    name: 'drush emerging:governed-content mentions-legales',
+    description: 'Create or update the targeted governed content item.',
   )]
   public function sync(
     string $content_id = '',
@@ -200,17 +200,17 @@ final class ContentSyncCommands extends DrushCommands {
   private function reportTitle(bool $dry_run, bool $all, string $prune): string {
     if ($prune !== '') {
       return $dry_run
-        ? 'Content Sync prune unpublish read-only dry-run'
-        : 'Content Sync prune unpublish apply';
+        ? 'Governed Content prune unpublish read-only dry-run'
+        : 'Governed Content prune unpublish apply';
     }
 
     if ($dry_run) {
       return $all
-        ? 'Content Sync full catalog read-only dry-run'
-        : 'Content Sync catalog read-only dry-run';
+        ? 'Governed Content full catalog read-only dry-run'
+        : 'Governed Content catalog read-only dry-run';
     }
 
-    return $all ? 'Content Sync full catalog apply' : 'Content Sync targeted apply';
+    return $all ? 'Governed Content full catalog apply' : 'Governed Content targeted apply';
   }
 
   /**

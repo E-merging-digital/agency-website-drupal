@@ -1,0 +1,64 @@
+name: Ops discover browser proof runs
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    name: Discover browser proof run ids
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query public GitHub Actions metadata
+        shell: bash
+        env:
+          DISPATCH_SHA: e2c01b34866929079ca4414f0c57292b93438415
+          TARGET_MAIN_SHA: d016a60c5b0b0a689dd45e5c27eeb9f9ca36764f
+        run: |
+          set -euo pipefail
+
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          headers=(
+            -H "Accept: application/vnd.github+json"
+            -H "X-GitHub-Api-Version: 2022-11-28"
+            -H "User-Agent: agency-browser-proof-observer"
+          )
+
+          echo "=== GATEWAY_RUNS_FOR_DISPATCH_SHA ==="
+          curl -fsSL "${headers[@]}" \
+            "${api}/actions/runs?head_sha=${DISPATCH_SHA}&per_page=20" \
+            | jq -c '.workflow_runs[] | {
+                id,
+                name,
+                run_number,
+                event,
+                head_branch,
+                head_sha,
+                created_at,
+                updated_at,
+                status,
+                conclusion,
+                html_url
+              }'
+
+          echo "=== RECENT_SELF_HOSTED_BROWSER_RUNS ==="
+          curl -fsSL "${headers[@]}" \
+            "${api}/actions/runs?event=workflow_dispatch&per_page=50" \
+            | jq -c --arg target "$TARGET_MAIN_SHA" '.workflow_runs[]
+              | select(.name == "Agency self-hosted browser validation")
+              | {
+                  id,
+                  name,
+                  run_number,
+                  event,
+                  head_branch,
+                  head_sha,
+                  target_matches: (.head_sha == $target),
+                  created_at,
+                  updated_at,
+                  status,
+                  conclusion,
+                  html_url
+                }'

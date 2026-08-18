@@ -1,0 +1,58 @@
+name: Issue 496 inspect AI Playwright source
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/issue-496-inspect-ai-playwright-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install evaluation package in ephemeral workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer require 'drupal/ai_playwright:1.0.0-alpha1' --no-interaction --no-progress
+          composer show drupal/ai_playwright --all
+          composer show drupal/ai_agents drupal/modeler_api || true
+
+      - name: Inspect published module contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='web/modules/contrib/ai_playwright'
+          test -d "$root"
+          echo '=== FILES ==='
+          find "$root" -maxdepth 4 -type f -print | sort
+          echo '=== INFO ==='
+          cat "$root/ai_playwright.info.yml"
+          echo '=== PERMISSIONS ==='
+          cat "$root/ai_playwright.permissions.yml" 2>/dev/null || true
+          echo '=== SERVICES ==='
+          cat "$root/ai_playwright.services.yml" 2>/dev/null || true
+          echo '=== ROUTES ==='
+          cat "$root/ai_playwright.routing.yml" 2>/dev/null || true
+          echo '=== CONFIG ==='
+          find "$root/config" -type f -maxdepth 4 -print -exec sh -c 'echo --- $1; cat "$1"' _ {} \; 2>/dev/null || true
+          echo '=== PHP / TOOL CONTRACT ==='
+          grep -RInE 'browser_preview|FunctionCall|function.?call|permission|Playwright|Chromium|offsite|base.?url|internal.?url|execute\(|invoke|plugin' "$root" --include='*.php' --include='*.yml' --include='*.md' --include='*.mjs' || true
+          echo '=== SOURCE ==='
+          find "$root/src" -type f -name '*.php' -print -exec sh -c 'echo --- $1; sed -n "1,260p" "$1"' _ {} \;
+          echo '=== NODE SCRIPTS ==='
+          find "$root" -type f \( -name '*.mjs' -o -name '*.js' \) -print -exec sh -c 'echo --- $1; sed -n "1,320p" "$1"' _ {} \;

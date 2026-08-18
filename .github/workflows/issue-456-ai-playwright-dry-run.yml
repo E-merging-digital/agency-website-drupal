@@ -1,0 +1,42 @@
+name: Issue 456 AI Playwright Composer dry-run
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/issue-456-ai-playwright-dry-run.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  composer-dry-run:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate current Composer state
+        run: composer validate --strict
+
+      - name: Probe AI Playwright dependency without modifying files
+        shell: bash
+        run: |
+          set -euo pipefail
+          before_composer="$(sha256sum composer.json | cut -d' ' -f1)"
+          before_lock="$(sha256sum composer.lock | cut -d' ' -f1)"
+
+          composer require 'drupal/ai_playwright:*@alpha' --dry-run --no-interaction --no-progress
+
+          after_composer="$(sha256sum composer.json | cut -d' ' -f1)"
+          after_lock="$(sha256sum composer.lock | cut -d' ' -f1)"
+          test "$before_composer" = "$after_composer"
+          test "$before_lock" = "$after_lock"

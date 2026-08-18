@@ -1,0 +1,61 @@
+name: Ops observe convergence runs
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    name: Observe convergence run ids
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query public GitHub Actions metadata
+        shell: bash
+        env:
+          DISPATCH_SHA: bed1efb7ce70bec5a6a726d66f6091bea3b5b826
+          TARGET_SHA: 5b65d6af002eec08eb34b8d3ff6fb8955e39c123
+        run: |
+          set -euo pipefail
+
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          headers=(
+            -H "Accept: application/vnd.github+json"
+            -H "X-GitHub-Api-Version: 2022-11-28"
+            -H "User-Agent: agency-convergence-observer"
+          )
+
+          echo "=== RUNS_FOR_DISPATCH_SHA ==="
+          curl -fsSL "${headers[@]}" \
+            "${api}/actions/runs?head_sha=${DISPATCH_SHA}&per_page=30" \
+            | jq -c '.workflow_runs[] | {
+                id,
+                name,
+                run_number,
+                event,
+                head_branch,
+                head_sha,
+                created_at,
+                updated_at,
+                status,
+                conclusion,
+                html_url
+              }'
+
+          echo "=== RUNS_FOR_TARGET_SHA ==="
+          curl -fsSL "${headers[@]}" \
+            "${api}/actions/runs?head_sha=${TARGET_SHA}&per_page=50" \
+            | jq -c '.workflow_runs[] | {
+                id,
+                name,
+                run_number,
+                event,
+                head_branch,
+                head_sha,
+                created_at,
+                updated_at,
+                status,
+                conclusion,
+                html_url
+              }'

@@ -14,7 +14,7 @@ required: false
 translatable: false
 default_value:
   -
-    value: 1
+    value: true
 default_value_callback: 'Drupal\comment\Entity\Comment::getDefaultStatus'
 settings:
   on_label: 'On'

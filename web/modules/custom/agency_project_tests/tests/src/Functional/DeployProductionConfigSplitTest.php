@@ -29,30 +29,34 @@ final class DeployProductionConfigSplitTest extends TestCase {
   }
 
   /**
-   * Vérifie que le split production est importé après le config import global.
+   * Vérifie que le split production est importé avant Governed Content.
    */
-  public function testProductionSplitIsImportedAfterGlobalConfigImport(): void {
+  public function testProductionSplitIsImportedBeforeGovernedContent(): void {
     $script = $this->loadDeployProductionScript();
     $global_import_command = '"$CURRENT_LINK/vendor/bin/drush" cim -y';
     $split_dir_command = 'PRODUCTION_SPLIT_DIR="$CURRENT_LINK/config/splits/production"';
     $split_import_command = '"$CURRENT_LINK/vendor/bin/drush" config:import'
       . ' --source="$PRODUCTION_SPLIT_DIR" --partial -y';
-    $content_sync_command = '"$CURRENT_LINK/vendor/bin/drush" emerging:content-sync --all';
+    $governed_content_command = '"$CURRENT_LINK/vendor/bin/drush" emerging:governed-content --all';
 
-    self::assertStringContainsString('"$CURRENT_LINK/vendor/bin/drush" cim -y', $script);
+    self::assertStringContainsString($global_import_command, $script);
     self::assertStringContainsString($split_dir_command, $script);
     self::assertStringContainsString($split_import_command, $script);
-    self::assertStringContainsString($content_sync_command, $script);
+    self::assertStringContainsString($governed_content_command, $script);
+    self::assertStringNotContainsString(
+      '"$CURRENT_LINK/vendor/bin/drush" emerging:content-sync --all',
+      $script,
+    );
 
     $global_import_position = strpos($script, $global_import_command);
     $split_import_position = strpos($script, $split_import_command);
-    $content_sync_position = strpos($script, $content_sync_command);
+    $governed_content_position = strpos($script, $governed_content_command);
 
     self::assertIsInt($global_import_position);
     self::assertIsInt($split_import_position);
-    self::assertIsInt($content_sync_position);
+    self::assertIsInt($governed_content_position);
     self::assertGreaterThan($global_import_position, $split_import_position);
-    self::assertGreaterThan($split_import_position, $content_sync_position);
+    self::assertGreaterThan($split_import_position, $governed_content_position);
   }
 
   /**

@@ -185,10 +185,10 @@ if [[ ! -d "$PRODUCTION_SPLIT_DIR" ]]; then
 fi
 log "[deploy] Production Config Split"
 "$CURRENT_LINK/vendor/bin/drush" config:import --source="$PRODUCTION_SPLIT_DIR" --partial -y
-log "[deploy] Content Sync"
-"$CURRENT_LINK/vendor/bin/drush" emerging:content-sync --all
+log "[deploy] Governed Content"
+"$CURRENT_LINK/vendor/bin/drush" emerging:governed-content --all
 "$CURRENT_LINK/vendor/bin/drush" cr
-log "Drupal update, config import, production config split import, content sync and cache rebuild completed."
+log "Drupal update, config import, production config split import, Governed Content and cache rebuild completed."
 
 log "[deploy] Maintenance OFF"
 "$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 0 --input-format=integer

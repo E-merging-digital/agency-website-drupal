@@ -102,19 +102,22 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - `GovernedContentCatalogPolicyTest`, la policy runtime et les tests de release
   protegent l'admission durable et empechent la readmission accidentelle des
   contenus ordinaires deja RELEASED.
-- La prochaine etape est #442 : converger la facade, la terminologie et la dette
-  custom Content Sync vers son role reel de Governed Content, sans rupture de
-  compatibilite production.
+- #442 fait converger la facade et la terminologie sans dupliquer le moteur.
+  `emerging:governed-content` et `emerging:governed-content:validate` sont les
+  noms operationnels a privilegier ; `emerging:content-sync` et
+  `emerging:content-sync:validate` restent des noms de compatibilite.
 - Valider avant toute application :
-  `ddev drush emerging:content-sync:validate`.
+  `ddev drush emerging:governed-content:validate`.
 - Toujours tester en lecture seule avant ecriture :
-  `ddev drush emerging:content-sync --all --dry-run`.
-- Application globale : `ddev drush emerging:content-sync --all`.
+  `ddev drush emerging:governed-content --all --dry-run`.
+- Application globale : `ddev drush emerging:governed-content --all`.
 - Application ciblee :
-  `ddev drush emerging:content-sync <content-id> --dry-run`, puis sans
+  `ddev drush emerging:governed-content <content-id> --dry-run`, puis sans
   `--dry-run` lorsque le ticket l'autorise.
-- Content Sync doit rester idempotent, lisible en dry-run et prudent en
-  production.
+- La facade historique `emerging:content-sync*` doit rester fonctionnelle tant
+  que #442 n'a pas defini et prouve une fenetre de deprecation/retrait.
+- Le moteur Governed Content doit rester idempotent, lisible en dry-run et
+  prudent en production.
 - Ne pas recycler les `legacy_uuid`, mappings ou identifiants metier existants.
 - Governed Content ne doit jamais contenir de secret, token, mot de passe, cle
   privee ou credential ; les references a Drupal Key restent des references.
@@ -152,7 +155,7 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
   `/contact` et les pages services pertinentes.
 - Les pages services doivent contenir 2 a 4 liens internes utiles.
 - Ne pas ajouter de liens artificiels ou redondants.
-- Verifier les URL FR/EN apres Content Sync.
+- Verifier les URL FR/EN apres Governed Content.
 
 ## 8. Promotions homepage/services
 
@@ -169,7 +172,7 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Les menus sont hors perimetre de Content Sync.
 - Ne pas creer, modifier, traduire, reordonner ou supprimer de liens de menus
   dans un ticket de contenu ou SEO, sauf demande explicite.
-- Une commande `emerging:content-sync` doit laisser les entites
+- Une commande `emerging:governed-content` doit laisser les entites
   `menu_link_content` intactes.
 
 ## 10. `system.site:page.front`
@@ -240,8 +243,8 @@ preuves visuelles publiees.
 - Limiter les changements au perimetre exact du ticket.
 - Preferer les patterns existants aux nouvelles abstractions.
 - Ne jamais reformater ou refactoriser hors necessite.
-- Pour les changements Content Sync, toujours lire la trajectoire Governed
-  Content, valider le catalogue et faire un dry-run.
+- Pour les changements Governed Content, toujours lire la trajectoire, valider
+  le catalogue et faire un dry-run avant toute ecriture.
 - Pour les changements frontend, verifier le rendu public concerne.
 - Mentionner clairement les validations lancees et leurs resultats.
 
@@ -267,6 +270,6 @@ preuves visuelles publiees.
 - Ne pas modifier les content types sans ticket dedie.
 - Ne pas modifier les contenus YAML hors ticket de contenu explicite.
 - Ne pas modifier les aliases hors ticket SEO/contenu explicite.
-- Ne pas casser Content Sync ni son idempotence.
+- Ne pas casser le moteur Governed Content ni la compatibilite Content Sync.
 - Ne pas modifier la logique metier existante hors demande explicite.
 - Ne jamais commiter de secret, token, cle ou fichier local sensible.

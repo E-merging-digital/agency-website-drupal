@@ -19,13 +19,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Validate governed transition proof shell syntax and profiles
+      - name: Validate trusted runner shell syntax and governed profiles
         run: |
           set -euo pipefail
           bash -n scripts/runner/governed-content-transition-profiles.sh
           bash -n scripts/runner/run-governed-content-transition-proof.sh
           bash -n scripts/runner/finalize-governed-content-transition-proof.sh
           bash -n scripts/runner/prove-governed-content-cli-facade.sh
+          bash -n scripts/runner/run-ai-playwright-evaluation.sh
 
           PROOF_PROFILE=case-studies-440 bash -c '
             set -euo pipefail

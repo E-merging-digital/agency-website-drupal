@@ -53,7 +53,7 @@ jobs:
       - name: Install locked project dependencies
         run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
 
-      - name: Rebuild canonical config and enable Canvas
+      - name: Rebuild canonical config and enable governed Canvas catalog
         run: |
           set -euo pipefail
           vendor/bin/drush site:install --existing-config -y \
@@ -61,26 +61,99 @@ jobs:
           vendor/bin/drush config:import -y
           vendor/bin/drush config:status
           vendor/bin/drush en canvas -y
+          vendor/bin/drush php:eval '
+            $allowed = [
+              "canvas.component.sdc.emerging_digital.cta",
+              "canvas.component.sdc.emerging_digital.hero",
+              "canvas.component.sdc.emerging_digital.trust-list",
+            ];
+            $storage = \Drupal::service("config.storage");
+            $factory = \Drupal::configFactory();
+            foreach ($storage->listAll("canvas.component.") as $name) {
+              $factory->getEditable($name)
+                ->set("status", in_array($name, $allowed, TRUE))
+                ->save();
+            }
+          '
           vendor/bin/drush cex -y
           vendor/bin/drush config:status
 
-      - name: Commit only repository config created by Canvas
+      - name: Verify governed component allowlist
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          allowed = {
+              'sdc.emerging_digital.cta',
+              'sdc.emerging_digital.hero',
+              'sdc.emerging_digital.trust-list',
+          }
+          seen = set()
+          for path in sorted(Path('config/sync').glob('canvas.component.*.yml')):
+              values = {}
+              for line in path.read_text(encoding='utf-8').splitlines():
+                  if line.startswith('id: '):
+                      values['id'] = line.removeprefix('id: ').strip().strip("'")
+                  elif line.startswith('status: '):
+                      values['status'] = line.removeprefix('status: ').strip()
+              component_id = values.get('id')
+              enabled = values.get('status') == 'true'
+              if component_id in allowed:
+                  seen.add(component_id)
+                  if not enabled:
+                      raise SystemExit(f'Approved component disabled: {component_id}')
+              elif enabled:
+                  raise SystemExit(f'Non-approved component enabled: {component_id} ({path})')
+          missing = allowed - seen
+          if missing:
+              raise SystemExit(f'Approved Canvas components missing: {sorted(missing)}')
+          print('Governed Canvas allowlist OK:', ', '.join(sorted(seen)))
+          PY
+
+      - name: Commit curated Canvas configuration only
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
           test "$GITHUB_REF_NAME" = "feature/issue-526-canvas-baseline"
-          git add config/sync
+
+          git reset
+          while IFS= read -r path; do
+            case "$path" in
+              config/sync/language/*) continue ;;
+              config/sync/*) git add "$path" ;;
+            esac
+          done < <(git ls-files --others --exclude-standard config/sync)
+
+          git add \
+            config/sync/core.extension.yml \
+            config/sync/user.role.anonymous.yml \
+            config/sync/user.role.authenticated.yml
+
           changed="$(git diff --cached --name-only)"
           test -n "$changed"
           while IFS= read -r path; do
             case "$path" in
-              config/sync/*) ;;
-              *) echo "Unexpected generated path: $path" >&2; exit 1 ;;
+              config/sync/core.extension.yml|\
+              config/sync/user.role.anonymous.yml|\
+              config/sync/user.role.authenticated.yml) ;;
+              config/sync/language/*)
+                echo "Language override must not be materialized by this slice: $path" >&2
+                exit 1
+                ;;
+              config/sync/*)
+                test ! -e "$(git rev-parse --show-toplevel)/$path" || true
+                ;;
+              *)
+                echo "Unexpected staged path: $path" >&2
+                exit 1
+                ;;
             esac
           done <<< "$changed"
-          echo "Canvas config files:"
+
+          echo "Curated Canvas config files:"
           printf '%s\n' "$changed"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Issue #526: enable Drupal Canvas in repository config"
+          git commit -m "Issue #526: enable governed Drupal Canvas baseline"
           git push origin "HEAD:$GITHUB_REF_NAME"

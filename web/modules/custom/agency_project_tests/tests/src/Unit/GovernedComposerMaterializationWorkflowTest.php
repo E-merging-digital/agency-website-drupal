@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Protects the trusted Composer materialization execution contract.
@@ -22,6 +23,7 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     $path = $root
       . '/.github/workflows/agent-composer-materialization-dispatch.yml';
     self::assertFileExists($path);
+    self::assertIsArray(Yaml::parseFile($path));
 
     $workflow = (string) file_get_contents($path);
     self::assertStringContainsString(
@@ -58,6 +60,7 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     $path = $root
       . '/.github/workflows/trusted-composer-materialization.yml';
     self::assertFileExists($path);
+    self::assertIsArray(Yaml::parseFile($path));
 
     $workflow = (string) file_get_contents($path);
     self::assertStringNotContainsString('[[ "${{ inputs.', $workflow);

@@ -1,0 +1,22 @@
+uuid: 45f5e201-ffb4-4323-bd02-c027a4878302
+langcode: fr
+status: false
+dependencies:
+  module:
+    - language
+active_version: 6ac456edbe25811b
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: 'language_block:language_content'
+        label: 'Sélecteur de langue (Content)'
+        label_display: '0'
+        provider: language
+    fallback_metadata:
+      slot_definitions: null
+label: 'Sélecteur de langue (Content)'
+id: block.language_block.language_content
+provider: language
+source: block
+source_local_id: 'language_block:language_content'

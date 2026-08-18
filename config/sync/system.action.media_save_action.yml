@@ -1,0 +1,13 @@
+uuid: 07e7c5ba-7646-46b0-a723-b1bcec8e0870
+langcode: fr
+status: true
+dependencies:
+  module:
+    - media
+_core:
+  default_config_hash: VVyUA6PIaVeGtcIbgEWqJ6SYDiJdReBeojFswURFpKs
+id: media_save_action
+label: 'Enregistrement de média'
+type: media
+plugin: 'entity:save_action:media'
+configuration: {  }

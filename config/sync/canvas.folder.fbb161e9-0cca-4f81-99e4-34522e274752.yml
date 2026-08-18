@@ -1,0 +1,13 @@
+uuid: fbb161e9-0cca-4f81-99e4-34522e274752
+langcode: fr
+status: true
+dependencies:
+  config:
+    - canvas.component.block.language_block.language_content
+    - canvas.component.block.language_block.language_interface
+name: Système
+configEntityTypeId: component
+weight: 0
+items:
+  - block.language_block.language_content
+  - block.language_block.language_interface

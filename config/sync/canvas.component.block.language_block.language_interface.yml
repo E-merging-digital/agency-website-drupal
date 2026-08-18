@@ -1,0 +1,22 @@
+uuid: ee0b945f-81b9-4f88-ac66-43ca79f3a9f5
+langcode: fr
+status: false
+dependencies:
+  module:
+    - language
+active_version: 15a99d9cefaa5bb7
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        id: 'language_block:language_interface'
+        label: "Sélecteur de langue (Texte d'interface)"
+        label_display: '0'
+        provider: language
+    fallback_metadata:
+      slot_definitions: null
+label: "Sélecteur de langue (Texte d'interface)"
+id: block.language_block.language_interface
+provider: language
+source: block
+source_local_id: 'language_block:language_interface'

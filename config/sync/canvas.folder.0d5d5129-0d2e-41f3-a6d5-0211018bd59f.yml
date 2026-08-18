@@ -1,0 +1,15 @@
+uuid: 0d5d5129-0d2e-41f3-a6d5-0211018bd59f
+langcode: fr
+status: true
+dependencies:
+  config:
+    - canvas.component.sdc.emerging_digital.cta
+    - canvas.component.sdc.emerging_digital.hero
+    - canvas.component.sdc.emerging_digital.trust-list
+name: 'Agency governed'
+configEntityTypeId: component
+weight: 0
+items:
+  - sdc.emerging_digital.cta
+  - sdc.emerging_digital.hero
+  - sdc.emerging_digital.trust-list

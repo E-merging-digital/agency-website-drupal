@@ -115,6 +115,26 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       'Unsupported Composer materialization profile',
       $profiles,
     );
+
+    $output = [];
+    $exitCode = 0;
+    exec(
+      'bash -n ' . escapeshellarg($path) . ' 2>&1',
+      $output,
+      $exitCode,
+    );
+    self::assertSame(0, $exitCode, implode("\n", $output));
+
+    $unsupported = [];
+    $unsupportedExitCode = 0;
+    exec(
+      'COMPOSER_PROFILE=unsupported bash -c '
+      . escapeshellarg('source ' . escapeshellarg($path))
+      . ' 2>&1',
+      $unsupported,
+      $unsupportedExitCode,
+    );
+    self::assertNotSame(0, $unsupportedExitCode);
   }
 
 }

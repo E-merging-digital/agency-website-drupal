@@ -1,0 +1,55 @@
+name: Issue 526 inspect Canvas API
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/issue-526-inspect-canvas-api.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: Inspect installed Canvas page APIs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install locked dependencies
+        run: composer install --no-progress --prefer-dist --no-interaction
+
+      - name: Print bounded Canvas API sources and examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='web/modules/contrib/canvas'
+          echo '=== CANVAS PAGE ENTITY CANDIDATES ==='
+          find "$root/src" -type f -iname '*Page*.php' -print | sort | head -n 30
+          echo '=== CANVAS PAGE REFERENCES IN TESTS ==='
+          grep -R -n -E 'canvas_page|CanvasPage|ComponentTreeItem' "$root/tests" \
+            --include='*.php' | head -n 160 || true
+          echo '=== CANVAS PAGE ENTITY SOURCE ==='
+          page_file="$(grep -R -l "id: 'canvas_page'\|id: \"canvas_page\"\|canvas_page" "$root/src/Entity" --include='*.php' | head -n 1 || true)"
+          if [[ -n "$page_file" ]]; then
+            sed -n '1,260p' "$page_file"
+          fi
+          echo '=== COMPONENT TREE FIELD SOURCE ==='
+          tree_file="$root/src/Plugin/Field/FieldType/ComponentTreeItem.php"
+          if [[ -f "$tree_file" ]]; then
+            sed -n '1,430p' "$tree_file"
+          fi
+          echo '=== CREATE EXAMPLES ==='
+          grep -R -n -B8 -A35 -E "canvas_page.*create|create\(.*canvas_page|components.*component_id|component_id.*active_version" \
+            "$root/tests" --include='*.php' | head -n 360 || true

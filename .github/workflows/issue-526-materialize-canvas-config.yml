@@ -23,6 +23,19 @@ jobs:
   materialize-config:
     name: Materialize Canvas config on hosted Drupal
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - name: Checkout exact target
         uses: actions/checkout@v6
@@ -34,7 +47,7 @@ jobs:
         with:
           php-version: '8.4'
           tools: composer:v2
-          extensions: sqlite3
+          extensions: mysqli,pdo_mysql
           coverage: none
 
       - name: Install locked project dependencies
@@ -43,11 +56,8 @@ jobs:
       - name: Rebuild existing config and enable Canvas
         run: |
           set -euo pipefail
-          rm -f web/sites/default/files/issue-526.sqlite
-          mkdir -p web/sites/default/files
-          chmod 0777 web/sites/default/files
           vendor/bin/drush site:install --existing-config -y \
-            --db-url='sqlite://sites/default/files/issue-526.sqlite?module=sqlite'
+            --db-url='mysql://root:root@127.0.0.1:3306/db'
           vendor/bin/drush en canvas -y
           vendor/bin/drush cex -y
           vendor/bin/drush config:status

@@ -254,7 +254,7 @@ jobs:
           verify_config_clean
 
           bash scripts/runner/prove-governed-content-cli-facade.sh
-          ddev drush emerging:content-sync --all
+          ddev drush emerging:governed-content --all
           ddev drush cr
           ddev drush status
           verify_config_clean

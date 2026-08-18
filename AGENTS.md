@@ -68,60 +68,51 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - La PR doit cibler `main` et referencer le ticket avec `Closes #X`.
 - Aucun changement hors perimetre du ticket.
 
-## 4. Governed Content / Content Sync de transition
+## 4. Governed Content / Content Sync
 
 - Lire `docs/governed-content-trajectory.md` avant toute modification du
   catalogue Content Sync.
-- Le catalogue actuel est en **migration controlee** d'un bootstrap massif vers
-  un petit ensemble Governed Content ; il ne doit plus servir de precedent pour
-  versionner tout nouveau contenu marketing/editorial.
-- Les sources machine autoritatives de la transition sont le catalogue
+- La migration controlee des contenus ordinaires est **terminee depuis #441**.
+  Le catalogue ne doit plus servir de precedent pour versionner du nouveau
+  contenu marketing/editorial.
+- Les sources machine autoritatives sont le catalogue
   `web/modules/custom/emerging_digital_content/content_sync/catalog.yml` et la
   policy `Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy`.
   La documentation explique cet etat mais ne constitue pas une seconde liste
   d'admission.
-- Fichiers de contenu de transition :
-  `web/modules/custom/emerging_digital_content/content_sync/node/*.yml`.
-- Trois IDs sont explicitement Governed Content : `mentions-legales`,
-  `politique-confidentialite`, `politique-cookies`.
-- Apres le pilote #440, le lot `ai_feature` #451 et les deux lots services #458
-  et #464, **6** IDs sont encore grandfathered `LEGACY_RELEASE_PENDING`. Aucun
-  nouvel ID ne peut etre ajoute a cette classe et leur retrait doit suivre la
-  procedure de liberation documentee.
-- Les trois cas clients pilotes `cas-client-refonte-drupal-institutionnelle`,
-  `cas-client-migration-drupal-11` et `cas-client-integration-ia-editoriale`
-  sont `RELEASED` depuis #440 et ne doivent pas etre readmis par inadvertance.
-- Les 10 contenus `ai_feature` du lot #451 sont egalement `RELEASED`.
-- Les 14 contenus `service` liberes par #458 puis #464 sont egalement
-  `RELEASED`; le catalogue de transition ne contient plus aucun bundle
-  `service`.
-- Au total, 27 contenus ordinaires ont maintenant ete liberes et prouves. Il
-  reste uniquement 6 pages ordinaires pending. La liste machine autoritative
-  reste exclusivement `GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS`.
-- Les pages ordinaires a impact moyen doivent etre traitees avant les pages a
-  fort impact `homepage`, `services` et `contact`, qui restent reservees aux
-  derniers lots avec browser gates dedies.
-- Ne jamais ajouter un Article ou un nouveau contenu marketing/editorial
-  ordinaire au catalogue. Une nouvelle admission exige un ticket, une classe
-  gouvernee justifiee, une identite stable, une procedure de review/promotion et
-  un rollback explicite.
-- Ne jamais retirer un ID grandfathered du catalogue avant qu'un etat de mapping
-  `released` ignore par le prune soit applique et prouve sur l'environnement de
-  transition concerne. Retirer de la gouvernance Git ne signifie jamais
-  supprimer/depublier Drupal.
-- Apres liberation, le contenu ordinaire devient editor-owned dans Drupal et ne
-  doit plus etre ecrase par Content Sync lors des deploiements suivants.
-- `GovernedContentCatalogPolicyTest` et la policy runtime sont les barrieres CI
-  de transition : toute admission ou liberation doit mettre a jour explicitement
-  `LEGACY_RELEASE_PENDING_IDS`.
+- Le catalogue contient uniquement trois contenus explicitement Governed
+  Content : `mentions-legales`, `politique-confidentialite`,
+  `politique-cookies`.
+- `GovernedContentPolicy::LEGACY_RELEASE_PENDING_IDS` est vide. Aucun contenu
+  ordinaire ne doit etre ajoute ou readmis dans cette classe.
+- Les 33 contenus ordinaires historiquement pilotes par Content Sync ont ete
+  liberes et prouves : 3 cas clients du pilote #440, puis 30 contenus sous
+  #441 (10 `ai_feature`, 14 `service` et 6 `page`). Ils sont editor-owned dans
+  Drupal et ne doivent pas etre repris par Content Sync lors des deploiements.
+- Les anciens payloads ordinaires RELEASED ne doivent pas etre recrees dans
+  `content_sync/node/` par habitude. Toute nouvelle admission exige un ticket,
+  une classe gouvernee justifiee, une identite stable, une procedure de
+  review/promotion et un rollback explicite.
+- Retirer de la gouvernance Git n'a jamais signifie supprimer ou depublier
+  Drupal. Les preuves #440/#441 ont conserve node IDs, UUID, traductions,
+  aliases et revisions pendant les releases et les rollbacks.
+- Les commandes `emerging:content-sync:release` et `:readmit` restent des
+  primitives de transition/rollback auditees ; elles ne definissent plus un
+  backlog ordinaire a liberer.
+- `GovernedContentCatalogPolicyTest`, la policy runtime et les tests de release
+  protegent l'admission durable et empechent la readmission accidentelle des
+  contenus ordinaires deja RELEASED.
+- La prochaine etape est #442 : converger la facade, la terminologie et la dette
+  custom Content Sync vers son role reel de Governed Content, sans rupture de
+  compatibilite production.
 - Valider avant toute application :
   `ddev drush emerging:content-sync:validate`.
 - Toujours tester en lecture seule avant ecriture :
   `ddev drush emerging:content-sync --all --dry-run`.
-- Application globale de transition : `ddev drush emerging:content-sync --all`.
+- Application globale : `ddev drush emerging:content-sync --all`.
 - Application ciblee :
   `ddev drush emerging:content-sync <content-id> --dry-run`, puis sans
-  `--dry-run`.
+  `--dry-run` lorsque le ticket l'autorise.
 - Content Sync doit rester idempotent, lisible en dry-run et prudent en
   production.
 - Ne pas recycler les `legacy_uuid`, mappings ou identifiants metier existants.

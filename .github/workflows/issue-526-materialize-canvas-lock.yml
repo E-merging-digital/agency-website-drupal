@@ -1,0 +1,44 @@
+name: Issue 526 materialize Canvas lock
+
+on:
+  push:
+    branches:
+      - feature/issue-526-canvas-baseline
+    paths:
+      - composer.json
+      - .github/workflows/issue-526-materialize-canvas-lock.yml
+
+permissions:
+  contents: read
+
+jobs:
+  materialize-lock:
+    name: Materialize Canvas composer.lock on hosted runner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP 8.4 and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Materialize locked Canvas dependency
+        run: |
+          set -euo pipefail
+          composer update drupal/canvas --with-dependencies --no-interaction --no-progress
+          composer validate --strict
+          composer show drupal/canvas --locked
+
+      - name: Upload lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-526-canvas-lock
+          path: composer.lock
+          if-no-files-found: error
+          retention-days: 1

@@ -5,6 +5,14 @@ purpose: >-
   Prove Canvas AI composition with existing approved Agency SDCs only, before
   admitting any provider-backed capability.
 
+runtime:
+  enabled_modules:
+    - ai_agents
+    - modeler_api
+    - canvas_ai
+  provider_configuration: unchanged
+  provider_call: forbidden
+
 execution:
   allowed_agent_labels:
     - Drupal Canvas Page Builder Agent

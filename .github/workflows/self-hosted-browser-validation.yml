@@ -144,6 +144,7 @@ jobs:
           test -f .ddev/config.yaml
           test -f package.json
           test -f scripts/run-browser-validation.mjs
+          test -f scripts/runner/prove-governed-content-cli-facade.sh
 
           if [[ -f package-lock.json ]]; then
             echo "lockfile_present=true" >> "$GITHUB_OUTPUT"
@@ -252,8 +253,7 @@ jobs:
           ddev drush cr
           verify_config_clean
 
-          ddev drush emerging:content-sync:validate
-          ddev drush emerging:content-sync --all --dry-run
+          bash scripts/runner/prove-governed-content-cli-facade.sh
           ddev drush emerging:content-sync --all
           ddev drush cr
           ddev drush status
@@ -275,6 +275,7 @@ jobs:
           path: |
             artifacts/browser-validation
             artifacts/config-canonicalization
+            artifacts/governed-content-cli-facade
             playwright-report
             test-results
           if-no-files-found: warn
@@ -301,6 +302,7 @@ jobs:
           rm -rf \
             artifacts/browser-validation \
             artifacts/config-canonicalization \
+            artifacts/governed-content-cli-facade \
             playwright-report \
             test-results
           rmdir artifacts 2>/dev/null || true

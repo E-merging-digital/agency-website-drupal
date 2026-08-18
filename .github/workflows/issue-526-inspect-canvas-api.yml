@@ -30,37 +30,39 @@ jobs:
       - name: Install locked dependencies
         run: composer install --no-progress --prefer-dist --no-interaction
 
-      - name: Print focused Canvas page and component-tree examples
+      - name: Build focused API evidence
         shell: bash
         run: |
           set -euo pipefail
           root='web/modules/contrib/canvas'
+          out='canvas-api-evidence.txt'
+          : > "$out"
+          {
+            echo '=== PAGE ENTITY ==='
+            sed -n '1,360p' "$root/src/Entity/Page.php"
+            echo '=== PAGE TEST COMPONENT TREE ==='
+            sed -n '110,190p' "$root/tests/src/Kernel/Entity/PageTest.php"
+            echo '=== COMPONENT TREE ITEM VALID VALUES ==='
+            sed -n '70,150p' "$root/tests/src/Kernel/Plugin/Field/FieldType/ComponentTreeItemTest.php"
+            echo '=== CANVAS DOCTOR VALID PAGE HELPER ==='
+            line="$(grep -n 'createValidPage' "$root/tests/src/Kernel/Health/CanvasDoctorTest.php" | tail -n 1 | cut -d: -f1)"
+            start=$((line - 15))
+            end=$((line + 45))
+            sed -n "${start},${end}p" "$root/tests/src/Kernel/Health/CanvasDoctorTest.php"
+            echo '=== COMPONENT VERSION AND INPUT EXAMPLES ==='
+            grep -R -n -B12 -A35 "'component_version' =>" "$root/tests/src" \
+              --include='*.php' | head -n 480 || true
+            echo '=== COMPONENT INPUTS DATA TYPE ==='
+            inputs_file="$root/src/Plugin/DataType/ComponentInputs.php"
+            if [[ -f "$inputs_file" ]]; then
+              sed -n '1,420p' "$inputs_file"
+            fi
+          } >> "$out"
 
-          echo '=== PAGE ENTITY ==='
-          sed -n '1,360p' "$root/src/Entity/Page.php"
-
-          echo '=== PAGE TEST COMPONENT TREE ==='
-          sed -n '110,190p' "$root/tests/src/Kernel/Entity/PageTest.php"
-
-          echo '=== COMPONENT TREE ITEM VALID VALUES ==='
-          sed -n '70,150p' "$root/tests/src/Kernel/Plugin/Field/FieldType/ComponentTreeItemTest.php"
-
-          echo '=== CANVAS DOCTOR VALID PAGE HELPER ==='
-          line="$(grep -n 'createValidPage' "$root/tests/src/Kernel/Health/CanvasDoctorTest.php" | tail -n 1 | cut -d: -f1)"
-          start=$((line - 15))
-          end=$((line + 45))
-          sed -n "${start},${end}p" "$root/tests/src/Kernel/Health/CanvasDoctorTest.php"
-
-          echo '=== COMPONENT VERSION AND INPUT EXAMPLES ==='
-          grep -R -n -B12 -A35 "'component_version' =>" "$root/tests/src" \
-            --include='*.php' | head -n 480 || true
-
-          echo '=== COMPONENT INPUTS DATA TYPE ==='
-          inputs_file="$root/src/Plugin/DataType/ComponentInputs.php"
-          if [[ -f "$inputs_file" ]]; then
-            sed -n '1,420p' "$inputs_file"
-          fi
-
-          echo '=== STATIC PROP SOURCE SERIALIZATION ==='
-          grep -R -n -B8 -A30 -E "StaticPropSource|sourceType.*static|toArray\(\).*source" \
-            "$root/tests/src/Kernel" --include='*.php' | head -n 420 || true
+      - name: Upload focused API evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-526-canvas-api-evidence
+          path: canvas-api-evidence.txt
+          if-no-files-found: error
+          retention-days: 1

@@ -113,28 +113,28 @@ jobs:
             print "Saved canvas_page id=" . $page->id() . " uuid=" . $page->uuid() . PHP_EOL;
           '
 
-      - name: Export native Canvas page with Drupal core
+      - name: Export native Canvas page with Drupal core API
         run: |
           set -euo pipefail
-          page_id="$(vendor/bin/drush php:eval '
-            $ids = \Drupal::entityTypeManager()
-              ->getStorage("canvas_page")
-              ->getQuery()
+          rm -rf web/modules/custom/emerging_digital_content/core_default_content/canvas_page
+          vendor/bin/drush php:eval '
+            $storage = \Drupal::entityTypeManager()->getStorage("canvas_page");
+            $ids = $storage->getQuery()
               ->accessCheck(FALSE)
               ->condition("uuid", "52600000-0000-4000-8000-000000000001")
               ->execute();
             if (count($ids) !== 1) {
               throw new \RuntimeException("Expected exactly one governed Canvas page.");
             }
-            print (string) reset($ids);
-          ')"
-          test -n "$page_id"
-          rm -rf web/modules/custom/emerging_digital_content/core_default_content/canvas_page
-          (
-            cd web
-            php core/scripts/drupal content:export canvas_page "$page_id" \
-              --dir=modules/custom/emerging_digital_content/core_default_content
-          )
+            $page = $storage->load(reset($ids));
+            if ($page === NULL) {
+              throw new \RuntimeException("Governed Canvas page could not be loaded.");
+            }
+            $directory = DRUPAL_ROOT . "/modules/custom/emerging_digital_content/core_default_content";
+            /** @var \Drupal\Core\DefaultContent\Exporter $exporter */
+            $exporter = \Drupal::service(\Drupal\Core\DefaultContent\Exporter::class);
+            $exporter->exportToFile($page, $directory);
+          '
 
       - name: Verify and commit only core-native Canvas page export
         run: |

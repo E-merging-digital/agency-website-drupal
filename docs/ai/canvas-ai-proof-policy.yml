@@ -7,6 +7,7 @@ purpose: >-
 
 runtime:
   enabled_modules:
+    - modeler_api
     - ai_agents
     - canvas_ai
   dependency_closure: validate_by_exact_head_drupal_rebuild

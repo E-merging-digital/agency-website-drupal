@@ -118,11 +118,11 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
 
     $pageBuilderLabel = $policy['execution']['allowed_agent_labels'][0];
     $pageBuilder = $byLabel[$pageBuilderLabel]['config'];
-    $pageBuilderScalars = $this->flattenScalars($pageBuilder);
+    $pageBuilderTokens = $this->flattenKeysAndScalars($pageBuilder);
     foreach ($policy['execution']['required_mutation_tools'] as $tool) {
       self::assertContains(
         $tool,
-        $pageBuilderScalars,
+        $pageBuilderTokens,
         sprintf(
           'Required upstream Page Builder tool %s is unavailable.',
           $tool,
@@ -187,7 +187,7 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
         'label' => $label,
         'path' => $this->relativePath($projectRoot, $agent['path']),
         'canvas_ai_tools' => array_values(array_unique(array_filter(
-          $this->flattenScalars($config),
+          $this->flattenKeysAndScalars($config),
           static fn (mixed $value): bool => is_string($value)
             && str_starts_with($value, 'canvas_ai:'),
         ))),
@@ -280,18 +280,25 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
   }
 
   /**
-   * Flattens nested configuration values to scalars.
+   * Flattens nested configuration keys and scalar values.
+   *
+   * AI Agents stores tool plugin IDs as mapping keys in some configuration
+   * structures. Auditing only values would miss an enabled tool and produce a
+   * false negative, so both keys and scalar values are part of the contract.
    *
    * @return list<mixed>
-   *   Scalar values discovered recursively.
+   *   Keys and scalar values discovered recursively.
    */
-  private function flattenScalars(mixed $value): array {
+  private function flattenKeysAndScalars(mixed $value): array {
     if (!is_array($value)) {
       return [$value];
     }
     $values = [];
-    foreach ($value as $child) {
-      array_push($values, ...$this->flattenScalars($child));
+    foreach ($value as $key => $child) {
+      if (is_string($key)) {
+        $values[] = $key;
+      }
+      array_push($values, ...$this->flattenKeysAndScalars($child));
     }
     return $values;
   }

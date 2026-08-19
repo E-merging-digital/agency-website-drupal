@@ -135,8 +135,6 @@ jobs:
           command -v ddev
           ddev version
           command -v jq
-          command -v node
-          node --version
 
       - name: Checkout trusted implementation from main
         uses: actions/checkout@v6

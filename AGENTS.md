@@ -23,6 +23,24 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Documentation projet dans `docs/`.
 - Scripts d'exploitation dans `scripts/`.
 
+## 2.0 Doctrine CONTRIBUTED MODULES FIRST
+
+- Invariant : **CONTRIBUTED MODULES FIRST**. Avant toute nouvelle capacite ou
+  implementation custom Agency, rechercher d'abord si Drupal core couvre le
+  besoin, puis rechercher et evaluer les modules contrib pertinents.
+- `USE DRUPAL` signifie **core + contrib**. Une absence de familiarite avec un
+  module existant ou l'absence de recherche contrib n'est jamais un gap Drupal.
+- L'evaluation contrib doit verifier au minimum : compatibilite Drupal/PHP,
+  release stable pertinente, maintenance recente, couverture de securite,
+  permissions/dependances introduites et adequation fonctionnelle au besoin.
+- Preferer un module core/contrib stable et security-covered a du code custom,
+  puis `EXTEND DRUPAL` si une extension bornee suffit. `BUILD IN AGENCY` exige
+  un gap reel, documente et demontre apres cette evaluation.
+- Pour le page building et l'IA de composition, evaluer et utiliser en priorite
+  Drupal Canvas, Drupal AI, Canvas AI, AI Agents et les autres primitives
+  upstream adaptees avant toute orchestration ou moteur Agency concurrent.
+- Cette doctrine s'applique a tous les domaines du projet, pas seulement a l'IA.
+
 ## 2.1 Doctrine Drupal AI
 
 - Pour toute tache touchant l'IA, la traduction IA ou une fonctionnalite IA du

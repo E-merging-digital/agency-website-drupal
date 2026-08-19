@@ -1,0 +1,273 @@
+name: Agency trusted governed AI Playwright loop
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate fixed #516 governed loop target
+    if: ${{ github.event.issue.pull_request && github.event.issue.number == 544 && github.event.comment.body == '/agency-ai-playwright-evaluate-516' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+      base_sha: ${{ steps.validate.outputs.base_sha }}
+    steps:
+      - name: Validate actor, PR and exact inert target
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$PR_NUMBER" == "544" ]]
+          [[ "$TRIGGER_COMMENT" == "/agency-ai-playwright-evaluate-516" ]]
+          [[ "$GITHUB_ACTOR" == "E-merging-digital" ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$EVENT_DEFAULT_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$pr_json")" == "open" ]]
+          [[ "$(jq -r '.draft' <<<"$pr_json")" == "true" ]]
+          [[ "$(jq -r '.base.ref' <<<"$pr_json")" == "main" ]]
+          [[ "$(jq -r '.head.ref' <<<"$pr_json")" == "feature/issue-516-ai-playwright-governed-loop-proof" ]]
+          [[ "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" == "$GITHUB_REPOSITORY" ]]
+
+          base_sha="$(jq -r '.base.sha' <<<"$pr_json")"
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+          [[ "$base_sha" == "$EVENT_DEFAULT_SHA" ]] || {
+            echo "PR #544 must be evaluated against the workflow revision currently on main." >&2
+            exit 1
+          }
+          [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          mapfile -t changed_files < <(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename'
+          )
+          if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "docs/evaluations/ai-playwright-516-governed-loop.md" ]]; then
+            printf 'PR #544 must change exactly the inert #516 marker; got:\n%s\n' "${changed_files[*]}" >&2
+            exit 1
+          fi
+
+          marker="$(gh api "repos/$GITHUB_REPOSITORY/contents/docs/evaluations/ai-playwright-516-governed-loop.md?ref=$head_sha" --jq '.content' | tr -d '\n' | base64 --decode)"
+          [[ "$marker" == 'AI Playwright governed SDC loop #516 — DEV-ONLY inert target.' ]]
+
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+  report-start:
+    name: Publish governed loop run locator
+    needs: validate-target
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Publish trusted run locator
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          BASE_SHA: ${{ needs.validate-target.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ### #516 governed AI Playwright loop — trusted run locator
+
+          - Run ID: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)
+          - Trusted main: \`${BASE_SHA}\`
+          - Inert target: \`${HEAD_SHA}\`
+          - Provider: \`ai_test / echoai / gpt-test\`
+          - Network LLM/provider required: \`no\`
+          - State: \`validated; self-hosted proof pending\`
+
+          The target cannot modify the trusted runner logic. No secret or real provider is available to this route.
+          EOF
+          )"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
+
+  governed-loop:
+    name: Run provider-free governed AI Playwright loop
+    needs: validate-target
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    concurrency:
+      group: agency-ai-playwright-516-${{ needs.validate-target.outputs.head_sha }}
+      cancel-in-progress: false
+    outputs:
+      evidence_status: ${{ steps.summarize.outputs.evidence_status }}
+      failure_phase: ${{ steps.summarize.outputs.failure_phase }}
+      failure_message: ${{ steps.summarize.outputs.failure_message }}
+      artifact_name: ${{ steps.summarize.outputs.artifact_name }}
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+          command -v node
+          node --version
+
+      - name: Checkout trusted implementation from main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.base_sha }}
+          path: trusted
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact inert #516 target
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.head_sha }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable runner logic and target
+        shell: bash
+        env:
+          EXPECTED_BASE_SHA: ${{ needs.validate-target.outputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git -C trusted rev-parse HEAD)" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git -C target rev-parse HEAD)" == "$EXPECTED_HEAD_SHA" ]]
+          test -f trusted/scripts/runner/run-ai-playwright-governed-loop.sh
+          bash -n trusted/scripts/runner/run-ai-playwright-governed-loop.sh
+          [[ "$(cat target/docs/evaluations/ai-playwright-516-governed-loop.md)" == 'AI Playwright governed SDC loop #516 — DEV-ONLY inert target.' ]]
+
+      - name: Isolate DDEV project
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-ai-playwright-516.yaml <<EOF
+          name: agency-ai-playwright-516-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-ai-playwright-516-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev start -y
+
+      - name: Run trusted governed agentic proof
+        shell: bash
+        env:
+          TARGET_DIR: ${{ github.workspace }}/target
+          ARTIFACT_DIR: ${{ github.workspace }}/target/artifacts/ai-playwright-governed-loop
+        run: |
+          set -euo pipefail
+          bash trusted/scripts/runner/run-ai-playwright-governed-loop.sh
+
+      - name: Summarize bounded evidence
+        id: summarize
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result_file='target/artifacts/ai-playwright-governed-loop/result.json'
+          evidence_status='MISSING'
+          failure_phase='n/a'
+          failure_message='result.json unavailable'
+          if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
+            evidence_status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
+            failure_phase="$(jq -r '.phase // "none"' "$result_file")"
+            failure_message="$(jq -r '.message // "none"' "$result_file")"
+          fi
+          failure_phase="$(printf '%s' "$failure_phase" | tr '\r\n' '  ' | cut -c1-80)"
+          failure_message="$(printf '%s' "$failure_message" | tr '\r\n' '  ' | cut -c1-220)"
+          artifact_name="agency-ai-playwright-516-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "evidence_status=$evidence_status" >> "$GITHUB_OUTPUT"
+          echo "failure_phase=$failure_phase" >> "$GITHUB_OUTPUT"
+          echo "failure_message=$failure_message" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload governed loop evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-ai-playwright-516-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/artifacts/ai-playwright-governed-loop
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Clean DDEV and workspaces
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          if [[ -d target ]]; then
+            (
+              cd target
+              ddev delete --omit-snapshot --yes
+            )
+          fi
+          cd "$GITHUB_WORKSPACE"
+          rm -rf target trusted
+
+  report-result:
+    name: Report governed loop result
+    needs:
+      - validate-target
+      - governed-loop
+    if: ${{ always() && needs.validate-target.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Publish bounded result
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          JOB_RESULT: ${{ needs.governed-loop.result }}
+          EVIDENCE_STATUS: ${{ needs.governed-loop.outputs.evidence_status }}
+          FAILURE_PHASE: ${{ needs.governed-loop.outputs.failure_phase }}
+          FAILURE_MESSAGE: ${{ needs.governed-loop.outputs.failure_message }}
+          ARTIFACT_NAME: ${{ needs.governed-loop.outputs.artifact_name }}
+          HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ### #516 governed AI Playwright loop — bounded outcome
+
+          - Exact inert target: \`${HEAD_SHA}\`
+          - Self-hosted job: \`${JOB_RESULT}\`
+          - Evidence status: \`${EVIDENCE_STATUS:-MISSING}\`
+          - Failure phase: \`${FAILURE_PHASE:-n/a}\`
+          - Failure message: \`${FAILURE_MESSAGE:-n/a}\`
+          - Artifact: \`${ARTIFACT_NAME:-agency-ai-playwright-516-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}}\`
+
+          This route uses only the local Drupal AI test provider. Inspect the artifact and before/after/restored captures before closing #516.
+          EOF
+          )"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

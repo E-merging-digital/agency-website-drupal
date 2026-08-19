@@ -204,6 +204,20 @@ jobs:
               )
           PY
 
+      - name: Remove stale governed Composer DDEV registrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev list --json-output 2>&1 \
+            | python3 trusted/scripts/runner/extract-stale-composer-ddev-projects.py \
+            > /tmp/stale-composer-projects.txt
+
+          while IFS= read -r stale_project; do
+            [[ -n "$stale_project" ]] || continue
+            echo "Removing stale governed Composer DDEV project: $stale_project"
+            ddev stop --unlist --omit-snapshot "$stale_project"
+          done < /tmp/stale-composer-projects.txt
+
       - name: Isolate DDEV project
         shell: bash
         working-directory: target
@@ -234,6 +248,7 @@ jobs:
 
           ddev composer update "$COMPOSER_PACKAGE" \
             --with-all-dependencies \
+            --no-install \
             --no-interaction \
             --no-progress \
             --no-scripts
@@ -307,11 +322,13 @@ jobs:
         shell: bash
         run: |
           set +e
+          isolated_name="agency-composer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           if [[ -d target ]]; then
             (
               cd target
+              ddev delete --omit-snapshot --yes "$isolated_name" || \
+                ddev stop --unlist --omit-snapshot "$isolated_name" || true
               rm -f .ddev/config.gate-composer-ci.yaml
-              ddev delete --omit-snapshot --yes
             )
           fi
           cd "$GITHUB_WORKSPACE"

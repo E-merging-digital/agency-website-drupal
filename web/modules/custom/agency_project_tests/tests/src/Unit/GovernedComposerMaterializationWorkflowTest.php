@@ -53,9 +53,50 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   }
 
   /**
-   * The self-hosted job must never receive repository write authority.
+   * Every valid dispatch must expose its exact trusted run and conclusion.
    */
-  public function testSelfHostedResolverIsReadOnly(): void {
+  public function testDispatchGatewayPublishesObservableRunStatus(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root
+      . '/.github/workflows/agent-composer-materialization-dispatch.yml';
+    $workflow = (string) file_get_contents($path);
+
+    self::assertStringContainsString('statuses: write', $workflow);
+    self::assertStringContainsString(
+      "context='agency/composer-materialization'",
+      $workflow,
+    );
+    self::assertStringContainsString("state='pending'", $workflow);
+    self::assertStringContainsString(
+      '--workflow trusted-composer-materialization.yml',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'Trusted Composer workflow run was not discoverable.',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'gh run view "$TRUSTED_RUN_ID"',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'if [[ "$CONCLUSION" == \'success\' ]]',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'Inspect the linked status run for the failing job',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'test "$state" = \'success\'',
+      $workflow,
+    );
+  }
+
+  /**
+   * The self-hosted job must remain read-only and lockfile-only.
+   */
+  public function testSelfHostedResolverIsReadOnlyAndLockOnly(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root
       . '/.github/workflows/trusted-composer-materialization.yml';
@@ -81,11 +122,42 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     self::assertStringContainsString('contents: read', $generate);
     self::assertStringNotContainsString('contents: write', $generate);
     self::assertStringContainsString('persist-credentials: false', $generate);
+    self::assertStringContainsString('--no-install', $generate);
     self::assertStringContainsString('--no-scripts', $generate);
     self::assertStringContainsString(
       "changed\" != 'composer.lock'",
       $generate,
     );
+
+    self::assertStringContainsString(
+      'ddev list --json-output 2>&1',
+      $generate,
+    );
+    self::assertStringContainsString(
+      'python3 trusted/scripts/runner/'
+      . 'extract-stale-composer-ddev-projects.py',
+      $generate,
+    );
+    self::assertStringContainsString(
+      'ddev stop --unlist --omit-snapshot "$stale_project"',
+      $generate,
+    );
+    self::assertStringContainsString(
+      'ddev delete --omit-snapshot --yes "$isolated_name"',
+      $generate,
+    );
+
+    $deletePosition = strpos(
+      $generate,
+      'ddev delete --omit-snapshot --yes "$isolated_name"',
+    );
+    $removeOverridePosition = strrpos(
+      $generate,
+      'rm -f .ddev/config.gate-composer-ci.yaml',
+    );
+    self::assertIsInt($deletePosition);
+    self::assertIsInt($removeOverridePosition);
+    self::assertLessThan($removeOverridePosition, $deletePosition);
 
     self::assertStringContainsString('contents: write', $publish);
     self::assertStringContainsString(
@@ -96,6 +168,38 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       'git push origin "HEAD:$EXPECTED_HEAD_REF"',
       $publish,
     );
+  }
+
+  /**
+   * DDEV warnings must be parsed without widening the cleanup namespace.
+   */
+  public function testStaleDdevProjectExtractorIsBounded(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root
+      . '/scripts/runner/extract-stale-composer-ddev-projects.py';
+    self::assertFileExists($path);
+
+    $script = (string) file_get_contents($path);
+    self::assertStringContainsString(
+      'agency-composer-[0-9]+-[0-9]+',
+      $script,
+    );
+    self::assertStringContainsString('_PATTERN.findall(item)', $script);
+    self::assertStringContainsString('decoder.raw_decode(raw, offset)', $script);
+    self::assertStringContainsString(
+      'Non-JSON data in DDEV output',
+      $script,
+    );
+
+    $output = [];
+    $exitCode = 0;
+    exec(
+      'python3 ' . escapeshellarg($path) . ' --self-test 2>&1',
+      $output,
+      $exitCode,
+    );
+    self::assertSame(0, $exitCode, implode("\n", $output));
+    self::assertContains('PASS', $output);
   }
 
   /**

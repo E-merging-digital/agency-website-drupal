@@ -58,7 +58,8 @@ ddev drush php:eval '
   $agent->save();
 '
 
-# Baseline sanity before the agent starts.
+# Baseline sanity before the agent starts. The structural identity remains fixed,
+# while the current approved editorial heading is captured for exact restoration.
 ddev drush php:eval '
   $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
   if (count($ids) !== 1) { throw new \RuntimeException("Baseline page not found uniquely."); }
@@ -69,13 +70,21 @@ ddev drush php:eval '
   foreach ($values as $component) {
     $ids_seen[] = $component["component_id"] ?? NULL;
     if (($component["uuid"] ?? NULL) === "52600000-0000-4000-8000-000000000103") {
+      if (($component["component_id"] ?? NULL) !== "sdc.emerging_digital.cta") {
+        throw new \RuntimeException("Fixed CTA UUID no longer identifies the approved CTA.");
+      }
       $heading = $component["inputs"]["heading"] ?? NULL;
     }
   }
   if ($ids_seen !== ["sdc.emerging_digital.hero", "sdc.emerging_digital.trust-list", "sdc.emerging_digital.cta"]) {
     throw new \RuntimeException("Baseline component allowlist/order changed.");
   }
-  if ($heading !== "Composition Canvas bornée") { throw new \RuntimeException("Baseline CTA heading changed."); }
+  if (!is_string($heading) || trim($heading) === "") {
+    throw new \RuntimeException("Baseline CTA heading is missing or invalid.");
+  }
+  if ($heading === "Composition Canvas bornée — vérification agentique") {
+    throw new \RuntimeException("Baseline CTA is already in the temporary proof state.");
+  }
   echo json_encode(["component_ids" => $ids_seen, "heading" => $heading], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ' > "$ARTIFACT_DIR/baseline-before.json"
-
+ORIGINAL_HEADING="$(jq -er '.heading | select(type == "string" and length > 0)' "$ARTIFACT_DIR/baseline-before.json")"

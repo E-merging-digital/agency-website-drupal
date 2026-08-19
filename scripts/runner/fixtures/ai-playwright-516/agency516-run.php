@@ -7,6 +7,20 @@ use Drupal\ai\OperationType\Chat\ChatInput;
 use Drupal\ai\OperationType\Chat\ChatMessage;
 use Drupal\ai_agents\Event\AgentRequestEvent;
 
+$baselineBeforePath = DRUPAL_ROOT . '/../artifacts/ai-playwright-governed-loop/baseline-before.json';
+if (!is_file($baselineBeforePath)) {
+  throw new \RuntimeException('Captured #516 baseline evidence is unavailable.');
+}
+$baselineBefore = json_decode((string) file_get_contents($baselineBeforePath), TRUE, 512, JSON_THROW_ON_ERROR);
+$originalHeading = $baselineBefore['heading'] ?? NULL;
+if (!is_string($originalHeading) || trim($originalHeading) === '') {
+  throw new \RuntimeException('Captured #516 original CTA heading is invalid.');
+}
+$temporaryHeading = 'Composition Canvas bornée — vérification agentique';
+if ($originalHeading === $temporaryHeading) {
+  throw new \RuntimeException('Captured #516 baseline is already in the temporary proof state.');
+}
+
 $sequence = [
   ['name' => 'browser_preview', 'args' => ['url' => '/canvas-governed-sdc-baseline', 'task' => 'Inspect the approved Canvas baseline before the bounded #516 mutation.']],
   ['name' => 'bounded_canvas_heading', 'args' => ['mode' => 'mutate']],
@@ -116,16 +130,16 @@ try {
   if ($names !== $expected) {
     throw new \RuntimeException('Unexpected tool sequence: ' . json_encode($names));
   }
-  if (!str_contains($tools[0]['output'], 'Composition Canvas bornée')) {
-    throw new \RuntimeException('Before inspection did not observe the original CTA heading.');
+  if (!str_contains($tools[0]['output'], $originalHeading)) {
+    throw new \RuntimeException('Before inspection did not observe the captured original CTA heading.');
   }
-  if (!str_contains($tools[2]['output'], 'Composition Canvas bornée — vérification agentique')) {
+  if (!str_contains($tools[2]['output'], $temporaryHeading)) {
     throw new \RuntimeException('After inspection did not observe the temporary CTA heading.');
   }
-  if (!str_contains($tools[4]['output'], 'Composition Canvas bornée')) {
-    throw new \RuntimeException('Restored inspection did not observe the original CTA heading.');
+  if (!str_contains($tools[4]['output'], $originalHeading)) {
+    throw new \RuntimeException('Restored inspection did not observe the captured original CTA heading.');
   }
-  if (str_contains($tools[4]['output'], 'Composition Canvas bornée — vérification agentique')) {
+  if (str_contains($tools[4]['output'], $temporaryHeading)) {
     throw new \RuntimeException('Restored inspection still exposes the temporary heading.');
   }
 

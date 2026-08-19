@@ -26,6 +26,8 @@ use Drupal\ai\Service\FunctionCalling\ExecutableFunctionCallInterface;
 )]
 final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableFunctionCallInterface {
 
+  private const TEMPORARY_HEADING = 'Composition Canvas bornée — vérification agentique';
+
   private string $readableOutput = '';
 
   public function execute(): void {
@@ -57,8 +59,8 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
       if ($state->get('agency_ai_playwright_516_test.original_components')) {
         throw new \RuntimeException('A previous #516 mutation snapshot is still active.');
       }
-      $state->set('agency_ai_playwright_516_test.original_components', json_encode($components, JSON_THROW_ON_ERROR));
       $changed = FALSE;
+      $originalHeading = NULL;
       foreach ($components as &$component) {
         if (($component['uuid'] ?? NULL) !== '52600000-0000-4000-8000-000000000103') {
           continue;
@@ -66,19 +68,24 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
         if (($component['component_id'] ?? NULL) !== 'sdc.emerging_digital.cta') {
           throw new \RuntimeException('The fixed component UUID no longer identifies the approved CTA.');
         }
-        if (($component['inputs']['heading'] ?? NULL) !== 'Composition Canvas bornée') {
-          throw new \RuntimeException('The original approved CTA heading changed; refusing mutation.');
+        $originalHeading = $component['inputs']['heading'] ?? NULL;
+        if (!is_string($originalHeading) || trim($originalHeading) === '') {
+          throw new \RuntimeException('The approved CTA heading is missing or invalid; refusing mutation.');
         }
-        $component['inputs']['heading'] = 'Composition Canvas bornée — vérification agentique';
+        if ($originalHeading === self::TEMPORARY_HEADING) {
+          throw new \RuntimeException('The approved CTA is already in the temporary proof state.');
+        }
+        $component['inputs']['heading'] = self::TEMPORARY_HEADING;
         $changed = TRUE;
       }
       unset($component);
-      if (!$changed) {
+      if (!$changed || !is_string($originalHeading)) {
         throw new \RuntimeException('The fixed approved CTA component was not found.');
       }
+      $state->set('agency_ai_playwright_516_test.original_components', json_encode($page->get('components')->getValue(), JSON_THROW_ON_ERROR));
       $page->set('components', $components);
       $page->save();
-      $this->readableOutput = 'MUTATED: Composition Canvas bornée — vérification agentique';
+      $this->readableOutput = 'MUTATED: ' . self::TEMPORARY_HEADING;
       return;
     }
 
@@ -87,10 +94,23 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
       throw new \RuntimeException('No #516 mutation snapshot is available to restore.');
     }
     $original = json_decode($stored, TRUE, 512, JSON_THROW_ON_ERROR);
+    $originalHeading = NULL;
+    foreach ($original as $component) {
+      if (($component['uuid'] ?? NULL) !== '52600000-0000-4000-8000-000000000103') {
+        continue;
+      }
+      if (($component['component_id'] ?? NULL) !== 'sdc.emerging_digital.cta') {
+        throw new \RuntimeException('Stored fixed CTA UUID no longer identifies the approved CTA.');
+      }
+      $originalHeading = $component['inputs']['heading'] ?? NULL;
+    }
+    if (!is_string($originalHeading) || trim($originalHeading) === '') {
+      throw new \RuntimeException('Stored original CTA heading is missing or invalid.');
+    }
     $page->set('components', $original);
     $page->save();
     $state->delete('agency_ai_playwright_516_test.original_components');
-    $this->readableOutput = 'RESTORED: Composition Canvas bornée';
+    $this->readableOutput = 'RESTORED: ' . $originalHeading;
   }
 
   public function getReadableOutput(): string {

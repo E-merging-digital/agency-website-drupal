@@ -121,6 +121,26 @@ L’ordre de préférence est :
 USE DRUPAL > EXTEND DRUPAL > BUILD IN AGENCY
 ```
 
+### CONTRIBUTED MODULES FIRST
+
+`USE DRUPAL` signifie **Drupal core ET modules contrib**. Avant de conclure à un
+gap et avant tout `BUILD IN AGENCY`, il faut rechercher et évaluer les projets
+contrib pertinents. L’évaluation doit couvrir au minimum la compatibilité
+Drupal/PHP, la release stable pertinente, la maintenance, la couverture de
+sécurité, les permissions et dépendances introduites, ainsi que l’adéquation
+fonctionnelle au besoin.
+
+Lorsqu’un module core ou contrib stable, maintenu et security-covered couvre
+raisonnablement le besoin, Agency doit le préférer à une implémentation custom.
+Si une adaptation bornée suffit, `EXTEND DRUPAL` vient avant `BUILD IN AGENCY`.
+L’absence de recherche contrib ou de familiarité avec une capacité upstream ne
+constitue jamais un gap Drupal.
+
+Pour le page building et la composition IA, cette doctrine implique notamment
+d’évaluer et d’utiliser Drupal Canvas, Drupal AI, Canvas AI, AI Agents et les
+primitives upstream associées avant toute orchestration ou moteur concurrent
+propre à Agency.
+
 `BUILD IN AGENCY` exige un gap Drupal réel, documenté et démontré. Une absence
 de familiarité avec une capacité upstream n’est pas un gap.
 

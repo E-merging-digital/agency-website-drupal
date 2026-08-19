@@ -10,18 +10,32 @@ jq -e '.status == "PASS" and .provider == "echoai" and .provider_network_require
 # Verify exact restoration at entity level and capture the generated managed-file evidence.
 ddev drush php:eval '
   $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
+  if (count($ids) !== 1) { throw new \RuntimeException("Baseline page not found uniquely after restoration."); }
   $page = \Drupal::entityTypeManager()->getStorage("canvas_page")->load(reset($ids));
   $values = $page->get("components")->getValue();
   $heading = NULL;
+  $ids_seen = [];
   foreach ($values as $component) {
+    $ids_seen[] = $component["component_id"] ?? NULL;
     if (($component["uuid"] ?? NULL) === "52600000-0000-4000-8000-000000000103") {
+      if (($component["component_id"] ?? NULL) !== "sdc.emerging_digital.cta") {
+        throw new \RuntimeException("Fixed CTA UUID no longer identifies the approved CTA after restoration.");
+      }
       $heading = $component["inputs"]["heading"] ?? NULL;
     }
   }
-  if ($heading !== "Composition Canvas bornée") { throw new \RuntimeException("CTA heading was not restored exactly."); }
+  if ($ids_seen !== ["sdc.emerging_digital.hero", "sdc.emerging_digital.trust-list", "sdc.emerging_digital.cta"]) {
+    throw new \RuntimeException("Baseline component allowlist/order changed after restoration.");
+  }
+  if (!is_string($heading) || trim($heading) === "") { throw new \RuntimeException("Restored CTA heading is missing or invalid."); }
   if (\Drupal::state()->get("agency_ai_playwright_516_test.original_components")) { throw new \RuntimeException("Restore snapshot still exists."); }
-  echo json_encode(["heading" => $heading, "restored" => TRUE], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+  echo json_encode(["component_ids" => $ids_seen, "heading" => $heading, "restored" => TRUE], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 ' > "$ARTIFACT_DIR/baseline-restored.json"
+jq -e --slurp '
+  .[0].component_ids == .[1].component_ids
+  and .[0].heading == .[1].heading
+  and .[1].restored == true
+' "$ARTIFACT_DIR/baseline-before.json" "$ARTIFACT_DIR/baseline-restored.json" >/dev/null
 
 # Exactly three browser_preview executions should have produced three managed screenshots.
 ddev drush php:eval '
@@ -59,7 +73,7 @@ ddev drush php:eval '
 ' > "$ARTIFACT_DIR/security-boundary.json"
 jq -e '.offsite_refused == true and .file_scheme_refused == true' "$ARTIFACT_DIR/security-boundary.json" >/dev/null
 
-# The runtime-only test adapter and fixture files are enidence mechanics, never product code.
+# The runtime-only test adapter and fixture files are evidence mechanics, never product code.
 rm -f .agency516-run.php
 rm -rf "web/modules/custom/${TEST_MODULE}"
 

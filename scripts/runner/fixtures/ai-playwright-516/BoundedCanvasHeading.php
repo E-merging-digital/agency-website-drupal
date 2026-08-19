@@ -68,14 +68,17 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
         if (($component['component_id'] ?? NULL) !== 'sdc.emerging_digital.cta') {
           throw new \RuntimeException('The fixed component UUID no longer identifies the approved CTA.');
         }
-        $originalHeading = $component['inputs']['heading'] ?? NULL;
+        $rawInputs = $component['inputs'] ?? NULL;
+        $inputs = self::decodeInputs($rawInputs);
+        $originalHeading = $inputs['heading'] ?? NULL;
         if (!is_string($originalHeading) || trim($originalHeading) === '') {
           throw new \RuntimeException('The approved CTA heading is missing or invalid; refusing mutation.');
         }
         if ($originalHeading === self::TEMPORARY_HEADING) {
           throw new \RuntimeException('The approved CTA is already in the temporary proof state.');
         }
-        $component['inputs']['heading'] = self::TEMPORARY_HEADING;
+        $inputs['heading'] = self::TEMPORARY_HEADING;
+        $component['inputs'] = self::encodeInputs($inputs, $rawInputs);
         $changed = TRUE;
       }
       unset($component);
@@ -102,7 +105,8 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
       if (($component['component_id'] ?? NULL) !== 'sdc.emerging_digital.cta') {
         throw new \RuntimeException('Stored fixed CTA UUID no longer identifies the approved CTA.');
       }
-      $originalHeading = $component['inputs']['heading'] ?? NULL;
+      $inputs = self::decodeInputs($component['inputs'] ?? NULL);
+      $originalHeading = $inputs['heading'] ?? NULL;
     }
     if (!is_string($originalHeading) || trim($originalHeading) === '') {
       throw new \RuntimeException('Stored original CTA heading is missing or invalid.');
@@ -111,6 +115,28 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
     $page->save();
     $state->delete('agency_ai_playwright_516_test.original_components');
     $this->readableOutput = 'RESTORED: ' . $originalHeading;
+  }
+
+  /**
+   * Decodes the Canvas ComponentTreeItem inputs storage representation.
+   */
+  private static function decodeInputs(mixed $rawInputs): array {
+    $inputs = is_string($rawInputs)
+      ? json_decode($rawInputs, TRUE, 512, JSON_THROW_ON_ERROR)
+      : $rawInputs;
+    if (!is_array($inputs)) {
+      throw new \RuntimeException('Canvas component inputs are not a valid mapping.');
+    }
+    return $inputs;
+  }
+
+  /**
+   * Preserves Canvas' runtime storage representation when changing one prop.
+   */
+  private static function encodeInputs(array $inputs, mixed $original): array|string {
+    return is_string($original)
+      ? json_encode($inputs, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+      : $inputs;
   }
 
   public function getReadableOutput(): string {

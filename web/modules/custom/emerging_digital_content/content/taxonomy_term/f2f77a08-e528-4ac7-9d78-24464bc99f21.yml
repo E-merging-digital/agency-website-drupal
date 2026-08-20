@@ -1,0 +1,30 @@
+_meta:
+  version: '1.0'
+  entity_type: taxonomy_term
+  uuid: f2f77a08-e528-4ac7-9d78-24464bc99f21
+  bundle: blog_categories
+  default_langcode: fr
+default:
+  status:
+    -
+      value: true
+  name:
+    -
+      value: 'Qualité web / SEO / accessibilité'
+  weight:
+    -
+      value: 4
+  revision_translation_affected:
+    -
+      value: true
+translations:
+  en:
+    status:
+      -
+        value: true
+    name:
+      -
+        value: 'Web quality / SEO / accessibility'
+    revision_translation_affected:
+      -
+        value: true

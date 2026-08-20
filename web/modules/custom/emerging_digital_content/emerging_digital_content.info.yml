@@ -14,6 +14,7 @@ dependencies:
   - drupal:paragraphs
   - drupal:serialization
   - drupal:hal
+  - drupal:taxonomy
 default_content:
   menu_link_content:
     - 0160a2d4-d1fa-48e3-94e4-06159373cbe6
@@ -22,6 +23,12 @@ default_content:
     - ff24fa4f-99d3-4e46-91ab-22f6aac0b42e
     - 4220d840-7314-4726-955a-2ca1c9f6cde5
     - 6f2663ee-2902-4e9f-887e-3e14a53026c6
+  taxonomy_term:
+    - d4390eaa-6097-4aee-89f8-eeed57401508
+    - e7610b1c-2723-491e-837f-b0eff435f507
+    - 5d072809-6653-42a5-a404-bb6bb18a465e
+    - fc8248c8-015b-4215-9354-ef554a16416d
+    - f2f77a08-e528-4ac7-9d78-24464bc99f21
   paragraph:
     - 11c3e2e1-78c9-491d-814c-b204bc2f5338
     - 25892a5a-3c09-4f64-86d7-cda8058e1875

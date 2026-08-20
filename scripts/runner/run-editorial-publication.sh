@@ -101,9 +101,10 @@ case "$MODE" in
     backup_file=''
     if [[ "$preapply_verdict" == 'READY' ]]; then
       timestamp="$(date -u +%Y%m%d%H%M%S)"
-      backup_file="/var/www/agency/shared/backups/editorial-issue-${ISSUE_NUMBER}-${timestamp}.sql.gz"
+      backup_stem="/var/www/agency/shared/backups/editorial-issue-${ISSUE_NUMBER}-${timestamp}.sql"
+      backup_file="${backup_stem}.gz"
       ssh "$remote_target" \
-        "set -euo pipefail; cd /var/www/agency/current; mkdir -p /var/www/agency/shared/backups; vendor/bin/drush sql:dump --gzip --result-file='$backup_file' >/dev/null; test -s '$backup_file'"
+        "set -euo pipefail; cd /var/www/agency/current; mkdir -p /var/www/agency/shared/backups; vendor/bin/drush sql:dump --gzip --result-file='$backup_stem' >/dev/null; test -s '$backup_file'"
     fi
 
     remote_run apply "$remote_result"

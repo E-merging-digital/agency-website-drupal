@@ -263,6 +263,7 @@ function _emerging_digital_content_ensure_initial_blog_categories(): array {
     'updated' => $updated,
   ];
 }
+
 /**
  * Ensures Blog immediately precedes Contact without reweighting other links.
  */

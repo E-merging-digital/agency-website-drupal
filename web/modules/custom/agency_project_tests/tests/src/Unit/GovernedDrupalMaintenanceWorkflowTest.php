@@ -32,7 +32,7 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertStringContainsString(
-      "/agency-drupal-maintenance-ai-1-5-rc1",
+      "github.event.comment.body == '/agency-drupal-maintenance-ai-1.5-rc1'",
       $workflow,
     );
     self::assertStringContainsString(

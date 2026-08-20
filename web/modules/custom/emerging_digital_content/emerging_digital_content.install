@@ -201,12 +201,6 @@ function _emerging_digital_content_ensure_initial_blog_categories(): array {
       ]);
     }
 
-    if (!$term instanceof TermInterface) {
-      throw new \RuntimeException(sprintf(
-        'Unable to load or create Blog category "%s".',
-        $definition['fr'],
-      ));
-    }
     if ($term->bundle() !== 'blog_categories') {
       throw new \RuntimeException(sprintf(
         'Blog category "%s" resolved outside blog_categories.',
@@ -269,7 +263,6 @@ function _emerging_digital_content_ensure_initial_blog_categories(): array {
     'updated' => $updated,
   ];
 }
-
 /**
  * Ensures Blog immediately precedes Contact without reweighting other links.
  */

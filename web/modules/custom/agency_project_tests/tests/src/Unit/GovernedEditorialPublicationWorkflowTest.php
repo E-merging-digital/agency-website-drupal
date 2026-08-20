@@ -33,6 +33,10 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
     self::assertStringContainsString("'.user.login'", $workflow);
     self::assertStringContainsString('currently on live main', $workflow);
     self::assertStringContainsString('persist-credentials: false', $workflow);
+    self::assertStringContainsString(
+      "always() && steps.request.outcome == 'success'",
+      $workflow,
+    );
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
   }
 

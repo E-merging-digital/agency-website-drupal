@@ -4,7 +4,8 @@ Statut : **SOURCE D’ARCHITECTURE ACTIVE**
 Décision : `docs/decisions/ADR-001-governed-ai-experience.md`  
 Issue : #518  
 Parents : #3, #32  
-Date de cadrage : 2026-08-18
+Date de cadrage : 2026-08-18  
+Dernière revalidation upstream : 2026-08-20
 
 ## 1. Mission
 
@@ -78,33 +79,38 @@ Preflight
 Preflight ne doit pas être requis pour rendre une page dans Agency. Il constitue
 une future couche indépendante de vérification et de gouvernance.
 
-## 3. État réel du repository au 18 août 2026
+## 3. État réel du repository au 20 août 2026
 
 ### Déjà présent
 
 - Drupal 11.4.x ;
-- Drupal AI stable dans le projet ;
+- Drupal AI stable `1.4.6` dans le projet ;
 - thème custom `emerging_digital` ;
 - Paragraphs et templates Twig explicites ;
 - tokens CSS dans `web/themes/custom/emerging_digital/css/base.css` ;
 - catalogue SDC gouverné et admission machine-readable issus de #519 ;
 - Hero, CTA et Trust list admis pour composition ;
-- Drupal Canvas verrouillé par Composer et configuration Canvas/Media versionnée ;
+- Drupal Canvas `1.10.1` verrouillé par Composer et configuration Canvas/Media versionnée ;
 - allowlist Canvas dérivée du catalogue Agency approuvé ;
 - Canvas Page de preuve core-native `/canvas-governed-sdc-baseline` ;
 - validation Playwright réelle desktop/mobile ;
 - Playwright MCP et Chrome DevTools MCP disponibles sur le runner ;
 - preuve DEV-ONLY de `drupal/ai_playwright` ;
-- contrat de contexte partagé dans `docs/drupal-ai-context-architecture.md`.
+- contrat de contexte partagé dans `docs/drupal-ai-context-architecture.md` ;
+- #530 / PR #533 matérialise un pilote Canvas AI borné avec `ai_agents 1.3.4`,
+  en attente de la preuve provider-backed et de la revue humaine finale.
 
-### Pas encore présent
+### Pas encore présent comme capacité production
 
 - intégration technique Figma ;
 - Context Control Center en production ;
-- génération de pages Canvas AI activée comme capacité produit.
+- génération de pages Canvas AI admise comme capacité produit ;
+- runtime Outside AI/MCP production.
 
-Ce document ne doit jamais présenter un élément de la seconde liste comme une
-capacité déjà livrée.
+Depuis la revalidation du 20 août 2026, Context Control Center `1.0.0-beta3` est
+suffisamment aligné avec le contrat Agency pour un **pilote DDEV/local sous
+#387**, mais il ne possède toujours aucune release stable supportée. Ce pilote
+ne doit donc jamais être présenté comme une capacité production déjà livrée.
 
 ## 4. Classification upstream-first
 
@@ -114,13 +120,14 @@ classification suivante.
 | Capacité | Classification cible | Décision Agency |
 | --- | --- | --- |
 | Single Directory Components | `USE DRUPAL` | API de composants cible ; aucune réimplémentation custom de framework de composants. |
-| Drupal Canvas — composition visuelle | `USE DRUPAL` | moteur de composition privilégié une fois la bibliothèque Agency prête et le vertical slice prouvé. |
-| Canvas AI — page building | `DEFER / EXPERIMENTAL` puis `USE DRUPAL` si preuve suffisante | moteur IA privilégié ; ne pas construire un concurrent pendant l’évaluation upstream. |
+| Drupal Canvas — composition visuelle | `USE DRUPAL` | baseline #526 prouvée avec les composants Agency approuvés. |
+| Canvas AI — page building | `USE DRUPAL` via pilote borné #530 | moteur IA privilégié ; garder Page Builder + composants existants ; ne pas élargir le scope parce que l'upstream ajoute d'autres actions. |
 | Métadonnées design system pour Canvas AI | `EXTEND DRUPAL` si nécessaire | compléter les métadonnées des composants Agency, pas créer un format parallèle générique. |
-| Context Control Center | `DEFER / EXPERIMENTAL` | suivre #387 ; ne pas reconstruire CCC dans Agency. |
+| Context Control Center | `PROMOTE TO PILOT / PREPARE FOR RC` en DDEV ; `WAIT FOR STABLE` en production | suivre #387 ; tester beta3 sur un scope minimal ; ne pas reconstruire CCC dans Agency et ne pas migrer aveuglément les sources de vérité. |
 | Drupal AI | `USE DRUPAL` | abstraction IA par défaut selon `docs/drupal-ai-architecture.md`. |
-| AI Playwright | `DEFER / EXPERIMENTAL` en production ; usage DEV-ONLY prouvé | auto-inspection complémentaire, jamais gate unique. |
+| AI Playwright | `DEFER / EXPERIMENTAL` en production ; usage DEV-ONLY prouvé | auto-inspection complémentaire ; `browser_preview` publié reste la capacité admise, jamais gate unique. |
 | Playwright Test indépendant Agency | `BUILD IN AGENCY` justifié | preuve indépendante spécifique au projet ; futur point d’intégration avec Preflight. |
+| Tool API / MCP | `PROMOTE TO PILOT LOCAL` read-only ; `WAIT FOR STABLE` en production | suivre #390 ; STDIO, least privilege, zéro write/secret ; ne pas créer de framework MCP custom. |
 | Figma -> code/page automatique | `DEFER / EXPERIMENTAL` | Figma fournit l’intention ; ne pas créer de pipeline custom tant qu’un gap Drupal réel n’est pas prouvé. |
 | Générateur propriétaire prompt -> HTML/CSS | **interdit par ADR-001** | ne pas construire. |
 
@@ -343,26 +350,29 @@ Playwright Test Agency
 = preuve indépendante reproductible
 ```
 
-#516 ne doit pas évoluer en moteur générique de modification de pages. Sa boucle
-agentique ne redevient prioritaire qu’après le contrat composants/SDC de #519 et
-doit opérer sur des primitives autorisées.
+#516 reste expérimental même si les gates composants/Canvas sont désormais
+satisfaits. Il doit opérer uniquement sur des primitives autorisées et ne doit
+pas anticiper comme disponibles des tools upstream non publiés.
 
 ## 12. Roadmap de convergence
 
-Ordre architectural :
+État architectural revalidé :
 
-1. **#518 — architecture durable** : ADR, `DESIGN.md`, règles agents.
-2. **#519 — design system exécutable** : inventaire, vertical slice SDC,
-   admission gouvernée.
-3. **Validation** : renforcer l’accessibilité et la conformité composants dans la
-   preuve navigateur existante, sans créer un second framework de test.
-4. **#526 / Canvas** : baseline de composition visuelle avec les SDC approuvés ; voir `docs/canvas-baseline.md`.
-5. **Canvas AI** : seulement après admission finale de #526, pilote borné de sélection/composition de ces mêmes composants.
-6. **#387 / contexte** : brancher le contexte de marque gouverné lorsque la
-   maturité upstream le permet ; ne pas dupliquer CCC.
-7. **Page generation contrôlée** : brief -> composition candidate -> preuves ->
-   revue humaine ; aucune génération libre de markup.
-8. **Preflight** : préparer/brancher la validation indépendante lorsque son
+1. **#518 — architecture durable** : TERMINÉ — ADR, `DESIGN.md`, règles agents.
+2. **#519 — design system exécutable** : TERMINÉ — catalogue SDC gouverné.
+3. **Validation** : EN PLACE — Browser Validation indépendante, responsive et
+   admission des composants ; continuer à renforcer seulement sur besoin réel.
+4. **#526 / Canvas** : TERMINÉ — baseline Canvas `1.10.1` sur les SDC approuvés.
+5. **#530 / Canvas AI** : ACTIF — pilote borné Page Builder + composants
+   existants ; ne pas ajouter edit/move/delete/Component Agent au scope.
+6. **#387 / contexte** : PILOT DDEV autorisé avec CCC beta3 ; production reste
+   `WAIT FOR STABLE` ; commencer par `brand.voice`, aucune migration big-bang.
+7. **#390 / Outside AI** : PILOT LOCAL read-only réouvert ; STDIO d'abord,
+   aucun MCP custom, production reste `WAIT FOR STABLE`.
+8. **Page generation contrôlée** : après preuves précédentes, brief ->
+   composition candidate -> preuves -> revue humaine ; aucune génération libre
+   de markup.
+9. **Preflight** : préparer/brancher la validation indépendante lorsque son
    contrat d’intégration est prêt.
 
 Cette séquence peut être ajustée par ticket, mais **aucune étape ultérieure ne

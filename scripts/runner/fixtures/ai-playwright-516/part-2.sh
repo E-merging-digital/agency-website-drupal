@@ -58,8 +58,9 @@ ddev drush php:eval '
   $agent->save();
 '
 
-# Baseline sanity before the agent starts. The structural identity remains fixed,
-# while the current approved editorial heading is captured for exact restoration.
+# Baseline sanity before the agent starts. Canvas content component inputs are
+# stored as JSON in ComponentTreeItem storage; decode that upstream format
+# fail-closed instead of inventing a parallel Agency representation.
 ddev drush php:eval '
   $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
   if (count($ids) !== 1) { throw new \RuntimeException("Baseline page not found uniquely."); }
@@ -73,7 +74,10 @@ ddev drush php:eval '
       if (($component["component_id"] ?? NULL) !== "sdc.emerging_digital.cta") {
         throw new \RuntimeException("Fixed CTA UUID no longer identifies the approved CTA.");
       }
-      $heading = $component["inputs"]["heading"] ?? NULL;
+      $rawInputs = $component["inputs"] ?? NULL;
+      $inputs = is_string($rawInputs) ? json_decode($rawInputs, TRUE, 512, JSON_THROW_ON_ERROR) : $rawInputs;
+      if (!is_array($inputs)) { throw new \RuntimeException("Canvas CTA inputs are not a valid mapping."); }
+      $heading = $inputs["heading"] ?? NULL;
     }
   }
   if ($ids_seen !== ["sdc.emerging_digital.hero", "sdc.emerging_digital.trust-list", "sdc.emerging_digital.cta"]) {

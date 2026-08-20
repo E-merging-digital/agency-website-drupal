@@ -7,7 +7,8 @@ if ! ddev drush scr .agency516-run.php > "$ARTIFACT_DIR/agent-run.stdout.txt" 2>
 fi
 jq -e '.status == "PASS" and .provider == "echoai" and .provider_network_required == false and .provider_hops == 6' "$ARTIFACT_DIR/agent-loop.json" >/dev/null
 
-# Verify exact restoration at entity level and capture the generated managed-file evidence.
+# Verify exact restoration at entity level. Canvas content component inputs are
+# JSON-backed in ComponentTreeItem storage, so decode the upstream format.
 ddev drush php:eval '
   $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
   if (count($ids) !== 1) { throw new \RuntimeException("Baseline page not found uniquely after restoration."); }
@@ -21,7 +22,10 @@ ddev drush php:eval '
       if (($component["component_id"] ?? NULL) !== "sdc.emerging_digital.cta") {
         throw new \RuntimeException("Fixed CTA UUID no longer identifies the approved CTA after restoration.");
       }
-      $heading = $component["inputs"]["heading"] ?? NULL;
+      $rawInputs = $component["inputs"] ?? NULL;
+      $inputs = is_string($rawInputs) ? json_decode($rawInputs, TRUE, 512, JSON_THROW_ON_ERROR) : $rawInputs;
+      if (!is_array($inputs)) { throw new \RuntimeException("Restored Canvas CTA inputs are not a valid mapping."); }
+      $heading = $inputs["heading"] ?? NULL;
     }
   }
   if ($ids_seen !== ["sdc.emerging_digital.hero", "sdc.emerging_digital.trust-list", "sdc.emerging_digital.cta"]) {

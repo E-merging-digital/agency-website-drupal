@@ -9,7 +9,7 @@ if ! ddev drush scr .agency516-run.php > "$ARTIFACT_DIR/agent-run.stdout.txt" 2>
     local headers_tmp="/tmp/agency516-${label}.headers"
     local body_tmp="/tmp/agency516-${label}.html"
 
-    if ddev exec bash -lc "curl -fsS -D '$headers_tmp' -o '$body_tmp' '$url'" >/dev/null 2>&1; then
+    if ddev exec bash -lc "curl -fsS -L --max-redirs 5 -D '$headers_tmp' -o '$body_tmp' '$url'" >/dev/null 2>&1; then
       ddev exec cat "$headers_tmp" > "$ARTIFACT_DIR/restored-http-${label}.headers.txt" 2>/dev/null || true
       ddev exec cat "$body_tmp" > "$ARTIFACT_DIR/restored-http-${label}.html" 2>/dev/null || true
       printf '%s' 'ok'

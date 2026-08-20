@@ -1,0 +1,249 @@
+name: Agency trusted CCC beta3 pilot
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate fixed #573 CCC pilot request
+    if: ${{ github.event.issue.pull_request == null && github.event.issue.number == 573 && github.event.comment.body == '/agency-ai-context-pilot-573' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue and live main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$ISSUE_NUMBER" == "573" ]]
+          [[ "$TRIGGER_COMMENT" == "/agency-ai-context-pilot-573" ]]
+          [[ "$GITHUB_ACTOR" == "E-merging-digital" ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$EVENT_DEFAULT_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == "open" ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == "" ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$main_sha" == "$EVENT_DEFAULT_SHA" ]] || {
+            echo "Issue #573 pilot must execute the workflow revision currently on live main." >&2
+            exit 1
+          }
+
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  report-start:
+    name: Publish CCC pilot run locator
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish trusted run locator
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ### #573 CCC beta3 trusted pilot — run locator
+
+          - Run ID: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)
+          - Trusted main: \`${MAIN_SHA}\`
+          - Package: \`drupal/ai_context 1.0.0-beta3\`
+          - Mode: \`DEV-ONLY / isolated DDEV / ephemeral Composer\`
+          - Provider/network LLM required: \`no\`
+          - State: \`validated; self-hosted pilot pending\`
+
+          The issue comment supplies no executable code. The self-hosted runner executes only the workflow and pilot script already present on trusted \`main\`.
+          EOF
+          )"
+          gh issue comment 573 --repo "$GITHUB_REPOSITORY" --body "$body"
+
+  pilot:
+    name: Run provider-free CCC beta3 pilot
+    needs: validate-request
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    concurrency:
+      group: agency-ai-context-573-${{ needs.validate-request.outputs.main_sha }}
+      cancel-in-progress: false
+    outputs:
+      evidence_status: ${{ steps.summarize.outputs.evidence_status }}
+      verdict: ${{ steps.summarize.outputs.verdict }}
+      failure_phase: ${{ steps.summarize.outputs.failure_phase }}
+      failure_message: ${{ steps.summarize.outputs.failure_message }}
+      artifact_name: ${{ steps.summarize.outputs.artifact_name }}
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+          command -v openssl
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.main_sha }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable pilot implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git -C target rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f target/scripts/runner/run-ai-context-beta3-pilot.sh
+          bash -n target/scripts/runner/run-ai-context-beta3-pilot.sh
+          grep -F "EXPECTED_VERSION='1.0.0-beta3'" target/scripts/runner/run-ai-context-beta3-pilot.sh
+          ! grep -q '"drupal/ai_context"' target/composer.json
+
+      - name: Isolate DDEV project
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-ai-context-573.yaml <<EOF
+          name: agency-ai-context-573-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-ai-context-573-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev start -y
+
+      - name: Run trusted CCC beta3 pilot
+        shell: bash
+        env:
+          TARGET_DIR: ${{ github.workspace }}/target
+          ARTIFACT_DIR: ${{ github.workspace }}/target/artifacts/ai-context-387-pilot
+        run: |
+          set -euo pipefail
+          bash target/scripts/runner/run-ai-context-beta3-pilot.sh
+
+      - name: Summarize bounded evidence
+        id: summarize
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result_file='target/artifacts/ai-context-387-pilot/result.json'
+          evidence_status='MISSING'
+          verdict='UNKNOWN'
+          failure_phase='n/a'
+          failure_message='result.json unavailable'
+          if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
+            evidence_status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result_file")"
+            failure_phase="$(jq -r '.phase // "none"' "$result_file")"
+            failure_message="$(jq -r '.message // "none"' "$result_file")"
+          fi
+          failure_phase="$(printf '%s' "$failure_phase" | tr '\r\n' '  ' | cut -c1-80)"
+          failure_message="$(printf '%s' "$failure_message" | tr '\r\n' '  ' | cut -c1-220)"
+          artifact_name="agency-ai-context-573-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "evidence_status=$evidence_status" >> "$GITHUB_OUTPUT"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "failure_phase=$failure_phase" >> "$GITHUB_OUTPUT"
+          echo "failure_message=$failure_message" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload CCC pilot evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-ai-context-573-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/artifacts/ai-context-387-pilot
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Clean DDEV and workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          if [[ -d target ]]; then
+            (
+              cd target
+              ddev delete --omit-snapshot --yes
+            )
+          fi
+          cd "$GITHUB_WORKSPACE"
+          rm -rf target
+
+  report-result:
+    name: Report CCC pilot result
+    needs:
+      - validate-request
+      - pilot
+    if: ${{ always() && needs.validate-request.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish bounded result
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_RESULT: ${{ needs.pilot.result }}
+          EVIDENCE_STATUS: ${{ needs.pilot.outputs.evidence_status }}
+          VERDICT: ${{ needs.pilot.outputs.verdict }}
+          FAILURE_PHASE: ${{ needs.pilot.outputs.failure_phase }}
+          FAILURE_MESSAGE: ${{ needs.pilot.outputs.failure_message }}
+          ARTIFACT_NAME: ${{ needs.pilot.outputs.artifact_name }}
+          MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ### #573 CCC beta3 trusted pilot — bounded outcome
+
+          - Trusted main: \`${MAIN_SHA}\`
+          - Self-hosted job: \`${JOB_RESULT}\`
+          - Evidence status: \`${EVIDENCE_STATUS:-MISSING}\`
+          - Verdict: \`${VERDICT:-UNKNOWN}\`
+          - Failure phase: \`${FAILURE_PHASE:-n/a}\`
+          - Failure message: \`${FAILURE_MESSAGE:-n/a}\`
+          - Artifact: \`${ARTIFACT_NAME:-agency-ai-context-573-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}}\`
+
+          This proof is DEV-only and provider-free. Inspect the artifact before updating #387 or deciding any production adoption.
+          EOF
+          )"
+          gh issue comment 573 --repo "$GITHUB_REPOSITORY" --body "$body"

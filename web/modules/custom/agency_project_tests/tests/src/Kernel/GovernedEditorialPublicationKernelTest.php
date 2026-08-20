@@ -42,9 +42,24 @@ final class GovernedEditorialPublicationKernelTest extends KernelTestBase {
     'path_alias',
   ];
 
+  /**
+   * Trusted editorial publisher under test.
+   */
   private object $publisher;
+
+  /**
+   * Existing Blog category term ID used by the payload.
+   */
   private int $categoryTid;
+
+  /**
+   * Sentinel node ID used to prove no unrelated content changes.
+   */
   private int $sentinelNid;
+
+  /**
+   * Sentinel revision ID captured before publication.
+   */
   private int $sentinelRevisionId;
 
   /**
@@ -109,14 +124,18 @@ final class GovernedEditorialPublicationKernelTest extends KernelTestBase {
       'title' => 'Sentinel',
       'uid' => 1,
       'status' => 1,
-      'field_short_description' => [[
-        'value' => 'Unchanged sentinel',
-        'format' => 'basic_html',
-      ]],
-      'body' => [[
-        'value' => '<p>Sentinel body.</p>',
-        'format' => 'basic_html',
-      ]],
+      'field_short_description' => [
+        [
+          'value' => 'Unchanged sentinel',
+          'format' => 'basic_html',
+        ],
+      ],
+      'body' => [
+        [
+          'value' => '<p>Sentinel body.</p>',
+          'format' => 'basic_html',
+        ],
+      ],
       'field_blog_category' => [['target_id' => $this->categoryTid]],
     ]);
     $sentinel->save();

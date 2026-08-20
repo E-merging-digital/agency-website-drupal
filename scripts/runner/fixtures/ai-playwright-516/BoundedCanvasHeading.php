@@ -88,6 +88,7 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
       $state->set('agency_ai_playwright_516_test.original_components', json_encode($page->get('components')->getValue(), JSON_THROW_ON_ERROR));
       $page->set('components', $components);
       $page->save();
+      self::invalidateDynamicPageCache();
       $this->readableOutput = 'MUTATED: ' . self::TEMPORARY_HEADING;
       return;
     }
@@ -113,6 +114,7 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
     }
     $page->set('components', $original);
     $page->save();
+    self::invalidateDynamicPageCache();
     $state->delete('agency_ai_playwright_516_test.original_components');
     $this->readableOutput = 'RESTORED: ' . $originalHeading;
   }
@@ -137,6 +139,13 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
     return is_string($original)
       ? json_encode($inputs, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
       : $inputs;
+  }
+
+  /**
+   * Clears stale authenticated page output inside the disposable #516 DDEV.
+   */
+  private static function invalidateDynamicPageCache(): void {
+    \Drupal::service('cache.dynamic_page_cache')->deleteAll();
   }
 
   public function getReadableOutput(): string {

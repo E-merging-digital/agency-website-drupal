@@ -1,6 +1,56 @@
 cp "$TRUSTED_FIXTURE_DIR/agency516-run.php" .agency516-run.php
 
 if ! ddev drush scr .agency516-run.php > "$ARTIFACT_DIR/agent-run.stdout.txt" 2> "$ARTIFACT_DIR/agent-run.stderr.txt"; then
+  # Preserve independent HTTP-origin diagnostics before cleanup. This runs only
+  # on a failing agent loop and does not invalidate or rebuild any cache.
+  capture_http_probe() {
+    local label="$1"
+    local url="$2"
+    local headers_tmp="/tmp/agency516-${label}.headers"
+    local body_tmp="/tmp/agency516-${label}.html"
+
+    if ddev exec bash -lc "curl -fsS -D '$headers_tmp' -o '$body_tmp' '$url'" >/dev/null 2>&1; then
+      ddev exec cat "$headers_tmp" > "$ARTIFACT_DIR/restored-http-${label}.headers.txt" 2>/dev/null || true
+      ddev exec cat "$body_tmp" > "$ARTIFACT_DIR/restored-http-${label}.html" 2>/dev/null || true
+      printf '%s' 'ok'
+    else
+      : > "$ARTIFACT_DIR/restored-http-${label}.headers.txt"
+      : > "$ARTIFACT_DIR/restored-http-${label}.html"
+      printf '%s' 'error'
+    fi
+  }
+
+  classify_http_body() {
+    local path="$1"
+    if grep -Fq "$TEMP_HEADING" "$path"; then
+      printf '%s' 'temporary'
+    elif grep -Fq "$ORIGINAL_HEADING" "$path"; then
+      printf '%s' 'original'
+    else
+      printf '%s' 'neither'
+    fi
+  }
+
+  normal_probe_status="$(capture_http_probe 'canonical' "http://localhost${BASELINE_PATH}")"
+  probe_token="$(date +%s%N)"
+  bust_probe_status="$(capture_http_probe 'cache-bust' "http://localhost${BASELINE_PATH}?agency516_probe=${probe_token}")"
+  normal_body_state="$(classify_http_body "$ARTIFACT_DIR/restored-http-canonical.html")"
+  bust_body_state="$(classify_http_body "$ARTIFACT_DIR/restored-http-cache-bust.html")"
+
+  jq -n \
+    --arg canonical_status "$normal_probe_status" \
+    --arg canonical_body_state "$normal_body_state" \
+    --arg cache_bust_status "$bust_probe_status" \
+    --arg cache_bust_body_state "$bust_body_state" \
+    --arg probe_token "$probe_token" \
+    '{
+      canonical:{status:$canonical_status,body_state:$canonical_body_state},
+      cache_bust:{status:$cache_bust_status,body_state:$cache_bust_body_state,probe_token:$probe_token},
+      expected_original:"Composition Canvas bornée",
+      temporary:"Composition Canvas bornée — vérification agentique",
+      cache_mutation_performed:false
+    }' > "$ARTIFACT_DIR/restored-http-diagnostics.json"
+
   msg="$(tail -n 12 "$ARTIFACT_DIR/agent-run.stderr.txt" | tr '\r\n' '  ' | cut -c1-500)"
   write_failure 'agent-loop' "${msg:-Deterministic AI Agents loop failed.}"
   exit 1

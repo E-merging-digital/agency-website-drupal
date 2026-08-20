@@ -1,0 +1,439 @@
+name: Agency trusted Drupal maintenance AI 1.5 RC1
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate fixed #562 maintenance target
+    if: ${{ github.event.issue.pull_request && github.event.issue.number == 563 && github.event.comment.body == '/agency-drupal-maintenance-ai-1.5-rc1' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+      base_sha: ${{ steps.validate.outputs.base_sha }}
+      head_ref: ${{ steps.validate.outputs.head_ref }}
+    steps:
+      - name: Checkout trusted profile definition
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate actor, exact PR and semantic composer delta
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+          COMPOSER_PROFILE: drupal-maintenance-ai-1.5-rc1
+        run: |
+          set -euo pipefail
+
+          test "$PR_NUMBER" = '563'
+          test "$TRIGGER_COMMENT" = '/agency-drupal-maintenance-ai-1.5-rc1'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
+          [[ "$EVENT_DEFAULT_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          source scripts/runner/composer-materialization-profiles.sh
+          test "$COMPOSER_PACKAGE" = 'drupal/ai'
+          test "$COMPOSER_CONSTRAINT" = '1.5.0-rc1'
+          test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
+          test "$COMPOSER_OWNER_ISSUE" = '562'
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(jq -r '.state' <<<"$pr_json")" = 'open'
+          test "$(jq -r '.draft' <<<"$pr_json")" = 'true'
+          test "$(jq -r '.base.ref' <<<"$pr_json")" = 'main'
+          test "$(jq -r '.head.ref' <<<"$pr_json")" = 'feature/issue-562-drupal-contrib-ai-1-5-rc1'
+          test "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" = "$GITHUB_REPOSITORY"
+
+          base_sha="$(jq -r '.base.sha' <<<"$pr_json")"
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+          head_ref="$(jq -r '.head.ref' <<<"$pr_json")"
+          test "$base_sha" = "$EVENT_DEFAULT_SHA" || {
+            echo 'PR #563 must be rebased onto the trusted maintenance workflow revision on main.' >&2
+            exit 1
+          }
+          [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          changed="$(
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              --jq '.[].filename'
+          )"
+          if [[ "$changed" != 'composer.json' ]]; then
+            echo 'Pre-resolution target must change exactly composer.json.' >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+          gh api \
+            "repos/$GITHUB_REPOSITORY/contents/composer.json?ref=$base_sha" \
+            --jq '.content' | tr -d '\n' | base64 --decode > /tmp/composer-base.json
+          gh api \
+            "repos/$GITHUB_REPOSITORY/contents/composer.json?ref=$head_sha" \
+            --jq '.content' | tr -d '\n' | base64 --decode > /tmp/composer-target.json
+
+          python3 - <<'PY'
+          import copy
+          import json
+
+          with open('/tmp/composer-base.json', encoding='utf-8') as handle:
+              base = json.load(handle)
+          with open('/tmp/composer-target.json', encoding='utf-8') as handle:
+              target = json.load(handle)
+
+          expected = copy.deepcopy(base)
+          expected.setdefault('require', {})['drupal/ai'] = '1.5.0-rc1'
+          if target != expected:
+              raise SystemExit(
+                  'PR #563 composer.json must differ from trusted main only by '
+                  'drupal/ai = 1.5.0-rc1.'
+              )
+          PY
+
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
+  report-start:
+    name: Publish maintenance run locator
+    needs: validate-target
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Comment exact trusted target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+          BASE_SHA: ${{ needs.validate-target.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          gh pr comment 563 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF
+          ### #562 governed Drupal maintenance — trusted run locator
+
+          - Run ID: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)
+          - Trusted main: \`${BASE_SHA}\`
+          - Input HEAD: \`${HEAD_SHA}\`
+          - Composer selector: repository-owned \`drupal/*\`
+          - Required Drupal AI: \`1.5.0-rc1\`
+          - State: \`validated; self-hosted resolution pending\`
+
+          No package name, Composer argument or secret is supplied by the PR/comment.
+          EOF
+          )"
+
+  resolve-lock:
+    name: Resolve Drupal packages on trusted self-hosted DDEV
+    needs:
+      - validate-target
+      - report-start
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+    outputs:
+      resolved_ai: ${{ steps.summarize.outputs.resolved_ai }}
+      change_count: ${{ steps.summarize.outputs.change_count }}
+      lock_sha256: ${{ steps.summarize.outputs.lock_sha256 }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          git --version
+          docker --version
+          ddev version
+          python3 --version
+
+      - name: Checkout trusted implementation from main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.base_sha }}
+          path: trusted
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact dependency target read-only
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.head_sha }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable profile and target
+        shell: bash
+        env:
+          EXPECTED_BASE_SHA: ${{ needs.validate-target.outputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+          COMPOSER_PROFILE: drupal-maintenance-ai-1.5-rc1
+        run: |
+          set -euo pipefail
+          test "$(git -C trusted rev-parse HEAD)" = "$EXPECTED_BASE_SHA"
+          test "$(git -C target rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          source trusted/scripts/runner/composer-materialization-profiles.sh
+          test "$COMPOSER_PACKAGE" = 'drupal/ai'
+          test "$COMPOSER_CONSTRAINT" = '1.5.0-rc1'
+          test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
+          test "$(jq -r '.require["drupal/ai"]' target/composer.json)" = '1.5.0-rc1'
+
+      - name: Isolate DDEV project
+        shell: bash
+        working-directory: target
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-drupal-maintenance.yaml <<EOF
+          name: agency-drupal-maintenance-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-drupal-maintenance-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev start -y
+
+      - name: Resolve fixed Drupal package selector
+        id: summarize
+        shell: bash
+        working-directory: target
+        env:
+          COMPOSER_PROFILE: drupal-maintenance-ai-1.5-rc1
+          EXPECTED_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          source ../trusted/scripts/runner/composer-materialization-profiles.sh
+          test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
+
+          cp composer.lock /tmp/composer-lock-before.json
+          ddev composer update "$COMPOSER_UPDATE_SELECTOR" \
+            --with-all-dependencies \
+            --no-install \
+            --no-interaction \
+            --no-progress \
+            --no-scripts
+
+          rm -f .ddev/config.gate-drupal-maintenance.yaml
+          test -z "$(git ls-files --others --exclude-standard)"
+          test -z "$(git diff --cached --name-only)"
+          changed="$(git diff --name-only)"
+          if [[ "$changed" != 'composer.lock' ]]; then
+            echo 'Trusted maintenance resolution must modify exactly composer.lock.' >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+          mkdir -p ../drupal-maintenance-artifact
+          cp composer.lock ../drupal-maintenance-artifact/composer.lock
+          ddev composer audit --format=json > ../drupal-maintenance-artifact/composer-audit.json
+
+          EXPECTED_HEAD_SHA="$EXPECTED_HEAD_SHA" python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          before = json.loads(Path('/tmp/composer-lock-before.json').read_text(encoding='utf-8'))
+          after_path = Path('../drupal-maintenance-artifact/composer.lock')
+          after = json.loads(after_path.read_text(encoding='utf-8'))
+
+          def versions(lock):
+              return {
+                  package['name']: package.get('version', '')
+                  for section in ('packages', 'packages-dev')
+                  for package in lock.get(section, [])
+              }
+
+          old = versions(before)
+          new = versions(after)
+          changes = []
+          for name in sorted(set(old) | set(new)):
+              if not name.startswith('drupal/'):
+                  continue
+              if old.get(name) != new.get(name):
+                  changes.append({
+                      'package': name,
+                      'before': old.get(name),
+                      'after': new.get(name),
+                  })
+
+          ai = new.get('drupal/ai', '').lstrip('v')
+          if ai != '1.5.0-rc1':
+              raise SystemExit(f'Expected drupal/ai 1.5.0-rc1, got {ai!r}')
+
+          digest = hashlib.sha256(after_path.read_bytes()).hexdigest()
+          Path('../drupal-maintenance-artifact/package-changes.json').write_text(
+              json.dumps(changes, indent=2, ensure_ascii=False) + '\n',
+              encoding='utf-8',
+          )
+          Path('../drupal-maintenance-artifact/result.json').write_text(
+              json.dumps({
+                  'status': 'PASS',
+                  'target_head_sha': os.environ['EXPECTED_HEAD_SHA'],
+                  'resolved_ai': ai,
+                  'drupal_package_change_count': len(changes),
+                  'composer_lock_sha256': digest,
+              }, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          print(f'resolved_ai={ai}')
+          print(f'change_count={len(changes)}')
+          print(f'lock_sha256={digest}')
+          PY
+
+          cat ../drupal-maintenance-artifact/result.json
+          echo "resolved_ai=$(jq -r '.resolved_ai' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
+          echo "change_count=$(jq -r '.drupal_package_change_count' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
+          echo "lock_sha256=$(jq -r '.composer_lock_sha256' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bounded maintenance artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-drupal-maintenance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: drupal-maintenance-artifact
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Clean DDEV and workspaces
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          isolated_name="agency-drupal-maintenance-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ -d target ]]; then
+            (
+              cd target
+              ddev delete --omit-snapshot --yes "$isolated_name" || \
+                ddev stop --unlist --omit-snapshot "$isolated_name" || true
+            )
+          fi
+          rm -rf target trusted drupal-maintenance-artifact
+
+  publish-lock:
+    name: Revalidate and publish maintenance lockfile
+    needs:
+      - validate-target
+      - resolve-lock
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout exact target with hosted write credentials
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.head_sha }}
+          fetch-depth: 1
+
+      - name: Download bounded maintenance artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: agency-drupal-maintenance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/drupal-maintenance
+
+      - name: Revalidate artifact and live PR HEAD
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+          EXPECTED_HEAD_REF: ${{ needs.validate-target.outputs.head_ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(jq -r '.status' /tmp/drupal-maintenance/result.json)" = 'PASS'
+          test "$(jq -r '.target_head_sha' /tmp/drupal-maintenance/result.json)" = "$EXPECTED_HEAD_SHA"
+          test "$(jq -r '.resolved_ai' /tmp/drupal-maintenance/result.json)" = '1.5.0-rc1'
+
+          actual_digest="$(sha256sum /tmp/drupal-maintenance/composer.lock | awk '{print $1}')"
+          test "$actual_digest" = "$(jq -r '.composer_lock_sha256' /tmp/drupal-maintenance/result.json)"
+
+          pr_json="$(gh api repos/$GITHUB_REPOSITORY/pulls/563)"
+          test "$(jq -r '.state' <<<"$pr_json")" = 'open'
+          test "$(jq -r '.draft' <<<"$pr_json")" = 'true'
+          test "$(jq -r '.base.ref' <<<"$pr_json")" = 'main'
+          test "$(jq -r '.head.ref' <<<"$pr_json")" = "$EXPECTED_HEAD_REF"
+          test "$(jq -r '.head.sha' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA" || {
+            echo 'Target PR advanced before lockfile publication.' >&2
+            exit 1
+          }
+
+          cp /tmp/drupal-maintenance/composer.lock composer.lock
+          test -z "$(git ls-files --others --exclude-standard)"
+          test -z "$(git diff --cached --name-only)"
+          changed="$(git diff --name-only)"
+          if [[ "$changed" != 'composer.lock' ]]; then
+            echo 'Hosted maintenance publisher may modify exactly composer.lock.' >&2
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+
+      - name: Commit and push generated lockfile fast-forward only
+        id: publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+          EXPECTED_HEAD_REF: ${{ needs.validate-target.outputs.head_ref }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add composer.lock
+          test "$(git diff --cached --name-only)" = 'composer.lock'
+          git commit -m 'Issue #562: materialize Drupal maintenance lockfile'
+
+          live_head="$(gh api repos/$GITHUB_REPOSITORY/pulls/563 --jq '.head.sha')"
+          test "$live_head" = "$EXPECTED_HEAD_SHA" || {
+            echo 'Target PR advanced before final push.' >&2
+            exit 1
+          }
+          git push origin "HEAD:$EXPECTED_HEAD_REF"
+          echo "new_head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish maintenance resolution summary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OLD_HEAD: ${{ needs.validate-target.outputs.head_sha }}
+          NEW_HEAD: ${{ steps.publish.outputs.new_head_sha }}
+          AI_VERSION: ${{ needs.resolve-lock.outputs.resolved_ai }}
+          CHANGE_COUNT: ${{ needs.resolve-lock.outputs.change_count }}
+          LOCK_SHA256: ${{ needs.resolve-lock.outputs.lock_sha256 }}
+        run: |
+          set -euo pipefail
+          changes="$(jq -r '.[] | "- `\(.package)`: `\(.before // "not installed")` -> `\(.after // "removed")`"' /tmp/drupal-maintenance/package-changes.json)"
+          gh pr comment 563 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF
+          ### #562 governed Drupal maintenance — Composer resolution SUCCESS
+
+          - Drupal AI: \`${AI_VERSION}\`
+          - changed Drupal packages: \`${CHANGE_COUNT}\`
+          - input HEAD: \`${OLD_HEAD}\`
+          - published HEAD: \`${NEW_HEAD}\`
+          - composer.lock SHA-256: \`${LOCK_SHA256}\`
+          - trusted run: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)
+
+          ${changes}
+
+          The self-hosted runner remained read-only. Only the generated lockfile was published by the GitHub-hosted writer after exact live-HEAD revalidation.
+          EOF
+          )"

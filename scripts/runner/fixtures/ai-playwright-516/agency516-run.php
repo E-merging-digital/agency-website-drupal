@@ -22,11 +22,11 @@ if ($originalHeading === $temporaryHeading) {
 }
 
 $sequence = [
-  ['name' => 'browser_preview', 'args' => ['url' => '/canvas-governed-sdc-baseline', 'task' => 'Inspect the approved Canvas baseline before the bounded #516 mutation.']],
+  ['name' => 'ai_playwright_browser_preview', 'args' => ['url' => '/canvas-governed-sdc-baseline', 'task' => 'Inspect the approved Canvas baseline before the bounded #516 mutation.']],
   ['name' => 'bounded_canvas_heading', 'args' => ['mode' => 'mutate']],
-  ['name' => 'browser_preview', 'args' => ['url' => '/canvas-governed-sdc-baseline', 'task' => 'Inspect the approved Canvas baseline after the bounded #516 heading mutation.']],
+  ['name' => 'ai_playwright_browser_preview', 'args' => ['url' => '/canvas-governed-sdc-baseline', 'task' => 'Inspect the approved Canvas baseline after the bounded #516 heading mutation.']],
   ['name' => 'bounded_canvas_heading', 'args' => ['mode' => 'restore']],
-  ['name' => 'browser_preview', 'args' => ['url' => '/canvas-governed-sdc-baseline', 'task' => 'Inspect the approved Canvas baseline after exact restoration.']],
+  ['name' => 'ai_playwright_browser_preview', 'args' => ['url' => '/canvas-governed-sdc-baseline', 'task' => 'Inspect the approved Canvas baseline after exact restoration.']],
   ['name' => NULL, 'text' => '#516 governed AI Playwright loop complete.'],
 ];
 $step = 0;
@@ -126,7 +126,7 @@ try {
     ];
   }
   $names = array_column($tools, 'function_name');
-  $expected = ['browser_preview', 'bounded_canvas_heading', 'browser_preview', 'bounded_canvas_heading', 'browser_preview'];
+  $expected = ['ai_playwright_browser_preview', 'bounded_canvas_heading', 'ai_playwright_browser_preview', 'bounded_canvas_heading', 'ai_playwright_browser_preview'];
   if ($names !== $expected) {
     throw new \RuntimeException('Unexpected tool sequence: ' . json_encode($names));
   }

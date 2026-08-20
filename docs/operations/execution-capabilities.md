@@ -3,7 +3,7 @@
 Status: **AUTHORITATIVE CAPABILITY REGISTRY**  
 Repository: `E-merging-digital/agency-website-drupal`  
 Registry owner: #421  
-Last materialized: 2026-08-19
+Last materialized: 2026-08-20
 
 ## 1. Purpose
 
@@ -205,7 +205,57 @@ Implementation and full contract:
 docs/operations/governed-composer-materialization.md
 ```
 
-## 6. What the agent can verify visually today
+## 6. Governed editor-owned Article publication route
+
+Issue #576 adds a bounded production mutation route for ordinary Blog Articles
+that are explicitly editor-owned in Drupal and outside Content Sync / Governed
+Content.
+
+This is **not** a generic production shell or content API. The only control
+surface is an exact issue comment authored by `E-merging-digital` on an OPEN
+owner-created issue:
+
+```text
+/agency-editorial inspect
+/agency-editorial dry-run
+/agency-editorial apply
+```
+
+The trusted workflow runs from the live `main` revision on GitHub-hosted
+infrastructure and reuses the existing deployment SSH secrets and production
+channel. Payload values are transferred only as a canonical JSON file and are
+never interpolated into shell or Drush commands.
+
+The v1 contract is fixed to:
+
+```text
+bundle                 = article
+source language        = fr
+required translation   = en
+text format            = basic_html
+category vocabulary    = blog_categories
+technical author       = uid 1
+aliases                 = Pathauto-owned
+```
+
+`dry-run` is read-only and publishes the canonical payload SHA-256. `apply`
+requires a previous bot-authored dry-run PASS for the same payload hash and the
+same live `main` SHA, performs a fresh Drupal preflight, creates a SQL backup,
+then mutates content only through Drupal Entity API. An issue-to-node state
+mapping is used only for idempotence/audit; it is not an editorial source of
+truth.
+
+The route may not invoke Content Sync, deployment, arbitrary Drush/shell,
+configuration import/update, taxonomy creation, another bundle or another text
+format.
+
+Implementation and full contract:
+
+```text
+docs/operations/governed-editorial-publication.md
+```
+
+## 7. What the agent can verify visually today
 
 The browser workflow publishes evidence including:
 
@@ -226,7 +276,7 @@ The final #399 proof on 2026-08-15 demonstrated this end-to-end. The #519 and
 #526 governed SDC/Canvas proofs subsequently reused the same route for exact-HEAD
 desktop/mobile validation and human visual review.
 
-## 7. Interactive MCP versus artifact review
+## 8. Interactive MCP versus artifact review
 
 Do not conflate these two paths.
 
@@ -268,7 +318,7 @@ an invocation route, first look for an existing governed executor/agent route.
 Only create a new route under a dedicated issue if the existing routes truly
 cannot invoke the installed capability.
 
-## 8. Tool responsibilities
+## 9. Tool responsibilities
 
 ```text
 Drupal BrowserTestBase
@@ -285,13 +335,17 @@ Chrome DevTools MCP
 
 Governed Composer materializer
   -> dependency-only lock resolution with separated write privilege
+
+Governed editorial publisher
+  -> bounded editor-owned Article inspect/dry-run/apply via trusted main
 ```
 
 MCP is not a replacement for deterministic tests, and deterministic tests are
 not a replacement for visual inspection. The Composer materializer is not a
-generic command executor.
+generic command executor. The editorial publisher is not a generic production
+content or shell API.
 
-## 9. Secrets and authenticated UI
+## 10. Secrets and authenticated UI
 
 Public validation requires no secret.
 
@@ -308,7 +362,11 @@ For future authenticated Drupal scenarios:
 The Composer materialization route carries no provider secret and must never be
 extended to transport one.
 
-## 10. Reload rule for future agents
+The editorial publication route reuses only the existing production SSH
+secrets. It must never expose those values in artifacts or comments and must not
+be widened to provider keys, Drupal passwords or arbitrary credentials.
+
+## 11. Reload rule for future agents
 
 Before any statement such as:
 
@@ -318,6 +376,7 @@ Playwright is unavailable
 Playwright MCP is unavailable
 Chrome DevTools MCP is unavailable
 Composer cannot be materialized without human file copying
+ordinary Drupal Article publication requires mechanical human entry
 I cannot validate the UI
 Jonathan must run this manually
 ```

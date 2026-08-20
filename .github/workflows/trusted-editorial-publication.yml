@@ -1,0 +1,299 @@
+name: Agency trusted editorial publication
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  editorial-publication:
+    name: Governed Article publication
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        (
+          github.event.comment.body == '/agency-editorial inspect' ||
+          github.event.comment.body == '/agency-editorial dry-run' ||
+          github.event.comment.body == '/agency-editorial apply'
+        )
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: agency-editorial-${{ github.event.issue.number }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]
+
+          case "$TRIGGER_COMMENT" in
+            '/agency-editorial inspect') mode='inspect' ;;
+            '/agency-editorial dry-run') mode='dry-run' ;;
+            '/agency-editorial apply') mode='apply' ;;
+            *) echo 'Unsupported editorial command.' >&2; exit 1 ;;
+          esac
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Editorial route must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Extract and canonicalize bounded editorial payload
+        id: payload
+        if: ${{ steps.request.outputs.mode != 'inspect' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
+            --jq '.[] | @base64' > /tmp/agency-editorial-comments.b64
+
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          marker = '<!-- agency-editorial-payload:v1 -->'
+          owner = 'E-merging-digital'
+          issue_number = int(os.environ['ISSUE_NUMBER'])
+          mode = os.environ['MODE']
+          trusted_main = os.environ['TRUSTED_MAIN']
+          expected_top = {
+              'schema_version', 'issue_number', 'bundle', 'published',
+              'category', 'fr', 'en',
+          }
+          expected_lang = {'title', 'short_description', 'body_html'}
+          expected_category = {'tid', 'name'}
+
+          comments = []
+          for raw_line in Path('/tmp/agency-editorial-comments.b64').read_text(encoding='utf-8').splitlines():
+              if not raw_line.strip():
+                  continue
+              decoded = base64.b64decode(raw_line).decode('utf-8')
+              comments.append(json.loads(decoded))
+
+          payload_comment = None
+          payload = None
+          for comment in comments:
+              if comment.get('user', {}).get('login') != owner:
+                  continue
+              body = comment.get('body') or ''
+              if not body.startswith(marker):
+                  continue
+              candidate = body[len(marker):].strip()
+              try:
+                  parsed = json.loads(candidate)
+              except json.JSONDecodeError:
+                  continue
+              if not isinstance(parsed, dict):
+                  continue
+              payload_comment = comment
+              payload = parsed
+
+          if payload is None or payload_comment is None:
+              raise SystemExit('No valid owner-authored agency editorial payload was found.')
+          if set(payload) != expected_top:
+              raise SystemExit(f'Editorial payload keys must be exactly {sorted(expected_top)}.')
+          if payload.get('schema_version') != 1:
+              raise SystemExit('schema_version must be 1.')
+          if payload.get('issue_number') != issue_number:
+              raise SystemExit('Payload issue_number does not match the triggering issue.')
+          if payload.get('bundle') != 'article':
+              raise SystemExit('Only bundle=article is allowed.')
+          if not isinstance(payload.get('published'), bool):
+              raise SystemExit('published must be boolean.')
+          if not isinstance(payload.get('category'), dict) or set(payload['category']) != expected_category:
+              raise SystemExit('category must contain exactly tid and name.')
+          for lang in ('fr', 'en'):
+              value = payload.get(lang)
+              if not isinstance(value, dict) or set(value) != expected_lang:
+                  raise SystemExit(f'{lang} must contain exactly {sorted(expected_lang)}.')
+
+          canonical = json.dumps(
+              payload,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(',', ':'),
+          ) + '\n'
+          payload_path = Path('/tmp/agency-editorial-payload.json')
+          payload_path.write_text(canonical, encoding='utf-8')
+          digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+          if mode == 'apply':
+              dry_run_pattern = re.compile(
+                  r'^### Agency editorial dry-run PASS\s*$.*?'
+                  r'^payload_sha256: `([0-9a-f]{64})`\s*$.*?'
+                  r'^trusted_main: `([0-9a-f]{40})`\s*$',
+                  re.MULTILINE | re.DOTALL,
+              )
+              authorized = False
+              for comment in comments:
+                  if comment.get('user', {}).get('login') != 'github-actions[bot]':
+                      continue
+                  body = comment.get('body') or ''
+                  match = dry_run_pattern.search(body)
+                  if match and match.group(1) == digest and match.group(2) == trusted_main:
+                      authorized = True
+              if not authorized:
+                  raise SystemExit(
+                      'Apply requires a prior bot-authored dry-run PASS for the same payload hash and live main.'
+                  )
+
+          output = Path(os.environ['GITHUB_OUTPUT'])
+          with output.open('a', encoding='utf-8') as handle:
+              handle.write(f'payload_sha256={digest}\n')
+              handle.write(f'payload_comment_id={payload_comment["id"]}\n')
+          PY
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f scripts/runner/run-editorial-publication.sh
+          test -f scripts/runner/editorial-publication.php
+          bash -n scripts/runner/run-editorial-publication.sh
+          php -l scripts/runner/editorial-publication.php
+
+      - name: Configure existing production SSH channel
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Execute bounded editorial route
+        id: route
+        shell: bash
+        env:
+          EDITORIAL_MODE: ${{ steps.request.outputs.mode }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+          PAYLOAD_FILE: /tmp/agency-editorial-payload.json
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/editorial-publication
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-editorial-publication.sh
+
+      - name: Upload editorial evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-editorial-${{ github.event.issue.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/editorial-publication
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+          ROUTE_OUTCOME: ${{ steps.route.outcome }}
+        run: |
+          set -euo pipefail
+
+          result_file='artifacts/editorial-publication/result.json'
+          status='MISSING'
+          verdict='UNKNOWN'
+          node_id='n/a'
+          revision_id='n/a'
+          fr_alias='n/a'
+          en_alias='n/a'
+          if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result_file")"
+            node_id="$(jq -r '.node.id // "n/a"' "$result_file")"
+            revision_id="$(jq -r '.node.revision_id // "n/a"' "$result_file")"
+            fr_alias="$(jq -r '.node.aliases.fr // "n/a"' "$result_file")"
+            en_alias="$(jq -r '.node.aliases.en // "n/a"' "$result_file")"
+          fi
+
+          heading="### Agency editorial ${MODE} ${status}"
+          if [[ "$MODE" == 'dry-run' && "$ROUTE_OUTCOME" == 'success' && "$status" == 'PASS' ]]; then
+            heading='### Agency editorial dry-run PASS'
+          elif [[ "$MODE" == 'apply' && "$ROUTE_OUTCOME" == 'success' && "$status" == 'PASS' ]]; then
+            heading='### Agency editorial apply PASS'
+          elif [[ "$MODE" == 'inspect' && "$ROUTE_OUTCOME" == 'success' && "$status" == 'PASS' ]]; then
+            heading='### Agency editorial inspect PASS'
+          fi
+
+          artifact="agency-editorial-${ISSUE_NUMBER}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          payload_sha256: \`${PAYLOAD_SHA256:-n/a}\`
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
+          verdict: \`${verdict}\`
+          node_id: \`${node_id}\`
+          revision_id: \`${revision_id}\`
+          fr_alias: \`${fr_alias}\`
+          en_alias: \`${en_alias}\`
+          artifact: \`${artifact}\`
+
+          This route is restricted to editor-owned Drupal Articles and does not invoke Content Sync, deployment, arbitrary Drush or arbitrary shell input.
+          EOF_BODY
+          )"
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

@@ -1,9 +1,10 @@
 # Architecture de contexte IA partagé et gouverné
 
-Statut : **CONTRAT CIBLE — WAIT FOR UPSTREAM**  
+Statut : **CONTRAT CIBLE — PILOT / PREPARE FOR RC**  
 Issue : #387  
 Parent : #32  
-Date : 2026-08-15
+Date de cadrage : 2026-08-15  
+Dernière revalidation upstream : 2026-08-20
 
 ## 1. Objectif
 
@@ -24,34 +25,68 @@ Cette architecture définit :
 - la frontière entre contexte partagé et contexte spécifique à un use case ;
 - le verdict sur Context Control Center (`ai_context`).
 
-Ce ticket n'installe aucun module et ne crée aucun framework générique custom.
+Ce ticket ne crée aucun framework générique custom. Le changement de statut du
+20 août 2026 autorise uniquement un **pilote DDEV/local borné** de l'upstream ;
+il n'autorise ni installation production ni migration générale de source de
+vérité.
 
-## 2. Verdict upstream
+## 2. Verdict upstream — revalidation du 20 août 2026
 
-Au 2026-08-15, Context Control Center est publié en `1.0.0-beta2` et ne dispose
-pas encore de release stable supportée. Il propose la direction fonctionnelle
-pertinente : context items révisables, multilingues, gouvernés, scopes, limites,
-liaison aux agents et suivi d'usage.
+Context Control Center a publié `1.0.0-beta3` le 18 juillet 2026. Cette release
+reste une beta : le projet Drupal indique toujours qu'il n'existe **aucune
+release stable supportée**.
+
+Par rapport au snapshot `1.0.0-beta2` utilisé pour le cadrage initial, beta3
+couvre désormais une part suffisamment importante du contrat Agency pour
+justifier une preuve locale :
+
+- context items portés par des content entities ;
+- modération/workflow, révisions et comparaison de révisions ;
+- multilingue ;
+- scopes et target entities ;
+- sous-contextes requis ou conditionnels ;
+- sélection et limites par agent, dont budget d'items/tokens ;
+- règles `Always include` / `Never include` ;
+- usage/debugging et permissions ;
+- événements stables pour étendre la sélection ;
+- import de sources bornées et suivi d'usage désactivable.
+
+Beta3 est compatible avec Drupal AI `^1.4` ou `2.x` et avec une pile Drupal
+compatible avec Agency. Cela ne suffit pas encore pour une adoption production :
+certains consumers doivent encore s'appuyer sur des APIs internes ou en cours de
+stabilisation, et plusieurs raffinements visibles dans les travaux pré-RC sont
+postérieurs à beta3. Ces capacités pré-RC/dev ne doivent pas être présentées
+comme RELEASED tant qu'une release consommable ne les contient pas.
 
 Verdict projet :
 
 ```text
 Context Control Center en production
--> WAIT
+-> WAIT FOR STABLE
 
-contrat de contexte partagé
--> DEFINE NOW
+Context Control Center en DDEV/local
+-> PROMOTE TO PILOT / PREPARE FOR RC
+
+contrat de contexte partagé Agency
+-> KEEP — ce document reste autoritatif
 
 nouveau framework générique custom Agency
 -> DO NOT BUILD
 
-adaptation minimale vers les sources existantes
--> autorisée seulement lorsqu'un consumer réel le nécessite
+sources de vérité existantes
+-> KEEP OWNERSHIP
+-> CCC les référence/adapte ; il ne les remplace pas automatiquement
 ```
 
-Le passage à `ADOPT` nécessite une nouvelle vérification de maturité : release
-stable adaptée, couverture sécurité, compatibilité avec la branche Drupal AI du
-projet et preuve locale bornée.
+Le pilote doit commencer par un scope minuscule, par exemple `brand.voice`, et
+prouver révisions, workflow, FR/EN, permissions, sélection, limites, provenance
+et rollback. Si un consumer utile ne peut pas consommer proprement le contexte
+via une API/service upstream suffisamment public, le verdict reste `WAIT FOR RC`
+sans reconstruction d'un adapter générique Agency.
+
+Le passage futur à `ADOPT CANDIDATE` exige toujours : release stable adaptée,
+couverture sécurité, compatibilité avec la branche Drupal AI du projet et preuve
+locale bornée concluante.
 
 ## 3. Inventaire des sources actuelles
 
@@ -446,26 +481,37 @@ Un agent reçoit :
 
 Aucun agent ne reçoit « tout le contexte Agency » par défaut.
 
-## 10. Context Control Center : critères d'adoption
+## 10. Context Control Center : critères de pilotage et d'adoption
 
-Le projet revalidera `drupal/ai_context` lorsque :
+Le projet peut piloter `drupal/ai_context` en DDEV/local lorsque :
+
+1. une release publiée est compatible avec la pile projet ;
+2. le pilote n'exige ni secret ni désactivation d'un garde-fou de sécurité ;
+3. le scope reste borné et réversible ;
+4. aucune source de vérité Agency n'est transférée automatiquement ;
+5. les preuves peuvent être obtenues sans dépendre d'une capacité dev non publiée.
+
+Le projet n'adoptera CCC en production que lorsque :
 
 1. une release stable compatible avec la pile projet existe ;
 2. la couverture sécurité est adaptée à la production ;
 3. les context items supportent les révisions/permissions/traductions requises ;
 4. les scopes permettent le least-context ;
 5. CKEditor/Agents ou adapters nécessaires peuvent consommer le contexte sans
-   couplage provider ;
+   couplage provider ni dépendance à une API interne instable ;
 6. limites de taille/tokens et provenance sont inspectables ;
 7. export/migration/rollback sont compris ;
 8. une preuve locale montre qu'aucun workflow éditorial courant ne régresse.
 
-Si l'upstream répond à ces critères : verdict futur **ADOPT**.
+Si l'upstream répond à ces critères : verdict futur **ADOPT CANDIDATE**.
 
-S'il reste incomplet mais offre une API stable utilisable : **ADAPTER MINIMAL**,
-sans reconstruire son storage/UI/workflow.
+S'il reste incomplet mais offre une API publique stable utilisable :
+**ADAPTER MINIMAL**, sans reconstruire son storage/UI/workflow.
 
-Sinon : **WAIT**.
+Si la preuve beta3 réussit mais que l'API ou la stabilité de release reste le
+seul gap : **WAIT FOR RC / STABLE**.
+
+Sinon : **WAIT FOR UPSTREAM**.
 
 ## 11. Ce que le projet ne doit pas construire en attendant
 
@@ -510,8 +556,8 @@ Pour du contenu Drupal dynamique, la revision/entity courante doit être résolu
 au moment de l'opération. Un snapshot dans Git ne doit pas prétendre être plus
 frais que Drupal.
 
-Les futurs travaux #389 sur l'observabilité doivent pouvoir enregistrer les ids
-de contexte/scopes sans journaliser leur contenu complet par défaut.
+Les travaux #389 sur l'observabilité doivent pouvoir enregistrer les ids de
+contexte/scopes sans journaliser leur contenu complet par défaut.
 
 ## 14. Permissions
 
@@ -556,37 +602,42 @@ anciens contenus qui ont été générés avec une version précédente.
 
 - #379 : Guardrails protège les appels ; il ne remplace pas la gouvernance du
   contexte.
-- #380 : AI CKEditor sera le premier consumer éditorial probable de
-  `brand.voice` / terminologie / entity context.
+- #380 : AI CKEditor est un consumer éditorial possible de `brand.voice` /
+  terminologie / entity context ; son implémentation existante n'est pas à
+  recréer pour le pilote.
 - #381 : chaque Automator doit demander le minimum nécessaire.
 - #382 : AI Translate doit surtout consommer terminologie + entity/revision.
 - #388 : `PublicContextBuilder` garde sa policy spécifique, sans devenir le
   framework partagé.
 - #389 : observabilité/provenance des scopes utilisés, privacy-first.
+- #530 : Canvas AI peut devenir un consumer futur du contexte, mais son pilote
+  actuel ne dépend pas de CCC et ne doit pas être élargi sous #387.
 
 ## 17. Plan d'adoption sans big-bang
 
 ### Maintenant
 
 - conserver toutes les sources de vérité actuelles ;
-- ne pas installer `ai_context` ;
+- autoriser sous #387 un pilote `ai_context` **éphémère DDEV/local** ;
+- commencer par un seul scope comme `brand.voice` ;
+- ne pas activer `ai_context` en production ;
 - éviter toute nouvelle duplication ;
 - faire référencer ce document par les futurs tickets IA.
 
-### Avec #380 / #381 / #382
-
-Pour chaque consumer :
+### Pour chaque consumer
 
 1. identifier ses scopes ;
 2. lire les sources existantes ;
-3. ajouter au maximum un adapter minimal borné ;
-4. tester FR/EN et absence de données hors scope ;
-5. documenter la provenance.
+3. préférer l'API/service CCC upstream lorsqu'il est suffisamment public et
+   stable ;
+4. ajouter au maximum un adapter minimal borné si un gap durable est démontré ;
+5. tester FR/EN et absence de données hors scope ;
+6. documenter la provenance.
 
-### Quand Context Control Center devient adoptable
+### Quand Context Control Center devient adoptable en production
 
 1. revalider maturité/sécurité ;
-2. installer uniquement dans un ticket dédié ;
+2. installer uniquement dans le ticket/owner existant ;
 3. migrer d'abord un petit scope (`brand.voice` par exemple) ;
 4. prouver permissions, traduction, révisions et rollback ;
 5. migrer ensuite consumer par consumer ;
@@ -607,11 +658,19 @@ Le contexte partagé sera considéré maîtrisé lorsque :
 
 ## 19. Sources upstream vérifiées
 
-Sources officielles consultées le 2026-08-15 :
+Sources officielles revalidées le 2026-08-20 :
 
 - Context Control Center : `https://www.drupal.org/project/ai_context`
 - Releases CCC : `https://www.drupal.org/project/ai_context/releases`
 - Drupal AI : `https://project.pages.drupalcode.org/ai/`
 
-État vérifié : `ai_context 1.0.0-beta2` est la dernière release publiée ; le
-projet indique qu'il n'existe actuellement aucune release stable supportée.
+État vérifié : `ai_context 1.0.0-beta3` est une release publiée compatible avec
+Drupal AI `^1.4` ou `2.x`, mais le projet indique toujours qu'il n'existe aucune
+release stable supportée.
+
+Les fonctionnalités beta3 utilisées pour décider le pilote sont celles de la
+release publiée : content entities, révisions/modération/multilingue, scopes et
+target entities, sous-contextes conditionnels, limites/sélection par agent,
+Always/Never include, usage/debug et events de sélection. Les raffinements
+pré-RC postérieurs à beta3 restent des signaux de trajectoire, **pas des
+capacités Agency disponibles** tant qu'ils ne sont pas publiés.

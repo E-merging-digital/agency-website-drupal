@@ -147,6 +147,7 @@ final class BoundedCanvasHeading extends FunctionCallBase implements ExecutableF
   private static function invalidateRenderedPageCaches(): void {
     \Drupal::service('cache.render')->deleteAll();
     \Drupal::service('cache.dynamic_page_cache')->deleteAll();
+    \Drupal::service('cache.page')->deleteAll();
   }
 
   public function getReadableOutput(): string {

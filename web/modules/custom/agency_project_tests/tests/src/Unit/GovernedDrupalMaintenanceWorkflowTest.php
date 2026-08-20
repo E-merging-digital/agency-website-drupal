@@ -86,7 +86,7 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
   }
 
   /**
-   * Self-hosted resolution stays read-only and the hosted writer stays lock-only.
+   * Self-hosted resolution stays read-only and hosted writes stay lock-only.
    */
   public function testResolverAndPublisherKeepPrivilegeSeparation(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -109,7 +109,10 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
 
     self::assertStringContainsString('contents: read', $resolver);
     self::assertStringNotContainsString('contents: write', $resolver);
-    self::assertStringContainsString('persist-credentials: false', $resolver);
+    self::assertStringContainsString(
+      'persist-credentials: false',
+      $resolver,
+    );
     self::assertStringContainsString(
       'ddev composer update "$COMPOSER_UPDATE_SELECTOR"',
       $resolver,

@@ -7,7 +7,8 @@ use Drupal\ai\OperationType\Chat\ChatInput;
 use Drupal\ai\OperationType\Chat\ChatMessage;
 use Drupal\ai_agents\Event\AgentRequestEvent;
 
-$baselineBeforePath = DRUPAL_ROOT . '/../artifacts/ai-playwright-governed-loop/baseline-before.json';
+$artifactDir = DRUPAL_ROOT . '/../artifacts/ai-playwright-governed-loop';
+$baselineBeforePath = $artifactDir . '/baseline-before.json';
 if (!is_file($baselineBeforePath)) {
   throw new \RuntimeException('Captured #516 baseline evidence is unavailable.');
 }
@@ -125,6 +126,96 @@ try {
       'output' => $tool->getReadableOutput(),
     ];
   }
+
+  // Persist diagnostic evidence before semantic assertions. A failing proof
+  // must still expose the exact tool outputs, screenshots and stored Canvas
+  // state so the next correction is based on observed evidence, not guesses.
+  file_put_contents(
+    $artifactDir . '/agent-tool-results.json',
+    json_encode([
+      'provider' => 'echoai',
+      'model' => 'gpt-test',
+      'provider_network_required' => FALSE,
+      'provider_hops' => $step,
+      'tool_sequence' => $tools,
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
+  );
+
+  $restoredState = [
+    'component_ids' => [],
+    'heading' => NULL,
+    'state_snapshot_present' => NULL,
+    'error' => NULL,
+  ];
+  try {
+    $ids = \Drupal::entityQuery('canvas_page')
+      ->accessCheck(FALSE)
+      ->condition('uuid', '52600000-0000-4000-8000-000000000001')
+      ->execute();
+    if (count($ids) !== 1) {
+      throw new \RuntimeException('Baseline page not found uniquely during post-restore diagnostics.');
+    }
+    $storage = \Drupal::entityTypeManager()->getStorage('canvas_page');
+    $page = $storage->loadUnchanged(reset($ids));
+    if (!$page || !$page->hasField('components')) {
+      throw new \RuntimeException('Baseline page has no components field during post-restore diagnostics.');
+    }
+    foreach ($page->get('components')->getValue() as $component) {
+      $restoredState['component_ids'][] = $component['component_id'] ?? NULL;
+      if (($component['uuid'] ?? NULL) !== '52600000-0000-4000-8000-000000000103') {
+        continue;
+      }
+      $rawInputs = $component['inputs'] ?? NULL;
+      $inputs = is_string($rawInputs)
+        ? json_decode($rawInputs, TRUE, 512, JSON_THROW_ON_ERROR)
+        : $rawInputs;
+      if (!is_array($inputs)) {
+        throw new \RuntimeException('Restored Canvas CTA inputs are not a valid mapping during diagnostics.');
+      }
+      $restoredState['heading'] = $inputs['heading'] ?? NULL;
+    }
+    $snapshot = \Drupal::state()->get('agency_ai_playwright_516_test.original_components');
+    $restoredState['state_snapshot_present'] = is_string($snapshot) && $snapshot !== '';
+  }
+  catch (\Throwable $e) {
+    $restoredState['error'] = $e->getMessage();
+  }
+  file_put_contents(
+    $artifactDir . '/baseline-restored-during-agent.json',
+    json_encode($restoredState, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
+  );
+
+  $screenshotEvidence = [];
+  $browserResultLabels = [0 => 'before', 2 => 'after', 4 => 'restored'];
+  $fileStorage = \Drupal::entityTypeManager()->getStorage('file');
+  $fileSystem = \Drupal::service('file_system');
+  foreach ($browserResultLabels as $toolIndex => $label) {
+    $entry = [
+      'label' => $label,
+      'tool_index' => $toolIndex,
+      'fid' => NULL,
+      'uri' => NULL,
+      'copied' => FALSE,
+    ];
+    $output = $tools[$toolIndex]['output'] ?? '';
+    if (is_string($output) && preg_match('/Screenshot saved as file id ([0-9]+)/', $output, $matches) === 1) {
+      $entry['fid'] = (int) $matches[1];
+      $file = $fileStorage->load($entry['fid']);
+      if ($file) {
+        $entry['uri'] = $file->getFileUri();
+        $realPath = $fileSystem->realpath($entry['uri']);
+        if (is_string($realPath) && is_file($realPath)) {
+          $entry['copied'] = copy($realPath, $artifactDir . '/' . $label . '.png');
+        }
+      }
+    }
+    $screenshotEvidence[] = $entry;
+  }
+  file_put_contents(
+    $artifactDir . '/screenshots-during-agent.json',
+    json_encode($screenshotEvidence, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n",
+  );
+
   $names = array_column($tools, 'function_name');
   $expected = ['ai_playwright_browser_preview', 'bounded_canvas_heading', 'ai_playwright_browser_preview', 'bounded_canvas_heading', 'ai_playwright_browser_preview'];
   if ($names !== $expected) {
@@ -144,7 +235,7 @@ try {
   }
 
   file_put_contents(
-    DRUPAL_ROOT . '/../artifacts/ai-playwright-governed-loop/agent-loop.json',
+    $artifactDir . '/agent-loop.json',
     json_encode([
       'status' => 'PASS',
       'provider' => 'echoai',

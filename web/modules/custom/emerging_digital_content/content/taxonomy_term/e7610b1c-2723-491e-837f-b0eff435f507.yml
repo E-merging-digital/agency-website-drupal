@@ -1,0 +1,30 @@
+_meta:
+  version: '1.0'
+  entity_type: taxonomy_term
+  uuid: e7610b1c-2723-491e-837f-b0eff435f507
+  bundle: blog_categories
+  default_langcode: fr
+default:
+  status:
+    -
+      value: true
+  name:
+    -
+      value: 'PHP / architecture / frameworks'
+  weight:
+    -
+      value: 1
+  revision_translation_affected:
+    -
+      value: true
+translations:
+  en:
+    status:
+      -
+        value: true
+    name:
+      -
+        value: 'PHP / architecture / frameworks'
+    revision_translation_affected:
+      -
+        value: true

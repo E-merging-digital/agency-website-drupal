@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 use Drupal\menu_link_content\Entity\MenuLinkContent;
+use Drupal\taxonomy\TermInterface;
 
 /**
  * Implements hook_schema().
@@ -87,6 +88,186 @@ function emerging_digital_content_update_11003(array &$sandbox): string {
   $changed = _emerging_digital_content_ensure_blog_navigation_position();
 
   return sprintf('%d Blog navigation values were normalized.', $changed);
+}
+
+/**
+ * Materializes the initial bilingual Blog categories on existing sites.
+ */
+function emerging_digital_content_update_11004(array &$sandbox): string {
+  unset($sandbox);
+
+  $result = _emerging_digital_content_ensure_initial_blog_categories();
+
+  return sprintf(
+    'Initial Blog categories ensured: %d created, %d updated.',
+    $result['created'],
+    $result['updated'],
+  );
+}
+
+/**
+ * Ensures the five editorial Blog categories defined by issue #397.
+ *
+ * @return array{created: int, updated: int}
+ *   Counts of created and updated taxonomy terms.
+ */
+function _emerging_digital_content_ensure_initial_blog_categories(): array {
+  $vocabulary = \Drupal::entityTypeManager()
+    ->getStorage('taxonomy_vocabulary')
+    ->load('blog_categories');
+  if ($vocabulary === NULL) {
+    throw new \RuntimeException('Required blog_categories vocabulary does not exist.');
+  }
+
+  $manifest = [
+    'd4390eaa-6097-4aee-89f8-eeed57401508' => [
+      'fr' => 'Décisions web / agence senior',
+      'en' => 'Web decisions / senior agency',
+      'weight' => 0,
+    ],
+    'e7610b1c-2723-491e-837f-b0eff435f507' => [
+      'fr' => 'PHP / architecture / frameworks',
+      'en' => 'PHP / architecture / frameworks',
+      'weight' => 1,
+    ],
+    '5d072809-6653-42a5-a404-bb6bb18a465e' => [
+      'fr' => 'Drupal comme expertise forte',
+      'en' => 'Drupal expertise',
+      'weight' => 2,
+    ],
+    'fc8248c8-015b-4215-9354-ef554a16416d' => [
+      'fr' => 'IA encadrée',
+      'en' => 'Governed AI',
+      'weight' => 3,
+    ],
+    'f2f77a08-e528-4ac7-9d78-24464bc99f21' => [
+      'fr' => 'Qualité web / SEO / accessibilité',
+      'en' => 'Web quality / SEO / accessibility',
+      'weight' => 4,
+    ],
+  ];
+
+  $storage = \Drupal::entityTypeManager()->getStorage('taxonomy_term');
+  $created = 0;
+  $updated = 0;
+
+  foreach ($manifest as $uuid => $definition) {
+    $uuid_matches = array_values($storage->loadByProperties(['uuid' => $uuid]));
+    if (count($uuid_matches) > 1) {
+      throw new \RuntimeException(sprintf(
+        'Multiple taxonomy terms use packaged Blog category UUID %s.',
+        $uuid,
+      ));
+    }
+
+    $term = $uuid_matches[0] ?? NULL;
+    if ($term instanceof TermInterface && $term->bundle() !== 'blog_categories') {
+      throw new \RuntimeException(sprintf(
+        'Packaged Blog category UUID %s already belongs to vocabulary %s.',
+        $uuid,
+        $term->bundle(),
+      ));
+    }
+
+    if (!$term instanceof TermInterface) {
+      $ids = $storage->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('vid', 'blog_categories')
+        ->condition('langcode', 'fr')
+        ->condition('name', $definition['fr'])
+        ->execute();
+
+      if (count($ids) > 1) {
+        throw new \RuntimeException(sprintf(
+          'Multiple Blog categories already use the FR label "%s".',
+          $definition['fr'],
+        ));
+      }
+
+      if ($ids !== []) {
+        $term = $storage->load((int) reset($ids));
+      }
+    }
+
+    $is_new = !$term instanceof TermInterface;
+    if ($is_new) {
+      $term = $storage->create([
+        'vid' => 'blog_categories',
+        'uuid' => $uuid,
+        'langcode' => 'fr',
+        'name' => $definition['fr'],
+        'weight' => $definition['weight'],
+        'status' => TRUE,
+      ]);
+    }
+
+    if (!$term instanceof TermInterface) {
+      throw new \RuntimeException(sprintf(
+        'Unable to load or create Blog category "%s".',
+        $definition['fr'],
+      ));
+    }
+    if ($term->bundle() !== 'blog_categories') {
+      throw new \RuntimeException(sprintf(
+        'Blog category "%s" resolved outside blog_categories.',
+        $definition['fr'],
+      ));
+    }
+    if ($term->language()->getId() !== 'fr') {
+      throw new \RuntimeException(sprintf(
+        'Blog category "%s" does not use FR as its source language.',
+        $definition['fr'],
+      ));
+    }
+
+    $changed = FALSE;
+    if ((string) $term->label() !== $definition['fr']) {
+      $term->set('name', $definition['fr']);
+      $changed = TRUE;
+    }
+    if ((int) $term->get('weight')->value !== $definition['weight']) {
+      $term->set('weight', $definition['weight']);
+      $changed = TRUE;
+    }
+    if (!(bool) $term->get('status')->value) {
+      $term->set('status', TRUE);
+      $changed = TRUE;
+    }
+
+    if ($term->hasTranslation('en')) {
+      $translation = $term->getTranslation('en');
+      if ((string) $translation->label() !== $definition['en']) {
+        $translation->set('name', $definition['en']);
+        $changed = TRUE;
+      }
+      if (!(bool) $translation->get('status')->value) {
+        $translation->set('status', TRUE);
+        $changed = TRUE;
+      }
+    }
+    else {
+      $term->addTranslation('en', [
+        'name' => $definition['en'],
+        'status' => TRUE,
+      ]);
+      $changed = TRUE;
+    }
+
+    if ($is_new || $changed) {
+      $term->save();
+      if ($is_new) {
+        $created++;
+      }
+      else {
+        $updated++;
+      }
+    }
+  }
+
+  return [
+    'created' => $created,
+    'updated' => $updated,
+  ];
 }
 
 /**

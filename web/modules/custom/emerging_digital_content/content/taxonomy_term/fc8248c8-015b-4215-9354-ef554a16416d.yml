@@ -1,0 +1,30 @@
+_meta:
+  version: '1.0'
+  entity_type: taxonomy_term
+  uuid: fc8248c8-015b-4215-9354-ef554a16416d
+  bundle: blog_categories
+  default_langcode: fr
+default:
+  status:
+    -
+      value: true
+  name:
+    -
+      value: 'IA encadrée'
+  weight:
+    -
+      value: 3
+  revision_translation_affected:
+    -
+      value: true
+translations:
+  en:
+    status:
+      -
+        value: true
+    name:
+      -
+        value: 'Governed AI'
+    revision_translation_affected:
+      -
+        value: true

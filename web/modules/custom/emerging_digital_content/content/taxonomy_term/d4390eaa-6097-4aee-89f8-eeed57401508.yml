@@ -1,0 +1,30 @@
+_meta:
+  version: '1.0'
+  entity_type: taxonomy_term
+  uuid: d4390eaa-6097-4aee-89f8-eeed57401508
+  bundle: blog_categories
+  default_langcode: fr
+default:
+  status:
+    -
+      value: true
+  name:
+    -
+      value: 'Décisions web / agence senior'
+  weight:
+    -
+      value: 0
+  revision_translation_affected:
+    -
+      value: true
+translations:
+  en:
+    status:
+      -
+        value: true
+    name:
+      -
+        value: 'Web decisions / senior agency'
+    revision_translation_affected:
+      -
+        value: true

@@ -149,6 +149,9 @@ final class GovernedEditorialPublicationKernelTest extends KernelTestBase {
       }
       require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-publication.php';
     }
+    if (!class_exists($class, FALSE)) {
+      throw new \RuntimeException('Trusted editorial helper did not load.');
+    }
     $method = (new \ReflectionClass($class))->getMethod('fromContainer');
     $publisher = $method->invoke(NULL, $this->container);
     self::assertIsObject($publisher);

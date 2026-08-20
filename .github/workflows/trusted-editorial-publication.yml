@@ -241,7 +241,7 @@ jobs:
           retention-days: 30
 
       - name: Publish bounded result
-        if: ${{ always() }}
+        if: ${{ always() && steps.request.outcome == 'success' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

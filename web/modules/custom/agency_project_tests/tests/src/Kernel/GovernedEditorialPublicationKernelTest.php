@@ -142,13 +142,17 @@ final class GovernedEditorialPublicationKernelTest extends KernelTestBase {
     $this->sentinelNid = (int) $sentinel->id();
     $this->sentinelRevisionId = (int) $sentinel->getRevisionId();
 
-    if (!class_exists('AgencyEditorialPublication', FALSE)) {
+    $class = 'AgencyEditorialPublication';
+    if (!class_exists($class, FALSE)) {
       if (!defined('AGENCY_EDITORIAL_LIBRARY_ONLY')) {
         define('AGENCY_EDITORIAL_LIBRARY_ONLY', TRUE);
       }
       require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-publication.php';
     }
-    $this->publisher = \AgencyEditorialPublication::fromContainer($this->container);
+    $method = (new \ReflectionClass($class))->getMethod('fromContainer');
+    $publisher = $method->invoke(NULL, $this->container);
+    self::assertIsObject($publisher);
+    $this->publisher = $publisher;
   }
 
   /**

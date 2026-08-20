@@ -85,6 +85,14 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
     self::assertStringContainsString('/var/www/agency/current', $shell);
     self::assertStringContainsString('vendor/bin/drush sql:dump', $shell);
     self::assertStringContainsString('vendor/bin/drush php:script', $shell);
+    self::assertStringContainsString(
+      'backup_stem="/var/www/agency/shared/backups/editorial-issue-${ISSUE_NUMBER}-${timestamp}.sql"',
+      $shell,
+    );
+    self::assertStringContainsString('backup_file="${backup_stem}.gz"', $shell);
+    self::assertStringContainsString('--result-file=\'$backup_stem\'', $shell);
+    self::assertStringContainsString('test -s \'$backup_file\'', $shell);
+    self::assertStringNotContainsString('--result-file=\'$backup_file\'', $shell);
     self::assertStringContainsString("private const BUNDLE = 'article'", $php);
     self::assertStringContainsString("private const TEXT_FORMAT = 'basic_html'", $php);
     self::assertStringContainsString("private const AUTHOR_UID = 1", $php);

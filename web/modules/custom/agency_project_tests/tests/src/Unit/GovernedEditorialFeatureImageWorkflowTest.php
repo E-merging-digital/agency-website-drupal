@@ -56,7 +56,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       JSON_THROW_ON_ERROR,
     );
     self::assertSame(1, $profile['schema_version']);
-    self::assertSame(['401'], array_keys($profile['profiles']));
+    self::assertSame([401], array_keys($profile['profiles']));
     $issue = $profile['profiles']['401'];
     self::assertSame('article', $issue['bundle']);
     self::assertSame('field_feature_image', $issue['field_name']);

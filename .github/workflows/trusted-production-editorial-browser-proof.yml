@@ -86,7 +86,7 @@ jobs:
           jq -e '
             .issue_number == 401 and
             .origin == "https://emergingdigital.be" and
-            .target == "/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier" and
+            .target == "/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier" and
             .actor == "anonymous"
           ' "$CONTRACT" >/dev/null
           git diff --check

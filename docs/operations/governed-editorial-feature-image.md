@@ -13,8 +13,8 @@ Article to receive one reviewed feature-image asset without turning Agency into 
 generic uploader or remote downloader.
 
 Drupal remains the editorial source of truth after apply. The repository owns
-only the reviewed transfer profile and immutable source bytes needed to prove
-exact provenance for the mutation.
+the reviewed transfer profile plus the deterministic source code needed to
+reproduce the exact image bytes and prove their provenance.
 
 ## Control surface
 
@@ -47,27 +47,41 @@ The initial registry contains only issue #401. Its closed contract fixes:
 - the exact original Article payload SHA-256 already stored in
   `agency_editorial.issue.401`;
 - field `field_feature_image`;
-- repository asset path;
+- generated asset path;
 - final Drupal filename;
-- exact asset SHA-256;
+- exact generated asset SHA-256;
 - MIME `image/png`;
 - exact dimensions;
 - maximum byte size;
 - FR ALT;
 - EN ALT.
 
-The workflow resolves the profile from trusted `main`, verifies the repository
-asset hash and computes a canonical profile SHA-256. `apply` requires a prior
-bot-authored image dry-run PASS for the same canonical profile hash, asset hash
-and live `main` SHA.
+The workflow resolves the profile from trusted `main`, generates the approved
+asset from repository-owned deterministic source code, verifies its GD
+decodability and exact hash, then computes the canonical profile SHA-256.
+`apply` requires a prior bot-authored image dry-run PASS for the same canonical
+profile hash, asset hash and live `main` SHA.
 
 Adding another Article is not a runtime input: it requires a reviewed repository
-profile change.
+profile and generator change.
 
 ## Asset boundary
 
-V1 accepts only the PNG bytes already committed below `assets/editorial/` by the
-reviewed profile. It does not:
+V1 accepts only the exact PNG generated from the approved repository source for
+the closed profile. For #401 the source is:
+
+```text
+scripts/runner/generate-editorial-feature-image-401.py
+```
+
+The generated PNG itself is deliberately **not committed as opaque binary
+bytes**. The trusted workflow generates it in the checked-out workspace, checks
+its exact SHA-256 and proves `imagecreatefrompng()` can decode it at the expected
+dimensions before the normal transport route may copy it to production.
+
+The generator is deterministic and uses Python standard-library primitives only.
+It does not depend on a font, external rasterizer, network resource or uploaded
+attachment. The route does not:
 
 - fetch HTTP/HTTPS URLs;
 - consume issue attachments;
@@ -97,6 +111,9 @@ Before mutation it verifies:
 - `field_feature_image` exists;
 - asset bytes match SHA-256, PNG MIME, dimensions and maximum size;
 - technical author uid 1 is active.
+
+The trusted workflow additionally requires the generated PNG to be GD-decodable
+before it reaches this helper.
 
 The final file is stored below:
 
@@ -154,13 +171,49 @@ No cache rebuild is forced by this route: the node revision save performs normal
 Drupal cache invalidation, avoiding an unrelated site-wide mutation after the
 bounded content write.
 
+## #596 source-corruption repair
+
+The first #401 binary committed under #584 was not the originally reviewed byte
+sequence. The original documentation/profile expected SHA-256
+`a61c36785d2395e30067d747b62d8153a3eb21d77508f150d92807a8ab85e9a8`,
+but commit `251d295ace6876d003f43dcdb371bdc03b2cc5e3` introduced another PNG and
+the profile was later changed to its SHA
+`f925e3b41c325e9e863d1936d41b18cea5d0b9c064fac7ba6f551741f863fad4`
+instead of failing the provenance gate.
+
+Production diagnostics under #596 proved that this committed PNG has an invalid
+IDAT CRC, invalid terminal structure and an invalid/truncated compressed image
+stream. Both production GD and GitHub-hosted PHP 8.4/GD refuse to decode it. The
+HTTP 500 on the AVIF derivative therefore occurs **before AVIF/WebP encoding**.
+
+The durable correction has two parts:
+
+1. deterministic generation plus PNG-structure/GD tests prevent an unreadable
+   source from satisfying the profile again;
+2. the one-shot trusted route
+   `/agency-production-image repair-401-source` on issue #596 permits only the
+   exact transition from the legacy URI+SHA to the replacement URI+SHA.
+
+The one-shot repair creates a SQL backup before mutation, creates/reuses the exact
+new File entity, changes only `field_feature_image` on FR/EN, creates one Article
+revision and then requires the replacement state to be exact. It does **not**
+delete the legacy File entity. Any other current URI, hash or ALT state fails
+closed.
+
 ## Evidence
 
-Every run uploads:
+Every normal image-route run uploads:
 
 ```text
 artifacts/editorial-feature-image/result.json
 artifacts/editorial-feature-image/preapply.json   # apply only
+```
+
+The #596 one-shot repair uploads:
+
+```text
+artifacts/production-image-source-repair/preapply.json
+artifacts/production-image-source-repair/result.json
 ```
 
 Result evidence includes only bounded metadata: profile/asset hashes, trusted
@@ -169,11 +222,18 @@ URI. No SSH secret, file bytes or database content is copied into comments.
 
 ## #401 profile
 
-Asset:
+Deterministic source:
+
+```text
+scripts/runner/generate-editorial-feature-image-401.py
+```
+
+Generated asset:
 
 ```text
 assets/editorial/issue-401-redesign-checklist.png
-SHA-256 f925e3b41c325e9e863d1936d41b18cea5d0b9c064fac7ba6f551741f863fad4
+final Drupal filename: issue-401-redesign-checklist-70bf17abe69d.png
+SHA-256 70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898
 1200 x 630
 image/png
 ```
@@ -190,13 +250,13 @@ ALT EN:
 Website redesign preparation checklist
 ```
 
-After #584 is merged and deployed/trusted-main is current:
+Normal converged flow:
 
 ```text
 /agency-editorial-image inspect
 -> /agency-editorial-image dry-run
--> verify profile + asset hashes and READY/REPAIR_REQUIRED
--> /agency-editorial-image apply
+-> verify profile + asset hashes and READY/REPAIR_REQUIRED/IDEMPOTENT
+-> /agency-editorial-image apply when required
 -> verify FID + FR/EN ALT + new revision
 -> second dry-run must be IDEMPOTENT
 -> Browser Validation production FR/EN desktop/mobile

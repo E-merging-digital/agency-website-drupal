@@ -70,6 +70,46 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Setup PHP 8.4 with GD
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: gd
+          coverage: none
+
+      - name: Generate and decode the exact repository-owned image
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          case "$ISSUE_NUMBER" in
+            401)
+              generator='scripts/runner/generate-editorial-feature-image-401.py'
+              asset='assets/editorial/issue-401-redesign-checklist.png'
+              ;;
+            *)
+              echo 'No deterministic editorial image generator is approved for this issue.' >&2
+              exit 1
+              ;;
+          esac
+          test -f "$generator"
+          python3 "$generator" --output "$asset"
+          test -s "$asset"
+          php -r '
+            $path = $argv[1];
+            if (!function_exists("imagecreatefrompng")) {
+              fwrite(STDERR, "GD PNG decoder is unavailable.\n");
+              exit(2);
+            }
+            $image = @imagecreatefrompng($path);
+            if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
+              fwrite(STDERR, "Generated editorial PNG is not GD-decodable at 1200x630.\n");
+              exit(3);
+            }
+            imagedestroy($image);
+          ' "$asset"
+
       - name: Resolve exact repository-owned image profile
         id: profile
         shell: bash
@@ -115,12 +155,12 @@ jobs:
               raise SystemExit('Feature image v1 requires an exact PNG SHA-256.')
           path = Path(asset_path)
           if not path.is_file():
-              raise SystemExit('Repository-owned feature image asset is missing.')
+              raise SystemExit('Deterministically generated feature image asset is missing.')
           actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
           if actual_sha != asset['sha256']:
-              raise SystemExit('Repository-owned feature image asset hash mismatch.')
+              raise SystemExit('Generated feature image asset hash mismatch.')
           if path.stat().st_size <= 0 or path.stat().st_size > asset['max_bytes']:
-              raise SystemExit('Repository-owned feature image asset size is outside the profile limit.')
+              raise SystemExit('Generated feature image asset size is outside the profile limit.')
           alt = profile.get('alt')
           if not isinstance(alt, dict) or set(alt) != {'fr', 'en'} or not all(isinstance(alt[k], str) and alt[k].strip() for k in ('fr', 'en')):
               raise SystemExit('Feature image ALT profile is invalid.')
@@ -172,10 +212,16 @@ jobs:
           test -f scripts/runner/run-editorial-feature-image.sh
           test -f scripts/runner/editorial-feature-image.php
           test -f scripts/runner/editorial-feature-image-profiles.json
+          test -f scripts/runner/generate-editorial-feature-image-401.py
           test -f "$ASSET_PATH"
           bash -n scripts/runner/run-editorial-feature-image.sh
           php -l scripts/runner/editorial-feature-image.php
           [[ "$(sha256sum "$ASSET_PATH" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
+          candidate="$(mktemp --suffix=.png)"
+          trap 'rm -f "$candidate"' EXIT
+          python3 scripts/runner/generate-editorial-feature-image-401.py --output "$candidate"
+          [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
+          cmp -s "$candidate" "$ASSET_PATH"
 
       - name: Configure existing production SSH channel
         env:

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Protects the bounded configuration-language audit route.
@@ -67,6 +68,33 @@ final class ConfigurationLanguageAuditWorkflowTest extends TestCase {
     );
     self::assertStringNotContainsString(
       'ACTIVE_BY_LANGCODE:-{}',
+      $workflow,
+    );
+  }
+
+  /**
+   * Boolean result values must not be collapsed into the unknown fallback.
+   */
+  public function testBooleanSummaryPreservesFalse(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $workflow = (string) file_get_contents(
+      $root . '/.github/workflows/trusted-configuration-language-audit.yml',
+    );
+
+    self::assertStringContainsString(
+      'has("mixed_technical_base_languages")',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'has("canonical_language_already_uniform")',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      '.observations.canonical_language_already_uniform // "unknown"',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      '.observations.mixed_technical_base_languages // "unknown"',
       $workflow,
     );
   }
@@ -141,28 +169,51 @@ final class ConfigurationLanguageAuditWorkflowTest extends TestCase {
   }
 
   /**
-   * The candidate route must be documented before its first trusted proof.
+   * The proven route and baseline must remain durable and discoverable.
    */
-  public function testCandidateRunbookExposesAuditContract(): void {
+  public function testProvenRunbookAndRegistryExposeAuditEvidence(): void {
     $root = dirname(DRUPAL_ROOT);
     $runbook = (string) file_get_contents(
       $root . '/docs/operations/configuration-language-audit.md',
     );
+    $registry = (string) file_get_contents(
+      $root . '/docs/operations/execution-capabilities.md',
+    );
+    $baseline = Yaml::parseFile(
+      $root . '/docs/evidence/configuration-language-baseline-609.yml',
+    );
 
-    self::assertStringContainsString(
-      'CANDIDATE — à prouver sur main avant promotion',
-      $runbook,
+    self::assertStringContainsString('PROUVÉE / AVAILABLE', $runbook);
+    foreach ([$runbook, $registry] as $document) {
+      self::assertStringContainsString(
+        '/agency-config-language inspect',
+        $document,
+      );
+      self::assertStringContainsString('32528341256', $document);
+      self::assertStringContainsString(
+        'df4d389eafaad6135fcd7d995354ff433111be62f745208ac0a65ddf8783629d',
+        $document,
+      );
+    }
+
+    self::assertSame(
+      'agency-config-language-609-pre-migration-v1',
+      $baseline['baseline_id'] ?? NULL,
     );
-    self::assertStringContainsString(
-      '/agency-config-language inspect',
-      $runbook,
+    self::assertSame('migration_required', $baseline['policy_status'] ?? NULL);
+    self::assertSame(595, $baseline['repository']['total'] ?? NULL);
+    self::assertSame(352, $baseline['repository']['by_langcode']['fr'] ?? NULL);
+    self::assertSame(183, $baseline['repository']['by_langcode']['en'] ?? NULL);
+    self::assertSame(
+      181,
+      $baseline['migration_analysis']['fr_base_without_en_override'] ?? NULL,
     );
-    self::assertStringContainsString(
-      'agency-config-language-609-',
-      $runbook,
+    self::assertFalse(
+      $baseline['migration_analysis']['canonical_language_already_uniform'] ?? TRUE,
     );
-    self::assertStringContainsString('SNAPSHOT_CAPTURED', $runbook);
-    self::assertStringContainsString('`composer require`', $runbook);
+    self::assertFalse(
+      $baseline['classification']['bulk_langcode_replacement_allowed'] ?? TRUE,
+    );
   }
 
 }

@@ -33,6 +33,8 @@ final class ProductionEditorialBrowserProofWorkflowTest extends TestCase {
     self::assertStringContainsString('production-editorial-401.json', $workflow);
     self::assertStringContainsString('production-editorial-article.spec.mjs', $workflow);
     self::assertStringContainsString('https://emergingdigital.be', $workflow);
+    self::assertStringContainsString('runs-on: ubuntu-24.04', $workflow);
+    self::assertStringNotContainsString('self-hosted', $workflow);
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
   }
 
@@ -127,6 +129,41 @@ final class ProductionEditorialBrowserProofWorkflowTest extends TestCase {
       'npm run browser:validate -- tests/browser/production-editorial-article.spec.mjs',
       $workflow,
     );
+  }
+
+  /**
+   * Documentation/test-only pushes must not put production in maintenance.
+   */
+  public function testProductionDeployIgnoresOnlyKnownNonRuntimePaths(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root . '/.github/workflows/deploy-production.yml';
+    self::assertFileExists($path);
+    self::assertIsArray(Yaml::parseFile($path));
+
+    $workflow = (string) file_get_contents($path);
+    foreach ([
+      "- '.github/**'",
+      "- 'docs/**'",
+      "- 'tests/**'",
+      "- 'web/modules/custom/agency_project_tests/**'",
+      "- '*.md'",
+    ] as $ignoredPath) {
+      self::assertStringContainsString($ignoredPath, $workflow);
+    }
+
+    // Runtime-bearing areas must remain deploy-triggering by omission from
+    // paths-ignore. A mixed commit therefore still deploys.
+    foreach ([
+      "- 'scripts/**'",
+      "- 'web/**'",
+      "- 'config/**'",
+      "- 'composer.json'",
+      "- 'composer.lock'",
+    ] as $forbiddenIgnore) {
+      self::assertStringNotContainsString($forbiddenIgnore, $workflow);
+    }
+
+    self::assertStringContainsString('workflow_dispatch:', $workflow);
   }
 
 }

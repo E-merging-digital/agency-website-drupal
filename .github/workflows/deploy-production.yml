@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '.github/**'
+      - 'docs/**'
+      - 'tests/**'
+      - 'web/modules/custom/agency_project_tests/**'
+      - '*.md'
   workflow_dispatch:
 
 jobs:

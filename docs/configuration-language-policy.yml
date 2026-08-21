@@ -1,0 +1,47 @@
+schema_version: 1
+policy_id: agency-configuration-language-v1
+status: migration_required
+canonical_configuration_language: en
+site_default_language: fr
+site_languages:
+  - fr
+  - en
+target_configuration_translation_languages:
+  - fr
+current_configuration_translation_directories:
+  - config/sync/language/fr
+  - config/sync/language/en
+enforce_consistency: false
+enforcement:
+  strategy: use_drupal
+  candidate: drupal/config_language_lock
+  minimum_release: 1.0.0
+  target_locked_langcode: en
+  follow_site_default: false
+  adoption_issue: 609
+transformation_sources:
+  - manual_admin
+  - module_install
+  - theme_install
+  - recipe
+  - config_action
+  - canvas
+  - drupal_ai
+  - automated_agent
+evidence:
+  require_before_snapshot: true
+  require_after_snapshot: true
+  require_diff: true
+  require_independent_verdict: true
+preflight:
+  coupling: none
+  contract: observable_policy_and_snapshots
+migration_watchlist:
+  - config/sync/language.entity.und.yml
+  - config/sync/language.entity.zxx.yml
+  - config/sync/language/fr
+  - config/sync/language/en
+  - config/sync/canvas.folder.0d5d5129-0d2e-41f3-a6d5-0211018bd59f.yml
+core_transition:
+  upstream_issue: 'https://www.drupal.org/project/drupal/issues/3337864'
+  remove_contrib_when_core_sufficient: true

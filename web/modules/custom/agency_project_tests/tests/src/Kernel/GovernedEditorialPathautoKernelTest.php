@@ -25,6 +25,9 @@ use PHPUnit\Framework\Attributes\Group;
 #[Group('governed_editorial_publication')]
 final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = [
     'system',
     'user',
@@ -37,6 +40,9 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
     'path_alias',
   ];
 
+  /**
+   * Missing EN alias is repaired without touching the Article revision.
+   */
   public function testMissingEnglishAliasIsRepairedWithoutNodeRevision(): void {
     $this->installEntitySchema('user');
     $this->installEntitySchema('node');
@@ -132,12 +138,24 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
     require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-publication-pathauto.php';
 
     $generator = new class($this->container->get('entity_type.manager')) {
+
+      /**
+       * Languages for which alias generation was requested.
+       *
+       * @var string[]
+       */
       public array $langcodes = [];
 
+      /**
+       * Constructs the bounded fake Pathauto generator.
+       */
       public function __construct(private readonly object $entityTypeManager) {}
 
+      /**
+       * Creates the deterministic test alias for the requested translation.
+       */
       public function updateEntityAlias(object $entity, string $op, array $options = []): void {
-        unset($op, $options);
+        unset($op, $options, $this->entityTypeManager);
         $langcode = $entity->language()->getId();
         $this->langcodes[] = $langcode;
         $nodeId = (int) $entity->id();
@@ -151,6 +169,7 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
           'langcode' => $langcode,
         ])->save();
       }
+
     };
 
     $finalizer = new \AgencyEditorialPathautoFinalizer(

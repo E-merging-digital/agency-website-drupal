@@ -148,10 +148,14 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
       'resolved_field_validation',
       $resolver,
     );
+    self::assertStringContainsString(
+      'ddev composer audit --format=json --locked',
+      $resolver,
+    );
 
     $auditPosition = strpos(
       $resolver,
-      'ddev composer audit --format=json',
+      'ddev composer audit --format=json --locked',
     );
     $gateRemovalPosition = strpos(
       $resolver,

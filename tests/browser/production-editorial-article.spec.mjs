@@ -89,7 +89,19 @@ async function verifyLocale(page, request, baseURL, locale, expected) {
   await expect(page.getByText(contract.category, { exact: true }).first()).toBeVisible();
 
   const image = page.locator(`img[alt="${expected.image_alt}"]`).first();
+  await image.scrollIntoViewIfNeeded();
   await expect(image).toBeVisible();
+  await expect.poll(
+    () => image.evaluate((element) => (
+      element.complete
+      && element.naturalWidth > 0
+      && element.naturalHeight > 0
+    )),
+    {
+      message: `${locale} feature image did not finish loading.`,
+      timeout: 10_000,
+    },
+  ).toBe(true);
   const imageState = await image.evaluate((element) => ({
     complete: element.complete,
     naturalHeight: element.naturalHeight,

@@ -117,27 +117,28 @@ final class ConfigurationLanguageAuditWorkflowTest extends TestCase {
   }
 
   /**
-   * Durable documentation must expose the command and evidence contract.
+   * The candidate route must be documented before its first trusted proof.
    */
-  public function testDocumentationExposesAuditRoute(): void {
+  public function testCandidateRunbookExposesAuditContract(): void {
     $root = dirname(DRUPAL_ROOT);
-    $architecture = (string) file_get_contents(
-      $root . '/docs/configuration-language-governance.md',
-    );
-    $capabilities = (string) file_get_contents(
-      $root . '/docs/operations/execution-capabilities.md',
+    $runbook = (string) file_get_contents(
+      $root . '/docs/operations/configuration-language-audit.md',
     );
 
-    foreach ([$architecture, $capabilities] as $document) {
-      self::assertStringContainsString(
-        '/agency-config-language inspect',
-        $document,
-      );
-      self::assertStringContainsString(
-        'agency-config-language-609-',
-        $document,
-      );
-    }
+    self::assertStringContainsString(
+      'CANDIDATE — à prouver sur main avant promotion',
+      $runbook,
+    );
+    self::assertStringContainsString(
+      '/agency-config-language inspect',
+      $runbook,
+    );
+    self::assertStringContainsString(
+      'agency-config-language-609-',
+      $runbook,
+    );
+    self::assertStringContainsString('SNAPSHOT_CAPTURED', $runbook);
+    self::assertStringContainsString('No Composer mutation', $runbook);
   }
 
 }

@@ -174,6 +174,8 @@ jobs:
           test -f .ddev/config.yaml
           test -f package.json
           test -f scripts/run-browser-validation.mjs
+          test -f tests/browser/contracts/public-blog.json
+          test -f tests/browser/public-blog.spec.mjs
           test -f scripts/runner/prove-governed-content-cli-facade.sh
 
           if [[ -f package-lock.json ]]; then
@@ -295,9 +297,10 @@ jobs:
         shell: bash
         env:
           CI: 'true'
+          BROWSER_VALIDATION_CONTRACT: tests/browser/contracts/public-blog.json
         run: |
           set -euo pipefail
-          npm run browser:validate
+          npm run browser:validate -- tests/browser/public-blog.spec.mjs
 
       - name: Upload browser and config evidence
         if: ${{ always() }}

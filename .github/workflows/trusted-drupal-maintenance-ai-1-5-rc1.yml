@@ -250,7 +250,7 @@ jobs:
             --no-scripts
 
           mkdir -p ../drupal-maintenance-artifact
-          ddev composer audit --format=json > ../drupal-maintenance-artifact/composer-audit.json
+          ddev composer audit --format=json --locked > ../drupal-maintenance-artifact/composer-audit.json
 
           rm -f .ddev/config.gate-drupal-maintenance.yaml
           test -z "$(git ls-files --others --exclude-standard)"

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\FileExists;
+use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Session\AccountSwitcherInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\file\FileInterface;
@@ -29,6 +30,7 @@ final class AgencyEditorialFeatureImage {
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly StateInterface $state,
     private readonly FileRepositoryInterface $fileRepository,
+    private readonly FileSystemInterface $fileSystem,
     private readonly AccountSwitcherInterface $accountSwitcher,
   ) {}
 
@@ -40,6 +42,7 @@ final class AgencyEditorialFeatureImage {
       $container->get('entity_type.manager'),
       $container->get('state'),
       $container->get('file.repository'),
+      $container->get('file_system'),
       $container->get('account_switcher'),
     );
   }
@@ -364,7 +367,15 @@ final class AgencyEditorialFeatureImage {
    * Creates or reuses the deterministic File entity for the exact asset.
    */
   private function materializeFile(array $profile, string $assetPath): FileInterface {
-    $destination = self::DESTINATION_DIRECTORY . '/' . $profile['asset']['filename'];
+    $directory = self::DESTINATION_DIRECTORY;
+    if (!$this->fileSystem->prepareDirectory(
+      $directory,
+      FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS,
+    )) {
+      throw new RuntimeException('Governed feature image destination directory is not writable.');
+    }
+
+    $destination = $directory . '/' . $profile['asset']['filename'];
     $fileStorage = $this->entityTypeManager->getStorage('file');
     $existing = $fileStorage->loadByProperties(['uri' => $destination]);
     if (count($existing) > 1) {

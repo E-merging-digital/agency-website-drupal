@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './support/browser-audit.mjs';
@@ -24,13 +25,13 @@ const requiredTopLevelKeys = [
   'target',
 ];
 
-expect(Object.keys(contract).sort()).toEqual(requiredTopLevelKeys.sort());
-expect(contract.id).toBe('production-editorial-401');
-expect(contract.issue_number).toBe(401);
-expect(contract.actor).toBe('anonymous');
-expect(contract.origin).toBe('https://emergingdigital.be');
-expect(Object.keys(contract.locales).sort()).toEqual(['en', 'fr']);
-expect(Object.keys(contract.hreflang).sort()).toEqual(['en', 'fr', 'x-default']);
+assert.deepEqual(Object.keys(contract).sort(), requiredTopLevelKeys.sort());
+assert.equal(contract.id, 'production-editorial-401');
+assert.equal(contract.issue_number, 401);
+assert.equal(contract.actor, 'anonymous');
+assert.equal(contract.origin, 'https://emergingdigital.be');
+assert.deepEqual(Object.keys(contract.locales).sort(), ['en', 'fr']);
+assert.deepEqual(Object.keys(contract.hreflang).sort(), ['en', 'fr', 'x-default']);
 
 function absoluteUrl(value, baseURL) {
   return new URL(value, `${baseURL}/`).toString();
@@ -149,8 +150,6 @@ test.describe('Governed production editorial browser proof', () => {
     expect(baseURL).toBe(contract.origin);
 
     await verifyLocale(page, request, baseURL, 'fr', contract.locales.fr);
-    audit.checks.functional = 'PASS';
-    audit.checks.dom = 'PASS';
 
     const screenshotDirectory = path.resolve(
       'artifacts/browser-validation/screenshots',
@@ -179,6 +178,8 @@ test.describe('Governed production editorial browser proof', () => {
       contentType: 'image/png',
     });
 
+    audit.checks.functional = 'PASS';
+    audit.checks.dom = 'PASS';
     audit.screenshot = `screenshots/production-editorial-401-${testInfo.project.name}-fr.png`;
     audit.checks.visual = 'PASS';
     audit.checks.console =

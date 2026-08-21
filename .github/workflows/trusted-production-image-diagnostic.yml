@@ -1,0 +1,302 @@
+name: Agency trusted production image diagnostic
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  production-image-diagnostic:
+    name: Diagnose production AVIF derivative
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.actor == 'E-merging-digital' &&
+        github.event.comment.user.login == 'E-merging-digital' &&
+        github.event.comment.body == '/agency-production-image diagnose'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: agency-production-image-596
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate actor, incident and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-production-image diagnose' ]]
+          [[ "$ISSUE_NUMBER" == '596' ]] || {
+            echo 'Production image diagnostic v1 is restricted to issue #596.' >&2
+            exit 1
+          }
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Production image diagnostic must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Configure existing production SSH channel
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Run fixed read-only AVIF diagnostic
+        id: diagnostic
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p artifacts/production-image-diagnostic
+          raw='artifacts/production-image-diagnostic/diagnostic.txt'
+
+          set +e
+          ssh "$SERVER_USER@$SERVER_HOST" 'bash -s' > "$raw" 2>&1 <<'REMOTE_DIAGNOSTIC'
+          set -u
+          CURRENT='/var/www/agency/current'
+          FILES="$CURRENT/web/sites/default/files"
+          SOURCE="$FILES/articles/issue-401-redesign-checklist-f925e3b41c32.png"
+          DERIVATIVE="$FILES/styles/large/public/articles/issue-401-redesign-checklist-f925e3b41c32.png.avif"
+          DERIVATIVE_URL='https://emergingdigital.be/sites/default/files/styles/large/public/articles/issue-401-redesign-checklist-f925e3b41c32.png.avif?itok=bTtxA4Oo'
+
+          scalar() {
+            printf '%s=%s\n' "$1" "$2"
+          }
+
+          bool() {
+            if [[ "$2" == '1' ]]; then
+              scalar "$1" true
+            else
+              scalar "$1" false
+            fi
+          }
+
+          scalar current_release "$(readlink -f "$CURRENT" 2>/dev/null || echo unavailable)"
+          scalar current_sha "$(git -C "$CURRENT" rev-parse HEAD 2>/dev/null || echo unavailable)"
+          scalar files_directory "$(readlink -f "$FILES" 2>/dev/null || echo unavailable)"
+          scalar maintenance_mode "$(cd "$CURRENT" && vendor/bin/drush php:eval 'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);' 2>/dev/null | tr -d '\r\n' || echo unavailable)"
+          scalar active_deploy_processes "$(pgrep -af '[d]eploy-production.sh' 2>/dev/null | wc -l | tr -d ' ')"
+          scalar image_toolkit "$(cd "$CURRENT" && vendor/bin/drush config:get system.image toolkit --format=string 2>/dev/null | tr -d '\r\n' || echo unavailable)"
+          scalar php_version "$(php -r 'echo PHP_VERSION;' 2>/dev/null || echo unavailable)"
+          bool gd_loaded "$(php -r 'echo extension_loaded("gd") ? 1 : 0;' 2>/dev/null || echo 0)"
+          bool imageavif_function "$(php -r 'echo function_exists("imageavif") ? 1 : 0;' 2>/dev/null || echo 0)"
+          bool imagewebp_function "$(php -r 'echo function_exists("imagewebp") ? 1 : 0;' 2>/dev/null || echo 0)"
+          bool gd_avif_support "$(php -r '$i=function_exists("gd_info") ? gd_info() : []; echo !empty($i["AVIF Support"]) ? 1 : 0;' 2>/dev/null || echo 0)"
+          bool gd_webp_support "$(php -r '$i=function_exists("gd_info") ? gd_info() : []; echo !empty($i["WebP Support"]) ? 1 : 0;' 2>/dev/null || echo 0)"
+          scalar memory_limit "$(php -r 'echo ini_get("memory_limit");' 2>/dev/null || echo unavailable)"
+
+          if [[ -f "$SOURCE" ]]; then
+            scalar source_exists true
+            scalar source_bytes "$(stat -c '%s' "$SOURCE" 2>/dev/null || echo unavailable)"
+            scalar source_dimensions "$(php -r '$i=@getimagesize($argv[1]); echo $i ? $i[0]."x".$i[1] : "unreadable";' "$SOURCE" 2>/dev/null || echo unavailable)"
+            scalar source_mime "$(php -r '$i=@getimagesize($argv[1]); echo $i["mime"] ?? "unknown";' "$SOURCE" 2>/dev/null || echo unavailable)"
+          else
+            scalar source_exists false
+            scalar source_bytes unavailable
+            scalar source_dimensions unavailable
+            scalar source_mime unavailable
+          fi
+
+          if [[ -f "$DERIVATIVE" ]]; then
+            scalar derivative_exists true
+            scalar derivative_bytes "$(stat -c '%s' "$DERIVATIVE" 2>/dev/null || echo unavailable)"
+            scalar derivative_dimensions "$(php -r '$i=@getimagesize($argv[1]); echo $i ? $i[0]."x".$i[1] : "unreadable";' "$DERIVATIVE" 2>/dev/null || echo unavailable)"
+            scalar derivative_mime "$(php -r '$i=@getimagesize($argv[1]); echo $i["mime"] ?? "unknown";' "$DERIVATIVE" 2>/dev/null || echo unavailable)"
+          else
+            scalar derivative_exists false
+            scalar derivative_bytes unavailable
+            scalar derivative_dimensions unavailable
+            scalar derivative_mime unavailable
+          fi
+
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          derivative_status="$(curl -k -sS --connect-timeout 8 --max-time 20 \
+            -A 'agency-production-image-diagnostic/1' \
+            -D "$headers" -o "$body" -w '%{http_code}' "$DERIVATIVE_URL" 2>/dev/null)"
+          curl_exit="$?"
+          if [[ "$curl_exit" -ne 0 ]]; then
+            derivative_status='000'
+          fi
+          scalar derivative_http_status "$derivative_status"
+          scalar derivative_http_content_type "$(awk 'BEGIN{IGNORECASE=1} /^content-type:/{gsub(/\r/,""); sub(/^[^:]+:[[:space:]]*/,""); value=$0} END{print value ? value : "unavailable"}' "$headers")"
+          scalar derivative_http_body_sha256 "$(if [[ -s "$body" ]]; then sha256sum "$body" | awk '{print $1}'; else echo empty; fi)"
+          scalar derivative_http_hint "$(tr '\n' ' ' < "$body" | grep -Eio -m1 'service unavailable|image|avif|gd|memory|permission|error' || true)"
+          rm -f "$headers" "$body"
+
+          echo 'drupal_error_log_begin'
+          (cd "$CURRENT" && vendor/bin/drush watchdog:show --count=30 --severity=Error --format=table 2>&1 | tail -n 80) || true
+          echo 'drupal_error_log_end'
+
+          echo 'nginx_error_log_begin'
+          tail -n 50 /var/log/nginx/error.log 2>&1 || true
+          echo 'nginx_error_log_end'
+
+          echo 'php_fpm_log_begin'
+          tail -n 50 /var/log/php8.4-fpm.log 2>&1 || true
+          echo 'php_fpm_log_end'
+          REMOTE_DIAGNOSTIC
+          ssh_status="$?"
+          set -e
+
+          value() {
+            grep -m1 "^$1=" "$raw" | cut -d= -f2- || true
+          }
+
+          status="$(value derivative_http_status)"
+          source_exists="$(value source_exists)"
+          derivative_exists="$(value derivative_exists)"
+          gd_avif="$(value gd_avif_support)"
+          imageavif="$(value imageavif_function)"
+          gd_webp="$(value gd_webp_support)"
+          toolkit="$(value image_toolkit)"
+          current_sha="$(value current_sha)"
+          maintenance="$(value maintenance_mode)"
+
+          verdict='UNKNOWN'
+          if [[ "$ssh_status" -ne 0 ]]; then
+            verdict='SSH_DIAGNOSTIC_FAILED'
+          elif [[ "$source_exists" != 'true' ]]; then
+            verdict='SOURCE_MISSING'
+          elif [[ "$status" =~ ^[23][0-9][0-9]$ ]]; then
+            verdict='DERIVATIVE_HEALTHY'
+          elif [[ "$status" == '500' && ( "$gd_avif" != 'true' || "$imageavif" != 'true' ) ]]; then
+            verdict='AVIF_CAPABILITY_MISMATCH'
+          elif [[ "$status" == '500' && "$derivative_exists" != 'true' ]]; then
+            verdict='DERIVATIVE_GENERATION_FAILED'
+          elif [[ "$status" == '500' ]]; then
+            verdict='DERIVATIVE_SERVING_FAILED'
+          fi
+
+          jq -n \
+            --arg verdict "$verdict" \
+            --arg current_sha "${current_sha:-unknown}" \
+            --arg maintenance_mode "${maintenance:-unknown}" \
+            --arg image_toolkit "${toolkit:-unknown}" \
+            --arg gd_avif_support "${gd_avif:-unknown}" \
+            --arg imageavif_function "${imageavif:-unknown}" \
+            --arg gd_webp_support "${gd_webp:-unknown}" \
+            --arg source_exists "${source_exists:-unknown}" \
+            --arg source_dimensions "$(value source_dimensions)" \
+            --arg derivative_exists "${derivative_exists:-unknown}" \
+            --arg derivative_dimensions "$(value derivative_dimensions)" \
+            --arg derivative_http_status "${status:-unknown}" \
+            --arg derivative_http_content_type "$(value derivative_http_content_type)" \
+            --argjson ssh_exit "$ssh_status" \
+            '{schema_version:1, verdict:$verdict, ssh_exit:$ssh_exit, current_sha:$current_sha, maintenance_mode:$maintenance_mode, image_toolkit:$image_toolkit, gd_avif_support:$gd_avif_support, imageavif_function:$imageavif_function, gd_webp_support:$gd_webp_support, source_exists:$source_exists, source_dimensions:$source_dimensions, derivative_exists:$derivative_exists, derivative_dimensions:$derivative_dimensions, derivative_http_status:$derivative_http_status, derivative_http_content_type:$derivative_http_content_type}' \
+            > artifacts/production-image-diagnostic/result.json
+
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          test "$ssh_status" -eq 0
+
+      - name: Upload diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-image-diagnostic-596-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-image-diagnostic
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded diagnostic result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
+        run: |
+          set -euo pipefail
+          result='artifacts/production-image-diagnostic/result.json'
+          verdict='MISSING'
+          current_sha='unknown'
+          maintenance='unknown'
+          toolkit='unknown'
+          gd_avif='unknown'
+          imageavif='unknown'
+          gd_webp='unknown'
+          source_exists='unknown'
+          source_dimensions='unknown'
+          derivative_exists='unknown'
+          derivative_dimensions='unknown'
+          http_status='unknown'
+          content_type='unknown'
+
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            verdict="$(jq -r '.verdict' "$result")"
+            current_sha="$(jq -r '.current_sha' "$result")"
+            maintenance="$(jq -r '.maintenance_mode' "$result")"
+            toolkit="$(jq -r '.image_toolkit' "$result")"
+            gd_avif="$(jq -r '.gd_avif_support' "$result")"
+            imageavif="$(jq -r '.imageavif_function' "$result")"
+            gd_webp="$(jq -r '.gd_webp_support' "$result")"
+            source_exists="$(jq -r '.source_exists' "$result")"
+            source_dimensions="$(jq -r '.source_dimensions' "$result")"
+            derivative_exists="$(jq -r '.derivative_exists' "$result")"
+            derivative_dimensions="$(jq -r '.derivative_dimensions' "$result")"
+            http_status="$(jq -r '.derivative_http_status' "$result")"
+            content_type="$(jq -r '.derivative_http_content_type' "$result")"
+          fi
+
+          artifact="agency-production-image-diagnostic-596-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ### Agency production image diagnostic ${verdict}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${DIAGNOSTIC_OUTCOME:-unknown}\`
+          production_current_sha: \`${current_sha}\`
+          maintenance_mode: \`${maintenance}\`
+          image_toolkit: \`${toolkit}\`
+          gd_avif_support: \`${gd_avif}\`
+          imageavif_function: \`${imageavif}\`
+          gd_webp_support: \`${gd_webp}\`
+          source_exists: \`${source_exists}\`
+          source_dimensions: \`${source_dimensions}\`
+          derivative_exists: \`${derivative_exists}\`
+          derivative_dimensions: \`${derivative_dimensions}\`
+          derivative_http_status: \`${http_status}\`
+          derivative_content_type: \`${content_type}\`
+          artifact: \`${artifact}\`
+
+          Read-only incident diagnostic. No image derivative is generated or deleted, no Drupal state/config/content is changed, and no service/deployment command is executed.
+          EOF_BODY
+          )"
+          gh issue comment 596 --repo "$GITHUB_REPOSITORY" --body "$body"

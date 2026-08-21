@@ -68,14 +68,45 @@ jobs:
         run: |
           set -euo pipefail
           generator='scripts/runner/generate-editorial-feature-image-401.py'
+          helper='scripts/runner/repair-editorial-feature-image-401.php'
           asset='assets/editorial/issue-401-redesign-checklist.png'
           expected='70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898'
           test -f "$generator"
-          test -f scripts/runner/repair-editorial-feature-image-401.php
+          test -f "$helper"
           test -f scripts/runner/editorial-feature-image-profiles.json
+
+          # The one-shot helper predates PHP 8.4's strict by-reference call check.
+          # Materialize one exact compatibility correction in the ephemeral
+          # trusted-runner checkout rather than redeploying production for a
+          # helper that is transferred and executed only by this workflow.
+          python3 - "$helper" <<'PY_HELPER'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          source = path.read_text(encoding='utf-8')
+          old = """  $fileSystem = $container->get('file_system');
+          if (!$fileSystem instanceof FileSystemInterface || !$fileSystem->prepareDirectory(
+            AGENCY_IMAGE_REPAIR_DIRECTORY,
+            FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS,
+          )) {
+          """
+          new = """  $fileSystem = $container->get('file_system');
+          $directory = AGENCY_IMAGE_REPAIR_DIRECTORY;
+          if (!$fileSystem instanceof FileSystemInterface || !$fileSystem->prepareDirectory(
+            $directory,
+            FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS,
+          )) {
+          """
+          if source.count(old) != 1:
+              raise SystemExit('Exact PHP 8.4 prepareDirectory compatibility target is not unique.')
+          path.write_text(source.replace(old, new), encoding='utf-8')
+          PY_HELPER
+
           python3 "$generator" --output "$asset"
           [[ "$(sha256sum "$asset" | awk '{print $1}')" == "$expected" ]]
-          php -l scripts/runner/repair-editorial-feature-image-401.php >/dev/null
+          php -l "$helper" >/dev/null
+          grep -F '$directory = AGENCY_IMAGE_REPAIR_DIRECTORY;' "$helper" >/dev/null
           php -r '
             $image = @imagecreatefrompng($argv[1]);
             if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {

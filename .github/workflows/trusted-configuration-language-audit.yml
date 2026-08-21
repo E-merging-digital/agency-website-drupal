@@ -172,8 +172,8 @@ jobs:
             repository_by_langcode="$(jq -c '.repository.by_langcode // {}' "$result")"
             active_by_langcode="$(jq -c '.active.by_langcode // {}' "$result")"
             translations="$(jq -c '.translations // []' "$result")"
-            mixed="$(jq -r '.observations.mixed_technical_base_languages // "unknown"' "$result")"
-            uniform="$(jq -r '.observations.canonical_language_already_uniform // "unknown"' "$result")"
+            mixed="$(jq -r 'if (.observations | has("mixed_technical_base_languages")) then .observations.mixed_technical_base_languages else "unknown" end' "$result")"
+            uniform="$(jq -r 'if (.observations | has("canonical_language_already_uniform")) then .observations.canonical_language_already_uniform else "unknown" end' "$result")"
           fi
 
           echo "status=$status" >> "$GITHUB_OUTPUT"

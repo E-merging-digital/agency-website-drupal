@@ -173,7 +173,7 @@ Asset:
 
 ```text
 assets/editorial/issue-401-redesign-checklist.png
-SHA-256 a61c36785d2395e30067d747b62d8153a3eb21d77508f150d92807a8ab85e9a8
+SHA-256 f925e3b41c325e9e863d1936d41b18cea5d0b9c064fac7ba6f551741f863fad4
 1200 x 630
 image/png
 ```

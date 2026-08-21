@@ -1,0 +1,233 @@
+name: Agency trusted production image repair state diagnostic
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  diagnose-image-repair-state:
+    name: Inspect exact #401 repair partial state
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 602 &&
+        github.actor == 'E-merging-digital' &&
+        github.event.comment.user.login == 'E-merging-digital' &&
+        github.event.comment.body == '/agency-production-image diagnose-repair-state'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: agency-production-image-repair-state-602
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate exact diagnostic request and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-production-image diagnose-repair-state' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/602")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Repair-state diagnostic must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Configure existing production SSH channel
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Collect exact read-only production state
+        id: diagnostic
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          artifact_dir='artifacts/production-image-repair-state'
+          mkdir -p "$artifact_dir"
+          raw="$artifact_dir/diagnostic.txt"
+          remote_target="${SERVER_USER}@${SERVER_HOST}"
+
+          set +e
+          ssh -o BatchMode=yes -o ConnectTimeout=20 "$remote_target" 'bash -s' >"$raw" 2>&1 <<'REMOTE_DIAGNOSTIC'
+          set -u
+          CURRENT='/var/www/agency/current'
+          EXPECTED_RUNTIME='ffccfc35c24805c4ae973cbd847b827b21a04184'
+          OLD_FILE="$CURRENT/web/sites/default/files/articles/issue-401-redesign-checklist-f925e3b41c32.png"
+          NEW_FILE="$CURRENT/web/sites/default/files/articles/issue-401-redesign-checklist-70bf17abe69d.png"
+          OLD_URI='public://articles/issue-401-redesign-checklist-f925e3b41c32.png'
+          NEW_URI='public://articles/issue-401-redesign-checklist-70bf17abe69d.png'
+
+          emit() {
+            printf '%s=%s\n' "$1" "$2"
+          }
+
+          file_state() {
+            label="$1"
+            path="$2"
+            if [[ -f "$path" ]]; then
+              emit "${label}_exists" 'true'
+              emit "${label}_bytes" "$(stat -c '%s' "$path" 2>/dev/null || printf unavailable)"
+              emit "${label}_sha256" "$(sha256sum "$path" 2>/dev/null | awk '{print $1}' || printf unavailable)"
+              emit "${label}_owner_mode" "$(stat -c '%U:%G:%a' "$path" 2>/dev/null || printf unavailable)"
+            else
+              emit "${label}_exists" 'false'
+              emit "${label}_bytes" 'unavailable'
+              emit "${label}_sha256" 'unavailable'
+              emit "${label}_owner_mode" 'unavailable'
+            fi
+          }
+
+          sql() {
+            label="$1"
+            query="$2"
+            printf '%s_begin\n' "$label"
+            set +e
+            (cd "$CURRENT" && timeout 30s vendor/bin/drush sql:query "$query")
+            status="$?"
+            set -e
+            printf '%s_exit=%s\n' "$label" "$status"
+            printf '%s_end\n' "$label"
+          }
+
+          [[ -d "$CURRENT" ]] || { emit fatal 'current_missing'; exit 20; }
+          [[ -x "$CURRENT/vendor/bin/drush" ]] || { emit fatal 'drush_missing'; exit 21; }
+
+          current_sha="$(git -C "$CURRENT" rev-parse HEAD 2>/dev/null || true)"
+          emit current_sha "${current_sha:-unavailable}"
+          [[ "$current_sha" == "$EXPECTED_RUNTIME" ]] || { emit fatal 'unexpected_runtime'; exit 22; }
+          emit active_deploy_processes "$(pgrep -af '[d]eploy-production.sh' 2>/dev/null | wc -l | tr -d ' ')"
+          emit memory_summary "$(free -m | awk '/^Mem:/ {printf "%s/%sMB", $3, $2}')"
+
+          file_state old_file "$OLD_FILE"
+          file_state new_file "$NEW_FILE"
+
+          sql db_ping "SELECT 'db_ok' AS probe;"
+          sql file_rows "SELECT fid, filename, uri, filemime, filesize, status, uid FROM file_managed WHERE uri IN ('$OLD_URI', '$NEW_URI') ORDER BY fid;"
+          sql current_field_rows "SELECT entity_id, revision_id, langcode, delta, field_feature_image_target_id, field_feature_image_alt FROM node__field_feature_image WHERE entity_id = 37 ORDER BY langcode, delta;"
+          sql current_node_rows "SELECT nid, vid, langcode, status, title FROM node_field_data WHERE nid = 37 ORDER BY langcode;"
+          sql revision_summary "SELECT COUNT(*) AS revision_count, MIN(vid) AS min_vid, MAX(vid) AS max_vid FROM node_revision WHERE nid = 37;"
+          sql latest_revisions "SELECT r.nid, r.vid, r.revision_uid, FROM_UNIXTIME(r.revision_timestamp) AS revision_time, LEFT(COALESCE(r.revision_log, ''), 120) AS revision_log FROM node_revision r WHERE r.nid = 37 ORDER BY r.vid DESC LIMIT 8;"
+          sql revision_image_rows "SELECT entity_id, revision_id, langcode, delta, field_feature_image_target_id, field_feature_image_alt FROM node_revision__field_feature_image WHERE entity_id = 37 ORDER BY revision_id DESC, langcode, delta LIMIT 20;"
+          sql db_variables "SHOW VARIABLES WHERE Variable_name IN ('max_allowed_packet','max_connections','net_read_timeout','net_write_timeout','wait_timeout');"
+          sql db_status "SHOW GLOBAL STATUS WHERE Variable_name IN ('Aborted_clients','Aborted_connects','Connections','Threads_connected','Threads_running','Uptime');"
+
+          printf 'database_service_journal_begin\n'
+          journalctl --since '45 minutes ago' --no-pager -n 120 -u mariadb -u mysql 2>&1 || true
+          printf 'database_service_journal_end\n'
+
+          printf 'kernel_failure_hints_begin\n'
+          journalctl -k --since '45 minutes ago' --no-pager 2>&1 | grep -Ei 'oom|out of memory|killed process|segfault|php|mariadb|mysql' | tail -n 120 || true
+          printf 'kernel_failure_hints_end\n'
+
+          emit diagnostic_complete 'true'
+          REMOTE_DIAGNOSTIC
+          ssh_status="$?"
+          set -e
+
+          current_sha="$(grep -m1 '^current_sha=' "$raw" | cut -d= -f2- || true)"
+          new_exists="$(grep -m1 '^new_file_exists=' "$raw" | cut -d= -f2- || true)"
+          new_sha="$(grep -m1 '^new_file_sha256=' "$raw" | cut -d= -f2- || true)"
+          db_ping_exit="$(grep -m1 '^db_ping_exit=' "$raw" | cut -d= -f2- || true)"
+          complete="$(grep -m1 '^diagnostic_complete=' "$raw" | cut -d= -f2- || true)"
+
+          jq -n \
+            --arg current_sha "${current_sha:-unknown}" \
+            --arg new_file_exists "${new_exists:-unknown}" \
+            --arg new_file_sha256 "${new_sha:-unknown}" \
+            --arg db_ping_exit "${db_ping_exit:-unknown}" \
+            --arg diagnostic_complete "${complete:-false}" \
+            --argjson ssh_exit "$ssh_status" \
+            '{schema_version:1,current_sha:$current_sha,new_file_exists:$new_file_exists,new_file_sha256:$new_file_sha256,db_ping_exit:$db_ping_exit,diagnostic_complete:$diagnostic_complete,ssh_exit:$ssh_exit}' \
+            > "$artifact_dir/result.json"
+
+          echo "ssh_status=$ssh_status" >> "$GITHUB_OUTPUT"
+          echo "complete=${complete:-false}" >> "$GITHUB_OUTPUT"
+          [[ "$ssh_status" -eq 0 && "$complete" == 'true' ]]
+
+      - name: Upload repair-state evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-image-repair-state-602-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-image-repair-state
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded diagnostic result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
+        run: |
+          set -euo pipefail
+          result='artifacts/production-image-repair-state/result.json'
+          current_sha='unknown'
+          new_exists='unknown'
+          new_sha='unknown'
+          db_ping='unknown'
+          complete='false'
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            current_sha="$(jq -r '.current_sha' "$result")"
+            new_exists="$(jq -r '.new_file_exists' "$result")"
+            new_sha="$(jq -r '.new_file_sha256' "$result")"
+            db_ping="$(jq -r '.db_ping_exit' "$result")"
+            complete="$(jq -r '.diagnostic_complete' "$result")"
+          fi
+          artifact="agency-production-image-repair-state-602-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ### Agency production #401 repair-state diagnostic
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${DIAGNOSTIC_OUTCOME:-unknown}\`
+          production_current_sha: \`${current_sha}\`
+          new_file_exists: \`${new_exists}\`
+          new_file_sha256: \`${new_sha}\`
+          db_ping_exit: \`${db_ping}\`
+          diagnostic_complete: \`${complete}\`
+          artifact: \`${artifact}\`
+
+          Read-only incident diagnostic pinned to issue #602, node 37 and the exact old/new #401 image URIs. It performs fixed SELECT/SHOW queries only and does not mutate Drupal, files, services, Git or deployment state.
+          EOF_BODY
+          )"
+          gh issue comment 602 --repo "$GITHUB_REPOSITORY" --body "$body"

@@ -85,28 +85,28 @@ jobs:
 
           path = Path(sys.argv[1])
           source = path.read_text(encoding='utf-8')
-          old = """  $fileSystem = $container->get('file_system');
-          if (!$fileSystem instanceof FileSystemInterface || !$fileSystem->prepareDirectory(
-            AGENCY_IMAGE_REPAIR_DIRECTORY,
-            FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS,
-          )) {
-          """
-          new = """  $fileSystem = $container->get('file_system');
-          $directory = AGENCY_IMAGE_REPAIR_DIRECTORY;
-          if (!$fileSystem instanceof FileSystemInterface || !$fileSystem->prepareDirectory(
-            $directory,
-            FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS,
-          )) {
-          """
-          if source.count(old) != 1:
-              raise SystemExit('Exact PHP 8.4 prepareDirectory compatibility target is not unique.')
-          path.write_text(source.replace(old, new), encoding='utf-8')
+          anchor = "  $fileSystem = $container->get('file_system');\n"
+          call = "!$fileSystem->prepareDirectory(\n    AGENCY_IMAGE_REPAIR_DIRECTORY,\n"
+          if source.count(anchor) != 1:
+              raise SystemExit('Exact PHP 8.4 file-system compatibility anchor is not unique.')
+          if source.count(call) != 1:
+              raise SystemExit('Exact PHP 8.4 prepareDirectory call target is not unique.')
+          source = source.replace(
+              anchor,
+              anchor + "  $directory = AGENCY_IMAGE_REPAIR_DIRECTORY;\n",
+          )
+          source = source.replace(
+              call,
+              "!$fileSystem->prepareDirectory(\n    $directory,\n",
+          )
+          path.write_text(source, encoding='utf-8')
           PY_HELPER
 
           python3 "$generator" --output "$asset"
           [[ "$(sha256sum "$asset" | awk '{print $1}')" == "$expected" ]]
           php -l "$helper" >/dev/null
           grep -F '$directory = AGENCY_IMAGE_REPAIR_DIRECTORY;' "$helper" >/dev/null
+          grep -F '!$fileSystem->prepareDirectory(' "$helper" >/dev/null
           php -r '
             $image = @imagecreatefrompng($argv[1]);
             if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {

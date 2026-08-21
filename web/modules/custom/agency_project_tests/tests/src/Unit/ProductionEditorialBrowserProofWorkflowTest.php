@@ -76,6 +76,15 @@ final class ProductionEditorialBrowserProofWorkflowTest extends TestCase {
       '/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier',
       $contract['target'],
     );
+    self::assertSame(['fr', 'en'], array_keys($contract['category']));
+    self::assertSame(
+      'Qualité web / SEO / accessibilité',
+      $contract['category']['fr'],
+    );
+    self::assertSame(
+      'Web quality / SEO / accessibility',
+      $contract['category']['en'],
+    );
     self::assertSame(['fr', 'en'], array_keys($contract['locales']));
     self::assertSame(['fr', 'en'], array_keys($contract['hreflang']));
     self::assertSame(
@@ -117,6 +126,7 @@ final class ProductionEditorialBrowserProofWorkflowTest extends TestCase {
     self::assertStringContainsString("link[rel=\"canonical\"]", $scenario);
     self::assertStringContainsString('link[rel="alternate"][hreflang]', $scenario);
     self::assertStringContainsString('<loc>${expectedUrl}</loc>', $scenario);
+    self::assertStringContainsString('contract.category[locale]', $scenario);
     self::assertStringContainsString('image_alt', $scenario);
     self::assertStringContainsString('naturalWidth', $scenario);
     self::assertStringContainsString('hasHorizontalOverflow', $scenario);

@@ -82,17 +82,77 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
+   * Repository-owned PNG assets must have a structurally valid chunk stream.
+   */
+  public function testGovernedEditorialAssetHasValidPngStructure(): void {
+    $assetPath = $this->governedAssetPath();
+    $bytes = file_get_contents($assetPath);
+    self::assertIsString($bytes);
+    self::assertStringStartsWith("\x89PNG\r\n\x1a\n", $bytes, 'PNG signature is invalid.');
+
+    $offset = 8;
+    $length = strlen($bytes);
+    $chunks = [];
+    $sawIdat = FALSE;
+    $sawIend = FALSE;
+
+    while ($offset < $length) {
+      self::assertGreaterThanOrEqual(
+        $offset + 12,
+        $length,
+        sprintf('PNG chunk header/trailer is truncated at byte %d.', $offset),
+      );
+
+      $chunkLength = unpack('Nlength', substr($bytes, $offset, 4));
+      self::assertIsArray($chunkLength);
+      $dataLength = $chunkLength['length'];
+      $type = substr($bytes, $offset + 4, 4);
+      self::assertMatchesRegularExpression(
+        '/^[A-Za-z]{4}$/D',
+        $type,
+        sprintf('Invalid PNG chunk type at byte %d.', $offset),
+      );
+
+      $chunkEnd = $offset + 12 + $dataLength;
+      self::assertLessThanOrEqual(
+        $length,
+        $chunkEnd,
+        sprintf('PNG chunk %s at byte %d is truncated (declared length %d).', $type, $offset, $dataLength),
+      );
+
+      $data = substr($bytes, $offset + 8, $dataLength);
+      $storedCrc = substr($bytes, $offset + 8 + $dataLength, 4);
+      $computedCrc = pack('N', crc32($type . $data));
+      self::assertSame(
+        bin2hex($computedCrc),
+        bin2hex($storedCrc),
+        sprintf('PNG chunk %s at byte %d has an invalid CRC.', $type, $offset),
+      );
+
+      $chunks[] = $type;
+      if ($type === 'IDAT') {
+        $sawIdat = TRUE;
+      }
+      if ($type === 'IEND') {
+        self::assertSame(0, $dataLength, 'PNG IEND chunk must be empty.');
+        $sawIend = TRUE;
+        $offset = $chunkEnd;
+        break;
+      }
+      $offset = $chunkEnd;
+    }
+
+    self::assertSame('IHDR', $chunks[0] ?? NULL, 'PNG IHDR must be the first chunk.');
+    self::assertTrue($sawIdat, 'PNG must contain at least one IDAT chunk.');
+    self::assertTrue($sawIend, 'PNG must terminate with an IEND chunk.');
+    self::assertSame($length, $offset, 'PNG contains trailing bytes after IEND.');
+  }
+
+  /**
    * Repository-owned editorial image assets must be decodable by GD.
    */
   public function testGovernedEditorialAssetIsGdDecodable(): void {
-    $root = dirname(DRUPAL_ROOT);
-    $profile = json_decode(
-      (string) file_get_contents($root . '/scripts/runner/editorial-feature-image-profiles.json'),
-      TRUE,
-      16,
-      JSON_THROW_ON_ERROR,
-    );
-    $assetPath = $root . '/' . $profile['profiles']['401']['asset']['path'];
+    $assetPath = $this->governedAssetPath();
 
     self::assertTrue(
       function_exists('imagecreatefrompng'),
@@ -181,6 +241,21 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString('${{ secrets.SERVER_USER }}', $workflow);
     self::assertStringNotContainsString('password:', $workflow);
     self::assertStringNotContainsString('settings.php', $workflow);
+  }
+
+  /**
+   * Returns the repository-owned asset path for the closed #401 profile.
+   */
+  private function governedAssetPath(): string {
+    $root = dirname(DRUPAL_ROOT);
+    $profile = json_decode(
+      (string) file_get_contents($root . '/scripts/runner/editorial-feature-image-profiles.json'),
+      TRUE,
+      16,
+      JSON_THROW_ON_ERROR,
+    );
+
+    return $root . '/' . $profile['profiles']['401']['asset']['path'];
   }
 
 }

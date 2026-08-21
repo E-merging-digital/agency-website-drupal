@@ -44,7 +44,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
-   * Asset transport must be exact, repository-owned and URL-free.
+   * Asset transport must be exact, deterministic, repository-owned and URL-free.
    */
   public function testProfileAndAssetAreClosedAndHashBound(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -61,14 +61,37 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertSame('article', $issue['bundle']);
     self::assertSame('field_feature_image', $issue['field_name']);
     self::assertSame('image/png', $issue['asset']['mime']);
+    self::assertSame(1200, $issue['asset']['width']);
+    self::assertSame(630, $issue['asset']['height']);
     self::assertStringStartsWith('assets/editorial/', $issue['asset']['path']);
     self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $issue['asset']['sha256']);
     self::assertSame(
+      '70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898',
       $issue['asset']['sha256'],
-      hash_file('sha256', $root . '/' . $issue['asset']['path']),
     );
+
+    $assetPath = $this->governedAssetPath();
+    self::assertSame($issue['asset']['sha256'], hash_file('sha256', $assetPath));
+    self::assertLessThanOrEqual($issue['asset']['max_bytes'], filesize($assetPath));
     self::assertSame('Checklist de préparation avant la refonte d’un site web', $issue['alt']['fr']);
     self::assertSame('Website redesign preparation checklist', $issue['alt']['en']);
+
+    $generator = $root . '/scripts/runner/generate-editorial-feature-image-401.py';
+    self::assertFileExists($generator);
+    $generatorSource = (string) file_get_contents($generator);
+    foreach (['urllib', 'requests', 'http://', 'https://', 'subprocess'] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $generatorSource);
+    }
+
+    $trackedOutput = [];
+    $trackedExit = 0;
+    exec(
+      'git -C ' . escapeshellarg($root) . ' ls-files --error-unmatch '
+      . escapeshellarg($issue['asset']['path']) . ' 2>/dev/null',
+      $trackedOutput,
+      $trackedExit,
+    );
+    self::assertNotSame(0, $trackedExit, 'Generated #401 PNG must not be committed as opaque binary bytes.');
 
     $workflow = (string) file_get_contents(
       $root . '/.github/workflows/trusted-editorial-feature-image.yml',
@@ -76,13 +99,15 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     foreach (['curl ', 'wget ', 'http://', 'https://'] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $workflow);
     }
+    self::assertStringContainsString('generate-editorial-feature-image-401.py', $workflow);
+    self::assertStringContainsString('imagecreatefrompng', $workflow);
     self::assertStringContainsString('hashlib.sha256', $workflow);
     self::assertStringContainsString('asset_sha256', $workflow);
     self::assertStringContainsString('profile_sha256', $workflow);
   }
 
   /**
-   * Repository-owned PNG assets must have a structurally valid chunk stream.
+   * Generated PNG assets must have a structurally valid chunk stream.
    */
   public function testGovernedEditorialAssetHasValidPngStructure(): void {
     $assetPath = $this->governedAssetPath();
@@ -149,7 +174,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
-   * Repository-owned editorial image assets must be decodable by GD.
+   * Generated editorial image assets must be decodable by GD at exact dimensions.
    */
   public function testGovernedEditorialAssetIsGdDecodable(): void {
     $assetPath = $this->governedAssetPath();
@@ -174,8 +199,10 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertInstanceOf(
       \GdImage::class,
       $image,
-      $warning ?? 'GD returned false while decoding the governed editorial PNG asset.',
+      $warning ?? 'GD returned false while decoding the generated editorial PNG asset.',
     );
+    self::assertSame(1200, imagesx($image));
+    self::assertSame(630, imagesy($image));
     imagedestroy($image);
   }
 
@@ -244,7 +271,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
-   * Returns the repository-owned asset path for the closed #401 profile.
+   * Generates the exact closed #401 asset from repository-owned source code.
    */
   private function governedAssetPath(): string {
     $root = dirname(DRUPAL_ROOT);
@@ -254,8 +281,22 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       16,
       JSON_THROW_ON_ERROR,
     );
+    $asset = $profile['profiles']['401']['asset'];
+    $assetPath = $root . '/' . $asset['path'];
+    $generator = $root . '/scripts/runner/generate-editorial-feature-image-401.py';
 
-    return $root . '/' . $profile['profiles']['401']['asset']['path'];
+    $output = [];
+    $exitCode = 0;
+    exec(
+      'python3 ' . escapeshellarg($generator) . ' --output ' . escapeshellarg($assetPath) . ' 2>&1',
+      $output,
+      $exitCode,
+    );
+    self::assertSame(0, $exitCode, implode("\n", $output));
+    self::assertFileExists($assetPath);
+    self::assertSame($asset['sha256'], hash_file('sha256', $assetPath));
+
+    return $assetPath;
   }
 
 }

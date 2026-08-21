@@ -149,6 +149,24 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
       $resolver,
     );
 
+    $auditPosition = strpos(
+      $resolver,
+      'ddev composer audit --format=json',
+    );
+    $gateRemovalPosition = strpos(
+      $resolver,
+      'rm -f .ddev/config.gate-drupal-maintenance.yaml',
+    );
+    $gitCheckPosition = strpos(
+      $resolver,
+      'git ls-files --others --exclude-standard',
+    );
+    self::assertIsInt($auditPosition);
+    self::assertIsInt($gateRemovalPosition);
+    self::assertIsInt($gitCheckPosition);
+    self::assertGreaterThan($auditPosition, $gateRemovalPosition);
+    self::assertGreaterThan($gateRemovalPosition, $gitCheckPosition);
+
     self::assertStringContainsString('contents: write', $publisher);
     self::assertStringContainsString(
       "test \"$(git diff --cached --name-only)\" = 'composer.lock'",

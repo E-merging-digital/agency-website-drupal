@@ -249,6 +249,9 @@ jobs:
             --no-progress \
             --no-scripts
 
+          mkdir -p ../drupal-maintenance-artifact
+          ddev composer audit --format=json > ../drupal-maintenance-artifact/composer-audit.json
+
           rm -f .ddev/config.gate-drupal-maintenance.yaml
           test -z "$(git ls-files --others --exclude-standard)"
           test -z "$(git diff --cached --name-only)"
@@ -259,9 +262,7 @@ jobs:
             exit 1
           fi
 
-          mkdir -p ../drupal-maintenance-artifact
           cp composer.lock ../drupal-maintenance-artifact/composer.lock
-          ddev composer audit --format=json > ../drupal-maintenance-artifact/composer-audit.json
 
           EXPECTED_HEAD_SHA="$EXPECTED_HEAD_SHA" python3 - <<'PY'
           import hashlib

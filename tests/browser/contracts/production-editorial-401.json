@@ -4,7 +4,10 @@
   "target": "/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
   "actor": "anonymous",
   "origin": "https://emergingdigital.be",
-  "category": "Qualité web / SEO / accessibilité",
+  "category": {
+    "fr": "Qualité web / SEO / accessibilité",
+    "en": "Web quality / SEO / accessibility"
+  },
   "sitemap": "/sitemap.xml",
   "locales": {
     "fr": {

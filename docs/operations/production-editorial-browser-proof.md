@@ -56,7 +56,7 @@ It fixes:
 - production origin `https://emergingdigital.be`;
 - FR and EN public Article paths;
 - expected H1 and document languages;
-- category label;
+- exact translated FR and EN category labels;
 - FR and EN image ALT values;
 - canonical URLs;
 - FR and EN hreflang URLs;
@@ -78,6 +78,10 @@ The production HTML observed for #401 exposes the two translated alternates
 contract and must not be invented by the proof. If Agency deliberately adds an
 `x-default` policy later, that must be introduced as an explicit reviewed SEO
 change before the Browser Proof starts requiring it.
+
+The category is also translated content. The proof must require the exact
+public label for the locale under test rather than applying the French label to
+both language variants.
 
 ## Execution model
 
@@ -112,7 +116,7 @@ For both FR and EN the scenario verifies:
 - initial HTTP response below 400;
 - exact H1 and one-H1 structure;
 - exact `<html lang>`;
-- category visibility;
+- exact translated category visibility;
 - feature image visibility, successful load and exact translated ALT;
 - canonical URL;
 - FR and EN hreflang values;

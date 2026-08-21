@@ -35,6 +35,7 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
     'system',
     'user',
     'field',
+    'text',
     'node',
     'taxonomy',
     'language',

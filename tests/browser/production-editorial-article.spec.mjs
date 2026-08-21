@@ -31,7 +31,7 @@ assert.equal(contract.issue_number, 401);
 assert.equal(contract.actor, 'anonymous');
 assert.equal(contract.origin, 'https://emergingdigital.be');
 assert.deepEqual(Object.keys(contract.locales).sort(), ['en', 'fr']);
-assert.deepEqual(Object.keys(contract.hreflang).sort(), ['en', 'fr', 'x-default']);
+assert.deepEqual(Object.keys(contract.hreflang).sort(), ['en', 'fr']);
 
 function absoluteUrl(value, baseURL) {
   return new URL(value, `${baseURL}/`).toString();

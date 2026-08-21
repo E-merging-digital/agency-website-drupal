@@ -54,17 +54,30 @@ tests/browser/contracts/production-editorial-401.json
 It fixes:
 
 - production origin `https://emergingdigital.be`;
-- FR and EN Article paths;
+- FR and EN public Article paths;
 - expected H1 and document languages;
 - category label;
 - FR and EN image ALT values;
 - canonical URLs;
-- FR/EN/x-default hreflang URLs;
+- FR and EN hreflang URLs;
 - sitemap endpoint;
 - the bounded set of internal links that must resolve.
 
 Adding another Article requires a reviewed repository change. The issue comment
 cannot select an arbitrary contract.
+
+### Public locale URL contract
+
+Drupal stores the Article aliases without a language prefix, but the versioned
+language negotiation uses `path_prefix` with `fr: fr` and `en: en`. The public
+URLs asserted by this proof must therefore include `/fr/...` and `/en/...`.
+An unprefixed Drupal alias is not the public canonical URL.
+
+The production HTML observed for #401 exposes the two translated alternates
+`hreflang="fr"` and `hreflang="en"`. `x-default` is not part of the v1 product
+contract and must not be invented by the proof. If Agency deliberately adds an
+`x-default` policy later, that must be introduced as an explicit reviewed SEO
+change before the Browser Proof starts requiring it.
 
 ## Execution model
 
@@ -102,7 +115,7 @@ For both FR and EN the scenario verifies:
 - category visibility;
 - feature image visibility, successful load and exact translated ALT;
 - canonical URL;
-- FR, EN and x-default hreflang values;
+- FR and EN hreflang values;
 - absence of obvious horizontal overflow;
 - required internal links are present and return below 400;
 - the canonical Article URL is present in the sitemap or one of its bounded

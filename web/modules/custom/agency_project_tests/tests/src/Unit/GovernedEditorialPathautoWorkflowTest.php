@@ -33,7 +33,7 @@ final class GovernedEditorialPathautoWorkflowTest extends TestCase {
     self::assertStringContainsString('.verdict == "REPAIR_REQUIRED"', $runner);
     self::assertStringContainsString('$preapply_verdict" == \'REPAIR_REQUIRED\'', $runner);
     self::assertStringContainsString('EditorialPathautoFinalizer::fromContainer', $wrapper);
-    self::assertStringContainsString("$container->get('pathauto.generator')", $finalizer);
+    self::assertStringContainsString('$container->get(\'pathauto.generator\')', $finalizer);
     self::assertStringContainsString('PathautoGeneratorInterface', $finalizer);
     self::assertStringContainsString('updateEntityAlias(', $finalizer);
     self::assertStringContainsString("'bulkupdate'", $finalizer);

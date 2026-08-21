@@ -121,13 +121,18 @@ jobs:
             rm -f "$body"
           }
 
+          service_state() {
+            state="$(systemctl is-active "$1" 2>/dev/null || true)"
+            scalar "$2" "${state:-unavailable}"
+          }
+
           scalar current_release "$(readlink -f "$CURRENT" 2>/dev/null || echo unavailable)"
           scalar current_sha "$(git -C "$CURRENT" rev-parse HEAD 2>/dev/null || echo unavailable)"
           scalar drupal_bootstrap "$(cd "$CURRENT" && vendor/bin/drush status --field=bootstrap --format=string 2>/dev/null | tr -d '\r\n' || echo unavailable)"
           scalar maintenance_mode "$(cd "$CURRENT" && vendor/bin/drush php:eval 'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);' 2>/dev/null | tr -d '\r\n' || echo unavailable)"
           scalar active_deploy_processes "$(pgrep -af '[d]eploy-production.sh' 2>/dev/null | wc -l | tr -d ' ')"
-          scalar nginx_state "$(systemctl is-active nginx 2>/dev/null || echo unavailable)"
-          scalar php84_fpm_state "$(systemctl is-active php8.4-fpm 2>/dev/null || echo unavailable)"
+          service_state nginx nginx_state
+          service_state php8.4-fpm php84_fpm_state
 
           probe public_fr "$TARGET"
           probe public_en "$EN_TARGET"

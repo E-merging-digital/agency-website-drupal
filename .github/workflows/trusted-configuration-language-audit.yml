@@ -111,7 +111,6 @@ jobs:
           test -f scripts/runner/run-configuration-language-audit.sh
           test -f scripts/runner/configuration-language-audit.php
           bash -n scripts/runner/run-configuration-language-audit.sh
-          php -l scripts/runner/configuration-language-audit.php
           git diff --check
 
       - name: Isolate DDEV project for this audit
@@ -128,6 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           ddev start -y
+          ddev exec php -l /var/www/html/scripts/runner/configuration-language-audit.php
           ddev composer install --no-interaction --no-progress --prefer-dist
 
           admin_pass="$(openssl rand -hex 24)"
@@ -241,6 +241,16 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [[ -z "${REPOSITORY_BY_LANGCODE:-}" ]]; then
+            REPOSITORY_BY_LANGCODE='{}'
+          fi
+          if [[ -z "${ACTIVE_BY_LANGCODE:-}" ]]; then
+            ACTIVE_BY_LANGCODE='{}'
+          fi
+          if [[ -z "${TRANSLATIONS:-}" ]]; then
+            TRANSLATIONS='[]'
+          fi
+
           heading='### Agency configuration language inspect FAIL'
           if [[ "$ROUTE_OUTCOME" == 'success' && "$STATUS" == 'PASS' ]]; then
             heading='### Agency configuration language inspect PASS'
@@ -255,9 +265,9 @@ jobs:
           route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
           verdict: \`${VERDICT:-UNKNOWN}\`
           snapshot_sha256: \`${SNAPSHOT_SHA256:-n/a}\`
-          repository_by_langcode: \`${REPOSITORY_BY_LANGCODE:-{}}\`
-          active_by_langcode: \`${ACTIVE_BY_LANGCODE:-{}}\`
-          translations: \`${TRANSLATIONS:-[]}\`
+          repository_by_langcode: \`${REPOSITORY_BY_LANGCODE}\`
+          active_by_langcode: \`${ACTIVE_BY_LANGCODE}\`
+          translations: \`${TRANSLATIONS}\`
           mixed_technical_base_languages: \`${MIXED:-unknown}\`
           canonical_language_already_uniform: \`${UNIFORM:-unknown}\`
           artifact: \`${artifact}\`

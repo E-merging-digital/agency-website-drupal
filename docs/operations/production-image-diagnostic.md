@@ -47,10 +47,18 @@ Through the existing production SSH channel, the route records:
 - `imageavif()` and `imagewebp()` availability;
 - GD AVIF and WebP support flags;
 - source file existence, size, dimensions and MIME type;
-- derivative existence, size, dimensions and MIME type;
+- in-memory AVIF and WebP encoding of the exact source through PHP CLI;
+- PHP-FPM worker identity and available FPM capability output;
+- permissions and ownership along the shared `files/styles` path;
+- filesystem free space and inode availability;
+- a bounded sample of existing `large` derivatives and their ownership/mode;
+- derivative existence, size, dimensions and MIME type before/after the GET;
 - the HTTP status/content type/body hash for the exact failing derivative;
-- bounded Drupal error log output;
+- bounded Drupal `php` errors plus image/AVIF/GD/file-related errors;
 - bounded Nginx and PHP-FPM log tails when readable by the deployment user.
+
+The encoder probes capture encoder output in memory and discard it. They do not
+write a diagnostic AVIF/WebP file.
 
 The fixed HTTP GET exercises the same public derivative endpoint already
 exercised by Browser Validation. Drupal may attempt its normal derivative-cache
@@ -75,11 +83,17 @@ The machine-readable result distinguishes:
 
 - `SOURCE_MISSING`;
 - `AVIF_CAPABILITY_MISMATCH`;
+- `CLI_AVIF_ENCODER_FAILED`;
 - `DERIVATIVE_GENERATION_FAILED`;
 - `DERIVATIVE_SERVING_FAILED`;
 - `DERIVATIVE_HEALTHY`;
 - `SSH_DIAGNOSTIC_FAILED`;
 - `UNKNOWN`.
+
+`CLI_AVIF_ENCODER_FAILED` means GD advertises AVIF but cannot encode the exact
+source even through the isolated in-memory CLI probe. If the CLI probe succeeds
+while the Drupal derivative still fails, permissions, FPM/runtime differences
+and the targeted Drupal error evidence become the next discriminators.
 
 Raw evidence stays in the 30-day workflow artifact; the issue comment publishes
 only bounded fields required for the next decision.

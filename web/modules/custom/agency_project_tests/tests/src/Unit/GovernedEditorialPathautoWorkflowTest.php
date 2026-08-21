@@ -7,13 +7,17 @@ namespace Drupal\Tests\agency_project_tests\Unit;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Protects the bounded Pathauto finalization layered onto editorial publication.
+ * Protects the bounded Pathauto finalization layered onto editorial
+ * publication.
  *
  * @group agency_project_tests
  * @group governed_editorial_publication
  */
 final class GovernedEditorialPathautoWorkflowTest extends TestCase {
 
+  /**
+   * Alias-only repair must remain a guarded, Pathauto-owned mutation.
+   */
   public function testRunnerTreatsAliasRepairAsGuardedMutation(): void {
     $root = dirname(DRUPAL_ROOT);
     $runner = (string) file_get_contents($root . '/scripts/runner/run-editorial-publication.sh');

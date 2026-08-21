@@ -1,7 +1,7 @@
 # Production editorial browser proof
 
 Status: **GOVERNED / READ-ONLY**  
-Owner: #586  
+Owner: #586, execution hardening #588  
 Initial consumer: #401
 
 ## Purpose
@@ -14,6 +14,13 @@ rendering of an editor-owned Article that exists only in production.
 Issue #586 adds a separate, bounded proof for that case. It reuses the existing
 Playwright Test, Chromium, browser audit and machine-readable result primitives,
 but targets the public production origin read-only.
+
+Issue #588 hardens the execution model after three self-hosted proof attempts
+returned the same public HTTP 503 before Playwright (`32484873812`,
+`32485251713`, `32485555392`) while the governed SSH Drupal inspection remained
+healthy (`32485845917`). Public availability evidence must therefore be observed
+from an independent external execution point rather than from the managed
+Agency/DDEV host.
 
 This route complements the DDEV Browser Validation route; it does not replace it.
 
@@ -63,8 +70,7 @@ cannot select an arbitrary contract.
 
 ```text
 owner issue comment
--> job-level actor/command filter
--> agency-browser-runner-01
+-> GitHub-hosted ubuntu-24.04 external observer
 -> verify OPEN owner-created #401 + live main
 -> checkout exact trusted main without persisted credentials
 -> verify immutable #401 contract
@@ -77,6 +83,11 @@ owner issue comment
 -> bounded bot comment
 -> workspace cleanup
 ```
+
+The public proof deliberately does **not** use `agency-browser-runner-01`.
+That self-hosted runner remains the correct executor for fresh-DDEV Browser
+Validation and project-local MCP/browser work, but it is not an independent
+observer of the public production route.
 
 No DDEV, Drupal CLI, SSH, deployment or production secret is needed. The route
 performs only public HTTP(S) reads against the fixed production origin.
@@ -129,6 +140,35 @@ production-editorial-401-mobile-en.png
 The issue bot comment publishes the run ID, exact trusted `main`, machine result,
 functional/DOM/visual verdicts and console/network counters.
 
+## Production deployment trigger invariant
+
+The production deploy workflow places Drupal in maintenance mode while the new
+release is prepared, switched and converged. A repository change that cannot
+alter the deployed runtime must therefore not cause that maintenance window.
+
+`deploy-production.yml` ignores a push when **all** changed files are confined
+to these reviewed non-runtime areas:
+
+```text
+.github/**
+docs/**
+tests/**
+web/modules/custom/agency_project_tests/**
+*.md                     # repository-root Markdown
+```
+
+This is only a push filter. `workflow_dispatch` remains available for an
+explicit deployment.
+
+Runtime-bearing paths such as `scripts/**`, `web/**` outside the test module,
+`config/**`, `composer.json` and `composer.lock` are intentionally **not** in
+`paths-ignore`. Consequently a mixed commit containing any runtime file still
+triggers the normal production deployment.
+
+Do not widen the ignore set merely to suppress a deployment failure. A path may
+be ignored only when changes under that path cannot affect the deployed Agency
+runtime.
+
 ## Security invariants
 
 The route must remain:
@@ -144,6 +184,7 @@ selector-input free
 shell-input free
 secret free
 mutation free
+external-observer execution
 ```
 
 Do not generalize it into a public crawler or arbitrary Playwright executor.
@@ -153,6 +194,7 @@ A new production proof target must be admitted through repository review.
 
 ```text
 canonical Browser Validation
+  -> managed self-hosted runner
   -> fresh DDEV / repository-owned state
 
 Governed editorial publication
@@ -162,6 +204,7 @@ Governed editorial feature image
   -> bounded production field_feature_image mutation
 
 Production editorial browser proof
+  -> GitHub-hosted external observer
   -> bounded public read-only proof of the final editor-owned Article
 ```
 

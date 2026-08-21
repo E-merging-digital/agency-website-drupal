@@ -1,0 +1,231 @@
+name: Agency trusted production image source repair
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  repair-401-source:
+    name: Replace exact corrupt #401 image source
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 596 &&
+        github.event.comment.body == '/agency-production-image repair-401-source'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: agency-production-image-source-repair-596
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate exact owner-authored request on live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/596")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Source repair must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup PHP 8.4 with GD
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: gd
+          coverage: none
+
+      - name: Generate and validate exact replacement bytes
+        id: asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          generator='scripts/runner/generate-editorial-feature-image-401.py'
+          asset='assets/editorial/issue-401-redesign-checklist.png'
+          expected='70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898'
+          test -f "$generator"
+          test -f scripts/runner/repair-editorial-feature-image-401.php
+          test -f scripts/runner/editorial-feature-image-profiles.json
+          python3 "$generator" --output "$asset"
+          [[ "$(sha256sum "$asset" | awk '{print $1}')" == "$expected" ]]
+          php -l scripts/runner/repair-editorial-feature-image-401.php >/dev/null
+          php -r '
+            $image = @imagecreatefrompng($argv[1]);
+            if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
+              fwrite(STDERR, "Replacement PNG failed GD validation.\n");
+              exit(1);
+            }
+            imagedestroy($image);
+          ' "$asset"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          profile = json.loads(Path('scripts/runner/editorial-feature-image-profiles.json').read_text(encoding='utf-8'))['profiles']['401']
+          asset = profile['asset']
+          expected = {
+              'filename': 'issue-401-redesign-checklist-70bf17abe69d.png',
+              'sha256': '70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898',
+              'mime': 'image/png',
+              'width': 1200,
+              'height': 630,
+          }
+          for key, value in expected.items():
+              if asset.get(key) != value:
+                  raise SystemExit(f'#401 replacement profile mismatch for {key}.')
+          PY
+          echo "asset_path=$asset" >> "$GITHUB_OUTPUT"
+          echo "asset_sha=$expected" >> "$GITHUB_OUTPUT"
+
+      - name: Configure existing production SSH channel
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Dry-run then replace exact corrupt source
+        id: repair
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          ASSET_PATH: ${{ steps.asset.outputs.asset_path }}
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          artifact_dir='artifacts/production-image-source-repair'
+          mkdir -p "$artifact_dir"
+          remote_target="${SERVER_USER}@${SERVER_HOST}"
+          stem="/tmp/agency-image-source-repair-596-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          remote_script="${stem}.php"
+          remote_profile="${stem}-profile.json"
+          remote_asset="${stem}-asset.png"
+          remote_preapply="${stem}-preapply.json"
+          remote_result="${stem}-result.json"
+          ssh_opts=(-o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
+
+          cleanup() {
+            set +e
+            ssh "${ssh_opts[@]}" "$remote_target" \
+              "rm -f '$remote_script' '$remote_profile' '$remote_asset' '$remote_preapply' '$remote_result'" \
+              >/dev/null 2>&1
+          }
+          trap cleanup EXIT
+
+          scp "${ssh_opts[@]}" scripts/runner/repair-editorial-feature-image-401.php "$remote_target:$remote_script" >/dev/null
+          scp "${ssh_opts[@]}" scripts/runner/editorial-feature-image-profiles.json "$remote_target:$remote_profile" >/dev/null
+          scp "${ssh_opts[@]}" "$ASSET_PATH" "$remote_target:$remote_asset" >/dev/null
+
+          remote_run() {
+            local mode="$1"
+            local output="$2"
+            ssh "${ssh_opts[@]}" "$remote_target" \
+              "set -euo pipefail; cd /var/www/agency/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_IMAGE_REPAIR_MODE='$mode' AGENCY_IMAGE_REPAIR_PROFILE_PATH='$remote_profile' AGENCY_IMAGE_REPAIR_ASSET_PATH='$remote_asset' AGENCY_IMAGE_REPAIR_RESULT_PATH='$output' timeout 120s vendor/bin/drush php:script '$remote_script'"
+          }
+
+          remote_run dry-run "$remote_preapply"
+          scp "${ssh_opts[@]}" "$remote_target:$remote_preapply" "$artifact_dir/preapply.json" >/dev/null
+          jq -e '.status == "PASS" and (.verdict == "REPLACE_REQUIRED" or .verdict == "IDEMPOTENT")' "$artifact_dir/preapply.json" >/dev/null
+          verdict="$(jq -r '.verdict' "$artifact_dir/preapply.json")"
+          backup_file=''
+          if [[ "$verdict" == 'REPLACE_REQUIRED' ]]; then
+            timestamp="$(date -u +%Y%m%d%H%M%S)"
+            backup_stem="/var/www/agency/shared/backups/editorial-image-repair-596-${timestamp}.sql"
+            backup_file="${backup_stem}.gz"
+            ssh "${ssh_opts[@]}" "$remote_target" \
+              "set -euo pipefail; cd /var/www/agency/current; mkdir -p /var/www/agency/shared/backups; timeout 120s vendor/bin/drush sql:dump --gzip --result-file='$backup_stem' >/dev/null; test -s '$backup_file'"
+          fi
+
+          remote_run apply "$remote_result"
+          scp "${ssh_opts[@]}" "$remote_target:$remote_result" "$artifact_dir/result.json" >/dev/null
+          jq -e '.status == "PASS" and (.verdict == "REPLACED" or .verdict == "IDEMPOTENT")' "$artifact_dir/result.json" >/dev/null
+          jq --arg backup_file "$backup_file" \
+            '. + {backup_file:(if $backup_file == "" then null else $backup_file end)}' \
+            "$artifact_dir/result.json" > "$artifact_dir/result.tmp.json"
+          mv "$artifact_dir/result.tmp.json" "$artifact_dir/result.json"
+
+      - name: Upload bounded repair evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-image-source-repair-596-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-image-source-repair
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded repair result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          REPAIR_OUTCOME: ${{ steps.repair.outcome }}
+        run: |
+          set -euo pipefail
+          result='artifacts/production-image-source-repair/result.json'
+          status='MISSING'
+          verdict='UNKNOWN'
+          revision='n/a'
+          fid='n/a'
+          uri='n/a'
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$result")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result")"
+            revision="$(jq -r '.node.revision_id // "n/a"' "$result")"
+            fid="$(jq -r '.node.image.fid // "n/a"' "$result")"
+            uri="$(jq -r '.node.image.uri // "n/a"' "$result")"
+          fi
+          artifact="agency-production-image-source-repair-596-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ### Agency production #401 image source repair ${status}
+
+          trusted_main: \`${TRUSTED_MAIN}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${REPAIR_OUTCOME:-unknown}\`
+          verdict: \`${verdict}\`
+          replacement_sha256: \`70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898\`
+          revision_id: \`${revision}\`
+          fid: \`${fid}\`
+          uri: \`${uri}\`
+          artifact: \`${artifact}\`
+
+          This one-shot route accepts only issue #596 and the exact legacy #401 URI/SHA -> exact deterministic replacement transition. It does not delete the legacy File entity or accept arbitrary URLs, paths, commands or image bytes.
+          EOF_BODY
+          )"
+          gh issue comment 596 --repo "$GITHUB_REPOSITORY" --body "$body"

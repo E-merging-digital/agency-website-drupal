@@ -101,6 +101,25 @@ final class ProductionEditorialBrowserProofWorkflowTest extends TestCase {
   }
 
   /**
+   * Lazy feature images must be awaited, not accepted before loading completes.
+   */
+  public function testScenarioWaitsForLazyFeatureImageWithoutFixedSleep(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $scenario = (string) file_get_contents(
+      $root . '/tests/browser/production-editorial-article.spec.mjs',
+    );
+
+    self::assertStringContainsString('scrollIntoViewIfNeeded()', $scenario);
+    self::assertStringContainsString('expect.poll(', $scenario);
+    self::assertStringContainsString('element.complete', $scenario);
+    self::assertStringContainsString('element.naturalWidth > 0', $scenario);
+    self::assertStringContainsString('element.naturalHeight > 0', $scenario);
+    self::assertStringContainsString('timeout: 10_000', $scenario);
+    self::assertStringContainsString('feature image did not finish loading', $scenario);
+    self::assertStringNotContainsString('waitForTimeout(', $scenario);
+  }
+
+  /**
    * The production route is public and must not gain secret or mutation inputs.
    */
   public function testWorkflowIsReadOnlyAndSecretFree(): void {

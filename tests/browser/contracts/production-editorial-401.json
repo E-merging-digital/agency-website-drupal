@@ -1,17 +1,17 @@
 {
   "id": "production-editorial-401",
   "issue_number": 401,
-  "target": "/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
+  "target": "/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
   "actor": "anonymous",
   "origin": "https://emergingdigital.be",
   "category": "Qualité web / SEO / accessibilité",
   "sitemap": "/sitemap.xml",
   "locales": {
     "fr": {
-      "path": "/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
+      "path": "/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
       "lang": "fr",
       "title": "Checklist avant une refonte de site internet : 12 points à vérifier",
-      "canonical": "https://emergingdigital.be/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
+      "canonical": "https://emergingdigital.be/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
       "image_alt": "Checklist de préparation avant la refonte d’un site web"
     },
     "en": {
@@ -23,9 +23,8 @@
     }
   },
   "hreflang": {
-    "fr": "https://emergingdigital.be/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
-    "en": "https://emergingdigital.be/en/blog/website-redesign-checklist-12-things-verify-you-start",
-    "x-default": "https://emergingdigital.be/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier"
+    "fr": "https://emergingdigital.be/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier",
+    "en": "https://emergingdigital.be/en/blog/website-redesign-checklist-12-things-verify-you-start"
   },
   "internal_links": [
     "/services",

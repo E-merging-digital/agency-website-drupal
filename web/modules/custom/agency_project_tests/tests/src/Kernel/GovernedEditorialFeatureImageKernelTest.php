@@ -241,10 +241,12 @@ final class GovernedEditorialFeatureImageKernelTest extends KernelTestBase {
     $this->helper->apply($profile, 401, $this->assetPath);
     $node = Node::load($this->nodeId);
     self::assertNotNull($node);
-    $node->getTranslation('en')->set('field_feature_image', [[
-      'target_id' => (int) $node->get('field_feature_image')->target_id,
-      'alt' => 'Stale ALT',
-    ]]);
+    $node->getTranslation('en')->set('field_feature_image', [
+      [
+        'target_id' => (int) $node->get('field_feature_image')->target_id,
+        'alt' => 'Stale ALT',
+      ],
+    ]);
     $node->save();
     $staleRevision = (int) $node->getRevisionId();
 

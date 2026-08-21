@@ -43,6 +43,36 @@ final class ProductionEditorialImageSourceRepairWorkflowTest extends TestCase {
   }
 
   /**
+   * A remote fail-close must preserve the helper JSON before the job fails.
+   */
+  public function testRepairWorkflowPreservesRemoteFailureEvidence(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root . '/.github/workflows/trusted-production-image-source-repair.yml';
+    $workflow = (string) file_get_contents($path);
+
+    foreach ([
+      'dry_run_status="$?"',
+      'apply_status="$?"',
+      'cp "$artifact_dir/preapply.json" "$artifact_dir/result.json"',
+      'Remote dry-run failed after preserving bounded result evidence.',
+      'Remote apply failed after preserving bounded result evidence.',
+      'message="$(jq -r',
+      'message: \\`${message}\\`',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    self::assertMatchesRegularExpression(
+      '/set \+e\s+remote_run dry-run .*?dry_run_status="\$\?"\s+set -e\s+if ! scp/s',
+      $workflow,
+    );
+    self::assertMatchesRegularExpression(
+      '/set \+e\s+remote_run apply .*?apply_status="\$\?"\s+set -e\s+if ! scp/s',
+      $workflow,
+    );
+  }
+
+  /**
    * Pins the exact legacy-to-replacement transition and fail-close.
    */
   public function testRepairHelperPinsExactLegacyAndReplacementBytes(): void {

@@ -52,6 +52,7 @@ jobs:
           test "$COMPOSER_CONSTRAINT" = '1.5.0-rc1'
           test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
           test "$COMPOSER_REQUIRED_AI_SEARCH_VERSION" = '1.3.0-alpha4'
+          test "$COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION" = '3.0.0-beta7'
           test "$COMPOSER_OWNER_ISSUE" = '562'
 
           pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
@@ -101,11 +102,13 @@ jobs:
           require = expected.setdefault('require', {})
           require['drupal/ai'] = '1.5.0-rc1'
           require['drupal/ai_search'] = '1.3.0-alpha4'
+          require['drupal/field_validation'] = '3.0.0-beta7'
           if target != expected:
               raise SystemExit(
                   'PR #563 composer.json must differ from trusted main only by '
-                  'drupal/ai = 1.5.0-rc1 and '
-                  'drupal/ai_search = 1.3.0-alpha4.'
+                  'drupal/ai = 1.5.0-rc1, '
+                  'drupal/ai_search = 1.3.0-alpha4 and '
+                  'drupal/field_validation = 3.0.0-beta7.'
               )
           PY
 
@@ -137,6 +140,7 @@ jobs:
           - Composer selector: repository-owned \`drupal/*\`
           - Required Drupal AI: \`1.5.0-rc1\`
           - Required AI Search: \`1.3.0-alpha4\`
+          - Required Field Validation: \`3.0.0-beta7\`
           - State: \`validated; self-hosted resolution pending\`
 
           No package name, Composer argument or secret is supplied by the PR/comment.
@@ -161,6 +165,7 @@ jobs:
     outputs:
       resolved_ai: ${{ steps.summarize.outputs.resolved_ai }}
       resolved_ai_search: ${{ steps.summarize.outputs.resolved_ai_search }}
+      resolved_field_validation: ${{ steps.summarize.outputs.resolved_field_validation }}
       change_count: ${{ steps.summarize.outputs.change_count }}
       lock_sha256: ${{ steps.summarize.outputs.lock_sha256 }}
     steps:
@@ -206,8 +211,10 @@ jobs:
           test "$COMPOSER_CONSTRAINT" = '1.5.0-rc1'
           test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
           test "$COMPOSER_REQUIRED_AI_SEARCH_VERSION" = '1.3.0-alpha4'
+          test "$COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION" = '3.0.0-beta7'
           test "$(jq -r '.require["drupal/ai"]' target/composer.json)" = '1.5.0-rc1'
           test "$(jq -r '.require["drupal/ai_search"]' target/composer.json)" = '1.3.0-alpha4'
+          test "$(jq -r '.require["drupal/field_validation"]' target/composer.json)" = '3.0.0-beta7'
 
       - name: Isolate DDEV project
         shell: bash
@@ -232,6 +239,7 @@ jobs:
           source ../trusted/scripts/runner/composer-materialization-profiles.sh
           test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
           test "$COMPOSER_REQUIRED_AI_SEARCH_VERSION" = '1.3.0-alpha4'
+          test "$COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION" = '3.0.0-beta7'
 
           cp composer.lock /tmp/composer-lock-before.json
           ddev composer update "$COMPOSER_UPDATE_SELECTOR" \
@@ -287,11 +295,16 @@ jobs:
 
           ai = new.get('drupal/ai', '').lstrip('v')
           ai_search = new.get('drupal/ai_search', '').lstrip('v')
+          field_validation = new.get('drupal/field_validation', '').lstrip('v')
           if ai != '1.5.0-rc1':
               raise SystemExit(f'Expected drupal/ai 1.5.0-rc1, got {ai!r}')
           if ai_search != '1.3.0-alpha4':
               raise SystemExit(
                   f'Expected drupal/ai_search 1.3.0-alpha4, got {ai_search!r}'
+              )
+          if field_validation != '3.0.0-beta7':
+              raise SystemExit(
+                  f'Expected drupal/field_validation 3.0.0-beta7, got {field_validation!r}'
               )
 
           digest = hashlib.sha256(after_path.read_bytes()).hexdigest()
@@ -305,6 +318,7 @@ jobs:
                   'target_head_sha': os.environ['EXPECTED_HEAD_SHA'],
                   'resolved_ai': ai,
                   'resolved_ai_search': ai_search,
+                  'resolved_field_validation': field_validation,
                   'drupal_package_change_count': len(changes),
                   'composer_lock_sha256': digest,
               }, indent=2, sort_keys=True) + '\n',
@@ -312,6 +326,7 @@ jobs:
           )
           print(f'resolved_ai={ai}')
           print(f'resolved_ai_search={ai_search}')
+          print(f'resolved_field_validation={field_validation}')
           print(f'change_count={len(changes)}')
           print(f'lock_sha256={digest}')
           PY
@@ -319,6 +334,7 @@ jobs:
           cat ../drupal-maintenance-artifact/result.json
           echo "resolved_ai=$(jq -r '.resolved_ai' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
           echo "resolved_ai_search=$(jq -r '.resolved_ai_search' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
+          echo "resolved_field_validation=$(jq -r '.resolved_field_validation' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
           echo "change_count=$(jq -r '.drupal_package_change_count' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
           echo "lock_sha256=$(jq -r '.composer_lock_sha256' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
 
@@ -381,6 +397,7 @@ jobs:
           test "$(jq -r '.target_head_sha' /tmp/drupal-maintenance/result.json)" = "$EXPECTED_HEAD_SHA"
           test "$(jq -r '.resolved_ai' /tmp/drupal-maintenance/result.json)" = '1.5.0-rc1'
           test "$(jq -r '.resolved_ai_search' /tmp/drupal-maintenance/result.json)" = '1.3.0-alpha4'
+          test "$(jq -r '.resolved_field_validation' /tmp/drupal-maintenance/result.json)" = '3.0.0-beta7'
 
           actual_digest="$(sha256sum /tmp/drupal-maintenance/composer.lock | awk '{print $1}')"
           test "$actual_digest" = "$(jq -r '.composer_lock_sha256' /tmp/drupal-maintenance/result.json)"
@@ -436,6 +453,7 @@ jobs:
           NEW_HEAD: ${{ steps.publish.outputs.new_head_sha }}
           AI_VERSION: ${{ needs.resolve-lock.outputs.resolved_ai }}
           AI_SEARCH_VERSION: ${{ needs.resolve-lock.outputs.resolved_ai_search }}
+          FIELD_VALIDATION_VERSION: ${{ needs.resolve-lock.outputs.resolved_field_validation }}
           CHANGE_COUNT: ${{ needs.resolve-lock.outputs.change_count }}
           LOCK_SHA256: ${{ needs.resolve-lock.outputs.lock_sha256 }}
         run: |
@@ -446,6 +464,7 @@ jobs:
 
           - Drupal AI: \`${AI_VERSION}\`
           - AI Search: \`${AI_SEARCH_VERSION}\`
+          - Field Validation: \`${FIELD_VALIDATION_VERSION}\`
           - changed Drupal packages: \`${CHANGE_COUNT}\`
           - input HEAD: \`${OLD_HEAD}\`
           - published HEAD: \`${NEW_HEAD}\`

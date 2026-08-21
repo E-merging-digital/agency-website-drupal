@@ -100,6 +100,10 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString('scp "${ssh_opts[@]}" "$ASSET_FILE"', $shell);
     self::assertStringContainsString("private const FIELD_NAME = 'field_feature_image'", $php);
     self::assertStringContainsString("private const DESTINATION_DIRECTORY = 'public://articles'", $php);
+    self::assertStringContainsString("$container->get('file_system')", $php);
+    self::assertStringContainsString('prepareDirectory(', $php);
+    self::assertStringContainsString('FileSystemInterface::CREATE_DIRECTORY', $php);
+    self::assertStringContainsString('FileSystemInterface::MODIFY_PERMISSIONS', $php);
     self::assertStringContainsString('FileExists::Error', $php);
     self::assertStringContainsString('agency_editorial.issue.', $php);
 

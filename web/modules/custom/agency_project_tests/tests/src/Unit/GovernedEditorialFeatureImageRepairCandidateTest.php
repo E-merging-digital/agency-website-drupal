@@ -40,7 +40,16 @@ final class GovernedEditorialFeatureImageRepairCandidateTest extends TestCase {
     $sawIend = FALSE;
 
     while ($offset < $length) {
-      self::assertGreaterThanOrEqual($offset + 12, $length, sprintf('Truncated PNG chunk at byte %d.', $offset));
+      $remaining = $length - $offset;
+      if ($remaining < 12) {
+        self::fail(sprintf(
+          'Truncated PNG tail at byte %d: remaining=%d hex=%s.',
+          $offset,
+          $remaining,
+          bin2hex(substr($bytes, $offset)),
+        ));
+      }
+
       $unpacked = unpack('Nlength', substr($bytes, $offset, 4));
       self::assertIsArray($unpacked);
       $dataLength = $unpacked['length'];

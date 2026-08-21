@@ -137,7 +137,7 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
     }
     require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-publication-pathauto.php';
 
-    $generator = new class {
+    $generator = new class() {
 
       /**
        * Languages for which alias generation was requested.

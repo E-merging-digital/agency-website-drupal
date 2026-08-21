@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Kernel;
 
+use Drupal\emerging_digital_content\Service\EditorialPathautoFinalizer;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
+use Drupal\node\NodeInterface;
 use Drupal\path_alias\Entity\PathAlias;
+use Drupal\pathauto\PathautoGeneratorInterface;
 use Drupal\taxonomy\Entity\Term;
 use Drupal\taxonomy\Entity\Vocabulary;
 use Drupal\user\Entity\User;
@@ -38,6 +41,7 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
     'content_translation',
     'path',
     'path_alias',
+    'emerging_digital_content',
   ];
 
   /**
@@ -132,42 +136,29 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
       'payload_sha256' => $hash,
     ]);
 
-    if (!defined('AGENCY_EDITORIAL_PATHAUTO_LIBRARY_ONLY')) {
-      define('AGENCY_EDITORIAL_PATHAUTO_LIBRARY_ONLY', TRUE);
-    }
-    require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-publication-pathauto.php';
+    $langcodes = [];
+    $generator = $this->createMock(PathautoGeneratorInterface::class);
+    $generator
+      ->method('updateEntityAlias')
+      ->willReturnCallback(
+        static function (NodeInterface $entity, string $op, array $options) use (&$langcodes): void {
+          self::assertSame('bulkupdate', $op);
+          self::assertSame(['force' => TRUE], $options);
+          $langcode = $entity->language()->getId();
+          $langcodes[] = $langcode;
+          $alias = $langcode === 'en'
+            ? '/blog/website-redesign-checklist'
+            : '/blog/checklist-avant-une-refonte';
 
-    $generator = new class() {
+          PathAlias::create([
+            'path' => '/node/' . $entity->id(),
+            'alias' => $alias,
+            'langcode' => $langcode,
+          ])->save();
+        },
+      );
 
-      /**
-       * Languages for which alias generation was requested.
-       *
-       * @var string[]
-       */
-      public array $langcodes = [];
-
-      /**
-       * Creates the deterministic test alias for the requested translation.
-       */
-      public function updateEntityAlias(object $entity, string $op, array $options = []): void {
-        unset($op, $options);
-        $langcode = $entity->language()->getId();
-        $this->langcodes[] = $langcode;
-        $nodeId = (int) $entity->id();
-        $alias = $langcode === 'en'
-          ? '/blog/website-redesign-checklist'
-          : '/blog/checklist-avant-une-refonte';
-
-        PathAlias::create([
-          'path' => '/node/' . $nodeId,
-          'alias' => $alias,
-          'langcode' => $langcode,
-        ])->save();
-      }
-
-    };
-
-    $finalizer = new \AgencyEditorialPathautoFinalizer(
+    $finalizer = new EditorialPathautoFinalizer(
       $this->container->get('entity_type.manager'),
       $this->container->get('state'),
       $this->container->get('path_alias.manager'),
@@ -182,7 +173,7 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
     self::assertSame('REPAIRED', $applied['verdict']);
     self::assertSame('/blog/checklist-avant-une-refonte', $applied['node']['aliases']['fr']);
     self::assertSame('/blog/website-redesign-checklist', $applied['node']['aliases']['en']);
-    self::assertSame(['en'], $generator->langcodes);
+    self::assertSame(['en'], $langcodes);
 
     $reloaded = Node::load($nodeId);
     self::assertNotNull($reloaded);

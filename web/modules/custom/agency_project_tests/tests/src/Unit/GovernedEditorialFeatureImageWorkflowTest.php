@@ -44,7 +44,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
-   * Asset transport must be exact, deterministic, repository-owned and URL-free.
+   * Asset transport must be exact, deterministic, repository-owned and
+   * URL-free.
    */
   public function testProfileAndAssetAreClosedAndHashBound(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -174,7 +175,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
-   * Generated editorial image assets must be decodable by GD at exact dimensions.
+   * Generated editorial image assets must be decodable by GD at exact
+   * dimensions.
    */
   public function testGovernedEditorialAssetIsGdDecodable(): void {
     $assetPath = $this->governedAssetPath();

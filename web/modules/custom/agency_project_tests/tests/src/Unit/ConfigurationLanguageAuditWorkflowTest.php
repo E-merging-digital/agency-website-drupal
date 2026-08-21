@@ -138,7 +138,7 @@ final class ConfigurationLanguageAuditWorkflowTest extends TestCase {
       $runbook,
     );
     self::assertStringContainsString('SNAPSHOT_CAPTURED', $runbook);
-    self::assertStringContainsString('No Composer mutation', $runbook);
+    self::assertStringContainsString('`composer require`', $runbook);
   }
 
 }

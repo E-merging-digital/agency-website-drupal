@@ -9,7 +9,6 @@ use Drupal\Core\State\StateInterface;
 use Drupal\node\NodeInterface;
 use Drupal\path_alias\AliasManagerInterface;
 use Drupal\pathauto\PathautoGeneratorInterface;
-use RuntimeException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -37,7 +36,7 @@ final class EditorialPathautoFinalizer {
   public static function fromContainer(ContainerInterface $container): self {
     $pathautoGenerator = $container->get('pathauto.generator');
     if (!$pathautoGenerator instanceof PathautoGeneratorInterface) {
-      throw new RuntimeException('Pathauto generator service is unavailable.');
+      throw new \RuntimeException('Pathauto generator service is unavailable.');
     }
 
     return new self(
@@ -106,12 +105,12 @@ final class EditorialPathautoFinalizer {
     $this->entityTypeManager->getStorage('node')->resetCache([(int) $node->id()]);
     $reloaded = $this->loadMappedNode($issueNumber, $payloadSha);
     if ((int) $reloaded->getRevisionId() !== $revisionId) {
-      throw new RuntimeException('Pathauto alias repair unexpectedly created a node revision.');
+      throw new \RuntimeException('Pathauto alias repair unexpectedly created a node revision.');
     }
 
     $after = $this->inspect($issueNumber, $payloadSha);
     if ($after['verdict'] !== 'IDEMPOTENT') {
-      throw new RuntimeException('Pathauto alias repair did not converge for FR and EN.');
+      throw new \RuntimeException('Pathauto alias repair did not converge for FR and EN.');
     }
 
     $after['verdict'] = 'REPAIRED';
@@ -126,24 +125,24 @@ final class EditorialPathautoFinalizer {
   private function loadMappedNode(int $issueNumber, string $payloadSha): NodeInterface {
     $mapping = $this->state->get(self::STATE_PREFIX . $issueNumber);
     if (!is_array($mapping)) {
-      throw new RuntimeException('Editorial alias finalization requires an existing issue mapping.');
+      throw new \RuntimeException('Editorial alias finalization requires an existing issue mapping.');
     }
 
     $nodeId = $mapping['node_id'] ?? NULL;
     $mappedHash = $mapping['payload_sha256'] ?? NULL;
     if (!is_int($nodeId) || !is_string($mappedHash)) {
-      throw new RuntimeException('Editorial alias finalization mapping is incomplete.');
+      throw new \RuntimeException('Editorial alias finalization mapping is incomplete.');
     }
     if (!hash_equals($mappedHash, $payloadSha)) {
-      throw new RuntimeException('Editorial alias finalization payload hash mismatch.');
+      throw new \RuntimeException('Editorial alias finalization payload hash mismatch.');
     }
 
     $node = $this->entityTypeManager->getStorage('node')->load($nodeId);
     if (!$node instanceof NodeInterface || $node->bundle() !== self::BUNDLE) {
-      throw new RuntimeException('Editorial alias finalization mapping points to an invalid Article.');
+      throw new \RuntimeException('Editorial alias finalization mapping points to an invalid Article.');
     }
     if (!$node->hasTranslation(self::TRANSLATION_LANGCODE)) {
-      throw new RuntimeException('Editorial alias finalization requires the EN translation.');
+      throw new \RuntimeException('Editorial alias finalization requires the EN translation.');
     }
 
     return $node;
@@ -174,6 +173,8 @@ final class EditorialPathautoFinalizer {
   /**
    * Builds immutable Article evidence for the route result.
    *
+   * @param \Drupal\node\NodeInterface $node
+   *   The mapped Article.
    * @param array<string, string> $aliases
    *   Current aliases keyed by language code.
    *

@@ -64,6 +64,10 @@ Node for browser jobs = 24 via actions/setup-node
 Chromium              = Playwright-managed
 ```
 
+The host account is not required to expose a standalone PHP binary. PHP checks
+for Drupal/runtime routes must use DDEV unless a workflow explicitly provisions
+host PHP.
+
 The repository `.ddev/config.yaml` also targets MariaDB 11.8. Any older
 reference to MariaDB 10.11 in DDEV documentation is historical debt, not the
 current Agency DDEV runtime.
@@ -377,12 +381,16 @@ Governed editorial publisher
 
 Governed editorial feature-image publisher
   -> bounded repository-owned field_feature_image inspect/dry-run/apply via trusted main
+
+Configuration language audit
+  -> fresh-DDEV read-only repository/active config snapshot and langcode evidence
 ```
 
 MCP is not a replacement for deterministic tests, and deterministic tests are
 not a replacement for visual inspection. The Composer materializer is not a
 generic command executor. The editorial publisher and feature-image publisher
-are not generic production content, upload or shell APIs.
+are not generic production content, upload or shell APIs. The configuration
+language audit is not an enforcement or migration route.
 
 ## 11. Secrets and authenticated UI
 
@@ -406,6 +414,10 @@ production SSH secrets. They must never expose those values in artifacts or
 comments and must not be widened to provider keys, Drupal passwords or arbitrary
 credentials.
 
+The configuration language audit uses no production SSH or provider credential.
+Its generated Drupal administrator password exists only for the isolated DDEV
+installation and is not persisted as evidence.
+
 ## 12. Reload rule for future agents
 
 Before any statement such as:
@@ -418,6 +430,7 @@ Chrome DevTools MCP is unavailable
 Composer cannot be materialized without human file copying
 ordinary Drupal Article publication requires mechanical human entry
 Article feature-image publication requires mechanical human upload
+configuration language cannot be audited on a fresh Drupal without a human
 I cannot validate the UI
 Jonathan must run this manually
 ```
@@ -431,3 +444,57 @@ reload, in this order:
 
 If repository documentation and live executor evidence disagree, live evidence
 wins and this registry must be corrected rather than forgetting the capability.
+
+## 13. Proven configuration language audit route
+
+Issue #609/#614 provides a trusted read-only audit of configuration language on a
+fresh Drupal rebuilt from repository-owned configuration.
+
+Control surface:
+
+```text
+/agency-config-language inspect
+```
+
+The command is accepted only from `E-merging-digital` on open owner-created
+issue #609. The GitHub-hosted gateway pins live `main`, then the Agency
+self-hosted runner executes with `contents: read`, `persist-credentials: false`,
+no production SSH and no provider secret.
+
+Execution:
+
+```text
+live main
+-> isolated DDEV
+-> PHP lint in DDEV
+-> composer install from existing lock
+-> site:install --existing-config
+-> cim
+-> clean config:status
+-> repository + active config language snapshot
+-> artifact
+-> cleanup
+```
+
+Admission proof:
+
+```text
+run                  = 32528341256
+trusted main         = c6d77fd109aa40cc6cf5849249d04e3d87bae65e
+verdict              = PASS / SNAPSHOT_CAPTURED
+snapshot SHA-256     = df4d389eafaad6135fcd7d995354ff433111be62f745208ac0a65ddf8783629d
+repository/active    = 595 / 595, zero langcode mismatch
+```
+
+The baseline confirms mixed FR/EN technical configuration and therefore does not
+authorize enforcement. Durable evidence summary:
+
+```text
+docs/evidence/configuration-language-baseline-609.yml
+```
+
+Full route contract:
+
+```text
+docs/operations/configuration-language-audit.md
+```

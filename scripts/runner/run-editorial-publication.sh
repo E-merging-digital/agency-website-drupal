@@ -42,13 +42,17 @@ if [[ "$MODE" != 'inspect' ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PHP_SCRIPT="$SCRIPT_DIR/editorial-publication.php"
+LIBRARY_SCRIPT="$SCRIPT_DIR/editorial-publication.php"
+PHP_SCRIPT="$SCRIPT_DIR/editorial-publication-pathauto.php"
+[[ -f "$LIBRARY_SCRIPT" ]]
 [[ -f "$PHP_SCRIPT" ]]
+php -l "$LIBRARY_SCRIPT" >/dev/null
 php -l "$PHP_SCRIPT" >/dev/null
 mkdir -p "$ARTIFACT_DIR"
 
 remote_stem="/tmp/agency-editorial-${ISSUE_NUMBER}-${RUN_ID}-${RUN_ATTEMPT}"
 remote_script="${remote_stem}.php"
+remote_library="${remote_stem}-library.php"
 remote_payload="${remote_stem}.json"
 remote_result="${remote_stem}-result.json"
 remote_preapply="${remote_stem}-preapply.json"
@@ -57,12 +61,13 @@ remote_target="${SERVER_USER}@${SERVER_HOST}"
 cleanup_remote() {
   set +e
   ssh "$remote_target" \
-    "rm -f '$remote_script' '$remote_payload' '$remote_result' '$remote_preapply'" \
+    "rm -f '$remote_script' '$remote_library' '$remote_payload' '$remote_result' '$remote_preapply'" \
     >/dev/null 2>&1
 }
 trap cleanup_remote EXIT
 
 scp "$PHP_SCRIPT" "$remote_target:$remote_script" >/dev/null
+scp "$LIBRARY_SCRIPT" "$remote_target:$remote_library" >/dev/null
 if [[ "$MODE" != 'inspect' ]]; then
   scp "$PAYLOAD_FILE" "$remote_target:$remote_payload" >/dev/null
 fi
@@ -79,7 +84,7 @@ remote_run() {
   fi
 
   ssh "$remote_target" \
-    "set -euo pipefail; cd /var/www/agency/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_EDITORIAL_MODE='$run_mode' AGENCY_EDITORIAL_ISSUE='$ISSUE_NUMBER' AGENCY_EDITORIAL_PAYLOAD_SHA='$payload_sha' AGENCY_EDITORIAL_PAYLOAD_PATH='$payload_path' AGENCY_EDITORIAL_RESULT_PATH='$remote_output' vendor/bin/drush php:script '$remote_script'"
+    "set -euo pipefail; cd /var/www/agency/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_EDITORIAL_MODE='$run_mode' AGENCY_EDITORIAL_ISSUE='$ISSUE_NUMBER' AGENCY_EDITORIAL_PAYLOAD_SHA='$payload_sha' AGENCY_EDITORIAL_PAYLOAD_PATH='$payload_path' AGENCY_EDITORIAL_RESULT_PATH='$remote_output' AGENCY_EDITORIAL_LIBRARY_PATH='$remote_library' vendor/bin/drush php:script '$remote_script'"
 }
 
 case "$MODE" in
@@ -94,12 +99,12 @@ case "$MODE" in
   apply)
     remote_run dry-run "$remote_preapply"
     scp "$remote_target:$remote_preapply" "$ARTIFACT_DIR/preapply.json" >/dev/null
-    jq -e '.status == "PASS" and (.verdict == "READY" or .verdict == "IDEMPOTENT")' \
+    jq -e '.status == "PASS" and (.verdict == "READY" or .verdict == "REPAIR_REQUIRED" or .verdict == "IDEMPOTENT")' \
       "$ARTIFACT_DIR/preapply.json" >/dev/null
 
     preapply_verdict="$(jq -r '.verdict' "$ARTIFACT_DIR/preapply.json")"
     backup_file=''
-    if [[ "$preapply_verdict" == 'READY' ]]; then
+    if [[ "$preapply_verdict" == 'READY' || "$preapply_verdict" == 'REPAIR_REQUIRED' ]]; then
       timestamp="$(date -u +%Y%m%d%H%M%S)"
       backup_stem="/var/www/agency/shared/backups/editorial-issue-${ISSUE_NUMBER}-${timestamp}.sql"
       backup_file="${backup_stem}.gz"

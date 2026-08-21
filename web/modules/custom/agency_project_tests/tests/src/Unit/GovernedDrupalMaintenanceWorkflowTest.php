@@ -47,6 +47,10 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
       "require['drupal/ai_search'] = '1.3.0-alpha4'",
       $workflow,
     );
+    self::assertStringContainsString(
+      "require['drupal/field_validation'] = '3.0.0-beta7'",
+      $workflow,
+    );
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
   }
 
@@ -77,6 +81,10 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
     );
     self::assertStringContainsString(
       "COMPOSER_REQUIRED_AI_SEARCH_VERSION='1.3.0-alpha4'",
+      $profiles,
+    );
+    self::assertStringContainsString(
+      "COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION='3.0.0-beta7'",
       $profiles,
     );
     self::assertStringContainsString(
@@ -133,7 +141,11 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
       $resolver,
     );
     self::assertStringContainsString(
-      "resolved_ai_search",
+      'resolved_ai_search',
+      $resolver,
+    );
+    self::assertStringContainsString(
+      'resolved_field_validation',
       $resolver,
     );
 
@@ -144,6 +156,10 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
     );
     self::assertStringContainsString(
       "'.resolved_ai_search'",
+      $publisher,
+    );
+    self::assertStringContainsString(
+      "'.resolved_field_validation'",
       $publisher,
     );
     self::assertStringContainsString(

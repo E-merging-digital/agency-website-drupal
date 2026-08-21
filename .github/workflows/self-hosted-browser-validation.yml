@@ -276,6 +276,8 @@ jobs:
           ddev drush site:install --existing-config -y --account-pass="$admin_pass"
           unset admin_pass
 
+          ddev drush updb -y
+
           # Module/profile install hooks can mutate active configuration after the
           # initial install-time import. Re-import the repository-owned sync
           # directory so the browser proof always starts from canonical config.

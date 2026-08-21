@@ -21,19 +21,28 @@ final class GovernedEditorialPathautoWorkflowTest extends TestCase {
     $root = dirname(DRUPAL_ROOT);
     $runner = (string) file_get_contents($root . '/scripts/runner/run-editorial-publication.sh');
     $wrapper = (string) file_get_contents($root . '/scripts/runner/editorial-publication-pathauto.php');
+    $finalizer = (string) file_get_contents(
+      DRUPAL_ROOT . '/modules/custom/emerging_digital_content/src/Service/EditorialPathautoFinalizer.php',
+    );
+    $moduleInfo = (string) file_get_contents(
+      DRUPAL_ROOT . '/modules/custom/emerging_digital_content/emerging_digital_content.info.yml',
+    );
 
     self::assertStringContainsString('editorial-publication-pathauto.php', $runner);
     self::assertStringContainsString('AGENCY_EDITORIAL_LIBRARY_PATH', $runner);
     self::assertStringContainsString('.verdict == "REPAIR_REQUIRED"', $runner);
     self::assertStringContainsString('$preapply_verdict" == \'REPAIR_REQUIRED\'', $runner);
-    self::assertStringContainsString('$container->get(\'pathauto.generator\')', $wrapper);
-    self::assertStringContainsString('updateEntityAlias(', $wrapper);
-    self::assertStringContainsString("'bulkupdate'", $wrapper);
-    self::assertStringContainsString("['force' => TRUE]", $wrapper);
-    self::assertStringContainsString("private const ALIAS_PREFIX = '/blog/'", $wrapper);
-    self::assertStringNotContainsString('->save()', $wrapper);
-    self::assertStringNotContainsString('PathAlias::create', $wrapper);
-    self::assertStringNotContainsString('->delete(', $wrapper);
+    self::assertStringContainsString('EditorialPathautoFinalizer::fromContainer', $wrapper);
+    self::assertStringContainsString("$container->get('pathauto.generator')", $finalizer);
+    self::assertStringContainsString('PathautoGeneratorInterface', $finalizer);
+    self::assertStringContainsString('updateEntityAlias(', $finalizer);
+    self::assertStringContainsString("'bulkupdate'", $finalizer);
+    self::assertStringContainsString("['force' => TRUE]", $finalizer);
+    self::assertStringContainsString("private const ALIAS_PREFIX = '/blog/'", $finalizer);
+    self::assertStringContainsString('- drupal:pathauto', $moduleInfo);
+    self::assertStringNotContainsString('->save()', $finalizer);
+    self::assertStringNotContainsString('PathAlias::create', $finalizer);
+    self::assertStringNotContainsString('->delete(', $finalizer);
   }
 
 }

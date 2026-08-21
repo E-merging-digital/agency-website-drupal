@@ -30,6 +30,7 @@ assert.equal(contract.id, 'production-editorial-401');
 assert.equal(contract.issue_number, 401);
 assert.equal(contract.actor, 'anonymous');
 assert.equal(contract.origin, 'https://emergingdigital.be');
+assert.deepEqual(Object.keys(contract.category).sort(), ['en', 'fr']);
 assert.deepEqual(Object.keys(contract.locales).sort(), ['en', 'fr']);
 assert.deepEqual(Object.keys(contract.hreflang).sort(), ['en', 'fr']);
 
@@ -86,7 +87,7 @@ async function verifyLocale(page, request, baseURL, locale, expected) {
   })).toBeVisible();
   await expect(page.locator('main')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', expected.lang);
-  await expect(page.getByText(contract.category, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(contract.category[locale], { exact: true }).first()).toBeVisible();
 
   const image = page.locator(`img[alt="${expected.image_alt}"]`).first();
   await image.scrollIntoViewIfNeeded();

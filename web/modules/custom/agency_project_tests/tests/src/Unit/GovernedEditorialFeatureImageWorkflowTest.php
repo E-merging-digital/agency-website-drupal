@@ -82,6 +82,44 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
+   * Repository-owned editorial image assets must be decodable by GD.
+   */
+  public function testGovernedEditorialAssetIsGdDecodable(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $profile = json_decode(
+      (string) file_get_contents($root . '/scripts/runner/editorial-feature-image-profiles.json'),
+      TRUE,
+      16,
+      JSON_THROW_ON_ERROR,
+    );
+    $assetPath = $root . '/' . $profile['profiles']['401']['asset']['path'];
+
+    self::assertTrue(
+      function_exists('imagecreatefrompng'),
+      'The governed editorial-image validation environment must provide GD PNG decoding.',
+    );
+
+    $warning = NULL;
+    set_error_handler(static function (int $severity, string $message) use (&$warning): bool {
+      $warning = $message;
+      return TRUE;
+    });
+    try {
+      $image = imagecreatefrompng($assetPath);
+    }
+    finally {
+      restore_error_handler();
+    }
+
+    self::assertInstanceOf(
+      \GdImage::class,
+      $image,
+      $warning ?? 'GD returned false while decoding the governed editorial PNG asset.',
+    );
+    imagedestroy($image);
+  }
+
+  /**
    * The production runner may transport only the trusted profile and asset.
    */
   public function testRunnerIsFixedAndSyntaxValid(): void {

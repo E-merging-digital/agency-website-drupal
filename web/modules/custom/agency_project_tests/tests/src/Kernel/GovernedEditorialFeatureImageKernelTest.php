@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Kernel;
 
+use Drupal\Core\File\FileSystemInterface;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\Entity\FieldStorageConfig;
 use Drupal\KernelTests\KernelTestBase;
@@ -73,6 +74,13 @@ final class GovernedEditorialFeatureImageKernelTest extends KernelTestBase {
     $this->installSchema('node', ['node_access']);
     $this->installSchema('file', ['file_usage']);
     $this->installConfig(['system']);
+
+    $publicDirectory = 'public://articles';
+    $prepared = $this->container->get('file_system')->prepareDirectory(
+      $publicDirectory,
+      FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS,
+    );
+    self::assertTrue($prepared, 'The governed public Article image directory must be writable.');
 
     foreach (['fr', 'en'] as $langcode) {
       if (ConfigurableLanguage::load($langcode) === NULL) {

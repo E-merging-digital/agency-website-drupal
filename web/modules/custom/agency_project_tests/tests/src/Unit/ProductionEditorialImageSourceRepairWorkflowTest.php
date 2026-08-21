@@ -95,7 +95,7 @@ final class ProductionEditorialImageSourceRepairWorkflowTest extends TestCase {
    * The regenerated source must remain deterministic and profile-bound.
    */
   public function testGeneratedReplacementMatchesClosedProfile(): void {
-    $root = dirname(DRUP_ROOT);
+    $root = dirname(DRUPAL_ROOT);
     $generator = $root . '/scripts/runner/generate-editorial-feature-image-401.py';
     $profile = json_decode(
       (string) file_get_contents($root . '/scripts/runner/editorial-feature-image-profiles.json'),

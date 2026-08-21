@@ -54,6 +54,7 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
     $this->installEntitySchema('taxonomy_term');
     $this->installEntitySchema('path_alias');
     $this->installSchema('node', ['node_access']);
+    $this->container->get('state')->set('router.path_roots', ['node']);
 
     foreach (['fr', 'en'] as $langcode) {
       if (ConfigurableLanguage::load($langcode) === NULL) {

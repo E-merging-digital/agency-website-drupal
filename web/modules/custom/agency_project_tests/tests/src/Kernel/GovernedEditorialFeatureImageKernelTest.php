@@ -219,9 +219,9 @@ final class GovernedEditorialFeatureImageKernelTest extends KernelTestBase {
     $en = $node->getTranslation('en')->get('field_feature_image')->first();
     self::assertNotNull($fr);
     self::assertNotNull($en);
-    self::assertSame((int) $fr->target_id, (int) $en->target_id);
-    self::assertSame($profile['alt']['fr'], $fr->alt);
-    self::assertSame($profile['alt']['en'], $en->alt);
+    self::assertSame((int) $fr->get('target_id')->getValue(), (int) $en->get('target_id')->getValue());
+    self::assertSame($profile['alt']['fr'], $fr->get('alt')->getValue());
+    self::assertSame($profile['alt']['en'], $en->get('alt')->getValue());
     self::assertSame($beforeTitleFr, $node->label());
     self::assertSame($beforeTitleEn, $node->getTranslation('en')->label());
 

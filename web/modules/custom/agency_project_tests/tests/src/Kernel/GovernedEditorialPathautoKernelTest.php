@@ -130,6 +130,7 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
       'alias' => '/blog/checklist-avant-une-refonte',
       'langcode' => 'fr',
     ])->save();
+    $this->container->get('path_alias.manager')->cacheClear();
 
     $hash = str_repeat('a', 64);
     $this->container->get('state')->set('agency_editorial.issue.401', [

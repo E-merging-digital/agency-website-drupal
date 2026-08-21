@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "401": {
+      "issue_number": 401,
+      "bundle": "article",
+      "article_payload_sha256": "489bf57f89e519862d5a1ae46f2d3335dd213993be0d2cf83b47694cfab22acf",
+      "field_name": "field_feature_image",
+      "asset": {
+        "path": "assets/editorial/issue-401-redesign-checklist.png",
+        "filename": "issue-401-redesign-checklist-a61c36785d23.png",
+        "sha256": "a61c36785d2395e30067d747b62d8153a3eb21d77508f150d92807a8ab85e9a8",
+        "mime": "image/png",
+        "width": 1200,
+        "height": 630,
+        "max_bytes": 2000000
+      },
+      "alt": {
+        "fr": "Checklist de préparation avant la refonte d’un site web",
+        "en": "Website redesign preparation checklist"
+      }
+    }
+  }
+}

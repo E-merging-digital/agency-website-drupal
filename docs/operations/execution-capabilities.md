@@ -3,7 +3,7 @@
 Status: **AUTHORITATIVE CAPABILITY REGISTRY**  
 Repository: `E-merging-digital/agency-website-drupal`  
 Registry owner: #421  
-Last materialized: 2026-08-20
+Last materialized: 2026-08-21
 
 ## 1. Purpose
 
@@ -255,7 +255,43 @@ Implementation and full contract:
 docs/operations/governed-editorial-publication.md
 ```
 
-## 7. What the agent can verify visually today
+## 7. Governed editor-owned Article feature-image route
+
+Issue #584 adds the bounded media increment deliberately excluded from the
+Article publication v1 payload. It can attach or repair only the reviewed
+`field_feature_image` state of an Article already mapped by the publication
+route.
+
+The control surface is limited to exact owner-authored comments:
+
+```text
+/agency-editorial-image inspect
+/agency-editorial-image dry-run
+/agency-editorial-image apply
+```
+
+The workflow executes from live `main`, reuses the existing production SSH
+channel and resolves a repository-owned closed profile. The initial profile is
+#401 only and fixes the original Article payload hash, repository asset path,
+final filename, PNG SHA-256, MIME, dimensions, byte limit and FR/EN ALT values.
+No runtime URL, arbitrary path, uploaded attachment, shell argument or alternate
+field is accepted.
+
+The helper verifies the existing `agency_editorial.issue.<N>` mapping, stores the
+exact file under `public://articles/` through Drupal File API, uses the same FID
+for FR/EN and preserves distinct mandatory translated ALT values. `apply`
+requires a prior bot-authored dry-run PASS for the same profile hash, asset hash
+and live main, performs a fresh dry-run and creates a SQL backup before any
+READY/REPAIR_REQUIRED mutation. A converged second apply is write-free and
+revision-stable.
+
+Implementation and full contract:
+
+```text
+docs/operations/governed-editorial-feature-image.md
+```
+
+## 8. What the agent can verify visually today
 
 The browser workflow publishes evidence including:
 
@@ -276,7 +312,7 @@ The final #399 proof on 2026-08-15 demonstrated this end-to-end. The #519 and
 #526 governed SDC/Canvas proofs subsequently reused the same route for exact-HEAD
 desktop/mobile validation and human visual review.
 
-## 8. Interactive MCP versus artifact review
+## 9. Interactive MCP versus artifact review
 
 Do not conflate these two paths.
 
@@ -318,7 +354,7 @@ an invocation route, first look for an existing governed executor/agent route.
 Only create a new route under a dedicated issue if the existing routes truly
 cannot invoke the installed capability.
 
-## 9. Tool responsibilities
+## 10. Tool responsibilities
 
 ```text
 Drupal BrowserTestBase
@@ -338,14 +374,17 @@ Governed Composer materializer
 
 Governed editorial publisher
   -> bounded editor-owned Article inspect/dry-run/apply via trusted main
+
+Governed editorial feature-image publisher
+  -> bounded repository-owned field_feature_image inspect/dry-run/apply via trusted main
 ```
 
 MCP is not a replacement for deterministic tests, and deterministic tests are
 not a replacement for visual inspection. The Composer materializer is not a
-generic command executor. The editorial publisher is not a generic production
-content or shell API.
+generic command executor. The editorial publisher and feature-image publisher
+are not generic production content, upload or shell APIs.
 
-## 10. Secrets and authenticated UI
+## 11. Secrets and authenticated UI
 
 Public validation requires no secret.
 
@@ -362,11 +401,12 @@ For future authenticated Drupal scenarios:
 The Composer materialization route carries no provider secret and must never be
 extended to transport one.
 
-The editorial publication route reuses only the existing production SSH
-secrets. It must never expose those values in artifacts or comments and must not
-be widened to provider keys, Drupal passwords or arbitrary credentials.
+The editorial publication and feature-image routes reuse only the existing
+production SSH secrets. They must never expose those values in artifacts or
+comments and must not be widened to provider keys, Drupal passwords or arbitrary
+credentials.
 
-## 11. Reload rule for future agents
+## 12. Reload rule for future agents
 
 Before any statement such as:
 
@@ -377,6 +417,7 @@ Playwright MCP is unavailable
 Chrome DevTools MCP is unavailable
 Composer cannot be materialized without human file copying
 ordinary Drupal Article publication requires mechanical human entry
+Article feature-image publication requires mechanical human upload
 I cannot validate the UI
 Jonathan must run this manually
 ```

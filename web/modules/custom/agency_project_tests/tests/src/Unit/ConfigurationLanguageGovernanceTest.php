@@ -139,30 +139,25 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $root = dirname(DRUPAL_ROOT);
     $agents = (string) file_get_contents($root . '/AGENTS.md');
     $architecture = (string) file_get_contents(
-      $root . '/docs/governed-ai-experience.md',
-    );
-    $aiArchitecture = (string) file_get_contents(
-      $root . '/docs/drupal-ai-architecture.md',
+      $root . '/docs/configuration-language-governance.md',
     );
     $adr = (string) file_get_contents(
       $root . '/docs/decisions/ADR-002-configuration-language-governance.md',
     );
 
-    foreach ([$agents, $architecture, $aiArchitecture, $adr] as $document) {
+    foreach ([$agents, $architecture, $adr] as $document) {
       self::assertStringContainsString(
         'docs/configuration-language-policy.yml',
         $document,
       );
     }
 
-    self::assertStringContainsString(
-      'migration_required',
-      $adr,
-    );
-    self::assertStringContainsString(
-      'drupal/config_language_lock',
-      $adr,
-    );
+    foreach (['Recipes', 'Canvas', 'Drupal AI', 'Preflight'] as $surface) {
+      self::assertStringContainsString($surface, $architecture);
+    }
+
+    self::assertStringContainsString('migration_required', $adr);
+    self::assertStringContainsString('drupal/config_language_lock', $adr);
     self::assertStringContainsString('Preflight', $adr);
   }
 

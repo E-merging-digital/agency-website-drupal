@@ -52,12 +52,39 @@ final class ProductionImageDiagnosticWorkflowTest extends TestCase {
       '["AVIF Support"]',
       '["WebP Support"]',
       'getimagesize',
-      'watchdog:show --count=30 --severity=Error',
+      'imagecreatefrompng',
+      'imageavif($i, NULL, 75)',
+      'imagewebp($i, NULL, 75)',
+      'php_fpm_workers',
+      'php-fpm8.4 -i',
+      'namei -l "$DERIVATIVE"',
+      'df -Pk "$FILES"',
+      'df -Pi "$FILES"',
+      'existing_large_derivatives_begin',
+      'watchdog:show --count=100 --type=php --severity=Error --extended',
+      "message~=#(image|avif|gd|permission|write|file)#i",
       '/var/log/nginx/error.log',
       '/var/log/php8.4-fpm.log',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
+  }
+
+  /**
+   * In-memory encoder probes may not create a diagnostic output file.
+   */
+  public function testEncoderProbesStayInMemory(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $workflow = (string) file_get_contents(
+      $root . '/.github/workflows/trusted-production-image-diagnostic.yml',
+    );
+
+    self::assertStringContainsString('ob_start()', $workflow);
+    self::assertStringContainsString('ob_get_clean()', $workflow);
+    self::assertStringContainsString('cli_avif_encode', $workflow);
+    self::assertStringContainsString('cli_webp_encode', $workflow);
+    self::assertStringNotContainsString('imageavif($i, $', $workflow);
+    self::assertStringNotContainsString('imagewebp($i, $', $workflow);
   }
 
   /**
@@ -106,13 +133,16 @@ final class ProductionImageDiagnosticWorkflowTest extends TestCase {
 
     foreach ([
       'AVIF_CAPABILITY_MISMATCH',
+      'CLI_AVIF_ENCODER_FAILED',
       'DERIVATIVE_GENERATION_FAILED',
       'DERIVATIVE_SERVING_FAILED',
       'DERIVATIVE_HEALTHY',
       'SOURCE_MISSING',
+      'schema_version:2',
       'artifacts/production-image-diagnostic/result.json',
       'artifacts/production-image-diagnostic/diagnostic.txt',
       'derivative_http_content_type',
+      'derivative_exists_after_get',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }

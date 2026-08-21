@@ -137,7 +137,7 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
     }
     require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-publication-pathauto.php';
 
-    $generator = new class($this->container->get('entity_type.manager')) {
+    $generator = new class {
 
       /**
        * Languages for which alias generation was requested.
@@ -147,15 +147,10 @@ final class GovernedEditorialPathautoKernelTest extends KernelTestBase {
       public array $langcodes = [];
 
       /**
-       * Constructs the bounded fake Pathauto generator.
-       */
-      public function __construct(private readonly object $entityTypeManager) {}
-
-      /**
        * Creates the deterministic test alias for the requested translation.
        */
       public function updateEntityAlias(object $entity, string $op, array $options = []): void {
-        unset($op, $options, $this->entityTypeManager);
+        unset($op, $options);
         $langcode = $entity->language()->getId();
         $this->langcodes[] = $langcode;
         $nodeId = (int) $entity->id();

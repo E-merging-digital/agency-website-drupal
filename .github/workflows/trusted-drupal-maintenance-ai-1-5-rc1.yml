@@ -51,6 +51,7 @@ jobs:
           test "$COMPOSER_PACKAGE" = 'drupal/ai'
           test "$COMPOSER_CONSTRAINT" = '1.5.0-rc1'
           test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
+          test "$COMPOSER_REQUIRED_AI_SEARCH_VERSION" = '1.3.0-alpha4'
           test "$COMPOSER_OWNER_ISSUE" = '562'
 
           pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
@@ -97,11 +98,14 @@ jobs:
               target = json.load(handle)
 
           expected = copy.deepcopy(base)
-          expected.setdefault('require', {})['drupal/ai'] = '1.5.0-rc1'
+          require = expected.setdefault('require', {})
+          require['drupal/ai'] = '1.5.0-rc1'
+          require['drupal/ai_search'] = '1.3.0-alpha4'
           if target != expected:
               raise SystemExit(
                   'PR #563 composer.json must differ from trusted main only by '
-                  'drupal/ai = 1.5.0-rc1.'
+                  'drupal/ai = 1.5.0-rc1 and '
+                  'drupal/ai_search = 1.3.0-alpha4.'
               )
           PY
 
@@ -132,6 +136,7 @@ jobs:
           - Input HEAD: \`${HEAD_SHA}\`
           - Composer selector: repository-owned \`drupal/*\`
           - Required Drupal AI: \`1.5.0-rc1\`
+          - Required AI Search: \`1.3.0-alpha4\`
           - State: \`validated; self-hosted resolution pending\`
 
           No package name, Composer argument or secret is supplied by the PR/comment.
@@ -155,6 +160,7 @@ jobs:
       - browser
     outputs:
       resolved_ai: ${{ steps.summarize.outputs.resolved_ai }}
+      resolved_ai_search: ${{ steps.summarize.outputs.resolved_ai_search }}
       change_count: ${{ steps.summarize.outputs.change_count }}
       lock_sha256: ${{ steps.summarize.outputs.lock_sha256 }}
     steps:
@@ -199,7 +205,9 @@ jobs:
           test "$COMPOSER_PACKAGE" = 'drupal/ai'
           test "$COMPOSER_CONSTRAINT" = '1.5.0-rc1'
           test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
+          test "$COMPOSER_REQUIRED_AI_SEARCH_VERSION" = '1.3.0-alpha4'
           test "$(jq -r '.require["drupal/ai"]' target/composer.json)" = '1.5.0-rc1'
+          test "$(jq -r '.require["drupal/ai_search"]' target/composer.json)" = '1.3.0-alpha4'
 
       - name: Isolate DDEV project
         shell: bash
@@ -223,6 +231,7 @@ jobs:
           set -euo pipefail
           source ../trusted/scripts/runner/composer-materialization-profiles.sh
           test "$COMPOSER_UPDATE_SELECTOR" = 'drupal/*'
+          test "$COMPOSER_REQUIRED_AI_SEARCH_VERSION" = '1.3.0-alpha4'
 
           cp composer.lock /tmp/composer-lock-before.json
           ddev composer update "$COMPOSER_UPDATE_SELECTOR" \
@@ -277,8 +286,13 @@ jobs:
                   })
 
           ai = new.get('drupal/ai', '').lstrip('v')
+          ai_search = new.get('drupal/ai_search', '').lstrip('v')
           if ai != '1.5.0-rc1':
               raise SystemExit(f'Expected drupal/ai 1.5.0-rc1, got {ai!r}')
+          if ai_search != '1.3.0-alpha4':
+              raise SystemExit(
+                  f'Expected drupal/ai_search 1.3.0-alpha4, got {ai_search!r}'
+              )
 
           digest = hashlib.sha256(after_path.read_bytes()).hexdigest()
           Path('../drupal-maintenance-artifact/package-changes.json').write_text(
@@ -290,18 +304,21 @@ jobs:
                   'status': 'PASS',
                   'target_head_sha': os.environ['EXPECTED_HEAD_SHA'],
                   'resolved_ai': ai,
+                  'resolved_ai_search': ai_search,
                   'drupal_package_change_count': len(changes),
                   'composer_lock_sha256': digest,
               }, indent=2, sort_keys=True) + '\n',
               encoding='utf-8',
           )
           print(f'resolved_ai={ai}')
+          print(f'resolved_ai_search={ai_search}')
           print(f'change_count={len(changes)}')
           print(f'lock_sha256={digest}')
           PY
 
           cat ../drupal-maintenance-artifact/result.json
           echo "resolved_ai=$(jq -r '.resolved_ai' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
+          echo "resolved_ai_search=$(jq -r '.resolved_ai_search' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
           echo "change_count=$(jq -r '.drupal_package_change_count' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
           echo "lock_sha256=$(jq -r '.composer_lock_sha256' ../drupal-maintenance-artifact/result.json)" >> "$GITHUB_OUTPUT"
 
@@ -363,6 +380,7 @@ jobs:
           test "$(jq -r '.status' /tmp/drupal-maintenance/result.json)" = 'PASS'
           test "$(jq -r '.target_head_sha' /tmp/drupal-maintenance/result.json)" = "$EXPECTED_HEAD_SHA"
           test "$(jq -r '.resolved_ai' /tmp/drupal-maintenance/result.json)" = '1.5.0-rc1'
+          test "$(jq -r '.resolved_ai_search' /tmp/drupal-maintenance/result.json)" = '1.3.0-alpha4'
 
           actual_digest="$(sha256sum /tmp/drupal-maintenance/composer.lock | awk '{print $1}')"
           test "$actual_digest" = "$(jq -r '.composer_lock_sha256' /tmp/drupal-maintenance/result.json)"
@@ -417,6 +435,7 @@ jobs:
           OLD_HEAD: ${{ needs.validate-target.outputs.head_sha }}
           NEW_HEAD: ${{ steps.publish.outputs.new_head_sha }}
           AI_VERSION: ${{ needs.resolve-lock.outputs.resolved_ai }}
+          AI_SEARCH_VERSION: ${{ needs.resolve-lock.outputs.resolved_ai_search }}
           CHANGE_COUNT: ${{ needs.resolve-lock.outputs.change_count }}
           LOCK_SHA256: ${{ needs.resolve-lock.outputs.lock_sha256 }}
         run: |
@@ -426,6 +445,7 @@ jobs:
           ### #562 governed Drupal maintenance — Composer resolution SUCCESS
 
           - Drupal AI: \`${AI_VERSION}\`
+          - AI Search: \`${AI_SEARCH_VERSION}\`
           - changed Drupal packages: \`${CHANGE_COUNT}\`
           - input HEAD: \`${OLD_HEAD}\`
           - published HEAD: \`${NEW_HEAD}\`

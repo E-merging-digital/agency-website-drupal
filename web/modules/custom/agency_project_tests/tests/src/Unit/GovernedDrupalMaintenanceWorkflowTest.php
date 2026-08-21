@@ -40,7 +40,11 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertStringContainsString(
-      "expected.setdefault('require', {})['drupal/ai'] = '1.5.0-rc1'",
+      "require['drupal/ai'] = '1.5.0-rc1'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      "require['drupal/ai_search'] = '1.3.0-alpha4'",
       $workflow,
     );
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
@@ -69,6 +73,10 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
     );
     self::assertStringContainsString(
       "COMPOSER_UPDATE_SELECTOR='drupal/*'",
+      $profiles,
+    );
+    self::assertStringContainsString(
+      "COMPOSER_REQUIRED_AI_SEARCH_VERSION='1.3.0-alpha4'",
       $profiles,
     );
     self::assertStringContainsString(
@@ -124,10 +132,18 @@ final class GovernedDrupalMaintenanceWorkflowTest extends TestCase {
       "changed\" != 'composer.lock'",
       $resolver,
     );
+    self::assertStringContainsString(
+      "resolved_ai_search",
+      $resolver,
+    );
 
     self::assertStringContainsString('contents: write', $publisher);
     self::assertStringContainsString(
       "test \"$(git diff --cached --name-only)\" = 'composer.lock'",
+      $publisher,
+    );
+    self::assertStringContainsString(
+      "'.resolved_ai_search'",
       $publisher,
     );
     self::assertStringContainsString(

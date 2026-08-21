@@ -26,7 +26,7 @@ command -v sha256sum >/dev/null
 test -f docs/configuration-language-policy.yml
 test -f scripts/runner/configuration-language-audit.php
 test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN"
-php -l scripts/runner/configuration-language-audit.php >/dev/null
+ddev exec php -l /var/www/html/scripts/runner/configuration-language-audit.php >/dev/null
 git diff --check
 
 config_status="$(ddev drush config:status 2>&1)"

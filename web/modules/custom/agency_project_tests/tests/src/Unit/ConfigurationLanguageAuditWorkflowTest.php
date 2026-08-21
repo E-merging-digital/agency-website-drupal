@@ -43,6 +43,10 @@ final class ConfigurationLanguageAuditWorkflowTest extends TestCase {
     self::assertStringContainsString('- self-hosted', $workflow);
     self::assertStringContainsString('- agency', $workflow);
     self::assertStringContainsString('- ddev', $workflow);
+    self::assertStringContainsString(
+      'ddev exec php -l /var/www/html/scripts/runner/configuration-language-audit.php',
+      $workflow,
+    );
 
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
     self::assertStringNotContainsString('SSH_PRIVATE_KEY', $workflow);
@@ -51,6 +55,18 @@ final class ConfigurationLanguageAuditWorkflowTest extends TestCase {
     self::assertStringNotContainsString('drush cex', $workflow);
     self::assertStringNotContainsString(
       'emerging:governed-content',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      "\n          php -l scripts/runner/configuration-language-audit.php",
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      'REPOSITORY_BY_LANGCODE:-{}',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      'ACTIVE_BY_LANGCODE:-{}',
       $workflow,
     );
   }
@@ -68,6 +84,10 @@ final class ConfigurationLanguageAuditWorkflowTest extends TestCase {
     );
 
     self::assertStringContainsString('drush config:status', $runner);
+    self::assertStringContainsString(
+      'ddev exec php -l /var/www/html/scripts/runner/configuration-language-audit.php',
+      $runner,
+    );
     self::assertStringContainsString(
       'configuration-language-audit.php',
       $runner,
@@ -91,6 +111,10 @@ final class ConfigurationLanguageAuditWorkflowTest extends TestCase {
     ] as $forbiddenMutation) {
       self::assertStringNotContainsString($forbiddenMutation, $runner);
     }
+    self::assertStringNotContainsString(
+      "\nphp -l scripts/runner/configuration-language-audit.php",
+      $runner,
+    );
 
     self::assertStringContainsString(
       "\\Drupal::service('config.storage')",

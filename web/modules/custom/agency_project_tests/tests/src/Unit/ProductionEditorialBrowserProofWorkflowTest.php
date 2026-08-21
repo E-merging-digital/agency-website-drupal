@@ -33,6 +33,10 @@ final class ProductionEditorialBrowserProofWorkflowTest extends TestCase {
     self::assertStringContainsString('production-editorial-401.json', $workflow);
     self::assertStringContainsString('production-editorial-article.spec.mjs', $workflow);
     self::assertStringContainsString('https://emergingdigital.be', $workflow);
+    self::assertStringContainsString(
+      '.target == "/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier"',
+      $workflow,
+    );
     self::assertStringContainsString('runs-on: ubuntu-24.04', $workflow);
     self::assertStringNotContainsString('self-hosted', $workflow);
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
@@ -68,8 +72,28 @@ final class ProductionEditorialBrowserProofWorkflowTest extends TestCase {
     self::assertSame(401, $contract['issue_number']);
     self::assertSame('anonymous', $contract['actor']);
     self::assertSame('https://emergingdigital.be', $contract['origin']);
+    self::assertSame(
+      '/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier',
+      $contract['target'],
+    );
     self::assertSame(['fr', 'en'], array_keys($contract['locales']));
-    self::assertSame(['fr', 'en', 'x-default'], array_keys($contract['hreflang']));
+    self::assertSame(['fr', 'en'], array_keys($contract['hreflang']));
+    self::assertSame(
+      '/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier',
+      $contract['locales']['fr']['path'],
+    );
+    self::assertSame(
+      'https://emergingdigital.be/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier',
+      $contract['locales']['fr']['canonical'],
+    );
+    self::assertSame(
+      'https://emergingdigital.be/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier',
+      $contract['hreflang']['fr'],
+    );
+    self::assertSame(
+      'https://emergingdigital.be/en/blog/website-redesign-checklist-12-things-verify-you-start',
+      $contract['hreflang']['en'],
+    );
     self::assertSame(
       'Checklist de préparation avant la refonte d’un site web',
       $contract['locales']['fr']['image_alt'],

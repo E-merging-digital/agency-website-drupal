@@ -43,8 +43,7 @@ final class ProductionEditorialImageSourceRepairWorkflowTest extends TestCase {
   }
 
   /**
-   * The helper must encode the exact old -> new transition while preserving
-   * fail-close behavior.
+   * Pins the exact legacy-to-replacement transition and fail-close.
    */
   public function testRepairHelperPinsExactLegacyAndReplacementBytes(): void {
     $root = dirname(DRUPAL_ROOT);

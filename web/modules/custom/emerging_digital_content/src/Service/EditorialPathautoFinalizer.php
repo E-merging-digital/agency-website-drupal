@@ -34,16 +34,11 @@ final class EditorialPathautoFinalizer {
    * Builds the finalizer from Drupal's existing public services.
    */
   public static function fromContainer(ContainerInterface $container): self {
-    $pathautoGenerator = $container->get('pathauto.generator');
-    if (!$pathautoGenerator instanceof PathautoGeneratorInterface) {
-      throw new \RuntimeException('Pathauto generator service is unavailable.');
-    }
-
     return new self(
       $container->get('entity_type.manager'),
       $container->get('state'),
       $container->get('path_alias.manager'),
-      $pathautoGenerator,
+      $container->get('pathauto.generator'),
     );
   }
 

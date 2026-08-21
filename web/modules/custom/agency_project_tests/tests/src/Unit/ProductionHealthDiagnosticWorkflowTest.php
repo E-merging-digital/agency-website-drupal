@@ -61,8 +61,8 @@ final class ProductionHealthDiagnosticWorkflowTest extends TestCase {
     foreach ([
       'system.maintenance_mode',
       "pgrep -af '[d]eploy-production.sh'",
-      'systemctl is-active nginx',
-      'systemctl is-active php8.4-fpm',
+      'service_state nginx nginx_state',
+      'service_state php8.4-fpm php84_fpm_state',
       "--resolve 'emergingdigital.be:443:127.0.0.1'",
       '/var/www/agency/shared/deployments.log',
       'https://emergingdigital.be/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier',

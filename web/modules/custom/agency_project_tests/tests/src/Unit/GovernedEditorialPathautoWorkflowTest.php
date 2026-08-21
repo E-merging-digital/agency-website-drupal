@@ -7,8 +7,7 @@ namespace Drupal\Tests\agency_project_tests\Unit;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Protects the bounded Pathauto finalization layered onto editorial
- * publication.
+ * Protects bounded Pathauto finalization for editorial publication.
  *
  * @group agency_project_tests
  * @group governed_editorial_publication

@@ -1,0 +1,324 @@
+name: Agency trusted stale production deploy cancellation
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  cancel-stale-production-deploy:
+    name: Cancel exact stale production deploy blocker
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 636 &&
+        github.actor == 'E-merging-digital' &&
+        github.event.comment.user.login == 'E-merging-digital' &&
+        github.event.comment.body == '/agency-production-deploy-run cancel-stale-blocker'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: agency-stale-production-deploy-cancellation
+      cancel-in-progress: false
+
+    env:
+      BLOCKER_RUN_ID: '32565825830'
+      TARGET_RUN_ID: '32567826577'
+      HEALTH_DIAGNOSTIC_RUN_ID: '32569318935'
+      HEALTH_TRUSTED_MAIN: 'b587d2cc5049fb07f3617d078e66a339923a990e'
+      HEALTH_RUNTIME_SHA: '0ccadc58c16acdde8297ff5b6902f5406b9efaf9'
+
+    steps:
+      - name: Validate actor, live main, immutable health proof and exact runs
+        id: preflight
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-production-deploy-run cancel-stale-blocker' ]]
+          [[ "$ISSUE_NUMBER" == '636' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Cancellation route must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+
+          pr638="$(gh api "repos/$GITHUB_REPOSITORY/pulls/638")"
+          pr641="$(gh api "repos/$GITHUB_REPOSITORY/pulls/641")"
+          blocker_sha="$(jq -r '.merge_commit_sha' <<<"$pr638")"
+          target_sha="$(jq -r '.merge_commit_sha' <<<"$pr641")"
+          [[ "$(jq -r '.merged_at // empty' <<<"$pr638")" != '' ]]
+          [[ "$(jq -r '.merged_at // empty' <<<"$pr641")" != '' ]]
+          [[ "$blocker_sha" == '7816206a037ea6fe741112f13991c3c76e54eea7' ]]
+          [[ "$target_sha" == 'acea55cf0aa02acdee9ee9866977733f0e0cff8e' ]]
+
+          health_comments="$(gh api "repos/$GITHUB_REPOSITORY/issues/590/comments?per_page=100")"
+          health_comment="$(
+            jq -c \
+              --arg run "$HEALTH_DIAGNOSTIC_RUN_ID" \
+              '[.[] | select(
+                .user.login == "github-actions[bot]" and
+                (.body | contains("run_id: `" + $run + "`"))
+              )] | .[-1] // empty' \
+              <<<"$health_comments"
+          )"
+          [[ -n "$health_comment" ]] || {
+            echo 'Pinned health proof comment is missing.' >&2
+            exit 1
+          }
+          health_body="$(jq -r '.body' <<<"$health_comment")"
+          [[ "$health_body" == *'Agency production health diagnostic PUBLIC_HTTP_HEALTHY'* ]]
+          [[ "$health_body" == *"trusted_main: \`$HEALTH_TRUSTED_MAIN\`"* ]]
+          [[ "$health_body" == *"run_id: \`$HEALTH_DIAGNOSTIC_RUN_ID\`"* ]]
+          [[ "$health_body" == *'maintenance_mode: `0`'* ]]
+          [[ "$health_body" == *'active_deploy_processes: `0`'* ]]
+          [[ "$health_body" == *'public_fr_status: `301`'* ]]
+          [[ "$health_body" == *'public_en_status: `200`'* ]]
+          [[ "$health_body" == *"production_current_sha: \`$HEALTH_RUNTIME_SHA\`"* ]]
+
+          blocker="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BLOCKER_RUN_ID")"
+          target="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID")"
+          target_jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID/jobs?filter=latest&per_page=100")"
+
+          blocker_status="$(jq -r '.status' <<<"$blocker")"
+          blocker_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$blocker")"
+          target_status="$(jq -r '.status' <<<"$target")"
+          target_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$target")"
+          target_job_count="$(jq -r '.total_count' <<<"$target_jobs")"
+
+          [[ "$(jq -r '.name' <<<"$blocker")" == 'Deploy Production' ]]
+          [[ "$(jq -r '.event' <<<"$blocker")" == 'push' ]]
+          [[ "$(jq -r '.head_branch' <<<"$blocker")" == 'main' ]]
+          [[ "$(jq -r '.head_sha' <<<"$blocker")" == "$blocker_sha" ]]
+          [[ "$(jq -r '.name' <<<"$target")" == 'Deploy Production' ]]
+          [[ "$(jq -r '.event' <<<"$target")" == 'push' ]]
+          [[ "$(jq -r '.head_branch' <<<"$target")" == 'main' ]]
+          [[ "$(jq -r '.head_sha' <<<"$target")" == "$target_sha" ]]
+          [[ "$target_job_count" =~ ^[0-9]+$ ]]
+
+          mkdir -p artifacts/stale-production-deploy-cancellation
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+          echo "blocker_sha=$blocker_sha" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+          echo "blocker_status=$blocker_status" >> "$GITHUB_OUTPUT"
+          echo "blocker_conclusion=$blocker_conclusion" >> "$GITHUB_OUTPUT"
+          echo "target_status=$target_status" >> "$GITHUB_OUTPUT"
+          echo "target_conclusion=$target_conclusion" >> "$GITHUB_OUTPUT"
+          echo "target_job_count=$target_job_count" >> "$GITHUB_OUTPUT"
+
+          if [[ "$blocker_status" != 'in_progress' || "$target_status" != 'pending' || "$target_job_count" != '0' ]]; then
+            jq -n \
+              --arg trusted_main "$main_sha" \
+              --arg blocker_run_id "$BLOCKER_RUN_ID" \
+              --arg blocker_sha "$blocker_sha" \
+              --arg blocker_status "$blocker_status" \
+              --arg blocker_conclusion "$blocker_conclusion" \
+              --arg target_run_id "$TARGET_RUN_ID" \
+              --arg target_sha "$target_sha" \
+              --arg target_status "$target_status" \
+              --arg target_conclusion "$target_conclusion" \
+              --arg target_job_count "$target_job_count" \
+              '{
+                schema_version: 1,
+                outcome: "NO_ACTION_STATE_CHANGED",
+                mutation_performed: false,
+                trusted_main: $trusted_main,
+                blocker_run_id: $blocker_run_id,
+                blocker_sha: $blocker_sha,
+                blocker_status: $blocker_status,
+                blocker_conclusion: $blocker_conclusion,
+                target_run_id: $target_run_id,
+                target_sha: $target_sha,
+                target_status: $target_status,
+                target_conclusion: $target_conclusion,
+                target_job_count: $target_job_count
+              }' > artifacts/stale-production-deploy-cancellation/result.json
+            echo 'mutation_allowed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo 'mutation_allowed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Cancel exact stale blocker only
+        id: cancel
+        if: ${{ steps.preflight.outputs.mutation_allowed == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ steps.preflight.outputs.main_sha }}
+          BLOCKER_SHA: ${{ steps.preflight.outputs.blocker_sha }}
+          TARGET_SHA: ${{ steps.preflight.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+
+          blocker="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BLOCKER_RUN_ID")"
+          target="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID")"
+          target_jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID/jobs?filter=latest&per_page=100")"
+
+          [[ "$(jq -r '.status' <<<"$blocker")" == 'in_progress' ]]
+          [[ "$(jq -r '.head_sha' <<<"$blocker")" == "$BLOCKER_SHA" ]]
+          [[ "$(jq -r '.status' <<<"$target")" == 'pending' ]]
+          [[ "$(jq -r '.head_sha' <<<"$target")" == "$TARGET_SHA" ]]
+          [[ "$(jq -r '.total_count' <<<"$target_jobs")" == '0' ]]
+
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/runs/$BLOCKER_RUN_ID/cancel" \
+            >/dev/null
+
+          blocker_status='in_progress'
+          blocker_conclusion='unknown'
+          for attempt in $(seq 1 30); do
+            blocker="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BLOCKER_RUN_ID")"
+            blocker_status="$(jq -r '.status' <<<"$blocker")"
+            blocker_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$blocker")"
+            if [[ "$blocker_status" != 'in_progress' ]]; then
+              break
+            fi
+            sleep 2
+          done
+
+          target_status='pending'
+          target_conclusion='unknown'
+          target_job_count='0'
+          target_job_id='none'
+          target_job_name='none'
+          target_job_status='unknown'
+          for attempt in $(seq 1 30); do
+            target="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID")"
+            target_status="$(jq -r '.status' <<<"$target")"
+            target_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$target")"
+            target_jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID/jobs?filter=latest&per_page=100")"
+            target_job_count="$(jq -r '.total_count' <<<"$target_jobs")"
+            if [[ "$target_job_count" != '0' ]]; then
+              target_job="$(jq -c '.jobs | sort_by(.id) | .[0]' <<<"$target_jobs")"
+              target_job_id="$(jq -r '.id' <<<"$target_job")"
+              target_job_name="$(jq -r '.name' <<<"$target_job")"
+              target_job_status="$(jq -r '.status' <<<"$target_job")"
+            fi
+            if [[ "$target_status" != 'pending' || "$target_job_count" != '0' ]]; then
+              break
+            fi
+            sleep 2
+          done
+
+          outcome='BLOCKER_CANCEL_REQUESTED'
+          if [[ "$blocker_status" == 'completed' && "$blocker_conclusion" == 'cancelled' && ( "$target_status" != 'pending' || "$target_job_count" != '0' ) ]]; then
+            outcome='BLOCKER_CANCELLED_TARGET_RELEASED'
+          elif [[ "$blocker_status" != 'in_progress' && ( "$target_status" != 'pending' || "$target_job_count" != '0' ) ]]; then
+            outcome='BLOCKER_TERMINAL_TARGET_RELEASED'
+          elif [[ "$blocker_status" != 'in_progress' ]]; then
+            outcome='BLOCKER_TERMINAL_TARGET_STILL_PENDING'
+          fi
+
+          jq -n \
+            --arg trusted_main "$TRUSTED_MAIN" \
+            --arg outcome "$outcome" \
+            --arg blocker_run_id "$BLOCKER_RUN_ID" \
+            --arg blocker_sha "$BLOCKER_SHA" \
+            --arg blocker_status "$blocker_status" \
+            --arg blocker_conclusion "$blocker_conclusion" \
+            --arg target_run_id "$TARGET_RUN_ID" \
+            --arg target_sha "$TARGET_SHA" \
+            --arg target_status "$target_status" \
+            --arg target_conclusion "$target_conclusion" \
+            --arg target_job_count "$target_job_count" \
+            --arg target_job_id "$target_job_id" \
+            --arg target_job_name "$target_job_name" \
+            --arg target_job_status "$target_job_status" \
+            '{
+              schema_version: 1,
+              outcome: $outcome,
+              mutation_performed: true,
+              mutation: "cancel_blocker_run_only",
+              trusted_main: $trusted_main,
+              blocker_run_id: $blocker_run_id,
+              blocker_sha: $blocker_sha,
+              blocker_status: $blocker_status,
+              blocker_conclusion: $blocker_conclusion,
+              target_run_id: $target_run_id,
+              target_sha: $target_sha,
+              target_status: $target_status,
+              target_conclusion: $target_conclusion,
+              target_job_count: $target_job_count,
+              target_job_id: $target_job_id,
+              target_job_name: $target_job_name,
+              target_job_status: $target_job_status
+            }' > artifacts/stale-production-deploy-cancellation/result.json
+
+      - name: Upload stale deploy cancellation evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-stale-production-deploy-cancellation-636-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/stale-production-deploy-cancellation
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded stale deploy cancellation result
+        if: ${{ always() && steps.preflight.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/stale-production-deploy-cancellation/result.json'
+          [[ -s "$result" ]]
+          jq -e . "$result" >/dev/null
+
+          outcome="$(jq -r '.outcome' "$result")"
+          mutation="$(jq -r '.mutation_performed' "$result")"
+          blocker_status="$(jq -r '.blocker_status' "$result")"
+          blocker_conclusion="$(jq -r '.blocker_conclusion' "$result")"
+          target_status="$(jq -r '.target_status' "$result")"
+          target_conclusion="$(jq -r '.target_conclusion' "$result")"
+          target_job_count="$(jq -r '.target_job_count' "$result")"
+          target_job_id="$(jq -r '.target_job_id // "none"' "$result")"
+          target_job_status="$(jq -r '.target_job_status // "unknown"' "$result")"
+          artifact="agency-stale-production-deploy-cancellation-636-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          body="$(cat <<EOF_BODY
+          ### Agency stale production deploy cancellation ${outcome}
+
+          control_run_id: \`${GITHUB_RUN_ID}\`
+          mutation_performed: \`${mutation}\`
+          blocker_run_id: \`${BLOCKER_RUN_ID}\`
+          blocker_status: \`${blocker_status}\`
+          blocker_conclusion: \`${blocker_conclusion}\`
+          target_run_id: \`${TARGET_RUN_ID}\`
+          target_status: \`${target_status}\`
+          target_conclusion: \`${target_conclusion}\`
+          target_job_count: \`${target_job_count}\`
+          target_job_id: \`${target_job_id}\`
+          target_job_status: \`${target_job_status}\`
+          artifact: \`${artifact}\`
+
+          Mutation is limited to cancelling stale blocker run \`${BLOCKER_RUN_ID}\`. Target run \`${TARGET_RUN_ID}\` is never cancelled, rerun or redispatched by this route.
+          EOF_BODY
+          )"
+
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/636/comments" \
+            -f body="$body"

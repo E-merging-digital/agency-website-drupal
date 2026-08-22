@@ -16,9 +16,9 @@ use Symfony\Component\Yaml\Yaml;
 final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
 
   /**
-   * Ensures the incident control surface is pinned while the target is server-owned.
+   * Ensures the control surface is pinned and target is server-owned.
    */
-  public function testControlSurfaceIsPinnedAndTargetIsDiscoveredServerSide(): void {
+  public function testControlSurfaceAndServerOwnedTarget(): void {
     $workflow = $this->workflow();
 
     foreach ([

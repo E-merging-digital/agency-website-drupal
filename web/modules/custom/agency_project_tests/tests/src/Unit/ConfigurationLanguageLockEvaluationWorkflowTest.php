@@ -31,23 +31,20 @@ final class ConfigurationLanguageLockEvaluationWorkflowTest extends TestCase {
       "github.event.comment.body == '/agency-config-language-lock evaluate'",
       $workflow,
     );
-    self::assertStringContainsString("test \"$PR_NUMBER\" = '629'", $workflow);
+    self::assertStringContainsString("test \"\$PR_NUMBER\" = '629'", $workflow);
     self::assertStringContainsString(
-      "test \"$(jq -r '.draft' <<<\"$pr_json\")\" = 'true'",
+      "test \"\$(jq -r '.draft' <<<\"\$pr_json\")\" = 'true'",
       $workflow,
     );
     self::assertStringContainsString(
-      "test \"$(jq -r '.head.ref' <<<\"$pr_json\")\" = 'feature/628-config-language-lock-candidate'",
+      "test \"\$(jq -r '.head.ref' <<<\"\$pr_json\")\" = 'feature/628-config-language-lock-candidate'",
       $workflow,
     );
     self::assertStringContainsString(
-      "Expected drupal/config_language_lock:^1.0",
+      'Expected drupal/config_language_lock:^1.0',
       $workflow,
     );
-    self::assertStringContainsString(
-      "Expected stable 1.0.x",
-      $workflow,
-    );
+    self::assertStringContainsString('Expected stable 1.0.x', $workflow);
     self::assertStringContainsString(
       'composer.json and composer.lock',
       $workflow,
@@ -122,9 +119,9 @@ final class ConfigurationLanguageLockEvaluationWorkflowTest extends TestCase {
     self::assertFileExists($path);
 
     $script = (string) file_get_contents($path);
-    self::assertStringContainsString("$storage->listAll()", $script);
-    self::assertStringContainsString("$storage->read($name)", $script);
-    self::assertStringContainsString("ksort($value, SORT_STRING)", $script);
+    self::assertStringContainsString('$storage->listAll()', $script);
+    self::assertStringContainsString('$storage->read($name)', $script);
+    self::assertStringContainsString('ksort($value, SORT_STRING)', $script);
     self::assertStringContainsString("hash('sha256'", $script);
     self::assertStringContainsString("'module_owned'", $script);
     self::assertStringContainsString("'config_language_lock_enabled'", $script);

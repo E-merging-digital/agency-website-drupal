@@ -15,6 +15,9 @@ use Symfony\Component\Yaml\Yaml;
  */
 final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
 
+  /**
+   * Ensures the incident control surface and target request stay pinned.
+   */
   public function testControlSurfaceAndTargetArePinned(): void {
     $workflow = $this->workflow();
 
@@ -33,6 +36,9 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
   }
 
+  /**
+   * Ensures only fixed deployment phase markers can be reported.
+   */
   public function testOnlyAllowlistedPhaseMarkersAreReported(): void {
     $workflow = $this->workflow();
 
@@ -63,6 +69,9 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
     }
   }
 
+  /**
+   * Ensures process evidence contains names and elapsed time, not arguments.
+   */
   public function testProcessEvidenceContainsNamesWithoutArguments(): void {
     $workflow = $this->workflow();
 
@@ -92,6 +101,9 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
     }
   }
 
+  /**
+   * Ensures the diagnostic cannot mutate Actions, Drupal, or the server.
+   */
   public function testRouteHasNoMutationCapability(): void {
     $workflow = $this->workflow();
 
@@ -121,6 +133,9 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
     self::assertStringContainsString('issues: write', $workflow);
   }
 
+  /**
+   * Loads and parses the trusted phase diagnostic workflow.
+   */
   private function workflow(): string {
     $root = dirname(DRUPAL_ROOT);
     $path = $root

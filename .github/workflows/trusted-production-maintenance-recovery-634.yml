@@ -92,7 +92,7 @@ jobs:
           ssh "$SERVER_USER@$SERVER_HOST" 'bash -s' > "$raw" 2>&1 <<'REMOTE_RECOVERY'
           set -u
           CURRENT='/var/www/agency/current'
-          EXPECTED_PRODUCTION_SHA='b85667be5fdefa55e661d62c9d0688039bb4c401'
+          EXPECTED_PRODUCTION_SHA='0ccadc58c16acdde8297ff5b6902f5406b9efaf9'
           FR_URL='https://emergingdigital.be/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier'
           EN_URL='https://emergingdigital.be/en/blog/website-redesign-checklist-12-things-verify-you-start'
 
@@ -283,7 +283,7 @@ jobs:
           public_en_status: \`${en_status}\`
           artifact: \`${artifact}\`
 
-          This route is pinned to issue #634 and runtime b85667be5fdefa55e661d62c9d0688039bb4c401. It can only disable the already-proven stuck Drupal maintenance mode, rebuild Drupal cache, and verify fixed postconditions.
+          This route is pinned to issue #634 and runtime 0ccadc58c16acdde8297ff5b6902f5406b9efaf9. It can only disable the already-proven stuck Drupal maintenance mode, rebuild Drupal cache, and verify fixed postconditions.
           EOF_BODY
           )"
           gh issue comment 634 --repo "$GITHUB_REPOSITORY" --body "$body"

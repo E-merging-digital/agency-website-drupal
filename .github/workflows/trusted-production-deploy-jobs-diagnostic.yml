@@ -1,0 +1,393 @@
+name: Agency trusted production deploy jobs diagnostic
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  production-deploy-jobs-diagnostic:
+    name: Diagnose staged production deploy request
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 636 &&
+        github.actor == 'E-merging-digital' &&
+        github.event.comment.user.login == 'E-merging-digital' &&
+        github.event.comment.body == '/agency-production-deploy-jobs diagnose'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: agency-production-deploy-jobs-diagnostic
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate actor, incident and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-production-deploy-jobs diagnose' ]]
+          [[ "$ISSUE_NUMBER" == '636' ]] || {
+            echo 'Production deploy-jobs diagnostic is restricted to issue #636.' >&2
+            exit 1
+          }
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Deploy-jobs diagnostic must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Configure existing production SSH channel
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Inspect fixed read-only deploy-jobs state
+        id: diagnostic
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          EXPECTED_SHA: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          mkdir -p artifacts/production-deploy-jobs
+          raw='artifacts/production-deploy-jobs/diagnostic.env'
+
+          set +e
+          ssh "$SERVER_USER@$SERVER_HOST" \
+            "bash -s -- '$EXPECTED_SHA'" > "$raw" 2>&1 <<'REMOTE_DIAGNOSTIC'
+          set -u
+          EXPECTED_SHA="$1"
+          JOBS_DIR='/var/www/agency/shared/deploy-jobs'
+
+          scalar() {
+            printf '%s=%s\n' "$1" "$2"
+          }
+
+          field() {
+            key="$1"
+            file="$2"
+            sed -n "s/^${key}=//p" "$file" 2>/dev/null | head -n 1
+          }
+
+          present_regular() {
+            file="$1"
+            if [[ -f "$file" && ! -L "$file" ]]; then
+              printf '1'
+            else
+              printf '0'
+            fi
+          }
+
+          scalar schema_version '1'
+          scalar expected_sha "$EXPECTED_SHA"
+
+          if [[ ! -d "$JOBS_DIR" || -L "$JOBS_DIR" ]]; then
+            scalar diagnostic_outcome 'NOT_STAGED'
+            scalar reason 'deploy_jobs_directory_missing'
+            scalar request_id 'none'
+            scalar run_id 'unknown'
+            scalar run_attempt 'unknown'
+            exit 0
+          fi
+
+          latest="$(
+            find "$JOBS_DIR" \
+              -mindepth 1 -maxdepth 1 -type d \
+              -name "run-*-*-${EXPECTED_SHA}" \
+              -printf '%T@ %f\n' 2>/dev/null |
+            sort -nr |
+            head -n 1 |
+            cut -d' ' -f2-
+          )"
+
+          if [[ -z "$latest" ]]; then
+            scalar diagnostic_outcome 'NOT_STAGED'
+            scalar reason 'no_request_for_live_main'
+            scalar request_id 'none'
+            scalar run_id 'unknown'
+            scalar run_attempt 'unknown'
+            exit 0
+          fi
+
+          if [[ ! "$latest" =~ ^run-([0-9]+)-([0-9]+)-([0-9a-f]{40})$ ]]; then
+            scalar diagnostic_outcome 'INVALID'
+            scalar reason 'request_directory_name_invalid'
+            scalar request_id "$latest"
+            scalar run_id 'unknown'
+            scalar run_attempt 'unknown'
+            exit 0
+          fi
+
+          run_id="${BASH_REMATCH[1]}"
+          run_attempt="${BASH_REMATCH[2]}"
+          request_sha="${BASH_REMATCH[3]}"
+          request_dir="$JOBS_DIR/$latest"
+
+          scalar request_id "$latest"
+          scalar run_id "$run_id"
+          scalar run_attempt "$run_attempt"
+          scalar request_sha "$request_sha"
+
+          if [[ "$request_sha" != "$EXPECTED_SHA" || -L "$request_dir" ]]; then
+            scalar diagnostic_outcome 'INVALID'
+            scalar reason 'request_identity_mismatch'
+            exit 0
+          fi
+
+          request_file="$request_dir/request.env"
+          pid_file="$request_dir/pid"
+          result_file="$request_dir/result.env"
+          output_file="$request_dir/output.log"
+          bootstrap_file="$request_dir/bootstrap.log"
+
+          request_present="$(present_regular "$request_file")"
+          pid_present="$(present_regular "$pid_file")"
+          result_present="$(present_regular "$result_file")"
+          output_present="$(present_regular "$output_file")"
+          bootstrap_present="$(present_regular "$bootstrap_file")"
+
+          scalar request_env_present "$request_present"
+          scalar pid_present "$pid_present"
+          scalar result_present "$result_present"
+          scalar output_log_present "$output_present"
+          scalar bootstrap_log_present "$bootstrap_present"
+
+          request_env_id='unknown'
+          request_env_sha='unknown'
+          if [[ "$request_present" == '1' ]]; then
+            request_env_id="$(field request_id "$request_file")"
+            request_env_sha="$(field expected_sha "$request_file")"
+          fi
+          scalar request_env_id "${request_env_id:-unknown}"
+          scalar request_env_sha "${request_env_sha:-unknown}"
+
+          if [[ "$request_present" == '1' &&
+                ( "$request_env_id" != "$latest" || "$request_env_sha" != "$EXPECTED_SHA" ) ]]; then
+            scalar diagnostic_outcome 'INVALID'
+            scalar reason 'request_metadata_mismatch'
+            exit 0
+          fi
+
+          worker_pid='unknown'
+          worker_state='unknown'
+          if [[ "$pid_present" == '1' ]]; then
+            worker_pid="$(tr -d '\r\n' < "$pid_file")"
+            if [[ "$worker_pid" =~ ^[0-9]+$ ]]; then
+              if kill -0 "$worker_pid" 2>/dev/null; then
+                worker_state='alive'
+              else
+                worker_state='dead'
+              fi
+            else
+              worker_state='invalid'
+            fi
+          fi
+          scalar worker_pid "$worker_pid"
+          scalar worker_state "$worker_state"
+
+          result_outcome='none'
+          result_exit='unknown'
+          result_request='unknown'
+          result_sha='unknown'
+          if [[ "$result_present" == '1' ]]; then
+            result_outcome="$(field outcome "$result_file")"
+            result_exit="$(field exit_code "$result_file")"
+            result_request="$(field request_id "$result_file")"
+            result_sha="$(field expected_sha "$result_file")"
+          fi
+          scalar result_outcome "${result_outcome:-none}"
+          scalar result_exit "${result_exit:-unknown}"
+          scalar result_request "${result_request:-unknown}"
+          scalar result_sha "${result_sha:-unknown}"
+
+          output_size='0'
+          bootstrap_size='0'
+          if [[ "$output_present" == '1' ]]; then
+            output_size="$(stat -c '%s' "$output_file" 2>/dev/null || echo 0)"
+          fi
+          if [[ "$bootstrap_present" == '1' ]]; then
+            bootstrap_size="$(stat -c '%s' "$bootstrap_file" 2>/dev/null || echo 0)"
+          fi
+          scalar output_log_size "$output_size"
+          scalar bootstrap_log_size "$bootstrap_size"
+
+          if [[ "$result_present" == '1' ]]; then
+            if [[ "$result_request" != "$latest" || "$result_sha" != "$EXPECTED_SHA" ]]; then
+              scalar diagnostic_outcome 'INVALID'
+              scalar reason 'result_metadata_mismatch'
+            elif [[ "$result_outcome" =~ ^(SUCCESS|FAILURE|LOCKED)$ && "$result_exit" =~ ^[0-9]+$ ]]; then
+              scalar diagnostic_outcome 'RESULT_PRESENT'
+              scalar reason 'terminal_result_available'
+            else
+              scalar diagnostic_outcome 'INVALID'
+              scalar reason 'result_payload_invalid'
+            fi
+          elif [[ "$pid_present" == '1' && "$worker_state" == 'alive' ]]; then
+            scalar diagnostic_outcome 'RUNNING'
+            scalar reason 'worker_alive_without_terminal_result'
+          elif [[ "$pid_present" == '1' ]]; then
+            scalar diagnostic_outcome 'LOST'
+            scalar reason 'worker_not_alive_without_terminal_result'
+          else
+            scalar diagnostic_outcome 'STAGED_NO_WORKER'
+            scalar reason 'request_directory_without_pid_or_result'
+          fi
+          REMOTE_DIAGNOSTIC
+          ssh_status="$?"
+          set -e
+
+          value() {
+            grep -m1 "^$1=" "$raw" | cut -d= -f2- || true
+          }
+
+          outcome="$(value diagnostic_outcome)"
+          reason="$(value reason)"
+          request_id="$(value request_id)"
+          run_id="$(value run_id)"
+          run_attempt="$(value run_attempt)"
+          worker_state="$(value worker_state)"
+          result_outcome="$(value result_outcome)"
+          result_exit="$(value result_exit)"
+          request_present="$(value request_env_present)"
+          pid_present="$(value pid_present)"
+          result_present="$(value result_present)"
+          output_size="$(value output_log_size)"
+          bootstrap_size="$(value bootstrap_log_size)"
+
+          [[ -n "$outcome" ]] || outcome='SSH_DIAGNOSTIC_FAILED'
+          [[ -n "$reason" ]] || reason='remote_result_missing'
+
+          jq -n \
+            --arg diagnostic_outcome "$outcome" \
+            --arg reason "$reason" \
+            --arg expected_sha "$EXPECTED_SHA" \
+            --arg request_id "${request_id:-unknown}" \
+            --arg run_id "${run_id:-unknown}" \
+            --arg run_attempt "${run_attempt:-unknown}" \
+            --arg worker_state "${worker_state:-unknown}" \
+            --arg result_outcome "${result_outcome:-unknown}" \
+            --arg result_exit "${result_exit:-unknown}" \
+            --arg request_env_present "${request_present:-0}" \
+            --arg pid_present "${pid_present:-0}" \
+            --arg result_present "${result_present:-0}" \
+            --arg output_log_size "${output_size:-0}" \
+            --arg bootstrap_log_size "${bootstrap_size:-0}" \
+            --argjson ssh_exit "$ssh_status" \
+            '{schema_version:1, diagnostic_outcome:$diagnostic_outcome, reason:$reason, expected_sha:$expected_sha, request_id:$request_id, run_id:$run_id, run_attempt:$run_attempt, worker_state:$worker_state, result_outcome:$result_outcome, result_exit:$result_exit, request_env_present:$request_env_present, pid_present:$pid_present, result_present:$result_present, output_log_size:$output_log_size, bootstrap_log_size:$bootstrap_log_size, ssh_exit:$ssh_exit}' \
+            > artifacts/production-deploy-jobs/result.json
+
+          echo "diagnostic_outcome=$outcome" >> "$GITHUB_OUTPUT"
+          test "$ssh_status" -eq 0
+
+      - name: Upload deploy-jobs diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-deploy-jobs-636-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-deploy-jobs
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded deploy-jobs diagnostic
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          DIAGNOSTIC_STEP_OUTCOME: ${{ steps.diagnostic.outcome }}
+        run: |
+          set -euo pipefail
+          result='artifacts/production-deploy-jobs/result.json'
+          outcome='MISSING'
+          reason='unknown'
+          request_id='unknown'
+          run_id='unknown'
+          run_attempt='unknown'
+          worker_state='unknown'
+          result_outcome='unknown'
+          result_exit='unknown'
+          request_present='0'
+          pid_present='0'
+          result_present='0'
+          output_size='0'
+          bootstrap_size='0'
+
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            outcome="$(jq -r '.diagnostic_outcome' "$result")"
+            reason="$(jq -r '.reason' "$result")"
+            request_id="$(jq -r '.request_id' "$result")"
+            run_id="$(jq -r '.run_id' "$result")"
+            run_attempt="$(jq -r '.run_attempt' "$result")"
+            worker_state="$(jq -r '.worker_state' "$result")"
+            result_outcome="$(jq -r '.result_outcome' "$result")"
+            result_exit="$(jq -r '.result_exit' "$result")"
+            request_present="$(jq -r '.request_env_present' "$result")"
+            pid_present="$(jq -r '.pid_present' "$result")"
+            result_present="$(jq -r '.result_present' "$result")"
+            output_size="$(jq -r '.output_log_size' "$result")"
+            bootstrap_size="$(jq -r '.bootstrap_log_size' "$result")"
+          fi
+
+          artifact="agency-production-deploy-jobs-636-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ### Agency production deploy-jobs diagnostic ${outcome}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${DIAGNOSTIC_STEP_OUTCOME:-unknown}\`
+          reason: \`${reason}\`
+          deploy_request_id: \`${request_id}\`
+          deploy_workflow_run_id: \`${run_id}\`
+          deploy_workflow_attempt: \`${run_attempt}\`
+          worker_state: \`${worker_state}\`
+          result_outcome: \`${result_outcome}\`
+          result_exit: \`${result_exit}\`
+          request_env_present: \`${request_present}\`
+          pid_present: \`${pid_present}\`
+          result_present: \`${result_present}\`
+          output_log_size: \`${output_size}\`
+          bootstrap_log_size: \`${bootstrap_size}\`
+          artifact: \`${artifact}\`
+
+          Read-only diagnostic only. No deployment, Drupal mutation, service operation, repository mutation or arbitrary remote script execution is permitted by this route.
+          EOF_BODY
+          )"
+          gh issue comment 636 --repo "$GITHUB_REPOSITORY" --body "$body"

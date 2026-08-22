@@ -132,7 +132,10 @@ final class ProductionDatabaseRuntimePrivilegeDiagnosticWorkflowTest extends Tes
       'path: artifacts/production-db-runtime-privilege/result.json',
       $workflow,
     );
-    self::assertStringNotContainsString('path: artifacts/production-db-runtime-privilege', $workflow);
+    self::assertStringNotContainsString(
+      "path: artifacts/production-db-runtime-privilege\n",
+      $workflow,
+    );
   }
 
   /**

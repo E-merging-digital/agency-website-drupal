@@ -155,9 +155,9 @@ final class ProductionDatabasePacketRecoveryWorkflowTest extends TestCase {
 
     foreach ([
       'https://emergingdigital.be/fr/blog/'
-        . 'checklist-avant-une-refonte-de-site-internet-12-points-verifier',
+      . 'checklist-avant-une-refonte-de-site-internet-12-points-verifier',
       'https://emergingdigital.be/en/blog/'
-        . 'website-redesign-checklist-12-things-verify-you-start',
+      . 'website-redesign-checklist-12-things-verify-you-start',
       'public_fr_status',
       'public_en_status',
       'drupal_bootstrap',

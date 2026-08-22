@@ -141,7 +141,7 @@ jobs:
             tr -cd '0-9' |
             head -c 2
           )"
-          deploys="$(pgrep -af '[d]eploy-production.sh' 2>/dev/null | wc -l | tr -d ' ')"
+          deploys="$(pgrep -fc '[d]eploy-production.sh' 2>/dev/null || true)"
           db_version="$(
             cd "$CURRENT" &&
             vendor/bin/drush sql:query --extra=--skip-column-names 'SELECT VERSION();' 2>/dev/null |
@@ -342,7 +342,7 @@ jobs:
 
           current_sha="$(git -C "$CURRENT" rev-parse HEAD)"
           [[ "$current_sha" == "$EXPECTED_RUNTIME" ]]
-          [[ "$(pgrep -af '[d]eploy-production.sh' 2>/dev/null | wc -l | tr -d ' ')" == '0' ]]
+          [[ "$(pgrep -fc '[d]eploy-production.sh' 2>/dev/null || true)" == '0' ]]
           [[ "$(cd "$CURRENT" && vendor/bin/drush php:eval \
             'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);')" == '0' ]]
           [[ "$(sql_number 'SELECT @@global.max_allowed_packet;')" == "$SOURCE_PACKET" ]]
@@ -390,7 +390,7 @@ jobs:
           [[ "$bootstrap" == 'Successful' ]]
           [[ "$(vendor/bin/drush php:eval \
             'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);')" == '0' ]]
-          [[ "$(pgrep -af '[d]eploy-production.sh' 2>/dev/null | wc -l | tr -d ' ')" == '0' ]]
+          [[ "$(pgrep -fc '[d]eploy-production.sh' 2>/dev/null || true)" == '0' ]]
 
           cache_max="$(sql_number \
             'SELECT COALESCE(MAX(OCTET_LENGTH(data)),0) FROM cache_file_parsing;')"

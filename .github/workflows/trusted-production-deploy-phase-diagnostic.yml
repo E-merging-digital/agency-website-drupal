@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   production-deploy-phase-diagnostic:
-    name: Diagnose exact detached production deploy phase
+    name: Diagnose latest detached production deploy phase
     if: >-
       ${{
         github.event.issue.pull_request == null &&
@@ -22,10 +22,6 @@ jobs:
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-
-    env:
-      REQUEST_ID: run-32567826577-1-acea55cf0aa02acdee9ee9866977733f0e0cff8e
-      REQUEST_SHA: acea55cf0aa02acdee9ee9866977733f0e0cff8e
 
     steps:
       - name: Validate actor incident and live main
@@ -72,7 +68,7 @@ jobs:
           ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Inspect allowlisted phase and process names
+      - name: Inspect latest allowlisted phase and process names
         id: diagnostic
         shell: bash
         env:
@@ -84,15 +80,9 @@ jobs:
           raw='artifacts/production-deploy-phase/diagnostic.env'
 
           set +e
-          ssh "$SERVER_USER@$SERVER_HOST" \
-            "REQUEST_ID='$REQUEST_ID' REQUEST_SHA='$REQUEST_SHA' bash -s" \
-            > "$raw" 2>&1 <<'REMOTE_DIAGNOSTIC'
+          ssh "$SERVER_USER@$SERVER_HOST" 'bash -s' > "$raw" 2>&1 <<'REMOTE_DIAGNOSTIC'
           set -u
-          request_dir="/var/www/agency/shared/deploy-jobs/$REQUEST_ID"
-          request_file="$request_dir/request.env"
-          pid_file="$request_dir/pid"
-          result_file="$request_dir/result.env"
-          output_file="$request_dir/output.log"
+          jobs_dir='/var/www/agency/shared/deploy-jobs'
 
           scalar() { printf '%s=%s\n' "$1" "$2"; }
           field() { sed -n "s/^$1=//p" "$2" 2>/dev/null | head -n 1; }
@@ -100,22 +90,55 @@ jobs:
           safe_elapsed() { ps -p "$1" -o etimes= 2>/dev/null | tr -cd '0-9' | head -c 12; }
           first_child() { ps --ppid "$1" -o pid= 2>/dev/null | awk 'NR==1 {print $1}'; }
 
-          scalar schema_version 1
-          scalar request_id "$REQUEST_ID"
-          scalar request_sha "$REQUEST_SHA"
+          scalar schema_version 2
 
-          if [[ ! -d "$request_dir" || -L "$request_dir" || ! -f "$request_file" || -L "$request_file" ]]; then
+          if [[ ! -d "$jobs_dir" || -L "$jobs_dir" ]]; then
+            scalar diagnostic_outcome INVALID
+            scalar reason jobs_surface_missing_or_unsafe
+            exit 0
+          fi
+
+          request_id="$(
+            find "$jobs_dir" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null |
+              grep -E '^run-[0-9]+-[0-9]+-[0-9a-f]{40}$' |
+              sort -t- -k2,2n -k3,3n |
+              tail -n 1
+          )"
+          if [[ -z "$request_id" ]]; then
+            scalar diagnostic_outcome INVALID
+            scalar reason no_safe_deploy_request_found
+            exit 0
+          fi
+
+          request_dir="$jobs_dir/$request_id"
+          request_file="$request_dir/request.env"
+          pid_file="$request_dir/pid"
+          result_file="$request_dir/result.env"
+          output_file="$request_dir/output.log"
+
+          if [[ ! "$request_id" =~ ^run-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]] ||
+             [[ ! -d "$request_dir" || -L "$request_dir" ||
+                ! -f "$request_file" || -L "$request_file" ]]; then
             scalar diagnostic_outcome INVALID
             scalar reason request_surface_missing_or_unsafe
             exit 0
           fi
 
-          [[ "$(field request_id "$request_file")" == "$REQUEST_ID" ]] || {
+          request_sha="$(field expected_sha "$request_file")"
+          scalar request_id "$request_id"
+          scalar request_sha "$request_sha"
+
+          [[ "$(field request_id "$request_file")" == "$request_id" ]] || {
             scalar diagnostic_outcome INVALID
             scalar reason request_id_mismatch
             exit 0
           }
-          [[ "$(field expected_sha "$request_file")" == "$REQUEST_SHA" ]] || {
+          [[ "$request_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            scalar diagnostic_outcome INVALID
+            scalar reason request_sha_invalid
+            exit 0
+          }
+          [[ "${request_id##*-}" == "$request_sha" ]] || {
             scalar diagnostic_outcome INVALID
             scalar reason request_sha_mismatch
             exit 0
@@ -195,7 +218,7 @@ jobs:
           scalar grandchild_comm "$grandchild_comm"
           scalar grandchild_elapsed_seconds "$grandchild_elapsed"
           scalar diagnostic_outcome PASS
-          scalar reason allowlisted_phase_and_process_names_observed
+          scalar reason latest_allowlisted_phase_and_process_names_observed
           REMOTE_DIAGNOSTIC
           ssh_status=$?
           set -e
@@ -208,6 +231,8 @@ jobs:
             --arg trusted_main "${{ steps.request.outputs.main_sha }}" \
             --arg outcome "$outcome" \
             --arg reason "$reason" \
+            --arg request_id "$(value request_id)" \
+            --arg request_sha "$(value request_sha)" \
             --arg phase "$(value last_allowlisted_phase)" \
             --arg worker_state "$(value worker_state)" \
             --arg worker_pid "$(value worker_pid)" \
@@ -222,7 +247,7 @@ jobs:
             --arg output_size "$(value output_log_size)" \
             --arg result_present "$(value result_present)" \
             --argjson ssh_exit "$ssh_status" \
-            '{schema_version:1, diagnostic_outcome:$outcome, reason:$reason, trusted_main:$trusted_main, request_id:"run-32567826577-1-acea55cf0aa02acdee9ee9866977733f0e0cff8e", request_sha:"acea55cf0aa02acdee9ee9866977733f0e0cff8e", last_allowlisted_phase:$phase, worker_state:$worker_state, worker_pid:$worker_pid, worker_comm:$worker_comm, worker_elapsed_seconds:$worker_elapsed, child_pid:$child_pid, child_comm:$child_comm, child_elapsed_seconds:$child_elapsed, grandchild_pid:$grandchild_pid, grandchild_comm:$grandchild_comm, grandchild_elapsed_seconds:$grandchild_elapsed, output_log_size:$output_size, result_present:$result_present, ssh_exit:$ssh_exit}' \
+            '{schema_version:2, diagnostic_outcome:$outcome, reason:$reason, trusted_main:$trusted_main, request_id:$request_id, request_sha:$request_sha, last_allowlisted_phase:$phase, worker_state:$worker_state, worker_pid:$worker_pid, worker_comm:$worker_comm, worker_elapsed_seconds:$worker_elapsed, child_pid:$child_pid, child_comm:$child_comm, child_elapsed_seconds:$child_elapsed, grandchild_pid:$grandchild_pid, grandchild_comm:$grandchild_comm, grandchild_elapsed_seconds:$grandchild_elapsed, output_log_size:$output_size, result_present:$result_present, ssh_exit:$ssh_exit}' \
             > artifacts/production-deploy-phase/result.json
 
           test "$ssh_status" -eq 0
@@ -253,6 +278,7 @@ jobs:
           trusted_main: \`$(field trusted_main)\`
           diagnostic_run_id: \`${GITHUB_RUN_ID}\`
           request_id: \`$(field request_id)\`
+          request_sha: \`$(field request_sha)\`
           last_allowlisted_phase: \`$(field last_allowlisted_phase)\`
           worker_state: \`$(field worker_state)\`
           worker_pid: \`$(field worker_pid)\`
@@ -268,7 +294,7 @@ jobs:
           result_present: \`$(field result_present)\`
           artifact: \`${artifact}\`
 
-          Read-only allowlisted phase/process-name diagnostic. It never emits free-form output.log content and performs no signal, deployment or server mutation.
+          Read-only allowlisted phase/process-name diagnostic. It discovers only the newest validated server-owned deploy request and never emits free-form output.log content or performs a signal, deployment, Drupal mutation or arbitrary server mutation.
           EOF_BODY
           )"
           gh api --method POST "repos/$GITHUB_REPOSITORY/issues/636/comments" -f body="$body"

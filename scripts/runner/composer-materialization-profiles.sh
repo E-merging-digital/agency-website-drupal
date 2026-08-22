@@ -16,6 +16,15 @@ case "${COMPOSER_PROFILE:-}" in
     COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
     COMPOSER_OWNER_ISSUE='530'
     ;;
+  config-language-lock-628)
+    COMPOSER_PACKAGE='drupal/config_language_lock'
+    COMPOSER_CONSTRAINT='^1.0'
+    COMPOSER_VERSION_REGEX='^1\.0\.[0-9]+$'
+    COMPOSER_UPDATE_SELECTOR='drupal/config_language_lock'
+    COMPOSER_REQUIRED_AI_SEARCH_VERSION=''
+    COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
+    COMPOSER_OWNER_ISSUE='628'
+    ;;
   drupal-maintenance-ai-1.5-rc1)
     COMPOSER_PACKAGE='drupal/ai'
     COMPOSER_CONSTRAINT='1.5.0-rc1'

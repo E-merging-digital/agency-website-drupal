@@ -49,7 +49,7 @@ final class ProductionMaintenanceRecovery634WorkflowTest extends TestCase {
     $workflow = $this->workflow();
 
     foreach ([
-      "EXPECTED_PRODUCTION_SHA='b85667be5fdefa55e661d62c9d0688039bb4c401'",
+      "EXPECTED_PRODUCTION_SHA='0ccadc58c16acdde8297ff5b6902f5406b9efaf9'",
       'unexpected_runtime_sha',
       'drupal_bootstrap_failed',
       'maintenance_not_stuck',

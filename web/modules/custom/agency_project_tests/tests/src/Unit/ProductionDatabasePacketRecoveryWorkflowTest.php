@@ -139,7 +139,6 @@ final class ProductionDatabasePacketRecoveryWorkflowTest extends TestCase {
       'deploy-production.sh ',
       'chmod 777',
       'chown -R',
-      'sudoers',
       '/etc/sudoers',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $workflow);

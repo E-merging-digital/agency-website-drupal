@@ -3,7 +3,7 @@
 Status: **AUTHORITATIVE CAPABILITY REGISTRY**  
 Repository: `E-merging-digital/agency-website-drupal`  
 Registry owner: #421  
-Last materialized: 2026-08-21
+Last materialized: 2026-08-22
 
 ## 1. Purpose
 
@@ -497,4 +497,48 @@ Full route contract:
 
 ```text
 docs/operations/configuration-language-audit.md
+```
+
+## 14. Configuration Language Lock non-enforcing evaluation
+
+Issue #630 adds a bounded **candidate** evaluation route for #628 / PR #629.
+It does not adopt or enforce Configuration Language Lock merely by existing on
+`main`.
+
+Composer materialization gains one explicit reviewed profile:
+
+```text
+config-language-lock-628
+-> drupal/config_language_lock:^1.0
+-> stable 1.0.x only
+```
+
+The generic Composer gateway remains closed to arbitrary packages and explicitly
+allowlists only repository-owned profiles. The #629 product PR must be
+`composer.json`-only before lock resolution.
+
+After the true lock is published, the DDEV proof is triggered only by:
+
+```text
+/agency-config-language-lock evaluate
+```
+
+on exact draft PR #629. The self-hosted runner then rebuilds the exact HEAD,
+audits the lock, fingerprints every active config object, enables
+`config_language_lock` with no language lock configured, permits no pre-existing
+config mutation except `core.extension`, then uninstalls the module and requires
+an exact return to the pre-enable active-config fingerprint.
+
+The proof also requires `system.menu.footer` to remain `und`, preserves
+`language.entity.und` and `language.entity.zxx`, performs no `cex`, and leaves
+`config/sync` untouched. No production SSH, provider secret or repository write
+credential is available to the self-hosted job.
+
+This capability remains **CANDIDATE / NOT YET PROVEN** until it executes
+successfully on the exact #629 HEAD after #630 has been merged.
+
+Full route contract:
+
+```text
+docs/operations/config-language-lock-evaluation.md
 ```

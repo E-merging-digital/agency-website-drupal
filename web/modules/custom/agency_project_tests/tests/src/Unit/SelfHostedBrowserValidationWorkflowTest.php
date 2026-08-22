@@ -44,7 +44,9 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $workflow,
       'ddev drush emerging:governed-content --all',
     );
-    $browserPosition = strpos($workflow, 'npm run browser:validate');
+    $browserCommand =
+      'npm run browser:validate -- tests/browser/public-blog.spec.mjs';
+    $browserPosition = strpos($workflow, $browserCommand);
 
     self::assertIsInt($installPosition);
     self::assertIsInt($siteInstallPosition);
@@ -64,6 +66,23 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     self::assertStringContainsString('ddev drush config:status', $workflow);
     self::assertStringContainsString(
       'bash scripts/runner/prove-governed-content-cli-facade.sh',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'test -f tests/browser/contracts/public-blog.json',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'test -f tests/browser/public-blog.spec.mjs',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'BROWSER_VALIDATION_CONTRACT: tests/browser/contracts/public-blog.json',
+      $workflow,
+    );
+    self::assertSame(1, substr_count($workflow, 'npm run browser:validate'));
+    self::assertStringNotContainsString(
+      'production-editorial-article.spec.mjs',
       $workflow,
     );
     self::assertStringContainsString(

@@ -42,6 +42,15 @@ log_file() {
 fail_trap() {
   local exit_code="$?"
   local line_no="${1:-unknown}"
+
+  # ERR traps are inherited by subshells because the script uses errtrace (-E).
+  # Let the parent shell own failure logging and recovery so one failing
+  # subshell cannot produce duplicate FAILURE entries or run recovery twice.
+  if (( BASH_SUBSHELL > 0 )); then
+    trap - ERR
+    return "$exit_code"
+  fi
+
   trap - ERR
   set +e
 
@@ -54,7 +63,6 @@ fail_trap() {
       (
         cd "$ACTIVE_RELEASE"
         vendor/bin/drush state:set system.maintenance_mode 0 --input-format=integer
-        vendor/bin/drush cr
       ) || true
     else
       log "[deploy] WARNING: maintenance may remain enabled; previous absolute release is unavailable"
@@ -200,10 +208,6 @@ if [[ -L "$CURRENT_LINK" ]]; then
       vendor/bin/drush state:set system.maintenance_mode 1 --input-format=integer
     )
     MAINTENANCE_ENABLED=1
-    (
-      cd "$ACTIVE_RELEASE"
-      vendor/bin/drush cr
-    )
   fi
 else
   log "No current release detected."
@@ -244,7 +248,6 @@ log "Drupal update, config import, production config split import, Governed Cont
 if [[ "$MAINTENANCE_ENABLED" -eq 1 ]]; then
   log "[deploy] Maintenance OFF"
   "$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 0 --input-format=integer
-  "$CURRENT_LINK/vendor/bin/drush" cr
   MAINTENANCE_ENABLED=0
 fi
 

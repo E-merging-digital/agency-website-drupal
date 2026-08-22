@@ -1,0 +1,257 @@
+name: Agency trusted production DB runtime privilege diagnostic
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  production-db-runtime-privilege:
+    name: Diagnose production database runtime privilege
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 664 &&
+        github.actor == 'E-merging-digital' &&
+        github.event.comment.user.login == 'E-merging-digital' &&
+        github.event.comment.body == '/agency-production-db-runtime-privilege diagnose'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Validate owner request and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-production-db-runtime-privilege diagnose' ]]
+          [[ "$ISSUE_NUMBER" == '664' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Runtime privilege diagnostic must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Configure existing production SSH channel
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Run fixed read-only runtime privilege diagnostic
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p artifacts/production-db-runtime-privilege
+          raw='artifacts/production-db-runtime-privilege/diagnostic.env'
+
+          ssh "$SERVER_USER@$SERVER_HOST" 'bash -s' > "$raw" <<'REMOTE_DIAGNOSTIC'
+          set -euo pipefail
+          CURRENT='/var/www/agency/current'
+          EXPECTED_RUNTIME='9188a2ebd6516a738be6df6f854794d41889aa90'
+          EXPECTED_PACKET='16777216'
+
+          scalar() {
+            printf '%s=%s\n' "$1" "$2"
+          }
+
+          sql_raw() {
+            query="$1"
+            (
+              cd "$CURRENT" &&
+              vendor/bin/drush sql:query --extra=--skip-column-names "$query" 2>/dev/null
+            ) | head -n 1 | tr -d '\r\n'
+          }
+
+          sql_number() {
+            value="$(sql_raw "$1")"
+            value="$(printf '%s' "$value" | tr -cd '0-9' | head -c 24)"
+            printf '%s' "${value:-unavailable}"
+          }
+
+          sql_version() {
+            value="$(sql_raw 'SELECT VERSION();')"
+            value="$(printf '%s' "$value" | tr -cd 'A-Za-z0-9._+-' | head -c 96)"
+            printf '%s' "${value:-unavailable}"
+          }
+
+          deploy_count() {
+            pgrep -fc '[d]eploy-production.sh' 2>/dev/null || true
+          }
+
+          current_sha="$(
+            git -C "$CURRENT" rev-parse HEAD 2>/dev/null |
+            tr -cd '0-9a-f' |
+            head -c 40
+          )"
+          bootstrap="$(
+            cd "$CURRENT" &&
+            vendor/bin/drush status --field=bootstrap --format=string 2>/dev/null |
+            tr -cd 'A-Za-z0-9_ -' |
+            head -c 48
+          )"
+          maintenance="$(
+            cd "$CURRENT" &&
+            vendor/bin/drush php:eval \
+              'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);' 2>/dev/null |
+            tr -cd '0-9' |
+            head -c 2
+          )"
+          deploys="$(deploy_count)"
+          db_version="$(sql_version)"
+          global_packet="$(sql_number 'SELECT @@global.max_allowed_packet;')"
+
+          verdict=BLOCKED
+          has_super=0
+          has_global_all=0
+
+          if [[ "$current_sha" == "$EXPECTED_RUNTIME" &&
+                "$bootstrap" == 'Successful' &&
+                "$maintenance" == '0' &&
+                "$deploys" == '0' &&
+                "$db_version" == '11.8.8-MariaDB-ubu2404' &&
+                "$global_packet" == "$EXPECTED_PACKET" ]]; then
+            grants="$(
+              cd "$CURRENT" &&
+              vendor/bin/drush sql:query --extra=--skip-column-names \
+                'SHOW GRANTS FOR CURRENT_USER;' 2>/dev/null
+            )"
+
+            if printf '%s\n' "$grants" |
+              grep -Eiq '(^|[ ,])SUPER([, ]|$)'; then
+              has_super=1
+            fi
+            if printf '%s\n' "$grants" |
+              grep -Eiq '^GRANT ALL PRIVILEGES ON \*\.\* '; then
+              has_global_all=1
+            fi
+
+            if [[ "$has_super" == '1' || "$has_global_all" == '1' ]]; then
+              verdict=RUNTIME_GLOBAL_CHANGE_AVAILABLE
+            else
+              verdict=NOT_AVAILABLE
+            fi
+          fi
+
+          scalar schema_version 1
+          scalar verdict "$verdict"
+          scalar current_sha "$current_sha"
+          scalar drupal_bootstrap "$bootstrap"
+          scalar maintenance_mode "$maintenance"
+          scalar active_deploy_processes "$deploys"
+          scalar database_version "$db_version"
+          scalar global_max_allowed_packet "$global_packet"
+          scalar has_super "$has_super"
+          scalar has_global_all "$has_global_all"
+          REMOTE_DIAGNOSTIC
+
+          value() {
+            grep -m1 "^$1=" "$raw" | cut -d= -f2- || true
+          }
+
+          jq -n \
+            --arg trusted_main "${{ steps.request.outputs.main_sha }}" \
+            --arg verdict "$(value verdict)" \
+            --arg current_sha "$(value current_sha)" \
+            --arg bootstrap "$(value drupal_bootstrap)" \
+            --arg maintenance "$(value maintenance_mode)" \
+            --arg deploys "$(value active_deploy_processes)" \
+            --arg db_version "$(value database_version)" \
+            --arg global_packet "$(value global_max_allowed_packet)" \
+            --arg has_super "$(value has_super)" \
+            --arg has_global_all "$(value has_global_all)" \
+            '{schema_version:1, trusted_main:$trusted_main, verdict:$verdict,
+              current_sha:$current_sha, drupal_bootstrap:$bootstrap,
+              maintenance_mode:$maintenance,
+              active_deploy_processes:$deploys,
+              database_version:$db_version,
+              global_max_allowed_packet:$global_packet,
+              has_super:$has_super, has_global_all:$has_global_all}' \
+            > artifacts/production-db-runtime-privilege/result.json
+
+          verdict="$(jq -r '.verdict' artifacts/production-db-runtime-privilege/result.json)"
+          case "$verdict" in
+            RUNTIME_GLOBAL_CHANGE_AVAILABLE|NOT_AVAILABLE|BLOCKED) ;;
+            *) exit 1 ;;
+          esac
+
+      - name: Upload bounded diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-db-runtime-privilege-664-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-db-runtime-privilege/result.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/production-db-runtime-privilege/result.json'
+          [[ -s "$result" ]]
+          field() { jq -r "$1 // \"unknown\"" "$result"; }
+          artifact="agency-production-db-runtime-privilege-664-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          body="$(cat <<EOF_BODY
+          ### Agency production DB runtime privilege $(field '.verdict')
+
+          trusted_main: \`$(field '.trusted_main')\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          current_sha: \`$(field '.current_sha')\`
+          drupal_bootstrap: \`$(field '.drupal_bootstrap')\`
+          maintenance_mode: \`$(field '.maintenance_mode')\`
+          active_deploy_processes: \`$(field '.active_deploy_processes')\`
+          database_version: \`$(field '.database_version')\`
+          global_max_allowed_packet: \`$(field '.global_max_allowed_packet')\`
+          has_super: \`$(field '.has_super')\`
+          has_global_all: \`$(field '.has_global_all')\`
+          artifact: \`$artifact\`
+
+          Fixed read-only privilege diagnostic only. Raw grants, database identity and credentials are never published or persisted.
+          EOF_BODY
+          )"
+
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/664/comments" \
+            -f body="$body"

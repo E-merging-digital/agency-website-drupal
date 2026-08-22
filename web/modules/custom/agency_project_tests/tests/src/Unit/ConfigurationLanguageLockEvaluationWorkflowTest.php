@@ -52,9 +52,9 @@ final class ConfigurationLanguageLockEvaluationWorkflowTest extends TestCase {
   }
 
   /**
-   * The self-hosted proof is read-only, reversible and non-enforcing.
+   * The proof distinguishes native Locale drift from lock enforcement.
    */
-  public function testEvaluationIsReadOnlyAndReversible(): void {
+  public function testEvaluationIsLocaleAwareReadOnlyAndReversible(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root
       . '/.github/workflows/trusted-config-language-lock-evaluation.yml';
@@ -71,7 +71,6 @@ final class ConfigurationLanguageLockEvaluationWorkflowTest extends TestCase {
     self::assertStringContainsString('persist-credentials: false', $evaluate);
     self::assertStringContainsString('ddev composer audit --locked', $evaluate);
     self::assertStringContainsString('site:install --existing-config', $evaluate);
-    self::assertStringContainsString('ddev drush cim -y', $evaluate);
     self::assertStringContainsString(
       'ddev drush pm:enable config_language_lock -y',
       $evaluate,
@@ -80,30 +79,68 @@ final class ConfigurationLanguageLockEvaluationWorkflowTest extends TestCase {
       'ddev drush pm:uninstall config_language_lock -y',
       $evaluate,
     );
+
+    self::assertStringContainsString(
+      "added != ['config_language_lock.settings']",
+      $evaluate,
+    );
+    self::assertStringContainsString(
+      "settings.get('locked_langcode') is not None",
+      $evaluate,
+    );
+    self::assertStringContainsString(
+      "settings.get('follow_site_default') is not False",
+      $evaluate,
+    );
+    self::assertStringContainsString(
+      "old not in ('en', None) or new != site_default",
+      $evaluate,
+    );
+    self::assertStringContainsString(
+      "'classification': 'DRUPAL_LOCALE_EXTENSION_INSTALL_FOOTPRINT'",
+      $evaluate,
+    );
+    self::assertStringContainsString(
+      "special.get('system_menu_footer_langcode') != 'und'",
+      $evaluate,
+    );
+    self::assertStringContainsString(
+      "special.get('language_entity_und_id') != 'und'",
+      $evaluate,
+    );
+    self::assertStringContainsString(
+      "special.get('language_entity_zxx_id') != 'zxx'",
+      $evaluate,
+    );
+
+    self::assertStringContainsString('continue-on-error: true', $evaluate);
+    self::assertStringContainsString(
+      "if: \${{ always() && steps.enable.outcome == 'success' }}",
+      $evaluate,
+    );
+    self::assertStringContainsString(
+      "if: \${{ always() && steps.uninstall.outcome == 'success' }}",
+      $evaluate,
+    );
     self::assertStringContainsString(
       "changed != ['core.extension']",
       $evaluate,
     );
     self::assertStringContainsString(
-      "name.startswith('config_language_lock.')",
+      'canonical restore did not return exact active config baseline',
       $evaluate,
     );
     self::assertStringContainsString(
-      "if key == 'locked_langcode'",
-      $evaluate,
-    );
-    self::assertStringContainsString(
-      'Active configuration did not return exactly to baseline',
-      $evaluate,
-    );
-    self::assertStringContainsString(
-      '.special.system_menu_footer_langcode == "und"',
+      'grep -Fq \'No differences\' <<<"$config_status"',
       $evaluate,
     );
     self::assertStringContainsString(
       'test -z "$(git status --short config/sync)"',
       $evaluate,
     );
+
+    $cimCount = substr_count($evaluate, 'ddev drush cim -y');
+    self::assertGreaterThanOrEqual(2, $cimCount);
     self::assertStringNotContainsString('drush cex', $evaluate);
     self::assertStringNotContainsString('OPENAI_API_KEY', $workflow);
     self::assertStringNotContainsString('deploy-production', $workflow);
@@ -113,7 +150,7 @@ final class ConfigurationLanguageLockEvaluationWorkflowTest extends TestCase {
   /**
    * The active-configuration fingerprint helper performs reads only.
    */
-  public function testFingerprintHelperIsDeterministicAndReadOnly(): void {
+  public function testFingerprintHelperIsDeterministicSemanticAndReadOnly(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root . '/scripts/runner/config-language-lock-state.php';
     self::assertFileExists($path);
@@ -123,8 +160,13 @@ final class ConfigurationLanguageLockEvaluationWorkflowTest extends TestCase {
     self::assertStringContainsString('$storage->read($name)', $script);
     self::assertStringContainsString('ksort($value, SORT_STRING)', $script);
     self::assertStringContainsString("hash('sha256'", $script);
+    self::assertStringContainsString("'schema_version' => 2", $script);
+    self::assertStringContainsString("'site_default_language'", $script);
     self::assertStringContainsString("'module_owned'", $script);
     self::assertStringContainsString("'config_language_lock_enabled'", $script);
+    self::assertStringContainsString("'language_entity_und_id'", $script);
+    self::assertStringContainsString("'language_entity_zxx_id'", $script);
+    self::assertStringContainsString("'system_menu_footer_langcode'", $script);
     self::assertStringNotContainsString('->write(', $script);
     self::assertStringNotContainsString('->save(', $script);
     self::assertStringNotContainsString('->delete(', $script);

@@ -139,14 +139,14 @@ jobs:
           - trusted main: \`${BASE_SHA}\`
           - target HEAD: \`${HEAD_SHA}\`
           - resolved module: \`${RESOLVED_VERSION}\`
-          - mode: \`ephemeral enable without locked_langcode -> uninstall\`
+          - mode: \`non-enforcing enable -> observe native Locale footprint -> uninstall -> canonical restore\`
 
           No config export, enforcement, production access or provider secret is permitted.
           EOF
           )"
 
   evaluate:
-    name: Prove no-op enable and clean uninstall in fresh DDEV
+    name: Prove non-enforcing behavior and reversible Locale footprint
     needs:
       - validate-target
       - report-start
@@ -208,7 +208,7 @@ jobs:
           ddev utility configyaml \
             | grep -F "agency-config-language-lock-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
-      - name: Rebuild Drupal and capture pre-enable baseline
+      - name: Rebuild Drupal and capture canonical pre-enable baseline
         shell: bash
         run: |
           set -euo pipefail
@@ -240,11 +240,17 @@ jobs:
           ddev drush php:script /var/www/html/scripts/runner/configuration-language-audit.php \
             > artifacts/config-language-lock-evaluation/language-before.json
 
-          jq -e '.schema_version == 1 and .total == 595' \
+          jq -e '.schema_version == 2 and .total == 595' \
+            artifacts/config-language-lock-evaluation/state-before.json >/dev/null
+          jq -e '.site_default_language == "fr"' \
             artifacts/config-language-lock-evaluation/state-before.json >/dev/null
           jq -e '.config_language_lock_enabled == false' \
             artifacts/config-language-lock-evaluation/state-before.json >/dev/null
           jq -e '.special.system_menu_footer_langcode == "und"' \
+            artifacts/config-language-lock-evaluation/state-before.json >/dev/null
+          jq -e '.special.language_entity_und_id == "und"' \
+            artifacts/config-language-lock-evaluation/state-before.json >/dev/null
+          jq -e '.special.language_entity_zxx_id == "zxx"' \
             artifacts/config-language-lock-evaluation/state-before.json >/dev/null
           jq -e '.repository_active_comparison.missing_from_active | length == 0' \
             artifacts/config-language-lock-evaluation/language-before.json >/dev/null
@@ -253,7 +259,9 @@ jobs:
           jq -e '.repository_active_comparison.langcode_mismatches | length == 0' \
             artifacts/config-language-lock-evaluation/language-before.json >/dev/null
 
-      - name: Enable module without lock and prove bounded active-config footprint
+      - name: Enable module and capture native Locale footprint
+        id: enable
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -263,7 +271,15 @@ jobs:
             > artifacts/config-language-lock-evaluation/state-enabled.json
           ddev drush php:script /var/www/html/scripts/runner/configuration-language-audit.php \
             > artifacts/config-language-lock-evaluation/language-enabled.json
+          test -z "$(git status --short config/sync)"
 
+      - name: Assess non-enforcing semantics against Locale footprint
+        id: semantics
+        if: ${{ always() && steps.enable.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -271,9 +287,13 @@ jobs:
           root = Path('artifacts/config-language-lock-evaluation')
           before = json.loads((root / 'state-before.json').read_text(encoding='utf-8'))
           enabled = json.loads((root / 'state-enabled.json').read_text(encoding='utf-8'))
+          language_enabled = json.loads((root / 'language-enabled.json').read_text(encoding='utf-8'))
 
+          errors = []
           if enabled.get('config_language_lock_enabled') is not True:
-              raise SystemExit('config_language_lock was not enabled')
+              errors.append('config_language_lock was not enabled')
+          if enabled.get('site_default_language') != before.get('site_default_language'):
+              errors.append('site default language changed during enable')
 
           before_entries = before['entries']
           enabled_entries = enabled['entries']
@@ -281,60 +301,98 @@ jobs:
           enabled_names = set(enabled_entries)
           removed = sorted(before_names - enabled_names)
           added = sorted(enabled_names - before_names)
-          changed = sorted(
+          changed_hash = sorted(
               name for name in before_names & enabled_names
               if before_entries[name]['sha256'] != enabled_entries[name]['sha256']
           )
+          langcode_transitions = []
+          for name in sorted(before_names & enabled_names):
+              old = before_entries[name].get('langcode')
+              new = enabled_entries[name].get('langcode')
+              if old != new:
+                  langcode_transitions.append({
+                      'name': name,
+                      'before': old,
+                      'after': new,
+                  })
 
           if removed:
-              raise SystemExit(f'Enable removed existing config: {removed}')
-          if changed != ['core.extension']:
-              raise SystemExit(f'Unexpected existing config mutation: {changed}')
-          if any(not name.startswith('config_language_lock.') for name in added):
-              raise SystemExit(f'Unexpected module-install config: {added}')
+              errors.append(f'enable removed existing config: {removed}')
+          if added != ['config_language_lock.settings']:
+              errors.append(f'unexpected module-install config: {added}')
 
-          if before['special'] != enabled['special']:
-              raise SystemExit('und/zxx/footer special configuration changed during enable')
+          settings = enabled.get('module_owned', {}).get('config_language_lock.settings')
+          if not isinstance(settings, dict):
+              errors.append('config_language_lock.settings was not captured')
+          else:
+              if settings.get('locked_langcode') is not None:
+                  errors.append(
+                      f"locked_langcode is enforcing unexpectedly: {settings.get('locked_langcode')!r}"
+                  )
+              if settings.get('follow_site_default') is not False:
+                  errors.append('follow_site_default must remain false in non-enforcing mode')
 
-          locked_values = []
-          def walk(value):
-              if isinstance(value, dict):
-                  for key, entry in value.items():
-                      if key == 'locked_langcode':
-                          locked_values.append(entry)
-                      walk(entry)
-              elif isinstance(value, list):
-                  for entry in value:
-                      walk(entry)
+          site_default = before.get('site_default_language')
+          for transition in langcode_transitions:
+              old = transition['before']
+              new = transition['after']
+              if old not in ('en', None) or new != site_default:
+                  errors.append(
+                      'non-Locale langcode transition: '
+                      f"{transition['name']} {old!r}->{new!r}"
+                  )
 
-          walk(enabled.get('module_owned', {}))
-          non_empty = [
-              value for value in locked_values
-              if value not in (None, '', False, [])
-          ]
-          if non_empty:
-              raise SystemExit(f'Non-empty locked_langcode detected: {non_empty}')
+          special = enabled.get('special', {})
+          if special.get('system_menu_footer_langcode') != 'und':
+              errors.append('system.menu.footer no longer has langcode und')
+          if special.get('language_entity_und_id') != 'und':
+              errors.append('language.entity.und semantic id changed')
+          if special.get('language_entity_zxx_id') != 'zxx':
+              errors.append('language.entity.zxx semantic id changed')
+
+          mismatch_names = sorted(
+              entry['name']
+              for entry in language_enabled.get(
+                  'repository_active_comparison', {}
+              ).get('langcode_mismatches', [])
+          )
+          transition_names = sorted(entry['name'] for entry in langcode_transitions)
+          if mismatch_names != transition_names:
+              errors.append(
+                  'active/repository langcode mismatches do not equal observed '
+                  f'Locale transitions: mismatches={mismatch_names}, transitions={transition_names}'
+              )
+
+          if language_enabled.get('translations') != json.loads(
+              (root / 'language-before.json').read_text(encoding='utf-8')
+          ).get('translations'):
+              errors.append('versioned translation-directory inventory changed')
 
           comparison = {
+              'classification': 'DRUPAL_LOCALE_EXTENSION_INSTALL_FOOTPRINT',
+              'site_default_language': site_default,
               'removed_existing': removed,
               'added_module_owned': added,
-              'changed_existing': changed,
-              'locked_langcode_values': locked_values,
-              'special_unchanged': True,
+              'changed_existing_hashes': changed_hash,
+              'langcode_transitions': langcode_transitions,
+              'repository_active_langcode_mismatches': mismatch_names,
+              'module_settings': settings,
+              'special': special,
+              'errors': errors,
           }
           (root / 'enable-comparison.json').write_text(
               json.dumps(comparison, indent=2, sort_keys=True) + '\n',
               encoding='utf-8',
           )
+          if errors:
+              raise SystemExit('; '.join(errors))
           PY
 
-          test -z "$(git status --short config/sync)"
-
-      - name: Uninstall module and prove exact active-config restoration
+      - name: Uninstall module and measure post-enable reversibility
+        id: uninstall
+        if: ${{ always() && steps.enable.outcome == 'success' }}
+        continue-on-error: true
         shell: bash
-        env:
-          TARGET_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
-          RESOLVED_VERSION: ${{ needs.validate-target.outputs.resolved_version }}
         run: |
           set -euo pipefail
           ddev drush pm:uninstall config_language_lock -y
@@ -344,63 +402,169 @@ jobs:
           ddev drush php:script /var/www/html/scripts/runner/configuration-language-audit.php \
             > artifacts/config-language-lock-evaluation/language-after-uninstall.json
 
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" \
+            > artifacts/config-language-lock-evaluation/config-status-after-uninstall.txt
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('artifacts/config-language-lock-evaluation')
+          enabled = json.loads((root / 'state-enabled.json').read_text(encoding='utf-8'))
+          final = json.loads((root / 'state-after-uninstall.json').read_text(encoding='utf-8'))
+          errors = []
+
+          if final.get('config_language_lock_enabled') is not False:
+              errors.append('config_language_lock remains enabled after uninstall')
+          if final.get('module_owned'):
+              errors.append('module-owned config remains after uninstall')
+
+          enabled_entries = enabled['entries']
+          final_entries = final['entries']
+          expected_names = set(enabled_entries) - {'config_language_lock.settings'}
+          if set(final_entries) != expected_names:
+              errors.append('unexpected config add/remove during uninstall')
+
+          changed = sorted(
+              name for name in set(final_entries) & set(enabled_entries)
+              if final_entries[name]['sha256'] != enabled_entries[name]['sha256']
+          )
+          if changed != ['core.extension']:
+              errors.append(f'unexpected post-enable uninstall mutation: {changed}')
+
+          if final.get('special') != enabled.get('special'):
+              errors.append('semantic language/footer state changed during uninstall')
+
+          comparison = {
+              'changed_existing': changed,
+              'module_owned_removed': not bool(final.get('module_owned')),
+              'errors': errors,
+          }
+          (root / 'uninstall-comparison.json').write_text(
+              json.dumps(comparison, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          if errors:
+              raise SystemExit('; '.join(errors))
+          PY
+          test -z "$(git status --short config/sync)"
+
+      - name: Restore repository canonical config and require exact baseline
+        id: restore
+        if: ${{ always() && steps.uninstall.outcome == 'success' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush php:script /var/www/html/scripts/runner/config-language-lock-state.php \
+            > artifacts/config-language-lock-evaluation/state-restored.json
+          ddev drush php:script /var/www/html/scripts/runner/configuration-language-audit.php \
+            > artifacts/config-language-lock-evaluation/language-restored.json
+
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" \
+            > artifacts/config-language-lock-evaluation/config-status-restored.txt
+          grep -Fq 'No differences' <<<"$config_status"
+
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           root = Path('artifacts/config-language-lock-evaluation')
           before = json.loads((root / 'state-before.json').read_text(encoding='utf-8'))
-          final = json.loads((root / 'state-after-uninstall.json').read_text(encoding='utf-8'))
-          if final.get('config_language_lock_enabled') is not False:
-              raise SystemExit('config_language_lock remains enabled after uninstall')
-          if final.get('module_owned'):
-              raise SystemExit('Module-owned config remains after uninstall')
-          if final['entries'] != before['entries']:
-              raise SystemExit('Active configuration did not return exactly to baseline')
-          if final['overall_sha256'] != before['overall_sha256']:
-              raise SystemExit('Final active configuration fingerprint differs from baseline')
+          restored = json.loads((root / 'state-restored.json').read_text(encoding='utf-8'))
+          if restored.get('config_language_lock_enabled') is not False:
+              raise SystemExit('config_language_lock enabled after canonical restore')
+          if restored.get('module_owned'):
+              raise SystemExit('module-owned config remains after canonical restore')
+          if restored['entries'] != before['entries']:
+              raise SystemExit('canonical restore did not return exact active config baseline')
+          if restored['overall_sha256'] != before['overall_sha256']:
+              raise SystemExit('restored active configuration fingerprint differs from baseline')
           PY
 
-          config_status="$(ddev drush config:status 2>&1)"
-          printf '%s\n' "$config_status" \
-            > artifacts/config-language-lock-evaluation/config-status-after-uninstall.txt
-          grep -Fq 'No differences' <<<"$config_status"
+          jq -e '.repository_active_comparison.missing_from_active | length == 0' \
+            artifacts/config-language-lock-evaluation/language-restored.json >/dev/null
+          jq -e '.repository_active_comparison.missing_from_repository | length == 0' \
+            artifacts/config-language-lock-evaluation/language-restored.json >/dev/null
+          jq -e '.repository_active_comparison.langcode_mismatches | length == 0' \
+            artifacts/config-language-lock-evaluation/language-restored.json >/dev/null
           test -z "$(git status --short config/sync)"
 
-          jq -e '.repository_active_comparison.missing_from_active | length == 0' \
-            artifacts/config-language-lock-evaluation/language-after-uninstall.json >/dev/null
-          jq -e '.repository_active_comparison.missing_from_repository | length == 0' \
-            artifacts/config-language-lock-evaluation/language-after-uninstall.json >/dev/null
-          jq -e '.repository_active_comparison.langcode_mismatches | length == 0' \
-            artifacts/config-language-lock-evaluation/language-after-uninstall.json >/dev/null
+      - name: Publish machine-readable bounded evaluation result
+        if: ${{ always() }}
+        shell: bash
+        env:
+          TARGET_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+          RESOLVED_VERSION: ${{ needs.validate-target.outputs.resolved_version }}
+          ENABLE_OUTCOME: ${{ steps.enable.outcome }}
+          SEMANTICS_OUTCOME: ${{ steps.semantics.outcome }}
+          UNINSTALL_OUTCOME: ${{ steps.uninstall.outcome }}
+          RESTORE_OUTCOME: ${{ steps.restore.outcome }}
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-lock-evaluation'
+          status='FAIL'
+          verdict='NON_ENFORCING_EVALUATION_FAILED'
+          if [[ "$ENABLE_OUTCOME" == 'success' && \
+                "$SEMANTICS_OUTCOME" == 'success' && \
+                "$UNINSTALL_OUTCOME" == 'success' && \
+                "$RESTORE_OUTCOME" == 'success' ]]; then
+            status='PASS'
+            verdict='NON_ENFORCING_BEHAVIOR_PROVEN'
+          fi
 
-          baseline_sha="$(jq -r '.overall_sha256' artifacts/config-language-lock-evaluation/state-before.json)"
-          added="$(jq -c '.added_module_owned' artifacts/config-language-lock-evaluation/enable-comparison.json)"
-          locked_values="$(jq -c '.locked_langcode_values' artifacts/config-language-lock-evaluation/enable-comparison.json)"
+          locale_transition_count='0'
+          changed_hash_count='0'
+          if [[ -s "$root/enable-comparison.json" ]]; then
+            locale_transition_count="$(jq -r '.langcode_transitions | length' "$root/enable-comparison.json")"
+            changed_hash_count="$(jq -r '.changed_existing_hashes | length' "$root/enable-comparison.json")"
+          fi
+          baseline_sha='n/a'
+          restored_sha='n/a'
+          if [[ -s "$root/state-before.json" ]]; then
+            baseline_sha="$(jq -r '.overall_sha256' "$root/state-before.json")"
+          fi
+          if [[ -s "$root/state-restored.json" ]]; then
+            restored_sha="$(jq -r '.overall_sha256' "$root/state-restored.json")"
+          fi
+
           jq -n \
-            --arg status 'PASS' \
-            --arg verdict 'NON_ENFORCING_ENABLE_IS_REVERSIBLE' \
+            --arg status "$status" \
+            --arg verdict "$verdict" \
             --arg target_head_sha "$TARGET_HEAD_SHA" \
             --arg resolved_version "$RESOLVED_VERSION" \
+            --arg enable_outcome "$ENABLE_OUTCOME" \
+            --arg semantics_outcome "$SEMANTICS_OUTCOME" \
+            --arg uninstall_outcome "$UNINSTALL_OUTCOME" \
+            --arg restore_outcome "$RESTORE_OUTCOME" \
             --arg baseline_sha256 "$baseline_sha" \
-            --argjson added_module_owned "$added" \
-            --argjson locked_langcode_values "$locked_values" \
+            --arg restored_sha256 "$restored_sha" \
+            --argjson locale_transition_count "$locale_transition_count" \
+            --argjson changed_hash_count "$changed_hash_count" \
             '{
               status:$status,
               verdict:$verdict,
               target_head_sha:$target_head_sha,
               resolved_version:$resolved_version,
-              baseline_active_config_sha256:$baseline_sha256,
-              baseline_total:595,
-              existing_config_changes_on_enable:["core.extension"],
-              added_module_owned:$added_module_owned,
-              locked_langcode_values:$locked_langcode_values,
-              special_und_zxx_unchanged:true,
-              repository_config_unchanged:true,
-              uninstall_restored_baseline:true,
-              composer_audit_locked:"PASS"
-            }' > artifacts/config-language-lock-evaluation/result.json
-          jq -e '.status == "PASS"' artifacts/config-language-lock-evaluation/result.json >/dev/null
+              mode:"non_enforcing_with_native_locale_footprint",
+              enable_outcome:$enable_outcome,
+              semantics_outcome:$semantics_outcome,
+              uninstall_outcome:$uninstall_outcome,
+              restore_outcome:$restore_outcome,
+              baseline_sha256:$baseline_sha256,
+              restored_sha256:$restored_sha256,
+              locale_langcode_transition_count:$locale_transition_count,
+              changed_existing_hash_count:$changed_hash_count,
+              locked_langcode:null,
+              follow_site_default:false
+            }' > "$root/result.json"
+
+          cat "$root/result.json"
+          test "$status" = 'PASS'
 
       - name: Upload evaluation evidence
         if: ${{ always() }}
@@ -448,33 +612,35 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
-          EVALUATION_RESULT: ${{ needs.evaluate.result }}
           RESOLVED_VERSION: ${{ needs.validate-target.outputs.resolved_version }}
+          EVALUATION_RESULT: ${{ needs.evaluate.result }}
         run: |
           set -euo pipefail
           state='failure'
           verdict='FAIL'
+          description='Config Language Lock non-enforcing evaluation failed'
           if [[ "$EVALUATION_RESULT" == 'success' ]]; then
             state='success'
             verdict='PASS'
+            description='Config Language Lock non-enforcing evaluation passed'
           fi
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           gh api --method POST \
             "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
             -f state="$state" \
             -f context='agency/config-language-lock-evaluation' \
-            -f description="Non-enforcing config language lock evaluation ${verdict}" \
+            -f description="$description" \
             -f target_url="$run_url" >/dev/null
           gh pr comment 629 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF
           ### #628 Configuration Language Lock evaluation ${verdict}
 
-          - run: \`${GITHUB_RUN_ID}\`
+          - run: \`${GITHUB_RUN_ID}\` attempt \`${GITHUB_RUN_ATTEMPT}\`
           - target HEAD: \`${HEAD_SHA}\`
-          - resolved module: \`${RESOLVED_VERSION}\`
-          - self-hosted evaluation: \`${EVALUATION_RESULT}\`
-          - status: \`agency/config-language-lock-evaluation\`
+          - module: \`${RESOLVED_VERSION}\`
+          - route result: \`${EVALUATION_RESULT}\`
+          - model: \`no lock -> native Locale footprint -> uninstall -> canonical cim restore\`
 
-          The proof is ephemeral and does not export config or enable enforcement.
+          The route is non-enforcing and read-only with respect to Git/production. Inspect the run artifact for the Locale transition and restoration evidence.
           EOF
           )"
           test "$state" = 'success'

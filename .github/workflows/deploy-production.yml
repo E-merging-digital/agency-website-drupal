@@ -12,15 +12,27 @@ on:
       - '*.md'
   workflow_dispatch:
 
+concurrency:
+  group: agency-production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout exact deployment source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Configure SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
@@ -30,17 +42,21 @@ jobs:
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Run deployment script on production server
+      - name: Run exact deployment script on production server
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
-          ssh "$SERVER_USER@$SERVER_HOST" <<'EOF'
-          cd /var/www/agency/current
-          git pull
-          bash scripts/deploy-production.sh main
-          EOF
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          ssh "$SERVER_USER@$SERVER_HOST" \
+            bash -s -- main "$EXPECTED_SHA" < scripts/deploy-production.sh

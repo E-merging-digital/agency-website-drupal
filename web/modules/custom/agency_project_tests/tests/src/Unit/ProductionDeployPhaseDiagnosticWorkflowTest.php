@@ -38,11 +38,11 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
 
     foreach ([
       'last_allowlisted_phase',
-      "phase=MAINTENANCE_ON",
-      "phase=SWITCH_RELEASE",
-      "phase=MAINTENANCE_OFF",
-      "phase=SUCCESS",
-      "phase=ERROR",
+      'phase=MAINTENANCE_ON',
+      'phase=SWITCH_RELEASE',
+      'phase=MAINTENANCE_OFF',
+      'phase=SUCCESS',
+      'phase=ERROR',
       "grep -Fq '[deploy] Maintenance ON'",
       "grep -Fq '[deploy] Switch release'",
       "grep -Fq '[deploy] SUCCESS'",
@@ -67,8 +67,8 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
     $workflow = $this->workflow();
 
     foreach ([
-      "ps -p \"$1\" -o comm=",
-      "ps -p \"$1\" -o etimes=",
+      'ps -p "$1" -o comm=',
+      'ps -p "$1" -o etimes=',
       'ps --ppid "$1" -o pid=',
       'worker_comm',
       'worker_elapsed_seconds',

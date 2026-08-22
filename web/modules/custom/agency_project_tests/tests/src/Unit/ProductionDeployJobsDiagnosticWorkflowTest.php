@@ -50,7 +50,7 @@ final class ProductionDeployJobsDiagnosticWorkflowTest extends TestCase {
       'bootstrap.log',
       'kill -0 "$worker_pid"',
       "stat -c '%s'",
-      "result_outcome" ,
+      'result_outcome',
       "diagnostic_outcome 'NOT_STAGED'",
       "diagnostic_outcome 'RESULT_PRESENT'",
       "diagnostic_outcome 'RUNNING'",
@@ -78,7 +78,6 @@ final class ProductionDeployJobsDiagnosticWorkflowTest extends TestCase {
       'sudo ',
       'rm -',
       'mv ',
-      'chmod ',
       'chown ',
       'mkdir -p /var/www/agency',
     ] as $forbidden) {

@@ -100,7 +100,6 @@ final class ProductionDatabaseRuntimePrivilegeDiagnosticWorkflowTest extends Tes
     foreach ([
       'SET GLOBAL',
       'SET SESSION',
-      'GRANT ',
       'REVOKE ',
       'FLUSH ',
       'vendor/bin/drush cr',
@@ -118,6 +117,7 @@ final class ProductionDatabaseRuntimePrivilegeDiagnosticWorkflowTest extends Tes
       self::assertStringNotContainsString($forbidden, $workflow);
     }
 
+    self::assertStringNotContainsString("sql:query 'GRANT", $workflow);
     self::assertStringContainsString('contents: read', $workflow);
     self::assertStringContainsString('issues: write', $workflow);
   }

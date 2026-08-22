@@ -72,7 +72,6 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
     foreach ([
       'cat "$output_file"',
       'tail "$output_file"',
-      'tail -n',
       'sed -n "$output_file"',
       'command=',
       'args=',

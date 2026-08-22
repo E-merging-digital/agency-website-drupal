@@ -16,9 +16,9 @@ use Symfony\Component\Yaml\Yaml;
 final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
 
   /**
-   * Ensures the incident control surface and target request stay pinned.
+   * Ensures the control surface is pinned and target is server-owned.
    */
-  public function testControlSurfaceAndTargetArePinned(): void {
+  public function testControlSurfaceAndServerOwnedTarget(): void {
     $workflow = $this->workflow();
 
     foreach ([
@@ -26,14 +26,27 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
       'github.event.issue.number == 636',
       "github.actor == 'E-merging-digital'",
       'currently on live main',
-      'run-32567826577-1-acea55cf0aa02acdee9ee9866977733f0e0cff8e',
-      'acea55cf0aa02acdee9ee9866977733f0e0cff8e',
       'runs-on: ubuntu-24.04',
+      "jobs_dir='/var/www/agency/shared/deploy-jobs'",
+      "grep -E '^run-[0-9]+-[0-9]+-[0-9a-f]{40}$'",
+      'sort -t- -k2,2n -k3,3n',
+      'tail -n 1',
+      'request_id "$request_id"',
+      'request_sha "$request_sha"',
+      'request_id_mismatch',
+      'request_sha_invalid',
+      'request_sha_mismatch',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
 
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
+    self::assertStringNotContainsString(
+      'run-32567826577-1-acea55cf0aa02acdee9ee9866977733f0e0cff8e',
+      $workflow,
+    );
+    self::assertStringNotContainsString('REQUEST_ID:', $workflow);
+    self::assertStringNotContainsString('REQUEST_SHA:', $workflow);
   }
 
   /**
@@ -59,11 +72,39 @@ final class ProductionDeployPhaseDiagnosticWorkflowTest extends TestCase {
     foreach ([
       'cat "$output_file"',
       'tail "$output_file"',
-      'tail -n',
       'sed -n "$output_file"',
       'command=',
       'args=',
       'cmdline',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+    }
+  }
+
+  /**
+   * Ensures request discovery fails closed on unsafe or inconsistent surfaces.
+   */
+  public function testLatestRequestDiscoveryFailsClosed(): void {
+    $workflow = $this->workflow();
+
+    foreach ([
+      'jobs_surface_missing_or_unsafe',
+      'no_safe_deploy_request_found',
+      'request_surface_missing_or_unsafe',
+      '[[ ! -d "$jobs_dir" || -L "$jobs_dir" ]]',
+      '[[ ! -d "$request_dir" || -L "$request_dir"',
+      '[[ "$(field request_id "$request_file")" == "$request_id" ]]',
+      '[[ "$request_sha" =~ ^[0-9a-f]{40}$ ]]',
+      '[[ "${request_id##*-}" == "$request_sha" ]]',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    foreach ([
+      'request_id=${{',
+      'request_sha=${{',
+      'find / ',
+      'find "$jobs_dir" -L',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $workflow);
     }

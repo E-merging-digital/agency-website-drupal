@@ -182,13 +182,14 @@ final class ProductionDeploymentSafetyTest extends TestCase {
       'vendor/bin/drush state:set system.maintenance_mode 1',
     );
     $armed = strpos($maintenanceBlock, 'MAINTENANCE_ENABLED=1');
-    $cacheRebuild = strpos($maintenanceBlock, 'vendor/bin/drush cr');
 
     self::assertIsInt($stateOn);
     self::assertIsInt($armed);
-    self::assertIsInt($cacheRebuild);
     self::assertLessThan($armed, $stateOn);
-    self::assertLessThan($cacheRebuild, $armed);
+    self::assertStringNotContainsString(
+      'vendor/bin/drush cr',
+      $maintenanceBlock,
+    );
 
     $trapStart = strpos($script, 'fail_trap() {');
     $trapEnd = strpos($script, "\n}\n\ntrap ", $trapStart);
@@ -204,6 +205,7 @@ final class ProductionDeploymentSafetyTest extends TestCase {
       '$CURRENT_LINK/vendor/bin/drush',
       $trap,
     );
+    self::assertStringNotContainsString('vendor/bin/drush cr', $trap);
     self::assertStringContainsString(
       'Deployment failed before release switch.',
       $trap,
@@ -216,6 +218,48 @@ final class ProductionDeploymentSafetyTest extends TestCase {
       'automatic database rollback is not attempted.',
       $trap,
     );
+
+    $maintenanceOffStart = strpos(
+      $script,
+      'log "[deploy] Maintenance OFF"',
+    );
+    self::assertIsInt($maintenanceOffStart);
+    $maintenanceOffBlock = substr($script, $maintenanceOffStart, 300);
+    self::assertStringContainsString(
+      'state:set system.maintenance_mode 0',
+      $maintenanceOffBlock,
+    );
+    self::assertStringNotContainsString(
+      'vendor/bin/drush" cr',
+      $maintenanceOffBlock,
+    );
+  }
+
+  /**
+   * A subshell error must defer failure logging and recovery to its parent.
+   */
+  public function testSubshellErrTrapDefersRecoveryToParent(): void {
+    $script = $this->script('scripts/deploy-production.sh');
+
+    $trapStart = strpos($script, 'fail_trap() {');
+    $trapEnd = strpos($script, "\n}\n\ntrap ", $trapStart);
+    self::assertIsInt($trapStart);
+    self::assertIsInt($trapEnd);
+    $trap = substr($script, $trapStart, $trapEnd - $trapStart);
+
+    $guard = strpos($trap, 'if (( BASH_SUBSHELL > 0 )); then');
+    $return = strpos($trap, 'return "$exit_code"');
+    $failure = strpos($trap, 'log_file "FAILURE"');
+    $recovery = strpos($trap, 'Attempting Maintenance OFF');
+
+    self::assertIsInt($guard);
+    self::assertIsInt($return);
+    self::assertIsInt($failure);
+    self::assertIsInt($recovery);
+    self::assertTrue($guard < $return);
+    self::assertTrue($return < $failure);
+    self::assertTrue($return < $recovery);
+    self::assertSame(1, substr_count($trap, 'log_file "FAILURE"'));
   }
 
   /**

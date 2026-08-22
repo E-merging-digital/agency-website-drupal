@@ -66,7 +66,7 @@ final class DeployProductionConfigSplitTest extends TestCase {
     $script = $this->loadDeployProductionScript();
 
     $prepare_command = 'prepare_public_files';
-    $drush_status_command = '"$NEW_RELEASE/vendor/bin/drush" status >/dev/null';
+    $drush_status_command = 'vendor/bin/drush status --fields=bootstrap >/dev/null';
 
     self::assertStringContainsString('SHARED_FILES_DIR="$SHARED_DIR/files"', $script);
     self::assertStringContainsString('RELEASE_FILES_LINK="$NEW_RELEASE/web/sites/default/files"', $script);

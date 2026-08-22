@@ -83,7 +83,12 @@ jobs:
               r'[0-9a-f]{40}', head_sha
           ):
               raise SystemExit('head_sha must be a lowercase 40-character SHA')
-          if profile != 'canvas-ai-agents-530':
+
+          allowed_profiles = {
+              'canvas-ai-agents-530',
+              'config-language-lock-628',
+          }
+          if profile not in allowed_profiles:
               raise SystemExit('Unsupported Composer materialization profile')
 
           print(f'REQUEST_ID={request_id}')
@@ -93,6 +98,21 @@ jobs:
           PY
 
           source /tmp/composer-request.env
+
+          case "$PROFILE" in
+            canvas-ai-agents-530)
+              expected_package='drupal/ai_agents'
+              expected_constraint='^1.3'
+              ;;
+            config-language-lock-628)
+              expected_package='drupal/config_language_lock'
+              expected_constraint='^1.0'
+              ;;
+            *)
+              echo 'Unsupported Composer materialization profile' >&2
+              exit 1
+              ;;
+          esac
 
           pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
           test "$(jq -r '.state' <<<"$pr_json")" = 'open'
@@ -122,9 +142,12 @@ jobs:
             --jq '.content' | tr -d '\n' | base64 --decode \
             > /tmp/composer-target.json
 
+          EXPECTED_PACKAGE="$expected_package" \
+          EXPECTED_CONSTRAINT="$expected_constraint" \
           python3 - <<'PY'
           import copy
           import json
+          import os
 
           with open('/tmp/composer-base.json', encoding='utf-8') as handle:
               base = json.load(handle)
@@ -132,11 +155,13 @@ jobs:
               target = json.load(handle)
 
           expected = copy.deepcopy(base)
-          expected.setdefault('require', {})['drupal/ai_agents'] = '^1.3'
+          expected.setdefault('require', {})[os.environ['EXPECTED_PACKAGE']] = (
+              os.environ['EXPECTED_CONSTRAINT']
+          )
           if target != expected:
               raise SystemExit(
-                  'Target composer.json must differ from base only by '
-                  'drupal/ai_agents:^1.3'
+                  'Target composer.json contains changes outside the reviewed '
+                  'Composer profile.'
               )
           PY
 

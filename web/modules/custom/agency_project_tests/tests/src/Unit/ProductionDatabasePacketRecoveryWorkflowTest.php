@@ -146,6 +146,18 @@ final class ProductionDatabasePacketRecoveryWorkflowTest extends TestCase {
   }
 
   /**
+   * Ensures zero active deploy processes remain valid under pipefail.
+   */
+  public function testZeroDeployCountIsPipefailSafe(): void {
+    $workflow = $this->workflow();
+    $safeCount = "pgrep -fc '[d]eploy-production.sh' 2>/dev/null || true";
+    $unsafeCount = "pgrep -af '[d]eploy-production.sh' 2>/dev/null | wc -l";
+
+    self::assertSame(3, substr_count($workflow, $safeCount));
+    self::assertStringNotContainsString($unsafeCount, $workflow);
+  }
+
+  /**
    * Ensures recovery is one cache rebuild followed by real HTTP checks.
    */
   public function testRecoveryAndHealthChecksAreFixed(): void {

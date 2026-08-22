@@ -75,26 +75,23 @@ jobs:
           ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Inspect fixed read-only deploy-jobs state
+      - name: Inspect latest fixed read-only deploy-jobs state
         id: diagnostic
         shell: bash
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          EXPECTED_SHA: ${{ steps.request.outputs.main_sha }}
         run: |
           set -euo pipefail
           test -n "$SERVER_HOST"
           test -n "$SERVER_USER"
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           mkdir -p artifacts/production-deploy-jobs
           raw='artifacts/production-deploy-jobs/diagnostic.env'
 
           set +e
           ssh "$SERVER_USER@$SERVER_HOST" \
-            "bash -s -- '$EXPECTED_SHA'" > "$raw" 2>&1 <<'REMOTE_DIAGNOSTIC'
+            "bash -s" > "$raw" 2>&1 <<'REMOTE_DIAGNOSTIC'
           set -u
-          EXPECTED_SHA="$1"
           JOBS_DIR='/var/www/agency/shared/deploy-jobs'
 
           scalar() {
@@ -116,8 +113,7 @@ jobs:
             fi
           }
 
-          scalar schema_version '1'
-          scalar expected_sha "$EXPECTED_SHA"
+          scalar schema_version '2'
 
           if [[ ! -d "$JOBS_DIR" || -L "$JOBS_DIR" ]]; then
             scalar diagnostic_outcome 'NOT_STAGED'
@@ -125,13 +121,14 @@ jobs:
             scalar request_id 'none'
             scalar run_id 'unknown'
             scalar run_attempt 'unknown'
+            scalar request_sha 'unknown'
             exit 0
           fi
 
           latest="$(
             find "$JOBS_DIR" \
               -mindepth 1 -maxdepth 1 -type d \
-              -name "run-*-*-${EXPECTED_SHA}" \
+              -name 'run-*' \
               -printf '%T@ %f\n' 2>/dev/null |
             sort -nr |
             head -n 1 |
@@ -140,10 +137,11 @@ jobs:
 
           if [[ -z "$latest" ]]; then
             scalar diagnostic_outcome 'NOT_STAGED'
-            scalar reason 'no_request_for_live_main'
+            scalar reason 'no_deploy_request_directories'
             scalar request_id 'none'
             scalar run_id 'unknown'
             scalar run_attempt 'unknown'
+            scalar request_sha 'unknown'
             exit 0
           fi
 
@@ -153,6 +151,7 @@ jobs:
             scalar request_id "$latest"
             scalar run_id 'unknown'
             scalar run_attempt 'unknown'
+            scalar request_sha 'unknown'
             exit 0
           fi
 
@@ -166,9 +165,9 @@ jobs:
           scalar run_attempt "$run_attempt"
           scalar request_sha "$request_sha"
 
-          if [[ "$request_sha" != "$EXPECTED_SHA" || -L "$request_dir" ]]; then
+          if [[ -L "$request_dir" ]]; then
             scalar diagnostic_outcome 'INVALID'
-            scalar reason 'request_identity_mismatch'
+            scalar reason 'request_directory_symlink'
             exit 0
           fi
 
@@ -200,7 +199,7 @@ jobs:
           scalar request_env_sha "${request_env_sha:-unknown}"
 
           if [[ "$request_present" == '1' &&
-                ( "$request_env_id" != "$latest" || "$request_env_sha" != "$EXPECTED_SHA" ) ]]; then
+                ( "$request_env_id" != "$latest" || "$request_env_sha" != "$request_sha" ) ]]; then
             scalar diagnostic_outcome 'INVALID'
             scalar reason 'request_metadata_mismatch'
             exit 0
@@ -250,7 +249,7 @@ jobs:
           scalar bootstrap_log_size "$bootstrap_size"
 
           if [[ "$result_present" == '1' ]]; then
-            if [[ "$result_request" != "$latest" || "$result_sha" != "$EXPECTED_SHA" ]]; then
+            if [[ "$result_request" != "$latest" || "$result_sha" != "$request_sha" ]]; then
               scalar diagnostic_outcome 'INVALID'
               scalar reason 'result_metadata_mismatch'
             elif [[ "$result_outcome" =~ ^(SUCCESS|FAILURE|LOCKED)$ && "$result_exit" =~ ^[0-9]+$ ]]; then
@@ -283,6 +282,7 @@ jobs:
           request_id="$(value request_id)"
           run_id="$(value run_id)"
           run_attempt="$(value run_attempt)"
+          request_sha="$(value request_sha)"
           worker_state="$(value worker_state)"
           result_outcome="$(value result_outcome)"
           result_exit="$(value result_exit)"
@@ -298,10 +298,11 @@ jobs:
           jq -n \
             --arg diagnostic_outcome "$outcome" \
             --arg reason "$reason" \
-            --arg expected_sha "$EXPECTED_SHA" \
+            --arg trusted_main "${{ steps.request.outputs.main_sha }}" \
             --arg request_id "${request_id:-unknown}" \
             --arg run_id "${run_id:-unknown}" \
             --arg run_attempt "${run_attempt:-unknown}" \
+            --arg request_sha "${request_sha:-unknown}" \
             --arg worker_state "${worker_state:-unknown}" \
             --arg result_outcome "${result_outcome:-unknown}" \
             --arg result_exit "${result_exit:-unknown}" \
@@ -311,7 +312,7 @@ jobs:
             --arg output_log_size "${output_size:-0}" \
             --arg bootstrap_log_size "${bootstrap_size:-0}" \
             --argjson ssh_exit "$ssh_status" \
-            '{schema_version:1, diagnostic_outcome:$diagnostic_outcome, reason:$reason, expected_sha:$expected_sha, request_id:$request_id, run_id:$run_id, run_attempt:$run_attempt, worker_state:$worker_state, result_outcome:$result_outcome, result_exit:$result_exit, request_env_present:$request_env_present, pid_present:$pid_present, result_present:$result_present, output_log_size:$output_log_size, bootstrap_log_size:$bootstrap_log_size, ssh_exit:$ssh_exit}' \
+            '{schema_version:2, diagnostic_outcome:$diagnostic_outcome, reason:$reason, trusted_main:$trusted_main, request_id:$request_id, run_id:$run_id, run_attempt:$run_attempt, request_sha:$request_sha, worker_state:$worker_state, result_outcome:$result_outcome, result_exit:$result_exit, request_env_present:$request_env_present, pid_present:$pid_present, result_present:$result_present, output_log_size:$output_log_size, bootstrap_log_size:$bootstrap_log_size, ssh_exit:$ssh_exit}' \
             > artifacts/production-deploy-jobs/result.json
 
           echo "diagnostic_outcome=$outcome" >> "$GITHUB_OUTPUT"
@@ -341,6 +342,7 @@ jobs:
           request_id='unknown'
           run_id='unknown'
           run_attempt='unknown'
+          request_sha='unknown'
           worker_state='unknown'
           result_outcome='unknown'
           result_exit='unknown'
@@ -356,6 +358,7 @@ jobs:
             request_id="$(jq -r '.request_id' "$result")"
             run_id="$(jq -r '.run_id' "$result")"
             run_attempt="$(jq -r '.run_attempt' "$result")"
+            request_sha="$(jq -r '.request_sha' "$result")"
             worker_state="$(jq -r '.worker_state' "$result")"
             result_outcome="$(jq -r '.result_outcome' "$result")"
             result_exit="$(jq -r '.result_exit' "$result")"
@@ -377,6 +380,7 @@ jobs:
           deploy_request_id: \`${request_id}\`
           deploy_workflow_run_id: \`${run_id}\`
           deploy_workflow_attempt: \`${run_attempt}\`
+          deploy_request_sha: \`${request_sha}\`
           worker_state: \`${worker_state}\`
           result_outcome: \`${result_outcome}\`
           result_exit: \`${result_exit}\`
@@ -387,7 +391,11 @@ jobs:
           bootstrap_log_size: \`${bootstrap_size}\`
           artifact: \`${artifact}\`
 
-          Read-only diagnostic only. No deployment, Drupal mutation, service operation, repository mutation or arbitrary remote script execution is permitted by this route.
+          Read-only diagnostic only. No deployment, Drupal mutation, service restart or arbitrary shell input is permitted by this route.
           EOF_BODY
           )"
-          gh issue comment 636 --repo "$GITHUB_REPOSITORY" --body "$body"
+
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/636/comments" \
+            -f body="$body"

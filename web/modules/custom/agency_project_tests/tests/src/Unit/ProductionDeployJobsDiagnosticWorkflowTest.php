@@ -36,14 +36,41 @@ final class ProductionDeployJobsDiagnosticWorkflowTest extends TestCase {
   }
 
   /**
+   * The diagnostic target must not be coupled to the diagnostic commit SHA.
+   */
+  public function testLatestStagedRequestIsSelectedIndependentlyOfLiveMain(): void {
+    $workflow = $this->workflow();
+
+    foreach ([
+      "JOBS_DIR='/var/www/agency/shared/deploy-jobs'",
+      "-name 'run-*'",
+      '^run-([0-9]+)-([0-9]+)-([0-9a-f]{40})$',
+      'request_sha="${BASH_REMATCH[3]}"',
+      'request_env_sha" != "$request_sha"',
+      'result_sha" != "$request_sha"',
+      'deploy_request_sha:',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    foreach ([
+      '-name "run-*-*-${EXPECTED_SHA}"',
+      'EXPECTED_SHA=',
+      'no_request_for_live_main',
+      'request_sha" != "$EXPECTED_SHA"',
+      'result_sha" != "$EXPECTED_SHA"',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+    }
+  }
+
+  /**
    * It may inspect only the bounded deploy-job evidence surface.
    */
   public function testRemoteDiagnosticIsReadOnlyAndBounded(): void {
     $workflow = $this->workflow();
 
     foreach ([
-      "JOBS_DIR='/var/www/agency/shared/deploy-jobs'",
-      '-name "run-*-*-${EXPECTED_SHA}"',
       'request.env',
       'result.env',
       'output.log',
@@ -95,9 +122,12 @@ final class ProductionDeployJobsDiagnosticWorkflowTest extends TestCase {
       'artifacts/production-deploy-jobs/result.json',
       'artifacts/production-deploy-jobs/diagnostic.env',
       'agency-production-deploy-jobs-636-${{ github.run_id }}-${{ github.run_attempt }}',
+      'trusted_main',
+      'request_sha',
       'deploy_request_id:',
       'deploy_workflow_run_id:',
       'deploy_workflow_attempt:',
+      'deploy_request_sha:',
       'worker_state:',
       'result_outcome:',
       'result_exit:',

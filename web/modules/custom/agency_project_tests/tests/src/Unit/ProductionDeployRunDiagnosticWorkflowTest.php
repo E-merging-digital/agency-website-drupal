@@ -72,6 +72,37 @@ final class ProductionDeployRunDiagnosticWorkflowTest extends TestCase {
   }
 
   /**
+   * A pending target must expose an older non-terminal predecessor if present.
+   */
+  public function testPendingConcurrencyBlockerIsObservable(): void {
+    $workflow = $this->workflow();
+
+    foreach ([
+      'RUN_PENDING_BEHIND_ACTIVE_PREDECESSOR',
+      'target_pending_while_older_deploy_run_is_non_terminal',
+      '.status == "in_progress"',
+      '.status == "queued"',
+      '.status == "waiting"',
+      '.status == "requested"',
+      '.status == "pending"',
+      'actions/runs/$blocker_run_id/jobs?filter=latest&per_page=100',
+      'blocker_run_id',
+      'blocker_run_attempt',
+      'blocker_sha',
+      'blocker_status',
+      'blocker_conclusion',
+      'blocker_job_id',
+      'blocker_job_name',
+      'blocker_job_status',
+      'blocker_job_conclusion',
+      'blocker_active_step',
+      'select(.status == "in_progress")',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+  }
+
+  /**
    * The route must have no production or Actions mutation capability.
    */
   public function testDiagnosticIsReadOnlyAndBounded(): void {
@@ -102,12 +133,13 @@ final class ProductionDeployRunDiagnosticWorkflowTest extends TestCase {
   }
 
   /**
-   * Evidence must identify the exact run, job and failed step when available.
+   * Evidence must identify target and blocker state when available.
    */
   public function testEvidenceIsMachineReadableAndBounded(): void {
     $workflow = $this->workflow();
 
     foreach ([
+      'schema_version: 2',
       'artifacts/production-deploy-run/result.json',
       'agency-production-deploy-run-636-${{ github.run_id }}-${{ github.run_attempt }}',
       'trusted_main',
@@ -121,7 +153,9 @@ final class ProductionDeployRunDiagnosticWorkflowTest extends TestCase {
       'deploy_job_status',
       'deploy_job_conclusion',
       'failed_step',
-      'steps: $steps',
+      'blocker_run_id',
+      'blocker_sha',
+      'blocker_active_step',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }

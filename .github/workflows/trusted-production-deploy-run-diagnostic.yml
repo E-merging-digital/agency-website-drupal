@@ -69,7 +69,7 @@ jobs:
           echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
 
-      - name: Inspect fixed GitHub Actions deploy run and jobs
+      - name: Inspect fixed deploy run, jobs and active predecessor
         id: diagnostic
         shell: bash
         env:
@@ -81,6 +81,7 @@ jobs:
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$TRUSTED_MAIN" =~ ^[0-9a-f]{40}$ ]]
           mkdir -p artifacts/production-deploy-run
+          result='artifacts/production-deploy-run/result.json'
 
           runs_json="$(
             gh api \
@@ -104,7 +105,7 @@ jobs:
               --arg trusted_main "$TRUSTED_MAIN" \
               --arg target_sha "$TARGET_SHA" \
               '{
-                schema_version: 1,
+                schema_version: 2,
                 diagnostic_outcome: "RUN_NOT_FOUND",
                 reason: "no_push_deploy_production_run_for_pr641_merge",
                 trusted_main: $trusted_main,
@@ -117,8 +118,18 @@ jobs:
                 deploy_job_name: "none",
                 deploy_job_status: "unknown",
                 deploy_job_conclusion: "unknown",
-                failed_step: "none"
-              }' > artifacts/production-deploy-run/result.json
+                failed_step: "none",
+                blocker_run_id: "none",
+                blocker_run_attempt: "unknown",
+                blocker_sha: "unknown",
+                blocker_status: "unknown",
+                blocker_conclusion: "unknown",
+                blocker_job_id: "none",
+                blocker_job_name: "none",
+                blocker_job_status: "unknown",
+                blocker_job_conclusion: "unknown",
+                blocker_active_step: "none"
+              }' > "$result"
             echo 'diagnostic_outcome=RUN_NOT_FOUND' >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -145,7 +156,86 @@ jobs:
           [[ "$job_count" =~ ^[0-9]+$ ]]
 
           if [[ "$job_count" == '0' ]]; then
+            blocker="$(
+              jq -c \
+                --arg run_id "$run_id" \
+                --arg created "$run_created_at" \
+                '[.workflow_runs[] | select(
+                  .name == "Deploy Production" and
+                  .event == "push" and
+                  .head_branch == "main" and
+                  ((.id | tostring) != $run_id) and
+                  (.created_at <= $created) and
+                  (
+                    .status == "in_progress" or
+                    .status == "queued" or
+                    .status == "waiting" or
+                    .status == "requested" or
+                    .status == "pending"
+                  )
+                )] | sort_by(
+                  (if .status == "in_progress" then 2 else 1 end),
+                  .created_at
+                ) | reverse | .[0] // empty' \
+                <<<"$runs_json"
+            )"
+
+            blocker_run_id='none'
+            blocker_run_attempt='unknown'
+            blocker_sha='unknown'
+            blocker_status='unknown'
+            blocker_conclusion='unknown'
+            blocker_created_at='unknown'
+            blocker_updated_at='unknown'
+            blocker_job_id='none'
+            blocker_job_name='none'
+            blocker_job_status='unknown'
+            blocker_job_conclusion='unknown'
+            blocker_active_step='none'
+
+            if [[ -n "$blocker" ]]; then
+              blocker_run_id="$(jq -r '.id' <<<"$blocker")"
+              blocker_run_attempt="$(jq -r '.run_attempt' <<<"$blocker")"
+              blocker_sha="$(jq -r '.head_sha' <<<"$blocker")"
+              blocker_status="$(jq -r '.status' <<<"$blocker")"
+              blocker_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$blocker")"
+              blocker_created_at="$(jq -r '.created_at' <<<"$blocker")"
+              blocker_updated_at="$(jq -r '.updated_at' <<<"$blocker")"
+              [[ "$blocker_run_id" =~ ^[0-9]+$ ]]
+              [[ "$blocker_run_attempt" =~ ^[0-9]+$ ]]
+              [[ "$blocker_sha" =~ ^[0-9a-f]{40}$ ]]
+
+              blocker_jobs_json="$(
+                gh api \
+                  "repos/$GITHUB_REPOSITORY/actions/runs/$blocker_run_id/jobs?filter=latest&per_page=100"
+              )"
+              blocker_job_count="$(jq -r '.total_count' <<<"$blocker_jobs_json")"
+              [[ "$blocker_job_count" =~ ^[0-9]+$ ]]
+              if [[ "$blocker_job_count" != '0' ]]; then
+                blocker_job="$(jq -c '.jobs | sort_by(.id) | .[0]' <<<"$blocker_jobs_json")"
+                blocker_job_id="$(jq -r '.id' <<<"$blocker_job")"
+                blocker_job_name="$(jq -r '.name' <<<"$blocker_job")"
+                blocker_job_status="$(jq -r '.status' <<<"$blocker_job")"
+                blocker_job_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$blocker_job")"
+                blocker_active_step="$(
+                  jq -r \
+                    '[.steps[]? | select(.status == "in_progress")] | .[0].name // "none"' \
+                    <<<"$blocker_job"
+                )"
+                [[ "$blocker_job_id" =~ ^[0-9]+$ ]]
+              fi
+            fi
+
+            outcome='RUN_FOUND_NO_JOBS'
+            reason='deploy_run_exists_without_jobs'
+            if [[ "$run_status" == 'pending' && "$blocker_run_id" != 'none' ]]; then
+              outcome='RUN_PENDING_BEHIND_ACTIVE_PREDECESSOR'
+              reason='target_pending_while_older_deploy_run_is_non_terminal'
+            fi
+
             jq -n \
+              --arg outcome "$outcome" \
+              --arg reason "$reason" \
               --arg trusted_main "$TRUSTED_MAIN" \
               --arg target_sha "$TARGET_SHA" \
               --arg run_id "$run_id" \
@@ -154,10 +244,22 @@ jobs:
               --arg run_conclusion "$run_conclusion" \
               --arg run_created_at "$run_created_at" \
               --arg run_updated_at "$run_updated_at" \
+              --arg blocker_run_id "$blocker_run_id" \
+              --arg blocker_run_attempt "$blocker_run_attempt" \
+              --arg blocker_sha "$blocker_sha" \
+              --arg blocker_status "$blocker_status" \
+              --arg blocker_conclusion "$blocker_conclusion" \
+              --arg blocker_created_at "$blocker_created_at" \
+              --arg blocker_updated_at "$blocker_updated_at" \
+              --arg blocker_job_id "$blocker_job_id" \
+              --arg blocker_job_name "$blocker_job_name" \
+              --arg blocker_job_status "$blocker_job_status" \
+              --arg blocker_job_conclusion "$blocker_job_conclusion" \
+              --arg blocker_active_step "$blocker_active_step" \
               '{
-                schema_version: 1,
-                diagnostic_outcome: "RUN_FOUND_NO_JOBS",
-                reason: "deploy_run_exists_without_jobs",
+                schema_version: 2,
+                diagnostic_outcome: $outcome,
+                reason: $reason,
                 trusted_main: $trusted_main,
                 target_sha: $target_sha,
                 deploy_run_id: $run_id,
@@ -170,9 +272,21 @@ jobs:
                 deploy_job_name: "none",
                 deploy_job_status: "unknown",
                 deploy_job_conclusion: "unknown",
-                failed_step: "none"
-              }' > artifacts/production-deploy-run/result.json
-            echo 'diagnostic_outcome=RUN_FOUND_NO_JOBS' >> "$GITHUB_OUTPUT"
+                failed_step: "none",
+                blocker_run_id: $blocker_run_id,
+                blocker_run_attempt: $blocker_run_attempt,
+                blocker_sha: $blocker_sha,
+                blocker_status: $blocker_status,
+                blocker_conclusion: $blocker_conclusion,
+                blocker_created_at: $blocker_created_at,
+                blocker_updated_at: $blocker_updated_at,
+                blocker_job_id: $blocker_job_id,
+                blocker_job_name: $blocker_job_name,
+                blocker_job_status: $blocker_job_status,
+                blocker_job_conclusion: $blocker_job_conclusion,
+                blocker_active_step: $blocker_active_step
+              }' > "$result"
+            echo "diagnostic_outcome=$outcome" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -186,7 +300,6 @@ jobs:
               '[.steps[]? | select(.conclusion == "failure")] | .[0].name // "none"' \
               <<<"$job"
           )"
-
           [[ "$job_id" =~ ^[0-9]+$ ]]
 
           jq -n \
@@ -205,7 +318,7 @@ jobs:
             --arg failed_step "$failed_step" \
             --argjson steps "$(jq '.steps // [] | map({name, status, conclusion})' <<<"$job")" \
             '{
-              schema_version: 1,
+              schema_version: 2,
               diagnostic_outcome: "RUN_FOUND",
               reason: "deploy_run_and_job_observed",
               trusted_main: $trusted_main,
@@ -221,8 +334,18 @@ jobs:
               deploy_job_status: $job_status,
               deploy_job_conclusion: $job_conclusion,
               failed_step: $failed_step,
-              steps: $steps
-            }' > artifacts/production-deploy-run/result.json
+              steps: $steps,
+              blocker_run_id: "none",
+              blocker_run_attempt: "unknown",
+              blocker_sha: "unknown",
+              blocker_status: "unknown",
+              blocker_conclusion: "unknown",
+              blocker_job_id: "none",
+              blocker_job_name: "none",
+              blocker_job_status: "unknown",
+              blocker_job_conclusion: "unknown",
+              blocker_active_step: "none"
+            }' > "$result"
 
           echo 'diagnostic_outcome=RUN_FOUND' >> "$GITHUB_OUTPUT"
 
@@ -257,6 +380,16 @@ jobs:
           job_status='unknown'
           job_conclusion='unknown'
           failed_step='unknown'
+          blocker_run_id='none'
+          blocker_run_attempt='unknown'
+          blocker_sha='unknown'
+          blocker_status='unknown'
+          blocker_conclusion='unknown'
+          blocker_job_id='none'
+          blocker_job_name='none'
+          blocker_job_status='unknown'
+          blocker_job_conclusion='unknown'
+          blocker_active_step='none'
 
           if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
             outcome="$(jq -r '.diagnostic_outcome' "$result")"
@@ -270,6 +403,16 @@ jobs:
             job_status="$(jq -r '.deploy_job_status' "$result")"
             job_conclusion="$(jq -r '.deploy_job_conclusion' "$result")"
             failed_step="$(jq -r '.failed_step' "$result")"
+            blocker_run_id="$(jq -r '.blocker_run_id' "$result")"
+            blocker_run_attempt="$(jq -r '.blocker_run_attempt' "$result")"
+            blocker_sha="$(jq -r '.blocker_sha' "$result")"
+            blocker_status="$(jq -r '.blocker_status' "$result")"
+            blocker_conclusion="$(jq -r '.blocker_conclusion' "$result")"
+            blocker_job_id="$(jq -r '.blocker_job_id' "$result")"
+            blocker_job_name="$(jq -r '.blocker_job_name' "$result")"
+            blocker_job_status="$(jq -r '.blocker_job_status' "$result")"
+            blocker_job_conclusion="$(jq -r '.blocker_job_conclusion' "$result")"
+            blocker_active_step="$(jq -r '.blocker_active_step' "$result")"
           fi
 
           artifact="agency-production-deploy-run-636-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -291,6 +434,16 @@ jobs:
           deploy_job_status: \`${job_status}\`
           deploy_job_conclusion: \`${job_conclusion}\`
           failed_step: \`${failed_step}\`
+          blocker_run_id: \`${blocker_run_id}\`
+          blocker_run_attempt: \`${blocker_run_attempt}\`
+          blocker_sha: \`${blocker_sha}\`
+          blocker_status: \`${blocker_status}\`
+          blocker_conclusion: \`${blocker_conclusion}\`
+          blocker_job_id: \`${blocker_job_id}\`
+          blocker_job_name: \`${blocker_job_name}\`
+          blocker_job_status: \`${blocker_job_status}\`
+          blocker_job_conclusion: \`${blocker_job_conclusion}\`
+          blocker_active_step: \`${blocker_active_step}\`
           artifact: \`${artifact}\`
 
           Read-only GitHub Actions diagnostic only. No rerun, dispatch, deployment, SSH or production mutation is permitted by this route.

@@ -16,22 +16,17 @@ use Symfony\Component\Yaml\Yaml;
 final class ProductionDeploymentSafetyTest extends TestCase {
 
   /**
-   * Deploys the exact checked-out SHA without mutating current.
+   * Deploys the exact SHA through a detached, observable server request.
    */
-  public function testWorkflowDeploysExactShaAndSerializesProduction(): void {
-    $root = dirname(DRUPAL_ROOT);
-    $path = $root . '/.github/workflows/deploy-production.yml';
-
-    self::assertFileExists($path);
-    self::assertIsArray(Yaml::parseFile($path));
-
-    $workflow = (string) file_get_contents($path);
+  public function testWorkflowStagesDetachedDeployAndPollsItsResult(): void {
+    $workflow = $this->deploymentWorkflow();
 
     self::assertStringContainsString(
       'group: agency-production-deploy',
       $workflow,
     );
     self::assertStringContainsString('cancel-in-progress: false', $workflow);
+    self::assertStringContainsString('timeout-minutes: 35', $workflow);
     self::assertStringContainsString('uses: actions/checkout@v6', $workflow);
     self::assertStringContainsString('ref: ${{ github.sha }}', $workflow);
     self::assertStringContainsString('persist-credentials: false', $workflow);
@@ -39,7 +34,23 @@ final class ProductionDeploymentSafetyTest extends TestCase {
       'EXPECTED_SHA: ${{ github.sha }}',
       $workflow,
     );
-    self::assertStringContainsString(
+
+    foreach ([
+      'Stage exact detached deployment request',
+      'scripts/deploy-production.sh',
+      'scripts/launch-production-deploy.sh',
+      'scripts/inspect-production-deploy.sh',
+      'Launch detached production worker',
+      'Launch transport exit was $launch_status; detached result polling remains authoritative.',
+      'Poll detached production result',
+      'outcome=LOST',
+      'outcome=TIMEOUT',
+      'agency-production-deploy-${{ github.run_id }}-${{ github.run_attempt }}',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    self::assertStringNotContainsString(
       'bash -s -- main "$EXPECTED_SHA" < scripts/deploy-production.sh',
       $workflow,
     );
@@ -51,10 +62,79 @@ final class ProductionDeploymentSafetyTest extends TestCase {
   }
 
   /**
+   * The launcher must detach the worker and own a server-side deploy lock.
+   */
+  public function testLauncherDetachesWorkerAndPublishesAtomicResult(): void {
+    $launcher = $this->script('scripts/launch-production-deploy.sh');
+
+    foreach ([
+      'JOBS_DIR="/var/www/agency/shared/deploy-jobs"',
+      'LOCK_FILE="/var/www/agency/shared/deploy.lock"',
+      'result.env',
+      'worker.sh',
+      'flock -n 9',
+      'write_result LOCKED 75',
+      'write_result SUCCESS 0',
+      'write_result FAILURE "$deploy_exit"',
+      'mv -f "$result_tmp" "$RESULT_FILE"',
+      'nohup setsid --wait',
+      '</dev/null >> "$BOOTSTRAP_LOG" 2>&1 &',
+      '"$DEPLOY_SCRIPT" main "$EXPECTED_SHA"',
+    ] as $required) {
+      self::assertStringContainsString($required, $launcher);
+    }
+
+    $lock = strpos($launcher, 'flock -n 9');
+    $deploy = strpos($launcher, '"$DEPLOY_SCRIPT" main "$EXPECTED_SHA"');
+    self::assertIsInt($lock);
+    self::assertIsInt($deploy);
+    self::assertLessThan($deploy, $lock);
+
+    self::assertStringNotContainsString('drush ', $launcher);
+    self::assertStringNotContainsString('git pull', $launcher);
+  }
+
+  /**
+   * Polling must remain read-only and classify lost workers fail-closed.
+   */
+  public function testInspectorIsReadOnlyAndFailClosed(): void {
+    $inspector = $this->script('scripts/inspect-production-deploy.sh');
+
+    foreach ([
+      'outcome=NOT_STARTED',
+      'outcome=STARTING',
+      'outcome=RUNNING',
+      'outcome=LOST',
+      'outcome=INVALID',
+      'worker_exited_without_result',
+      'worker_pid_reused',
+      'result_request_mismatch',
+      'result_sha_mismatch',
+      'kill -0 "$worker_pid"',
+    ] as $required) {
+      self::assertStringContainsString($required, $inspector);
+    }
+
+    foreach ([
+      'drush ',
+      'git pull',
+      'git checkout',
+      'git reset',
+      'composer ',
+      'systemctl ',
+      'sudo ',
+      'rm -',
+      'mv ',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $inspector);
+    }
+  }
+
+  /**
    * The server script must materialize and verify the exact requested commit.
    */
   public function testScriptPinsExactCommitAndKeepsCurrentImmutable(): void {
-    $script = $this->deploymentScript();
+    $script = $this->script('scripts/deploy-production.sh');
 
     self::assertStringContainsString('EXPECTED_SHA="${2:-}"', $script);
     self::assertStringContainsString(
@@ -84,7 +164,7 @@ final class ProductionDeploymentSafetyTest extends TestCase {
    * Maintenance recovery must be armed immediately and use the old release.
    */
   public function testMaintenanceIsFailSafeAcrossReleaseSwitch(): void {
-    $script = $this->deploymentScript();
+    $script = $this->script('scripts/deploy-production.sh');
 
     self::assertStringContainsString(
       'vendor/bin/drush sql:query \'SELECT 1\' >/dev/null',
@@ -139,11 +219,24 @@ final class ProductionDeploymentSafetyTest extends TestCase {
   }
 
   /**
-   * Returns the production deployment script.
+   * Returns and validates the production deployment workflow.
    */
-  private function deploymentScript(): string {
+  private function deploymentWorkflow(): string {
     $root = dirname(DRUPAL_ROOT);
-    $path = $root . '/scripts/deploy-production.sh';
+    $path = $root . '/.github/workflows/deploy-production.yml';
+
+    self::assertFileExists($path);
+    self::assertIsArray(Yaml::parseFile($path));
+
+    return (string) file_get_contents($path);
+  }
+
+  /**
+   * Returns a repository-owned deployment script.
+   */
+  private function script(string $relativePath): string {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root . '/' . $relativePath;
 
     self::assertFileExists($path);
 

@@ -47,6 +47,9 @@ foreach ($names as $name) {
     'langcode' => array_key_exists('langcode', $canonical)
       ? $canonical['langcode']
       : NULL,
+    'id' => isset($canonical['id']) && is_string($canonical['id'])
+      ? $canonical['id']
+      : NULL,
   ];
   $entries[$name] = $entry;
 
@@ -69,15 +72,20 @@ if (!is_array($coreExtension)) {
 }
 
 $output = [
-  'schema_version' => 1,
+  'schema_version' => 2,
   'total' => count($entries),
   'overall_sha256' => hash('sha256', $overall),
+  'site_default_language' => \Drupal::languageManager()
+    ->getDefaultLanguage()
+    ->getId(),
   'entries' => $entries,
   'module_owned' => $moduleOwned,
   'special' => [
     'system_menu_footer_langcode' => $entries['system.menu.footer']['langcode'] ?? NULL,
-    'language_entity_und_sha256' => $entries['language.entity.und']['sha256'] ?? NULL,
-    'language_entity_zxx_sha256' => $entries['language.entity.zxx']['sha256'] ?? NULL,
+    'language_entity_und_id' => $entries['language.entity.und']['id'] ?? NULL,
+    'language_entity_und_source_langcode' => $entries['language.entity.und']['langcode'] ?? NULL,
+    'language_entity_zxx_id' => $entries['language.entity.zxx']['id'] ?? NULL,
+    'language_entity_zxx_source_langcode' => $entries['language.entity.zxx']['langcode'] ?? NULL,
   ],
   'config_language_lock_enabled' => array_key_exists(
     'config_language_lock',

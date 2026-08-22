@@ -16,7 +16,7 @@ use Symfony\Component\Yaml\Yaml;
 final class ProductionDeploymentSafetyTest extends TestCase {
 
   /**
-   * The workflow must deploy its exact checked-out SHA without mutating current.
+   * Deploys the exact checked-out SHA without mutating current.
    */
   public function testWorkflowDeploysExactShaAndSerializesProduction(): void {
     $root = dirname(DRUPAL_ROOT);

@@ -72,7 +72,10 @@ final class ProductionSudoAuthDiagnosticWorkflowTest extends TestCase {
   public function testOnlyPrivilegedCommandIsTrue(): void {
     $workflow = $this->workflow();
 
-    self::assertSame(1, substr_count($workflow, '/usr/bin/true'));
+    self::assertSame(
+      1,
+      substr_count($workflow, "sudo -S -k -p '' /usr/bin/true"),
+    );
 
     foreach ([
       'systemctl restart',

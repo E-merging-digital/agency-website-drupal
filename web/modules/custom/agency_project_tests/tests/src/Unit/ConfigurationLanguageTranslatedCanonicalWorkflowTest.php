@@ -59,7 +59,8 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
   }
 
   /**
-   * The governed writer route is owner/live-main bound and fresh-verifies output.
+   * The governed writer route is owner/live-main bound and fresh-verifies
+   * output.
    */
   public function testGovernedCanonicalWriterRouteIsBounded(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -103,7 +104,8 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
   }
 
   /**
-   * The verifier enforces the post-migration distribution and remaining review set.
+   * The verifier enforces the post-migration distribution and remaining
+   * review set.
    */
   public function testCanonicalVerifierKeepsReviewRequiredAndMechanicalBoundaries(): void {
     $root = dirname(DRUPAL_ROOT);

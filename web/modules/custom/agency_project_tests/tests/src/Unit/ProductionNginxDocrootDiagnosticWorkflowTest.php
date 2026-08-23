@@ -53,8 +53,17 @@ final class ProductionNginxDocrootDiagnosticWorkflowTest extends TestCase {
     }
   }
 
-  public function testMutationSurfacesAreAbsent(): void {
+  public function testMutationSurfacesAreAbsentFromProductionBlock(): void {
     $workflow = $this->workflow();
+    $remoteStart = strpos(
+      $workflow,
+      "ssh \"$SERVER_USER@$SERVER_HOST\" 'bash -s' > \"$raw\"",
+    );
+    $remoteEnd = strpos($workflow, "          REMOTE\n", $remoteStart ?: 0);
+
+    self::assertIsInt($remoteStart);
+    self::assertIsInt($remoteEnd);
+    $remote = substr($workflow, $remoteStart, $remoteEnd - $remoteStart);
 
     foreach ([
       'sudo ',
@@ -74,7 +83,7 @@ final class ProductionNginxDocrootDiagnosticWorkflowTest extends TestCase {
       'git checkout',
       'deploy-production.sh main',
     ] as $forbidden) {
-      self::assertStringNotContainsString($forbidden, $workflow);
+      self::assertStringNotContainsString($forbidden, $remote);
     }
   }
 

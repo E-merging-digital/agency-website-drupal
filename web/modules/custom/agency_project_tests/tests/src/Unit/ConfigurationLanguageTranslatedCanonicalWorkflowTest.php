@@ -247,10 +247,13 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
       'ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PROMOTION_VERIFIED',
       $verifier,
     );
-    foreach (
-      ['write(', 'delete(', 'file_put_contents', 'config:set', 'pm:enable']
-      as $forbidden
-    ) {
+    foreach ([
+      'write(',
+      'delete(',
+      'file_put_contents',
+      'config:set',
+      'pm:enable',
+    ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $verifier);
     }
   }

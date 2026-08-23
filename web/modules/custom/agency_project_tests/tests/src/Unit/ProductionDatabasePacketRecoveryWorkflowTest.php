@@ -101,13 +101,80 @@ final class ProductionDatabasePacketRecoveryWorkflowTest extends TestCase {
     );
 
     foreach ([
-      '/usr/bin/install',
-      '/usr/bin/systemctl restart mariadb',
-      '/usr/bin/rm',
+      'sudo -n /usr/bin/tar',
+      'sudo -n /usr/bin/test',
+      'sudo -n /usr/bin/install',
+      'sudo -n /usr/bin/systemctl restart mariadb',
+      'sudo -n /usr/bin/rm',
       'vendor/bin/drush cr',
       'state:set',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $preflight);
+    }
+  }
+
+  /**
+   * Ensures READY means all five exact sudo capabilities were listed.
+   */
+  public function testPreflightRequiresAllExactSudoCapabilities(): void {
+    $workflow = $this->workflow();
+
+    foreach ([
+      "SUDO_REQUIRED_COMMANDS=5",
+      'sudo_allowed_commands=0',
+      'check_sudo_capability',
+      '/usr/bin/tar -C / -czf "$PROBE_BACKUP" etc/mysql',
+      '/usr/bin/test -s "$PROBE_BACKUP"',
+      '/usr/bin/install -o root -g root -m 0644 "$TMP" "$TARGET"',
+      '/usr/bin/systemctl restart mariadb',
+      '/usr/bin/rm -f "$TARGET"',
+      'incident_revalidated_and_exact_privileges_available',
+      'incident_revalidated_but_exact_sudo_capabilities_incomplete',
+      'sudo_allowed_commands',
+      'sudo_required_commands',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    self::assertSame(6, substr_count($workflow, 'sudo -n -l'));
+  }
+
+  /**
+   * Ensures apply rechecks exact privileges before the first mutation.
+   */
+  public function testApplyRevalidatesExactSudoCapabilities(): void {
+    $workflow = $this->workflow();
+
+    $applyStart = strpos(
+      $workflow,
+      '      - name: Apply fixed MariaDB packet configuration and recover Drupal cache',
+    );
+    self::assertIsInt($applyStart);
+    $apply = substr($workflow, $applyStart);
+
+    $backupAssignment = strpos(
+      $apply,
+      'backup="$BACKUPS/issue660-etc-mysql-$timestamp.tar.gz"',
+    );
+    $firstCapability = strpos($apply, 'sudo -n -l');
+    $firstMutation = strpos(
+      $apply,
+      'sudo -n /usr/bin/tar -C / -czf "$backup" etc/mysql',
+    );
+
+    self::assertIsInt($backupAssignment);
+    self::assertIsInt($firstCapability);
+    self::assertIsInt($firstMutation);
+    self::assertGreaterThan($backupAssignment, $firstCapability);
+    self::assertGreaterThan($firstCapability, $firstMutation);
+
+    foreach ([
+      'sudo -n -l /usr/bin/test -s "$backup"',
+      '/usr/bin/install -o root -g root -m 0644 "$TMP" "$TARGET"',
+      'sudo -n -l /usr/bin/systemctl restart mariadb',
+      'sudo -n -l /usr/bin/rm -f "$TARGET"',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
     }
   }
 

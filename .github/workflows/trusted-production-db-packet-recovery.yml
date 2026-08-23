@@ -104,8 +104,12 @@ jobs:
           EXPECTED_RUNTIME='9188a2ebd6516a738be6df6f854794d41889aa90'
           SOURCE_PACKET='16777216'
           TARGET_PACKET='67108864'
+          TARGET='/etc/mysql/mariadb.conf.d/99-agency-max-allowed-packet.cnf'
+          TMP='/tmp/agency-issue660-max-allowed-packet.cnf'
+          PROBE_BACKUP='/var/www/agency/shared/backups/issue660-etc-mysql-preflight-probe.tar.gz'
           FR_URL='https://emergingdigital.be/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier'
           EN_URL='https://emergingdigital.be/en/blog/website-redesign-checklist-12-things-verify-you-start'
+          SUDO_REQUIRED_COMMANDS=5
 
           scalar() {
             printf '%s=%s\n' "$1" "$2"
@@ -125,6 +129,13 @@ jobs:
           http_status() {
             curl -sS -o /dev/null -w '%{http_code}' "$1" 2>/dev/null ||
               printf '000'
+          }
+
+          sudo_allowed_commands=0
+          check_sudo_capability() {
+            if sudo -n -l "$@" >/dev/null 2>&1; then
+              sudo_allowed_commands=$((sudo_allowed_commands + 1))
+            fi
           }
 
           current_sha="$(git -C "$CURRENT" rev-parse HEAD | tr -cd '0-9a-f' | head -c 40)"
@@ -155,10 +166,20 @@ jobs:
             sql_number 'SELECT COALESCE(MAX(OCTET_LENGTH(data)),0) FROM cache_file_parsing;'
           )"
           mariadb_state="$(systemctl is-active mariadb 2>/dev/null || true)"
+
+          check_sudo_capability \
+            /usr/bin/tar -C / -czf "$PROBE_BACKUP" etc/mysql
+          check_sudo_capability /usr/bin/test -s "$PROBE_BACKUP"
+          check_sudo_capability \
+            /usr/bin/install -o root -g root -m 0644 "$TMP" "$TARGET"
+          check_sudo_capability /usr/bin/systemctl restart mariadb
+          check_sudo_capability /usr/bin/rm -f "$TARGET"
+
           sudo_noninteractive=0
-          if sudo -n -l >/dev/null 2>&1; then
+          if [[ "$sudo_allowed_commands" == "$SUDO_REQUIRED_COMMANDS" ]]; then
             sudo_noninteractive=1
           fi
+
           fr_status="$(http_status "$FR_URL")"
           en_status="$(http_status "$EN_URL")"
 
@@ -183,10 +204,10 @@ jobs:
                   "$mariadb_state" == 'active' ]]; then
             if [[ "$sudo_noninteractive" == '1' ]]; then
               outcome=READY
-              reason=incident_revalidated_and_privilege_available
+              reason=incident_revalidated_and_exact_privileges_available
             else
               outcome=PRIVILEGE_REQUIRED
-              reason=incident_revalidated_but_sudo_noninteractive_absent
+              reason=incident_revalidated_but_exact_sudo_capabilities_incomplete
             fi
           fi
 
@@ -202,6 +223,8 @@ jobs:
           scalar cache_file_parsing_max_data_bytes "$cache_max"
           scalar mariadb_state "$mariadb_state"
           scalar sudo_noninteractive "$sudo_noninteractive"
+          scalar sudo_allowed_commands "$sudo_allowed_commands"
+          scalar sudo_required_commands "$SUDO_REQUIRED_COMMANDS"
           scalar public_fr_status "$fr_status"
           scalar public_en_status "$en_status"
           REMOTE_PREFLIGHT
@@ -225,6 +248,8 @@ jobs:
             --arg cache_max "$(value cache_file_parsing_max_data_bytes)" \
             --arg mariadb_state "$(value mariadb_state)" \
             --arg sudo_noninteractive "$(value sudo_noninteractive)" \
+            --arg sudo_allowed "$(value sudo_allowed_commands)" \
+            --arg sudo_required "$(value sudo_required_commands)" \
             --arg fr_status "$(value public_fr_status)" \
             --arg en_status "$(value public_en_status)" \
             '{schema_version:1, trusted_main:$trusted_main, command:$command,
@@ -236,6 +261,8 @@ jobs:
               cache_file_parsing_max_data_bytes:$cache_max,
               mariadb_state:$mariadb_state,
               sudo_noninteractive:$sudo_noninteractive,
+              sudo_allowed_commands:$sudo_allowed,
+              sudo_required_commands:$sudo_required,
               public_fr_status:$fr_status, public_en_status:$en_status}' \
             > artifacts/production-db-fix/preflight.json
 
@@ -348,12 +375,21 @@ jobs:
           [[ "$(sql_number 'SELECT @@global.max_allowed_packet;')" == "$SOURCE_PACKET" ]]
           [[ "$(sql_number 'SELECT @@session.max_allowed_packet;')" == "$SOURCE_PACKET" ]]
           [[ "$(systemctl is-active mariadb)" == 'active' ]]
-          sudo -n -l >/dev/null 2>&1
           [[ ! -e "$TARGET" ]]
 
           timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
           mkdir -p "$BACKUPS"
           backup="$BACKUPS/issue660-etc-mysql-$timestamp.tar.gz"
+
+          sudo -n -l \
+            /usr/bin/tar -C / -czf "$backup" etc/mysql >/dev/null 2>&1
+          sudo -n -l /usr/bin/test -s "$backup" >/dev/null 2>&1
+          sudo -n -l \
+            /usr/bin/install -o root -g root -m 0644 "$TMP" "$TARGET" \
+            >/dev/null 2>&1
+          sudo -n -l /usr/bin/systemctl restart mariadb >/dev/null 2>&1
+          sudo -n -l /usr/bin/rm -f "$TARGET" >/dev/null 2>&1
+
           sudo -n /usr/bin/tar -C / -czf "$backup" etc/mysql
           sudo -n /usr/bin/test -s "$backup"
 
@@ -482,6 +518,8 @@ jobs:
           cache_file_parsing_max_data_bytes: \`$(field '.cache_file_parsing_max_data_bytes')\`
           mariadb_state: \`$(field '.mariadb_state')\`
           sudo_noninteractive: \`$(field '.sudo_noninteractive')\`
+          sudo_allowed_commands: \`$(field '.sudo_allowed_commands')\`
+          sudo_required_commands: \`$(field '.sudo_required_commands')\`
           public_fr_status: \`$(field '.public_fr_status')\`
           public_en_status: \`$(field '.public_en_status')\`
           target_max_allowed_packet: \`67108864\`

@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects the two explicit EN exception overrides and their trusted proof.
+ * Protects explicit exception coverage across the #720 canonical transition.
  *
  * @group agency_project_tests
  * @group configuration_language_governance
@@ -17,16 +17,40 @@ use Symfony\Component\Yaml\Yaml;
 final class ConfigurationLanguageExceptionCoverageWorkflowTest extends TestCase {
 
   /**
-   * The two EN overrides remain sparse and contain only approved leaves.
+   * Exception overrides match the legacy or promoted canonical state.
    */
   public function testExceptionOverridesAreMinimal(): void {
     $root = dirname(DRUPAL_ROOT);
-
-    $formOverride = Yaml::parseFile(
-      $root
+    $formOverridePath = $root
       . '/config/sync/language/en/'
-      . 'core.entity_form_display.node.page.default.yml',
-    );
+      . 'core.entity_form_display.node.page.default.yml';
+    $statusOverridePath = $root
+      . '/config/sync/language/en/'
+      . 'field.storage.node.ai_automator_status.yml';
+
+    if ($this->canonicalPromotionApplied($root)) {
+      self::assertFileDoesNotExist($formOverridePath);
+      self::assertFileDoesNotExist($statusOverridePath);
+
+      $formFrOverride = Yaml::parseFile(
+        $root
+        . '/config/sync/language/fr/'
+        . 'core.entity_form_display.node.page.default.yml',
+      );
+      self::assertSame([
+        'content' => [
+          'field_home_components' => [
+            'settings' => [
+              'title' => 'Paragraphe',
+              'title_plural' => 'Paragraphes',
+            ],
+          ],
+        ],
+      ], $formFrOverride);
+      return;
+    }
+
+    $formOverride = Yaml::parseFile($formOverridePath);
     self::assertSame([
       'content' => [
         'field_home_components' => [
@@ -38,11 +62,7 @@ final class ConfigurationLanguageExceptionCoverageWorkflowTest extends TestCase 
       ],
     ], $formOverride);
 
-    $statusOverride = Yaml::parseFile(
-      $root
-      . '/config/sync/language/en/'
-      . 'field.storage.node.ai_automator_status.yml',
-    );
+    $statusOverride = Yaml::parseFile($statusOverridePath);
     self::assertSame([
       'settings' => [
         'allowed_values' => [
@@ -56,9 +76,9 @@ final class ConfigurationLanguageExceptionCoverageWorkflowTest extends TestCase 
   }
 
   /**
-   * The source configs stay FR and retain the approved source values.
+   * Source configs match the legacy or promoted canonical state.
    */
-  public function testExceptionSourceConfigsRemainUnmigrated(): void {
+  public function testExceptionSourceConfigsRemainConsistent(): void {
     $root = dirname(DRUPAL_ROOT);
     $form = Yaml::parseFile(
       $root . '/config/sync/core.entity_form_display.node.page.default.yml',
@@ -67,18 +87,33 @@ final class ConfigurationLanguageExceptionCoverageWorkflowTest extends TestCase 
       $root . '/config/sync/field.storage.node.ai_automator_status.yml',
     );
 
-    self::assertSame('fr', $form['langcode'] ?? NULL);
-    self::assertSame(
-      'Paragraphe',
-      $form['content']['field_home_components']['settings']['title'] ?? NULL,
-    );
-    self::assertSame(
-      'Paragraphes',
-      $form['content']['field_home_components']['settings']['title_plural']
-        ?? NULL,
-    );
+    if ($this->canonicalPromotionApplied($root)) {
+      self::assertSame('en', $form['langcode'] ?? NULL);
+      self::assertSame(
+        'Paragraph',
+        $form['content']['field_home_components']['settings']['title'] ?? NULL,
+      );
+      self::assertSame(
+        'Paragraphs',
+        $form['content']['field_home_components']['settings']['title_plural']
+          ?? NULL,
+      );
+      self::assertSame('en', $status['langcode'] ?? NULL);
+    }
+    else {
+      self::assertSame('fr', $form['langcode'] ?? NULL);
+      self::assertSame(
+        'Paragraphe',
+        $form['content']['field_home_components']['settings']['title'] ?? NULL,
+      );
+      self::assertSame(
+        'Paragraphes',
+        $form['content']['field_home_components']['settings']['title_plural']
+          ?? NULL,
+      );
+      self::assertSame('fr', $status['langcode'] ?? NULL);
+    }
 
-    self::assertSame('fr', $status['langcode'] ?? NULL);
     self::assertSame([
       ['value' => 'pending', 'label' => 'Pending'],
       ['value' => 'processing', 'label' => 'Processing'],
@@ -207,6 +242,17 @@ final class ConfigurationLanguageExceptionCoverageWorkflowTest extends TestCase 
     $status = 0;
     exec('bash -n ' . escapeshellarg($runnerPath) . ' 2>&1', $output, $status);
     self::assertSame(0, $status, implode("\n", $output));
+  }
+
+  /**
+   * Returns whether the governed #720 promotion evidence is present.
+   */
+  private function canonicalPromotionApplied(string $root): bool {
+    return is_file(
+      $root
+      . '/docs/evidence/'
+      . 'configuration-language-translated-canonical-cohort-720.yml',
+    );
   }
 
 }

@@ -172,7 +172,13 @@ jobs:
           diff -u <(printf '%s\n' "${expected_config_paths[@]}") <(printf '%s\n' "${changed_config_paths[@]}")
 
           mapfile -t expected_all_paths < <({ printf '%s\n' "${expected_config_paths[@]}"; jq -r '.paths.manifest' "$RESULT_PATH"; } | sort)
-          mapfile -t changed_all_paths < <(git status --porcelain | awk '{print $2}' | grep -v '^.ddev/config.gate-config-language-translated-canonical-writer.yaml$' | sort)
+          mapfile -t changed_all_paths < <(
+            git status --porcelain --untracked-files=all -- \
+              config/sync \
+              docs/evidence/configuration-language-translated-canonical-cohort-720.yml \
+              | awk '{print $2}' \
+              | sort
+          )
           [[ "${#expected_all_paths[@]}" -eq 354 ]]
           [[ "${#changed_all_paths[@]}" -eq 354 ]]
           diff -u <(printf '%s\n' "${expected_all_paths[@]}") <(printf '%s\n' "${changed_all_paths[@]}")
@@ -235,10 +241,14 @@ jobs:
           fi
 
           git switch -c "$branch"
-          mapfile -t paths < <(jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[], .paths.manifest' "$RESULT_PATH")
+          mapfile -t paths < <(jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[], .paths.manifest' "$RESULT_PATH" | sort)
           git add -- "${paths[@]}"
-          [[ "$(git diff --cached --name-only | wc -l)" -eq 354 ]]
-          [[ -z "$(git status --porcelain | grep -v '^?? .ddev/config.gate-config-language-translated-canonical-writer.yaml$' | grep -v '^$')" ]]
+          mapfile -t staged_paths < <(git diff --cached --name-only | sort)
+          [[ "${#paths[@]}" -eq 354 ]]
+          [[ "${#staged_paths[@]}" -eq 354 ]]
+          diff -u <(printf '%s\n' "${paths[@]}") <(printf '%s\n' "${staged_paths[@]}")
+          [[ -z "$(git diff --name-only)" ]]
+          [[ -z "$(git ls-files --others --exclude-standard -- config/sync docs/evidence/configuration-language-translated-canonical-cohort-720.yml)" ]]
 
           git config user.name 'E-merging Digital Automation'
           git config user.email 'actions@users.noreply.github.com'

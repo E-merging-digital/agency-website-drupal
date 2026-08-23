@@ -169,7 +169,8 @@ final class ConfigurationLanguageLockAiAutomatorKernelTest extends KernelTestBas
   }
 
   /**
-   * Returns provider-agnostic Automator values matching Agency's workflow shape.
+   * Returns provider-agnostic Automator values matching Agency's
+   * workflow shape.
    *
    * @return array<string, mixed>
    *   Configuration entity values.

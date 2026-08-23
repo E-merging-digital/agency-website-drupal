@@ -1,0 +1,36 @@
+schema_version: 1
+issue: 718
+expected_count: 173
+identity_rule: "sha256(sorted config names joined by newline, with trailing newline)"
+names_sha256: "3908bb3b785091d996e969f67af5d0060b3548d2ec732fb055c748085c0d6547"
+sources:
+  historical_complete_171:
+    issue: 707
+    trusted_run: 32655167659
+    artifact_id: 9497280060
+    artifact_digest: "sha256:3b975a855d3f19f8e71f0a2f6bff8f12f31d6bd8aa5bc219d3d433f278ed0494"
+    count: 171
+    verdict: COVERAGE_CLASSIFIED
+    complete: 171
+    partial: 0
+    unresolved: 0
+  technical_exceptions_2:
+    issue: 711
+    trusted_run: 32657297513
+    artifact_id: 9497831272
+    artifact_digest: "sha256:6deaed67d04f612a49543b6188b7cd901ef1b90453e05cb5e9b1a50f6a203610"
+    count: 2
+    verdict: TWO_EXCEPTIONS_EXPLICITLY_COVERED
+    material_translatable_leaf_count: 6
+    explicit_en_coverage_count: 6
+required_exception_names:
+  - core.entity_form_display.node.page.default
+  - field.storage.node.ai_automator_status
+expected_preexisting_fr_overrides_outside_cohort:
+  - block.block.emerging_digital_footer_menu
+  - views.view.blog
+constraints:
+  canonical_configuration_language: en
+  site_default_language: fr
+  config_language_lock_enabled_canonically: false
+  editorial_semantic_without_en_override_in_scope: false

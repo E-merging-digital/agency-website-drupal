@@ -86,6 +86,7 @@ final class ConfigurationLanguageMigrationDryRunWorkflowTest extends TestCase {
     );
     self::assertStringContainsString('.counts.unknown == 0', $runner);
     self::assertStringContainsString('.special_invariants.pass == true', $runner);
+    self::assertStringContainsString('.focus.canvas.count == 45', $runner);
     self::assertStringContainsString('git diff --exit-code -- config/sync', $runner);
     self::assertStringContainsString('drush config:status', $runner);
 
@@ -135,6 +136,7 @@ final class ConfigurationLanguageMigrationDryRunWorkflowTest extends TestCase {
     self::assertStringContainsString('language.entity.und', $classifier);
     self::assertStringContainsString('language.entity.zxx', $classifier);
     self::assertStringContainsString('system.menu.footer', $classifier);
+    self::assertStringContainsString("str_starts_with((string) \$entry['name'], 'canvas.')", $classifier);
     self::assertStringContainsString(
       "'bulk_langcode_replacement_allowed' => FALSE",
       $classifier,
@@ -174,6 +176,14 @@ final class ConfigurationLanguageMigrationDryRunWorkflowTest extends TestCase {
     self::assertFalse(
       $baseline['classification']['bulk_langcode_replacement_allowed'] ?? TRUE,
     );
+
+    $canvasComponents = (int) ($baseline['migration_analysis']['canvas']['fr_components_without_en_override'] ?? 0);
+    $canvasFolders = (int) ($baseline['migration_analysis']['canvas']['fr_folders_without_en_override'] ?? 0);
+    $canvasAssets = (int) ($baseline['migration_analysis']['fr_without_en_override_by_entity_type']['asset_library'] ?? 0);
+    $canvasBrandKits = (int) ($baseline['migration_analysis']['fr_without_en_override_by_entity_type']['brand_kit'] ?? 0);
+
+    self::assertSame(43, $canvasComponents + $canvasFolders);
+    self::assertSame(45, $canvasComponents + $canvasFolders + $canvasAssets + $canvasBrandKits);
   }
 
 }

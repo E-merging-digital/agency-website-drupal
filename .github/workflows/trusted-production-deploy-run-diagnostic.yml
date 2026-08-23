@@ -1,0 +1,456 @@
+name: Agency trusted production deploy run diagnostic
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  production-deploy-run-diagnostic:
+    name: Diagnose GitHub Actions production deploy run
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 636 &&
+        github.actor == 'E-merging-digital' &&
+        github.event.comment.user.login == 'E-merging-digital' &&
+        github.event.comment.body == '/agency-production-deploy-run diagnose'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: agency-production-deploy-run-diagnostic
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate actor, incident, live main and fixed deploy target
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-production-deploy-run diagnose' ]]
+          [[ "$ISSUE_NUMBER" == '636' ]] || {
+            echo 'Production deploy-run diagnostic is restricted to issue #636.' >&2
+            exit 1
+          }
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Deploy-run diagnostic must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/641")"
+          [[ "$(jq -r '.base.ref' <<<"$pr_json")" == 'main' ]]
+          [[ "$(jq -r '.merged_at // empty' <<<"$pr_json")" != '' ]]
+          target_sha="$(jq -r '.merge_commit_sha' <<<"$pr_json")"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect fixed deploy run, jobs and active predecessor
+        id: diagnostic
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.request.outputs.target_sha }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TRUSTED_MAIN" =~ ^[0-9a-f]{40}$ ]]
+          mkdir -p artifacts/production-deploy-run
+          result='artifacts/production-deploy-run/result.json'
+
+          runs_json="$(
+            gh api \
+              "repos/$GITHUB_REPOSITORY/actions/runs?event=push&branch=main&per_page=100"
+          )"
+
+          matched_run="$(
+            jq -c \
+              --arg sha "$TARGET_SHA" \
+              '[.workflow_runs[] | select(
+                .name == "Deploy Production" and
+                .event == "push" and
+                .head_branch == "main" and
+                .head_sha == $sha
+              )] | sort_by(.created_at) | reverse | .[0] // empty' \
+              <<<"$runs_json"
+          )"
+
+          if [[ -z "$matched_run" ]]; then
+            jq -n \
+              --arg trusted_main "$TRUSTED_MAIN" \
+              --arg target_sha "$TARGET_SHA" \
+              '{
+                schema_version: 2,
+                diagnostic_outcome: "RUN_NOT_FOUND",
+                reason: "no_push_deploy_production_run_for_pr641_merge",
+                trusted_main: $trusted_main,
+                target_sha: $target_sha,
+                deploy_run_id: "none",
+                deploy_run_attempt: "unknown",
+                deploy_run_status: "unknown",
+                deploy_run_conclusion: "unknown",
+                deploy_job_id: "none",
+                deploy_job_name: "none",
+                deploy_job_status: "unknown",
+                deploy_job_conclusion: "unknown",
+                failed_step: "none",
+                blocker_run_id: "none",
+                blocker_run_attempt: "unknown",
+                blocker_sha: "unknown",
+                blocker_status: "unknown",
+                blocker_conclusion: "unknown",
+                blocker_job_id: "none",
+                blocker_job_name: "none",
+                blocker_job_status: "unknown",
+                blocker_job_conclusion: "unknown",
+                blocker_active_step: "none"
+              }' > "$result"
+            echo 'diagnostic_outcome=RUN_NOT_FOUND' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          run_id="$(jq -r '.id' <<<"$matched_run")"
+          run_attempt="$(jq -r '.run_attempt' <<<"$matched_run")"
+          run_status="$(jq -r '.status' <<<"$matched_run")"
+          run_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$matched_run")"
+          run_head_sha="$(jq -r '.head_sha' <<<"$matched_run")"
+          run_event="$(jq -r '.event' <<<"$matched_run")"
+          run_created_at="$(jq -r '.created_at' <<<"$matched_run")"
+          run_updated_at="$(jq -r '.updated_at' <<<"$matched_run")"
+
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          [[ "$run_attempt" =~ ^[0-9]+$ ]]
+          [[ "$run_head_sha" == "$TARGET_SHA" ]]
+          [[ "$run_event" == 'push' ]]
+
+          jobs_json="$(
+            gh api \
+              "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?filter=latest&per_page=100"
+          )"
+          job_count="$(jq -r '.total_count' <<<"$jobs_json")"
+          [[ "$job_count" =~ ^[0-9]+$ ]]
+
+          if [[ "$job_count" == '0' ]]; then
+            blocker="$(
+              jq -c \
+                --arg run_id "$run_id" \
+                --arg created "$run_created_at" \
+                '[.workflow_runs[] | select(
+                  .name == "Deploy Production" and
+                  .event == "push" and
+                  .head_branch == "main" and
+                  ((.id | tostring) != $run_id) and
+                  (.created_at <= $created) and
+                  (
+                    .status == "in_progress" or
+                    .status == "queued" or
+                    .status == "waiting" or
+                    .status == "requested" or
+                    .status == "pending"
+                  )
+                )] | sort_by(
+                  (if .status == "in_progress" then 2 else 1 end),
+                  .created_at
+                ) | reverse | .[0] // empty' \
+                <<<"$runs_json"
+            )"
+
+            blocker_run_id='none'
+            blocker_run_attempt='unknown'
+            blocker_sha='unknown'
+            blocker_status='unknown'
+            blocker_conclusion='unknown'
+            blocker_created_at='unknown'
+            blocker_updated_at='unknown'
+            blocker_job_id='none'
+            blocker_job_name='none'
+            blocker_job_status='unknown'
+            blocker_job_conclusion='unknown'
+            blocker_active_step='none'
+
+            if [[ -n "$blocker" ]]; then
+              blocker_run_id="$(jq -r '.id' <<<"$blocker")"
+              blocker_run_attempt="$(jq -r '.run_attempt' <<<"$blocker")"
+              blocker_sha="$(jq -r '.head_sha' <<<"$blocker")"
+              blocker_status="$(jq -r '.status' <<<"$blocker")"
+              blocker_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$blocker")"
+              blocker_created_at="$(jq -r '.created_at' <<<"$blocker")"
+              blocker_updated_at="$(jq -r '.updated_at' <<<"$blocker")"
+              [[ "$blocker_run_id" =~ ^[0-9]+$ ]]
+              [[ "$blocker_run_attempt" =~ ^[0-9]+$ ]]
+              [[ "$blocker_sha" =~ ^[0-9a-f]{40}$ ]]
+
+              blocker_jobs_json="$(
+                gh api \
+                  "repos/$GITHUB_REPOSITORY/actions/runs/$blocker_run_id/jobs?filter=latest&per_page=100"
+              )"
+              blocker_job_count="$(jq -r '.total_count' <<<"$blocker_jobs_json")"
+              [[ "$blocker_job_count" =~ ^[0-9]+$ ]]
+              if [[ "$blocker_job_count" != '0' ]]; then
+                blocker_job="$(jq -c '.jobs | sort_by(.id) | .[0]' <<<"$blocker_jobs_json")"
+                blocker_job_id="$(jq -r '.id' <<<"$blocker_job")"
+                blocker_job_name="$(jq -r '.name' <<<"$blocker_job")"
+                blocker_job_status="$(jq -r '.status' <<<"$blocker_job")"
+                blocker_job_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$blocker_job")"
+                blocker_active_step="$(
+                  jq -r \
+                    '[.steps[]? | select(.status == "in_progress")] | .[0].name // "none"' \
+                    <<<"$blocker_job"
+                )"
+                [[ "$blocker_job_id" =~ ^[0-9]+$ ]]
+              fi
+            fi
+
+            outcome='RUN_FOUND_NO_JOBS'
+            reason='deploy_run_exists_without_jobs'
+            if [[ "$run_status" == 'pending' && "$blocker_run_id" != 'none' ]]; then
+              outcome='RUN_PENDING_BEHIND_ACTIVE_PREDECESSOR'
+              reason='target_pending_while_older_deploy_run_is_non_terminal'
+            fi
+
+            jq -n \
+              --arg outcome "$outcome" \
+              --arg reason "$reason" \
+              --arg trusted_main "$TRUSTED_MAIN" \
+              --arg target_sha "$TARGET_SHA" \
+              --arg run_id "$run_id" \
+              --arg run_attempt "$run_attempt" \
+              --arg run_status "$run_status" \
+              --arg run_conclusion "$run_conclusion" \
+              --arg run_created_at "$run_created_at" \
+              --arg run_updated_at "$run_updated_at" \
+              --arg blocker_run_id "$blocker_run_id" \
+              --arg blocker_run_attempt "$blocker_run_attempt" \
+              --arg blocker_sha "$blocker_sha" \
+              --arg blocker_status "$blocker_status" \
+              --arg blocker_conclusion "$blocker_conclusion" \
+              --arg blocker_created_at "$blocker_created_at" \
+              --arg blocker_updated_at "$blocker_updated_at" \
+              --arg blocker_job_id "$blocker_job_id" \
+              --arg blocker_job_name "$blocker_job_name" \
+              --arg blocker_job_status "$blocker_job_status" \
+              --arg blocker_job_conclusion "$blocker_job_conclusion" \
+              --arg blocker_active_step "$blocker_active_step" \
+              '{
+                schema_version: 2,
+                diagnostic_outcome: $outcome,
+                reason: $reason,
+                trusted_main: $trusted_main,
+                target_sha: $target_sha,
+                deploy_run_id: $run_id,
+                deploy_run_attempt: $run_attempt,
+                deploy_run_status: $run_status,
+                deploy_run_conclusion: $run_conclusion,
+                deploy_run_created_at: $run_created_at,
+                deploy_run_updated_at: $run_updated_at,
+                deploy_job_id: "none",
+                deploy_job_name: "none",
+                deploy_job_status: "unknown",
+                deploy_job_conclusion: "unknown",
+                failed_step: "none",
+                blocker_run_id: $blocker_run_id,
+                blocker_run_attempt: $blocker_run_attempt,
+                blocker_sha: $blocker_sha,
+                blocker_status: $blocker_status,
+                blocker_conclusion: $blocker_conclusion,
+                blocker_created_at: $blocker_created_at,
+                blocker_updated_at: $blocker_updated_at,
+                blocker_job_id: $blocker_job_id,
+                blocker_job_name: $blocker_job_name,
+                blocker_job_status: $blocker_job_status,
+                blocker_job_conclusion: $blocker_job_conclusion,
+                blocker_active_step: $blocker_active_step
+              }' > "$result"
+            echo "diagnostic_outcome=$outcome" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          job="$(jq -c '.jobs | sort_by(.id) | .[0]' <<<"$jobs_json")"
+          job_id="$(jq -r '.id' <<<"$job")"
+          job_name="$(jq -r '.name' <<<"$job")"
+          job_status="$(jq -r '.status' <<<"$job")"
+          job_conclusion="$(jq -r '.conclusion // "unknown"' <<<"$job")"
+          failed_step="$(
+            jq -r \
+              '[.steps[]? | select(.conclusion == "failure")] | .[0].name // "none"' \
+              <<<"$job"
+          )"
+          [[ "$job_id" =~ ^[0-9]+$ ]]
+
+          jq -n \
+            --arg trusted_main "$TRUSTED_MAIN" \
+            --arg target_sha "$TARGET_SHA" \
+            --arg run_id "$run_id" \
+            --arg run_attempt "$run_attempt" \
+            --arg run_status "$run_status" \
+            --arg run_conclusion "$run_conclusion" \
+            --arg run_created_at "$run_created_at" \
+            --arg run_updated_at "$run_updated_at" \
+            --arg job_id "$job_id" \
+            --arg job_name "$job_name" \
+            --arg job_status "$job_status" \
+            --arg job_conclusion "$job_conclusion" \
+            --arg failed_step "$failed_step" \
+            --argjson steps "$(jq '.steps // [] | map({name, status, conclusion})' <<<"$job")" \
+            '{
+              schema_version: 2,
+              diagnostic_outcome: "RUN_FOUND",
+              reason: "deploy_run_and_job_observed",
+              trusted_main: $trusted_main,
+              target_sha: $target_sha,
+              deploy_run_id: $run_id,
+              deploy_run_attempt: $run_attempt,
+              deploy_run_status: $run_status,
+              deploy_run_conclusion: $run_conclusion,
+              deploy_run_created_at: $run_created_at,
+              deploy_run_updated_at: $run_updated_at,
+              deploy_job_id: $job_id,
+              deploy_job_name: $job_name,
+              deploy_job_status: $job_status,
+              deploy_job_conclusion: $job_conclusion,
+              failed_step: $failed_step,
+              steps: $steps,
+              blocker_run_id: "none",
+              blocker_run_attempt: "unknown",
+              blocker_sha: "unknown",
+              blocker_status: "unknown",
+              blocker_conclusion: "unknown",
+              blocker_job_id: "none",
+              blocker_job_name: "none",
+              blocker_job_status: "unknown",
+              blocker_job_conclusion: "unknown",
+              blocker_active_step: "none"
+            }' > "$result"
+
+          echo 'diagnostic_outcome=RUN_FOUND' >> "$GITHUB_OUTPUT"
+
+      - name: Upload production deploy-run diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-deploy-run-636-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-deploy-run
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded production deploy-run diagnostic
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          TARGET_SHA: ${{ steps.request.outputs.target_sha }}
+          DIAGNOSTIC_STEP_OUTCOME: ${{ steps.diagnostic.outcome }}
+        run: |
+          set -euo pipefail
+          result='artifacts/production-deploy-run/result.json'
+          outcome='MISSING'
+          reason='unknown'
+          run_id='unknown'
+          run_attempt='unknown'
+          run_status='unknown'
+          run_conclusion='unknown'
+          job_id='unknown'
+          job_name='unknown'
+          job_status='unknown'
+          job_conclusion='unknown'
+          failed_step='unknown'
+          blocker_run_id='none'
+          blocker_run_attempt='unknown'
+          blocker_sha='unknown'
+          blocker_status='unknown'
+          blocker_conclusion='unknown'
+          blocker_job_id='none'
+          blocker_job_name='none'
+          blocker_job_status='unknown'
+          blocker_job_conclusion='unknown'
+          blocker_active_step='none'
+
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            outcome="$(jq -r '.diagnostic_outcome' "$result")"
+            reason="$(jq -r '.reason' "$result")"
+            run_id="$(jq -r '.deploy_run_id' "$result")"
+            run_attempt="$(jq -r '.deploy_run_attempt' "$result")"
+            run_status="$(jq -r '.deploy_run_status' "$result")"
+            run_conclusion="$(jq -r '.deploy_run_conclusion' "$result")"
+            job_id="$(jq -r '.deploy_job_id' "$result")"
+            job_name="$(jq -r '.deploy_job_name' "$result")"
+            job_status="$(jq -r '.deploy_job_status' "$result")"
+            job_conclusion="$(jq -r '.deploy_job_conclusion' "$result")"
+            failed_step="$(jq -r '.failed_step' "$result")"
+            blocker_run_id="$(jq -r '.blocker_run_id' "$result")"
+            blocker_run_attempt="$(jq -r '.blocker_run_attempt' "$result")"
+            blocker_sha="$(jq -r '.blocker_sha' "$result")"
+            blocker_status="$(jq -r '.blocker_status' "$result")"
+            blocker_conclusion="$(jq -r '.blocker_conclusion' "$result")"
+            blocker_job_id="$(jq -r '.blocker_job_id' "$result")"
+            blocker_job_name="$(jq -r '.blocker_job_name' "$result")"
+            blocker_job_status="$(jq -r '.blocker_job_status' "$result")"
+            blocker_job_conclusion="$(jq -r '.blocker_job_conclusion' "$result")"
+            blocker_active_step="$(jq -r '.blocker_active_step' "$result")"
+          fi
+
+          artifact="agency-production-deploy-run-636-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ### Agency production deploy-run diagnostic ${outcome}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          diagnostic_run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${DIAGNOSTIC_STEP_OUTCOME:-unknown}\`
+          target_pr: \`641\`
+          target_sha: \`${TARGET_SHA:-n/a}\`
+          reason: \`${reason}\`
+          deploy_workflow_run_id: \`${run_id}\`
+          deploy_workflow_attempt: \`${run_attempt}\`
+          deploy_workflow_status: \`${run_status}\`
+          deploy_workflow_conclusion: \`${run_conclusion}\`
+          deploy_job_id: \`${job_id}\`
+          deploy_job_name: \`${job_name}\`
+          deploy_job_status: \`${job_status}\`
+          deploy_job_conclusion: \`${job_conclusion}\`
+          failed_step: \`${failed_step}\`
+          blocker_run_id: \`${blocker_run_id}\`
+          blocker_run_attempt: \`${blocker_run_attempt}\`
+          blocker_sha: \`${blocker_sha}\`
+          blocker_status: \`${blocker_status}\`
+          blocker_conclusion: \`${blocker_conclusion}\`
+          blocker_job_id: \`${blocker_job_id}\`
+          blocker_job_name: \`${blocker_job_name}\`
+          blocker_job_status: \`${blocker_job_status}\`
+          blocker_job_conclusion: \`${blocker_job_conclusion}\`
+          blocker_active_step: \`${blocker_active_step}\`
+          artifact: \`${artifact}\`
+
+          Read-only GitHub Actions diagnostic only. No rerun, dispatch, deployment, SSH or production mutation is permitted by this route.
+          EOF_BODY
+          )"
+
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/636/comments" \
+            -f body="$body"

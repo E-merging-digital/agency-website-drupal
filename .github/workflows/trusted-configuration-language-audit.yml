@@ -1,0 +1,278 @@
+name: Agency trusted configuration language audit
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate configuration language audit request
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.comment.body == '/agency-config-language inspect'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '609' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-config-language inspect' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Configuration language audit must execute the workflow revision on live main.' >&2
+            exit 1
+          }
+
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  audit:
+    name: Rebuild Drupal and capture configuration language snapshot
+    needs: validate-request
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      verdict: ${{ steps.summary.outputs.verdict }}
+      snapshot_sha256: ${{ steps.summary.outputs.snapshot_sha256 }}
+      repository_by_langcode: ${{ steps.summary.outputs.repository_by_langcode }}
+      active_by_langcode: ${{ steps.summary.outputs.active_by_langcode }}
+      translations: ${{ steps.summary.outputs.translations }}
+      mixed_technical_base_languages: ${{ steps.summary.outputs.mixed_technical_base_languages }}
+      canonical_language_already_uniform: ${{ steps.summary.outputs.canonical_language_already_uniform }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact checkout and immutable audit implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f AGENTS.md
+          test -f .ddev/config.yaml
+          test -f docs/configuration-language-policy.yml
+          test -f scripts/runner/run-configuration-language-audit.sh
+          test -f scripts/runner/configuration-language-audit.php
+          bash -n scripts/runner/run-configuration-language-audit.sh
+          git diff --check
+
+      - name: Isolate DDEV project for this audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-ci.yaml <<EOF
+          name: agency-config-language-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-config-language-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild Drupal from repository-owned configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev exec php -l /var/www/html/scripts/runner/configuration-language-audit.php
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush status
+
+      - name: Capture bounded read-only configuration language snapshot
+        id: route
+        shell: bash
+        env:
+          TARGET_DIR: ${{ github.workspace }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/configuration-language-audit
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-configuration-language-audit.sh
+
+      - name: Summarize machine-readable result
+        id: summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/configuration-language-audit/result.json'
+          status='MISSING'
+          verdict='UNKNOWN'
+          snapshot_sha256='n/a'
+          repository_by_langcode='{}'
+          active_by_langcode='{}'
+          translations='[]'
+          mixed='unknown'
+          uniform='unknown'
+
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$result")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result")"
+            snapshot_sha256="$(jq -r '.snapshot_sha256 // "n/a"' "$result")"
+            repository_by_langcode="$(jq -c '.repository.by_langcode // {}' "$result")"
+            active_by_langcode="$(jq -c '.active.by_langcode // {}' "$result")"
+            translations="$(jq -c '.translations // []' "$result")"
+            mixed="$(jq -r 'if (.observations | has("mixed_technical_base_languages")) then .observations.mixed_technical_base_languages else "unknown" end' "$result")"
+            uniform="$(jq -r 'if (.observations | has("canonical_language_already_uniform")) then .observations.canonical_language_already_uniform else "unknown" end' "$result")"
+          fi
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "snapshot_sha256=$snapshot_sha256" >> "$GITHUB_OUTPUT"
+          echo "repository_by_langcode=$repository_by_langcode" >> "$GITHUB_OUTPUT"
+          echo "active_by_langcode=$active_by_langcode" >> "$GITHUB_OUTPUT"
+          echo "translations=$translations" >> "$GITHUB_OUTPUT"
+          echo "mixed_technical_base_languages=$mixed" >> "$GITHUB_OUTPUT"
+          echo "canonical_language_already_uniform=$uniform" >> "$GITHUB_OUTPUT"
+
+      - name: Upload configuration language evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-609-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/configuration-language-audit
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-ci.yaml
+          rm -rf artifacts/configuration-language-audit
+          rmdir artifacts 2>/dev/null || true
+          git restore --worktree -- config/sync web/robots.txt 2>/dev/null || true
+          git clean -fd -- config/sync
+
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report:
+    name: Publish bounded configuration language audit result
+    if: ${{ always() && needs.validate-request.result == 'success' }}
+    needs:
+      - validate-request
+      - audit
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Comment audit result on #609
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+          ROUTE_OUTCOME: ${{ needs.audit.result }}
+          STATUS: ${{ needs.audit.outputs.status }}
+          VERDICT: ${{ needs.audit.outputs.verdict }}
+          SNAPSHOT_SHA256: ${{ needs.audit.outputs.snapshot_sha256 }}
+          REPOSITORY_BY_LANGCODE: ${{ needs.audit.outputs.repository_by_langcode }}
+          ACTIVE_BY_LANGCODE: ${{ needs.audit.outputs.active_by_langcode }}
+          TRANSLATIONS: ${{ needs.audit.outputs.translations }}
+          MIXED: ${{ needs.audit.outputs.mixed_technical_base_languages }}
+          UNIFORM: ${{ needs.audit.outputs.canonical_language_already_uniform }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${REPOSITORY_BY_LANGCODE:-}" ]]; then
+            REPOSITORY_BY_LANGCODE='{}'
+          fi
+          if [[ -z "${ACTIVE_BY_LANGCODE:-}" ]]; then
+            ACTIVE_BY_LANGCODE='{}'
+          fi
+          if [[ -z "${TRANSLATIONS:-}" ]]; then
+            TRANSLATIONS='[]'
+          fi
+
+          heading='### Agency configuration language inspect FAIL'
+          if [[ "$ROUTE_OUTCOME" == 'success' && "$STATUS" == 'PASS' ]]; then
+            heading='### Agency configuration language inspect PASS'
+          fi
+
+          artifact="agency-config-language-609-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
+          verdict: \`${VERDICT:-UNKNOWN}\`
+          snapshot_sha256: \`${SNAPSHOT_SHA256:-n/a}\`
+          repository_by_langcode: \`${REPOSITORY_BY_LANGCODE}\`
+          active_by_langcode: \`${ACTIVE_BY_LANGCODE}\`
+          translations: \`${TRANSLATIONS}\`
+          mixed_technical_base_languages: \`${MIXED:-unknown}\`
+          canonical_language_already_uniform: \`${UNIFORM:-unknown}\`
+          artifact: \`${artifact}\`
+
+          Read-only fresh-DDEV audit only. No Composer mutation, config export, Content Sync, production access or arbitrary shell input is permitted by this route.
+          EOF_BODY
+          )"
+          gh issue comment 609 --repo "$GITHUB_REPOSITORY" --body "$body"

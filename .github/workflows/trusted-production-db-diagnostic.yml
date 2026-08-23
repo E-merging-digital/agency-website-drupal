@@ -1,0 +1,316 @@
+name: Agency trusted production database diagnostic
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  production-db-diagnostic:
+    name: Diagnose production database and Drupal cache state
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 658 &&
+        github.actor == 'E-merging-digital' &&
+        github.event.comment.user.login == 'E-merging-digital' &&
+        github.event.comment.body == '/agency-production-db diagnose'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Validate actor incident and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-production-db diagnose' ]]
+          [[ "$ISSUE_NUMBER" == '658' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Database diagnostic must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Configure existing production SSH channel
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Run fixed read-only database diagnostic
+        id: diagnostic
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p artifacts/production-db
+          raw='artifacts/production-db/diagnostic.env'
+
+          set +e
+          ssh "$SERVER_USER@$SERVER_HOST" 'bash -s' > "$raw" 2>&1 <<'REMOTE_DIAGNOSTIC'
+          set -u
+          CURRENT='/var/www/agency/current'
+
+          scalar() {
+            printf '%s=%s\n' "$1" "$2"
+          }
+
+          sql_raw() {
+            query="$1"
+            (
+              cd "$CURRENT" &&
+              vendor/bin/drush sql:query --extra=--skip-column-names "$query" 2>/dev/null
+            ) | head -n 1 | tr -d '\r\n'
+          }
+
+          sql_number() {
+            value="$(sql_raw "$1")"
+            value="$(printf '%s' "$value" | tr -cd '0-9' | head -c 24)"
+            printf '%s' "${value:-unavailable}"
+          }
+
+          sql_version() {
+            value="$(sql_raw 'SELECT VERSION();')"
+            value="$(printf '%s' "$value" | tr -cd 'A-Za-z0-9._+-' | head -c 96)"
+            printf '%s' "${value:-unavailable}"
+          }
+
+          status_number() {
+            name="$1"
+            value="$(
+              cd "$CURRENT" &&
+              vendor/bin/drush sql:query --extra=--skip-column-names \
+                "SHOW GLOBAL STATUS LIKE '$name';" 2>/dev/null |
+              awk 'NR == 1 {print $2}' |
+              tr -cd '0-9' |
+              head -c 24
+            )"
+            printf '%s' "${value:-unavailable}"
+          }
+
+          table_exists() {
+            table="$1"
+            case "$table" in
+              cache_file_parsing|cache_discovery|cache_config|router) ;;
+              *) printf '0'; return ;;
+            esac
+            sql_number "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='$table';"
+          }
+
+          table_info_number() {
+            table="$1"
+            column="$2"
+            case "$table" in
+              cache_file_parsing|cache_discovery|cache_config|router) ;;
+              *) printf 'unavailable'; return ;;
+            esac
+            case "$column" in
+              table_rows|data_length|index_length) ;;
+              *) printf 'unavailable'; return ;;
+            esac
+            sql_number "SELECT COALESCE($column,0) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='$table';"
+          }
+
+          cache_data_number() {
+            table="$1"
+            aggregate="$2"
+            case "$table" in
+              cache_file_parsing|cache_discovery|cache_config) ;;
+              *) printf 'unavailable'; return ;;
+            esac
+            case "$aggregate" in
+              count) sql_number "SELECT COUNT(*) FROM $table;" ;;
+              max) sql_number "SELECT COALESCE(MAX(OCTET_LENGTH(data)),0) FROM $table;" ;;
+              sum) sql_number "SELECT COALESCE(SUM(OCTET_LENGTH(data)),0) FROM $table;" ;;
+              *) printf 'unavailable' ;;
+            esac
+          }
+
+          scalar schema_version 1
+          scalar current_sha "$(git -C "$CURRENT" rev-parse HEAD 2>/dev/null | tr -cd '0-9a-f' | head -c 40 || echo unavailable)"
+          scalar drupal_bootstrap "$(cd "$CURRENT" && vendor/bin/drush status --field=bootstrap --format=string 2>/dev/null | tr -cd 'A-Za-z0-9_ -' | head -c 48 || echo unavailable)"
+          scalar maintenance_mode "$(cd "$CURRENT" && vendor/bin/drush php:eval 'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);' 2>/dev/null | tr -cd '0-9' | head -c 2 || echo unavailable)"
+          scalar active_deploy_processes "$(pgrep -af '[d]eploy-production.sh' 2>/dev/null | wc -l | tr -d ' ')"
+
+          scalar db_ping "$(sql_number 'SELECT 1;')"
+          scalar database_version "$(sql_version)"
+          scalar global_max_allowed_packet "$(sql_number 'SELECT @@global.max_allowed_packet;')"
+          scalar session_max_allowed_packet "$(sql_number 'SELECT @@session.max_allowed_packet;')"
+          scalar global_max_connections "$(sql_number 'SELECT @@global.max_connections;')"
+          scalar global_wait_timeout "$(sql_number 'SELECT @@global.wait_timeout;')"
+          scalar global_net_read_timeout "$(sql_number 'SELECT @@global.net_read_timeout;')"
+          scalar global_net_write_timeout "$(sql_number 'SELECT @@global.net_write_timeout;')"
+          scalar aborted_clients "$(status_number Aborted_clients)"
+          scalar aborted_connects "$(status_number Aborted_connects)"
+          scalar threads_connected "$(status_number Threads_connected)"
+          scalar max_used_connections "$(status_number Max_used_connections)"
+
+          for table in cache_file_parsing cache_discovery cache_config; do
+            exists="$(table_exists "$table")"
+            scalar "${table}_exists" "$exists"
+            scalar "${table}_estimated_rows" "$(table_info_number "$table" table_rows)"
+            scalar "${table}_data_length" "$(table_info_number "$table" data_length)"
+            scalar "${table}_index_length" "$(table_info_number "$table" index_length)"
+            if [[ "$exists" == '1' ]]; then
+              scalar "${table}_row_count" "$(cache_data_number "$table" count)"
+              scalar "${table}_max_data_bytes" "$(cache_data_number "$table" max)"
+              scalar "${table}_sum_data_bytes" "$(cache_data_number "$table" sum)"
+            else
+              scalar "${table}_row_count" unavailable
+              scalar "${table}_max_data_bytes" unavailable
+              scalar "${table}_sum_data_bytes" unavailable
+            fi
+          done
+
+          router_exists="$(table_exists router)"
+          scalar router_exists "$router_exists"
+          scalar router_estimated_rows "$(table_info_number router table_rows)"
+          scalar router_data_length "$(table_info_number router data_length)"
+          scalar router_index_length "$(table_info_number router index_length)"
+          scalar diagnostic_outcome PASS
+          scalar reason fixed_read_only_database_metrics_observed
+          REMOTE_DIAGNOSTIC
+          ssh_status="$?"
+          set -e
+
+          value() {
+            grep -m1 "^$1=" "$raw" | cut -d= -f2- || true
+          }
+
+          outcome="$(value diagnostic_outcome)"
+          [[ -n "$outcome" ]] || outcome=SSH_DIAGNOSTIC_FAILED
+          reason="$(value reason)"
+          [[ -n "$reason" ]] || reason=remote_result_missing
+
+          jq -n \
+            --arg trusted_main "${{ steps.request.outputs.main_sha }}" \
+            --arg outcome "$outcome" \
+            --arg reason "$reason" \
+            --arg current_sha "$(value current_sha)" \
+            --arg bootstrap "$(value drupal_bootstrap)" \
+            --arg maintenance "$(value maintenance_mode)" \
+            --arg deploys "$(value active_deploy_processes)" \
+            --arg db_ping "$(value db_ping)" \
+            --arg db_version "$(value database_version)" \
+            --arg max_packet_global "$(value global_max_allowed_packet)" \
+            --arg max_packet_session "$(value session_max_allowed_packet)" \
+            --arg max_connections "$(value global_max_connections)" \
+            --arg wait_timeout "$(value global_wait_timeout)" \
+            --arg net_read_timeout "$(value global_net_read_timeout)" \
+            --arg net_write_timeout "$(value global_net_write_timeout)" \
+            --arg aborted_clients "$(value aborted_clients)" \
+            --arg aborted_connects "$(value aborted_connects)" \
+            --arg threads_connected "$(value threads_connected)" \
+            --arg max_used_connections "$(value max_used_connections)" \
+            --arg file_parsing_rows "$(value cache_file_parsing_row_count)" \
+            --arg file_parsing_max "$(value cache_file_parsing_max_data_bytes)" \
+            --arg file_parsing_sum "$(value cache_file_parsing_sum_data_bytes)" \
+            --arg file_parsing_length "$(value cache_file_parsing_data_length)" \
+            --arg discovery_rows "$(value cache_discovery_row_count)" \
+            --arg discovery_max "$(value cache_discovery_max_data_bytes)" \
+            --arg discovery_sum "$(value cache_discovery_sum_data_bytes)" \
+            --arg discovery_length "$(value cache_discovery_data_length)" \
+            --arg config_rows "$(value cache_config_row_count)" \
+            --arg config_max "$(value cache_config_max_data_bytes)" \
+            --arg config_sum "$(value cache_config_sum_data_bytes)" \
+            --arg config_length "$(value cache_config_data_length)" \
+            --arg router_rows "$(value router_estimated_rows)" \
+            --arg router_length "$(value router_data_length)" \
+            --argjson ssh_exit "$ssh_status" \
+            '{schema_version:1, diagnostic_outcome:$outcome, reason:$reason, trusted_main:$trusted_main, current_sha:$current_sha, drupal_bootstrap:$bootstrap, maintenance_mode:$maintenance, active_deploy_processes:$deploys, db_ping:$db_ping, database_version:$db_version, global_max_allowed_packet:$max_packet_global, session_max_allowed_packet:$max_packet_session, global_max_connections:$max_connections, global_wait_timeout:$wait_timeout, global_net_read_timeout:$net_read_timeout, global_net_write_timeout:$net_write_timeout, aborted_clients:$aborted_clients, aborted_connects:$aborted_connects, threads_connected:$threads_connected, max_used_connections:$max_used_connections, cache_file_parsing:{row_count:$file_parsing_rows,max_data_bytes:$file_parsing_max,sum_data_bytes:$file_parsing_sum,data_length:$file_parsing_length}, cache_discovery:{row_count:$discovery_rows,max_data_bytes:$discovery_max,sum_data_bytes:$discovery_sum,data_length:$discovery_length}, cache_config:{row_count:$config_rows,max_data_bytes:$config_max,sum_data_bytes:$config_sum,data_length:$config_length}, router:{estimated_rows:$router_rows,data_length:$router_length}, ssh_exit:$ssh_exit}' \
+            > artifacts/production-db/result.json
+
+          test "$ssh_status" -eq 0
+          [[ "$(value db_ping)" == '1' ]]
+
+      - name: Upload database diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-db-658-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-db
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded database diagnostic
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/production-db/result.json'
+          [[ -s "$result" ]] && jq -e . "$result" >/dev/null
+          field() { jq -r "$1 // \"unknown\"" "$result"; }
+          artifact="agency-production-db-658-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ### Agency production database diagnostic $(field '.diagnostic_outcome')
+
+          trusted_main: \`$(field '.trusted_main')\`
+          diagnostic_run_id: \`${GITHUB_RUN_ID}\`
+          current_sha: \`$(field '.current_sha')\`
+          drupal_bootstrap: \`$(field '.drupal_bootstrap')\`
+          maintenance_mode: \`$(field '.maintenance_mode')\`
+          active_deploy_processes: \`$(field '.active_deploy_processes')\`
+          db_ping: \`$(field '.db_ping')\`
+          database_version: \`$(field '.database_version')\`
+          global_max_allowed_packet: \`$(field '.global_max_allowed_packet')\`
+          session_max_allowed_packet: \`$(field '.session_max_allowed_packet')\`
+          global_max_connections: \`$(field '.global_max_connections')\`
+          global_wait_timeout: \`$(field '.global_wait_timeout')\`
+          global_net_read_timeout: \`$(field '.global_net_read_timeout')\`
+          global_net_write_timeout: \`$(field '.global_net_write_timeout')\`
+          aborted_clients: \`$(field '.aborted_clients')\`
+          aborted_connects: \`$(field '.aborted_connects')\`
+          threads_connected: \`$(field '.threads_connected')\`
+          max_used_connections: \`$(field '.max_used_connections')\`
+          cache_file_parsing_rows: \`$(field '.cache_file_parsing.row_count')\`
+          cache_file_parsing_max_data_bytes: \`$(field '.cache_file_parsing.max_data_bytes')\`
+          cache_file_parsing_sum_data_bytes: \`$(field '.cache_file_parsing.sum_data_bytes')\`
+          cache_file_parsing_data_length: \`$(field '.cache_file_parsing.data_length')\`
+          cache_discovery_max_data_bytes: \`$(field '.cache_discovery.max_data_bytes')\`
+          cache_config_max_data_bytes: \`$(field '.cache_config.max_data_bytes')\`
+          router_estimated_rows: \`$(field '.router.estimated_rows')\`
+          router_data_length: \`$(field '.router.data_length')\`
+          artifact: \`${artifact}\`
+
+          Fixed read-only diagnostic only. No SQL write, cache rebuild/flush, Drupal state mutation, service action, process signal, deployment or arbitrary shell input is permitted by this route.
+          EOF_BODY
+          )"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/658/comments" -f body="$body"

@@ -65,7 +65,7 @@ Schema:
 The gateway accepts exactly these four keys. `request_id` and `head_sha` have
 strict formats, `pr_number` must identify an open same-repository PR targeting
 `main`, and `profile` must be present in the trusted repository-owned profile
-registry.
+registry **and** in the explicit gateway allowlist.
 
 Before dispatch, the PR must differ from its base by exactly `composer.json`.
 The gateway then compares parsed JSON and proves that the target differs from
@@ -85,7 +85,7 @@ A profile owns all executable inputs: package, expected constraint, accepted
 resolved-version pattern and product issue. Callers provide only the profile
 identifier.
 
-Initial profile:
+Reviewed profiles:
 
 ```text
 canvas-ai-agents-530
@@ -93,11 +93,23 @@ package            = drupal/ai_agents
 constraint         = ^1.3
 resolved version   = stable 1.3.x
 product issue      = #530
+
+config-language-lock-628
+package            = drupal/config_language_lock
+constraint         = ^1.0
+resolved version   = stable 1.0.x
+product issue      = #628
 ```
 
+The second profile exists only to materialize the dependency candidate evaluated
+by #609/#628. It does not configure, enable or enforce Configuration Language
+Lock. Runtime evaluation remains a separate trusted route documented in
+`docs/operations/config-language-lock-evaluation.md`.
+
 Adding another dependency requires a reviewed repository change adding another
-explicit profile. Never extend the request schema with package names, Composer
-arguments or shell commands.
+explicit profile **and** gateway semantic validation for that profile. Never
+extend the request schema with package names, Composer arguments or shell
+commands.
 
 ## Resolver behavior
 
@@ -149,7 +161,7 @@ difference. The target commit then receives:
 ```text
 context    = agency/composer-materialization
 state      = pending
- target_url = exact trusted workflow run
+target_url = exact trusted workflow run
 ```
 
 The gateway remains on GitHub-hosted infrastructure while it observes that exact
@@ -177,6 +189,8 @@ This route does **not** provide:
 - self-hosted GitHub write credentials;
 - provider/API secrets;
 - product configuration generation;
+- automatic module enablement;
+- automatic Configuration Language Lock enforcement;
 - automatic merge authority.
 
 Those remain separate capabilities and require their own governed owner when

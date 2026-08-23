@@ -1,0 +1,318 @@
+name: Agency trusted editorial feature image
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  editorial-feature-image:
+    name: Governed Article feature image
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        (
+          github.event.comment.body == '/agency-editorial-image inspect' ||
+          github.event.comment.body == '/agency-editorial-image dry-run' ||
+          github.event.comment.body == '/agency-editorial-image apply'
+        )
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: agency-editorial-image-${{ github.event.issue.number }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          case "$TRIGGER_COMMENT" in
+            '/agency-editorial-image inspect') mode='inspect' ;;
+            '/agency-editorial-image dry-run') mode='dry-run' ;;
+            '/agency-editorial-image apply') mode='apply' ;;
+            *) echo 'Unsupported editorial image command.' >&2; exit 1 ;;
+          esac
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Editorial image route must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup PHP 8.4 with GD
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: gd
+          coverage: none
+
+      - name: Generate and decode the exact repository-owned image
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          case "$ISSUE_NUMBER" in
+            401)
+              generator='scripts/runner/generate-editorial-feature-image-401.py'
+              asset='assets/editorial/issue-401-redesign-checklist.png'
+              ;;
+            *)
+              echo 'No deterministic editorial image generator is approved for this issue.' >&2
+              exit 1
+              ;;
+          esac
+          test -f "$generator"
+          python3 "$generator" --output "$asset"
+          test -s "$asset"
+          php -r '
+            $path = $argv[1];
+            if (!function_exists("imagecreatefrompng")) {
+              fwrite(STDERR, "GD PNG decoder is unavailable.\n");
+              exit(2);
+            }
+            $image = @imagecreatefrompng($path);
+            if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
+              fwrite(STDERR, "Generated editorial PNG is not GD-decodable at 1200x630.\n");
+              exit(3);
+            }
+            imagedestroy($image);
+          ' "$asset"
+
+      - name: Resolve exact repository-owned image profile
+        id: profile
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          issue = os.environ['ISSUE_NUMBER']
+          mode = os.environ['MODE']
+          trusted_main = os.environ['TRUSTED_MAIN']
+          registry_path = Path('scripts/runner/editorial-feature-image-profiles.json')
+          data = json.loads(registry_path.read_text(encoding='utf-8'))
+          if set(data) != {'schema_version', 'profiles'} or data['schema_version'] != 1 or not isinstance(data['profiles'], dict):
+              raise SystemExit('Feature image profile registry has an invalid closed schema.')
+          profile = data['profiles'].get(issue)
+          if not isinstance(profile, dict):
+              raise SystemExit('No repository-owned feature image profile exists for this issue.')
+          expected = {'issue_number', 'bundle', 'article_payload_sha256', 'field_name', 'asset', 'alt'}
+          if set(profile) != expected:
+              raise SystemExit('Feature image profile keys are not exact.')
+          if profile['issue_number'] != int(issue) or profile['bundle'] != 'article' or profile['field_name'] != 'field_feature_image':
+              raise SystemExit('Feature image profile is outside the Article/field_feature_image contract.')
+          if not re.fullmatch(r'[0-9a-f]{64}', profile['article_payload_sha256']):
+              raise SystemExit('Invalid Article payload hash in feature image profile.')
+          asset = profile.get('asset')
+          if not isinstance(asset, dict) or set(asset) != {'path', 'filename', 'sha256', 'mime', 'width', 'height', 'max_bytes'}:
+              raise SystemExit('Feature image asset profile is invalid.')
+          asset_path = asset.get('path')
+          if not isinstance(asset_path, str) or not re.fullmatch(r'assets/editorial/[a-z0-9][a-z0-9._-]*\.png', asset_path):
+              raise SystemExit('Feature image asset path is not bounded.')
+          if asset.get('mime') != 'image/png' or not re.fullmatch(r'[0-9a-f]{64}', asset.get('sha256', '')):
+              raise SystemExit('Feature image v1 requires an exact PNG SHA-256.')
+          path = Path(asset_path)
+          if not path.is_file():
+              raise SystemExit('Deterministically generated feature image asset is missing.')
+          actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+          if actual_sha != asset['sha256']:
+              raise SystemExit('Generated feature image asset hash mismatch.')
+          if path.stat().st_size <= 0 or path.stat().st_size > asset['max_bytes']:
+              raise SystemExit('Generated feature image asset size is outside the profile limit.')
+          alt = profile.get('alt')
+          if not isinstance(alt, dict) or set(alt) != {'fr', 'en'} or not all(isinstance(alt[k], str) and alt[k].strip() for k in ('fr', 'en')):
+              raise SystemExit('Feature image ALT profile is invalid.')
+
+          canonical = json.dumps(profile, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n'
+          profile_sha = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+          if mode == 'apply':
+              raw = subprocess.check_output([
+                  'gh', 'api', f'repos/{os.environ["GITHUB_REPOSITORY"]}/issues/{issue}/comments?per_page=100',
+              ], text=True)
+              comments = json.loads(raw)
+              if not isinstance(comments, list):
+                  raise SystemExit('Could not read issue comments for dry-run authorization.')
+              pattern = re.compile(
+                  r'^### Agency editorial image dry-run PASS\s*$.*?'
+                  r'^profile_sha256: `([0-9a-f]{64})`\s*$.*?'
+                  r'^asset_sha256: `([0-9a-f]{64})`\s*$.*?'
+                  r'^trusted_main: `([0-9a-f]{40})`\s*$',
+                  re.MULTILINE | re.DOTALL,
+              )
+              authorized = False
+              for comment in comments:
+                  if comment.get('user', {}).get('login') != 'github-actions[bot]':
+                      continue
+                  match = pattern.search(comment.get('body') or '')
+                  if match and match.groups() == (profile_sha, actual_sha, trusted_main):
+                      authorized = True
+                      break
+              if not authorized:
+                  raise SystemExit('Apply requires a bot-authored image dry-run PASS for the same profile, asset and live main.')
+
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as out:
+              out.write(f'profile_sha256={profile_sha}\n')
+              out.write(f'asset_sha256={actual_sha}\n')
+              out.write(f'asset_path={asset_path}\n')
+              out.write(f'article_payload_sha256={profile["article_payload_sha256"]}\n')
+          PY
+
+      - name: Verify immutable implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
+          EXPECTED_ASSET_SHA: ${{ steps.profile.outputs.asset_sha256 }}
+          ASSET_PATH: ${{ steps.profile.outputs.asset_path }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f scripts/runner/run-editorial-feature-image.sh
+          test -f scripts/runner/editorial-feature-image.php
+          test -f scripts/runner/editorial-feature-image-profiles.json
+          test -f scripts/runner/generate-editorial-feature-image-401.py
+          test -f "$ASSET_PATH"
+          bash -n scripts/runner/run-editorial-feature-image.sh
+          php -l scripts/runner/editorial-feature-image.php
+          [[ "$(sha256sum "$ASSET_PATH" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
+          candidate="$(mktemp --suffix=.png)"
+          trap 'rm -f "$candidate"' EXIT
+          python3 scripts/runner/generate-editorial-feature-image-401.py --output "$candidate"
+          [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
+          cmp -s "$candidate" "$ASSET_PATH"
+
+      - name: Configure existing production SSH channel
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Execute bounded editorial image route
+        id: route
+        shell: bash
+        env:
+          EDITORIAL_IMAGE_MODE: ${{ steps.request.outputs.mode }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PROFILE_SHA256: ${{ steps.profile.outputs.profile_sha256 }}
+          PROFILE_FILE: ${{ github.workspace }}/scripts/runner/editorial-feature-image-profiles.json
+          ASSET_SHA256: ${{ steps.profile.outputs.asset_sha256 }}
+          ASSET_FILE: ${{ github.workspace }}/${{ steps.profile.outputs.asset_path }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/editorial-feature-image
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-editorial-feature-image.sh
+
+      - name: Upload feature image evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-editorial-image-${{ github.event.issue.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/editorial-feature-image
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          PROFILE_SHA256: ${{ steps.profile.outputs.profile_sha256 }}
+          ASSET_SHA256: ${{ steps.profile.outputs.asset_sha256 }}
+          ROUTE_OUTCOME: ${{ steps.route.outcome }}
+        run: |
+          set -euo pipefail
+          result_file='artifacts/editorial-feature-image/result.json'
+          status='MISSING'
+          verdict='UNKNOWN'
+          node_id='n/a'
+          revision_id='n/a'
+          fid='n/a'
+          uri='n/a'
+          if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result_file")"
+            node_id="$(jq -r '.node.id // "n/a"' "$result_file")"
+            revision_id="$(jq -r '.node.revision_id // "n/a"' "$result_file")"
+            fid="$(jq -r '.node.image.fid // "n/a"' "$result_file")"
+            uri="$(jq -r '.node.image.uri // "n/a"' "$result_file")"
+          fi
+          heading="### Agency editorial image ${MODE} ${status}"
+          if [[ "$ROUTE_OUTCOME" == 'success' && "$status" == 'PASS' ]]; then
+            heading="### Agency editorial image ${MODE} PASS"
+          fi
+          artifact="agency-editorial-image-${ISSUE_NUMBER}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          profile_sha256: \`${PROFILE_SHA256:-n/a}\`
+          asset_sha256: \`${ASSET_SHA256:-n/a}\`
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
+          verdict: \`${verdict}\`
+          node_id: \`${node_id}\`
+          revision_id: \`${revision_id}\`
+          fid: \`${fid}\`
+          uri: \`${uri}\`
+          artifact: \`${artifact}\`
+
+          This route is restricted to the repository-owned Article feature-image profile and does not accept URLs, arbitrary paths, arbitrary shell or Content Sync input.
+          EOF_BODY
+          )"
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

@@ -187,6 +187,37 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
   menus.
 - Les textes SEO doivent etre differencies par langue, pas simplement dupliques.
 
+## 6.1 Gouvernance de la langue de configuration
+
+- Pour toute tache qui cree ou modifie de la configuration Drupal, une Recipe,
+  une Config Action, une config entity Canvas ou une configuration materialisee
+  par Drupal AI/agent, lire **obligatoirement**
+  `docs/decisions/ADR-002-configuration-language-governance.md` et
+  `docs/configuration-language-policy.yml`.
+- Invariant : la langue de configuration technique doit etre deterministe,
+  reproductible et verifiable. Elle ne depend jamais accidentellement de la
+  requete HTTP, de l'admin, de la langue d'interface, de la provenance d'une
+  Recipe ou du contexte d'un agent IA.
+- La cible canonique technique Agency est `en`, distincte du
+  `system.site:default_langcode` editorial actuel `fr`.
+- La policy est actuellement `migration_required` : **ne pas normaliser en masse
+  `config/sync` et ne pas pretendre que l'enforcement EN est deja actif**.
+- #609 porte l'audit/migration. `drupal/config_language_lock` 1.0.x est le
+  candidat `USE DRUPAL` privilegie, avec `follow_site_default=false`, mais ne
+  doit pas etre active avec un lock EN avant les preuves prevues par #609.
+- Une Recipe est une transformation reproductible d'etat Drupal : verifier
+  preconditions, configuration/Config Actions, langcodes/traductions,
+  permissions, Canvas/SDC/AI impactes et etat final avant admission.
+- `drupal/language_audit` est au plus un outil DEV/investigation tant qu'il ne
+  dispose pas d'une release stable supportee ; ne pas en faire une dependance
+  production ni recreer son moteur sans gap demontre.
+- Agency expose la policy et les snapshots/diffs ; Preflight peut les verifier
+  independamment mais Agency ne depend pas de l'implementation interne de
+  Preflight.
+- Lorsque Drupal core fournit une primitive suffisante de langue par defaut de
+  configuration, conserver la policy/tests et retirer progressivement le
+  workaround contrib plutot que maintenir une dependance artificielle.
+
 ## 7. Regles de maillage interne
 
 - Les liens internes SEO doivent etre explicites dans les champs HTML quand ils

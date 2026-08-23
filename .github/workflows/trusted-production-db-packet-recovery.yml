@@ -1,0 +1,561 @@
+name: Agency trusted production DB packet recovery
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  packet-recovery:
+    name: Preflight or apply production DB packet recovery
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 660 &&
+        github.actor == 'E-merging-digital' &&
+        github.event.comment.user.login == 'E-merging-digital' &&
+        (
+          github.event.comment.body == '/agency-production-db-fix preflight' ||
+          github.event.comment.body == '/agency-production-db-fix apply'
+        )
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Validate owner request and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '660' ]]
+
+          case "$TRIGGER_COMMENT" in
+            '/agency-production-db-fix preflight')
+              command_name=preflight
+              ;;
+            '/agency-production-db-fix apply')
+              command_name=apply
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Packet recovery must execute the workflow revision on live main.' >&2
+            exit 1
+          }
+
+          echo "command_name=$command_name" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Configure existing production SSH channel
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Revalidate fixed production incident
+        id: preflight
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p artifacts/production-db-fix
+          raw='artifacts/production-db-fix/preflight.env'
+
+          ssh "$SERVER_USER@$SERVER_HOST" 'bash -s' > "$raw" <<'REMOTE_PREFLIGHT'
+          set -euo pipefail
+          CURRENT='/var/www/agency/current'
+          EXPECTED_RUNTIME='9188a2ebd6516a738be6df6f854794d41889aa90'
+          SOURCE_PACKET='16777216'
+          TARGET_PACKET='67108864'
+          TARGET='/etc/mysql/mariadb.conf.d/99-agency-max-allowed-packet.cnf'
+          TMP='/tmp/agency-issue660-max-allowed-packet.cnf'
+          PROBE_BACKUP='/var/www/agency/shared/backups/issue660-etc-mysql-preflight-probe.tar.gz'
+          FR_URL='https://emergingdigital.be/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier'
+          EN_URL='https://emergingdigital.be/en/blog/website-redesign-checklist-12-things-verify-you-start'
+          SUDO_REQUIRED_COMMANDS=5
+
+          scalar() {
+            printf '%s=%s\n' "$1" "$2"
+          }
+
+          sql_number() {
+            query="$1"
+            value="$(
+              cd "$CURRENT" &&
+              vendor/bin/drush sql:query --extra=--skip-column-names "$query" 2>/dev/null |
+              head -n 1 |
+              tr -cd '0-9'
+            )"
+            printf '%s' "${value:-unavailable}"
+          }
+
+          http_status() {
+            curl -sS -o /dev/null -w '%{http_code}' "$1" 2>/dev/null ||
+              printf '000'
+          }
+
+          sudo_allowed_commands=0
+          check_sudo_capability() {
+            if sudo -n -l "$@" >/dev/null 2>&1; then
+              sudo_allowed_commands=$((sudo_allowed_commands + 1))
+            fi
+          }
+
+          current_sha="$(git -C "$CURRENT" rev-parse HEAD | tr -cd '0-9a-f' | head -c 40)"
+          bootstrap="$(
+            cd "$CURRENT" &&
+            vendor/bin/drush status --field=bootstrap --format=string 2>/dev/null |
+            tr -cd 'A-Za-z0-9_ -' |
+            head -c 48
+          )"
+          maintenance="$(
+            cd "$CURRENT" &&
+            vendor/bin/drush php:eval \
+              'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);' 2>/dev/null |
+            tr -cd '0-9' |
+            head -c 2
+          )"
+          deploys="$(pgrep -fc '[d]eploy-production.sh' 2>/dev/null || true)"
+          db_version="$(
+            cd "$CURRENT" &&
+            vendor/bin/drush sql:query --extra=--skip-column-names 'SELECT VERSION();' 2>/dev/null |
+            head -n 1 |
+            tr -cd 'A-Za-z0-9._+-' |
+            head -c 96
+          )"
+          global_packet="$(sql_number 'SELECT @@global.max_allowed_packet;')"
+          session_packet="$(sql_number 'SELECT @@session.max_allowed_packet;')"
+          cache_max="$(
+            sql_number 'SELECT COALESCE(MAX(OCTET_LENGTH(data)),0) FROM cache_file_parsing;'
+          )"
+          mariadb_state="$(systemctl is-active mariadb 2>/dev/null || true)"
+
+          check_sudo_capability \
+            /usr/bin/tar -C / -czf "$PROBE_BACKUP" etc/mysql
+          check_sudo_capability /usr/bin/test -s "$PROBE_BACKUP"
+          check_sudo_capability \
+            /usr/bin/install -o root -g root -m 0644 "$TMP" "$TARGET"
+          check_sudo_capability /usr/bin/systemctl restart mariadb
+          check_sudo_capability /usr/bin/rm -f "$TARGET"
+
+          sudo_noninteractive=0
+          if [[ "$sudo_allowed_commands" == "$SUDO_REQUIRED_COMMANDS" ]]; then
+            sudo_noninteractive=1
+          fi
+
+          fr_status="$(http_status "$FR_URL")"
+          en_status="$(http_status "$EN_URL")"
+
+          outcome=BLOCKED
+          reason=preconditions_not_met
+
+          if [[ "$global_packet" == "$TARGET_PACKET" &&
+                "$session_packet" == "$TARGET_PACKET" &&
+                "$fr_status" =~ ^[123][0-9][0-9]$ &&
+                "$en_status" =~ ^[123][0-9][0-9]$ ]]; then
+            outcome=CONVERGED
+            reason=packet_and_http_already_healthy
+          elif [[ "$current_sha" == "$EXPECTED_RUNTIME" &&
+                  "$bootstrap" == 'Successful' &&
+                  "$maintenance" == '0' &&
+                  "$deploys" == '0' &&
+                  "$db_version" == 11.8.8-MariaDB-ubu2404 &&
+                  "$global_packet" == "$SOURCE_PACKET" &&
+                  "$session_packet" == "$SOURCE_PACKET" &&
+                  "$cache_max" =~ ^[0-9]+$ &&
+                  "$cache_max" -ge 15000000 &&
+                  "$mariadb_state" == 'active' ]]; then
+            if [[ "$sudo_noninteractive" == '1' ]]; then
+              outcome=READY
+              reason=incident_revalidated_and_exact_privileges_available
+            else
+              outcome=PRIVILEGE_REQUIRED
+              reason=incident_revalidated_but_exact_sudo_capabilities_incomplete
+            fi
+          fi
+
+          scalar outcome "$outcome"
+          scalar reason "$reason"
+          scalar current_sha "$current_sha"
+          scalar drupal_bootstrap "$bootstrap"
+          scalar maintenance_mode "$maintenance"
+          scalar active_deploy_processes "$deploys"
+          scalar database_version "$db_version"
+          scalar global_max_allowed_packet "$global_packet"
+          scalar session_max_allowed_packet "$session_packet"
+          scalar cache_file_parsing_max_data_bytes "$cache_max"
+          scalar mariadb_state "$mariadb_state"
+          scalar sudo_noninteractive "$sudo_noninteractive"
+          scalar sudo_allowed_commands "$sudo_allowed_commands"
+          scalar sudo_required_commands "$SUDO_REQUIRED_COMMANDS"
+          scalar public_fr_status "$fr_status"
+          scalar public_en_status "$en_status"
+          REMOTE_PREFLIGHT
+
+          value() {
+            grep -m1 "^$1=" "$raw" | cut -d= -f2- || true
+          }
+
+          jq -n \
+            --arg trusted_main "${{ steps.request.outputs.main_sha }}" \
+            --arg command "${{ steps.request.outputs.command_name }}" \
+            --arg outcome "$(value outcome)" \
+            --arg reason "$(value reason)" \
+            --arg current_sha "$(value current_sha)" \
+            --arg bootstrap "$(value drupal_bootstrap)" \
+            --arg maintenance "$(value maintenance_mode)" \
+            --arg deploys "$(value active_deploy_processes)" \
+            --arg db_version "$(value database_version)" \
+            --arg global_packet "$(value global_max_allowed_packet)" \
+            --arg session_packet "$(value session_max_allowed_packet)" \
+            --arg cache_max "$(value cache_file_parsing_max_data_bytes)" \
+            --arg mariadb_state "$(value mariadb_state)" \
+            --arg sudo_noninteractive "$(value sudo_noninteractive)" \
+            --arg sudo_allowed "$(value sudo_allowed_commands)" \
+            --arg sudo_required "$(value sudo_required_commands)" \
+            --arg fr_status "$(value public_fr_status)" \
+            --arg en_status "$(value public_en_status)" \
+            '{schema_version:1, trusted_main:$trusted_main, command:$command,
+              outcome:$outcome, reason:$reason, current_sha:$current_sha,
+              drupal_bootstrap:$bootstrap, maintenance_mode:$maintenance,
+              active_deploy_processes:$deploys, database_version:$db_version,
+              global_max_allowed_packet:$global_packet,
+              session_max_allowed_packet:$session_packet,
+              cache_file_parsing_max_data_bytes:$cache_max,
+              mariadb_state:$mariadb_state,
+              sudo_noninteractive:$sudo_noninteractive,
+              sudo_allowed_commands:$sudo_allowed,
+              sudo_required_commands:$sudo_required,
+              public_fr_status:$fr_status, public_en_status:$en_status}' \
+            > artifacts/production-db-fix/preflight.json
+
+          outcome="$(jq -r '.outcome' artifacts/production-db-fix/preflight.json)"
+          [[ -n "$outcome" ]]
+          echo "outcome=$outcome" >> "$GITHUB_OUTPUT"
+          echo "current_sha=$(jq -r '.current_sha' artifacts/production-db-fix/preflight.json)" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Require exact READY preflight before apply
+        if: ${{ steps.request.outputs.command_name == 'apply' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "${{ steps.preflight.outputs.outcome }}" == 'READY' ]]
+
+          comments="$(
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/issues/660/comments" |
+            jq -s 'add'
+          )"
+
+          ready_count="$(
+            jq \
+              --arg main "${{ steps.request.outputs.main_sha }}" \
+              --arg runtime "${{ steps.preflight.outputs.current_sha }}" \
+              '[.[] |
+                select(.user.login == "github-actions[bot]") |
+                select(.body | contains(
+                  "### Agency production DB packet fix preflight READY"
+                )) |
+                select(.body | contains("trusted_main: `" + $main + "`")) |
+                select(.body | contains("current_sha: `" + $runtime + "`"))
+              ] | length' \
+              <<<"$comments"
+          )"
+
+          [[ "$ready_count" -ge 1 ]] || {
+            echo 'No bot-authored READY preflight exists for this main/runtime.' >&2
+            exit 1
+          }
+
+      - name: Apply fixed MariaDB packet configuration and recover Drupal cache
+        id: apply
+        if: ${{ steps.request.outputs.command_name == 'apply' }}
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          raw='artifacts/production-db-fix/apply.env'
+
+          ssh "$SERVER_USER@$SERVER_HOST" 'bash -s' > "$raw" <<'REMOTE_APPLY'
+          set -Eeuo pipefail
+          CURRENT='/var/www/agency/current'
+          EXPECTED_RUNTIME='9188a2ebd6516a738be6df6f854794d41889aa90'
+          SOURCE_PACKET='16777216'
+          TARGET_PACKET='67108864'
+          TARGET='/etc/mysql/mariadb.conf.d/99-agency-max-allowed-packet.cnf'
+          TMP='/tmp/agency-issue660-max-allowed-packet.cnf'
+          BACKUPS='/var/www/agency/shared/backups'
+          FR_URL='https://emergingdigital.be/fr/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier'
+          EN_URL='https://emergingdigital.be/en/blog/website-redesign-checklist-12-things-verify-you-start'
+          CONFIG_VERIFIED=0
+
+          scalar() {
+            printf '%s=%s\n' "$1" "$2"
+          }
+
+          sql_number() {
+            query="$1"
+            value="$(
+              cd "$CURRENT" &&
+              vendor/bin/drush sql:query --extra=--skip-column-names "$query" 2>/dev/null |
+              head -n 1 |
+              tr -cd '0-9'
+            )"
+            printf '%s' "${value:-unavailable}"
+          }
+
+          rollback_unverified_config() {
+            if [[ "$CONFIG_VERIFIED" == '0' && -f "$TARGET" ]]; then
+              sudo -n /usr/bin/rm -f "$TARGET" || true
+              sudo -n /usr/bin/systemctl restart mariadb || true
+            fi
+          }
+
+          cleanup() {
+            rm -f "$TMP"
+          }
+
+          on_exit() {
+            rc="$?"
+            if [[ "$rc" -ne 0 ]]; then
+              rollback_unverified_config
+            fi
+            cleanup
+            exit "$rc"
+          }
+          trap on_exit EXIT
+
+          current_sha="$(git -C "$CURRENT" rev-parse HEAD)"
+          [[ "$current_sha" == "$EXPECTED_RUNTIME" ]]
+          [[ "$(pgrep -fc '[d]eploy-production.sh' 2>/dev/null || true)" == '0' ]]
+          [[ "$(cd "$CURRENT" && vendor/bin/drush php:eval \
+            'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);')" == '0' ]]
+          [[ "$(sql_number 'SELECT @@global.max_allowed_packet;')" == "$SOURCE_PACKET" ]]
+          [[ "$(sql_number 'SELECT @@session.max_allowed_packet;')" == "$SOURCE_PACKET" ]]
+          [[ "$(systemctl is-active mariadb)" == 'active' ]]
+          [[ ! -e "$TARGET" ]]
+
+          timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          mkdir -p "$BACKUPS"
+          backup="$BACKUPS/issue660-etc-mysql-$timestamp.tar.gz"
+
+          sudo -n -l \
+            /usr/bin/tar -C / -czf "$backup" etc/mysql >/dev/null 2>&1
+          sudo -n -l /usr/bin/test -s "$backup" >/dev/null 2>&1
+          sudo -n -l \
+            /usr/bin/install -o root -g root -m 0644 "$TMP" "$TARGET" \
+            >/dev/null 2>&1
+          sudo -n -l /usr/bin/systemctl restart mariadb >/dev/null 2>&1
+          sudo -n -l /usr/bin/rm -f "$TARGET" >/dev/null 2>&1
+
+          sudo -n /usr/bin/tar -C / -czf "$backup" etc/mysql
+          sudo -n /usr/bin/test -s "$backup"
+
+          printf '[mariadb]\nmax_allowed_packet=64M\n' > "$TMP"
+          chmod 0644 "$TMP"
+          sudo -n /usr/bin/install \
+            -o root -g root -m 0644 \
+            "$TMP" "$TARGET"
+
+          [[ "$(cat "$TARGET")" == $'[mariadb]\nmax_allowed_packet=64M' ]]
+
+          sudo -n /usr/bin/systemctl restart mariadb
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            [[ "$(systemctl is-active mariadb 2>/dev/null || true)" == 'active' ]] &&
+              break
+            sleep 1
+          done
+          [[ "$(systemctl is-active mariadb)" == 'active' ]]
+
+          global_packet="$(sql_number 'SELECT @@global.max_allowed_packet;')"
+          session_packet="$(sql_number 'SELECT @@session.max_allowed_packet;')"
+          [[ "$global_packet" == "$TARGET_PACKET" ]]
+          [[ "$session_packet" == "$TARGET_PACKET" ]]
+          CONFIG_VERIFIED=1
+
+          cd "$CURRENT"
+          vendor/bin/drush cr
+
+          bootstrap="$(
+            vendor/bin/drush status --field=bootstrap --format=string |
+            tr -cd 'A-Za-z0-9_ -' |
+            head -c 48
+          )"
+          [[ "$bootstrap" == 'Successful' ]]
+          [[ "$(vendor/bin/drush php:eval \
+            'echo (int) \Drupal::state()->get("system.maintenance_mode", 0);')" == '0' ]]
+          [[ "$(pgrep -fc '[d]eploy-production.sh' 2>/dev/null || true)" == '0' ]]
+
+          cache_max="$(sql_number \
+            'SELECT COALESCE(MAX(OCTET_LENGTH(data)),0) FROM cache_file_parsing;')"
+          fr_status="$(curl -sS -o /dev/null -w '%{http_code}' "$FR_URL")"
+          en_status="$(curl -sS -o /dev/null -w '%{http_code}' "$EN_URL")"
+          [[ "$fr_status" =~ ^[123][0-9][0-9]$ ]]
+          [[ "$en_status" =~ ^[123][0-9][0-9]$ ]]
+
+          scalar outcome PASS
+          scalar current_sha "$current_sha"
+          scalar backup "$backup"
+          scalar target "$TARGET"
+          scalar global_max_allowed_packet "$global_packet"
+          scalar session_max_allowed_packet "$session_packet"
+          scalar cache_file_parsing_max_data_bytes "$cache_max"
+          scalar drupal_bootstrap "$bootstrap"
+          scalar maintenance_mode 0
+          scalar active_deploy_processes 0
+          scalar public_fr_status "$fr_status"
+          scalar public_en_status "$en_status"
+          REMOTE_APPLY
+
+          value() {
+            grep -m1 "^$1=" "$raw" | cut -d= -f2- || true
+          }
+
+          jq -n \
+            --arg trusted_main "${{ steps.request.outputs.main_sha }}" \
+            --arg outcome "$(value outcome)" \
+            --arg current_sha "$(value current_sha)" \
+            --arg backup "$(value backup)" \
+            --arg target "$(value target)" \
+            --arg global_packet "$(value global_max_allowed_packet)" \
+            --arg session_packet "$(value session_max_allowed_packet)" \
+            --arg cache_max "$(value cache_file_parsing_max_data_bytes)" \
+            --arg bootstrap "$(value drupal_bootstrap)" \
+            --arg maintenance "$(value maintenance_mode)" \
+            --arg deploys "$(value active_deploy_processes)" \
+            --arg fr_status "$(value public_fr_status)" \
+            --arg en_status "$(value public_en_status)" \
+            '{schema_version:1, trusted_main:$trusted_main, outcome:$outcome,
+              current_sha:$current_sha, backup:$backup, target:$target,
+              global_max_allowed_packet:$global_packet,
+              session_max_allowed_packet:$session_packet,
+              cache_file_parsing_max_data_bytes:$cache_max,
+              drupal_bootstrap:$bootstrap, maintenance_mode:$maintenance,
+              active_deploy_processes:$deploys,
+              public_fr_status:$fr_status, public_en_status:$en_status}' \
+            > artifacts/production-db-fix/apply.json
+
+          [[ "$(jq -r '.outcome' artifacts/production-db-fix/apply.json)" == 'PASS' ]]
+
+      - name: Upload packet recovery evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-db-fix-660-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/production-db-fix
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          command_name="${{ steps.request.outputs.command_name }}"
+          artifact="agency-production-db-fix-660-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          if [[ "$command_name" == 'preflight' ]]; then
+            result='artifacts/production-db-fix/preflight.json'
+            [[ -s "$result" ]]
+            field() { jq -r "$1 // \"unknown\"" "$result"; }
+            body="$(cat <<EOF_BODY
+          ### Agency production DB packet fix preflight $(field '.outcome')
+
+          trusted_main: \`$(field '.trusted_main')\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          current_sha: \`$(field '.current_sha')\`
+          reason: \`$(field '.reason')\`
+          drupal_bootstrap: \`$(field '.drupal_bootstrap')\`
+          maintenance_mode: \`$(field '.maintenance_mode')\`
+          active_deploy_processes: \`$(field '.active_deploy_processes')\`
+          database_version: \`$(field '.database_version')\`
+          global_max_allowed_packet: \`$(field '.global_max_allowed_packet')\`
+          session_max_allowed_packet: \`$(field '.session_max_allowed_packet')\`
+          cache_file_parsing_max_data_bytes: \`$(field '.cache_file_parsing_max_data_bytes')\`
+          mariadb_state: \`$(field '.mariadb_state')\`
+          sudo_noninteractive: \`$(field '.sudo_noninteractive')\`
+          sudo_allowed_commands: \`$(field '.sudo_allowed_commands')\`
+          sudo_required_commands: \`$(field '.sudo_required_commands')\`
+          public_fr_status: \`$(field '.public_fr_status')\`
+          public_en_status: \`$(field '.public_en_status')\`
+          target_max_allowed_packet: \`67108864\`
+          artifact: \`$artifact\`
+
+          Preflight is read-only. It does not change sudoers, MariaDB, Drupal state, caches or services.
+          EOF_BODY
+          )"
+          else
+            result='artifacts/production-db-fix/apply.json'
+            [[ -s "$result" ]]
+            field() { jq -r "$1 // \"unknown\"" "$result"; }
+            body="$(cat <<EOF_BODY
+          ### Agency production DB packet fix apply $(field '.outcome')
+
+          trusted_main: \`$(field '.trusted_main')\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          current_sha: \`$(field '.current_sha')\`
+          backup: \`$(field '.backup')\`
+          target: \`$(field '.target')\`
+          global_max_allowed_packet: \`$(field '.global_max_allowed_packet')\`
+          session_max_allowed_packet: \`$(field '.session_max_allowed_packet')\`
+          cache_file_parsing_max_data_bytes: \`$(field '.cache_file_parsing_max_data_bytes')\`
+          drupal_bootstrap: \`$(field '.drupal_bootstrap')\`
+          maintenance_mode: \`$(field '.maintenance_mode')\`
+          active_deploy_processes: \`$(field '.active_deploy_processes')\`
+          public_fr_status: \`$(field '.public_fr_status')\`
+          public_en_status: \`$(field '.public_en_status')\`
+          artifact: \`$artifact\`
+
+          Fixed recovery only: dedicated MariaDB packet config, one MariaDB restart and one Drupal cache rebuild.
+          EOF_BODY
+          )"
+          fi
+
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/660/comments" \
+            -f body="$body"

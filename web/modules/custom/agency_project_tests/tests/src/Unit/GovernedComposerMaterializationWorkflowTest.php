@@ -42,14 +42,31 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       "changed\" != 'composer.json'",
       $workflow,
     );
+    self::assertStringContainsString('canvas-ai-agents-530', $workflow);
+    self::assertStringContainsString('config-language-lock-628', $workflow);
     self::assertStringContainsString(
-      "['drupal/ai_agents'] = '^1.3'",
+      "expected_package='drupal/ai_agents'",
       $workflow,
     );
-    self::assertStringNotContainsString(
-      'composer require $',
+    self::assertStringContainsString(
+      "expected_constraint='^1.3'",
       $workflow,
     );
+    self::assertStringContainsString(
+      "expected_package='drupal/config_language_lock'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      "expected_constraint='^1.0'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      "expected.setdefault('require', {})[os.environ['EXPECTED_PACKAGE']]",
+      $workflow,
+    );
+    self::assertStringNotContainsString('composer require $', $workflow);
+    self::assertStringNotContainsString('package_name', $workflow);
+    self::assertStringNotContainsString('composer_args', $workflow);
   }
 
   /**
@@ -205,7 +222,7 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   /**
    * Profile data must remain repository-owned and fail closed.
    */
-  public function testInitialProfileIsFixedAndFailClosed(): void {
+  public function testProfilesAreFixedAndFailClosed(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root . '/scripts/runner/composer-materialization-profiles.sh';
     self::assertFileExists($path);
@@ -218,6 +235,23 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     );
     self::assertStringContainsString(
       "COMPOSER_CONSTRAINT='^1.3'",
+      $profiles,
+    );
+    self::assertStringContainsString('config-language-lock-628)', $profiles);
+    self::assertStringContainsString(
+      "COMPOSER_PACKAGE='drupal/config_language_lock'",
+      $profiles,
+    );
+    self::assertStringContainsString(
+      "COMPOSER_CONSTRAINT='^1.0'",
+      $profiles,
+    );
+    self::assertStringContainsString(
+      "COMPOSER_VERSION_REGEX='^1\\.0\\.[0-9]+$'",
+      $profiles,
+    );
+    self::assertStringContainsString(
+      "COMPOSER_OWNER_ISSUE='628'",
       $profiles,
     );
     self::assertStringContainsString(

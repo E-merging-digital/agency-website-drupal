@@ -1,0 +1,97 @@
+schema_version: 1
+baseline_id: agency-config-language-609-pre-migration-v1
+captured_at: '2026-08-21'
+policy_id: agency-configuration-language-v1
+policy_status: migration_required
+canonical_configuration_language: en
+source:
+  issue: 609
+  workflow_run: 32528341256
+  trusted_main: c6d77fd109aa40cc6cf5849249d04e3d87bae65e
+  artifact:
+    id: 9463027789
+    name: agency-config-language-609-32528341256-1
+    digest: sha256:d9c008b56175a733b866b3beddd2076c5ac2bb12577fbd64d60ba32835ec854b
+  snapshot_sha256: df4d389eafaad6135fcd7d995354ff433111be62f745208ac0a65ddf8783629d
+canonical_rebuild:
+  site_install_existing_config: pass
+  config_status: clean
+  repository_active_name_match: true
+  repository_active_langcode_match: true
+repository:
+  total: 595
+  by_langcode:
+    no_langcode: 59
+    en: 183
+    fr: 352
+    und: 1
+  by_kind:
+    config_entity: 529
+    simple_config: 66
+  config_entities_by_langcode:
+    en: 183
+    fr: 345
+    und: 1
+  simple_config_by_langcode:
+    no_langcode: 59
+    fr: 7
+translations:
+  en:
+    count: 172
+  fr:
+    count: 2
+migration_analysis:
+  mixed_technical_base_languages: true
+  canonical_language_already_uniform: false
+  fr_base_with_en_override: 171
+  fr_base_without_en_override: 181
+  en_base_with_fr_override: 2
+  fr_simple_config:
+    - agency_ai_translation.settings
+    - llms_txt.settings
+    - system.maintenance
+    - system.site
+    - user.mail
+    - user.settings
+    - webform.settings
+  fr_without_en_override_by_entity_type:
+    base_field_override: 53
+    component: 30
+    language_content_settings: 14
+    folder: 13
+    entity_form_display: 11
+    entity_view_display: 10
+    action: 6
+    field_config: 6
+    field_storage_config: 6
+    media_type: 5
+    filter_format: 3
+    image_style: 3
+    view: 3
+    ai_automator: 2
+    block: 2
+    editor: 2
+    entity_view_mode: 2
+    node_type: 2
+    pathauto_pattern: 2
+    asset_library: 1
+    brand_kit: 1
+    configurable_language: 1
+    entity_form_mode: 1
+    metatag_defaults: 1
+    simple_config: 1
+  canvas:
+    fr_components_without_en_override: 30
+    fr_folders_without_en_override: 13
+classification:
+  migration_required_confirmed: true
+  bulk_langcode_replacement_allowed: false
+  semantic_or_locked_watchlist:
+    - config/sync/language.entity.und.yml
+    - config/sync/language.entity.zxx.yml
+    - system.menu.footer
+  notes:
+    - A base langcode and a configuration translation are different responsibilities.
+    - Existing EN overrides must be preserved or deliberately rematerialized when changing the canonical base language.
+    - Canvas configuration is a first-class migration surface and must be tested before enforcement.
+    - This compact baseline records durable evidence; the full snapshot remains the workflow artifact for detailed inspection.

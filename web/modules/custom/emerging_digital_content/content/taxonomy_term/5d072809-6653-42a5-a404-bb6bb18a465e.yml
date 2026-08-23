@@ -1,0 +1,30 @@
+_meta:
+  version: '1.0'
+  entity_type: taxonomy_term
+  uuid: 5d072809-6653-42a5-a404-bb6bb18a465e
+  bundle: blog_categories
+  default_langcode: fr
+default:
+  status:
+    -
+      value: true
+  name:
+    -
+      value: 'Drupal comme expertise forte'
+  weight:
+    -
+      value: 2
+  revision_translation_affected:
+    -
+      value: true
+translations:
+  en:
+    status:
+      -
+        value: true
+    name:
+      -
+        value: 'Drupal expertise'
+    revision_translation_affected:
+      -
+        value: true

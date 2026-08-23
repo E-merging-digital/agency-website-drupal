@@ -1,0 +1,316 @@
+name: Agency governed canonical translated configuration promotion
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate translated canonical migration request
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.comment.body == '/agency-config-language-translated-canonical migrate'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '720' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-config-language-translated-canonical migrate' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Translated canonical migration must start from live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  prepare-and-push:
+    name: Prepare and fresh-verify exact 173-object canonical promotion
+    needs: validate-request
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    outputs:
+      branch: ${{ steps.commit.outputs.branch }}
+      commit_sha: ${{ steps.commit.outputs.commit_sha }}
+      status: ${{ steps.summary.outputs.status }}
+      prepared: ${{ steps.summary.outputs.prepared }}
+      config_paths: ${{ steps.summary.outputs.config_paths }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+
+      - name: Checkout exact live main with bounded write credentials
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Verify immutable migration inputs
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f docs/evidence/configuration-language-translated-cohort-718.yml
+          test -f docs/evidence/configuration-language-mechanical-cohort-713.yml
+          test -f scripts/runner/apply-configuration-language-translated-canonical.php
+          test -f scripts/runner/configuration-language-translated-canonical-verify.php
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-translated-canonical-writer.yaml <<EOF_CONFIG
+          name: agency-config-translated-canonical-writer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml | grep -F "agency-config-translated-canonical-writer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild baseline Drupal from live canonical configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l /var/www/html/scripts/runner/apply-configuration-language-translated-canonical.php
+          ddev exec php -l /var/www/html/scripts/runner/configuration-language-translated-canonical-verify.php
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush config:status | grep -F 'No differences'
+          if ddev drush pm:list --status=enabled --type=module --field=name | grep -Fxq 'config_language_lock'; then
+            echo 'Config Language Lock must be disabled before canonical translation migration.' >&2
+            exit 1
+          fi
+
+      - name: Prepare exact canonical translated patch through Drupal sync storage
+        shell: bash
+        env:
+          RESULT_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-result.json
+        run: |
+          set -euo pipefail
+          ddev drush php:script /var/www/html/scripts/runner/apply-configuration-language-translated-canonical.php \
+            > "$RESULT_PATH"
+
+          jq -e '.status == "PASS"' "$RESULT_PATH" >/dev/null
+          jq -e '.verdict == "ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PATCH_PREPARED"' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.expected == 173 and .counts.prepared == 173' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.material_translatable_leaf_count == 930' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.explicit_en_coverage_count == 930' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.base_paths_modified == 173' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.en_override_paths_deleted == 173' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.fr_override_paths_created == 7' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.config_paths_changed == 353' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.problem_count == 0 and .problems == []' "$RESULT_PATH" >/dev/null
+          jq -e '.cohort.names_sha256 == "3908bb3b785091d996e969f67af5d0060b3548d2ec732fb055c748085c0d6547"' "$RESULT_PATH" >/dev/null
+          jq -e '.constraints.drupal_sync_storage_used == true' "$RESULT_PATH" >/dev/null
+          jq -e '.constraints.config_export_used == false' "$RESULT_PATH" >/dev/null
+          jq -e '.constraints.config_language_lock_activation_allowed == false' "$RESULT_PATH" >/dev/null
+
+          mapfile -t expected_config_paths < <(jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[]' "$RESULT_PATH" | sort)
+          mapfile -t changed_config_paths < <(git diff --name-only -- config/sync | sort)
+          [[ "${#expected_config_paths[@]}" -eq 353 ]]
+          [[ "${#changed_config_paths[@]}" -eq 353 ]]
+          diff -u <(printf '%s\n' "${expected_config_paths[@]}") <(printf '%s\n' "${changed_config_paths[@]}")
+
+          mapfile -t expected_all_paths < <({ printf '%s\n' "${expected_config_paths[@]}"; jq -r '.paths.manifest' "$RESULT_PATH"; } | sort)
+          mapfile -t changed_all_paths < <(git status --porcelain | awk '{print $2}' | grep -v '^.ddev/config.gate-config-language-translated-canonical-writer.yaml$' | sort)
+          [[ "${#expected_all_paths[@]}" -eq 354 ]]
+          [[ "${#changed_all_paths[@]}" -eq 354 ]]
+          diff -u <(printf '%s\n' "${expected_all_paths[@]}") <(printf '%s\n' "${changed_all_paths[@]}")
+
+          [[ "$(git diff --diff-filter=M --name-only -- config/sync | wc -l)" -eq 173 ]]
+          [[ "$(git diff --diff-filter=D --name-only -- config/sync/language/en | wc -l)" -eq 173 ]]
+          [[ "$(git status --porcelain -- config/sync/language/fr | awk '$1 == "??" {count++} END {print count+0}')" -eq 7 ]]
+          [[ -z "$(git diff --name-only -- config/sync/core.extension.yml)" ]]
+          git diff --check
+
+      - name: Rebuild a second fresh Drupal from the generated canonical patch
+        shell: bash
+        env:
+          VERIFY_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-verify.json
+        run: |
+          set -euo pipefail
+          ddev delete --omit-snapshot --yes
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush config:status | grep -F 'No differences'
+
+          ddev drush php:script /var/www/html/scripts/runner/configuration-language-translated-canonical-verify.php \
+            > "$VERIFY_PATH"
+          jq -e '.status == "PASS"' "$VERIFY_PATH" >/dev/null
+          jq -e '.verdict == "ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PROMOTION_VERIFIED"' "$VERIFY_PATH" >/dev/null
+          jq -e '.counts.verified == 173' "$VERIFY_PATH" >/dev/null
+          jq -e '.counts.fr_overrides_required == 7' "$VERIFY_PATH" >/dev/null
+          jq -e '.counts.mechanical_715_verified_en == 39' "$VERIFY_PATH" >/dev/null
+          jq -e '.counts.remaining_fr_review_required == 140' "$VERIFY_PATH" >/dev/null
+          jq -e '.counts.preserved_fr_overrides_outside_cohort == 2' "$VERIFY_PATH" >/dev/null
+          jq -e '.counts.preserved_en_overrides_outside_cohort == 1' "$VERIFY_PATH" >/dev/null
+          jq -e '.distribution_by_langcode == {"__none__":59,"en":395,"fr":140,"und":1}' "$VERIFY_PATH" >/dev/null
+          jq -e '.counts.problem_count == 0 and .problems == []' "$VERIFY_PATH" >/dev/null
+
+          if ddev drush pm:list --status=enabled --type=module --field=name | grep -Fxq 'config_language_lock'; then
+            echo 'Generated canonical patch unexpectedly enables Config Language Lock.' >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Commit and push bounded canonical translated migration branch
+        id: commit
+        shell: bash
+        env:
+          RESULT_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-result.json
+        run: |
+          set -euo pipefail
+          branch='feature/720-apply-canonical-translated-promotion'
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "Refusing to overwrite existing branch $branch" >&2
+            exit 1
+          fi
+
+          git switch -c "$branch"
+          mapfile -t paths < <(jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[], .paths.manifest' "$RESULT_PATH")
+          git add -- "${paths[@]}"
+          [[ "$(git diff --cached --name-only | wc -l)" -eq 354 ]]
+          [[ -z "$(git status --porcelain | grep -v '^?? .ddev/config.gate-config-language-translated-canonical-writer.yaml$' | grep -v '^$')" ]]
+
+          git config user.name 'E-merging Digital Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'Issue #720: promote 173 translated configs to canonical EN'
+          git push origin "HEAD:refs/heads/$branch"
+
+          commit_sha="$(git rev-parse HEAD)"
+          [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize canonical translated preparation
+        id: summary
+        if: ${{ always() }}
+        shell: bash
+        env:
+          RESULT_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-result.json
+        run: |
+          set -euo pipefail
+          status='MISSING'
+          prepared='0'
+          config_paths='0'
+          if [[ -s "$RESULT_PATH" ]] && jq -e . "$RESULT_PATH" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$RESULT_PATH")"
+            prepared="$(jq -r '.counts.prepared // 0' "$RESULT_PATH")"
+            config_paths="$(jq -r '.counts.config_paths_changed // 0' "$RESULT_PATH")"
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "prepared=$prepared" >> "$GITHUB_OUTPUT"
+          echo "config_paths=$config_paths" >> "$GITHUB_OUTPUT"
+
+      - name: Clean DDEV and workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-translated-canonical-writer.yaml
+          git reset --hard HEAD >/dev/null 2>&1 || true
+          git clean -fd -- .ddev >/dev/null 2>&1 || true
+
+  report:
+    name: Publish translated canonical migration preparation result
+    if: ${{ always() && needs.validate-request.result == 'success' }}
+    needs:
+      - validate-request
+      - prepare-and-push
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Comment branch result on #720
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+          OUTCOME: ${{ needs.prepare-and-push.result }}
+          STATUS: ${{ needs.prepare-and-push.outputs.status }}
+          PREPARED: ${{ needs.prepare-and-push.outputs.prepared }}
+          CONFIG_PATHS: ${{ needs.prepare-and-push.outputs.config_paths }}
+          BRANCH: ${{ needs.prepare-and-push.outputs.branch }}
+          COMMIT_SHA: ${{ needs.prepare-and-push.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          heading='### Canonical translated promotion branch FAIL'
+          if [[ "$OUTCOME" == 'success' && "$STATUS" == 'PASS' && "$PREPARED" == '173' && "$CONFIG_PATHS" == '353' ]]; then
+            heading='### Canonical translated promotion branch PREPARED'
+          fi
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${OUTCOME:-unknown}\`
+          prepared: \`${PREPARED:-0}\`
+          config_paths_changed: \`${CONFIG_PATHS:-0}\`
+          branch: \`${BRANCH:-n/a}\`
+          commit_sha: \`${COMMIT_SHA:-n/a}\`
+
+          The governed writer is restricted to the frozen #718 cohort and uses Drupal sync storage directly: 173 canonical bases, 173 obsolete EN overrides removed and 7 FR overrides created, plus one evidence manifest. It performs a second fresh existing-config rebuild before push. It does not run cex, enable Config Language Lock or access production.
+          EOF_BODY
+          )"
+          gh issue comment 720 --repo "$GITHUB_REPOSITORY" --body "$body"

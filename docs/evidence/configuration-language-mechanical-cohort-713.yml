@@ -1,0 +1,95 @@
+schema_version: 1
+source:
+  issue: 709
+  trusted_run_id: 32656359172
+  artifact_id: 9497598673
+  artifact_digest: 'sha256:7dfda4d232c9622c4ee4e34c339c0af7dfb9a84036137634bd1672c09386f30a'
+  classification: no_material_translatable_source_candidate
+expected_count: 39
+expected_by_type:
+  entity_form_display: 10
+  entity_view_display: 10
+  field_storage_config: 5
+  language_content_settings: 14
+excluded_review_required:
+  - core.entity_form_display.node.page.default
+  - field.storage.node.ai_automator_status
+items:
+  - name: core.entity_form_display.media.audio.default
+    type: entity_form_display
+  - name: core.entity_form_display.media.audio.media_library
+    type: entity_form_display
+  - name: core.entity_form_display.media.document.default
+    type: entity_form_display
+  - name: core.entity_form_display.media.document.media_library
+    type: entity_form_display
+  - name: core.entity_form_display.media.image.default
+    type: entity_form_display
+  - name: core.entity_form_display.media.image.media_library
+    type: entity_form_display
+  - name: core.entity_form_display.media.remote_video.default
+    type: entity_form_display
+  - name: core.entity_form_display.media.remote_video.media_library
+    type: entity_form_display
+  - name: core.entity_form_display.media.video.default
+    type: entity_form_display
+  - name: core.entity_form_display.media.video.media_library
+    type: entity_form_display
+  - name: core.entity_view_display.media.audio.default
+    type: entity_view_display
+  - name: core.entity_view_display.media.audio.media_library
+    type: entity_view_display
+  - name: core.entity_view_display.media.document.default
+    type: entity_view_display
+  - name: core.entity_view_display.media.document.media_library
+    type: entity_view_display
+  - name: core.entity_view_display.media.image.default
+    type: entity_view_display
+  - name: core.entity_view_display.media.image.media_library
+    type: entity_view_display
+  - name: core.entity_view_display.media.remote_video.default
+    type: entity_view_display
+  - name: core.entity_view_display.media.remote_video.media_library
+    type: entity_view_display
+  - name: core.entity_view_display.media.video.default
+    type: entity_view_display
+  - name: core.entity_view_display.media.video.media_library
+    type: entity_view_display
+  - name: field.storage.media.field_media_audio_file
+    type: field_storage_config
+  - name: field.storage.media.field_media_document
+    type: field_storage_config
+  - name: field.storage.media.field_media_image
+    type: field_storage_config
+  - name: field.storage.media.field_media_oembed_video
+    type: field_storage_config
+  - name: field.storage.media.field_media_video_file
+    type: field_storage_config
+  - name: language.content_settings.block_content.basic
+    type: language_content_settings
+  - name: language.content_settings.comment.comment
+    type: language_content_settings
+  - name: language.content_settings.file.file
+    type: language_content_settings
+  - name: language.content_settings.menu_link_content.menu_link_content
+    type: language_content_settings
+  - name: language.content_settings.path_alias.path_alias
+    type: language_content_settings
+  - name: language.content_settings.redirect.redirect
+    type: language_content_settings
+  - name: language.content_settings.shortcut.default
+    type: language_content_settings
+  - name: language.content_settings.taxonomy_term.blog_categories
+    type: language_content_settings
+  - name: language.content_settings.taxonomy_term.localisation
+    type: language_content_settings
+  - name: language.content_settings.taxonomy_term.secteur
+    type: language_content_settings
+  - name: language.content_settings.taxonomy_term.tags
+    type: language_content_settings
+  - name: language.content_settings.taxonomy_term.type_fonctionnalite_ia
+    type: language_content_settings
+  - name: language.content_settings.taxonomy_term.type_service
+    type: language_content_settings
+  - name: language.content_settings.user.user
+    type: language_content_settings

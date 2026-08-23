@@ -24,6 +24,7 @@ final class ConfigurationLanguageMigrationDryRunWorkflowTest extends TestCase {
       $root . '/.github/workflows/trusted-configuration-language-migration-dry-run.yml',
     );
 
+    self::assertIsArray(Yaml::parse($workflow));
     self::assertStringContainsString(
       "github.event.comment.body == '/agency-config-language-migration classify'",
       $workflow,
@@ -63,9 +64,8 @@ final class ConfigurationLanguageMigrationDryRunWorkflowTest extends TestCase {
    */
   public function testDryRunReusesAuditAndDoesNotMutateConfig(): void {
     $root = dirname(DRUPAL_ROOT);
-    $runner = (string) file_get_contents(
-      $root . '/scripts/runner/run-configuration-language-migration-dry-run.sh',
-    );
+    $runnerPath = $root . '/scripts/runner/run-configuration-language-migration-dry-run.sh';
+    $runner = (string) file_get_contents($runnerPath);
 
     self::assertStringContainsString(
       'run-configuration-language-audit.sh',
@@ -98,6 +98,11 @@ final class ConfigurationLanguageMigrationDryRunWorkflowTest extends TestCase {
     ] as $forbiddenMutation) {
       self::assertStringNotContainsString($forbiddenMutation, $runner);
     }
+
+    $output = [];
+    $status = 0;
+    exec('bash -n ' . escapeshellarg($runnerPath) . ' 2>&1', $output, $status);
+    self::assertSame(0, $status, implode("\n", $output));
   }
 
   /**
@@ -109,6 +114,7 @@ final class ConfigurationLanguageMigrationDryRunWorkflowTest extends TestCase {
       $root . '/scripts/runner/configuration-language-migration-dry-run.php',
     );
 
+    self::assertIsArray(token_get_all($classifier, TOKEN_PARSE));
     foreach ([
       "'entity_form_display' => TRUE",
       "'entity_view_display' => TRUE",

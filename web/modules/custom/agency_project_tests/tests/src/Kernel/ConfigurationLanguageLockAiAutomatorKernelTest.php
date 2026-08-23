@@ -33,6 +33,7 @@ final class ConfigurationLanguageLockAiAutomatorKernelTest extends KernelTestBas
     'user',
     'field',
     'node',
+    'language',
     'file',
     'key',
     'token',

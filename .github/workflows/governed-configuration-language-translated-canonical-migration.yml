@@ -53,9 +53,9 @@ jobs:
           echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
   prepare-and-push:
-    name: Prepare and fresh-verify exact 173-object canonical promotion
+    name: Prepare and fresh-verify translated promotion with Canvas stabilization
     needs: validate-request
-    timeout-minutes: 40
+    timeout-minutes: 55
     permissions:
       contents: write
     runs-on:
@@ -104,6 +104,8 @@ jobs:
           test -f docs/evidence/configuration-language-mechanical-cohort-713.yml
           test -f scripts/runner/apply-configuration-language-translated-canonical.php
           test -f scripts/runner/configuration-language-translated-canonical-verify.php
+          test -f scripts/runner/configuration-language-canvas-drift-diagnostic.php
+          test -f scripts/runner/stabilize-configuration-language-canvas-components.php
           git diff --check
 
       - name: Isolate DDEV project
@@ -123,6 +125,8 @@ jobs:
           ddev composer install --no-interaction --no-progress --prefer-dist
           ddev exec php -l /var/www/html/scripts/runner/apply-configuration-language-translated-canonical.php
           ddev exec php -l /var/www/html/scripts/runner/configuration-language-translated-canonical-verify.php
+          ddev exec php -l /var/www/html/scripts/runner/configuration-language-canvas-drift-diagnostic.php
+          ddev exec php -l /var/www/html/scripts/runner/stabilize-configuration-language-canvas-components.php
 
           admin_pass="$(openssl rand -hex 24)"
           ddev drush site:install --existing-config -y --account-pass="$admin_pass"
@@ -161,7 +165,9 @@ jobs:
           jq -e '.constraints.config_export_used == false' "$RESULT_PATH" >/dev/null
           jq -e '.constraints.config_language_lock_activation_allowed == false' "$RESULT_PATH" >/dev/null
 
-          mapfile -t expected_config_paths < <(jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[]' "$RESULT_PATH" | sort)
+          mapfile -t expected_config_paths < <(
+            jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[]' "$RESULT_PATH" | sort
+          )
           mapfile -t changed_config_paths < <(
             git status --porcelain --untracked-files=all -- config/sync \
               | awk '{print $2}' \
@@ -169,9 +175,16 @@ jobs:
           )
           [[ "${#expected_config_paths[@]}" -eq 353 ]]
           [[ "${#changed_config_paths[@]}" -eq 353 ]]
-          diff -u <(printf '%s\n' "${expected_config_paths[@]}") <(printf '%s\n' "${changed_config_paths[@]}")
+          diff -u \
+            <(printf '%s\n' "${expected_config_paths[@]}") \
+            <(printf '%s\n' "${changed_config_paths[@]}")
 
-          mapfile -t expected_all_paths < <({ printf '%s\n' "${expected_config_paths[@]}"; jq -r '.paths.manifest' "$RESULT_PATH"; } | sort)
+          mapfile -t expected_all_paths < <(
+            {
+              printf '%s\n' "${expected_config_paths[@]}"
+              jq -r '.paths.manifest' "$RESULT_PATH"
+            } | sort
+          )
           mapfile -t changed_all_paths < <(
             git status --porcelain --untracked-files=all -- \
               config/sync \
@@ -181,7 +194,9 @@ jobs:
           )
           [[ "${#expected_all_paths[@]}" -eq 354 ]]
           [[ "${#changed_all_paths[@]}" -eq 354 ]]
-          diff -u <(printf '%s\n' "${expected_all_paths[@]}") <(printf '%s\n' "${changed_all_paths[@]}")
+          diff -u \
+            <(printf '%s\n' "${expected_all_paths[@]}") \
+            <(printf '%s\n' "${changed_all_paths[@]}")
 
           [[ "$(git diff --diff-filter=M --name-only -- config/sync | wc -l)" -eq 173 ]]
           [[ "$(git diff --diff-filter=D --name-only -- config/sync/language/en | wc -l)" -eq 173 ]]
@@ -189,10 +204,97 @@ jobs:
           [[ -z "$(git diff --name-only -- config/sync/core.extension.yml)" ]]
           git diff --check
 
-      - name: Rebuild a second fresh Drupal from the generated canonical patch
+      - name: Rebuild second fresh Drupal and prepare exact Canvas stabilization
+        shell: bash
+        env:
+          RESULT_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-result.json
+          CANVAS_BEFORE: ${{ runner.temp }}/agency-config-canvas-720-before.json
+          CANVAS_RESULT: ${{ runner.temp }}/agency-config-canvas-720-stabilize.json
+          SECOND_STATUS: ${{ runner.temp }}/agency-config-canvas-720-second-status.txt
+        run: |
+          set -euo pipefail
+          ddev delete --omit-snapshot --yes
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush config:status > "$SECOND_STATUS" 2>&1 || true
+          cat "$SECOND_STATUS"
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-canvas-drift-diagnostic.php \
+            > "$CANVAS_BEFORE"
+          jq -e '.status == "PASS"' "$CANVAS_BEFORE" >/dev/null
+          jq -e '.counts.expected == 8 and .counts.different == 8 and .counts.problems == 0' \
+            "$CANVAS_BEFORE" >/dev/null
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/stabilize-configuration-language-canvas-components.php \
+            > "$CANVAS_RESULT"
+          jq -e '.status == "PASS"' "$CANVAS_RESULT" >/dev/null
+          jq -e '.verdict == "EIGHT_CANVAS_COMPONENT_STABILIZATION_PATCH_PREPARED"' \
+            "$CANVAS_RESULT" >/dev/null
+          jq -e '.counts.expected == 8 and .counts.stabilized == 8 and .counts.paths_changed == 8' \
+            "$CANVAS_RESULT" >/dev/null
+          jq -e '.counts.problem_count == 0 and .problems == []' "$CANVAS_RESULT" >/dev/null
+          jq -e '.constraints.langcode_preserved_fr == true' "$CANVAS_RESULT" >/dev/null
+
+          mapfile -t expected_720 < <(
+            jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[]' "$RESULT_PATH"
+          )
+          mapfile -t expected_canvas < <(jq -r '.paths[]' "$CANVAS_RESULT")
+          mapfile -t expected_config_paths < <(
+            {
+              printf '%s\n' "${expected_720[@]}"
+              printf '%s\n' "${expected_canvas[@]}"
+            } | sort -u
+          )
+          mapfile -t actual_config_paths < <(
+            git status --porcelain --untracked-files=all -- config/sync \
+              | awk '{print $2}' \
+              | sort
+          )
+          [[ "${#expected_config_paths[@]}" -eq 361 ]]
+          [[ "${#actual_config_paths[@]}" -eq 361 ]]
+          diff -u \
+            <(printf '%s\n' "${expected_config_paths[@]}") \
+            <(printf '%s\n' "${actual_config_paths[@]}")
+
+          manifest="$(jq -r '.paths.manifest' "$RESULT_PATH")"
+          mapfile -t expected_all_paths < <(
+            {
+              printf '%s\n' "${expected_config_paths[@]}"
+              printf '%s\n' "$manifest"
+            } | sort
+          )
+          mapfile -t actual_all_paths < <(
+            git status --porcelain --untracked-files=all -- \
+              config/sync \
+              docs/evidence/configuration-language-translated-canonical-cohort-720.yml \
+              | awk '{print $2}' \
+              | sort
+          )
+          [[ "${#expected_all_paths[@]}" -eq 362 ]]
+          [[ "${#actual_all_paths[@]}" -eq 362 ]]
+          diff -u \
+            <(printf '%s\n' "${expected_all_paths[@]}") \
+            <(printf '%s\n' "${actual_all_paths[@]}")
+
+          [[ "$(git diff --diff-filter=M --name-only -- config/sync | wc -l)" -eq 181 ]]
+          [[ "$(git diff --diff-filter=D --name-only -- config/sync/language/en | wc -l)" -eq 173 ]]
+          [[ "$(git status --porcelain -- config/sync/language/fr | awk '$1 == "??" {count++} END {print count+0}')" -eq 7 ]]
+          [[ -z "$(git diff --name-only -- config/sync/core.extension.yml)" ]]
+          git diff --check
+
+      - name: Rebuild third fresh Drupal and verify combined canonical patch
         shell: bash
         env:
           VERIFY_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-verify.json
+          CANVAS_FINAL: ${{ runner.temp }}/agency-config-canvas-720-final.json
         run: |
           set -euo pipefail
           ddev delete --omit-snapshot --yes
@@ -208,18 +310,28 @@ jobs:
           printf '%s\n' "$config_status"
           grep -Fq 'No differences' <<<"$config_status"
 
-          ddev drush php:script /var/www/html/scripts/runner/configuration-language-translated-canonical-verify.php \
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-translated-canonical-verify.php \
             > "$VERIFY_PATH"
           jq -e '.status == "PASS"' "$VERIFY_PATH" >/dev/null
-          jq -e '.verdict == "ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PROMOTION_VERIFIED"' "$VERIFY_PATH" >/dev/null
+          jq -e '.verdict == "ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PROMOTION_VERIFIED"' \
+            "$VERIFY_PATH" >/dev/null
           jq -e '.counts.verified == 173' "$VERIFY_PATH" >/dev/null
           jq -e '.counts.fr_overrides_required == 7' "$VERIFY_PATH" >/dev/null
           jq -e '.counts.mechanical_715_verified_en == 39' "$VERIFY_PATH" >/dev/null
           jq -e '.counts.remaining_fr_review_required == 140' "$VERIFY_PATH" >/dev/null
           jq -e '.counts.preserved_fr_overrides_outside_cohort == 2' "$VERIFY_PATH" >/dev/null
           jq -e '.counts.preserved_en_overrides_outside_cohort == 1' "$VERIFY_PATH" >/dev/null
-          jq -e '.distribution_by_langcode == {"__none__":59,"en":395,"fr":140,"und":1}' "$VERIFY_PATH" >/dev/null
+          jq -e '.distribution_by_langcode == {"__none__":59,"en":395,"fr":140,"und":1}' \
+            "$VERIFY_PATH" >/dev/null
           jq -e '.counts.problem_count == 0 and .problems == []' "$VERIFY_PATH" >/dev/null
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-canvas-drift-diagnostic.php \
+            > "$CANVAS_FINAL"
+          jq -e '.status == "PASS"' "$CANVAS_FINAL" >/dev/null
+          jq -e '.counts.expected == 8 and .counts.different == 0 and .counts.problems == 0' \
+            "$CANVAS_FINAL" >/dev/null
 
           if ddev drush pm:list --status=enabled --type=module --field=name | grep -Fxq 'config_language_lock'; then
             echo 'Generated canonical patch unexpectedly enables Config Language Lock.' >&2
@@ -232,6 +344,7 @@ jobs:
         shell: bash
         env:
           RESULT_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-result.json
+          CANVAS_RESULT: ${{ runner.temp }}/agency-config-canvas-720-stabilize.json
         run: |
           set -euo pipefail
           branch='feature/720-apply-canonical-translated-promotion'
@@ -241,18 +354,28 @@ jobs:
           fi
 
           git switch -c "$branch"
-          mapfile -t paths < <(jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[], .paths.manifest' "$RESULT_PATH" | sort)
+          mapfile -t paths < <(
+            {
+              jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[], .paths.manifest' \
+                "$RESULT_PATH"
+              jq -r '.paths[]' "$CANVAS_RESULT"
+            } | sort -u
+          )
           git add -- "${paths[@]}"
           mapfile -t staged_paths < <(git diff --cached --name-only | sort)
-          [[ "${#paths[@]}" -eq 354 ]]
-          [[ "${#staged_paths[@]}" -eq 354 ]]
-          diff -u <(printf '%s\n' "${paths[@]}") <(printf '%s\n' "${staged_paths[@]}")
+          [[ "${#paths[@]}" -eq 362 ]]
+          [[ "${#staged_paths[@]}" -eq 362 ]]
+          diff -u \
+            <(printf '%s\n' "${paths[@]}") \
+            <(printf '%s\n' "${staged_paths[@]}")
           [[ -z "$(git diff --name-only)" ]]
-          [[ -z "$(git ls-files --others --exclude-standard -- config/sync docs/evidence/configuration-language-translated-canonical-cohort-720.yml)" ]]
+          [[ -z "$(git ls-files --others --exclude-standard -- \
+            config/sync \
+            docs/evidence/configuration-language-translated-canonical-cohort-720.yml)" ]]
 
           git config user.name 'E-merging Digital Automation'
           git config user.email 'actions@users.noreply.github.com'
-          git commit -m 'Issue #720: promote 173 translated configs to canonical EN'
+          git commit -m 'Issue #720: promote 173 configs and stabilize Canvas baseline'
           git push origin "HEAD:refs/heads/$branch"
 
           commit_sha="$(git rev-parse HEAD)"
@@ -266,6 +389,7 @@ jobs:
         shell: bash
         env:
           RESULT_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-result.json
+          CANVAS_RESULT: ${{ runner.temp }}/agency-config-canvas-720-stabilize.json
         run: |
           set -euo pipefail
           status='MISSING'
@@ -275,6 +399,11 @@ jobs:
             status="$(jq -r '.status // "UNKNOWN"' "$RESULT_PATH")"
             prepared="$(jq -r '.counts.prepared // 0' "$RESULT_PATH")"
             config_paths="$(jq -r '.counts.config_paths_changed // 0' "$RESULT_PATH")"
+          fi
+          if [[ "$status" == 'PASS' && "$prepared" == '173' && -s "$CANVAS_RESULT" ]] \
+            && jq -e '.status == "PASS" and .counts.stabilized == 8 and .counts.paths_changed == 8' \
+              "$CANVAS_RESULT" >/dev/null 2>&1; then
+            config_paths='361'
           fi
           echo "status=$status" >> "$GITHUB_OUTPUT"
           echo "prepared=$prepared" >> "$GITHUB_OUTPUT"
@@ -314,7 +443,7 @@ jobs:
         run: |
           set -euo pipefail
           heading='### Canonical translated promotion branch FAIL'
-          if [[ "$OUTCOME" == 'success' && "$STATUS" == 'PASS' && "$PREPARED" == '173' && "$CONFIG_PATHS" == '353' ]]; then
+          if [[ "$OUTCOME" == 'success' && "$STATUS" == 'PASS' && "$PREPARED" == '173' && "$CONFIG_PATHS" == '361' ]]; then
             heading='### Canonical translated promotion branch PREPARED'
           fi
           body="$(cat <<EOF_BODY
@@ -328,7 +457,7 @@ jobs:
           branch: \`${BRANCH:-n/a}\`
           commit_sha: \`${COMMIT_SHA:-n/a}\`
 
-          The governed writer is restricted to the frozen #718 cohort and uses Drupal sync storage directly: 173 canonical bases, 173 obsolete EN overrides removed and 7 FR overrides created, plus one evidence manifest. It performs a second fresh existing-config rebuild before push. It does not run cex, enable Config Language Lock or access production.
+          The governed writer is restricted to the frozen #718 cohort plus the exact eight Canvas components proven by #728/#733. It prepares 173 canonical EN bases, removes 173 obsolete EN overrides, creates 7 FR overrides, stabilizes 8 Canvas technical configs while preserving their FR langcode, and adds one evidence manifest. It requires a third fresh existing-config rebuild with clean config status, the #720 verifier green and Canvas drift 0/8 before push. It does not run cex, enable Config Language Lock or access production.
           EOF_BODY
           )"
           gh issue comment 720 --repo "$GITHUB_REPOSITORY" --body "$body"

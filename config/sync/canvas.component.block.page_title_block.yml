@@ -2,9 +2,18 @@ uuid: 6ffbd635-bb1f-44e1-ad59-145b1465a50a
 langcode: fr
 status: false
 dependencies: {  }
-active_version: 5605369e3b7553a1
+active_version: 6da973c196fbbf54
 versioned_properties:
   active:
+    settings:
+      default_settings:
+        id: page_title_block
+        label: 'Titre de la page'
+        label_display: '0'
+        provider: core
+    fallback_metadata:
+      slot_definitions: null
+  5605369e3b7553a1:
     settings:
       default_settings:
         id: page_title_block
@@ -13,7 +22,7 @@ versioned_properties:
         provider: core
     fallback_metadata:
       slot_definitions: null
-label: 'Page title'
+label: 'Titre de la page'
 id: block.page_title_block
 provider: core
 source: block

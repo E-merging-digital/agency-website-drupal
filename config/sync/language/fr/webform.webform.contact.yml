@@ -1,0 +1,103 @@
+elements: |-
+  required_notice:
+    '#type': webform_markup
+    '#markup': '<p class="contact-required-note">Les champs marqués d’un astérisque sont obligatoires.</p>'
+  name:
+    '#type': textfield
+    '#title': 'Votre nom'
+    '#required': true
+    '#default_value': '[current-user:display-name]'
+  email:
+    '#type': email
+    '#title': 'Votre email'
+    '#required': true
+    '#default_value': '[current-user:mail]'
+  organization:
+    '#type': textfield
+    '#title': 'Organisation'
+    '#placeholder': 'Nom de votre structure'
+  organization_type:
+    '#type': select
+    '#title': 'Type de structure'
+    '#options':
+      sme: 'PME / entreprise'
+      nonprofit: 'ASBL'
+      public: 'Institution publique'
+      agency: 'Agence / partenaire'
+      other: 'Autre'
+    '#empty_option': 'Non précisé'
+  project_type:
+    '#type': select
+    '#title': 'Type de projet'
+    '#options':
+      new_site: 'Nouveau site Drupal'
+      redesign: 'Refonte ou modernisation'
+      migration: 'Migration Drupal'
+      audit: 'Audit Drupal'
+      maintenance: 'Maintenance ou support'
+      ai: 'IA & Drupal'
+      other: 'Autre besoin'
+    '#empty_option': 'Non précisé'
+  main_need:
+    '#type': select
+    '#title': 'Besoin principal'
+    '#options':
+      frame: 'Cadrer le projet'
+      estimate: 'Obtenir une estimation'
+      improve: 'Améliorer un site existant'
+      secure: 'Sécuriser ou maintenir'
+      discuss: 'Discuter d’une idée'
+    '#empty_option': 'Non précisé'
+  budget:
+    '#type': select
+    '#title': 'Budget indicatif'
+    '#options':
+      unknown: 'À définir'
+      under_5k: 'Moins de 5 000 €'
+      5k_15k: '5 000 à 15 000 €'
+      15k_30k: '15 000 à 30 000 €'
+      over_30k: 'Plus de 30 000 €'
+    '#empty_option': 'Non précisé'
+  timeline:
+    '#type': select
+    '#title': 'Délai envisagé'
+    '#options':
+      urgent: 'Dès que possible'
+      one_three_months: '1 à 3 mois'
+      three_six_months: '3 à 6 mois'
+      later: 'Plus tard / à planifier'
+    '#empty_option': 'Non précisé'
+  subject:
+    '#title': Objet
+    '#type': textfield
+    '#required': true
+    '#test': 'Testing contact webform from [site:name]'
+  message:
+    '#title': Message
+    '#type': textarea
+    '#required': true
+    '#rows': 5
+    '#placeholder': 'Décrivez brièvement votre contexte, votre objectif et les contraintes utiles.'
+    '#test': 'Please ignore this email.'
+  rgpd_consent:
+    '#type': checkbox
+    '#title': "J’accepte que mes données soient utilisées pour traiter ma demande, conformément à la"
+    '#description': '<a href="/fr/politique-de-confidentialite">politique de confidentialité</a>.<span id="rgpd-consent-help" class="contact-consent-help">Ce consentement est obligatoire pour envoyer le formulaire.</span>'
+    '#required': true
+    '#default_value': 0
+    '#attributes':
+      aria-describedby: rgpd-consent-help
+  actions:
+    '#type': webform_actions
+    '#title': 'Submit button(s)'
+    '#submit__label': 'Envoyer le message'
+settings:
+  confirmation_message: "Merci, votre demande a bien été enregistrée.\r\nNous revenons vers vous rapidement."
+handlers:
+  email_confirmation:
+    settings:
+      from_name: 'E-MERGING DIGITAL'
+      body: "Merci pour votre message. Nous revenons vers vous rapidement.\r\n\r\n[webform_submission:values]"
+  email_notification:
+    settings:
+      from_name: 'E-MERGING DIGITAL'

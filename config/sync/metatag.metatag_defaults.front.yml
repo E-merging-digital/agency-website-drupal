@@ -1,5 +1,5 @@
 uuid: 6937632e-b7ab-4833-a9d1-ae1f7f40ca59
-langcode: fr
+langcode: en
 status: true
 dependencies: {  }
 _core:
@@ -8,10 +8,10 @@ id: front
 label: 'Front page'
 tags:
   canonical_url: '[site:url]'
-  description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibles, évolutifs et IA utile dans le CMS.'
-  og_description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibles, évolutifs et IA utile dans le CMS.'
+  description: 'Drupal 11 agency for SMEs, non-profits and institutions: structured, accessible and scalable websites, with useful AI in the CMS.'
+  og_description: 'Drupal 11 agency for SMEs, non-profits and institutions: structured, accessible and scalable websites, with useful AI in the CMS.'
   og_site_name: '[site:name]'
-  og_title: 'Drupal accessible & IA utile | [site:name]'
+  og_title: 'Accessible Drupal & useful AI | [site:name]'
   og_type: website
   og_url: '[site:url]'
   schema_organization_name: '[site:name]'
@@ -21,7 +21,7 @@ tags:
   schema_web_site_type: WebSite
   schema_web_site_url: '[site:url]'
   shortlink: '[site:url]'
-  title: 'Drupal accessible & IA utile | [site:name]'
-  twitter_cards_description: 'Agence Drupal 11 pour PME, ASBL et institutions : sites structurés, accessibles, évolutifs et IA utile dans le CMS.'
-  twitter_cards_title: 'Drupal accessible & IA utile | [site:name]'
+  title: 'Accessible Drupal & useful AI | [site:name]'
+  twitter_cards_description: 'Drupal 11 agency for SMEs, non-profits and institutions: structured, accessible and scalable websites, with useful AI in the CMS.'
+  twitter_cards_title: 'Accessible Drupal & useful AI | [site:name]'
   twitter_cards_type: summary

@@ -4,9 +4,21 @@ status: false
 dependencies:
   module:
     - system
-active_version: 32f795df10dee64e
+active_version: 46b54c9f22809cab
 versioned_properties:
   active:
+    settings:
+      default_settings:
+        id: system_branding_block
+        label: 'Identité du site'
+        label_display: '0'
+        provider: system
+        use_site_logo: true
+        use_site_name: true
+        use_site_slogan: true
+    fallback_metadata:
+      slot_definitions: null
+  32f795df10dee64e:
     settings:
       default_settings:
         id: system_branding_block
@@ -18,7 +30,7 @@ versioned_properties:
         use_site_slogan: true
     fallback_metadata:
       slot_definitions: null
-label: 'Site branding'
+label: 'Identité du site'
 id: block.system_branding_block
 provider: system
 source: block

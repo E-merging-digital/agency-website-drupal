@@ -37,7 +37,7 @@ jobs:
 
           [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
           [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
-          [[ "$ISSUE_NUMBER" == '705' ]]
+          [[ "$ISSUE_NUMBER" == '707' ]]
           [[ "$TRIGGER_COMMENT" == '/agency-config-language-translation-coverage classify' ]]
 
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
@@ -187,7 +187,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: agency-config-translation-coverage-705-${{ github.run_id }}-${{ github.run_attempt }}
+          name: agency-config-translation-coverage-707-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/configuration-language-translation-coverage
           if-no-files-found: warn
           retention-days: 30
@@ -222,7 +222,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - name: Comment coverage result on #705
+      - name: Comment coverage result on #707
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -243,7 +243,7 @@ jobs:
             heading='### Agency configuration translation coverage PASS'
           fi
 
-          artifact="agency-config-translation-coverage-705-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          artifact="agency-config-translation-coverage-707-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           body="$(cat <<EOF_BODY
           ${heading}
 
@@ -261,4 +261,4 @@ jobs:
           Read-only typed-config coverage classification only. This proof does not enable Configuration Language Lock, migrate/export configuration, rewrite langcodes or access production.
           EOF_BODY
           )"
-          gh issue comment 705 --repo "$GITHUB_REPOSITORY" --body "$body"
+          gh issue comment 707 --repo "$GITHUB_REPOSITORY" --body "$body"

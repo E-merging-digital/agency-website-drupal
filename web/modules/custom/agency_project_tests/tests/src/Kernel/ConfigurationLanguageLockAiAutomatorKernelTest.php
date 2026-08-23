@@ -49,6 +49,7 @@ final class ConfigurationLanguageLockAiAutomatorKernelTest extends KernelTestBas
     parent::setUp();
 
     $this->installConfig(['system', 'config_language_lock']);
+    $this->installEntitySchema('node');
 
     foreach (['fr', 'en'] as $langcode) {
       if (ConfigurableLanguage::load($langcode) === NULL) {

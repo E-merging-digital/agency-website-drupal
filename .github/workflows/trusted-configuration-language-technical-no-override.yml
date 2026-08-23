@@ -1,0 +1,250 @@
+name: Agency trusted configuration technical cohort classification
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate technical cohort classification request
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.comment.body == '/agency-config-language-technical classify'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '709' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-config-language-technical classify' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Technical cohort classification must execute live main.' >&2
+            exit 1
+          }
+
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  classify:
+    name: Rebuild Drupal and classify technical FR bases
+    needs: validate-request
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      verdict: ${{ steps.summary.outputs.verdict }}
+      candidate: ${{ steps.summary.outputs.candidate }}
+      review: ${{ steps.summary.outputs.review }}
+      unresolved: ${{ steps.summary.outputs.unresolved }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable proof inputs
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f .ddev/config.yaml
+          test -f docs/evidence/configuration-language-baseline-609.yml
+          test -f scripts/runner/configuration-language-technical-no-override.php
+          test -f scripts/runner/run-configuration-language-technical-no-override.sh
+          bash -n scripts/runner/run-configuration-language-technical-no-override.sh
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-technical-ci.yaml <<EOF
+          name: agency-config-technical-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml \
+            | grep -F "agency-config-technical-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild Drupal from repository-owned configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/configuration-language-technical-no-override.php
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush status
+
+      - name: Classify bounded read-only technical cohort
+        shell: bash
+        env:
+          TARGET_DIR: ${{ github.workspace }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/configuration-language-technical-no-override
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-configuration-language-technical-no-override.sh
+
+      - name: Summarize machine-readable result
+        id: summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/configuration-language-technical-no-override/result.json'
+          status='MISSING'
+          verdict='UNKNOWN'
+          candidate='0'
+          review='0'
+          unresolved='0'
+
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$result")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result")"
+            candidate="$(jq -r '.counts.no_material_translatable_source_candidate // 0' "$result")"
+            review="$(jq -r '.counts.material_translatable_source_review_required // 0' "$result")"
+            unresolved="$(jq -r '.counts.schema_unresolved_review_required // 0' "$result")"
+          fi
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+          echo "review=$review" >> "$GITHUB_OUTPUT"
+          echo "unresolved=$unresolved" >> "$GITHUB_OUTPUT"
+
+      - name: Upload technical cohort evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-technical-709-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/configuration-language-technical-no-override
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-technical-ci.yaml
+          rm -rf artifacts/configuration-language-technical-no-override
+          rmdir artifacts 2>/dev/null || true
+          git restore --worktree -- config/sync web/robots.txt 2>/dev/null || true
+          git clean -fd -- config/sync
+
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report:
+    name: Publish technical cohort result
+    if: ${{ always() && needs.validate-request.result == 'success' }}
+    needs:
+      - validate-request
+      - classify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Comment result on #709
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+          ROUTE_OUTCOME: ${{ needs.classify.result }}
+          STATUS: ${{ needs.classify.outputs.status }}
+          VERDICT: ${{ needs.classify.outputs.verdict }}
+          CANDIDATE: ${{ needs.classify.outputs.candidate }}
+          REVIEW: ${{ needs.classify.outputs.review }}
+          UNRESOLVED: ${{ needs.classify.outputs.unresolved }}
+        run: |
+          set -euo pipefail
+
+          heading='### Agency configuration technical cohort FAIL'
+          if [[ "$ROUTE_OUTCOME" == 'success' && "$STATUS" == 'PASS' ]]; then
+            heading='### Agency configuration technical cohort PASS'
+          fi
+
+          artifact="agency-config-technical-709-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
+          verdict: \`${VERDICT:-UNKNOWN}\`
+          no_material_translatable_source_candidate: \`${CANDIDATE:-0}\`
+          material_translatable_source_review_required: \`${REVIEW:-0}\`
+          schema_unresolved_review_required: \`${UNRESOLVED:-0}\`
+          artifact: \`${artifact}\`
+
+          Read-only typed-config classification of the bounded 41-object technical cohort. This proof does not migrate/export configuration, enable Configuration Language Lock or access production.
+          EOF_BODY
+          )"
+          gh issue comment 709 --repo "$GITHUB_REPOSITORY" --body "$body"

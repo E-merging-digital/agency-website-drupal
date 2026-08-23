@@ -36,7 +36,7 @@ final class ConfigurationLanguageTranslationCoverageWorkflowTest extends TestCas
       $workflow,
     );
     self::assertStringContainsString(
-      '[[ "$ISSUE_NUMBER" == \'705\' ]]',
+      '[[ "$ISSUE_NUMBER" == \'707\' ]]',
       $workflow,
     );
     self::assertStringContainsString(
@@ -53,6 +53,11 @@ final class ConfigurationLanguageTranslationCoverageWorkflowTest extends TestCas
     );
     self::assertStringContainsString('site:install --existing-config', $workflow);
     self::assertStringContainsString('ddev drush cim -y', $workflow);
+    self::assertStringContainsString(
+      'agency-config-translation-coverage-707-',
+      $workflow,
+    );
+    self::assertStringContainsString('gh issue comment 707', $workflow);
 
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
     self::assertStringNotContainsString('SSH_PRIVATE_KEY', $workflow);
@@ -65,7 +70,7 @@ final class ConfigurationLanguageTranslationCoverageWorkflowTest extends TestCas
   }
 
   /**
-   * The runner proves read-only execution around the typed-config classifier.
+   * The runner proves read-only execution and full typed-config coverage.
    */
   public function testCoverageRunnerIsReadOnlyAndFailsClosed(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -84,7 +89,19 @@ final class ConfigurationLanguageTranslationCoverageWorkflowTest extends TestCas
     self::assertStringContainsString('.counts.classified == 171', $runner);
     self::assertStringContainsString('.counts.baseline_problem == 0', $runner);
     self::assertStringContainsString(
-      '.focus["webform.webform.contact"] != null',
+      '.counts.en_override_complete_for_material_translatable_source == 171',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '.counts.en_override_partial_review_required == 0',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '.counts.schema_unresolved_review_required == 0',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '.focus["webform.webform.contact"].classification == "en_override_complete_for_material_translatable_source"',
       $runner,
     );
     self::assertStringContainsString('config-status-before.txt', $runner);

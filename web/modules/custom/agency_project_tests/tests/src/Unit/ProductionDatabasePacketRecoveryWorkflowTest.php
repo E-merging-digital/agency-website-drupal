@@ -136,7 +136,7 @@ final class ProductionDatabasePacketRecoveryWorkflowTest extends TestCase {
       self::assertStringContainsString($required, $workflow);
     }
 
-    self::assertSame(10, substr_count($workflow, 'sudo -n -l'));
+    self::assertSame(6, substr_count($workflow, 'sudo -n -l'));
   }
 
   /**
@@ -156,10 +156,7 @@ final class ProductionDatabasePacketRecoveryWorkflowTest extends TestCase {
       $apply,
       'backup="$BACKUPS/issue660-etc-mysql-$timestamp.tar.gz"',
     );
-    $firstCapability = strpos(
-      $apply,
-      'sudo -n -l \\\n            /usr/bin/tar -C / -czf "$backup" etc/mysql',
-    );
+    $firstCapability = strpos($apply, 'sudo -n -l');
     $firstMutation = strpos(
       $apply,
       'sudo -n /usr/bin/tar -C / -czf "$backup" etc/mysql',

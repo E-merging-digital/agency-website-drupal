@@ -59,6 +59,97 @@ exécuté et vérifié sur le serveur.
 - ...
 ```
 
+## 2026-08-22/23 — Recovery cache MariaDB et restauration HTTP de la production
+
+- Issues / PR : #658, #660, #674, #676, #678, #680 / #675, #677, #679, #681
+- Environnement : production
+- Runtime applicatif restauré : `9188a2ebd6516a738be6df6f854794d41889aa90`
+- Résultat : succès fonctionnel ; nettoyage du sudoers temporaire de #660 à confirmer avant clôture de #660
+
+### Versions et paramètres
+
+| Composant | Avant | Après | Action |
+| --- | --- | --- | --- |
+| MariaDB | 11.8.8 | 11.8.8 | Version inchangée |
+| `max_allowed_packet` | 16 MiB (`16777216`) | 64 MiB (`67108864`) | Configuration serveur durable |
+| Drupal | 11.4.5 | 11.4.5 | Cache/routage reconstruit, version inchangée |
+| Release active | `9188a2eb...` | `9188a2eb...` | Pas de nouveau déploiement pour la recovery |
+| Droits racine release / `web/` | `700` | `755` | Lecture/traversée restaurée pour le runtime web |
+| Droits `web/index.php` / `web/robots.txt` | `600` | `644` | Lecture restaurée pour le runtime web |
+
+### Cause et opérations réellement exécutées
+
+- Le déploiement `32577069479` avait basculé la release puis échoué sur le
+  `drush cr` final avec `SQLSTATE[HY000] 2006 MySQL server has gone away`.
+- Le diagnostic #658 a mesuré une valeur `cache_file_parsing` d'environ 15 MiB
+  face à une limite serveur MariaDB de 16 MiB.
+- Une configuration MariaDB dédiée a été installée dans
+  `/etc/mysql/mariadb.conf.d/99-agency-max-allowed-packet.cnf` avec
+  `max_allowed_packet=64M`, puis MariaDB a été redémarrée une fois.
+- Un cache rebuild Drupal a été exécuté après convergence du paramètre MariaDB.
+- Le postcheck a confirmé `67108864` en GLOBAL et SESSION ainsi qu'un cache
+  `cache_file_parsing` reconstruit.
+- La production restait ensuite en 404. Le diagnostic #674 a prouvé que Drupal
+  CLI, le nœud publié, la route canonique et les alias étaient sains, tandis que
+  les requêtes HTTP locales restaient en erreur.
+- Le diagnostic #676 (`32632509029`) a confirmé un vhost Nginx correct sur
+  `/var/www/agency/current/web`, mais une release `deploy:deploy` en modes
+  `700`/`600`, incompatible avec Nginx/PHP-FPM exécutés sous `www-data`.
+- La recovery #678 (`32632854617`) a ajouté uniquement les droits de lecture et
+  traversée requis à la release courante, `vendor/` et `web/`, sans suivre ni
+  modifier les cibles partagées `settings.php` et `files`.
+- Aucun redéploiement complet, rollback de base, changement de contenu ou restart
+  Nginx/PHP-FPM n'a été nécessaire pour restaurer le site.
+- #680/#681 a ensuite durci `scripts/deploy-production.sh` : `umask 022`
+  explicite, normalisation bornée des droits runtime et vérification fail-closed
+  avant le prochain switch de `current`.
+
+### Sauvegardes et retour arrière
+
+- Une sauvegarde de `/etc/mysql` a été créée sous
+  `/var/www/agency/shared/backups` avec le préfixe `issue660-etc-mysql-` avant la
+  modification serveur MariaDB.
+- La configuration `99-agency-max-allowed-packet.cnf` est dédiée à #660 et peut
+  être retirée séparément si un rollback système est explicitement décidé.
+- Un snapshot de VM avait été préparé avant l'intervention privilégiée #660.
+- Avant correction des permissions de la release, #678 a enregistré le manifeste
+  exact :
+  `/var/www/agency/shared/backups/issue678-permissions-20260823100645.tsv`.
+- Aucun rollback n'a été nécessaire.
+
+### Validations
+
+- Preflight #660 final `32633213984` : `CONVERGED`, raison
+  `packet_and_http_already_healthy`.
+- Diagnostic DB #658 `32632988175` : PASS ; MariaDB
+  `11.8.8-MariaDB-ubu2404`, `max_allowed_packet=67108864` GLOBAL/SESSION,
+  `db_ping=1`, `Aborted_clients=0`, `Aborted_connects=0`.
+- Cache parsing après rebuild : `cache_file_parsing_max_data_bytes=15666389`.
+- Recovery permissions #678 `32632854617` : PASS ; `robots.txt` local
+  `403 -> 200`, racine locale `404 -> 301`, FR/EN publiques `200`.
+- Health indépendant #590 `32632888290` : `PUBLIC_HTTP_HEALTHY`, maintenance
+  `0`, aucun deploy actif, Nginx actif, PHP 8.4 FPM actif.
+- Browser Validation externe #401 `32632963271` : PASS fonctionnel, DOM,
+  desktop et mobile ; `console_errors=0`, `page_errors=0`,
+  `unexpected_http_4xx=0`, `http_5xx=0`, `failed_requests=0`.
+- Le durcissement du déploiement #680/#681 a passé la CI exact-head #1254 avant
+  merge sur `main`.
+
+### Anomalies, non-actions et risques résiduels
+
+- L'apply #660 a atteint la convergence MariaDB/cache mais sa première surface de
+  publication n'a pas produit de verdict terminal exploitable ; les diagnostics
+  indépendants et les preflights ultérieurs constituent la preuve de convergence.
+- Les modes `700`/`600` observés sont compatibles avec un environnement de
+  déploiement à umask restrictif. La valeur d'umask héritée lors du déploiement
+  fautif n'a pas été mesurée directement ; #680 neutralise désormais ce risque
+  avec `umask 022` et des vérifications explicites.
+- Le sudoers temporaire et borné utilisé pour #660 ne doit pas devenir permanent.
+  Son retrait et la validation `visudo` restent à confirmer avant clôture de
+  #660.
+- Les workflows de recovery/diagnostic liés aux issues clôturées sont inertes par
+  leur contrôle `issue open` ; aucun input shell ou URL libre n'a été ajouté.
+
 ## 2026-08-14 — Migration MariaDB de production vers 11.8
 
 - Issue / PR : #367 / #371

@@ -60,10 +60,10 @@ final class ConfigurationLanguageTranslatedPromotionWorkflowTest extends TestCas
     self::assertStringContainsString("\\Drupal::service('config.typed')", $probe);
     self::assertStringContainsString("\\Drupal::service('config.factory')", $probe);
     self::assertStringContainsString("\\Drupal::service('language.config_factory_override')", $probe);
-    self::assertStringContainsString("$newBase['langcode'] = 'en'", $probe);
-    self::assertStringContainsString("getOverride('fr', $name)->setData", $probe);
-    self::assertStringContainsString("getOverride('en', $name)->delete()", $probe);
-    self::assertStringContainsString("getEditable($name)->setData($base)->save()", $probe);
+    self::assertStringContainsString("\$newBase['langcode'] = 'en'", $probe);
+    self::assertStringContainsString("getOverride('fr', \$name)->setData", $probe);
+    self::assertStringContainsString("getOverride('en', \$name)->delete()", $probe);
+    self::assertStringContainsString("getEditable(\$name)->setData(\$base)->save()", $probe);
     self::assertStringContainsString('candidate_identity_hash_mismatch', $probe);
     self::assertStringContainsString('material_translatable_source_not_covered', $probe);
     self::assertStringContainsString('en_override_contains_non_translatable_or_unresolved_path', $probe);

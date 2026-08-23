@@ -84,6 +84,24 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
     self::assertStringContainsString('git push origin "HEAD:refs/heads/$branch"', $workflow);
     self::assertGreaterThanOrEqual(2, substr_count($workflow, 'site:install --existing-config'));
     self::assertStringContainsString('ddev delete --omit-snapshot --yes', $workflow);
+    self::assertSame(
+      2,
+      substr_count(
+        $workflow,
+        'config_status="$(ddev drush config:status 2>&1)"',
+      ),
+    );
+    self::assertSame(
+      2,
+      substr_count(
+        $workflow,
+        'grep -Fq \'No differences\' <<<"$config_status"',
+      ),
+    );
+    self::assertStringNotContainsString(
+      "ddev drush config:status | grep -F 'No differences'",
+      $workflow,
+    );
     self::assertStringContainsString(
       'ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PROMOTION_VERIFIED',
       $workflow,

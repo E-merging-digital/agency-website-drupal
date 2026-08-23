@@ -15,6 +15,9 @@ use Symfony\Component\Yaml\Yaml;
  */
 final class ProductionNginxDocrootDiagnosticWorkflowTest extends TestCase {
 
+  /**
+   * Ensures the control surface is owner, issue and live-main bound.
+   */
   public function testControlSurfaceIsPinned(): void {
     $workflow = $this->workflow();
 
@@ -33,6 +36,9 @@ final class ProductionNginxDocrootDiagnosticWorkflowTest extends TestCase {
     self::assertStringNotContainsString('github.event.inputs', $workflow);
   }
 
+  /**
+   * Ensures only the fixed Nginx, path and HTTP facts are collected.
+   */
   public function testFixedReadOnlyFactsAreCollected(): void {
     $workflow = $this->workflow();
 
@@ -53,6 +59,9 @@ final class ProductionNginxDocrootDiagnosticWorkflowTest extends TestCase {
     }
   }
 
+  /**
+   * Ensures the production-side block cannot mutate host or application state.
+   */
   public function testMutationSurfacesAreAbsentFromProductionBlock(): void {
     $workflow = $this->workflow();
     $remoteStart = strpos(
@@ -87,6 +96,9 @@ final class ProductionNginxDocrootDiagnosticWorkflowTest extends TestCase {
     }
   }
 
+  /**
+   * Ensures diagnostic outcomes remain explicit and machine-readable.
+   */
   public function testDiagnosticClassificationsAreBounded(): void {
     $workflow = $this->workflow();
 
@@ -106,6 +118,9 @@ final class ProductionNginxDocrootDiagnosticWorkflowTest extends TestCase {
     }
   }
 
+  /**
+   * Loads and parses the trusted Nginx/docroot diagnostic workflow.
+   */
   private function workflow(): string {
     $root = dirname(DRUPAL_ROOT);
     $path = $root . '/.github/workflows/trusted-production-nginx-docroot-diagnostic.yml';

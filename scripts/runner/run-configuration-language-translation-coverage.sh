@@ -49,18 +49,17 @@ cp "$ARTIFACT_DIR/coverage.json" "$ARTIFACT_DIR/result.json"
 result="$ARTIFACT_DIR/result.json"
 jq -e '.schema_version == 1' "$result" >/dev/null
 jq -e '.status == "PASS"' "$result" >/dev/null
-jq -e '.verdict == "COVERAGE_CLASSIFIED" or .verdict == "REVIEW_REQUIRED"' \
-  "$result" >/dev/null
+jq -e '.verdict == "COVERAGE_CLASSIFIED"' "$result" >/dev/null
 jq -e '.baseline.expected_fr_base_with_en_override == 171' "$result" >/dev/null
 jq -e '.counts.candidate_fr_base_with_en_override == 171' "$result" >/dev/null
 jq -e '.counts.classified == 171' "$result" >/dev/null
 jq -e '.counts.baseline_problem == 0' "$result" >/dev/null
-jq -e '(
-  .counts.en_override_complete_for_material_translatable_source
-  + .counts.en_override_partial_review_required
-  + .counts.schema_unresolved_review_required
-) == 171' "$result" >/dev/null
-jq -e '.focus["webform.webform.contact"] != null' "$result" >/dev/null
+jq -e '.counts.en_override_complete_for_material_translatable_source == 171' \
+  "$result" >/dev/null
+jq -e '.counts.en_override_partial_review_required == 0' "$result" >/dev/null
+jq -e '.counts.schema_unresolved_review_required == 0' "$result" >/dev/null
+jq -e '.focus["webform.webform.contact"].classification == "en_override_complete_for_material_translatable_source"' \
+  "$result" >/dev/null
 jq -e '.constraints.read_only == true' "$result" >/dev/null
 jq -e '.constraints.bulk_langcode_replacement_allowed == false' "$result" >/dev/null
 jq -e '.constraints.configuration_migration_allowed_by_this_proof == false' \

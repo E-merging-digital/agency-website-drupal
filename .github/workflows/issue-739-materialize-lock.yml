@@ -1,0 +1,74 @@
+name: Issue 739 materialize Composer lock hash
+
+on:
+  push:
+    branches:
+      - feature/739-preserve-custom-robots-scaffold
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-lock:
+    name: Materialize bounded Composer lock hash
+    if: >-
+      ${{
+        github.actor == 'E-merging-digital' &&
+        !contains(github.event.head_commit.message, '[lock-materialized]')
+      }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: feature/739-preserve-custom-robots-scaffold
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Setup PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:2.10.2
+          coverage: none
+
+      - name: Refresh lock hash only and prove bounded diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp composer.lock /tmp/composer.lock.before
+          composer update --lock --no-install --no-interaction --no-progress
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          before = json.loads(Path('/tmp/composer.lock.before').read_text(encoding='utf-8'))
+          after = json.loads(Path('composer.lock').read_text(encoding='utf-8'))
+          expected = '8c2ec58249892048af38b2387237088c'
+
+          if after.get('content-hash') != expected:
+              raise SystemExit(
+                  f"Unexpected content-hash: {after.get('content-hash')!r}; expected {expected}"
+              )
+
+          before['content-hash'] = after['content-hash']
+          if before != after:
+              raise SystemExit('composer update --lock changed data beyond content-hash')
+          PY
+
+          git diff --exit-code -- composer.json
+          test "$(git diff --name-only | tr -d '\r')" = 'composer.lock'
+          git diff --check
+          git diff -- composer.lock
+
+      - name: Commit bounded lock materialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'E-merging Digital Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add composer.lock
+          test "$(git diff --cached --name-only)" = 'composer.lock'
+          git commit -m 'Issue #739: synchronize Composer content hash [lock-materialized]'
+          git push origin HEAD:refs/heads/feature/739-preserve-custom-robots-scaffold

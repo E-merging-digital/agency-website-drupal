@@ -1,0 +1,262 @@
+name: Agency governed canonical mechanical configuration migration
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate canonical migration request
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.comment.body == '/agency-config-language-mechanical-canonical migrate'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '715' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-config-language-mechanical-canonical migrate' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Canonical migration must start from live main.' >&2
+            exit 1
+          }
+
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  prepare-and-push:
+    name: Prepare exact 39-file canonical migration branch
+    needs: validate-request
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    outputs:
+      branch: ${{ steps.commit.outputs.branch }}
+      commit_sha: ${{ steps.commit.outputs.commit_sha }}
+      status: ${{ steps.summary.outputs.status }}
+      prepared: ${{ steps.summary.outputs.prepared }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+
+      - name: Checkout exact live main with bounded write credentials
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Verify immutable migration inputs
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f docs/evidence/configuration-language-mechanical-cohort-713.yml
+          test -f scripts/runner/apply-configuration-language-mechanical-canonical.php
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-canonical-writer.yaml <<EOF_CONFIG
+          name: agency-config-canonical-writer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml \
+            | grep -F "agency-config-canonical-writer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Install repository dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/apply-configuration-language-mechanical-canonical.php
+
+      - name: Prepare exact canonical patch
+        shell: bash
+        env:
+          RESULT_PATH: ${{ runner.temp }}/agency-config-canonical-715-result.json
+        run: |
+          set -euo pipefail
+          ddev exec php \
+            /var/www/html/scripts/runner/apply-configuration-language-mechanical-canonical.php \
+            > "$RESULT_PATH"
+
+          jq -e '.status == "PASS"' "$RESULT_PATH" >/dev/null
+          jq -e '.verdict == "THIRTY_NINE_MECHANICAL_CANONICAL_PATCH_PREPARED"' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.expected == 39' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.prepared == 39' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.excluded_exceptions_preserved == 2' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.problem_count == 0' "$RESULT_PATH" >/dev/null
+          jq -e '.problems == []' "$RESULT_PATH" >/dev/null
+          jq -e '[.items[] | select(.before_langcode != "fr" or .after_langcode != "en" or .semantic_preserved != true)] == []' "$RESULT_PATH" >/dev/null
+
+          mapfile -t expected_paths < <(jq -r '.items[].path' "$RESULT_PATH" | sort)
+          mapfile -t changed_paths < <(git diff --name-only -- config/sync | sort)
+          [[ "${#expected_paths[@]}" -eq 39 ]]
+          [[ "${#changed_paths[@]}" -eq 39 ]]
+          diff -u \
+            <(printf '%s\n' "${expected_paths[@]}") \
+            <(printf '%s\n' "${changed_paths[@]}")
+
+          [[ "$(git diff --numstat -- config/sync | wc -l)" -eq 39 ]]
+          if git diff --numstat -- config/sync | awk '$1 != 1 || $2 != 1 {bad=1} END {exit bad ? 1 : 0}'; then
+            :
+          else
+            echo 'Every canonical file must have exactly one added and one removed line.' >&2
+            exit 1
+          fi
+
+          [[ -z "$(git diff --name-only -- config/sync/language)" ]]
+          [[ -z "$(git diff --name-only -- config/sync/core.extension.yml)" ]]
+          git diff --check
+
+      - name: Commit and push bounded migration branch
+        id: commit
+        shell: bash
+        env:
+          RESULT_PATH: ${{ runner.temp }}/agency-config-canonical-715-result.json
+        run: |
+          set -euo pipefail
+          branch='feature/715-apply-canonical-mechanical-migration'
+
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "Refusing to overwrite existing branch $branch" >&2
+            exit 1
+          fi
+
+          git switch -c "$branch"
+          mapfile -t paths < <(jq -r '.items[].path' "$RESULT_PATH")
+          git add -- "${paths[@]}"
+
+          [[ "$(git diff --cached --name-only | wc -l)" -eq 39 ]]
+          [[ -z "$(git status --porcelain | awk '$1 != "" && $2 ~ /^config\/sync\/language\// {print}')" ]]
+
+          git config user.name 'E-merging Digital Automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'Issue #715: migrate 39 mechanical configs to canonical EN'
+          git push origin "HEAD:refs/heads/$branch"
+
+          commit_sha="$(git rev-parse HEAD)"
+          [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize migration preparation
+        id: summary
+        if: ${{ always() }}
+        shell: bash
+        env:
+          RESULT_PATH: ${{ runner.temp }}/agency-config-canonical-715-result.json
+        run: |
+          set -euo pipefail
+          status='MISSING'
+          prepared='0'
+          if [[ -s "$RESULT_PATH" ]] && jq -e . "$RESULT_PATH" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$RESULT_PATH")"
+            prepared="$(jq -r '.counts.prepared // 0' "$RESULT_PATH")"
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "prepared=$prepared" >> "$GITHUB_OUTPUT"
+
+      - name: Clean DDEV and workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-canonical-writer.yaml
+          git restore --worktree -- .ddev/config.gate-config-language-canonical-writer.yaml 2>/dev/null || true
+
+  report:
+    name: Publish canonical migration preparation result
+    if: ${{ always() && needs.validate-request.result == 'success' }}
+    needs:
+      - validate-request
+      - prepare-and-push
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Comment branch result on #715
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+          OUTCOME: ${{ needs.prepare-and-push.result }}
+          STATUS: ${{ needs.prepare-and-push.outputs.status }}
+          PREPARED: ${{ needs.prepare-and-push.outputs.prepared }}
+          BRANCH: ${{ needs.prepare-and-push.outputs.branch }}
+          COMMIT_SHA: ${{ needs.prepare-and-push.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          heading='### Canonical 39-object migration branch FAIL'
+          if [[ "$OUTCOME" == 'success' && "$STATUS" == 'PASS' && "$PREPARED" == '39' ]]; then
+            heading='### Canonical 39-object migration branch PREPARED'
+          fi
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${OUTCOME:-unknown}\`
+          prepared: \`${PREPARED:-0}\`
+          branch: \`${BRANCH:-n/a}\`
+          commit_sha: \`${COMMIT_SHA:-n/a}\`
+
+          The governed writer is restricted to the exact #713 cohort and prepares only top-level \`langcode: fr -> en\` changes. It does not export configuration, touch language overrides, enable Config Language Lock or access production.
+          EOF_BODY
+          )"
+          gh issue comment 715 --repo "$GITHUB_REPOSITORY" --body "$body"

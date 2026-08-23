@@ -85,7 +85,21 @@ final class ExistingConfigLockedLanguagesWorkflowTest extends TestCase {
     self::assertStringContainsString('enabled.json', $workflow);
     self::assertSame(
       2,
-      substr_count($workflow, 'map_values(del(.label))'),
+      substr_count($workflow, 'map_values(del(.label, .langcode))'),
+    );
+    self::assertSame(
+      2,
+      substr_count($workflow, 'map_values(del(.langcode))'),
+    );
+    self::assertStringContainsString(
+      '.languages.und.langcode == "en" or '
+        . '.languages.und.langcode == "fr"',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '.languages.zxx.langcode == "en" or '
+        . '.languages.zxx.langcode == "fr"',
+      $workflow,
     );
     self::assertStringContainsString(
       'ConfigurableLanguage::load',
@@ -136,6 +150,16 @@ final class ExistingConfigLockedLanguagesWorkflowTest extends TestCase {
     self::assertTrue(
       $enabledPosition < $savePosition && $savePosition < $enforcedPosition,
       'Locale footprint must be captured before native saves are measured.',
+    );
+
+    $enforcedBlock = substr($workflow, $enforcedPosition);
+    self::assertStringContainsString(
+      '.languages.und.langcode == "en"',
+      $enforcedBlock,
+    );
+    self::assertStringContainsString(
+      '.languages.zxx.langcode == "en"',
+      $enforcedBlock,
     );
 
     self::assertStringNotContainsString('drush cex', $workflow);

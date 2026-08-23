@@ -8,6 +8,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\NodeType;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
  * Proves Configuration Language Lock on native Drupal configuration writes.
@@ -16,6 +17,7 @@ use PHPUnit\Framework\Attributes\Group;
  * @group configuration_language_governance
  */
 #[Group('configuration_language_governance')]
+#[RunTestsInSeparateProcesses]
 final class ConfigurationLanguageLockCoreWritesKernelTest extends KernelTestBase {
 
   /**
@@ -104,9 +106,14 @@ final class ConfigurationLanguageLockCoreWritesKernelTest extends KernelTestBase
     $this->container
       ->get('plugin.manager.config_action')
       ->applyAction(
-        'setDescription',
+        'setMultiple',
         'node.type.lock_action_probe',
-        'Updated by Drupal core Config Action',
+        [
+          [
+            'key' => 'description',
+            'value' => 'Updated by Drupal core Config Action',
+          ],
+        ],
       );
 
     $stored = $this->config('node.type.lock_action_probe');

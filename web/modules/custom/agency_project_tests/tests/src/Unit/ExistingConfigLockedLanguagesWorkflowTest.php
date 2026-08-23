@@ -121,9 +121,15 @@ final class ExistingConfigLockedLanguagesWorkflowTest extends TestCase {
       $workflow,
     );
 
-    $enabledPosition = strpos($workflow, '> artifacts/existing-config-locked-languages/enabled.json');
+    $enabledPosition = strpos(
+      $workflow,
+      '> artifacts/existing-config-locked-languages/enabled.json',
+    );
     $savePosition = strpos($workflow, 'ConfigurableLanguage::load');
-    $enforcedPosition = strpos($workflow, '> artifacts/existing-config-locked-languages/enforced.json');
+    $enforcedPosition = strpos(
+      $workflow,
+      '> artifacts/existing-config-locked-languages/enforced.json',
+    );
     self::assertNotFalse($enabledPosition);
     self::assertNotFalse($savePosition);
     self::assertNotFalse($enforcedPosition);

@@ -178,13 +178,43 @@ jobs:
           ' artifacts/existing-config-locked-languages/before.json >/dev/null
           test -z "$(git status --short config/sync)"
 
-      - name: Enforce EN ephemerally and resave locked languages natively
+      - name: Enforce EN ephemerally and isolate native locked-language saves
         shell: bash
         run: |
           set -euo pipefail
           ddev drush pm:enable config_language_lock -y
           ddev drush php:eval "\Drupal::configFactory()->getEditable('config_language_lock.settings')->set('locked_langcode', 'en')->set('follow_site_default', FALSE)->save();"
           ddev drush cr
+
+          # Module enable can legitimately localize active labels through Locale.
+          # Capture that footprint before testing ConfigurableLanguage::save().
+          ddev drush php:script \
+            /var/www/html/scripts/runner/locked-language-state.php \
+            > artifacts/existing-config-locked-languages/enabled.json
+
+          jq -e '
+            .site_default_language == "fr" and
+            .config_language_lock_enabled == true and
+            .lock_settings.locked_langcode == "en" and
+            .lock_settings.follow_site_default == false and
+            .languages.und.present == true and
+            .languages.und.id == "und" and
+            .languages.und.langcode == "en" and
+            .languages.und.locked == true and
+            .languages.und.weight == 2 and
+            .languages.zxx.present == true and
+            .languages.zxx.id == "zxx" and
+            .languages.zxx.langcode == "en" and
+            .languages.zxx.locked == true and
+            .languages.zxx.weight == 3
+          ' artifacts/existing-config-locked-languages/enabled.json >/dev/null
+
+          # Labels are localized presentation data here. Structural locked-language
+          # invariants must stay identical to the canonical pre-enable baseline.
+          diff \
+            <(jq -S '.languages | map_values(del(.label))' artifacts/existing-config-locked-languages/before.json) \
+            <(jq -S '.languages | map_values(del(.label))' artifacts/existing-config-locked-languages/enabled.json)
+
           ddev drush php:eval "foreach (['und', 'zxx'] as \$id) { \$language = \Drupal\language\Entity\ConfigurableLanguage::load(\$id); if (!\$language) { throw new \RuntimeException('Missing locked language ' . \$id); } \$language->save(); }"
 
           ddev drush php:script \
@@ -208,8 +238,9 @@ jobs:
             .languages.zxx.weight == 3
           ' artifacts/existing-config-locked-languages/enforced.json >/dev/null
 
+          # The native saves themselves must not mutate the locked languages.
           diff \
-            <(jq -S '.languages' artifacts/existing-config-locked-languages/before.json) \
+            <(jq -S '.languages' artifacts/existing-config-locked-languages/enabled.json) \
             <(jq -S '.languages' artifacts/existing-config-locked-languages/enforced.json)
           test -z "$(git status --short config/sync)"
 
@@ -253,6 +284,7 @@ jobs:
               'verdict': 'EXISTING_CONFIG_AND_LOCKED_LANGUAGES_SAFE',
               'trusted_main': (root / 'trusted-main.txt').read_text().strip(),
               'before': json.loads((root / 'before.json').read_text()),
+              'enabled': json.loads((root / 'enabled.json').read_text()),
               'enforced': json.loads((root / 'enforced.json').read_text()),
               'restored': json.loads((root / 'restored.json').read_text()),
           }
@@ -322,7 +354,7 @@ jobs:
           proof_outcome: \`${PROOF_OUTCOME:-unknown}\`
           artifact: \`${artifact}\`
 
-          The proof rebuilds from site:install --existing-config, verifies und/zxx, enables EN lock only inside disposable DDEV, resaves both locked language entities through native Drupal APIs, restores canonical active config, and cleans the workspace. It never exports config or accesses production.
+          The proof rebuilds from site:install --existing-config, verifies und/zxx, isolates Locale's module-enable label footprint from native locked-language saves, restores canonical active config, and cleans the workspace. It never exports config or accesses production.
           EOF_BODY
           )"
           gh issue comment 696 --repo "$GITHUB_REPOSITORY" --body "$body"

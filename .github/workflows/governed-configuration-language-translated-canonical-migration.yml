@@ -129,7 +129,9 @@ jobs:
           unset admin_pass
           ddev drush cim -y
           ddev drush cr
-          ddev drush config:status | grep -F 'No differences'
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status"
+          grep -Fq 'No differences' <<<"$config_status"
           if ddev drush pm:list --status=enabled --type=module --field=name | grep -Fxq 'config_language_lock'; then
             echo 'Config Language Lock must be disabled before canonical translation migration.' >&2
             exit 1
@@ -192,7 +194,9 @@ jobs:
           unset admin_pass
           ddev drush cim -y
           ddev drush cr
-          ddev drush config:status | grep -F 'No differences'
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status"
+          grep -Fq 'No differences' <<<"$config_status"
 
           ddev drush php:script /var/www/html/scripts/runner/configuration-language-translated-canonical-verify.php \
             > "$VERIFY_PATH"

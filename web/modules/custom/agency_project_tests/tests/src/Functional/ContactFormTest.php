@@ -38,6 +38,16 @@ final class ContactFormTest extends BrowserTestBase {
   private Webform $contactWebform;
 
   /**
+   * Libellé de soumission porté par la configuration canonique testée.
+   */
+  private string $submitLabel;
+
+  /**
+   * Première ligne du message de confirmation canonique testé.
+   */
+  private string $confirmationText;
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
@@ -48,6 +58,22 @@ final class ContactFormTest extends BrowserTestBase {
 
     $configuration = Yaml::parseFile($config_file);
     self::assertIsArray($configuration);
+
+    $elements = Yaml::parse((string) ($configuration['elements'] ?? ''));
+    self::assertIsArray($elements);
+    $submit_label = $elements['actions']['#submit__label'] ?? NULL;
+    self::assertIsString($submit_label);
+    self::assertNotSame('', trim($submit_label));
+    $this->submitLabel = $submit_label;
+
+    $confirmation_message = $configuration['settings']['confirmation_message'] ?? NULL;
+    self::assertIsString($confirmation_message);
+    $confirmation_line = trim((string) strtok(
+      str_replace(["\r\n", "\r"], "\n", $confirmation_message),
+      "\n",
+    ));
+    self::assertNotSame('', $confirmation_line);
+    $this->confirmationText = $confirmation_line;
 
     // Les handlers email appartiennent au comportement de production. Le test
     // fonctionnel vérifie le formulaire et la persistance sans envoyer d'email.
@@ -76,7 +102,7 @@ final class ContactFormTest extends BrowserTestBase {
     $this->assertSession()->fieldExists('subject');
     $this->assertSession()->fieldExists('message');
     $this->assertSession()->fieldExists('rgpd_consent');
-    $this->assertSession()->buttonExists('Envoyer le message');
+    $this->assertSession()->buttonExists($this->submitLabel);
 
     $this->submitForm([
       'name' => 'Test Contact',
@@ -84,7 +110,7 @@ final class ContactFormTest extends BrowserTestBase {
       'subject' => 'Sujet test',
       'message' => 'Message test',
       'rgpd_consent' => '1',
-    ], 'Envoyer le message');
+    ], $this->submitLabel);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->elementExists('css', '[role="alert"]');
     self::assertSame(0, $this->countContactSubmissions());
@@ -95,9 +121,9 @@ final class ContactFormTest extends BrowserTestBase {
       'subject' => 'Sujet valide',
       'message' => 'Message valide',
       'rgpd_consent' => '1',
-    ], 'Envoyer le message');
+    ], $this->submitLabel);
     $this->assertSession()->statusCodeEquals(200);
-    $this->assertSession()->pageTextContains('Merci, votre demande a bien été enregistrée.');
+    $this->assertSession()->pageTextContains($this->confirmationText);
     self::assertSame(1, $this->countContactSubmissions());
   }
 

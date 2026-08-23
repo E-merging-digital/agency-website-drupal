@@ -162,7 +162,11 @@ jobs:
           jq -e '.constraints.config_language_lock_activation_allowed == false' "$RESULT_PATH" >/dev/null
 
           mapfile -t expected_config_paths < <(jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[]' "$RESULT_PATH" | sort)
-          mapfile -t changed_config_paths < <(git diff --name-only -- config/sync | sort)
+          mapfile -t changed_config_paths < <(
+            git status --porcelain --untracked-files=all -- config/sync \
+              | awk '{print $2}' \
+              | sort
+          )
           [[ "${#expected_config_paths[@]}" -eq 353 ]]
           [[ "${#changed_config_paths[@]}" -eq 353 ]]
           diff -u <(printf '%s\n' "${expected_config_paths[@]}") <(printf '%s\n' "${changed_config_paths[@]}")

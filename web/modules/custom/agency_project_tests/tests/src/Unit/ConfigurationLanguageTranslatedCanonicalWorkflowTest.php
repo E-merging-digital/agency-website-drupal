@@ -103,6 +103,26 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
       $workflow,
     );
     self::assertStringContainsString(
+      'git status --porcelain --untracked-files=all -- config/sync',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      'mapfile -t changed_config_paths < <(git diff --name-only -- config/sync | sort)',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'git diff --diff-filter=M --name-only -- config/sync',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'git diff --diff-filter=D --name-only -- config/sync/language/en',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'git status --porcelain -- config/sync/language/fr',
+      $workflow,
+    );
+    self::assertStringContainsString(
       'ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PROMOTION_VERIFIED',
       $workflow,
     );

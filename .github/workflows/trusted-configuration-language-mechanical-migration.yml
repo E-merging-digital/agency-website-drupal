@@ -1,0 +1,256 @@
+name: Agency trusted configuration mechanical migration rollback proof
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate mechanical migration rollback request
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.comment.body == '/agency-config-language-mechanical prove'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '713' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-config-language-mechanical prove' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Mechanical migration rollback proof must execute live main.' >&2
+            exit 1
+          }
+
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  prove:
+    name: Rebuild Drupal and prove 39-object migration rollback
+    needs: validate-request
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      verdict: ${{ steps.summary.outputs.verdict }}
+      classified: ${{ steps.summary.outputs.classified }}
+      migrated: ${{ steps.summary.outputs.migrated }}
+      restored: ${{ steps.summary.outputs.restored }}
+      problems: ${{ steps.summary.outputs.problems }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable proof inputs
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f .ddev/config.yaml
+          test -f docs/evidence/configuration-language-mechanical-cohort-713.yml
+          test -f scripts/runner/configuration-language-mechanical-migration.php
+          test -f scripts/runner/run-configuration-language-mechanical-migration.sh
+          bash -n scripts/runner/run-configuration-language-mechanical-migration.sh
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-mechanical-ci.yaml <<EOF_CONFIG
+          name: agency-config-mechanical-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml \
+            | grep -F "agency-config-mechanical-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild Drupal from repository-owned configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/configuration-language-mechanical-migration.php
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush status
+
+      - name: Prove bounded active-config migration and rollback
+        shell: bash
+        env:
+          TARGET_DIR: ${{ github.workspace }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/configuration-language-mechanical-migration
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-configuration-language-mechanical-migration.sh
+
+      - name: Summarize machine-readable result
+        id: summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/configuration-language-mechanical-migration/result.json'
+          status='MISSING'
+          verdict='UNKNOWN'
+          classified='0'
+          migrated='0'
+          restored='0'
+          problems='0'
+
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$result")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result")"
+            classified="$(jq -r '.counts.cohort_classified // 0' "$result")"
+            migrated="$(jq -r '.counts.migrated // 0' "$result")"
+            restored="$(jq -r '.counts.rollback_restored // 0' "$result")"
+            problems="$(jq -r '.counts.problem_count // 0' "$result")"
+          fi
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "classified=$classified" >> "$GITHUB_OUTPUT"
+          echo "migrated=$migrated" >> "$GITHUB_OUTPUT"
+          echo "restored=$restored" >> "$GITHUB_OUTPUT"
+          echo "problems=$problems" >> "$GITHUB_OUTPUT"
+
+      - name: Upload mechanical migration rollback evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-mechanical-713-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/configuration-language-mechanical-migration
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-mechanical-ci.yaml
+          rm -rf artifacts/configuration-language-mechanical-migration
+          rmdir artifacts 2>/dev/null || true
+          git restore --worktree -- config/sync web/robots.txt 2>/dev/null || true
+          git clean -fd -- config/sync
+
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report:
+    name: Publish mechanical migration rollback result
+    if: ${{ always() && needs.validate-request.result == 'success' }}
+    needs:
+      - validate-request
+      - prove
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Comment result on #713
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+          ROUTE_OUTCOME: ${{ needs.prove.result }}
+          STATUS: ${{ needs.prove.outputs.status }}
+          VERDICT: ${{ needs.prove.outputs.verdict }}
+          CLASSIFIED: ${{ needs.prove.outputs.classified }}
+          MIGRATED: ${{ needs.prove.outputs.migrated }}
+          RESTORED: ${{ needs.prove.outputs.restored }}
+          PROBLEMS: ${{ needs.prove.outputs.problems }}
+        run: |
+          set -euo pipefail
+
+          heading='### Agency configuration mechanical migration rollback FAIL'
+          if [[ "$ROUTE_OUTCOME" == 'success' && "$STATUS" == 'PASS' ]]; then
+            heading='### Agency configuration mechanical migration rollback PASS'
+          fi
+
+          artifact="agency-config-mechanical-713-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
+          verdict: \`${VERDICT:-UNKNOWN}\`
+          cohort_classified: \`${CLASSIFIED:-0}\`
+          migrated: \`${MIGRATED:-0}\`
+          rollback_restored: \`${RESTORED:-0}\`
+          problems: \`${PROBLEMS:-0}\`
+          artifact: \`${artifact}\`
+
+          Bounded Drupal config-entity proof on the exact 39-object mechanical cohort. Migration occurs only in disposable active config and is rolled back before completion. This proof does not mutate config/sync, export configuration, enable Configuration Language Lock or access production.
+          EOF_BODY
+          )"
+          gh issue comment 713 --repo "$GITHUB_REPOSITORY" --body "$body"

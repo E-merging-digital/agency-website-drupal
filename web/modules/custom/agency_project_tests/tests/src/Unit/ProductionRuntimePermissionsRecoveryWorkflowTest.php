@@ -50,8 +50,8 @@ final class ProductionRuntimePermissionsRecoveryWorkflowTest extends TestCase {
       "EXPECTED_SHA='9188a2ebd6516a738be6df6f854794d41889aa90'",
       $workflow,
     );
-    self::assertStringContainsString("$maintenance\" == '0'", $workflow);
-    self::assertStringContainsString("$deploy_count\" == '0'", $workflow);
+    self::assertStringContainsString('$maintenance" == \'0\'', $workflow);
+    self::assertStringContainsString('$deploy_count" == \'0\'', $workflow);
   }
 
   /**
@@ -110,12 +110,15 @@ final class ProductionRuntimePermissionsRecoveryWorkflowTest extends TestCase {
     $manifest = strpos($workflow, 'backup_manifest="$BACKUPS/issue678-permissions-$timestamp.tsv"');
     $manifestWrite = strpos($workflow, '} > "$backup_manifest"');
     $firstMutation = strpos($workflow, 'chmod a+rx "$release"');
+    $postProbe = strpos($workflow, 'local_robots_after="$(http_local');
 
     self::assertIsInt($manifest);
     self::assertIsInt($manifestWrite);
     self::assertIsInt($firstMutation);
-    self::assertLessThan($manifestWrite, $firstMutation);
-    self::assertLessThan($firstMutation, strpos($workflow, 'local_robots_after="$(http_local'));
+    self::assertIsInt($postProbe);
+    self::assertLessThan($manifestWrite, $manifest);
+    self::assertLessThan($firstMutation, $manifestWrite);
+    self::assertLessThan($postProbe, $firstMutation);
   }
 
   /**

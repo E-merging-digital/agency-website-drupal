@@ -110,8 +110,8 @@ final class ConfigurationLanguageLockCoreWritesKernelTest extends KernelTestBase
         'node.type.lock_action_probe',
         [
           [
-            'key' => 'description',
-            'value' => 'Updated by Drupal core Config Action',
+            'description',
+            'Updated by Drupal core Config Action',
           ],
         ],
       );

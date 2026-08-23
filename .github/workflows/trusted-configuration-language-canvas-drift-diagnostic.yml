@@ -1,0 +1,276 @@
+name: Agency trusted Canvas language drift diagnostic
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate Canvas drift diagnostic request
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.comment.body == '/agency-config-language-canvas-drift diagnose'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '729' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-config-language-canvas-drift diagnose' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]]
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  diagnose:
+    name: Reproduce and diagnose exact Canvas component drift
+    needs: validate-request
+    timeout-minutes: 40
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    permissions:
+      contents: read
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      verdict: ${{ steps.summary.outputs.verdict }}
+      different: ${{ steps.summary.outputs.different }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          command -v docker
+          command -v ddev
+          command -v jq
+          git --version
+          docker --version
+          ddev version
+
+      - name: Checkout exact live main read-only
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable diagnostic inputs
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f scripts/runner/apply-configuration-language-translated-canonical.php
+          test -f scripts/runner/diagnose-configuration-language-canvas-drift.php
+          ddev utility configyaml >/dev/null
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-canvas-drift-diagnostic.yaml <<EOF_CONFIG
+          name: agency-config-canvas-drift-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml | grep -F "agency-config-canvas-drift-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Prove baseline fresh install is clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l /var/www/html/scripts/runner/apply-configuration-language-translated-canonical.php
+          ddev exec php -l /var/www/html/scripts/runner/diagnose-configuration-language-canvas-drift.php
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status"
+          grep -Fq 'No differences' <<<"$config_status"
+          if ddev drush pm:list --status=enabled --type=module --field=name | grep -Fxq 'config_language_lock'; then
+            echo 'Config Language Lock must remain disabled.' >&2
+            exit 1
+          fi
+
+      - name: Prepare local exact #720 canonical patch without push
+        shell: bash
+        env:
+          RESULT_PATH: ${{ runner.temp }}/agency-config-translated-canonical-720-result.json
+        run: |
+          set -euo pipefail
+          ddev drush php:script /var/www/html/scripts/runner/apply-configuration-language-translated-canonical.php > "$RESULT_PATH"
+          jq -e '.status == "PASS"' "$RESULT_PATH" >/dev/null
+          jq -e '.verdict == "ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PATCH_PREPARED"' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.prepared == 173' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.material_translatable_leaf_count == 930' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.explicit_en_coverage_count == 930' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.config_paths_changed == 353' "$RESULT_PATH" >/dev/null
+          jq -e '.counts.problem_count == 0 and .problems == []' "$RESULT_PATH" >/dev/null
+
+          mapfile -t expected_paths < <(jq -r '.paths.base[], .paths.en_deleted[], .paths.fr_created[], .paths.manifest' "$RESULT_PATH" | sort)
+          mapfile -t changed_paths < <(
+            git status --porcelain --untracked-files=all -- \
+              config/sync \
+              docs/evidence/configuration-language-translated-canonical-cohort-720.yml \
+              | awk '{print $2}' \
+              | sort
+          )
+          [[ "${#expected_paths[@]}" -eq 354 ]]
+          [[ "${#changed_paths[@]}" -eq 354 ]]
+          diff -u <(printf '%s\n' "${expected_paths[@]}") <(printf '%s\n' "${changed_paths[@]}")
+          git diff --check
+
+      - name: Rebuild second fresh Drupal and capture Canvas drift
+        id: diagnose
+        shell: bash
+        env:
+          DIAGNOSTIC_PATH: ${{ runner.temp }}/agency-config-canvas-drift-729.json
+          STATUS_PATH: ${{ runner.temp }}/agency-config-canvas-drift-729-status.txt
+        run: |
+          set -euo pipefail
+          ddev delete --omit-snapshot --yes
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" | tee "$STATUS_PATH"
+
+          ddev drush php:script /var/www/html/scripts/runner/diagnose-configuration-language-canvas-drift.php > "$DIAGNOSTIC_PATH"
+          cat "$DIAGNOSTIC_PATH"
+          jq -e '.status == "PASS"' "$DIAGNOSTIC_PATH" >/dev/null
+          jq -e '.verdict == "EIGHT_CANVAS_COMPONENT_LANGUAGE_DRIFTS_DIAGNOSED"' "$DIAGNOSTIC_PATH" >/dev/null
+          jq -e '.counts.expected == 8 and .counts.different == 8 and .counts.problem_count == 0' "$DIAGNOSTIC_PATH" >/dev/null
+          jq -e '.constraints.read_only == true and .constraints.config_write_allowed == false' "$DIAGNOSTIC_PATH" >/dev/null
+          jq -e '.constraints.config_language_lock_activation_allowed == false' "$DIAGNOSTIC_PATH" >/dev/null
+          ! grep -Fq 'No differences' <<<"$config_status"
+
+          if ddev drush pm:list --status=enabled --type=module --field=name | grep -Fxq 'config_language_lock'; then
+            echo 'Config Language Lock unexpectedly enabled.' >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Upload Canvas drift evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-canvas-drift-729-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/agency-config-canvas-drift-729.json
+            ${{ runner.temp }}/agency-config-canvas-drift-729-status.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Summarize diagnostic
+        id: summary
+        if: ${{ always() }}
+        shell: bash
+        env:
+          DIAGNOSTIC_PATH: ${{ runner.temp }}/agency-config-canvas-drift-729.json
+        run: |
+          set -euo pipefail
+          status='MISSING'
+          verdict='MISSING'
+          different='0'
+          if [[ -s "$DIAGNOSTIC_PATH" ]] && jq -e . "$DIAGNOSTIC_PATH" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$DIAGNOSTIC_PATH")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$DIAGNOSTIC_PATH")"
+            different="$(jq -r '.counts.different // 0' "$DIAGNOSTIC_PATH")"
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "different=$different" >> "$GITHUB_OUTPUT"
+
+      - name: Clean DDEV and workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-canvas-drift-diagnostic.yaml
+          git reset --hard HEAD >/dev/null 2>&1 || true
+          git clean -fd -- .ddev config/sync docs/evidence/configuration-language-translated-canonical-cohort-720.yml >/dev/null 2>&1 || true
+
+  report:
+    name: Publish Canvas drift diagnostic result
+    if: ${{ always() && needs.validate-request.result == 'success' }}
+    needs:
+      - validate-request
+      - diagnose
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Comment result on #729
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+          OUTCOME: ${{ needs.diagnose.result }}
+          STATUS: ${{ needs.diagnose.outputs.status }}
+          VERDICT: ${{ needs.diagnose.outputs.verdict }}
+          DIFFERENT: ${{ needs.diagnose.outputs.different }}
+        run: |
+          set -euo pipefail
+          heading='### Canvas language drift diagnostic FAIL'
+          if [[ "$OUTCOME" == 'success' && "$STATUS" == 'PASS' && "$DIFFERENT" == '8' ]]; then
+            heading='### Canvas language drift diagnostic PASS'
+          fi
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${OUTCOME:-unknown}\`
+          status: \`${STATUS:-MISSING}\`
+          verdict: \`${VERDICT:-MISSING}\`
+          different_canvas_components: \`${DIFFERENT:-0}\`
+
+          This route is repository-read-only. It reproduces #720 only in a disposable checkout, captures exact sync/active Canvas component drift and never pushes a branch or enables Config Language Lock.
+          EOF_BODY
+          )"
+          gh issue comment 729 --repo "$GITHUB_REPOSITORY" --body "$body"

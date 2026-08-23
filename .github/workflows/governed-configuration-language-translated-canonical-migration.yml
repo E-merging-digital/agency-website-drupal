@@ -363,6 +363,24 @@ jobs:
           )
           git add -- "${paths[@]}"
           mapfile -t staged_paths < <(git diff --cached --name-only | sort)
+
+          staged_added="$(git diff --cached --diff-filter=A --name-only | wc -l)"
+          staged_modified="$(git diff --cached --diff-filter=M --name-only | wc -l)"
+          staged_deleted="$(git diff --cached --diff-filter=D --name-only | wc -l)"
+          printf 'final_staging_expected_paths=%s\n' "${#paths[@]}"
+          printf 'final_staging_staged_paths=%s\n' "${#staged_paths[@]}"
+          printf 'final_staging_status_counts added=%s modified=%s deleted=%s\n' \
+            "$staged_added" "$staged_modified" "$staged_deleted"
+          echo '--- final staged name-status ---'
+          git diff --cached --name-status
+          echo '--- final unstaged tracked name-status ---'
+          git diff --name-status
+          echo '--- final untracked migration surfaces ---'
+          git ls-files --others --exclude-standard -- \
+            config/sync \
+            docs/evidence/configuration-language-translated-canonical-cohort-720.yml \
+            || true
+
           [[ "${#paths[@]}" -eq 362 ]]
           [[ "${#staged_paths[@]}" -eq 362 ]]
           diff -u \

@@ -38,6 +38,22 @@ final class ConfigurationLanguageTranslatedCanonicalPathScopeWorkflowTest extend
       'mapfile -t staged_paths < <(git diff --cached --name-only | sort)',
       $workflow,
     );
+    self::assertStringContainsString(
+      'final_staging_expected_paths=%s',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'final_staging_staged_paths=%s',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'final_staging_status_counts added=%s modified=%s deleted=%s',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'git diff --cached --name-status',
+      $workflow,
+    );
     self::assertStringContainsString('diff -u', $workflow);
     self::assertStringContainsString(
       '<(printf \'%s\\n\' "${paths[@]}")',

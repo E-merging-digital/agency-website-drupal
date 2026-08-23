@@ -1,0 +1,285 @@
+name: Agency trusted configuration language migration dry-run
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate configuration language migration request
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.comment.body == '/agency-config-language-migration classify'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '684' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-config-language-migration classify' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Migration dry-run must execute the workflow revision on live main.' >&2
+            exit 1
+          }
+
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  classify:
+    name: Rebuild Drupal and classify EN migration dry-run
+    needs: validate-request
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      verdict: ${{ steps.summary.outputs.verdict }}
+      snapshot_sha256: ${{ steps.summary.outputs.snapshot_sha256 }}
+      fr_with_en: ${{ steps.summary.outputs.fr_with_en }}
+      fr_without_en: ${{ steps.summary.outputs.fr_without_en }}
+      technical: ${{ steps.summary.outputs.technical }}
+      review_required: ${{ steps.summary.outputs.review_required }}
+      unknown: ${{ steps.summary.outputs.unknown }}
+      canvas: ${{ steps.summary.outputs.canvas }}
+      language_content_settings: ${{ steps.summary.outputs.language_content_settings }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          git --version
+          command -v docker
+          docker --version
+          command -v ddev
+          ddev version
+          command -v jq
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact checkout and immutable dry-run implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f AGENTS.md
+          test -f .ddev/config.yaml
+          test -f docs/configuration-language-policy.yml
+          test -f docs/evidence/configuration-language-baseline-609.yml
+          test -f scripts/runner/run-configuration-language-audit.sh
+          test -f scripts/runner/configuration-language-audit.php
+          test -f scripts/runner/run-configuration-language-migration-dry-run.sh
+          test -f scripts/runner/configuration-language-migration-dry-run.php
+          bash -n scripts/runner/run-configuration-language-migration-dry-run.sh
+          git diff --check
+
+      - name: Isolate DDEV project for this dry-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-migration-ci.yaml <<EOF
+          name: agency-config-language-migration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-config-language-migration-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild Drupal from repository-owned configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l /var/www/html/scripts/runner/configuration-language-audit.php
+          ddev exec php -l /var/www/html/scripts/runner/configuration-language-migration-dry-run.php
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush status
+
+      - name: Classify bounded read-only EN migration dry-run
+        id: route
+        shell: bash
+        env:
+          TARGET_DIR: ${{ github.workspace }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/configuration-language-migration-dry-run
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-configuration-language-migration-dry-run.sh
+
+      - name: Summarize machine-readable result
+        id: summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/configuration-language-migration-dry-run/result.json'
+          status='MISSING'
+          verdict='UNKNOWN'
+          snapshot_sha256='n/a'
+          fr_with_en='0'
+          fr_without_en='0'
+          technical='0'
+          review_required='0'
+          unknown='0'
+          canvas='0'
+          language_content_settings='0'
+
+          if [[ -s "$result" ]] && jq -e . "$result" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$result")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result")"
+            snapshot_sha256="$(jq -r '.baseline.current_snapshot_sha256 // "n/a"' "$result")"
+            fr_with_en="$(jq -r '.counts.fr_base_with_en_override // 0' "$result")"
+            fr_without_en="$(jq -r '.counts.fr_base_without_en_override // 0' "$result")"
+            technical="$(jq -r '.counts.technical_candidate_without_en_override // 0' "$result")"
+            review_required="$(jq -r '.counts.editorial_or_semantic_review_required // 0' "$result")"
+            unknown="$(jq -r '.counts.unknown // 0' "$result")"
+            canvas="$(jq -r '.focus.canvas.count // 0' "$result")"
+            language_content_settings="$(jq -r '.focus.language_content_settings.count // 0' "$result")"
+          fi
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          echo "snapshot_sha256=$snapshot_sha256" >> "$GITHUB_OUTPUT"
+          echo "fr_with_en=$fr_with_en" >> "$GITHUB_OUTPUT"
+          echo "fr_without_en=$fr_without_en" >> "$GITHUB_OUTPUT"
+          echo "technical=$technical" >> "$GITHUB_OUTPUT"
+          echo "review_required=$review_required" >> "$GITHUB_OUTPUT"
+          echo "unknown=$unknown" >> "$GITHUB_OUTPUT"
+          echo "canvas=$canvas" >> "$GITHUB_OUTPUT"
+          echo "language_content_settings=$language_content_settings" >> "$GITHUB_OUTPUT"
+
+      - name: Upload migration dry-run evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-migration-684-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/configuration-language-migration-dry-run
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-migration-ci.yaml
+          rm -rf artifacts/configuration-language-audit
+          rm -rf artifacts/configuration-language-migration-dry-run
+          rmdir artifacts 2>/dev/null || true
+          git restore --worktree -- config/sync web/robots.txt 2>/dev/null || true
+          git clean -fd -- config/sync
+
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report:
+    name: Publish bounded configuration language migration result
+    if: ${{ always() && needs.validate-request.result == 'success' }}
+    needs:
+      - validate-request
+      - classify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Comment dry-run result on #684
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN: ${{ needs.validate-request.outputs.main_sha }}
+          ROUTE_OUTCOME: ${{ needs.classify.result }}
+          STATUS: ${{ needs.classify.outputs.status }}
+          VERDICT: ${{ needs.classify.outputs.verdict }}
+          SNAPSHOT_SHA256: ${{ needs.classify.outputs.snapshot_sha256 }}
+          FR_WITH_EN: ${{ needs.classify.outputs.fr_with_en }}
+          FR_WITHOUT_EN: ${{ needs.classify.outputs.fr_without_en }}
+          TECHNICAL: ${{ needs.classify.outputs.technical }}
+          REVIEW_REQUIRED: ${{ needs.classify.outputs.review_required }}
+          UNKNOWN: ${{ needs.classify.outputs.unknown }}
+          CANVAS: ${{ needs.classify.outputs.canvas }}
+          LANGUAGE_CONTENT_SETTINGS: ${{ needs.classify.outputs.language_content_settings }}
+        run: |
+          set -euo pipefail
+
+          heading='### Agency configuration language migration dry-run FAIL'
+          if [[ "$ROUTE_OUTCOME" == 'success' && "$STATUS" == 'PASS' ]]; then
+            heading='### Agency configuration language migration dry-run PASS'
+          fi
+
+          artifact="agency-config-language-migration-684-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
+          verdict: \`${VERDICT:-UNKNOWN}\`
+          snapshot_sha256: \`${SNAPSHOT_SHA256:-n/a}\`
+          fr_base_with_en_override: \`${FR_WITH_EN:-0}\`
+          fr_base_without_en_override: \`${FR_WITHOUT_EN:-0}\`
+          technical_candidate_without_en_override: \`${TECHNICAL:-0}\`
+          editorial_or_semantic_review_required: \`${REVIEW_REQUIRED:-0}\`
+          unknown: \`${UNKNOWN:-0}\`
+          canvas_without_en_override: \`${CANVAS:-0}\`
+          language_content_settings_without_en_override: \`${LANGUAGE_CONTENT_SETTINGS:-0}\`
+          artifact: \`${artifact}\`
+
+          Read-only fresh-DDEV classification only. This proof does not enable Configuration Language Lock, export configuration, rewrite langcodes or access production.
+          EOF_BODY
+          )"
+          gh issue comment 684 --repo "$GITHUB_REPOSITORY" --body "$body"

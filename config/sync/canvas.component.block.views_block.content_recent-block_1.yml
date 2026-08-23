@@ -6,9 +6,20 @@ dependencies:
     - views.view.content_recent
   module:
     - views
-active_version: 1760ca0039cb39cf
+active_version: 66bd67d1010e26aa
 versioned_properties:
   active:
+    settings:
+      default_settings:
+        id: 'views_block:content_recent-block_1'
+        label: 'Recent content : Block'
+        label_display: '0'
+        provider: views
+        views_label: ''
+        items_per_page: null
+    fallback_metadata:
+      slot_definitions: null
+  1760ca0039cb39cf:
     settings:
       default_settings:
         id: 'views_block:content_recent-block_1'
@@ -19,7 +30,7 @@ versioned_properties:
         items_per_page: null
     fallback_metadata:
       slot_definitions: null
-label: 'Recent content'
+label: 'Recent content : Block'
 id: block.views_block.content_recent-block_1
 provider: views
 source: block

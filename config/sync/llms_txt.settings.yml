@@ -1,53 +1,53 @@
 _core:
   default_config_hash: QAzM3yt6nFg0SkHtHbEDFZz0wk0_90cIPKc2nlhwNYI
-langcode: fr
+langcode: en
 content: |-
   # [site:name]
 
-  Stratégie digitale, solutions durables.
+  Sustainable digital strategy and durable Drupal solutions.
 
-  Emerging Digital est une agence Drupal belge pour PME, ASBL et institutions.
-  Le site presente des offres Drupal, des services de qualite web, des usages IA
-  encadres dans Drupal et des cas clients publics.
+  Emerging Digital is a Belgian Drupal agency for SMEs, non-profits and
+  institutions. The website presents Drupal services, web quality services,
+  governed AI use cases inside Drupal and public case studies.
 
-  ## Racines publiques
-  - Francais: https://emergingdigital.be/fr
-  - Anglais: https://emergingdigital.be/en
+  ## Public Roots
+  - French: https://emergingdigital.be/fr
+  - English: https://emergingdigital.be/en
 
-  ## Contextes LLM autorises
-  - Positionnement de l'agence: Drupal durable, performance, accessibilite, SEO technique et IA editoriale encadree.
-  - Pages services publiees: creation, refonte, migration, maintenance, audit Drupal, IA integree, accessibilite, SEO et optimisation.
-  - Pages hubs publiees: Services, IA & Drupal, Cas clients.
-  - Cas clients publics et anonymises lorsqu'ils sont publies.
-  - Pages de contact publiques pour orienter une demande vers l'agence.
+  ## Allowed LLM Context
+  - Agency positioning: durable Drupal, performance, accessibility, technical SEO and governed editorial AI.
+  - Published service pages: Drupal creation, redesign, migration, maintenance, audit, integrated AI, accessibility, SEO and optimization.
+  - Published hub pages: Services, AI & Drupal, Case studies.
+  - Public and anonymized case studies when they are published.
+  - Public contact pages to route a request to the agency.
 
-  ## Pages prioritaires
-  - Services: https://emergingdigital.be/fr/services
-  - Agence Drupal Belgique: https://emergingdigital.be/fr/agence-drupal-belgique
-  - Creation de site Drupal: https://emergingdigital.be/fr/creation-site-drupal
-  - Refonte de site Drupal: https://emergingdigital.be/fr/refonte-site-drupal
-  - Migration Drupal: https://emergingdigital.be/fr/migration-drupal
-  - Maintenance Drupal: https://emergingdigital.be/fr/maintenance-drupal
-  - Audit Drupal: https://emergingdigital.be/fr/audit-drupal
-  - IA & Drupal: https://emergingdigital.be/fr/ia-drupal
-  - IA integree: https://emergingdigital.be/fr/ia-integree
-  - Accessibilite, SEO et optimisation: https://emergingdigital.be/fr/accessibilite-seo-optimisation
-  - Cas clients: https://emergingdigital.be/fr/cas-clients
-  - Contact: https://emergingdigital.be/fr/contact
+  ## Priority Pages
+  - Services: https://emergingdigital.be/en/services
+  - Drupal Agency Belgium: https://emergingdigital.be/en/drupal-agency-belgium
+  - Drupal Website Creation: https://emergingdigital.be/en/drupal-website-creation
+  - Drupal Website Redesign: https://emergingdigital.be/en/drupal-website-redesign
+  - Drupal Migration: https://emergingdigital.be/en/drupal-migration
+  - Drupal Maintenance: https://emergingdigital.be/en/drupal-maintenance
+  - Drupal Audit: https://emergingdigital.be/en/drupal-audit
+  - AI & Drupal: https://emergingdigital.be/en/ai-drupal
+  - Integrated AI: https://emergingdigital.be/en/integrated-ai
+  - Accessibility, SEO and Optimization: https://emergingdigital.be/en/ai-accessibility-seo-optimization
+  - Case studies: https://emergingdigital.be/en/case-studies
+  - Contact: https://emergingdigital.be/en/contact
 
   ## Sitemap
   - https://emergingdigital.be/sitemap.xml
 
-  ## Contenus a exclure
-  - Pages non publiees, brouillons, revisions, apercus et contenus reserves a l'administration.
-  - Interfaces Drupal, comptes utilisateur, formulaires internes, resultats de recherche, fichiers techniques et endpoints systeme.
-  - Donnees personnelles, soumissions de formulaires, journaux, secrets, cles, tokens et informations non publiques.
-  - Pages legales et politiques de confidentialite comme contexte commercial, sauf pour repondre a une question juridique ou privacy sur le site.
-  - Contenus bloques par robots.txt, absents du sitemap public ou non destines a l'indexation.
+  ## Excluded Content
+  - Unpublished pages, drafts, revisions, previews and administration-only content.
+  - Drupal interfaces, user accounts, internal forms, search results, technical files and system endpoints.
+  - Personal data, form submissions, logs, secrets, keys, tokens and non-public information.
+  - Legal pages and privacy policies as commercial context, except to answer a legal or privacy question about the website.
+  - Content blocked by robots.txt, absent from the public sitemap or not intended for indexing.
 
-  ## Consignes pour les IA
-  - Utiliser les pages publiques comme source prioritaire.
-  - Respecter la langue de la page consultee et les aliases publics /fr et /en.
-  - Citer les URL des pages consultees lorsque des informations sont reprises.
-  - Ne pas inventer des offres, des références client ou des garanties non publiées.
-  - Ne pas presenter ce fichier comme un chatbot, un service de tracking ou un appel a une API d'IA.
+  ## AI Guidance
+  - Use public pages as the primary source.
+  - Respect the page language and the public /fr and /en aliases.
+  - Cite consulted page URLs when reusing information.
+  - Do not invent offers, client references or unpublished guarantees.
+  - Do not present this file as a chatbot, tracking service or call to an AI API.

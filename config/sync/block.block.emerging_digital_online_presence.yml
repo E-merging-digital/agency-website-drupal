@@ -1,5 +1,5 @@
 uuid: 8c2703d8-077e-44e9-bd9a-a6d96c5cf080
-langcode: fr
+langcode: en
 status: true
 dependencies:
   config:
@@ -16,7 +16,7 @@ provider: null
 plugin: 'system_menu_block:online-presence'
 settings:
   id: 'system_menu_block:online-presence'
-  label: 'Présence en ligne'
+  label: 'Online presence'
   label_display: visible
   provider: system
   level: 1

@@ -1,5 +1,5 @@
 uuid: d690f758-f32f-4b24-a7fa-62e77bd7940c
-langcode: fr
+langcode: en
 status: true
 dependencies:
   config:
@@ -19,8 +19,8 @@ content:
     weight: 20
     region: content
     settings:
-      title: Paragraphe
-      title_plural: Paragraphes
+      title: Paragraph
+      title_plural: Paragraphs
       edit_mode: open
       closed_mode: summary
       autocollapse: none

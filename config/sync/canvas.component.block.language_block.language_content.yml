@@ -4,9 +4,18 @@ status: false
 dependencies:
   module:
     - language
-active_version: 6ac456edbe25811b
+active_version: 5151d970a060e714
 versioned_properties:
   active:
+    settings:
+      default_settings:
+        id: 'language_block:language_content'
+        label: 'Sélecteur de langue (Contenu)'
+        label_display: '0'
+        provider: language
+    fallback_metadata:
+      slot_definitions: null
+  6ac456edbe25811b:
     settings:
       default_settings:
         id: 'language_block:language_content'
@@ -15,7 +24,7 @@ versioned_properties:
         provider: language
     fallback_metadata:
       slot_definitions: null
-label: 'Sélecteur de langue (Content)'
+label: 'Sélecteur de langue (Contenu)'
 id: block.language_block.language_content
 provider: language
 source: block

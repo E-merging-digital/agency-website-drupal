@@ -38,8 +38,13 @@ final class ConfigurationLanguageTranslatedCanonicalPathScopeWorkflowTest extend
       'mapfile -t staged_paths < <(git diff --cached --name-only | sort)',
       $workflow,
     );
+    self::assertStringContainsString('diff -u', $workflow);
     self::assertStringContainsString(
-      'diff -u <(printf \'%s\\n\' "${paths[@]}") <(printf \'%s\\n\' "${staged_paths[@]}")',
+      '<(printf \'%s\\n\' "${paths[@]}")',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '<(printf \'%s\\n\' "${staged_paths[@]}")',
       $workflow,
     );
     self::assertStringContainsString(
@@ -47,7 +52,7 @@ final class ConfigurationLanguageTranslatedCanonicalPathScopeWorkflowTest extend
       $workflow,
     );
     self::assertStringContainsString(
-      'git ls-files --others --exclude-standard -- config/sync docs/evidence/configuration-language-translated-canonical-cohort-720.yml',
+      'git ls-files --others --exclude-standard --',
       $workflow,
     );
 

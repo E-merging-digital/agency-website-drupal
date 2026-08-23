@@ -25,7 +25,10 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
     );
 
     self::assertIsArray(token_get_all($writer, TOKEN_PARSE));
-    self::assertStringContainsString("\\Drupal::service('config.storage.sync')", $writer);
+    self::assertStringContainsString(
+      "\\Drupal::service('config.storage.sync')",
+      $writer,
+    );
     self::assertStringContainsString("createCollection('language.en')", $writer);
     self::assertStringContainsString("createCollection('language.fr')", $writer);
     self::assertStringContainsString("\\Drupal::service('config.typed')", $writer);
@@ -64,26 +67,112 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
   public function testGovernedCanonicalWriterRouteIsBounded(): void {
     $root = dirname(DRUPAL_ROOT);
     $workflow = (string) file_get_contents(
-      $root . '/.github/workflows/governed-configuration-language-translated-canonical-migration.yml',
+      $root
+      . '/.github/workflows/'
+      . 'governed-configuration-language-translated-canonical-migration.yml',
     );
 
     self::assertIsArray(DrupalYaml::decode($workflow));
     self::assertStringContainsString(
-      "github.event.comment.body == '/agency-config-language-translated-canonical migrate'",
+      "github.event.comment.body == "
+      . "'/agency-config-language-translated-canonical migrate'",
       $workflow,
     );
-    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'720\' ]]', $workflow);
-    self::assertStringContainsString('[[ "$GITHUB_ACTOR" == \'E-merging-digital\' ]]', $workflow);
-    self::assertStringContainsString('[[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]]', $workflow);
+    self::assertStringContainsString(
+      '[[ "$ISSUE_NUMBER" == \'720\' ]]',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '[[ "$GITHUB_ACTOR" == \'E-merging-digital\' ]]',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '[[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]]',
+      $workflow,
+    );
     self::assertStringContainsString('contents: write', $workflow);
     self::assertStringContainsString('persist-credentials: true', $workflow);
-    self::assertStringContainsString('counts.config_paths_changed == 353', $workflow);
-    self::assertStringContainsString('expected_all_paths[@]}" -eq 354', $workflow);
-    self::assertStringContainsString('feature/720-apply-canonical-translated-promotion', $workflow);
-    self::assertStringContainsString('Refusing to overwrite existing branch', $workflow);
-    self::assertStringContainsString('git push origin "HEAD:refs/heads/$branch"', $workflow);
-    self::assertGreaterThanOrEqual(2, substr_count($workflow, 'site:install --existing-config'));
-    self::assertStringContainsString('ddev delete --omit-snapshot --yes', $workflow);
+
+    // The translated writer remains independently frozen to its 353 paths.
+    self::assertStringContainsString(
+      'counts.config_paths_changed == 353',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'expected_all_paths[@]}" -eq 354',
+      $workflow,
+    );
+
+    // #733 adds only the exact eight Canvas stabilization paths.
+    self::assertStringContainsString(
+      'stabilize-configuration-language-canvas-components.php',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'configuration-language-canvas-drift-diagnostic.php',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'EIGHT_CANVAS_COMPONENT_STABILIZATION_PATCH_PREPARED',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '.counts.stabilized == 8',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '.counts.paths_changed == 8',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '.counts.different == 8',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '.counts.different == 0',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'expected_config_paths[@]}" -eq 361',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'expected_all_paths[@]}" -eq 362',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '"${#paths[@]}" -eq 362',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '"$CONFIG_PATHS" == \'361\'',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'git diff --diff-filter=M --name-only -- config/sync | wc -l)" -eq 181',
+      $workflow,
+    );
+
+    self::assertStringContainsString(
+      'feature/720-apply-canonical-translated-promotion',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'Refusing to overwrite existing branch',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'git push origin "HEAD:refs/heads/$branch"',
+      $workflow,
+    );
+    self::assertSame(
+      3,
+      substr_count($workflow, 'site:install --existing-config'),
+    );
+    self::assertStringContainsString(
+      'ddev delete --omit-snapshot --yes',
+      $workflow,
+    );
     self::assertSame(
       2,
       substr_count(
@@ -107,11 +196,8 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
       $workflow,
     );
     self::assertStringNotContainsString(
-      'mapfile -t changed_config_paths < <(git diff --name-only -- config/sync | sort)',
-      $workflow,
-    );
-    self::assertStringContainsString(
-      'git diff --diff-filter=M --name-only -- config/sync',
+      'mapfile -t changed_config_paths < <('
+      . 'git diff --name-only -- config/sync | sort)',
       $workflow,
     );
     self::assertStringContainsString(
@@ -150,7 +236,10 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
     );
     self::assertIsArray(token_get_all($verifier, TOKEN_PARSE));
     self::assertStringContainsString('$expectedCount = 173', $verifier);
-    self::assertStringContainsString('count($remainingReviewRequired) !== 140', $verifier);
+    self::assertStringContainsString(
+      'count($remainingReviewRequired) !== 140',
+      $verifier,
+    );
     self::assertStringContainsString('mechanical_715_verified_en', $verifier);
     self::assertStringContainsString('language.entity.', $verifier);
     self::assertStringContainsString('site_default_language_not_fr', $verifier);
@@ -158,7 +247,13 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
       'ONE_HUNDRED_SEVENTY_THREE_TRANSLATED_CANONICAL_PROMOTION_VERIFIED',
       $verifier,
     );
-    foreach (['write(', 'delete(', 'file_put_contents', 'config:set', 'pm:enable'] as $forbidden) {
+    foreach ([
+      'write(',
+      'delete(',
+      'file_put_contents',
+      'config:set',
+      'pm:enable',
+    ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $verifier);
     }
   }
@@ -169,17 +264,25 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
   public function testTrustedCanonicalVerificationRouteIsBounded(): void {
     $root = dirname(DRUPAL_ROOT);
     $workflow = (string) file_get_contents(
-      $root . '/.github/workflows/trusted-configuration-language-translated-canonical-verify.yml',
+      $root
+      . '/.github/workflows/'
+      . 'trusted-configuration-language-translated-canonical-verify.yml',
     );
-    $runnerPath = $root . '/scripts/runner/run-configuration-language-translated-canonical-verify.sh';
+    $runnerPath = $root
+      . '/scripts/runner/'
+      . 'run-configuration-language-translated-canonical-verify.sh';
     $runner = (string) file_get_contents($runnerPath);
 
     self::assertIsArray(DrupalYaml::decode($workflow));
     self::assertStringContainsString(
-      "github.event.comment.body == '/agency-config-language-translated-canonical verify'",
+      "github.event.comment.body == "
+      . "'/agency-config-language-translated-canonical verify'",
       $workflow,
     );
-    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'720\' ]]', $workflow);
+    self::assertStringContainsString(
+      '[[ "$ISSUE_NUMBER" == \'720\' ]]',
+      $workflow,
+    );
     self::assertStringContainsString('persist-credentials: false', $workflow);
     self::assertStringContainsString('- self-hosted', $workflow);
     self::assertStringContainsString('- agency', $workflow);
@@ -193,7 +296,8 @@ final class ConfigurationLanguageTranslatedCanonicalWorkflowTest extends TestCas
       '.counts.remaining_fr_review_required == 140',
       '.counts.preserved_fr_overrides_outside_cohort == 2',
       '.counts.preserved_en_overrides_outside_cohort == 1',
-      '.distribution_by_langcode == {"__none__":59,"en":395,"fr":140,"und":1}',
+      '.distribution_by_langcode == '
+      . '{"__none__":59,"en":395,"fr":140,"und":1}',
       'git diff --exit-code -- config/sync',
     ] as $required) {
       self::assertStringContainsString($required, $runner);

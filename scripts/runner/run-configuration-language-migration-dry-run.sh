@@ -63,7 +63,7 @@ jq -e '.constraints.bulk_langcode_replacement_allowed == false' "$ARTIFACT_DIR/r
 jq -e '.constraints.config_language_lock_activation_allowed_by_this_proof == false' "$ARTIFACT_DIR/result.json" >/dev/null
 jq -e '.constraints.config_export_allowed_by_this_proof == false' "$ARTIFACT_DIR/result.json" >/dev/null
 jq -e '.constraints.production_mutation_allowed_by_this_proof == false' "$ARTIFACT_DIR/result.json" >/dev/null
-jq -e '.focus.canvas.count == 43' "$ARTIFACT_DIR/result.json" >/dev/null
+jq -e '.focus.canvas.count == 45' "$ARTIFACT_DIR/result.json" >/dev/null
 jq -e '.focus.language_content_settings.count == 14' "$ARTIFACT_DIR/result.json" >/dev/null
 
 config_status="$(ddev drush config:status 2>&1)"

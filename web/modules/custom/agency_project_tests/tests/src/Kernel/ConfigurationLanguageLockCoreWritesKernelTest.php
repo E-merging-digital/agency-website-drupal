@@ -71,8 +71,7 @@ final class ConfigurationLanguageLockCoreWritesKernelTest extends KernelTestBase
       $this->config('node.type.lock_direct_probe')->get('langcode'),
     );
     self::assertSame('fr', $this->config('system.site')->get('default_langcode'));
-    self::assertSame(
-      FALSE,
+    self::assertFalse(
       $this->config('config_language_lock.settings')->get('follow_site_default'),
     );
   }
@@ -129,8 +128,7 @@ final class ConfigurationLanguageLockCoreWritesKernelTest extends KernelTestBase
       'en',
       $this->config('config_language_lock.settings')->get('locked_langcode'),
     );
-    self::assertSame(
-      FALSE,
+    self::assertFalse(
       $this->config('config_language_lock.settings')->get('follow_site_default'),
     );
     self::assertSame('fr', $this->config('system.site')->get('default_langcode'));

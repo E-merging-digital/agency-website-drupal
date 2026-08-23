@@ -41,7 +41,9 @@ final class ConfigurationLanguageLockRecipeInstallKernelTest extends KernelTestB
   protected function setUp(): void {
     parent::setUp();
 
-    $this->installConfig(['system', 'config_language_lock']);
+    // Language's install configuration is required when a module is installed
+    // dynamically because language_modules_installed() updates negotiation.
+    $this->installConfig(['system', 'language', 'config_language_lock']);
 
     foreach (['fr', 'en'] as $langcode) {
       if (ConfigurableLanguage::load($langcode) === NULL) {
@@ -130,7 +132,11 @@ final class ConfigurationLanguageLockRecipeInstallKernelTest extends KernelTestB
       \Drupal::config('node.type.lock_recipe_probe')->get('langcode'),
     );
     self::assertTrue(\Drupal::moduleHandler()->moduleExists('shortcut'));
-    self::assertSame('en', \Drupal::config('shortcut.set.default')->get('langcode'));
+
+    // RecipeRunner intentionally sets ConfigInstaller to syncing while it
+    // installs extensions, so config entities shipped by that extension are
+    // not implicitly created. This is a Drupal Recipe invariant, not drift.
+    self::assertTrue(\Drupal::config('shortcut.set.default')->isNew());
     self::assertSame('fr', \Drupal::config('system.site')->get('default_langcode'));
   }
 

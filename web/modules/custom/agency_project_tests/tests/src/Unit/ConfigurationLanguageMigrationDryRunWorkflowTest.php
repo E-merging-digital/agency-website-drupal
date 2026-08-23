@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
@@ -24,7 +25,7 @@ final class ConfigurationLanguageMigrationDryRunWorkflowTest extends TestCase {
       $root . '/.github/workflows/trusted-configuration-language-migration-dry-run.yml',
     );
 
-    self::assertIsArray(Yaml::parse($workflow));
+    self::assertIsArray(DrupalYaml::decode($workflow));
     self::assertStringContainsString(
       "github.event.comment.body == '/agency-config-language-migration classify'",
       $workflow,

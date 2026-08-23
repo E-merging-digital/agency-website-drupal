@@ -66,6 +66,11 @@ final class ExistingConfigLockedLanguagesWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertStringContainsString(
+      'config-status-post-install.txt',
+      $workflow,
+    );
+    self::assertSame(2, substr_count($workflow, 'ddev drush cim -y'));
+    self::assertStringContainsString(
       'ddev drush pm:enable config_language_lock -y',
       $workflow,
     );
@@ -85,7 +90,6 @@ final class ExistingConfigLockedLanguagesWorkflowTest extends TestCase {
       'ddev drush pm:uninstall config_language_lock -y',
       $workflow,
     );
-    self::assertStringContainsString('ddev drush cim -y', $workflow);
     self::assertStringContainsString('No differences', $workflow);
     self::assertStringContainsString(
       '.languages.und.locked == true',

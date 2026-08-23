@@ -142,6 +142,16 @@ jobs:
           ddev drush status \
             > artifacts/existing-config-locked-languages/drush-status.txt
 
+          post_install_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$post_install_status" \
+            > artifacts/existing-config-locked-languages/config-status-post-install.txt
+
+          # Drupal's install/Locale finish tasks can mutate active configuration.
+          # Re-import the repository configuration before defining the canonical
+          # baseline, matching the already-proven #628 trusted evaluation route.
+          ddev drush cim -y
+          ddev drush cr
+
           config_status="$(ddev drush config:status 2>&1)"
           printf '%s\n' "$config_status" \
             > artifacts/existing-config-locked-languages/config-status-before.txt
@@ -312,7 +322,7 @@ jobs:
           proof_outcome: \`${PROOF_OUTCOME:-unknown}\`
           artifact: \`${artifact}\`
 
-          The proof rebuilds from `site:install --existing-config`, verifies `und`/`zxx`, enables EN lock only inside disposable DDEV, resaves both locked language entities through native Drupal APIs, restores canonical active config, and cleans the workspace. It never exports config or accesses production.
+          The proof rebuilds from site:install --existing-config, verifies und/zxx, enables EN lock only inside disposable DDEV, resaves both locked language entities through native Drupal APIs, restores canonical active config, and cleans the workspace. It never exports config or accesses production.
           EOF_BODY
           )"
           gh issue comment 696 --repo "$GITHUB_REPOSITORY" --body "$body"

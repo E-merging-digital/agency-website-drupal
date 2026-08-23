@@ -4,6 +4,7 @@ module:
   admin_toolbar: 0
   agency_ai_translation: 0
   ai: 0
+  ai_agents: 0
   ai_automators: 0
   ai_ckeditor: 0
   ai_observability: 0
@@ -15,6 +16,7 @@ module:
   block_content: 0
   breakpoint: 0
   canvas: 0
+  canvas_ai: 0
   ckeditor5: 0
   comment: 0
   config: 0
@@ -54,6 +56,7 @@ module:
   metatag: 0
   metatag_open_graph: 0
   metatag_twitter_cards: 0
+  modeler_api: 0
   mysql: 0
   node: 0
   options: 0

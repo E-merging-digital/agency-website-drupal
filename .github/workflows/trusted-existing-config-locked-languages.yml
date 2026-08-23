@@ -178,7 +178,7 @@ jobs:
           ' artifacts/existing-config-locked-languages/before.json >/dev/null
           test -z "$(git status --short config/sync)"
 
-      - name: Enforce EN ephemerally and isolate native locked-language saves
+      - name: Enforce EN ephemerally and recover Locale langcode drift
         shell: bash
         run: |
           set -euo pipefail
@@ -186,8 +186,8 @@ jobs:
           ddev drush php:eval "\Drupal::configFactory()->getEditable('config_language_lock.settings')->set('locked_langcode', 'en')->set('follow_site_default', FALSE)->save();"
           ddev drush cr
 
-          # Module enable can legitimately localize active labels through Locale.
-          # Capture that footprint before testing ConfigurableLanguage::save().
+          # Module enable can invoke Locale on this FR site. Capture its exact
+          # pre-save footprint before Config Language Lock gets a native save.
           ddev drush php:script \
             /var/www/html/scripts/runner/locked-language-state.php \
             > artifacts/existing-config-locked-languages/enabled.json
@@ -199,21 +199,21 @@ jobs:
             .lock_settings.follow_site_default == false and
             .languages.und.present == true and
             .languages.und.id == "und" and
-            .languages.und.langcode == "en" and
+            (.languages.und.langcode == "en" or .languages.und.langcode == "fr") and
             .languages.und.locked == true and
             .languages.und.weight == 2 and
             .languages.zxx.present == true and
             .languages.zxx.id == "zxx" and
-            .languages.zxx.langcode == "en" and
+            (.languages.zxx.langcode == "en" or .languages.zxx.langcode == "fr") and
             .languages.zxx.locked == true and
             .languages.zxx.weight == 3
           ' artifacts/existing-config-locked-languages/enabled.json >/dev/null
 
-          # Labels are localized presentation data here. Structural locked-language
-          # invariants must stay identical to the canonical pre-enable baseline.
+          # Locale is allowed to change only presentation labels and source
+          # langcodes here. IDs, locked flags, presence and weights stay exact.
           diff \
-            <(jq -S '.languages | map_values(del(.label))' artifacts/existing-config-locked-languages/before.json) \
-            <(jq -S '.languages | map_values(del(.label))' artifacts/existing-config-locked-languages/enabled.json)
+            <(jq -S '.languages | map_values(del(.label, .langcode))' artifacts/existing-config-locked-languages/before.json) \
+            <(jq -S '.languages | map_values(del(.label, .langcode))' artifacts/existing-config-locked-languages/enabled.json)
 
           ddev drush php:eval "foreach (['und', 'zxx'] as \$id) { \$language = \Drupal\language\Entity\ConfigurableLanguage::load(\$id); if (!\$language) { throw new \RuntimeException('Missing locked language ' . \$id); } \$language->save(); }"
 
@@ -238,10 +238,11 @@ jobs:
             .languages.zxx.weight == 3
           ' artifacts/existing-config-locked-languages/enforced.json >/dev/null
 
-          # The native saves themselves must not mutate the locked languages.
+          # The native saves may enforce only the source langcode. Labels and
+          # every semantic locked-language invariant must remain unchanged.
           diff \
-            <(jq -S '.languages' artifacts/existing-config-locked-languages/enabled.json) \
-            <(jq -S '.languages' artifacts/existing-config-locked-languages/enforced.json)
+            <(jq -S '.languages | map_values(del(.langcode))' artifacts/existing-config-locked-languages/enabled.json) \
+            <(jq -S '.languages | map_values(del(.langcode))' artifacts/existing-config-locked-languages/enforced.json)
           test -z "$(git status --short config/sync)"
 
       - name: Restore canonical active configuration and prove reversibility
@@ -264,8 +265,10 @@ jobs:
             .site_default_language == "fr" and
             .config_language_lock_enabled == false and
             .languages.und.id == "und" and
+            .languages.und.langcode == "en" and
             .languages.und.locked == true and
             .languages.zxx.id == "zxx" and
+            .languages.zxx.langcode == "en" and
             .languages.zxx.locked == true
           ' artifacts/existing-config-locked-languages/restored.json >/dev/null
           diff \
@@ -354,7 +357,7 @@ jobs:
           proof_outcome: \`${PROOF_OUTCOME:-unknown}\`
           artifact: \`${artifact}\`
 
-          The proof rebuilds from site:install --existing-config, verifies und/zxx, isolates Locale's module-enable label footprint from native locked-language saves, restores canonical active config, and cleans the workspace. It never exports config or accesses production.
+          The proof rebuilds from site:install --existing-config, records Locale's module-enable footprint, proves native locked-language saves enforce canonical EN without changing semantic und/zxx invariants, restores canonical active config, and cleans the workspace. It never exports config or accesses production.
           EOF_BODY
           )"
           gh issue comment 696 --repo "$GITHUB_REPOSITORY" --body "$body"

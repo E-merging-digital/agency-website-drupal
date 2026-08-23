@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Functional;
 
+use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\webform\Entity\Webform;
 use PHPUnit\Framework\Attributes\Group;
@@ -59,7 +60,7 @@ final class ContactFormTest extends BrowserTestBase {
     $configuration = Yaml::parseFile($config_file);
     self::assertIsArray($configuration);
 
-    $elements = Yaml::parse((string) ($configuration['elements'] ?? ''));
+    $elements = DrupalYaml::decode((string) ($configuration['elements'] ?? ''));
     self::assertIsArray($elements);
     $submit_label = $elements['actions']['#submit__label'] ?? NULL;
     self::assertIsString($submit_label);

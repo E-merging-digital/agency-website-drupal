@@ -82,6 +82,11 @@ final class ExistingConfigLockedLanguagesWorkflowTest extends TestCase {
       "set('follow_site_default', FALSE)",
       $workflow,
     );
+    self::assertStringContainsString('enabled.json', $workflow);
+    self::assertSame(
+      2,
+      substr_count($workflow, 'map_values(del(.label))'),
+    );
     self::assertStringContainsString(
       'ConfigurableLanguage::load',
       $workflow,
@@ -114,6 +119,17 @@ final class ExistingConfigLockedLanguagesWorkflowTest extends TestCase {
     self::assertStringContainsString(
       'ddev delete --omit-snapshot --yes',
       $workflow,
+    );
+
+    $enabledPosition = strpos($workflow, '> artifacts/existing-config-locked-languages/enabled.json');
+    $savePosition = strpos($workflow, 'ConfigurableLanguage::load');
+    $enforcedPosition = strpos($workflow, '> artifacts/existing-config-locked-languages/enforced.json');
+    self::assertNotFalse($enabledPosition);
+    self::assertNotFalse($savePosition);
+    self::assertNotFalse($enforcedPosition);
+    self::assertTrue(
+      $enabledPosition < $savePosition && $savePosition < $enforcedPosition,
+      'Locale footprint must be captured before native saves are measured.',
     );
 
     self::assertStringNotContainsString('drush cex', $workflow);

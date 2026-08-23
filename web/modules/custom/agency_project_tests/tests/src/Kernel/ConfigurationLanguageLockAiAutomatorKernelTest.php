@@ -162,7 +162,10 @@ final class ConfigurationLanguageLockAiAutomatorKernelTest extends KernelTestBas
       $stored->get('plugin_config.automator_ai_provider'),
     );
     self::assertNull($stored->get('plugin_config.automator_ai_model'));
-    self::assertSame('fr', $this->config('system.site')->get('default_langcode'));
+    self::assertSame(
+      'fr',
+      $this->config('system.site')->get('default_langcode'),
+    );
   }
 
   /**

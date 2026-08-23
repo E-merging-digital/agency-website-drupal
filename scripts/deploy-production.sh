@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 022
 
 BRANCH="${1:-main}"
 EXPECTED_SHA="${2:-}"
@@ -7,7 +8,7 @@ TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 
 PROJECT_ROOT="/var/www/agency"
 RELEASES_DIR="/var/www/agency/releases"
-SHARED_DIR="/var/www/agency/shared"
+SHARED_DIR="$PROJECT_ROOT/shared"
 BACKUPS_DIR="$SHARED_DIR/backups"
 LOG_FILE="$SHARED_DIR/deployments.log"
 REPO_URL="${REPO_URL:-git@github.com:E-merging-digital/agency-website-drupal.git}"
@@ -79,6 +80,68 @@ fail_trap() {
 }
 
 trap 'fail_trap $LINENO' ERR
+
+runtime_other_digit() {
+  local mode
+  mode="$(stat -c '%a' "$1")"
+  printf '%s\n' "${mode: -1}"
+}
+
+assert_runtime_directory_accessible() {
+  local path="$1"
+  local other
+  other="$(runtime_other_digit "$path")"
+  if (( (10#$other & 5) != 5 )); then
+    log "ERROR: Runtime directory is not readable/traversable by the web runtime: ${path} (mode $(stat -c '%a' "$path"))."
+    exit 1
+  fi
+}
+
+assert_runtime_file_readable() {
+  local path="$1"
+  local other
+  other="$(runtime_other_digit "$path")"
+  if (( (10#$other & 4) == 0 )); then
+    log "ERROR: Runtime file is not readable by the web runtime: ${path} (mode $(stat -c '%a' "$path"))."
+    exit 1
+  fi
+}
+
+verify_runtime_permissions() {
+  local path
+
+  for path in "$NEW_RELEASE" "$NEW_RELEASE/vendor" "$NEW_RELEASE/web"; do
+    if [[ ! -d "$path" ]]; then
+      log "ERROR: Required runtime directory is missing: ${path}."
+      exit 1
+    fi
+    assert_runtime_directory_accessible "$path"
+  done
+
+  for path in "$NEW_RELEASE/web/index.php" "$NEW_RELEASE/web/robots.txt"; do
+    if [[ ! -f "$path" ]]; then
+      log "ERROR: Required runtime file is missing: ${path}."
+      exit 1
+    fi
+    assert_runtime_file_readable "$path"
+  done
+}
+
+normalize_runtime_permissions() {
+  log "[deploy] Normalize runtime permissions"
+
+  if [[ ! -d "$NEW_RELEASE/vendor" || ! -d "$NEW_RELEASE/web" ]]; then
+    log "ERROR: Runtime directories must exist before permission normalization."
+    exit 1
+  fi
+
+  chmod a+rx "$NEW_RELEASE"
+  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type d -exec chmod a+rx {} +
+  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type f -exec chmod a+r {} +
+
+  verify_runtime_permissions
+  log "Runtime permissions are compatible with the unprivileged web runtime."
+}
 
 prepare_public_files() {
   log "[deploy] Public files symlink"
@@ -171,6 +234,7 @@ log "Repository prepared at exact commit ${GIT_COMMIT}."
 
 log "[deploy] Composer"
 composer --working-dir="$NEW_RELEASE" install --no-dev --optimize-autoloader
+normalize_runtime_permissions
 
 mkdir -p "$SHARED_DIR/private" "$SHARED_DIR/settings"
 prepare_public_files
@@ -222,6 +286,7 @@ if [[ -x "$NEW_RELEASE/vendor/bin/drush" ]]; then
 fi
 
 test "$(git -C "$NEW_RELEASE" rev-parse HEAD)" = "$EXPECTED_SHA"
+verify_runtime_permissions
 
 log "[deploy] Switch release"
 ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"

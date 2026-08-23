@@ -57,7 +57,7 @@ final class ProductionNginxDocrootDiagnosticWorkflowTest extends TestCase {
     $workflow = $this->workflow();
     $remoteStart = strpos(
       $workflow,
-      "ssh \"$SERVER_USER@$SERVER_HOST\" 'bash -s' > \"$raw\"",
+      'ssh "$SERVER_USER@$SERVER_HOST" \'bash -s\' > "$raw"',
     );
     $remoteEnd = strpos($workflow, "          REMOTE\n", $remoteStart ?: 0);
 

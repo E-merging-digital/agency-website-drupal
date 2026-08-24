@@ -40,7 +40,7 @@ capture_state "$artifact_root/state-before.json" "$artifact_root/language-before
 jq -e '.schema_version == 2 and .total == 595' "$artifact_root/state-before.json" >/dev/null
 jq -e '.site_default_language == "fr"' "$artifact_root/state-before.json" >/dev/null
 jq -e '.config_language_lock_enabled == false' "$artifact_root/state-before.json" >/dev/null
-jq -e '.module_owned == {}' "$artifact_root/state-before.json" >/dev/null
+jq -e '(.module_owned | length) == 0' "$artifact_root/state-before.json" >/dev/null
 jq -e '.special.system_menu_footer_langcode == "und"' "$artifact_root/state-before.json" >/dev/null
 jq -e '.special.language_entity_und_id == "und"' "$artifact_root/state-before.json" >/dev/null
 jq -e '.special.language_entity_zxx_id == "zxx"' "$artifact_root/state-before.json" >/dev/null

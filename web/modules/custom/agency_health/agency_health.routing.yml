@@ -1,0 +1,20 @@
+agency_health.liveness:
+  path: '/health/live'
+  defaults:
+    _controller: '\Drupal\agency_health\Controller\HealthController::liveness'
+  requirements:
+    _access: 'TRUE'
+  methods: [GET]
+  options:
+    _maintenance_access: TRUE
+    no_cache: TRUE
+
+agency_health.readiness:
+  path: '/health/ready'
+  defaults:
+    _controller: '\Drupal\agency_health\Controller\HealthController::readiness'
+  requirements:
+    _access: 'TRUE'
+  methods: [GET]
+  options:
+    no_cache: TRUE

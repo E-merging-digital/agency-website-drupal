@@ -30,7 +30,7 @@ final class ConfigurationLanguageCanvasMigration781RecoveryWorkflowTest extends 
     foreach ([
       'github.event.issue.number == 781',
       "'/agency-config-language-canvas-migration resume'",
-      "test \"$GITHUB_ACTOR\" = 'E-merging-digital'",
+      'test "$GITHUB_ACTOR" = \'E-merging-digital\'',
       'persist-credentials: true',
       '8627ce9ec73a45f5501a410e15c4e56fcbc45239ee2c1c166e5d5445337e1a24',
       'CANVAS_CANONICAL_MIGRATION_DRY_RUN_READY',

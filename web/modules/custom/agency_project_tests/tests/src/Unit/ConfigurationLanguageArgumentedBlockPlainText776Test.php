@@ -96,7 +96,7 @@ final class ConfigurationLanguageArgumentedBlockPlainText776Test extends TestCas
    * Trusted recovery requires all three cases to become deterministic.
    */
   public function testTrustedRecoveryIsBoundedAndFailClosed(): void {
-    $root = dirname(DRUP_ROOT);
+    $root = dirname(DRUPAL_ROOT);
     $path = $root
       . '/.github/workflows/'
       . 'trusted-configuration-language-argumented-block-plain-text-776.yml';

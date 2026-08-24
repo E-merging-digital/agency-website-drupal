@@ -1,55 +1,46 @@
-name: Agency trusted health production proof
+name: Agency trusted health production terminal proof
 
 on:
-  issue_comment:
-    types:
-      - created
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/trusted-agency-health-production-proof.yml'
 
 permissions:
+  actions: read
   contents: read
   issues: write
 
 jobs:
   production-health-proof:
-    name: Prove provider-neutral health endpoints in production
-    if: >-
-      ${{
-        github.event.issue.pull_request == null &&
-        github.actor == 'E-merging-digital' &&
-        github.event.comment.user.login == 'E-merging-digital' &&
-        github.event.comment.body == '/agency-health production-prove'
-      }}
+    name: Reconcile deployment and prove production health
+    if: ${{ github.repository == 'E-merging-digital/agency-website-drupal' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
-      group: agency-health-production-proof-${{ github.event.issue.number }}
+      group: agency-health-production-terminal-proof-759
       cancel-in-progress: false
 
     steps:
-      - name: Validate owner request and live main
+      - name: Validate closed issue and exact live main
         id: request
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
-          TRIGGER_COMMENT: ${{ github.event.comment.body }}
-          EVENT_DEFAULT_SHA: ${{ github.sha }}
+          EVENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          test "$GITHUB_ACTOR" = 'E-merging-digital'
-          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
-          test "$TRIGGER_COMMENT" = '/agency-health production-prove'
-          test "$ISSUE_NUMBER" = '759'
 
-          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
-          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/759")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'closed'
+          test "$(jq -r '.state_reason' <<<"$issue_json")" = 'completed'
           test "$(jq -r '.pull_request // empty' <<<"$issue_json")" = ''
           test "$(jq -r '.user.login' <<<"$issue_json")" = 'E-merging-digital'
 
           main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
-          test "$EVENT_DEFAULT_SHA" = "$main_sha"
+          test "$EVENT_SHA" = "$main_sha"
           echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact trusted main
@@ -74,7 +65,67 @@ jobs:
           test -f web/modules/custom/agency_health/src/HealthProbe.php
           git diff --check
 
+      - name: Recover exact Deploy Production terminal evidence
+        id: deploy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNTIME_MERGE_SHA: d7bf3abfa7b8df7014d27bb2402b61555bf569a0
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/agency-health-production/deploy
+
+          runs_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-production.yml/runs?event=push&head_sha=$RUNTIME_MERGE_SHA&per_page=20")"
+          run_id="$(jq -r --arg sha "$RUNTIME_MERGE_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .event == "push")] | sort_by(.created_at) | last | .id // empty' <<<"$runs_json")"
+          test -n "$run_id"
+
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")"
+          test "$(jq -r '.name' <<<"$run_json")" = 'Deploy Production'
+          test "$(jq -r '.head_sha' <<<"$run_json")" = "$RUNTIME_MERGE_SHA"
+          test "$(jq -r '.event' <<<"$run_json")" = 'push'
+          test "$(jq -r '.status' <<<"$run_json")" = 'completed'
+          test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'
+          run_attempt="$(jq -r '.run_attempt' <<<"$run_json")"
+          [[ "$run_attempt" =~ ^[0-9]+$ ]]
+
+          jobs_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?filter=latest&per_page=100")"
+          jq -e '.total_count >= 1 and ([.jobs[].conclusion] | all(. == "success"))' <<<"$jobs_json" >/dev/null
+
+          artifact_name="agency-production-deploy-${run_id}-${run_attempt}"
+          artifacts_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100")"
+          artifact_id="$(jq -r --arg name "$artifact_name" '.artifacts[] | select(.name == $name and .expired == false) | .id' <<<"$artifacts_json" | head -n 1)"
+          test -n "$artifact_id"
+
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name "$artifact_name" --dir artifacts/agency-health-production/deploy
+          result_file="$(find artifacts/agency-health-production/deploy -type f -name result.env -print -quit)"
+          test -n "$result_file"
+          test -s "$result_file"
+
+          result_field() {
+            local key="$1"
+            sed -n "s/^${key}=//p" "$result_file" | head -n 1
+          }
+
+          test "$(result_field outcome)" = 'SUCCESS'
+          test "$(result_field expected_sha)" = "$RUNTIME_MERGE_SHA"
+          test "$(result_field exit_code)" = '0'
+
+          jq -n \
+            --arg run_id "$run_id" \
+            --arg run_attempt "$run_attempt" \
+            --arg artifact_name "$artifact_name" \
+            --arg artifact_id "$artifact_id" \
+            --arg expected_sha "$RUNTIME_MERGE_SHA" \
+            '{status:"PASS",run_id:($run_id|tonumber),run_attempt:($run_attempt|tonumber),artifact_name:$artifact_name,artifact_id:($artifact_id|tonumber),expected_sha:$expected_sha,outcome:"SUCCESS"}' \
+            > artifacts/agency-health-production/deploy.json
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "run_attempt=$run_attempt" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+
       - name: Configure existing production SSH channel
+        if: ${{ steps.deploy.outcome == 'success' }}
         shell: bash
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -92,6 +143,7 @@ jobs:
 
       - name: Verify exact production runtime SHA
         id: runtime
+        if: ${{ steps.deploy.outcome == 'success' }}
         shell: bash
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -108,6 +160,7 @@ jobs:
 
       - name: Probe public liveness and readiness
         id: probe
+        if: ${{ steps.runtime.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -163,65 +216,101 @@ jobs:
             artifacts/agency-health-production/ready.json \
             > artifacts/agency-health-production/result.json
 
-      - name: Upload production health evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: agency-health-production-759-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/agency-health-production
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Publish bounded proof result
+      - name: Build terminal summary
         if: ${{ always() && steps.request.outcome == 'success' }}
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
           TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          DEPLOY_RUN_ID: ${{ steps.deploy.outputs.run_id }}
+          DEPLOY_RUN_ATTEMPT: ${{ steps.deploy.outputs.run_attempt }}
+          DEPLOY_ARTIFACT: ${{ steps.deploy.outputs.artifact_name }}
+          DEPLOY_ARTIFACT_ID: ${{ steps.deploy.outputs.artifact_id }}
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
           PRODUCTION_SHA: ${{ steps.runtime.outputs.production_sha }}
           PROBE_OUTCOME: ${{ steps.probe.outcome }}
         run: |
           set -euo pipefail
-          result='artifacts/agency-health-production/result.json'
+          mkdir -p artifacts/agency-health-production
           status='FAIL'
-          live_status='n/a'
-          live_body='n/a'
-          live_content_type='n/a'
-          live_cache='n/a'
-          live_time='n/a'
-          live_nominal='n/a'
-          ready_status='n/a'
-          ready_body='n/a'
-          ready_content_type='n/a'
-          ready_cache='n/a'
-          ready_time='n/a'
-          ready_nominal='n/a'
-
-          if [[ "$PROBE_OUTCOME" == 'success' ]] && [[ -s "$result" ]] && jq -e '.status == "PASS" and (.probes | length) == 2' "$result" >/dev/null 2>&1; then
+          if [[ "$DEPLOY_OUTCOME" == 'success' && "$RUNTIME_OUTCOME" == 'success' && "$PROBE_OUTCOME" == 'success' ]]; then
             status='PASS'
-            live_status="$(jq -r '.probes[] | select(.path == "/health/live") | .status' "$result")"
-            live_body="$(jq -r '.probes[] | select(.path == "/health/live") | .body' "$result")"
-            live_content_type="$(jq -r '.probes[] | select(.path == "/health/live") | .content_type' "$result")"
-            live_cache="$(jq -r '.probes[] | select(.path == "/health/live") | .cache_control' "$result")"
-            live_time="$(jq -r '.probes[] | select(.path == "/health/live") | .time_seconds' "$result")"
-            live_nominal="$(jq -r '.probes[] | select(.path == "/health/live") | .nominal_target_met' "$result")"
-            ready_status="$(jq -r '.probes[] | select(.path == "/health/ready") | .status' "$result")"
-            ready_body="$(jq -r '.probes[] | select(.path == "/health/ready") | .body' "$result")"
-            ready_content_type="$(jq -r '.probes[] | select(.path == "/health/ready") | .content_type' "$result")"
-            ready_cache="$(jq -r '.probes[] | select(.path == "/health/ready") | .cache_control' "$result")"
-            ready_time="$(jq -r '.probes[] | select(.path == "/health/ready") | .time_seconds' "$result")"
-            ready_nominal="$(jq -r '.probes[] | select(.path == "/health/ready") | .nominal_target_met' "$result")"
           fi
 
-          artifact="agency-health-production-759-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          body="$(cat <<EOF_BODY
-          ### Agency health production proof ${status}
+          live_json='null'
+          ready_json='null'
+          if [[ -s artifacts/agency-health-production/live.json ]]; then
+            live_json="$(cat artifacts/agency-health-production/live.json)"
+          fi
+          if [[ -s artifacts/agency-health-production/ready.json ]]; then
+            ready_json="$(cat artifacts/agency-health-production/ready.json)"
+          fi
 
-          trusted_main: \`${TRUSTED_MAIN:-n/a}\`
-          production_runtime_sha: \`${PRODUCTION_SHA:-n/a}\`
+          jq -n \
+            --arg status "$status" \
+            --arg trusted_main "$TRUSTED_MAIN" \
+            --arg runtime_authority 'd7bf3abfa7b8df7014d27bb2402b61555bf569a0' \
+            --arg deploy_outcome "$DEPLOY_OUTCOME" \
+            --arg deploy_run_id "${DEPLOY_RUN_ID:-}" \
+            --arg deploy_run_attempt "${DEPLOY_RUN_ATTEMPT:-}" \
+            --arg deploy_artifact "${DEPLOY_ARTIFACT:-}" \
+            --arg deploy_artifact_id "${DEPLOY_ARTIFACT_ID:-}" \
+            --arg runtime_outcome "$RUNTIME_OUTCOME" \
+            --arg production_sha "${PRODUCTION_SHA:-}" \
+            --arg probe_outcome "$PROBE_OUTCOME" \
+            --argjson live "$live_json" \
+            --argjson ready "$ready_json" \
+            '{schema_version:1,status:$status,trusted_main:$trusted_main,runtime_authority:$runtime_authority,deployment:{step_outcome:$deploy_outcome,run_id:$deploy_run_id,run_attempt:$deploy_run_attempt,artifact:$deploy_artifact,artifact_id:$deploy_artifact_id},runtime:{step_outcome:$runtime_outcome,production_sha:$production_sha},probe_step_outcome:$probe_outcome,liveness:$live,readiness:$ready}' \
+            > artifacts/agency-health-production/terminal-result.json
+
+      - name: Upload terminal production health evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-health-production-terminal-759-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/agency-health-production
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded terminal result on closed issue
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/agency-health-production/terminal-result.json'
+          test -s "$result"
+
+          status="$(jq -r '.status' "$result")"
+          trusted_main="$(jq -r '.trusted_main' "$result")"
+          deploy_run="$(jq -r '.deployment.run_id' "$result")"
+          deploy_attempt="$(jq -r '.deployment.run_attempt' "$result")"
+          deploy_artifact="$(jq -r '.deployment.artifact' "$result")"
+          production_sha="$(jq -r '.runtime.production_sha' "$result")"
+          live_status="$(jq -r '.liveness.status // "n/a"' "$result")"
+          live_body="$(jq -r '.liveness.body // "n/a"' "$result")"
+          live_content_type="$(jq -r '.liveness.content_type // "n/a"' "$result")"
+          live_cache="$(jq -r '.liveness.cache_control // "n/a"' "$result")"
+          live_time="$(jq -r '.liveness.time_seconds // "n/a"' "$result")"
+          live_nominal="$(jq -r '.liveness.nominal_target_met // "n/a"' "$result")"
+          ready_status="$(jq -r '.readiness.status // "n/a"' "$result")"
+          ready_body="$(jq -r '.readiness.body // "n/a"' "$result")"
+          ready_content_type="$(jq -r '.readiness.content_type // "n/a"' "$result")"
+          ready_cache="$(jq -r '.readiness.cache_control // "n/a"' "$result")"
+          ready_time="$(jq -r '.readiness.time_seconds // "n/a"' "$result")"
+          ready_nominal="$(jq -r '.readiness.nominal_target_met // "n/a"' "$result")"
+          proof_artifact="agency-health-production-terminal-759-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          body="$(cat <<EOF_BODY
+          ### Agency health terminal production proof ${status}
+
+          trusted_main: \`${trusted_main}\`
           runtime_authority: \`d7bf3abfa7b8df7014d27bb2402b61555bf569a0\`
-          run_id: \`${GITHUB_RUN_ID}\`
-          route_outcome: \`${PROBE_OUTCOME:-unknown}\`
+          deploy_run_id: \`${deploy_run}\`
+          deploy_run_attempt: \`${deploy_attempt}\`
+          deploy_evidence_artifact: \`${deploy_artifact}\`
+          production_runtime_sha: \`${production_sha}\`
 
           liveness_status: \`${live_status}\`
           liveness_body: \`${live_body}\`
@@ -237,12 +326,15 @@ jobs:
           readiness_time_seconds: \`${ready_time}\`
           readiness_nominal_le_2s: \`${ready_nominal}\`
 
-          artifact: \`${artifact}\`
+          proof_run_id: \`${GITHUB_RUN_ID}\`
+          proof_artifact: \`${proof_artifact}\`
 
-          Read-only proof only. This route accepts no URL, shell command or diagnostic input and performs no deployment, Drupal mutation, service restart or monitoring-provider mutation.
+          This is a read-only post-close convergence proof. No deployment was re-run, no Drupal state was mutated, no service was restarted and no monitoring-provider state was changed.
           EOF_BODY
           )"
           gh issue comment 759 --repo "$GITHUB_REPOSITORY" --body "$body"
+
+          test "$status" = 'PASS'
 
       - name: Cleanup SSH material and verify workspace
         if: ${{ always() }}

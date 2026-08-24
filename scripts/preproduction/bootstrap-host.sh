@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 # Idempotent Ubuntu 24.04 bootstrap for the Agency PREPROD host.
-# Secrets are generated on-host. The only caller-supplied credential material is
-# the public half of the dedicated PREPROD deploy key.
+# Secrets are generated on-host unless an isolated PREPROD access password is
+# supplied by the governed bootstrap workflow. No production secret is used.
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run this bootstrap as root." >&2
@@ -24,6 +24,7 @@ ENABLE_TLS="${ENABLE_TLS:-0}"
 TLS_EMAIL="${TLS_EMAIL:-}"
 DB_NAME="${DB_NAME:-agency_preprod}"
 DB_USER="${DB_USER:-agency_preprod}"
+REQUESTED_ACCESS_PASSWORD="${ACCESS_PASSWORD:-}"
 CREDENTIAL_FILE="/root/agency-preprod-bootstrap-credentials.txt"
 
 [[ "$PREPROD_FQDN" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Invalid PREPROD_FQDN." >&2; exit 2; }
@@ -45,9 +46,10 @@ apt-get install -y \
   ca-certificates curl gnupg lsb-release software-properties-common \
   nginx ufw apache2-utils openssl rsync jq unzip certbot python3-certbot-nginx \
   postfix
+# Only smtp-sink is used. The Postfix MTA itself must never relay PREPROD mail.
+systemctl disable --now postfix 2>/dev/null || true
 
-# Ubuntu 24.04 ships PHP 8.3. Use the same widely-used maintained package
-# source as the current PHP 8.4 server line, then pin the runtime explicitly.
+# Ubuntu 24.04 ships PHP 8.3. Install the explicitly required PHP 8.4 runtime.
 if ! grep -Rqs '^deb .*ondrej/php' /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null; then
   add-apt-repository -y ppa:ondrej/php
 fi
@@ -64,7 +66,6 @@ if ! grep -Rqs 'mariadb.*11.8' /etc/apt/sources.list /etc/apt/sources.list.d 2>/
 fi
 apt-get update
 apt-get install -y mariadb-server mariadb-client mariadb-backup
-
 systemctl enable --now nginx php8.4-fpm mariadb
 
 if ! id "$DEPLOY_USER" >/dev/null 2>&1; then
@@ -106,7 +107,11 @@ if [[ -f "$CREDENTIAL_FILE" ]]; then
 fi
 DB_PASSWORD="${DB_PASSWORD:-$(openssl rand -hex 24)}"
 HASH_SALT="${HASH_SALT:-$(openssl rand -hex 32)}"
-ACCESS_PASSWORD="${ACCESS_PASSWORD:-$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)}"
+if [[ -n "$REQUESTED_ACCESS_PASSWORD" ]]; then
+  ACCESS_PASSWORD="$REQUESTED_ACCESS_PASSWORD"
+else
+  ACCESS_PASSWORD="${ACCESS_PASSWORD:-$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)}"
+fi
 
 umask 077
 cat > "$CREDENTIAL_FILE" <<EOF_CREDS
@@ -221,11 +226,11 @@ fi
 
 # No Drupal cron/queue systemd unit is installed here. External side effects
 # remain disabled until the real PREPROD validation explicitly enables them.
-
 php -v | head -n 1
 mariadb --version
 nginx -v
 systemctl is-active php8.4-fpm mariadb nginx agency-preprod-smtp-sink.service
+systemctl is-enabled postfix 2>/dev/null | grep -Eq 'disabled|masked' || true
 mariadb --protocol=socket -Nse 'SELECT @@max_allowed_packet' | grep -qx '67108864'
 
 cat <<EOF_DONE

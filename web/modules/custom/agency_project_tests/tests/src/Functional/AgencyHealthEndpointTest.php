@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Functional;
 
+use Behat\Mink\Driver\BrowserKitDriver;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -51,8 +52,11 @@ final class AgencyHealthEndpointTest extends BrowserTestBase {
    * Unsupported methods are rejected by the route contract.
    */
   public function testHealthEndpointsRejectPost(): void {
+    $driver = $this->getSession()->getDriver();
+    self::assertInstanceOf(BrowserKitDriver::class, $driver);
+    $client = $driver->getClient();
+
     foreach (['/health/live', '/health/ready'] as $path) {
-      $client = $this->getSession()->getDriver()->getClient();
       $client->request('POST', $this->baseUrl . $path);
       self::assertSame(405, $client->getResponse()->getStatusCode());
     }

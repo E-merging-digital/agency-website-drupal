@@ -1,5 +1,5 @@
 uuid: e98ee7e3-e16e-4243-a505-f2a4a46f0049
-langcode: fr
+langcode: en
 status: true
 dependencies:
   module:
@@ -14,7 +14,7 @@ id: canvas_page.canvas_page.components
 field_name: components
 entity_type: canvas_page
 bundle: canvas_page
-label: Composants
+label: Components
 description: ''
 required: false
 translatable: true

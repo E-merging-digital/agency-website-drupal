@@ -78,7 +78,7 @@ final class ConfigurationLanguageSafeProvenanceCohort754Test extends TestCase {
   }
 
   /**
-   * Repository-wide language distribution reflects only the 17 promotions.
+   * Repository-wide distribution reflects later governed promotions.
    */
   public function testRepositoryDistributionAfterPromotion(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -99,8 +99,8 @@ final class ConfigurationLanguageSafeProvenanceCohort754Test extends TestCase {
 
     self::assertSame([
       '__none__' => 59,
-      'en' => 413,
-      'fr' => 122,
+      'en' => 466,
+      'fr' => 69,
       'und' => 1,
     ], $counts);
 

@@ -71,7 +71,6 @@ jobs:
           docker --version
           ddev version
           jq --version
-          php --version
 
       - name: Checkout exact trusted main read-only
         uses: actions/checkout@v6

@@ -1,5 +1,5 @@
 uuid: fbb74cc9-41cd-4a27-981e-c6cf3c09cc7a
-langcode: fr
+langcode: en
 status: false
 dependencies:
   module:
@@ -10,7 +10,7 @@ versioned_properties:
     settings:
       default_settings:
         id: system_powered_by_block
-        label: 'Propulsé par Drupal'
+        label: 'Powered by Drupal'
         label_display: '0'
         provider: system
     fallback_metadata:
@@ -24,7 +24,7 @@ versioned_properties:
         provider: system
     fallback_metadata:
       slot_definitions: null
-label: 'Propulsé par Drupal'
+label: 'Powered by Drupal'
 id: block.system_powered_by_block
 provider: system
 source: block

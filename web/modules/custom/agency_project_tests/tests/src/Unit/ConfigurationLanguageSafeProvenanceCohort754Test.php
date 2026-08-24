@@ -99,8 +99,8 @@ final class ConfigurationLanguageSafeProvenanceCohort754Test extends TestCase {
 
     self::assertSame([
       '__none__' => 59,
-      'en' => 466,
-      'fr' => 69,
+      'en' => 496,
+      'fr' => 39,
       'und' => 1,
     ], $counts);
 

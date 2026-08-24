@@ -1,0 +1,6 @@
+label: 'Vider le cache'
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: 'Vider le cache'

@@ -1,5 +1,5 @@
 uuid: 9eac8c98-5a3c-42ec-ae8c-bbbbe9c7c37d
-langcode: fr
+langcode: en
 status: false
 dependencies:
   module:
@@ -10,12 +10,12 @@ versioned_properties:
     settings:
       default_settings:
         id: emerging_digital_language_switcher
-        label: 'Sélecteur de langue'
+        label: 'Language switcher'
         label_display: '0'
         provider: emerging_digital_content
     fallback_metadata:
       slot_definitions: null
-label: 'Sélecteur de langue'
+label: 'Language switcher'
 id: block.emerging_digital_language_switcher
 provider: emerging_digital_content
 source: block

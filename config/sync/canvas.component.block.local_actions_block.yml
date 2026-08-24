@@ -1,5 +1,5 @@
 uuid: d9781dcd-5500-4476-a9a0-95e042822e04
-langcode: fr
+langcode: en
 status: false
 dependencies: {  }
 active_version: b82a1a15d11b93c8
@@ -8,7 +8,7 @@ versioned_properties:
     settings:
       default_settings:
         id: local_actions_block
-        label: "Actions d'administration principales"
+        label: 'Primary admin actions'
         label_display: '0'
         provider: core
     fallback_metadata:
@@ -22,7 +22,7 @@ versioned_properties:
         provider: core
     fallback_metadata:
       slot_definitions: null
-label: "Actions d'administration principales"
+label: 'Primary admin actions'
 id: block.local_actions_block
 provider: core
 source: block

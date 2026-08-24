@@ -1,0 +1,6 @@
+label: "Flux d'annonces"
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: "Flux d'annonces"

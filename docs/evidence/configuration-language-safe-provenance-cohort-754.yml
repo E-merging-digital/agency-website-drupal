@@ -1,0 +1,64 @@
+schema_version: 1
+cohort_id: configuration-language-safe-provenance-754
+source_issue: 748
+source_trusted_run: 32706400681
+source_artifact_id: 9512525119
+source_artifact_digest: 'sha256:54a02cb5bd9d24d0264e3a8b329817c943dd0cc507d01b39c13183d497c7cce0'
+canonical_configuration_language: en
+baseline_before:
+  __none__: 59
+  en: 396
+  fr: 139
+  und: 1
+  total: 595
+expected_after:
+  __none__: 59
+  en: 413
+  fr: 122
+  und: 1
+  total: 595
+items:
+  - name: editor.editor.canvas_html_block
+    classification: no_material_translatable_source_candidate
+  - name: editor.editor.canvas_html_inline
+    classification: no_material_translatable_source_candidate
+  - name: canvas.asset_library.global
+    classification: english_default_exact_match_candidate
+  - name: canvas.brand_kit.global
+    classification: english_default_exact_match_candidate
+  - name: core.entity_form_mode.media.media_library
+    classification: english_default_exact_match_candidate
+  - name: core.entity_view_mode.media.full
+    classification: english_default_exact_match_candidate
+  - name: core.entity_view_mode.media.media_library
+    classification: english_default_exact_match_candidate
+  - name: field.field.media.document.field_media_document
+    classification: english_default_exact_match_candidate
+  - name: field.field.media.image.field_media_image
+    classification: english_default_exact_match_candidate
+  - name: filter.format.canvas_html_block
+    classification: english_default_exact_match_candidate
+  - name: filter.format.canvas_html_inline
+    classification: english_default_exact_match_candidate
+  - name: filter.format.webform_default
+    classification: english_default_exact_match_candidate
+  - name: image.style.canvas_avatar
+    classification: english_default_exact_match_candidate
+  - name: image.style.canvas_parametrized_width
+    classification: english_default_exact_match_candidate
+  - name: metatag.metatag_defaults.global
+    classification: english_default_exact_match_candidate
+  - name: system.action.automator_chain_delete_action
+    classification: english_default_exact_match_candidate
+  - name: views.view.canvas_pages
+    classification: english_default_exact_match_candidate
+excluded:
+  - name: system.action.agency_ai_translate_nodes_bulk_action
+    reason: corrected_separately_by_issue_752
+constraints:
+  langcode_only_promotion: true
+  textual_value_changes_allowed: false
+  translation_override_changes_allowed: false
+  config_language_lock_activation_allowed: false
+  production_mutation_allowed: false
+remaining_review_required: 122

@@ -25,7 +25,7 @@ SWITCH_COMPLETED=0
 [[ -f "$PAYLOAD" && ! -L "$PAYLOAD" ]] || { echo "Candidate payload missing or unsafe." >&2; exit 2; }
 [[ -f "$METADATA" && ! -L "$METADATA" ]] || { echo "Candidate metadata missing or unsafe." >&2; exit 2; }
 
-for command in jq sha256sum tar flock; do
+for command in jq sha256sum tar flock openssl; do
   command -v "$command" >/dev/null 2>&1 || { echo "Missing command: $command" >&2; exit 2; }
 done
 
@@ -51,10 +51,7 @@ fail_trap() {
 trap 'fail_trap $LINENO' ERR
 
 actual_artifact_sha256="$(sha256sum "$PAYLOAD" | awk '{print $1}')"
-[[ "$actual_artifact_sha256" == "$EXPECTED_ARTIFACT_SHA256" ]] || {
-  echo "Artifact digest mismatch." >&2
-  exit 1
-}
+[[ "$actual_artifact_sha256" == "$EXPECTED_ARTIFACT_SHA256" ]] || { echo "Artifact digest mismatch." >&2; exit 1; }
 
 metadata_sha="$(jq -r '.candidate_sha // empty' "$METADATA")"
 metadata_artifact="$(jq -r '.artifact_sha256 // empty' "$METADATA")"
@@ -68,15 +65,11 @@ metadata_branch="$(jq -r '.source_branch // empty' "$METADATA")"
 mkdir -p "$RELEASES_DIR" "$BACKUPS_DIR"
 [[ ! -e "$RELEASE_DIR" ]] || { echo "Release already exists: $RELEASE_DIR" >&2; exit 1; }
 mkdir "$RELEASE_DIR"
-
 tar -xzf "$PAYLOAD" -C "$RELEASE_DIR"
 [[ -f "$RELEASE_DIR/composer.lock" ]] || { echo "composer.lock missing from candidate." >&2; exit 1; }
 [[ -f "$RELEASE_DIR/vendor/autoload.php" ]] || { echo "vendor/autoload.php missing; PREPROD must not rebuild dependencies." >&2; exit 1; }
 [[ -f "$RELEASE_DIR/web/index.php" ]] || { echo "Drupal entrypoint missing." >&2; exit 1; }
-[[ "$(sha256sum "$RELEASE_DIR/composer.lock" | awk '{print $1}')" == "$EXPECTED_COMPOSER_LOCK_SHA256" ]] || {
-  echo "Extracted composer.lock digest mismatch." >&2
-  exit 1
-}
+[[ "$(sha256sum "$RELEASE_DIR/composer.lock" | awk '{print $1}')" == "$EXPECTED_COMPOSER_LOCK_SHA256" ]] || { echo "Extracted composer.lock digest mismatch." >&2; exit 1; }
 cp "$METADATA" "$RELEASE_DIR/.agency-candidate.json"
 chmod 0644 "$RELEASE_DIR/.agency-candidate.json"
 
@@ -84,7 +77,6 @@ rm -rf "$RELEASE_DIR/web/sites/default/files"
 ln -s "$SHARED_DIR/files" "$RELEASE_DIR/web/sites/default/files"
 rm -f "$RELEASE_DIR/web/sites/default/settings.php"
 ln -s "$SHARED_DIR/settings/settings.php" "$RELEASE_DIR/web/sites/default/settings.php"
-
 find "$RELEASE_DIR" -xdev -type d -exec chmod a+rx {} +
 find "$RELEASE_DIR" -xdev -type f -exec chmod a+r {} +
 
@@ -101,13 +93,15 @@ if [[ -L "$CURRENT_LINK" ]]; then
   fi
 fi
 
-# First real PREPROD deployment starts from existing config when the dedicated
-# database is empty. No production data is required for this first path.
-if ! mariadb --defaults-extra-file=/dev/null 2>/dev/null; then
-  true
-fi
-
-if ! (cd "$RELEASE_DIR" && vendor/bin/drush status --fields=bootstrap --format=string 2>/dev/null | grep -qi successful); then
+# First real PREPROD deployment uses the dedicated empty database plus committed
+# configuration. Subsequent deployments require the existing Drupal key_value
+# table to remain queryable. The test is performed through Drupal's own database
+# settings so no DB credential is exposed to this script or its logs.
+if ! (cd "$RELEASE_DIR" && vendor/bin/drush sql:query 'SELECT 1 FROM key_value LIMIT 1' >/dev/null 2>&1); then
+  if [[ -n "$ACTIVE_RELEASE" ]]; then
+    echo "Existing PREPROD database is not Drupal-queryable; refusing destructive re-install." >&2
+    exit 1
+  fi
   log "First PREPROD install from existing config"
   ADMIN_PASSWORD="$(openssl rand -hex 18)"
   (cd "$RELEASE_DIR" && vendor/bin/drush site:install --existing-config -y \
@@ -137,11 +131,7 @@ vendor/bin/drush cr
 mail_scheme="$(vendor/bin/drush config:get system.mail mailer_dsn.scheme --format=string)"
 mail_host="$(vendor/bin/drush config:get system.mail mailer_dsn.host --format=string)"
 mail_port="$(vendor/bin/drush config:get system.mail mailer_dsn.port --format=string)"
-[[ "$mail_scheme" == "smtp" && "$mail_host" == "127.0.0.1" && "$mail_port" == "1025" ]] || {
-  echo "PREPROD mail is not isolated to the local sink." >&2
-  exit 1
-}
-
+[[ "$mail_scheme" == "smtp" && "$mail_host" == "127.0.0.1" && "$mail_port" == "1025" ]] || { echo "PREPROD mail is not isolated to the local sink." >&2; exit 1; }
 analytics_id="$(vendor/bin/drush config:get google_tag.settings default_google_tag_entity --format=string 2>/dev/null || true)"
 [[ -z "$analytics_id" ]] || { echo "Production analytics remains enabled in PREPROD." >&2; exit 1; }
 
@@ -150,7 +140,6 @@ if [[ "$MAINTENANCE_ENABLED" -eq 1 ]]; then
   MAINTENANCE_ENABLED=0
 fi
 
-# Keep three application releases and ten PREPROD database backups.
 mapfile -t releases < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r)
 if (( ${#releases[@]} > 3 )); then
   for old in "${releases[@]:3}"; do
@@ -164,8 +153,7 @@ if (( ${#backups[@]} > 10 )); then
 fi
 
 printf '[%s] SUCCESS | sha=%s | artifact_sha256=%s | composer_lock_sha256=%s | release=%s\n' \
-  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CANDIDATE_SHA" "$EXPECTED_ARTIFACT_SHA256" "$EXPECTED_COMPOSER_LOCK_SHA256" "$RELEASE_DIR" \
-  >> "$SHARED_DIR/deployments.log"
+  "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$CANDIDATE_SHA" "$EXPECTED_ARTIFACT_SHA256" "$EXPECTED_COMPOSER_LOCK_SHA256" "$RELEASE_DIR" >> "$SHARED_DIR/deployments.log"
 
 cat <<EOF_RESULT
 PREPROD_DEPLOY=PASS

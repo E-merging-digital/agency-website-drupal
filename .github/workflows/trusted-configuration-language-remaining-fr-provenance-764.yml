@@ -1,0 +1,265 @@
+name: Agency trusted remaining-FR configuration provenance
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate fixed #764 live-main target
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 764 &&
+        github.event.comment.body == '/agency-config-language-remaining-fr classify-provenance'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue and immutable main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$ISSUE_NUMBER" = '764'
+          test "$TRIGGER_COMMENT" = \
+            '/agency-config-language-remaining-fr classify-provenance'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/764" --jq '.state')" = 'open'
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$EVENT_DEFAULT_SHA" = "$main_sha"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  classify:
+    name: Classify exact 69 remaining FR configs in fresh DDEV
+    needs: validate-target
+    timeout-minutes: 35
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    permissions:
+      contents: read
+    outputs:
+      exact_default: ${{ steps.classify.outputs.exact_default }}
+      diverged_default: ${{ steps.classify.outputs.diverged_default }}
+      runtime_source: ${{ steps.classify.outputs.runtime_source }}
+      custom_review: ${{ steps.classify.outputs.custom_review }}
+      unresolved: ${{ steps.classify.outputs.unresolved }}
+      verdict: ${{ steps.classify.outputs.verdict }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          git --version
+          docker --version
+          ddev version
+          jq --version
+
+      - name: Checkout exact trusted main read-only
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable #764 target and lock boundary
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test -f \
+            docs/evidence/configuration-language-remaining-fr-provenance-cohort-764.yml
+          test -f \
+            scripts/runner/configuration-language-remaining-fr-provenance-764.php
+          test "$(grep -c '^  config_language_lock:' config/sync/core.extension.yml || true)" = '0'
+          test ! -f config/sync/config_language_lock.settings.yml
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-remaining-fr-764.yaml <<EOF_CONFIG
+          name: agency-config-remaining-fr-764-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml \
+            | grep -F "agency-config-remaining-fr-764-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild exact canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-remaining-fr-764'
+          mkdir -p "$root"
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/configuration-language-remaining-fr-provenance-764.php \
+            >/dev/null
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" > "$root/config-status.txt"
+          grep -Fq 'No differences' <<<"$config_status"
+
+      - name: Classify bounded remaining-FR provenance
+        id: classify
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-remaining-fr-764'
+          result="$root/result.json"
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-remaining-fr-provenance-764.php \
+            > "$result"
+
+          jq -e '.status == "PASS"' "$result" >/dev/null
+          jq -e '.verdict == "REMAINING_FR_PROVENANCE_CLASSIFIED"' "$result" \
+            >/dev/null
+          jq -e '.counts.candidate_total == 69' "$result" >/dev/null
+          jq -e '.counts.classified == 69' "$result" >/dev/null
+          jq -e '.counts.baseline_problem == 0' "$result" >/dev/null
+          jq -e '.counts.schema_or_provenance_unresolved == 0' "$result" \
+            >/dev/null
+          jq -e '.focus.canvas_component.count == 30' "$result" >/dev/null
+          jq -e '.focus.canvas_folder.count == 13' "$result" >/dev/null
+          jq -e '.focus.other.count == 26' "$result" >/dev/null
+          jq -e '.baseline.repository_total == 595' "$result" >/dev/null
+          jq -e '.baseline.active_total == 595' "$result" >/dev/null
+          jq -e \
+            '.baseline.repository_distribution == {"__none__":59,"en":466,"fr":69,"und":1}' \
+            "$result" >/dev/null
+          jq -e \
+            '.baseline.active_distribution == {"__none__":59,"en":466,"fr":69,"und":1}' \
+            "$result" >/dev/null
+          jq -e '.constraints.read_only == true' "$result" >/dev/null
+          jq -e '.constraints.migration_allowed_by_this_proof == false' \
+            "$result" >/dev/null
+          jq -e \
+            '.constraints.config_language_lock_enabled_canonically == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.natural_language_heuristic_used == false' \
+            "$result" >/dev/null
+          test -z "$(git status --short config/sync)"
+
+          echo "exact_default=$(jq -r '.counts.english_default_exact_match' "$result")" \
+            >> "$GITHUB_OUTPUT"
+          echo "diverged_default=$(jq -r '.counts.extension_default_present_but_values_diverged' "$result")" \
+            >> "$GITHUB_OUTPUT"
+          echo "runtime_source=$(jq -r '.counts.runtime_source_candidate' "$result")" \
+            >> "$GITHUB_OUTPUT"
+          echo "custom_review=$(jq -r '.counts.project_custom_or_editorial_review_required' "$result")" \
+            >> "$GITHUB_OUTPUT"
+          echo "unresolved=$(jq -r '.counts.schema_or_provenance_unresolved' "$result")" \
+            >> "$GITHUB_OUTPUT"
+          echo "verdict=$(jq -r '.verdict' "$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload #764 provenance evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-remaining-fr-764-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-remaining-fr-764
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          isolated_name="agency-config-remaining-fr-764-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev delete --omit-snapshot --yes "$isolated_name" || \
+            ddev stop --unlist --omit-snapshot "$isolated_name" || true
+          rm -f .ddev/config.gate-config-language-remaining-fr-764.yaml
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
+          rm -rf artifacts/config-language-remaining-fr-764
+          rmdir artifacts 2>/dev/null || true
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report-result:
+    name: Publish #764 provenance verdict
+    if: ${{ always() && needs.validate-target.result == 'success' }}
+    needs:
+      - validate-target
+      - classify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish terminal issue verdict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          EXACT_DEFAULT: ${{ needs.classify.outputs.exact_default }}
+          DIVERGED_DEFAULT: ${{ needs.classify.outputs.diverged_default }}
+          RUNTIME_SOURCE: ${{ needs.classify.outputs.runtime_source }}
+          CUSTOM_REVIEW: ${{ needs.classify.outputs.custom_review }}
+          UNRESOLVED: ${{ needs.classify.outputs.unresolved }}
+          MACHINE_VERDICT: ${{ needs.classify.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          verdict='FAIL'
+          if [[ "$CLASSIFY_RESULT" == 'success' ]]; then
+            verdict='PASS'
+          fi
+          gh issue comment 764 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF_BODY
+          ### Remaining-FR provenance classification ${verdict}
+
+          trusted_main: \`${MAIN_SHA}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${CLASSIFY_RESULT}\`
+          verdict: \`${MACHINE_VERDICT:-n/a}\`
+          candidate_total: \`69\`
+          english_default_exact_match: \`${EXACT_DEFAULT:-n/a}\`
+          extension_default_present_but_values_diverged: \`${DIVERGED_DEFAULT:-n/a}\`
+          runtime_source_candidate: \`${RUNTIME_SOURCE:-n/a}\`
+          project_custom_or_editorial_review_required: \`${CUSTOM_REVIEW:-n/a}\`
+          schema_or_provenance_unresolved: \`${UNRESOLVED:-n/a}\`
+          expected_distribution: \`__none__=59, en=466, fr=69, und=1\`
+          artifact: \`agency-config-language-remaining-fr-764-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`
+
+          Read-only fresh-DDEV proof. No migration, config export, Configuration Language Lock activation, production access, provider secret or repository mutation is permitted.
+          EOF_BODY
+          )"
+          test "$CLASSIFY_RESULT" = 'success'

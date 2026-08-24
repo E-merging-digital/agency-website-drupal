@@ -5,7 +5,7 @@ dependencies:
     - agency_ai_translation
     - node
 id: agency_ai_translate_nodes_bulk_action
-label: 'Traduire avec IA vers une langue cible'
+label: 'Translate with AI to a target language'
 type: node
 plugin: agency_ai_translate_nodes_bulk_action
 configuration:

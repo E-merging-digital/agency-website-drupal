@@ -1,12 +1,27 @@
 import { defineConfig } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
+const httpUsername = process.env.BROWSER_VALIDATION_HTTP_USERNAME ?? '';
+const httpPassword = process.env.BROWSER_VALIDATION_HTTP_PASSWORD ?? '';
 
 if (!baseURL) {
   throw new Error(
     'PLAYWRIGHT_BASE_URL is required. Use `npm run browser:validate` to detect DDEV automatically.',
   );
 }
+
+if ((httpUsername && !httpPassword) || (!httpUsername && httpPassword)) {
+  throw new Error(
+    'BROWSER_VALIDATION_HTTP_USERNAME and BROWSER_VALIDATION_HTTP_PASSWORD must be provided together.',
+  );
+}
+
+const httpCredentials = httpUsername && httpPassword
+  ? {
+      username: httpUsername,
+      password: httpPassword,
+    }
+  : undefined;
 
 export default defineConfig({
   testDir: './tests/browser',
@@ -21,6 +36,7 @@ export default defineConfig({
   reporter: [['line']],
   use: {
     baseURL,
+    httpCredentials,
     ignoreHTTPSErrors: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',

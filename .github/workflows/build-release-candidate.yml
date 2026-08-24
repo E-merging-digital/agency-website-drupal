@@ -1,0 +1,145 @@
+name: Build Agency release candidate
+
+on:
+  push:
+    branches:
+      - 'release/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-release-candidate-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-release-candidate:
+    name: Build immutable production-mode candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release branch and source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" == release/* ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --check
+          test ! -e .env
+          test ! -e web/sites/default/settings.php
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate Composer lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer validate --no-check-publish
+
+      - name: Install production dependencies once
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer install \
+            --no-dev \
+            --optimize-autoloader \
+            --no-interaction \
+            --no-progress
+
+      - name: Build immutable candidate payload and identity
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/agency-release-candidate"
+          app="$stage/app"
+          payload="$stage/agency-release-candidate.tar.gz"
+          metadata="$stage/candidate.json"
+          checksum="$stage/agency-release-candidate.tar.gz.sha256"
+
+          rm -rf "$stage"
+          mkdir -p "$app"
+
+          rsync -a ./ "$app/" \
+            --exclude='.git/' \
+            --exclude='.ddev/' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='node_modules/' \
+            --exclude='web/sites/default/files/' \
+            --exclude='web/sites/default/settings.php'
+
+          source_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
+          tar \
+            --sort=name \
+            --mtime="@$source_epoch" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -C "$app" \
+            -czf "$payload" \
+            .
+
+          artifact_sha256="$(sha256sum "$payload" | awk '{print $1}')"
+          composer_lock_sha256="$(sha256sum composer.lock | awk '{print $1}')"
+          printf '%s  %s\n' "$artifact_sha256" "$(basename "$payload")" > "$checksum"
+
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg source_branch "$GITHUB_REF_NAME" \
+            --arg candidate_sha "$GITHUB_SHA" \
+            --arg composer_lock_sha256 "$composer_lock_sha256" \
+            --arg artifact_sha256 "$artifact_sha256" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            '{schema_version:1,repository:$repository,source_branch:$source_branch,candidate_sha:$candidate_sha,composer_lock_sha256:$composer_lock_sha256,artifact_sha256:$artifact_sha256,php_minor:"8.4",build_mode:"production",provenance:{run_id:$run_id,run_attempt:$run_attempt}}' \
+            > "$metadata"
+
+          echo "artifact_sha256=$artifact_sha256" >> "$GITHUB_OUTPUT"
+          echo "candidate_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Verify candidate is self-consistent and secret-free by construction
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/agency-release-candidate"
+          payload="$stage/agency-release-candidate.tar.gz"
+          metadata="$stage/candidate.json"
+
+          test "$(jq -r '.candidate_sha' "$metadata")" = "$GITHUB_SHA"
+          test "$(jq -r '.source_branch' "$metadata")" = "$GITHUB_REF_NAME"
+          test "$(jq -r '.artifact_sha256' "$metadata")" = "$(sha256sum "$payload" | awk '{print $1}')"
+          test "$(jq -r '.composer_lock_sha256' "$metadata")" = "$(sha256sum composer.lock | awk '{print $1}')"
+
+          listing="$(tar -tzf "$payload")"
+          ! grep -Fxq './.env' <<<"$listing"
+          ! grep -Fxq './web/sites/default/settings.php' <<<"$listing"
+          ! grep -Eq '^\./web/sites/default/files/' <<<"$listing"
+          grep -Fxq './composer.lock' <<<"$listing"
+          grep -Fxq './vendor/autoload.php' <<<"$listing"
+          grep -Fxq './web/index.php' <<<"$listing"
+
+      - name: Upload immutable release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-release-candidate-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/agency-release-candidate/agency-release-candidate.tar.gz
+            ${{ runner.temp }}/agency-release-candidate/agency-release-candidate.tar.gz.sha256
+            ${{ runner.temp }}/agency-release-candidate/candidate.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

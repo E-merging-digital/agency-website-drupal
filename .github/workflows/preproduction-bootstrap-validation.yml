@@ -41,6 +41,6 @@ jobs:
           grep -Fq 'sendmail_path = /bin/true' scripts/preproduction/bootstrap-host.sh
           grep -Fq 'auth_basic off' scripts/preproduction/nginx-agency-preprod.conf.template
           grep -Fq 'sha256sum -c' scripts/preproduction/deploy-candidate.sh
-          grep -Fq 'shared/artifacts' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'ARTIFACTS_DIR="$SHARED_DIR/artifacts"' scripts/preproduction/deploy-candidate.sh
           ! grep -Fq 'composer install' scripts/preproduction/deploy-candidate.sh
           ! grep -Fq 'git clone' scripts/preproduction/deploy-candidate.sh

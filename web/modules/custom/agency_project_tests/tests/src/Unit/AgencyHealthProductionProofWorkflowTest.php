@@ -27,7 +27,7 @@ final class AgencyHealthProductionProofWorkflowTest extends TestCase {
 
     foreach ([
       "github.event.comment.body == '/agency-health production-prove'",
-      "test \"$ISSUE_NUMBER\" = '759'",
+      'test "$ISSUE_NUMBER" = \'759\'',
       'd7bf3abfa7b8df7014d27bb2402b61555bf569a0',
       'git merge-base --is-ancestor',
       'config/sync/core.extension.yml web/modules/custom/agency_health',

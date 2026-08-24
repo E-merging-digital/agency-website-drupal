@@ -121,7 +121,7 @@ final class ConfigurationLanguageBaseFieldRuntimeProvenanceWorkflowTest extends 
       $script,
     );
     self::assertStringContainsString(
-      "$counts['candidate_core_base_field_override_fr_without_en_override'] === 53",
+      "\$counts['candidate_core_base_field_override_fr_without_en_override'] === 53",
       $script,
     );
 

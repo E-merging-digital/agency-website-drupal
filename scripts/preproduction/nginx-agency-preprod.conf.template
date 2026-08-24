@@ -1,0 +1,52 @@
+server {
+    listen 80;
+    listen [::]:80;
+    server_name @@HOSTNAME@@;
+
+    root @@PROJECT_ROOT@@/current/web;
+    index index.php;
+
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
+    client_max_body_size 64M;
+
+    auth_basic "Agency PREPROD";
+    auth_basic_user_file @@HTPASSWD_FILE@@;
+
+    location = /health/live {
+        auth_basic off;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_pass unix:@@PHP_SOCKET@@;
+    }
+
+    location = /health/ready {
+        auth_basic off;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_pass unix:@@PHP_SOCKET@@;
+    }
+
+    location / {
+        try_files $uri /index.php?$query_string;
+    }
+
+    location = /index.php {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_pass unix:@@PHP_SOCKET@@;
+    }
+
+    location ~ \.php$ {
+        return 404;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+}

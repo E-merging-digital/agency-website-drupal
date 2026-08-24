@@ -1,0 +1,46 @@
+name: Validate PREPRODUCTION bootstrap
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/build-release-candidate.yml'
+      - '.github/workflows/deploy-preproduction.yml'
+      - '.github/workflows/preproduction-bootstrap-validation.yml'
+      - 'config/splits/preproduction/**'
+      - 'config/sync/config_split.config_split.preproduction.yml'
+      - 'playwright.config.mjs'
+      - 'scripts/preproduction/**'
+      - 'scripts/run-browser-validation.mjs'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionHostBootstrapTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-preproduction-bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Validate PREPROD shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/preproduction/bootstrap-host.sh
+          bash -n scripts/preproduction/deploy-candidate.sh
+          bash -n scripts/preproduction/launch-deploy.sh
+          bash -n scripts/preproduction/inspect-deploy.sh
+      - name: Validate PREPROD templates and immutable deploy boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'max_allowed_packet=64M' scripts/preproduction/bootstrap-host.sh
+          grep -Fq 'mariadb-11.8' scripts/preproduction/bootstrap-host.sh
+          grep -Fq 'sendmail_path = /bin/true' scripts/preproduction/bootstrap-host.sh
+          grep -Fq 'auth_basic off' scripts/preproduction/nginx-agency-preprod.conf.template
+          grep -Fq 'sha256sum -c' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'ARTIFACTS_DIR="$SHARED_DIR/artifacts"' scripts/preproduction/deploy-candidate.sh
+          ! grep -Fq 'composer install' scripts/preproduction/deploy-candidate.sh
+          ! grep -Fq 'git clone' scripts/preproduction/deploy-candidate.sh

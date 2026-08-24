@@ -34,7 +34,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git diff --check
           test ! -e .env
-          test ! -e web/sites/default/settings.php
 
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2

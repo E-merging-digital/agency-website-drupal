@@ -13,6 +13,14 @@ const contractPath = path.resolve(
     ?? 'tests/browser/contracts/public-blog.json',
 );
 const expectedProjects = ['desktop', 'mobile'];
+const httpUsername = process.env.BROWSER_VALIDATION_HTTP_USERNAME ?? '';
+const httpPassword = process.env.BROWSER_VALIDATION_HTTP_PASSWORD ?? '';
+
+if ((httpUsername && !httpPassword) || (!httpUsername && httpPassword)) {
+  throw new Error(
+    'BROWSER_VALIDATION_HTTP_USERNAME and BROWSER_VALIDATION_HTTP_PASSWORD must be provided together.',
+  );
+}
 
 function findUrl(value) {
   if (typeof value === 'string') {
@@ -104,12 +112,16 @@ function requestStatus(url) {
   return new Promise((resolve, reject) => {
     const target = new URL(url);
     const client = target.protocol === 'https:' ? https : http;
+    const headers = {
+      'user-agent': 'agency-browser-validation-readiness/1',
+    };
+    if (httpUsername && httpPassword) {
+      headers.authorization = `Basic ${Buffer.from(`${httpUsername}:${httpPassword}`).toString('base64')}`;
+    }
     const request = client.get(
       target,
       {
-        headers: {
-          'user-agent': 'agency-browser-validation-readiness/1',
-        },
+        headers,
         rejectUnauthorized: false,
       },
       (response) => {

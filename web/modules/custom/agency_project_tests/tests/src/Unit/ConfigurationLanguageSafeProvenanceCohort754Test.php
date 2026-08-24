@@ -84,7 +84,7 @@ final class ConfigurationLanguageSafeProvenanceCohort754Test extends TestCase {
     $root = dirname(DRUPAL_ROOT);
     $files = glob($root . '/config/sync/*.yml');
     self::assertIsArray($files);
-    self::assertCount(595, $files);
+    self::assertCount(596, $files);
 
     $counts = [];
     foreach ($files as $path) {
@@ -99,7 +99,7 @@ final class ConfigurationLanguageSafeProvenanceCohort754Test extends TestCase {
 
     self::assertSame([
       '__none__' => 59,
-      'en' => 496,
+      'en' => 497,
       'fr' => 39,
       'und' => 1,
     ], $counts);

@@ -2,6 +2,7 @@ agency_health.liveness:
   path: '/health/live'
   defaults:
     _controller: '\Drupal\agency_health\Controller\HealthController::liveness'
+    _disable_route_normalizer: TRUE
   requirements:
     # Public by contract; response is deliberately binary and non-sensitive.
     _access: 'TRUE'
@@ -14,6 +15,7 @@ agency_health.readiness:
   path: '/health/ready'
   defaults:
     _controller: '\Drupal\agency_health\Controller\HealthController::readiness'
+    _disable_route_normalizer: TRUE
   requirements:
     # Public by contract; detailed diagnostics remain on operator surfaces.
     _access: 'TRUE'

@@ -101,17 +101,17 @@ final class AgencyHealthEndpointTest extends BrowserTestBase {
       $response = $client->getResponse();
 
       self::assertSame(200, $response->getStatusCode());
-      self::assertFalse($response->headers->has('Location'));
+      self::assertNull($response->getHeader('Location'));
       self::assertStringContainsString(
         'application/json',
-        (string) $response->headers->get('Content-Type'),
+        (string) $response->getHeader('Content-Type'),
       );
       self::assertStringContainsString(
         'no-store',
-        (string) $response->headers->get('Cache-Control'),
+        (string) $response->getHeader('Cache-Control'),
       );
 
-      $body = trim((string) $response->getContent());
+      $body = trim($response->getContent());
       self::assertSame('{"status":"ok"}', $body);
 
       foreach (['version', 'database', 'host', 'trace', 'exception', 'token', 'password'] as $forbidden) {
@@ -133,7 +133,7 @@ final class AgencyHealthEndpointTest extends BrowserTestBase {
       $client->request('POST', $this->baseUrl . $path);
       $response = $client->getResponse();
       self::assertSame(405, $response->getStatusCode());
-      self::assertFalse($response->headers->has('Location'));
+      self::assertNull($response->getHeader('Location'));
     }
   }
 
@@ -159,9 +159,9 @@ final class AgencyHealthEndpointTest extends BrowserTestBase {
     self::assertSame(301, $response->getStatusCode());
     self::assertSame(
       '/fr/node/' . $node->id(),
-      parse_url((string) $response->headers->get('Location'), PHP_URL_PATH),
+      parse_url((string) $response->getHeader('Location'), PHP_URL_PATH),
     );
-    self::assertSame('1', $response->headers->get('X-Drupal-Route-Normalizer'));
+    self::assertSame('1', $response->getHeader('X-Drupal-Route-Normalizer'));
   }
 
 }

@@ -1,0 +1,286 @@
+name: Agency trusted SDC native metadata provenance
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate fixed #772 live-main target
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 772 &&
+        github.event.comment.body == '/agency-config-language-sdc-metadata correlate'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue and immutable main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$ISSUE_NUMBER" = '772'
+          test "$TRIGGER_COMMENT" = \
+            '/agency-config-language-sdc-metadata correlate'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/772" --jq '.state')" = 'open'
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$EVENT_DEFAULT_SHA" = "$main_sha"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  correlate:
+    name: Correlate exact 4 SDCs to native metadata
+    needs: validate-target
+    timeout-minutes: 35
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    permissions:
+      contents: read
+    outputs:
+      all_present: ${{ steps.correlate.outputs.all_present }}
+      partial: ${{ steps.correlate.outputs.partial }}
+      none: ${{ steps.correlate.outputs.none }}
+      unresolved: ${{ steps.correlate.outputs.unresolved }}
+      material_leaves: ${{ steps.correlate.outputs.material_leaves }}
+      component_source_matched: ${{ steps.correlate.outputs.component_source_matched }}
+      pre_sdc_gap: ${{ steps.correlate.outputs.pre_sdc_gap }}
+      sdc_metadata_matched: ${{ steps.correlate.outputs.sdc_metadata_matched }}
+      newly_explained: ${{ steps.correlate.outputs.newly_explained }}
+      final_matched: ${{ steps.correlate.outputs.final_matched }}
+      final_unmatched: ${{ steps.correlate.outputs.final_unmatched }}
+      verdict: ${{ steps.correlate.outputs.verdict }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          git --version
+          docker --version
+          ddev version
+          jq --version
+
+      - name: Checkout exact trusted main read-only
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable #772 target and lock boundary
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test -f \
+            scripts/runner/configuration-language-sdc-native-metadata-provenance-772.php
+          test "$(grep -c '^  config_language_lock:' config/sync/core.extension.yml || true)" = '0'
+          test ! -f config/sync/config_language_lock.settings.yml
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-sdc-metadata-772.yaml <<EOF_CONFIG
+          name: agency-config-sdc-metadata-772-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml \
+            | grep -F "agency-config-sdc-metadata-772-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild exact canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-sdc-metadata-772'
+          mkdir -p "$root"
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/configuration-language-sdc-native-metadata-provenance-772.php \
+            >/dev/null
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" > "$root/config-status.txt"
+          grep -Fq 'No differences' <<<"$config_status"
+
+      - name: Correlate bounded SDC metadata provenance
+        id: correlate
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-sdc-metadata-772'
+          result="$root/result.json"
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-sdc-native-metadata-provenance-772.php \
+            > "$result"
+
+          jq -e '.status == "PASS"' "$result" >/dev/null
+          jq -e '.verdict == "SDC_NATIVE_METADATA_PROVENANCE_ANALYZED"' \
+            "$result" >/dev/null
+          jq -e '.counts.candidate_total == 4' "$result" >/dev/null
+          jq -e '.counts.analyzed == 4' "$result" >/dev/null
+          jq -e '.counts.sdc == 4' "$result" >/dev/null
+          jq -e '.counts.baseline_problem == 0' "$result" >/dev/null
+          jq -e '.counts.problem_count == 0' "$result" >/dev/null
+          jq -e '.counts.source_payload_unresolved == 0' "$result" >/dev/null
+          jq -e '.counts.material_translatable_leaves == 36' "$result" >/dev/null
+          jq -e '.counts.component_source_matched_leaves == 8' "$result" >/dev/null
+          jq -e '.counts.pre_sdc_gap_leaves == 28' "$result" >/dev/null
+          jq -e \
+            '(.counts.all_material_values_present_in_combined_native_sources + .counts.partial_material_values_present_in_combined_native_sources + .counts.no_material_values_present_in_combined_native_sources) == 4' \
+            "$result" >/dev/null
+          jq -e '.constraints.read_only == true' "$result" >/dev/null
+          jq -e '.constraints.strict_type_and_value_equality_only == true' \
+            "$result" >/dev/null
+          jq -e '.constraints.source_specific_ids_from_runtime_only == true' \
+            "$result" >/dev/null
+          jq -e '.constraints.source_generation_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_entity_creation_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_entity_update_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_export_used == false' "$result" >/dev/null
+          jq -e '.constraints.natural_language_heuristic_used == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.fuzzy_matching_used == false' "$result" >/dev/null
+          jq -e '.constraints.value_presence_authorizes_migration == false' \
+            "$result" >/dev/null
+          test -z "$(git status --short config/sync)"
+
+          echo "all_present=$(jq -r '.counts.all_material_values_present_in_combined_native_sources' "$result")" >> "$GITHUB_OUTPUT"
+          echo "partial=$(jq -r '.counts.partial_material_values_present_in_combined_native_sources' "$result")" >> "$GITHUB_OUTPUT"
+          echo "none=$(jq -r '.counts.no_material_values_present_in_combined_native_sources' "$result")" >> "$GITHUB_OUTPUT"
+          echo "unresolved=$(jq -r '.counts.source_payload_unresolved' "$result")" >> "$GITHUB_OUTPUT"
+          echo "material_leaves=$(jq -r '.counts.material_translatable_leaves' "$result")" >> "$GITHUB_OUTPUT"
+          echo "component_source_matched=$(jq -r '.counts.component_source_matched_leaves' "$result")" >> "$GITHUB_OUTPUT"
+          echo "pre_sdc_gap=$(jq -r '.counts.pre_sdc_gap_leaves' "$result")" >> "$GITHUB_OUTPUT"
+          echo "sdc_metadata_matched=$(jq -r '.counts.sdc_metadata_matched_leaves' "$result")" >> "$GITHUB_OUTPUT"
+          echo "newly_explained=$(jq -r '.counts.newly_explained_by_sdc_metadata_leaves' "$result")" >> "$GITHUB_OUTPUT"
+          echo "final_matched=$(jq -r '.counts.final_matched_leaves' "$result")" >> "$GITHUB_OUTPUT"
+          echo "final_unmatched=$(jq -r '.counts.final_unmatched_leaves' "$result")" >> "$GITHUB_OUTPUT"
+          echo "verdict=$(jq -r '.verdict' "$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload #772 SDC metadata evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-sdc-metadata-772-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-sdc-metadata-772
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          isolated_name="agency-config-sdc-metadata-772-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev delete --omit-snapshot --yes "$isolated_name" || \
+            ddev stop --unlist --omit-snapshot "$isolated_name" || true
+          rm -f .ddev/config.gate-config-language-sdc-metadata-772.yaml
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
+          rm -rf artifacts/config-language-sdc-metadata-772
+          rmdir artifacts 2>/dev/null || true
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report-result:
+    name: Publish #772 SDC metadata verdict
+    if: ${{ always() && needs.validate-target.result == 'success' }}
+    needs:
+      - validate-target
+      - correlate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish terminal issue verdict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+          CORRELATE_RESULT: ${{ needs.correlate.result }}
+          ALL_PRESENT: ${{ needs.correlate.outputs.all_present }}
+          PARTIAL: ${{ needs.correlate.outputs.partial }}
+          NONE: ${{ needs.correlate.outputs.none }}
+          UNRESOLVED: ${{ needs.correlate.outputs.unresolved }}
+          MATERIAL_LEAVES: ${{ needs.correlate.outputs.material_leaves }}
+          COMPONENT_SOURCE_MATCHED: ${{ needs.correlate.outputs.component_source_matched }}
+          PRE_SDC_GAP: ${{ needs.correlate.outputs.pre_sdc_gap }}
+          SDC_METADATA_MATCHED: ${{ needs.correlate.outputs.sdc_metadata_matched }}
+          NEWLY_EXPLAINED: ${{ needs.correlate.outputs.newly_explained }}
+          FINAL_MATCHED: ${{ needs.correlate.outputs.final_matched }}
+          FINAL_UNMATCHED: ${{ needs.correlate.outputs.final_unmatched }}
+          MACHINE_VERDICT: ${{ needs.correlate.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          verdict='FAIL'
+          if [[ "$CORRELATE_RESULT" == 'success' ]]; then
+            verdict='PASS'
+          fi
+          gh issue comment 772 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF_BODY
+          ### SDC native metadata provenance ${verdict}
+
+          trusted_main: \`${MAIN_SHA}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${CORRELATE_RESULT}\`
+          verdict: \`${MACHINE_VERDICT:-n/a}\`
+          candidate_total: \`4\`
+          all_material_values_present: \`${ALL_PRESENT:-n/a}\`
+          partial_material_values_present: \`${PARTIAL:-n/a}\`
+          no_material_values_present: \`${NONE:-n/a}\`
+          source_payload_unresolved: \`${UNRESOLVED:-n/a}\`
+          material_leaves: \`${MATERIAL_LEAVES:-n/a}\`
+          component_source_matched: \`${COMPONENT_SOURCE_MATCHED:-n/a}\`
+          pre_sdc_gap: \`${PRE_SDC_GAP:-n/a}\`
+          sdc_metadata_matched: \`${SDC_METADATA_MATCHED:-n/a}\`
+          newly_explained_by_sdc_metadata: \`${NEWLY_EXPLAINED:-n/a}\`
+          final_matched: \`${FINAL_MATCHED:-n/a}\`
+          final_unmatched: \`${FINAL_UNMATCHED:-n/a}\`
+          artifact: \`agency-config-language-sdc-metadata-772-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`
+
+          Strict read-only correlation through runtime source IDs and Drupal's native plugin.manager.sdc. Value presence does not authorize migration. No Canvas generation, config mutation/export, Configuration Language Lock activation, production access, provider secret, language heuristic or fuzzy match is permitted.
+          EOF_BODY
+          )"
+          test "$CORRELATE_RESULT" = 'success'

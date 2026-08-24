@@ -1,0 +1,312 @@
+name: Agency trusted Canvas canonical migration dry-run
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate fixed #779 live-main target
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 779 &&
+        github.event.comment.body == '/agency-config-language-canvas-migration dry-run'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue and immutable main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$ISSUE_NUMBER" = '779'
+          test "$TRIGGER_COMMENT" = \
+            '/agency-config-language-canvas-migration dry-run'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/779" --jq '.state')" = 'open'
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$EVENT_DEFAULT_SHA" = "$main_sha"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  dry-run:
+    name: Dry-run exact 30 Canvas canonical promotions
+    needs: validate-target
+    timeout-minutes: 35
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    permissions:
+      contents: read
+    outputs:
+      base_files: ${{ steps.dry_run.outputs.base_files }}
+      label_files: ${{ steps.dry_run.outputs.label_files }}
+      overrides: ${{ steps.dry_run.outputs.overrides }}
+      existing_overrides: ${{ steps.dry_run.outputs.existing_overrides }}
+      review_required: ${{ steps.dry_run.outputs.review_required }}
+      plan_sha256: ${{ steps.dry_run.outputs.plan_sha256 }}
+      verdict: ${{ steps.dry_run.outputs.verdict }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          git --version
+          docker --version
+          ddev version
+          jq --version
+
+      - name: Checkout exact trusted main read-only
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable #779 target and lock boundary
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test -f \
+            scripts/runner/configuration-language-canvas-migration-dry-run-779.php
+          test -f \
+            scripts/runner/configuration-language-sdc-native-metadata-provenance-772.php
+          test -f \
+            scripts/runner/configuration-language-canvas-block-native-label-provenance-774.php
+          test -f \
+            scripts/runner/configuration-language-argumented-block-plain-text-provenance-776.php
+          test "$(grep -c '^  config_language_lock:' config/sync/core.extension.yml || true)" = '0'
+          test ! -f config/sync/config_language_lock.settings.yml
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-canvas-dry-run-779.yaml <<EOF_CONFIG
+          name: agency-config-canvas-dry-run-779-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml \
+            | grep -F "agency-config-canvas-dry-run-779-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild exact canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-canvas-dry-run-779'
+          mkdir -p "$root"
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/configuration-language-canvas-migration-dry-run-779.php \
+            >/dev/null
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" > "$root/config-status.txt"
+          grep -Fq 'No differences' <<<"$config_status"
+
+      - name: Produce deterministic read-only Canvas migration plan
+        id: dry_run
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-canvas-dry-run-779'
+          result="$root/result.json"
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-canvas-migration-dry-run-779.php \
+            > "$result"
+
+          jq -e '.status == "PASS"' "$result" >/dev/null
+          jq -e \
+            '.verdict == "CANVAS_CANONICAL_MIGRATION_DRY_RUN_READY"' \
+            "$result" >/dev/null
+          jq -e '.ready_for_migration == true' "$result" >/dev/null
+          jq -e '.cohort.total == 30' "$result" >/dev/null
+          jq -e '.cohort.block == 26' "$result" >/dev/null
+          jq -e '.cohort.sdc == 4' "$result" >/dev/null
+          jq -e \
+            '.cohort.names_sha256 == "b2ad9dcff4b65e56e2a76efefc55b508cf4012b6aaa18cba0c4879cf2f3dec23"' \
+            "$result" >/dev/null
+          jq -e '.proofs.sdc.material_translatable_leaves == 36' \
+            "$result" >/dev/null
+          jq -e '.proofs.sdc.final_matched_leaves == 36' \
+            "$result" >/dev/null
+          jq -e '.proofs.block.definition_resolved == 26' \
+            "$result" >/dev/null
+          jq -e '.proofs.argumented_block.deterministic == 3' \
+            "$result" >/dev/null
+          jq -e '.counts.base_files_planned == 30' "$result" >/dev/null
+          jq -e '.counts.block_files_planned == 26' "$result" >/dev/null
+          jq -e '.counts.sdc_files_planned == 4' "$result" >/dev/null
+          jq -e '.counts.langcode_changes == 30' "$result" >/dev/null
+          jq -e '.counts.block_label_files_changed == 15' "$result" >/dev/null
+          jq -e '.counts.block_label_value_changes == 30' "$result" >/dev/null
+          jq -e '.counts.fr_override_files_planned == 15' "$result" >/dev/null
+          jq -e '.counts.review_required == 0' "$result" >/dev/null
+          jq -e '.counts.proof_problem == 0' "$result" >/dev/null
+          jq -e '.counts.problem_count == 0' "$result" >/dev/null
+          jq -e \
+            '.distribution.before == {"__none__":59,"en":466,"fr":69,"und":1}' \
+            "$result" >/dev/null
+          jq -e \
+            '.distribution.after_simulated == {"__none__":59,"en":496,"fr":39,"und":1}' \
+            "$result" >/dev/null
+          jq -e '.distribution.total == 595' "$result" >/dev/null
+          jq -e '.plan.base_files | length == 30' "$result" >/dev/null
+          jq -e '.plan.fr_overrides | length == 15' "$result" >/dev/null
+          jq -e \
+            '[.plan.base_files[] | select(.source_kind == "sdc") | (.operations | length)] | all(. == 1)' \
+            "$result" >/dev/null
+          jq -e \
+            '[.plan.base_files[] | .historical_versions_modified] | all(. == false)' \
+            "$result" >/dev/null
+          jq -e '.plan_sha256 | test("^[0-9a-f]{64}$")' "$result" >/dev/null
+          jq -e '.constraints.read_only == true' "$result" >/dev/null
+          jq -e '.constraints.in_memory_simulation_only == true' "$result" >/dev/null
+          jq -e '.constraints.repository_config_mutated == false' "$result" >/dev/null
+          jq -e '.constraints.historical_versions_rewritten == false' "$result" >/dev/null
+          jq -e '.constraints.sdc_values_rewritten == false' "$result" >/dev/null
+          jq -e \
+            '.constraints.sdc_native_value_presence_used_as_preservation_guard_only == true' \
+            "$result" >/dev/null
+          jq -e '.constraints.block_labels_from_native_provenance_only == true' \
+            "$result" >/dev/null
+          jq -e '.constraints.generic_normalization_used == false' "$result" >/dev/null
+          jq -e '.constraints.natural_language_heuristic_used == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.automatic_arbitrary_text_translation_used == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.fuzzy_matching_used == false' "$result" >/dev/null
+          jq -e '.constraints.source_generation_executed == false' "$result" >/dev/null
+          jq -e '.constraints.block_build_executed == false' "$result" >/dev/null
+          jq -e '.constraints.config_entity_creation_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_entity_update_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_export_used == false' "$result" >/dev/null
+          jq -e '.constraints.config_language_lock_activation_allowed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.migration_allowed_by_this_dry_run == false' \
+            "$result" >/dev/null
+          test -z "$(git status --short config/sync)"
+
+          echo "base_files=$(jq -r '.counts.base_files_planned' "$result")" >> "$GITHUB_OUTPUT"
+          echo "label_files=$(jq -r '.counts.block_label_files_changed' "$result")" >> "$GITHUB_OUTPUT"
+          echo "overrides=$(jq -r '.counts.fr_override_files_planned' "$result")" >> "$GITHUB_OUTPUT"
+          echo "existing_overrides=$(jq -r '.counts.existing_fr_override_files' "$result")" >> "$GITHUB_OUTPUT"
+          echo "review_required=$(jq -r '.counts.review_required' "$result")" >> "$GITHUB_OUTPUT"
+          echo "plan_sha256=$(jq -r '.plan_sha256' "$result")" >> "$GITHUB_OUTPUT"
+          echo "verdict=$(jq -r '.verdict' "$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload #779 Canvas dry-run evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-canvas-dry-run-779-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-canvas-dry-run-779
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          isolated_name="agency-config-canvas-dry-run-779-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev delete --omit-snapshot --yes "$isolated_name" || \
+            ddev stop --unlist --omit-snapshot "$isolated_name" || true
+          rm -f .ddev/config.gate-config-language-canvas-dry-run-779.yaml
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
+          rm -rf artifacts/config-language-canvas-dry-run-779
+          rmdir artifacts 2>/dev/null || true
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report-result:
+    name: Publish #779 Canvas dry-run verdict
+    if: ${{ always() && needs.validate-target.result == 'success' }}
+    needs:
+      - validate-target
+      - dry-run
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish terminal issue verdict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+          DRY_RUN_RESULT: ${{ needs.dry-run.result }}
+          BASE_FILES: ${{ needs.dry-run.outputs.base_files }}
+          LABEL_FILES: ${{ needs.dry-run.outputs.label_files }}
+          OVERRIDES: ${{ needs.dry-run.outputs.overrides }}
+          EXISTING_OVERRIDES: ${{ needs.dry-run.outputs.existing_overrides }}
+          REVIEW_REQUIRED: ${{ needs.dry-run.outputs.review_required }}
+          PLAN_SHA256: ${{ needs.dry-run.outputs.plan_sha256 }}
+          MACHINE_VERDICT: ${{ needs.dry-run.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          verdict='FAIL'
+          if [[ "$DRY_RUN_RESULT" == 'success' ]]; then
+            verdict='PASS'
+          fi
+          gh issue comment 779 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF_BODY
+          ### Canvas canonical migration dry-run ${verdict}
+
+          trusted_main: \`${MAIN_SHA}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${DRY_RUN_RESULT}\`
+          verdict: \`${MACHINE_VERDICT:-n/a}\`
+          base_files_planned: \`${BASE_FILES:-n/a}\`
+          block_label_files_changed: \`${LABEL_FILES:-n/a}\`
+          fr_override_files_planned: \`${OVERRIDES:-n/a}\`
+          existing_fr_override_files: \`${EXISTING_OVERRIDES:-n/a}\`
+          review_required: \`${REVIEW_REQUIRED:-n/a}\`
+          plan_sha256: \`${PLAN_SHA256:-n/a}\`
+          simulated_distribution: \`__none__=59, en=496, fr=39, und=1\`
+          artifact: \`agency-config-language-canvas-dry-run-779-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`
+
+          Strict read-only in-memory migration plan. No config/sync mutation, historical-version rewrite, SDC value rewrite, Canvas generation/build, config export, Configuration Language Lock activation, production access, provider secret, natural-language heuristic, arbitrary-text translation, generic normalization or fuzzy match is permitted. This dry-run does not itself authorize or apply the migration.
+          EOF_BODY
+          )"
+          test "$DRY_RUN_RESULT" = 'success'

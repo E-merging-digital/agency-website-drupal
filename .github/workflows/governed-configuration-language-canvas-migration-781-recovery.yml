@@ -198,6 +198,7 @@ jobs:
           # site:install drops/recreates the database, giving a fresh Drupal
           # install from the mutated repository config without restarting the
           # already healthy isolated DDEV/Traefik project.
+          # This proves a second fresh install without restarting the already healthy isolated DDEV/Traefik project.
           admin_pass="$(openssl rand -hex 24)"
           ddev drush site:install --existing-config -y --account-pass="$admin_pass"
           unset admin_pass
@@ -320,20 +321,11 @@ jobs:
           else
             heading='### Governed Canvas canonical migration recovery FAIL'
           fi
-          body="$heading
-
-trusted_main: \`$MAIN_SHA\`
-run_id: \`$GITHUB_RUN_ID\`
-route_outcome: \`$ROUTE_RESULT\`
-writer_status: \`${WRITER_STATUS:-n/a}\`
-generated_branch: \`${GENERATED_BRANCH:-n/a}\`
-generated_commit: \`${GENERATED_COMMIT:-n/a}\`
-base_files_modified: \`${BASE_FILES:-n/a}\`
-fr_overrides_created: \`${OVERRIDES:-n/a}\`
-fresh_verification: \`${VERIFICATION:-n/a}\`
-plan_sha256: \`${PLAN_SHA:-n/a}\`
-artifact: \`agency-config-language-canvas-migration-781-recovery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`
-
-Recovery retains the exact trusted #779 plan and avoids only the failed DDEV router restart. It never writes main directly and Configuration Language Lock remains disabled."
+          printf -v body '%s\n\ntrusted_main: `%s`\nrun_id: `%s`\nroute_outcome: `%s`\nwriter_status: `%s`\ngenerated_branch: `%s`\ngenerated_commit: `%s`\nbase_files_modified: `%s`\nfr_overrides_created: `%s`\nfresh_verification: `%s`\nplan_sha256: `%s`\nartifact: `agency-config-language-canvas-migration-781-recovery-%s-%s`\n\nRecovery retains the exact trusted #779 plan and avoids only the failed DDEV router restart. It never writes main directly and Configuration Language Lock remains disabled.' \
+            "$heading" "$MAIN_SHA" "$GITHUB_RUN_ID" "$ROUTE_RESULT" \
+            "${WRITER_STATUS:-n/a}" "${GENERATED_BRANCH:-n/a}" \
+            "${GENERATED_COMMIT:-n/a}" "${BASE_FILES:-n/a}" \
+            "${OVERRIDES:-n/a}" "${VERIFICATION:-n/a}" \
+            "${PLAN_SHA:-n/a}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
           gh api "repos/$GITHUB_REPOSITORY/issues/781/comments" -f body="$body" >/dev/null
           test "$heading" = '### Governed Canvas canonical migration recovery PASS'

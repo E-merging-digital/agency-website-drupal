@@ -1,0 +1,7 @@
+name: 'Agency Health Failure Test'
+type: module
+description: 'Test-only fault injection for Agency readiness HTTP failure semantics.'
+package: Testing
+core_version_requirement: ^11
+dependencies:
+  - agency_health:agency_health

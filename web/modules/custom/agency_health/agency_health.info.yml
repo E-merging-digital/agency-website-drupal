@@ -1,0 +1,5 @@
+name: Agency Health
+type: module
+description: 'Provider-neutral public liveness and readiness probes for Agency Drupal.'
+package: Custom
+core_version_requirement: ^11

@@ -1,0 +1,231 @@
+name: Agency trusted base-field runtime canonical verification
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate fixed #760 live-main target
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 760 &&
+        github.event.comment.body == '/agency-config-language-base-field-runtime verify'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue and immutable main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$ISSUE_NUMBER" = '760'
+          test "$TRIGGER_COMMENT" = '/agency-config-language-base-field-runtime verify'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/760" --jq '.state')" = 'open'
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$EVENT_DEFAULT_SHA" = "$main_sha"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: Verify 53 runtime-source promotions in fresh DDEV
+    needs: validate-target
+    timeout-minutes: 35
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    permissions:
+      contents: read
+    outputs:
+      verdict: ${{ steps.verify.outputs.verdict }}
+      verified: ${{ steps.verify.outputs.verified }}
+      remaining_fr: ${{ steps.verify.outputs.remaining_fr }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          git --version
+          docker --version
+          ddev version
+          jq --version
+
+      - name: Checkout exact trusted main read-only
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable target and lock boundary
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test -f docs/evidence/configuration-language-base-field-runtime-cohort-760.yml
+          test -f scripts/runner/configuration-language-base-field-runtime-cohort-760-verify.php
+          test "$(grep -c '^  config_language_lock:' config/sync/core.extension.yml || true)" = '0'
+          test ! -f config/sync/config_language_lock.settings.yml
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-runtime-760-verify.yaml <<EOF_CONFIG
+          name: agency-config-runtime-760-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml \
+            | grep -F "agency-config-runtime-760-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild exact canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-base-field-runtime-760-verify'
+          mkdir -p "$root"
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/configuration-language-base-field-runtime-cohort-760-verify.php \
+            >/dev/null
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" > "$root/config-status.txt"
+          grep -Fq 'No differences' <<<"$config_status"
+
+      - name: Verify runtime-source canonical cohort
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-base-field-runtime-760-verify'
+          result="$root/result.json"
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-base-field-runtime-cohort-760-verify.php \
+            > "$result"
+
+          jq -e '.status == "PASS"' "$result" >/dev/null
+          jq -e '.verdict == "FIFTY_THREE_BASE_FIELD_RUNTIME_CANONICAL_PROMOTIONS_VERIFIED"' "$result" >/dev/null
+          jq -e '.verified == 53' "$result" >/dev/null
+          jq -e '.remaining_fr_review_required == 69' "$result" >/dev/null
+          jq -e '.repository_total == 595 and .active_total == 595' "$result" >/dev/null
+          jq -e '.repository_distribution == {"__none__":59,"en":466,"fr":69,"und":1}' "$result" >/dev/null
+          jq -e '.active_distribution == {"__none__":59,"en":466,"fr":69,"und":1}' "$result" >/dev/null
+          jq -e '.exception.base_label == "Components"' "$result" >/dev/null
+          jq -e '.exception.fr_override == {"label":"Composants"}' "$result" >/dev/null
+          jq -e '.constraints.config_language_lock_enabled_canonically == false' "$result" >/dev/null
+          jq -e '.constraints.site_default_language == "fr"' "$result" >/dev/null
+          jq -e '.constraints.semantic_und_zxx_preserved == true' "$result" >/dev/null
+          jq -e '.constraints.config_export_used == false' "$result" >/dev/null
+          jq -e '.problems == []' "$result" >/dev/null
+          test -z "$(git status --short config/sync)"
+
+          echo "verdict=$(jq -r '.verdict' "$result")" >> "$GITHUB_OUTPUT"
+          echo "verified=$(jq -r '.verified' "$result")" >> "$GITHUB_OUTPUT"
+          echo "remaining_fr=$(jq -r '.remaining_fr_review_required' "$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verification evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-base-field-runtime-760-verify-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-base-field-runtime-760-verify
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          isolated_name="agency-config-runtime-760-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev delete --omit-snapshot --yes "$isolated_name" || \
+            ddev stop --unlist --omit-snapshot "$isolated_name" || true
+          rm -f .ddev/config.gate-config-language-runtime-760-verify.yaml
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
+          rm -rf artifacts/config-language-base-field-runtime-760-verify
+          rmdir artifacts 2>/dev/null || true
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report-result:
+    name: Publish #760 trusted verification verdict
+    if: ${{ always() && needs.validate-target.result == 'success' }}
+    needs:
+      - validate-target
+      - verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish terminal issue verdict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          MACHINE_VERDICT: ${{ needs.verify.outputs.verdict }}
+          VERIFIED: ${{ needs.verify.outputs.verified }}
+          REMAINING_FR: ${{ needs.verify.outputs.remaining_fr }}
+        run: |
+          set -euo pipefail
+          verdict='FAIL'
+          if [[ "$VERIFY_RESULT" == 'success' ]]; then
+            verdict='PASS'
+          fi
+          gh issue comment 760 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF_BODY
+          ### Base-field runtime canonical post-merge verification ${verdict}
+
+          trusted_main: \`${MAIN_SHA}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${VERIFY_RESULT}\`
+          verdict: \`${MACHINE_VERDICT:-n/a}\`
+          verified: \`${VERIFIED:-0}\`
+          remaining_fr_review_required: \`${REMAINING_FR:-n/a}\`
+          expected_distribution: \`__none__=59, en=466, fr=69, und=1\`
+          artifact: \`agency-config-language-base-field-runtime-760-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`
+
+          Fresh-DDEV read-only verification. Configuration Language Lock remains disabled; no cex, production access, provider secret or repository write from the self-hosted runner is permitted.
+          EOF_BODY
+          )"
+          test "$VERIFY_RESULT" = 'success'

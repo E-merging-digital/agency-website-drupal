@@ -1,5 +1,5 @@
 uuid: 45f5e201-ffb4-4323-bd02-c027a4878302
-langcode: fr
+langcode: en
 status: false
 dependencies:
   module:
@@ -10,7 +10,7 @@ versioned_properties:
     settings:
       default_settings:
         id: 'language_block:language_content'
-        label: 'Sélecteur de langue (Contenu)'
+        label: 'Language switcher (Content)'
         label_display: '0'
         provider: language
     fallback_metadata:
@@ -24,7 +24,7 @@ versioned_properties:
         provider: language
     fallback_metadata:
       slot_definitions: null
-label: 'Sélecteur de langue (Contenu)'
+label: 'Language switcher (Content)'
 id: block.language_block.language_content
 provider: language
 source: block

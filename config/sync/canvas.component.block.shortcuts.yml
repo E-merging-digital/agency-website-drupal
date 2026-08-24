@@ -1,5 +1,5 @@
 uuid: 58d43de5-a2ed-444d-91e9-644fa5d76ffb
-langcode: fr
+langcode: en
 status: false
 dependencies:
   module:
@@ -10,12 +10,12 @@ versioned_properties:
     settings:
       default_settings:
         id: shortcuts
-        label: Raccourcis
+        label: Shortcuts
         label_display: '0'
         provider: shortcut
     fallback_metadata:
       slot_definitions: null
-label: Raccourcis
+label: Shortcuts
 id: block.shortcuts
 provider: shortcut
 source: block

@@ -1,5 +1,5 @@
 uuid: a9d5741c-7526-4dd0-b1c4-7172f33429dc
-langcode: fr
+langcode: en
 status: false
 dependencies: {  }
 active_version: 067c47f16b04d8d4
@@ -8,14 +8,14 @@ versioned_properties:
     settings:
       default_settings:
         id: local_tasks_block
-        label: Onglets
+        label: Tabs
         label_display: '0'
         provider: core
         primary: true
         secondary: true
     fallback_metadata:
       slot_definitions: null
-label: Onglets
+label: Tabs
 id: block.local_tasks_block
 provider: core
 source: block

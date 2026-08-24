@@ -1,5 +1,5 @@
 uuid: 188f9428-3bbd-417c-96fc-71e63ef92c80
-langcode: fr
+langcode: en
 status: false
 dependencies:
   module:
@@ -10,12 +10,12 @@ versioned_properties:
     settings:
       default_settings:
         id: system_clear_cache_block
-        label: 'Vider le cache'
+        label: 'Clear cache'
         label_display: '0'
         provider: system
     fallback_metadata:
       slot_definitions: null
-label: 'Vider le cache'
+label: 'Clear cache'
 id: block.system_clear_cache_block
 provider: system
 source: block

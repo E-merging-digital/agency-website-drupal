@@ -1,0 +1,282 @@
+name: Agency trusted Canvas Block native label provenance
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate fixed #774 live-main target
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 774 &&
+        github.event.comment.body == '/agency-config-language-block-labels correlate'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue and immutable main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$ISSUE_NUMBER" = '774'
+          test "$TRIGGER_COMMENT" = \
+            '/agency-config-language-block-labels correlate'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/774" --jq '.state')" = 'open'
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$EVENT_DEFAULT_SHA" = "$main_sha"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  correlate:
+    name: Correlate exact 26 Canvas Blocks to native labels
+    needs: validate-target
+    timeout-minutes: 35
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    permissions:
+      contents: read
+    outputs:
+      translatable: ${{ steps.correlate.outputs.translatable }}
+      scalar: ${{ steps.correlate.outputs.scalar }}
+      source_match: ${{ steps.correlate.outputs.source_match }}
+      fr_match: ${{ steps.correlate.outputs.fr_match }}
+      en_match: ${{ steps.correlate.outputs.en_match }}
+      scalar_match: ${{ steps.correlate.outputs.scalar_match }}
+      no_match: ${{ steps.correlate.outputs.no_match }}
+      differs_source: ${{ steps.correlate.outputs.differs_source }}
+      with_arguments: ${{ steps.correlate.outputs.with_arguments }}
+      verdict: ${{ steps.correlate.outputs.verdict }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          git --version
+          docker --version
+          ddev version
+          jq --version
+
+      - name: Checkout exact trusted main read-only
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable #774 target and lock boundary
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test -f \
+            scripts/runner/configuration-language-canvas-block-native-label-provenance-774.php
+          test "$(grep -c '^  config_language_lock:' config/sync/core.extension.yml || true)" = '0'
+          test ! -f config/sync/config_language_lock.settings.yml
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-block-label-774.yaml <<EOF_CONFIG
+          name: agency-config-block-label-774-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml \
+            | grep -F "agency-config-block-label-774-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild exact canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-block-label-774'
+          mkdir -p "$root"
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/configuration-language-canvas-block-native-label-provenance-774.php \
+            >/dev/null
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" > "$root/config-status.txt"
+          grep -Fq 'No differences' <<<"$config_status"
+
+      - name: Correlate bounded Block native label provenance
+        id: correlate
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-block-label-774'
+          result="$root/result.json"
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-canvas-block-native-label-provenance-774.php \
+            > "$result"
+
+          jq -e '.status == "PASS"' "$result" >/dev/null
+          jq -e \
+            '.verdict == "CANVAS_BLOCK_NATIVE_LABEL_PROVENANCE_ANALYZED"' \
+            "$result" >/dev/null
+          jq -e '.counts.candidate_total == 26' "$result" >/dev/null
+          jq -e '.counts.analyzed == 26' "$result" >/dev/null
+          jq -e '.counts.definition_resolved == 26' "$result" >/dev/null
+          jq -e \
+            '(.counts.translatable_admin_label + .counts.scalar_admin_label) == 26' \
+            "$result" >/dev/null
+          jq -e '.counts.baseline_problem == 0' "$result" >/dev/null
+          jq -e '.counts.problem_count == 0' "$result" >/dev/null
+          jq -e \
+            '.cohort_names_sha256 == "e388542385fb7cd490c79ef0783dd1ace930ab1b1db1a0762fd50df783db247c"' \
+            "$result" >/dev/null
+          jq -e '.constraints.read_only == true' "$result" >/dev/null
+          jq -e '.constraints.source_local_ids_from_runtime_only == true' \
+            "$result" >/dev/null
+          jq -e '.constraints.block_definition_surface == "plugin.manager.block"' \
+            "$result" >/dev/null
+          jq -e '.constraints.strict_equality_only == true' "$result" >/dev/null
+          jq -e '.constraints.natural_language_heuristic_used == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.automatic_translation_used == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.fuzzy_matching_used == false' "$result" >/dev/null
+          jq -e '.constraints.migration_allowed_by_this_proof == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.source_generation_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.block_build_executed == false' "$result" >/dev/null
+          jq -e '.constraints.config_entity_creation_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_entity_update_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_export_used == false' "$result" >/dev/null
+          test -z "$(git status --short config/sync)"
+
+          echo "translatable=$(jq -r '.counts.translatable_admin_label' "$result")" >> "$GITHUB_OUTPUT"
+          echo "scalar=$(jq -r '.counts.scalar_admin_label' "$result")" >> "$GITHUB_OUTPUT"
+          echo "source_match=$(jq -r '.counts.current_matches_untranslated_source' "$result")" >> "$GITHUB_OUTPUT"
+          echo "fr_match=$(jq -r '.counts.current_matches_rendered_fr' "$result")" >> "$GITHUB_OUTPUT"
+          echo "en_match=$(jq -r '.counts.current_matches_rendered_en' "$result")" >> "$GITHUB_OUTPUT"
+          echo "scalar_match=$(jq -r '.counts.current_matches_scalar_definition' "$result")" >> "$GITHUB_OUTPUT"
+          echo "no_match=$(jq -r '.counts.current_no_exact_native_label_match' "$result")" >> "$GITHUB_OUTPUT"
+          echo "differs_source=$(jq -r '.counts.current_differs_from_native_source' "$result")" >> "$GITHUB_OUTPUT"
+          echo "with_arguments=$(jq -r '.counts.admin_labels_with_arguments' "$result")" >> "$GITHUB_OUTPUT"
+          echo "verdict=$(jq -r '.verdict' "$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload #774 Block label evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-block-label-774-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-block-label-774
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          isolated_name="agency-config-block-label-774-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev delete --omit-snapshot --yes "$isolated_name" || \
+            ddev stop --unlist --omit-snapshot "$isolated_name" || true
+          rm -f .ddev/config.gate-config-language-block-label-774.yaml
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
+          rm -rf artifacts/config-language-block-label-774
+          rmdir artifacts 2>/dev/null || true
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report-result:
+    name: Publish #774 Block label verdict
+    if: ${{ always() && needs.validate-target.result == 'success' }}
+    needs:
+      - validate-target
+      - correlate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish terminal issue verdict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+          CORRELATE_RESULT: ${{ needs.correlate.result }}
+          TRANSLATABLE: ${{ needs.correlate.outputs.translatable }}
+          SCALAR: ${{ needs.correlate.outputs.scalar }}
+          SOURCE_MATCH: ${{ needs.correlate.outputs.source_match }}
+          FR_MATCH: ${{ needs.correlate.outputs.fr_match }}
+          EN_MATCH: ${{ needs.correlate.outputs.en_match }}
+          SCALAR_MATCH: ${{ needs.correlate.outputs.scalar_match }}
+          NO_MATCH: ${{ needs.correlate.outputs.no_match }}
+          DIFFERS_SOURCE: ${{ needs.correlate.outputs.differs_source }}
+          WITH_ARGUMENTS: ${{ needs.correlate.outputs.with_arguments }}
+          MACHINE_VERDICT: ${{ needs.correlate.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          verdict='FAIL'
+          if [[ "$CORRELATE_RESULT" == 'success' ]]; then
+            verdict='PASS'
+          fi
+          gh issue comment 774 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF_BODY
+          ### Canvas Block native label provenance ${verdict}
+
+          trusted_main: \`${MAIN_SHA}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${CORRELATE_RESULT}\`
+          verdict: \`${MACHINE_VERDICT:-n/a}\`
+          candidate_total: \`26\`
+          translatable_admin_label: \`${TRANSLATABLE:-n/a}\`
+          scalar_admin_label: \`${SCALAR:-n/a}\`
+          current_matches_untranslated_source: \`${SOURCE_MATCH:-n/a}\`
+          current_matches_rendered_fr: \`${FR_MATCH:-n/a}\`
+          current_matches_rendered_en: \`${EN_MATCH:-n/a}\`
+          current_matches_scalar_definition: \`${SCALAR_MATCH:-n/a}\`
+          current_no_exact_native_label_match: \`${NO_MATCH:-n/a}\`
+          current_differs_from_native_source: \`${DIFFERS_SOURCE:-n/a}\`
+          admin_labels_with_arguments: \`${WITH_ARGUMENTS:-n/a}\`
+          artifact: \`agency-config-language-block-label-774-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`
+
+          Strict read-only provenance through runtime source IDs and Drupal's native plugin.manager.block. No label value or language classification authorizes migration by itself. No Canvas generation/build, config mutation/export, Configuration Language Lock activation, production access, provider secret, language heuristic or fuzzy match is permitted.
+          EOF_BODY
+          )"
+          test "$CORRELATE_RESULT" = 'success'

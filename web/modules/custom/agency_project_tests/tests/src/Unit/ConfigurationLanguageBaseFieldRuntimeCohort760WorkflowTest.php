@@ -206,8 +206,7 @@ final class ConfigurationLanguageBaseFieldRuntimeCohort760WorkflowTest extends T
   }
 
   /**
-   * The verifier rechecks active/repository parity and untranslated runtime
-   * source.
+   * Rechecks active/repository parity and untranslated runtime source.
    */
   public function testVerifierRechecksRuntimeAndTargetDistribution(): void {
     $root = dirname(DRUPAL_ROOT);

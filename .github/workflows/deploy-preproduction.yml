@@ -1,0 +1,307 @@
+name: Deploy PREPRODUCTION
+
+on:
+  workflow_run:
+    workflows:
+      - Build Agency release candidate
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: agency-preproduction-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-and-validate:
+    name: Deploy immutable candidate and validate PREPROD
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success'
+          && startsWith(github.event.workflow_run.head_branch, 'release/')
+          && github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    env:
+      PREPROD_URL: https://preprod.emergingdigital.be
+      EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Checkout exact deployment tooling source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Download exact immutable release candidate
+        uses: actions/download-artifact@v5
+        with:
+          name: agency-release-candidate-${{ github.event.workflow_run.head_sha }}
+          path: artifacts/preproduction-candidate
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Validate candidate identity
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_dir='artifacts/preproduction-candidate'
+          metadata="$candidate_dir/candidate.json"
+          payload="$candidate_dir/agency-release-candidate.tar.gz"
+          checksum="$candidate_dir/agency-release-candidate.tar.gz.sha256"
+
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -f "$metadata"
+          test -f "$payload"
+          test -f "$checksum"
+          test "$(jq -r '.candidate_sha' "$metadata")" = "$EXPECTED_SHA"
+          [[ "$(jq -r '.source_branch' "$metadata")" == release/* ]]
+
+          artifact_sha="$(jq -r '.artifact_sha256' "$metadata")"
+          composer_lock_sha="$(jq -r '.composer_lock_sha256' "$metadata")"
+          [[ "$artifact_sha" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$composer_lock_sha" =~ ^[0-9a-f]{64}$ ]]
+          test "$artifact_sha" = "$(sha256sum "$payload" | awk '{print $1}')"
+          test "$composer_lock_sha" = "$(sha256sum composer.lock | awk '{print $1}')"
+          (
+            cd "$candidate_dir"
+            sha256sum -c agency-release-candidate.tar.gz.sha256
+          )
+
+          echo "artifact_sha=$artifact_sha" >> "$GITHUB_OUTPUT"
+          echo "composer_lock_sha=$composer_lock_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Configure PREPROD SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.PREPROD_SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Stage exact PREPROD deployment request
+        id: request
+        env:
+          SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.PREPROD_SERVER_USER }}
+          ARTIFACT_SHA: ${{ steps.candidate.outputs.artifact_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          request_id="run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${EXPECTED_SHA}"
+          remote_dir="/var/www/agency-preprod/shared/deploy-jobs/${request_id}"
+          [[ "$request_id" =~ ^run-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
+          [[ "$ARTIFACT_SHA" =~ ^[0-9a-f]{64}$ ]]
+
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "remote_dir=$remote_dir" >> "$GITHUB_OUTPUT"
+
+          ssh "$SERVER_USER@$SERVER_HOST" \
+            "umask 077; mkdir -p '$remote_dir'; test ! -L '$remote_dir'; test ! -e '$remote_dir/result.env'; test ! -e '$remote_dir/pid'"
+
+          scp \
+            scripts/preproduction/deploy-candidate.sh \
+            scripts/preproduction/launch-deploy.sh \
+            scripts/preproduction/inspect-deploy.sh \
+            artifacts/preproduction-candidate/agency-release-candidate.tar.gz \
+            artifacts/preproduction-candidate/agency-release-candidate.tar.gz.sha256 \
+            artifacts/preproduction-candidate/candidate.json \
+            "$SERVER_USER@$SERVER_HOST:$remote_dir/"
+
+          ssh "$SERVER_USER@$SERVER_HOST" \
+            "chmod 700 '$remote_dir/deploy-candidate.sh' '$remote_dir/launch-deploy.sh' '$remote_dir/inspect-deploy.sh'; chmod 600 '$remote_dir/agency-release-candidate.tar.gz' '$remote_dir/agency-release-candidate.tar.gz.sha256' '$remote_dir/candidate.json'"
+
+      - name: Launch detached PREPROD worker
+        env:
+          SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.PREPROD_SERVER_USER }}
+          ARTIFACT_SHA: ${{ steps.candidate.outputs.artifact_sha }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+          REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REQUEST_ID" =~ ^run-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
+          [[ "$ARTIFACT_SHA" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$REMOTE_DIR" == "/var/www/agency-preprod/shared/deploy-jobs/$REQUEST_ID" ]]
+
+          set +e
+          launch_output="$(ssh \
+            -o ConnectTimeout=10 \
+            -o ServerAliveInterval=5 \
+            -o ServerAliveCountMax=2 \
+            "$SERVER_USER@$SERVER_HOST" \
+            "'$REMOTE_DIR/launch-deploy.sh' '$REQUEST_ID' '$EXPECTED_SHA' '$ARTIFACT_SHA'" 2>&1)"
+          launch_status="$?"
+          set -e
+
+          printf '%s\n' "$launch_output"
+          echo "Launch transport exit was $launch_status; detached result polling remains authoritative."
+
+      - name: Poll detached PREPROD result
+        env:
+          SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.PREPROD_SERVER_USER }}
+          ARTIFACT_SHA: ${{ steps.candidate.outputs.artifact_sha }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+          REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir='artifacts/preproduction-deploy'
+          mkdir -p "$artifact_dir"
+          terminal_outcome=''
+          poll_output=''
+          starting_count=0
+
+          result_field() {
+            local key="$1"
+            printf '%s\n' "$poll_output" | sed -n "s/^${key}=//p" | head -n 1
+          }
+
+          collect_remote_evidence() {
+            local filename
+            for filename in output.log bootstrap.log request.env deployment-evidence.env; do
+              set +e
+              ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
+                "cat '$REMOTE_DIR/$filename' 2>/dev/null || true" \
+                > "$artifact_dir/$filename" 2>&1
+              set -e
+            done
+          }
+
+          for attempt in $(seq 1 180); do
+            set +e
+            poll_output="$(ssh \
+              -o ConnectTimeout=10 \
+              -o ServerAliveInterval=5 \
+              -o ServerAliveCountMax=2 \
+              "$SERVER_USER@$SERVER_HOST" \
+              "'$REMOTE_DIR/inspect-deploy.sh' '$REQUEST_ID' '$EXPECTED_SHA' '$ARTIFACT_SHA'" 2>&1)"
+            poll_status="$?"
+            set -e
+
+            if [[ "$poll_status" -ne 0 ]]; then
+              echo "Detached PREPROD poll transport unavailable on attempt $attempt."
+              sleep 5
+              continue
+            fi
+
+            outcome="$(result_field outcome)"
+            case "$outcome" in
+              SUCCESS)
+                test "$(result_field request_id)" = "$REQUEST_ID"
+                test "$(result_field expected_sha)" = "$EXPECTED_SHA"
+                test "$(result_field expected_artifact_sha256)" = "$ARTIFACT_SHA"
+                test "$(result_field exit_code)" = '0'
+                terminal_outcome='SUCCESS'
+                break
+                ;;
+              FAILURE|LOCKED|LOST|INVALID)
+                terminal_outcome="$outcome"
+                break
+                ;;
+              RUNNING)
+                starting_count=0
+                ;;
+              STARTING|NOT_STARTED)
+                starting_count=$((starting_count + 1))
+                if [[ "$starting_count" -ge 12 ]]; then
+                  terminal_outcome='LOST'
+                  break
+                fi
+                ;;
+              *)
+                terminal_outcome='INVALID'
+                break
+                ;;
+            esac
+            sleep 5
+          done
+
+          if [[ -z "$terminal_outcome" ]]; then
+            terminal_outcome='TIMEOUT'
+          fi
+
+          printf '%s\n' "$poll_output" | tee "$artifact_dir/result.env"
+          collect_remote_evidence
+          test "$terminal_outcome" = 'SUCCESS'
+
+      - name: Validate direct health and protected HTTP smoke
+        env:
+          BASIC_USER: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          BASIC_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BASIC_USER"
+          test -n "$BASIC_PASSWORD"
+          mkdir -p artifacts/preproduction-validation
+
+          for endpoint in live ready; do
+            body="artifacts/preproduction-validation/health-${endpoint}.json"
+            status="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
+              "$PREPROD_URL/health/$endpoint")"
+            test "$status" = '200'
+            test "$(jq -r '.status' "$body")" = 'ok'
+          done
+
+          smoke_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --user "$BASIC_USER:$BASIC_PASSWORD" \
+            "$PREPROD_URL/fr/blog")"
+          test "$smoke_status" = '200'
+          printf 'http_smoke=PASS\n' > artifacts/preproduction-validation/smoke.env
+
+      - name: Setup Node for Browser Validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install Browser Validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright desktop and mobile against real PREPROD
+        env:
+          BROWSER_VALIDATION_BASE_URL: ${{ env.PREPROD_URL }}
+          BROWSER_VALIDATION_HTTP_USERNAME: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          BROWSER_VALIDATION_HTTP_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run browser:validate
+          test "$(jq -r '.result' artifacts/browser-validation/result.json)" = 'PASS'
+          test "$(jq -r '.visual_desktop' artifacts/browser-validation/result.json)" = 'PASS'
+          test "$(jq -r '.visual_mobile' artifacts/browser-validation/result.json)" = 'PASS'
+
+      - name: Upload PREPROD evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-preproduction-evidence-${{ github.event.workflow_run.head_sha }}-${{ github.run_id }}
+          path: |
+            artifacts/preproduction-deploy
+            artifacts/preproduction-validation
+            artifacts/browser-validation
+          if-no-files-found: warn
+          retention-days: 30

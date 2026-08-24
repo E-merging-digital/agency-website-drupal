@@ -4,13 +4,6 @@ declare(strict_types=1);
 
 use Composer\InstalledVersions;
 use Drupal\Core\Config\Entity\ConfigEntityTypeInterface;
-use ReflectionClass;
-use ReflectionIntersectionType;
-use ReflectionMethod;
-use ReflectionNamedType;
-use ReflectionParameter;
-use ReflectionType;
-use ReflectionUnionType;
 use Symfony\Component\Yaml\Yaml;
 
 $projectRoot = dirname(DRUPAL_ROOT);

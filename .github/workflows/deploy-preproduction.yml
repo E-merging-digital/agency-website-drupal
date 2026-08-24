@@ -91,7 +91,7 @@ jobs:
           [[ "$composer_lock_sha256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$(sha256sum "$payload" | awk '{print $1}')" == "$artifact_sha256" ]]
           [[ "$(sha256sum composer.lock | awk '{print $1}')" == "$composer_lock_sha256" ]]
-          sha256sum -c "$checksum"
+          (cd "$root" && sha256sum -c agency-release-candidate.tar.gz.sha256)
           echo "artifact_sha256=$artifact_sha256" >> "$GITHUB_OUTPUT"
           echo "composer_lock_sha256=$composer_lock_sha256" >> "$GITHUB_OUTPUT"
 

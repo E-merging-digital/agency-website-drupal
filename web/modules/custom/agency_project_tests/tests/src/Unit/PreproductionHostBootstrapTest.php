@@ -77,7 +77,7 @@ final class PreproductionHostBootstrapTest extends TestCase {
     foreach ([
       'candidate.json',
       'sha256sum -c',
-      'shared/artifacts',
+      'ARTIFACTS_DIR="$SHARED_DIR/artifacts"',
       'config/splits/preproduction',
       'updb -y',
       'cim -y',

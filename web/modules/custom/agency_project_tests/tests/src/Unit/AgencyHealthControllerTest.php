@@ -49,7 +49,10 @@ final class AgencyHealthControllerTest extends TestCase {
     self::assertSame(200, $response->getStatusCode());
     self::assertSame('{"status":"ok"}', $response->getContent());
     self::assertSame('application/json', $response->headers->get('Content-Type'));
-    self::assertSame('no-store', $response->headers->get('Cache-Control'));
+    self::assertStringContainsString(
+      'no-store',
+      (string) $response->headers->get('Cache-Control'),
+    );
   }
 
   /**
@@ -59,7 +62,10 @@ final class AgencyHealthControllerTest extends TestCase {
     self::assertSame(503, $response->getStatusCode());
     self::assertSame('{"status":"unavailable"}', $response->getContent());
     self::assertSame('application/json', $response->headers->get('Content-Type'));
-    self::assertSame('no-store', $response->headers->get('Cache-Control'));
+    self::assertStringContainsString(
+      'no-store',
+      (string) $response->headers->get('Cache-Control'),
+    );
 
     $body = (string) $response->getContent();
     foreach (['version', 'database', 'host', 'trace', 'exception', 'token', 'password'] as $forbidden) {

@@ -93,17 +93,17 @@ final class AgencyHealthReadinessFailureTest extends BrowserTestBase {
     $response = $client->getResponse();
 
     self::assertSame(503, $response->getStatusCode());
-    self::assertFalse($response->headers->has('Location'));
+    self::assertNull($response->getHeader('Location'));
     self::assertStringContainsString(
       'application/json',
-      (string) $response->headers->get('Content-Type'),
+      (string) $response->getHeader('Content-Type'),
     );
     self::assertStringContainsString(
       'no-store',
-      (string) $response->headers->get('Cache-Control'),
+      (string) $response->getHeader('Cache-Control'),
     );
 
-    $body = trim((string) $response->getContent());
+    $body = trim($response->getContent());
     self::assertSame('{"status":"unavailable"}', $body);
 
     foreach (['version', 'database', 'host', 'trace', 'exception', 'token', 'password'] as $forbidden) {
@@ -114,8 +114,8 @@ final class AgencyHealthReadinessFailureTest extends BrowserTestBase {
     $client->request('GET', $this->baseUrl . '/health/live');
     $response = $client->getResponse();
     self::assertSame(200, $response->getStatusCode());
-    self::assertFalse($response->headers->has('Location'));
-    self::assertSame('{"status":"ok"}', trim((string) $response->getContent()));
+    self::assertNull($response->getHeader('Location'));
+    self::assertSame('{"status":"ok"}', trim($response->getContent()));
   }
 
 }

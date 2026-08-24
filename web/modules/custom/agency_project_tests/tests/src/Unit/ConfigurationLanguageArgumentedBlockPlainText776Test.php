@@ -116,7 +116,7 @@ final class ConfigurationLanguageArgumentedBlockPlainText776Test extends TestCas
       '.counts.deterministic_native_argument_provenance == 3',
       '.counts.review_required == 0',
       'Language switcher (Interface text)',
-      "Sélecteur de langue (Texte d'interface)",
+      'Sélecteur de langue (Texte d\\u0027interface)',
       '.constraints.generic_normalization_used == false',
       '.constraints.migration_allowed_by_this_proof == false',
     ] as $expected) {

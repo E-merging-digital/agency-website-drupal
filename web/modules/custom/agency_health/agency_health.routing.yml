@@ -3,6 +3,7 @@ agency_health.liveness:
   defaults:
     _controller: '\Drupal\agency_health\Controller\HealthController::liveness'
   requirements:
+    # Public by contract; response is deliberately binary and non-sensitive.
     _access: 'TRUE'
   methods: [GET]
   options:
@@ -14,6 +15,7 @@ agency_health.readiness:
   defaults:
     _controller: '\Drupal\agency_health\Controller\HealthController::readiness'
   requirements:
+    # Public by contract; detailed diagnostics remain on operator surfaces.
     _access: 'TRUE'
   methods: [GET]
   options:

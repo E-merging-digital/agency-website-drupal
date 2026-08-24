@@ -1,0 +1,66 @@
+schema_version: 1
+issue: 766
+parent_issue: 609
+source:
+  issue: 764
+  run_id: 32718921398
+  artifact_id: 9517057609
+  artifact_name: agency-config-language-remaining-fr-764-32718921398-1
+  artifact_digest: sha256:057ac4998fb9045fd4c5b00df8531b4ffae893ba49383c3190c403076d73573a
+  source_classification: runtime_source_candidate
+baseline:
+  trusted_main: b8f4314c291b32b7230191fa2a17ca932898bf05
+  canvas_version: 1.10.1
+  total_config: 595
+  distribution:
+    __none__: 59
+    en: 466
+    fr: 69
+    und: 1
+cohort:
+  total: 30
+  block: 26
+  sdc: 4
+  names_sha256: b2ad9dcff4b65e56e2a76efefc55b508cf4012b6aaa18cba0c4879cf2f3dec23
+  names:
+    - canvas.component.block.announce_block
+    - canvas.component.block.emerging_digital_language_switcher
+    - canvas.component.block.help_block
+    - canvas.component.block.language_block.language_content
+    - canvas.component.block.language_block.language_interface
+    - canvas.component.block.local_actions_block
+    - canvas.component.block.local_tasks_block
+    - canvas.component.block.page_title_block
+    - canvas.component.block.shortcuts
+    - canvas.component.block.system_branding_block
+    - canvas.component.block.system_breadcrumb_block
+    - canvas.component.block.system_clear_cache_block
+    - canvas.component.block.system_menu_block.account
+    - canvas.component.block.system_menu_block.admin
+    - canvas.component.block.system_menu_block.footer
+    - canvas.component.block.system_menu_block.main
+    - canvas.component.block.system_menu_block.online-presence
+    - canvas.component.block.system_menu_block.tools
+    - canvas.component.block.system_messages_block
+    - canvas.component.block.system_powered_by_block
+    - canvas.component.block.user_login_block
+    - canvas.component.block.views_block.comments_recent-block_1
+    - canvas.component.block.views_block.content_recent-block_1
+    - canvas.component.block.views_block.who_s_new-block_1
+    - canvas.component.block.views_block.who_s_online-who_s_online_block
+    - canvas.component.block.webform_block
+    - canvas.component.sdc.emerging_digital.cta
+    - canvas.component.sdc.emerging_digital.hero
+    - canvas.component.sdc.emerging_digital.trust-list
+    - canvas.component.sdc.olivero.teaser
+constraints:
+  read_only: true
+  migration_allowed: false
+  source_generation_allowed: false
+  config_entity_creation_allowed: false
+  config_entity_update_allowed: false
+  config_export_allowed: false
+  config_language_lock_activation_allowed: false
+  production_access_allowed: false
+  provider_secret_allowed: false
+  natural_language_heuristic_used: false

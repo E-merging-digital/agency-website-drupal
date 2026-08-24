@@ -1,0 +1,116 @@
+name: Bootstrap Agency PREPROD host
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-preprod-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Bootstrap isolated PREPROD runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: preproduction
+    steps:
+      - name: Checkout exact bootstrap source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require main authority and PREPROD-only secrets
+        env:
+          PREPROD_BOOTSTRAP_HOST: ${{ secrets.PREPROD_BOOTSTRAP_HOST }}
+          PREPROD_BOOTSTRAP_USER: ${{ secrets.PREPROD_BOOTSTRAP_USER }}
+          PREPROD_BOOTSTRAP_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_BOOTSTRAP_SSH_PRIVATE_KEY }}
+          PREPROD_DEPLOY_PUBLIC_KEY: ${{ secrets.PREPROD_DEPLOY_PUBLIC_KEY }}
+          PREPROD_HTTP_PASSWORD: ${{ secrets.PREPROD_HTTP_PASSWORD }}
+          PREPROD_TLS_EMAIL: ${{ secrets.PREPROD_TLS_EMAIL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" == "main" ]]
+          test -n "$PREPROD_BOOTSTRAP_HOST"
+          test -n "$PREPROD_BOOTSTRAP_USER"
+          test -n "$PREPROD_BOOTSTRAP_SSH_PRIVATE_KEY"
+          [[ "$PREPROD_DEPLOY_PUBLIC_KEY" == ssh-* ]]
+          test -n "$PREPROD_HTTP_PASSWORD"
+          test -n "$PREPROD_TLS_EMAIL"
+
+      - name: Configure bootstrap SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PREPROD_BOOTSTRAP_SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.PREPROD_BOOTSTRAP_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Stage bootstrap inputs
+        env:
+          SERVER_HOST: ${{ secrets.PREPROD_BOOTSTRAP_HOST }}
+          SERVER_USER: ${{ secrets.PREPROD_BOOTSTRAP_USER }}
+          DEPLOY_PUBLIC_KEY: ${{ secrets.PREPROD_DEPLOY_PUBLIC_KEY }}
+          ACCESS_PASSWORD: ${{ secrets.PREPROD_HTTP_PASSWORD }}
+          TLS_EMAIL: ${{ secrets.PREPROD_TLS_EMAIL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$DEPLOY_PUBLIC_KEY" > "$RUNNER_TEMP/deploy-key.pub"
+          printf '%s\n' "$ACCESS_PASSWORD" > "$RUNNER_TEMP/access-password"
+          printf '%s\n' "$TLS_EMAIL" > "$RUNNER_TEMP/tls-email"
+          scp scripts/preproduction/bootstrap-host.sh "$RUNNER_TEMP/deploy-key.pub" "$RUNNER_TEMP/access-password" "$RUNNER_TEMP/tls-email" \
+            "$SERVER_USER@$SERVER_HOST:/tmp/"
+
+      - name: Bootstrap and enable TLS
+        env:
+          SERVER_HOST: ${{ secrets.PREPROD_BOOTSTRAP_HOST }}
+          SERVER_USER: ${{ secrets.PREPROD_BOOTSTRAP_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" <<'EOF_REMOTE'
+          set -euo pipefail
+          deploy_key="$(cat /tmp/deploy-key.pub)"
+          access_password="$(cat /tmp/access-password)"
+          tls_email="$(cat /tmp/tls-email)"
+          sudo env \
+            PREPROD_FQDN='preprod.emergingdigital.be' \
+            DEPLOY_PUBLIC_KEY="$deploy_key" \
+            ACCESS_PASSWORD="$access_password" \
+            TLS_EMAIL="$tls_email" \
+            ENABLE_TLS=1 \
+            bash /tmp/bootstrap-host.sh
+          rm -f /tmp/bootstrap-host.sh /tmp/deploy-key.pub /tmp/access-password /tmp/tls-email
+          EOF_REMOTE
+
+      - name: Verify external protected surface
+        env:
+          HTTP_PASSWORD: ${{ secrets.PREPROD_HTTP_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          unauthenticated="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 https://preprod.emergingdigital.be/)"
+          [[ "$unauthenticated" == "401" ]]
+          headers="$RUNNER_TEMP/preprod-headers.txt"
+          status="$(curl -sS -u "preprod:$HTTP_PASSWORD" -D "$headers" -o /dev/null -w '%{http_code}' --max-time 10 https://preprod.emergingdigital.be/)"
+          [[ "$status" =~ ^(200|404|503)$ ]]
+          grep -qi '^x-robots-tag:.*noindex' "$headers"
+          echo "PREPROD_PROTECTED_SURFACE=PASS"
+
+      - name: Remove local credentials
+        if: always()
+        shell: bash
+        run: |
+          rm -f ~/.ssh/id_ed25519 "$RUNNER_TEMP/deploy-key.pub" "$RUNNER_TEMP/access-password" "$RUNNER_TEMP/tls-email"

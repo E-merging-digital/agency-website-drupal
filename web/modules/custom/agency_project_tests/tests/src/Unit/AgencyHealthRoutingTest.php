@@ -32,6 +32,7 @@ final class AgencyHealthRoutingTest extends TestCase {
       self::assertSame('TRUE', $routing[$route]['requirements']['_access']);
       self::assertSame(['GET'], $routing[$route]['methods']);
       self::assertTrue($routing[$route]['options']['no_cache']);
+      self::assertTrue($routing[$route]['defaults']['_disable_route_normalizer']);
     }
 
     self::assertTrue($routing['agency_health.liveness']['options']['_maintenance_access']);

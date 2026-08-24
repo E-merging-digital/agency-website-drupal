@@ -1,0 +1,17 @@
+uuid: 2ddcd900-f78e-4abe-90c0-3cf4ee201797
+langcode: en
+status: false
+dependencies: {  }
+id: preproduction
+label: Preproduction
+description: 'PREPROD-only safety overrides; production services and credentials are excluded.'
+weight: 0
+stackable: false
+no_patching: false
+storage: ../config/splits/preproduction
+folder: ../config/splits/preproduction
+module: {  }
+theme: {  }
+complete_list:
+  - system.mail
+partial_list: {  }

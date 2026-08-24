@@ -85,11 +85,11 @@ final class ConfigurationLanguageCanvasBlockNativeLabel774Test extends TestCase 
       $script,
     );
     self::assertStringContainsString(
-      "$renderTranslation(\$adminLabel, 'fr')",
+      "\$renderTranslation(\$adminLabel, 'fr')",
       $script,
     );
     self::assertStringContainsString(
-      "$renderTranslation(\$adminLabel, 'en')",
+      "\$renderTranslation(\$adminLabel, 'en')",
       $script,
     );
     self::assertStringContainsString(

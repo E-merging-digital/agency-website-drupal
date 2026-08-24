@@ -61,7 +61,7 @@ final class ConfigurationLanguageArgumentedBlockLabel776Test extends TestCase {
       $script,
     );
     self::assertStringContainsString(
-      "$viewStorage->load($viewId)",
+      '$viewStorage->load($viewId)',
       $script,
     );
     self::assertStringContainsString(

@@ -1,0 +1,250 @@
+name: Agency trusted Canvas runtime source API proof
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate fixed #766 live-main target
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 766 &&
+        github.event.comment.body == '/agency-config-language-canvas-runtime-api map'
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.validate.outputs.main_sha }}
+    steps:
+      - name: Validate actor, issue and immutable main
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$ISSUE_NUMBER" = '766'
+          test "$TRIGGER_COMMENT" = \
+            '/agency-config-language-canvas-runtime-api map'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/766" --jq '.state')" = 'open'
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$EVENT_DEFAULT_SHA" = "$main_sha"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  map-runtime-api:
+    name: Map exact 30 Canvas runtime source APIs in fresh DDEV
+    needs: validate-target
+    timeout-minutes: 35
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    permissions:
+      contents: read
+    outputs:
+      source_class_count: ${{ steps.map.outputs.source_class_count }}
+      manager_available: ${{ steps.map.outputs.manager_available }}
+      verdict: ${{ steps.map.outputs.verdict }}
+    steps:
+      - name: Verify runner identity and toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          git --version
+          docker --version
+          ddev version
+          jq --version
+
+      - name: Checkout exact trusted main read-only
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable #766 target and lock boundary
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test -f \
+            docs/evidence/configuration-language-canvas-runtime-source-api-cohort-766.yml
+          test -f \
+            scripts/runner/configuration-language-canvas-runtime-source-api-766.php
+          test "$(grep -c '^  config_language_lock:' config/sync/core.extension.yml || true)" = '0'
+          test ! -f config/sync/config_language_lock.settings.yml
+          git diff --check
+
+      - name: Isolate DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-canvas-runtime-api-766.yaml <<EOF_CONFIG
+          name: agency-config-canvas-api-766-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF_CONFIG
+          ddev utility configyaml \
+            | grep -F "agency-config-canvas-api-766-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild exact canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-canvas-runtime-api-766'
+          mkdir -p "$root"
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l \
+            /var/www/html/scripts/runner/configuration-language-canvas-runtime-source-api-766.php \
+            >/dev/null
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+
+          config_status="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$config_status" > "$root/config-status.txt"
+          grep -Fq 'No differences' <<<"$config_status"
+
+      - name: Map bounded Canvas runtime source API
+        id: map
+        shell: bash
+        run: |
+          set -euo pipefail
+          root='artifacts/config-language-canvas-runtime-api-766'
+          result="$root/result.json"
+
+          ddev drush php:script \
+            /var/www/html/scripts/runner/configuration-language-canvas-runtime-source-api-766.php \
+            > "$result"
+
+          jq -e '.status == "PASS"' "$result" >/dev/null
+          jq -e '.verdict == "CANVAS_RUNTIME_SOURCE_API_MAPPED"' "$result" \
+            >/dev/null
+          jq -e '.runtime.canvas_version == "1.10.1"' "$result" >/dev/null
+          jq -e '.counts.candidate_total == 30' "$result" >/dev/null
+          jq -e '.counts.mapped == 30' "$result" >/dev/null
+          jq -e '.counts.block == 26' "$result" >/dev/null
+          jq -e '.counts.sdc == 4' "$result" >/dev/null
+          jq -e '.counts.baseline_problem == 0' "$result" >/dev/null
+          jq -e '.counts.problem_count == 0' "$result" >/dev/null
+          jq -e '.runtime.component_entity_api.config_prefix == "canvas.component"' \
+            "$result" >/dev/null
+          jq -e \
+            '.runtime.manager_api.component_source_manager.class_available == true' \
+            "$result" >/dev/null
+          jq -e '.constraints.read_only == true' "$result" >/dev/null
+          jq -e '.constraints.migration_allowed_by_this_proof == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.source_generation_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_entity_creation_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_entity_update_executed == false' \
+            "$result" >/dev/null
+          jq -e '.constraints.config_export_used == false' "$result" >/dev/null
+          jq -e '.constraints.natural_language_heuristic_used == false' \
+            "$result" >/dev/null
+          test -z "$(git status --short config/sync)"
+
+          echo "source_class_count=$(jq -r '.counts.source_class_count' "$result")" \
+            >> "$GITHUB_OUTPUT"
+          echo "manager_available=$(jq -r '.runtime.manager_api.component_source_manager.class_available' "$result")" \
+            >> "$GITHUB_OUTPUT"
+          echo "verdict=$(jq -r '.verdict' "$result")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload #766 runtime API evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-canvas-runtime-api-766-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-canvas-runtime-api-766
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          isolated_name="agency-config-canvas-api-766-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev delete --omit-snapshot --yes "$isolated_name" || \
+            ddev stop --unlist --omit-snapshot "$isolated_name" || true
+          rm -f .ddev/config.gate-config-language-canvas-runtime-api-766.yaml
+          git restore --worktree -- web/robots.txt config/sync
+          git clean -fd -- config/sync
+          rm -rf artifacts/config-language-canvas-runtime-api-766
+          rmdir artifacts 2>/dev/null || true
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+
+  report-result:
+    name: Publish #766 runtime API verdict
+    if: ${{ always() && needs.validate-target.result == 'success' }}
+    needs:
+      - validate-target
+      - map-runtime-api
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish terminal issue verdict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-target.outputs.main_sha }}
+          MAP_RESULT: ${{ needs.map-runtime-api.result }}
+          SOURCE_CLASS_COUNT: ${{ needs.map-runtime-api.outputs.source_class_count }}
+          MANAGER_AVAILABLE: ${{ needs.map-runtime-api.outputs.manager_available }}
+          MACHINE_VERDICT: ${{ needs.map-runtime-api.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          verdict='FAIL'
+          if [[ "$MAP_RESULT" == 'success' ]]; then
+            verdict='PASS'
+          fi
+          gh issue comment 766 --repo "$GITHUB_REPOSITORY" --body "$(cat <<EOF_BODY
+          ### Canvas runtime source API proof ${verdict}
+
+          trusted_main: \`${MAIN_SHA}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${MAP_RESULT}\`
+          verdict: \`${MACHINE_VERDICT:-n/a}\`
+          candidate_total: \`30\`
+          source_kinds: \`block=26, sdc=4\`
+          source_class_count: \`${SOURCE_CLASS_COUNT:-n/a}\`
+          component_source_manager_available: \`${MANAGER_AVAILABLE:-n/a}\`
+          artifact: \`agency-config-language-canvas-runtime-api-766-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`
+
+          Read-only fresh-DDEV API mapping only. No source generation, config entity create/update, migration, config export, Configuration Language Lock activation, production access or provider secret is permitted.
+          EOF_BODY
+          )"
+          test "$MAP_RESULT" = 'success'

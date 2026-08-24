@@ -113,6 +113,21 @@ final class ConfigurationLanguageCanvasRuntimeSourceApi766Test extends TestCase 
     );
 
     foreach ([
+      'ReflectionClass',
+      'ReflectionIntersectionType',
+      'ReflectionMethod',
+      'ReflectionNamedType',
+      'ReflectionParameter',
+      'ReflectionType',
+      'ReflectionUnionType',
+    ] as $globalReflectionClass) {
+      self::assertStringNotContainsString(
+        'use ' . $globalReflectionClass . ';',
+        $script,
+      );
+    }
+
+    foreach ([
       '->save(',
       '->write(',
       '->delete(',

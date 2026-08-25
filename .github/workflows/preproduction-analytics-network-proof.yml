@@ -1,0 +1,74 @@
+name: Prove PREPRODUCTION analytics network isolation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'config/splits/production/google_tag.container.*.yml'
+      - 'tests/browser/**'
+      - 'scripts/run-browser-validation.mjs'
+      - 'web/modules/custom/agency_project_tests/tests/src/Functional/GoogleTagAuthenticatedExclusionTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/GoogleTagEnvironmentPolicyTest.php'
+      - '.github/workflows/preproduction-analytics-network-proof.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  prove-zero-ga4:
+    name: Real PREPROD zero-GA4 browser/network proof
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BROWSER_VALIDATION_BASE_URL: https://preprod.emergingdigital.be
+      BROWSER_VALIDATION_HTTP_USERNAME: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+      BROWSER_VALIDATION_HTTP_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install browser validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Prove real PREPROD emits zero GA4 traffic
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BROWSER_VALIDATION_HTTP_USERNAME"
+          test -n "$BROWSER_VALIDATION_HTTP_PASSWORD"
+          npm run browser:validate
+          result='artifacts/browser-validation/result.json'
+          test "$(jq -r '.result' "$result")" = 'PASS'
+          test "$(jq -r '[.projects[].checks.analytics] | all(. == "PASS")' "$result")" = 'true'
+          test "$(jq -r '[.projects[].google_analytics_requests] | add' "$result")" = '0'
+          test "$(jq -r '[.projects[].ga4_measurement_id_requests] | add' "$result")" = '0'
+          test "$(jq -r '.console_errors' "$result")" = '0'
+          test "$(jq -r '.page_errors' "$result")" = '0'
+          test "$(jq -r '.http_5xx' "$result")" = '0'
+          printf 'GA_PREPROD_NETWORK=ZERO\n'
+          printf 'GA_PREPROD_MEASUREMENT_ID_REQUESTS=ZERO\n'
+
+      - name: Upload non-sensitive browser proof
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: preproduction-analytics-network-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          path: artifacts/browser-validation
+          if-no-files-found: warn
+          retention-days: 30

@@ -5,6 +5,11 @@ import { test, expect } from './support/browser-audit.mjs';
 const contract = JSON.parse(
   await readFile(new URL('./contracts/public-blog.json', import.meta.url), 'utf8'),
 );
+const browserBaseUrl = process.env.BROWSER_VALIDATION_BASE_URL ?? 'http://127.0.0.1';
+const expectZeroGa4 =
+  new URL(browserBaseUrl).hostname === 'preprod.emergingdigital.be'
+  || process.env.BROWSER_VALIDATION_EXPECT_ZERO_GA4 === '1';
+const ga4MeasurementId = 'G-K5TDNZCPTY';
 
 async function getVisiblePrimaryNavigationLink(page, name) {
   const isMobile = await page.evaluate(() =>
@@ -90,6 +95,7 @@ test.describe('Browser validation capability proof', () => {
       viewportWidth: window.innerWidth,
       hasHorizontalOverflow:
         document.documentElement.scrollWidth > window.innerWidth + 1,
+      html: document.documentElement.outerHTML,
     }));
 
     expect(dom.h1Count, 'The page must expose exactly one H1.').toBe(1);
@@ -100,6 +106,22 @@ test.describe('Browser validation capability proof', () => {
     ).toBeFalsy();
 
     audit.checks.dom = 'PASS';
+
+    if (expectZeroGa4) {
+      expect(
+        audit.analyticsRequests,
+        'PREPROD must not emit Google Tag / Google Analytics / collect requests.',
+      ).toEqual([]);
+      expect(
+        audit.analyticsMeasurementRequests,
+        `PREPROD must not emit requests containing ${ga4MeasurementId}.`,
+      ).toEqual([]);
+      expect(
+        dom.html,
+        `PREPROD must not inject ${ga4MeasurementId} into the rendered page.`,
+      ).not.toContain(ga4MeasurementId);
+      audit.checks.analytics = 'PASS';
+    }
 
     const screenshotDirectory = path.resolve(
       'artifacts/browser-validation/screenshots',

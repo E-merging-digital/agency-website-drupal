@@ -168,11 +168,13 @@ preprod_split="$CURRENT_LINK/config/splits/preproduction"
 [[ -d "$preprod_split" ]] || fail "PREPROD config split directory is missing."
 "$CURRENT_LINK/vendor/bin/drush" config:import --source="$preprod_split" --partial -y
 
-if "$CURRENT_LINK/vendor/bin/drush" list --format=list | grep -Fxq 'emerging:governed-content'; then
-  "$CURRENT_LINK/vendor/bin/drush" emerging:governed-content:validate
-  "$CURRENT_LINK/vendor/bin/drush" emerging:governed-content --all --dry-run
-  "$CURRENT_LINK/vendor/bin/drush" emerging:governed-content --all
-fi
+log "Validate governed content catalog."
+"$CURRENT_LINK/vendor/bin/drush" emerging:governed-content:validate
+log "Preview governed content synchronization."
+"$CURRENT_LINK/vendor/bin/drush" emerging:governed-content --all --dry-run
+log "Apply governed content synchronization."
+"$CURRENT_LINK/vendor/bin/drush" emerging:governed-content --all
+governed_content='PASS'
 
 "$CURRENT_LINK/vendor/bin/drush" cr
 if [[ "$MAINTENANCE_ENABLED" -eq 1 ]]; then
@@ -188,6 +190,7 @@ fi
   printf 'source_branch=%s\n' "$source_branch"
   printf 'release_path=%s\n' "$NEW_RELEASE"
   printf 'artifact_archive=%s\n' "$archive_dir"
+  printf 'governed_content=%s\n' "$governed_content"
   printf 'deployed_at=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 } > "$EVIDENCE"
 chmod 640 "$EVIDENCE"

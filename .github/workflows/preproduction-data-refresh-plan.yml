@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          scripts/preproduction-refresh/plan.sh PLAN
+          bash scripts/preproduction-refresh/plan.sh PLAN
 
       - name: Prove PLAN evidence boundary
         shell: bash

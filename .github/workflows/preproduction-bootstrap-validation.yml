@@ -50,3 +50,7 @@ jobs:
           grep -Fq 'sendmail_path' scripts/preproduction/validate-runtime.sh
           grep -Fq 'scripts/preproduction/validate-runtime.sh' .github/workflows/deploy-preproduction.yml
           grep -Fq 'curl --silent --show-error --location' .github/workflows/deploy-preproduction.yml
+          grep -Fq 'db-${TIMESTAMP}-${EXPECTED_SHA:0:12}.sql"' scripts/preproduction/deploy-candidate.sh
+          grep -Fq "-name 'db-*.sql.gz.gz'" scripts/preproduction/deploy-candidate.sh
+          grep -Fq "release_retention='WARNING'" scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'active candidate remains valid' scripts/preproduction/deploy-candidate.sh

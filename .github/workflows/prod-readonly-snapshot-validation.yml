@@ -52,8 +52,9 @@ jobs:
           ! grep -Fq 'workflow_dispatch:' "$workflow"
           ! grep -Fq 'schedule:' "$workflow"
           ! grep -Fq 'pull_request:' "$workflow"
-          grep -Fq "github.event.issue.number == 826" "$workflow"
-          grep -Fq "[[ \"$GITHUB_RUN_ATTEMPT\" == '1' ]]" "$workflow"
+          grep -Fq 'github.event.issue.number == 826' "$workflow"
+          grep -Fq 'GITHUB_RUN_ATTEMPT' "$workflow"
+          grep -Fq 'Snapshot authority cannot be replayed through a workflow rerun.' "$workflow"
           grep -Fq 'agency-prod-readonly-snapshot-v1' "$workflow"
           grep -Fq 'path: artifacts/prod-readonly-snapshot/evidence.env' "$workflow"
           ! grep -Fq '*.sql' "$workflow"
@@ -85,7 +86,8 @@ jobs:
           done
           ! grep -Fiq 'preprod' "$remote"
           grep -Fq 'umask 077' "$lifecycle"
-          grep -Fq "RAW_MATERIAL_MODE=\"$(stat -c '%a' \"$RAW_PATH\")\"" "$lifecycle"
+          grep -Fq 'RAW_MATERIAL_MODE="$(stat -c' "$lifecycle"
+          grep -Fq 'Raw snapshot material is not mode 0600.' "$lifecycle"
           grep -Fq 'trap cleanup_and_finalize EXIT' "$lifecycle"
           grep -Fq "trap 'exit 143' TERM" "$lifecycle"
           grep -Fq 'bash scripts/production-readonly-snapshot/finalize-cleanup.sh' .github/workflows/prod-readonly-snapshot.yml

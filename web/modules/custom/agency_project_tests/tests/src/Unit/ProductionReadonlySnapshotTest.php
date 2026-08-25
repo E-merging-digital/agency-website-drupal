@@ -49,9 +49,9 @@ final class ProductionReadonlySnapshotTest extends TestCase {
     $workflow = $this->workflow();
 
     foreach ([
-      "github.event.issue.number == 826",
-      "GITHUB_ACTOR\" == 'E-merging-digital'",
-      "GITHUB_RUN_ATTEMPT\" == '1'",
+      'github.event.issue.number == 826',
+      'GITHUB_ACTOR" == \'E-merging-digital\'',
+      'GITHUB_RUN_ATTEMPT" == \'1\'',
       'request_id must be fresh',
       'Requested main SHA is stale.',
       'Snapshot workflow must execute tooling from live main.',
@@ -78,7 +78,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
     $remote = $this->remoteScript();
 
     foreach ([
-      "if [[ \"$#\" -ne 1 ]]",
+      'if [[ "$#" -ne 1 ]]',
       "CURRENT_RELEASE='/var/www/agency/current'",
       'git -C "$CURRENT_RELEASE" rev-parse HEAD',
       'sql:connect --show-passwords',
@@ -127,7 +127,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       'RUNNER_TEMP must be outside the repository workspace.',
       'agency-prod-readonly-snapshot-${GITHUB_RUN_ID}',
       'chmod 600 "$RAW_PATH"',
-      "stat -c '%a' \"$RAW_PATH\"",
+      'stat -c \'%a\' "$RAW_PATH"',
       'trap cleanup_and_finalize EXIT',
       "trap 'exit 129' HUP",
       "trap 'exit 130' INT",
@@ -204,7 +204,10 @@ final class ProductionReadonlySnapshotTest extends TestCase {
     $profile = $this->profile();
 
     self::assertSame(1, $profile['schema_version']);
-    self::assertSame('agency-prod-readonly-snapshot-v1', $profile['profile_id']);
+    self::assertSame(
+      'agency-prod-readonly-snapshot-v1',
+      $profile['profile_id'],
+    );
     self::assertSame(826, $profile['issue_number']);
     self::assertSame(
       'FORBIDDEN',
@@ -217,7 +220,9 @@ final class ProductionReadonlySnapshotTest extends TestCase {
     self::assertSame('NONE', $profile['execution']['prod_write_path']);
     self::assertSame('NONE', $profile['execution']['preprod_path']);
     self::assertSame('0600', $profile['snapshot']['raw_material_mode']);
-    self::assertFalse($profile['snapshot']['remote_raw_materialization']);
+    self::assertFalse(
+      $profile['snapshot']['remote_raw_materialization'],
+    );
     self::assertTrue($profile['cleanup']['exit_trap_required']);
     self::assertTrue($profile['cleanup']['workflow_finalizer_required']);
     self::assertTrue($profile['cleanup']['cleanup_failure_is_terminal']);

@@ -49,7 +49,7 @@ final class EnvironmentSideEffectPolicyTest extends TestCase {
   }
 
   /**
-   * Runtime authority is explicit for provider egress and production scheduling.
+   * Provider egress and PROD scheduling require explicit authority.
    */
   public function testRuntimeGatesAreFailClosed(): void {
     $root = dirname(DRUPAL_ROOT);

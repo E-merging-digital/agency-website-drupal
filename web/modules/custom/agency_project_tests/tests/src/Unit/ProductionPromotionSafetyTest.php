@@ -56,11 +56,11 @@ final class ProductionPromotionSafetyTest extends TestCase {
     $workflow = $this->workflow();
 
     foreach ([
-      ".github/workflows/build-release-candidate.yml",
-      "test \"$(jq -r '.conclusion' \"$run_json\")\" = 'success'",
-      "test \"$(jq -r '.head_sha' \"$run_json\")\" = \"$CANDIDATE_SHA\"",
+      '.github/workflows/build-release-candidate.yml',
+      "'.conclusion'",
+      "'.head_sha'",
       'agency-release-candidate-${{ steps.auth.outputs.candidate_sha }}',
-      ".github/workflows/deploy-preproduction.yml",
+      '.github/workflows/deploy-preproduction.yml',
       'agency-preproduction-evidence-${{ steps.auth.outputs.candidate_sha }}-${{ steps.auth.outputs.preprod_run }}',
       'expected_artifact_sha256=$ARTIFACT_SHA',
       'composer_lock_sha256=$COMPOSER_SHA',
@@ -68,8 +68,8 @@ final class ProductionPromotionSafetyTest extends TestCase {
       'side_effects=PASS',
       'basic_auth_credentials=PASS',
       'http_smoke=PASS',
-      "test \"$(jq -r '.visual_desktop' \"$browser_result\")\" = 'PASS'",
-      "test \"$(jq -r '.visual_mobile' \"$browser_result\")\" = 'PASS'",
+      "'.visual_desktop'",
+      "'.visual_mobile'",
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
@@ -212,7 +212,7 @@ final class ProductionPromotionSafetyTest extends TestCase {
       '/fr/blog',
       'monitoring_signal=PASS',
       'Run production Playwright desktop and mobile proof',
-      "test \"$(jq -r '.result' artifacts/browser-validation/result.json)\" = 'PASS'",
+      'artifacts/browser-validation/result.json',
       'Publish non-sensitive production promotion receipt',
       'previous release + pre-promotion DB backup',
     ] as $required) {

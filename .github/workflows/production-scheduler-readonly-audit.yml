@@ -53,11 +53,20 @@ jobs:
 
           current='/var/www/agency/current'
           drush="$current/vendor/bin/drush"
-          [[ -L "$current" ]]
-          [[ -x "$drush" ]]
 
-          interval="$(cd "$current" && "$drush" --quiet cget automated_cron.settings interval --format=string)"
+          [[ -L "$current" ]]
+          printf 'prod_current_release=PASS\n'
+          [[ -x "$drush" ]]
+          printf 'prod_drush=PASS\n'
+
+          interval="$(
+            cd "$current"
+            "$drush" --quiet php:eval \
+              'echo (int) \Drupal::config("automated_cron.settings")->get("interval");'
+          )"
+          interval="$(printf '%s' "$interval" | tr -cd '0-9')"
           [[ "$interval" =~ ^[0-9]+$ ]]
+          printf 'prod_automated_cron_interval=%s\n' "$interval"
 
           user_cron_count=0
           if command -v crontab >/dev/null 2>&1; then
@@ -67,6 +76,8 @@ jobs:
                 || true
             )"
           fi
+          user_cron_count="${user_cron_count:-0}"
+          printf 'deploy_user_drush_cron_entries=%s\n' "$user_cron_count"
 
           system_cron_count="$(
             {
@@ -77,6 +88,7 @@ jobs:
                 || true
             } | wc -l | tr -d ' '
           )"
+          printf 'system_cron_drush_cron_files=%s\n' "$system_cron_count"
 
           systemd_cron_count="$(
             {
@@ -86,6 +98,7 @@ jobs:
                 || true
             } | wc -l | tr -d ' '
           )"
+          printf 'systemd_drush_cron_units=%s\n' "$systemd_cron_count"
 
           [[ "$user_cron_count" =~ ^[0-9]+$ ]]
           [[ "$system_cron_count" =~ ^[0-9]+$ ]]
@@ -94,10 +107,6 @@ jobs:
           external_count=$((user_cron_count + system_cron_count + systemd_cron_count))
 
           printf 'schema_version=1\n'
-          printf 'prod_automated_cron_interval=%s\n' "$interval"
-          printf 'deploy_user_drush_cron_entries=%s\n' "$user_cron_count"
-          printf 'system_cron_drush_cron_files=%s\n' "$system_cron_count"
-          printf 'systemd_drush_cron_units=%s\n' "$systemd_cron_count"
           printf 'external_drush_cron_scheduler_count=%s\n' "$external_count"
           printf 'prod_scheduler_audit=PASS\n'
           REMOTE

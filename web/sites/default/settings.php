@@ -17,6 +17,22 @@ $settings['file_private_path'] = '../private';
 $config['config_split.config_split.production']['status'] = FALSE;
 
 /**
+ * External AI/provider egress is opt-in, never inferred from secret presence.
+ *
+ * A developer or trusted proof must set AGENCY_AI_EGRESS_ENABLED=1 explicitly.
+ * The OpenAI Key entity stays disabled otherwise, even if OPENAI_API_KEY happens
+ * to exist in the process environment.
+ */
+$ai_egress_opt_in = strtolower(trim((string) getenv('AGENCY_AI_EGRESS_ENABLED')));
+$ai_egress_enabled = in_array(
+  $ai_egress_opt_in,
+  ['1', 'true', 'yes', 'on'],
+  TRUE,
+);
+$settings['agency_external_ai_egress_enabled'] = $ai_egress_enabled;
+$config['key.key.openai_api_key']['status'] = $ai_egress_enabled;
+
+/**
  * Include environment-specific overrides in a predictable order:
  * 1) DDEV managed settings (project-level local container environment).
  * 2) Developer local overrides (machine-level, never versioned).

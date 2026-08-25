@@ -7,39 +7,42 @@ const contract = JSON.parse(
 );
 
 async function getVisiblePrimaryNavigationLink(page, name) {
-  const link = page.getByRole('link', {
-    name,
-    exact: true,
-  }).first();
-
-  if (await link.isVisible()) {
-    return link;
-  }
-
   const toggle = page.locator('[data-mobile-nav-toggle]');
   const drawer = page.locator('[data-mobile-nav-drawer]');
 
-  await expect(toggle).toBeVisible();
-  await expect(toggle).toHaveAttribute('aria-label', 'Ouvrir le menu principal');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(drawer).toHaveAttribute('role', 'dialog');
-  await expect(drawer).toHaveAttribute('aria-label', 'Menu principal');
-  await expect(drawer).toHaveAttribute('aria-hidden', 'true');
+  if (await toggle.isVisible()) {
+    await expect(toggle).toHaveAttribute('aria-label', 'Ouvrir le menu principal');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(drawer).toHaveAttribute('role', 'dialog');
+    await expect(drawer).toHaveAttribute('aria-label', 'Menu principal');
+    await expect(drawer).toHaveAttribute('aria-hidden', 'true');
 
-  await toggle.click();
+    await toggle.click();
 
-  await expect(toggle).toHaveAttribute('aria-label', 'Fermer le menu principal');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(drawer).toHaveAttribute('aria-hidden', 'false');
-  await expect(
-    page.getByRole('dialog', {
-      name: 'Menu principal',
+    await expect(toggle).toHaveAttribute('aria-label', 'Fermer le menu principal');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(drawer).toHaveAttribute('aria-hidden', 'false');
+    await expect(
+      page.getByRole('dialog', {
+        name: 'Menu principal',
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    const drawerLink = drawer.getByRole('link', {
+      name,
       exact: true,
-    }),
-  ).toBeVisible();
-  await expect(link).toBeVisible();
+    }).first();
+    await expect(drawerLink).toBeVisible();
+    return drawerLink;
+  }
 
-  return link;
+  const desktopLink = page.getByRole('link', {
+    name,
+    exact: true,
+  }).first();
+  await expect(desktopLink).toBeVisible();
+  return desktopLink;
 }
 
 test.describe('Browser validation capability proof', () => {

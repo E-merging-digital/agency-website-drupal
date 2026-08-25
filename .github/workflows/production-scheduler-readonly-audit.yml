@@ -6,10 +6,12 @@ on:
       - main
     paths:
       - '.github/workflows/production-scheduler-readonly-audit.yml'
+      - '.github/workflows/production-scheduler-change.yml'
       - 'config/sync/automated_cron.settings.yml'
       - 'config/splits/production/automated_cron.settings.yml'
       - 'config/splits/preproduction/automated_cron.settings.yml'
       - 'scripts/production-promotion/reconcile-cron.sh'
+      - 'scripts/production-promotion/mutate-cron.sh'
       - 'docs/operations/environment-side-effects.md'
 
 permissions:
@@ -17,12 +19,19 @@ permissions:
 
 jobs:
   audit:
-    name: Detect real PROD cron owner without mutation
+    name: Verify exact PROD scheduler contract without mutation
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
+      - name: Checkout exact scheduler verifier
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Configure production read-only SSH access
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -39,7 +48,7 @@ jobs:
           ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Audit scheduler ownership without exposing commands
+      - name: Verify exact scheduler contract without mutation
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -48,67 +57,29 @@ jobs:
           set -euo pipefail
           test -n "$SERVER_HOST"
           test -n "$SERVER_USER"
+          verifier='scripts/production-promotion/reconcile-cron.sh'
+          test -f "$verifier"
+          ! grep -Fq 'crontab "$tmp"' "$verifier"
+          ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
+            'SCHEDULER_ACTION=VERIFY_ONLY bash -s' < "$verifier"
 
-          ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" 'bash -s' <<'REMOTE'
+      - name: Verify current production health and public smoke without mutation
+        env:
+          PROD_URL: https://emergingdigital.be
+        shell: bash
+        run: |
           set -euo pipefail
 
-          current='/var/www/agency/current'
-          drush="$current/vendor/bin/drush"
+          for endpoint in live ready; do
+            status="$(curl --silent --show-error --location --retry 3 --max-time 20 \
+              --output /dev/null --write-out '%{http_code}' \
+              "$PROD_URL/health/$endpoint")"
+            [[ "$status" == '200' ]]
+            printf 'production_health_%s=%s\n' "$endpoint" "$status"
+          done
 
-          [[ -L "$current" ]]
-          printf 'prod_current_release=PASS\n'
-          [[ -x "$drush" ]]
-          printf 'prod_drush=PASS\n'
-          command -v crontab >/dev/null 2>&1
-          printf 'prod_crontab_available=PASS\n'
-          command -v flock >/dev/null 2>&1
-          printf 'prod_flock_available=PASS\n'
-
-          interval="$(
-            cd "$current"
-            "$drush" --quiet php:eval \
-              'echo (int) \Drupal::config("automated_cron.settings")->get("interval");'
-          )"
-          interval="$(printf '%s' "$interval" | tr -cd '0-9')"
-          [[ "$interval" =~ ^[0-9]+$ ]]
-          printf 'prod_automated_cron_interval=%s\n' "$interval"
-
-          user_cron_count="$(
-            (crontab -l 2>/dev/null || true) \
-              | grep -Eic '(^|[[:space:]])([^#]*)(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
-              || true
-          )"
-          user_cron_count="${user_cron_count:-0}"
-          printf 'deploy_user_drush_cron_entries=%s\n' "$user_cron_count"
-
-          system_cron_count="$(
-            {
-              grep -ERils --exclude='*.dpkg-*' --exclude='*.bak' \
-                '(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
-                /etc/crontab /etc/cron.d /etc/cron.hourly /etc/cron.daily \
-                /etc/cron.weekly /etc/cron.monthly 2>/dev/null \
-                || true
-            } | wc -l | tr -d ' '
-          )"
-          printf 'system_cron_drush_cron_files=%s\n' "$system_cron_count"
-
-          systemd_cron_count="$(
-            {
-              grep -ERils --exclude='*.wants' \
-                '(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
-                /etc/systemd/system 2>/dev/null \
-                || true
-            } | wc -l | tr -d ' '
-          )"
-          printf 'systemd_drush_cron_units=%s\n' "$systemd_cron_count"
-
-          [[ "$user_cron_count" =~ ^[0-9]+$ ]]
-          [[ "$system_cron_count" =~ ^[0-9]+$ ]]
-          [[ "$systemd_cron_count" =~ ^[0-9]+$ ]]
-
-          external_count=$((user_cron_count + system_cron_count + systemd_cron_count))
-
-          printf 'schema_version=1\n'
-          printf 'external_drush_cron_scheduler_count=%s\n' "$external_count"
-          printf 'prod_scheduler_audit=PASS\n'
-          REMOTE
+          smoke_status="$(curl --silent --show-error --location --retry 3 --max-time 20 \
+            --output /dev/null --write-out '%{http_code}' "$PROD_URL/fr/blog")"
+          [[ "$smoke_status" == '200' ]]
+          printf 'production_smoke_status=%s\n' "$smoke_status"
+          printf 'production_smoke=PASS\n'

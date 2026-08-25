@@ -49,7 +49,7 @@ final class EnvironmentSideEffectPolicyTest extends TestCase {
   }
 
   /**
-   * Provider egress and PROD scheduling require explicit authority.
+   * Provider egress and PROD scheduler writes require explicit authority.
    */
   public function testRuntimeGatesAreFailClosed(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -66,8 +66,14 @@ final class EnvironmentSideEffectPolicyTest extends TestCase {
     $promotion = (string) file_get_contents(
       $root . '/scripts/production-promotion/promote-candidate.sh',
     );
-    $scheduler = (string) file_get_contents(
+    $schedulerVerifier = (string) file_get_contents(
       $root . '/scripts/production-promotion/reconcile-cron.sh',
+    );
+    $schedulerMutator = (string) file_get_contents(
+      $root . '/scripts/production-promotion/mutate-cron.sh',
+    );
+    $schedulerWorkflow = (string) file_get_contents(
+      $root . '/.github/workflows/production-scheduler-change.yml',
     );
 
     self::assertStringContainsString('AGENCY_AI_EGRESS_ENABLED', $settings);
@@ -77,9 +83,20 @@ final class EnvironmentSideEffectPolicyTest extends TestCase {
     self::assertStringContainsString('OPENAI_API_KEY', $runtime);
 
     self::assertStringContainsString('reconcile-cron.sh', $promotion);
-    self::assertStringContainsString('# agency-drupal-cron', $scheduler);
-    self::assertStringContainsString('flock -n', $scheduler);
-    self::assertStringContainsString('*/15 * * * *', $scheduler);
+    self::assertStringNotContainsString('mutate-cron.sh', $promotion);
+    self::assertStringContainsString('VERIFY_ONLY', $schedulerVerifier);
+    self::assertStringContainsString('# agency-drupal-cron', $schedulerVerifier);
+    self::assertStringContainsString('flock -n', $schedulerVerifier);
+    self::assertStringContainsString('*/15 * * * *', $schedulerVerifier);
+    self::assertStringNotContainsString('crontab "$tmp"', $schedulerVerifier);
+
+    self::assertStringContainsString('OWNER_ISSUE_COMMENT', $schedulerMutator);
+    self::assertStringContainsString('crontab "$tmp"', $schedulerMutator);
+    self::assertStringContainsString('/agency-production-scheduler', $schedulerWorkflow);
+    self::assertStringContainsString(
+      "github.event.comment.author_association == 'OWNER'",
+      $schedulerWorkflow,
+    );
   }
 
   /**
@@ -101,6 +118,8 @@ final class EnvironmentSideEffectPolicyTest extends TestCase {
       'Cookie consent',
       'Simple Sitemap / SEO output',
       'Custom external API / webhook writes',
+      'VERIFY_ONLY',
+      'production-scheduler-change.yml',
     ] as $expected) {
       self::assertStringContainsString($expected, $matrix);
     }

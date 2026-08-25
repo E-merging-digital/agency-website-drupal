@@ -125,7 +125,7 @@ if [[ -L "$CURRENT_LINK" ]]; then
 fi
 
 if [[ -n "$ACTIVE_RELEASE" && -x "$ACTIVE_RELEASE/vendor/bin/drush" ]]; then
-  backup="$BACKUPS_DIR/db-${TIMESTAMP}-${EXPECTED_SHA:0:12}.sql.gz"
+  backup="$BACKUPS_DIR/db-${TIMESTAMP}-${EXPECTED_SHA:0:12}.sql"
   log "Create pre-deploy database backup."
   (
     cd "$ACTIVE_RELEASE"
@@ -192,21 +192,38 @@ fi
 } > "$EVIDENCE"
 chmod 640 "$EVIDENCE"
 
+release_retention='PASS'
 mapfile -t releases < <(find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r)
 if (( ${#releases[@]} > 3 )); then
   for release in "${releases[@]:3}"; do
     release_path="$RELEASES_DIR/$release"
     if [[ "$(readlink -f "$CURRENT_LINK")" != "$(readlink -f "$release_path")" ]]; then
-      rm -rf "$release_path"
+      if ! rm -rf "$release_path"; then
+        release_retention='WARNING'
+        log "Warning: unable to prune stale release $release; active candidate remains valid."
+      fi
     fi
   done
 fi
 
-mapfile -t backups < <(find "$BACKUPS_DIR" -maxdepth 1 -type f -name 'db-*.sql.gz' -printf '%f\n' | sort -r)
+backup_retention='PASS'
+mapfile -t backups < <(
+  find "$BACKUPS_DIR" -maxdepth 1 -type f \
+    \( -name 'db-*.sql.gz' -o -name 'db-*.sql.gz.gz' \) \
+    -printf '%f\n' | sort -r
+)
 if (( ${#backups[@]} > 10 )); then
   for backup in "${backups[@]:10}"; do
-    rm -f "$BACKUPS_DIR/$backup"
+    if ! rm -f "$BACKUPS_DIR/$backup"; then
+      backup_retention='WARNING'
+      log "Warning: unable to prune stale database backup $backup."
+    fi
   done
 fi
+
+{
+  printf 'release_retention=%s\n' "$release_retention"
+  printf 'backup_retention=%s\n' "$backup_retention"
+} >> "$EVIDENCE"
 
 log "Candidate deployed without rebuild: $EXPECTED_SHA / $EXPECTED_ARTIFACT_SHA256."

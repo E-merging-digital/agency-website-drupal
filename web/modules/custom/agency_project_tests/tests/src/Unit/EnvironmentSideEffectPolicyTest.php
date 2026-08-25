@@ -119,7 +119,7 @@ final class EnvironmentSideEffectPolicyTest extends TestCase {
       'Simple Sitemap / SEO output',
       'Custom external API / webhook writes',
       'VERIFY_ONLY',
-      'OWNER_ISSUE_COMMENT',
+      'production-scheduler-change.yml',
     ] as $expected) {
       self::assertStringContainsString($expected, $matrix);
     }

@@ -62,3 +62,24 @@ jobs:
           ! grep -Fq 'crontab "$tmp"' "$verifier"
           ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
             'SCHEDULER_ACTION=VERIFY_ONLY bash -s' < "$verifier"
+
+      - name: Verify current production health and public smoke without mutation
+        env:
+          PROD_URL: https://emergingdigital.be
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for endpoint in live ready; do
+            status="$(curl --silent --show-error --location --retry 3 --max-time 20 \
+              --output /dev/null --write-out '%{http_code}' \
+              "$PROD_URL/health/$endpoint")"
+            [[ "$status" == '200' ]]
+            printf 'production_health_%s=%s\n' "$endpoint" "$status"
+          done
+
+          smoke_status="$(curl --silent --show-error --location --retry 3 --max-time 20 \
+            --output /dev/null --write-out '%{http_code}' "$PROD_URL/fr/blog")"
+          [[ "$smoke_status" == '200' ]]
+          printf 'production_smoke_status=%s\n' "$smoke_status"
+          printf 'production_smoke=PASS\n'

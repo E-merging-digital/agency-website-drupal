@@ -81,9 +81,9 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       'if [[ "$#" -ne 1 ]]',
       "CURRENT_RELEASE='/var/www/agency/current'",
       'git -C "$CURRENT_RELEASE" rev-parse HEAD',
-      'sql:connect --show-passwords',
-      'mariadb-dump',
-      'mysqldump',
+      'vendor/bin/drush sql:dump',
+      '--no-interaction',
+      '--extra-dump=',
       '--single-transaction',
       '--quick',
       '--skip-lock-tables',
@@ -93,6 +93,9 @@ final class ProductionReadonlySnapshotTest extends TestCase {
     }
 
     foreach ([
+      'sql:connect',
+      '--result-file',
+      'eval ',
       'state:set',
       'config:import',
       'config:set',
@@ -113,6 +116,28 @@ final class ProductionReadonlySnapshotTest extends TestCase {
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $remote);
     }
+  }
+
+  /**
+   * The trusted transport requires pre-provisioned host identity.
+   */
+  public function testTrustedTransportCannotBootstrapHostTrust(): void {
+    $workflow = $this->workflow();
+    $script = $this->lifecycleScript();
+
+    self::assertStringContainsString(
+      'Require pre-provisioned PROD host trust',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'ssh-keygen -F "$SERVER_HOST"',
+      $workflow,
+    );
+    self::assertStringNotContainsString('ssh-keyscan', $workflow);
+    self::assertStringContainsString(
+      'StrictHostKeyChecking=yes',
+      $script,
+    );
   }
 
   /**
@@ -191,6 +216,14 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       'path: artifacts/prod-readonly-snapshot/evidence.env',
       $workflow,
     );
+    self::assertStringContainsString(
+      "grep -Fxq 'snapshot_created=PASS'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      "grep -Fxq 'raw_material_mode=600'",
+      $workflow,
+    );
 
     foreach (['*.sql', '*.sql.gz', '*.dump', 'sites/default/files'] as $raw) {
       self::assertStringNotContainsString($raw, $workflow);
@@ -219,6 +252,10 @@ final class ProductionReadonlySnapshotTest extends TestCase {
     );
     self::assertSame('NONE', $profile['execution']['prod_write_path']);
     self::assertSame('NONE', $profile['execution']['preprod_path']);
+    self::assertSame(
+      'vendor/bin/drush sql:dump',
+      $profile['snapshot']['fixed_tool'],
+    );
     self::assertSame('0600', $profile['snapshot']['raw_material_mode']);
     self::assertFalse(
       $profile['snapshot']['remote_raw_materialization'],

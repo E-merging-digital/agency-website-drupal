@@ -47,6 +47,12 @@ jobs:
           grep -Fq 'auth_basic off' scripts/preproduction/nginx-agency-preprod.conf.template
           grep -Fq 'sha256sum -c' scripts/preproduction/deploy-candidate.sh
           grep -Fq 'ARTIFACTS_DIR="$SHARED_DIR/artifacts"' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'scripts/preproduction/settings.php.template' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'source "$RUNTIME_ENV"' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'reconcile_settings' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'mv -f "$SETTINGS_TMP" "$SETTINGS_FILE"' scripts/preproduction/deploy-candidate.sh
+          grep -Fq "agency_external_ai_egress_enabled'] = FALSE" scripts/preproduction/settings.php.template
+          ! grep -Fq 'openssl rand' scripts/preproduction/deploy-candidate.sh
           ! grep -Fq 'composer install' scripts/preproduction/deploy-candidate.sh
           ! grep -Fq 'git clone' scripts/preproduction/deploy-candidate.sh
           grep -Fq 'side_effects=PASS' scripts/preproduction/validate-runtime.sh

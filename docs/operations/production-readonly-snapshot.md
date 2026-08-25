@@ -33,15 +33,17 @@ GitHub-hosted infrastructure is authority/metadata/policy validation only. The r
 
 The trusted runner is not a generic remote executor. The owner cannot supply a shell command, SQL query, table name, database name, file path, SSH option, Drush argument or dump option. Only request/release identities matching strict schemas reach the trusted job.
 
+The PROD SSH host trust must already be provisioned in `~/.ssh/known_hosts` on the trusted Agency runner. The route uses `StrictHostKeyChecking=yes` and fails closed when the configured PROD host is not already trusted. The snapshot workflow never bootstraps host trust with `ssh-keyscan`.
+
 ## Fixed read-only snapshot operation
 
 The reviewed operation profile is `scripts/production-readonly-snapshot/profile.json` with ID `agency-prod-readonly-snapshot-v1`.
 
 The trusted runner uses the repository-owned `remote-stream.sh` over SSH. The remote operation has one argument only: the expected 40-character PROD release SHA. It operates only against the fixed `/var/www/agency/current` release and first requires that `git rev-parse HEAD` equals the authorized PROD release SHA.
 
-Database connection details come only from PROD server-owned Drupal settings through fixed `drush sql:connect --show-passwords`; that generated connection command is never printed or included in evidence. The operation rejects executable SQL connection flags and replaces only the trusted SQL client executable with `mariadb-dump` or its `mysqldump` compatibility name.
+Database connection details come only from PROD server-owned Drupal settings through the fixed `vendor/bin/drush sql:dump` operation. No connection string is supplied by the request, and the route does not execute or print `sql:connect`, generic SQL, a database name, a table name or a user-provided dump option.
 
-The dump options are fixed in repository code:
+The dump options are fixed in repository code through `--extra-dump`:
 
 ```text
 --single-transaction
@@ -52,7 +54,7 @@ The dump options are fixed in repository code:
 
 `--single-transaction` provides a transactionally consistent logical snapshot for transactional tables, while `--quick` streams rows and `--skip-lock-tables` prevents table-lock dump behavior. No maintenance/config/content/user/state/scheduler/release mutation, `updb`, `cim`, generic SQL query or deployment command exists in this route.
 
-The remote command streams SQL to stdout. It does not create a raw snapshot file on the PROD host. Therefore:
+No `--result-file` is supplied. The remote `drush sql:dump` therefore streams SQL to stdout, which SSH carries directly to the trusted runner. The operation does not create a raw snapshot file on the PROD host. Therefore:
 
 ```text
 PROD_WRITE_PATH=NONE

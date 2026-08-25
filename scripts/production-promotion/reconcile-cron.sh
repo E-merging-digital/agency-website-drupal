@@ -5,6 +5,7 @@ umask 077
 PROJECT_ROOT='/var/www/agency'
 CURRENT="$PROJECT_ROOT/current"
 DRUSH="$CURRENT/vendor/bin/drush"
+PROMOTIONS_DIR="$PROJECT_ROOT/shared/promotions"
 LOCK_FILE="$PROJECT_ROOT/shared/cron.lock"
 MARKER='# agency-drupal-cron'
 SCHEDULE='*/15 * * * *'
@@ -23,6 +24,25 @@ command -v crontab >/dev/null 2>&1 || fail 'crontab is unavailable.'
 command -v flock >/dev/null 2>&1 || fail 'flock is unavailable.'
 [[ -L "$CURRENT" ]] || fail 'Production current symlink is missing.'
 [[ -x "$DRUSH" ]] || fail 'Drush is unavailable on the current release.'
+[[ -d "$PROMOTIONS_DIR" ]] || fail 'Production promotion receipts are unavailable.'
+
+current_release="$(readlink -f "$CURRENT")"
+[[ -n "$current_release" ]] || fail 'Current production release cannot be resolved.'
+matched_receipts=0
+current_release_sha=''
+shopt -s nullglob
+for receipt in "$PROMOTIONS_DIR"/*.env; do
+  receipt_release="$(grep -m1 '^release_path=' "$receipt" | cut -d= -f2- || true)"
+  [[ "$receipt_release" == "$current_release" ]] || continue
+  receipt_sha="$(grep -m1 '^candidate_sha=' "$receipt" | cut -d= -f2- || true)"
+  [[ "$receipt_sha" =~ ^[0-9a-f]{40}$ ]] \
+    || fail 'Current production receipt has invalid candidate identity.'
+  current_release_sha="$receipt_sha"
+  matched_receipts=$((matched_receipts + 1))
+done
+shopt -u nullglob
+[[ "$matched_receipts" == '1' ]] \
+  || fail 'Current production release must map to exactly one promotion receipt.'
 
 interval="$(
   cd "$CURRENT"
@@ -70,6 +90,8 @@ untagged_count="$(
 [[ "$controlled_count" == '1' ]] || fail 'Deploy-user Drupal scheduler count is not exactly one.'
 [[ "$untagged_count" == '0' ]] || fail 'An unmanaged deploy-user Drupal cron scheduler exists.'
 
+printf 'production_current_release=%s\n' "$current_release"
+printf 'production_current_release_sha=%s\n' "$current_release_sha"
 printf 'production_scheduler_action=VERIFY_ONLY\n'
 printf 'production_scheduler=DEPLOY_USER_CRONTAB\n'
 printf 'production_scheduler_entries=1\n'

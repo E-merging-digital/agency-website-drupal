@@ -1,12 +1,28 @@
+import path from 'node:path';
 import { defineConfig } from '@playwright/test';
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 const httpUsername = process.env.BROWSER_VALIDATION_HTTP_USERNAME ?? '';
 const httpPassword = process.env.BROWSER_VALIDATION_HTTP_PASSWORD ?? '';
+const contractFile = path.basename(
+  process.env.BROWSER_VALIDATION_CONTRACT
+    ?? 'tests/browser/contracts/public-blog.json',
+);
+const contractTestMatches = {
+  'public-blog.json': '**/public-blog.spec.mjs',
+  'production-editorial-401.json': '**/production-editorial-article.spec.mjs',
+};
+const contractTestMatch = contractTestMatches[contractFile];
 
 if (!baseURL) {
   throw new Error(
     'PLAYWRIGHT_BASE_URL is required. Use `npm run browser:validate` to detect DDEV automatically.',
+  );
+}
+
+if (!contractTestMatch) {
+  throw new Error(
+    `Unsupported BROWSER_VALIDATION_CONTRACT: ${contractFile}`,
   );
 }
 
@@ -25,6 +41,7 @@ const httpCredentials = httpUsername && httpPassword
 
 export default defineConfig({
   testDir: './tests/browser',
+  testMatch: contractTestMatch,
   timeout: 30_000,
   expect: {
     timeout: 5_000,

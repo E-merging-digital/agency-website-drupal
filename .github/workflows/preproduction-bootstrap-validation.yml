@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Validate PREPROD shell syntax
+      - name: Validate PREPROD shell and browser syntax
         shell: bash
         run: |
           set -euo pipefail
@@ -34,6 +34,7 @@ jobs:
           bash -n scripts/preproduction/inspect-deploy.sh
           bash -n scripts/preproduction/validate-runtime.sh
           bash -n scripts/preproduction/reconcile-basic-auth.sh
+          node --check playwright.config.mjs
       - name: Validate PREPROD templates and immutable deploy boundaries
         shell: bash
         run: |
@@ -59,3 +60,10 @@ jobs:
           grep -Fq -- "-name 'db-*.sql.gz.gz'" scripts/preproduction/deploy-candidate.sh
           grep -Fq "release_retention='WARNING'" scripts/preproduction/deploy-candidate.sh
           grep -Fq 'active candidate remains valid' scripts/preproduction/deploy-candidate.sh
+          test -f tests/browser/contracts/public-blog.json
+          test -f tests/browser/contracts/production-editorial-401.json
+          grep -Fq "'public-blog.json': '**/public-blog.spec.mjs'" playwright.config.mjs
+          grep -Fq "'production-editorial-401.json': '**/production-editorial-article.spec.mjs'" playwright.config.mjs
+          grep -Fq 'testMatch: contractTestMatch' playwright.config.mjs
+          grep -Fq 'Unsupported BROWSER_VALIDATION_CONTRACT' playwright.config.mjs
+          grep -Fq 'assert.deepEqual(Object.keys(contract).sort(), requiredTopLevelKeys.sort())' tests/browser/production-editorial-article.spec.mjs

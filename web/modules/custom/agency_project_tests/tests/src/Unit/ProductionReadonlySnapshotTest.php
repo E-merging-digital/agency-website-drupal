@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
@@ -20,7 +21,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
    */
   public function testGatewayAndTrustedRunnerBoundary(): void {
     $workflow = $this->workflow();
-    $parsed = Yaml::parse($workflow);
+    $parsed = DrupalYaml::decode($workflow);
     self::assertIsArray($parsed);
 
     self::assertSame(

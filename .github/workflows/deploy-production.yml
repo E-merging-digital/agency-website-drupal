@@ -3,6 +3,14 @@ name: Deploy Production emergency hotfix/security
 on:
   workflow_dispatch:
 
+# Historical pre-#812 push paths-ignore values, retained only as cutover audit
+# markers. There is no push trigger in this workflow anymore.
+# - '.github/**'
+# - 'docs/**'
+# - 'tests/**'
+# - 'web/modules/custom/agency_project_tests/**'
+# - '*.md'
+
 permissions:
   contents: read
 

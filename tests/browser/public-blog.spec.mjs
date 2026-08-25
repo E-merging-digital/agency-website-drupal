@@ -10,6 +10,7 @@ const expectZeroGa4 =
   new URL(browserBaseUrl).hostname === 'preprod.emergingdigital.be'
   || process.env.BROWSER_VALIDATION_EXPECT_ZERO_GA4 === '1';
 const ga4MeasurementId = 'G-K5TDNZCPTY';
+const consentStorageKey = 'ed_cookie_consent_v1';
 
 async function getVisiblePrimaryNavigationLink(page, name) {
   const isMobile = await page.evaluate(() =>
@@ -55,6 +56,25 @@ async function getVisiblePrimaryNavigationLink(page, name) {
   return desktopLink;
 }
 
+async function acceptExternalConsent(page, audit) {
+  const banner = page.locator('#ed-cookie-banner');
+  const acceptButton = page.locator('[data-ed-cookie-action="accept"]');
+
+  await expect(banner).toBeVisible();
+  await expect(acceptButton).toBeVisible();
+  await acceptButton.click();
+  await expect(banner).toHaveCount(0);
+
+  const consent = await page.evaluate((storageKey) => {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : null;
+  }, consentStorageKey);
+
+  expect(consent?.necessary).toBe(true);
+  expect(consent?.external).toBe(true);
+  audit.checks.consent = 'PASS';
+}
+
 test.describe('Browser validation capability proof', () => {
   test(`${contract.id}: public Blog is usable and rendered cleanly`, async ({
     page,
@@ -74,6 +94,10 @@ test.describe('Browser validation capability proof', () => {
       page.getByRole('heading', { name: 'Blog', level: 1 }),
     ).toBeVisible();
     await expect(page.locator('main')).toBeVisible();
+
+    if (expectZeroGa4) {
+      await acceptExternalConsent(page, audit);
+    }
 
     const servicesLink = await getVisiblePrimaryNavigationLink(page, 'Services');
     await servicesLink.click();
@@ -108,6 +132,7 @@ test.describe('Browser validation capability proof', () => {
     audit.checks.dom = 'PASS';
 
     if (expectZeroGa4) {
+      expect(audit.checks.consent).toBe('PASS');
       expect(
         audit.analyticsRequests,
         'PREPROD must not emit Google Tag / Google Analytics / collect requests.',

@@ -81,12 +81,16 @@ final class PreproductionHostBootstrapTest extends TestCase {
       'config/splits/preproduction',
       'updb -y',
       'cim -y',
-      '--dry-run',
+      'emerging:governed-content:validate',
+      'emerging:governed-content --all --dry-run',
+      'emerging:governed-content --all',
+      "governed_content='PASS'",
       'OPENAI_API_KEY',
     ] as $expected) {
       self::assertStringContainsString($expected, $content);
     }
 
+    self::assertStringNotContainsString('list --format=list', $content);
     self::assertStringNotContainsString('composer install', $content);
     self::assertStringNotContainsString('git clone', $content);
     self::assertStringNotContainsString('/var/www/agency/shared', $content);
@@ -142,6 +146,26 @@ final class PreproductionHostBootstrapTest extends TestCase {
       );
     }
     self::assertStringContainsString('httpCredentials', $config);
+  }
+
+  /**
+   * Mobile browser proof uses the authoritative drawer after navigation.
+   */
+  public function testBrowserValidationUsesMobileDrawerWhenToggleIsVisible(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $spec = (string) file_get_contents(
+      $root . '/tests/browser/public-blog.spec.mjs',
+    );
+
+    self::assertStringContainsString('if (await toggle.isVisible())', $spec);
+    self::assertStringContainsString(
+      "const drawerLink = drawer.getByRole('link'",
+      $spec,
+    );
+    self::assertStringContainsString(
+      'await expect(drawerLink).toBeVisible()',
+      $spec,
+    );
   }
 
 }

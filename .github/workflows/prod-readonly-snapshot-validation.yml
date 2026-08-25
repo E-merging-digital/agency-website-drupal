@@ -38,6 +38,7 @@ jobs:
           jq -e '.execution.trusted_runner_labels == ["self-hosted", "linux", "x64", "agency"]' scripts/production-readonly-snapshot/profile.json >/dev/null
           jq -e '.execution.prod_write_path == "NONE"' scripts/production-readonly-snapshot/profile.json >/dev/null
           jq -e '.execution.preprod_path == "NONE"' scripts/production-readonly-snapshot/profile.json >/dev/null
+          jq -e '.snapshot.fixed_tool == "vendor/bin/drush sql:dump"' scripts/production-readonly-snapshot/profile.json >/dev/null
 
       - name: Prove workflow raw-data boundary is static and non-generic
         shell: bash
@@ -57,6 +58,9 @@ jobs:
           grep -Fq 'Snapshot authority cannot be replayed through a workflow rerun.' "$workflow"
           grep -Fq 'agency-prod-readonly-snapshot-v1' "$workflow"
           grep -Fq 'path: artifacts/prod-readonly-snapshot/evidence.env' "$workflow"
+          grep -Fq 'Require pre-provisioned PROD host trust' "$workflow"
+          grep -Fq 'ssh-keygen -F "$SERVER_HOST"' "$workflow"
+          ! grep -Fq 'ssh-keyscan' "$workflow"
           ! grep -Fq '*.sql' "$workflow"
           ! grep -Fq '*.sql.gz' "$workflow"
           ! grep -Fq '*.dump' "$workflow"
@@ -71,11 +75,14 @@ jobs:
           remote='scripts/production-readonly-snapshot/remote-stream.sh'
           lifecycle='scripts/production-readonly-snapshot/run-snapshot.sh'
           grep -Fq "CURRENT_RELEASE='/var/www/agency/current'" "$remote"
-          grep -Fq 'sql:connect --show-passwords' "$remote"
+          grep -Fq 'vendor/bin/drush sql:dump' "$remote"
+          ! grep -Fq 'sql:connect' "$remote"
           grep -Fq -- '--single-transaction' "$remote"
           grep -Fq -- '--quick' "$remote"
           grep -Fq -- '--skip-lock-tables' "$remote"
           grep -Fq -- '--no-tablespaces' "$remote"
+          ! grep -Fq -- '--result-file' "$remote"
+          grep -Fq 'StrictHostKeyChecking=yes' "$lifecycle"
           for forbidden in \
             'state:set' 'config:import' 'config:set' 'config:delete' \
             ' updb' ' cim' 'sql:query' 'sql:drop' 'sql:create' \

@@ -76,7 +76,7 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
-   * Functional staleness fails closed while the #812 tooling cutover is allowed.
+   * Functional staleness fails closed during the #812 tooling cutover.
    */
   public function testWorkflowRejectsFunctionalChangesAfterCandidateBaseline(): void {
     $workflow = $this->workflow();

@@ -26,7 +26,7 @@ final class PreproductionDataRefreshPlanTest extends TestCase {
     self::assertStringNotContainsString("\n  pull_request:\n", $workflow);
     self::assertStringNotContainsString("\n  schedule:\n", $workflow);
     self::assertStringContainsString(
-      "test \"$GITHUB_REF\" = 'refs/heads/main'",
+      'test "$GITHUB_REF" = \'refs/heads/main\'',
       $workflow,
     );
     self::assertStringNotContainsString('${{ secrets.', $workflow);

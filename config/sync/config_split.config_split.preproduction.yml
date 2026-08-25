@@ -13,6 +13,5 @@ folder: ../config/splits/preproduction
 module: {  }
 theme: {  }
 complete_list:
-  - automated_cron.settings
-  - system.mail
+  - linkchecker.settings
 partial_list: {  }

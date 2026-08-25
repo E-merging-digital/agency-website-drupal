@@ -32,6 +32,7 @@ jobs:
           bash -n scripts/preproduction/deploy-candidate.sh
           bash -n scripts/preproduction/launch-deploy.sh
           bash -n scripts/preproduction/inspect-deploy.sh
+          bash -n scripts/preproduction/validate-runtime.sh
       - name: Validate PREPROD templates and immutable deploy boundaries
         shell: bash
         run: |
@@ -44,3 +45,8 @@ jobs:
           grep -Fq 'ARTIFACTS_DIR="$SHARED_DIR/artifacts"' scripts/preproduction/deploy-candidate.sh
           ! grep -Fq 'composer install' scripts/preproduction/deploy-candidate.sh
           ! grep -Fq 'git clone' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'side_effects=PASS' scripts/preproduction/validate-runtime.sh
+          grep -Fq 'oom_kill_count=' scripts/preproduction/validate-runtime.sh
+          grep -Fq 'sendmail_path' scripts/preproduction/validate-runtime.sh
+          grep -Fq 'scripts/preproduction/validate-runtime.sh' .github/workflows/deploy-preproduction.yml
+          grep -Fq 'curl --silent --show-error --location' .github/workflows/deploy-preproduction.yml

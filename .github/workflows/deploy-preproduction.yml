@@ -119,13 +119,14 @@ jobs:
             scripts/preproduction/deploy-candidate.sh \
             scripts/preproduction/launch-deploy.sh \
             scripts/preproduction/inspect-deploy.sh \
+            scripts/preproduction/validate-runtime.sh \
             artifacts/preproduction-candidate/agency-release-candidate.tar.gz \
             artifacts/preproduction-candidate/agency-release-candidate.tar.gz.sha256 \
             artifacts/preproduction-candidate/candidate.json \
             "$SERVER_USER@$SERVER_HOST:$remote_dir/"
 
           ssh "$SERVER_USER@$SERVER_HOST" \
-            "chmod 700 '$remote_dir/deploy-candidate.sh' '$remote_dir/launch-deploy.sh' '$remote_dir/inspect-deploy.sh'; chmod 600 '$remote_dir/agency-release-candidate.tar.gz' '$remote_dir/agency-release-candidate.tar.gz.sha256' '$remote_dir/candidate.json'"
+            "chmod 700 '$remote_dir/deploy-candidate.sh' '$remote_dir/launch-deploy.sh' '$remote_dir/inspect-deploy.sh' '$remote_dir/validate-runtime.sh'; chmod 600 '$remote_dir/agency-release-candidate.tar.gz' '$remote_dir/agency-release-candidate.tar.gz.sha256' '$remote_dir/candidate.json'"
 
       - name: Launch detached PREPROD worker
         env:
@@ -243,6 +244,23 @@ jobs:
           collect_remote_evidence
           test "$terminal_outcome" = 'SUCCESS'
 
+      - name: Validate PREPROD runtime isolation and capacity
+        env:
+          SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.PREPROD_SERVER_USER }}
+          REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/preproduction-validation
+          ssh \
+            -o ConnectTimeout=10 \
+            "$SERVER_USER@$SERVER_HOST" \
+            "'$REMOTE_DIR/validate-runtime.sh'" \
+            | tee artifacts/preproduction-validation/runtime.env
+          grep -Fxq 'side_effects=PASS' artifacts/preproduction-validation/runtime.env
+          grep -Fxq 'capacity_observed=PASS' artifacts/preproduction-validation/runtime.env
+
       - name: Validate direct health and protected HTTP smoke
         env:
           BASIC_USER: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
@@ -258,15 +276,19 @@ jobs:
             body="artifacts/preproduction-validation/health-${endpoint}.json"
             status="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
               "$PREPROD_URL/health/$endpoint")"
+            printf 'health_%s_status=%s\n' "$endpoint" "$status" \
+              >> artifacts/preproduction-validation/http.env
             test "$status" = '200'
             test "$(jq -r '.status' "$body")" = 'ok'
           done
 
-          smoke_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+          smoke_status="$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' \
             --user "$BASIC_USER:$BASIC_PASSWORD" \
             "$PREPROD_URL/fr/blog")"
+          printf 'http_smoke_status=%s\n' "$smoke_status" \
+            >> artifacts/preproduction-validation/http.env
           test "$smoke_status" = '200'
-          printf 'http_smoke=PASS\n' > artifacts/preproduction-validation/smoke.env
+          printf 'http_smoke=PASS\n' >> artifacts/preproduction-validation/http.env
 
       - name: Setup Node for Browser Validation
         uses: actions/setup-node@v4

@@ -33,60 +33,15 @@ fi
 
 cd "$CURRENT_RELEASE"
 
-# Bootstrap and connection discovery are read-only. Never print the generated
-# connection command because it contains server-owned database credentials.
+# Both commands derive the database connection exclusively from trusted
+# server-owned Drupal settings. No connection string, SQL, table, database,
+# file path or dump option can be supplied by the request authority.
 vendor/bin/drush status --fields=bootstrap --format=string >/dev/null
-connection_command="$(vendor/bin/drush sql:connect --show-passwords)"
-if [[ -z "$connection_command" ]]; then
-  echo 'Unable to resolve the server-owned PROD database connection.' >&2
-  exit 69
-fi
 
-# Drush generates this command exclusively from trusted server-owned settings.
-# No user-controlled value is ever inserted into it. Decode its quoting into an
-# argv array, validate the SQL client shape, then replace only the executable
-# with the fixed read-only dump client.
-eval "set -- ${connection_command}"
-unset connection_command
-
-if [[ "$#" -lt 2 ]]; then
-  echo 'Resolved database connection is incomplete.' >&2
-  exit 70
-fi
-
-connect_client="$(basename "$1")"
-shift
-case "$connect_client" in
-  mysql|mariadb) ;;
-  *)
-    echo 'Resolved database connection is not a supported MariaDB/MySQL client.' >&2
-    exit 71
-    ;;
-esac
-
-for connection_arg in "$@"; do
-  case "$connection_arg" in
-    -e|--execute|--execute=*|--init-command|--init-command=*|--local-infile|--local-infile=*)
-      echo 'Resolved database connection unexpectedly contains an executable SQL option.' >&2
-      exit 72
-      ;;
-  esac
-done
-
-if command -v mariadb-dump >/dev/null 2>&1; then
-  dump_client="$(command -v mariadb-dump)"
-elif command -v mysqldump >/dev/null 2>&1; then
-  dump_client="$(command -v mysqldump)"
-else
-  echo 'No supported database dump client is available on PROD.' >&2
-  exit 73
-fi
-
-# Raw SQL is emitted only on stdout so the trusted Agency runner can capture it
-# directly in its private RUNNER_TEMP. No raw dump file is created on PROD.
-exec "$dump_client" \
-  --single-transaction \
-  --quick \
-  --skip-lock-tables \
-  --no-tablespaces \
-  "$@"
+# Drush sql:dump invokes the database-specific logical dump client. The fixed
+# options provide a streaming, non-locking transactional snapshot for the
+# transactional tables used by Agency. No --result-file is provided: raw SQL is
+# emitted only to stdout and captured directly in trusted RUNNER_TEMP.
+exec vendor/bin/drush sql:dump \
+  --no-interaction \
+  --extra-dump='--single-transaction --quick --skip-lock-tables --no-tablespaces'

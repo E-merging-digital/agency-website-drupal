@@ -1,0 +1,461 @@
+name: Promote validated candidate to Production
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+concurrency:
+  group: agency-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Governed same-artifact production promotion
+    if: >-
+      ${{ github.event.issue.state == 'open'
+          && github.event.issue.pull_request == null
+          && github.event.issue.user.login == 'E-merging-digital'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.author_association == 'OWNER'
+          && startsWith(github.event.comment.body, '/agency-production-promote go ') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      PROD_URL: https://emergingdigital.be
+
+    steps:
+      - name: Checkout live promotion tooling
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Authorize exact immutable human GO
+        id: auth
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GO_BODY: ${{ github.event.comment.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GO_BODY" != *$'\n'* ]]
+          if [[ ! "$GO_BODY" =~ ^/agency-production-promote\ go\ sha=([0-9a-f]{40})\ artifact=([0-9a-f]{64})\ composer=([0-9a-f]{64})\ build=([0-9]+)\ preprod=([0-9]+)$ ]]; then
+            echo 'GO command does not match the immutable production-promotion contract.' >&2
+            exit 1
+          fi
+
+          candidate_sha="${BASH_REMATCH[1]}"
+          artifact_sha="${BASH_REMATCH[2]}"
+          composer_sha="${BASH_REMATCH[3]}"
+          build_run="${BASH_REMATCH[4]}"
+          preprod_run="${BASH_REMATCH[5]}"
+          auth_body_sha="$(printf '%s' "$GO_BODY" | sha256sum | awk '{print $1}')"
+
+          issue_json="$RUNNER_TEMP/issue.json"
+          gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER" > "$issue_json"
+          test "$(jq -r '.state' "$issue_json")" = 'open'
+          test "$(jq -r '.user.login' "$issue_json")" = 'E-merging-digital'
+          test "$(jq -r 'has("pull_request")' "$issue_json")" = 'false'
+
+          [[ "$COMMENT_ID" =~ ^[0-9]+$ ]]
+          [[ -n "$COMMENT_CREATED_AT" ]]
+          [[ "$auth_body_sha" =~ ^[0-9a-f]{64}$ ]]
+
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "artifact_sha=$artifact_sha" >> "$GITHUB_OUTPUT"
+          echo "composer_sha=$composer_sha" >> "$GITHUB_OUTPUT"
+          echo "build_run=$build_run" >> "$GITHUB_OUTPUT"
+          echo "preprod_run=$preprod_run" >> "$GITHUB_OUTPUT"
+          echo "auth_body_sha=$auth_body_sha" >> "$GITHUB_OUTPUT"
+          echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Reject stale functional identity
+        env:
+          CANDIDATE_SHA: ${{ steps.auth.outputs.candidate_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          live_main="$(git rev-parse HEAD)"
+          git fetch --no-tags origin "$CANDIDATE_SHA"
+          merge_base="$(git merge-base "$live_main" "$CANDIDATE_SHA")"
+          test -n "$merge_base"
+
+          stale=0
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            case "$path" in
+              .github/workflows/deploy-production.yml|\
+              .github/workflows/promote-production.yml|\
+              .github/workflows/production-promotion-validation.yml|\
+              docs/operations/preproduction.md|\
+              scripts/launch-production-deploy.sh|\
+              scripts/production-promotion/*|\
+              web/modules/custom/agency_project_tests/tests/src/Unit/ProductionDeploymentSafetyTest.php|\
+              web/modules/custom/agency_project_tests/tests/src/Unit/ProductionPromotionSafetyTest.php)
+                ;;
+              *)
+                echo "Candidate is stale: live main changed functional path $path after its source baseline." >&2
+                stale=1
+                ;;
+            esac
+          done < <(git diff --name-only "$merge_base..$live_main")
+          test "$stale" -eq 0
+
+      - name: Verify builder run provenance
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_SHA: ${{ steps.auth.outputs.candidate_sha }}
+          BUILD_RUN: ${{ steps.auth.outputs.build_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_json="$RUNNER_TEMP/build-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > "$run_json"
+          test "$(jq -r '.path' "$run_json")" = '.github/workflows/build-release-candidate.yml'
+          test "$(jq -r '.event' "$run_json")" = 'push'
+          test "$(jq -r '.status' "$run_json")" = 'completed'
+          test "$(jq -r '.conclusion' "$run_json")" = 'success'
+          test "$(jq -r '.head_sha' "$run_json")" = "$CANDIDATE_SHA"
+          [[ "$(jq -r '.head_branch' "$run_json")" == release/* ]]
+
+      - name: Download exact existing release artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: agency-release-candidate-${{ steps.auth.outputs.candidate_sha }}
+          path: artifacts/production-candidate
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.auth.outputs.build_run }}
+
+      - name: Validate exact candidate identity
+        env:
+          CANDIDATE_SHA: ${{ steps.auth.outputs.candidate_sha }}
+          ARTIFACT_SHA: ${{ steps.auth.outputs.artifact_sha }}
+          COMPOSER_SHA: ${{ steps.auth.outputs.composer_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_dir='artifacts/production-candidate'
+          metadata="$candidate_dir/candidate.json"
+          payload="$candidate_dir/agency-release-candidate.tar.gz"
+          checksum="$candidate_dir/agency-release-candidate.tar.gz.sha256"
+          test -f "$metadata"
+          test -f "$payload"
+          test -f "$checksum"
+          test "$(jq -r '.candidate_sha' "$metadata")" = "$CANDIDATE_SHA"
+          test "$(jq -r '.artifact_sha256' "$metadata")" = "$ARTIFACT_SHA"
+          test "$(jq -r '.composer_lock_sha256' "$metadata")" = "$COMPOSER_SHA"
+          [[ "$(jq -r '.source_branch' "$metadata")" == release/* ]]
+          test "$(sha256sum "$payload" | awk '{print $1}')" = "$ARTIFACT_SHA"
+          (
+            cd "$candidate_dir"
+            sha256sum -c agency-release-candidate.tar.gz.sha256
+          )
+
+      - name: Verify exact terminal PREPROD run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREPROD_RUN: ${{ steps.auth.outputs.preprod_run }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_json="$RUNNER_TEMP/preprod-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PREPROD_RUN" > "$run_json"
+          test "$(jq -r '.path' "$run_json")" = '.github/workflows/deploy-preproduction.yml'
+          test "$(jq -r '.event' "$run_json")" = 'workflow_run'
+          test "$(jq -r '.status' "$run_json")" = 'completed'
+          test "$(jq -r '.conclusion' "$run_json")" = 'success'
+
+      - name: Download exact PREPROD terminal evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: agency-preproduction-evidence-${{ steps.auth.outputs.candidate_sha }}-${{ steps.auth.outputs.preprod_run }}
+          path: artifacts/preproduction-proof
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.auth.outputs.preprod_run }}
+
+      - name: Bind PREPROD SUCCESS to exact candidate identity
+        env:
+          CANDIDATE_SHA: ${{ steps.auth.outputs.candidate_sha }}
+          ARTIFACT_SHA: ${{ steps.auth.outputs.artifact_sha }}
+          COMPOSER_SHA: ${{ steps.auth.outputs.composer_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof='artifacts/preproduction-proof'
+          deploy_result="$(find "$proof" -type f -path '*/preproduction-deploy/result.env' -print -quit)"
+          deploy_evidence="$(find "$proof" -type f -path '*/preproduction-deploy/deployment-evidence.env' -print -quit)"
+          runtime_evidence="$(find "$proof" -type f -path '*/preproduction-validation/runtime.env' -print -quit)"
+          auth_evidence="$(find "$proof" -type f -path '*/preproduction-validation/basic-auth.env' -print -quit)"
+          http_evidence="$(find "$proof" -type f -path '*/preproduction-validation/http.env' -print -quit)"
+          browser_result="$(find "$proof" -type f -path '*/browser-validation/result.json' -print -quit)"
+          for file in "$deploy_result" "$deploy_evidence" "$runtime_evidence" "$auth_evidence" "$http_evidence" "$browser_result"; do
+            test -n "$file"
+            test -f "$file"
+          done
+
+          grep -Fxq "expected_sha=$CANDIDATE_SHA" "$deploy_result"
+          grep -Fxq "expected_artifact_sha256=$ARTIFACT_SHA" "$deploy_result"
+          grep -Fxq 'outcome=SUCCESS' "$deploy_result"
+          grep -Fxq 'exit_code=0' "$deploy_result"
+          grep -Fxq "candidate_sha=$CANDIDATE_SHA" "$deploy_evidence"
+          grep -Fxq "artifact_sha256=$ARTIFACT_SHA" "$deploy_evidence"
+          grep -Fxq "composer_lock_sha256=$COMPOSER_SHA" "$deploy_evidence"
+          grep -Fxq 'governed_content=PASS' "$deploy_evidence"
+          grep -Fxq 'side_effects=PASS' "$runtime_evidence"
+          grep -Fxq 'capacity_observed=PASS' "$runtime_evidence"
+          grep -Fxq 'basic_auth_credentials=PASS' "$auth_evidence"
+          grep -Fxq 'health_live_status=200' "$http_evidence"
+          grep -Fxq 'health_ready_status=200' "$http_evidence"
+          grep -Fxq 'http_smoke=PASS' "$http_evidence"
+          test "$(jq -r '.result' "$browser_result")" = 'PASS'
+          test "$(jq -r '.visual_desktop' "$browser_result")" = 'PASS'
+          test "$(jq -r '.visual_mobile' "$browser_result")" = 'PASS'
+
+      - name: Configure production SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Stage exact immutable production promotion request
+        id: request
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          CANDIDATE_SHA: ${{ steps.auth.outputs.candidate_sha }}
+          ARTIFACT_SHA: ${{ steps.auth.outputs.artifact_sha }}
+          COMPOSER_SHA: ${{ steps.auth.outputs.composer_sha }}
+          COMMENT_ID: ${{ steps.auth.outputs.comment_id }}
+          AUTH_BODY_SHA: ${{ steps.auth.outputs.auth_body_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          request_id="promote-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CANDIDATE_SHA}"
+          remote_dir="/var/www/agency/shared/deploy-jobs/${request_id}"
+          [[ "$request_id" =~ ^promote-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "remote_dir=$remote_dir" >> "$GITHUB_OUTPUT"
+
+          ssh "$SERVER_USER@$SERVER_HOST" \
+            "umask 077; mkdir -p '$remote_dir'; test ! -L '$remote_dir'; test ! -e '$remote_dir/result.env'; test ! -e '$remote_dir/pid'"
+          scp \
+            scripts/production-promotion/promote-candidate.sh \
+            scripts/production-promotion/launch-promotion.sh \
+            scripts/production-promotion/inspect-promotion.sh \
+            artifacts/production-candidate/agency-release-candidate.tar.gz \
+            artifacts/production-candidate/agency-release-candidate.tar.gz.sha256 \
+            artifacts/production-candidate/candidate.json \
+            "$SERVER_USER@$SERVER_HOST:$remote_dir/"
+          ssh "$SERVER_USER@$SERVER_HOST" \
+            "chmod 700 '$remote_dir/promote-candidate.sh' '$remote_dir/launch-promotion.sh' '$remote_dir/inspect-promotion.sh'; chmod 600 '$remote_dir/agency-release-candidate.tar.gz' '$remote_dir/agency-release-candidate.tar.gz.sha256' '$remote_dir/candidate.json'"
+
+      - name: Launch detached production promotion worker
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          CANDIDATE_SHA: ${{ steps.auth.outputs.candidate_sha }}
+          ARTIFACT_SHA: ${{ steps.auth.outputs.artifact_sha }}
+          COMPOSER_SHA: ${{ steps.auth.outputs.composer_sha }}
+          COMMENT_ID: ${{ steps.auth.outputs.comment_id }}
+          AUTH_BODY_SHA: ${{ steps.auth.outputs.auth_body_sha }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+          REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          launch_output="$(ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 \
+            "$SERVER_USER@$SERVER_HOST" \
+            "'$REMOTE_DIR/launch-promotion.sh' '$REQUEST_ID' '$CANDIDATE_SHA' '$ARTIFACT_SHA' '$COMPOSER_SHA' '$COMMENT_ID' '$AUTH_BODY_SHA'" 2>&1)"
+          launch_status="$?"
+          set -e
+          printf '%s\n' "$launch_output"
+          echo "Launch transport exit was $launch_status; detached result polling remains authoritative."
+
+      - name: Poll detached production promotion result
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          CANDIDATE_SHA: ${{ steps.auth.outputs.candidate_sha }}
+          ARTIFACT_SHA: ${{ steps.auth.outputs.artifact_sha }}
+          COMPOSER_SHA: ${{ steps.auth.outputs.composer_sha }}
+          COMMENT_ID: ${{ steps.auth.outputs.comment_id }}
+          AUTH_BODY_SHA: ${{ steps.auth.outputs.auth_body_sha }}
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+          REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir='artifacts/production-promotion'
+          mkdir -p "$artifact_dir"
+          terminal_outcome=''
+          poll_output=''
+          starting_count=0
+
+          result_field() {
+            local key="$1"
+            printf '%s\n' "$poll_output" | sed -n "s/^${key}=//p" | head -n 1
+          }
+
+          for attempt in $(seq 1 180); do
+            set +e
+            poll_output="$(ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 \
+              "$SERVER_USER@$SERVER_HOST" \
+              "'$REMOTE_DIR/inspect-promotion.sh' '$REQUEST_ID' '$CANDIDATE_SHA' '$ARTIFACT_SHA' '$COMPOSER_SHA' '$COMMENT_ID' '$AUTH_BODY_SHA'" 2>&1)"
+            poll_status="$?"
+            set -e
+            if [[ "$poll_status" -ne 0 ]]; then
+              sleep 5
+              continue
+            fi
+            outcome="$(result_field outcome)"
+            case "$outcome" in
+              SUCCESS)
+                test "$(result_field expected_sha)" = "$CANDIDATE_SHA"
+                test "$(result_field expected_artifact_sha256)" = "$ARTIFACT_SHA"
+                test "$(result_field expected_composer_lock_sha256)" = "$COMPOSER_SHA"
+                test "$(result_field authorization_comment_id)" = "$COMMENT_ID"
+                test "$(result_field authorization_body_sha256)" = "$AUTH_BODY_SHA"
+                test "$(result_field exit_code)" = '0'
+                terminal_outcome='SUCCESS'
+                break
+                ;;
+              FAILURE|LOCKED|LOST|INVALID)
+                terminal_outcome="$outcome"
+                break
+                ;;
+              RUNNING)
+                starting_count=0
+                ;;
+              STARTING|NOT_STARTED)
+                starting_count=$((starting_count + 1))
+                if [[ "$starting_count" -ge 12 ]]; then
+                  terminal_outcome='LOST'
+                  break
+                fi
+                ;;
+              *)
+                terminal_outcome='INVALID'
+                break
+                ;;
+            esac
+            sleep 5
+          done
+          [[ -n "$terminal_outcome" ]] || terminal_outcome='TIMEOUT'
+          printf '%s\n' "$poll_output" | tee "$artifact_dir/result.env"
+
+          for filename in output.log bootstrap.log request.env promotion-evidence.env; do
+            set +e
+            ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
+              "cat '$REMOTE_DIR/$filename' 2>/dev/null || true" \
+              > "$artifact_dir/$filename" 2>&1
+            set -e
+          done
+          test "$terminal_outcome" = 'SUCCESS'
+
+      - name: Validate production health and canonical smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/production-postdeploy
+          for endpoint in live ready; do
+            body="artifacts/production-postdeploy/health-${endpoint}.json"
+            status="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' "$PROD_URL/health/$endpoint")"
+            printf 'health_%s_status=%s\n' "$endpoint" "$status" >> artifacts/production-postdeploy/http.env
+            test "$status" = '200'
+            test "$(jq -r '.status' "$body")" = 'ok'
+          done
+          smoke_status="$(curl --silent --show-error --location --output /dev/null --write-out '%{http_code}' "$PROD_URL/fr/blog")"
+          printf 'http_smoke_status=%s\n' "$smoke_status" >> artifacts/production-postdeploy/http.env
+          test "$smoke_status" = '200'
+          printf 'http_smoke=PASS\nmonitoring_signal=PASS\n' >> artifacts/production-postdeploy/http.env
+
+      - name: Setup Node for production Browser Validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install production Browser Validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run production Playwright desktop and mobile proof
+        env:
+          BROWSER_VALIDATION_BASE_URL: ${{ env.PROD_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run browser:validate
+          test "$(jq -r '.result' artifacts/browser-validation/result.json)" = 'PASS'
+          test "$(jq -r '.visual_desktop' artifacts/browser-validation/result.json)" = 'PASS'
+          test "$(jq -r '.visual_mobile' artifacts/browser-validation/result.json)" = 'PASS'
+
+      - name: Publish non-sensitive production promotion receipt
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.auth.outputs.issue_number }}
+          CANDIDATE_SHA: ${{ steps.auth.outputs.candidate_sha }}
+          ARTIFACT_SHA: ${{ steps.auth.outputs.artifact_sha }}
+          COMPOSER_SHA: ${{ steps.auth.outputs.composer_sha }}
+          BUILD_RUN: ${{ steps.auth.outputs.build_run }}
+          PREPROD_RUN: ${{ steps.auth.outputs.preprod_run }}
+          COMMENT_ID: ${{ steps.auth.outputs.comment_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ## Production promotion terminal receipt
+
+          candidate_sha = \`$CANDIDATE_SHA\`
+          artifact_sha256 = \`$ARTIFACT_SHA\`
+          composer_lock_sha256 = \`$COMPOSER_SHA\`
+          build_run = \`$BUILD_RUN\`
+          preprod_run = \`$PREPROD_RUN\`
+          human_go_comment_id = \`$COMMENT_ID\`
+          production_run = \`$GITHUB_RUN_ID\`
+
+          Exact same-artifact activation, health, smoke and browser proof completed successfully. Rollback boundary remains previous release + pre-promotion DB backup; no automatic DB rollback is claimed.
+          EOF
+          )"
+          gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments" -f body="$body" >/dev/null
+
+      - name: Upload production promotion evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-promotion-${{ steps.auth.outputs.candidate_sha }}-${{ github.run_id }}
+          path: |
+            artifacts/production-candidate/candidate.json
+            artifacts/production-promotion
+            artifacts/production-postdeploy
+            artifacts/browser-validation
+          if-no-files-found: warn
+          retention-days: 30

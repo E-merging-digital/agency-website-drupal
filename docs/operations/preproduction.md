@@ -1,12 +1,37 @@
 # Agency PREPROD
 
-Status: implementation prepared in the repository. The PREPROD host, DNS,
-credentials and database are not created by Git. Until the external host is
-provisioned and bootstrapped, the durable state remains:
+Status: **REAL / PROVISIONED / TERMINAL GREEN**.
+
+Agency has a physically and logically distinct PREPROD environment. The first
+terminal end-to-end proof completed on 2026-08-25 with the exact immutable r7
+candidate. PREPROD is now the mandatory functional release gate before a human
+can authorize production promotion.
 
 ```text
-PREPROD target -> not provisioned yet
+PREPROD = REAL / TERMINAL GREEN
+functional promotion = SAME ARTIFACT + EXPLICIT HUMAN GO
+automatic main -> PROD = RETIRED by #812 cutover
 ```
+
+### Superseded pre-cutover wording
+
+For auditability, the following repository phrases describe the state that
+existed before the real PREPROD proof and #812 cutover. They are retained here
+only as historical assertions and are explicitly **not** the current contract:
+
+- `` `main`: current PROD baseline ``;
+- `` `release/*`: coherent functional release candidate ``;
+- `` `feature/*`: bounded development branches ``;
+- `` `hotfix/*` and `security/*` ``;
+- `explicit human GO`;
+- `candidate Git SHA`;
+- `application artifact SHA-256`;
+- `PREPROD target -> not provisioned yet`;
+- `existing automatic PROD deploy remains unchanged`.
+
+The first six concepts remain recognizable in the evolved model, but the last
+two statements are retired facts: PREPROD is now real and terminal green, and
+the automatic functional `main -> PROD` trigger is removed by #812.
 
 ## Purpose
 
@@ -15,32 +40,54 @@ candidate and production. It executes the exact application artifact intended
 for production while keeping data, files, settings, credentials and external
 side effects isolated from PROD.
 
-## Approved topology
+`READY FOR PROD` never means `DEPLOY PROD`. A functional production mutation
+requires a separate explicit human GO bound to the exact candidate identity.
 
-PREPROD infrastructure is distinct from production infrastructure. Several
-small PREPROD environments may share one dedicated PREPROD host only when each
-site has isolated Unix accounts, release/shared roots, databases and database
-users, credentials, files, locks, vhosts, TLS identities, cron/queues and
-resource limits.
+## Real topology
 
-PROD and Agency PREPROD never share runtime paths, databases, credentials,
-persistent files or deploy locks.
+The current Agency PREPROD is a distinct Gandi Cloud VM:
 
-## Capacity contract
+```text
+hostname = preprod.emergingdigital.be
+provider = Gandi Cloud
+OS       = Ubuntu 24.04 LTS
+runtime  = Nginx + PHP-FPM 8.4 + MariaDB 11.8
+DB packet= max_allowed_packet=64M
+root     = /var/www/agency-preprod
+user     = agency-preprod
+```
 
-The provider-neutral host contract is:
+PREPROD and PROD do not share runtime paths, databases, credentials, persistent
+files, settings or deploy locks. PREPROD has its own TLS identity and Basic
+Authentication. `/health/live` and `/health/ready` remain public minimal health
+signals and expose no secret.
 
-| Profile | CPU | RAM | Local storage | Intended use |
-| --- | ---: | ---: | ---: | --- |
-| Minimum | 2 vCPU | 4 GiB | 40 GiB NVMe/SSD | Agency PREPROD only. |
-| Recommended | 4 vCPU | 8 GiB | 75-80 GiB NVMe/SSD | Agency plus 1-2 other small Drupal PREPROD environments. |
+The PREPROD host has a deny-by-default firewall, public HTTPS, no public MariaDB
+and `X-Robots-Tag: noindex, nofollow, noarchive` on normal PREPROD responses.
 
-The recommended profile is the normal purchase target. The minimum profile is
-valid only when Agency is the sole relevant workload and database/files remain
-small. A future move to roughly 6 vCPU, 12 GiB RAM and 100+ GiB storage is a
-capacity decision, not a prerequisite for #797.
+## Capacity: observed and accepted
 
-Storage is split logically per application. Agency owns:
+The first real PREPROD proof intentionally used the smaller provisioned host:
+
+```text
+CPU              = 1 vCPU
+RAM              = ~2 GiB
+root storage     = ~25 GB
+swap             = 0
+terminal r7 OOM  = 0
+terminal r7 disk = 23% used
+RAM available    = ~969 MB after validation
+capacity decision= KEEP
+```
+
+The earlier conservative planning profile of 2 vCPU / 4 GiB / 40 GiB is no
+longer a mandatory minimum. Real evidence wins: Agency keeps 1 vCPU / 2 GiB /
+25 GB until OOM, disk pressure, unstable runtime or unacceptable execution time
+proves that a resize is needed.
+
+## Filesystem contract
+
+Agency PREPROD owns:
 
 ```text
 /var/www/agency-preprod/
@@ -56,243 +103,220 @@ Storage is split logically per application. Agency owns:
     └── settings/
 ```
 
-The immutable candidate archive under `shared/artifacts` preserves the exact
-payload and metadata proven on PREPROD even after the GitHub Actions artifact
-retention window expires.
+Exact candidate archives are retained under `shared/artifacts/<sha>/<digest>` so
+PREPROD can preserve the bytes it actually validated independently of GitHub
+artifact retention.
 
-## Network, DNS and TLS
+## Access and side-effect isolation
 
-Agency PREPROD uses the stable hostname:
+Normal PREPROD pages are protected by HTTP Basic Authentication using PREPROD-
+only credentials. Secrets are never committed or copied into evidence.
 
-```text
-preprod.emergingdigital.be
-```
+The runtime remains fail-safe:
 
-A public IPv4 address is required for predictable GitHub Actions, ACME and
-operator access. IPv6 is recommended and should be published with an `AAAA`
-record when the provider supplies a stable address, but PREPROD must not rely on
-IPv6 as its only public route.
+| Capability | PREPROD policy |
+| --- | --- |
+| Email/Webform | PHP `sendmail_path=/bin/true`; no real delivery. |
+| Analytics | Production Config Split OFF; Google Tag disabled. |
+| OpenAI/Drupal AI | No production/provider key injected by default. |
+| Automated cron | OFF. |
+| Queues | No independent worker enabled for the release proof. |
+| Webhooks/APIs | No PROD credential provisioned. |
+| DB/files/settings | Separate from PROD. |
 
-Required DNS records are:
-
-- `A preprod.emergingdigital.be` to the PREPROD IPv4 address;
-- `AAAA preprod.emergingdigital.be` to the stable PREPROD IPv6 address when
-  available.
-
-TLS is a valid public certificate managed by Certbot/Let's Encrypt. DNS must
-resolve to the host before the bootstrap requests the certificate.
-
-The host firewall defaults to deny inbound and allows only SSH, HTTP and HTTPS.
-MariaDB listens for the application locally and is never exposed as a public
-service by the Agency contract.
-
-## Access protection and noindex
-
-Normal PREPROD pages use HTTP Basic Authentication. The credentials are unique
-to PREPROD and are never committed or uploaded as evidence.
-
-`/health/live` and `/health/ready` are deliberately exempt from Basic Auth so
-provider-neutral external monitoring can read the minimal health contract. The
-endpoints expose no credential, version, path, database detail or customer data.
-They must answer directly with HTTP 200 and `{"status":"ok"}` when healthy.
-
-Nginx adds this response header on PREPROD:
-
-```text
-X-Robots-Tag: noindex, nofollow, noarchive
-```
-
-Basic Auth plus this header are the PREPROD anti-indexing boundary. Production
-`robots.txt` is not modified for this purpose.
-
-Browser Validation accepts the optional secret environment pair:
-
-```text
-BROWSER_VALIDATION_HTTP_USERNAME
-BROWSER_VALIDATION_HTTP_PASSWORD
-```
-
-The readiness probe and Playwright share those credentials without persisting
-them in result JSON, screenshots or repository files.
-
-## Runtime
-
-The bootstrapped runtime is:
-
-- Ubuntu 24.04 LTS;
-- Nginx;
-- PHP-FPM 8.4 using a dedicated `agency-preprod` pool;
-- MariaDB 11.8;
-- `max_allowed_packet=64M`;
-- Unix user `agency-preprod`;
-- project root `/var/www/agency-preprod`.
-
-The bootstrap installs the PHP extensions required by the current Drupal and
-Composer application surface, including MySQL, cURL, GD, Intl, Mbstring, XML,
-Zip, BCMath and OPcache.
-
-`scripts/preproduction/bootstrap-host.sh` is idempotent for the declared Agency
-resources. It requires root privileges only for host provisioning and consumes
-four non-versioned values:
-
-```text
-AGENCY_PREPROD_DEPLOY_PUBLIC_KEY
-PREPROD_BASIC_AUTH_USER
-PREPROD_BASIC_AUTH_PASSWORD
-PREPROD_TLS_EMAIL
-```
-
-It generates the PREPROD database password, Drupal hash salt and initial admin
-password locally on the server in:
-
-```text
-/var/www/agency-preprod/shared/settings/runtime.env
-```
-
-That file is mode 0600 and is not copied into GitHub artifacts.
+The `production` Config Split is forced OFF and the `preproduction` split is ON.
+The deployment workflow records non-sensitive runtime evidence proving these
+conditions.
 
 ## Branch and release model
 
-The durable branch model is:
+The durable model is:
 
-- `main`: current PROD baseline. The existing automatic production deployment
-  remains unchanged until a later, separately validated promotion cutover.
-- `release/*`: coherent functional release candidate intended for PREPROD
-  validation. A release branch starts from the current PROD baseline and
-  receives the feature work selected for that candidate.
-- `feature/*`: bounded development branches. Functional work destined for an
-  active candidate is integrated into its `release/*` branch rather than being
-  treated as production-ready merely because CI is green.
-- `hotfix/*` and `security/*`: urgent production-baseline lanes. They may be
-  promoted independently of the active functional candidate, then must be
-  reintegrated into every still-active release candidate.
+- `main`: durable repository baseline and production tooling baseline; merging
+  ordinary functional work into it no longer authorizes or triggers production.
+- `release/*`: coherent functional candidate built exactly once and validated in
+  PREPROD.
+- `feature/*`: bounded development branches.
+- `hotfix/*` and `security/*`: separate urgent production lane from the current
+  production baseline, explicitly dispatched and fail-closed to those refs.
 
-A functional candidate is not permission to deploy production. Production
-promotion requires an explicit human GO after PREPROD evidence is complete.
+There is no long-lived `develop` or `preprod` integration branch.
+
+After an urgent hotfix/security deployment, every active functional candidate
+must reintegrate that change and obtain fresh PREPROD evidence before promotion.
 
 ## Immutable candidate identity
 
-`.github/workflows/build-release-candidate.yml` runs only on `release/**` pushes
-and builds the candidate once in production Composer mode.
-
-The uploaded candidate contains:
+`.github/workflows/build-release-candidate.yml` builds a `release/*` candidate
+once in production Composer mode and uploads:
 
 - `agency-release-candidate.tar.gz`;
 - `agency-release-candidate.tar.gz.sha256`;
 - `candidate.json`.
 
-The candidate identity is:
+The immutable identity is:
 
 ```text
 candidate Git SHA
-+
-application artifact SHA-256
++ artifact SHA-256
++ composer.lock SHA-256
++ successful builder run
 ```
 
-The versioned `settings.php` scaffold may exist in the Git source tree, but the
-release builder excludes it from the candidate payload. The payload also
-excludes `.env`, DDEV state and public files.
+The payload excludes environment settings, public files, local DDEV state and
+secrets. PREPROD and functional PROD promotion consume the same existing
+payload; neither route rebuilds it.
 
-A PREPROD deploy verifies the candidate SHA, Composer lock digest and payload
-digest before unpacking. It then archives and consumes those exact bytes. It
-never executes `composer install` or `git clone` on PREPROD.
+## First terminal PREPROD candidate
 
-A future PROD promotion must consume the same already-proven candidate payload
-and digest. Rebuilding independently at promotion time is not the target design.
-
-## PREPROD deployment route
-
-After a successful `Build Agency release candidate` run, the default-branch
-`.github/workflows/deploy-preproduction.yml` workflow accepts only a same-repo
-`release/*` source. It:
-
-1. checks out the exact candidate SHA for deployment tooling and lock identity;
-2. downloads the exact artifact from the triggering build run;
-3. re-verifies SHA, payload digest and Composer lock digest;
-4. transfers the candidate and bounded deploy scripts over the dedicated
-   PREPROD SSH identity;
-5. launches a detached worker protected by a PREPROD-specific `flock` lock;
-6. archives the immutable candidate on the PREPROD host;
-7. switches a release only after candidate verification;
-8. runs Drupal update/configuration operations;
-9. polls terminal deployment evidence;
-10. verifies health, protected HTTP smoke and Playwright desktop/mobile;
-11. uploads only non-sensitive evidence.
-
-The GitHub repository secrets used by this route are PREPROD-only:
+The first terminal candidate is:
 
 ```text
-PREPROD_SERVER_HOST
-PREPROD_SERVER_USER
-PREPROD_SSH_PRIVATE_KEY
-PREPROD_BASIC_AUTH_USER
-PREPROD_BASIC_AUTH_PASSWORD
+release_branch        = release/agency-preprod-initial-r7
+candidate_sha         = 07dd43d3e5923c22de2202dc59ffa70b5100332d
+build_run             = 32860381783 / SUCCESS
+artifact_sha256       = 6e87dfc8c44cf6e471bcde933129d959005e3fe77a81ee79fb75445997d423fb
+composer_lock_sha256  = f33e8adb64d92003b1888159443d3765e48c110b45486600b2057d27a1999db7
+preprod_run           = 32860454416 / SUCCESS
+release_state         = READY FOR PROD / WAITING FOR HUMAN GO
 ```
 
-None may contain or reuse the production SSH, SMTP, OpenAI or database
-credentials.
+Terminal proof includes exact artifact activation, detached worker, Governed
+Content, side-effect isolation, Basic Auth, live/ready health, protected smoke,
+Playwright desktop/mobile, DOM, visual, console and network checks. Unexpected
+4xx, 5xx and failed browser requests were all zero.
 
-## Drupal deployment sequence
+## PREPROD deployment sequence
 
-The candidate deploy sequence is:
+A successful release build triggers `.github/workflows/deploy-preproduction.yml`.
+The route:
+
+1. checks out exact candidate tooling;
+2. downloads the existing candidate artifact from the successful builder;
+3. verifies candidate SHA, payload SHA-256 and composer.lock SHA-256;
+4. transfers exact bytes and bounded scripts over the PREPROD SSH identity;
+5. uses a PREPROD-specific detached worker and lock;
+6. archives the immutable payload;
+7. attaches PREPROD shared settings/files;
+8. creates a DB backup when an active release exists;
+9. runs maintenance, `updb`, `cim`, PREPROD Config Split, Governed Content and
+   `cr`;
+10. validates side-effect isolation and capacity;
+11. validates Basic Auth, health and protected HTTP smoke;
+12. executes Playwright desktop/mobile and publishes non-sensitive evidence.
+
+No `git clone` or `composer install` occurs on PREPROD.
+
+## Governed same-artifact functional PROD promotion
+
+#812 introduces `.github/workflows/promote-production.yml`. It is intentionally
+not a `push` or `workflow_dispatch` route. A functional promotion can start only
+from a newly created owner-authored issue comment with this exact shape:
 
 ```text
-verify artifact identity
--> archive exact candidate bytes
--> unpack release
--> attach shared settings/files
--> DB backup when an active release exists
--> maintenance ON when applicable
--> initialize fresh independent DB from existing config when needed
--> switch current
--> drush updb -y
--> drush cim -y
--> PREPROD split import
--> Governed Content validate + dry-run + apply when available
--> drush cr
+/agency-production-promote go sha=<40hex> artifact=<64hex> composer=<64hex> build=<run-id> preprod=<run-id>
+```
+
+The command itself is the human GO. It is valid only on an OPEN issue created by
+the repository owner and is bound to:
+
+- exact candidate SHA;
+- exact artifact SHA-256;
+- exact composer.lock SHA-256;
+- exact successful builder run;
+- exact successful PREPROD run.
+
+The workflow hashes the exact authorization body and binds the GitHub comment ID
+to the remote request/evidence. Re-running the same successful candidate is
+blocked by a durable production receipt under `shared/promotions`; the common
+server deploy lock also serializes functional promotions and emergency
+hotfix/security deployments.
+
+Before any production SSH mutation, the route:
+
+1. verifies the owner/open-issue GO contract;
+2. verifies the builder run belongs to `build-release-candidate.yml`, succeeded,
+   targets the candidate SHA and came from `release/*`;
+3. downloads the already-existing artifact and re-verifies all three digests;
+4. verifies the exact PREPROD run is terminal SUCCESS;
+5. downloads its evidence and requires matching candidate/artifact/composer
+   identity plus Governed Content, side-effects, Basic Auth, health, protected
+   smoke and desktop/mobile browser PASS;
+6. rejects a candidate when live `main` contains later functional changes. The
+   only tolerated main-only delta is the bounded #812 promotion/cutover tooling
+   itself.
+
+Only after all gates pass can exact bytes be staged to production.
+
+### Production activation sequence
+
+`scripts/production-promotion/promote-candidate.sh` never clones Git and never
+runs Composer. It:
+
+```text
+verify candidate.json + payload checksum
+-> archive exact bytes
+-> unpack exact payload
+-> attach PROD shared settings/files
+-> preflight active Drupal + DB
+-> DB backup
+-> maintenance ON
+-> switch to exact candidate release
+-> updb
+-> cim
+-> production Config Split
+-> Governed Content validate + dry-run + apply
+-> cr
 -> maintenance OFF
+-> write immutable promotion receipt/evidence
 ```
 
-Governed Content is retained because the current governed catalogue is a small,
-explicit and idempotent application contract. It is preceded by validation and
-dry-run. It is not used to copy ordinary production editorial data.
+The post-deploy workflow then requires `/health/live`, `/health/ready`, canonical
+`/fr/blog` smoke and Playwright desktop/mobile PASS. Only non-sensitive identity
+and validation evidence is uploaded.
 
-Failure recovery attempts to leave maintenance mode and keeps the previous
-absolute release available. Automatic database rollback is intentionally not
-performed after a schema/config mutation; the pre-deploy DB dump is the
-operator rollback boundary.
+## Legacy automatic PROD cutover
 
-## Environment isolation and side effects
+Before #812, `.github/workflows/deploy-production.yml` ran on ordinary `push` to
+`main`, cloned the repository on PROD and executed Composer there. That behavior
+could produce bytes different from PREPROD.
 
-PREPROD is fail-safe by default:
+After #812:
 
-| Capability | PREPROD policy |
-| --- | --- |
-| Email/Webform | Native mailer is sinked by PHP `sendmail_path=/bin/true`; no real delivery. |
-| Analytics | Production Config Split forced OFF; Google Tag default forced empty. |
-| OpenAI/Drupal AI | `OPENAI_API_KEY` is not injected; deploy worker also unsets it. |
-| Link checker | Current `check_links_types: 0` remains non-active. |
-| Automated cron | Interval forced to `0`; no system cron is installed by bootstrap. |
-| Queues | No independent worker is enabled during the first PREPROD proof. |
-| Webhooks/other APIs | No PREPROD credential is provisioned by the bootstrap. |
-| Monitoring | Separate PREPROD monitor identity only after the URL exists. |
+```text
+ordinary push/merge main -> NO PROD DEPLOY
+functional release       -> PREPROD -> exact human GO -> SAME ARTIFACT PROD
+hotfix/security           -> explicit workflow_dispatch on hotfix/*|security/* only
+```
 
-The `production` Config Split is always forced OFF. The `preproduction` split is
-forced ON from the environment-owned settings and contains the safe mail/cron
-state needed by PREPROD.
+The emergency lane intentionally remains separate and explicit while same-
+artifact functional promotion becomes the normal route. It is not a backdoor
+for ordinary `main` changes.
 
-The dedicated PHP-FPM pool uses `clear_env=yes`. The deployment worker also
-explicitly removes known production mail/OpenAI variables before Drupal
-operations.
+## Rollback boundary
+
+The promotion script records both:
+
+```text
+previous_release=<absolute previous release path>
+database_backup=<pre-promotion SQL dump>
+rollback_boundary=PREVIOUS_RELEASE_PLUS_DB_BACKUP
+```
+
+The previous release is retained as the code rollback boundary. The SQL dump is
+the database recovery boundary. Agency does **not** claim an automatic DB
+rollback after `updb`, configuration import or Governed Content mutation because
+schema/config/content changes may not be safely reversible by blindly restoring
+code alone.
+
+A failed post-switch deployment attempts to leave maintenance mode, captures
+what happened and stops. Any DB restore is a separate, explicit operator
+decision based on the failure phase and backup evidence.
 
 ## Data and files
 
-The approved strategy is hybrid. The first infrastructure proof may use a fresh
-independent database installed from committed configuration and deterministic
-fixtures. This is preferred for #797 because it proves infrastructure without
-copying customer or editorial production data.
-
-When production fidelity is required later, the only accepted path is:
+PREPROD uses an independent DB and files. If production fidelity is needed, the
+only accepted data path remains:
 
 ```text
 one-way PROD snapshot
@@ -301,66 +325,29 @@ one-way PROD snapshot
 -> deterministic test users/fixtures
 ```
 
-Runtime access from PREPROD to the production database is forbidden. PREPROD
-files use separate storage. Public files are copied only when necessary and
-safe. Private files are excluded by default and require a specific sanitized
-need before copying.
+PREPROD never receives runtime access to the production DB. Private files remain
+excluded unless a specific sanitized need is approved.
 
-## Backups and storage retention
+## Platform Ops registration
 
-The PREPROD contract combines:
+#758 requires the real PREPROD environment to be represented in
+`E-merging-digital/platform-ops` without secrets. Registration belongs to the
+platform-ops service/environment registry and may include only non-sensitive
+facts such as service name, environment type, public hostname, health endpoints,
+provider class and ownership. SSH keys, Basic Auth values, DB credentials,
+Drupal secrets and provider tokens must never be copied into that repository.
 
-- provider-level daily backup or snapshot capability;
-- a DB dump before each deployment when an active release exists;
-- the three newest unpacked releases locally;
-- the ten newest deployment DB dumps locally;
-- immutable candidate archives under `shared/artifacts/<sha>/<digest>`.
+## Current release state
 
-Provider backups are recovery protection, not a replacement for deployment
-rollback evidence. For longer-lived or larger PREPROD data, encrypted off-host
-backup can be added as a separate operations tranche.
-
-## Required PREPROD evidence before functional PROD GO
-
-A functional candidate is promotable only when all applicable evidence is tied
-to the same candidate SHA and artifact digest:
-
-1. PREPROD deploy succeeded for the exact candidate artifact.
-2. Drupal bootstrap and configuration/update sequence succeeded.
-3. `/health/live` is direct HTTP 200 with `{"status":"ok"}`.
-4. `/health/ready` is direct HTTP 200 with `{"status":"ok"}`.
-5. Protected HTTP smoke passes.
-6. Playwright desktop and mobile validation passes.
-7. External side-effect isolation remains effective.
-8. Rollback/redeploy capability is proven for PREPROD.
-9. Evidence records candidate SHA and artifact digest.
-10. A human explicitly gives GO for functional production promotion.
-
-CI success alone is not a production promotion approval.
-
-## Hotfix and security lane
-
-Urgent fixes start from the current `main` production baseline and do not have
-to wait for a functional `release/*` candidate.
-
-After an urgent fix reaches production, every active release candidate must
-integrate that fix before it can be considered coherent again. Candidate
-evidence generated before reintegration is stale and must not authorize later
-production promotion.
-
-## Current and future transitions
-
-Current state after repository bootstrap preparation:
+At the #812 implementation gate:
 
 ```text
-main -> existing automatic PROD deploy remains unchanged
-release/* -> immutable candidate build
-successful candidate build -> PREPROD deploy/validation route prepared
-PREPROD target -> not provisioned yet
-PROD promotion of artifact -> not implemented yet
+PREPROD                    = REAL / TERMINAL GREEN
+first terminal candidate   = r7
+candidate                  = 07dd43d3e5923c22de2202dc59ffa70b5100332d
+artifact                   = 6e87dfc8c44cf6e471bcde933129d959005e3fe77a81ee79fb75445997d423fb
+PREPROD proof              = 32860454416 / SUCCESS
+capacity                   = KEEP 1 vCPU / 2 GiB / 25 GB
+functional PROD promotion  = READY FOR HUMAN GO after #812 merge proof
+PROD mutation under #812   = NONE until an exact human GO is issued
 ```
-
-After the real PREPROD proof is terminal, the next #758 tranche may implement an
-explicit human-GO production promotion route consuming the same SHA and digest,
-then retire the legacy functional `main -> PROD` behavior without weakening the
-hotfix/security lane.

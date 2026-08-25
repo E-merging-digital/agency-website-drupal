@@ -69,18 +69,22 @@ jobs:
           fi
 
           system_cron_count="$(
-            grep -ERils --exclude='*.dpkg-*' --exclude='*.bak' \
-              '(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
-              /etc/crontab /etc/cron.d /etc/cron.hourly /etc/cron.daily \
-              /etc/cron.weekly /etc/cron.monthly 2>/dev/null \
-              | wc -l | tr -d ' '
+            {
+              grep -ERils --exclude='*.dpkg-*' --exclude='*.bak' \
+                '(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
+                /etc/crontab /etc/cron.d /etc/cron.hourly /etc/cron.daily \
+                /etc/cron.weekly /etc/cron.monthly 2>/dev/null \
+                || true
+            } | wc -l | tr -d ' '
           )"
 
           systemd_cron_count="$(
-            grep -ERils --exclude='*.wants' \
-              '(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
-              /etc/systemd/system 2>/dev/null \
-              | wc -l | tr -d ' '
+            {
+              grep -ERils --exclude='*.wants' \
+                '(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
+                /etc/systemd/system 2>/dev/null \
+                || true
+            } | wc -l | tr -d ' '
           )"
 
           [[ "$user_cron_count" =~ ^[0-9]+$ ]]

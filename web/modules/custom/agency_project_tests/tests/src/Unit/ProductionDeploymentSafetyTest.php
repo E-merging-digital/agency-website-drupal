@@ -50,7 +50,10 @@ final class ProductionDeploymentSafetyTest extends TestCase {
       'scripts/launch-production-deploy.sh',
       'scripts/inspect-production-deploy.sh',
       'Launch detached emergency production worker',
-      "'$REMOTE_DIR/launch-production-deploy.sh' '$REQUEST_ID' '$EXPECTED_SHA' '$TARGET_BRANCH'",
+      'launch-production-deploy.sh',
+      '$REQUEST_ID',
+      '$EXPECTED_SHA',
+      '$TARGET_BRANCH',
       'Poll detached emergency production result',
       'agency-production-emergency-${{ github.sha }}-${{ github.run_id }}',
     ] as $required) {

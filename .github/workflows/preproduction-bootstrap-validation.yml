@@ -33,6 +33,7 @@ jobs:
           bash -n scripts/preproduction/launch-deploy.sh
           bash -n scripts/preproduction/inspect-deploy.sh
           bash -n scripts/preproduction/validate-runtime.sh
+          bash -n scripts/preproduction/reconcile-basic-auth.sh
       - name: Validate PREPROD templates and immutable deploy boundaries
         shell: bash
         run: |
@@ -49,6 +50,10 @@ jobs:
           grep -Fq 'oom_kill_count=' scripts/preproduction/validate-runtime.sh
           grep -Fq 'sendmail_path' scripts/preproduction/validate-runtime.sh
           grep -Fq 'scripts/preproduction/validate-runtime.sh' .github/workflows/deploy-preproduction.yml
+          grep -Fq 'scripts/preproduction/reconcile-basic-auth.sh' .github/workflows/deploy-preproduction.yml
+          grep -Fq 'basic_auth_credentials=PASS' scripts/preproduction/reconcile-basic-auth.sh
+          grep -Fq 'basic_auth_reconciliation_method=NO_PRIVILEGED_WRITE' scripts/preproduction/reconcile-basic-auth.sh
+          grep -Fq 'sudo -n install -o root -g www-data -m 640' scripts/preproduction/reconcile-basic-auth.sh
           grep -Fq 'curl --silent --show-error --location' .github/workflows/deploy-preproduction.yml
           grep -Fq 'db-${TIMESTAMP}-${EXPECTED_SHA:0:12}.sql"' scripts/preproduction/deploy-candidate.sh
           grep -Fq -- "-name 'db-*.sql.gz.gz'" scripts/preproduction/deploy-candidate.sh

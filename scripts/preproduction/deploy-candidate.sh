@@ -11,6 +11,10 @@ SHARED_DIR="$PROJECT_ROOT/shared"
 CURRENT_LINK="$PROJECT_ROOT/current"
 RUNTIME_ENV="$SHARED_DIR/settings/runtime.env"
 SETTINGS_FILE="$SHARED_DIR/settings/settings.php"
+SETTINGS_TMP="${SETTINGS_FILE}.tmp.$$"
+DB_NAME="agency_preprod"
+DB_USER="agency_preprod"
+PREPROD_HOSTNAME="preprod.emergingdigital.be"
 BACKUPS_DIR="$SHARED_DIR/backups"
 ARTIFACTS_DIR="$SHARED_DIR/artifacts"
 TIMESTAMP="$(date -u '+%Y%m%d%H%M%S')"
@@ -44,6 +48,7 @@ fail_trap() {
   trap - ERR
   set +e
   log "Deployment failed at line ${line_no} (exit ${exit_code})."
+  rm -f "$SETTINGS_TMP" || true
 
   if [[ "$MAINTENANCE_ENABLED" -eq 1 ]]; then
     recovery_release="$ACTIVE_RELEASE"
@@ -63,6 +68,29 @@ fail_trap() {
   fi
 
   exit "$exit_code"
+}
+
+reconcile_settings() {
+  local settings_template="$NEW_RELEASE/scripts/preproduction/settings.php.template"
+  local trusted_host_regex="${PREPROD_HOSTNAME//./\\.}"
+
+  [[ -f "$settings_template" ]] || fail "Candidate PREPROD settings template is missing."
+  [[ -n "${DB_PASSWORD:-}" ]] || fail "DB_PASSWORD is missing from runtime.env."
+  [[ -n "${HASH_SALT:-}" ]] || fail "HASH_SALT is missing from runtime.env."
+
+  rm -f "$SETTINGS_TMP"
+  sed \
+    -e "s|@@DB_NAME@@|$DB_NAME|g" \
+    -e "s|@@DB_USER@@|$DB_USER|g" \
+    -e "s|@@DB_PASSWORD@@|$DB_PASSWORD|g" \
+    -e "s|@@HASH_SALT@@|$HASH_SALT|g" \
+    -e "s|@@PROJECT_ROOT@@|$PROJECT_ROOT|g" \
+    -e "s|@@TRUSTED_HOST_REGEX@@|$trusted_host_regex|g" \
+    "$settings_template" > "$SETTINGS_TMP"
+  chgrp www-data "$SETTINGS_TMP"
+  chmod 640 "$SETTINGS_TMP"
+  mv -f "$SETTINGS_TMP" "$SETTINGS_FILE"
+  log "Shared PREPROD settings converged from the exact candidate template."
 }
 
 trap 'fail_trap $LINENO' ERR
@@ -142,6 +170,8 @@ fi
 
 # shellcheck disable=SC1090
 source "$RUNTIME_ENV"
+reconcile_settings
+
 if ! (
   cd "$NEW_RELEASE"
   vendor/bin/drush status --field=bootstrap 2>/dev/null | grep -q 'Successful'

@@ -11,7 +11,14 @@ tag_container_ids:
 advanced_settings:
   consent_mode: false
 dimensions_metrics: {  }
-conditions: {  }
+conditions:
+  user_role:
+    id: user_role
+    negate: false
+    context_mapping:
+      user: '@user.current_user_context:current_user'
+    roles:
+      anonymous: anonymous
 events:
   webform_purchase: {  }
   sign_up:

@@ -15,6 +15,21 @@ Issue creation, branch creation, PR merge, PLAN success, old comments and previo
 
 The first implementation intentionally has no executable APPLY path. A future APPLY must require a newly created OWNER authorization bound to all of: refresh request ID, current PROD release identity, current PREPROD release identity, sanitization policy digest, expected source snapshot identity and the exact requested transition. Authorization must be anti-replay and auditable.
 
+## Execution boundary for raw PROD data
+
+GitHub-hosted infrastructure is allowed only as an authority, metadata and validation gateway for this mechanism. A GitHub-hosted job may validate repository state, exact identities, policy, non-sensitive aggregate metadata and authorization prerequisites.
+
+`RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN`.
+
+Any future step that materializes or manipulates raw production snapshot data must use exactly one of these execution paths:
+
+- the trusted Agency runner with all required labels `self-hosted`, `linux`, `x64`, `agency`; or
+- a strictly controlled server-to-server path between controlled hosts where the raw production data never transits through and never materializes on GitHub-hosted infrastructure.
+
+A future implementation must fail closed if a raw-data step is assigned to any other runner class or if a server-to-server path would route raw bytes through GitHub-hosted infrastructure. Metadata-only PLAN jobs may remain on `ubuntu-24.04` because they do not materialize or manipulate raw production data.
+
+This boundary is independent from artifact policy: raw production SQL/files are forbidden as GitHub artifacts even when the raw-data step itself runs on trusted infrastructure.
+
 ## Production boundary
 
 PROD is strictly read-only for this mechanism. A future snapshot operation may read the production database, but the refresh implementation must have no route that can:
@@ -92,8 +107,8 @@ Required future sequence:
 
 1. acquire a dedicated PREPROD data-refresh lock;
 2. prove current PROD/PREPROD release identities and capacity;
-3. create a read-only PROD snapshot into transient material with restrictive permissions (`0600`);
-4. transfer transient raw material only over an encrypted transport and never through GitHub artifacts;
+3. create a read-only PROD snapshot into transient material with restrictive permissions (`0600`) only on an execution path allowed by the raw-data boundary above;
+4. transfer transient raw material only over an encrypted transport, only through an allowed raw-data execution path, and never through GitHub-hosted infrastructure or GitHub artifacts;
 5. import into an isolated PREPROD staging DB that is not referenced by the public runtime;
 6. sanitize deterministically and run fail-closed assertions;
 7. bootstrap/validate the staged DB with the currently deployed PREPROD application release;
@@ -148,7 +163,8 @@ Public-file synchronization is not implemented in this tranche. If later require
 - private files remain `NEVER` by default;
 - only already-public PROD files may be considered;
 - generated/cache/temp files should be excluded where reproducible;
-- a staged/rollback boundary must be preserved.
+- a staged/rollback boundary must be preserved;
+- any raw PROD file synchronization must obey the same trusted Agency runner or controlled server-to-server execution boundary and may never materialize raw PROD files on GitHub-hosted infrastructure.
 
 ## Phase-1 stop boundary
 

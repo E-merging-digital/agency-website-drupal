@@ -74,6 +74,18 @@ final class AiTranslationRetainedGuardrailsTest extends BrowserTestBase {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  protected function tearDown(): void {
+    $this->container->get('content_translation.manager')->setEnabled(
+      'node',
+      'page',
+      FALSE,
+    );
+    parent::tearDown();
+  }
+
+  /**
    * AI-created or AI-updated translations must require human publication.
    */
   public function testGeneratedTranslationIsUnpublished(): void {

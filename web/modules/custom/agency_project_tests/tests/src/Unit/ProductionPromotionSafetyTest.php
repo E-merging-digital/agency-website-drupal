@@ -207,8 +207,8 @@ final class ProductionPromotionSafetyTest extends TestCase {
 
     foreach ([
       'Validate production health and canonical smoke',
-      '/health/live',
-      '/health/ready',
+      'for endpoint in live ready; do',
+      '"$PROD_URL/health/$endpoint"',
       '/fr/blog',
       'monitoring_signal=PASS',
       'Run production Playwright desktop and mobile proof',

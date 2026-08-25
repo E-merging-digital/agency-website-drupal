@@ -41,6 +41,25 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
   }
 
   /**
+   * Verify-only binds scheduler proof to the exact current production release.
+   */
+  public function testVerifyOnlyBindsCurrentReleaseReceipt(): void {
+    $verifier = $this->script('scripts/production-promotion/reconcile-cron.sh');
+
+    foreach ([
+      'PROMOTIONS_DIR="$PROJECT_ROOT/shared/promotions"',
+      'current_release="$(readlink -f "$CURRENT")"',
+      "'^release_path='",
+      "'^candidate_sha='",
+      'Current production release must map to exactly one promotion receipt.',
+      'production_current_release=%s',
+      'production_current_release_sha=%s',
+    ] as $required) {
+      self::assertStringContainsString($required, $verifier);
+    }
+  }
+
+  /**
    * Verify-only accepts only the exact controlled scheduler contract.
    */
   public function testVerifyOnlyContractFailsClosedOnDriftOrDuplicates(): void {
@@ -128,7 +147,7 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
   }
 
   /**
-   * The PR-time PROD audit executes only the verify-only contract.
+   * The PR-time PROD audit executes only read-only verification and probes.
    */
   public function testProductionSchedulerAuditIsReadOnly(): void {
     $workflow = $this->workflow('.github/workflows/production-scheduler-readonly-audit.yml');
@@ -146,6 +165,15 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
       'SCHEDULER_AUTHORITY_KIND=OWNER_ISSUE_COMMENT',
       $workflow,
     );
+    foreach ([
+      'Verify current production health and public smoke without mutation',
+      'https://emergingdigital.be',
+      '"$PROD_URL/health/$endpoint"',
+      '"$PROD_URL/fr/blog"',
+      'production_smoke=PASS',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
   }
 
   /**

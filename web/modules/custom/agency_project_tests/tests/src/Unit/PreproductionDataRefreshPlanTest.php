@@ -22,6 +22,7 @@ final class PreproductionDataRefreshPlanTest extends TestCase {
     $workflow = $this->workflow();
 
     self::assertStringContainsString('workflow_dispatch:', $workflow);
+    self::assertStringContainsString('runs-on: ubuntu-24.04', $workflow);
     self::assertStringNotContainsString("\n  push:\n", $workflow);
     self::assertStringNotContainsString("\n  pull_request:\n", $workflow);
     self::assertStringNotContainsString("\n  schedule:\n", $workflow);
@@ -177,6 +178,49 @@ final class PreproductionDataRefreshPlanTest extends TestCase {
       'production_environment_state',
     ] as $required) {
       self::assertContains($required, $rules);
+    }
+  }
+
+  /**
+   * Raw PROD data may never execute on GitHub-hosted infrastructure.
+   */
+  public function testRawProdDataExecutionBoundaryIsFailClosed(): void {
+    $policy = $this->policy();
+    $boundary = $policy['execution_boundary'];
+
+    self::assertFalse($boundary['github_hosted']['raw_prod_data_allowed']);
+    self::assertContains(
+      'NON_SENSITIVE_METADATA_VALIDATION',
+      $boundary['github_hosted']['allowed_roles'],
+    );
+    self::assertSame(
+      'FORBIDDEN',
+      $boundary['raw_prod_data']['github_hosted_runner'],
+    );
+
+    $paths = [];
+    foreach ($boundary['raw_prod_data']['allowed_paths'] as $path) {
+      $paths[$path['type']] = $path;
+    }
+
+    self::assertSame(
+      ['self-hosted', 'linux', 'x64', 'agency'],
+      $paths['TRUSTED_AGENCY_RUNNER']['required_labels'],
+    );
+    self::assertSame(
+      'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE',
+      $paths['CONTROLLED_SERVER_TO_SERVER']['requirement'],
+    );
+
+    $document = $this->document();
+    foreach ([
+      'RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN',
+      '`self-hosted`, `linux`, `x64`, `agency`',
+      'strictly controlled server-to-server path',
+      'never materializes on GitHub-hosted infrastructure',
+      'Metadata-only PLAN jobs may remain on `ubuntu-24.04`',
+    ] as $required) {
+      self::assertStringContainsString($required, $document);
     }
   }
 

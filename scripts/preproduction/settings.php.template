@@ -38,3 +38,7 @@ $config['system.mail']['mailer_dsn'] = [
   'port' => NULL,
   'options' => [],
 ];
+
+// Secret presence must never authorize provider egress in normal PREPROD.
+$settings['agency_external_ai_egress_enabled'] = FALSE;
+$config['key.key.openai_api_key']['status'] = FALSE;

@@ -7,6 +7,34 @@
     "private_files": "NEVER",
     "public_files": "OUT_OF_SCOPE_PHASE_1"
   },
+  "execution_boundary": {
+    "github_hosted": {
+      "allowed_roles": [
+        "AUTHORITY_GATEWAY",
+        "NON_SENSITIVE_METADATA_VALIDATION",
+        "POLICY_VALIDATION"
+      ],
+      "raw_prod_data_allowed": false
+    },
+    "raw_prod_data": {
+      "github_hosted_runner": "FORBIDDEN",
+      "allowed_paths": [
+        {
+          "type": "TRUSTED_AGENCY_RUNNER",
+          "required_labels": [
+            "self-hosted",
+            "linux",
+            "x64",
+            "agency"
+          ]
+        },
+        {
+          "type": "CONTROLLED_SERVER_TO_SERVER",
+          "requirement": "RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE"
+        }
+      ]
+    }
+  },
   "preserve_for_fidelity": [
     "nodes_and_revisions",
     "taxonomy_and_translations",

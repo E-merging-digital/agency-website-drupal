@@ -149,15 +149,19 @@ final class PreproductionHostBootstrapTest extends TestCase {
   }
 
   /**
-   * Mobile browser proof uses the authoritative drawer after navigation.
+   * Browser proof uses the same responsive boundary as the theme.
    */
-  public function testBrowserValidationUsesMobileDrawerWhenToggleIsVisible(): void {
+  public function testBrowserValidationUsesDeterministicNavigationMode(): void {
     $root = dirname(DRUPAL_ROOT);
     $spec = (string) file_get_contents(
       $root . '/tests/browser/public-blog.spec.mjs',
     );
 
-    self::assertStringContainsString('if (await toggle.isVisible())', $spec);
+    self::assertStringContainsString(
+      "window.matchMedia('(max-width: 48rem)').matches",
+      $spec,
+    );
+    self::assertStringNotContainsString('if (await toggle.isVisible())', $spec);
     self::assertStringContainsString(
       "const drawerLink = drawer.getByRole('link'",
       $spec,

@@ -7,10 +7,15 @@ const contract = JSON.parse(
 );
 
 async function getVisiblePrimaryNavigationLink(page, name) {
-  const toggle = page.locator('[data-mobile-nav-toggle]');
-  const drawer = page.locator('[data-mobile-nav-drawer]');
+  const isMobile = await page.evaluate(() =>
+    window.matchMedia('(max-width: 48rem)').matches,
+  );
 
-  if (await toggle.isVisible()) {
+  if (isMobile) {
+    const toggle = page.locator('[data-mobile-nav-toggle]');
+    const drawer = page.locator('[data-mobile-nav-drawer]');
+
+    await expect(toggle).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-label', 'Ouvrir le menu principal');
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(drawer).toHaveAttribute('role', 'dialog');

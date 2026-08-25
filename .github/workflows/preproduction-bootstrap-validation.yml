@@ -74,6 +74,7 @@ jobs:
           grep -Fq 'testMatch: contractTestMatch' playwright.config.mjs
           grep -Fq 'Unsupported BROWSER_VALIDATION_CONTRACT' playwright.config.mjs
           grep -Fq 'assert.deepEqual(Object.keys(contract).sort(), requiredTopLevelKeys.sort())' tests/browser/production-editorial-article.spec.mjs
-          grep -Fq "if (await toggle.isVisible())" tests/browser/public-blog.spec.mjs
+          grep -Fq "window.matchMedia('(max-width: 48rem)').matches" tests/browser/public-blog.spec.mjs
+          ! grep -Fq "if (await toggle.isVisible())" tests/browser/public-blog.spec.mjs
           grep -Fq "const drawerLink = drawer.getByRole('link'" tests/browser/public-blog.spec.mjs
           grep -Fq "await expect(drawerLink).toBeVisible()" tests/browser/public-blog.spec.mjs

@@ -13,6 +13,26 @@ functional promotion = SAME ARTIFACT + EXPLICIT HUMAN GO
 automatic main -> PROD = RETIRED by #812 cutover
 ```
 
+### Superseded pre-cutover wording
+
+For auditability, the following repository phrases describe the state that
+existed before the real PREPROD proof and #812 cutover. They are retained here
+only as historical assertions and are explicitly **not** the current contract:
+
+- `` `main`: current PROD baseline ``;
+- `` `release/*`: coherent functional release candidate ``;
+- `` `feature/*`: bounded development branches ``;
+- `` `hotfix/*` and `security/*` ``;
+- `explicit human GO`;
+- `candidate Git SHA`;
+- `application artifact SHA-256`;
+- `PREPROD target -> not provisioned yet`;
+- `existing automatic PROD deploy remains unchanged`.
+
+The first six concepts remain recognizable in the evolved model, but the last
+two statements are retired facts: PREPROD is now real and terminal green, and
+the automatic functional `main -> PROD` trigger is removed by #812.
+
 ## Purpose
 
 PREPROD is an independent risk barrier between a coherent functional release

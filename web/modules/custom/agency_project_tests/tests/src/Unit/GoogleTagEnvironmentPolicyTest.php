@@ -43,13 +43,10 @@ final class GoogleTagEnvironmentPolicyTest extends TestCase {
   }
 
   /**
-   * Real PREPROD validation must fail if browser/network GA4 silence is lost.
+   * Real PREPROD browser validation must fail if GA4 silence is lost.
    */
   public function testPreproductionBrowserProofRequiresZeroGa4Traffic(): void {
     $root = dirname(DRUPAL_ROOT);
-    $workflow = (string) file_get_contents(
-      $root . '/.github/workflows/deploy-preproduction.yml',
-    );
     $spec = (string) file_get_contents(
       $root . '/tests/browser/public-blog.spec.mjs',
     );
@@ -58,12 +55,12 @@ final class GoogleTagEnvironmentPolicyTest extends TestCase {
     );
 
     self::assertStringContainsString(
-      "BROWSER_VALIDATION_EXPECT_ZERO_GA4: '1'",
-      $workflow,
+      "hostname === 'preprod.emergingdigital.be'",
+      $spec,
     );
     self::assertStringContainsString('audit.analyticsRequests', $spec);
     self::assertStringContainsString('audit.analyticsMeasurementRequests', $spec);
-    self::assertStringContainsString("dom.html", $spec);
+    self::assertStringContainsString('dom.html', $spec);
     self::assertStringContainsString('googletagmanager.com', $audit);
     self::assertStringContainsString('google-analytics.com', $audit);
     self::assertStringContainsString("parsed.pathname.includes('/collect')", $audit);

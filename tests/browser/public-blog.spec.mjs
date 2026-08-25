@@ -5,7 +5,10 @@ import { test, expect } from './support/browser-audit.mjs';
 const contract = JSON.parse(
   await readFile(new URL('./contracts/public-blog.json', import.meta.url), 'utf8'),
 );
-const expectZeroGa4 = process.env.BROWSER_VALIDATION_EXPECT_ZERO_GA4 === '1';
+const browserBaseUrl = process.env.BROWSER_VALIDATION_BASE_URL ?? 'http://127.0.0.1';
+const expectZeroGa4 =
+  new URL(browserBaseUrl).hostname === 'preprod.emergingdigital.be'
+  || process.env.BROWSER_VALIDATION_EXPECT_ZERO_GA4 === '1';
 const ga4MeasurementId = 'G-K5TDNZCPTY';
 
 async function getVisiblePrimaryNavigationLink(page, name) {

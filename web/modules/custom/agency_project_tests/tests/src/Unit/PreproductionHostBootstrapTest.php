@@ -63,6 +63,10 @@ final class PreproductionHostBootstrapTest extends TestCase {
       "automated_cron.settings']['interval'] = 0",
       $settingsContent,
     );
+    self::assertStringContainsString(
+      "agency_external_ai_egress_enabled'] = FALSE",
+      $settingsContent,
+    );
   }
 
   /**
@@ -94,6 +98,27 @@ final class PreproductionHostBootstrapTest extends TestCase {
     self::assertStringNotContainsString('composer install', $content);
     self::assertStringNotContainsString('git clone', $content);
     self::assertStringNotContainsString('/var/www/agency/shared', $content);
+  }
+
+  /**
+   * Candidate deployment converges server-owned settings without new secrets.
+   */
+  public function testCandidateDeployReconcilesSharedSettings(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $deploy = (string) file_get_contents(
+      $root . '/scripts/preproduction/deploy-candidate.sh',
+    );
+
+    foreach ([
+      'scripts/preproduction/settings.php.template',
+      'source "$RUNTIME_ENV"',
+      'reconcile_settings',
+      'mv -f "$SETTINGS_TMP" "$SETTINGS_FILE"',
+    ] as $expected) {
+      self::assertStringContainsString($expected, $deploy);
+    }
+
+    self::assertStringNotContainsString('openssl rand', $deploy);
   }
 
   /**

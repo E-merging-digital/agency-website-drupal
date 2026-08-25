@@ -119,7 +119,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
           profile='scripts/production-readonly-snapshot/profile.json'
           jq -e --arg profile "$EXPECTED_PROFILE" '.profile_id == $profile' "$profile" >/dev/null
-          jq -e '.authority.issue_number? // empty' "$profile" >/dev/null 2>&1 || true
           jq -e '.issue_number == 826' "$profile" >/dev/null
           profile_sha256="$(sha256sum "$profile" | awk '{print $1}')"
           [[ "$profile_sha256" =~ ^[0-9a-f]{64}$ ]]
@@ -157,6 +156,7 @@ jobs:
           bash -n scripts/production-readonly-snapshot/finalize-cleanup.sh
           bash -n scripts/production-readonly-snapshot/remote-stream.sh
           command -v ssh
+          command -v ssh-keygen
           command -v sha256sum
           command -v stat
           git diff --check
@@ -173,16 +173,18 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Pin PROD server host key for this route
+      - name: Require pre-provisioned PROD host trust
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "$SERVER_HOST"
-          : > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          test -s ~/.ssh/known_hosts
+          ssh-keygen -F "$SERVER_HOST" -f ~/.ssh/known_hosts >/dev/null || {
+            echo 'PROD host key is not pre-provisioned on the trusted Agency runner.' >&2
+            exit 1
+          }
 
       - name: Execute fixed read-only snapshot and cleanup proof
         env:
@@ -227,6 +229,8 @@ jobs:
           expected_keys="$(jq -r '.evidence.allowlist[]' "$profile" | sort)"
           actual_keys="$(cut -d= -f1 "$evidence" | sort)"
           test "$actual_keys" = "$expected_keys"
+          grep -Fxq 'snapshot_created=PASS' "$evidence"
+          grep -Fxq 'raw_material_mode=600' "$evidence"
           grep -Fxq 'prod_write_path=NONE' "$evidence"
           grep -Fxq 'preprod_path=NONE' "$evidence"
           grep -Fxq 'raw_prod_artifact_in_github=NONE' "$evidence"

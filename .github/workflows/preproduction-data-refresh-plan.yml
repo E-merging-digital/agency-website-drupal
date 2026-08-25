@@ -1,0 +1,103 @@
+name: PLAN PREPROD data refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Non-sensitive refresh request identifier
+        required: true
+        type: string
+      source_prod_release_sha:
+        description: Read-only observed PROD application release SHA
+        required: true
+        type: string
+      preprod_release_sha:
+        description: Read-only observed PREPROD application release SHA
+        required: true
+        type: string
+      preprod_disk_available_bytes:
+        description: Read-only observed PREPROD free bytes
+        required: true
+        type: string
+      estimated_staging_bytes:
+        description: Non-sensitive estimated bytes for future isolated staging
+        required: true
+        type: string
+      refresh_lock_state:
+        description: Read-only observed future refresh lock state
+        required: true
+        type: choice
+        options:
+          - FREE
+          - HELD
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-preprod-data-refresh-plan
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Validate metadata-only PREPROD refresh plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Require reviewed main tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/main'
+
+      - name: Checkout exact PLAN tooling
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate PLAN shell and policy syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/preproduction-refresh/plan.sh
+          jq -e . scripts/preproduction-refresh/sanitization-policy.json >/dev/null
+
+      - name: Run fail-closed PLAN
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          REPOSITORY_SHA: ${{ github.sha }}
+          SOURCE_PROD_RELEASE_SHA: ${{ inputs.source_prod_release_sha }}
+          PREPROD_RELEASE_SHA: ${{ inputs.preprod_release_sha }}
+          PREPROD_DISK_AVAILABLE_BYTES: ${{ inputs.preprod_disk_available_bytes }}
+          ESTIMATED_STAGING_BYTES: ${{ inputs.estimated_staging_bytes }}
+          REFRESH_LOCK_STATE: ${{ inputs.refresh_lock_state }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/preproduction-refresh/plan.sh PLAN
+
+      - name: Prove PLAN evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence='artifacts/preproduction-refresh-plan/plan.env'
+          test -f "$evidence"
+          test "$(stat -c '%a' "$evidence")" = '600'
+          grep -Fxq 'mode=PLAN' "$evidence"
+          grep -Fxq 'prod_write_path=NONE' "$evidence"
+          grep -Fxq 'real_prod_data_transfer=NONE' "$evidence"
+          grep -Fxq 'preprod_db_activation=NONE' "$evidence"
+          grep -Fxq 'raw_prod_data_in_github=NONE' "$evidence"
+          grep -Fxq 'apply_authority=NOT_AUTHORIZED' "$evidence"
+          test "$(find artifacts/preproduction-refresh-plan -type f | wc -l)" -eq 1
+
+      - name: Upload metadata-only PLAN evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-preprod-refresh-plan-${{ inputs.request_id }}
+          path: artifacts/preproduction-refresh-plan/plan.env
+          if-no-files-found: error
+          retention-days: 7

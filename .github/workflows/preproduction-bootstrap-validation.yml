@@ -6,12 +6,16 @@ on:
       - '.github/workflows/build-release-candidate.yml'
       - '.github/workflows/deploy-preproduction.yml'
       - '.github/workflows/preproduction-bootstrap-validation.yml'
+      - '.github/workflows/preproduction-data-refresh-plan.yml'
       - 'config/splits/preproduction/**'
       - 'config/sync/config_split.config_split.preproduction.yml'
+      - 'docs/operations/preproduction-data-refresh.md'
       - 'playwright.config.mjs'
       - 'scripts/preproduction/**'
+      - 'scripts/preproduction-refresh/**'
       - 'scripts/run-browser-validation.mjs'
       - 'tests/browser/**'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionDataRefreshPlanTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionHostBootstrapTest.php'
 
 permissions:
@@ -35,6 +39,8 @@ jobs:
           bash -n scripts/preproduction/inspect-deploy.sh
           bash -n scripts/preproduction/validate-runtime.sh
           bash -n scripts/preproduction/reconcile-basic-auth.sh
+          bash -n scripts/preproduction-refresh/plan.sh
+          jq -e . scripts/preproduction-refresh/sanitization-policy.json >/dev/null
           node --check playwright.config.mjs
           node --check tests/browser/public-blog.spec.mjs
       - name: Validate PREPROD templates and immutable deploy boundaries
@@ -84,3 +90,62 @@ jobs:
           ! grep -Fq "if (await toggle.isVisible())" tests/browser/public-blog.spec.mjs
           grep -Fq "const drawerLink = drawer.getByRole('link'" tests/browser/public-blog.spec.mjs
           grep -Fq "await expect(drawerLink).toBeVisible()" tests/browser/public-blog.spec.mjs
+      - name: Validate PREPROD data-refresh PLAN safety boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preproduction-data-refresh-plan.yml'
+          policy='scripts/preproduction-refresh/sanitization-policy.json'
+          script='scripts/preproduction-refresh/plan.sh'
+          sha="$(git rev-parse HEAD)"
+
+          grep -Fq 'workflow_dispatch:' "$workflow"
+          ! grep -Fq 'secrets.' "$workflow"
+          grep -Fq 'path: artifacts/preproduction-refresh-plan/plan.env' "$workflow"
+          ! grep -Fq '*.sql' "$workflow"
+          ! grep -Fq '*.sql.gz' "$workflow"
+          ! grep -Fq 'scp ' "$workflow"
+          ! grep -Fq 'ssh ' "$workflow"
+          ! grep -Fq 'rsync ' "$workflow"
+          ! grep -Fq 'sql:dump' "$workflow"
+
+          jq -e '.future_apply.implemented == false' "$policy" >/dev/null
+          jq -e '.future_apply.owner_authorization_required == true' "$policy" >/dev/null
+          jq -e '.github_evidence.raw_sql_allowed == false' "$policy" >/dev/null
+          jq -e '.github_evidence.pii_allowed == false' "$policy" >/dev/null
+          jq -e '.github_evidence.secrets_allowed == false' "$policy" >/dev/null
+
+          base_env=(
+            REQUEST_ID=ci-816-plan
+            REPOSITORY_SHA="$sha"
+            SOURCE_PROD_RELEASE_SHA="$sha"
+            PREPROD_RELEASE_SHA="$sha"
+            PREPROD_DISK_AVAILABLE_BYTES=3000
+            ESTIMATED_STAGING_BYTES=1000
+            REFRESH_LOCK_STATE=FREE
+          )
+
+          env "${base_env[@]}" bash "$script" PLAN
+          evidence='artifacts/preproduction-refresh-plan/plan.env'
+          test -f "$evidence"
+          grep -Fxq 'mode=PLAN' "$evidence"
+          grep -Fxq 'prod_write_path=NONE' "$evidence"
+          grep -Fxq 'real_prod_data_transfer=NONE' "$evidence"
+          grep -Fxq 'preprod_db_activation=NONE' "$evidence"
+          grep -Fxq 'raw_prod_data_in_github=NONE' "$evidence"
+          grep -Fxq 'apply_authority=NOT_AUTHORIZED' "$evidence"
+
+          if env "${base_env[@]}" bash "$script" APPLY; then
+            echo 'APPLY unexpectedly became executable.' >&2
+            exit 1
+          fi
+
+          if env "${base_env[@]}" REFRESH_LOCK_STATE=HELD bash "$script" PLAN; then
+            echo 'PLAN accepted an occupied refresh lock.' >&2
+            exit 1
+          fi
+
+          if env "${base_env[@]}" PREPROD_DISK_AVAILABLE_BYTES=2999 bash "$script" PLAN; then
+            echo 'PLAN accepted insufficient declared capacity.' >&2
+            exit 1
+          fi

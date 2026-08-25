@@ -40,6 +40,23 @@ if ((bool) \Drupal::config("config_split.config_split.preproduction")->get("stat
 if (\Drupal::config("google_tag.settings")->get("default_google_tag_entity") !== NULL) {
   throw new \RuntimeException("Google Tag is active in PREPROD.");
 }
+if (\Drupal::config("linkchecker.settings")->get("base_path") !== "preprod.emergingdigital.be") {
+  throw new \RuntimeException("Link Checker is not bound to the PREPROD canonical host.");
+}
+if ((bool) \Drupal::config("key.key.openai_api_key")->get("status") !== FALSE) {
+  throw new \RuntimeException("OpenAI Key entity is enabled in normal PREPROD.");
+}
+if (\Drupal\Core\Site\Settings::get("agency_external_ai_egress_enabled", NULL) !== FALSE) {
+  throw new \RuntimeException("External AI egress is not explicitly blocked in PREPROD.");
+}
+$key = getenv("OPENAI_API_KEY");
+if (is_string($key) && trim($key) !== "") {
+  throw new \RuntimeException("OPENAI_API_KEY is present in normal PREPROD runtime.");
+}
+$guard = \Drupal::service("emerging_digital_chatbot.future_ai_environment_guard");
+if ($guard->allowsExternalCalls()) {
+  throw new \RuntimeException("Chatbot Future AI guard allows external calls in PREPROD.");
+}
 '
 
 sendmail_path="$(php8.4 -r 'echo (string) ini_get("sendmail_path");')"
@@ -57,7 +74,7 @@ disk_used_percent="$(df -P "$PROJECT_ROOT" | awk 'NR == 2 {gsub(/%/, "", $5); pr
 oom_kill_count="$(awk '$1 == "oom_kill" {print $2}' /proc/vmstat 2>/dev/null || true)"
 oom_kill_count="${oom_kill_count:-0}"
 
-printf 'schema_version=1\n'
+printf 'schema_version=2\n'
 printf 'side_effects=PASS\n'
 printf 'automated_cron=OFF\n'
 printf 'mail_transport=NATIVE_NULL_CREDENTIALS\n'
@@ -65,6 +82,10 @@ printf 'php_sendmail_path=BIN_TRUE\n'
 printf 'production_config_split=OFF\n'
 printf 'preproduction_config_split=ON\n'
 printf 'google_tag=OFF\n'
+printf 'linkchecker_base_path=PREPROD\n'
+printf 'openai_key=ABSENT\n'
+printf 'external_ai_egress=BLOCKED\n'
+printf 'normal_openai_egress=ZERO_BY_POLICY\n'
 printf 'cpu_count=%s\n' "$cpu_count"
 printf 'mem_total_bytes=%s\n' "$mem_total_bytes"
 printf 'mem_available_bytes=%s\n' "$mem_available_bytes"

@@ -9,6 +9,7 @@ on:
       - 'config/sync/automated_cron.settings.yml'
       - 'config/splits/production/automated_cron.settings.yml'
       - 'config/splits/preproduction/automated_cron.settings.yml'
+      - 'scripts/production-promotion/reconcile-cron.sh'
       - 'docs/operations/environment-side-effects.md'
 
 permissions:
@@ -58,6 +59,10 @@ jobs:
           printf 'prod_current_release=PASS\n'
           [[ -x "$drush" ]]
           printf 'prod_drush=PASS\n'
+          command -v crontab >/dev/null 2>&1
+          printf 'prod_crontab_available=PASS\n'
+          command -v flock >/dev/null 2>&1
+          printf 'prod_flock_available=PASS\n'
 
           interval="$(
             cd "$current"
@@ -68,14 +73,11 @@ jobs:
           [[ "$interval" =~ ^[0-9]+$ ]]
           printf 'prod_automated_cron_interval=%s\n' "$interval"
 
-          user_cron_count=0
-          if command -v crontab >/dev/null 2>&1; then
-            user_cron_count="$(
-              (crontab -l 2>/dev/null || true) \
-                | grep -Eic '(^|[[:space:]])([^#]*)(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
-                || true
-            )"
-          fi
+          user_cron_count="$(
+            (crontab -l 2>/dev/null || true) \
+              | grep -Eic '(^|[[:space:]])([^#]*)(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
+              || true
+          )"
           user_cron_count="${user_cron_count:-0}"
           printf 'deploy_user_drush_cron_entries=%s\n' "$user_cron_count"
 

@@ -35,6 +35,12 @@ final class AiTranslationClient {
       return $text;
     }
 
+    if (Settings::get('agency_external_ai_egress_enabled', FALSE) !== TRUE) {
+      throw new \RuntimeException(
+        'External AI provider egress is disabled by the environment policy.',
+      );
+    }
+
     $config = $this->configFactory->get('agency_ai_translation.settings');
     $apiKey = $this->resolveApiKey();
     if ($apiKey === '') {

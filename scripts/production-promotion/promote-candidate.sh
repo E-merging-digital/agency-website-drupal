@@ -143,12 +143,13 @@ log "Preflight active production Drupal and database."
   vendor/bin/drush sql:query 'SELECT 1' >/dev/null
 )
 
-DB_BACKUP="$BACKUPS_DIR/db-${TIMESTAMP}-${EXPECTED_SHA:0:12}.sql.gz"
+DB_BACKUP_BASE="$BACKUPS_DIR/db-${TIMESTAMP}-${EXPECTED_SHA:0:12}.sql"
 log "Create pre-promotion database backup."
 (
   cd "$ACTIVE_RELEASE"
-  vendor/bin/drush sql:dump --gzip --result-file="$DB_BACKUP"
+  vendor/bin/drush sql:dump --gzip --result-file="$DB_BACKUP_BASE"
 )
+DB_BACKUP="${DB_BACKUP_BASE}.gz"
 [[ -s "$DB_BACKUP" ]] || fail "Database backup was not created."
 
 log "Enable maintenance mode on the active release."

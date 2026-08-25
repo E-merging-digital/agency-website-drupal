@@ -46,12 +46,19 @@ untagged_count="$(
 )"
 [[ "$untagged_count" == '0' ]] || fail 'An unmanaged deploy-user Drupal cron scheduler already exists.'
 
-printf '%s flock -n %s %s --root=%s/web cron -q %s\n' \
-  "$SCHEDULE" "$LOCK_FILE" "$DRUSH" "$CURRENT" "$MARKER" >> "$tmp"
+printf '%s cd %s && flock -n %s vendor/bin/drush cron -q %s\n' \
+  "$SCHEDULE" "$CURRENT" "$LOCK_FILE" "$MARKER" >> "$tmp"
 crontab "$tmp"
 
 marker_count="$(crontab -l | grep -Fc "$MARKER" || true)"
 [[ "$marker_count" == '1' ]] || fail 'Controlled Drupal cron entry did not converge to exactly one entry.'
+
+controlled_count="$(
+  crontab -l \
+    | grep -Eic '(drush|vendor/bin/drush)[[:space:]]+cron([[:space:]]|$)' \
+    || true
+)"
+[[ "$controlled_count" == '1' ]] || fail 'Drupal cron did not converge to exactly one deploy-user scheduler.'
 
 printf 'production_scheduler=DEPLOY_USER_CRONTAB\n'
 printf 'production_scheduler_entries=1\n'

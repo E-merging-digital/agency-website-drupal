@@ -194,6 +194,8 @@ final class AiTranslationRetainedGuardrailsTest extends BrowserTestBase {
       $httpClient,
       $this->container->get('logger.channel.agency_ai_translation'),
       $this->container->get('state'),
+      NULL,
+      TRUE,
     );
 
     return new AiTranslationManager(

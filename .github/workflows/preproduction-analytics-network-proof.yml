@@ -46,7 +46,7 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
-      - name: Prove real PREPROD emits zero GA4 traffic
+      - name: Prove real PREPROD emits zero GA4 traffic after consent
         shell: bash
         run: |
           set -euo pipefail
@@ -55,13 +55,15 @@ jobs:
           npm run browser:validate
           result='artifacts/browser-validation/result.json'
           test "$(jq -r '.result' "$result")" = 'PASS'
+          test "$(jq -r '[.projects[].checks.consent] | all(. == "PASS")' "$result")" = 'true'
           test "$(jq -r '[.projects[].checks.analytics] | all(. == "PASS")' "$result")" = 'true'
           test "$(jq -r '[.projects[].google_analytics_requests] | add' "$result")" = '0'
           test "$(jq -r '[.projects[].ga4_measurement_id_requests] | add' "$result")" = '0'
           test "$(jq -r '.console_errors' "$result")" = '0'
           test "$(jq -r '.page_errors' "$result")" = '0'
           test "$(jq -r '.http_5xx' "$result")" = '0'
-          printf 'GA_PREPROD_NETWORK=ZERO\n'
+          printf 'COOKIE_CONSENT_ACCEPTED=PASS\n'
+          printf 'GA_PREPROD_NETWORK_AFTER_CONSENT=ZERO\n'
           printf 'GA_PREPROD_MEASUREMENT_ID_REQUESTS=ZERO\n'
 
       - name: Upload non-sensitive browser proof

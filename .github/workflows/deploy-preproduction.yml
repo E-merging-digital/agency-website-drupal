@@ -120,13 +120,14 @@ jobs:
             scripts/preproduction/launch-deploy.sh \
             scripts/preproduction/inspect-deploy.sh \
             scripts/preproduction/validate-runtime.sh \
+            scripts/preproduction/reconcile-basic-auth.sh \
             artifacts/preproduction-candidate/agency-release-candidate.tar.gz \
             artifacts/preproduction-candidate/agency-release-candidate.tar.gz.sha256 \
             artifacts/preproduction-candidate/candidate.json \
             "$SERVER_USER@$SERVER_HOST:$remote_dir/"
 
           ssh "$SERVER_USER@$SERVER_HOST" \
-            "chmod 700 '$remote_dir/deploy-candidate.sh' '$remote_dir/launch-deploy.sh' '$remote_dir/inspect-deploy.sh' '$remote_dir/validate-runtime.sh'; chmod 600 '$remote_dir/agency-release-candidate.tar.gz' '$remote_dir/agency-release-candidate.tar.gz.sha256' '$remote_dir/candidate.json'"
+            "chmod 700 '$remote_dir/deploy-candidate.sh' '$remote_dir/launch-deploy.sh' '$remote_dir/inspect-deploy.sh' '$remote_dir/validate-runtime.sh' '$remote_dir/reconcile-basic-auth.sh'; chmod 600 '$remote_dir/agency-release-candidate.tar.gz' '$remote_dir/agency-release-candidate.tar.gz.sha256' '$remote_dir/candidate.json'"
 
       - name: Launch detached PREPROD worker
         env:
@@ -260,6 +261,33 @@ jobs:
             | tee artifacts/preproduction-validation/runtime.env
           grep -Fxq 'side_effects=PASS' artifacts/preproduction-validation/runtime.env
           grep -Fxq 'capacity_observed=PASS' artifacts/preproduction-validation/runtime.env
+
+      - name: Reconcile and validate PREPROD Basic Auth
+        env:
+          SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.PREPROD_SERVER_USER }}
+          REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+          BASIC_USER: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          BASIC_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$BASIC_USER"
+          test -n "$BASIC_PASSWORD"
+          mkdir -p artifacts/preproduction-validation
+          basic_user_b64="$(printf '%s' "$BASIC_USER" | base64 -w 0)"
+          basic_password_b64="$(printf '%s' "$BASIC_PASSWORD" | base64 -w 0)"
+          {
+            printf '%s\n' "$basic_user_b64"
+            printf '%s\n' "$basic_password_b64"
+          } | ssh \
+            -o ConnectTimeout=10 \
+            "$SERVER_USER@$SERVER_HOST" \
+            "'$REMOTE_DIR/reconcile-basic-auth.sh'" \
+            | tee artifacts/preproduction-validation/basic-auth.env
+          unset basic_user_b64 basic_password_b64
+          grep -Fxq 'basic_auth_credentials=PASS' \
+            artifacts/preproduction-validation/basic-auth.env
 
       - name: Validate direct health and protected HTTP smoke
         env:

@@ -29,7 +29,7 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
       $verifier,
     );
     self::assertStringContainsString(
-      "[[ \"$SCHEDULER_ACTION\" == 'VERIFY_ONLY' ]]",
+      '[[ "$SCHEDULER_ACTION" == \'VERIFY_ONLY\' ]]',
       $verifier,
     );
     self::assertStringContainsString(
@@ -96,10 +96,10 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
     }
 
     foreach ([
-      "CREATE)",
-      "UPDATE)",
-      "REMOVE)",
-      "[[ \"$AUTHORITY_KIND\" == 'OWNER_ISSUE_COMMENT' ]]",
+      'CREATE)',
+      'UPDATE)',
+      'REMOVE)',
+      '[[ "$AUTHORITY_KIND" == \'OWNER_ISSUE_COMMENT\' ]]',
       'AUTH_COMMENT_ID="${4:-}"',
       'AUTH_BODY_SHA256="${5:-}"',
       'Current production release identity differs from authorized identity.',
@@ -119,9 +119,9 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
     $mutator = $this->script('scripts/production-promotion/mutate-cron.sh');
 
     self::assertStringContainsString("RUNTIME_STATE='UNMANAGED'", $mutator);
-    self::assertStringContainsString("CREATE requires expected state ABSENT.", $mutator);
-    self::assertStringContainsString("UPDATE requires expected state MANAGED_DRIFT.", $mutator);
-    self::assertStringContainsString("REMOVE requires expected state CONTROLLED.", $mutator);
+    self::assertStringContainsString('CREATE requires expected state ABSENT.', $mutator);
+    self::assertStringContainsString('UPDATE requires expected state MANAGED_DRIFT.', $mutator);
+    self::assertStringContainsString('REMOVE requires expected state CONTROLLED.', $mutator);
     self::assertStringNotContainsString('CREATE:UNMANAGED', $mutator);
     self::assertStringNotContainsString('UPDATE:UNMANAGED', $mutator);
     self::assertStringNotContainsString('REMOVE:UNMANAGED', $mutator);
@@ -139,10 +139,13 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
       $workflow,
     );
     self::assertStringContainsString(
-      "! grep -Fq 'crontab \"$tmp\"' \"$verifier\"",
+      '! grep -Fq \'crontab "$tmp"\' "$verifier"',
       $workflow,
     );
-    self::assertStringNotContainsString('mutate-cron.sh\' <', $workflow);
+    self::assertStringNotContainsString(
+      'SCHEDULER_AUTHORITY_KIND=OWNER_ISSUE_COMMENT',
+      $workflow,
+    );
   }
 
   /**

@@ -40,8 +40,8 @@ vendor/bin/drush status --fields=bootstrap --format=string >/dev/null
 
 # Drush sql:dump invokes the database-specific logical dump client. The fixed
 # options provide a streaming, non-locking transactional snapshot for the
-# transactional tables used by Agency. No --result-file is provided: raw SQL is
-# emitted only to stdout and captured directly in trusted RUNNER_TEMP.
+# transactional tables used by Agency. No remote result file is configured:
+# raw SQL is emitted only to stdout and captured directly in trusted RUNNER_TEMP.
 exec vendor/bin/drush sql:dump \
   --no-interaction \
   --extra-dump='--single-transaction --quick --skip-lock-tables --no-tablespaces'

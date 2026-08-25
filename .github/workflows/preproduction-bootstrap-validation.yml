@@ -100,7 +100,7 @@ jobs:
           sha="$(git rev-parse HEAD)"
 
           grep -Fq 'workflow_dispatch:' "$workflow"
-          ! grep -Fq '${{ secrets.' "$workflow"
+          ! grep -Fq 'secrets.' "$workflow"
           grep -Fq 'path: artifacts/preproduction-refresh-plan/plan.env' "$workflow"
           ! grep -Fq '*.sql' "$workflow"
           ! grep -Fq '*.sql.gz' "$workflow"

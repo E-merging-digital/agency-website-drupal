@@ -24,6 +24,7 @@ final class AiTranslationClient {
     private readonly LoggerInterface $logger,
     private readonly StateInterface $state,
     private readonly ?KeyRepositoryInterface $keyRepository = NULL,
+    private readonly ?bool $externalEgressAllowed = NULL,
   ) {}
 
   /**
@@ -35,7 +36,9 @@ final class AiTranslationClient {
       return $text;
     }
 
-    if (Settings::get('agency_external_ai_egress_enabled', FALSE) !== TRUE) {
+    $externalEgressAllowed = $this->externalEgressAllowed
+      ?? Settings::get('agency_external_ai_egress_enabled', FALSE);
+    if ($externalEgressAllowed !== TRUE) {
       throw new \RuntimeException(
         'External AI provider egress is disabled by the environment policy.',
       );

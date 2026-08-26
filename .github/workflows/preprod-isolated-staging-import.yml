@@ -138,7 +138,8 @@ jobs:
           bash scripts/preproduction-staging-import/run-proof.sh PLAN
           evidence='artifacts/preprod-staging-import/evidence.env'
           grep -Fxq 'plan_result=PASS' "$evidence"
-          grep -Fxq 'apply_readiness=BLOCKED_PREPROD_PINNED_TRUST' "$evidence"
+          grep -Fxq 'apply_readiness=HUMAN_REQUIRED_REAL_APPLY' "$evidence"
+          grep -Fxq 'preprod_trust_model=PINNED_OUT_OF_BAND' "$evidence"
           grep -Fxq 'github_hosted_raw_path=NONE' "$evidence"
           grep -Fxq 'raw_github_artifact_path=NONE' "$evidence"
           grep -Fxq 'sanitization_path=NONE' "$evidence"
@@ -172,7 +173,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Fail closed until PREPROD out-of-band host trust is pinned
+      - name: Require PREPROD out-of-band host trust before data access
         shell: bash
         run: |
           set -euo pipefail

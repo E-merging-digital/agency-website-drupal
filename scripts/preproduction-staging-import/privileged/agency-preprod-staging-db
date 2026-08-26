@@ -1,0 +1,255 @@
+#!/usr/bin/python3 -I
+"""Root-only bounded MariaDB capability for Agency PREPROD staging imports."""
+from __future__ import annotations
+import hashlib
+import os
+import re
+import secrets
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+
+MARIADB_BIN = "/usr/bin/mariadb"
+HELPER_PATH = "/usr/local/sbin/agency-preprod-staging-db"
+RUNTIME_DB = "agency_preprod"
+STAGING_PREFIX = "agency_preprod_stage_"
+DB_USER_PREFIX = "agency_stage_"
+MAX_SNAPSHOT_BYTES = 1_099_511_627_776
+ALLOWED_ACTIONS = frozenset({"PRECHECK", "IMPORT", "CLEANUP", "VERIFY_ABSENCE"})
+REQUEST_RE = re.compile(r"^[A-Za-z0-9._-]{8,80}$")
+CLEAN_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/root", "LC_ALL": "C"}
+
+class ContractError(RuntimeError):
+    pass
+
+@dataclass(frozen=True)
+class Scope:
+    request_id: str
+    suffix: str
+    database: str
+    database_user: str
+    database_hash: str
+
+def derive_scope(request_id: str) -> Scope:
+    if not REQUEST_RE.fullmatch(request_id):
+        raise ContractError("Invalid request identity.")
+    suffix = hashlib.sha256(request_id.encode("utf-8")).hexdigest()[:12]
+    database = f"{STAGING_PREFIX}{suffix}"
+    database_user = f"{DB_USER_PREFIX}{suffix}"
+    if not re.fullmatch(r"agency_preprod_stage_[0-9a-f]{12}", database):
+        raise ContractError("Derived staging database is invalid.")
+    if database == RUNTIME_DB:
+        raise ContractError("Runtime database is outside privileged authority.")
+    if not re.fullmatch(r"agency_stage_[0-9a-f]{12}", database_user):
+        raise ContractError("Derived database user is invalid.")
+    database_hash = hashlib.sha256(database.encode("utf-8")).hexdigest()
+    return Scope(request_id, suffix, database, database_user, database_hash)
+
+def validate_snapshot_bytes(raw: str, action: str) -> int:
+    if not re.fullmatch(r"[0-9]+", raw):
+        raise ContractError("Invalid snapshot byte count.")
+    value = int(raw, 10)
+    if value > MAX_SNAPSHOT_BYTES:
+        raise ContractError("Snapshot byte count exceeds bounded policy.")
+    if action == "IMPORT" and value == 0:
+        raise ContractError("IMPORT requires a positive snapshot byte count.")
+    return value
+
+def root_sql(query: str) -> str:
+    result = subprocess.run(
+        [MARIADB_BIN, "--protocol=socket", "--batch", "--skip-column-names", "-e", query],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+        env=CLEAN_ENV,
+    )
+    if result.returncode != 0:
+        raise ContractError("Bounded MariaDB administrative operation failed.")
+    return result.stdout.strip()
+
+def schema_count(scope: Scope) -> int:
+    value = root_sql("SELECT COUNT(*) FROM information_schema.SCHEMATA " f"WHERE SCHEMA_NAME='{scope.database}'")
+    if not re.fullmatch(r"[0-9]+", value):
+        raise ContractError("Schema presence proof is invalid.")
+    return int(value, 10)
+
+def account_count(scope: Scope) -> int:
+    value = root_sql("SELECT COUNT(*) FROM mysql.user " f"WHERE User='{scope.database_user}' AND Host='localhost'")
+    if not re.fullmatch(r"[0-9]+", value):
+        raise ContractError("Ephemeral account presence proof is invalid.")
+    return int(value, 10)
+
+def table_count(scope: Scope) -> int:
+    value = root_sql("SELECT COUNT(*) FROM information_schema.TABLES " f"WHERE TABLE_SCHEMA='{scope.database}'")
+    if not re.fullmatch(r"[0-9]+", value):
+        raise ContractError("Table-count proof is invalid.")
+    return int(value, 10)
+
+def require_absent(scope: Scope) -> None:
+    if schema_count(scope) != 0 or account_count(scope) != 0:
+        raise ContractError("Derived staging scope is not absent.")
+
+def cleanup_scope(scope: Scope) -> None:
+    root_sql(f"DROP USER IF EXISTS '{scope.database_user}'@'localhost'")
+    root_sql(f"DROP DATABASE IF EXISTS `{scope.database}`")
+    require_absent(scope)
+
+def write_restricted_client_file(scope: Scope, password: str) -> str:
+    fd, path = tempfile.mkstemp(prefix=f"agency-preprod-stage-{scope.suffix}.", suffix=".cnf", dir="/run", text=True)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write("[client]\n")
+            stream.write(f"user={scope.database_user}\n")
+            stream.write(f"password={password}\n")
+            stream.write("protocol=socket\n")
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        raise
+    return path
+
+def import_bounded_stdin(scope: Scope, snapshot_bytes: int, client_file: str) -> None:
+    process = subprocess.Popen(
+        [MARIADB_BIN, f"--defaults-file={client_file}", "--protocol=socket", "--local-infile=0", f"--database={scope.database}"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=CLEAN_ENV,
+    )
+    if process.stdin is None:
+        process.kill()
+        process.wait()
+        raise ContractError("Restricted import stdin is unavailable.")
+    total = 0
+    failed = False
+    try:
+        while True:
+            chunk = sys.stdin.buffer.read(1024 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > snapshot_bytes or total > MAX_SNAPSHOT_BYTES:
+                failed = True
+                break
+            try:
+                process.stdin.write(chunk)
+            except BrokenPipeError:
+                failed = True
+                break
+    finally:
+        try:
+            process.stdin.close()
+        except BrokenPipeError:
+            failed = True
+    if failed:
+        process.kill()
+    returncode = process.wait()
+    if failed or total != snapshot_bytes or returncode != 0:
+        raise ContractError("Restricted staging import failed.")
+
+def prepare_import_scope(scope: Scope) -> str:
+    require_absent(scope)
+    password = secrets.token_hex(24)
+    root_sql(f"CREATE DATABASE `{scope.database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+    try:
+        root_sql(f"CREATE USER '{scope.database_user}'@'localhost' IDENTIFIED BY '{password}'")
+        root_sql(
+            "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, "
+            "INDEX, ALTER, CREATE VIEW, SHOW VIEW, TRIGGER, LOCK TABLES, "
+            "CREATE ROUTINE, ALTER ROUTINE, EXECUTE "
+            f"ON `{scope.database}`.* "
+            f"TO '{scope.database_user}'@'localhost'"
+        )
+    except BaseException:
+        cleanup_scope(scope)
+        raise
+    return password
+
+def action_precheck(scope: Scope) -> None:
+    root_sql("SELECT 1")
+    require_absent(scope)
+    print("staging_admin_capability=PASS")
+    print("staging_db_present=NO")
+
+def action_verify_absence(scope: Scope) -> None:
+    require_absent(scope)
+    print("staging_db_present_after_cleanup=NO")
+
+def action_cleanup(scope: Scope) -> None:
+    cleanup_scope(scope)
+    print("staging_db_present_after_cleanup=NO")
+
+def action_import(scope: Scope, snapshot_bytes: int) -> None:
+    password = prepare_import_scope(scope)
+    client_file = ""
+    imported = False
+    count = 0
+    cleanup_ok = False
+    try:
+        client_file = write_restricted_client_file(scope, password)
+        import_bounded_stdin(scope, snapshot_bytes, client_file)
+        count = table_count(scope)
+        if count <= 0:
+            raise ContractError("Imported staging schema proof failed.")
+        imported = True
+    finally:
+        if client_file:
+            try:
+                os.unlink(client_file)
+            except FileNotFoundError:
+                pass
+        try:
+            cleanup_scope(scope)
+            cleanup_ok = True
+        except ContractError:
+            cleanup_ok = False
+    if not cleanup_ok:
+        raise ContractError("Mandatory staging cleanup failed.")
+    if not imported:
+        raise ContractError("Restricted staging import did not complete.")
+    print("staging_import_result=PASS")
+    print(f"staging_db_id_hash={scope.database_hash}")
+    print("schema_proof=PASS")
+    print(f"safe_table_count={count}")
+    print("staging_db_present_after_cleanup=NO")
+
+def main(argv: list[str]) -> int:
+    if os.geteuid() != 0:
+        raise ContractError("Privileged helper must execute as root.")
+    if len(argv) != 4:
+        raise ContractError("Expected ACTION REQUEST_ID SNAPSHOT_BYTES only.")
+    action = argv[1]
+    if action not in ALLOWED_ACTIONS:
+        raise ContractError("Invalid fixed staging action.")
+    scope = derive_scope(argv[2])
+    snapshot_bytes = validate_snapshot_bytes(argv[3], action)
+    if not os.path.isfile(MARIADB_BIN) or not os.access(MARIADB_BIN, os.X_OK):
+        raise ContractError("Fixed MariaDB client is unavailable.")
+    if action == "PRECHECK":
+        action_precheck(scope)
+    elif action == "IMPORT":
+        action_import(scope, snapshot_bytes)
+    elif action == "CLEANUP":
+        action_cleanup(scope)
+    elif action == "VERIFY_ABSENCE":
+        action_verify_absence(scope)
+    else:
+        raise ContractError("Invalid fixed staging action.")
+    return 0
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv))
+    except ContractError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(80)

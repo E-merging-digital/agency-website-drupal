@@ -204,13 +204,15 @@ jobs:
           OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
           PROD_SSH_HOST: ${{ secrets.SERVER_HOST }}
           PROD_SSH_USER: ${{ secrets.SERVER_USER }}
-          PROD_SSH_KEY: ${{ env.AGENCY_834_PROD_SSH_KEY }}
           PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
           PREPROD_SSH_USER: ${{ secrets.PREPROD_SERVER_USER }}
-          PREPROD_SSH_KEY: ${{ env.AGENCY_834_PREPROD_SSH_KEY }}
         shell: bash
         run: |
           set -euo pipefail
+          test -n "${AGENCY_834_PROD_SSH_KEY:-}"
+          test -n "${AGENCY_834_PREPROD_SSH_KEY:-}"
+          export PROD_SSH_KEY="$AGENCY_834_PROD_SSH_KEY"
+          export PREPROD_SSH_KEY="$AGENCY_834_PREPROD_SSH_KEY"
           bash scripts/preproduction-staging-import/run-apply.sh
 
       - name: Remove transient SSH credentials

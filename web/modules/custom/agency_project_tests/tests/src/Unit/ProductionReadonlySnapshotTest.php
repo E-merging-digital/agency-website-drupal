@@ -144,21 +144,31 @@ final class ProductionReadonlySnapshotTest extends TestCase {
   }
 
   /**
-   * The trusted transport requires pre-provisioned host identity.
+   * The trusted transport requires the exact pinned host identity.
    */
   public function testTrustedTransportCannotBootstrapHostTrust(): void {
     $workflow = $this->workflow();
     $script = $this->lifecycleScript();
 
-    self::assertStringContainsString(
-      'Require pre-provisioned PROD host trust',
-      $workflow,
-    );
-    self::assertStringContainsString(
+    foreach ([
+      'Require exact pinned PROD host trust',
       'ssh-keygen -F "$SERVER_HOST"',
-      $workflow,
-    );
-    self::assertStringNotContainsString('ssh-keyscan', $workflow);
+      'scripts/production-ssh-trust/manage-known-host.sh VERIFY_ONLY',
+      'scripts/production-ssh-trust/prod-ed25519.pub',
+      'SHA256:Pflpbgh2vc9dUYe4fpXPxdwzhPqyy8vmbAOcS+BRLDQ',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    foreach ([
+      'ssh-keyscan',
+      'StrictHostKeyChecking=no',
+      'accept-new',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+      self::assertStringNotContainsString($forbidden, $script);
+    }
+
     self::assertStringContainsString(
       'StrictHostKeyChecking=yes',
       $script,

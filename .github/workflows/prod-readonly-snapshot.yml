@@ -155,6 +155,8 @@ jobs:
           bash -n scripts/production-readonly-snapshot/run-snapshot.sh
           bash -n scripts/production-readonly-snapshot/finalize-cleanup.sh
           bash -n scripts/production-readonly-snapshot/remote-stream.sh
+          bash -n scripts/production-ssh-trust/manage-known-host.sh
+          test "$(ssh-keygen -lf scripts/production-ssh-trust/prod-ed25519.pub -E sha256 | awk '{print $2}')" = 'SHA256:Pflpbgh2vc9dUYe4fpXPxdwzhPqyy8vmbAOcS+BRLDQ'
           command -v ssh
           command -v ssh-keygen
           command -v sha256sum
@@ -173,7 +175,7 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Require pre-provisioned PROD host trust
+      - name: Require exact pinned PROD host trust
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         shell: bash
@@ -185,6 +187,7 @@ jobs:
             echo 'PROD host key is not pre-provisioned on the trusted Agency runner.' >&2
             exit 1
           }
+          SERVER_HOST="$SERVER_HOST" bash scripts/production-ssh-trust/manage-known-host.sh VERIFY_ONLY
 
       - name: Execute fixed read-only snapshot and cleanup proof
         env:

@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "issue_number": 849,
+  "model": "FIXED_ROOT_OWNED_BOUNDED_HELPER",
+  "repository_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db",
+  "repository_digest_file": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256",
+  "installed_path": "/usr/local/sbin/agency-preprod-staging-db",
+  "installed_owner_uid": 0,
+  "installed_group_gid": 0,
+  "installed_mode": "0755",
+  "non_root_writable": false,
+  "sudo": {
+    "nopasswd_only_for_installed_path": true,
+    "direct_mariadb": "FORBIDDEN",
+    "generic_shell": "FORBIDDEN",
+    "setenv": "FORBIDDEN",
+    "sudo_password_secret": "FORBIDDEN"
+  },
+  "actions": [
+    "PRECHECK",
+    "IMPORT",
+    "CLEANUP",
+    "VERIFY_ABSENCE"
+  ],
+  "request_id": {
+    "regex": "^[A-Za-z0-9._-]{8,80}$",
+    "database_suffix": "SHA256_REQUEST_ID_FIRST_12_HEX",
+    "caller_database_name": "FORBIDDEN"
+  },
+  "snapshot_bytes": {
+    "caller_value_required": true,
+    "max": 1099511627776,
+    "import_stdin_must_equal_declared_bytes": true
+  },
+  "database_scope": {
+    "runtime_database": "agency_preprod",
+    "runtime_targetable": false,
+    "staging_prefix": "agency_preprod_stage_",
+    "staging_database_derived_in_helper": true,
+    "ephemeral_import_account_derived_in_helper": true,
+    "ephemeral_import_account_global_privileges": "NONE",
+    "import_database_privileges": "DERIVED_STAGING_DB_ONLY",
+    "local_infile": "DISABLED"
+  },
+  "caller_inputs": {
+    "sql_command": "FORBIDDEN",
+    "shell": "FORBIDDEN",
+    "executable": "FORBIDDEN",
+    "database_name": "FORBIDDEN",
+    "filesystem_path": "FORBIDDEN",
+    "host": "FORBIDDEN",
+    "credential": "FORBIDDEN",
+    "environment_override": "FORBIDDEN"
+  },
+  "cleanup": {
+    "import_finalizer": "MANDATORY",
+    "ephemeral_import_account": "MANDATORY",
+    "staging_database": "MANDATORY",
+    "independent_verify_absence": "MANDATORY"
+  },
+  "real_preprod_provisioning": "NOT_AUTHORIZED_IN_ISSUE_849_IMPLEMENTATION"
+}

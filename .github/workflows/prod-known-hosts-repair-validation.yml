@@ -68,8 +68,8 @@ jobs:
           read -r pinned_type pinned_blob _ < scripts/production-ssh-trust/prod-ed25519.pub
           tmp="$(mktemp -d)"
           trap 'rm -rf "$tmp"' EXIT
-          ssh-keygen -q -t ed25519 -N '' -f "$tmp/wrong" >/dev/null
-          read -r wrong_type wrong_blob _ < "$tmp/wrong.pub"
+          ssh-keygen -q -t ed25519 -N '' -f "$tmp/wrong-key" >/dev/null
+          read -r wrong_type wrong_blob _ < "$tmp/wrong-key.pub"
 
           make_home() {
             local name="$1"
@@ -121,14 +121,10 @@ jobs:
           HOME="$tmp/mixed" SERVER_HOST="$host" bash "$verify" VERIFY_ONLY >/dev/null
 
           # Wrong-only -> replace with pinned identity.
-          make_home wrong
-          printf '%s %s %s\n' "$host" "$wrong_type" "$wrong_blob" > "$tmp/wrong-home/.missing" 2>/dev/null || true
-          mkdir -p "$tmp/wrong-home/.ssh"
-          chmod 700 "$tmp/wrong-home/.ssh"
-          printf '%s %s %s\n' "$host" "$wrong_type" "$wrong_blob" > "$tmp/wrong-home/.ssh/known_hosts"
-          chmod 600 "$tmp/wrong-home/.ssh/known_hosts"
-          HOME="$tmp/wrong-home" SERVER_HOST="$host" bash "$repair" REPAIR >/dev/null
-          HOME="$tmp/wrong-home" SERVER_HOST="$host" bash "$verify" VERIFY_ONLY >/dev/null
+          make_home wrong-only
+          printf '%s %s %s\n' "$host" "$wrong_type" "$wrong_blob" > "$tmp/wrong-only/.ssh/known_hosts"
+          HOME="$tmp/wrong-only" SERVER_HOST="$host" bash "$repair" REPAIR >/dev/null
+          HOME="$tmp/wrong-only" SERVER_HOST="$host" bash "$verify" VERIFY_ONLY >/dev/null
 
           # Unrelated line remains byte-for-byte identical.
           make_home unrelated

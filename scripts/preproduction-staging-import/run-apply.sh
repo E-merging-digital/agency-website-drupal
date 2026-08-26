@@ -144,6 +144,15 @@ SNAPSHOT_SHA256="$(sha256sum "$raw" | awk '{print $1}')"
 [[ "$SNAPSHOT_SHA256" =~ ^[0-9a-f]{64}$ ]]
 rm -f -- "$prod_stderr"
 
+# Reject database/server-scoped statements before any transfer. The snapshot is
+# a fixed Drupal single-database dump; broader SQL authority is not allowed.
+if LC_ALL=C grep -Eiq \
+  '^[[:space:]]*(USE[[:space:]]|CREATE[[:space:]]+(DATABASE|SCHEMA|USER)[[:space:]]|DROP[[:space:]]+(DATABASE|SCHEMA|USER)[[:space:]]|ALTER[[:space:]]+(DATABASE|SCHEMA|USER)[[:space:]]|GRANT[[:space:]]|REVOKE[[:space:]]|SET[[:space:]]+GLOBAL[[:space:]]|FLUSH[[:space:]]|INSTALL[[:space:]]+PLUGIN[[:space:]]|UNINSTALL[[:space:]]+PLUGIN[[:space:]]|SHUTDOWN([[:space:]]|;|$))' \
+  "$raw"; then
+  echo 'Snapshot contains database/server-scoped SQL outside the fixed staging boundary.' >&2
+  exit 76
+fi
+
 # Re-check PREPROD capacity with the actual snapshot size before any import
 # helper is materialized on PREPROD.
 "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
@@ -162,7 +171,7 @@ if ! "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
   "'$remote_script' IMPORT '$REQUEST_ID' '$SNAPSHOT_BYTE_SIZE'" \
   < "$raw" > "$preprod_output" 2> "$preprod_stderr"; then
   echo 'Bounded PREPROD staging import failed; raw diagnostics are not emitted.' >&2
-  exit 76
+  exit 77
 fi
 TRANSFER_RESULT='PASS'
 STAGING_IMPORT_RESULT="$(sed -n 's/^staging_import_result=//p' "$preprod_output" | head -n1)"

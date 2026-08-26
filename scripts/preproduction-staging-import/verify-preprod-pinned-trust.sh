@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Shared fail-closed PREPROD host-trust gate for #834 and governed #851 provisioning.
 PROFILE='scripts/preproduction-staging-import/profile.json'
 KEY_FILE='scripts/preproduction-ssh-trust/preprod-ed25519.pub'
 FINGERPRINT_FILE='scripts/preproduction-ssh-trust/preprod-ed25519.sha256'

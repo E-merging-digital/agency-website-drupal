@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - '.github/workflows/prod-readonly-snapshot.yml'
+      - '.github/workflows/prod-pinned-trust-readonly-rebaseline.yml'
       - '.github/workflows/prod-ssh-trust-provision.yml'
       - '.github/workflows/prod-ssh-trust-validation.yml'
       - 'scripts/production-ssh-trust/**'
       - 'docs/operations/production-ssh-trust.md'
       - 'docs/operations/production-readonly-snapshot.md'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionPinnedTrustReadonlyRebaselineTest.php'
 
 permissions:
   contents: read
@@ -78,6 +80,51 @@ jobs:
           ! grep -Fq 'ssh ' "$workflow"
           ! grep -Fq 'scp ' "$workflow"
           ! grep -Fq 'rsync ' "$workflow"
+
+      - name: Prove read-only rebaseline is receipt-bound and fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/prod-pinned-trust-readonly-rebaseline.yml'
+          remote='scripts/production-ssh-trust/remote-readonly-rebaseline.sh'
+          bash -n "$remote"
+          grep -Fq 'github.event.issue.number == 832' "$workflow"
+          grep -Fq '/agency-prod-readonly-rebaseline prove ' "$workflow"
+          grep -Fq "RUNNER_NAME\" == 'agency-browser-runner-01'" "$workflow"
+          grep -Fq 'scripts/production-ssh-trust/manage-known-host.sh VERIFY_ONLY' "$workflow"
+          grep -Fq 'StrictHostKeyChecking=yes' "$workflow"
+          grep -Fq 'UserKnownHostsFile="$HOME/.ssh/known_hosts"' "$workflow"
+          grep -Fq 'IdentitiesOnly=yes' "$workflow"
+          grep -Fq 'agency-prod-readonly-rebaseline-${GITHUB_RUN_ID}.key' "$workflow"
+          grep -Fq 'rm -f -- "$AGENCY_PROD_READONLY_SSH_KEY"' "$workflow"
+          grep -Fq 'if: ${{ always() }}' "$workflow"
+          grep -Fq "PROJECT_ROOT='/var/www/agency'" "$remote"
+          grep -Fq 'CURRENT_RELEASE="$PROJECT_ROOT/current"' "$remote"
+          grep -Fq 'PROMOTIONS_DIR="$PROJECT_ROOT/shared/promotions"' "$remote"
+          grep -Fq "'^release_path='" "$remote"
+          grep -Fq "'^candidate_sha='" "$remote"
+          grep -Fq '[[ "$matched_receipts" -eq 1 ]]' "$remote"
+          grep -Fq 'ACTIVE_RELEASE_PATH=RESOLVED' "$remote"
+          grep -Fq 'PROMOTION_RECEIPT_MATCH_COUNT=1' "$remote"
+          grep -Fq 'PROD_DB_READ=NONE' "$remote"
+          grep -Fq 'PROD_WRITE=NONE' "$remote"
+          grep -Fq 'PREPROD_MUTATION=NONE' "$remote"
+          verify_line="$(grep -n -m1 'manage-known-host.sh VERIFY_ONLY' "$workflow" | cut -d: -f1)"
+          ssh_line="$(grep -n -m1 '^[[:space:]]*ssh ' "$workflow" | cut -d: -f1)"
+          test "$verify_line" -lt "$ssh_line"
+          ! grep -Fq 'ssh-keyscan' "$workflow"
+          ! grep -Fq 'StrictHostKeyChecking=no' "$workflow"
+          ! grep -Fq 'accept-new' "$workflow"
+          ! grep -Fq 'workflow_dispatch:' "$workflow"
+          ! grep -Fq 'drush ' "$workflow"
+          ! grep -Fq 'drush ' "$remote"
+          ! grep -Fq 'sql:' "$workflow"
+          ! grep -Fq 'sql:' "$remote"
+          ! grep -Fq 'git -C' "$remote"
+          ! grep -Fq 'deploy-production' "$workflow"
+          ! grep -Fq 'deploy-preproduction' "$workflow"
+          ! grep -Fq "printf 'server_host=" "$workflow"
+          ! grep -Fq "printf 'SERVER_HOST=" "$workflow"
 
       - name: Prove absent and wrong host identities fail closed
         shell: bash

@@ -46,6 +46,8 @@ shopt -u nullglob
   exit 69
 }
 
+printf 'ACTIVE_RELEASE_PATH=RESOLVED\n'
+printf 'PROMOTION_RECEIPT_MATCH_COUNT=1\n'
 printf 'ACTIVE_PROD_RELEASE_SHA=%s\n' "$actual_prod_release_sha"
 printf 'ACTIVE_PROD_RELEASE_MATCH=PASS\n'
 printf 'PROD_DB_READ=NONE\n'

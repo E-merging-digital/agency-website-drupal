@@ -14,7 +14,9 @@ fi
 [[ "$SNAPSHOT_BYTES" -le 1099511627776 ]] || { echo 'Snapshot byte count exceeds bounded policy.' >&2; exit 67; }
 
 PROJECT_ROOT='/var/www/agency-preprod'
+CURRENT_LINK="$PROJECT_ROOT/current"
 RUNTIME_SETTINGS="$PROJECT_ROOT/shared/settings/settings.php"
+ACTIVE_SETTINGS="$CURRENT_LINK/web/sites/default/settings.php"
 RUNTIME_DB='agency_preprod'
 suffix="$(printf '%s' "$REQUEST_ID" | sha256sum | awk '{print substr($1,1,12)}')"
 STAGING_DB="agency_preprod_stage_${suffix}"
@@ -23,8 +25,6 @@ IMPORT_STDERR="/var/tmp/agency-834-${suffix}.import.stderr"
 
 [[ "$STAGING_DB" =~ ^agency_preprod_stage_[0-9a-f]{12}$ ]]
 test -f "$RUNTIME_SETTINGS"
-grep -Fq "'database' => '$RUNTIME_DB'" "$RUNTIME_SETTINGS"
-! grep -Fq "'database' => '$STAGING_DB'" "$RUNTIME_SETTINGS"
 
 command -v sudo >/dev/null
 command -v mariadb >/dev/null
@@ -41,7 +41,10 @@ table_count() {
 }
 
 runtime_isolated() {
-  grep -Fq "'database' => '$RUNTIME_DB'" "$RUNTIME_SETTINGS" && \
+  test -L "$CURRENT_LINK" && \
+    test -L "$ACTIVE_SETTINGS" && \
+    [[ "$(readlink -f "$ACTIVE_SETTINGS")" == "$(readlink -f "$RUNTIME_SETTINGS")" ]] && \
+    grep -Fq "'database' => '$RUNTIME_DB'" "$RUNTIME_SETTINGS" && \
     ! grep -Fq "'database' => '$STAGING_DB'" "$RUNTIME_SETTINGS"
 }
 

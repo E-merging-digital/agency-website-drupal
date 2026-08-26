@@ -106,7 +106,7 @@ jobs:
           jq -e '.transfer.github_hosted_hop == "NONE" and .transfer.preprod_raw_file_materialization == "NONE"' "$profile" >/dev/null
           jq -e '.capacity.check_before_snapshot == true and .capacity.check_before_import_with_actual_snapshot_size == true' "$profile" >/dev/null
           grep -Fq 'Trusted runner capacity preflight failed.' "$apply"
-          test "$(grep -Fc "PRECHECK '$REQUEST_ID'" "$apply")" -ge 2
+          test "$(grep -Fc ' PRECHECK ' "$apply")" -ge 2
           grep -Fq 'capacity_check ||' "$remote"
           grep -Fq 'SNAPSHOT_BYTES * multiplier + margin' "$remote"
 

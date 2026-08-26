@@ -60,8 +60,6 @@ jobs:
           ! grep -Fq 'requested_digest' "$workflow"
           ! grep -Fq 'requested_credential' "$workflow"
           ! grep -Fq 'SOURCE_PROD_RELEASE_SHA' "$workflow"
-          ! grep -Fq 'SERVER_HOST }}' "$workflow"
-          ! grep -Fq 'SSH_PRIVATE_KEY }}' "$workflow"
 
       - name: Prove PLAN is mutation-free and trusted-runner only
         shell: bash

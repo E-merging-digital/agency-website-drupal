@@ -23,7 +23,9 @@ RUNNER_TEMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 [[ "$OPERATION_PROFILE" == "$PROFILE_ID" ]] || { echo 'Unexpected operation profile.' >&2; exit 68; }
 test -f "$PROFILE"
 jq -e --arg id "$PROFILE_ID" '.profile_id == $id and .issue_number == 834' "$PROFILE" >/dev/null
-jq -e '.preprod_trust.current_state == "UNPINNED_BLOCK_APPLY"' "$PROFILE" >/dev/null
+jq -e '.preprod_trust.current_state == "PINNED"' "$PROFILE" >/dev/null
+jq -e '.preprod_trust.trust_issue == 836 and .preprod_trust.trust_source == "OUT_OF_BAND_PREPROD_CONSOLE"' "$PROFILE" >/dev/null
+jq -e '.authority.first_real_apply == "HUMAN_REQUIRED_AFTER_PROJECT_LEAD_REVIEW"' "$PROFILE" >/dev/null
 jq -e '.transfer.encrypted_in_transit == true' "$PROFILE" >/dev/null
 jq -e '.execution.github_hosted_raw_prod_data == "FORBIDDEN"' "$PROFILE" >/dev/null
 
@@ -91,10 +93,10 @@ source_prod_release_sha=$SOURCE_PROD_RELEASE_SHA
 operation_profile=$OPERATION_PROFILE
 execution_mode=$MODE
 plan_result=PASS
-apply_readiness=BLOCKED_PREPROD_PINNED_TRUST
+apply_readiness=HUMAN_REQUIRED_REAL_APPLY
 trusted_runner_boundary=PASS
 prod_pinned_trust=REQUIRED
-preprod_trust_model=FAIL_CLOSED_UNPINNED
+preprod_trust_model=PINNED_OUT_OF_BAND
 encrypted_transfer_contract=PASS
 capacity_preflight=PASS
 snapshot_byte_size=$snapshot_byte_size
@@ -122,6 +124,7 @@ expected="$(jq -r '.evidence.allowlist[]' "$PROFILE" | sort)"
 actual="$(cut -d= -f1 "$evidence" | sort)"
 test "$expected" = "$actual"
 grep -Fxq 'plan_result=PASS' "$evidence"
-grep -Fxq 'preprod_trust_model=FAIL_CLOSED_UNPINNED' "$evidence"
+grep -Fxq 'apply_readiness=HUMAN_REQUIRED_REAL_APPLY' "$evidence"
+grep -Fxq 'preprod_trust_model=PINNED_OUT_OF_BAND' "$evidence"
 grep -Fxq 'raw_snapshot_present_after_cleanup=NO' "$evidence"
 grep -Fxq 'staging_db_present_after_cleanup=NO' "$evidence"

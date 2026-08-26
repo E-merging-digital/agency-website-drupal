@@ -1,0 +1,117 @@
+name: Validate PROD known_hosts marker fail-close
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/prod-known-hosts-marker-policy-validation.yml'
+      - 'scripts/production-ssh-trust/hash-safe-repair-known-hosts.sh'
+      - 'scripts/production-ssh-trust/manage-known-host.sh'
+      - 'scripts/production-ssh-trust/prod-ed25519.pub'
+      - 'scripts/production-ssh-trust/prod-ed25519.sha256'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-prod-known-hosts-marker-policy:
+    name: Prove #842 matching-marker fail-close before mutation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Prove marked matches fail closed and unrelated markers survive exactly
+        shell: bash
+        run: |
+          set -euo pipefail
+          repair="$GITHUB_WORKSPACE/scripts/production-ssh-trust/hash-safe-repair-known-hosts.sh"
+          verify="$GITHUB_WORKSPACE/scripts/production-ssh-trust/manage-known-host.sh"
+          host='prod.example.invalid'
+          unrelated='unrelated.example.invalid'
+          read -r pinned_type pinned_blob _ < scripts/production-ssh-trust/prod-ed25519.pub
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          ssh-keygen -q -t ed25519 -N '' -f "$tmp/wrong-ed25519" >/dev/null
+          read -r wrong_type wrong_blob _ < "$tmp/wrong-ed25519.pub"
+
+          make_home() {
+            local name="$1"
+            mkdir -p "$tmp/$name/.ssh"
+            chmod 700 "$tmp/$name/.ssh"
+            : > "$tmp/$name/.ssh/known_hosts"
+            chmod 600 "$tmp/$name/.ssh/known_hosts"
+          }
+
+          hashed_line() {
+            local hashed_host="$1" key_type="$2" key_blob="$3"
+            local seed
+            seed="$(mktemp "$tmp/hash-seed.XXXXXX")"
+            printf '%s %s %s\n' "$hashed_host" "$key_type" "$key_blob" > "$seed"
+            ssh-keygen -q -H -f "$seed" >/dev/null 2>&1
+            cat "$seed"
+            rm -f "$seed" "$seed.old"
+          }
+
+          assert_marked_fail_closed() {
+            local name="$1" line="$2"
+            local home="$tmp/$name" classification status
+            make_home "$name"
+            printf '%s\n' "$line" > "$home/.ssh/known_hosts"
+            cp "$home/.ssh/known_hosts" "$tmp/$name.before"
+
+            classification="$(HOME="$home" SERVER_HOST="$host" bash "$repair" CLASSIFY)"
+            grep -Fxq 'MARKED_MATCH_PRESENT_BEFORE=YES' <<< "$classification"
+            ! grep -Fq "$host" <<< "$classification"
+
+            set +e
+            HOME="$home" SERVER_HOST="$host" bash "$repair" REPAIR >/dev/null 2>&1
+            status=$?
+            set -e
+            test "$status" -eq 88
+            cmp -s "$tmp/$name.before" "$home/.ssh/known_hosts"
+            ! find "$home/.ssh" -maxdepth 1 -type f -name '.known_hosts.agency-842.*' -print -quit | grep -q .
+          }
+
+          revoked_plain="@revoked $host $wrong_type $wrong_blob"
+          assert_marked_fail_closed revoked-plain "$revoked_plain"
+
+          revoked_hashed="@revoked $(hashed_line "$host" "$wrong_type" "$wrong_blob")"
+          assert_marked_fail_closed revoked-hashed "$revoked_hashed"
+
+          cert_plain="@cert-authority $host $wrong_type $wrong_blob"
+          assert_marked_fail_closed cert-authority-plain "$cert_plain"
+
+          cert_hashed="@cert-authority $(hashed_line "$host" "$wrong_type" "$wrong_blob")"
+          assert_marked_fail_closed cert-authority-hashed "$cert_hashed"
+
+          unknown_plain="@future-marker $host $wrong_type $wrong_blob"
+          assert_marked_fail_closed unknown-marker "$unknown_plain"
+
+          # An unrelated marked record is not authority for SERVER_HOST and must
+          # be preserved byte-for-byte while the ordinary target is repaired.
+          make_home unrelated-marker
+          unrelated_marked="@revoked $unrelated $wrong_type $wrong_blob"
+          target_hashed="$(hashed_line "$host" "$wrong_type" "$wrong_blob")"
+          {
+            printf '%s\n' "$unrelated_marked"
+            printf '%s\n' "$target_hashed"
+          } > "$tmp/unrelated-marker/.ssh/known_hosts"
+          classification="$(HOME="$tmp/unrelated-marker" SERVER_HOST="$host" bash "$repair" CLASSIFY)"
+          grep -Fxq 'MARKED_MATCH_PRESENT_BEFORE=NO' <<< "$classification"
+          ! grep -Fq "$host" <<< "$classification"
+          HOME="$tmp/unrelated-marker" SERVER_HOST="$host" bash "$repair" REPAIR >/dev/null
+          grep -Fxq "$unrelated_marked" "$tmp/unrelated-marker/.ssh/known_hosts"
+          HOME="$tmp/unrelated-marker" SERVER_HOST="$host" bash "$verify" VERIFY_ONLY >/dev/null
+          grep -Fxq "$host $pinned_type $pinned_blob" "$tmp/unrelated-marker/.ssh/known_hosts"
+
+          printf '%s\n' \
+            'REVOKED_PLAIN_TEST=PASS' \
+            'REVOKED_HASHED_TEST=PASS' \
+            'CERT_AUTHORITY_PLAIN_TEST=PASS' \
+            'CERT_AUTHORITY_HASHED_TEST=PASS' \
+            'UNKNOWN_MARKER_TEST=PASS' \
+            'UNRELATED_MARKER_PRESERVATION=PASS' \
+            'MARKER_FAIL_CLOSED_BEFORE_MUTATION=PASS'

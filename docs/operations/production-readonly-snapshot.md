@@ -39,7 +39,9 @@ The PROD SSH host trust must already be provisioned in `~/.ssh/known_hosts` on t
 
 The reviewed operation profile is `scripts/production-readonly-snapshot/profile.json` with ID `agency-prod-readonly-snapshot-v1`.
 
-The trusted runner uses the repository-owned `remote-stream.sh` over SSH. The remote operation has one argument only: the expected 40-character PROD release SHA. It operates only against the fixed `/var/www/agency/current` release and first requires that `git rev-parse HEAD` equals the authorized PROD release SHA.
+The trusted runner uses the repository-owned `remote-stream.sh` over SSH. The remote operation has one argument only: the expected 40-character PROD release SHA. It operates only against the fixed `/var/www/agency/current` release.
+
+Release candidate payloads deliberately exclude `.git/`, so runtime identity is not derived from a Git checkout. The route resolves the real target of `/var/www/agency/current`, requires the production promotion-receipt directory, then requires exactly one durable promotion receipt whose `release_path` equals that resolved release. The receipt's `candidate_sha` must be a valid 40-character SHA and must exactly equal the authorized expected PROD release SHA. A missing, duplicate, invalid or mismatched receipt fails closed before the database snapshot starts.
 
 Database connection details come only from PROD server-owned Drupal settings through the fixed `vendor/bin/drush sql:dump` operation. No connection string is supplied by the request, and the route does not execute or print `sql:connect`, generic SQL, a database name, a table name or a user-provided dump option.
 

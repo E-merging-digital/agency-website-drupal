@@ -1,0 +1,282 @@
+name: Governed PROD pinned-trust read-only rebaseline
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-prod-readonly-rebaseline
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate fresh owner read-only rebaseline authority
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 832 &&
+        startsWith(github.event.comment.body, '/agency-prod-readonly-rebaseline prove ')
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      request_id: ${{ steps.authority.outputs.request_id }}
+      authority_comment_id: ${{ steps.authority.outputs.authority_comment_id }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      expected_prod_release_sha: ${{ steps.authority.outputs.expected_prod_release_sha }}
+    steps:
+      - name: Validate actor, one-shot request and live main
+        id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          AUTHORITY_COMMENT_ID: ${{ github.event.comment.id }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '832' ]]
+          [[ "$GITHUB_RUN_ATTEMPT" == '1' ]] || {
+            echo 'Read-only rebaseline authority cannot be replayed through a workflow rerun.' >&2
+            exit 1
+          }
+          [[ "$AUTHORITY_COMMENT_ID" =~ ^[0-9]+$ ]]
+
+          read -r command verb request_id requested_main expected_prod extra <<< "$TRIGGER_COMMENT"
+          [[ -z "${extra:-}" ]]
+          [[ "$command" == '/agency-prod-readonly-rebaseline' ]]
+          [[ "$verb" == 'prove' ]]
+          [[ "$request_id" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
+          [[ "$requested_main" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$expected_prod" =~ ^[0-9a-f]{40}$ ]]
+          expected="/agency-prod-readonly-rebaseline prove $request_id $requested_main $expected_prod"
+          [[ "$TRIGGER_COMMENT" == "$expected" ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/832")"
+          [[ "$(jq -r '.state' <<< "$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<< "$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<< "$issue_json")" == 'E-merging-digital' ]]
+
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$requested_main" == "$live_main" ]] || {
+            echo 'Requested main SHA is stale.' >&2
+            exit 1
+          }
+          [[ "$EVENT_DEFAULT_SHA" == "$live_main" ]] || {
+            echo 'Read-only rebaseline must execute tooling from live main.' >&2
+            exit 1
+          }
+
+          comments="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/832/comments?per_page=100" --jq '.[].body')"
+          request_prefix="/agency-prod-readonly-rebaseline prove $request_id "
+          match_count=0
+          while IFS= read -r body; do
+            if [[ "$body" == "$request_prefix"* ]]; then
+              match_count=$((match_count + 1))
+            fi
+          done <<< "$comments"
+          [[ "$match_count" -eq 1 ]] || {
+            echo 'request_id must be fresh and appear in exactly one owner authority comment.' >&2
+            exit 1
+          }
+
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "authority_comment_id=$AUTHORITY_COMMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$live_main" >> "$GITHUB_OUTPUT"
+          echo "expected_prod_release_sha=$expected_prod" >> "$GITHUB_OUTPUT"
+
+  rebaseline:
+    name: Prove PROD release and health through pinned trust
+    needs: validate-authority
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact trusted main tooling
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require exact Agency runner and pinned PROD trust
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]]
+          test "$(git rev-parse HEAD)" = '${{ needs.validate-authority.outputs.main_sha }}'
+          test -n "$SERVER_HOST"
+          bash -n scripts/production-ssh-trust/manage-known-host.sh
+          bash -n scripts/production-ssh-trust/remote-readonly-rebaseline.sh
+          SERVER_HOST="$SERVER_HOST" bash scripts/production-ssh-trust/manage-known-host.sh VERIFY_ONLY >/dev/null
+
+      - name: Configure transient read-only PROD SSH credential
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          key_path="$RUNNER_TEMP/agency-prod-readonly-rebaseline-${GITHUB_RUN_ID}.key"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          printf 'AGENCY_PROD_READONLY_SSH_KEY=%s\n' "$key_path" >> "$GITHUB_ENV"
+
+      - name: Prove active PROD release through fixed receipt-bound read-only operation
+        id: release
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          EXPECTED_PROD_RELEASE_SHA: ${{ needs.validate-authority.outputs.expected_prod_release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          [[ "$EXPECTED_PROD_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test -f "$AGENCY_PROD_READONLY_SSH_KEY"
+          test "$(stat -c '%a' "$AGENCY_PROD_READONLY_SSH_KEY")" = '600'
+          output="$(
+            ssh \
+              -i "$AGENCY_PROD_READONLY_SSH_KEY" \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o ConnectTimeout=10 \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              "$SERVER_USER@$SERVER_HOST" \
+              "bash -s -- '$EXPECTED_PROD_RELEASE_SHA'" \
+              < scripts/production-ssh-trust/remote-readonly-rebaseline.sh
+          )"
+          printf '%s\n' "$output"
+          active_sha="$(sed -n 's/^ACTIVE_PROD_RELEASE_SHA=//p' <<< "$output")"
+          [[ "$active_sha" == "$EXPECTED_PROD_RELEASE_SHA" ]]
+          grep -Fxq 'ACTIVE_RELEASE_PATH=RESOLVED' <<< "$output"
+          grep -Fxq 'PROMOTION_RECEIPT_MATCH_COUNT=1' <<< "$output"
+          grep -Fxq 'ACTIVE_PROD_RELEASE_MATCH=PASS' <<< "$output"
+          grep -Fxq 'PROD_DB_READ=NONE' <<< "$output"
+          grep -Fxq 'PROD_WRITE=NONE' <<< "$output"
+          grep -Fxq 'PROD_SCHEDULER_MUTATION=NONE' <<< "$output"
+          grep -Fxq 'PREPROD_MUTATION=NONE' <<< "$output"
+          echo "active_prod_release_sha=$active_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Remove transient SSH credential after read-only session
+        id: ssh-cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${AGENCY_PROD_READONLY_SSH_KEY:-}" ]]; then
+            rm -f -- "$AGENCY_PROD_READONLY_SSH_KEY"
+            test ! -e "$AGENCY_PROD_READONLY_SSH_KEY"
+          fi
+          echo 'ssh_credential_cleanup=PASS' >> "$GITHUB_OUTPUT"
+
+      - name: Prove current public live ready and smoke
+        id: public
+        shell: bash
+        run: |
+          set -euo pipefail
+          live_status="$(curl --silent --show-error --location --retry 3 --max-time 20 --output "$RUNNER_TEMP/agency-live.body" --write-out '%{http_code}' 'https://emergingdigital.be/health/live')"
+          ready_status="$(curl --silent --show-error --location --retry 3 --max-time 20 --output "$RUNNER_TEMP/agency-ready.body" --write-out '%{http_code}' 'https://emergingdigital.be/health/ready')"
+          smoke_status="$(curl --silent --show-error --location --retry 3 --max-time 20 --output /dev/null --write-out '%{http_code}' 'https://emergingdigital.be/fr/blog')"
+          [[ "$live_status" == '200' ]]
+          [[ "$ready_status" == '200' ]]
+          [[ "$smoke_status" == '200' ]]
+          test "$(tr -d '\r\n' < "$RUNNER_TEMP/agency-live.body")" = '{"status":"ok"}'
+          test "$(tr -d '\r\n' < "$RUNNER_TEMP/agency-ready.body")" = '{"status":"ok"}'
+          echo 'production_health_live=PASS' >> "$GITHUB_OUTPUT"
+          echo 'production_health_ready=PASS' >> "$GITHUB_OUTPUT"
+          echo 'production_smoke=PASS' >> "$GITHUB_OUTPUT"
+
+      - name: Write metadata-only rebaseline evidence
+        env:
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          AUTHORITY_COMMENT_ID: ${{ needs.validate-authority.outputs.authority_comment_id }}
+          REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          ACTIVE_PROD_RELEASE_SHA: ${{ steps.release.outputs.active_prod_release_sha }}
+          HEALTH_LIVE: ${{ steps.public.outputs.production_health_live }}
+          HEALTH_READY: ${{ steps.public.outputs.production_health_ready }}
+          SMOKE: ${{ steps.public.outputs.production_smoke }}
+          SSH_CREDENTIAL_CLEANUP: ${{ steps.ssh-cleanup.outputs.ssh_credential_cleanup }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/production-readonly-rebaseline
+          evidence='artifacts/production-readonly-rebaseline/evidence.env'
+          trust="$(SERVER_HOST="$SERVER_HOST" bash scripts/production-ssh-trust/manage-known-host.sh VERIFY_ONLY)"
+          {
+            printf 'schema_version=1\n'
+            printf 'request_id=%s\n' "$REQUEST_ID"
+            printf 'authority_comment_id=%s\n' "$AUTHORITY_COMMENT_ID"
+            printf 'repository_sha=%s\n' "$REPOSITORY_SHA"
+            printf 'runner=%s\n' "$RUNNER_NAME"
+            printf 'pinned_ssh_trust=PASS\n'
+            printf 'strict_host_key_checking=YES\n'
+            printf 'active_release_path=RESOLVED\n'
+            printf 'promotion_receipt_match_count=1\n'
+            printf 'active_prod_release_sha=%s\n' "$ACTIVE_PROD_RELEASE_SHA"
+            printf 'production_health_live=%s\n' "$HEALTH_LIVE"
+            printf 'production_health_ready=%s\n' "$HEALTH_READY"
+            printf 'production_smoke=%s\n' "$SMOKE"
+            printf 'ssh_credential_cleanup=%s\n' "$SSH_CREDENTIAL_CLEANUP"
+            printf '%s\n' "$trust"
+            printf 'real_prod_snapshot=NOT_PERFORMED\n'
+            printf 'prod_db_read=NONE\n'
+            printf 'prod_write=NONE\n'
+            printf 'prod_deploy=NONE\n'
+            printf 'prod_scheduler_mutation=NONE\n'
+            printf 'preprod_mutation=NONE\n'
+          } > "$evidence"
+          chmod 600 "$evidence"
+          grep -Fxq 'runner=agency-browser-runner-01' "$evidence"
+          grep -Fxq 'pinned_ssh_trust=PASS' "$evidence"
+          grep -Fxq 'strict_host_key_checking=YES' "$evidence"
+          grep -Fxq 'active_release_path=RESOLVED' "$evidence"
+          grep -Fxq 'promotion_receipt_match_count=1' "$evidence"
+          grep -Fxq 'ssh_credential_cleanup=PASS' "$evidence"
+          grep -Fxq 'ENTRY_COUNT_FOR_SERVER_HOST=1' "$evidence"
+          grep -Fxq 'KEY_TYPE=ssh-ed25519' "$evidence"
+          grep -Fxq 'KEY_BLOB_MATCH=PASS' "$evidence"
+          grep -Fxq 'FINGERPRINT=SHA256:Pflpbgh2vc9dUYe4fpXPxdwzhPqyy8vmbAOcS+BRLDQ' "$evidence"
+          grep -Fxq 'KNOWN_HOSTS_MATCH=PASS' "$evidence"
+          grep -Fxq 'real_prod_snapshot=NOT_PERFORMED' "$evidence"
+          grep -Fxq 'prod_db_read=NONE' "$evidence"
+          grep -Fxq 'prod_write=NONE' "$evidence"
+
+      - name: Upload metadata-only read-only rebaseline evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-prod-readonly-rebaseline-${{ needs.validate-authority.outputs.request_id }}-${{ github.run_id }}
+          path: artifacts/production-readonly-rebaseline/evidence.env
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Finalize transient read-only session material
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${AGENCY_PROD_READONLY_SSH_KEY:-}" ]]; then
+            rm -f -- "$AGENCY_PROD_READONLY_SSH_KEY"
+            test ! -e "$AGENCY_PROD_READONLY_SSH_KEY"
+          fi
+          rm -f -- "$RUNNER_TEMP/agency-live.body" "$RUNNER_TEMP/agency-ready.body"

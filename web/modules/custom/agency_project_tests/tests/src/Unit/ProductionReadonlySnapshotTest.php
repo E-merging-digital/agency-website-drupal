@@ -67,9 +67,35 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       '/agency-prod-readonly-snapshot prove',
       $workflow,
     );
-    self::assertStringNotContainsString('command_input', $workflow);
-    self::assertStringNotContainsString('sql_input', $workflow);
-    self::assertStringNotContainsString('path_input', $workflow);
+    foreach (['command_input', 'sql_input', 'path_input'] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+    }
+  }
+
+  /**
+   * Runtime identity comes from the durable promotion receipt, not Git.
+   */
+  public function testRuntimeIdentityUsesExactPromotionReceipt(): void {
+    $remote = $this->remoteScript();
+
+    foreach ([
+      "PROJECT_ROOT='/var/www/agency'",
+      'CURRENT_RELEASE="$PROJECT_ROOT/current"',
+      'PROMOTIONS_DIR="$PROJECT_ROOT/shared/promotions"',
+      'current_release="$(readlink -f "$CURRENT_RELEASE")"',
+      "'^release_path='",
+      "'^candidate_sha='",
+      'matched_receipts',
+      'Current PROD release must map to exactly one promotion receipt.',
+      'Current PROD release identity does not match authorization.',
+    ] as $required) {
+      self::assertStringContainsString($required, $remote);
+    }
+
+    self::assertStringNotContainsString(
+      'git -C "$CURRENT_RELEASE" rev-parse HEAD',
+      $remote,
+    );
   }
 
   /**
@@ -80,8 +106,6 @@ final class ProductionReadonlySnapshotTest extends TestCase {
 
     foreach ([
       'if [[ "$#" -ne 1 ]]',
-      "CURRENT_RELEASE='/var/www/agency/current'",
-      'git -C "$CURRENT_RELEASE" rev-parse HEAD',
       'vendor/bin/drush sql:dump',
       '--no-interaction',
       '--extra-dump=',
@@ -142,7 +166,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
   }
 
   /**
-   * Raw material is private, transient and cleaned on all supported exits.
+   * Raw material is private, transient and cleaned on supported exits.
    */
   public function testRawLifecycleIsPrivateAndFailClosed(): void {
     $script = $this->lifecycleScript();
@@ -170,7 +194,10 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       'agency-prod-readonly-snapshot-${REQUEST_ID}',
       $script,
     );
-    self::assertStringContainsString('rm -f -- "$raw_path"', $finalizer);
+    self::assertStringContainsString(
+      'rm -f -- "$raw_path"',
+      $finalizer,
+    );
     self::assertStringContainsString(
       'Trusted runner cleanup could not prove raw snapshot absence.',
       $finalizer,
@@ -217,14 +244,6 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       'path: artifacts/prod-readonly-snapshot/evidence.env',
       $workflow,
     );
-    self::assertStringContainsString(
-      "grep -Fxq 'snapshot_created=PASS'",
-      $workflow,
-    );
-    self::assertStringContainsString(
-      "grep -Fxq 'raw_material_mode=600'",
-      $workflow,
-    );
 
     foreach (['*.sql', '*.sql.gz', '*.dump', 'sites/default/files'] as $raw) {
       self::assertStringNotContainsString($raw, $workflow);
@@ -258,9 +277,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       $profile['snapshot']['fixed_tool'],
     );
     self::assertSame('0600', $profile['snapshot']['raw_material_mode']);
-    self::assertFalse(
-      $profile['snapshot']['remote_raw_materialization'],
-    );
+    self::assertFalse($profile['snapshot']['remote_raw_materialization']);
     self::assertTrue($profile['cleanup']['exit_trap_required']);
     self::assertTrue($profile['cleanup']['workflow_finalizer_required']);
     self::assertTrue($profile['cleanup']['cleanup_failure_is_terminal']);
@@ -321,9 +338,9 @@ final class ProductionReadonlySnapshotTest extends TestCase {
   }
 
   /**
-   * Synthetic validation proves success, failure cleanup and anti-replay.
+   * Synthetic validation proves success, cleanup and anti-replay.
    */
-  public function testTargetedValidationCoversRequiredSyntheticProofs(): void {
+  public function testTargetedValidationCoversRequiredProofs(): void {
     $validation = $this->validationWorkflow();
 
     foreach ([

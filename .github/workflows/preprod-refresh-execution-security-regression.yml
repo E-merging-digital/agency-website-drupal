@@ -1,0 +1,86 @@
+name: Validate #816 PREPROD refresh execution security regression
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-refresh-execution-security-regression.yml'
+      - '.github/workflows/preprod-isolated-staging-import-validation.yml'
+      - 'scripts/preproduction-staging-import/**'
+      - 'scripts/preproduction-refresh/**'
+      - 'scripts/production-readonly-snapshot/**'
+      - 'docs/operations/preproduction-data-refresh.md'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionDataRefreshPlanTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionReadonlySnapshotTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-security-regression:
+    name: Prove #816 execution and raw-data security boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SIMPLETEST_BASE_URL: http://127.0.0.1:8888
+      SIMPLETEST_DB: sqlite://localhost/tmp/simpletest.sqlite
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate static #816 invariants remain intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          doc='docs/operations/preproduction-data-refresh.md'
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          profile='scripts/preproduction-staging-import/profile.json'
+
+          grep -Fq 'RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN' "$doc"
+          grep -Fq 'prod_write_path=NONE' "$apply"
+          grep -Fq 'github_hosted_raw_path=NONE' "$apply"
+          grep -Fq 'raw_github_artifact_path=NONE' "$apply"
+          grep -Fq 'sanitization_path=NONE' "$apply"
+          grep -Fq 'activation_path=NONE' "$apply"
+          jq -e '.execution.github_hosted_raw_prod_data == "FORBIDDEN" and .execution.raw_github_artifact == "FORBIDDEN"' "$profile" >/dev/null
+          jq -e '.execution.prod_write_path == "NONE" and .execution.sanitization_path == "NONE" and .execution.activation_path == "NONE"' "$profile" >/dev/null
+          jq -e '.staging.runtime_must_never_point_to_staging == true' "$profile" >/dev/null
+          jq -e '.cleanup.workflow_finalizer_required == true and .cleanup.independent_absence_check_required == true' "$profile" >/dev/null
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+          extensions: sqlite3
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer/files
+          key: ${{ runner.os }}-composer-816-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-816-
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Run exact #816 unit regressions
+        run: |
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionDataRefreshPlanTest.php \
+            web/modules/custom/agency_project_tests/tests/src/Unit/ProductionReadonlySnapshotTest.php
+
+      - name: Emit bounded regression result
+        run: |
+          printf '%s\n' \
+            'RAW_PROD_GITHUB_HOSTED=FORBIDDEN' \
+            'PROD_WRITE_PATH=NONE' \
+            'SANITIZATION_PATH=NONE' \
+            'ACTIVATION_PATH=NONE' \
+            'PREPROD_RUNTIME_STAGING_ACTIVATION=NONE' \
+            'MANDATORY_CLEANUP=PASS' \
+            'ISSUE_816_EXECUTION_SECURITY_REGRESSION=PASS'

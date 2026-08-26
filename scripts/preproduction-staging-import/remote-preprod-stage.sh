@@ -5,39 +5,40 @@ umask 077
 ACTION="${1:-}"
 REQUEST_ID="${2:-}"
 SNAPSHOT_BYTES="${3:-}"
-if [[ "$#" -ne 3 ]] || [[ "$ACTION" != 'PRECHECK' && "$ACTION" != 'IMPORT' && "$ACTION" != 'CLEANUP' && "$ACTION" != 'VERIFY_ABSENCE' ]]; then
+EXPECTED_HELPER_SHA256="${4:-}"
+if [[ "$#" -ne 4 ]] || [[ "$ACTION" != 'PRECHECK' && "$ACTION" != 'IMPORT' && "$ACTION" != 'CLEANUP' && "$ACTION" != 'VERIFY_ABSENCE' ]]; then
   echo 'Invalid fixed staging action.' >&2
   exit 64
 fi
 [[ "$REQUEST_ID" =~ ^[A-Za-z0-9._-]{8,80}$ ]] || { echo 'Invalid request identity.' >&2; exit 65; }
 [[ "$SNAPSHOT_BYTES" =~ ^[0-9]+$ ]] || { echo 'Invalid snapshot byte count.' >&2; exit 66; }
 [[ "$SNAPSHOT_BYTES" -le 1099511627776 ]] || { echo 'Snapshot byte count exceeds bounded policy.' >&2; exit 67; }
+[[ "$EXPECTED_HELPER_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo 'Invalid repository helper digest.' >&2; exit 68; }
 
 PROJECT_ROOT='/var/www/agency-preprod'
 CURRENT_LINK="$PROJECT_ROOT/current"
 RUNTIME_SETTINGS="$PROJECT_ROOT/shared/settings/settings.php"
 ACTIVE_SETTINGS="$CURRENT_LINK/web/sites/default/settings.php"
 RUNTIME_DB='agency_preprod'
-suffix="$(printf '%s' "$REQUEST_ID" | sha256sum | awk '{print substr($1,1,12)}')"
-STAGING_DB="agency_preprod_stage_${suffix}"
-STAGING_DB_HASH="$(printf '%s' "$STAGING_DB" | sha256sum | awk '{print $1}')"
-IMPORT_STDERR="/var/tmp/agency-834-${suffix}.import.stderr"
+PRIVILEGED_HELPER='/usr/local/sbin/agency-preprod-staging-db'
 
-[[ "$STAGING_DB" =~ ^agency_preprod_stage_[0-9a-f]{12}$ ]]
 test -f "$RUNTIME_SETTINGS"
-
-command -v sudo >/dev/null
-command -v mariadb >/dev/null
-sudo -n mariadb --protocol=socket -Nse 'SELECT 1' >/dev/null
-
-schema_count() {
-  sudo -n mariadb --protocol=socket -Nse \
-    "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${STAGING_DB}'"
+test -f "$PRIVILEGED_HELPER"
+[[ ! -L "$PRIVILEGED_HELPER" ]] || { echo 'Privileged helper must not be a symlink.' >&2; exit 69; }
+helper_identity="$(stat -c '%u:%g:%a' "$PRIVILEGED_HELPER")"
+[[ "$helper_identity" == '0:0:755' ]] || {
+  echo 'Privileged helper owner/group/mode does not match repository contract.' >&2
+  exit 70
 }
+actual_helper_sha256="$(sha256sum "$PRIVILEGED_HELPER" | awk '{print $1}')"
+[[ "$actual_helper_sha256" == "$EXPECTED_HELPER_SHA256" ]] || {
+  echo 'Privileged helper digest does not match repository authority.' >&2
+  exit 71
+}
+command -v sudo >/dev/null
 
-table_count() {
-  sudo -n mariadb --protocol=socket -Nse \
-    "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='${STAGING_DB}'"
+run_helper() {
+  sudo -n -- "$PRIVILEGED_HELPER" "$ACTION" "$REQUEST_ID" "$SNAPSHOT_BYTES"
 }
 
 runtime_isolated() {
@@ -45,7 +46,7 @@ runtime_isolated() {
     test -L "$ACTIVE_SETTINGS" && \
     [[ "$(readlink -f "$ACTIVE_SETTINGS")" == "$(readlink -f "$RUNTIME_SETTINGS")" ]] && \
     grep -Fq "'database' => '$RUNTIME_DB'" "$RUNTIME_SETTINGS" && \
-    ! grep -Fq "'database' => '$STAGING_DB'" "$RUNTIME_SETTINGS"
+    ! grep -Fq "'database' => 'agency_preprod_stage_" "$RUNTIME_SETTINGS"
 }
 
 capacity_check() {
@@ -63,79 +64,62 @@ capacity_check() {
 
 case "$ACTION" in
   PRECHECK)
-    capacity_check || { echo 'PREPROD capacity preflight failed.' >&2; exit 68; }
-    runtime_isolated || { echo 'PREPROD runtime isolation preflight failed.' >&2; exit 69; }
+    capacity_check || { echo 'PREPROD capacity preflight failed.' >&2; exit 72; }
+    runtime_isolated || { echo 'PREPROD runtime isolation preflight failed.' >&2; exit 73; }
+    helper_out="$(run_helper)"
+    grep -Fxq 'staging_admin_capability=PASS' <<< "$helper_out"
+    grep -Fxq 'staging_db_present=NO' <<< "$helper_out"
     printf '%s\n' \
       'preprod_capacity=PASS' \
       'preprod_runtime_points_to_staging=NO' \
-      'staging_admin_capability=PASS'
+      'staging_admin_capability=PASS' \
+      'privileged_helper_identity=PASS' \
+      'privileged_helper_digest=PASS'
     ;;
 
   VERIFY_ABSENCE)
-    runtime_isolated || { echo 'PREPROD runtime isolation verification failed.' >&2; exit 70; }
-    [[ "$(schema_count)" == '0' ]] || { echo 'Unsanitized staging database is still present.' >&2; exit 71; }
+    runtime_isolated || { echo 'PREPROD runtime isolation verification failed.' >&2; exit 74; }
+    helper_out="$(run_helper)"
+    grep -Fxq 'staging_db_present_after_cleanup=NO' <<< "$helper_out"
     printf '%s\n' \
       'preprod_runtime_points_to_staging=NO' \
-      'staging_db_present_after_cleanup=NO'
+      'staging_db_present_after_cleanup=NO' \
+      'privileged_helper_identity=PASS' \
+      'privileged_helper_digest=PASS'
     ;;
 
   CLEANUP)
-    sudo -n mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`${STAGING_DB}\`;" >/dev/null
-    rm -f -- "$IMPORT_STDERR"
-    runtime_isolated || { echo 'PREPROD runtime isolation cleanup verification failed.' >&2; exit 72; }
-    [[ "$(schema_count)" == '0' ]] || { echo 'Staging cleanup failed.' >&2; exit 73; }
+    helper_out="$(run_helper)"
+    grep -Fxq 'staging_db_present_after_cleanup=NO' <<< "$helper_out"
+    runtime_isolated || { echo 'PREPROD runtime isolation cleanup verification failed.' >&2; exit 75; }
     printf '%s\n' \
       'preprod_runtime_points_to_staging=NO' \
-      'staging_db_present_after_cleanup=NO'
+      'staging_db_present_after_cleanup=NO' \
+      'privileged_helper_identity=PASS' \
+      'privileged_helper_digest=PASS'
     ;;
 
   IMPORT)
-    capacity_check || { echo 'PREPROD capacity preflight failed before import.' >&2; exit 74; }
-    runtime_isolated || { echo 'PREPROD runtime unexpectedly references staging.' >&2; exit 75; }
-    [[ "$(schema_count)" == '0' ]] || { echo 'Staging database already exists.' >&2; exit 76; }
+    [[ "$SNAPSHOT_BYTES" -gt 0 ]] || { echo 'IMPORT requires a positive snapshot byte count.' >&2; exit 76; }
+    capacity_check || { echo 'PREPROD capacity preflight failed before import.' >&2; exit 77; }
+    runtime_isolated || { echo 'PREPROD runtime unexpectedly references staging.' >&2; exit 78; }
 
-    cleanup_import() {
-      local original="$?"
-      local final="$original"
-      trap - EXIT HUP INT TERM
-      set +e
-      sudo -n mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`${STAGING_DB}\`;" >/dev/null 2>&1
-      local drop_status="$?"
-      rm -f -- "$IMPORT_STDERR"
-      if [[ "$drop_status" -ne 0 || "$(schema_count 2>/dev/null)" != '0' ]]; then
-        final=97
-      else
-        printf '%s\n' 'staging_db_present_after_cleanup=NO'
-      fi
-      if ! runtime_isolated; then
-        final=98
-      else
-        printf '%s\n' 'preprod_runtime_points_to_staging_after=NO'
-      fi
-      exit "$final"
-    }
-    trap cleanup_import EXIT
-    trap 'exit 129' HUP
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
+    # Raw SQL remains an encrypted stdin stream. The root helper never executes
+    # it as root: it imports through an ephemeral MariaDB account whose grants
+    # are limited to the request-derived staging database only.
+    helper_out="$(run_helper)"
+    grep -Fxq 'staging_import_result=PASS' <<< "$helper_out"
+    grep -Fxq 'schema_proof=PASS' <<< "$helper_out"
+    grep -Eq '^safe_table_count=[1-9][0-9]*$' <<< "$helper_out"
+    grep -Fxq 'staging_db_present_after_cleanup=NO' <<< "$helper_out"
 
-    sudo -n mariadb --protocol=socket -e \
-      "CREATE DATABASE \`${STAGING_DB}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" >/dev/null
-    : > "$IMPORT_STDERR"
-    chmod 600 "$IMPORT_STDERR"
-    if ! sudo -n mariadb --protocol=socket "$STAGING_DB" 2>"$IMPORT_STDERR"; then
-      echo 'Staging import failed; SQL diagnostics retained only transiently for cleanup.' >&2
-      exit 77
-    fi
-    count="$(table_count)"
-    [[ "$count" =~ ^[0-9]+$ && "$count" -gt 0 ]] || { echo 'Imported staging schema proof failed.' >&2; exit 78; }
     runtime_isolated || { echo 'PREPROD runtime points to staging after import.' >&2; exit 79; }
 
+    printf '%s\n' 'preprod_runtime_points_to_staging_before=NO'
+    printf '%s\n' "$helper_out"
     printf '%s\n' \
-      'preprod_runtime_points_to_staging_before=NO' \
-      'staging_import_result=PASS' \
-      "staging_db_id_hash=$STAGING_DB_HASH" \
-      'schema_proof=PASS' \
-      "safe_table_count=$count"
+      'preprod_runtime_points_to_staging_after=NO' \
+      'privileged_helper_identity=PASS' \
+      'privileged_helper_digest=PASS'
     ;;
 esac

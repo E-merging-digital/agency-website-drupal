@@ -6,6 +6,9 @@ PROFILE='scripts/preproduction-staging-import/profile.json'
 PROFILE_ID='agency-preprod-isolated-staging-import-v1'
 PROD_REMOTE='scripts/production-readonly-snapshot/remote-stream.sh'
 PREPROD_REMOTE='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+PREPROD_PRIVILEGED_HELPER_SOURCE='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+PREPROD_PRIVILEGED_HELPER_DIGEST='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256'
+PREPROD_PRIVILEGED_HELPER_PATH='/usr/local/sbin/agency-preprod-staging-db'
 
 REQUEST_ID="${REQUEST_ID:-}"
 REPOSITORY_SHA="${REPOSITORY_SHA:-}"
@@ -36,23 +39,33 @@ test -f "$PREPROD_SSH_KEY"
 test -f "$PROFILE"
 test -f "$PROD_REMOTE"
 test -f "$PREPROD_REMOTE"
+test -f "$PREPROD_PRIVILEGED_HELPER_SOURCE"
+test -f "$PREPROD_PRIVILEGED_HELPER_DIGEST"
 
-# Current #834 repository state deliberately blocks real APPLY until an
-# out-of-band PREPROD identity is pinned by a separate governed trust tranche.
 jq -e '.preprod_trust.current_state == "PINNED"' "$PROFILE" >/dev/null || {
   echo 'PREPROD pinned SSH trust is not established; real APPLY remains blocked.' >&2
   exit 73
 }
 
+expected_helper_sha256="$(cat "$PREPROD_PRIVILEGED_HELPER_DIGEST")"
+[[ "$expected_helper_sha256" =~ ^[0-9a-f]{64}$ ]] || {
+  echo 'Repository privileged-helper digest is invalid.' >&2
+  exit 74
+}
+actual_source_sha256="$(sha256sum "$PREPROD_PRIVILEGED_HELPER_SOURCE" | awk '{print $1}')"
+[[ "$actual_source_sha256" == "$expected_helper_sha256" ]] || {
+  echo 'Repository privileged-helper source does not match pinned digest.' >&2
+  exit 75
+}
+
 workspace_abs="$(realpath -m "$GITHUB_WORKSPACE")"
 temp_abs="$(realpath -m "$RUNNER_TEMP")"
-case "$temp_abs/" in "$workspace_abs/"*) echo 'RUNNER_TEMP must be outside repository workspace.' >&2; exit 74;; esac
+case "$temp_abs/" in "$workspace_abs/"*) echo 'RUNNER_TEMP must be outside repository workspace.' >&2; exit 76;; esac
 raw="$temp_abs/agency-834-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sql"
 prod_stderr="$temp_abs/agency-834-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.prod.stderr"
 preprod_output="$temp_abs/agency-834-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.preprod.out"
 preprod_stderr="$temp_abs/agency-834-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.preprod.stderr"
 remote_suffix="$(printf '%s' "$REQUEST_ID" | sha256sum | awk '{print substr($1,1,12)}')"
-remote_script="/var/tmp/agency-834-${remote_suffix}.sh"
 evidence_dir="$workspace_abs/artifacts/preprod-staging-import"
 evidence="$evidence_dir/evidence.env"
 
@@ -67,26 +80,24 @@ RAW_AFTER='UNKNOWN'
 STAGING_AFTER='UNKNOWN'
 RUNTIME_BEFORE='UNKNOWN'
 RUNTIME_AFTER='UNKNOWN'
-REMOTE_HELPER_UPLOADED=0
 STAGING_MAY_EXIST=0
 
 prod_ssh=(ssh -i "$PROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
 preprod_ssh=(ssh -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
-preprod_scp=(scp -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+
+preprod_action() {
+  local action="$1" bytes="$2"
+  "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
+    "bash -s -- '$action' '$REQUEST_ID' '$bytes' '$expected_helper_sha256'" < "$PREPROD_REMOTE"
+}
 
 remote_cleanup() {
-  [[ "$REMOTE_HELPER_UPLOADED" -eq 1 ]] || return 0
-  if [[ "$STAGING_MAY_EXIST" -eq 1 ]]; then
-    local absence
-    "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-      "'$remote_script' CLEANUP '$REQUEST_ID' 0" >/dev/null || return 1
-    absence="$("${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-      "'$remote_script' VERIFY_ABSENCE '$REQUEST_ID' 0")" || return 1
-    grep -Fxq 'staging_db_present_after_cleanup=NO' <<< "$absence" || return 1
-    grep -Fxq 'preprod_runtime_points_to_staging=NO' <<< "$absence" || return 1
-  fi
-  "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-    "rm -f -- '$remote_script'" >/dev/null || return 1
+  [[ "$STAGING_MAY_EXIST" -eq 1 ]] || return 0
+  local absence
+  preprod_action CLEANUP 0 >/dev/null || return 1
+  absence="$(preprod_action VERIFY_ABSENCE 0)" || return 1
+  grep -Fxq 'staging_db_present_after_cleanup=NO' <<< "$absence" || return 1
+  grep -Fxq 'preprod_runtime_points_to_staging=NO' <<< "$absence" || return 1
 }
 
 cleanup() {
@@ -106,9 +117,6 @@ cleanup() {
   if [[ "$STAGING_MAY_EXIST" -eq 1 && "$remote_status" -ne 0 ]]; then
     final=98
   fi
-  if [[ "$REMOTE_HELPER_UPLOADED" -eq 1 && "$remote_status" -ne 0 && "$final" -eq 0 ]]; then
-    final=99
-  fi
 
   exit "$final"
 }
@@ -125,13 +133,17 @@ PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/kno
 # Capacity preflight before any PROD DB read.
 runner_free="$(df -PB1 "$temp_abs" | awk 'NR==2 {print $4}')"
 runner_min="$(jq -r '.capacity.trusted_runner_min_free_bytes' "$PROFILE")"
-[[ "$runner_free" =~ ^[0-9]+$ && "$runner_free" -ge "$runner_min" ]] || { echo 'Trusted runner capacity preflight failed.' >&2; exit 75; }
+[[ "$runner_free" =~ ^[0-9]+$ && "$runner_free" -ge "$runner_min" ]] || { echo 'Trusted runner capacity preflight failed.' >&2; exit 77; }
 
-# PREPROD capacity/runtime precheck is streamed over SSH: no helper or raw data
-# is materialized remotely before the first capacity gate.
-"${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-  "bash -s -- PRECHECK '$REQUEST_ID' 0" < "$PREPROD_REMOTE" \
-  | grep -Fxq 'preprod_runtime_points_to_staging=NO'
+# Before any PROD DB read, PREPROD must prove that the fixed installed
+# privileged helper is root-owned, non-root-writable and byte-identical to the
+# repository-pinned #849 authority. PRECHECK performs no PREPROD DB mutation.
+first_precheck="$(preprod_action PRECHECK 0)"
+grep -Fxq 'preprod_capacity=PASS' <<< "$first_precheck"
+grep -Fxq 'preprod_runtime_points_to_staging=NO' <<< "$first_precheck"
+grep -Fxq 'staging_admin_capability=PASS' <<< "$first_precheck"
+grep -Fxq 'privileged_helper_identity=PASS' <<< "$first_precheck"
+grep -Fxq 'privileged_helper_digest=PASS' <<< "$first_precheck"
 
 : > "$raw"
 chmod 600 "$raw"
@@ -144,51 +156,51 @@ SNAPSHOT_SHA256="$(sha256sum "$raw" | awk '{print $1}')"
 [[ "$SNAPSHOT_SHA256" =~ ^[0-9a-f]{64}$ ]]
 rm -f -- "$prod_stderr"
 
-# Reject database/server-scoped statements before any transfer. The snapshot is
-# a fixed Drupal single-database dump; broader SQL authority is not allowed.
+# Reject database/server-scoped statements before any transfer. Defense in depth:
+# the privileged helper imports through an ephemeral MariaDB account whose
+# grants are limited to the internally-derived staging database.
 if LC_ALL=C grep -Eiq \
   '^[[:space:]]*(USE[[:space:]]|CREATE[[:space:]]+(DATABASE|SCHEMA|USER)[[:space:]]|DROP[[:space:]]+(DATABASE|SCHEMA|USER)[[:space:]]|ALTER[[:space:]]+(DATABASE|SCHEMA|USER)[[:space:]]|GRANT[[:space:]]|REVOKE[[:space:]]|SET[[:space:]]+GLOBAL[[:space:]]|FLUSH[[:space:]]|INSTALL[[:space:]]+PLUGIN[[:space:]]|UNINSTALL[[:space:]]+PLUGIN[[:space:]]|SHUTDOWN([[:space:]]|;|$))' \
   "$raw"; then
   echo 'Snapshot contains database/server-scoped SQL outside the fixed staging boundary.' >&2
-  exit 76
+  exit 78
 fi
 
-# Re-check PREPROD capacity with the actual snapshot size before any import
-# helper is materialized on PREPROD.
-"${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-  "bash -s -- PRECHECK '$REQUEST_ID' '$SNAPSHOT_BYTE_SIZE'" < "$PREPROD_REMOTE" \
-  | grep -Fxq 'preprod_capacity=PASS'
+# Re-check PREPROD capacity and exact installed helper identity with the actual
+# snapshot size before any import.
+actual_precheck="$(preprod_action PRECHECK "$SNAPSHOT_BYTE_SIZE")"
+grep -Fxq 'preprod_capacity=PASS' <<< "$actual_precheck"
+grep -Fxq 'preprod_runtime_points_to_staging=NO' <<< "$actual_precheck"
+grep -Fxq 'staging_admin_capability=PASS' <<< "$actual_precheck"
+grep -Fxq 'privileged_helper_identity=PASS' <<< "$actual_precheck"
+grep -Fxq 'privileged_helper_digest=PASS' <<< "$actual_precheck"
+RUNTIME_BEFORE='NO'
 
-# Only after both capacity gates may the fixed repository-owned helper be
-# materialized. Raw SQL itself is never materialized as a PREPROD file.
-"${preprod_scp[@]}" "$PREPROD_REMOTE" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST:$remote_script" >/dev/null
-REMOTE_HELPER_UPLOADED=1
-"${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "chmod 700 '$remote_script'"
-
-# Encrypted SSH stdin stream: no raw SQL file is created on PREPROD.
+# Encrypted SSH stdin stream: raw SQL is consumed only by the fixed #849 helper.
+# The deploy account supplies no DB name, SQL command, shell, executable, path,
+# host or credential to the privileged process.
 STAGING_MAY_EXIST=1
 if ! "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-  "'$remote_script' IMPORT '$REQUEST_ID' '$SNAPSHOT_BYTE_SIZE'" \
+  "sudo -n -- '$PREPROD_PRIVILEGED_HELPER_PATH' IMPORT '$REQUEST_ID' '$SNAPSHOT_BYTE_SIZE'" \
   < "$raw" > "$preprod_output" 2> "$preprod_stderr"; then
   echo 'Bounded PREPROD staging import failed; raw diagnostics are not emitted.' >&2
-  exit 77
+  exit 79
 fi
 TRANSFER_RESULT='PASS'
 STAGING_IMPORT_RESULT="$(sed -n 's/^staging_import_result=//p' "$preprod_output" | head -n1)"
 STAGING_DB_ID_HASH="$(sed -n 's/^staging_db_id_hash=//p' "$preprod_output" | head -n1)"
 SCHEMA_PROOF="$(sed -n 's/^schema_proof=//p' "$preprod_output" | head -n1)"
 SAFE_TABLE_COUNT="$(sed -n 's/^safe_table_count=//p' "$preprod_output" | head -n1)"
-RUNTIME_BEFORE="$(sed -n 's/^preprod_runtime_points_to_staging_before=//p' "$preprod_output" | head -n1)"
-RUNTIME_AFTER="$(sed -n 's/^preprod_runtime_points_to_staging_after=//p' "$preprod_output" | tail -n1)"
 STAGING_AFTER="$(sed -n 's/^staging_db_present_after_cleanup=//p' "$preprod_output" | tail -n1)"
 [[ "$STAGING_IMPORT_RESULT" == 'PASS' && "$SCHEMA_PROOF" == 'PASS' ]]
 [[ "$SAFE_TABLE_COUNT" =~ ^[0-9]+$ && "$SAFE_TABLE_COUNT" -gt 0 ]]
-[[ "$RUNTIME_BEFORE" == 'NO' && "$RUNTIME_AFTER" == 'NO' && "$STAGING_AFTER" == 'NO' ]]
+[[ "$STAGING_AFTER" == 'NO' ]]
 rm -f -- "$preprod_output" "$preprod_stderr"
 
-# Independent idempotent cleanup and absence proof.
-"${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "'$remote_script' CLEANUP '$REQUEST_ID' 0" >/dev/null
-absence="$("${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "'$remote_script' VERIFY_ABSENCE '$REQUEST_ID' 0")"
+# Independent idempotent cleanup and absence proof remain mandatory even though
+# IMPORT itself has a privileged finalizer.
+preprod_action CLEANUP 0 >/dev/null
+absence="$(preprod_action VERIFY_ABSENCE 0)"
 grep -Fxq 'staging_db_present_after_cleanup=NO' <<< "$absence"
 grep -Fxq 'preprod_runtime_points_to_staging=NO' <<< "$absence"
 STAGING_AFTER='NO'
@@ -198,8 +210,6 @@ STAGING_MAY_EXIST=0
 rm -f -- "$raw"
 test ! -e "$raw"
 RAW_AFTER='NO'
-"${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "rm -f -- '$remote_script'"
-REMOTE_HELPER_UPLOADED=0
 
 mkdir -p "$evidence_dir"
 cat > "$evidence.tmp" <<EOF

@@ -66,7 +66,22 @@
     "vhost_mutation": "NONE",
     "symlink_mutation": "NONE",
     "runtime_secret_mutation": "NONE",
-    "server_admin_capability": "sudo -n mariadb --protocol=socket"
+    "server_admin_capability": {
+      "model": "FIXED_ROOT_OWNED_BOUNDED_HELPER",
+      "issue": 849,
+      "installed_path": "/usr/local/sbin/agency-preprod-staging-db",
+      "repository_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db",
+      "repository_digest_file": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256",
+      "required_owner_uid": 0,
+      "required_group_gid": 0,
+      "required_mode": "0755",
+      "direct_sudo_mariadb": "FORBIDDEN",
+      "generic_sql_executor": "FORBIDDEN",
+      "generic_shell": "FORBIDDEN",
+      "caller_database_name": "FORBIDDEN",
+      "import_scope": "DERIVED_STAGING_DB_ONLY",
+      "real_preprod_provisioning": "SEPARATE_OWNER_AUTHORIZATION_REQUIRED"
+    }
   },
   "cleanup": {
     "raw_snapshot_required": true,

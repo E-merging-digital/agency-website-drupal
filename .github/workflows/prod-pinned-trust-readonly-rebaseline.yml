@@ -134,10 +134,10 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SSH_PRIVATE_KEY"
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          key_path="$RUNNER_TEMP/agency-prod-readonly-rebaseline-${GITHUB_RUN_ID}.key"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          printf 'AGENCY_PROD_READONLY_SSH_KEY=%s\n' "$key_path" >> "$GITHUB_ENV"
 
       - name: Prove active PROD release through fixed receipt-bound read-only operation
         id: release
@@ -151,8 +151,12 @@ jobs:
           test -n "$SERVER_HOST"
           test -n "$SERVER_USER"
           [[ "$EXPECTED_PROD_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test -f "$AGENCY_PROD_READONLY_SSH_KEY"
+          test "$(stat -c '%a' "$AGENCY_PROD_READONLY_SSH_KEY")" = '600'
           output="$(
             ssh \
+              -i "$AGENCY_PROD_READONLY_SSH_KEY" \
+              -o IdentitiesOnly=yes \
               -o BatchMode=yes \
               -o ConnectTimeout=10 \
               -o StrictHostKeyChecking=yes \
@@ -164,12 +168,26 @@ jobs:
           printf '%s\n' "$output"
           active_sha="$(sed -n 's/^ACTIVE_PROD_RELEASE_SHA=//p' <<< "$output")"
           [[ "$active_sha" == "$EXPECTED_PROD_RELEASE_SHA" ]]
+          grep -Fxq 'ACTIVE_RELEASE_PATH=RESOLVED' <<< "$output"
+          grep -Fxq 'PROMOTION_RECEIPT_MATCH_COUNT=1' <<< "$output"
           grep -Fxq 'ACTIVE_PROD_RELEASE_MATCH=PASS' <<< "$output"
           grep -Fxq 'PROD_DB_READ=NONE' <<< "$output"
           grep -Fxq 'PROD_WRITE=NONE' <<< "$output"
           grep -Fxq 'PROD_SCHEDULER_MUTATION=NONE' <<< "$output"
           grep -Fxq 'PREPROD_MUTATION=NONE' <<< "$output"
           echo "active_prod_release_sha=$active_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Remove transient SSH credential after read-only session
+        id: ssh-cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${AGENCY_PROD_READONLY_SSH_KEY:-}" ]]; then
+            rm -f -- "$AGENCY_PROD_READONLY_SSH_KEY"
+            test ! -e "$AGENCY_PROD_READONLY_SSH_KEY"
+          fi
+          echo 'ssh_credential_cleanup=PASS' >> "$GITHUB_OUTPUT"
 
       - name: Prove current public live ready and smoke
         id: public
@@ -197,6 +215,7 @@ jobs:
           HEALTH_LIVE: ${{ steps.public.outputs.production_health_live }}
           HEALTH_READY: ${{ steps.public.outputs.production_health_ready }}
           SMOKE: ${{ steps.public.outputs.production_smoke }}
+          SSH_CREDENTIAL_CLEANUP: ${{ steps.ssh-cleanup.outputs.ssh_credential_cleanup }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
         shell: bash
         run: |
@@ -210,10 +229,15 @@ jobs:
             printf 'authority_comment_id=%s\n' "$AUTHORITY_COMMENT_ID"
             printf 'repository_sha=%s\n' "$REPOSITORY_SHA"
             printf 'runner=%s\n' "$RUNNER_NAME"
+            printf 'pinned_ssh_trust=PASS\n'
+            printf 'strict_host_key_checking=YES\n'
+            printf 'active_release_path=RESOLVED\n'
+            printf 'promotion_receipt_match_count=1\n'
             printf 'active_prod_release_sha=%s\n' "$ACTIVE_PROD_RELEASE_SHA"
             printf 'production_health_live=%s\n' "$HEALTH_LIVE"
             printf 'production_health_ready=%s\n' "$HEALTH_READY"
             printf 'production_smoke=%s\n' "$SMOKE"
+            printf 'ssh_credential_cleanup=%s\n' "$SSH_CREDENTIAL_CLEANUP"
             printf '%s\n' "$trust"
             printf 'real_prod_snapshot=NOT_PERFORMED\n'
             printf 'prod_db_read=NONE\n'
@@ -224,6 +248,11 @@ jobs:
           } > "$evidence"
           chmod 600 "$evidence"
           grep -Fxq 'runner=agency-browser-runner-01' "$evidence"
+          grep -Fxq 'pinned_ssh_trust=PASS' "$evidence"
+          grep -Fxq 'strict_host_key_checking=YES' "$evidence"
+          grep -Fxq 'active_release_path=RESOLVED' "$evidence"
+          grep -Fxq 'promotion_receipt_match_count=1' "$evidence"
+          grep -Fxq 'ssh_credential_cleanup=PASS' "$evidence"
           grep -Fxq 'ENTRY_COUNT_FOR_SERVER_HOST=1' "$evidence"
           grep -Fxq 'KEY_TYPE=ssh-ed25519' "$evidence"
           grep -Fxq 'KEY_BLOB_MATCH=PASS' "$evidence"
@@ -241,10 +270,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Remove transient SSH credential and probe bodies
+      - name: Finalize transient read-only session material
         if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
-          rm -f ~/.ssh/id_ed25519 "$RUNNER_TEMP/agency-live.body" "$RUNNER_TEMP/agency-ready.body"
-          test ! -e ~/.ssh/id_ed25519
+          if [[ -n "${AGENCY_PROD_READONLY_SSH_KEY:-}" ]]; then
+            rm -f -- "$AGENCY_PROD_READONLY_SSH_KEY"
+            test ! -e "$AGENCY_PROD_READONLY_SSH_KEY"
+          fi
+          rm -f -- "$RUNNER_TEMP/agency-live.body" "$RUNNER_TEMP/agency-ready.body"

@@ -92,7 +92,8 @@ case "$ACTION" in
     [[ "$(schema_count)" == '0' ]] || { echo 'Staging database already exists.' >&2; exit 76; }
 
     cleanup_import() {
-      local original="$?" final="$?"
+      local original="$?"
+      local final="$original"
       trap - EXIT HUP INT TERM
       set +e
       sudo -n mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`${STAGING_DB}\`;" >/dev/null 2>&1
@@ -107,9 +108,6 @@ case "$ACTION" in
         final=98
       else
         printf '%s\n' 'preprod_runtime_points_to_staging_after=NO'
-      fi
-      if [[ "$original" -ne 0 && "$final" -eq 0 ]]; then
-        final="$original"
       fi
       exit "$final"
     }

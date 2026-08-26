@@ -71,13 +71,16 @@ jobs:
           [[ "$EVENT_DEFAULT_SHA" == "$live_main" ]]
 
           comments="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/834/comments?per_page=100" --jq '.[].body')"
-          request_prefix="/agency-preprod-staging-import $mode $request_id "
+          plan_prefix="/agency-preprod-staging-import plan $request_id "
+          apply_prefix="/agency-preprod-staging-import apply $request_id "
           count=0
           while IFS= read -r body; do
-            [[ "$body" == "$request_prefix"* ]] && count=$((count + 1)) || true
+            if [[ "$body" == "$plan_prefix"* || "$body" == "$apply_prefix"* ]]; then
+              count=$((count + 1))
+            fi
           done <<< "$comments"
           [[ "$count" -eq 1 ]] || {
-            echo 'request_id must be fresh and occur in exactly one matching owner authority comment.' >&2
+            echo 'request_id must be fresh and occur in exactly one #834 owner authority comment across all modes.' >&2
             exit 1
           }
 

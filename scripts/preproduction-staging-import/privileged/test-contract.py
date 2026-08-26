@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import pathlib
 import re
+import sys
 from importlib.machinery import SourceFileLoader
 
 ROOT = pathlib.Path(__file__).resolve().parent
@@ -16,6 +17,7 @@ loader = SourceFileLoader("agency_preprod_staging_db", str(HELPER))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 assert spec is not None
 module = importlib.util.module_from_spec(spec)
+sys.modules[loader.name] = module
 loader.exec_module(module)
 
 source = HELPER.read_text(encoding="utf-8")

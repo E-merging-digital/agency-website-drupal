@@ -1,10 +1,12 @@
 #!/usr/bin/python3 -I
 """Root-only bounded MariaDB capability for Agency PREPROD staging imports."""
 from __future__ import annotations
+
 import hashlib
 import os
 import re
 import secrets
+import signal
 import subprocess
 import sys
 import tempfile
@@ -20,8 +22,10 @@ ALLOWED_ACTIONS = frozenset({"PRECHECK", "IMPORT", "CLEANUP", "VERIFY_ABSENCE"})
 REQUEST_RE = re.compile(r"^[A-Za-z0-9._-]{8,80}$")
 CLEAN_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/root", "LC_ALL": "C"}
 
+
 class ContractError(RuntimeError):
     pass
+
 
 @dataclass(frozen=True)
 class Scope:
@@ -30,6 +34,7 @@ class Scope:
     database: str
     database_user: str
     database_hash: str
+
 
 def derive_scope(request_id: str) -> Scope:
     if not REQUEST_RE.fullmatch(request_id):
@@ -46,6 +51,7 @@ def derive_scope(request_id: str) -> Scope:
     database_hash = hashlib.sha256(database.encode("utf-8")).hexdigest()
     return Scope(request_id, suffix, database, database_user, database_hash)
 
+
 def validate_snapshot_bytes(raw: str, action: str) -> int:
     if not re.fullmatch(r"[0-9]+", raw):
         raise ContractError("Invalid snapshot byte count.")
@@ -56,10 +62,14 @@ def validate_snapshot_bytes(raw: str, action: str) -> int:
         raise ContractError("IMPORT requires a positive snapshot byte count.")
     return value
 
+
 def root_sql(query: str) -> str:
+    # SQL is internally constructed only. Pass it on stdin so even the
+    # ephemeral password used in CREATE USER never appears in process argv.
     result = subprocess.run(
-        [MARIADB_BIN, "--protocol=socket", "--batch", "--skip-column-names", "-e", query],
-        stdin=subprocess.DEVNULL,
+        [MARIADB_BIN, "--protocol=socket", "--batch", "--skip-column-names"],
+        input=query + "\n",
+        stdin=None,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
@@ -70,35 +80,55 @@ def root_sql(query: str) -> str:
         raise ContractError("Bounded MariaDB administrative operation failed.")
     return result.stdout.strip()
 
+
 def schema_count(scope: Scope) -> int:
-    value = root_sql("SELECT COUNT(*) FROM information_schema.SCHEMATA " f"WHERE SCHEMA_NAME='{scope.database}'")
+    value = root_sql(
+        "SELECT COUNT(*) FROM information_schema.SCHEMATA "
+        f"WHERE SCHEMA_NAME='{scope.database}'"
+    )
     if not re.fullmatch(r"[0-9]+", value):
         raise ContractError("Schema presence proof is invalid.")
     return int(value, 10)
 
+
 def account_count(scope: Scope) -> int:
-    value = root_sql("SELECT COUNT(*) FROM mysql.user " f"WHERE User='{scope.database_user}' AND Host='localhost'")
+    value = root_sql(
+        "SELECT COUNT(*) FROM mysql.user "
+        f"WHERE User='{scope.database_user}' AND Host='localhost'"
+    )
     if not re.fullmatch(r"[0-9]+", value):
         raise ContractError("Ephemeral account presence proof is invalid.")
     return int(value, 10)
 
+
 def table_count(scope: Scope) -> int:
-    value = root_sql("SELECT COUNT(*) FROM information_schema.TABLES " f"WHERE TABLE_SCHEMA='{scope.database}'")
+    value = root_sql(
+        "SELECT COUNT(*) FROM information_schema.TABLES "
+        f"WHERE TABLE_SCHEMA='{scope.database}'"
+    )
     if not re.fullmatch(r"[0-9]+", value):
         raise ContractError("Table-count proof is invalid.")
     return int(value, 10)
 
+
 def require_absent(scope: Scope) -> None:
     if schema_count(scope) != 0 or account_count(scope) != 0:
         raise ContractError("Derived staging scope is not absent.")
+
 
 def cleanup_scope(scope: Scope) -> None:
     root_sql(f"DROP USER IF EXISTS '{scope.database_user}'@'localhost'")
     root_sql(f"DROP DATABASE IF EXISTS `{scope.database}`")
     require_absent(scope)
 
+
 def write_restricted_client_file(scope: Scope, password: str) -> str:
-    fd, path = tempfile.mkstemp(prefix=f"agency-preprod-stage-{scope.suffix}.", suffix=".cnf", dir="/run", text=True)
+    fd, path = tempfile.mkstemp(
+        prefix=f"agency-preprod-stage-{scope.suffix}.",
+        suffix=".cnf",
+        dir="/run",
+        text=True,
+    )
     try:
         os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
@@ -118,9 +148,16 @@ def write_restricted_client_file(scope: Scope, password: str) -> str:
         raise
     return path
 
+
 def import_bounded_stdin(scope: Scope, snapshot_bytes: int, client_file: str) -> None:
     process = subprocess.Popen(
-        [MARIADB_BIN, f"--defaults-file={client_file}", "--protocol=socket", "--local-infile=0", f"--database={scope.database}"],
+        [
+            MARIADB_BIN,
+            f"--defaults-file={client_file}",
+            "--protocol=socket",
+            "--local-infile=0",
+            f"--database={scope.database}",
+        ],
         stdin=subprocess.PIPE,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -130,6 +167,7 @@ def import_bounded_stdin(scope: Scope, snapshot_bytes: int, client_file: str) ->
         process.kill()
         process.wait()
         raise ContractError("Restricted import stdin is unavailable.")
+
     total = 0
     failed = False
     try:
@@ -146,23 +184,37 @@ def import_bounded_stdin(scope: Scope, snapshot_bytes: int, client_file: str) ->
             except BrokenPipeError:
                 failed = True
                 break
+    except BaseException:
+        process.kill()
+        process.wait()
+        raise
     finally:
         try:
             process.stdin.close()
         except BrokenPipeError:
             failed = True
+
     if failed:
         process.kill()
     returncode = process.wait()
     if failed or total != snapshot_bytes or returncode != 0:
         raise ContractError("Restricted staging import failed.")
 
+
 def prepare_import_scope(scope: Scope) -> str:
     require_absent(scope)
     password = secrets.token_hex(24)
-    root_sql(f"CREATE DATABASE `{scope.database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+    root_sql(
+        f"CREATE DATABASE `{scope.database}` "
+        "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+    )
     try:
-        root_sql(f"CREATE USER '{scope.database_user}'@'localhost' IDENTIFIED BY '{password}'")
+        root_sql(
+            f"CREATE USER '{scope.database_user}'@'localhost' "
+            f"IDENTIFIED BY '{password}'"
+        )
+        # The ephemeral account has no global authority and no privilege on any
+        # database except the internally-derived staging database.
         root_sql(
             "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, "
             "INDEX, ALTER, CREATE VIEW, SHOW VIEW, TRIGGER, LOCK TABLES, "
@@ -175,19 +227,23 @@ def prepare_import_scope(scope: Scope) -> str:
         raise
     return password
 
+
 def action_precheck(scope: Scope) -> None:
     root_sql("SELECT 1")
     require_absent(scope)
     print("staging_admin_capability=PASS")
     print("staging_db_present=NO")
 
+
 def action_verify_absence(scope: Scope) -> None:
     require_absent(scope)
     print("staging_db_present_after_cleanup=NO")
 
+
 def action_cleanup(scope: Scope) -> None:
     cleanup_scope(scope)
     print("staging_db_present_after_cleanup=NO")
+
 
 def action_import(scope: Scope, snapshot_bytes: int) -> None:
     password = prepare_import_scope(scope)
@@ -195,6 +251,17 @@ def action_import(scope: Scope, snapshot_bytes: int) -> None:
     imported = False
     count = 0
     cleanup_ok = False
+
+    def interrupted(signum: int, _frame: object) -> None:
+        raise ContractError(f"Interrupted by signal {signum}; cleanup required.")
+
+    previous_handlers = {
+        sig: signal.getsignal(sig)
+        for sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)
+    }
+    for sig in previous_handlers:
+        signal.signal(sig, interrupted)
+
     try:
         client_file = write_restricted_client_file(scope, password)
         import_bounded_stdin(scope, snapshot_bytes, client_file)
@@ -203,6 +270,8 @@ def action_import(scope: Scope, snapshot_bytes: int) -> None:
             raise ContractError("Imported staging schema proof failed.")
         imported = True
     finally:
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)
         if client_file:
             try:
                 os.unlink(client_file)
@@ -213,28 +282,35 @@ def action_import(scope: Scope, snapshot_bytes: int) -> None:
             cleanup_ok = True
         except ContractError:
             cleanup_ok = False
+
     if not cleanup_ok:
         raise ContractError("Mandatory staging cleanup failed.")
     if not imported:
         raise ContractError("Restricted staging import did not complete.")
+
     print("staging_import_result=PASS")
     print(f"staging_db_id_hash={scope.database_hash}")
     print("schema_proof=PASS")
     print(f"safe_table_count={count}")
     print("staging_db_present_after_cleanup=NO")
 
+
 def main(argv: list[str]) -> int:
     if os.geteuid() != 0:
         raise ContractError("Privileged helper must execute as root.")
     if len(argv) != 4:
         raise ContractError("Expected ACTION REQUEST_ID SNAPSHOT_BYTES only.")
+
     action = argv[1]
     if action not in ALLOWED_ACTIONS:
         raise ContractError("Invalid fixed staging action.")
+
     scope = derive_scope(argv[2])
     snapshot_bytes = validate_snapshot_bytes(argv[3], action)
+
     if not os.path.isfile(MARIADB_BIN) or not os.access(MARIADB_BIN, os.X_OK):
         raise ContractError("Fixed MariaDB client is unavailable.")
+
     if action == "PRECHECK":
         action_precheck(scope)
     elif action == "IMPORT":
@@ -246,6 +322,7 @@ def main(argv: list[str]) -> int:
     else:
         raise ContractError("Invalid fixed staging action.")
     return 0
+
 
 if __name__ == "__main__":
     try:

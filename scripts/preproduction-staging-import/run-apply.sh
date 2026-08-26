@@ -111,8 +111,10 @@ runner_free="$(df -PB1 "$temp_abs" | awk 'NR==2 {print $4}')"
 runner_min="$(jq -r '.capacity.trusted_runner_min_free_bytes' "$PROFILE")"
 [[ "$runner_free" =~ ^[0-9]+$ && "$runner_free" -ge "$runner_min" ]] || { echo 'Trusted runner capacity preflight failed.' >&2; exit 75; }
 
-"${preprod_scp[@]}" "$PREPROD_REMOTE" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST:$remote_script" >/dev/null
-"${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "chmod 700 '$remote_script' && '$remote_script' PRECHECK '$REQUEST_ID' 0" \
+# PREPROD capacity/runtime precheck is streamed over SSH: no helper or raw data
+# is materialized remotely before the first capacity gate.
+"${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
+  "bash -s -- PRECHECK '$REQUEST_ID' 0" < "$PREPROD_REMOTE" \
   | grep -Fxq 'preprod_runtime_points_to_staging=NO'
 
 : > "$raw"
@@ -126,9 +128,16 @@ SNAPSHOT_SHA256="$(sha256sum "$raw" | awk '{print $1}')"
 [[ "$SNAPSHOT_SHA256" =~ ^[0-9a-f]{64}$ ]]
 rm -f -- "$prod_stderr"
 
-# Re-check PREPROD capacity with the actual snapshot size before import.
+# Re-check PREPROD capacity with the actual snapshot size before any import
+# helper is materialized on PREPROD.
 "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-  "'$remote_script' PRECHECK '$REQUEST_ID' '$SNAPSHOT_BYTE_SIZE'" | grep -Fxq 'preprod_capacity=PASS'
+  "bash -s -- PRECHECK '$REQUEST_ID' '$SNAPSHOT_BYTE_SIZE'" < "$PREPROD_REMOTE" \
+  | grep -Fxq 'preprod_capacity=PASS'
+
+# Only after both capacity gates may the fixed repository-owned helper be
+# materialized. Raw SQL itself is never materialized as a PREPROD file.
+"${preprod_scp[@]}" "$PREPROD_REMOTE" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST:$remote_script" >/dev/null
+"${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "chmod 700 '$remote_script'"
 
 # Encrypted SSH stdin stream: no raw SQL file is created on PREPROD.
 if ! "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \

@@ -1,0 +1,207 @@
+name: Validate PREPROD isolated staging import
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-isolated-staging-import.yml'
+      - '.github/workflows/preprod-isolated-staging-import-validation.yml'
+      - 'scripts/preproduction-staging-import/**'
+      - 'scripts/production-readonly-snapshot/remote-stream.sh'
+      - 'scripts/production-ssh-trust/**'
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-validation:
+    name: Prove #834 transport staging and cleanup boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate syntax and fixed profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/preproduction-staging-import/run-proof.sh
+          bash -n scripts/preproduction-staging-import/run-apply.sh
+          bash -n scripts/preproduction-staging-import/remote-preprod-stage.sh
+          bash -n scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh
+          bash -n scripts/production-readonly-snapshot/remote-stream.sh
+          jq -e '.schema_version == 1 and .issue_number == 834' scripts/preproduction-staging-import/profile.json >/dev/null
+          jq -e '.profile_id == "agency-preprod-isolated-staging-import-v1"' scripts/preproduction-staging-import/profile.json >/dev/null
+
+      - name: Prove trusted runner and raw-data boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preprod-isolated-staging-import.yml'
+          profile='scripts/preproduction-staging-import/profile.json'
+          grep -Fq 'self-hosted' "$workflow"
+          grep -Fq -- '- linux' "$workflow"
+          grep -Fq -- '- x64' "$workflow"
+          grep -Fq -- '- agency' "$workflow"
+          grep -Fq "RUNNER_NAME\" == 'agency-browser-runner-01'" "$workflow"
+          jq -e '.execution.github_hosted_raw_prod_data == "FORBIDDEN"' "$profile" >/dev/null
+          jq -e '.execution.raw_github_artifact == "FORBIDDEN"' "$profile" >/dev/null
+          grep -Fq 'github_hosted_raw_path=NONE' scripts/preproduction-staging-import/run-proof.sh
+          grep -Fq 'raw_github_artifact_path=NONE' scripts/preproduction-staging-import/run-proof.sh
+
+      - name: Prove exact PROD trust and fail-closed PREPROD trust
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preprod-isolated-staging-import.yml'
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          trust='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
+          profile='scripts/preproduction-staging-import/profile.json'
+          grep -Fq 'manage-known-host.sh VERIFY_ONLY' "$apply"
+          grep -Fq 'verify-preprod-pinned-trust.sh' "$apply"
+          grep -Fq 'StrictHostKeyChecking=yes' "$apply"
+          grep -Fq 'UserKnownHostsFile="$HOME/.ssh/known_hosts"' "$apply"
+          grep -Fq '.preprod_trust.current_state == "PINNED"' "$workflow"
+          jq -e '.preprod_trust.current_state == "UNPINNED_BLOCK_APPLY"' "$profile" >/dev/null
+          jq -e '.preprod_trust.network_derived_identity == "FORBIDDEN" and .preprod_trust.tofu == "FORBIDDEN"' "$profile" >/dev/null
+          ! grep -Fq 'ssh-keyscan' "$workflow"
+          ! grep -Fq 'ssh-keyscan' "$apply"
+          ! grep -Fq 'ssh-keyscan' "$trust"
+          ! grep -Fq 'StrictHostKeyChecking=no' "$workflow"
+          ! grep -Fq 'StrictHostKeyChecking=no' "$apply"
+          ! grep -Fq 'accept-new' "$workflow"
+          ! grep -Fq 'accept-new' "$apply"
+
+      - name: Prove fixed authority with no generic executor surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preprod-isolated-staging-import.yml'
+          remote='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+          grep -Fq 'github.event.issue.number == 834' "$workflow"
+          grep -Fq '/agency-preprod-staging-import' "$workflow"
+          grep -Fq "GITHUB_ACTOR\" == 'E-merging-digital'" "$workflow"
+          grep -Fq "GITHUB_RUN_ATTEMPT\" == '1'" "$workflow"
+          grep -Fq "agency-preprod-isolated-staging-import-v1" "$workflow"
+          grep -Fq "snapshot-826-f936b72b-r2" "$workflow"
+          grep -Fq 'plan_prefix="/agency-preprod-staging-import plan $request_id "' "$workflow"
+          grep -Fq 'apply_prefix="/agency-preprod-staging-import apply $request_id "' "$workflow"
+          grep -Fq 'across all modes' "$workflow"
+          ! grep -Fq 'workflow_dispatch:' "$workflow"
+          for forbidden in command_input sql_input table_input path_input host_input database_input db_name_input credential_input; do
+            ! grep -Fq "$forbidden" "$workflow"
+          done
+          grep -Fq "STAGING_DB=\"agency_preprod_stage_\${suffix}\"" "$remote"
+          grep -Fq "RUNTIME_DB='agency_preprod'" "$remote"
+          ! grep -Fq 'eval ' "$workflow"
+          ! grep -Fq 'eval ' "$remote"
+
+      - name: Prove encrypted transfer and capacity gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-staging-import/profile.json'
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          remote='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+          jq -e '.transfer.transport == "SSH_STDIN_STREAM" and .transfer.encrypted_in_transit == true' "$profile" >/dev/null
+          jq -e '.transfer.github_hosted_hop == "NONE" and .transfer.preprod_raw_file_materialization == "NONE"' "$profile" >/dev/null
+          jq -e '.capacity.check_before_snapshot == true and .capacity.check_before_import_with_actual_snapshot_size == true' "$profile" >/dev/null
+          grep -Fq 'Trusted runner capacity preflight failed.' "$apply"
+          test "$(grep -Fc ' PRECHECK ' "$apply")" -ge 2
+          grep -Fq 'capacity_check ||' "$remote"
+          grep -Fq 'SNAPSHOT_BYTES * multiplier + margin' "$remote"
+
+          first_precheck_line="$(grep -n -F -m1 "bash -s -- PRECHECK '\$REQUEST_ID' 0" "$apply" | cut -d: -f1)"
+          snapshot_line="$(grep -n -F -m1 ': > "$raw"' "$apply" | cut -d: -f1)"
+          actual_precheck_line="$(grep -n -F -m1 "bash -s -- PRECHECK '\$REQUEST_ID' '\$SNAPSHOT_BYTE_SIZE'" "$apply" | cut -d: -f1)"
+          upload_line="$(grep -n -F -m1 '"${preprod_scp[@]}" "$PREPROD_REMOTE"' "$apply" | cut -d: -f1)"
+          test -n "$first_precheck_line"
+          test -n "$snapshot_line"
+          test -n "$actual_precheck_line"
+          test -n "$upload_line"
+          test "$first_precheck_line" -lt "$snapshot_line"
+          test "$actual_precheck_line" -lt "$upload_line"
+          grep -Fq 'Only after both capacity gates may the fixed repository-owned helper be' "$apply"
+
+      - name: Prove staging isolation and mandatory cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-staging-import/profile.json'
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          remote='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+          jq -e '.staging.runtime_must_never_point_to_staging == true' "$profile" >/dev/null
+          jq -e '.staging.settings_mutation == "NONE" and .staging.vhost_mutation == "NONE" and .staging.symlink_mutation == "NONE"' "$profile" >/dev/null
+          grep -Fq 'ACTIVE_SETTINGS="$CURRENT_LINK/web/sites/default/settings.php"' "$remote"
+          grep -Fq 'test -L "$CURRENT_LINK"' "$remote"
+          grep -Fq 'test -L "$ACTIVE_SETTINGS"' "$remote"
+          grep -Fq 'readlink -f "$ACTIVE_SETTINGS"' "$remote"
+          grep -Fq 'readlink -f "$RUNTIME_SETTINGS"' "$remote"
+          grep -Fq 'preprod_runtime_points_to_staging_before=NO' "$remote"
+          grep -Fq 'preprod_runtime_points_to_staging_after=NO' "$remote"
+          grep -Fq 'DROP DATABASE IF EXISTS' "$remote"
+          grep -Fq 'VERIFY_ABSENCE' "$remote"
+          grep -Fq 'remote_cleanup' "$apply"
+          grep -Fq 'rm -f -- "$raw"' "$apply"
+          jq -e '.cleanup.raw_snapshot_required == true and .cleanup.unsanitized_staging_database_required == true' "$profile" >/dev/null
+          jq -e '.cleanup.workflow_finalizer_required == true and .cleanup.independent_absence_check_required == true and .cleanup.cleanup_failure_is_terminal == true' "$profile" >/dev/null
+
+      - name: Prove no sanitization activation or PROD write path
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-staging-import/profile.json'
+          workflow='.github/workflows/preprod-isolated-staging-import.yml'
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          remote='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+          jq -e '.execution.prod_write_path == "NONE" and .execution.sanitization_path == "NONE" and .execution.activation_path == "NONE"' "$profile" >/dev/null
+          ! grep -Fq 'sql:sanitize' "$workflow"
+          ! grep -Fq 'sql:sanitize' "$apply"
+          ! grep -Fq 'sql:sanitize' "$remote"
+          ! grep -Fq 'config:import' "$workflow"
+          ! grep -Fq 'updb' "$workflow"
+          ! grep -Fq 'deploy-production' "$workflow"
+          ! grep -Fq 'ln -sfn' "$remote"
+          ! grep -Fq 'settings.php.tmp' "$remote"
+
+      - name: Execute mutation-free PLAN and synthetic fixture proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$PWD"
+          temp="$(mktemp -d)"
+          trap 'rm -rf "$temp" artifacts/preprod-staging-import' EXIT
+          common_env=(
+            REQUEST_ID=proof-834-synthetic-r1
+            REPOSITORY_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+            SOURCE_PROD_RELEASE_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+            OPERATION_PROFILE=agency-preprod-isolated-staging-import-v1
+            GITHUB_WORKSPACE="$workspace"
+            RUNNER_TEMP="$temp"
+          )
+          env "${common_env[@]}" bash scripts/preproduction-staging-import/run-proof.sh PLAN
+          evidence='artifacts/preprod-staging-import/evidence.env'
+          grep -Fxq 'plan_result=PASS' "$evidence"
+          grep -Fxq 'apply_readiness=BLOCKED_PREPROD_PINNED_TRUST' "$evidence"
+          grep -Fxq 'preprod_runtime_points_to_staging_before=NO' "$evidence"
+          grep -Fxq 'preprod_runtime_points_to_staging_after=NO' "$evidence"
+          rm -rf artifacts/preprod-staging-import
+          env "${common_env[@]}" bash scripts/preproduction-staging-import/run-proof.sh SYNTHETIC
+          grep -Fxq 'transfer_result=SYNTHETIC_PASS' "$evidence"
+          grep -Fxq 'staging_import_result=SYNTHETIC_PASS' "$evidence"
+          grep -Fxq 'raw_snapshot_present_after_cleanup=NO' "$evidence"
+          grep -Fxq 'staging_db_present_after_cleanup=NO' "$evidence"
+          test "$(stat -c '%a' "$evidence")" = '600'
+          expected="$(jq -r '.evidence.allowlist[]' scripts/preproduction-staging-import/profile.json | sort)"
+          actual="$(cut -d= -f1 "$evidence" | sort)"
+          test "$expected" = "$actual"
+
+      - name: Preserve existing #816 regression sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionDataRefreshPlanTest.php
+          test -f web/modules/custom/agency_project_tests/tests/src/Unit/ProductionReadonlySnapshotTest.php
+          grep -Fq 'RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN' docs/operations/preproduction-data-refresh.md

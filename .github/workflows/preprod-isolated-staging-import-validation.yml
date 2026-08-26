@@ -86,6 +86,9 @@ jobs:
           grep -Fq "GITHUB_RUN_ATTEMPT\" == '1'" "$workflow"
           grep -Fq "agency-preprod-isolated-staging-import-v1" "$workflow"
           grep -Fq "snapshot-826-f936b72b-r2" "$workflow"
+          grep -Fq 'plan_prefix="/agency-preprod-staging-import plan $request_id "' "$workflow"
+          grep -Fq 'apply_prefix="/agency-preprod-staging-import apply $request_id "' "$workflow"
+          grep -Fq 'across all modes' "$workflow"
           ! grep -Fq 'workflow_dispatch:' "$workflow"
           for forbidden in command_input sql_input table_input path_input host_input database_input db_name_input credential_input; do
             ! grep -Fq "$forbidden" "$workflow"
@@ -110,6 +113,18 @@ jobs:
           grep -Fq 'capacity_check ||' "$remote"
           grep -Fq 'SNAPSHOT_BYTES * multiplier + margin' "$remote"
 
+          first_precheck_line="$(grep -n -F -m1 "bash -s -- PRECHECK '\$REQUEST_ID' 0" "$apply" | cut -d: -f1)"
+          snapshot_line="$(grep -n -F -m1 ': > "$raw"' "$apply" | cut -d: -f1)"
+          actual_precheck_line="$(grep -n -F -m1 "bash -s -- PRECHECK '\$REQUEST_ID' '\$SNAPSHOT_BYTE_SIZE'" "$apply" | cut -d: -f1)"
+          upload_line="$(grep -n -F -m1 '"${preprod_scp[@]}" "$PREPROD_REMOTE"' "$apply" | cut -d: -f1)"
+          test -n "$first_precheck_line"
+          test -n "$snapshot_line"
+          test -n "$actual_precheck_line"
+          test -n "$upload_line"
+          test "$first_precheck_line" -lt "$snapshot_line"
+          test "$actual_precheck_line" -lt "$upload_line"
+          grep -Fq 'Only after both capacity gates may the fixed repository-owned helper be' "$apply"
+
       - name: Prove staging isolation and mandatory cleanup
         shell: bash
         run: |
@@ -119,6 +134,11 @@ jobs:
           remote='scripts/preproduction-staging-import/remote-preprod-stage.sh'
           jq -e '.staging.runtime_must_never_point_to_staging == true' "$profile" >/dev/null
           jq -e '.staging.settings_mutation == "NONE" and .staging.vhost_mutation == "NONE" and .staging.symlink_mutation == "NONE"' "$profile" >/dev/null
+          grep -Fq 'ACTIVE_SETTINGS="$CURRENT_LINK/web/sites/default/settings.php"' "$remote"
+          grep -Fq 'test -L "$CURRENT_LINK"' "$remote"
+          grep -Fq 'test -L "$ACTIVE_SETTINGS"' "$remote"
+          grep -Fq 'readlink -f "$ACTIVE_SETTINGS"' "$remote"
+          grep -Fq 'readlink -f "$RUNTIME_SETTINGS"' "$remote"
           grep -Fq 'preprod_runtime_points_to_staging_before=NO' "$remote"
           grep -Fq 'preprod_runtime_points_to_staging_after=NO' "$remote"
           grep -Fq 'DROP DATABASE IF EXISTS' "$remote"

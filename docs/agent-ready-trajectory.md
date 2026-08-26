@@ -126,6 +126,28 @@ research
 
 No massive autonomous publishing is implied or authorized.
 
+## External capability discovery — durable, not READY
+
+The broader external capability audit is preserved in:
+
+`docs/research/external-capability-adoption-backlog.md`
+
+It retains the future questions and governance for evaluating Open Design,
+agent/UX/content/growth skills, natural-language quality tooling, Drupal-native
+alternatives, licenses, supply-chain risk, ownership across Agency/Preflight/
+ForgePilot, bounded POCs and measurable value.
+
+This reference is deliberately **not an active implementation priority** and does
+not freeze the state, maintenance or license of any named upstream. At re-entry,
+all candidates and Drupal primitives must be reloaded live and a gap analysis
+must precede any implementation issue.
+
+```text
+EXTERNAL_CAPABILITY_DISCOVERY = DURABLE_BACKLOG
+READY = NO
+IMPLEMENTATION_AUTHORITY = NONE
+```
+
 ## Commercial sequencing
 
 Agent-Ready architecture is an enabling layer, not the commercial positioning of
@@ -147,6 +169,10 @@ Before creating the first implementation issue from this trajectory:
 - verify whether Context Control Center or successor primitives remain relevant;
 - re-evaluate MCP/WebMCP standards rather than relying on this document's 2026
   assumptions;
+- consult `docs/research/external-capability-adoption-backlog.md` when an external
+  capability could reduce custom work or improve product value;
+- reload any named upstream, license and maintenance state before drawing a
+  conclusion;
 - choose exactly one first vertical slice;
 - preserve one issue = one branch = one PR;
 - start read-only unless a stronger need is explicitly demonstrated.

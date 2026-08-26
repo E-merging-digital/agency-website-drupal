@@ -67,34 +67,50 @@ RAW_AFTER='UNKNOWN'
 STAGING_AFTER='UNKNOWN'
 RUNTIME_BEFORE='UNKNOWN'
 RUNTIME_AFTER='UNKNOWN'
+REMOTE_HELPER_UPLOADED=0
+STAGING_MAY_EXIST=0
 
 prod_ssh=(ssh -i "$PROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
 preprod_ssh=(ssh -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
 preprod_scp=(scp -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
 
 remote_cleanup() {
-  set +e
-  if [[ -e "$PREPROD_SSH_KEY" ]]; then
+  [[ "$REMOTE_HELPER_UPLOADED" -eq 1 ]] || return 0
+  if [[ "$STAGING_MAY_EXIST" -eq 1 ]]; then
+    local absence
     "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-      "test -x '$remote_script' && '$remote_script' CLEANUP '$REQUEST_ID' 0 || true; rm -f -- '$remote_script'" >/dev/null 2>&1
+      "'$remote_script' CLEANUP '$REQUEST_ID' 0" >/dev/null || return 1
+    absence="$("${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
+      "'$remote_script' VERIFY_ABSENCE '$REQUEST_ID' 0")" || return 1
+    grep -Fxq 'staging_db_present_after_cleanup=NO' <<< "$absence" || return 1
+    grep -Fxq 'preprod_runtime_points_to_staging=NO' <<< "$absence" || return 1
   fi
-  set -e
+  "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
+    "rm -f -- '$remote_script'" >/dev/null || return 1
 }
 
 cleanup() {
   local original="$?"
+  local final="$original"
   trap - EXIT HUP INT TERM
   set +e
+
   remote_cleanup
+  local remote_status="$?"
+
   rm -f -- "$raw" "$prod_stderr" "$preprod_output" "$preprod_stderr"
   local local_status="$?"
-  set -e
-  if [[ "$local_status" -ne 0 || -e "$raw" ]]; then
-    exit 97
+  if [[ "$local_status" -ne 0 || -e "$raw" || -e "$prod_stderr" || -e "$preprod_output" || -e "$preprod_stderr" ]]; then
+    final=97
   fi
-  if [[ "$original" -ne 0 ]]; then
-    exit "$original"
+  if [[ "$STAGING_MAY_EXIST" -eq 1 && "$remote_status" -ne 0 ]]; then
+    final=98
   fi
+  if [[ "$REMOTE_HELPER_UPLOADED" -eq 1 && "$remote_status" -ne 0 && "$final" -eq 0 ]]; then
+    final=99
+  fi
+
+  exit "$final"
 }
 trap cleanup EXIT
 trap 'exit 129' HUP
@@ -137,9 +153,11 @@ rm -f -- "$prod_stderr"
 # Only after both capacity gates may the fixed repository-owned helper be
 # materialized. Raw SQL itself is never materialized as a PREPROD file.
 "${preprod_scp[@]}" "$PREPROD_REMOTE" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST:$remote_script" >/dev/null
+REMOTE_HELPER_UPLOADED=1
 "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "chmod 700 '$remote_script'"
 
 # Encrypted SSH stdin stream: no raw SQL file is created on PREPROD.
+STAGING_MAY_EXIST=1
 if ! "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
   "'$remote_script' IMPORT '$REQUEST_ID' '$SNAPSHOT_BYTE_SIZE'" \
   < "$raw" > "$preprod_output" 2> "$preprod_stderr"; then
@@ -166,11 +184,13 @@ grep -Fxq 'staging_db_present_after_cleanup=NO' <<< "$absence"
 grep -Fxq 'preprod_runtime_points_to_staging=NO' <<< "$absence"
 STAGING_AFTER='NO'
 RUNTIME_AFTER='NO'
+STAGING_MAY_EXIST=0
 
 rm -f -- "$raw"
 test ! -e "$raw"
 RAW_AFTER='NO'
 "${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "rm -f -- '$remote_script'"
+REMOTE_HELPER_UPLOADED=0
 
 mkdir -p "$evidence_dir"
 cat > "$evidence.tmp" <<EOF

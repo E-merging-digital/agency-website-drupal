@@ -60,6 +60,60 @@ matching_entries_for() {
   ssh-keygen -F "$SERVER_HOST" -f "$file" 2>/dev/null | grep -v '^#' || true
 }
 
+marked_match_present_for() {
+  local file="$1" recognized
+  recognized="$(matching_entries_for "$file")"
+  if awk 'NF && $1 ~ /^@/' <<< "$recognized" | grep -q .; then
+    printf 'YES\n'
+    return 0
+  fi
+
+  SERVER_HOST="$SERVER_HOST" python3 - "$file" <<'PY'
+import base64
+import hashlib
+import hmac
+import os
+import sys
+
+path = sys.argv[1]
+host = os.environ['SERVER_HOST']
+with open(path, 'rb') as fh:
+    lines = fh.read().splitlines()
+
+for raw in lines:
+    body = raw.strip()
+    if not body or body.startswith(b'#'):
+        continue
+    fields = body.split()
+    if len(fields) < 2 or not fields[0].startswith(b'@'):
+        continue
+    try:
+        hosts = fields[1].decode('ascii')
+    except UnicodeDecodeError:
+        continue
+
+    matched = False
+    if hosts.startswith('|'):
+        parts = hosts.split('|')
+        if len(parts) == 4 and parts[0] == '' and parts[1] == '1' and parts[2] and parts[3]:
+            try:
+                salt = base64.b64decode(parts[2], validate=True)
+                stored = base64.b64decode(parts[3], validate=True)
+            except Exception:
+                continue
+            expected = hmac.new(salt, host.encode('utf-8'), hashlib.sha1).digest()
+            matched = hmac.compare_digest(expected, stored)
+    else:
+        matched = host in hosts.split(',')
+
+    if matched:
+        print('YES')
+        raise SystemExit(0)
+
+print('NO')
+PY
+}
+
 classify_entries() {
   local entries="$1"
   local matching_count=0 pinned_count=0 non_pinned_count=0
@@ -142,9 +196,24 @@ canonical_exact_entry() {
 
 entries_before="$(matching_entries_for "$KNOWN_HOSTS")"
 classification_before="$(classify_entries "$entries_before")"
+marked_match_present_before="$(marked_match_present_for "$KNOWN_HOSTS")"
+if [[ "$marked_match_present_before" != 'YES' && "$marked_match_present_before" != 'NO' ]]; then
+  echo 'Marked known_hosts classification is invalid.' >&2
+  exit 87
+fi
+
 if [[ "$MODE" == 'CLASSIFY' ]]; then
   printf '%s\n' "$classification_before"
+  printf 'MARKED_MATCH_PRESENT_BEFORE=%s\n' "$marked_match_present_before"
   exit 0
+fi
+
+# Any matching OpenSSH marker carries security semantics that #842 is not
+# authorized to erase or translate into an ordinary host-key association.
+# Fail before creating work files or replacing the live known_hosts file.
+if [[ "$marked_match_present_before" == 'YES' ]]; then
+  echo 'Matching marked known_hosts entry requires explicit semantic review; refusing repair.' >&2
+  exit 88
 fi
 
 matching_count="$(value MATCHING_ENTRY_COUNT "$classification_before")"
@@ -155,7 +224,7 @@ hashed_count="$(value HASHED_MATCH_COUNT "$classification_before")"
 aliased_present="$(value ALIASED_MATCH_PRESENT "$classification_before")"
 
 # Preserve #840 ordinary semantics as a separate primitive: this #842 path is
-# the only path allowed to canonicalize hashed entries, and only via a work copy.
+# the only path allowed to canonicalize unmarked hashed entries, and only via a work copy.
 if [[ "$matching_count" -eq 1 && "$pinned_count" -eq 1 && "$non_pinned_count" -eq 0 && "$plain_count" -eq 1 && "$hashed_count" -eq 0 && "$aliased_present" == 'NO' ]] && canonical_exact_entry "$entries_before"; then
   verify="$(SERVER_HOST="$SERVER_HOST" bash "$VERIFY_SCRIPT" VERIFY_ONLY)"
   grep -Fxq 'KNOWN_HOSTS_MATCH=PASS' <<< "$verify"
@@ -237,6 +306,7 @@ for line in raw.splitlines(keepends=True):
         print('Non-ASCII known_hosts host field cannot be proven safe.', file=sys.stderr)
         raise SystemExit(11)
 
+    is_target = False
     if hosts.startswith('|'):
         parts = hosts.split('|')
         if len(parts) != 4 or parts[0] != '' or parts[1] != '1' or not parts[2] or not parts[3]:
@@ -249,23 +319,31 @@ for line in raw.splitlines(keepends=True):
             print('Malformed hashed known_hosts encoding.', file=sys.stderr)
             raise SystemExit(12)
         expected = hmac.new(salt, host.encode('utf-8'), hashlib.sha1).digest()
-        if hmac.compare_digest(expected, stored):
+        is_target = hmac.compare_digest(expected, stored)
+        if not is_target:
+            out.extend(line)
             continue
-        out.extend(line)
+    else:
+        aliases = hosts.split(',')
+        if not aliases or any(alias == '' for alias in aliases):
+            print('Malformed plain known_hosts host field.', file=sys.stderr)
+            raise SystemExit(13)
+        is_target = host in aliases
+        if not is_target:
+            out.extend(line)
+            continue
+
+    if match.group('marker') is not None:
+        print('Matching marked known_hosts entry cannot be rewritten safely.', file=sys.stderr)
+        raise SystemExit(14)
+
+    if hosts.startswith('|'):
         continue
 
-    aliases = hosts.split(',')
-    if not aliases or any(alias == '' for alias in aliases):
-        print('Malformed plain known_hosts host field.', file=sys.stderr)
-        raise SystemExit(13)
     remaining = [alias for alias in aliases if alias != host]
-    if len(remaining) == len(aliases):
-        out.extend(line)
-        continue
     if remaining:
         rebuilt = (
             match.group('indent')
-            + (match.group('marker') or b'')
             + ','.join(remaining).encode('ascii')
             + match.group('rest')
             + newline
@@ -283,6 +361,7 @@ case "$transform_status" in
   11) exit 91 ;;
   12) exit 92 ;;
   13) exit 93 ;;
+  14) exit 88 ;;
   *) echo 'Offline #842 work-copy transformation failed unexpectedly.' >&2; exit 94 ;;
 esac
 chmod 600 "$work"
@@ -297,7 +376,7 @@ cp -- "$work" "$removed"
 chmod 600 "$removed"
 
 # The transformer preserves every non-target record byte-for-byte and only
-# rewrites a plain multi-host field to remove the exact SERVER_HOST token.
+# rewrites an unmarked plain multi-host field to remove the exact SERVER_HOST token.
 # Synthetic validation independently exercises these preservation invariants.
 unrelated_state_preserved='PASS'
 
@@ -359,7 +438,8 @@ if [[ "$(value MATCHING_ENTRY_COUNT "$classification_after")" -ne 1 ]] ||
    [[ "$(value PLAIN_MATCH_COUNT "$classification_after")" -ne 1 ]] ||
    [[ "$(value HASHED_MATCH_COUNT "$classification_after")" -ne 0 ]] ||
    [[ "$(value KEY_TYPES "$classification_after")" != 'ssh-ed25519' ]] ||
-   [[ "$(value ALIASED_MATCH_PRESENT "$classification_after")" != 'NO' ]]; then
+   [[ "$(value ALIASED_MATCH_PRESENT "$classification_after")" != 'NO' ]] ||
+   [[ "$(marked_match_present_for "$KNOWN_HOSTS")" != 'NO' ]]; then
   rollback
   echo 'Post-repair canonical classification failed; exact #842 backup restored.' >&2
   exit 97

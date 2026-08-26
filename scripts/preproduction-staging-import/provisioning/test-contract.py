@@ -61,11 +61,12 @@ assert "mariadb" not in policy_line.lower()
 assert "NOPASSWD: ALL" not in policy_line
 assert re.search(r"(^|\s)SETENV:", policy_line) is None
 
-# Candidate sudoers syntax is validated before activation, and post-install
-# verification happens before commit disables rollback.
+# Candidate sudoers syntax is validated before activation. The script also
+# validates a restored sudoers backup inside rollback helpers, so the terminal
+# post-install verification is deliberately selected with rindex().
 prevalidate = REMOTE.index('visudo -cf "$sudo_candidate"')
 activate = REMOTE.index('mv -f -- "$sudo_candidate" "$SUDOERS_PATH"')
-final_verify = REMOTE.index('visudo -cf "$SUDOERS_PATH"')
+final_verify = REMOTE.rindex('visudo -cf "$SUDOERS_PATH"')
 commit = REMOTE.index("committed=1")
 assert prevalidate < activate < final_verify < commit
 

@@ -6,6 +6,7 @@ on:
       - '.github/workflows/preprod-isolated-staging-import.yml'
       - '.github/workflows/preprod-isolated-staging-import-validation.yml'
       - 'scripts/preproduction-staging-import/**'
+      - 'scripts/preproduction-ssh-trust/**'
       - 'scripts/production-readonly-snapshot/remote-stream.sh'
       - 'scripts/production-ssh-trust/**'
 
@@ -31,6 +32,7 @@ jobs:
           bash -n scripts/preproduction-staging-import/run-apply.sh
           bash -n scripts/preproduction-staging-import/remote-preprod-stage.sh
           bash -n scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh
+          bash -n scripts/preproduction-ssh-trust/manage-known-host.sh
           bash -n scripts/production-readonly-snapshot/remote-stream.sh
           jq -e '.schema_version == 1 and .issue_number == 834' scripts/preproduction-staging-import/profile.json >/dev/null
           jq -e '.profile_id == "agency-preprod-isolated-staging-import-v1"' scripts/preproduction-staging-import/profile.json >/dev/null
@@ -51,24 +53,29 @@ jobs:
           grep -Fq 'github_hosted_raw_path=NONE' scripts/preproduction-staging-import/run-proof.sh
           grep -Fq 'raw_github_artifact_path=NONE' scripts/preproduction-staging-import/run-proof.sh
 
-      - name: Prove exact PROD trust and fail-closed PREPROD trust
+      - name: Prove exact PROD trust and exact pinned PREPROD trust
         shell: bash
         run: |
           set -euo pipefail
           workflow='.github/workflows/preprod-isolated-staging-import.yml'
           apply='scripts/preproduction-staging-import/run-apply.sh'
           trust='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
+          manager='scripts/preproduction-ssh-trust/manage-known-host.sh'
           profile='scripts/preproduction-staging-import/profile.json'
           grep -Fq 'manage-known-host.sh VERIFY_ONLY' "$apply"
           grep -Fq 'verify-preprod-pinned-trust.sh' "$apply"
           grep -Fq 'StrictHostKeyChecking=yes' "$apply"
           grep -Fq 'UserKnownHostsFile="$HOME/.ssh/known_hosts"' "$apply"
           grep -Fq '.preprod_trust.current_state == "PINNED"' "$workflow"
-          jq -e '.preprod_trust.current_state == "UNPINNED_BLOCK_APPLY"' "$profile" >/dev/null
-          jq -e '.preprod_trust.network_derived_identity == "FORBIDDEN" and .preprod_trust.tofu == "FORBIDDEN"' "$profile" >/dev/null
+          jq -e '.preprod_trust.current_state == "PINNED"' "$profile" >/dev/null
+          jq -e '.preprod_trust.trust_issue == 836 and .preprod_trust.trust_source == "OUT_OF_BAND_PREPROD_CONSOLE"' "$profile" >/dev/null
+          jq -e '.preprod_trust.public_key_path == "scripts/preproduction-ssh-trust/preprod-ed25519.pub"' "$profile" >/dev/null
+          jq -e '.preprod_trust.fingerprint_path == "scripts/preproduction-ssh-trust/preprod-ed25519.sha256"' "$profile" >/dev/null
+          jq -e '.preprod_trust.network_derived_identity == "FORBIDDEN" and .preprod_trust.ssh_keyscan == "FORBIDDEN" and .preprod_trust.tofu == "FORBIDDEN" and .preprod_trust.accept_new == "FORBIDDEN"' "$profile" >/dev/null
           ! grep -Fq 'ssh-keyscan' "$workflow"
           ! grep -Fq 'ssh-keyscan' "$apply"
           ! grep -Fq 'ssh-keyscan' "$trust"
+          ! grep -Fq 'ssh-keyscan' "$manager"
           ! grep -Fq 'StrictHostKeyChecking=no' "$workflow"
           ! grep -Fq 'StrictHostKeyChecking=no' "$apply"
           ! grep -Fq 'accept-new' "$workflow"
@@ -184,7 +191,8 @@ jobs:
           env "${common_env[@]}" bash scripts/preproduction-staging-import/run-proof.sh PLAN
           evidence='artifacts/preprod-staging-import/evidence.env'
           grep -Fxq 'plan_result=PASS' "$evidence"
-          grep -Fxq 'apply_readiness=BLOCKED_PREPROD_PINNED_TRUST' "$evidence"
+          grep -Fxq 'apply_readiness=HUMAN_REQUIRED_REAL_APPLY' "$evidence"
+          grep -Fxq 'preprod_trust_model=PINNED_OUT_OF_BAND' "$evidence"
           grep -Fxq 'preprod_runtime_points_to_staging_before=NO' "$evidence"
           grep -Fxq 'preprod_runtime_points_to_staging_after=NO' "$evidence"
           rm -rf artifacts/preprod-staging-import

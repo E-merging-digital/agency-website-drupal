@@ -32,7 +32,11 @@
   },
   "preprod_trust": {
     "repository_pinned_identity_required": true,
-    "current_state": "UNPINNED_BLOCK_APPLY",
+    "current_state": "PINNED",
+    "trust_issue": 836,
+    "trust_source": "OUT_OF_BAND_PREPROD_CONSOLE",
+    "public_key_path": "scripts/preproduction-ssh-trust/preprod-ed25519.pub",
+    "fingerprint_path": "scripts/preproduction-ssh-trust/preprod-ed25519.sha256",
     "network_derived_identity": "FORBIDDEN",
     "ssh_keyscan": "FORBIDDEN",
     "strict_host_key_checking": "YES",

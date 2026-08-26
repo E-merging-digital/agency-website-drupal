@@ -1,0 +1,180 @@
+name: Validate PROD read-only snapshot governance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/prod-readonly-snapshot.yml'
+      - '.github/workflows/prod-readonly-snapshot-validation.yml'
+      - 'docs/operations/production-readonly-snapshot.md'
+      - 'scripts/production-readonly-snapshot/**'
+      - 'scripts/preproduction-refresh/sanitization-policy.json'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionReadonlySnapshotTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionDataRefreshPlanTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-snapshot-governance:
+    name: Prove trusted runner, read-only semantics and cleanup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate snapshot tooling syntax and inherited policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/production-readonly-snapshot/run-snapshot.sh
+          bash -n scripts/production-readonly-snapshot/finalize-cleanup.sh
+          bash -n scripts/production-readonly-snapshot/remote-stream.sh
+          jq -e . scripts/production-readonly-snapshot/profile.json >/dev/null
+          jq -e '.execution_boundary.raw_prod_data.github_hosted_runner == "FORBIDDEN"' scripts/preproduction-refresh/sanitization-policy.json >/dev/null
+          jq -e '.execution_boundary.github_hosted.raw_prod_data_allowed == false' scripts/preproduction-refresh/sanitization-policy.json >/dev/null
+          jq -e '.execution.trusted_runner_labels == ["self-hosted", "linux", "x64", "agency"]' scripts/production-readonly-snapshot/profile.json >/dev/null
+          jq -e '.execution.prod_write_path == "NONE"' scripts/production-readonly-snapshot/profile.json >/dev/null
+          jq -e '.execution.preprod_path == "NONE"' scripts/production-readonly-snapshot/profile.json >/dev/null
+          jq -e '.snapshot.fixed_tool == "vendor/bin/drush sql:dump"' scripts/production-readonly-snapshot/profile.json >/dev/null
+
+      - name: Prove workflow raw-data boundary is static and non-generic
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/prod-readonly-snapshot.yml'
+          grep -Fq 'runs-on: ubuntu-24.04' "$workflow"
+          grep -Fq '      - self-hosted' "$workflow"
+          grep -Fq '      - linux' "$workflow"
+          grep -Fq '      - x64' "$workflow"
+          grep -Fq '      - agency' "$workflow"
+          ! grep -Fq 'workflow_dispatch:' "$workflow"
+          ! grep -Fq 'schedule:' "$workflow"
+          ! grep -Fq 'pull_request:' "$workflow"
+          grep -Fq 'github.event.issue.number == 826' "$workflow"
+          grep -Fq 'GITHUB_RUN_ATTEMPT' "$workflow"
+          grep -Fq 'Snapshot authority cannot be replayed through a workflow rerun.' "$workflow"
+          grep -Fq 'agency-prod-readonly-snapshot-v1' "$workflow"
+          grep -Fq 'path: artifacts/prod-readonly-snapshot/evidence.env' "$workflow"
+          grep -Fq 'Require pre-provisioned PROD host trust' "$workflow"
+          grep -Fq 'ssh-keygen -F "$SERVER_HOST"' "$workflow"
+          ! grep -Fq 'ssh-keyscan' "$workflow"
+          ! grep -Fq '*.sql' "$workflow"
+          ! grep -Fq '*.sql.gz' "$workflow"
+          ! grep -Fq '*.dump' "$workflow"
+          ! grep -Fq 'sites/default/files' "$workflow"
+          ! grep -Fq 'scp ' "$workflow"
+          ! grep -Fq 'rsync ' "$workflow"
+
+      - name: Prove fixed PROD operation contains no mutation surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote='scripts/production-readonly-snapshot/remote-stream.sh'
+          lifecycle='scripts/production-readonly-snapshot/run-snapshot.sh'
+          builder='.github/workflows/build-release-candidate.yml'
+          grep -Fq "PROJECT_ROOT='/var/www/agency'" "$remote"
+          grep -Fq 'CURRENT_RELEASE="$PROJECT_ROOT/current"' "$remote"
+          grep -Fq 'PROMOTIONS_DIR="$PROJECT_ROOT/shared/promotions"' "$remote"
+          grep -Fq 'current_release="$(readlink -f "$CURRENT_RELEASE")"' "$remote"
+          grep -Fq "grep -m1 '^release_path='" "$remote"
+          grep -Fq "grep -m1 '^candidate_sha='" "$remote"
+          grep -Fq 'Current PROD release must map to exactly one promotion receipt.' "$remote"
+          ! grep -Fq 'git -C "$CURRENT_RELEASE" rev-parse HEAD' "$remote"
+          grep -Fq -- "--exclude='.git/'" "$builder"
+          grep -Fq 'vendor/bin/drush sql:dump' "$remote"
+          ! grep -Fq 'sql:connect' "$remote"
+          grep -Fq -- '--single-transaction' "$remote"
+          grep -Fq -- '--quick' "$remote"
+          grep -Fq -- '--skip-lock-tables' "$remote"
+          grep -Fq -- '--no-tablespaces' "$remote"
+          ! grep -Fq -- '--result-file' "$remote"
+          grep -Fq 'StrictHostKeyChecking=yes' "$lifecycle"
+          for forbidden in \
+            'state:set' 'config:import' 'config:set' 'config:delete' \
+            ' updb' ' cim' 'sql:query' 'sql:drop' 'sql:create' \
+            'user:create' 'user:password' 'maintenance_mode' \
+            'git checkout' 'ln -sfn' 'rm -rf /var/www/agency'; do
+            ! grep -Fq "$forbidden" "$remote"
+            ! grep -Fq "$forbidden" "$lifecycle"
+          done
+          ! grep -Fiq 'preprod' "$remote"
+          grep -Fq 'umask 077' "$lifecycle"
+          grep -Fq 'RAW_MATERIAL_MODE="$(stat -c' "$lifecycle"
+          grep -Fq 'Raw snapshot material is not mode 0600.' "$lifecycle"
+          grep -Fq 'trap cleanup_and_finalize EXIT' "$lifecycle"
+          grep -Fq "trap 'exit 143' TERM" "$lifecycle"
+          grep -Fq 'bash scripts/production-readonly-snapshot/finalize-cleanup.sh' .github/workflows/prod-readonly-snapshot.yml
+
+      - name: Prove synthetic success metadata, mode and cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          profile='scripts/production-readonly-snapshot/profile.json'
+          profile_sha="$(sha256sum "$profile" | awk '{print $1}')"
+          request_id="ci-826-${GITHUB_RUN_ID}"
+          env \
+            REQUEST_ID="$request_id" \
+            AUTHORITY_COMMENT_ID=826 \
+            AUTHORITY_RUN_ID="$GITHUB_RUN_ID" \
+            REPOSITORY_SHA="$sha" \
+            SOURCE_PROD_RELEASE_SHA="$sha" \
+            OPERATION_PROFILE=agency-prod-readonly-snapshot-v1 \
+            PROFILE_SHA256="$profile_sha" \
+            bash scripts/production-readonly-snapshot/run-snapshot.sh SYNTHETIC
+
+          evidence='artifacts/prod-readonly-snapshot/evidence.env'
+          test -f "$evidence"
+          test "$(stat -c '%a' "$evidence")" = '600'
+          grep -Fxq 'execution_mode=SYNTHETIC' "$evidence"
+          grep -Fxq 'snapshot_created=PASS' "$evidence"
+          grep -Fxq 'raw_material_mode=600' "$evidence"
+          grep -Fxq 'snapshot_cleanup=PASS' "$evidence"
+          grep -Fxq 'raw_snapshot_present_after_cleanup=NO' "$evidence"
+          grep -Fxq 'prod_write_path=NONE' "$evidence"
+          grep -Fxq 'preprod_path=NONE' "$evidence"
+          grep -Fxq 'raw_prod_artifact_in_github=NONE' "$evidence"
+          grep -Eq '^snapshot_byte_size=[1-9][0-9]*$' "$evidence"
+          grep -Eq '^snapshot_sha256=[0-9a-f]{64}$' "$evidence"
+          expected_keys="$(jq -r '.evidence.allowlist[]' "$profile" | sort)"
+          actual_keys="$(cut -d= -f1 "$evidence" | sort)"
+          test "$actual_keys" = "$expected_keys"
+          bash scripts/production-readonly-snapshot/finalize-cleanup.sh
+
+      - name: Prove cleanup on synthetic failure and anti-replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          profile='scripts/production-readonly-snapshot/profile.json'
+          profile_sha="$(sha256sum "$profile" | awk '{print $1}')"
+          base_env=(
+            REQUEST_ID="ci-826-fail-${GITHUB_RUN_ID}"
+            AUTHORITY_COMMENT_ID=826
+            AUTHORITY_RUN_ID="$GITHUB_RUN_ID"
+            REPOSITORY_SHA="$sha"
+            SOURCE_PROD_RELEASE_SHA="$sha"
+            OPERATION_PROFILE=agency-prod-readonly-snapshot-v1
+            PROFILE_SHA256="$profile_sha"
+          )
+
+          if env "${base_env[@]}" AGENCY_SNAPSHOT_SYNTHETIC_FAIL_AFTER_WRITE=1 \
+            bash scripts/production-readonly-snapshot/run-snapshot.sh SYNTHETIC; then
+            echo 'Synthetic failure path unexpectedly succeeded.' >&2
+            exit 1
+          fi
+          evidence='artifacts/prod-readonly-snapshot/evidence.env'
+          grep -Fxq 'snapshot_created=FAIL' "$evidence"
+          grep -Fxq 'raw_material_mode=600' "$evidence"
+          grep -Fxq 'snapshot_cleanup=PASS' "$evidence"
+          grep -Fxq 'raw_snapshot_present_after_cleanup=NO' "$evidence"
+          bash scripts/production-readonly-snapshot/finalize-cleanup.sh
+
+          if env "${base_env[@]}" GITHUB_RUN_ATTEMPT=2 \
+            bash scripts/production-readonly-snapshot/run-snapshot.sh SYNTHETIC; then
+            echo 'Snapshot proof unexpectedly accepted a replay attempt.' >&2
+            exit 1
+          fi

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "profile_id": "agency-prod-readonly-snapshot-v1",
+  "issue_number": 826,
+  "authority": {
+    "trigger": "ISSUE_COMMENT",
+    "command_prefix": "/agency-prod-readonly-snapshot prove",
+    "owner_actor": "E-merging-digital",
+    "live_main_required": true,
+    "run_attempt_must_equal": 1,
+    "unique_request_id_required": true,
+    "bindings": [
+      "request_id",
+      "authority_comment_id",
+      "live_main_sha",
+      "expected_prod_release_sha",
+      "profile_id",
+      "profile_sha256"
+    ],
+    "first_real_snapshot": "HUMAN_REQUIRED_AFTER_PROJECT_LEAD_REVIEW"
+  },
+  "execution": {
+    "gateway_runner": "ubuntu-24.04",
+    "github_hosted_raw_prod_data": "FORBIDDEN",
+    "trusted_runner_labels": [
+      "self-hosted",
+      "linux",
+      "x64",
+      "agency"
+    ],
+    "raw_material_location": "TRUSTED_RUNNER_TEMP_ONLY",
+    "prod_remote_raw_file": "NONE",
+    "prod_write_path": "NONE",
+    "preprod_path": "NONE"
+  },
+  "snapshot": {
+    "remote_project_root": "/var/www/agency/current",
+    "release_identity": "GIT_HEAD_OF_CURRENT_RELEASE",
+    "connection_source": "DRUSH_SQL_DUMP_FROM_SERVER_OWNED_SETTINGS",
+    "fixed_tool": "vendor/bin/drush sql:dump",
+    "fixed_dump_options": [
+      "--single-transaction",
+      "--quick",
+      "--skip-lock-tables",
+      "--no-tablespaces"
+    ],
+    "raw_material_mode": "0600",
+    "remote_raw_materialization": false
+  },
+  "cleanup": {
+    "exit_trap_required": true,
+    "signal_cleanup_required": true,
+    "workflow_finalizer_required": true,
+    "absence_after_cleanup_required": true,
+    "cleanup_failure_is_terminal": true
+  },
+  "evidence": {
+    "artifact_path": "artifacts/prod-readonly-snapshot/evidence.env",
+    "raw_prod_artifact_allowed": false,
+    "pii_allowed": false,
+    "secrets_allowed": false,
+    "allowlist": [
+      "schema_version",
+      "request_id",
+      "authority_comment_id",
+      "authority_run_id",
+      "repository_sha",
+      "source_prod_release_sha",
+      "operation_profile",
+      "profile_sha256",
+      "execution_mode",
+      "snapshot_byte_size",
+      "snapshot_sha256",
+      "snapshot_created",
+      "raw_material_mode",
+      "snapshot_cleanup",
+      "raw_snapshot_present_after_cleanup",
+      "prod_write_path",
+      "preprod_path",
+      "raw_prod_artifact_in_github"
+    ]
+  }
+}

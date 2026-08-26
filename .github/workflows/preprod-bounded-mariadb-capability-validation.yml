@@ -1,0 +1,140 @@
+name: Validate #849 bounded PREPROD MariaDB capability
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-bounded-mariadb-capability-validation.yml'
+      - '.github/workflows/preprod-isolated-staging-import-validation.yml'
+      - 'scripts/preproduction-staging-import/**'
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-capability:
+    name: Prove #849 fixed least-privilege MariaDB capability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate syntax, repository digest and fixed contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          digest='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256'
+          contract='scripts/preproduction-staging-import/privileged/capability.json'
+
+          bash -n "$remote"
+          bash -n "$apply"
+          python3 -m py_compile "$helper"
+          python3 scripts/preproduction-staging-import/privileged/test-contract.py
+          test "$(sha256sum "$helper" | awk '{print $1}')" = "$(cat "$digest")"
+
+          jq -e '.issue_number == 849 and .model == "FIXED_ROOT_OWNED_BOUNDED_HELPER"' "$contract" >/dev/null
+          jq -e '.installed_path == "/usr/local/sbin/agency-preprod-staging-db"' "$contract" >/dev/null
+          jq -e '.installed_owner_uid == 0 and .installed_group_gid == 0 and .installed_mode == "0755"' "$contract" >/dev/null
+          jq -e '.non_root_writable == false' "$contract" >/dev/null
+          jq -e '.actions == ["PRECHECK", "IMPORT", "CLEANUP", "VERIFY_ABSENCE"]' "$contract" >/dev/null
+
+      - name: Prove no generic privileged surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope='scripts/preproduction-staging-import'
+          remote="$scope/remote-preprod-stage.sh"
+          apply="$scope/run-apply.sh"
+          helper="$scope/privileged/agency-preprod-staging-db"
+          contract="$scope/privileged/capability.json"
+
+          ! grep -REn 'sudo[[:space:]]+-n[[:space:]]+(--[[:space:]]+)?mariadb([[:space:]]|$)' "$scope"
+          ! grep -REn 'NOPASSWD:.*mariadb' "$scope"
+          ! grep -Fq 'shell=True' "$helper"
+          ! grep -Fq 'os.system(' "$helper"
+          ! grep -Fq 'eval(' "$helper"
+          ! grep -Fq 'exec(' "$helper"
+
+          grep -Fq "PRIVILEGED_HELPER='/usr/local/sbin/agency-preprod-staging-db'" "$remote"
+          grep -Fq "PREPROD_PRIVILEGED_HELPER_PATH='/usr/local/sbin/agency-preprod-staging-db'" "$apply"
+          grep -Fq 'sudo -n -- "$PRIVILEGED_HELPER" "$ACTION" "$REQUEST_ID" "$SNAPSHOT_BYTES"' "$remote"
+          grep -Fq 'Expected ACTION REQUEST_ID SNAPSHOT_BYTES only.' "$helper"
+
+          jq -e '.sudo.direct_mariadb == "FORBIDDEN" and .sudo.generic_shell == "FORBIDDEN" and .sudo.setenv == "FORBIDDEN"' "$contract" >/dev/null
+          jq -e '.caller_inputs.sql_command == "FORBIDDEN" and .caller_inputs.shell == "FORBIDDEN" and .caller_inputs.executable == "FORBIDDEN"' "$contract" >/dev/null
+          jq -e '.caller_inputs.database_name == "FORBIDDEN" and .caller_inputs.filesystem_path == "FORBIDDEN" and .caller_inputs.host == "FORBIDDEN" and .caller_inputs.credential == "FORBIDDEN"' "$contract" >/dev/null
+
+      - name: Prove runtime DB cannot be targeted and IMPORT is DB-confined
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          contract='scripts/preproduction-staging-import/privileged/capability.json'
+
+          grep -Fq 'RUNTIME_DB = "agency_preprod"' "$helper"
+          grep -Fq 'STAGING_PREFIX = "agency_preprod_stage_"' "$helper"
+          grep -Fq 'if database == RUNTIME_DB:' "$helper"
+          grep -Fq 'f"--database={scope.database}"' "$helper"
+          grep -Fq '"--local-infile=0"' "$helper"
+          grep -Fq 'f"ON `{scope.database}`.* "' "$helper"
+          grep -Fq 'f"CREATE USER' "$helper"
+          grep -Fq 'f"DROP USER IF EXISTS' "$helper"
+          grep -Fq 'f"DROP DATABASE IF EXISTS `{scope.database}`"' "$helper"
+          ! grep -Fq 'ON *.*' "$helper"
+          ! grep -Fq 'GRANT ALL' "$helper"
+
+          jq -e '.database_scope.runtime_database == "agency_preprod" and .database_scope.runtime_targetable == false' "$contract" >/dev/null
+          jq -e '.database_scope.staging_database_derived_in_helper == true and .database_scope.ephemeral_import_account_derived_in_helper == true' "$contract" >/dev/null
+          jq -e '.database_scope.ephemeral_import_account_global_privileges == "NONE" and .database_scope.import_database_privileges == "DERIVED_STAGING_DB_ONLY"' "$contract" >/dev/null
+          jq -e '.database_scope.local_infile == "DISABLED"' "$contract" >/dev/null
+
+      - name: Prove installed-helper identity is checked before PROD snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          remote='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+
+          grep -Fq "helper_identity=\"\$(stat -c '%u:%g:%a' \"\$PRIVILEGED_HELPER\")\"" "$remote"
+          grep -Fq "[[ \"\$helper_identity\" == '0:0:755' ]]" "$remote"
+          grep -Fq 'actual_helper_sha256="$(sha256sum "$PRIVILEGED_HELPER"' "$remote"
+          grep -Fq 'privileged_helper_digest=PASS' "$remote"
+
+          precheck_line="$(grep -n -F -m1 'first_precheck="$(preprod_action PRECHECK 0)"' "$apply" | cut -d: -f1)"
+          raw_line="$(grep -n -F -m1 ': > "$raw"' "$apply" | cut -d: -f1)"
+          test -n "$precheck_line"
+          test -n "$raw_line"
+          test "$precheck_line" -lt "$raw_line"
+
+      - name: Prove bounded bytes and mandatory cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          contract='scripts/preproduction-staging-import/privileged/capability.json'
+
+          grep -Fq 'MAX_SNAPSHOT_BYTES = 1_099_511_627_776' "$helper"
+          grep -Fq 'total != snapshot_bytes' "$helper"
+          grep -Fq 'cleanup_scope(scope)' "$helper"
+          grep -Fq 'staging_db_present_after_cleanup=NO' "$helper"
+          grep -Fq 'preprod_action CLEANUP 0' "$apply"
+          grep -Fq 'preprod_action VERIFY_ABSENCE 0' "$apply"
+          jq -e '.cleanup.import_finalizer == "MANDATORY" and .cleanup.staging_database == "MANDATORY" and .cleanup.independent_verify_absence == "MANDATORY"' "$contract" >/dev/null
+
+          printf '%s\n' \
+            'DIRECT_SUDO_MARIADB_FROM_DEPLOY_USER=NONE' \
+            'GENERIC_PRIVILEGED_SQL_EXECUTOR=NONE' \
+            'GENERIC_PRIVILEGED_SHELL=NONE' \
+            'RUNTIME_DB_TARGETABLE=NO' \
+            'STAGING_DB_NAME_CALLER_CONTROLLED=NO' \
+            'HELPER_PATH=FIXED' \
+            'HELPER_DIGEST=REPOSITORY_VERIFIABLE' \
+            'ROOT_OWNERSHIP_REQUIRED=YES' \
+            'IMPORT_SCOPE=DERIVED_STAGING_DB_ONLY' \
+            'CLEANUP=MANDATORY'

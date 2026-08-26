@@ -35,7 +35,7 @@
   },
   "snapshot": {
     "remote_project_root": "/var/www/agency/current",
-    "release_identity": "GIT_HEAD_OF_CURRENT_RELEASE",
+    "release_identity": "PROMOTION_RECEIPT_CURRENT_RELEASE_EXACT_CANDIDATE_SHA",
     "connection_source": "DRUSH_SQL_DUMP_FROM_SERVER_OWNED_SETTINGS",
     "fixed_tool": "vendor/bin/drush sql:dump",
     "fixed_dump_options": [

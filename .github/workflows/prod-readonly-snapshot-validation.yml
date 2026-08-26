@@ -74,7 +74,16 @@ jobs:
           set -euo pipefail
           remote='scripts/production-readonly-snapshot/remote-stream.sh'
           lifecycle='scripts/production-readonly-snapshot/run-snapshot.sh'
-          grep -Fq "CURRENT_RELEASE='/var/www/agency/current'" "$remote"
+          builder='.github/workflows/build-release-candidate.yml'
+          grep -Fq "PROJECT_ROOT='/var/www/agency'" "$remote"
+          grep -Fq 'CURRENT_RELEASE="$PROJECT_ROOT/current"' "$remote"
+          grep -Fq 'PROMOTIONS_DIR="$PROJECT_ROOT/shared/promotions"' "$remote"
+          grep -Fq 'current_release="$(readlink -f "$CURRENT_RELEASE")"' "$remote"
+          grep -Fq "grep -m1 '^release_path='" "$remote"
+          grep -Fq "grep -m1 '^candidate_sha='" "$remote"
+          grep -Fq 'Current PROD release must map to exactly one promotion receipt.' "$remote"
+          ! grep -Fq 'git -C "$CURRENT_RELEASE" rev-parse HEAD' "$remote"
+          grep -Fq -- "--exclude='.git/'" "$builder"
           grep -Fq 'vendor/bin/drush sql:dump' "$remote"
           ! grep -Fq 'sql:connect' "$remote"
           grep -Fq -- '--single-transaction' "$remote"

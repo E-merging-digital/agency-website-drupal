@@ -77,7 +77,7 @@ jobs:
           grep -Fq 'agency-prod-readonly-rebaseline-${GITHUB_RUN_ID}.key' "$workflow"
           grep -Fq 'AGENCY_PROD_READONLY_SSH_KEY' "$workflow"
           grep -Fq 'chmod 600 "$key_path"' "$workflow"
-          grep -Fq '-i "$AGENCY_PROD_READONLY_SSH_KEY"' "$workflow"
+          grep -Fq -- '-i "$AGENCY_PROD_READONLY_SSH_KEY"' "$workflow"
           grep -Fq 'Remove transient SSH credential after read-only session' "$workflow"
           grep -Fq 'Finalize transient read-only session material' "$workflow"
           grep -Fq 'rm -f -- "$AGENCY_PROD_READONLY_SSH_KEY"' "$workflow"

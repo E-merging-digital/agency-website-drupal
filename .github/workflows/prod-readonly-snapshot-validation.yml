@@ -59,7 +59,7 @@ jobs:
           grep -Fq 'Snapshot authority cannot be replayed through a workflow rerun.' "$workflow"
           grep -Fq 'agency-prod-readonly-snapshot-v1' "$workflow"
           grep -Fq 'path: artifacts/prod-readonly-snapshot/evidence.env' "$workflow"
-          grep -Fq 'Require pre-provisioned PROD host trust' "$workflow"
+          grep -Fq 'Require exact pinned PROD host trust' "$workflow"
           grep -Fq 'ssh-keygen -F "$SERVER_HOST"' "$workflow"
           ! grep -Fq 'ssh-keyscan' "$workflow"
           ! grep -Fq '*.sql' "$workflow"

@@ -68,4 +68,6 @@ preprod_trust.current_state = PINNED
 authority.first_real_apply = HUMAN_REQUIRED_AFTER_PROJECT_LEAD_REVIEW
 ```
 
+The #836 provisioning workflow must never emit, manufacture or treat an `/agency-preprod-staging-import apply ...` comment as authorized. A future real #834 APPLY requires a separate fresh human authority after Project Lead review.
+
 Trust establishment does not authorize `/agency-preprod-staging-import apply ...` and does not authorize a PROD snapshot, PROD DB read, PROD→PREPROD transfer, PREPROD staging DB creation/import, sanitization, activation, deployment, file synchronization or any PROD/PREPROD database mutation.

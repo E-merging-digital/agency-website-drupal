@@ -39,6 +39,7 @@ jobs:
           jq -e '.execution.prod_write_path == "NONE"' scripts/production-readonly-snapshot/profile.json >/dev/null
           jq -e '.execution.preprod_path == "NONE"' scripts/production-readonly-snapshot/profile.json >/dev/null
           jq -e '.snapshot.fixed_tool == "vendor/bin/drush sql:dump"' scripts/production-readonly-snapshot/profile.json >/dev/null
+          jq -e '.snapshot.release_identity == "PROMOTION_RECEIPT_CURRENT_RELEASE_EXACT_CANDIDATE_SHA"' scripts/production-readonly-snapshot/profile.json >/dev/null
 
       - name: Prove workflow raw-data boundary is static and non-generic
         shell: bash
@@ -81,8 +82,14 @@ jobs:
           grep -Fq 'current_release="$(readlink -f "$CURRENT_RELEASE")"' "$remote"
           grep -Fq "grep -m1 '^release_path='" "$remote"
           grep -Fq "grep -m1 '^candidate_sha='" "$remote"
+          grep -Fq 'matched_receipts=$((matched_receipts + 1))' "$remote"
           grep -Fq 'Current PROD release must map to exactly one promotion receipt.' "$remote"
-          ! grep -Fq 'git -C "$CURRENT_RELEASE" rev-parse HEAD' "$remote"
+          grep -Fq 'if [[ "$ACTUAL_PROD_RELEASE_SHA" != "$EXPECTED_PROD_RELEASE_SHA" ]]' "$remote"
+          grep -Fq 'Current PROD release identity does not match authorization.' "$remote"
+          ! grep -Fq 'git rev-parse' "$remote"
+          ! grep -Fq 'git -C' "$remote"
+          ! grep -Fq '.git/' "$remote"
+          ! grep -Fq 'GIT_HEAD_OF_CURRENT_RELEASE' "$remote"
           grep -Fq -- "--exclude='.git/'" "$builder"
           grep -Fq 'vendor/bin/drush sql:dump' "$remote"
           ! grep -Fq 'sql:connect' "$remote"

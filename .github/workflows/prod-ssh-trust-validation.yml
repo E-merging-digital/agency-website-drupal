@@ -1,0 +1,166 @@
+name: Validate PROD SSH trust governance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/prod-readonly-snapshot.yml'
+      - '.github/workflows/prod-ssh-trust-provision.yml'
+      - '.github/workflows/prod-ssh-trust-validation.yml'
+      - 'scripts/production-ssh-trust/**'
+      - 'docs/operations/production-ssh-trust.md'
+      - 'docs/operations/production-readonly-snapshot.md'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-prod-ssh-trust:
+    name: Prove pinned out-of-band ED25519 trust and fail-closed behavior
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate pinned trust material
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/production-ssh-trust/manage-known-host.sh
+          read -r key_type key_blob key_comment extra < scripts/production-ssh-trust/prod-ed25519.pub
+          test "$key_type" = 'ssh-ed25519'
+          test "$key_blob" = 'AAAAC3NzaC1lZDI1NTE5AAAAIHBzADlwNcSFBP6sYfGBH2SvD5NymTF6n2Ze996V4TqR'
+          test -z "${extra:-}"
+          fingerprint="$(ssh-keygen -lf scripts/production-ssh-trust/prod-ed25519.pub -E sha256 | awk '{print $2}')"
+          test "$fingerprint" = 'SHA256:Pflpbgh2vc9dUYe4fpXPxdwzhPqyy8vmbAOcS+BRLDQ'
+          grep -Fxq "$fingerprint" scripts/production-ssh-trust/prod-ed25519.sha256
+
+      - name: Prove snapshot route requires exact pinned trust
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/prod-readonly-snapshot.yml'
+          lifecycle='scripts/production-readonly-snapshot/run-snapshot.sh'
+          manager='scripts/production-ssh-trust/manage-known-host.sh'
+          grep -Fq 'Require exact pinned PROD host trust' "$workflow"
+          grep -Fq 'ssh-keygen -F "$SERVER_HOST" -f ~/.ssh/known_hosts' "$workflow"
+          grep -Fq 'scripts/production-ssh-trust/manage-known-host.sh VERIFY_ONLY' "$workflow"
+          grep -Fq 'prod-ed25519.pub' "$workflow"
+          grep -Fq 'SHA256:Pflpbgh2vc9dUYe4fpXPxdwzhPqyy8vmbAOcS+BRLDQ' "$workflow"
+          grep -Fq 'StrictHostKeyChecking=yes' "$lifecycle"
+          ! grep -Fq 'StrictHostKeyChecking=no' "$workflow"
+          ! grep -Fq 'StrictHostKeyChecking=no' "$lifecycle"
+          ! grep -Fq 'accept-new' "$workflow"
+          ! grep -Fq 'accept-new' "$lifecycle"
+          ! grep -Fq 'ssh-keyscan' "$workflow"
+          ! grep -Fq 'ssh-keyscan' "$manager"
+          grep -Fq 'SERVER_HOST known_hosts key does not match the pinned PROD key.' "$manager"
+          grep -Fq 'Pinned PROD host identity is absent from known_hosts.' "$manager"
+          grep -Fq 'SERVER_HOST has multiple known_hosts entries; refusing ambiguity.' "$manager"
+
+      - name: Prove provisioning route is bounded to the exact Agency runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/prod-ssh-trust-provision.yml'
+          grep -Fq 'github.event.issue.number == 830' "$workflow"
+          grep -Fq '/agency-prod-ssh-trust provision ' "$workflow"
+          grep -Fq "RUNNER_NAME\" == 'agency-browser-runner-01'" "$workflow"
+          grep -Fq 'scripts/production-ssh-trust/manage-known-host.sh PROVISION' "$workflow"
+          grep -Fq 'scripts/production-ssh-trust/manage-known-host.sh VERIFY_ONLY' "$workflow"
+          grep -Fq 'SERVER_HOST: ${{ secrets.SERVER_HOST }}' "$workflow"
+          ! grep -Fq 'SSH_PRIVATE_KEY' "$workflow"
+          ! grep -Fq 'SERVER_USER' "$workflow"
+          ! grep -Fq 'ssh-keyscan' "$workflow"
+          ! grep -Fq 'ssh ' "$workflow"
+          ! grep -Fq 'scp ' "$workflow"
+          ! grep -Fq 'rsync ' "$workflow"
+
+      - name: Prove absent and wrong host identities fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager="$GITHUB_WORKSPACE/scripts/production-ssh-trust/manage-known-host.sh"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          host='prod.example.invalid'
+
+          mkdir -p "$tmp/absent/.ssh"
+          chmod 700 "$tmp/absent/.ssh"
+          : > "$tmp/absent/.ssh/known_hosts"
+          chmod 600 "$tmp/absent/.ssh/known_hosts"
+          if HOME="$tmp/absent" SERVER_HOST="$host" bash "$manager" VERIFY_ONLY; then
+            echo 'Absent host identity unexpectedly passed verification.' >&2
+            exit 1
+          fi
+
+          ssh-keygen -q -t ed25519 -N '' -f "$tmp/wrong" >/dev/null
+          read -r wrong_type wrong_blob _ < "$tmp/wrong.pub"
+          mkdir -p "$tmp/wrong-home/.ssh"
+          chmod 700 "$tmp/wrong-home/.ssh"
+          printf '%s %s %s\n' "$host" "$wrong_type" "$wrong_blob" > "$tmp/wrong-home/.ssh/known_hosts"
+          chmod 600 "$tmp/wrong-home/.ssh/known_hosts"
+          if HOME="$tmp/wrong-home" SERVER_HOST="$host" bash "$manager" VERIFY_ONLY; then
+            echo 'Wrong host identity unexpectedly passed verification.' >&2
+            exit 1
+          fi
+
+      - name: Prove multiple entries fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager="$GITHUB_WORKSPACE/scripts/production-ssh-trust/manage-known-host.sh"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          host='prod.example.invalid'
+          read -r pinned_type pinned_blob _ < scripts/production-ssh-trust/prod-ed25519.pub
+          ssh-keygen -q -t ed25519 -N '' -f "$tmp/wrong" >/dev/null
+          read -r wrong_type wrong_blob _ < "$tmp/wrong.pub"
+          mkdir -p "$tmp/home/.ssh"
+          chmod 700 "$tmp/home/.ssh"
+          {
+            printf '%s %s %s\n' "$host" "$pinned_type" "$pinned_blob"
+            printf '%s %s %s\n' "$host" "$wrong_type" "$wrong_blob"
+          } > "$tmp/home/.ssh/known_hosts"
+          chmod 600 "$tmp/home/.ssh/known_hosts"
+          if HOME="$tmp/home" SERVER_HOST="$host" bash "$manager" VERIFY_ONLY; then
+            echo 'Ambiguous host identity unexpectedly passed verification.' >&2
+            exit 1
+          fi
+
+      - name: Prove provisioning preserves unrelated entries and is idempotent
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager="$GITHUB_WORKSPACE/scripts/production-ssh-trust/manage-known-host.sh"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          host='prod.example.invalid'
+          unrelated='unrelated.example.invalid'
+          ssh-keygen -q -t ed25519 -N '' -f "$tmp/unrelated" >/dev/null
+          read -r unrelated_type unrelated_blob _ < "$tmp/unrelated.pub"
+          mkdir -p "$tmp/home/.ssh"
+          chmod 700 "$tmp/home/.ssh"
+          printf '%s %s %s\n' "$unrelated" "$unrelated_type" "$unrelated_blob" > "$tmp/home/.ssh/known_hosts"
+          chmod 600 "$tmp/home/.ssh/known_hosts"
+
+          HOME="$tmp/home" SERVER_HOST="$host" bash "$manager" PROVISION >/dev/null
+          first_count="$(ssh-keygen -F "$host" -f "$tmp/home/.ssh/known_hosts" | grep -vc '^#')"
+          test "$first_count" -eq 1
+          grep -Fq "$unrelated $unrelated_type $unrelated_blob" "$tmp/home/.ssh/known_hosts"
+          test "$(stat -c '%a' "$tmp/home/.ssh")" = '700'
+          test "$(stat -c '%a' "$tmp/home/.ssh/known_hosts")" = '600'
+
+          HOME="$tmp/home" SERVER_HOST="$host" bash "$manager" PROVISION >/dev/null
+          second_count="$(ssh-keygen -F "$host" -f "$tmp/home/.ssh/known_hosts" | grep -vc '^#')"
+          test "$second_count" -eq 1
+
+          evidence="$(HOME="$tmp/home" SERVER_HOST="$host" bash "$manager" VERIFY_ONLY)"
+          grep -Fxq 'ENTRY_COUNT_FOR_SERVER_HOST=1' <<< "$evidence"
+          grep -Fxq 'KEY_TYPE=ssh-ed25519' <<< "$evidence"
+          grep -Fxq 'KEY_BLOB_MATCH=PASS' <<< "$evidence"
+          grep -Fxq 'FINGERPRINT=SHA256:Pflpbgh2vc9dUYe4fpXPxdwzhPqyy8vmbAOcS+BRLDQ' <<< "$evidence"
+          grep -Fxq 'TRUST_SOURCE=OUT_OF_BAND_PROD_CONSOLE' <<< "$evidence"
+          grep -Fxq 'KNOWN_HOSTS_MATCH=PASS' <<< "$evidence"

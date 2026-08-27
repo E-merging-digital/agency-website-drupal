@@ -14,11 +14,11 @@ concurrency:
 
 jobs:
   validate-authority:
-    name: Validate fresh owner provisioning authority
+    name: Validate fresh #861 owner provisioning authority
     if: >-
       ${{
         github.event.issue.pull_request == null &&
-        github.event.issue.number == 851 &&
+        github.event.issue.number == 861 &&
         startsWith(github.event.comment.body, '/agency-preprod-capability-provision ')
       }}
     runs-on: ubuntu-24.04
@@ -32,85 +32,97 @@ jobs:
       operation_profile: ${{ steps.authority.outputs.operation_profile }}
       helper_sha256: ${{ steps.profile.outputs.helper_sha256 }}
     steps:
-      - name: Validate actor, one-shot request and exact live main
-        id: authority
+      - name: Resolve exact #861 event envelope and live main
+        id: envelope
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          TRIGGER_COMMENT: ${{ github.event.comment.body }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           EVENT_DEFAULT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
           [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
-          [[ "$ISSUE_NUMBER" == '851' ]]
+          [[ "$ISSUE_NUMBER" == '861' ]]
           [[ "$GITHUB_RUN_ATTEMPT" == '1' ]] || {
             echo 'Provisioning authority cannot be replayed through workflow rerun.' >&2
             exit 1
           }
-
-          read -r command mode request_id requested_main profile extra <<< "$TRIGGER_COMMENT"
-          [[ -z "${extra:-}" ]]
-          [[ "$command" == '/agency-preprod-capability-provision' ]]
-          [[ "$mode" == 'plan' || "$mode" == 'apply' ]]
-          [[ "$request_id" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
-          [[ "$requested_main" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$profile" == 'agency-preprod-capability-provision-v1' ]]
-          expected="/agency-preprod-capability-provision $mode $request_id $requested_main $profile"
-          [[ "$TRIGGER_COMMENT" == "$expected" ]]
-          [[ "$request_id" != 'apply-834-a1340af5-r1' ]]
-
-          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/851")"
-          [[ "$(jq -r '.state' <<< "$issue_json")" == 'open' ]]
-          [[ "$(jq -r '.user.login' <<< "$issue_json")" == 'E-merging-digital' ]]
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/861")"
+          issue_state="$(jq -r '.state' <<< "$issue_json")"
+          issue_owner="$(jq -r '.user.login' <<< "$issue_json")"
+          [[ "$issue_state" == 'open' ]]
+          [[ "$issue_owner" == 'E-merging-digital' ]]
           live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          [[ "$requested_main" == "$live_main" ]]
           [[ "$EVENT_DEFAULT_SHA" == "$live_main" ]]
-
-          comments="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/851/comments?per_page=100" --jq '.[].body')"
-          plan_prefix="/agency-preprod-capability-provision plan $request_id "
-          apply_prefix="/agency-preprod-capability-provision apply $request_id "
-          count=0
-          while IFS= read -r body; do
-            if [[ "$body" == "$plan_prefix"* || "$body" == "$apply_prefix"* ]]; then
-              count=$((count + 1))
-            fi
-          done <<< "$comments"
-          [[ "$count" -eq 1 ]] || {
-            echo 'request_id must occur in exactly one #851 owner authority comment across all modes.' >&2
-            exit 1
-          }
-
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
           echo "main_sha=$live_main" >> "$GITHUB_OUTPUT"
-          echo "operation_profile=$profile" >> "$GITHUB_OUTPUT"
+          echo "issue_state=$issue_state" >> "$GITHUB_OUTPUT"
+          echo "issue_owner=$issue_owner" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout exact trusted main provisioning source
+      - name: Checkout exact trusted live main provisioning source
         uses: actions/checkout@v6
         with:
-          ref: ${{ steps.authority.outputs.main_sha }}
+          ref: ${{ steps.envelope.outputs.main_sha }}
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Bind exact repository helper and profile authority
+      - name: Bind exact repository lineage bundle and profile authority
         id: profile
         shell: bash
-        env:
-          EXPECTED_PROFILE: ${{ steps.authority.outputs.operation_profile }}
         run: |
           set -euo pipefail
           profile='scripts/preproduction-staging-import/provisioning/profile.json'
-          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
-          digest='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256'
-          jq -e --arg id "$EXPECTED_PROFILE" '.profile_id == $id and .issue_number == 851' "$profile" >/dev/null
-          expected="$(jq -r '.helper.expected_sha256' "$profile")"
-          test "$expected" = 'ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3'
-          test "$expected" = "$(tr -d '\r\n' < "$digest")"
-          test "$expected" = "$(sha256sum "$helper" | awk '{print $1}')"
-          echo "helper_sha256=$expected" >> "$GITHUB_OUTPUT"
+          privileged='scripts/preproduction-staging-import/privileged'
+          helper="$privileged/agency-preprod-staging-db"
+          sanitizer="$privileged/agency-preprod-staging-sanitizer.py"
+          policy='scripts/preproduction-refresh/sanitization-policy.json'
+          jq -e '
+            .profile_id == "agency-preprod-capability-provision-v1" and
+            .authority_lineage.provisioning_contract_origin_issue == 851 and
+            .authority_lineage.capability_revision_issue == 859 and
+            .authority_lineage.current_execution_authority_issue == 861 and
+            .authority.execution_authority_issue == 861
+          ' "$profile" >/dev/null
+          helper_sha="$(jq -r '.helper.expected_sha256' "$profile")"
+          sanitizer_sha="$(jq -r '.bundle.sanitizer.expected_sha256' "$profile")"
+          policy_sha="$(jq -r '.bundle.policy.expected_sha256' "$profile")"
+          test "$helper_sha" = 'a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71'
+          test "$sanitizer_sha" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
+          test "$policy_sha" = 'cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
+          test "$helper_sha" = "$(sha256sum "$helper" | awk '{print $1}')"
+          test "$sanitizer_sha" = "$(sha256sum "$sanitizer" | awk '{print $1}')"
+          test "$policy_sha" = "$(sha256sum "$policy" | awk '{print $1}')"
+          test "$helper_sha" = "$(tr -d '\r\n' < "$privileged/agency-preprod-staging-db.sha256")"
+          test "$sanitizer_sha" = "$(tr -d '\r\n' < "$privileged/agency-preprod-staging-sanitizer.py.sha256")"
+          test "$policy_sha" = "$(tr -d '\r\n' < "$privileged/sanitization-policy.sha256")"
+          echo "helper_sha256=$helper_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Validate exact command uniqueness historical non-reuse and mode binding
+        id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_STATE: ${{ steps.envelope.outputs.issue_state }}
+          ISSUE_OWNER: ${{ steps.envelope.outputs.issue_owner }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          LIVE_MAIN: ${{ steps.envelope.outputs.main_sha }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-staging-import/provisioning/profile.json'
+          validator='scripts/preproduction-staging-import/provisioning/validate-provisioning-authority.py'
+          current="$RUNNER_TEMP/agency-861-current-comments.json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/861/comments?per_page=100" > "$current"
+          args=(--profile "$profile" --current-comments-json "$current")
+          while IFS= read -r historical_issue; do
+            historical="$RUNNER_TEMP/agency-861-historical-${historical_issue}.json"
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/${historical_issue}/comments?per_page=100" > "$historical"
+            args+=(--historical-comments-json "$historical")
+          done < <(jq -r '.authority.historical_request_issues[]' "$profile")
+          python3 "$validator" "${args[@]}" >> "$GITHUB_OUTPUT"
 
   plan:
     name: Mutation-free real PREPROD provisioning PLAN
@@ -159,10 +171,10 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$PREPROD_PRIVATE_KEY"
-          key="$RUNNER_TEMP/agency-851-plan-${GITHUB_RUN_ID}.key"
+          key="$RUNNER_TEMP/agency-861-plan-${GITHUB_RUN_ID}.key"
           printf '%s\n' "$PREPROD_PRIVATE_KEY" > "$key"
           chmod 600 "$key"
-          echo "AGENCY_851_PLAN_SSH_KEY=$key" >> "$GITHUB_ENV"
+          echo "AGENCY_861_PLAN_SSH_KEY=$key" >> "$GITHUB_ENV"
 
       - name: Execute fixed mutation-free PLAN
         env:
@@ -174,8 +186,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${AGENCY_851_PLAN_SSH_KEY:-}"
-          export PREPROD_SSH_KEY="$AGENCY_851_PLAN_SSH_KEY"
+          test -n "${AGENCY_861_PLAN_SSH_KEY:-}"
+          export PREPROD_SSH_KEY="$AGENCY_861_PLAN_SSH_KEY"
           bash scripts/preproduction-staging-import/provisioning/run-plan.sh
 
       - name: Remove transient PLAN SSH identity
@@ -183,8 +195,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ -z "${AGENCY_851_PLAN_SSH_KEY:-}" ]] || rm -f -- "$AGENCY_851_PLAN_SSH_KEY"
-          [[ -z "${AGENCY_851_PLAN_SSH_KEY:-}" ]] || test ! -e "$AGENCY_851_PLAN_SSH_KEY"
+          [[ -z "${AGENCY_861_PLAN_SSH_KEY:-}" ]] || rm -f -- "$AGENCY_861_PLAN_SSH_KEY"
+          [[ -z "${AGENCY_861_PLAN_SSH_KEY:-}" ]] || test ! -e "$AGENCY_861_PLAN_SSH_KEY"
 
       - name: Validate metadata-only PLAN evidence
         env:
@@ -250,10 +262,10 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$PROVISIONING_PRIVATE_KEY"
-          key="$RUNNER_TEMP/agency-851-provision-${GITHUB_RUN_ID}.key"
+          key="$RUNNER_TEMP/agency-861-provision-${GITHUB_RUN_ID}.key"
           printf '%s\n' "$PROVISIONING_PRIVATE_KEY" > "$key"
           chmod 600 "$key"
-          echo "AGENCY_851_PROVISIONING_SSH_KEY=$key" >> "$GITHUB_ENV"
+          echo "AGENCY_861_PROVISIONING_SSH_KEY=$key" >> "$GITHUB_ENV"
 
       - name: Execute fixed repository-owned one-shot APPLY
         env:
@@ -264,8 +276,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${AGENCY_851_PROVISIONING_SSH_KEY:-}"
-          export PREPROD_PROVISIONING_SSH_KEY="$AGENCY_851_PROVISIONING_SSH_KEY"
+          test -n "${AGENCY_861_PROVISIONING_SSH_KEY:-}"
+          export PREPROD_PROVISIONING_SSH_KEY="$AGENCY_861_PROVISIONING_SSH_KEY"
           bash scripts/preproduction-staging-import/provisioning/run-apply.sh
 
       - name: Remove transient provisioning SSH identity
@@ -273,8 +285,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ -z "${AGENCY_851_PROVISIONING_SSH_KEY:-}" ]] || rm -f -- "$AGENCY_851_PROVISIONING_SSH_KEY"
-          [[ -z "${AGENCY_851_PROVISIONING_SSH_KEY:-}" ]] || test ! -e "$AGENCY_851_PROVISIONING_SSH_KEY"
+          [[ -z "${AGENCY_861_PROVISIONING_SSH_KEY:-}" ]] || rm -f -- "$AGENCY_861_PROVISIONING_SSH_KEY"
+          [[ -z "${AGENCY_861_PROVISIONING_SSH_KEY:-}" ]] || test ! -e "$AGENCY_861_PROVISIONING_SSH_KEY"
 
       - name: Validate metadata-only APPLY evidence
         if: ${{ always() }}

@@ -136,7 +136,7 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
   }
 
   /**
-   * #859 may revise the helper only through the exact governed fixed contract.
+   * Issue #859 may revise the helper only through the exact governed fixed contract.
    */
   public function testPrivilegedHelperRevisionRemainsGoverned(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -387,7 +387,7 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
    *   Parsed DDEV config.
    */
   private function ddevConfig(): array {
-    $root = dirname(DRUPAL_ROOT);
+    $root = dirname(DRUP_ROOT);
     $path = $root . '/.ddev/config.yaml';
     self::assertFileExists($path);
     $config = Yaml::parseFile($path);

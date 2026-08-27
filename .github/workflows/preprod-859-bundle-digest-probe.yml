@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/preprod-859-bundle-digest-probe.yml'
       - 'scripts/preproduction-refresh/sanitization-policy.json'
+      - 'scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+      - 'scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py'
 
 permissions:
   contents: read
@@ -16,11 +18,16 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Compute policy digest
+      - name: Compute bundle digests
         shell: bash
-        run: sha256sum scripts/preproduction-refresh/sanitization-policy.json > /tmp/policy.sha256
+        run: |
+          sha256sum \
+            scripts/preproduction-staging-import/privileged/agency-preprod-staging-db \
+            scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py \
+            scripts/preproduction-refresh/sanitization-policy.json \
+            > /tmp/bundle.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: preprod-859-policy-digest
-          path: /tmp/policy.sha256
+          name: preprod-859-bundle-digests
+          path: /tmp/bundle.sha256
           retention-days: 1

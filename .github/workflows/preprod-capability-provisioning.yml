@@ -143,6 +143,15 @@ jobs:
           PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
             bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
 
+      - name: Require dedicated provisioning credential readiness
+        id: provisioning-readiness
+        env:
+          PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/preproduction-staging-import/provisioning/check-provisioning-credential-ready.sh >> "$GITHUB_OUTPUT"
+
       - name: Configure transient PREPROD deploy SSH identity
         env:
           PREPROD_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
@@ -178,13 +187,18 @@ jobs:
           [[ -z "${AGENCY_851_PLAN_SSH_KEY:-}" ]] || test ! -e "$AGENCY_851_PLAN_SSH_KEY"
 
       - name: Validate metadata-only PLAN evidence
+        env:
+          PROVISIONING_CREDENTIAL_READY: ${{ steps.provisioning-readiness.outputs.provisioning_credential_ready }}
         shell: bash
         run: |
           set -euo pipefail
           evidence='artifacts/preprod-capability-provisioning/evidence.env'
           test -f "$evidence"
+          [[ "$PROVISIONING_CREDENTIAL_READY" == 'PASS' ]]
+          grep -Fxq 'provisioning_credential_ready=PASS' "$evidence" || printf '%s\n' 'provisioning_credential_ready=PASS' >> "$evidence"
           grep -Fxq 'execution_mode=PLAN' "$evidence"
           grep -Fxq 'plan_result=PASS' "$evidence"
+          grep -Fxq 'provisioning_credential_ready=PASS' "$evidence"
           grep -Fxq 'preprod_mutation=NONE' "$evidence"
           grep -Fxq 'privileged_helper_execution=NONE' "$evidence"
           grep -Fxq 'prod_access=NONE' "$evidence"

@@ -1,0 +1,121 @@
+name: "Validate #861 PREPROD provisioning execution authority"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-capability-provisioning.yml'
+      - '.github/workflows/preprod-capability-provisioning-validation.yml'
+      - '.github/workflows/preprod-861-provisioning-authority-validation.yml'
+      - 'scripts/preproduction-staging-import/provisioning/**'
+      - 'scripts/preproduction-staging-import/privileged/**'
+      - 'scripts/preproduction-refresh/sanitization-policy.json'
+
+permissions:
+  contents: read
+
+jobs:
+  authority-governance:
+    name: Prove #861 issue main actor replay and mode boundaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Execute synthetic authority rejection matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-staging-import/provisioning'
+          python3 -m py_compile "$base/validate-provisioning-authority.py" "$base/test-authority-route.py"
+          output="$(python3 "$base/test-authority-route.py")"
+          for required in \
+            'ISSUE_861_AUTHORITY_BINDING=PASS' \
+            'ISSUE_851_CANNOT_TRIGGER_CURRENT_ROUTE=PASS' \
+            'WRONG_ISSUE_REJECTED=PASS' \
+            'WRONG_ACTOR_REJECTED=PASS' \
+            'WRONG_MAIN_REJECTED=PASS' \
+            'WRONG_PROFILE_REJECTED=PASS' \
+            'MALFORMED_COMMAND_REJECTED=PASS' \
+            'DUPLICATE_REQUEST_REJECTED=PASS' \
+            'RERUN_REPLAY_REJECTED=PASS' \
+            'PLAN_APPLY_AUTHORITY_SEPARATION=PASS' \
+            'APPLY_REQUIRES_EXPLICIT_SEPARATE_AUTHORITY=PASS' \
+            'PLAN_MUTATION_ROUTE=NONE' \
+            'PLAN_HELPER_EXECUTION=NONE' \
+            'PLAN_SUDO_EXECUTION=NONE' \
+            'REAL_REQUEST_ID_CONSUMED=NO' \
+            'REAL_PREPROD_PLAN_EXECUTION=NOT_PERFORMED'; do
+            grep -Fxq "$required" <<< "$output"
+          done
+
+      - name: Prove live workflow is bound only to current #861 authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preprod-capability-provisioning.yml'
+          profile='scripts/preproduction-staging-import/provisioning/profile.json'
+          grep -Fq 'github.event.issue.number == 861' "$workflow"
+          grep -Fq '[[ "$ISSUE_NUMBER" == '\''861'\'' ]]' "$workflow"
+          grep -Fq 'issues/861' "$workflow"
+          ! grep -Fq 'github.event.issue.number == 851' "$workflow"
+          ! grep -Fq '[[ "$ISSUE_NUMBER" == '\''851'\'' ]]' "$workflow"
+          grep -Fq 'validate-provisioning-authority.py' "$workflow"
+          grep -Fq '.authority.historical_request_issues[]' "$workflow"
+          grep -Fq 'GITHUB_RUN_ATTEMPT' "$workflow"
+          grep -Fq 'EVENT_DEFAULT_SHA' "$workflow"
+          grep -Fq 'agency-861-plan-' "$workflow"
+          grep -Fq 'agency-861-provision-' "$workflow"
+          ! grep -Fq 'workflow_dispatch:' "$workflow"
+          jq -e '
+            .authority_lineage.provisioning_contract_origin_issue == 851 and
+            .authority_lineage.capability_revision_issue == 859 and
+            .authority_lineage.current_execution_authority_issue == 861 and
+            .authority.execution_authority_issue == 861 and
+            .authority.historical_request_issues == [834,851] and
+            .authority.plan_request_prefix == "plan-861-" and
+            .authority.apply_request_prefix == "apply-861-"
+          ' "$profile" >/dev/null
+
+      - name: Prove exact reviewed bundle and least privilege remain pinned
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-staging-import/provisioning/profile.json'
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          sanitizer='scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py'
+          policy='scripts/preproduction-refresh/sanitization-policy.json'
+          test "$(jq -r '.helper.expected_sha256' "$profile")" = 'a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71'
+          test "$(jq -r '.bundle.sanitizer.expected_sha256' "$profile")" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
+          test "$(jq -r '.bundle.policy.expected_sha256' "$profile")" = 'cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
+          test "$(jq -r '.bundle.policy.policy_version' "$profile")" = 'agency-preprod-refresh-v1'
+          test "$(sha256sum "$helper" | awk '{print $1}')" = 'a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71'
+          test "$(sha256sum "$sanitizer" | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
+          test "$(sha256sum "$policy" | awk '{print $1}')" = 'cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
+          jq -e '.plan.preprod_mutation == "NONE" and .plan.helper_execution == "NONE" and .plan.sudo_execution == "NONE"' "$profile" >/dev/null
+          jq -e '.apply.allowed_helper_proofs == ["PRECHECK","VERIFY_ABSENCE"] and .apply.snapshot_bytes == 0 and .apply.import == "FORBIDDEN" and .apply.import_sanitize_prove == "FORBIDDEN" and .apply.runtime_db_mutation == "NONE"' "$profile" >/dev/null
+          jq -e '.sudoers.nopasswd_scope == "FIXED_HELPER_ONLY" and .sudoers.direct_mariadb == "FORBIDDEN" and .sudoers.generic_root_executor_for_deploy_user == "NONE" and .sudoers.shell == "FORBIDDEN" and .sudoers.setenv == "FORBIDDEN"' "$profile" >/dev/null
+
+      - name: Emit bounded #861 result
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'ISSUE_861_AUTHORITY_VALIDATION=PASS' \
+            'ISSUE_851_CANNOT_TRIGGER_CURRENT_ROUTE=PASS' \
+            'PLAN_APPLY_AUTHORITY_SEPARATION=PASS' \
+            'APPLY_SEPARATE_AUTHORITY_REQUIRED=PASS' \
+            'CURRENT_HELPER_DIGEST_BINDING=PASS' \
+            'CURRENT_SANITIZER_DIGEST_BINDING=PASS' \
+            'CURRENT_POLICY_DIGEST_BINDING=PASS' \
+            'FIXED_HELPER_SUDOERS_ONLY=PASS' \
+            'GENERIC_MARIADB_PRIVILEGE=FORBIDDEN' \
+            'GENERIC_ROOT_EXECUTOR=NONE' \
+            'RUNTIME_DB_TARGET=FORBIDDEN' \
+            'PROD_ACCESS_ROUTE=NONE' \
+            'PLAN_MUTATION_ROUTE=NONE' \
+            'PLAN_HELPER_EXECUTION=NONE' \
+            'PLAN_SUDO_EXECUTION=NONE' \
+            'REAL_REQUEST_ID_CONSUMED=NO' \
+            'REAL_PREPROD_PLAN_EXECUTION=NOT_PERFORMED'

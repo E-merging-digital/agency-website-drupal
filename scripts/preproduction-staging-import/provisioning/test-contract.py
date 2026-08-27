@@ -14,6 +14,7 @@ REMOTE = (PROVISIONING / "remote-provision-root.sh").read_text(encoding="utf-8")
 REMOTE_PLAN = (PROVISIONING / "remote-plan-readonly.sh").read_text(encoding="utf-8")
 PLAN = (PROVISIONING / "run-plan.sh").read_text(encoding="utf-8")
 APPLY = (PROVISIONING / "run-apply.sh").read_text(encoding="utf-8")
+AUTHORITY_VALIDATOR = (PROVISIONING / "validate-provisioning-authority.py").read_text(encoding="utf-8")
 PRIVILEGED = ROOT / "privileged"
 HELPER = PRIVILEGED / "agency-preprod-staging-db"
 HELPER_DIGEST = PRIVILEGED / "agency-preprod-staging-db.sha256"
@@ -26,12 +27,26 @@ EXPECTED_HELPER = "a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82
 EXPECTED_SANITIZER = "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f"
 EXPECTED_POLICY = "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb"
 
+
 def digest(path: pathlib.Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+
 assert PROFILE["issue_number"] == 851
 assert PROFILE["revision_issue_number"] == 859
+assert PROFILE["authority_lineage"] == {
+    "provisioning_contract_origin_issue": 851,
+    "capability_revision_issue": 859,
+    "current_execution_authority_issue": 861,
+}
 assert PROFILE["profile_id"] == "agency-preprod-capability-provision-v1"
+assert PROFILE["authority"]["execution_authority_issue"] == 861
+assert PROFILE["authority"]["historical_request_issues"] == [834, 851]
+assert PROFILE["authority"]["request_mode_binding"] == "REQUIRED"
+assert PROFILE["authority"]["plan_request_prefix"] == "plan-861-"
+assert PROFILE["authority"]["apply_request_prefix"] == "apply-861-"
+assert PROFILE["authority"]["plan_authority_does_not_authorize_apply"] is True
+assert PROFILE["authority"]["apply_requires_fresh_separate_owner_comment"] is True
 assert PROFILE["helper"]["expected_sha256"] == EXPECTED_HELPER == HELPER_DIGEST.read_text().strip() == digest(HELPER)
 assert PROFILE["bundle"]["sanitizer"]["expected_sha256"] == EXPECTED_SANITIZER == SANITIZER_DIGEST.read_text().strip() == digest(SANITIZER)
 assert PROFILE["bundle"]["policy"]["expected_sha256"] == EXPECTED_POLICY == POLICY_DIGEST.read_text().strip() == digest(POLICY)
@@ -49,8 +64,12 @@ assert PROFILE["apply"]["import"] == "FORBIDDEN"
 assert PROFILE["apply"]["import_sanitize_prove"] == "FORBIDDEN"
 assert PROFILE["apply"]["bundle_atomic_install"] is True
 assert PROFILE["plan"]["preprod_mutation"] == "NONE"
+assert PROFILE["plan"]["helper_execution"] == "NONE"
+assert PROFILE["plan"]["sudo_execution"] == "NONE"
 assert PROFILE["execution"]["prod_access"] == "NONE"
 assert PROFILE["real_provisioning_performed_in_issue_859"] is False
+assert PROFILE["real_plan_performed_in_issue_861_phase_a"] is False
+assert PROFILE["real_provisioning_performed_in_issue_861_phase_a"] is False
 
 for required in [
     "HELPER_PATH='/usr/local/sbin/agency-preprod-staging-db'",
@@ -72,7 +91,7 @@ for required in [
 ]:
     assert required in REMOTE, required
 
-policy_line = next(line for line in REMOTE.splitlines() if line.startswith('desired_policy='))
+policy_line = next(line for line in REMOTE.splitlines() if line.startswith("desired_policy="))
 assert "NOPASSWD: NOSETENV: ${HELPER_PATH}" in policy_line
 assert "*" not in policy_line and "?" not in policy_line
 assert "mariadb" not in policy_line.lower()
@@ -100,14 +119,45 @@ assert "IMPORT_SANITIZE_PROVE" not in REMOTE_PLAN
 
 assert "ROOT_USER='root'" in APPLY
 assert "PREPROD_PROVISIONING_SSH_KEY" in APPLY
-for fixed_source in ["$HELPER", "$HELPER_DIGEST", "$SANITIZER", "$SANITIZER_DIGEST", "$POLICY", "$POLICY_DIGEST", "$REMOTE_ROOT"]:
+for fixed_source in [
+    "$HELPER",
+    "$HELPER_DIGEST",
+    "$SANITIZER",
+    "$SANITIZER_DIGEST",
+    "$POLICY",
+    "$POLICY_DIGEST",
+    "$REMOTE_ROOT",
+]:
     assert fixed_source in APPLY
-for forbidden in ["PREPROD_SUDO_PASSWORD", "SUDO_PASSWORD", "ssh-keyscan", "StrictHostKeyChecking=no", "accept-new", "eval "]:
+for forbidden in [
+    "PREPROD_SUDO_PASSWORD",
+    "SUDO_PASSWORD",
+    "ssh-keyscan",
+    "StrictHostKeyChecking=no",
+    "accept-new",
+    "eval ",
+]:
     assert forbidden not in APPLY
 
+for required in [
+    'current_execution_authority_issue") != 861',
+    'issue_number != expected_issue',
+    'run_attempt != "1"',
+    'requested_main != live_main',
+    'requested_profile != profile_id',
+    '_request_occurrences(historical_comments, request_id)',
+]:
+    assert required in AUTHORITY_VALIDATOR, required
+
 print("PROVISIONING_ROUTE=PASS")
+print("ORIGIN_PROVISIONING_ISSUE=851")
+print("CAPABILITY_REVISION_ISSUE=859")
+print("CURRENT_EXECUTION_AUTHORITY_ISSUE=861")
 print("PLAN_MUTATION_FREE=YES")
+print("PLAN_HELPER_EXECUTION=NONE")
+print("PLAN_SUDO_EXECUTION=NONE")
 print("APPLY_ONE_SHOT=YES")
+print("PLAN_APPLY_AUTHORITY_SEPARATION=PASS")
 print("FIXED_HELPER_PATH=PASS")
 print("HELPER_BUNDLE_DIGEST_BOUND=PASS")
 print("SUDOERS_FIXED_HELPER_ONLY=PASS")
@@ -119,4 +169,5 @@ print("VISUDO_PREVALIDATION=PASS")
 print("ROLLBACK_FAIL_CLOSE=PASS")
 print("PRECHECK_ZERO_DATA=PASS")
 print("VERIFY_ABSENCE_ZERO_DATA=PASS")
+print("REAL_PREPROD_PLAN_EXECUTION=NOT_PERFORMED")
 print("REAL_PROVISIONING_PERFORMED=NO")

@@ -1,0 +1,28 @@
+name: "TEMP #859 bundle digest probe"
+
+on:
+  push:
+    branches:
+      - 'ops/859-one-shot-import-sanitize-prove'
+    paths:
+      - '.github/workflows/preprod-859-bundle-digest-probe.yml'
+      - 'scripts/preproduction-refresh/sanitization-policy.json'
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Compute policy digest
+        shell: bash
+        run: sha256sum scripts/preproduction-refresh/sanitization-policy.json > /tmp/policy.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preprod-859-policy-digest
+          path: /tmp/policy.sha256
+          retention-days: 1

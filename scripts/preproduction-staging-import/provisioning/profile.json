@@ -2,6 +2,7 @@
   "schema_version": 1,
   "profile_id": "agency-preprod-capability-provision-v1",
   "issue_number": 851,
+  "revision_issue_number": 859,
   "authority": {
     "trigger": "ISSUE_COMMENT",
     "command_prefix": "/agency-preprod-capability-provision",
@@ -23,12 +24,40 @@
   "helper": {
     "source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db",
     "digest_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256",
-    "expected_sha256": "ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3",
+    "expected_sha256": "a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71",
     "destination": "/usr/local/sbin/agency-preprod-staging-db",
     "owner_uid": 0,
     "group_gid": 0,
     "mode": "0755",
     "symlink": "FORBIDDEN"
+  },
+  "bundle": {
+    "manifest": "scripts/preproduction-staging-import/privileged/bundle.json",
+    "destination_directory": "/usr/local/lib/agency-preprod-staging",
+    "directory_owner_uid": 0,
+    "directory_group_gid": 0,
+    "directory_mode": "0755",
+    "mutable_checkout_runtime_read": "FORBIDDEN",
+    "sanitizer": {
+      "source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py",
+      "digest_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py.sha256",
+      "expected_sha256": "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f",
+      "destination": "/usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py",
+      "owner_uid": 0,
+      "group_gid": 0,
+      "mode": "0644"
+    },
+    "policy": {
+      "source": "scripts/preproduction-refresh/sanitization-policy.json",
+      "digest_source": "scripts/preproduction-staging-import/privileged/sanitization-policy.sha256",
+      "expected_sha256": "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb",
+      "destination": "/usr/local/lib/agency-preprod-staging/sanitization-policy.json",
+      "policy_version": "agency-preprod-refresh-v1",
+      "byte_identical_copy_required": true,
+      "owner_uid": 0,
+      "group_gid": 0,
+      "mode": "0644"
+    }
   },
   "sudoers": {
     "destination": "/etc/sudoers.d/agency-preprod-staging-db",
@@ -37,6 +66,7 @@
     "mode": "0440",
     "deploy_identity_source": "SERVER_OWNED_PREPROD_SHARED_DIRECTORY_OWNER",
     "nopasswd_scope": "FIXED_HELPER_ONLY",
+    "change_required_for_issue_859": false,
     "direct_mariadb": "FORBIDDEN",
     "generic_root_executor_for_deploy_user": "NONE",
     "shell": "FORBIDDEN",
@@ -64,12 +94,17 @@
     "allowed_helper_proofs": ["PRECHECK", "VERIFY_ABSENCE"],
     "snapshot_bytes": 0,
     "import": "FORBIDDEN",
+    "import_sanitize_prove": "FORBIDDEN",
     "runtime_db_mutation": "NONE",
-    "rollback_on_post_install_failure": true
+    "rollback_on_post_install_failure": true,
+    "bundle_atomic_install": true
   },
   "fixed_paths": {
     "project_shared": "/var/www/agency-preprod/shared",
     "helper": "/usr/local/sbin/agency-preprod-staging-db",
+    "bundle_directory": "/usr/local/lib/agency-preprod-staging",
+    "sanitizer": "/usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py",
+    "policy": "/usr/local/lib/agency-preprod-staging/sanitization-policy.json",
     "sudoers": "/etc/sudoers.d/agency-preprod-staging-db"
   },
   "evidence": {
@@ -77,5 +112,6 @@
     "metadata_only": true,
     "pii_allowed": false,
     "secrets_allowed": false
-  }
+  },
+  "real_provisioning_performed_in_issue_859": false
 }

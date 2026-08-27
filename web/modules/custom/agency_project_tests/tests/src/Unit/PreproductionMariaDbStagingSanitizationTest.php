@@ -20,37 +20,50 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
    */
   public function testMariaDbProofUsesSoleSanitizationPolicy(): void {
     $policy = $this->policy();
+    $execution = $policy['sanitization_execution'];
+    self::assertIsArray($execution);
 
-    self::assertSame('agency-preprod-refresh-v1', $policy['policy_version']);
-    self::assertSame('SYNTHETIC_FIXTURE_ONLY', $policy['sanitization_execution']['mode']);
-    self::assertFalse($policy['sanitization_execution']['real_runtime_enabled']);
+    self::assertSame(
+      'agency-preprod-refresh-v1',
+      $policy['policy_version'],
+    );
+    self::assertSame('SYNTHETIC_FIXTURE_ONLY', $execution['mode']);
+    self::assertFalse($execution['real_runtime_enabled']);
 
-    $proof = $policy['sanitization_execution']['mariadb_proof'];
+    $proof = $execution['mariadb_proof'];
+    self::assertIsArray($proof);
     self::assertSame('EPHEMERAL_SYNTHETIC_CI_ONLY', $proof['mode']);
     self::assertSame('11.8', $proof['mariadb_version']);
     self::assertFalse($proof['real_runtime_enabled']);
     self::assertSame('FORBIDDEN', $proof['raw_prod_data']);
     self::assertSame('FORBIDDEN', $proof['real_preprod_connection']);
-    self::assertSame('agency_preprod', $proof['target_database']['runtime_database']);
-    self::assertFalse($proof['target_database']['runtime_targetable']);
-    self::assertSame('agency_preprod_stage_', $proof['target_database']['staging_prefix']);
+
+    $target = $proof['target_database'];
+    self::assertIsArray($target);
+    self::assertSame('agency_preprod', $target['runtime_database']);
+    self::assertFalse($target['runtime_targetable']);
+    self::assertSame('agency_preprod_stage_', $target['staging_prefix']);
     self::assertSame(
       'SHA256_REQUEST_ID_FIRST_12_HEX',
-      $proof['target_database']['derivation'],
+      $target['derivation'],
     );
-    self::assertSame('FORBIDDEN', $proof['target_database']['caller_database_name']);
+    self::assertSame('FORBIDDEN', $target['caller_database_name']);
 
-    foreach ($proof['caller_inputs'] as $value) {
+    $callerInputs = $proof['caller_inputs'];
+    self::assertIsArray($callerInputs);
+    foreach ($callerInputs as $value) {
       self::assertSame('FORBIDDEN', $value);
     }
 
+    $executionBoundary = $policy['execution_boundary'];
+    self::assertIsArray($executionBoundary);
+    $githubHosted = $executionBoundary['github_hosted'];
+    self::assertIsArray($githubHosted);
     self::assertContains(
       'SYNTHETIC_EPHEMERAL_DB_VALIDATION',
-      $policy['execution_boundary']['github_hosted']['allowed_roles'],
+      $githubHosted['allowed_roles'],
     );
-    self::assertFalse(
-      $policy['execution_boundary']['github_hosted']['raw_prod_data_allowed'],
-    );
+    self::assertFalse($githubHosted['raw_prod_data_allowed']);
   }
 
   /**
@@ -90,16 +103,21 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
   }
 
   /**
-   * MariaDB validation uses the same version as the repository DDEV model.
+   * MariaDB validation uses the repository DDEV database version.
    */
   public function testWorkflowUsesEphemeralMariaDb118Only(): void {
     $workflow = $this->workflow();
     $ddev = $this->ddevConfig();
+    $database = $ddev['database'];
+    self::assertIsArray($database);
 
-    self::assertSame('mariadb', $ddev['database']['type']);
-    self::assertSame('11.8', (string) $ddev['database']['version']);
+    self::assertSame('mariadb', $database['type']);
+    self::assertSame('11.8', (string) $database['version']);
     self::assertStringContainsString('image: mariadb:11.8', $workflow);
-    self::assertStringContainsString('runs-on: ubuntu-24.04', $workflow);
+    self::assertStringContainsString(
+      'runs-on: ubuntu-24.04',
+      $workflow,
+    );
     self::assertStringContainsString(
       'sanitize-staging-mariadb-proof.py PROVE',
       $workflow,
@@ -118,16 +136,19 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
   }
 
   /**
-   * #849/#851 installed-helper authority is intentionally unchanged by #857.
+   * #849/#851 installed-helper authority stays unchanged by #857.
    */
   public function testExistingPrivilegedHelperContractIsUnchanged(): void {
     $root = dirname(DRUPAL_ROOT);
     $helper = $root
-      . '/scripts/preproduction-staging-import/privileged/agency-preprod-staging-db';
+      . '/scripts/preproduction-staging-import/privileged/'
+      . 'agency-preprod-staging-db';
     $digest = $root
-      . '/scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256';
+      . '/scripts/preproduction-staging-import/privileged/'
+      . 'agency-preprod-staging-db.sha256';
     $capability = $root
-      . '/scripts/preproduction-staging-import/privileged/capability.json';
+      . '/scripts/preproduction-staging-import/privileged/'
+      . 'capability.json';
     $provisioning = $root
       . '/scripts/preproduction-staging-import/provisioning/profile.json';
 
@@ -135,7 +156,9 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
     self::assertFileExists($digest);
 
     $expectedDigest = trim((string) file_get_contents($digest));
-    self::assertSame(hash_file('sha256', $helper), $expectedDigest);
+    $actualDigest = hash_file('sha256', $helper);
+    self::assertIsString($actualDigest);
+    self::assertSame($expectedDigest, $actualDigest);
     self::assertSame(
       'ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3',
       $expectedDigest,
@@ -147,13 +170,22 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
       512,
       JSON_THROW_ON_ERROR,
     );
+    self::assertIsArray($capabilityData);
     self::assertSame(
       ['PRECHECK', 'IMPORT', 'CLEANUP', 'VERIFY_ABSENCE'],
       $capabilityData['actions'],
     );
-    self::assertFalse($capabilityData['database_scope']['runtime_targetable']);
-    self::assertSame('FORBIDDEN', $capabilityData['sudo']['direct_mariadb']);
-    self::assertSame('FORBIDDEN', $capabilityData['sudo']['generic_shell']);
+    self::assertFalse(
+      $capabilityData['database_scope']['runtime_targetable'],
+    );
+    self::assertSame(
+      'FORBIDDEN',
+      $capabilityData['sudo']['direct_mariadb'],
+    );
+    self::assertSame(
+      'FORBIDDEN',
+      $capabilityData['sudo']['generic_shell'],
+    );
 
     $provisioningData = json_decode(
       (string) file_get_contents($provisioning),
@@ -161,6 +193,7 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
       512,
       JSON_THROW_ON_ERROR,
     );
+    self::assertIsArray($provisioningData);
     self::assertSame(
       $expectedDigest,
       $provisioningData['helper']['expected_sha256'],
@@ -169,7 +202,10 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
       'FIXED_HELPER_ONLY',
       $provisioningData['sudoers']['nopasswd_scope'],
     );
-    self::assertSame('FORBIDDEN', $provisioningData['sudoers']['direct_mariadb']);
+    self::assertSame(
+      'FORBIDDEN',
+      $provisioningData['sudoers']['direct_mariadb'],
+    );
   }
 
   /**
@@ -180,7 +216,8 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
    */
   private function policy(): array {
     $root = dirname(DRUPAL_ROOT);
-    $path = $root . '/scripts/preproduction-refresh/sanitization-policy.json';
+    $path = $root
+      . '/scripts/preproduction-refresh/sanitization-policy.json';
     $policy = json_decode(
       (string) file_get_contents($path),
       TRUE,
@@ -188,6 +225,7 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
       JSON_THROW_ON_ERROR,
     );
     self::assertIsArray($policy);
+
     return $policy;
   }
 
@@ -197,8 +235,10 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
   private function script(): string {
     $root = dirname(DRUPAL_ROOT);
     $path = $root
-      . '/scripts/preproduction-refresh/sanitize-staging-mariadb-proof.py';
+      . '/scripts/preproduction-refresh/'
+      . 'sanitize-staging-mariadb-proof.py';
     self::assertFileExists($path);
+
     return (string) file_get_contents($path);
   }
 
@@ -208,9 +248,11 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
   private function workflow(): string {
     $root = dirname(DRUPAL_ROOT);
     $path = $root
-      . '/.github/workflows/preprod-staging-mariadb-sanitization-validation.yml';
+      . '/.github/workflows/'
+      . 'preprod-staging-mariadb-sanitization-validation.yml';
     self::assertFileExists($path);
     self::assertIsArray(Yaml::parseFile($path));
+
     return (string) file_get_contents($path);
   }
 
@@ -226,6 +268,7 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
     self::assertFileExists($path);
     $config = Yaml::parseFile($path);
     self::assertIsArray($config);
+
     return $config;
   }
 

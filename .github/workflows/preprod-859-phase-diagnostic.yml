@@ -30,28 +30,61 @@ jobs:
           sudo install -o root -g root -m 0755 "$p/agency-preprod-staging-db" /usr/local/sbin/agency-preprod-staging-db
           sudo install -o root -g root -m 0644 "$p/agency-preprod-staging-sanitizer.py" /usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py
           sudo install -o root -g root -m 0644 scripts/preproduction-refresh/sanitization-policy.json /usr/local/lib/agency-preprod-staging/sanitization-policy.json
-      - name: Build minimal compatible fixture
+      - name: Build full compatible fixture
         shell: bash
         run: |
           cat > /tmp/diag.sql <<'SQL'
           CREATE TABLE users_field_data (uid BIGINT PRIMARY KEY, name VARCHAR(255) NOT NULL, mail VARCHAR(254) NOT NULL, pass VARCHAR(255) NOT NULL, init VARCHAR(254) NOT NULL, access BIGINT NOT NULL, login BIGINT NOT NULL);
-          INSERT INTO users_field_data VALUES (17,'Synthetic Person','person@example.invalid','$SYNTHETIC$HASH','person@example.invalid',1,1);
+          INSERT INTO users_field_data VALUES (1,'Synthetic Admin','admin@example.invalid','$SYNTHETIC$HASH','admin@example.invalid',1700000000,1700000001),(17,'Synthetic Person','person@example.invalid','$SYNTHETIC$HASH2','person@example.invalid',1700000002,1700000003);
+          CREATE TABLE webform_submission (sid BIGINT PRIMARY KEY, uuid VARCHAR(128)); INSERT INTO webform_submission VALUES (1,'00000000-0000-0000-0000-000000000001');
+          CREATE TABLE webform_submission_data (sid BIGINT, name VARCHAR(128), value TEXT); INSERT INTO webform_submission_data VALUES (1,'message','SYNTHETIC WEBFORM PAYLOAD');
+          CREATE TABLE sessions (sid VARCHAR(128) PRIMARY KEY, uid BIGINT, hostname VARCHAR(128), session LONGTEXT); INSERT INTO sessions VALUES ('synthetic-session',17,'192.0.2.10','SYNTHETIC SESSION');
+          CREATE TABLE flood (fid BIGINT PRIMARY KEY, event VARCHAR(128), identifier VARCHAR(255), timestamp BIGINT, expiration BIGINT); INSERT INTO flood VALUES (1,'user.failed_login_ip','192.0.2.10',1,2);
+          CREATE TABLE watchdog (wid BIGINT PRIMARY KEY, uid BIGINT, hostname VARCHAR(128), location TEXT, message TEXT, variables LONGTEXT); INSERT INTO watchdog VALUES (1,17,'198.51.100.7','/synthetic','SYNTHETIC LOG','SYNTHETIC CONTEXT');
+          CREATE TABLE cache_default (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_default VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          CREATE TABLE cache_render (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_render VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          CREATE TABLE cache_dynamic_page_cache (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_dynamic_page_cache VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          CREATE TABLE cache_discovery (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_discovery VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          CREATE TABLE batch (bid BIGINT PRIMARY KEY, token VARCHAR(255), timestamp BIGINT, batch LONGBLOB); INSERT INTO batch VALUES (1,'SYNTHETIC-TOKEN',1,'SYNTHETIC BATCH');
+          CREATE TABLE semaphore (name VARCHAR(255) PRIMARY KEY, value VARCHAR(255), expire DOUBLE); INSERT INTO semaphore VALUES ('synthetic-lock','SYNTHETIC',999999);
+          CREATE TABLE key_value_expire (collection VARCHAR(255), name VARCHAR(255), value LONGBLOB, expire BIGINT, PRIMARY KEY(collection,name)); INSERT INTO key_value_expire VALUES ('user.private_tempstore','synthetic-auth','SYNTHETIC-TOKEN',1700000000);
+          CREATE TABLE queue (item_id BIGINT PRIMARY KEY, name VARCHAR(255), data LONGBLOB, expire BIGINT, created BIGINT); INSERT INTO queue VALUES (1,'ai_provider','SYNTHETIC QUEUE',0,1);
+          CREATE TABLE key_value (collection VARCHAR(255), name VARCHAR(255), value LONGBLOB, PRIMARY KEY(collection,name)); INSERT INTO key_value VALUES ('state','system.cron_last','1700000000'),('state','update.last_check','1700000000'),('state','announcements_feed.last_fetch','1700000000'),('state','linkchecker.last_run','1700000000'),('state','synthetic.public.state','preserve-me');
+          CREATE TABLE config (name VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO config VALUES ('key.key.openai_api_key','SYNTHETIC-CREDENTIAL'),('ai_provider_openai.settings','SYNTHETIC-PROVIDER'),('system.site','SYNTHETIC-PUBLIC-CONFIG');
           CREATE TABLE node_field_data (nid BIGINT PRIMARY KEY, title VARCHAR(255) NOT NULL); INSERT INTO node_field_data VALUES (1,'Synthetic public content');
           SQL
           chmod 600 /tmp/diag.sql
-      - name: Diagnose fixed phases metadata only
+      - name: Diagnose cleanup state metadata only
         shell: bash
         run: |
           set +e
+          request='proof-859-diag-full'
           bytes="$(stat -c '%s' /tmp/diag.sql)"
-          sudo /usr/local/sbin/agency-preprod-staging-db IMPORT proof-859-diag-import "$bytes" < /tmp/diag.sql >/tmp/import.out 2>/tmp/import.err
-          printf 'IMPORT_EXIT=%s\n' "$?" > /tmp/phase.env
-          sudo /usr/local/sbin/agency-preprod-staging-db IMPORT_SANITIZE_PROVE proof-859-diag-one-shot "$bytes" < /tmp/diag.sql >/tmp/one.out 2>/tmp/one.err
-          printf 'ONE_SHOT_EXIT=%s\n' "$?" >> /tmp/phase.env
-          printf 'IMPORT_STDERR=%s\n' "$(tr '\n' ' ' < /tmp/import.err | sed 's/[^A-Za-z0-9 .:_-]/?/g')" >> /tmp/phase.env
-          printf 'ONE_SHOT_STDERR=%s\n' "$(tr '\n' ' ' < /tmp/one.err | sed 's/[^A-Za-z0-9 .:_-]/?/g')" >> /tmp/phase.env
-          sudo /usr/local/sbin/agency-preprod-staging-db VERIFY_ABSENCE proof-859-diag-import 0 >/dev/null
-          sudo /usr/local/sbin/agency-preprod-staging-db VERIFY_ABSENCE proof-859-diag-one-shot 0 >/dev/null
+          sudo /usr/local/sbin/agency-preprod-staging-db IMPORT_SANITIZE_PROVE "$request" "$bytes" < /tmp/diag.sql >/tmp/one.out 2>/tmp/one.err
+          one_rc="$?"
+          suffix="$(printf '%s' "$request" | sha256sum | cut -c1-12)"
+          db="agency_preprod_stage_${suffix}"
+          db_user="agency_stage_${suffix}"
+          schema_present="$(sudo mariadb --protocol=socket --batch --skip-column-names --raw -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${db}'" 2>/dev/null)"
+          account_present="$(sudo mariadb --protocol=socket --batch --skip-column-names --raw -e "SELECT COUNT(*) FROM mysql.user WHERE User='${db_user}' AND Host='localhost'" 2>/dev/null)"
+          sudo /usr/local/sbin/agency-preprod-staging-db VERIFY_ABSENCE "$request" 0 >/dev/null 2>/tmp/verify.err
+          verify_rc="$?"
+          sudo mariadb --protocol=socket -e "DROP USER IF EXISTS '${db_user}'@'localhost'" >/dev/null 2>&1
+          drop_user_rc="$?"
+          sudo mariadb --protocol=socket -e "DROP DATABASE IF EXISTS \`${db}\`" >/dev/null 2>&1
+          drop_db_rc="$?"
+          schema_after_manual="$(sudo mariadb --protocol=socket --batch --skip-column-names --raw -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${db}'" 2>/dev/null)"
+          account_after_manual="$(sudo mariadb --protocol=socket --batch --skip-column-names --raw -e "SELECT COUNT(*) FROM mysql.user WHERE User='${db_user}' AND Host='localhost'" 2>/dev/null)"
+          {
+            printf 'ONE_SHOT_EXIT=%s\n' "$one_rc"
+            printf 'SCHEMA_PRESENT_AFTER_HELPER=%s\n' "$schema_present"
+            printf 'ACCOUNT_PRESENT_AFTER_HELPER=%s\n' "$account_present"
+            printf 'VERIFY_ABSENCE_EXIT=%s\n' "$verify_rc"
+            printf 'MANUAL_DROP_USER_EXIT=%s\n' "$drop_user_rc"
+            printf 'MANUAL_DROP_DATABASE_EXIT=%s\n' "$drop_db_rc"
+            printf 'SCHEMA_PRESENT_AFTER_MANUAL=%s\n' "$schema_after_manual"
+            printf 'ACCOUNT_PRESENT_AFTER_MANUAL=%s\n' "$account_after_manual"
+          } > /tmp/phase.env
           exit 0
       - uses: actions/upload-artifact@v4
         with:

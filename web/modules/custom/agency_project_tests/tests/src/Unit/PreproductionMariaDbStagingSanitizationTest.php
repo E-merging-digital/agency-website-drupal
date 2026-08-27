@@ -387,7 +387,7 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
    *   Parsed DDEV config.
    */
   private function ddevConfig(): array {
-    $root = dirname(DRUP_ROOT);
+    $root = dirname(DRUPAL_ROOT);
     $path = $root . '/.ddev/config.yaml';
     self::assertFileExists($path);
     $config = Yaml::parseFile($path);

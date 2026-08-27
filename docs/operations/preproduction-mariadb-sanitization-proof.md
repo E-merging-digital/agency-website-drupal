@@ -8,7 +8,7 @@ This tranche bridges the #855 in-memory fixture proof to MariaDB semantics while
 
 The sole sanitization policy remains:
 
-`script/preproduction-refresh/sanitization-policy.json` / `agency-preprod-refresh-v1`.
+`scripts/preproduction-refresh/sanitization-policy.json` / `agency-preprod-refresh-v1`.
 
 The #857 proof consumes the same mandatory class handlers and mappings. It does not introduce a second sanitization policy or a second business-domain model.
 

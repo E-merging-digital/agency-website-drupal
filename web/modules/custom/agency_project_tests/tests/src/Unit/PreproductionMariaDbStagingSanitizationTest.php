@@ -136,7 +136,7 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
   }
 
   /**
-   * #849/#851 installed-helper authority stays unchanged by #857.
+   * The #849/#851 installed-helper authority stays unchanged by #857.
    */
   public function testExistingPrivilegedHelperContractIsUnchanged(): void {
     $root = dirname(DRUPAL_ROOT);

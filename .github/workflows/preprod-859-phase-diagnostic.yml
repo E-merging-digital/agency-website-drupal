@@ -1,0 +1,62 @@
+name: "TEMP #859 one-shot phase diagnostic"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-859-phase-diagnostic.yml'
+      - 'scripts/preproduction-staging-import/privileged/**'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Start synthetic MariaDB and bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends mariadb-client
+          sudo install -d -m 0777 /run/mysqld
+          docker run -d --name agency-859-diag -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 -v /run/mysqld:/run/mysqld mariadb:11.8 --skip-networking=1 --socket=/run/mysqld/mysqld.sock
+          for i in $(seq 1 40); do docker exec agency-859-diag mariadb-admin --socket=/run/mysqld/mysqld.sock -uroot ping >/dev/null 2>&1 && break; sleep 1; done
+          p='scripts/preproduction-staging-import/privileged'
+          sudo install -d -o root -g root -m 0755 /usr/local/lib/agency-preprod-staging
+          sudo install -o root -g root -m 0755 "$p/agency-preprod-staging-db" /usr/local/sbin/agency-preprod-staging-db
+          sudo install -o root -g root -m 0644 "$p/agency-preprod-staging-sanitizer.py" /usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py
+          sudo install -o root -g root -m 0644 scripts/preproduction-refresh/sanitization-policy.json /usr/local/lib/agency-preprod-staging/sanitization-policy.json
+      - name: Build minimal compatible fixture
+        shell: bash
+        run: |
+          cat > /tmp/diag.sql <<'SQL'
+          CREATE TABLE users_field_data (uid BIGINT PRIMARY KEY, name VARCHAR(255) NOT NULL, mail VARCHAR(254) NOT NULL, pass VARCHAR(255) NOT NULL, init VARCHAR(254) NOT NULL, access BIGINT NOT NULL, login BIGINT NOT NULL);
+          INSERT INTO users_field_data VALUES (17,'Synthetic Person','person@example.invalid','$SYNTHETIC$HASH','person@example.invalid',1,1);
+          CREATE TABLE node_field_data (nid BIGINT PRIMARY KEY, title VARCHAR(255) NOT NULL); INSERT INTO node_field_data VALUES (1,'Synthetic public content');
+          SQL
+          chmod 600 /tmp/diag.sql
+      - name: Diagnose fixed phases metadata only
+        shell: bash
+        run: |
+          set +e
+          bytes="$(stat -c '%s' /tmp/diag.sql)"
+          sudo /usr/local/sbin/agency-preprod-staging-db IMPORT proof-859-diag-import "$bytes" < /tmp/diag.sql >/tmp/import.out 2>/tmp/import.err
+          printf 'IMPORT_EXIT=%s\n' "$?" > /tmp/phase.env
+          sudo /usr/local/sbin/agency-preprod-staging-db IMPORT_SANITIZE_PROVE proof-859-diag-one-shot "$bytes" < /tmp/diag.sql >/tmp/one.out 2>/tmp/one.err
+          printf 'ONE_SHOT_EXIT=%s\n' "$?" >> /tmp/phase.env
+          printf 'IMPORT_STDERR=%s\n' "$(tr '\n' ' ' < /tmp/import.err | sed 's/[^A-Za-z0-9 .:_-]/?/g')" >> /tmp/phase.env
+          printf 'ONE_SHOT_STDERR=%s\n' "$(tr '\n' ' ' < /tmp/one.err | sed 's/[^A-Za-z0-9 .:_-]/?/g')" >> /tmp/phase.env
+          sudo /usr/local/sbin/agency-preprod-staging-db VERIFY_ABSENCE proof-859-diag-import 0 >/dev/null
+          sudo /usr/local/sbin/agency-preprod-staging-db VERIFY_ABSENCE proof-859-diag-one-shot 0 >/dev/null
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preprod-859-phase-diagnostic
+          path: /tmp/phase.env
+          retention-days: 1
+      - if: always()
+        run: docker rm -f agency-859-diag >/dev/null 2>&1 || true

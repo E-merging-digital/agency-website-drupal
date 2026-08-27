@@ -1,9 +1,7 @@
 name: "TEMP #859 bundle digest probe"
 
 on:
-  push:
-    branches:
-      - 'ops/859-one-shot-import-sanitize-prove'
+  pull_request:
     paths:
       - '.github/workflows/preprod-859-bundle-digest-probe.yml'
       - 'scripts/preproduction-refresh/sanitization-policy.json'

@@ -1,0 +1,153 @@
+name: "Validate #857 ephemeral MariaDB staging sanitization"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-staging-mariadb-sanitization-validation.yml'
+      - 'scripts/preproduction-refresh/**'
+      - 'scripts/preproduction-staging-import/sanitization-successor-boundary.md'
+      - 'docs/operations/preproduction-mariadb-sanitization-proof.md'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionMariaDbStagingSanitizationTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  mariadb-sanitization:
+    name: Prove MariaDB 11.8 sanitization and fail-closed boundaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: agency-synthetic-ci-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -uroot -pagency-synthetic-ci-root"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install fixed MariaDB client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends mariadb-client
+          test -x /usr/bin/mariadb
+
+      - name: Validate repository policy and proof-only surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          script='scripts/preproduction-refresh/sanitize-staging-mariadb-proof.py'
+          policy='scripts/preproduction-refresh/sanitization-policy.json'
+
+          python3 -m py_compile "$script"
+          jq -e '.policy_version == "agency-preprod-refresh-v1"' "$policy" >/dev/null
+          jq -e '.sanitization_execution.mode == "SYNTHETIC_FIXTURE_ONLY"' "$policy" >/dev/null
+          jq -e '.sanitization_execution.real_runtime_enabled == false' "$policy" >/dev/null
+          jq -e '.sanitization_execution.mariadb_proof.mode == "EPHEMERAL_SYNTHETIC_CI_ONLY"' "$policy" >/dev/null
+          jq -e '.sanitization_execution.mariadb_proof.mariadb_version == "11.8"' "$policy" >/dev/null
+          jq -e '.sanitization_execution.mariadb_proof.real_runtime_enabled == false' "$policy" >/dev/null
+          jq -e '.sanitization_execution.mariadb_proof.target_database.runtime_database == "agency_preprod"' "$policy" >/dev/null
+          jq -e '.sanitization_execution.mariadb_proof.target_database.runtime_targetable == false' "$policy" >/dev/null
+          jq -e '.sanitization_execution.mariadb_proof.target_database.caller_database_name == "FORBIDDEN"' "$policy" >/dev/null
+          jq -e '[.sanitization_execution.mariadb_proof.caller_inputs[]] | all(. == "FORBIDDEN")' "$policy" >/dev/null
+
+          grep -Fq 'if argv != ["PROVE"]' "$script"
+          grep -Fq 'RUNTIME_DB = "agency_preprod"' "$script"
+          grep -Fq 'STAGING_PREFIX = "agency_preprod_stage_"' "$script"
+          grep -Fq 'runtime database is outside sanitization authority' "$script"
+          ! grep -Fq 'argparse' "$script"
+          ! grep -Fq 'shell=True' "$script"
+          ! grep -Fq 'os.system(' "$script"
+          ! grep -Fq 'eval(' "$script"
+          ! grep -Fq 'exec(' "$script"
+          ! grep -REn 'sudo[[:space:]]+-n[[:space:]]+(--[[:space:]]+)?mariadb([[:space:]]|$)' scripts/preproduction-refresh
+
+      - name: Execute synthetic MariaDB sanitization proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$(mktemp)"
+          trap 'rm -f "$evidence"' EXIT
+          python3 scripts/preproduction-refresh/sanitize-staging-mariadb-proof.py PROVE > "$evidence"
+
+          grep -Fxq 'MARIADB_SANITIZATION=PASS' "$evidence"
+          grep -Fxq 'MARIADB_VERSION_COMPATIBILITY=11.8' "$evidence"
+          grep -Fxq 'USER_SANITIZATION=PASS' "$evidence"
+          grep -Fxq 'AUTH_MATERIAL_INVALIDATION=PASS' "$evidence"
+          grep -Fxq 'WEBFORM_SUBMISSIONS_AFTER=0' "$evidence"
+          grep -Fxq 'ACTIVE_SESSIONS_AFTER=0' "$evidence"
+          grep -Fxq 'FLOOD_ROWS_AFTER=0' "$evidence"
+          grep -Fxq 'DBLOG_ROWS_AFTER=0' "$evidence"
+          grep -Fxq 'CACHE_ROWS_AFTER=0' "$evidence"
+          grep -Fxq 'BATCH_ROWS_AFTER=0' "$evidence"
+          grep -Fxq 'QUEUE_ROWS_AFTER=0' "$evidence"
+          grep -Fxq 'IMPORTED_PROD_SECRET_LIKE_STATE_SURVIVES=NO' "$evidence"
+          grep -Fxq 'EDITORIAL_FIDELITY=PASS' "$evidence"
+          grep -Fxq 'DETERMINISTIC_PROOF=PASS' "$evidence"
+          grep -Fxq 'SECOND_PASS_IDEMPOTENCE=PASS' "$evidence"
+          grep -Fxq 'UNKNOWN_MANDATORY_CLASS_FAIL_CLOSED=PASS' "$evidence"
+          grep -Fxq 'INCOMPATIBLE_SENSITIVE_SCHEMA_FAIL_CLOSED=PASS' "$evidence"
+          grep -Fxq 'RUNTIME_DB_TARGET_REJECTION=PASS' "$evidence"
+          grep -Fxq 'EPHEMERAL_DB_CLEANUP=PASS' "$evidence"
+          grep -Fxq 'CALLER_DATABASE_NAME=FORBIDDEN' "$evidence"
+          grep -Fxq 'ARBITRARY_SQL_INPUT=FORBIDDEN' "$evidence"
+          grep -Fxq 'GENERIC_SHELL=FORBIDDEN' "$evidence"
+          grep -Fxq 'GENERIC_SUDO_MARIADB=FORBIDDEN' "$evidence"
+          grep -Fxq 'REAL_PROD_ACCESS=NONE' "$evidence"
+          grep -Fxq 'REAL_PREPROD_DB_MUTATION=NONE' "$evidence"
+          grep -Fxq 'REAL_STAGING_SANITIZATION=NOT_PERFORMED' "$evidence"
+          grep -Fxq 'REAL_HELPER_PROVISIONING=NOT_PERFORMED' "$evidence"
+          grep -Fxq 'PII_OR_SECRET_IN_EVIDENCE=NONE' "$evidence"
+
+          state_a="$(sed -n 's/^STATE_A_SHA256=//p' "$evidence")"
+          state_b="$(sed -n 's/^STATE_B_SHA256=//p' "$evidence")"
+          state_c="$(sed -n 's/^STATE_C_SHA256=//p' "$evidence")"
+          test "$state_a" = "$state_b"
+          test "$state_a" = "$state_c"
+          test "${#state_a}" = 64
+
+          for forbidden in 'SYNTHETIC WEBFORM' '192.0.2.' '198.51.100.' '@example.invalid' '$SYNTHETIC$' 'SYNTHETIC-TOKEN'; do
+            ! grep -Fq "$forbidden" "$evidence"
+          done
+
+      - name: Prove no #834 apply or real runtime route was added
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof='scripts/preproduction-refresh/sanitize-staging-mariadb-proof.py'
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+
+          grep -Fq 'sanitization_path=NONE' "$apply"
+          grep -Fq 'activation_path=NONE' "$apply"
+          grep -Fq 'ALLOWED_ACTIONS = frozenset({"PRECHECK", "IMPORT", "CLEANUP", "VERIFY_ABSENCE"})' "$helper"
+          ! grep -Fq '/usr/local/sbin/agency-preprod-staging-db' "$proof"
+          ! grep -Fq 'ssh ' "$proof"
+          ! grep -Fq 'scp ' "$proof"
+          ! grep -Fq 'rsync ' "$proof"
+
+      - name: Emit bounded result
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'ISSUE_857_MARIADB_SANITIZATION=PASS' \
+            'DETERMINISM=PASS' \
+            'IDEMPOTENCE=PASS' \
+            'UNKNOWN_MANDATORY_CLASS_FAIL_CLOSED=PASS' \
+            'INCOMPATIBLE_SENSITIVE_SCHEMA_FAIL_CLOSED=PASS' \
+            'RUNTIME_DB_TARGET_REJECTION=PASS' \
+            'REAL_PROD_ACCESS=NONE' \
+            'REAL_PREPROD_MUTATION=NONE' \
+            'REAL_HELPER_PROVISIONING=NONE'

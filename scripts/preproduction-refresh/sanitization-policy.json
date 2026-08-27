@@ -12,7 +12,8 @@
       "allowed_roles": [
         "AUTHORITY_GATEWAY",
         "NON_SENSITIVE_METADATA_VALIDATION",
-        "POLICY_VALIDATION"
+        "POLICY_VALIDATION",
+        "SYNTHETIC_EPHEMERAL_DB_VALIDATION"
       ],
       "raw_prod_data_allowed": false
     },
@@ -208,6 +209,60 @@
         "key.key."
       ],
       "observed_repository_key_source": "ENV_PROVIDER_ONLY"
+    },
+    "mariadb_proof": {
+      "mode": "EPHEMERAL_SYNTHETIC_CI_ONLY",
+      "mariadb_version": "11.8",
+      "real_runtime_enabled": false,
+      "raw_prod_data": "FORBIDDEN",
+      "real_preprod_connection": "FORBIDDEN",
+      "target_database": {
+        "runtime_database": "agency_preprod",
+        "runtime_targetable": false,
+        "staging_prefix": "agency_preprod_stage_",
+        "derivation": "SHA256_REQUEST_ID_FIRST_12_HEX",
+        "caller_database_name": "FORBIDDEN"
+      },
+      "caller_inputs": {
+        "database_name": "FORBIDDEN",
+        "sql": "FORBIDDEN",
+        "shell": "FORBIDDEN",
+        "executable": "FORBIDDEN",
+        "host": "FORBIDDEN",
+        "credential": "FORBIDDEN",
+        "filesystem_path": "FORBIDDEN",
+        "request_id": "FORBIDDEN"
+      },
+      "schema_contract": {
+        "required_tables": [
+          "users_field_data"
+        ],
+        "optional_if_absent": [
+          "webform_submission",
+          "webform_submission_data",
+          "sessions",
+          "flood",
+          "watchdog",
+          "batch",
+          "semaphore",
+          "key_value_expire",
+          "queue",
+          "key_value",
+          "config"
+        ],
+        "cache_tables": "DISCOVER_BY_VERSIONED_PREFIX_ONLY",
+        "known_sensitive_incompatible_schema": "FAIL_CLOSED"
+      },
+      "evidence": {
+        "values": "FORBIDDEN",
+        "allowed": [
+          "COUNTS",
+          "PASS_FAIL",
+          "POLICY_ID",
+          "POLICY_DIGEST",
+          "NON_SENSITIVE_STATE_DIGESTS"
+        ]
+      }
     }
   },
   "activation_assertions": [

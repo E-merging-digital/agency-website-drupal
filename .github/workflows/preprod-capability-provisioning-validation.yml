@@ -1,0 +1,177 @@
+name: Validate #851 governed PREPROD capability provisioning
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-capability-provisioning.yml'
+      - '.github/workflows/preprod-capability-provisioning-validation.yml'
+      - '.github/workflows/preprod-ssh-trust-validation.yml'
+      - 'scripts/preproduction-staging-import/provisioning/**'
+      - 'scripts/preproduction-staging-import/privileged/**'
+      - 'scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  provisioning-governance:
+    name: Prove #851 one-shot least-privilege provisioning route
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate syntax exact helper digest and fixed profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-staging-import/provisioning'
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          digest='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256'
+          bash -n "$base/remote-plan-readonly.sh"
+          bash -n "$base/remote-provision-root.sh"
+          bash -n "$base/run-plan.sh"
+          bash -n "$base/run-apply.sh"
+          python3 "$base/test-contract.py"
+          jq -e '.schema_version == 1 and .issue_number == 851 and .profile_id == "agency-preprod-capability-provision-v1"' "$base/profile.json" >/dev/null
+          test "$(cat "$digest")" = 'ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3'
+          test "$(sha256sum "$helper" | awk '{print $1}')" = 'ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3'
+
+      - name: Prove owner authority is one-shot and carries no privileged inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preprod-capability-provisioning.yml'
+          grep -Fq 'github.event.issue.number == 851' "$workflow"
+          grep -Fq '/agency-preprod-capability-provision ' "$workflow"
+          grep -Fq "GITHUB_ACTOR\" == 'E-merging-digital'" "$workflow"
+          grep -Fq "GITHUB_RUN_ATTEMPT\" == '1'" "$workflow"
+          grep -Fq "agency-preprod-capability-provision-v1" "$workflow"
+          grep -Fq "request_id must occur in exactly one #851 owner authority comment across all modes" "$workflow"
+          grep -Fq "apply-834-a1340af5-r1" "$workflow"
+          ! grep -Fq 'workflow_dispatch:' "$workflow"
+          ! grep -Fq 'requested_host' "$workflow"
+          ! grep -Fq 'requested_user' "$workflow"
+          ! grep -Fq 'requested_path' "$workflow"
+          ! grep -Fq 'requested_command' "$workflow"
+          ! grep -Fq 'requested_digest' "$workflow"
+          ! grep -Fq 'requested_credential' "$workflow"
+          ! grep -Fq 'SOURCE_PROD_RELEASE_SHA' "$workflow"
+
+      - name: Prove PLAN is mutation-free and trusted-runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preprod-capability-provisioning.yml'
+          plan='scripts/preproduction-staging-import/provisioning/run-plan.sh'
+          remote='scripts/preproduction-staging-import/provisioning/remote-plan-readonly.sh'
+          profile='scripts/preproduction-staging-import/provisioning/profile.json'
+          grep -Fq -- '- self-hosted' "$workflow"
+          grep -Fq -- '- linux' "$workflow"
+          grep -Fq -- '- x64' "$workflow"
+          grep -Fq -- '- agency' "$workflow"
+          grep -Fq "RUNNER_NAME\" == 'agency-browser-runner-01'" "$plan"
+          grep -Fq 'verify-preprod-pinned-trust.sh' "$plan"
+          grep -Fq 'StrictHostKeyChecking=yes' "$plan"
+          grep -Fq 'UserKnownHostsFile="$HOME/.ssh/known_hosts"' "$plan"
+          grep -Fq 'sudo -n -l -- "$HELPER_PATH" PRECHECK "$REQUEST_ID" 0' "$remote"
+          ! grep -Fq 'sudo -n -- "$HELPER_PATH"' "$remote"
+          ! grep -Eq '(^|[[:space:]])scp([[:space:]]|$)' "$plan"
+          ! grep -Eq '(^|[[:space:]])rm[[:space:]]+-rf[[:space:]]+/etc' "$remote"
+          ! grep -Fq 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' "$plan"
+          jq -e '.plan.preprod_mutation == "NONE" and .plan.helper_execution == "NONE" and .plan.sudo_execution == "NONE"' "$profile" >/dev/null
+          jq -e '.plan.state_detection == "METADATA_ONLY" and .plan.prod_access == "NONE"' "$profile" >/dev/null
+
+      - name: Prove APPLY fixed paths digest and no owner-controlled executor
+        shell: bash
+        run: |
+          set -euo pipefail
+          apply='scripts/preproduction-staging-import/provisioning/run-apply.sh'
+          remote='scripts/preproduction-staging-import/provisioning/remote-provision-root.sh'
+          profile='scripts/preproduction-staging-import/provisioning/profile.json'
+          grep -Fq "ROOT_USER='root'" "$apply"
+          grep -Fq 'PREPROD_PROVISIONING_SSH_KEY' "$apply"
+          grep -Fq 'StrictHostKeyChecking=yes' "$apply"
+          grep -Fq 'UserKnownHostsFile="$HOME/.ssh/known_hosts"' "$apply"
+          grep -Fq "HELPER_PATH='/usr/local/sbin/agency-preprod-staging-db'" "$remote"
+          grep -Fq "SUDOERS_PATH='/etc/sudoers.d/agency-preprod-staging-db'" "$remote"
+          grep -Fq "PROJECT_SHARED='/var/www/agency-preprod/shared'" "$remote"
+          grep -Fq "EXPECTED_DIGEST='ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3'" "$remote"
+          grep -Fq 'deploy_user="$(stat -c' "$remote"
+          ! grep -Fq 'ssh-keyscan' "$apply"
+          ! grep -Fq 'StrictHostKeyChecking=no' "$apply"
+          ! grep -Fq 'accept-new' "$apply"
+          ! grep -Fq 'SUDO_PASSWORD' "$apply"
+          ! grep -Fq 'PREPROD_SUDO_PASSWORD' "$apply"
+          ! grep -Fq 'eval ' "$apply"
+          ! grep -Fq 'eval ' "$remote"
+          jq -e '.bootstrap.owner_supplied_user == "FORBIDDEN" and .bootstrap.owner_supplied_host == "FORBIDDEN" and .bootstrap.owner_supplied_command == "FORBIDDEN" and .bootstrap.owner_supplied_credential == "FORBIDDEN"' "$profile" >/dev/null
+
+      - name: Prove sudoers fixed-helper-only and visudo before activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote='scripts/preproduction-staging-import/provisioning/remote-provision-root.sh'
+          profile='scripts/preproduction-staging-import/provisioning/profile.json'
+          grep -Fq 'desired_policy="${deploy_user} ALL=(root) NOPASSWD: NOSETENV: ${HELPER_PATH}"' "$remote"
+          ! grep -Eq 'desired_policy=.*\*' "$remote"
+          ! grep -Eq 'desired_policy=.*\?' "$remote"
+          ! grep -Eq 'desired_policy=.*mariadb' "$remote"
+          ! grep -Eq 'desired_policy=.*NOPASSWD:[[:space:]]*ALL' "$remote"
+          ! grep -Eq 'desired_policy=.*(^|[[:space:]])SETENV:' "$remote"
+          jq -e '.sudoers.nopasswd_scope == "FIXED_HELPER_ONLY" and .sudoers.direct_mariadb == "FORBIDDEN"' "$profile" >/dev/null
+          jq -e '.sudoers.generic_root_executor_for_deploy_user == "NONE" and .sudoers.shell == "FORBIDDEN" and .sudoers.setenv == "FORBIDDEN"' "$profile" >/dev/null
+          jq -e '.sudoers.wildcard_executable_or_path == "FORBIDDEN" and .sudoers.visudo_prevalidation == "REQUIRED_BEFORE_ACTIVATION"' "$profile" >/dev/null
+
+          candidate="$(mktemp)"
+          trap 'rm -f "$candidate"' EXIT
+          printf '%s\n' 'root ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-preprod-staging-db' > "$candidate"
+          chmod 0440 "$candidate"
+          visudo -cf "$candidate" >/dev/null
+
+          prevalidate_line="$(grep -n -F -m1 'visudo -cf "$sudo_candidate"' "$remote" | cut -d: -f1)"
+          activate_line="$(grep -n -F -m1 'mv -f -- "$sudo_candidate" "$SUDOERS_PATH"' "$remote" | cut -d: -f1)"
+          test -n "$prevalidate_line"
+          test -n "$activate_line"
+          test "$prevalidate_line" -lt "$activate_line"
+
+      - name: Prove rollback and zero-data terminal proof only
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote='scripts/preproduction-staging-import/provisioning/remote-provision-root.sh'
+          profile='scripts/preproduction-staging-import/provisioning/profile.json'
+          grep -Fq 'rollback_on_exit' "$remote"
+          grep -Fq 'restore_helper' "$remote"
+          grep -Fq 'restore_sudoers' "$remote"
+          grep -Fq 'mutation_started=1' "$remote"
+          grep -Fq 'committed=1' "$remote"
+          grep -Fq 'PRECHECK "$REQUEST_ID" 0' "$remote"
+          grep -Fq 'VERIFY_ABSENCE "$REQUEST_ID" 0' "$remote"
+          ! grep -Eq 'runuser.*sudo.*IMPORT' "$remote"
+          grep -Fq 'preprod_runtime_db_touched=NO' "$remote"
+          grep -Fq 'prod_access=NONE' "$remote"
+          grep -Fq 'issue_834_apply=NOT_PERFORMED' "$remote"
+          jq -e '.apply.allowed_helper_proofs == ["PRECHECK", "VERIFY_ABSENCE"] and .apply.snapshot_bytes == 0' "$profile" >/dev/null
+          jq -e '.apply.import == "FORBIDDEN" and .apply.runtime_db_mutation == "NONE" and .apply.rollback_on_post_install_failure == true' "$profile" >/dev/null
+
+          printf '%s\n' \
+            'PROVISIONING_ROUTE=PASS' \
+            'PLAN_MUTATION_FREE=YES' \
+            'APPLY_ONE_SHOT=YES' \
+            'FIXED_HELPER_PATH=PASS' \
+            'HELPER_DIGEST_BOUND=PASS' \
+            'SUDOERS_FIXED_HELPER_ONLY=PASS' \
+            'DIRECT_MARIADB_SUDO=FORBIDDEN' \
+            'GENERIC_ROOT_EXECUTOR=NONE' \
+            'SETENV=FORBIDDEN' \
+            'VISUDO_PREVALIDATION=PASS' \
+            'ROLLBACK_FAIL_CLOSE=PASS' \
+            'PRECHECK_ZERO_DATA=PASS' \
+            'VERIFY_ABSENCE_ZERO_DATA=PASS' \
+            'REAL_PREPROD_MUTATION=NOT_PERFORMED' \
+            'PROD_ACCESS=NONE' \
+            'ISSUE_834_RETRY=NOT_PERFORMED'

@@ -1,0 +1,302 @@
+name: Governed PREPROD bounded capability provisioning
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-preprod-capability-provisioning
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate fresh owner provisioning authority
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 851 &&
+        startsWith(github.event.comment.body, '/agency-preprod-capability-provision ')
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      mode: ${{ steps.authority.outputs.mode }}
+      request_id: ${{ steps.authority.outputs.request_id }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      operation_profile: ${{ steps.authority.outputs.operation_profile }}
+      helper_sha256: ${{ steps.profile.outputs.helper_sha256 }}
+    steps:
+      - name: Validate actor, one-shot request and exact live main
+        id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '851' ]]
+          [[ "$GITHUB_RUN_ATTEMPT" == '1' ]] || {
+            echo 'Provisioning authority cannot be replayed through workflow rerun.' >&2
+            exit 1
+          }
+
+          read -r command mode request_id requested_main profile extra <<< "$TRIGGER_COMMENT"
+          [[ -z "${extra:-}" ]]
+          [[ "$command" == '/agency-preprod-capability-provision' ]]
+          [[ "$mode" == 'plan' || "$mode" == 'apply' ]]
+          [[ "$request_id" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
+          [[ "$requested_main" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$profile" == 'agency-preprod-capability-provision-v1' ]]
+          expected="/agency-preprod-capability-provision $mode $request_id $requested_main $profile"
+          [[ "$TRIGGER_COMMENT" == "$expected" ]]
+          [[ "$request_id" != 'apply-834-a1340af5-r1' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/851")"
+          [[ "$(jq -r '.state' <<< "$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.user.login' <<< "$issue_json")" == 'E-merging-digital' ]]
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$requested_main" == "$live_main" ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$live_main" ]]
+
+          comments="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/851/comments?per_page=100" --jq '.[].body')"
+          plan_prefix="/agency-preprod-capability-provision plan $request_id "
+          apply_prefix="/agency-preprod-capability-provision apply $request_id "
+          count=0
+          while IFS= read -r body; do
+            if [[ "$body" == "$plan_prefix"* || "$body" == "$apply_prefix"* ]]; then
+              count=$((count + 1))
+            fi
+          done <<< "$comments"
+          [[ "$count" -eq 1 ]] || {
+            echo 'request_id must occur in exactly one #851 owner authority comment across all modes.' >&2
+            exit 1
+          }
+
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$live_main" >> "$GITHUB_OUTPUT"
+          echo "operation_profile=$profile" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted main provisioning source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Bind exact repository helper and profile authority
+        id: profile
+        shell: bash
+        env:
+          EXPECTED_PROFILE: ${{ steps.authority.outputs.operation_profile }}
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-staging-import/provisioning/profile.json'
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          digest='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256'
+          jq -e --arg id "$EXPECTED_PROFILE" '.profile_id == $id and .issue_number == 851' "$profile" >/dev/null
+          expected="$(jq -r '.helper.expected_sha256' "$profile")"
+          test "$expected" = 'ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3'
+          test "$expected" = "$(tr -d '\r\n' < "$digest")"
+          test "$expected" = "$(sha256sum "$helper" | awk '{print $1}')"
+          echo "helper_sha256=$expected" >> "$GITHUB_OUTPUT"
+
+  plan:
+    name: Mutation-free real PREPROD provisioning PLAN
+    needs: validate-authority
+    if: ${{ needs.validate-authority.outputs.mode == 'plan' }}
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact trusted main provisioning source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require exact trusted runner and pinned PREPROD trust
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]]
+          test -n "$PREPROD_SERVER_HOST"
+          PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+
+      - name: Configure transient PREPROD deploy SSH identity
+        env:
+          PREPROD_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_PRIVATE_KEY"
+          key="$RUNNER_TEMP/agency-851-plan-${GITHUB_RUN_ID}.key"
+          printf '%s\n' "$PREPROD_PRIVATE_KEY" > "$key"
+          chmod 600 "$key"
+          echo "AGENCY_851_PLAN_SSH_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Execute fixed mutation-free PLAN
+        env:
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_USER: ${{ secrets.PREPROD_SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${AGENCY_851_PLAN_SSH_KEY:-}"
+          export PREPROD_SSH_KEY="$AGENCY_851_PLAN_SSH_KEY"
+          bash scripts/preproduction-staging-import/provisioning/run-plan.sh
+
+      - name: Remove transient PLAN SSH identity
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -z "${AGENCY_851_PLAN_SSH_KEY:-}" ]] || rm -f -- "$AGENCY_851_PLAN_SSH_KEY"
+          [[ -z "${AGENCY_851_PLAN_SSH_KEY:-}" ]] || test ! -e "$AGENCY_851_PLAN_SSH_KEY"
+
+      - name: Validate metadata-only PLAN evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence='artifacts/preprod-capability-provisioning/evidence.env'
+          test -f "$evidence"
+          grep -Fxq 'execution_mode=PLAN' "$evidence"
+          grep -Fxq 'plan_result=PASS' "$evidence"
+          grep -Fxq 'preprod_mutation=NONE' "$evidence"
+          grep -Fxq 'privileged_helper_execution=NONE' "$evidence"
+          grep -Fxq 'prod_access=NONE' "$evidence"
+          grep -Fxq 'issue_834_apply=NOT_PERFORMED' "$evidence"
+
+      - name: Upload metadata-only PLAN evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-preprod-capability-plan-${{ needs.validate-authority.outputs.request_id }}-${{ github.run_id }}
+          path: artifacts/preprod-capability-provisioning/evidence.env
+          if-no-files-found: error
+          retention-days: 14
+
+  apply:
+    name: Project-Lead-only bounded PREPROD provisioning APPLY
+    needs: validate-authority
+    if: ${{ needs.validate-authority.outputs.mode == 'apply' }}
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact trusted main provisioning source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require exact trusted runner and pinned PREPROD trust
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]]
+          test -n "$PREPROD_SERVER_HOST"
+          PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+
+      - name: Configure dedicated transient provisioning SSH identity
+        env:
+          PROVISIONING_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PROVISIONING_PRIVATE_KEY"
+          key="$RUNNER_TEMP/agency-851-provision-${GITHUB_RUN_ID}.key"
+          printf '%s\n' "$PROVISIONING_PRIVATE_KEY" > "$key"
+          chmod 600 "$key"
+          echo "AGENCY_851_PROVISIONING_SSH_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Execute fixed repository-owned one-shot APPLY
+        env:
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${AGENCY_851_PROVISIONING_SSH_KEY:-}"
+          export PREPROD_PROVISIONING_SSH_KEY="$AGENCY_851_PROVISIONING_SSH_KEY"
+          bash scripts/preproduction-staging-import/provisioning/run-apply.sh
+
+      - name: Remove transient provisioning SSH identity
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -z "${AGENCY_851_PROVISIONING_SSH_KEY:-}" ]] || rm -f -- "$AGENCY_851_PROVISIONING_SSH_KEY"
+          [[ -z "${AGENCY_851_PROVISIONING_SSH_KEY:-}" ]] || test ! -e "$AGENCY_851_PROVISIONING_SSH_KEY"
+
+      - name: Validate metadata-only APPLY evidence
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence='artifacts/preprod-capability-provisioning/evidence.env'
+          test -f "$evidence"
+          for required in \
+            'execution_mode=APPLY' \
+            'helper_installed=PASS' \
+            'helper_owner=root' \
+            'helper_group=root' \
+            'helper_mode=0755' \
+            'helper_symlink=NO' \
+            'helper_digest=PASS' \
+            'sudoers_syntax=PASS' \
+            'sudoers_scope=FIXED_HELPER_ONLY' \
+            'direct_mariadb_sudo=FORBIDDEN' \
+            'generic_root_executor=NONE' \
+            'setenv=FORBIDDEN' \
+            'precheck=PASS' \
+            'verify_absence=PASS' \
+            'staging_db_present_before=NO' \
+            'staging_db_present_after=NO' \
+            'preprod_runtime_db_touched=NO' \
+            'prod_access=NONE' \
+            'issue_834_apply=NOT_PERFORMED'; do
+            grep -Fxq "$required" "$evidence"
+          done
+
+      - name: Upload metadata-only provisioning evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-preprod-capability-provision-${{ needs.validate-authority.outputs.request_id }}-${{ github.run_id }}
+          path: artifacts/preprod-capability-provisioning/evidence.env
+          if-no-files-found: error
+          retention-days: 30

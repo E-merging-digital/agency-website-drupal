@@ -124,6 +124,92 @@
       "required": true
     }
   ],
+  "sanitization_execution": {
+    "mode": "SYNTHETIC_FIXTURE_ONLY",
+    "real_runtime_enabled": false,
+    "unknown_mandatory_class": "FAIL_CLOSED",
+    "unknown_table_scanning": "NOT_IMPLEMENTED",
+    "mandatory_class_handlers": {
+      "users": "sanitize_users",
+      "preprod_admin": "assert_preprod_admin_boundary",
+      "webform_submissions": "purge_webform",
+      "sessions": "purge_sessions",
+      "flood_rate_limit": "purge_flood",
+      "dblog_watchdog": "purge_dblog",
+      "caches": "clear_caches",
+      "batch_temp_state": "purge_batch_temp",
+      "queues": "clear_queues",
+      "cron_update_announcements_linkchecker_state": "reset_runtime_state",
+      "one_time_auth_material": "invalidate_one_time_auth",
+      "persisted_credentials": "remove_persisted_credentials",
+      "production_environment_state": "remove_production_state"
+    },
+    "users": {
+      "table": "users_field_data",
+      "uid_column": "uid",
+      "name_column": "name",
+      "mail_column": "mail",
+      "init_column": "init",
+      "password_column": "pass",
+      "access_column": "access",
+      "login_column": "login",
+      "username_format": "preprod-user-<uid>",
+      "email_format": "preprod-user+<uid>@example.invalid"
+    },
+    "preprod_admin": {
+      "source": "PREPROD_SERVER_OWNED",
+      "restore_in_issue_855": false
+    },
+    "purge_tables_by_class": {
+      "webform_submissions": [
+        "webform_submission",
+        "webform_submission_data"
+      ],
+      "sessions": [
+        "sessions"
+      ],
+      "flood_rate_limit": [
+        "flood"
+      ],
+      "dblog_watchdog": [
+        "watchdog"
+      ],
+      "batch_temp_state": [
+        "batch",
+        "semaphore",
+        "key_value_expire"
+      ],
+      "queues": [
+        "queue"
+      ]
+    },
+    "cache_table_prefixes": [
+      "cache_"
+    ],
+    "runtime_key_value_state": {
+      "table": "key_value",
+      "collection": "state",
+      "exact_names": [
+        "system.cron_last",
+        "update.last_check",
+        "update.available_releases"
+      ],
+      "name_prefixes": [
+        "announcements_feed.",
+        "linkchecker."
+      ]
+    },
+    "credential_config": {
+      "table": "config",
+      "exact_names": [
+        "ai_provider_openai.settings"
+      ],
+      "name_prefixes": [
+        "key.key."
+      ],
+      "observed_repository_key_source": "ENV_PROVIDER_ONLY"
+    }
+  },
   "activation_assertions": [
     "webform_submissions_zero",
     "active_sessions_zero",

@@ -3,14 +3,26 @@
   "profile_id": "agency-preprod-capability-provision-v1",
   "issue_number": 851,
   "revision_issue_number": 859,
+  "authority_lineage": {
+    "provisioning_contract_origin_issue": 851,
+    "capability_revision_issue": 859,
+    "current_execution_authority_issue": 861
+  },
   "authority": {
     "trigger": "ISSUE_COMMENT",
     "command_prefix": "/agency-preprod-capability-provision",
     "owner_actor": "E-merging-digital",
+    "execution_authority_issue": 861,
     "live_main_required": true,
     "run_attempt_must_equal": 1,
     "unique_request_id_required": true,
+    "historical_request_issues": [834, 851],
+    "request_mode_binding": "REQUIRED",
+    "plan_request_prefix": "plan-861-",
+    "apply_request_prefix": "apply-861-",
     "modes": ["PLAN", "APPLY"],
+    "plan_authority_does_not_authorize_apply": true,
+    "apply_requires_fresh_separate_owner_comment": true,
     "real_apply_executor": "PROJECT_LEAD_ONLY"
   },
   "execution": {
@@ -113,5 +125,7 @@
     "pii_allowed": false,
     "secrets_allowed": false
   },
-  "real_provisioning_performed_in_issue_859": false
+  "real_provisioning_performed_in_issue_859": false,
+  "real_plan_performed_in_issue_861_phase_a": false,
+  "real_provisioning_performed_in_issue_861_phase_a": false
 }

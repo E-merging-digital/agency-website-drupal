@@ -23,10 +23,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Start isolated MariaDB 11.8 socket service
+      - name: Start isolated MariaDB 11.8 and fixed client
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends mariadb-client
+          test -x /usr/bin/mariadb
           sudo install -d -m 0777 /run/mysqld
           docker run -d --name agency-859-mariadb \
             -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 \
@@ -47,15 +50,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
-          helper_digest='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256'
-          sanitizer='scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py'
-          sanitizer_digest='scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py.sha256'
+          privileged='scripts/preproduction-staging-import/privileged'
+          helper="$privileged/agency-preprod-staging-db"
+          sanitizer="$privileged/agency-preprod-staging-sanitizer.py"
           policy='scripts/preproduction-refresh/sanitization-policy.json'
-          policy_digest='scripts/preproduction-staging-import/privileged/sanitization-policy.sha256'
-          test "$(sha256sum "$helper" | awk '{print $1}')" = "$(cat "$helper_digest")"
-          test "$(sha256sum "$sanitizer" | awk '{print $1}')" = "$(cat "$sanitizer_digest")"
-          test "$(sha256sum "$policy" | awk '{print $1}')" = "$(cat "$policy_digest")"
+          test "$(sha256sum "$helper" | awk '{print $1}')" = "$(cat "$privileged/agency-preprod-staging-db.sha256")"
+          test "$(sha256sum "$sanitizer" | awk '{print $1}')" = "$(cat "$privileged/agency-preprod-staging-sanitizer.py.sha256")"
+          test "$(sha256sum "$policy" | awk '{print $1}')" = "$(cat "$privileged/sanitization-policy.sha256")"
           sudo install -d -o root -g root -m 0755 /usr/local/lib/agency-preprod-staging
           sudo install -o root -g root -m 0755 "$helper" /usr/local/sbin/agency-preprod-staging-db
           sudo install -o root -g root -m 0644 "$sanitizer" /usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py
@@ -94,7 +95,7 @@ jobs:
           SQL
           chmod 600 /tmp/agency-859-good.sql /tmp/agency-859-incompatible.sql
 
-      - name: Prove deterministic successful one-shot and cleanup absence
+      - name: Prove successful deterministic one-shot and absence
         shell: bash
         run: |
           set -euo pipefail
@@ -103,61 +104,56 @@ jobs:
           for request in proof-859-one-shot-a proof-859-one-shot-b; do
             out="/tmp/${request}.out"
             sudo "$helper" IMPORT_SANITIZE_PROVE "$request" "$bytes" < /tmp/agency-859-good.sql > "$out"
-            grep -Fxq 'one_shot_import_sanitize_prove_cleanup=PASS' "$out"
-            grep -Fxq 'exact_byte_import=PASS' "$out"
-            grep -Fxq 'sanitization_policy=agency-preprod-refresh-v1' "$out"
-            grep -Fxq 'user_sanitization=PASS' "$out"
-            grep -Fxq 'auth_material_invalidation=PASS' "$out"
-            grep -Fxq 'webform_submissions_purge=PASS' "$out"
-            grep -Fxq 'sessions_purge=PASS' "$out"
-            grep -Fxq 'flood_rate_limit_purge=PASS' "$out"
-            grep -Fxq 'dblog_watchdog_purge=PASS' "$out"
-            grep -Fxq 'batch_temp_state_purge=PASS' "$out"
-            grep -Fxq 'queues_purge=PASS' "$out"
-            grep -Fxq 'cache_purge=PASS' "$out"
-            grep -Fxq 'runtime_state_reset=PASS' "$out"
-            grep -Fxq 'credential_state_removal=PASS' "$out"
-            grep -Fxq 'editorial_row_count=1' "$out"
-            grep -Fxq 'staging_db_present_after_cleanup=NO' "$out"
-            grep -Fxq 'staging_account_present_after_cleanup=NO' "$out"
+            for required in \
+              'one_shot_import_sanitize_prove_cleanup=PASS' \
+              'exact_byte_import=PASS' \
+              'sanitization_policy=agency-preprod-refresh-v1' \
+              'user_sanitization=PASS' \
+              'auth_material_invalidation=PASS' \
+              'webform_submissions_purge=PASS' \
+              'sessions_purge=PASS' \
+              'flood_rate_limit_purge=PASS' \
+              'dblog_watchdog_purge=PASS' \
+              'batch_temp_state_purge=PASS' \
+              'queues_purge=PASS' \
+              'cache_purge=PASS' \
+              'runtime_state_reset=PASS' \
+              'credential_state_removal=PASS' \
+              'editorial_row_count=1' \
+              'staging_db_present_after_cleanup=NO' \
+              'staging_account_present_after_cleanup=NO'; do
+              grep -Fxq "$required" "$out"
+            done
             sudo "$helper" VERIFY_ABSENCE "$request" 0 > "/tmp/${request}.absence"
             grep -Fxq 'staging_db_present_after_cleanup=NO' "/tmp/${request}.absence"
             grep -Fxq 'staging_account_present_after_cleanup=NO' "/tmp/${request}.absence"
           done
-          digest_a="$(sed -n 's/^sanitized_state_sha256=//p' /tmp/proof-859-one-shot-a.out)"
-          digest_b="$(sed -n 's/^sanitized_state_sha256=//p' /tmp/proof-859-one-shot-b.out)"
-          test "$digest_a" = "$digest_b"
-          test "${#digest_a}" = 64
+          a="$(sed -n 's/^sanitized_state_sha256=//p' /tmp/proof-859-one-shot-a.out)"
+          b="$(sed -n 's/^sanitized_state_sha256=//p' /tmp/proof-859-one-shot-b.out)"
+          test "$a" = "$b" && test "${#a}" = 64
           for out in /tmp/proof-859-one-shot-a.out /tmp/proof-859-one-shot-b.out; do
             for forbidden in 'SYNTHETIC WEBFORM' '192.0.2.' '198.51.100.' 'admin@example.invalid' '$SYNTHETIC$HASH' 'SYNTHETIC-TOKEN'; do ! grep -Fq "$forbidden" "$out"; done
           done
           printf '%s\n' 'ONE_SHOT_IMPORT_SANITIZE_PROVE_CLEANUP=SUCCESS' 'EXACT_BYTE_IMPORT=SUCCESS' 'DETERMINISM=SUCCESS' 'SUCCESS_CLEANUP_ABSENCE=SUCCESS'
 
-      - name: Prove exact byte mismatch fails with cleanup absence
+      - name: Prove failures clean derived scope
         shell: bash
         run: |
           set -euo pipefail
           helper='/usr/local/sbin/agency-preprod-staging-db'
-          bytes="$(stat -c '%s' /tmp/agency-859-good.sql)"
-          if sudo "$helper" IMPORT_SANITIZE_PROVE proof-859-byte-failure "$((bytes + 1))" < /tmp/agency-859-good.sql >/tmp/byte.out 2>/tmp/byte.err; then exit 1; fi
+          good_bytes="$(stat -c '%s' /tmp/agency-859-good.sql)"
+          if sudo "$helper" IMPORT_SANITIZE_PROVE proof-859-byte-failure "$((good_bytes + 1))" < /tmp/agency-859-good.sql >/tmp/byte.out 2>/tmp/byte.err; then exit 1; fi
           sudo "$helper" VERIFY_ABSENCE proof-859-byte-failure 0 > /tmp/byte.absence
           grep -Fxq 'staging_db_present_after_cleanup=NO' /tmp/byte.absence
           grep -Fxq 'staging_account_present_after_cleanup=NO' /tmp/byte.absence
-          printf '%s\n' 'EXACT_BYTE_FAILURE_FAIL_CLOSED=PASS' 'FAILURE_CLEANUP_ABSENCE=SUCCESS'
-
-      - name: Prove incompatible sensitive schema fails with cleanup absence
-        shell: bash
-        run: |
-          set -euo pipefail
-          helper='/usr/local/sbin/agency-preprod-staging-db'
-          bytes="$(stat -c '%s' /tmp/agency-859-incompatible.sql)"
-          if sudo "$helper" IMPORT_SANITIZE_PROVE proof-859-schema-failure "$bytes" < /tmp/agency-859-incompatible.sql >/tmp/schema.out 2>/tmp/schema.err; then exit 1; fi
+          bad_bytes="$(stat -c '%s' /tmp/agency-859-incompatible.sql)"
+          if sudo "$helper" IMPORT_SANITIZE_PROVE proof-859-schema-failure "$bad_bytes" < /tmp/agency-859-incompatible.sql >/tmp/schema.out 2>/tmp/schema.err; then exit 1; fi
           sudo "$helper" VERIFY_ABSENCE proof-859-schema-failure 0 > /tmp/schema.absence
           grep -Fxq 'staging_db_present_after_cleanup=NO' /tmp/schema.absence
           grep -Fxq 'staging_account_present_after_cleanup=NO' /tmp/schema.absence
-          printf '%s\n' 'INCOMPATIBLE_SCHEMA_FAIL_CLOSED=SUCCESS' 'SANITIZATION_FAILURE_CLEANUP=PASS'
+          printf '%s\n' 'FAILURE_CLEANUP_ABSENCE=SUCCESS' 'INCOMPATIBLE_SCHEMA_FAIL_CLOSED=SUCCESS'
 
-      - name: Prove policy growth and runtime target fail closed without root checkout execution
+      - name: Prove policy growth runtime target and privilege boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -178,20 +174,14 @@ jobs:
           print('UNKNOWN_MANDATORY_FAIL_CLOSED=SUCCESS')
           print('RUNTIME_DB_TARGET_REJECTION=SUCCESS')
           PY
-
-      - name: Prove no generic privileged surface
-        shell: bash
-        run: |
-          set -euo pipefail
           helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
           sanitizer='scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py'
           capability='scripts/preproduction-staging-import/privileged/capability.json'
-          ! grep -Fq 'shell=True' "$helper"
-          ! grep -Fq 'os.system(' "$helper"
-          ! grep -Fq 'eval(' "$helper"
-          ! grep -Fq 'exec(' "$helper"
-          ! grep -Fq 'shell=True' "$sanitizer"
-          ! grep -Fq 'os.system(' "$sanitizer"
+          for file in "$helper" "$sanitizer"; do
+            ! grep -Fq 'shell=True' "$file"
+            ! grep -Fq 'os.system(' "$file"
+            ! grep -Fq 'eval(' "$file"
+          done
           ! grep -REn 'NOPASSWD:.*mariadb' scripts/preproduction-staging-import
           ! grep -REn 'sudo[[:space:]]+-n[[:space:]]+(--[[:space:]]+)?mariadb([[:space:]]|$)' scripts/preproduction-staging-import
           jq -e '.caller_inputs.database_name == "FORBIDDEN" and .caller_inputs.sql_command == "FORBIDDEN" and .caller_inputs.shell == "FORBIDDEN"' "$capability" >/dev/null

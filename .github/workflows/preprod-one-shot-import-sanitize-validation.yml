@@ -1,0 +1,202 @@
+name: "Validate #859 atomic import sanitize prove cleanup"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-one-shot-import-sanitize-validation.yml'
+      - 'scripts/preproduction-staging-import/privileged/**'
+      - 'scripts/preproduction-staging-import/provisioning/**'
+      - 'scripts/preproduction-refresh/one-shot-bundle-boundary.md'
+      - 'docs/operations/preproduction-one-shot-import-sanitize.md'
+
+permissions:
+  contents: read
+
+jobs:
+  one-shot:
+    name: Prove one-shot IMPORT SANITIZE ASSERT CLEANUP on MariaDB 11.8
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Start isolated MariaDB 11.8 and fixed client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends mariadb-client
+          test -x /usr/bin/mariadb
+          sudo install -d -m 0777 /run/mysqld
+          docker run -d --name agency-859-mariadb \
+            -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 \
+            -v /run/mysqld:/run/mysqld \
+            mariadb:11.8 \
+            --skip-networking=1 \
+            --socket=/run/mysqld/mysqld.sock
+          for attempt in $(seq 1 60); do
+            if docker logs agency-859-mariadb 2>&1 | grep -Fq 'MariaDB init process done. Ready for start up.' \
+              && docker exec agency-859-mariadb mariadb-admin --protocol=socket --socket=/run/mysqld/mysqld.sock -uroot ping >/dev/null 2>&1; then
+              sleep 1
+              docker exec agency-859-mariadb mariadb-admin --protocol=socket --socket=/run/mysqld/mysqld.sock -uroot ping >/dev/null 2>&1
+              test -S /run/mysqld/mysqld.sock
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs agency-859-mariadb >&2
+          exit 1
+
+      - name: Install synthetic CI root-owned bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          privileged='scripts/preproduction-staging-import/privileged'
+          helper="$privileged/agency-preprod-staging-db"
+          sanitizer="$privileged/agency-preprod-staging-sanitizer.py"
+          policy='scripts/preproduction-refresh/sanitization-policy.json'
+          test "$(sha256sum "$helper" | awk '{print $1}')" = "$(cat "$privileged/agency-preprod-staging-db.sha256")"
+          test "$(sha256sum "$sanitizer" | awk '{print $1}')" = "$(cat "$privileged/agency-preprod-staging-sanitizer.py.sha256")"
+          test "$(sha256sum "$policy" | awk '{print $1}')" = "$(cat "$privileged/sanitization-policy.sha256")"
+          sudo install -d -o root -g root -m 0755 /usr/local/lib/agency-preprod-staging
+          sudo install -o root -g root -m 0755 "$helper" /usr/local/sbin/agency-preprod-staging-db
+          sudo install -o root -g root -m 0644 "$sanitizer" /usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py
+          sudo install -o root -g root -m 0644 "$policy" /usr/local/lib/agency-preprod-staging/sanitization-policy.json
+          test "$(sudo stat -c '%u:%g:%a' /usr/local/sbin/agency-preprod-staging-db)" = '0:0:755'
+          test "$(sudo stat -c '%u:%g:%a' /usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py)" = '0:0:644'
+          test "$(sudo stat -c '%u:%g:%a' /usr/local/lib/agency-preprod-staging/sanitization-policy.json)" = '0:0:644'
+
+      - name: Build synthetic SQL fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/agency-859-good.sql <<'SQL'
+          CREATE TABLE users_field_data (uid BIGINT PRIMARY KEY, name VARCHAR(255) NOT NULL, mail VARCHAR(254) NOT NULL, pass VARCHAR(255) NOT NULL, init VARCHAR(254) NOT NULL, access BIGINT NOT NULL, login BIGINT NOT NULL);
+          INSERT INTO users_field_data VALUES (1,'Synthetic Admin','admin@example.invalid','$SYNTHETIC$HASH','admin@example.invalid',1700000000,1700000001),(17,'Synthetic Person','person@example.invalid','$SYNTHETIC$HASH2','person@example.invalid',1700000002,1700000003);
+          CREATE TABLE webform_submission (sid BIGINT PRIMARY KEY, uuid VARCHAR(128)); INSERT INTO webform_submission VALUES (1,'00000000-0000-0000-0000-000000000001');
+          CREATE TABLE webform_submission_data (sid BIGINT, name VARCHAR(128), value TEXT); INSERT INTO webform_submission_data VALUES (1,'message','SYNTHETIC WEBFORM PAYLOAD');
+          CREATE TABLE sessions (sid VARCHAR(128) PRIMARY KEY, uid BIGINT, hostname VARCHAR(128), session LONGTEXT); INSERT INTO sessions VALUES ('synthetic-session',17,'192.0.2.10','SYNTHETIC SESSION');
+          CREATE TABLE flood (fid BIGINT PRIMARY KEY, event VARCHAR(128), identifier VARCHAR(255), timestamp BIGINT, expiration BIGINT); INSERT INTO flood VALUES (1,'user.failed_login_ip','192.0.2.10',1,2);
+          CREATE TABLE watchdog (wid BIGINT PRIMARY KEY, uid BIGINT, hostname VARCHAR(128), location TEXT, message TEXT, variables LONGTEXT); INSERT INTO watchdog VALUES (1,17,'198.51.100.7','/synthetic','SYNTHETIC LOG','SYNTHETIC CONTEXT');
+          CREATE TABLE cache_default (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_default VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          CREATE TABLE cache_render (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_render VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          CREATE TABLE cache_dynamic_page_cache (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_dynamic_page_cache VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          CREATE TABLE cache_discovery (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_discovery VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          CREATE TABLE batch (bid BIGINT PRIMARY KEY, token VARCHAR(255), timestamp BIGINT, batch LONGBLOB); INSERT INTO batch VALUES (1,'SYNTHETIC-TOKEN',1,'SYNTHETIC BATCH');
+          CREATE TABLE semaphore (name VARCHAR(255) PRIMARY KEY, value VARCHAR(255), expire DOUBLE); INSERT INTO semaphore VALUES ('synthetic-lock','SYNTHETIC',999999);
+          CREATE TABLE key_value_expire (collection VARCHAR(255), name VARCHAR(255), value LONGBLOB, expire BIGINT, PRIMARY KEY(collection,name)); INSERT INTO key_value_expire VALUES ('user.private_tempstore','synthetic-auth','SYNTHETIC-TOKEN',1700000000);
+          CREATE TABLE queue (item_id BIGINT PRIMARY KEY, name VARCHAR(255), data LONGBLOB, expire BIGINT, created BIGINT); INSERT INTO queue VALUES (1,'ai_provider','SYNTHETIC QUEUE',0,1);
+          CREATE TABLE key_value (collection VARCHAR(255), name VARCHAR(255), value LONGBLOB, PRIMARY KEY(collection,name)); INSERT INTO key_value VALUES ('state','system.cron_last','1700000000'),('state','update.last_check','1700000000'),('state','announcements_feed.last_fetch','1700000000'),('state','linkchecker.last_run','1700000000'),('state','synthetic.public.state','preserve-me');
+          CREATE TABLE config (name VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO config VALUES ('key.key.openai_api_key','SYNTHETIC-CREDENTIAL'),('ai_provider_openai.settings','SYNTHETIC-PROVIDER'),('system.site','SYNTHETIC-PUBLIC-CONFIG');
+          CREATE TABLE node_field_data (nid BIGINT PRIMARY KEY, title VARCHAR(255) NOT NULL); INSERT INTO node_field_data VALUES (1,'Synthetic public content');
+          SQL
+          cat > /tmp/agency-859-incompatible.sql <<'SQL'
+          CREATE TABLE users_field_data (uid BIGINT PRIMARY KEY, name VARCHAR(255) NOT NULL, mail VARCHAR(254) NOT NULL, init VARCHAR(254) NOT NULL, access BIGINT NOT NULL, login BIGINT NOT NULL);
+          INSERT INTO users_field_data VALUES (17,'Synthetic Person','person@example.invalid','person@example.invalid',1,1);
+          SQL
+          chmod 600 /tmp/agency-859-good.sql /tmp/agency-859-incompatible.sql
+
+      - name: Prove successful deterministic one-shot and absence
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/usr/local/sbin/agency-preprod-staging-db'
+          bytes="$(stat -c '%s' /tmp/agency-859-good.sql)"
+          for request in proof-859-one-shot-a proof-859-one-shot-b; do
+            out="/tmp/${request}.out"
+            sudo "$helper" IMPORT_SANITIZE_PROVE "$request" "$bytes" < /tmp/agency-859-good.sql > "$out"
+            for required in \
+              'one_shot_import_sanitize_prove_cleanup=PASS' \
+              'exact_byte_import=PASS' \
+              'sanitization_policy=agency-preprod-refresh-v1' \
+              'user_sanitization=PASS' \
+              'auth_material_invalidation=PASS' \
+              'webform_submissions_purge=PASS' \
+              'sessions_purge=PASS' \
+              'flood_rate_limit_purge=PASS' \
+              'dblog_watchdog_purge=PASS' \
+              'batch_temp_state_purge=PASS' \
+              'queues_purge=PASS' \
+              'cache_purge=PASS' \
+              'runtime_state_reset=PASS' \
+              'credential_state_removal=PASS' \
+              'editorial_row_count=1' \
+              'staging_db_present_after_cleanup=NO' \
+              'staging_account_present_after_cleanup=NO'; do
+              grep -Fxq "$required" "$out"
+            done
+            sudo "$helper" VERIFY_ABSENCE "$request" 0 > "/tmp/${request}.absence"
+            grep -Fxq 'staging_db_present_after_cleanup=NO' "/tmp/${request}.absence"
+            grep -Fxq 'staging_account_present_after_cleanup=NO' "/tmp/${request}.absence"
+          done
+          a="$(sed -n 's/^sanitized_state_sha256=//p' /tmp/proof-859-one-shot-a.out)"
+          b="$(sed -n 's/^sanitized_state_sha256=//p' /tmp/proof-859-one-shot-b.out)"
+          test "$a" = "$b" && test "${#a}" = 64
+          for out in /tmp/proof-859-one-shot-a.out /tmp/proof-859-one-shot-b.out; do
+            for forbidden in 'SYNTHETIC WEBFORM' '192.0.2.' '198.51.100.' 'admin@example.invalid' '$SYNTHETIC$HASH' 'SYNTHETIC-TOKEN'; do ! grep -Fq "$forbidden" "$out"; done
+          done
+          printf '%s\n' 'ONE_SHOT_IMPORT_SANITIZE_PROVE_CLEANUP=SUCCESS' 'EXACT_BYTE_IMPORT=SUCCESS' 'DETERMINISM=SUCCESS' 'SUCCESS_CLEANUP_ABSENCE=SUCCESS'
+
+      - name: Prove failures clean derived scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/usr/local/sbin/agency-preprod-staging-db'
+          good_bytes="$(stat -c '%s' /tmp/agency-859-good.sql)"
+          if sudo "$helper" IMPORT_SANITIZE_PROVE proof-859-byte-failure "$((good_bytes + 1))" < /tmp/agency-859-good.sql >/tmp/byte.out 2>/tmp/byte.err; then exit 1; fi
+          sudo "$helper" VERIFY_ABSENCE proof-859-byte-failure 0 > /tmp/byte.absence
+          grep -Fxq 'staging_db_present_after_cleanup=NO' /tmp/byte.absence
+          grep -Fxq 'staging_account_present_after_cleanup=NO' /tmp/byte.absence
+          bad_bytes="$(stat -c '%s' /tmp/agency-859-incompatible.sql)"
+          if sudo "$helper" IMPORT_SANITIZE_PROVE proof-859-schema-failure "$bad_bytes" < /tmp/agency-859-incompatible.sql >/tmp/schema.out 2>/tmp/schema.err; then exit 1; fi
+          sudo "$helper" VERIFY_ABSENCE proof-859-schema-failure 0 > /tmp/schema.absence
+          grep -Fxq 'staging_db_present_after_cleanup=NO' /tmp/schema.absence
+          grep -Fxq 'staging_account_present_after_cleanup=NO' /tmp/schema.absence
+          printf '%s\n' 'FAILURE_CLEANUP_ABSENCE=SUCCESS' 'INCOMPATIBLE_SCHEMA_FAIL_CLOSED=SUCCESS'
+
+      - name: Prove policy growth runtime target and privilege boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import copy, importlib.util, json, pathlib
+          path = pathlib.Path('scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py')
+          spec = importlib.util.spec_from_file_location('sanitizer_test', path)
+          module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          policy = json.loads(pathlib.Path('scripts/preproduction-refresh/sanitization-policy.json').read_text())
+          mutated = copy.deepcopy(policy)
+          mutated['mandatory_sanitization'].append({'id':'synthetic_future_sensitive_class','action':'DELETE_ALL','deterministic_rule':'proof only','required':True})
+          try: module.validate_policy(mutated)
+          except module.SanitizationError: pass
+          else: raise SystemExit('unknown mandatory class accepted')
+          try: module.validate_target_database('agency_preprod')
+          except module.SanitizationError: pass
+          else: raise SystemExit('runtime DB accepted')
+          print('UNKNOWN_MANDATORY_FAIL_CLOSED=SUCCESS')
+          print('RUNTIME_DB_TARGET_REJECTION=SUCCESS')
+          PY
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          sanitizer='scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py'
+          capability='scripts/preproduction-staging-import/privileged/capability.json'
+          for file in "$helper" "$sanitizer"; do
+            ! grep -Fq 'shell=True' "$file"
+            ! grep -Fq 'os.system(' "$file"
+            ! grep -Fq 'eval(' "$file"
+          done
+          ! grep -REn 'NOPASSWD:.*mariadb' scripts/preproduction-staging-import
+          ! grep -REn 'sudo[[:space:]]+-n[[:space:]]+(--[[:space:]]+)?mariadb([[:space:]]|$)' scripts/preproduction-staging-import
+          jq -e '.caller_inputs.database_name == "FORBIDDEN" and .caller_inputs.sql_command == "FORBIDDEN" and .caller_inputs.shell == "FORBIDDEN"' "$capability" >/dev/null
+          jq -e '.database_scope.runtime_targetable == false and .one_shot.unsanitized_persistence_between_caller_actions == "FORBIDDEN"' "$capability" >/dev/null
+          printf '%s\n' 'NO_GENERIC_PRIVILEGED_SURFACE=SUCCESS'
+
+      - name: Cleanup synthetic CI service
+        if: always()
+        shell: bash
+        run: |
+          sudo rm -f /usr/local/sbin/agency-preprod-staging-db || true
+          sudo rm -rf /usr/local/lib/agency-preprod-staging || true
+          docker rm -f agency-859-mariadb >/dev/null 2>&1 || true
+          rm -f /tmp/agency-859-*.sql /tmp/proof-859-* /tmp/byte.* /tmp/schema.* || true

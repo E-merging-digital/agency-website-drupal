@@ -122,17 +122,54 @@ jobs:
             ! grep -Fq "$forbidden" "$evidence"
           done
 
-      - name: Prove no #834 apply or real runtime route was added
+      - name: Prove #857 remains synthetic while #859 adds only its fixed successor action
         shell: bash
         run: |
           set -euo pipefail
           proof='scripts/preproduction-refresh/sanitize-staging-mariadb-proof.py'
           apply='scripts/preproduction-staging-import/run-apply.sh'
           helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          capability='scripts/preproduction-staging-import/privileged/capability.json'
 
           grep -Fq 'sanitization_path=NONE' "$apply"
           grep -Fq 'activation_path=NONE' "$apply"
-          grep -Fq 'ALLOWED_ACTIONS = frozenset({"PRECHECK", "IMPORT", "CLEANUP", "VERIFY_ABSENCE"})' "$helper"
+          jq -e '.revision_issue_number == 859' "$capability" >/dev/null
+          jq -e '.actions == ["PRECHECK","IMPORT","IMPORT_SANITIZE_PROVE","CLEANUP","VERIFY_ABSENCE"]' "$capability" >/dev/null
+          jq -e '.one_shot.action == "IMPORT_SANITIZE_PROVE" and .one_shot.unsanitized_persistence_between_caller_actions == "FORBIDDEN"' "$capability" >/dev/null
+          jq -e '.database_scope.runtime_database == "agency_preprod" and .database_scope.runtime_targetable == false' "$capability" >/dev/null
+          jq -e '[.caller_inputs[]] | all(. == "FORBIDDEN")' "$capability" >/dev/null
+          jq -e '.sudo.direct_mariadb == "FORBIDDEN" and .sudo.generic_shell == "FORBIDDEN" and .sudo.setenv == "FORBIDDEN"' "$capability" >/dev/null
+          jq -e '.root_owned_bundle.mutable_checkout_runtime_read == "FORBIDDEN"' "$capability" >/dev/null
+
+          python3 - <<'PY'
+          import ast
+          import pathlib
+
+          helper = pathlib.Path('scripts/preproduction-staging-import/privileged/agency-preprod-staging-db').read_text()
+          tree = ast.parse(helper)
+          actions = None
+          for node in tree.body:
+              if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'ALLOWED_ACTIONS' for target in node.targets):
+                  call = node.value
+                  if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name) or call.func.id != 'frozenset' or len(call.args) != 1:
+                      raise SystemExit('ALLOWED_ACTIONS is not a fixed frozenset')
+                  actions = set(ast.literal_eval(call.args[0]))
+                  break
+          expected = {'PRECHECK', 'IMPORT', 'IMPORT_SANITIZE_PROVE', 'CLEANUP', 'VERIFY_ABSENCE'}
+          if actions != expected:
+              raise SystemExit('privileged helper action allow-list changed')
+          if 'SANITIZE' in actions:
+              raise SystemExit('generic SANITIZE action exposed')
+          PY
+
+          for file in "$helper"; do
+            ! grep -Fq 'shell=True' "$file"
+            ! grep -Fq 'os.system(' "$file"
+            ! grep -Fq 'eval(' "$file"
+            ! grep -Fq 'exec(' "$file"
+          done
+          ! grep -REn 'NOPASSWD:.*mariadb' scripts/preproduction-staging-import
+          ! grep -REn 'sudo[[:space:]]+-n[[:space:]]+(--[[:space:]]+)?mariadb([[:space:]]|$)' scripts/preproduction-staging-import
           ! grep -Fq '/usr/local/sbin/agency-preprod-staging-db' "$proof"
           ! grep -Fq 'ssh ' "$proof"
           ! grep -Fq 'scp ' "$proof"
@@ -148,6 +185,8 @@ jobs:
             'UNKNOWN_MANDATORY_CLASS_FAIL_CLOSED=PASS' \
             'INCOMPATIBLE_SENSITIVE_SCHEMA_FAIL_CLOSED=PASS' \
             'RUNTIME_DB_TARGET_REJECTION=PASS' \
+            'FIXED_859_SUCCESSOR_ACTION=PASS' \
+            'GENERIC_SANITIZE_ACTION=FORBIDDEN' \
             'REAL_PROD_ACCESS=NONE' \
             'REAL_PREPROD_MUTATION=NONE' \
             'REAL_HELPER_PROVISIONING=NONE'

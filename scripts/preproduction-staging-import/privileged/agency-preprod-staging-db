@@ -1,30 +1,48 @@
 #!/usr/bin/python3 -I
 """Root-only bounded MariaDB capability for Agency PREPROD staging imports."""
+
 from __future__ import annotations
 
 import hashlib
+import importlib.util
+import json
 import os
 import re
 import secrets
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
+from types import ModuleType
+from typing import Any
 
 MARIADB_BIN = "/usr/bin/mariadb"
 HELPER_PATH = "/usr/local/sbin/agency-preprod-staging-db"
+BUNDLE_DIR = "/usr/local/lib/agency-preprod-staging"
+SANITIZER_PATH = BUNDLE_DIR + "/agency-preprod-staging-sanitizer.py"
+POLICY_PATH = BUNDLE_DIR + "/sanitization-policy.json"
+SANITIZER_SHA256 = "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f"
+POLICY_SHA256 = "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb"
 RUNTIME_DB = "agency_preprod"
 STAGING_PREFIX = "agency_preprod_stage_"
 DB_USER_PREFIX = "agency_stage_"
 MAX_SNAPSHOT_BYTES = 1_099_511_627_776
-ALLOWED_ACTIONS = frozenset({"PRECHECK", "IMPORT", "CLEANUP", "VERIFY_ABSENCE"})
+ALLOWED_ACTIONS = frozenset({
+    "PRECHECK",
+    "IMPORT",
+    "IMPORT_SANITIZE_PROVE",
+    "CLEANUP",
+    "VERIFY_ABSENCE",
+})
 REQUEST_RE = re.compile(r"^[A-Za-z0-9._-]{8,80}$")
 CLEAN_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/root", "LC_ALL": "C"}
 
 
 class ContractError(RuntimeError):
-    pass
+    """Fail-closed privileged capability violation."""
 
 
 @dataclass(frozen=True)
@@ -37,6 +55,7 @@ class Scope:
 
 
 def derive_scope(request_id: str) -> Scope:
+    """Derive the only database/account names the caller can influence."""
     if not REQUEST_RE.fullmatch(request_id):
         raise ContractError("Invalid request identity.")
     suffix = hashlib.sha256(request_id.encode("utf-8")).hexdigest()[:12]
@@ -53,23 +72,89 @@ def derive_scope(request_id: str) -> Scope:
 
 
 def validate_snapshot_bytes(raw: str, action: str) -> int:
+    """Validate the exact bounded stdin byte contract."""
     if not re.fullmatch(r"[0-9]+", raw):
         raise ContractError("Invalid snapshot byte count.")
     value = int(raw, 10)
     if value > MAX_SNAPSHOT_BYTES:
         raise ContractError("Snapshot byte count exceeds bounded policy.")
-    if action == "IMPORT" and value == 0:
-        raise ContractError("IMPORT requires a positive snapshot byte count.")
+    if action in {"IMPORT", "IMPORT_SANITIZE_PROVE"} and value == 0:
+        raise ContractError("Import action requires a positive snapshot byte count.")
     return value
 
 
+def file_sha256(path: str) -> str:
+    """Hash a fixed bundle file without following a mutable source path."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def require_root_owned_bundle_file(
+    path: str,
+    expected_digest: str,
+    expected_mode: int,
+) -> None:
+    """Require exact root-owned, non-writable bundle identity."""
+    try:
+        metadata = os.lstat(path)
+    except FileNotFoundError as exc:
+        raise ContractError("Required root-owned helper bundle file is absent.") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ContractError("Root-owned helper bundle file type is invalid.")
+    if metadata.st_uid != 0 or metadata.st_gid != 0:
+        raise ContractError("Root-owned helper bundle ownership is invalid.")
+    if stat.S_IMODE(metadata.st_mode) != expected_mode:
+        raise ContractError("Root-owned helper bundle mode is invalid.")
+    if file_sha256(path) != expected_digest:
+        raise ContractError("Root-owned helper bundle digest mismatch.")
+
+
+def load_bundle() -> tuple[ModuleType, dict[str, Any]]:
+    """Load only the pinned root-owned sanitizer and sole policy copy."""
+    require_root_owned_bundle_file(SANITIZER_PATH, SANITIZER_SHA256, 0o644)
+    require_root_owned_bundle_file(POLICY_PATH, POLICY_SHA256, 0o644)
+
+    spec = importlib.util.spec_from_file_location(
+        "agency_preprod_staging_sanitizer",
+        SANITIZER_PATH,
+    )
+    if spec is None or spec.loader is None:
+        raise ContractError("Pinned sanitizer module cannot be loaded.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    try:
+        with Path(POLICY_PATH).open("r", encoding="utf-8") as stream:
+            policy = json.load(stream)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ContractError("Pinned sanitization policy cannot be loaded.") from exc
+    if not isinstance(policy, dict):
+        raise ContractError("Pinned sanitization policy must be an object.")
+
+    try:
+        module.validate_policy(policy)
+    except Exception as exc:
+        raise ContractError("Pinned sanitization policy contract rejected.") from exc
+    return module, policy
+
+
 def root_sql(query: str) -> str:
-    # SQL is internally constructed only. Pass it on stdin so even the
-    # ephemeral password used in CREATE USER never appears in process argv.
+    """Execute only internally constructed administrative SQL."""
     result = subprocess.run(
-        [MARIADB_BIN, "--protocol=socket", "--batch", "--skip-column-names"],
+        [
+            MARIADB_BIN,
+            "--protocol=socket",
+            "--batch",
+            "--skip-column-names",
+            "--raw",
+        ],
         input=query + "\n",
-        stdin=None,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
@@ -112,17 +197,20 @@ def table_count(scope: Scope) -> int:
 
 
 def require_absent(scope: Scope) -> None:
+    """Require both derived DB and derived DB account to be absent."""
     if schema_count(scope) != 0 or account_count(scope) != 0:
         raise ContractError("Derived staging scope is not absent.")
 
 
 def cleanup_scope(scope: Scope) -> None:
+    """Idempotently destroy the entire derived staging authority."""
     root_sql(f"DROP USER IF EXISTS '{scope.database_user}'@'localhost'")
     root_sql(f"DROP DATABASE IF EXISTS `{scope.database}`")
     require_absent(scope)
 
 
 def write_restricted_client_file(scope: Scope, password: str) -> str:
+    """Create a root-only client file for the derived ephemeral DB user."""
     fd, path = tempfile.mkstemp(
         prefix=f"agency-preprod-stage-{scope.suffix}.",
         suffix=".cnf",
@@ -149,7 +237,12 @@ def write_restricted_client_file(scope: Scope, password: str) -> str:
     return path
 
 
-def import_bounded_stdin(scope: Scope, snapshot_bytes: int, client_file: str) -> None:
+def import_bounded_stdin(
+    scope: Scope,
+    snapshot_bytes: int,
+    client_file: str,
+) -> int:
+    """Stream exactly the declared bytes into only the derived staging DB."""
     process = subprocess.Popen(
         [
             MARIADB_BIN,
@@ -199,9 +292,11 @@ def import_bounded_stdin(scope: Scope, snapshot_bytes: int, client_file: str) ->
     returncode = process.wait()
     if failed or total != snapshot_bytes or returncode != 0:
         raise ContractError("Restricted staging import failed.")
+    return total
 
 
 def prepare_import_scope(scope: Scope) -> str:
+    """Create only the derived DB and its least-privilege ephemeral account."""
     require_absent(scope)
     password = secrets.token_hex(24)
     root_sql(
@@ -213,8 +308,6 @@ def prepare_import_scope(scope: Scope) -> str:
             f"CREATE USER '{scope.database_user}'@'localhost' "
             f"IDENTIFIED BY '{password}'"
         )
-        # The ephemeral account has no global authority and no privilege on any
-        # database except the internally-derived staging database.
         root_sql(
             "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, REFERENCES, "
             "INDEX, ALTER, CREATE VIEW, SHOW VIEW, TRIGGER, LOCK TABLES, "
@@ -238,40 +331,63 @@ def action_precheck(scope: Scope) -> None:
 def action_verify_absence(scope: Scope) -> None:
     require_absent(scope)
     print("staging_db_present_after_cleanup=NO")
+    print("staging_account_present_after_cleanup=NO")
 
 
 def action_cleanup(scope: Scope) -> None:
     cleanup_scope(scope)
     print("staging_db_present_after_cleanup=NO")
+    print("staging_account_present_after_cleanup=NO")
 
 
-def action_import(scope: Scope, snapshot_bytes: int) -> None:
-    password = prepare_import_scope(scope)
-    client_file = ""
-    imported = False
-    count = 0
-    cleanup_ok = False
+def install_signal_cleanup_guard() -> dict[signal.Signals, Any]:
+    """Convert handled termination into a cleanup-aware exception."""
 
     def interrupted(signum: int, _frame: object) -> None:
         raise ContractError(f"Interrupted by signal {signum}; cleanup required.")
 
-    previous_handlers = {
+    previous = {
         sig: signal.getsignal(sig)
         for sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM)
     }
-    for sig in previous_handlers:
+    for sig in previous:
         signal.signal(sig, interrupted)
+    return previous
+
+
+def restore_signal_handlers(previous: dict[signal.Signals, Any]) -> None:
+    for sig, handler in previous.items():
+        signal.signal(sig, handler)
+
+
+def run_import_with_finalizer(
+    scope: Scope,
+    snapshot_bytes: int,
+    after_import: Any,
+) -> tuple[int, int, Any]:
+    """Run one import lifecycle and always destroy DB/account before return."""
+    password = ""
+    client_file = ""
+    previous = install_signal_cleanup_guard()
+    failure: BaseException | None = None
+    cleanup_failure: BaseException | None = None
+    consumed = 0
+    count = 0
+    result: Any = None
 
     try:
+        password = prepare_import_scope(scope)
         client_file = write_restricted_client_file(scope, password)
-        import_bounded_stdin(scope, snapshot_bytes, client_file)
+        consumed = import_bounded_stdin(scope, snapshot_bytes, client_file)
         count = table_count(scope)
         if count <= 0:
             raise ContractError("Imported staging schema proof failed.")
-        imported = True
+        result = after_import()
+    except BaseException as exc:
+        failure = exc
     finally:
-        for sig, handler in previous_handlers.items():
-            signal.signal(sig, handler)
+        restore_signal_handlers(previous)
+        password = ""
         if client_file:
             try:
                 os.unlink(client_file)
@@ -279,20 +395,86 @@ def action_import(scope: Scope, snapshot_bytes: int) -> None:
                 pass
         try:
             cleanup_scope(scope)
-            cleanup_ok = True
-        except ContractError:
-            cleanup_ok = False
+        except BaseException as exc:
+            cleanup_failure = exc
 
-    if not cleanup_ok:
-        raise ContractError("Mandatory staging cleanup failed.")
-    if not imported:
-        raise ContractError("Restricted staging import did not complete.")
+    if cleanup_failure is not None:
+        raise ContractError("Mandatory staging cleanup failed.") from cleanup_failure
+    if failure is not None:
+        raise ContractError("Atomic staging lifecycle failed.") from failure
+    require_absent(scope)
+    return consumed, count, result
 
+
+def action_import(scope: Scope, snapshot_bytes: int) -> None:
+    """Preserve the #834 import proof behavior with mandatory cleanup."""
+    consumed, count, _ = run_import_with_finalizer(
+        scope,
+        snapshot_bytes,
+        lambda: None,
+    )
+    if consumed != snapshot_bytes:
+        raise ContractError("Exact import byte proof failed.")
     print("staging_import_result=PASS")
+    print("exact_byte_import=PASS")
     print(f"staging_db_id_hash={scope.database_hash}")
     print("schema_proof=PASS")
     print(f"safe_table_count={count}")
     print("staging_db_present_after_cleanup=NO")
+    print("staging_account_present_after_cleanup=NO")
+
+
+def action_import_sanitize_prove(scope: Scope, snapshot_bytes: int) -> None:
+    """Atomically import, sanitize, assert, and cleanup the derived DB."""
+    sanitizer, policy = load_bundle()
+
+    def sanitize_and_assert() -> dict[str, str]:
+        try:
+            execution = sanitizer.sanitize(scope.database, policy)
+            evidence = sanitizer.assert_sanitized(scope.database, execution)
+        except Exception as exc:
+            raise ContractError("Sanitization or assertion failed closed.") from exc
+        if not isinstance(evidence, dict):
+            raise ContractError("Sanitization evidence contract is invalid.")
+        return {str(key): str(value) for key, value in evidence.items()}
+
+    consumed, count, evidence = run_import_with_finalizer(
+        scope,
+        snapshot_bytes,
+        sanitize_and_assert,
+    )
+    if consumed != snapshot_bytes:
+        raise ContractError("Exact import byte proof failed.")
+    state_digest = evidence.get("sanitized_state_sha256", "")
+    if not re.fullmatch(r"[0-9a-f]{64}", state_digest):
+        raise ContractError("Sanitized state digest proof is invalid.")
+
+    print("one_shot_import_sanitize_prove_cleanup=PASS")
+    print("exact_byte_import=PASS")
+    print("sanitization_policy=agency-preprod-refresh-v1")
+    print(f"sanitization_policy_sha256={POLICY_SHA256}")
+    print(f"sanitizer_sha256={SANITIZER_SHA256}")
+    print(f"staging_db_id_hash={scope.database_hash}")
+    print(f"safe_table_count={count}")
+    print(f"sanitized_state_sha256={state_digest}")
+    for key in (
+        "user_sanitization",
+        "auth_material_invalidation",
+        "webform_submissions_purge",
+        "sessions_purge",
+        "flood_rate_limit_purge",
+        "dblog_watchdog_purge",
+        "batch_temp_state_purge",
+        "queues_purge",
+        "cache_purge",
+        "runtime_state_reset",
+        "credential_state_removal",
+        "editorial_row_count",
+    ):
+        if key in evidence:
+            print(f"{key}={evidence[key]}")
+    print("staging_db_present_after_cleanup=NO")
+    print("staging_account_present_after_cleanup=NO")
 
 
 def main(argv: list[str]) -> int:
@@ -315,6 +497,8 @@ def main(argv: list[str]) -> int:
         action_precheck(scope)
     elif action == "IMPORT":
         action_import(scope, snapshot_bytes)
+    elif action == "IMPORT_SANITIZE_PROVE":
+        action_import_sanitize_prove(scope, snapshot_bytes)
     elif action == "CLEANUP":
         action_cleanup(scope)
     elif action == "VERIFY_ABSENCE":

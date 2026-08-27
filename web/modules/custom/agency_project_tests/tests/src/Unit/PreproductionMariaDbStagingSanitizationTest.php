@@ -136,32 +136,48 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
   }
 
   /**
-   * The #849/#851 installed-helper authority stays unchanged by #857.
+   * Guards the exact governed #859 helper revision.
    */
-  public function testExistingPrivilegedHelperContractIsUnchanged(): void {
+  public function testPrivilegedHelperRevisionRemainsGoverned(): void {
     $root = dirname(DRUPAL_ROOT);
-    $helper = $root
-      . '/scripts/preproduction-staging-import/privileged/'
-      . 'agency-preprod-staging-db';
-    $digest = $root
-      . '/scripts/preproduction-staging-import/privileged/'
-      . 'agency-preprod-staging-db.sha256';
-    $capability = $root
-      . '/scripts/preproduction-staging-import/privileged/'
-      . 'capability.json';
+    $privileged = $root . '/scripts/preproduction-staging-import/privileged';
+    $helper = $privileged . '/agency-preprod-staging-db';
+    $digest = $privileged . '/agency-preprod-staging-db.sha256';
+    $sanitizerDigest = $privileged
+      . '/agency-preprod-staging-sanitizer.py.sha256';
+    $policyDigest = $privileged . '/sanitization-policy.sha256';
+    $capability = $privileged . '/capability.json';
+    $bundle = $privileged . '/bundle.json';
     $provisioning = $root
       . '/scripts/preproduction-staging-import/provisioning/profile.json';
 
-    self::assertFileExists($helper);
-    self::assertFileExists($digest);
+    foreach ([
+      $helper,
+      $digest,
+      $sanitizerDigest,
+      $policyDigest,
+      $capability,
+      $bundle,
+      $provisioning,
+    ] as $path) {
+      self::assertFileExists($path);
+    }
 
     $expectedDigest = trim((string) file_get_contents($digest));
+    self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $expectedDigest);
     $actualDigest = hash_file('sha256', $helper);
     self::assertIsString($actualDigest);
     self::assertSame($expectedDigest, $actualDigest);
-    self::assertSame(
-      'ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3',
-      $expectedDigest,
+
+    $expectedSanitizerDigest = trim((string) file_get_contents($sanitizerDigest));
+    $expectedPolicyDigest = trim((string) file_get_contents($policyDigest));
+    self::assertMatchesRegularExpression(
+      '/^[0-9a-f]{64}$/',
+      $expectedSanitizerDigest,
+    );
+    self::assertMatchesRegularExpression(
+      '/^[0-9a-f]{64}$/',
+      $expectedPolicyDigest,
     );
 
     $capabilityData = json_decode(
@@ -171,13 +187,57 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
       JSON_THROW_ON_ERROR,
     );
     self::assertIsArray($capabilityData);
+    self::assertSame(849, $capabilityData['issue_number']);
+    self::assertSame(859, $capabilityData['revision_issue_number']);
     self::assertSame(
-      ['PRECHECK', 'IMPORT', 'CLEANUP', 'VERIFY_ABSENCE'],
+      'FIXED_ROOT_OWNED_BOUNDED_HELPER',
+      $capabilityData['model'],
+    );
+    self::assertSame(
+      [
+        'PRECHECK',
+        'IMPORT',
+        'IMPORT_SANITIZE_PROVE',
+        'CLEANUP',
+        'VERIFY_ABSENCE',
+      ],
       $capabilityData['actions'],
+    );
+    self::assertNotContains('SANITIZE', $capabilityData['actions']);
+    self::assertSame(
+      'IMPORT_SANITIZE_PROVE',
+      $capabilityData['one_shot']['action'],
+    );
+    self::assertSame(
+      'FORBIDDEN',
+      $capabilityData['one_shot']['unsanitized_persistence_between_caller_actions'],
+    );
+    foreach ([
+      'cleanup_on_success',
+      'cleanup_on_import_failure',
+      'cleanup_on_sanitization_failure',
+      'cleanup_on_assertion_failure',
+      'cleanup_on_handled_signal',
+    ] as $cleanupKey) {
+      self::assertSame(
+        'MANDATORY',
+        $capabilityData['one_shot'][$cleanupKey],
+      );
+    }
+    self::assertSame(
+      'METADATA_ONLY',
+      $capabilityData['one_shot']['evidence'],
+    );
+    self::assertSame(
+      'agency_preprod',
+      $capabilityData['database_scope']['runtime_database'],
     );
     self::assertFalse(
       $capabilityData['database_scope']['runtime_targetable'],
     );
+    foreach ($capabilityData['caller_inputs'] as $value) {
+      self::assertSame('FORBIDDEN', $value);
+    }
     self::assertSame(
       'FORBIDDEN',
       $capabilityData['sudo']['direct_mariadb'],
@@ -186,6 +246,47 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
       'FORBIDDEN',
       $capabilityData['sudo']['generic_shell'],
     );
+    self::assertSame('FORBIDDEN', $capabilityData['sudo']['setenv']);
+    self::assertSame(
+      'FORBIDDEN',
+      $capabilityData['root_owned_bundle']['mutable_checkout_runtime_read'],
+    );
+    self::assertSame(
+      $expectedSanitizerDigest,
+      $capabilityData['root_owned_bundle']['sanitizer_sha256'],
+    );
+    self::assertSame(
+      $expectedPolicyDigest,
+      $capabilityData['root_owned_bundle']['policy_sha256'],
+    );
+    self::assertSame(
+      'NOT_PERFORMED_IN_ISSUE_859',
+      $capabilityData['real_preprod_provisioning'],
+    );
+
+    $bundleData = json_decode(
+      (string) file_get_contents($bundle),
+      TRUE,
+      512,
+      JSON_THROW_ON_ERROR,
+    );
+    self::assertIsArray($bundleData);
+    self::assertSame(859, $bundleData['revision_issue_number']);
+    self::assertSame($expectedDigest, $bundleData['files']['helper']['sha256']);
+    self::assertSame(
+      $expectedSanitizerDigest,
+      $bundleData['files']['sanitizer']['sha256'],
+    );
+    self::assertSame(
+      $expectedPolicyDigest,
+      $bundleData['files']['policy']['sha256'],
+    );
+    self::assertSame(
+      'FORBIDDEN',
+      $bundleData['mutable_checkout_runtime_read'],
+    );
+    self::assertFalse($bundleData['sudoers']['change_required']);
+    self::assertFalse($bundleData['real_provisioning_performed']);
 
     $provisioningData = json_decode(
       (string) file_get_contents($provisioning),
@@ -194,17 +295,40 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
       JSON_THROW_ON_ERROR,
     );
     self::assertIsArray($provisioningData);
+    self::assertSame(859, $provisioningData['revision_issue_number']);
     self::assertSame(
       $expectedDigest,
       $provisioningData['helper']['expected_sha256'],
     );
     self::assertSame(
+      $expectedSanitizerDigest,
+      $provisioningData['bundle']['sanitizer']['expected_sha256'],
+    );
+    self::assertSame(
+      $expectedPolicyDigest,
+      $provisioningData['bundle']['policy']['expected_sha256'],
+    );
+    self::assertSame(
       'FIXED_HELPER_ONLY',
       $provisioningData['sudoers']['nopasswd_scope'],
+    );
+    self::assertFalse(
+      $provisioningData['sudoers']['change_required_for_issue_859'],
     );
     self::assertSame(
       'FORBIDDEN',
       $provisioningData['sudoers']['direct_mariadb'],
+    );
+    self::assertSame(
+      'FORBIDDEN',
+      $provisioningData['sudoers']['shell'],
+    );
+    self::assertSame(
+      'FORBIDDEN',
+      $provisioningData['apply']['import_sanitize_prove'],
+    );
+    self::assertFalse(
+      $provisioningData['real_provisioning_performed_in_issue_859'],
     );
   }
 

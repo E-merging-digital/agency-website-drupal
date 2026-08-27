@@ -6,7 +6,11 @@ PROFILE='scripts/preproduction-staging-import/provisioning/profile.json'
 REMOTE_ROOT='scripts/preproduction-staging-import/provisioning/remote-provision-root.sh'
 TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 HELPER='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
-DIGEST='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256'
+HELPER_DIGEST='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256'
+SANITIZER='scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py'
+SANITIZER_DIGEST='scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py.sha256'
+POLICY='scripts/preproduction-refresh/sanitization-policy.json'
+POLICY_DIGEST='scripts/preproduction-staging-import/privileged/sanitization-policy.sha256'
 PROFILE_ID='agency-preprod-capability-provision-v1'
 ROOT_USER='root'
 
@@ -23,64 +27,45 @@ GITHUB_WORKSPACE="${GITHUB_WORKSPACE:-}"
 [[ "$GITHUB_RUN_ATTEMPT" == '1' ]] || { echo 'Provisioning authority is not replayable.' >&2; exit 67; }
 [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]] || { echo 'Wrong trusted runner identity.' >&2; exit 68; }
 [[ "$PREPROD_SSH_HOST" =~ ^[A-Za-z0-9._:-]+$ ]] || { echo 'PREPROD host secret is invalid.' >&2; exit 69; }
-test -f "$PREPROD_PROVISIONING_SSH_KEY"
-test -f "$PROFILE"
-test -f "$REMOTE_ROOT"
-test -f "$TRUST"
-test -f "$HELPER"
-test -f "$DIGEST"
+for path in "$PREPROD_PROVISIONING_SSH_KEY" "$PROFILE" "$REMOTE_ROOT" "$TRUST" "$HELPER" "$HELPER_DIGEST" "$SANITIZER" "$SANITIZER_DIGEST" "$POLICY" "$POLICY_DIGEST"; do
+  test -f "$path"
+done
 test "$(git rev-parse HEAD)" = "$REPOSITORY_SHA"
 
-expected_digest="$(jq -r '.helper.expected_sha256' "$PROFILE")"
-[[ "$expected_digest" == 'ddd2785849da76f3a30dd3cf0ac59d03ed53692ad1e5cd03480a82d86d63a6a3' ]]
-[[ "$(tr -d '\r\n' < "$DIGEST")" == "$expected_digest" ]]
-[[ "$(sha256sum "$HELPER" | awk '{print $1}')" == "$expected_digest" ]]
-jq -e '.issue_number == 851 and .apply.one_shot == true and .apply.import == "FORBIDDEN" and .execution.prod_access == "NONE"' "$PROFILE" >/dev/null
+expected_helper="$(jq -r '.helper.expected_sha256' "$PROFILE")"
+expected_sanitizer="$(jq -r '.bundle.sanitizer.expected_sha256' "$PROFILE")"
+expected_policy="$(jq -r '.bundle.policy.expected_sha256' "$PROFILE")"
+[[ "$expected_helper" == 'a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71' ]]
+[[ "$expected_sanitizer" == 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f' ]]
+[[ "$expected_policy" == 'cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb' ]]
+[[ "$(tr -d '\r\n' < "$HELPER_DIGEST")" == "$expected_helper" ]]
+[[ "$(sha256sum "$HELPER" | awk '{print $1}')" == "$expected_helper" ]]
+[[ "$(tr -d '\r\n' < "$SANITIZER_DIGEST")" == "$expected_sanitizer" ]]
+[[ "$(sha256sum "$SANITIZER" | awk '{print $1}')" == "$expected_sanitizer" ]]
+[[ "$(tr -d '\r\n' < "$POLICY_DIGEST")" == "$expected_policy" ]]
+[[ "$(sha256sum "$POLICY" | awk '{print $1}')" == "$expected_policy" ]]
+jq -e '.issue_number == 851 and .revision_issue_number == 859 and .apply.one_shot == true and .apply.import == "FORBIDDEN" and .apply.import_sanitize_prove == "FORBIDDEN" and .execution.prod_access == "NONE"' "$PROFILE" >/dev/null
 
-PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
-PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
-  bash "$TRUST" >/dev/null
-
-ssh_cmd=(
-  ssh
-  -i "$PREPROD_PROVISIONING_SSH_KEY"
-  -o IdentitiesOnly=yes
-  -o BatchMode=yes
-  -o StrictHostKeyChecking=yes
-  -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
-  -o ConnectTimeout=15
-)
-scp_cmd=(
-  scp
-  -i "$PREPROD_PROVISIONING_SSH_KEY"
-  -o IdentitiesOnly=yes
-  -o BatchMode=yes
-  -o StrictHostKeyChecking=yes
-  -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
-)
+PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" bash "$TRUST" >/dev/null
+ssh_cmd=(ssh -i "$PREPROD_PROVISIONING_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
+scp_cmd=(scp -i "$PREPROD_PROVISIONING_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
 
 suffix="$(printf '%s' "$REQUEST_ID" | sha256sum | awk '{print substr($1,1,12)}')"
 [[ "$suffix" =~ ^[0-9a-f]{12}$ ]]
 remote_dir="/var/tmp/agency-851-${suffix}"
-remote_output=''
 remote_staged=0
-
 cleanup_remote_stage() {
   [[ "$remote_staged" -eq 1 ]] || return 0
-  "${ssh_cmd[@]}" "$ROOT_USER@$PREPROD_SSH_HOST" \
-    "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || return 1
+  "${ssh_cmd[@]}" "$ROOT_USER@$PREPROD_SSH_HOST" "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || return 1
   remote_staged=0
 }
-
 cleanup() {
   local original="$?"
   trap - EXIT HUP INT TERM
   set +e
   cleanup_remote_stage
   local cleanup_status="$?"
-  if [[ "$original" -eq 0 && "$cleanup_status" -ne 0 ]]; then
-    original=99
-  fi
+  if [[ "$original" -eq 0 && "$cleanup_status" -ne 0 ]]; then original=99; fi
   exit "$original"
 }
 trap cleanup EXIT
@@ -88,31 +73,17 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# The privileged transport has no owner-controlled remote command, path, user,
-# executable or destination. Every remote path is fixed or request-hash derived.
-"${ssh_cmd[@]}" "$ROOT_USER@$PREPROD_SSH_HOST" \
-  "umask 077; test ! -L '$remote_dir'; rm -rf -- '$remote_dir'; install -d -m 700 '$remote_dir'"
+"${ssh_cmd[@]}" "$ROOT_USER@$PREPROD_SSH_HOST" "umask 077; test ! -L '$remote_dir'; rm -rf -- '$remote_dir'; install -d -m 700 '$remote_dir'"
 remote_staged=1
+"${scp_cmd[@]}" "$HELPER" "$HELPER_DIGEST" "$SANITIZER" "$SANITIZER_DIGEST" "$POLICY" "$POLICY_DIGEST" "$REMOTE_ROOT" "$ROOT_USER@$PREPROD_SSH_HOST:$remote_dir/" >/dev/null
+"${ssh_cmd[@]}" "$ROOT_USER@$PREPROD_SSH_HOST" "chmod 600 '$remote_dir/'*"
 
-"${scp_cmd[@]}" \
-  "$HELPER" \
-  "$DIGEST" \
-  "$REMOTE_ROOT" \
-  "$ROOT_USER@$PREPROD_SSH_HOST:$remote_dir/" >/dev/null
-
-"${ssh_cmd[@]}" "$ROOT_USER@$PREPROD_SSH_HOST" \
-  "chmod 600 '$remote_dir/agency-preprod-staging-db' '$remote_dir/agency-preprod-staging-db.sha256' '$remote_dir/remote-provision-root.sh'"
-
-remote_output="$("${ssh_cmd[@]}" "$ROOT_USER@$PREPROD_SSH_HOST" \
-  "env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash '$remote_dir/remote-provision-root.sh' APPLY '$REQUEST_ID' '$REPOSITORY_SHA'")"
-
+remote_output="$("${ssh_cmd[@]}" "$ROOT_USER@$PREPROD_SSH_HOST" "env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash '$remote_dir/remote-provision-root.sh' APPLY '$REQUEST_ID' '$REPOSITORY_SHA'")"
 for required in \
   'helper_installed=PASS' \
-  'helper_owner=root' \
-  'helper_group=root' \
-  'helper_mode=0755' \
-  'helper_symlink=NO' \
-  'helper_digest=PASS' \
+  'sanitizer_installed=PASS' \
+  'policy_installed=PASS' \
+  'bundle_digest=PASS' \
   'sudoers_syntax=PASS' \
   'sudoers_scope=FIXED_HELPER_ONLY' \
   'direct_mariadb_sudo=FORBIDDEN' \
@@ -129,21 +100,17 @@ for required in \
 done
 
 evidence_dir="$GITHUB_WORKSPACE/artifacts/preprod-capability-provisioning"
-evidence="$evidence_dir/evidence.env"
 mkdir -p "$evidence_dir"
-cat > "$evidence.tmp" <<EOF
+cat > "$evidence_dir/evidence.tmp" <<EOF
 schema_version=1
 request_id=$REQUEST_ID
 repository_sha=$REPOSITORY_SHA
 operation_profile=$OPERATION_PROFILE
 execution_mode=APPLY
 helper_installed=PASS
-helper_owner=root
-helper_group=root
-helper_mode=0755
-helper_symlink=NO
-helper_digest=PASS
-sudoers_syntax=PASS
+sanitizer_installed=PASS
+policy_installed=PASS
+bundle_digest=PASS
 sudoers_scope=FIXED_HELPER_ONLY
 direct_mariadb_sudo=FORBIDDEN
 generic_root_executor=NONE
@@ -156,14 +123,6 @@ preprod_runtime_db_touched=NO
 prod_access=NONE
 issue_834_apply=NOT_PERFORMED
 EOF
-chmod 600 "$evidence.tmp"
-mv -f "$evidence.tmp" "$evidence"
-chmod 600 "$evidence"
-
-printf '%s\n' \
-  'HELPER_INSTALLED=PASS' \
-  'SUDOERS_SCOPE=FIXED_HELPER_ONLY' \
-  'PRECHECK=PASS' \
-  'VERIFY_ABSENCE=PASS' \
-  'PROD_ACCESS=NONE' \
-  'ISSUE_834_APPLY=NOT_PERFORMED'
+chmod 600 "$evidence_dir/evidence.tmp"
+mv -f "$evidence_dir/evidence.tmp" "$evidence_dir/evidence.env"
+printf '%s\n' 'HELPER_BUNDLE_INSTALLED=PASS' 'SUDOERS_SCOPE=FIXED_HELPER_ONLY' 'PRECHECK=PASS' 'VERIFY_ABSENCE=PASS' 'PROD_ACCESS=NONE' 'ISSUE_834_APPLY=NOT_PERFORMED'

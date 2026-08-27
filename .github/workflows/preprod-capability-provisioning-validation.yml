@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/preprod-capability-provisioning.yml'
       - '.github/workflows/preprod-capability-provisioning-validation.yml'
+      - '.github/workflows/preprod-861-provisioning-authority-validation.yml'
       - '.github/workflows/preprod-ssh-trust-validation.yml'
       - 'scripts/preproduction-staging-import/provisioning/**'
       - 'scripts/preproduction-staging-import/privileged/**'
@@ -16,7 +17,7 @@ permissions:
 
 jobs:
   provisioning-governance:
-    name: Prove #851/#859 one-shot least-privilege bundle provisioning route
+    name: Prove #851 origin #859 bundle and #861 execution authority
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -25,15 +26,26 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate syntax exact bundle digests and fixed profile
+      - name: Validate syntax exact bundle digests and authority lineage
         shell: bash
         run: |
           set -euo pipefail
           base='scripts/preproduction-staging-import/provisioning'
           privileged='scripts/preproduction-staging-import/privileged'
           bash -n "$base/remote-plan-readonly.sh" "$base/remote-provision-root.sh" "$base/run-plan.sh" "$base/run-apply.sh"
+          python3 -m py_compile "$base/validate-provisioning-authority.py" "$base/test-authority-route.py" "$base/test-contract.py"
           python3 "$base/test-contract.py"
-          jq -e '.schema_version == 1 and .issue_number == 851 and .revision_issue_number == 859 and .profile_id == "agency-preprod-capability-provision-v1"' "$base/profile.json" >/dev/null
+          python3 "$base/test-authority-route.py"
+          jq -e '
+            .schema_version == 1 and
+            .issue_number == 851 and
+            .revision_issue_number == 859 and
+            .profile_id == "agency-preprod-capability-provision-v1" and
+            .authority_lineage.provisioning_contract_origin_issue == 851 and
+            .authority_lineage.capability_revision_issue == 859 and
+            .authority_lineage.current_execution_authority_issue == 861 and
+            .authority.execution_authority_issue == 861
+          ' "$base/profile.json" >/dev/null
           test "$(sha256sum "$privileged/agency-preprod-staging-db" | awk '{print $1}')" = 'a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71'
           test "$(sha256sum "$privileged/agency-preprod-staging-sanitizer.py" | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
           test "$(sha256sum scripts/preproduction-refresh/sanitization-policy.json | awk '{print $1}')" = 'cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
@@ -53,6 +65,7 @@ jobs:
           ! grep -Fq 'sudo -n -- "$HELPER_PATH"' "$remote"
           ! grep -Eq '(^|[[:space:]])scp([[:space:]]|$)' "$plan"
           jq -e '.plan.preprod_mutation == "NONE" and .plan.helper_execution == "NONE" and .plan.sudo_execution == "NONE" and .plan.state_detection == "METADATA_ONLY"' "$profile" >/dev/null
+          jq -e '.real_plan_performed_in_issue_861_phase_a == false and .real_provisioning_performed_in_issue_861_phase_a == false' "$profile" >/dev/null
 
       - name: Prove APPLY installs only exact root-owned bundle and keeps zero-data proofs
         shell: bash
@@ -74,6 +87,7 @@ jobs:
           ! grep -Eq 'runuser.*sudo.*[[:space:]]IMPORT[[:space:]]' "$remote"
           jq -e '.apply.allowed_helper_proofs == ["PRECHECK","VERIFY_ABSENCE"] and .apply.snapshot_bytes == 0 and .apply.import == "FORBIDDEN" and .apply.import_sanitize_prove == "FORBIDDEN"' "$profile" >/dev/null
           jq -e '.apply.bundle_atomic_install == true and .apply.rollback_on_post_install_failure == true and .real_provisioning_performed_in_issue_859 == false' "$profile" >/dev/null
+          jq -e '.authority.plan_authority_does_not_authorize_apply == true and .authority.apply_requires_fresh_separate_owner_comment == true and .authority.request_mode_binding == "REQUIRED"' "$profile" >/dev/null
 
       - name: Prove sudoers unchanged and no generic privileged surface
         shell: bash
@@ -100,7 +114,14 @@ jobs:
         run: |
           printf '%s\n' \
             'PROVISIONING_ROUTE=PASS' \
+            'ORIGIN_PROVISIONING_ISSUE=851' \
+            'CAPABILITY_REVISION_ISSUE=859' \
+            'CURRENT_EXECUTION_AUTHORITY_ISSUE=861' \
             'HELPER_BUNDLE_DIGEST_BOUND=PASS' \
+            'PLAN_MUTATION_ROUTE=NONE' \
+            'PLAN_HELPER_EXECUTION=NONE' \
+            'PLAN_SUDO_EXECUTION=NONE' \
+            'PLAN_APPLY_AUTHORITY_SEPARATION=PASS' \
             'SUDOERS_CHANGE_REQUIRED=NO' \
             'SUDOERS_FIXED_HELPER_ONLY=PASS' \
             'DIRECT_MARIADB_SUDO=FORBIDDEN' \
@@ -108,5 +129,6 @@ jobs:
             'ROLLBACK_FAIL_CLOSE=PASS' \
             'PRECHECK_ZERO_DATA=PASS' \
             'VERIFY_ABSENCE_ZERO_DATA=PASS' \
+            'REAL_PREPROD_PLAN_EXECUTION=NOT_PERFORMED' \
             'REAL_PREPROD_MUTATION=NOT_PERFORMED' \
             'REAL_PROVISIONING_PERFORMED=NO'

@@ -136,8 +136,7 @@ final class PreproductionMariaDbStagingSanitizationTest extends TestCase {
   }
 
   /**
-   * Issue #859 may revise the helper only through the exact governed
-   * fixed contract.
+   * Guards the exact governed #859 helper revision.
    */
   public function testPrivilegedHelperRevisionRemainsGoverned(): void {
     $root = dirname(DRUPAL_ROOT);

@@ -16,80 +16,85 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Start synthetic MariaDB and bundle
+      - name: Prepare fixed client and root-owned bundle
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends mariadb-client
           sudo install -d -m 0777 /run/mysqld
-          docker run -d --name agency-859-diag -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 -v /run/mysqld:/run/mysqld mariadb:11.8 --skip-networking=1 --socket=/run/mysqld/mysqld.sock
-          for i in $(seq 1 40); do docker exec agency-859-diag mariadb-admin --socket=/run/mysqld/mysqld.sock -uroot ping >/dev/null 2>&1 && break; sleep 1; done
           p='scripts/preproduction-staging-import/privileged'
           sudo install -d -o root -g root -m 0755 /usr/local/lib/agency-preprod-staging
           sudo install -o root -g root -m 0755 "$p/agency-preprod-staging-db" /usr/local/sbin/agency-preprod-staging-db
           sudo install -o root -g root -m 0644 "$p/agency-preprod-staging-sanitizer.py" /usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py
           sudo install -o root -g root -m 0644 scripts/preproduction-refresh/sanitization-policy.json /usr/local/lib/agency-preprod-staging/sanitization-policy.json
-      - name: Build full compatible fixture
+      - name: Build bounded synthetic fixture variants
         shell: bash
         run: |
-          cat > /tmp/diag.sql <<'SQL'
+          set -euo pipefail
+          cat > /tmp/base.sql <<'SQL'
           CREATE TABLE users_field_data (uid BIGINT PRIMARY KEY, name VARCHAR(255) NOT NULL, mail VARCHAR(254) NOT NULL, pass VARCHAR(255) NOT NULL, init VARCHAR(254) NOT NULL, access BIGINT NOT NULL, login BIGINT NOT NULL);
           INSERT INTO users_field_data VALUES (1,'Synthetic Admin','admin@example.invalid','$SYNTHETIC$HASH','admin@example.invalid',1700000000,1700000001),(17,'Synthetic Person','person@example.invalid','$SYNTHETIC$HASH2','person@example.invalid',1700000002,1700000003);
+          CREATE TABLE node_field_data (nid BIGINT PRIMARY KEY, title VARCHAR(255) NOT NULL); INSERT INTO node_field_data VALUES (1,'Synthetic public content');
+          SQL
+          cp /tmp/base.sql /tmp/group-a.sql
+          cat >> /tmp/group-a.sql <<'SQL'
           CREATE TABLE webform_submission (sid BIGINT PRIMARY KEY, uuid VARCHAR(128)); INSERT INTO webform_submission VALUES (1,'00000000-0000-0000-0000-000000000001');
           CREATE TABLE webform_submission_data (sid BIGINT, name VARCHAR(128), value TEXT); INSERT INTO webform_submission_data VALUES (1,'message','SYNTHETIC WEBFORM PAYLOAD');
           CREATE TABLE sessions (sid VARCHAR(128) PRIMARY KEY, uid BIGINT, hostname VARCHAR(128), session LONGTEXT); INSERT INTO sessions VALUES ('synthetic-session',17,'192.0.2.10','SYNTHETIC SESSION');
           CREATE TABLE flood (fid BIGINT PRIMARY KEY, event VARCHAR(128), identifier VARCHAR(255), timestamp BIGINT, expiration BIGINT); INSERT INTO flood VALUES (1,'user.failed_login_ip','192.0.2.10',1,2);
           CREATE TABLE watchdog (wid BIGINT PRIMARY KEY, uid BIGINT, hostname VARCHAR(128), location TEXT, message TEXT, variables LONGTEXT); INSERT INTO watchdog VALUES (1,17,'198.51.100.7','/synthetic','SYNTHETIC LOG','SYNTHETIC CONTEXT');
+          SQL
+          cp /tmp/base.sql /tmp/group-b.sql
+          cat >> /tmp/group-b.sql <<'SQL'
           CREATE TABLE cache_default (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_default VALUES ('synthetic-cache','SYNTHETIC CACHE');
           CREATE TABLE cache_render (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_render VALUES ('synthetic-cache','SYNTHETIC CACHE');
           CREATE TABLE cache_dynamic_page_cache (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_dynamic_page_cache VALUES ('synthetic-cache','SYNTHETIC CACHE');
           CREATE TABLE cache_discovery (cid VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO cache_discovery VALUES ('synthetic-cache','SYNTHETIC CACHE');
+          SQL
+          cp /tmp/base.sql /tmp/group-c.sql
+          cat >> /tmp/group-c.sql <<'SQL'
           CREATE TABLE batch (bid BIGINT PRIMARY KEY, token VARCHAR(255), timestamp BIGINT, batch LONGBLOB); INSERT INTO batch VALUES (1,'SYNTHETIC-TOKEN',1,'SYNTHETIC BATCH');
           CREATE TABLE semaphore (name VARCHAR(255) PRIMARY KEY, value VARCHAR(255), expire DOUBLE); INSERT INTO semaphore VALUES ('synthetic-lock','SYNTHETIC',999999);
           CREATE TABLE key_value_expire (collection VARCHAR(255), name VARCHAR(255), value LONGBLOB, expire BIGINT, PRIMARY KEY(collection,name)); INSERT INTO key_value_expire VALUES ('user.private_tempstore','synthetic-auth','SYNTHETIC-TOKEN',1700000000);
+          SQL
+          cp /tmp/base.sql /tmp/group-d.sql
+          cat >> /tmp/group-d.sql <<'SQL'
           CREATE TABLE queue (item_id BIGINT PRIMARY KEY, name VARCHAR(255), data LONGBLOB, expire BIGINT, created BIGINT); INSERT INTO queue VALUES (1,'ai_provider','SYNTHETIC QUEUE',0,1);
           CREATE TABLE key_value (collection VARCHAR(255), name VARCHAR(255), value LONGBLOB, PRIMARY KEY(collection,name)); INSERT INTO key_value VALUES ('state','system.cron_last','1700000000'),('state','update.last_check','1700000000'),('state','announcements_feed.last_fetch','1700000000'),('state','linkchecker.last_run','1700000000'),('state','synthetic.public.state','preserve-me');
           CREATE TABLE config (name VARCHAR(255) PRIMARY KEY, data LONGBLOB); INSERT INTO config VALUES ('key.key.openai_api_key','SYNTHETIC-CREDENTIAL'),('ai_provider_openai.settings','SYNTHETIC-PROVIDER'),('system.site','SYNTHETIC-PUBLIC-CONFIG');
-          CREATE TABLE node_field_data (nid BIGINT PRIMARY KEY, title VARCHAR(255) NOT NULL); INSERT INTO node_field_data VALUES (1,'Synthetic public content');
           SQL
-          chmod 600 /tmp/diag.sql
-      - name: Diagnose cleanup and service state metadata only
+          chmod 600 /tmp/base.sql /tmp/group-*.sql
+      - name: Bisect class groups with fresh MariaDB instances
         shell: bash
         run: |
           set +e
-          request='proof-859-diag-full'
-          bytes="$(stat -c '%s' /tmp/diag.sql)"
-          sudo /usr/local/sbin/agency-preprod-staging-db IMPORT_SANITIZE_PROVE "$request" "$bytes" < /tmp/diag.sql >/tmp/one.out 2>/tmp/one.err
-          one_rc="$?"
-          docker_state="$(docker inspect -f '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}' agency-859-diag 2>/dev/null)"
-          docker exec agency-859-diag mariadb-admin --protocol=socket --socket=/run/mysqld/mysqld.sock -uroot ping >/dev/null 2>&1
-          container_ping_rc="$?"
-          test -S /run/mysqld/mysqld.sock
-          socket_rc="$?"
-          sudo mariadb --protocol=socket --batch --skip-column-names --raw -e 'SELECT 1' >/tmp/root-query.out 2>/tmp/root-query.err
-          host_root_query_rc="$?"
-          suffix="$(printf '%s' "$request" | sha256sum | cut -c1-12)"
-          db="agency_preprod_stage_${suffix}"
-          db_user="agency_stage_${suffix}"
-          schema_present="UNKNOWN"
-          account_present="UNKNOWN"
-          if [[ "$host_root_query_rc" -eq 0 ]]; then
-            schema_present="$(sudo mariadb --protocol=socket --batch --skip-column-names --raw -e "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${db}'")"
-            account_present="$(sudo mariadb --protocol=socket --batch --skip-column-names --raw -e "SELECT COUNT(*) FROM mysql.user WHERE User='${db_user}' AND Host='localhost'")"
-          fi
-          sudo /usr/local/sbin/agency-preprod-staging-db VERIFY_ABSENCE "$request" 0 >/dev/null 2>/tmp/verify.err
-          verify_rc="$?"
-          {
-            printf 'ONE_SHOT_EXIT=%s\n' "$one_rc"
-            printf 'DOCKER_STATE=%s\n' "$docker_state"
-            printf 'CONTAINER_PING_EXIT=%s\n' "$container_ping_rc"
-            printf 'SOCKET_PRESENT_EXIT=%s\n' "$socket_rc"
-            printf 'HOST_ROOT_QUERY_EXIT=%s\n' "$host_root_query_rc"
-            printf 'SCHEMA_PRESENT_AFTER_HELPER=%s\n' "$schema_present"
-            printf 'ACCOUNT_PRESENT_AFTER_HELPER=%s\n' "$account_present"
-            printf 'VERIFY_ABSENCE_EXIT=%s\n' "$verify_rc"
-          } > /tmp/phase.env
+          : > /tmp/phase.env
+          for variant in base group-a group-b group-c group-d; do
+            docker rm -f agency-859-diag >/dev/null 2>&1 || true
+            sudo rm -f /run/mysqld/mysqld.sock
+            docker run -d --name agency-859-diag -e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 -v /run/mysqld:/run/mysqld mariadb:11.8 --skip-networking=1 --socket=/run/mysqld/mysqld.sock >/dev/null
+            ready=1
+            for i in $(seq 1 40); do
+              if docker exec agency-859-diag mariadb-admin --protocol=socket --socket=/run/mysqld/mysqld.sock -uroot ping >/dev/null 2>&1; then ready=0; break; fi
+              sleep 1
+            done
+            file="/tmp/${variant}.sql"
+            bytes="$(stat -c '%s' "$file")"
+            request="proof-859-diag-${variant}"
+            sudo /usr/local/sbin/agency-preprod-staging-db IMPORT_SANITIZE_PROVE "$request" "$bytes" < "$file" >/dev/null 2>/tmp/variant.err
+            helper_rc="$?"
+            docker_state="$(docker inspect -f '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}' agency-859-diag 2>/dev/null)"
+            docker exec agency-859-diag mariadb-admin --protocol=socket --socket=/run/mysqld/mysqld.sock -uroot ping >/dev/null 2>&1
+            ping_rc="$?"
+            test -S /run/mysqld/mysqld.sock
+            socket_rc="$?"
+            printf '%s_READY_EXIT=%s\n' "${variant^^}" "$ready" >> /tmp/phase.env
+            printf '%s_HELPER_EXIT=%s\n' "${variant^^}" "$helper_rc" >> /tmp/phase.env
+            printf '%s_DOCKER_STATE=%s\n' "${variant^^}" "$docker_state" >> /tmp/phase.env
+            printf '%s_PING_EXIT=%s\n' "${variant^^}" "$ping_rc" >> /tmp/phase.env
+            printf '%s_SOCKET_EXIT=%s\n' "${variant^^}" "$socket_rc" >> /tmp/phase.env
+          done
           exit 0
       - uses: actions/upload-artifact@v4
         with:

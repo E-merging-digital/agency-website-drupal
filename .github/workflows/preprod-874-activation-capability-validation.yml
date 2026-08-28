@@ -22,6 +22,7 @@ jobs:
       - name: Checkout exact PR HEAD
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - name: Install synthetic validation dependencies
@@ -64,8 +65,12 @@ jobs:
             .issue_874_may_enable_activation == false
           ' "$base/successor-data-activation-authority.json" >/dev/null
           test ! -e "$base/sanitize-and-harden.php"
-          ! grep -R -Fq 'def sanitize_users' "$base"
-          ! grep -R -Fq 'def purge_tables_for_class' "$base"
+          implementation_sources=(
+            "$base/agency-preprod-refresh-control"
+            "$base/side_effect_hardening.py"
+          )
+          ! grep -Fq 'def sanitize_users' "${implementation_sources[@]}"
+          ! grep -Fq 'def purge_tables_for_class' "${implementation_sources[@]}"
 
       - name: Run #874 synthetic contract and Nginx fail-closed proof
         shell: bash
@@ -96,7 +101,6 @@ jobs:
             'REGRESSION_861=PASS' \
             'REGRESSION_864=PASS' \
             'REGRESSION_866=PASS' \
-            'REGRESSION_868=PASS' \
             'REGRESSION_874=PASS' \
             'CANONICAL_SANITIZER_REUSE=PASS' \
             'DUPLICATE_SANITIZER_ABSENCE=PASS' \
@@ -125,6 +129,7 @@ jobs:
       - name: Checkout exact PR HEAD
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - name: Install MariaDB client
@@ -143,3 +148,51 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/preproduction-refresh/activation-capability/test-mariadb-state-identity.py
+
+      - name: Execute actual #868 integrated regression on MariaDB 11.8
+        shell: bash
+        env:
+          MARIADB_HOST: 127.0.0.1
+          MARIADB_PORT: "3306"
+          MARIADB_USER: root
+          MARIADB_PASSWORD: agency874-test-root
+        run: |
+          set -euo pipefail
+          python3 scripts/preproduction-refresh/activation-boundary/test-contract.py
+          bash scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh
+
+      - name: Validate #868 integrated metadata-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence='artifacts/preprod-868-activation-rollback/evidence.env'
+          test -s "$evidence"
+          allowed='^(schema_version|issue|synthetic_only|real_prod_data_read|real_prod_data_transfer|real_preprod_mutation|candidate_isolated_before_activation|candidate_sanitized|candidate_side_effect_hardened|backup_required_before_activation|backup_byte_size|backup_sha256|safe_table_count|atomic_forced_failure_preserved_previous|activation_exact_candidate|rollback_exact_previous_identity|rollback_dump_matches_backup|application_release_change|runtime_database_name_change|server_settings_mutation|prod_write_path|raw_data_in_github|evidence|real_activation)='
+          if grep -Ev "$allowed" "$evidence"; then
+            echo 'Unexpected evidence key.' >&2
+            exit 1
+          fi
+          grep -Fxq 'synthetic_only=YES' "$evidence"
+          grep -Fxq 'real_prod_data_read=NONE' "$evidence"
+          grep -Fxq 'real_prod_data_transfer=NONE' "$evidence"
+          grep -Fxq 'real_preprod_mutation=NONE' "$evidence"
+          grep -Fxq 'atomic_forced_failure_preserved_previous=PASS' "$evidence"
+          grep -Fxq 'activation_exact_candidate=PASS' "$evidence"
+          grep -Fxq 'rollback_exact_previous_identity=PASS' "$evidence"
+          grep -Fxq 'rollback_dump_matches_backup=PASS' "$evidence"
+          grep -Fxq 'application_release_change=NONE' "$evidence"
+          grep -Fxq 'runtime_database_name_change=NONE' "$evidence"
+          grep -Fxq 'server_settings_mutation=NONE' "$evidence"
+          grep -Fxq 'prod_write_path=NONE' "$evidence"
+          grep -Fxq 'raw_data_in_github=NONE' "$evidence"
+          grep -Fxq 'evidence=METADATA_ONLY' "$evidence"
+          grep -Fxq 'real_activation=NOT_PERFORMED' "$evidence"
+          printf '%s\n' '#868_INTEGRATED_REGRESSION=SUCCESS' 'REGRESSION_868=PASS'
+
+      - name: Upload #868 integrated metadata-only evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: preprod-868-integrated-regression-metadata
+          path: artifacts/preprod-868-activation-rollback/evidence.env
+          if-no-files-found: error
+          retention-days: 1

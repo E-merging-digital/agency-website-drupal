@@ -2,6 +2,7 @@
 """Exact-head CI-only MariaDB 11.8 deterministic runtime-state proof for #874."""
 from __future__ import annotations
 import hashlib
+import importlib.machinery
 import importlib.util
 import os
 import pathlib
@@ -15,7 +16,8 @@ HELPER = BASE / "agency-preprod-refresh-control"
 
 
 def load(path: pathlib.Path, name: str):
-    spec = importlib.util.spec_from_file_location(name, path)
+    loader = importlib.machinery.SourceFileLoader(name, str(path))
+    spec = importlib.util.spec_from_loader(name, loader)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     import sys

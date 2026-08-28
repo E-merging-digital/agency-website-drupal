@@ -12,6 +12,7 @@ on:
       - 'scripts/preproduction-staging-import/provisioning/run-apply.sh'
       - 'scripts/preproduction-staging-import/provisioning/remote-provision-root.sh'
       - 'scripts/preproduction-staging-import/provisioning/profile.json'
+      - 'scripts/preproduction-staging-import/real-one-shot/**'
 
 permissions:
   contents: read

@@ -6,6 +6,7 @@ PROFILE='scripts/preproduction-staging-import/real-one-shot/profile.json'
 PROFILE_ID='agency-preprod-real-one-shot-sanitize-v1'
 PROD_PLAN_REMOTE='scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh'
 PREPROD_BUNDLE_PLAN_REMOTE='scripts/preproduction-staging-import/provisioning/remote-plan-readonly.sh'
+PREPROD_PRIVILEGE_PLAN_REMOTE='scripts/preproduction-staging-import/real-one-shot/remote-preprod-privilege-plan-readonly.sh'
 PREPROD_STAGE_REMOTE='scripts/preproduction-staging-import/remote-preprod-stage.sh'
 PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'
 PREPROD_TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
@@ -32,7 +33,7 @@ GITHUB_WORKSPACE="${GITHUB_WORKSPACE:-}"
 [[ -n "$RUNNER_TEMP" && -n "$GITHUB_WORKSPACE" ]] || { echo 'Trusted runner paths are required.' >&2; exit 70; }
 [[ "$PROD_SSH_HOST" =~ ^[A-Za-z0-9._:-]+$ && "$PREPROD_SSH_HOST" =~ ^[A-Za-z0-9._:-]+$ ]] || { echo 'Server-owned host identity is invalid.' >&2; exit 71; }
 [[ "$PROD_SSH_USER" =~ ^[A-Za-z0-9._-]+$ && "$PREPROD_SSH_USER" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Server-owned SSH user identity is invalid.' >&2; exit 72; }
-for path in "$PROFILE" "$PROD_PLAN_REMOTE" "$PREPROD_BUNDLE_PLAN_REMOTE" "$PREPROD_STAGE_REMOTE" "$PROD_TRUST" "$PREPROD_TRUST" "$PROD_SSH_KEY" "$PREPROD_SSH_KEY"; do test -f "$path"; done
+for path in "$PROFILE" "$PROD_PLAN_REMOTE" "$PREPROD_BUNDLE_PLAN_REMOTE" "$PREPROD_PRIVILEGE_PLAN_REMOTE" "$PREPROD_STAGE_REMOTE" "$PROD_TRUST" "$PREPROD_TRUST" "$PROD_SSH_KEY" "$PREPROD_SSH_KEY"; do test -f "$path"; done
 [[ "$(git rev-parse HEAD)" == "$REPOSITORY_SHA" ]]
 
 jq -e '
@@ -69,6 +70,9 @@ actual_prod_release_sha="$(sed -n 's/^prod_release_sha=//p' <<< "$prod_plan" | h
 bundle_plan="$("${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "bash -s -- '$REQUEST_ID'" < "$PREPROD_BUNDLE_PLAN_REMOTE")"
 for required in 'helper_state=EXACT' 'bundle_directory_state=EXACT' 'sanitizer_state=EXACT' 'policy_state=EXACT' 'sudoers_effective=BOUNDED_HELPER_LISTED' 'plan_preprod_mutation=NONE' 'plan_privileged_helper_execution=NONE'; do grep -Fxq "$required" <<< "$bundle_plan"; done
 
+privilege_plan="$("${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "bash -s -- '$REQUEST_ID'" < "$PREPROD_PRIVILEGE_PLAN_REMOTE")"
+for required in 'sudoers_fixed_helper_available=PASS' 'direct_mariadb_sudo=FORBIDDEN' 'generic_shell_sudo=FORBIDDEN' 'generic_python_sudo=FORBIDDEN' 'generic_env_sudo=FORBIDDEN'; do grep -Fxq "$required" <<< "$privilege_plan"; done
+
 expected_helper="$(jq -r '.capability.helper_sha256' "$PROFILE")"
 precheck="$("${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "bash -s -- PRECHECK '$REQUEST_ID' 0 '$expected_helper'" < "$PREPROD_STAGE_REMOTE")"
 for required in 'preprod_capacity=PASS' 'preprod_runtime_points_to_staging=NO' 'staging_admin_capability=PASS' 'privileged_helper_identity=PASS' 'privileged_helper_digest=PASS'; do grep -Fxq "$required" <<< "$precheck"; done
@@ -98,6 +102,10 @@ installed_helper_identity=PASS
 installed_sanitizer_identity=PASS
 sanitization_policy_identity=PASS
 sudoers_scope=FIXED_HELPER_ONLY
+direct_mariadb_sudo=FORBIDDEN
+generic_shell_sudo=FORBIDDEN
+generic_python_sudo=FORBIDDEN
+generic_env_sudo=FORBIDDEN
 capacity_preflight=PASS
 staging_db_present=NO
 staging_account_present=NO
@@ -135,6 +143,8 @@ printf '%s\n' \
   'PREPROD_PINNED_TRUST=PASS' \
   'INSTALLED_HELPER_IDENTITY=PASS' \
   'SANITIZATION_POLICY_IDENTITY=PASS' \
+  'SUDOERS_SCOPE=FIXED_HELPER_ONLY' \
+  'GENERIC_PRIVILEGE_WIDENING=FORBIDDEN' \
   'CAPACITY_PREFLIGHT=PASS' \
   'APPLY_PATH=IMPORT_SANITIZE_PROVE' \
   'DETACHED_IMPORT=FORBIDDEN' \

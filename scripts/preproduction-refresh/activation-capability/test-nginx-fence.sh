@@ -57,7 +57,10 @@ cat > "$tmp/internal-nginx.conf" <<EOF_CONF
 pid $tmp/internal.pid;
 error_log $tmp/internal-error.log notice;
 events { worker_connections 32; }
-http { include $tmp/internal.conf; }
+http {
+  access_log off;
+  include $tmp/internal.conf;
+}
 EOF_CONF
 printf '%s\n' 'nginx_internal_syntax_check=START'
 nginx -p "$tmp" -c internal-nginx.conf -t

@@ -6,6 +6,7 @@ on:
       - '.github/workflows/preprod-868-activation-rollback-validation.yml'
       - 'docs/operations/preproduction-refresh-activation-boundary.md'
       - 'scripts/preproduction-refresh/activation-boundary/**'
+      - 'scripts/preproduction-refresh/activation-capability/**'
 
 permissions:
   contents: read

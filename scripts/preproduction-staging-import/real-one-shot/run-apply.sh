@@ -6,6 +6,7 @@ PROFILE='scripts/preproduction-staging-import/real-one-shot/profile.json'
 PROFILE_ID='agency-preprod-real-one-shot-sanitize-v1'
 PROD_REMOTE='scripts/production-readonly-snapshot/remote-stream.sh'
 PREPROD_REMOTE='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+PREPROD_PRIVILEGE_PLAN_REMOTE='scripts/preproduction-staging-import/real-one-shot/remote-preprod-privilege-plan-readonly.sh'
 PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'
 PREPROD_TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 HELPER_PATH='/usr/local/sbin/agency-preprod-staging-db'
@@ -32,7 +33,7 @@ GITHUB_RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT:-}"
 [[ "$GITHUB_RUN_ATTEMPT" == '1' ]] || { echo '#866 APPLY cannot be replayed through rerun.' >&2; exit 68; }
 [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]] || { echo 'Wrong trusted runner identity.' >&2; exit 69; }
 [[ -n "$RUNNER_TEMP" && -n "$GITHUB_WORKSPACE" ]] || { echo 'Trusted runner paths are required.' >&2; exit 70; }
-for path in "$PROFILE" "$PROD_REMOTE" "$PREPROD_REMOTE" "$PROD_TRUST" "$PREPROD_TRUST" "$PROD_SSH_KEY" "$PREPROD_SSH_KEY"; do test -f "$path"; done
+for path in "$PROFILE" "$PROD_REMOTE" "$PREPROD_REMOTE" "$PREPROD_PRIVILEGE_PLAN_REMOTE" "$PROD_TRUST" "$PREPROD_TRUST" "$PROD_SSH_KEY" "$PREPROD_SSH_KEY"; do test -f "$path"; done
 [[ "$(git rev-parse HEAD)" == "$REPOSITORY_SHA" ]]
 jq -e '.issue_number == 866 and .capability.apply_action == "IMPORT_SANITIZE_PROVE" and .capability.detached_import == "FORBIDDEN" and .apply.runtime_db_switch == "FORBIDDEN" and .apply.activation == "FORBIDDEN"' "$PROFILE" >/dev/null
 
@@ -81,6 +82,9 @@ trap 'exit 143' TERM
 
 SERVER_HOST="$PROD_SSH_HOST" bash "$PROD_TRUST" VERIFY_ONLY >/dev/null
 PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" bash "$PREPROD_TRUST" >/dev/null
+
+privilege_plan="$("${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "bash -s -- '$REQUEST_ID'" < "$PREPROD_PRIVILEGE_PLAN_REMOTE")"
+for required in 'sudoers_fixed_helper_available=PASS' 'direct_mariadb_sudo=FORBIDDEN' 'generic_shell_sudo=FORBIDDEN' 'generic_python_sudo=FORBIDDEN' 'generic_env_sudo=FORBIDDEN'; do grep -Fxq "$required" <<< "$privilege_plan"; done
 
 runner_free="$(df -PB1 "$temp_abs" | awk 'NR==2 {print $4}')"
 runner_min="$(jq -r '.capacity.trusted_runner_min_free_bytes' "$PROFILE")"
@@ -158,6 +162,11 @@ prod_access_mode=READ_ONLY
 snapshot_byte_size=$snapshot_bytes
 snapshot_sha256=$snapshot_sha256
 encrypted_transient_transfer=PASS
+sudoers_scope=FIXED_HELPER_ONLY
+direct_mariadb_sudo=FORBIDDEN
+generic_shell_sudo=FORBIDDEN
+generic_python_sudo=FORBIDDEN
+generic_env_sudo=FORBIDDEN
 import_sanitize_prove=PASS
 sanitization_policy=agency-preprod-refresh-v1
 sanitization_policy_sha256=$expected_policy

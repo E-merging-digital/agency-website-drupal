@@ -105,7 +105,7 @@ for forbidden in [
 
 assert 'github.event.issue.number == 866' in WORKFLOW
 assert '/agency-preprod-real-one-shot' in WORKFLOW
-assert "requested_prod == 'AUTO'" in WORKFLOW
+assert '"$requested_prod" == \'AUTO\'' in WORKFLOW
 assert '^plan-866-' in WORKFLOW
 assert '^apply-866-' in WORKFLOW
 assert 'ref: ${{ steps.authority.outputs.main_sha }}' in WORKFLOW

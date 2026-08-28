@@ -1,0 +1,183 @@
+name: "#874 Governed PREPROD activation capability provisioning"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-preprod-874-capability-provisioning
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate fresh #874 owner provisioning authority
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 874 &&
+        startsWith(github.event.comment.body, '/agency-preprod-refresh-capability-provision ')
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      mode: ${{ steps.authority.outputs.mode }}
+      request_id: ${{ steps.authority.outputs.request_id }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      operation_profile: ${{ steps.authority.outputs.operation_profile }}
+    steps:
+      - name: Validate owner, exact live main, attempt and command
+        id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$GITHUB_RUN_ATTEMPT" == '1' ]]
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/874")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          read -r command mode request_id supplied_main profile extra <<<"$COMMENT_BODY"
+          [[ "$command" == '/agency-preprod-refresh-capability-provision' ]]
+          [[ "$mode" == 'plan' || "$mode" == 'apply' ]]
+          [[ "$request_id" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
+          [[ "$supplied_main" == "$live_main" ]]
+          [[ "$profile" == 'agency-preprod-refresh-capability-provision-v1' ]]
+          [[ -z "${extra:-}" ]]
+          comments="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/874/comments?per_page=100")"
+          count="$(jq --arg body "$COMMENT_BODY" '[.[][] | select(.body == $body and .user.login == "E-merging-digital")] | length' <<<"$comments")"
+          [[ "$count" == '1' ]]
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$live_main" >> "$GITHUB_OUTPUT"
+          echo "operation_profile=$profile" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Bind source profile and disabled data authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          jq -e '
+            .issue_number == 874 and
+            .profile_id == "agency-preprod-refresh-capability-v1" and
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.issue_874_grants_activation_authority == false
+          ' "$base/profile.json" >/dev/null
+          jq -e '
+            .issue_number == 874 and
+            .apply.data_activation_authority_after_apply == "DISABLED" and
+            .apply.real_data_activation == "FORBIDDEN"
+          ' "$base/provisioning/profile.json" >/dev/null
+
+  plan:
+    name: Mutation-free PREPROD capability provisioning PLAN
+    needs: validate-authority
+    if: ${{ needs.validate-authority.outputs.mode == 'plan' }}
+    runs-on: [self-hosted, linux, x64, agency]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Configure transient deploy identity
+        shell: bash
+        env:
+          PREPROD_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]]
+          test -n "$PREPROD_PRIVATE_KEY"
+          key="$RUNNER_TEMP/agency-874-plan-${GITHUB_RUN_ID}.key"
+          printf '%s\n' "$PREPROD_PRIVATE_KEY" > "$key"
+          chmod 600 "$key"
+          echo "AGENCY_874_PLAN_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Execute fixed metadata-only PLAN
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_USER: ${{ secrets.PREPROD_SERVER_USER }}
+        run: |
+          set -euo pipefail
+          export PREPROD_SSH_KEY="$AGENCY_874_PLAN_KEY"
+          bash scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh
+
+      - name: Remove transient PLAN identity
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -z "${AGENCY_874_PLAN_KEY:-}" ]] || rm -f -- "$AGENCY_874_PLAN_KEY"
+
+  apply:
+    name: Project-Lead-authorized capability-only provisioning APPLY
+    needs: validate-authority
+    if: ${{ needs.validate-authority.outputs.mode == 'apply' }}
+    runs-on: [self-hosted, linux, x64, agency]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Configure dedicated transient root provisioning identity
+        shell: bash
+        env:
+          PROVISIONING_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]]
+          test -n "$PROVISIONING_PRIVATE_KEY"
+          key="$RUNNER_TEMP/agency-874-apply-${GITHUB_RUN_ID}.key"
+          printf '%s\n' "$PROVISIONING_PRIVATE_KEY" > "$key"
+          chmod 600 "$key"
+          echo "AGENCY_874_APPLY_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Execute fixed capability-only APPLY
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          export PREPROD_PROVISIONING_SSH_KEY="$AGENCY_874_APPLY_KEY"
+          bash scripts/preproduction-refresh/activation-capability/provisioning/run-apply.sh
+
+      - name: Remove transient APPLY identity
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -z "${AGENCY_874_APPLY_KEY:-}" ]] || rm -f -- "$AGENCY_874_APPLY_KEY"

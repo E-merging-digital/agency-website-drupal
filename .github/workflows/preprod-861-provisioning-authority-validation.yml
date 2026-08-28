@@ -9,6 +9,7 @@ on:
       - 'scripts/preproduction-staging-import/provisioning/**'
       - 'scripts/preproduction-staging-import/privileged/**'
       - 'scripts/preproduction-refresh/sanitization-policy.json'
+      - 'scripts/preproduction-refresh/activation-capability/**'
 
 permissions:
   contents: read

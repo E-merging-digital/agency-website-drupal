@@ -3,7 +3,7 @@
 Status: **AUTHORITATIVE CAPABILITY REGISTRY**  
 Repository: `E-merging-digital/agency-website-drupal`  
 Registry owner: #421  
-Last materialized: 2026-08-22
+Last materialized: 2026-08-28
 
 ## 1. Purpose
 
@@ -541,4 +541,41 @@ Full route contract:
 
 ```text
 docs/operations/config-language-lock-evaluation.md
+```
+
+## 15. PREPROD refresh activation capability source
+
+Issue #874 adds the repository source for the bounded PREPROD refresh helper,
+root-owned runtime fence and governed capability provisioning route required by
+#868.
+
+Current state:
+
+```text
+capability source = AVAILABLE after #874 merge
+real host provisioning = separately governed #874 PLAN/APPLY
+data activation authority after provisioning = DISABLED
+issue #874 data activation authority = NONE
+real refresh/backup/activation/rollback = FORBIDDEN
+```
+
+The fixed helper is `/usr/local/sbin/agency-preprod-refresh-control`; the existing
+#859/#866 `/usr/local/sbin/agency-preprod-staging-db` remains unchanged. The
+refresh helper reuses the pinned `agency-preprod-staging-sanitizer.py` and
+`agency-preprod-refresh-v1`, then applies only fixed PREPROD side-effect
+hardening.
+
+The fence uses root-owned state `/var/lib/agency-preprod-refresh` mode `0711`, a
+`0600` marker, a pinned Nginx public-503 snippet and loopback-only
+`/health/ready` on `127.0.0.1:18087`. Sensitive incoming/candidate/backup
+subdirectories remain `0700`.
+
+`CAPABILITY_PROVISIONING != DATA_ACTIVATION_AUTHORITY`. A future explicit #816
+child/successor must establish the first real data-execution authority. #871 owns
+the consolidated operator documentation.
+
+Full contract:
+
+```text
+docs/operations/preproduction-refresh-activation-capability.md
 ```

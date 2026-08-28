@@ -12,6 +12,7 @@ on:
       - 'scripts/production-readonly-snapshot/remote-stream.sh'
       - 'scripts/production-ssh-trust/**'
       - 'scripts/preproduction-refresh/sanitization-policy.json'
+      - 'scripts/preproduction-refresh/activation-capability/**'
 
 permissions:
   contents: read

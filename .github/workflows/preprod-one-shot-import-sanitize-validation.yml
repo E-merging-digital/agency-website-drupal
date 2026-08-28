@@ -7,6 +7,7 @@ on:
       - 'scripts/preproduction-staging-import/privileged/**'
       - 'scripts/preproduction-staging-import/provisioning/**'
       - 'scripts/preproduction-refresh/one-shot-bundle-boundary.md'
+      - 'scripts/preproduction-refresh/activation-capability/**'
       - 'docs/operations/preproduction-one-shot-import-sanitize.md'
 
 permissions:

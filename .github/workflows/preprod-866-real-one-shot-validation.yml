@@ -92,10 +92,13 @@ jobs:
         run: |
           set -euo pipefail
           route='scripts/preproduction-staging-import/real-one-shot'
+          apply="$route/run-apply.sh"
           ! grep -REq 'NOPASSWD:[[:space:]]*ALL|sudo[[:space:]]+(-n[[:space:]]+)?(mariadb|bash|sh|python)([[:space:]]|$)' "$route"
-          ! grep -REq 'runtime.*(switch|activate)|public.*(copy|sync)|private.*(copy|sync)|scheduler' "$route/run-apply.sh"
-          grep -Fq 'public_files=NONE' "$route/run-apply.sh"
-          grep -Fq 'private_files=NONE' "$route/run-apply.sh"
+          ! grep -Eq 'settings\.php.*(>|sed|perl)|ln[[:space:]]+-s|systemctl|drush[[:space:]]+(sql:cli|config:import|updatedb)|public.*(rsync|scp)|private.*(rsync|scp)' "$apply"
+          grep -Fq '.apply.runtime_db_switch == "FORBIDDEN"' "$apply"
+          grep -Fq '.apply.activation == "FORBIDDEN"' "$apply"
+          grep -Fq 'public_files=NONE' "$apply"
+          grep -Fq 'private_files=NONE' "$apply"
 
       - name: Emit bounded regression result
         shell: bash

@@ -288,35 +288,27 @@ jobs:
           [[ -z "${AGENCY_861_PROVISIONING_SSH_KEY:-}" ]] || rm -f -- "$AGENCY_861_PROVISIONING_SSH_KEY"
           [[ -z "${AGENCY_861_PROVISIONING_SSH_KEY:-}" ]] || test ! -e "$AGENCY_861_PROVISIONING_SSH_KEY"
 
-      - name: Validate metadata-only APPLY evidence
+      - name: Validate metadata-only APPLY evidence against canonical contract
         if: ${{ always() }}
         shell: bash
+        env:
+          EXPECTED_REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          EXPECTED_REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          EXPECTED_OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
         run: |
           set -euo pipefail
           evidence='artifacts/preprod-capability-provisioning/evidence.env'
+          contract='scripts/preproduction-staging-import/provisioning/apply-evidence-contract.json'
+          validator='scripts/preproduction-staging-import/provisioning/validate-apply-evidence.py'
           test -f "$evidence"
-          for required in \
-            'execution_mode=APPLY' \
-            'helper_installed=PASS' \
-            'helper_owner=root' \
-            'helper_group=root' \
-            'helper_mode=0755' \
-            'helper_symlink=NO' \
-            'helper_digest=PASS' \
-            'sudoers_syntax=PASS' \
-            'sudoers_scope=FIXED_HELPER_ONLY' \
-            'direct_mariadb_sudo=FORBIDDEN' \
-            'generic_root_executor=NONE' \
-            'setenv=FORBIDDEN' \
-            'precheck=PASS' \
-            'verify_absence=PASS' \
-            'staging_db_present_before=NO' \
-            'staging_db_present_after=NO' \
-            'preprod_runtime_db_touched=NO' \
-            'prod_access=NONE' \
-            'issue_834_apply=NOT_PERFORMED'; do
-            grep -Fxq "$required" "$evidence"
-          done
+          test -f "$contract"
+          test -f "$validator"
+          python3 "$validator" evidence \
+            --contract "$contract" \
+            --input "$evidence" \
+            --expected-request-id "$EXPECTED_REQUEST_ID" \
+            --expected-repository-sha "$EXPECTED_REPOSITORY_SHA" \
+            --expected-operation-profile "$EXPECTED_OPERATION_PROFILE"
 
       - name: Upload metadata-only provisioning evidence
         if: ${{ always() }}

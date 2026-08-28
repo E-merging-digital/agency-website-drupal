@@ -1,0 +1,81 @@
+name: "Validate #864 APPLY evidence contract"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-capability-provisioning.yml'
+      - '.github/workflows/preprod-capability-provisioning-validation.yml'
+      - '.github/workflows/preprod-864-apply-evidence-contract-validation.yml'
+      - 'scripts/preproduction-staging-import/provisioning/apply-evidence-contract.json'
+      - 'scripts/preproduction-staging-import/provisioning/validate-apply-evidence.py'
+      - 'scripts/preproduction-staging-import/provisioning/test-apply-evidence-contract.py'
+      - 'scripts/preproduction-staging-import/provisioning/run-apply.sh'
+      - 'scripts/preproduction-staging-import/provisioning/remote-provision-root.sh'
+      - 'scripts/preproduction-staging-import/provisioning/profile.json'
+
+permissions:
+  contents: read
+
+jobs:
+  apply-evidence-contract:
+    name: Prove canonical metadata-only APPLY evidence contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate syntax and contract structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-staging-import/provisioning'
+          bash -n "$base/run-apply.sh" "$base/remote-provision-root.sh"
+          python3 -m py_compile "$base/validate-apply-evidence.py" "$base/test-apply-evidence-contract.py"
+          jq -e '
+            .schema_version == 1 and
+            .contract_id == "agency-preprod-capability-provision-apply-evidence-v1" and
+            .provisioning_authority_issue == 861 and
+            .evidence_contract_revision_issue == 864 and
+            .operation_profile == "agency-preprod-capability-provision-v1" and
+            .execution_mode == "APPLY" and
+            .metadata_only == true and
+            .pii_allowed == false and
+            .secrets_allowed == false
+          ' "$base/apply-evidence-contract.json" >/dev/null
+
+      - name: Execute success and fail-closed evidence matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/preproduction-staging-import/provisioning/test-apply-evidence-contract.py
+
+      - name: Prove no recovery runtime execution route
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preprod-864-apply-evidence-contract-validation.yml'
+          ! grep -Fq 'issue_comment:' "$workflow"
+          ! grep -Fq 'self-hosted' "$workflow"
+          ! grep -Fq 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' "$workflow"
+          ! grep -Fq 'run-apply.sh' "$workflow" || grep -Fq 'bash -n "$base/run-apply.sh"' "$workflow"
+          ! grep -Eq '(^|[[:space:]])ssh([[:space:]]|$)' "$workflow"
+          ! grep -Eq '(^|[[:space:]])scp([[:space:]]|$)' "$workflow"
+
+      - name: Emit #864 bounded regression result
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'ISSUE_864_APPLY_EVIDENCE_CONTRACT=PASS' \
+            'AUTHORITATIVE_CONTRACT=PASS' \
+            'REMOTE_PROOF_PROPAGATION=PASS' \
+            'PERSISTED_EVIDENCE_GENERATION=PASS' \
+            'WORKFLOW_VALIDATOR_CONVERGENCE=PASS' \
+            'NEGATIVE_CASES_FAIL_CLOSED=PASS' \
+            'METADATA_ONLY=PASS' \
+            'PII_OR_SECRET_EVIDENCE=NONE' \
+            'REAL_PREPROD_MUTATION=NONE' \
+            'REAL_PROD_ACCESS=NONE' \
+            'APPLY_REPLAY=NOT_PERFORMED'

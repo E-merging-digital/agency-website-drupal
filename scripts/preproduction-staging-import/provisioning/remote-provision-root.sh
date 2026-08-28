@@ -162,14 +162,26 @@ mv -f -- "$policy_candidate" "$POLICY_PATH"; policy_candidate=''
 mv -f -- "$helper_candidate" "$HELPER_PATH"; helper_candidate=''
 mv -f -- "$sudo_candidate" "$SUDOERS_PATH"; sudo_candidate=''
 
-[[ "$(stat -c '%u:%g:%a' "$BUNDLE_DIR")" == '0:0:755' ]]
-[[ "$(stat -c '%u:%g:%a' "$HELPER_PATH")" == '0:0:755' ]]
-[[ "$(stat -c '%u:%g:%a' "$SANITIZER_PATH")" == '0:0:644' ]]
-[[ "$(stat -c '%u:%g:%a' "$POLICY_PATH")" == '0:0:644' ]]
-[[ "$(stat -c '%u:%g:%a' "$SUDOERS_PATH")" == '0:0:440' ]]
+for path in "$BUNDLE_DIR" "$HELPER_PATH" "$SANITIZER_PATH" "$POLICY_PATH" "$SUDOERS_PATH"; do
+  [[ ! -L "$path" ]]
+done
+[[ -d "$BUNDLE_DIR" ]]
+for path in "$HELPER_PATH" "$SANITIZER_PATH" "$POLICY_PATH" "$SUDOERS_PATH"; do
+  [[ -f "$path" ]]
+done
+[[ "$(stat -c '%U:%G:%a' "$BUNDLE_DIR")" == 'root:root:755' ]]
+[[ "$(stat -c '%U:%G:%a' "$HELPER_PATH")" == 'root:root:755' ]]
+[[ "$(stat -c '%U:%G:%a' "$SANITIZER_PATH")" == 'root:root:644' ]]
+[[ "$(stat -c '%U:%G:%a' "$POLICY_PATH")" == 'root:root:644' ]]
+[[ "$(stat -c '%U:%G:%a' "$SUDOERS_PATH")" == 'root:root:440' ]]
 [[ "$(sha256sum "$HELPER_PATH" | awk '{print $1}')" == "$EXPECTED_HELPER_DIGEST" ]]
 [[ "$(sha256sum "$SANITIZER_PATH" | awk '{print $1}')" == "$EXPECTED_SANITIZER_DIGEST" ]]
 [[ "$(sha256sum "$POLICY_PATH" | awk '{print $1}')" == "$EXPECTED_POLICY_DIGEST" ]]
+[[ "$(cat "$SUDOERS_PATH")" == "$desired_policy" ]]
+! grep -Eq '[*?]' "$SUDOERS_PATH"
+! grep -Eiq '(^|[[:space:]])(mariadb|bash|sh|python|env)([[:space:]]|$)' "$SUDOERS_PATH"
+! grep -Eq 'NOPASSWD:[[:space:]]*ALL([[:space:]]|$)' "$SUDOERS_PATH"
+! grep -Eq '(^|[[:space:]])SETENV:' "$SUDOERS_PATH"
 visudo -cf "$SUDOERS_PATH" >/dev/null
 
 precheck="$(runuser -u "$deploy_user" -- sudo -n -- "$HELPER_PATH" PRECHECK "$REQUEST_ID" 0)"
@@ -181,19 +193,53 @@ grep -Fxq 'staging_account_present_after_cleanup=NO' <<< "$absence"
 
 committed=1
 printf '%s\n' \
+  "request_id=$REQUEST_ID" \
+  "repository_sha=$REPOSITORY_SHA" \
+  'execution_mode=APPLY' \
   'helper_installed=PASS' \
+  'helper_owner=root' \
+  'helper_group=root' \
+  'helper_mode=0755' \
+  'helper_symlink=NO' \
+  'helper_digest=PASS' \
   'sanitizer_installed=PASS' \
+  'sanitizer_owner=root' \
+  'sanitizer_group=root' \
+  'sanitizer_mode=0644' \
+  'sanitizer_symlink=NO' \
+  'sanitizer_digest=PASS' \
   'policy_installed=PASS' \
+  'policy_owner=root' \
+  'policy_group=root' \
+  'policy_mode=0644' \
+  'policy_symlink=NO' \
+  'policy_digest=PASS' \
+  'bundle_directory_owner=root' \
+  'bundle_directory_group=root' \
+  'bundle_directory_mode=0755' \
+  'bundle_directory_symlink=NO' \
   'bundle_digest=PASS' \
+  'sudoers_owner=root' \
+  'sudoers_group=root' \
+  'sudoers_mode=0440' \
+  'sudoers_symlink=NO' \
   'sudoers_syntax=PASS' \
   'sudoers_scope=FIXED_HELPER_ONLY' \
   'direct_mariadb_sudo=FORBIDDEN' \
   'generic_root_executor=NONE' \
+  'shell_privilege=FORBIDDEN' \
+  'python_privilege=FORBIDDEN' \
   'setenv=FORBIDDEN' \
+  'nopasswd_all=FORBIDDEN' \
   'precheck=PASS' \
   'verify_absence=PASS' \
   'staging_db_present_before=NO' \
   'staging_db_present_after=NO' \
+  'staging_account_present_after=NO' \
   'preprod_runtime_db_touched=NO' \
+  'snapshot_bytes=0' \
+  'import=NOT_PERFORMED' \
+  'import_sanitize_prove=NOT_PERFORMED' \
+  'activation=NOT_PERFORMED' \
   'prod_access=NONE' \
   'issue_834_apply=NOT_PERFORMED'

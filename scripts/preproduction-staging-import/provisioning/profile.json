@@ -123,7 +123,11 @@
     "artifact_path": "artifacts/preprod-capability-provisioning/evidence.env",
     "metadata_only": true,
     "pii_allowed": false,
-    "secrets_allowed": false
+    "secrets_allowed": false,
+    "apply_contract": "scripts/preproduction-staging-import/provisioning/apply-evidence-contract.json",
+    "apply_contract_id": "agency-preprod-capability-provision-apply-evidence-v1",
+    "apply_contract_revision_issue": 864,
+    "apply_validator": "scripts/preproduction-staging-import/provisioning/validate-apply-evidence.py"
   },
   "real_provisioning_performed_in_issue_859": false,
   "real_plan_performed_in_issue_861_phase_a": false,

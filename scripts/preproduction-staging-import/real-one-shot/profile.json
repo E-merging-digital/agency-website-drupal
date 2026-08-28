@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "issue_number": 866,
+  "parent_issue": 816,
+  "profile_id": "agency-preprod-real-one-shot-sanitize-v1",
+  "request_namespace": {
+    "plan_prefix": "plan-866-",
+    "apply_prefix": "apply-866-",
+    "plan_apply_distinct": true,
+    "run_attempt_must_equal": 1
+  },
+  "trusted_runner": {
+    "name": "agency-browser-runner-01",
+    "labels": ["self-hosted", "linux", "x64", "agency"]
+  },
+  "prod": {
+    "role": "READ_ONLY_SNAPSHOT_SOURCE_ONLY",
+    "write": "FORBIDDEN",
+    "maintenance_mode": "FORBIDDEN",
+    "config_mutation": "FORBIDDEN",
+    "user_content_write": "FORBIDDEN",
+    "table_mutation": "FORBIDDEN",
+    "snapshot_remote": "scripts/production-readonly-snapshot/remote-stream.sh",
+    "plan_remote": "scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh",
+    "pinned_trust_verifier": "scripts/production-ssh-trust/manage-known-host.sh"
+  },
+  "preprod": {
+    "runtime_db": "agency_preprod",
+    "runtime_db_switch": "FORBIDDEN",
+    "activation": "FORBIDDEN",
+    "backup_activation_step": "NOT_IN_SCOPE",
+    "public_files": "NONE",
+    "private_files": "NONE",
+    "scheduler": "NONE",
+    "stage_remote": "scripts/preproduction-staging-import/remote-preprod-stage.sh",
+    "bundle_plan_remote": "scripts/preproduction-staging-import/provisioning/remote-plan-readonly.sh",
+    "pinned_trust_verifier": "scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh"
+  },
+  "capability": {
+    "helper_path": "/usr/local/sbin/agency-preprod-staging-db",
+    "helper_sha256": "a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71",
+    "sanitizer_path": "/usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py",
+    "sanitizer_sha256": "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f",
+    "policy_path": "/usr/local/lib/agency-preprod-staging/sanitization-policy.json",
+    "policy_sha256": "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb",
+    "policy_version": "agency-preprod-refresh-v1",
+    "sudoers_scope": "FIXED_HELPER_ONLY",
+    "apply_action": "IMPORT_SANITIZE_PROVE",
+    "detached_import": "FORBIDDEN",
+    "generic_mariadb_sudo": "FORBIDDEN",
+    "generic_root_executor": "NONE"
+  },
+  "capacity": {
+    "trusted_runner_min_free_bytes": 2147483648,
+    "preprod_check": "PRECHECK_ZERO_BYTE_BASELINE_PLUS_ACTUAL_APPLY_RECHECK"
+  },
+  "transfer": {
+    "encrypted_in_transit": true,
+    "raw_temp_mode": "0600",
+    "raw_github_artifact": "FORBIDDEN",
+    "raw_log_output": "FORBIDDEN",
+    "cleanup_mandatory": true
+  },
+  "plan": {
+    "prod_db_content_read": "NONE",
+    "snapshot": "NOT_PERFORMED",
+    "transfer": "NOT_PERFORMED",
+    "import": "NOT_PERFORMED",
+    "import_sanitize_prove": "NOT_PERFORMED",
+    "preprod_mutation": "NONE",
+    "allowed_helper_readonly_actions": ["PRECHECK", "VERIFY_ABSENCE"]
+  },
+  "apply": {
+    "snapshot": "FRESH_READ_ONLY_ONLY",
+    "transfer": "SSH_ENCRYPTED_STDIN",
+    "staging_action": "IMPORT_SANITIZE_PROVE",
+    "detached_import": "FORBIDDEN",
+    "cleanup": "MANDATORY",
+    "verify_absence": "MANDATORY",
+    "runtime_db_switch": "FORBIDDEN",
+    "activation": "FORBIDDEN"
+  },
+  "evidence": {
+    "metadata_only": true,
+    "pii_allowed": false,
+    "secrets_allowed": false,
+    "artifact_path": "artifacts/preprod-real-one-shot/evidence.env"
+  }
+}

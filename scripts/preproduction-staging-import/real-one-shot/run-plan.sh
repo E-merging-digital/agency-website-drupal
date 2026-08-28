@@ -25,7 +25,7 @@ GITHUB_WORKSPACE="${GITHUB_WORKSPACE:-}"
 
 [[ "$REQUEST_ID" =~ ^plan-866-[A-Za-z0-9._-]{1,64}$ ]] || { echo 'Invalid #866 PLAN request identity.' >&2; exit 64; }
 [[ "$REPOSITORY_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid repository identity.' >&2; exit 65; }
-[[ "$SOURCE_PROD_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid PROD release identity.' >&2; exit 66; }
+[[ "$SOURCE_PROD_RELEASE_SHA" == 'AUTO' || "$SOURCE_PROD_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid PROD release selector.' >&2; exit 66; }
 [[ "$OPERATION_PROFILE" == "$PROFILE_ID" ]] || { echo 'Unexpected #866 operation profile.' >&2; exit 67; }
 [[ "$GITHUB_RUN_ATTEMPT" == '1' ]] || { echo '#866 PLAN cannot be replayed through rerun.' >&2; exit 68; }
 [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]] || { echo 'Wrong trusted runner identity.' >&2; exit 69; }
@@ -63,6 +63,8 @@ preprod_ssh=(ssh -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o
 
 prod_plan="$("${prod_ssh[@]}" "$PROD_SSH_USER@$PROD_SSH_HOST" "bash -s -- '$SOURCE_PROD_RELEASE_SHA'" < "$PROD_PLAN_REMOTE")"
 for required in 'prod_release_identity=PASS' 'prod_snapshot_route_metadata=PASS' 'prod_db_content_read=NONE' 'prod_snapshot=NOT_PERFORMED' 'prod_write=NONE'; do grep -Fxq "$required" <<< "$prod_plan"; done
+actual_prod_release_sha="$(sed -n 's/^prod_release_sha=//p' <<< "$prod_plan" | head -n1)"
+[[ "$actual_prod_release_sha" =~ ^[0-9a-f]{40}$ ]]
 
 bundle_plan="$("${preprod_ssh[@]}" "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" "bash -s -- '$REQUEST_ID'" < "$PREPROD_BUNDLE_PLAN_REMOTE")"
 for required in 'helper_state=EXACT' 'bundle_directory_state=EXACT' 'sanitizer_state=EXACT' 'policy_state=EXACT' 'sudoers_effective=BOUNDED_HELPER_LISTED' 'plan_preprod_mutation=NONE' 'plan_privileged_helper_execution=NONE'; do grep -Fxq "$required" <<< "$bundle_plan"; done
@@ -81,7 +83,7 @@ cat > "$evidence.tmp" <<EOF
 schema_version=1
 request_id=$REQUEST_ID
 repository_sha=$REPOSITORY_SHA
-source_prod_release_sha=$SOURCE_PROD_RELEASE_SHA
+source_prod_release_sha=$actual_prod_release_sha
 operation_profile=$OPERATION_PROFILE
 execution_mode=PLAN
 plan_result=PASS
@@ -126,6 +128,7 @@ chmod 600 "$evidence"
 printf '%s\n' \
   'PLAN_RESULT=PASS' \
   'PLAN_MUTATION_FREE=YES' \
+  "SOURCE_PROD_RELEASE_SHA=$actual_prod_release_sha" \
   'PROD_CREDENTIAL_READINESS=PASS' \
   'PREPROD_CREDENTIAL_READINESS=PASS' \
   'PROD_PINNED_TRUST=PASS' \

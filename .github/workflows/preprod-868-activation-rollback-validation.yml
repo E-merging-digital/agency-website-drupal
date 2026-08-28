@@ -1,0 +1,123 @@
+name: Validate #868 PREPROD activation rollback boundary
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-868-activation-rollback-validation.yml'
+      - 'docs/operations/preproduction-refresh-activation-boundary.md'
+      - 'scripts/preproduction-refresh/activation-boundary/**'
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-synthetic-mariadb:
+    name: Prove #868 backup activation rollback contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: agency868-synthetic-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install MariaDB client for ephemeral proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends mariadb-client
+
+      - name: Validate static #868 contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh
+          python3 -m py_compile scripts/preproduction-refresh/activation-boundary/test-contract.py
+          python3 scripts/preproduction-refresh/activation-boundary/test-contract.py
+          jq -e '.schema_version == 1 and .issue_number == 868 and .parent_issue == 816' scripts/preproduction-refresh/activation-boundary/profile.json >/dev/null
+          jq -e '.delivery_scope.real_prod_data_read == "FORBIDDEN" and .delivery_scope.real_preprod_mutation == "FORBIDDEN" and .delivery_scope.real_activation == "FORBIDDEN"' scripts/preproduction-refresh/activation-boundary/profile.json >/dev/null
+          jq -e '.privilege.separate_provisioning_tranche_required == true and .future_fixed_capability.status == "DESIGN_ONLY_NOT_PROVISIONED_NOT_EXECUTABLE"' scripts/preproduction-refresh/activation-boundary/profile.json >/dev/null
+
+      - name: Prove no real runtime execution surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof='scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh'
+          ! grep -Fq 'preprod.emergingdigital.be' "$proof"
+          ! grep -Fq '/var/www/agency-preprod' "$proof"
+          ! grep -Eq '(^|[[:space:]])(ssh|scp|rsync|sudo|drush)([[:space:]]|$)' "$proof"
+          ! grep -Fq 'agency_preprod_stage_' "$proof"
+          ! grep -Fq 'production-readonly-snapshot' "$proof"
+          grep -Fq 'real_prod_data_read=NONE' "$proof"
+          grep -Fq 'real_preprod_mutation=NONE' "$proof"
+          grep -Fq 'real_activation=NOT_PERFORMED' "$proof"
+
+      - name: Run ephemeral MariaDB atomic failure activation and rollback proof
+        shell: bash
+        env:
+          MARIADB_HOST: 127.0.0.1
+          MARIADB_PORT: '3306'
+          MARIADB_USER: root
+          MARIADB_PASSWORD: agency868-synthetic-only
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if mariadb --protocol=tcp --host="$MARIADB_HOST" --port="$MARIADB_PORT" --user="$MARIADB_USER" --password="$MARIADB_PASSWORD" -e 'SELECT 1' >/dev/null 2>&1; then
+              break
+            fi
+            if [[ "$attempt" -eq 30 ]]; then
+              echo 'Synthetic MariaDB service did not become ready.' >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          bash scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh
+
+      - name: Validate metadata-only synthetic evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence='artifacts/preprod-868-activation-rollback/evidence.env'
+          test -s "$evidence"
+          allowed='^(schema_version|issue|synthetic_only|real_prod_data_read|real_prod_data_transfer|real_preprod_mutation|candidate_isolated_before_activation|candidate_sanitized|candidate_side_effect_hardened|backup_required_before_activation|backup_byte_size|backup_sha256|safe_table_count|atomic_forced_failure_preserved_previous|activation_exact_candidate|rollback_exact_previous_identity|rollback_dump_matches_backup|application_release_change|runtime_database_name_change|server_settings_mutation|prod_write_path|raw_data_in_github|evidence|real_activation)='
+          if grep -Ev "$allowed" "$evidence"; then
+            echo 'Unexpected evidence key.' >&2
+            exit 1
+          fi
+          grep -Fxq 'synthetic_only=YES' "$evidence"
+          grep -Fxq 'real_prod_data_read=NONE' "$evidence"
+          grep -Fxq 'real_prod_data_transfer=NONE' "$evidence"
+          grep -Fxq 'real_preprod_mutation=NONE' "$evidence"
+          grep -Fxq 'atomic_forced_failure_preserved_previous=PASS' "$evidence"
+          grep -Fxq 'activation_exact_candidate=PASS' "$evidence"
+          grep -Fxq 'rollback_exact_previous_identity=PASS' "$evidence"
+          grep -Fxq 'rollback_dump_matches_backup=PASS' "$evidence"
+          grep -Fxq 'application_release_change=NONE' "$evidence"
+          grep -Fxq 'runtime_database_name_change=NONE' "$evidence"
+          grep -Fxq 'server_settings_mutation=NONE' "$evidence"
+          grep -Fxq 'prod_write_path=NONE' "$evidence"
+          grep -Fxq 'raw_data_in_github=NONE' "$evidence"
+          grep -Fxq 'evidence=METADATA_ONLY' "$evidence"
+          grep -Fxq 'real_activation=NOT_PERFORMED' "$evidence"
+
+      - name: Upload metadata-only synthetic evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: preprod-868-activation-rollback-metadata
+          path: artifacts/preprod-868-activation-rollback/evidence.env
+          if-no-files-found: error
+          retention-days: 1

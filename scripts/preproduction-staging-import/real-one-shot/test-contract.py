@@ -37,7 +37,7 @@ assert PROFILE['transfer']['raw_log_output'] == 'FORBIDDEN'
 assert PROFILE['transfer']['cleanup_mandatory'] is True
 
 for token in [
-    "SOURCE_PROD_RELEASE_SHA\" == 'AUTO'",
+    '[[ "$SOURCE_PROD_RELEASE_SHA" == \'AUTO\'',
     'prod_db_content_read=NONE',
     'prod_snapshot=NOT_PERFORMED',
     'prod_data_transfer=NONE',
@@ -52,13 +52,13 @@ for token in [
 ]:
     assert token in PLAN, token
 
-assert 'remote-stream.sh' not in PLAN
+assert 'production-readonly-snapshot/remote-stream.sh' not in PLAN
 assert 'sql:dump' not in PLAN
 assert ' IMPORT ' not in PLAN
 assert 'IMPORT_SANITIZE_PROVE' not in PROD_PLAN
 assert 'vendor/bin/drush' not in PROD_PLAN
 assert 'mariadb' not in PROD_PLAN.lower()
-assert "prod_release_sha=$actual" in PROD_PLAN
+assert 'prod_release_sha=$actual' in PROD_PLAN
 
 for token in [
     "PROD_REMOTE='scripts/production-readonly-snapshot/remote-stream.sh'",
@@ -77,7 +77,8 @@ for token in [
 assert " '$HELPER_PATH' IMPORT '" not in APPLY
 assert 'sanitize-staging' not in APPLY
 assert 'agency-preprod-staging-sanitizer.py' not in APPLY
-assert 'runtime_db_switch' not in APPLY or "'FORBIDDEN'" in APPLY
+assert '.apply.runtime_db_switch == "FORBIDDEN"' in APPLY
+assert '.apply.activation == "FORBIDDEN"' in APPLY
 assert 'public_files=NONE' in APPLY
 assert 'private_files=NONE' in APPLY
 

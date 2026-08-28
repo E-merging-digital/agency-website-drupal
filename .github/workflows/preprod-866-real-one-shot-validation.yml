@@ -32,7 +32,11 @@ jobs:
         run: |
           set -euo pipefail
           base='scripts/preproduction-staging-import/real-one-shot'
-          bash -n "$base/run-plan.sh" "$base/run-apply.sh" "$base/remote-prod-plan-readonly.sh"
+          bash -n \
+            "$base/run-plan.sh" \
+            "$base/run-apply.sh" \
+            "$base/remote-prod-plan-readonly.sh" \
+            "$base/remote-preprod-privilege-plan-readonly.sh"
           python3 -m py_compile "$base/test-contract.py"
           python3 "$base/test-contract.py"
           jq -e '
@@ -68,6 +72,22 @@ jobs:
           grep -Fq 'preprod_mutation=NONE' "$plan"
           grep -Fq 'runtime_db_switch=NONE' "$plan"
           grep -Fq 'activation=NOT_PERFORMED' "$plan"
+
+      - name: Prove effective sudo authority is tested without execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe='scripts/preproduction-staging-import/real-one-shot/remote-preprod-privilege-plan-readonly.sh'
+          grep -Fq 'sudo -n -l -- "$HELPER_PATH" PRECHECK "$REQUEST_ID" 0' "$probe"
+          grep -Fq '/usr/bin/mariadb' "$probe"
+          grep -Fq '/bin/bash' "$probe"
+          grep -Fq '/usr/bin/python3' "$probe"
+          grep -Fq '/usr/bin/env' "$probe"
+          ! grep -Eq 'sudo -n -- ' "$probe"
+          grep -Fq 'direct_mariadb_sudo=FORBIDDEN' "$probe"
+          grep -Fq 'generic_shell_sudo=FORBIDDEN' "$probe"
+          grep -Fq 'generic_python_sudo=FORBIDDEN' "$probe"
+          grep -Fq 'generic_env_sudo=FORBIDDEN' "$probe"
 
       - name: Prove future APPLY is atomic helper composition only
         shell: bash
@@ -110,6 +130,8 @@ jobs:
             'NEW_EXECUTION_MECHANISM=NONE' \
             'PLAN_MUTATION_FREE=PASS' \
             'PROD_DB_CONTENT_READ_IN_PLAN=NONE' \
+            'FIXED_HELPER_EFFECTIVE_SUDO=PASS' \
+            'GENERIC_PRIVILEGE_WIDENING=FORBIDDEN' \
             'APPLY_PATH=IMPORT_SANITIZE_PROVE' \
             'DETACHED_IMPORT=FORBIDDEN' \
             'RAW_PROD_DATA_IN_GITHUB=NONE' \

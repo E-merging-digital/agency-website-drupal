@@ -13,11 +13,10 @@ concurrency:
 
 jobs:
   validate-authority:
-    name: Validate fresh #874 owner provisioning authority
+    name: Validate successor execution authority for #874 capability
     if: >-
       ${{
         github.event.issue.pull_request == null &&
-        github.event.issue.number == 874 &&
         startsWith(github.event.comment.body, '/agency-preprod-refresh-capability-provision ')
       }}
     runs-on: ubuntu-24.04
@@ -29,46 +28,60 @@ jobs:
       request_id: ${{ steps.authority.outputs.request_id }}
       main_sha: ${{ steps.authority.outputs.main_sha }}
       operation_profile: ${{ steps.authority.outputs.operation_profile }}
+      authority_issue: ${{ steps.authority.outputs.authority_issue }}
     steps:
-      - name: Validate owner, exact live main, attempt and command
-        id: authority
+      - name: Resolve exact live main
+        id: live
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          COMMENT_BODY: ${{ github.event.comment.body }}
-          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
-          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
-          [[ "$GITHUB_RUN_ATTEMPT" == '1' ]]
-          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/874")"
-          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
-          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
           live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
-          read -r command mode request_id supplied_main profile extra <<<"$COMMENT_BODY"
-          [[ "$command" == '/agency-preprod-refresh-capability-provision' ]]
-          [[ "$mode" == 'plan' || "$mode" == 'apply' ]]
-          [[ "$request_id" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
-          [[ "$supplied_main" == "$live_main" ]]
-          [[ "$profile" == 'agency-preprod-refresh-capability-provision-v1' ]]
-          [[ -z "${extra:-}" ]]
-          comments="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/874/comments?per_page=100")"
-          count="$(jq --arg body "$COMMENT_BODY" '[.[][] | select(.body == $body and .user.login == "E-merging-digital")] | length' <<<"$comments")"
-          [[ "$count" == '1' ]]
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
+          [[ "$live_main" =~ ^[0-9a-f]{40}$ ]]
           echo "main_sha=$live_main" >> "$GITHUB_OUTPUT"
-          echo "operation_profile=$profile" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact trusted live main
         uses: actions/checkout@v6
         with:
-          ref: ${{ steps.authority.outputs.main_sha }}
+          ref: ${{ steps.live.outputs.main_sha }}
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Bind source profile and disabled data authority
+      - name: Validate owner, successor issue marker, exact main, mode and request identity
+        id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHORITY_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LIVE_MAIN: ${{ steps.live.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$AUTHORITY_ISSUE_NUMBER" =~ ^[0-9]+$ ]]
+          issue_json="$RUNNER_TEMP/agency-preprod-capability-authority-issue.json"
+          comments_json="$RUNNER_TEMP/agency-preprod-capability-authority-comments.json"
+          gh api "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER" > "$issue_json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" \
+            > "$comments_json"
+          python3 scripts/preproduction-refresh/activation-capability/provisioning/validate-successor-authority.py \
+            --issue-json "$issue_json" \
+            --comments-json "$comments_json" \
+            --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --event-action "$EVENT_ACTION" \
+            --github-actor "$GITHUB_ACTOR" \
+            --comment-author "$COMMENT_AUTHOR" \
+            --comment-body "$COMMENT_BODY" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --live-main "$LIVE_MAIN" \
+            --github-output "$GITHUB_OUTPUT"
+          rm -f -- "$issue_json" "$comments_json"
+
+      - name: Bind source profile lineage and disabled data authority
         shell: bash
         run: |
           set -euo pipefail
@@ -84,6 +97,8 @@ jobs:
             .apply.data_activation_authority_after_apply == "DISABLED" and
             .apply.real_data_activation == "FORBIDDEN"
           ' "$base/provisioning/profile.json" >/dev/null
+          test "${{ steps.authority.outputs.implementation_issue }}" = '874'
+          test "${{ steps.authority.outputs.authority_issue }}" != '874'
 
   plan:
     name: Mutation-free PREPROD capability provisioning PLAN

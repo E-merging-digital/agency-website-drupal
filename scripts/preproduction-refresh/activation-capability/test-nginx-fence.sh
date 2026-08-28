@@ -27,19 +27,24 @@ http {
   }
 }
 EOF_CONF
-nginx -p "$tmp" -c nginx.conf -t >/dev/null 2>&1
+printf '%s\n' 'nginx_public_syntax_check=START'
+nginx -p "$tmp" -c nginx.conf -t
+printf '%s\n' 'nginx_public_syntax_check=PASS'
 nginx -p "$tmp" -c nginx.conf
 for _ in {1..40}; do
   code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:18088/ || true)"
   [[ "$code" == 204 ]] && break
   sleep 0.05
 done
+printf 'public_open_http_code=%s\n' "$code"
 [[ "$code" == 204 ]]
 : > "$marker"
 code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:18088/)"
+printf 'public_fenced_http_code=%s\n' "$code"
 [[ "$code" == 503 ]]
 rm -f "$marker"
 code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:18088/)"
+printf 'public_reopened_http_code=%s\n' "$code"
 [[ "$code" == 204 ]]
 # Syntax-check the actual loopback listener source by using a temporary current
 # web root and the system fastcgi_params. The PHP-FPM socket need not exist for -t.
@@ -54,7 +59,9 @@ error_log $tmp/internal-error.log notice;
 events { worker_connections 32; }
 http { include $tmp/internal.conf; }
 EOF_CONF
-nginx -p "$tmp" -c internal-nginx.conf -t >/dev/null 2>&1
+printf '%s\n' 'nginx_internal_syntax_check=START'
+nginx -p "$tmp" -c internal-nginx.conf -t
+printf '%s\n' 'nginx_internal_syntax_check=PASS'
 printf '%s\n' \
   'public_open_behavior=204_PASS' \
   'public_fenced_behavior=503_PASS' \

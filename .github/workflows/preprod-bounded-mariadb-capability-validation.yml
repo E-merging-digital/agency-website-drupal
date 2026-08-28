@@ -7,6 +7,7 @@ on:
       - '.github/workflows/preprod-isolated-staging-import-validation.yml'
       - 'scripts/preproduction-staging-import/**'
       - 'scripts/preproduction-refresh/one-shot-bundle-boundary.md'
+      - 'scripts/preproduction-refresh/activation-capability/**'
 
 permissions:
   contents: read

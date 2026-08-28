@@ -221,3 +221,23 @@ MERGE                     = NOT_PERFORMED
 ```
 
 Delivery stops before merge for Project Lead exact-head review. After merge, Project Lead must first decide/provision the missing bounded privileged + HTTP-fence capability before any real PLAN/APPLY. A real backup/activation/rollback remains a separate explicit human boundary.
+
+## #874 successor: capability source without data-activation authority
+
+#874 materializes the repository source for the fixed root-owned refresh helper and HTTP/runtime fence that #868 deliberately left unavailable. It does **not** turn #874 into a permanent data-refresh authority.
+
+The #874 source fixes the fence state to `/var/lib/agency-preprod-refresh/refresh-maintenance.flag`, owned `root:root` mode `0600`. Its parent state directory is `root:root` mode `0711` so the Nginx worker can traverse the fixed known path and `stat()` the marker without directory listing/write permission; sensitive `incoming`, `candidates` and `backups` children remain `0700`.
+
+The public vhost includes a pinned root-owned snippet that returns HTTP 503 whenever the marker exists. There is no public request bypass. Drupal runtime validation while the public fence stays closed uses a loopback-only listener on `127.0.0.1:18087` and the canonical `/health/ready` route through the normal PREPROD PHP-FPM pool and current release.
+
+#874 composes the existing #859/#866 `agency-preprod-staging-sanitizer.py` plus `agency-preprod-refresh-v1`; it does not copy their sanitization semantics. It adds only fixed PREPROD side-effect hardening and the activation/fence/backup capability surface.
+
+Provisioning may later install this capability under separately authorized #874 PLAN/APPLY. The installed machine-readable state remains:
+
+```text
+DATA_ACTIVATION_AUTHORITY = DISABLED
+ISSUE_874_DATA_ACTIVATION_AUTHORITY = NONE
+REAL_DATA_ACTIVATION = FORBIDDEN
+```
+
+A future explicit #816 child/successor must bind the first real data-refresh execution authority. `CAPABILITY_PROVISIONING != DATA_ACTIVATION_AUTHORITY` remains the permanent boundary. The consolidated operator runbook belongs to the #870/#871 documentation roadmap and is referenced by `docs/operations/preproduction-refresh-activation-capability.md`.

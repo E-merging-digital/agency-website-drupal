@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "issue_number": 874,
+  "parent_issue": 816,
+  "state": "NO_DATA_ACTIVATION_AUTHORITY",
+  "current_data_activation_authority": null,
+  "future_authority": "SEPARATE_816_CHILD_OR_SUCCESSOR_REQUIRED",
+  "predecessor_chain": [
+    859,
+    861,
+    864,
+    866,
+    868,
+    870,
+    871
+  ],
+  "issue_874_may_enable_activation": false
+}

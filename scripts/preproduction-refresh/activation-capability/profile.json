@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "issue_number": 874,
+  "parent_issue": 816,
+  "predecessor_issue": 868,
+  "profile_id": "agency-preprod-refresh-capability-v1",
+  "state": "SOURCE_AVAILABLE_NOT_PROVISIONED",
+  "delivery_boundary": {
+    "real_plan": "NOT_PERFORMED",
+    "real_prod_data_read": "NONE",
+    "real_prod_data_transfer": "NONE",
+    "real_preprod_host_mutation": "NONE",
+    "real_preprod_db_mutation": "NONE",
+    "real_preprod_provisioning": "NOT_PERFORMED",
+    "real_preprod_backup": "NOT_PERFORMED",
+    "real_activation": "NOT_PERFORMED",
+    "real_rollback": "NOT_PERFORMED",
+    "prod_write": "NONE",
+    "merge": "FORBIDDEN"
+  },
+  "helper": {
+    "installed_path": "/usr/local/sbin/agency-preprod-refresh-control",
+    "owner": "root",
+    "group": "root",
+    "mode": "0755",
+    "actions": [
+      "PRECHECK",
+      "IMPORT_SANITIZE_HARDEN_RETAIN",
+      "BACKUP_ACTIVATE_CONVERGE_VALIDATE",
+      "ROLLBACK_RECORDED",
+      "VERIFY_ABSENCE"
+    ],
+    "caller_stdin": "STRUCTURED_OPERATION_DATA_ONLY",
+    "caller_authority": "NONE",
+    "caller_sql": "FORBIDDEN",
+    "caller_path": "FORBIDDEN",
+    "caller_database": "FORBIDDEN",
+    "caller_table": "FORBIDDEN",
+    "caller_executable": "FORBIDDEN"
+  },
+  "canonical_sanitization": {
+    "policy_id": "agency-preprod-refresh-v1",
+    "policy_source": "/usr/local/lib/agency-preprod-staging/sanitization-policy.json",
+    "policy_sha256": "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb",
+    "sanitizer_source": "/usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py",
+    "sanitizer_sha256": "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f",
+    "existing_helper_sha256": "a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71",
+    "duplicate_sanitizer_authority": "FORBIDDEN",
+    "staging_prefix": "agency_preprod_stage_",
+    "runtime_database": "agency_preprod",
+    "sanitizer_runtime_database_access": "FORBIDDEN"
+  },
+  "candidate_lifecycle": {
+    "incoming_snapshot": "ROOT_OWNED_DERIVED_SPOOL_OBJECT",
+    "staging_database": "agency_preprod_stage_<sha256(request_id)[0:12]>",
+    "candidate_database": "agency_preprod_candidate_<sha256('candidate:'+request_id)[0:12]>",
+    "candidate_runtime_reachable_before_activation": false,
+    "candidate_generic_credential": "NONE",
+    "seal_order": [
+      "IMPORT_ROOT_OWNED_SNAPSHOT_TO_DERIVED_STAGING",
+      "RUN_PINNED_859_866_SANITIZER",
+      "RUN_CANONICAL_POLICY_ASSERTIONS",
+      "APPLY_874_FIXED_SIDE_EFFECT_CONFIG_HARDENING",
+      "RUN_874_SIDE_EFFECT_ASSERTIONS",
+      "REQUIRE_BASE_TABLE_SUPPORTED_SUBSET",
+      "ATOMIC_MOVE_SANITIZED_TABLES_TO_DERIVED_CANDIDATE_NAMESPACE",
+      "REMOVE_STAGING_AND_RAW_TRANSIENT_MATERIAL",
+      "WRITE_ROOT_ONLY_SEAL_METADATA"
+    ],
+    "staging_after_seal": "ABSENT",
+    "raw_snapshot_after_seal": "ABSENT",
+    "candidate_after_seal": "SEALED_SANITIZED_HARDENED_ASSERTED"
+  },
+  "input_spool": {
+    "directory": "/var/lib/agency-preprod-refresh/incoming",
+    "owner": "root",
+    "group": "root",
+    "mode": "0700",
+    "symlink": "FORBIDDEN",
+    "snapshot_mode": "0600",
+    "snapshot_path_derivation": "sha256(request_id)[0:24].sql",
+    "max_snapshot_bytes": 1099511627776,
+    "caller_path": "FORBIDDEN",
+    "terminal_cleanup": "MANDATORY"
+  },
+  "data_activation_authority": {
+    "state_file": "/var/lib/agency-preprod-refresh/data-activation-authority.json",
+    "installed_state": "DISABLED",
+    "owner": "root",
+    "group": "root",
+    "mode": "0600",
+    "symlink": "FORBIDDEN",
+    "deploy_user_can_write": false,
+    "helper_can_enable": false,
+    "caller_can_enable": false,
+    "issue_874_grants_activation_authority": false,
+    "future_authority": "SEPARATE_816_CHILD_OR_SUCCESSOR_REQUIRED",
+    "mutating_action_behavior_while_disabled": "REFUSE_BEFORE_FIRST_MUTATION"
+  },
+  "sudoers": {
+    "deploy_identity": "agency-preprod",
+    "rule": "agency-preprod ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-preprod-refresh-control",
+    "generic_mariadb": "FORBIDDEN",
+    "generic_shell": "FORBIDDEN",
+    "generic_python": "FORBIDDEN",
+    "generic_env": "FORBIDDEN",
+    "setenv": "FORBIDDEN",
+    "nopasswd_all": "FORBIDDEN",
+    "wildcard_executable": "FORBIDDEN"
+  },
+  "fence": {
+    "model": "ROOT_OWNED_MARKER_ENFORCED_BY_PINNED_NGINX_SNIPPET",
+    "state_dir": "/var/lib/agency-preprod-refresh",
+    "marker": "/var/lib/agency-preprod-refresh/refresh-maintenance.flag",
+    "snippet": "/etc/nginx/snippets/agency-preprod-refresh-fence.conf",
+    "public_fenced_status": 503,
+    "caller_open_action": "NONE",
+    "rollback_failure_state": "CLOSED",
+    "public_bypass": "NONE",
+    "state_dir_owner": "root:root",
+    "state_dir_mode": "0711",
+    "marker_owner": "root:root",
+    "marker_mode": "0600",
+    "nginx_worker_visibility": "STAT_ONLY_VIA_SEARCHABLE_NON_LISTABLE_STATE_DIR"
+  },
+  "internal_validation": {
+    "listen": "127.0.0.1:18087",
+    "path": "/health/ready",
+    "publicly_reachable": false,
+    "php_fpm_socket": "/run/php/php8.4-fpm-agency-preprod.sock",
+    "release_root": "/var/www/agency-preprod/current/web",
+    "same_runtime_database": true,
+    "public_bypass": "NONE"
+  },
+  "locking": {
+    "outer_deploy_lock": "/var/www/agency-preprod/shared/deploy.lock",
+    "privileged_refresh_lock": "/run/lock/agency-preprod-refresh.lock",
+    "concurrent_deploy": "FAIL_CLOSED",
+    "concurrent_refresh": "FAIL_CLOSED"
+  },
+  "activation": {
+    "runtime_database": "agency_preprod",
+    "runtime_user": "agency_preprod",
+    "application_release_change": "NONE",
+    "database_rename": "FORBIDDEN",
+    "model": "ONE_INTERNALLY_GENERATED_ATOMIC_MULTI_TABLE_RENAME",
+    "supported_objects": "BASE_TABLE_ONLY",
+    "views": 0,
+    "triggers": 0,
+    "events": 0,
+    "routines": 0,
+    "foreign_keys": 0,
+    "compatible_table_sets": "REQUIRED"
+  },
+  "backup": {
+    "directory": "/var/lib/agency-preprod-refresh/backups",
+    "mode": "0600",
+    "server_local": true,
+    "github_artifact": "FORBIDDEN",
+    "state_identity": "SHA256_CANONICAL_DETERMINISTIC_LOGICAL_DUMP",
+    "preactivation_runtime_state_sha256": "REQUIRED",
+    "restored_runtime_state_sha256": "REQUIRED_EQUAL",
+    "prunable_during_transaction": false
+  },
+  "drupal_convergence": [
+    "UPDB",
+    "CANONICAL_CIM",
+    "PREPRODUCTION_SPLIT_IMPORT",
+    "RESTORE_PREPROD_ADMIN_ROUTE_FROM_SERVER_OWNED_STATE",
+    "GOVERNED_CONTENT_VALIDATE",
+    "GOVERNED_CONTENT_DRY_RUN",
+    "CACHE_REBUILD",
+    "RUNTIME_SIDE_EFFECT_VALIDATION",
+    "RUNTIME_HEALTH_VALIDATION"
+  ],
+  "governed_content_apply": "FORBIDDEN_BY_DATA_REFRESH_AUTHORITY",
+  "provisioning": {
+    "plan": "METADATA_ONLY_NO_HELPER_EXECUTION_NO_SUDO_NO_MUTATION",
+    "apply": "INSTALL_CAPABILITY_ONLY_NO_DATA_AUTHORITY",
+    "apply_data_authority": "NONE",
+    "rollback": "RESTORE_EXACT_PRESTATE_AND_REVALIDATE_NGINX_OR_FAIL_CLOSED"
+  },
+  "state_transitions": [
+    "DESIGN_ONLY",
+    "SOURCE_AVAILABLE",
+    "PROVISIONED",
+    "EXECUTABLE",
+    "PROVEN"
+  ]
+}

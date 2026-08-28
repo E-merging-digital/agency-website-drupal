@@ -6,6 +6,7 @@ on:
       - '.github/workflows/preprod-868-activation-rollback-validation.yml'
       - 'docs/operations/preproduction-refresh-activation-boundary.md'
       - 'scripts/preproduction-refresh/activation-boundary/**'
+      - 'scripts/preproduction-refresh/activation-capability/**'
 
 permissions:
   contents: read
@@ -32,6 +33,7 @@ jobs:
       - name: Checkout exact PR head
         uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - name: Install MariaDB client for ephemeral proof

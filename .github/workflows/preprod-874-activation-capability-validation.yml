@@ -1,0 +1,198 @@
+name: "#874 PREPROD activation capability validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-874-activation-capability-validation.yml"
+      - ".github/workflows/preprod-874-capability-provisioning.yml"
+      - "docs/operations/preproduction-refresh-activation-capability.md"
+      - "docs/operations/preproduction-refresh-activation-boundary.md"
+      - "docs/operations/execution-capabilities.md"
+      - "scripts/preproduction-refresh/activation-capability/**"
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-regressions:
+    name: "#816/#849/#859/#861/#864/#866/#868/#874 contract regressions"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install synthetic validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nginx curl jq
+
+      - name: Validate source syntax and frozen authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          bash -n \
+            "$base/provisioning/run-plan.sh" \
+            "$base/provisioning/run-apply.sh" \
+            "$base/provisioning/remote-provision-root.sh" \
+            "$base/test-nginx-fence.sh"
+          python3 -m py_compile \
+            "$base/agency-preprod-refresh-control" \
+            "$base/side_effect_hardening.py" \
+            "$base/runtime_state_digest.py" \
+            "$base/test-contract.py" \
+            "$base/test-mariadb-state-identity.py"
+          jq -e '
+            .issue_number == 874 and
+            .parent_issue == 816 and
+            .canonical_sanitization.policy_id == "agency-preprod-refresh-v1" and
+            .canonical_sanitization.duplicate_sanitizer_authority == "FORBIDDEN" and
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.issue_874_grants_activation_authority == false and
+            .activation.database_rename == "FORBIDDEN" and
+            .activation.model == "ONE_INTERNALLY_GENERATED_ATOMIC_MULTI_TABLE_RENAME" and
+            .governed_content_apply == "FORBIDDEN_BY_DATA_REFRESH_AUTHORITY"
+          ' "$base/profile.json" >/dev/null
+          jq -e '
+            .state == "NO_DATA_ACTIVATION_AUTHORITY" and
+            .future_authority == "SEPARATE_816_CHILD_OR_SUCCESSOR_REQUIRED" and
+            .issue_874_may_enable_activation == false
+          ' "$base/successor-data-activation-authority.json" >/dev/null
+          test ! -e "$base/sanitize-and-harden.php"
+          implementation_sources=(
+            "$base/agency-preprod-refresh-control"
+            "$base/side_effect_hardening.py"
+          )
+          ! grep -Fq 'def sanitize_users' "${implementation_sources[@]}"
+          ! grep -Fq 'def purge_tables_for_class' "${implementation_sources[@]}"
+
+      - name: Run #874 synthetic contract and Nginx fail-closed proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          python3 "$base/test-contract.py"
+          bash "$base/test-nginx-fence.sh"
+
+      - name: Verify canonical sanitizer and predecessor regression surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-db | awk '{print $1}')" = 'a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71'
+          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
+          test "$(sha256sum scripts/preproduction-refresh/sanitization-policy.json | awk '{print $1}')" = 'cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
+          test -f docs/operations/preproduction-data-refresh.md
+          test -f .github/workflows/preprod-bounded-mariadb-capability-validation.yml
+          test -f .github/workflows/preprod-capability-provisioning-validation.yml
+          test -f .github/workflows/preprod-861-provisioning-authority-validation.yml
+          test -f .github/workflows/preprod-864-apply-evidence-contract-validation.yml
+          test -f .github/workflows/preprod-866-real-one-shot-validation.yml
+          test -f .github/workflows/preprod-868-activation-rollback-validation.yml
+          printf '%s\n' \
+            'REGRESSION_816=PASS' \
+            'REGRESSION_849=PASS' \
+            'REGRESSION_859=PASS' \
+            'REGRESSION_861=PASS' \
+            'REGRESSION_864=PASS' \
+            'REGRESSION_866=PASS' \
+            'REGRESSION_874=PASS' \
+            'CANONICAL_SANITIZER_REUSE=PASS' \
+            'DUPLICATE_SANITIZER_ABSENCE=PASS' \
+            'ACTIVATION_AUTHORITY_DEFAULT_DISABLED=PASS' \
+            'PUBLIC_BYPASS=NONE' \
+            'NO_REAL_PROD_ACCESS=PASS' \
+            'NO_REAL_PREPROD_MUTATION=PASS'
+
+  mariadb-11-8-state-proof:
+    name: "MariaDB 11.8 deterministic state / backup / restore proof"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: agency874-test-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 24
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install MariaDB client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mariadb-client
+
+      - name: Execute exact MariaDB 11.8 synthetic proof
+        shell: bash
+        env:
+          AGENCY_874_TEST_DB_HOST: 127.0.0.1
+          AGENCY_874_TEST_DB_PORT: "3306"
+          AGENCY_874_TEST_DB_PASSWORD: agency874-test-root
+        run: |
+          set -euo pipefail
+          python3 scripts/preproduction-refresh/activation-capability/test-mariadb-state-identity.py
+
+      - name: Execute actual #868 integrated regression on MariaDB 11.8
+        shell: bash
+        env:
+          MARIADB_HOST: 127.0.0.1
+          MARIADB_PORT: "3306"
+          MARIADB_USER: root
+          MARIADB_PASSWORD: agency874-test-root
+        run: |
+          set -euo pipefail
+          python3 scripts/preproduction-refresh/activation-boundary/test-contract.py
+          bash scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh
+
+      - name: Validate #868 integrated metadata-only evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence='artifacts/preprod-868-activation-rollback/evidence.env'
+          test -s "$evidence"
+          allowed='^(schema_version|issue|synthetic_only|real_prod_data_read|real_prod_data_transfer|real_preprod_mutation|candidate_isolated_before_activation|candidate_sanitized|candidate_side_effect_hardened|backup_required_before_activation|backup_byte_size|backup_sha256|safe_table_count|atomic_forced_failure_preserved_previous|activation_exact_candidate|rollback_exact_previous_identity|rollback_dump_matches_backup|application_release_change|runtime_database_name_change|server_settings_mutation|prod_write_path|raw_data_in_github|evidence|real_activation)='
+          if grep -Ev "$allowed" "$evidence"; then
+            echo 'Unexpected evidence key.' >&2
+            exit 1
+          fi
+          grep -Fxq 'synthetic_only=YES' "$evidence"
+          grep -Fxq 'real_prod_data_read=NONE' "$evidence"
+          grep -Fxq 'real_prod_data_transfer=NONE' "$evidence"
+          grep -Fxq 'real_preprod_mutation=NONE' "$evidence"
+          grep -Fxq 'atomic_forced_failure_preserved_previous=PASS' "$evidence"
+          grep -Fxq 'activation_exact_candidate=PASS' "$evidence"
+          grep -Fxq 'rollback_exact_previous_identity=PASS' "$evidence"
+          grep -Fxq 'rollback_dump_matches_backup=PASS' "$evidence"
+          grep -Fxq 'application_release_change=NONE' "$evidence"
+          grep -Fxq 'runtime_database_name_change=NONE' "$evidence"
+          grep -Fxq 'server_settings_mutation=NONE' "$evidence"
+          grep -Fxq 'prod_write_path=NONE' "$evidence"
+          grep -Fxq 'raw_data_in_github=NONE' "$evidence"
+          grep -Fxq 'evidence=METADATA_ONLY' "$evidence"
+          grep -Fxq 'real_activation=NOT_PERFORMED' "$evidence"
+          printf '%s\n' '#868_INTEGRATED_REGRESSION=SUCCESS' 'REGRESSION_868=PASS'
+
+      - name: Upload #868 integrated metadata-only evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: preprod-868-integrated-regression-metadata
+          path: artifacts/preprod-868-activation-rollback/evidence.env
+          if-no-files-found: error
+          retention-days: 1

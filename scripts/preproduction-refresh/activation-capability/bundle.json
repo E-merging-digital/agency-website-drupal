@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "issue_number": 874,
+  "profile_id": "agency-preprod-refresh-capability-provision-v1",
+  "parent_issue": 816,
+  "predecessors": [
+    859,
+    861,
+    864,
+    866,
+    868,
+    870,
+    871
+  ],
+  "data_activation_authority_after_provisioning": "DISABLED",
+  "future_data_activation_authority": "SEPARATE_816_CHILD_OR_SUCCESSOR_REQUIRED",
+  "files": {
+    "helper": {
+      "path": "agency-preprod-refresh-control",
+      "sha256": "30f590f06d9273c9a4de86e85f2f5c0306f0a625ec8d0b5c1082d2b38e297954",
+      "mode": "0755"
+    },
+    "side_effect_hardening": {
+      "path": "side_effect_hardening.py",
+      "sha256": "2227fc6977f1c168710853a29981172a027fa41495b503095b24476ac46c1703",
+      "mode": "0644"
+    },
+    "runtime_state_digest": {
+      "path": "runtime_state_digest.py",
+      "sha256": "5762bd3cfd73948be9b6879881384c77e98121cc5abe1c921d2034e0476c24f9",
+      "mode": "0644"
+    },
+    "disabled_authority_state": {
+      "path": "data-activation-authority.disabled.json",
+      "sha256": "8f860a5739ca7a163254cc760abca95414daa30356a8a019870b1a2a2b82ef37",
+      "mode": "0600_REMOTE"
+    },
+    "fence_snippet": {
+      "path": "nginx/agency-preprod-refresh-fence.conf",
+      "sha256": "35b084fabc0aacc80f55c1f789b35d5dd52259e85b153d87da99d26930c18b67",
+      "mode": "0644"
+    },
+    "internal_readiness": {
+      "path": "nginx/agency-preprod-refresh-internal-readiness.conf",
+      "sha256": "352cd4cc40cdd961a51ff466acaf559c7a499c6a18fc4d51b95a675ced40a5fc",
+      "mode": "0644"
+    },
+    "capability_profile": {
+      "path": "profile.json",
+      "sha256": "75180d09b98852bdd0b05a92f397eefaad88d4cab6ae64dc12ea76886b963333",
+      "mode": "0644"
+    }
+  }
+}

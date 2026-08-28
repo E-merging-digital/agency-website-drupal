@@ -1,0 +1,242 @@
+name: Validate #868 PREPROD activation rollback boundary
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-868-activation-rollback-validation.yml'
+      - 'docs/operations/preproduction-refresh-activation-boundary.md'
+      - 'scripts/preproduction-refresh/activation-boundary/**'
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-synthetic-mariadb:
+    name: Prove #868 backup activation rollback contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: agency868-synthetic-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install MariaDB client for ephemeral proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends mariadb-client
+
+      - name: Validate static #868 hardened contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-refresh/activation-boundary/profile.json'
+          bash -n scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh
+          python3 -m py_compile scripts/preproduction-refresh/activation-boundary/test-contract.py
+          python3 scripts/preproduction-refresh/activation-boundary/test-contract.py
+          jq -e '
+            .schema_version == 1 and
+            .issue_number == 868 and
+            .parent_issue == 816 and
+            .delivery_scope.real_prod_data_read == "FORBIDDEN" and
+            .delivery_scope.real_prod_data_transfer == "FORBIDDEN" and
+            .delivery_scope.real_preprod_mutation == "FORBIDDEN" and
+            .delivery_scope.real_backup == "FORBIDDEN" and
+            .delivery_scope.real_activation == "FORBIDDEN" and
+            .delivery_scope.real_rollback == "FORBIDDEN" and
+            .current_runtime.runtime_database == "agency_preprod" and
+            .current_runtime.application_release_change == "FORBIDDEN" and
+            .current_runtime.hash_salt == "PREPROD_SERVER_OWNED_PRESERVE" and
+            .current_runtime.database_credentials == "PREPROD_SERVER_OWNED_PRESERVE" and
+            .activation.model == "ATOMIC_MULTI_TABLE_RENAME_WITH_FIXED_RUNTIME_DATABASE_AND_HTTP_FENCE" and
+            .activation.database_rename_statement == "FORBIDDEN" and
+            .activation.requires_mariadb_atomic_ddl == true and
+            .activation.preflight_reject_if_views_present == true and
+            .activation.preflight_reject_if_triggers_present == true and
+            .activation.preflight_reject_if_events_present == true and
+            .activation.preflight_reject_if_routines_present == true and
+            .activation.preflight_reject_if_foreign_keys_present == true and
+            .activation.preflight_require_base_tables_only == true and
+            .activation.runtime_settings_mutation == "NONE" and
+            .activation.runtime_database_name_change == "NONE"
+          ' "$profile" >/dev/null
+
+      - name: Prove HTTP fence transaction ordering and backup boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-refresh/activation-boundary/profile.json'
+          jq -e '
+            .runtime_fence.required == true and
+            .runtime_fence.server_owned == true and
+            .runtime_fence.current_host_capability_available == false and
+            .runtime_fence.close_before_runtime_session_drain == true and
+            .runtime_fence.runtime_sessions_drained_before_backup == true and
+            .runtime_fence.backup_after_fence_and_drain == true and
+            .runtime_fence.open_only_after_terminal_success_or_verified_rollback == true and
+            .runtime_fence.provisioning_required == true and
+            .activation.sequence == [
+              "ACQUIRE_SHARED_DEPLOY_LOCK",
+              "ACQUIRE_PRIVILEGED_REFRESH_LOCK",
+              "REQUIRE_SANITIZED_HARDENED_SEALED_CANDIDATE",
+              "REQUIRE_APPLICATION_RELEASE_IDENTITY",
+              "CLOSE_SERVER_HTTP_FENCE",
+              "DRAIN_RUNTIME_DATABASE_SESSIONS",
+              "REVERIFY_APPLICATION_RELEASE_IDENTITY",
+              "CREATE_AND_VERIFY_EXACT_RUNTIME_BACKUP",
+              "ATOMIC_SWAP_BASE_TABLE_SET",
+              "RUN_DRUPAL_CONVERGENCE_BEHIND_FENCE",
+              "RUN_SIDE_EFFECT_AND_HEALTH_VALIDATION_BEHIND_FENCE",
+              "COMMIT_OR_ROLLBACK",
+              "OPEN_SERVER_HTTP_FENCE_ONLY_AFTER_TERMINAL_PROOF"
+            ] and
+            .backup.mandatory_before_activation == true and
+            .backup.capture_after_http_fence_and_session_drain == true and
+            .backup.raw_backup_github_artifact == "FORBIDDEN" and
+            .backup.raw_backup_log_output == "FORBIDDEN" and
+            .backup.raw_backup_user_visible == "FORBIDDEN" and
+            .backup.exact_previous_boundary == "VERIFIED_DUMP_PLUS_PREACTIVATION_RUNTIME_STATE_DIGEST" and
+            .backup.active_transaction_backup_prunable == false and
+            (.backup.metadata_only_evidence | index("previous_runtime_state_sha256") != null)
+          ' "$profile" >/dev/null
+
+      - name: Prove Drupal convergence and phase-dependent rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-refresh/activation-boundary/profile.json'
+          jq -e '
+            .config_and_drupal.candidate_full_drupal_boot_before_activation == false and
+            .config_and_drupal.post_swap_runs_behind_http_fence == true and
+            .config_and_drupal.post_swap_order == [
+              "UPDB",
+              "CANONICAL_CIM",
+              "PREPRODUCTION_SPLIT_IMPORT",
+              "RESTORE_PREPROD_ADMIN_ROUTE_FROM_SERVER_OWNED_STATE",
+              "GOVERNED_CONTENT_VALIDATE",
+              "GOVERNED_CONTENT_DRY_RUN",
+              "CACHE_REBUILD",
+              "RUNTIME_SIDE_EFFECT_VALIDATION",
+              "RUNTIME_HEALTH_VALIDATION"
+            ] and
+            .config_and_drupal.governed_content_apply == "FORBIDDEN_BY_DATA_REFRESH_AUTHORITY" and
+            .config_and_drupal.failure_after_swap == "ROLLBACK_EXACT_VERIFIED_BACKUP_BEFORE_HTTP_FENCE_OPENS" and
+            .rollback.prod_source == "NONE" and
+            .rollback.fresh_database_as_rollback == "FORBIDDEN" and
+            .rollback.before_drupal_convergence == "REVERSE_ATOMIC_MULTI_TABLE_RENAME_MAY_RESTORE_EXACT_PREVIOUS_TABLE_SET" and
+            .rollback.after_drupal_convergence_started == "RESTORE_RECORDED_VERIFIED_PREACTIVATION_BACKUP" and
+            .rollback.post_rollback_exactness == "REQUIRE_RESTORED_RUNTIME_STATE_SHA256_MATCH_PREACTIVATION_RUNTIME_STATE_SHA256" and
+            .rollback.http_fence_open_before_verified_restore == false and
+            .partial_failure.before_backup == "CANDIDATE_CLEANUP_RUNTIME_UNCHANGED" and
+            .partial_failure.backup_failure == "ABORT_RUNTIME_UNCHANGED_HTTP_FENCE_MAY_REOPEN_AFTER_UNCHANGED_PROOF" and
+            .partial_failure.rename_failure == "ATOMIC_STATEMENT_MUST_LEAVE_PREVIOUS_RUNTIME_TABLE_SET_UNCHANGED" and
+            .partial_failure.post_activation_pre_convergence_failure == "REVERSE_RENAME_OR_BACKUP_RESTORE_TO_EXACT_PREVIOUS_BOUNDARY" and
+            .partial_failure.during_or_after_drupal_convergence == "RESTORE_VERIFIED_PREACTIVATION_BACKUP" and
+            .partial_failure.rollback_failure == "FAIL_CLOSED_KEEP_HTTP_FENCE_CLOSED_RETAIN_BACKUP_AND_RECOVERY_IDENTITY_REQUIRE_OPERATOR_RECOVERY"
+          ' "$profile" >/dev/null
+
+      - name: Prove privileged design remains unprovisioned and bounded
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction-refresh/activation-boundary/profile.json'
+          jq -e '
+            .privilege.model == "NEW_FIXED_ROOT_OWNED_PINNED_REFRESH_HELPER_REQUIRED" and
+            .privilege.existing_helper_mutation_in_issue_868 == "FORBIDDEN" and
+            .privilege.separate_provisioning_tranche_required == true and
+            .privilege.generic_mariadb_sudo == "FORBIDDEN" and
+            .privilege.generic_shell_sudo == "FORBIDDEN" and
+            .privilege.generic_python_sudo == "FORBIDDEN" and
+            .privilege.generic_env_sudo == "FORBIDDEN" and
+            .privilege.nopasswd_all == "FORBIDDEN" and
+            .privilege.mutable_repository_checkout_as_root == "FORBIDDEN" and
+            .future_fixed_capability.status == "DESIGN_ONLY_NOT_PROVISIONED_NOT_EXECUTABLE" and
+            .future_fixed_capability.requires_server_http_fence_provisioning == true and
+            .future_fixed_capability.plan_apply_authority_distinct == true
+          ' "$profile" >/dev/null
+
+      - name: Prove no real runtime execution surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof='scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh'
+          ! grep -Fq 'preprod.emergingdigital.be' "$proof"
+          ! grep -Fq '/var/www/agency-preprod' "$proof"
+          ! grep -Eq '(^|[[:space:]])(ssh|scp|rsync|sudo|drush)([[:space:]]|$)' "$proof"
+          ! grep -Fq 'agency_preprod_stage_' "$proof"
+          ! grep -Fq 'production-readonly-snapshot' "$proof"
+          grep -Fq 'real_prod_data_read=NONE' "$proof"
+          grep -Fq 'real_prod_data_transfer=NONE' "$proof"
+          grep -Fq 'real_preprod_mutation=NONE' "$proof"
+          grep -Fq 'real_activation=NOT_PERFORMED' "$proof"
+
+      - name: Run ephemeral MariaDB atomic failure activation and rollback proof
+        shell: bash
+        env:
+          MARIADB_HOST: 127.0.0.1
+          MARIADB_PORT: '3306'
+          MARIADB_USER: root
+          MARIADB_PASSWORD: agency868-synthetic-only
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            if mariadb --protocol=tcp --host="$MARIADB_HOST" --port="$MARIADB_PORT" --user="$MARIADB_USER" --password="$MARIADB_PASSWORD" -e 'SELECT 1' >/dev/null 2>&1; then
+              break
+            fi
+            if [[ "$attempt" -eq 30 ]]; then
+              echo 'Synthetic MariaDB service did not become ready.' >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          bash scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh
+
+      - name: Validate metadata-only synthetic evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence='artifacts/preprod-868-activation-rollback/evidence.env'
+          test -s "$evidence"
+          allowed='^(schema_version|issue|synthetic_only|real_prod_data_read|real_prod_data_transfer|real_preprod_mutation|candidate_isolated_before_activation|candidate_sanitized|candidate_side_effect_hardened|backup_required_before_activation|backup_byte_size|backup_sha256|safe_table_count|atomic_forced_failure_preserved_previous|activation_exact_candidate|rollback_exact_previous_identity|rollback_dump_matches_backup|application_release_change|runtime_database_name_change|server_settings_mutation|prod_write_path|raw_data_in_github|evidence|real_activation)='
+          if grep -Ev "$allowed" "$evidence"; then
+            echo 'Unexpected evidence key.' >&2
+            exit 1
+          fi
+          grep -Fxq 'synthetic_only=YES' "$evidence"
+          grep -Fxq 'real_prod_data_read=NONE' "$evidence"
+          grep -Fxq 'real_prod_data_transfer=NONE' "$evidence"
+          grep -Fxq 'real_preprod_mutation=NONE' "$evidence"
+          grep -Fxq 'atomic_forced_failure_preserved_previous=PASS' "$evidence"
+          grep -Fxq 'activation_exact_candidate=PASS' "$evidence"
+          grep -Fxq 'rollback_exact_previous_identity=PASS' "$evidence"
+          grep -Fxq 'rollback_dump_matches_backup=PASS' "$evidence"
+          grep -Fxq 'application_release_change=NONE' "$evidence"
+          grep -Fxq 'runtime_database_name_change=NONE' "$evidence"
+          grep -Fxq 'server_settings_mutation=NONE' "$evidence"
+          grep -Fxq 'prod_write_path=NONE' "$evidence"
+          grep -Fxq 'raw_data_in_github=NONE' "$evidence"
+          grep -Fxq 'evidence=METADATA_ONLY' "$evidence"
+          grep -Fxq 'real_activation=NOT_PERFORMED' "$evidence"
+
+      - name: Upload metadata-only synthetic evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: preprod-868-activation-rollback-metadata
+          path: artifacts/preprod-868-activation-rollback/evidence.env
+          if-no-files-found: error
+          retention-days: 1

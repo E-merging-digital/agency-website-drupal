@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "issue_number": 868,
+  "parent_issue": 816,
+  "profile_id": "agency-preprod-atomic-refresh-activation-v1",
+  "delivery_scope": {
+    "real_prod_data_read": "FORBIDDEN",
+    "real_prod_data_transfer": "FORBIDDEN",
+    "real_preprod_mutation": "FORBIDDEN",
+    "real_backup": "FORBIDDEN",
+    "real_activation": "FORBIDDEN",
+    "real_rollback": "FORBIDDEN",
+    "merge": "FORBIDDEN"
+  },
+  "current_runtime": {
+    "project_root": "/var/www/agency-preprod",
+    "current_release_link": "/var/www/agency-preprod/current",
+    "runtime_database": "agency_preprod",
+    "runtime_database_user": "agency_preprod",
+    "database_selection": "SERVER_OWNED_SHARED_SETTINGS_FIXED_NAME",
+    "hash_salt": "PREPROD_SERVER_OWNED_PRESERVE",
+    "database_credentials": "PREPROD_SERVER_OWNED_PRESERVE",
+    "basic_auth": "HOST_BOUNDARY_PRESERVE",
+    "noindex": "HOST_BOUNDARY_PRESERVE",
+    "application_release_change": "FORBIDDEN"
+  },
+  "candidate": {
+    "namespace": "agency_preprod_candidate_<sha256(request_id)[0:12]>",
+    "runtime_reachable_before_activation": false,
+    "raw_prod_runtime_exposure": "FORBIDDEN",
+    "lifecycle": [
+      "IMPORT_ISOLATED",
+      "SANITIZE_DETERMINISTIC",
+      "HARDEN_SIDE_EFFECT_STATE",
+      "ASSERT_CANDIDATE",
+      "REMOVE_EPHEMERAL_CANDIDATE_ACCOUNT",
+      "RETAIN_ROOT_ONLY_UNTIL_ACTIVATION_OR_CLEANUP"
+    ],
+    "existing_866_helper_reuse_as_persistent_candidate": "IMPOSSIBLE_BY_CONTRACT"
+  },
+  "side_effect_gate": {
+    "production_config_split": "OFF",
+    "preproduction_config_split": "ON",
+    "ga4_google_tag_outbound": "OFF",
+    "email_delivery": "SINK_OR_NULL",
+    "automated_cron": "OFF",
+    "openai_provider_egress": "OFF",
+    "production_webhook_api_credentials": "ABSENT",
+    "basic_auth": "PRESERVED",
+    "noindex": "PRESERVED",
+    "webform_submissions": 0,
+    "active_sessions": 0,
+    "external_action_queues": "CLEARED_OR_BOUNDED",
+    "enforcement_layers": [
+      "PINNED_DATABASE_SANITIZER_AND_ASSERTIONS",
+      "PREPROD_SERVER_OWNED_SETTINGS",
+      "PREPROD_HOST_BOUNDARY"
+    ]
+  },
+  "activation": {
+    "model": "ATOMIC_MULTI_TABLE_RENAME_WITHIN_FIXED_RUNTIME_DATABASE_NAME",
+    "database_rename_statement": "FORBIDDEN",
+    "requires_mariadb_atomic_ddl": true,
+    "minimum_mariadb_family": "11.8",
+    "preflight_reject_if_views_present": true,
+    "preflight_reject_if_triggers_present": true,
+    "preflight_reject_if_events_present": true,
+    "preflight_reject_if_foreign_keys_present": true,
+    "preflight_require_base_tables_only": true,
+    "runtime_settings_mutation": "NONE",
+    "runtime_database_name_change": "NONE"
+  },
+  "backup": {
+    "mandatory_before_activation": true,
+    "raw_backup_github_artifact": "FORBIDDEN",
+    "raw_backup_log_output": "FORBIDDEN",
+    "raw_backup_user_visible": "FORBIDDEN",
+    "metadata_only_evidence": [
+      "backup_id_hash",
+      "byte_size",
+      "sha256",
+      "safe_table_count",
+      "previous_runtime_db_id_hash",
+      "application_release_sha"
+    ],
+    "exact_previous_boundary": "VERIFIED_DUMP_PLUS_ATOMIC_ROLLBACK_SCHEMA"
+  },
+  "rollback": {
+    "model": "REVERSE_ATOMIC_MULTI_TABLE_RENAME_TO_EXACT_PREVIOUS_TABLE_SET",
+    "fresh_database_as_rollback": "FORBIDDEN",
+    "post_rollback_exactness": "REQUIRE_INTERNAL_REHASH_MATCH_PREACTIVATION_BACKUP_IDENTITY",
+    "failure_after_activation": "ROLLBACK_REQUIRED_BEFORE_CLEANUP",
+    "failed_candidate_cleanup": "MANDATORY_AFTER_ROLLBACK_PROOF"
+  },
+  "partial_failure": {
+    "rename_failure": "ATOMIC_STATEMENT_MUST_LEAVE_PREVIOUS_RUNTIME_TABLE_SET_UNCHANGED",
+    "post_activation_validation_failure": "REVERSE_ATOMIC_RENAME",
+    "rollback_failure": "FAIL_CLOSED_RETAIN_BACKUP_AND_LOCK_REQUIRE_OPERATOR_RECOVERY",
+    "raw_or_candidate_cleanup": "MANDATORY_ON_EVERY_TERMINAL_PATH_WHEN_SAFE"
+  },
+  "locking": {
+    "outer_lock": "/var/www/agency-preprod/shared/deploy.lock",
+    "outer_lock_scope": "WHOLE_REFRESH_TRANSACTION_INCLUDING_POST_ACTIVATION_VALIDATION",
+    "privileged_lock": "/run/lock/agency-preprod-refresh.lock",
+    "concurrent_refresh": "FORBIDDEN",
+    "concurrent_release_deploy": "FORBIDDEN"
+  },
+  "privilege": {
+    "model": "NEW_FIXED_ROOT_OWNED_PINNED_REFRESH_HELPER_REQUIRED",
+    "existing_helper_path": "/usr/local/sbin/agency-preprod-staging-db",
+    "existing_helper_mutation_in_issue_868": "FORBIDDEN",
+    "generic_mariadb_sudo": "FORBIDDEN",
+    "generic_shell_sudo": "FORBIDDEN",
+    "generic_python_sudo": "FORBIDDEN",
+    "generic_env_sudo": "FORBIDDEN",
+    "nopasswd_all": "FORBIDDEN",
+    "mutable_repository_checkout_as_root": "FORBIDDEN",
+    "separate_provisioning_tranche_required": true
+  },
+  "future_fixed_capability": {
+    "status": "DESIGN_ONLY_NOT_PROVISIONED_NOT_EXECUTABLE",
+    "required_actions": [
+      "IMPORT_SANITIZE_HARDEN_RETAIN",
+      "BACKUP_AND_ACTIVATE",
+      "ROLLBACK",
+      "COMMIT_CLEANUP",
+      "VERIFY_ABSENCE"
+    ],
+    "request_namespace": "apply-868-",
+    "plan_namespace": "plan-868-",
+    "plan_apply_authority_distinct": true
+  },
+  "evidence": {
+    "raw_prod_sql": "FORBIDDEN",
+    "raw_preprod_backup": "FORBIDDEN",
+    "pii": "FORBIDDEN",
+    "secrets": "FORBIDDEN",
+    "metadata_only": true
+  },
+  "files": {
+    "public_files": "NONE",
+    "private_files": "NONE"
+  }
+}

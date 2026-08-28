@@ -103,7 +103,7 @@ for required in [
     "--expected-operation-profile",
 ]:
     assert required in WORKFLOW, required
-assert "for required in \\\" not in WORKFLOW
+assert "for required in" not in WORKFLOW
 
 remote_values = {
     "request_id": REQUEST_ID,

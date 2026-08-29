@@ -58,4 +58,35 @@ jobs:
           test "$(git rev-parse "HEAD:$base/agency-preprod-refresh-control")" = 'a8f9d05d7776f27c141ce549f87b6b854ac3aeb1'
           test "$(git rev-parse "HEAD:$base/side_effect_hardening.py")" = 'd38fc9d1f1480b91048a0ae8081272f22a952d01'
           test "$(git rev-parse "HEAD:$base/runtime_state_digest.py")" = 'ae282a893d68877dbbc36d03ab481ed9a9aafc6e'
-          test "$(git rev-parse "HEAD:$base/nginx")" = 'ba0ecbe23b82dd3faf7eda21f8e8165bdee3688'
+          test "$(git rev-parse "HEAD:$base/nginx")" = 'ba0ecbe23b82dd3fafc2fd1275e36f18761d2707'
+          test "$(git rev-parse "HEAD:$base/provisioning/agency-preprod-refresh-control.sudoers")" = '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
+          test "$(git rev-parse "HEAD:$base/provisioning/profile.json")" = '6103f8f316771d837652a7758af35a89291cee1b'
+          test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = 'a0e6b46ed1e3cee89c591007fae6c447f4736bb3'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '79d698cff3ad5f8de4db8da5ba669119d84caa51'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-plan.sh")" = '18addda39d1712187cf2f5357cd5550d4bbf7286'
+          jq -e '
+            .issue_number == 874 and
+            .parent_issue == 816 and
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.issue_874_grants_activation_authority == false
+          ' "$base/profile.json" >/dev/null
+          jq -e '
+            .issue_number == 874 and
+            .apply.data_activation_authority_after_apply == "DISABLED" and
+            .apply.real_data_activation == "FORBIDDEN"
+          ' "$base/provisioning/profile.json" >/dev/null
+          printf '%s\n' \
+            '#874_IMPLEMENTATION_LINEAGE=PRESERVED' \
+            'DATA_ACTIVATION_AUTHORITY_DISABLED=PASS' \
+            'NO_PRIVILEGE_WIDENING=PASS' \
+            'NO_HELPER_SEMANTIC_CHANGE=PASS' \
+            'NO_NGINX_FENCE_BEHAVIOR_CHANGE=PASS' \
+            'NO_REAL_PLAN=PASS' \
+            'NO_REAL_HOST_MUTATION=PASS'
+
+      - name: Prove canonical sanitizer remains unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
+          printf '%s\n' 'NO_SANITIZER_CHANGE=PASS' 'REGRESSION_816=PASS' 'REGRESSION_874=PASS'

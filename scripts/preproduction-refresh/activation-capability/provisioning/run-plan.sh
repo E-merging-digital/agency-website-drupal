@@ -13,6 +13,8 @@ OPERATION_PROFILE="${OPERATION_PROFILE:-}"
 PREPROD_SSH_HOST="${PREPROD_SSH_HOST:-}"
 PREPROD_SSH_USER="${PREPROD_SSH_USER:-agency-preprod}"
 PREPROD_SSH_KEY="${PREPROD_SSH_KEY:-}"
+HELPER_SOURCE="$BASE/$(jq -r '.files.helper.path' "$BUNDLE")"
+SUDOERS_SOURCE="$BASE/provisioning/$(basename "$(jq -r '.apply.sudoers_path' "$PROFILE")").sudoers"
 
 [[ "$REQUEST_ID" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
 [[ "$REPOSITORY_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -24,13 +26,13 @@ PREPROD_SSH_KEY="${PREPROD_SSH_KEY:-}"
 test "$(git rev-parse HEAD)" = "$REPOSITORY_SHA"
 
 for path in "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$OBSERVER" "$EVALUATOR" \
-  "$BASE/agency-preprod-refresh-control" \
+  "$HELPER_SOURCE" \
   "$BASE/side_effect_hardening.py" \
   "$BASE/runtime_state_digest.py" \
   "$BASE/data-activation-authority.disabled.json" \
   "$BASE/nginx/agency-preprod-refresh-fence.conf" \
   "$BASE/nginx/agency-preprod-refresh-internal-readiness.conf" \
-  "$BASE/provisioning/agency-preprod-refresh-control.sudoers"; do
+  "$SUDOERS_SOURCE"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
 
@@ -59,7 +61,7 @@ jq -e '
 ' "$BUNDLE" >/dev/null
 
 for pair in \
-  "helper:$BASE/agency-preprod-refresh-control" \
+  "helper:$HELPER_SOURCE" \
   "side_effect_hardening:$BASE/side_effect_hardening.py" \
   "runtime_state_digest:$BASE/runtime_state_digest.py" \
   "disabled_authority_state:$BASE/data-activation-authority.disabled.json" \

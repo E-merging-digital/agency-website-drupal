@@ -18,10 +18,19 @@ ITEMS = (
     "current_release", "current_web",
 )
 FIELDS = ("state", "type", "owner", "group", "mode", "digest_state", "sha256")
+VHOST_COUNT_KEYS = (
+    "vhost_server_block_count",
+    "vhost_hostname_declaration_count",
+    "vhost_hostname_block_count",
+    "vhost_application_block_count",
+    "vhost_safe_auxiliary_block_count",
+    "vhost_application_fence_include_count",
+    "vhost_total_fence_include_count",
+)
 TOP_LEVEL = {
     "observer_schema", "execution_uid", "execution_gid", "execution_user_sha256",
     "host_identity_sha256", "sudoers_dir_searchable", "state_dir_searchable",
-    "vhost_server_name_count", "vhost_fence_include_count",
+    "vhost_selector_schema", *VHOST_COUNT_KEYS,
     "runtime_release_target_sha256", "runtime_release_name",
     "runtime_db_name_state", "runtime_db_name",
     "PLAN_MUTATION", "HELPER_EXECUTION", "SUDO_EXECUTION", "PROD_ACCESS",
@@ -32,6 +41,7 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 RELEASE_NAME = re.compile(r"^[0-9]{14}-[0-9a-f]{12}$")
 UNOBSERVABLE = "UNOBSERVABLE_UNPRIVILEGED"
+
 
 class EvidenceError(RuntimeError):
     pass
@@ -109,6 +119,7 @@ def build_expected(repo_root: Path) -> dict:
     source_digests["provisioning_profile"] = sha256_file(provisioning / "profile.json")
     source_digests["observer"] = sha256_file(provisioning / "observe-host-state.sh")
     source_digests["evaluator"] = sha256_file(provisioning / "evaluate-plan-evidence.py")
+    source_digests["vhost_selector"] = sha256_file(provisioning / "nginx-vhost-selector.py")
 
     return {
         "source_digests": source_digests,
@@ -148,9 +159,23 @@ def is_absent(obs: dict[str, str], name: str) -> bool:
     return item(obs, name, "state") == "ABSENT"
 
 
+def bounded_count(obs: dict[str, str], key: str) -> int:
+    value = obs[key]
+    if not re.fullmatch(r"[0-9]{1,3}", value):
+        raise EvidenceError(f"invalid bounded vhost count: {key}")
+    count = int(value)
+    if count > 64:
+        raise EvidenceError(f"vhost count exceeds bounded evidence limit: {key}")
+    return count
+
+
 def validate_metadata_shape(obs: dict[str, str]) -> None:
     if obs["observer_schema"] != "2":
         raise EvidenceError("observer schema mismatch")
+    if obs["vhost_selector_schema"] != "1":
+        raise EvidenceError("vhost selector schema mismatch")
+    for key in VHOST_COUNT_KEYS:
+        bounded_count(obs, key)
     for key in ("host_identity_sha256", "execution_user_sha256", "runtime_release_target_sha256"):
         if obs[key] != "NONE" and not HEX64.fullmatch(obs[key]):
             raise EvidenceError(f"invalid digest-shaped metadata: {key}")
@@ -219,10 +244,26 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
 
     if item(obs, "vhost", "type") != "REGULAR":
         raise EvidenceError("canonical PREPROD vhost missing or unsafe")
-    if obs["vhost_server_name_count"] != "1":
-        raise EvidenceError("canonical PREPROD vhost integration point is ambiguous")
-    if obs["vhost_fence_include_count"] not in {"0", "1"}:
-        raise EvidenceError("fence include count is unsafe")
+    server_blocks = bounded_count(obs, "vhost_server_block_count")
+    hostname_declarations = bounded_count(obs, "vhost_hostname_declaration_count")
+    hostname_blocks = bounded_count(obs, "vhost_hostname_block_count")
+    application_blocks = bounded_count(obs, "vhost_application_block_count")
+    safe_auxiliary_blocks = bounded_count(obs, "vhost_safe_auxiliary_block_count")
+    application_fence_count = bounded_count(obs, "vhost_application_fence_include_count")
+    total_fence_count = bounded_count(obs, "vhost_total_fence_include_count")
+    if application_blocks != 1:
+        raise EvidenceError("canonical PREPROD application-serving block is ambiguous")
+    if hostname_declarations != hostname_blocks:
+        raise EvidenceError("duplicate PREPROD hostname declaration within a server block")
+    if hostname_blocks != 1 + safe_auxiliary_blocks:
+        raise EvidenceError("PREPROD hostname server-block role is ambiguous")
+    if server_blocks < hostname_blocks:
+        raise EvidenceError("invalid PREPROD vhost server-block counts")
+    if application_fence_count not in {0, 1}:
+        raise EvidenceError("application fence include count is unsafe")
+    if total_fence_count != application_fence_count:
+        raise EvidenceError("fence include is duplicated or outside the application-serving block")
+
     if not is_absent(obs, "maintenance_marker"):
         raise EvidenceError("maintenance marker present; provisioning must remain blocked")
     for lock in ("deploy_lock", "refresh_lock"):
@@ -284,11 +325,11 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
     )
 
     core = {"helper", "bundle_dir", "state_dir", "authority_state", "sudoers", "fence_snippet", "internal_readiness"}
-    clean = core.issubset(set(missing)) and obs["vhost_fence_include_count"] == "0"
+    clean = core.issubset(set(missing)) and application_fence_count == 0
     all_managed_exact = len(exact) == len(expected["managed"])
     if clean:
         classification = "CLEAN_INSTALL"
-    elif all_managed_exact and vhost_metadata_exact and obs["vhost_fence_include_count"] == "1":
+    elif all_managed_exact and vhost_metadata_exact and application_fence_count == 1:
         classification = "NO_OP_ALREADY_EXACT"
     else:
         classification = "BOUNDED_RECONCILIATION"
@@ -297,7 +338,7 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
     if classification != "NO_OP_ALREADY_EXACT":
         for name in sorted(set(missing + drift)):
             mutations.append(f"CONVERGE_{name.upper()}")
-        if obs["vhost_fence_include_count"] == "0":
+        if application_fence_count == 0:
             mutations.append("INSERT_VHOST_FENCE_INCLUDE")
         if not vhost_metadata_exact:
             mutations.append("NORMALIZE_VHOST_METADATA")
@@ -314,7 +355,7 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
 
     source = expected["source_digests"]
     result = {
-        "PLAN_EVIDENCE_MODEL": "READ_ONLY_FIXED_PATH_METADATA_V2",
+        "PLAN_EVIDENCE_MODEL": "READ_ONLY_FIXED_PATH_METADATA_V3_SEMANTIC_VHOST",
         "FUTURE_APPLY_CLASSIFICATION": classification,
         "FUTURE_APPLY_MUTATION_INVENTORY": ";".join(mutations),
         "FUTURE_APPLY_ROLLBACK_INVENTORY": ";".join(rollback),
@@ -326,11 +367,14 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
         "DEPLOY_LOCK_STATE": item(obs, "deploy_lock", "state") + "/" + item(obs, "deploy_lock", "type"),
         "REFRESH_LOCK_STATE": item(obs, "refresh_lock", "state") + "/" + item(obs, "refresh_lock", "type"),
         "MAINTENANCE_MARKER_STATE": item(obs, "maintenance_marker", "state"),
-        "VHOST_FENCE_INCLUDE_COUNT": obs["vhost_fence_include_count"],
+        "VHOST_HOSTNAME_DECLARATION_COUNT": obs["vhost_hostname_declaration_count"],
+        "VHOST_APPLICATION_BLOCK_COUNT": obs["vhost_application_block_count"],
+        "VHOST_SAFE_AUXILIARY_BLOCK_COUNT": obs["vhost_safe_auxiliary_block_count"],
+        "VHOST_APPLICATION_FENCE_INCLUDE_COUNT": obs["vhost_application_fence_include_count"],
         "DATA_ACTIVATION_AUTHORITY_AFTER_APPLY": "DISABLED",
         "PROVISIONING_PROFILE_DIGEST": source["provisioning_profile"],
         "PINNED_SOURCE_BUNDLE_DIGESTS": ",".join(f"{k}:{source[k]}" for k in sorted(source) if k not in {"provisioning_profile", "observer", "evaluator"}),
-        "HOST_METADATA_FIELDS": "presence,type,owner,group,mode,digest_state,sha256,release_identity,runtime_db_identity,lock_state,vhost_anchor_counts",
+        "HOST_METADATA_FIELDS": "presence,type,owner,group,mode,digest_state,sha256,release_identity,runtime_db_identity,lock_state,bounded_vhost_topology_counts",
         "PLAN_MUTATION": "NONE",
         "HELPER_EXECUTION": "NONE",
         "SUDO_EXECUTION": "NONE",

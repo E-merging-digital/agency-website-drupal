@@ -35,6 +35,7 @@ EXPECTED_STAGING_HELPER='a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e9
 EXPECTED_SANITIZER='fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
 EXPECTED_POLICY='cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
 EXPECTED_CAPABILITY_PROFILE='75180d09b98852bdd0b05a92f397eefaad88d4cab6ae64dc12ea76886b963333'
+EXPECTED_VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
 
 [[ -d "$SOURCE" && ! -L "$SOURCE" ]] || { echo 'Fixed provisioning stage missing.' >&2; exit 67; }
 for f in \
@@ -47,7 +48,8 @@ for f in \
   bundle.json \
   agency-preprod-refresh-fence.conf \
   agency-preprod-refresh-internal-readiness.conf \
-  agency-preprod-refresh-control.sudoers; do
+  agency-preprod-refresh-control.sudoers \
+  nginx-vhost-selector.py; do
   [[ -f "$SOURCE/$f" && ! -L "$SOURCE/$f" ]] || { echo "Missing staged file: $f" >&2; exit 68; }
 done
 
@@ -55,6 +57,7 @@ done
 [[ "$(sha256sum "$STAGING_SANITIZER" | awk '{print $1}')" == "$EXPECTED_SANITIZER" ]] || { echo 'Canonical sanitizer digest mismatch.' >&2; exit 69; }
 [[ "$(sha256sum "$STAGING_POLICY" | awk '{print $1}')" == "$EXPECTED_POLICY" ]] || { echo 'Canonical policy digest mismatch.' >&2; exit 69; }
 [[ "$(sha256sum "$SOURCE/capability-profile.json" | awk '{print $1}')" == "$EXPECTED_CAPABILITY_PROFILE" ]] || { echo 'Capability profile digest mismatch.' >&2; exit 69; }
+[[ "$(git hash-object "$SOURCE/nginx-vhost-selector.py")" == "$EXPECTED_VHOST_SELECTOR_BLOB" ]] || { echo 'Vhost selector Git blob mismatch.' >&2; exit 69; }
 for pair in \
   "helper:agency-preprod-refresh-control" \
   "side_effect_hardening:side_effect_hardening.py" \
@@ -77,8 +80,7 @@ if [[ -e "$AUTH" || -L "$AUTH" ]]; then
 fi
 [[ ! -e "$MARKER" && ! -L "$MARKER" ]] || { echo 'Fence marker already present; provisioning refuses active/ambiguous refresh state.' >&2; exit 73; }
 [[ -f "$VHOST" && ! -L "$VHOST" ]] || { echo 'Canonical PREPROD vhost missing or unsafe.' >&2; exit 74; }
-[[ "$(grep -Fc 'server_name preprod.emergingdigital.be;' "$VHOST")" -eq 1 ]] || { echo 'Canonical vhost integration point is ambiguous.' >&2; exit 75; }
-[[ "$(grep -Fc 'include /etc/nginx/snippets/agency-preprod-refresh-fence.conf;' "$VHOST" || true)" -le 1 ]] || { echo 'Fence include is duplicated.' >&2; exit 76; }
+python3 -I "$SOURCE/nginx-vhost-selector.py" OBSERVE >/dev/null || { echo 'Canonical vhost semantic selector rejected current topology.' >&2; exit 75; }
 
 rm -rf -- "$TX"
 install -d -m 700 -o root -g root "$TX/backups"
@@ -152,18 +154,7 @@ install -m 0440 -o root -g root "$TX/sudoers.candidate" "$SUDOERS"
 install -d -m 0755 -o root -g root /etc/nginx/snippets /etc/nginx/conf.d
 install -m 0644 -o root -g root "$SOURCE/agency-preprod-refresh-fence.conf" "$FENCE"
 install -m 0644 -o root -g root "$SOURCE/agency-preprod-refresh-internal-readiness.conf" "$INTERNAL"
-if ! grep -Fq 'include /etc/nginx/snippets/agency-preprod-refresh-fence.conf;' "$VHOST"; then
-  python3 -I - "$VHOST" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-text = path.read_text()
-needle = '    server_name preprod.emergingdigital.be;\n'
-if text.count(needle) != 1:
-    raise SystemExit(80)
-path.write_text(text.replace(needle, needle + '\n    include /etc/nginx/snippets/agency-preprod-refresh-fence.conf;\n', 1))
-PY
-fi
+python3 -I "$SOURCE/nginx-vhost-selector.py" APPLY_FENCE >/dev/null
 chown root:root "$VHOST"
 chmod 0644 "$VHOST"
 nginx -t >/dev/null
@@ -178,7 +169,7 @@ cmp -s "$AUTH" "$SOURCE/data-activation-authority.disabled.json"
 [[ ! -e "$MARKER" && ! -L "$MARKER" ]]
 grep -Fq 'listen 127.0.0.1:18087;' "$INTERNAL"
 grep -Fq 'location = /health/ready' "$INTERNAL"
-grep -Fq 'include /etc/nginx/snippets/agency-preprod-refresh-fence.conf;' "$VHOST"
+python3 -I "$SOURCE/nginx-vhost-selector.py" OBSERVE >/dev/null
 visudo -cf "$SUDOERS" >/dev/null
 nginx -t >/dev/null
 mutated=0

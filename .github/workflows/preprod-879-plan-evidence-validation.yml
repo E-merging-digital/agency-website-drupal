@@ -56,10 +56,10 @@ jobs:
           expected = module.build_expected(Path('.').resolve())
           assert expected['runtime_db'] == 'agency_preprod'
           assert expected['source_digests']['provisioning_profile']
-          assert expected['source_digests']['vhost_selector'] == 'e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
+          assert len(expected['source_digests']['vhost_selector']) == 64
           print('PINNED_SOURCE_BUNDLE_DIGESTS=PASS')
           print('PROVISIONING_PROFILE_DIGEST=PASS')
-          print('#889_VHOST_SELECTOR_DIGEST=PASS')
+          print('#889_VHOST_SELECTOR_SOURCE_DIGEST=PASS')
           PY
 
       - name: Prove #884 canonical sudoers source and null-path regression
@@ -108,7 +108,6 @@ jobs:
           observer="$base/observe-host-state.sh"
           evaluator="$base/evaluate-plan-evidence.py"
           test "$(git rev-parse "HEAD:$selector")" = 'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
-          test "$(sha256sum "$selector" | awk '{print $1}')" = 'e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
           python3 - <<'PY'
           from pathlib import Path
           base = Path('scripts/preproduction-refresh/activation-capability/provisioning')
@@ -125,9 +124,15 @@ jobs:
           assert 'APPLY_FENCE' in selector and 'OBSERVE' in selector
           assert 'VHOST.write_text(updated' in selector
           assert 'print(text' not in selector and 'nginx -T' not in selector
+          assert "VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'" in plan
+          assert 'git rev-parse "HEAD:$VHOST_SELECTOR"' in plan
           assert '< "$VHOST_SELECTOR" >> "$observation"' in plan
           assert 'python3 -I - OBSERVE' in plan
+          assert "VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'" in apply
+          assert 'git rev-parse "HEAD:$VHOST_SELECTOR"' in apply
           assert '"$VHOST_SELECTOR" \\' in apply
+          assert "EXPECTED_VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'" in remote
+          assert 'git hash-object "$SOURCE/nginx-vhost-selector.py"' in remote
           assert 'nginx-vhost-selector.py" OBSERVE' in remote
           assert 'nginx-vhost-selector.py" APPLY_FENCE' in remote
           assert "grep -Fc 'server_name preprod.emergingdigital.be;'" not in observer
@@ -253,8 +258,8 @@ jobs:
           test "$(git rev-parse "HEAD:$base/nginx")" = 'ba0ecbe23b82dd3fafc2fd1275e36f18761d2707'
           test "$(git rev-parse "HEAD:$base/provisioning/agency-preprod-refresh-control.sudoers")" = '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
           test "$(git rev-parse "HEAD:$base/provisioning/profile.json")" = '6103f8f316771d837652a7758af35a89291cee1b'
-          test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = '9409c40faea3eaf67d1bf119e5bd6b92b24e813a'
-          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '319946d35949cdf083323d8054bf28fcca561a35'
+          test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = '6c3059615d912dc999f3741a667bd7601a7f4eb3'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '4779e8ee7c2104dc38bf8c6ff1f1bcb5a2e0be3c'
           test "$(git rev-parse "HEAD:$base/provisioning/nginx-vhost-selector.py")" = 'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
           test "$(git rev-parse "HEAD:$base/provisioning/validate-successor-authority.py")" = '183af3ec4276cb7b5c87217fbe8b96ef1ff8afb6'
           test "$(git rev-parse "HEAD:$base/provisioning/test-successor-authority.py")" = 'b4aba6dce888ae29b51c670ef91bf6bb2bf35452'

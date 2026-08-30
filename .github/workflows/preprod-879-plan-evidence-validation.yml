@@ -90,8 +90,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability/provisioning'
           workflow='.github/workflows/preprod-874-capability-provisioning.yml'
-          plan='scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh'
+          plan="$base/run-plan.sh"
           trust='scripts/preproduction-ssh-trust/manage-known-host.sh'
           verify='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
           python3 - <<'PY'

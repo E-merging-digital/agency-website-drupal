@@ -94,13 +94,15 @@ with tempfile.TemporaryDirectory() as tmp:
     injected = False
 
     def interrupt_after_link(path):
-        nonlocal_marker = None
-        del nonlocal_marker
         global injected
-        current = Path(path)
-        if current == destination and os.path.lexists(destination) and not injected:
-            injected = True
-            raise mod.ContractError("synthetic post-link interruption")
+        if os.fspath(path) == os.fspath(destination) and not injected:
+            try:
+                original_lstat(destination)
+            except FileNotFoundError:
+                pass
+            else:
+                injected = True
+                raise mod.ContractError("synthetic post-link interruption")
         return original_lstat(path)
 
     mod.os.lstat = interrupt_after_link

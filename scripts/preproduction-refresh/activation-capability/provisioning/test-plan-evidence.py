@@ -27,6 +27,7 @@ EXPECTED = {
         "provisioning_profile": H("provisioning"),
         "observer": H("observer"),
         "evaluator": H("evaluator"),
+        "vhost_selector": H("vhost-selector"),
     },
     "staging": {
         "staging_helper": H("staging-helper"),
@@ -95,8 +96,14 @@ def base_obs():
         "host_identity_sha256": H("preprod-host"),
         "sudoers_dir_searchable": "YES",
         "state_dir_searchable": "YES",
-        "vhost_server_name_count": "1",
-        "vhost_fence_include_count": "1",
+        "vhost_selector_schema": "1",
+        "vhost_server_block_count": "2",
+        "vhost_hostname_declaration_count": "2",
+        "vhost_hostname_block_count": "2",
+        "vhost_application_block_count": "1",
+        "vhost_safe_auxiliary_block_count": "1",
+        "vhost_application_fence_include_count": "1",
+        "vhost_total_fence_include_count": "1",
         "runtime_release_target_sha256": H("/var/www/agency-preprod/releases/20260829010000-234760742223"),
         "runtime_release_name": "20260829010000-234760742223",
         "runtime_db_name_state": "OBSERVED",
@@ -139,7 +146,8 @@ def test_searchable_absent_clean_install():
     for name in EXPECTED["managed"]:
         if name not in {"nginx_snippets_dir", "nginx_conf_dir"}:
             set_absent(obs, name)
-    obs["vhost_fence_include_count"] = "0"
+    obs["vhost_application_fence_include_count"] = "0"
+    obs["vhost_total_fence_include_count"] = "0"
     obs["state_dir_searchable"] = "NOT_PRESENT"
     result = mod.evaluate(obs, EXPECTED)
     assert result["FUTURE_APPLY_CLASSIFICATION"] == "CLEAN_INSTALL"
@@ -147,11 +155,15 @@ def test_searchable_absent_clean_install():
     print("A_SEARCHABLE_SUDOERS_ABSENT=CLEAN_INSTALL_EXISTING_SEMANTICS")
 
 
-def test_searchable_exact_noop():
+def test_searchable_exact_noop_with_certbot_topology():
     result = mod.evaluate(base_obs(), EXPECTED)
     assert result["FUTURE_APPLY_CLASSIFICATION"] == "NO_OP_ALREADY_EXACT"
     assert result["FUTURE_APPLY_MUTATION_INVENTORY"] == "NONE"
     assert result["HOST_STATE_SUDOERS"] == "EXACT"
+    assert result["VHOST_HOSTNAME_DECLARATION_COUNT"] == "2"
+    assert result["VHOST_APPLICATION_BLOCK_COUNT"] == "1"
+    assert result["VHOST_SAFE_AUXILIARY_BLOCK_COUNT"] == "1"
+    print("#889_R5_MULTI_HOSTNAME_ONE_APPLICATION=PASS")
     print("B_SEARCHABLE_SUDOERS_EXACT=NO_OP_ELIGIBLE")
 
 
@@ -191,7 +203,8 @@ def test_unsearchable_never_false_clean_install():
     for name in EXPECTED["managed"]:
         if name not in {"sudoers", "nginx_snippets_dir", "nginx_conf_dir"}:
             set_absent(obs, name)
-    obs["vhost_fence_include_count"] = "0"
+    obs["vhost_application_fence_include_count"] = "0"
+    obs["vhost_total_fence_include_count"] = "0"
     obs["state_dir_searchable"] = "NOT_PRESENT"
     result = mod.evaluate(obs, EXPECTED)
     assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
@@ -217,6 +230,28 @@ def test_observability_consistency_fails_closed():
     set_unobservable(obs, "sudoers")
     expect_error(obs, "inconsistent with searchable directory")
     print("SUDOERS_OBSERVABILITY_CONSISTENCY=FAIL_CLOSED")
+
+
+def test_vhost_topology_fail_closed_cases():
+    obs = base_obs(); obs["vhost_application_block_count"] = "2"
+    expect_error(obs, "application-serving block is ambiguous")
+    print("#889_DUPLICATE_APPLICATION_BLOCK=FAIL_CLOSED")
+
+    obs = base_obs(); obs["vhost_safe_auxiliary_block_count"] = "0"
+    expect_error(obs, "server-block role is ambiguous")
+    print("#889_UNCLASSIFIED_HOSTNAME_BLOCK=FAIL_CLOSED")
+
+    obs = base_obs(); obs["vhost_total_fence_include_count"] = "2"
+    expect_error(obs, "outside the application-serving block")
+    print("#889_MISPLACED_OR_DUPLICATE_FENCE=FAIL_CLOSED")
+
+    obs = base_obs(); obs["vhost_hostname_declaration_count"] = "3"
+    expect_error(obs, "duplicate PREPROD hostname declaration")
+    print("#889_DUPLICATE_HOSTNAME_DECLARATION=FAIL_CLOSED")
+
+    obs = base_obs(); obs["vhost_selector_schema"] = "2"
+    expect_error(obs, "vhost selector schema mismatch")
+    print("#889_SELECTOR_SCHEMA_MISMATCH=FAIL_CLOSED")
 
 
 def test_general_reconciliation():
@@ -276,16 +311,18 @@ def test_metadata_only():
 
 def main():
     test_searchable_absent_clean_install()
-    test_searchable_exact_noop()
+    test_searchable_exact_noop_with_certbot_topology()
     test_searchable_sudoers_drift()
     test_unsearchable_sudoers_conservative_reconcile()
     test_unsearchable_never_false_clean_install()
     test_unsearchable_never_false_noop()
     test_observability_consistency_fails_closed()
+    test_vhost_topology_fail_closed_cases()
     test_general_reconciliation()
     test_fail_closed_cases()
     test_metadata_only()
     print("#887_REAL_R4_SUDOERS_DIR_SEARCHABLE_NO=PASS")
+    print("#889_REAL_R5_HOSTNAME_COUNT_NOT_EQUAL_ONE=PASS")
     print("#876_FUTURE_PLAN_CONTRACT=PASS")
     print("#879_PLAN_EVIDENCE_MATRIX=PASS")
 

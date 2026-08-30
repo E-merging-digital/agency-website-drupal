@@ -59,6 +59,9 @@ jobs:
           assert 'actions/checkout@v6' in workflow
           assert "ref: ${{ steps.live.outputs.main_sha }}" in workflow
           assert "ref: ${{ needs.validate-authority.outputs.main_sha }}" in workflow
+          assert 'Revalidate live main before privileged surface' in workflow
+          assert workflow.count('repos/$GITHUB_REPOSITORY/branches/main') == 2
+          assert "test \"$live_main\" = '${{ needs.validate-authority.outputs.main_sha }}'" in workflow
           assert 'persist-credentials: false' in workflow
           assert 'run_attempt' in Path(
               'scripts/preproduction/runtime-db-account/precheck/validate-successor-authority.py'

@@ -112,6 +112,16 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Revalidate live main before privileged surface
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$live_main" = '${{ needs.validate-authority.outputs.main_sha }}'
+          test "$(git rev-parse HEAD)" = "$live_main"
+
       - name: Configure transient root identity and pinned PREPROD trust
         id: setup
         shell: bash

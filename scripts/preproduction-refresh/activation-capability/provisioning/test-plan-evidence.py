@@ -64,6 +64,14 @@ def set_absent(obs, name):
         obs[f"{name}.{field}"] = value
 
 
+def set_unobservable(obs, name):
+    for field, value in {
+        "state": mod.UNOBSERVABLE, "type": "UNOBSERVABLE", "owner": "NONE", "group": "NONE",
+        "mode": "NONE", "digest_state": "UNOBSERVABLE", "sha256": "NONE",
+    }.items():
+        obs[f"{name}.{field}"] = value
+
+
 def set_present(obs, name, typ="REGULAR", owner="root", group="root", mode="644", digest=None, readable=True):
     obs[f"{name}.state"] = "PRESENT"
     obs[f"{name}.type"] = typ
@@ -80,7 +88,7 @@ def set_present(obs, name, typ="REGULAR", owner="root", group="root", mode="644"
 
 def base_obs():
     obs = {
-        "observer_schema": "1",
+        "observer_schema": "2",
         "execution_uid": "1001",
         "execution_gid": "1001",
         "execution_user_sha256": H("agency-preprod"),
@@ -126,7 +134,7 @@ def expect_error(obs, needle):
     raise AssertionError(f"expected EvidenceError containing {needle!r}")
 
 
-def test_clean_install():
+def test_searchable_absent_clean_install():
     obs = base_obs()
     for name in EXPECTED["managed"]:
         if name not in {"nginx_snippets_dir", "nginx_conf_dir"}:
@@ -135,24 +143,89 @@ def test_clean_install():
     obs["state_dir_searchable"] = "NOT_PRESENT"
     result = mod.evaluate(obs, EXPECTED)
     assert result["FUTURE_APPLY_CLASSIFICATION"] == "CLEAN_INSTALL"
-    assert "INSTALL" not in result.get("PRIVILEGED_READ_REQUIRED", "")
-    print("CLEAN_INSTALL=PASS")
+    assert result["HOST_STATE_SUDOERS"] == "ABSENT"
+    print("A_SEARCHABLE_SUDOERS_ABSENT=CLEAN_INSTALL_EXISTING_SEMANTICS")
 
 
-def test_noop():
+def test_searchable_exact_noop():
     result = mod.evaluate(base_obs(), EXPECTED)
     assert result["FUTURE_APPLY_CLASSIFICATION"] == "NO_OP_ALREADY_EXACT"
     assert result["FUTURE_APPLY_MUTATION_INVENTORY"] == "NONE"
-    print("EXACT_INSTALLED_NO_OP=PASS")
+    assert result["HOST_STATE_SUDOERS"] == "EXACT"
+    print("B_SEARCHABLE_SUDOERS_EXACT=NO_OP_ELIGIBLE")
 
 
-def test_reconciliation():
+def test_searchable_sudoers_drift():
+    obs = base_obs()
+    set_present(obs, "sudoers", owner="root", group="root", mode="440", readable=False)
+    result = mod.evaluate(obs, EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert result["PRIVILEGED_READ_REQUIRED"] == "false"
+    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    assert result["HOST_STATE_SUDOERS"] == "DRIFT_OR_UNVERIFIED"
+    print("C_SEARCHABLE_SUDOERS_DRIFT=BOUNDED_RECONCILIATION")
+
+
+def unobservable_obs():
+    obs = base_obs()
+    obs["sudoers_dir_searchable"] = "NO"
+    set_unobservable(obs, "sudoers")
+    return obs
+
+
+def test_unsearchable_sudoers_conservative_reconcile():
+    obs = unobservable_obs()
+    result = mod.evaluate(obs, EXPECTED)
+    assert result["SUDOERS_OBSERVABILITY"] == mod.UNOBSERVABLE
+    assert result["HOST_STATE_SUDOERS"] == mod.UNOBSERVABLE
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    assert result["PRIVILEGED_READ_REQUIRED"] == "false"
+    print("D_UNSEARCHABLE_SUDOERS=UNOBSERVABLE_UNPRIVILEGED")
+    print("D_UNSEARCHABLE_CLASSIFICATION=BOUNDED_RECONCILIATION")
+    print("D_UNSEARCHABLE_MUTATION=CONVERGE_SUDOERS")
+
+
+def test_unsearchable_never_false_clean_install():
+    obs = unobservable_obs()
+    for name in EXPECTED["managed"]:
+        if name not in {"sudoers", "nginx_snippets_dir", "nginx_conf_dir"}:
+            set_absent(obs, name)
+    obs["vhost_fence_include_count"] = "0"
+    obs["state_dir_searchable"] = "NOT_PRESENT"
+    result = mod.evaluate(obs, EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert result["HOST_STATE_SUDOERS"] == mod.UNOBSERVABLE
+    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    print("E_UNSEARCHABLE_FALSE_ABSENCE_CLEAN_INSTALL=IMPOSSIBLE")
+
+
+def test_unsearchable_never_false_noop():
+    result = mod.evaluate(unobservable_obs(), EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert result["FUTURE_APPLY_MUTATION_INVENTORY"] != "NONE"
+    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    print("F_UNSEARCHABLE_NO_OP_ALREADY_EXACT=IMPOSSIBLE")
+
+
+def test_observability_consistency_fails_closed():
+    obs = base_obs()
+    obs["sudoers_dir_searchable"] = "NO"
+    set_absent(obs, "sudoers")
+    expect_error(obs, "sudoers evidence must be unobservable")
+    obs = base_obs()
+    set_unobservable(obs, "sudoers")
+    expect_error(obs, "inconsistent with searchable directory")
+    print("SUDOERS_OBSERVABILITY_CONSISTENCY=FAIL_CLOSED")
+
+
+def test_general_reconciliation():
     obs = base_obs()
     obs["helper.sha256"] = H("managed-drift")
     result = mod.evaluate(obs, EXPECTED)
     assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
     assert "CONVERGE_HELPER" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
-    print("BOUNDED_RECONCILIATION=PASS")
+    print("BOUNDED_RECONCILIATION_GENERAL=PASS")
 
 
 def test_fail_closed_cases():
@@ -178,21 +251,11 @@ def test_fail_closed_cases():
 
     obs = base_obs(); set_present(obs, "authority_state", owner="root", group="root", mode="600", readable=False)
     expect_error(obs, "privileged read required")
-    print("PRIVILEGED_READ_BOUNDARY=FAIL_CLOSED")
-
-
-def test_unreadable_sudoers_conservative_reconcile():
-    obs = base_obs()
-    set_present(obs, "sudoers", owner="root", group="root", mode="440", readable=False)
-    result = mod.evaluate(obs, EXPECTED)
-    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
-    assert result["PRIVILEGED_READ_REQUIRED"] == "false"
-    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
-    print("UNREADABLE_SUDOERS=CONSERVATIVE_RECONCILIATION")
+    print("PROTECTED_AUTHORITY_PRIVILEGED_READ_BOUNDARY=FAIL_CLOSED")
 
 
 def test_metadata_only():
-    result = mod.evaluate(base_obs(), EXPECTED)
+    result = mod.evaluate(unobservable_obs(), EXPECTED)
     serialized = "\n".join(f"{k}={v}" for k, v in result.items())
     forbidden = ["password", "private key", "settings.php", "runtime.env", "basic auth", "raw sql", "pii"]
     lowered = serialized.lower()
@@ -212,12 +275,17 @@ def test_metadata_only():
 
 
 def main():
-    test_clean_install()
-    test_noop()
-    test_reconciliation()
+    test_searchable_absent_clean_install()
+    test_searchable_exact_noop()
+    test_searchable_sudoers_drift()
+    test_unsearchable_sudoers_conservative_reconcile()
+    test_unsearchable_never_false_clean_install()
+    test_unsearchable_never_false_noop()
+    test_observability_consistency_fails_closed()
+    test_general_reconciliation()
     test_fail_closed_cases()
-    test_unreadable_sudoers_conservative_reconcile()
     test_metadata_only()
+    print("#887_REAL_R4_SUDOERS_DIR_SEARCHABLE_NO=PASS")
     print("#876_FUTURE_PLAN_CONTRACT=PASS")
     print("#879_PLAN_EVIDENCE_MATRIX=PASS")
 

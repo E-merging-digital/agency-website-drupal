@@ -232,6 +232,9 @@ def apply_fixed_reconciliation() -> dict[str, str]:
         "TO 'agency_preprod'@'127.0.0.1'"
     )
 
+    if not expected_grant_exact():
+        raise ContractError("Canonical runtime account grant verification failed.")
+
     if before["ACCOUNT_LOCALHOST_PRESENT"] == "YES":
         root_sql("DROP USER IF EXISTS 'agency_preprod'@'localhost'")
 

@@ -162,6 +162,10 @@ assert 're.fullmatch(r"[0-9a-f]{64}", values[0])' in source
 assert "stderr=subprocess.DEVNULL" in source
 assert 'if len(lines) != 2 or EXPECTED_DB_GRANT not in lines:' in source
 assert 'if " WITH GRANT OPTION" in usage:' in source
+assert 'if not expected_grant_exact():' in source
+assert source.index('if not expected_grant_exact():') < source.index(
+    'DROP USER IF EXISTS \'agency_preprod\'@\'localhost\''
+)
 assert "password = \"\"" in source
 assert "print(password" not in source
 assert "print(query" not in source

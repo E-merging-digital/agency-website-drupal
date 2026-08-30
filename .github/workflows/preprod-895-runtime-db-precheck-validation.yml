@@ -33,12 +33,15 @@ jobs:
           python3 -m py_compile \
             "$base/validate-successor-authority.py" \
             "$base/remote-precheck-root.py" \
+            "$base/finalize-precheck-evidence.py" \
             "$base/test-authority.py" \
             "$base/test-contract.py" \
-            "$base/test-hardening.py"
+            "$base/test-hardening.py" \
+            "$base/test-terminal-evidence.py"
           python3 "$base/test-authority.py"
           python3 "$base/test-contract.py"
           python3 "$base/test-hardening.py"
+          python3 "$base/test-terminal-evidence.py"
 
       - name: Prove workflow action and root surface are structurally fixed
         shell: bash
@@ -52,6 +55,9 @@ jobs:
           validation = Path('.github/workflows/preprod-895-runtime-db-precheck-validation.yml').read_text()
           runner = Path('scripts/preproduction/runtime-db-account/precheck/run-precheck.sh').read_text()
           remote = Path('scripts/preproduction/runtime-db-account/precheck/remote-precheck-root.py').read_text()
+          finalizer = Path(
+              'scripts/preproduction/runtime-db-account/precheck/finalize-precheck-evidence.py'
+          ).read_text()
           profile = json.loads(Path(
               'scripts/preproduction/runtime-db-account/precheck/profile.json'
           ).read_text())
@@ -63,13 +69,15 @@ jobs:
           assert workflow.count('repos/$GITHUB_REPOSITORY/branches/main') == 2
           assert 'persist-credentials: false' in workflow
           assert 'test-hardening.py' in validation
+          assert 'test-terminal-evidence.py' in validation
+          assert 'finalize-precheck-evidence.py' in workflow
           assert 'run_attempt' in Path(
               'scripts/preproduction/runtime-db-account/precheck/validate-successor-authority.py'
           ).read_text()
           assert profile['future_execution']['action'] == 'PRECHECK'
           assert profile['future_execution']['sudoers_install'] == 'NONE'
 
-          route = workflow + runner + remote
+          route = workflow + runner + remote + finalizer
           assert 'StrictHostKeyChecking=no' not in route
           assert 'ssh-keyscan' not in route
           assert '/etc/sudoers.d' not in route
@@ -95,6 +103,7 @@ jobs:
           print('APPLY_REACHABLE=NO')
           print('VERIFY_REACHABLE=NO')
           print('MARIADB_MUTATION_PATH=NONE')
+          print('FAIL_CLOSED_TERMINAL_EVIDENCE=GOVERNED')
           PY
 
       - name: Preserve #849, #891, #887, #889, #874 and #876 boundaries

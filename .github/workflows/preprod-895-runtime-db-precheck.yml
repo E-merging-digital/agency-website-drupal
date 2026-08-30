@@ -178,6 +178,13 @@ jobs:
           export PREPROD_KNOWN_HOSTS_FILE="$AGENCY_895_ROOT_HOME/.ssh/known_hosts"
           bash scripts/preproduction/runtime-db-account/precheck/run-precheck.sh
 
+          precheck_status="$RUNNER_TEMP/agency-895-precheck-${GITHUB_RUN_ID}.status"
+          [[ -f "$precheck_status" && ! -L "$precheck_status" ]]
+          test "$(stat -c '%a' "$precheck_status")" = '600'
+          precheck_rc="$(tr -d '\r\n' < "$precheck_status")"
+          [[ "$precheck_rc" == '0' || "$precheck_rc" == '1' ]]
+          exit "$precheck_rc"
+
       - name: Remove transient root identity and trust
         id: cleanup
         if: ${{ always() }}
@@ -212,39 +219,9 @@ jobs:
           set -euo pipefail
           evidence="$RUNNER_TEMP/agency-895-precheck-${GITHUB_RUN_ID}.evidence"
           status="$RUNNER_TEMP/agency-895-precheck-${GITHUB_RUN_ID}.status"
-
-          [[ "$SETUP_OUTCOME" == 'success' ]]
-          [[ "$EXECUTE_OUTCOME" == 'success' ]]
-          [[ "$CLEANUP_OUTCOME" == 'success' ]]
-          [[ -f "$evidence" && ! -L "$evidence" ]]
-          [[ -f "$status" && ! -L "$status" ]]
-          test "$(stat -c '%a' "$evidence")" = '600'
-          test "$(stat -c '%a' "$status")" = '600'
-
-          precheck_rc="$(tr -d '\r\n' < "$status")"
-          [[ "$precheck_rc" == '0' || "$precheck_rc" == '1' ]]
-
-          bounded="$(cat "$evidence")"
-          rm -f -- "$evidence" "$status"
-
-          python3 - "$bounded" <<'PY'
-          import sys
-
-          raw = sys.argv[1]
-          fields = (
-              "TARGET_DATABASE_PRESENT",
-              "ACCOUNT_127_PRESENT",
-              "ACCOUNT_LOCALHOST_PRESENT",
-              "EXPECTED_DB_GRANT",
-              "RUNTIME_ACCOUNT_STATE",
-          )
-          lines = raw.splitlines()
-          if len(lines) != len(fields):
-              raise SystemExit(1)
-          for expected, line in zip(fields, lines, strict=True):
-              if not line.startswith(expected + "="):
-                  raise SystemExit(1)
-          print(raw)
-          PY
-
-          exit "$precheck_rc"
+          python3 scripts/preproduction/runtime-db-account/precheck/finalize-precheck-evidence.py \
+            --evidence "$evidence" \
+            --status "$status" \
+            --setup-outcome "$SETUP_OUTCOME" \
+            --execute-outcome "$EXECUTE_OUTCOME" \
+            --cleanup-outcome "$CLEANUP_OUTCOME"

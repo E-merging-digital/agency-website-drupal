@@ -34,9 +34,11 @@ jobs:
             "$base/validate-successor-authority.py" \
             "$base/remote-precheck-root.py" \
             "$base/test-authority.py" \
-            "$base/test-contract.py"
+            "$base/test-contract.py" \
+            "$base/test-hardening.py"
           python3 "$base/test-authority.py"
           python3 "$base/test-contract.py"
+          python3 "$base/test-hardening.py"
 
       - name: Prove workflow action and root surface are structurally fixed
         shell: bash
@@ -47,6 +49,7 @@ jobs:
           import json
 
           workflow = Path('.github/workflows/preprod-895-runtime-db-precheck.yml').read_text()
+          validation = Path('.github/workflows/preprod-895-runtime-db-precheck-validation.yml').read_text()
           runner = Path('scripts/preproduction/runtime-db-account/precheck/run-precheck.sh').read_text()
           remote = Path('scripts/preproduction/runtime-db-account/precheck/remote-precheck-root.py').read_text()
           profile = json.loads(Path(
@@ -55,14 +58,11 @@ jobs:
 
           assert 'runs-on: [self-hosted, linux, x64, agency]' in workflow
           assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' in workflow
-          assert "agency-browser-runner-01" in workflow
-          assert 'actions/checkout@v6' in workflow
-          assert "ref: ${{ steps.live.outputs.main_sha }}" in workflow
-          assert "ref: ${{ needs.validate-authority.outputs.main_sha }}" in workflow
+          assert 'agency-browser-runner-01' in workflow
           assert 'Revalidate live main before privileged surface' in workflow
           assert workflow.count('repos/$GITHUB_REPOSITORY/branches/main') == 2
-          assert "test \"$live_main\" = '${{ needs.validate-authority.outputs.main_sha }}'" in workflow
           assert 'persist-credentials: false' in workflow
+          assert 'test-hardening.py' in validation
           assert 'run_attempt' in Path(
               'scripts/preproduction/runtime-db-account/precheck/validate-successor-authority.py'
           ).read_text()

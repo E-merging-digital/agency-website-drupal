@@ -136,18 +136,19 @@ jobs:
           test -n "$PROVISIONING_PRIVATE_KEY"
           test -n "$PREPROD_SSH_HOST"
 
-          key="$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}.key"
-          root_home="$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}"
+          umask 077
+          key="$(mktemp "$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}.XXXXXX.key")"
           echo "AGENCY_895_ROOT_KEY=$key" >> "$GITHUB_ENV"
+          root_home="$(mktemp -d "$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}.XXXXXX")"
           echo "AGENCY_895_ROOT_HOME=$root_home" >> "$GITHUB_ENV"
 
-          [[ ! -e "$key" && ! -L "$key" ]]
-          [[ ! -e "$root_home" && ! -L "$root_home" ]]
-          umask 077
-          mkdir -m 700 -- "$root_home"
-          printf '%s\n' "$PROVISIONING_PRIVATE_KEY" > "$key"
+          [[ -f "$key" && ! -L "$key" ]]
+          [[ -d "$root_home" && ! -L "$root_home" ]]
           chmod 600 "$key"
+          chmod 700 "$root_home"
+          printf '%s\n' "$PROVISIONING_PRIVATE_KEY" > "$key"
           test "$(stat -c '%a' "$key")" = '600'
+          test "$(stat -c '%a' "$root_home")" = '700'
 
           HOME="$root_home" \
           PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
@@ -171,8 +172,10 @@ jobs:
           PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
         run: |
           set -euo pipefail
-          export PREPROD_PROVISIONING_SSH_KEY="$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}.key"
-          export PREPROD_KNOWN_HOSTS_FILE="$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}/.ssh/known_hosts"
+          test -n "${AGENCY_895_ROOT_KEY:-}"
+          test -n "${AGENCY_895_ROOT_HOME:-}"
+          export PREPROD_PROVISIONING_SSH_KEY="$AGENCY_895_ROOT_KEY"
+          export PREPROD_KNOWN_HOSTS_FILE="$AGENCY_895_ROOT_HOME/.ssh/known_hosts"
           bash scripts/preproduction/runtime-db-account/precheck/run-precheck.sh
 
       - name: Remove transient root identity and trust
@@ -181,12 +184,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          key="$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}.key"
-          root_home="$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}"
-          rm -f -- "$key"
-          rm -rf -- "$root_home"
-          [[ ! -e "$key" && ! -L "$key" ]]
-          [[ ! -e "$root_home" && ! -L "$root_home" ]]
+          key="${AGENCY_895_ROOT_KEY:-}"
+          root_home="${AGENCY_895_ROOT_HOME:-}"
+
+          if [[ -n "$key" ]]; then
+            [[ "$key" == "$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}."*".key" ]]
+            [[ -f "$key" && ! -L "$key" ]]
+            rm -f -- "$key"
+            [[ ! -e "$key" && ! -L "$key" ]]
+          fi
+
+          if [[ -n "$root_home" ]]; then
+            [[ "$root_home" == "$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}."* ]]
+            [[ -d "$root_home" && ! -L "$root_home" ]]
+            rm -rf -- "$root_home"
+            [[ ! -e "$root_home" && ! -L "$root_home" ]]
+          fi
 
       - name: Emit bounded PRECHECK evidence only after terminal cleanup
         if: ${{ always() }}

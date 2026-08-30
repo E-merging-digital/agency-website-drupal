@@ -178,9 +178,16 @@ def atomic_install(
         )
         return identity
     except BaseException:
-        if linked and identity is not None and path_exists(helper_path):
+        owned_identity = identity
+        if owned_identity is None:
+            try:
+                staged = os.lstat(tmp_path)
+                owned_identity = (staged.st_dev, staged.st_ino)
+            except FileNotFoundError:
+                owned_identity = None
+        if owned_identity is not None and path_exists(helper_path):
             current = os.lstat(helper_path)
-            if (current.st_dev, current.st_ino) == identity:
+            if (current.st_dev, current.st_ino) == owned_identity:
                 os.unlink(helper_path)
         raise
     finally:

@@ -30,11 +30,10 @@ PREPROD_KNOWN_HOSTS_FILE="${PREPROD_KNOWN_HOSTS_FILE:-}"
 [[ -n "$PREPROD_SSH_HOST" ]]
 [[ -n "${RUNNER_TEMP:-}" ]]
 
-expected_key="$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}.key"
-expected_home="$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}"
-expected_known_hosts="$expected_home/.ssh/known_hosts"
-[[ "$PREPROD_PROVISIONING_SSH_KEY" == "$expected_key" ]]
-[[ "$PREPROD_KNOWN_HOSTS_FILE" == "$expected_known_hosts" ]]
+[[ "$PREPROD_PROVISIONING_SSH_KEY" == "$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}."*".key" ]]
+root_home="${PREPROD_KNOWN_HOSTS_FILE%/.ssh/known_hosts}"
+[[ "$root_home" == "$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}."* ]]
+[[ "$PREPROD_KNOWN_HOSTS_FILE" == "$root_home/.ssh/known_hosts" ]]
 [[ -f "$PREPROD_PROVISIONING_SSH_KEY" && ! -L "$PREPROD_PROVISIONING_SSH_KEY" ]]
 [[ -f "$PREPROD_KNOWN_HOSTS_FILE" && ! -L "$PREPROD_KNOWN_HOSTS_FILE" ]]
 test "$(stat -c '%a' "$PREPROD_PROVISIONING_SSH_KEY")" = '600'

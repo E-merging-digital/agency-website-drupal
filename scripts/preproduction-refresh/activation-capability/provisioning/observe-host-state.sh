@@ -108,15 +108,6 @@ emit_path refresh_lock '/run/lock/agency-preprod-refresh.lock'
 emit_path current_release '/var/www/agency-preprod/current'
 emit_path current_web '/var/www/agency-preprod/current/web'
 
-vhost='/etc/nginx/sites-available/agency-preprod'
-if [[ -f "$vhost" && ! -L "$vhost" && -r "$vhost" ]]; then
-  printf '%s\n' \
-    "vhost_server_name_count=$(grep -Fc 'server_name preprod.emergingdigital.be;' "$vhost" || true)" \
-    "vhost_fence_include_count=$(grep -Fc 'include /etc/nginx/snippets/agency-preprod-refresh-fence.conf;' "$vhost" || true)"
-else
-  printf '%s\n' 'vhost_server_name_count=UNAVAILABLE' 'vhost_fence_include_count=UNAVAILABLE'
-fi
-
 current='/var/www/agency-preprod/current'
 if [[ -L "$current" ]]; then
   release_target="$(readlink -f -- "$current" || true)"

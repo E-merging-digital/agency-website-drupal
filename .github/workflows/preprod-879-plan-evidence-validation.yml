@@ -3,6 +3,7 @@ name: "#879 PREPROD provisioning PLAN evidence validation"
 on:
   pull_request:
     paths:
+      - ".github/workflows/preprod-874-capability-provisioning.yml"
       - ".github/workflows/preprod-877-successor-authority-validation.yml"
       - ".github/workflows/preprod-879-plan-evidence-validation.yml"
       - "scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh"
@@ -85,6 +86,72 @@ jobs:
             'METADATA_ONLY_OUTPUT=PASS' \
             'SECRET_VALUE_OUTPUT=ABSENT'
 
+      - name: Prove #881 GitHub-hosted PLAN runner and pinned transient SSH boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preprod-874-capability-provisioning.yml'
+          plan='scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh'
+          trust='scripts/preproduction-ssh-trust/manage-known-host.sh'
+          verify='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          text = Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
+          assert '\n  plan:\n' in text and '\n  apply:\n' in text
+          plan = text.split('\n  plan:\n', 1)[1].split('\n  apply:\n', 1)[0]
+          apply = '  apply:\n' + text.split('\n  apply:\n', 1)[1]
+          assert 'runs-on: ubuntu-24.04' in plan
+          assert 'self-hosted' not in plan
+          assert 'PREPROD_SSH_USER: agency-preprod' in plan
+          assert 'RUNNER_ENVIRONMENT' in plan and 'github-hosted' in plan
+          assert 'RUNNER_OS' in plan and 'Linux' in plan
+          assert 'RUNNER_ARCH' in plan and 'X64' in plan
+          assert 'manage-known-host.sh PROVISION' in plan
+          assert 'verify-preprod-pinned-trust.sh' in plan
+          assert 'runs-on: [self-hosted, linux, x64, agency]' in apply
+          assert "[[ \"$RUNNER_NAME\" == 'agency-browser-runner-01' ]]" in apply
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' in apply
+          assert 'run-apply.sh' in apply
+          assert hashlib.sha256(apply.encode()).hexdigest() == '3ef411d776606ec1fdab04a9ba10995617294789a078330c5dd10c31b215516f'
+          print('PLAN_RUNNER=ubuntu-24.04')
+          print('APPLY_RUNNER_PATH_UNCHANGED=PASS')
+          PY
+          test "$(git rev-parse "HEAD:$trust")" = 'e10f8576b0fb5b6bd47b707fbdddf06a1651ae9f'
+          test "$(git rev-parse "HEAD:$verify")" = '2487aba1cbece4aa00cc77a968e5e34fd48c7c5a'
+          grep -Fq '[[ "${RUNNER_ENVIRONMENT:-}" == '\''github-hosted'\'' ]]' "$plan"
+          grep -Fq '[[ "${RUNNER_OS:-}" == '\''Linux'\'' ]]' "$plan"
+          grep -Fq '[[ "${RUNNER_ARCH:-}" == '\''X64'\'' ]]' "$plan"
+          grep -Fq '[[ "$PREPROD_SSH_KEY" == "$RUNNER_TEMP/"* ]]' "$plan"
+          grep -Fq '[[ "$PREPROD_KNOWN_HOSTS_FILE" == "$RUNNER_TEMP/"* ]]' "$plan"
+          grep -Fq 'StrictHostKeyChecking=yes' "$plan"
+          grep -Fq 'IdentitiesOnly=yes' "$plan"
+          grep -Fq 'BatchMode=yes' "$plan"
+          grep -Fq 'key="$RUNNER_TEMP/agency-874-plan-${GITHUB_RUN_ID}.key"' "$workflow"
+          grep -Fq 'plan_home="$RUNNER_TEMP/agency-874-plan-home-${GITHUB_RUN_ID}"' "$workflow"
+          grep -Fq 'chmod 600 "$AGENCY_874_PLAN_KEY"' "$workflow"
+          grep -Fq 'rm -f -- "$AGENCY_874_PLAN_KEY"' "$workflow"
+          grep -Fq 'rm -rf -- "$AGENCY_874_PLAN_HOME"' "$workflow"
+          ! grep -R -F 'ssh-keyscan' "$workflow" "$plan" "$trust" "$verify"
+          ! grep -R -F 'accept-new' "$workflow" "$plan" "$trust" "$verify"
+          ! grep -R -F 'StrictHostKeyChecking=no' "$workflow" "$plan" "$trust" "$verify"
+          ! grep -Eq '(^|[;&|()[:space:]])(mysqldump|mariadb-dump|mysql|mariadb|scp|rsync)[[:space:]]' "$plan" "$base/observe-host-state.sh"
+          ! grep -Fq 'PROD_SSH' "$plan" "$base/observe-host-state.sh"
+          ! grep -Fq 'PROD_SERVER' "$plan" "$base/observe-host-state.sh"
+          printf '%s\n' \
+            'PINNED_HOST_TRUST=PASS' \
+            'SSH_KEYSCAN=ABSENT' \
+            'TOFU=ABSENT' \
+            'STRICT_HOST_KEY_CHECKING=YES' \
+            'PREPROD_SSH_USER=agency-preprod' \
+            'ROOT_PLAN_EXECUTION=FORBIDDEN' \
+            'PLAN_SUDO_EXECUTION=NONE' \
+            'PLAN_HELPER_EXECUTION=NONE' \
+            'TRANSIENT_PRIVATE_KEY_CLEANUP=PASS' \
+            'EPHEMERAL_KNOWN_HOSTS=PASS' \
+            'OBSERVER_ARGUMENTS=NONE' \
+            'RAW_PROD_DATA_ON_GITHUB_HOSTED=FORBIDDEN'
+
       - name: Preserve #874 implementation and #877 successor authority model
         shell: bash
         run: |
@@ -110,6 +177,7 @@ jobs:
           printf '%s\n' \
             '#874_REGRESSION=PASS' \
             '#877_SUCCESSOR_AUTHORITY_REGRESSION=PASS' \
+            '#879_REGRESSION=PASS' \
             '#876_FUTURE_PLAN_CONTRACT=PASS' \
             'NO_PRIVILEGE_WIDENING=PASS' \
             'NO_HELPER_SEMANTIC_CHANGE=PASS' \

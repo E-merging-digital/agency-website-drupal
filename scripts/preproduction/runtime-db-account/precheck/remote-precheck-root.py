@@ -148,16 +148,7 @@ def atomic_install(
         dir=str(parent),
     )
     tmp_path = Path(tmp_name)
-    try:
-        guard_fd = os.dup(fd)
-    except BaseException:
-        os.close(fd)
-        try:
-            os.unlink(tmp_path)
-        except FileNotFoundError:
-            pass
-        raise
-
+    guard_fd = -1
     try:
         with os.fdopen(fd, "wb") as output, source_helper.open("rb") as source:
             shutil.copyfileobj(source, output, length=1024 * 1024)
@@ -171,7 +162,13 @@ def atomic_install(
         if sha256_file(tmp_path) != expected_digest:
             raise ContractError("Transient helper staged digest mismatch.")
 
+        open_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+        guard_fd = os.open(tmp_path, open_flags)
+        os.set_inheritable(guard_fd, False)
         guard_meta = os.fstat(guard_fd)
+        if not stat.S_ISREG(guard_meta.st_mode):
+            raise ContractError("Transient helper ownership guard type is invalid.")
+
         try:
             os.link(tmp_path, helper_path)
         except FileExistsError as exc:
@@ -188,13 +185,15 @@ def atomic_install(
         return installed_identity[0], installed_identity[1], guard_fd
     except BaseException:
         try:
-            owned = os.fstat(guard_fd)
-            if path_exists(helper_path):
-                current = os.lstat(helper_path)
-                if (current.st_dev, current.st_ino) == (owned.st_dev, owned.st_ino):
-                    os.unlink(helper_path)
+            if guard_fd >= 0:
+                owned = os.fstat(guard_fd)
+                if path_exists(helper_path):
+                    current = os.lstat(helper_path)
+                    if (current.st_dev, current.st_ino) == (owned.st_dev, owned.st_ino):
+                        os.unlink(helper_path)
         finally:
-            os.close(guard_fd)
+            if guard_fd >= 0:
+                os.close(guard_fd)
         raise
     finally:
         try:

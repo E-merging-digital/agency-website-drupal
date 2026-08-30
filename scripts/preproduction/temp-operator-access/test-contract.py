@@ -22,50 +22,51 @@ mod.validate_fixed_key()
 uid = os.geteuid()
 gid = os.getegid()
 
-with tempfile.TemporaryDirectory() as tmp:
-    home = Path(tmp)
+
+def make_valid_tree(home: Path, initial: bytes = b"x\n") -> Path:
+    os.chmod(home, 0o700)
     ssh = home / ".ssh"
     ssh.mkdir(mode=0o700)
     os.chmod(ssh, 0o700)
     auth = ssh / "authorized_keys"
-    original = b"ssh-ed25519 AAAATEST unrelated-one\n# preserved comment\n"
-    auth.write_bytes(original)
+    auth.write_bytes(initial)
     os.chmod(auth, 0o600)
-    before, after = mod.append_exact_key(ssh, auth, uid, gid)
+    return auth
+
+
+with tempfile.TemporaryDirectory() as tmp:
+    home = Path(tmp)
+    original = b"ssh-ed25519 AAAATEST unrelated-one\n# preserved comment\n"
+    auth = make_valid_tree(home, original)
+    before, after = mod.append_exact_key(home, uid, gid)
     assert (before, after) == ("NO", "YES")
     first = auth.read_bytes()
     assert first == original + mod.TEMP_PUBLIC_KEY.encode() + b"\n"
-    before2, after2 = mod.append_exact_key(ssh, auth, uid, gid)
+    before2, after2 = mod.append_exact_key(home, uid, gid)
     assert (before2, after2) == ("YES", "YES")
     assert auth.read_bytes() == first
 
 with tempfile.TemporaryDirectory() as tmp:
     home = Path(tmp)
-    ssh = home / ".ssh"
-    ssh.mkdir(mode=0o700)
-    os.chmod(ssh, 0o700)
+    auth = make_valid_tree(home)
     real = home / "real"
     real.write_text("x\n")
     os.chmod(real, 0o600)
-    auth = ssh / "authorized_keys"
+    auth.unlink()
     auth.symlink_to(real)
     try:
-        mod.append_exact_key(ssh, auth, uid, gid)
-    except mod.ContractError:
+        mod.append_exact_key(home, uid, gid)
+    except (mod.ContractError, OSError):
         pass
     else:
         raise AssertionError("authorized_keys symlink accepted")
 
 with tempfile.TemporaryDirectory() as tmp:
     home = Path(tmp)
-    ssh = home / ".ssh"
-    ssh.mkdir(mode=0o700)
-    os.chmod(ssh, 0o700)
-    auth = ssh / "authorized_keys"
-    auth.write_text("x\n")
+    auth = make_valid_tree(home)
     os.chmod(auth, 0o644)
     try:
-        mod.append_exact_key(ssh, auth, uid, gid)
+        mod.append_exact_key(home, uid, gid)
     except mod.ContractError:
         pass
     else:
@@ -73,6 +74,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
 with tempfile.TemporaryDirectory() as tmp:
     home = Path(tmp)
+    os.chmod(home, 0o700)
     real = home / "realssh"
     real.mkdir(mode=0o700)
     os.chmod(real, 0o700)
@@ -82,16 +84,55 @@ with tempfile.TemporaryDirectory() as tmp:
     ssh = home / ".ssh"
     ssh.symlink_to(real, target_is_directory=True)
     try:
-        mod.append_exact_key(ssh, auth, uid, gid)
-    except mod.ContractError:
+        mod.append_exact_key(home, uid, gid)
+    except (mod.ContractError, OSError):
         pass
     else:
         raise AssertionError(".ssh symlink accepted")
+
+with tempfile.TemporaryDirectory() as tmp:
+    root = Path(tmp)
+    real_home = root / "real-home"
+    real_home.mkdir(mode=0o700)
+    make_valid_tree(real_home)
+    linked_home = root / "linked-home"
+    linked_home.symlink_to(real_home, target_is_directory=True)
+    try:
+        mod.append_exact_key(linked_home, uid, gid)
+    except (mod.ContractError, OSError):
+        pass
+    else:
+        raise AssertionError("home symlink accepted")
+
+with tempfile.TemporaryDirectory() as tmp:
+    home = Path(tmp)
+    make_valid_tree(home)
+    os.chmod(home, 0o770)
+    try:
+        mod.append_exact_key(home, uid, gid)
+    except mod.ContractError:
+        pass
+    else:
+        raise AssertionError("group-writable home accepted")
+
+with tempfile.TemporaryDirectory() as tmp:
+    home = Path(tmp)
+    auth = make_valid_tree(home)
+    hardlink = home / ".ssh" / "authorized_keys.alias"
+    os.link(auth, hardlink)
+    try:
+        mod.append_exact_key(home, uid, gid)
+    except mod.ContractError:
+        pass
+    else:
+        raise AssertionError("hard-linked authorized_keys accepted")
 
 source = REMOTE.read_text()
 assert "len(sys.argv) != 1" in source
 assert "--key" not in source and "PUBLIC_KEY=" not in source
 assert "REMOVE" not in source
+assert "O_DIRECTORY" in source and "O_NOFOLLOW" in source
+assert "dir_fd=home_fd" in source and "dir_fd=ssh_fd" in source
 
 print("FIXED_USER_TEST=PASS")
 print("FIXED_PATH_TEST=PASS")
@@ -101,3 +142,5 @@ print("ARBITRARY_KEY_REJECTION=PASS")
 print("AUTHORIZED_KEYS_PRESERVATION=PASS")
 print("IDEMPOTENT_ADD=PASS")
 print("SYMLINK_UNEXPECTED_STATE_FAIL_CLOSED=PASS")
+print("HOME_PATH_COMPONENT_GUARD=PASS")
+print("AUTHORIZED_KEYS_HARDLINK_REJECTION=PASS")

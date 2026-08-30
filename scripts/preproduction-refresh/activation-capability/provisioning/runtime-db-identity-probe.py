@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,9 @@ SAFE_DB_NAME = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 
 OBSERVED = "OBSERVED"
 RELEASE_UNAVAILABLE = "RELEASE_UNAVAILABLE"
+RELEASE_ACCESS_FAILED = "RELEASE_ACCESS_FAILED"
 DRUSH_MISSING = "DRUSH_MISSING"
+DRUSH_ACCESS_FAILED = "DRUSH_ACCESS_FAILED"
 DRUSH_NOT_EXECUTABLE = "DRUSH_NOT_EXECUTABLE"
 DRUSH_EXEC_FAILED = "DRUSH_EXEC_FAILED"
 DRUSH_FAILED = "DRUSH_FAILED"
@@ -33,6 +36,27 @@ def precondition_state(
     if not drush_exists:
         return DRUSH_MISSING, NOT_RUN, "NONE"
     if not drush_executable:
+        return DRUSH_NOT_EXECUTABLE, NOT_RUN, "NONE"
+    return None
+
+
+def inspect_runtime_preconditions() -> tuple[str, str, str] | None:
+    try:
+        current_stat = CURRENT.lstat()
+    except FileNotFoundError:
+        return RELEASE_UNAVAILABLE, NOT_RUN, "NONE"
+    except OSError:
+        return RELEASE_ACCESS_FAILED, NOT_RUN, "NONE"
+    if not stat.S_ISLNK(current_stat.st_mode):
+        return RELEASE_UNAVAILABLE, NOT_RUN, "NONE"
+
+    try:
+        DRUSH.stat()
+    except FileNotFoundError:
+        return DRUSH_MISSING, NOT_RUN, "NONE"
+    except OSError:
+        return DRUSH_ACCESS_FAILED, NOT_RUN, "NONE"
+    if not os.access(DRUSH, os.X_OK):
         return DRUSH_NOT_EXECUTABLE, NOT_RUN, "NONE"
     return None
 
@@ -66,11 +90,7 @@ def classify_command_result(returncode: int, stdout: bytes) -> tuple[str, str, s
 
 
 def probe_runtime() -> tuple[str, str, str]:
-    precondition = precondition_state(
-        current_is_symlink=CURRENT.is_symlink(),
-        drush_exists=DRUSH.exists(),
-        drush_executable=os.access(DRUSH, os.X_OK),
-    )
+    precondition = inspect_runtime_preconditions()
     if precondition is not None:
         return precondition
 

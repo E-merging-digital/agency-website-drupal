@@ -1,0 +1,227 @@
+name: "#895 Governed transient PREPROD runtime DB PRECHECK"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-preprod-895-runtime-db-precheck
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate successor authority for transient runtime DB PRECHECK
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        startsWith(github.event.comment.body, '/agency-preprod-runtime-db-precheck ')
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      request_id: ${{ steps.authority.outputs.request_id }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      operation_profile: ${{ steps.authority.outputs.operation_profile }}
+      authority_issue: ${{ steps.authority.outputs.authority_issue }}
+    steps:
+      - name: Resolve exact live main
+        id: live
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live_main" =~ ^[0-9a-f]{40}$ ]]
+          echo "main_sha=$live_main" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.live.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate owner, successor marker, exact main and one-shot request
+        id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHORITY_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LIVE_MAIN: ${{ steps.live.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$AUTHORITY_ISSUE_NUMBER" =~ ^[0-9]+$ ]]
+          issue_json="$RUNNER_TEMP/agency-895-authority-issue.json"
+          comments_json="$RUNNER_TEMP/agency-895-authority-comments.json"
+          gh api "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER" > "$issue_json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" \
+            > "$comments_json"
+          python3 scripts/preproduction/runtime-db-account/precheck/validate-successor-authority.py \
+            --issue-json "$issue_json" \
+            --comments-json "$comments_json" \
+            --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --event-action "$EVENT_ACTION" \
+            --github-actor "$GITHUB_ACTOR" \
+            --comment-author "$COMMENT_AUTHOR" \
+            --comment-body "$COMMENT_BODY" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --live-main "$LIVE_MAIN" \
+            --github-output "$GITHUB_OUTPUT"
+          rm -f -- "$issue_json" "$comments_json"
+
+      - name: Bind #895 implementation profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile='scripts/preproduction/runtime-db-account/precheck/profile.json'
+          jq -e '
+            .issue_number == 895 and
+            .profile_id == "agency-preprod-runtime-db-precheck-v1" and
+            .implementation_only == true and
+            .future_execution.requires_successor_issue == true and
+            .future_execution.action == "PRECHECK" and
+            .future_execution.sudoers_install == "NONE" and
+            .boundaries.data_activation_authority == "DISABLED"
+          ' "$profile" >/dev/null
+          test "${{ steps.authority.outputs.implementation_issue }}" = '895'
+          test "${{ steps.authority.outputs.authority_issue }}" != '895'
+
+  precheck:
+    name: Transient root-only metadata PRECHECK
+    needs: validate-authority
+    runs-on: [self-hosted, linux, x64, agency]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Configure transient root identity and pinned PREPROD trust
+        id: setup
+        shell: bash
+        env:
+          PROVISIONING_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]]
+          [[ "$RUNNER_OS" == 'Linux' ]]
+          [[ "$RUNNER_ARCH" == 'X64' ]]
+          test -n "$PROVISIONING_PRIVATE_KEY"
+          test -n "$PREPROD_SSH_HOST"
+
+          key="$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}.key"
+          root_home="$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}"
+          echo "AGENCY_895_ROOT_KEY=$key" >> "$GITHUB_ENV"
+          echo "AGENCY_895_ROOT_HOME=$root_home" >> "$GITHUB_ENV"
+
+          [[ ! -e "$key" && ! -L "$key" ]]
+          [[ ! -e "$root_home" && ! -L "$root_home" ]]
+          umask 077
+          mkdir -m 700 -- "$root_home"
+          printf '%s\n' "$PROVISIONING_PRIVATE_KEY" > "$key"
+          chmod 600 "$key"
+          test "$(stat -c '%a' "$key")" = '600'
+
+          HOME="$root_home" \
+          PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+          known_hosts="$root_home/.ssh/known_hosts"
+          [[ -f "$known_hosts" && ! -L "$known_hosts" ]]
+          test "$(stat -c '%a' "$known_hosts")" = '600'
+          HOME="$root_home" \
+          PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
+          PREPROD_KNOWN_HOSTS_FILE="$known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+
+      - name: Execute fixed transient PRECHECK route
+        id: execute
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          export PREPROD_PROVISIONING_SSH_KEY="$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}.key"
+          export PREPROD_KNOWN_HOSTS_FILE="$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}/.ssh/known_hosts"
+          bash scripts/preproduction/runtime-db-account/precheck/run-precheck.sh
+
+      - name: Remove transient root identity and trust
+        id: cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/agency-895-root-${GITHUB_RUN_ID}.key"
+          root_home="$RUNNER_TEMP/agency-895-root-home-${GITHUB_RUN_ID}"
+          rm -f -- "$key"
+          rm -rf -- "$root_home"
+          [[ ! -e "$key" && ! -L "$key" ]]
+          [[ ! -e "$root_home" && ! -L "$root_home" ]]
+
+      - name: Emit bounded PRECHECK evidence only after terminal cleanup
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SETUP_OUTCOME: ${{ steps.setup.outcome }}
+          EXECUTE_OUTCOME: ${{ steps.execute.outcome }}
+          CLEANUP_OUTCOME: ${{ steps.cleanup.outcome }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/agency-895-precheck-${GITHUB_RUN_ID}.evidence"
+          status="$RUNNER_TEMP/agency-895-precheck-${GITHUB_RUN_ID}.status"
+
+          [[ "$SETUP_OUTCOME" == 'success' ]]
+          [[ "$EXECUTE_OUTCOME" == 'success' ]]
+          [[ "$CLEANUP_OUTCOME" == 'success' ]]
+          [[ -f "$evidence" && ! -L "$evidence" ]]
+          [[ -f "$status" && ! -L "$status" ]]
+          test "$(stat -c '%a' "$evidence")" = '600'
+          test "$(stat -c '%a' "$status")" = '600'
+
+          precheck_rc="$(tr -d '\r\n' < "$status")"
+          [[ "$precheck_rc" == '0' || "$precheck_rc" == '1' ]]
+
+          bounded="$(cat "$evidence")"
+          rm -f -- "$evidence" "$status"
+
+          python3 - "$bounded" <<'PY'
+          import sys
+
+          raw = sys.argv[1]
+          fields = (
+              "TARGET_DATABASE_PRESENT",
+              "ACCOUNT_127_PRESENT",
+              "ACCOUNT_LOCALHOST_PRESENT",
+              "EXPECTED_DB_GRANT",
+              "RUNTIME_ACCOUNT_STATE",
+          )
+          lines = raw.splitlines()
+          if len(lines) != len(fields):
+              raise SystemExit(1)
+          for expected, line in zip(fields, lines, strict=True):
+              if not line.startswith(expected + "="):
+                  raise SystemExit(1)
+          print(raw)
+          PY
+
+          exit "$precheck_rc"

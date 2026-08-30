@@ -1,0 +1,138 @@
+name: "#895 transient runtime DB PRECHECK validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-895-runtime-db-precheck.yml"
+      - ".github/workflows/preprod-895-runtime-db-precheck-validation.yml"
+      - "scripts/preproduction/runtime-db-account/**"
+      - "docs/operations/preproduction-runtime-db-precheck.md"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: "#895 bounded transient PRECHECK contract"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate syntax and synthetic #895 matrices
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction/runtime-db-account/precheck'
+          bash -n "$base/run-precheck.sh"
+          python3 -m py_compile \
+            "$base/validate-successor-authority.py" \
+            "$base/remote-precheck-root.py" \
+            "$base/test-authority.py" \
+            "$base/test-contract.py"
+          python3 "$base/test-authority.py"
+          python3 "$base/test-contract.py"
+
+      - name: Prove workflow action and root surface are structurally fixed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          workflow = Path('.github/workflows/preprod-895-runtime-db-precheck.yml').read_text()
+          runner = Path('scripts/preproduction/runtime-db-account/precheck/run-precheck.sh').read_text()
+          remote = Path('scripts/preproduction/runtime-db-account/precheck/remote-precheck-root.py').read_text()
+          profile = json.loads(Path(
+              'scripts/preproduction/runtime-db-account/precheck/profile.json'
+          ).read_text())
+
+          assert 'runs-on: [self-hosted, linux, x64, agency]' in workflow
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' in workflow
+          assert "agency-browser-runner-01" in workflow
+          assert 'actions/checkout@v6' in workflow
+          assert "ref: ${{ steps.live.outputs.main_sha }}" in workflow
+          assert "ref: ${{ needs.validate-authority.outputs.main_sha }}" in workflow
+          assert 'persist-credentials: false' in workflow
+          assert 'run_attempt' in Path(
+              'scripts/preproduction/runtime-db-account/precheck/validate-successor-authority.py'
+          ).read_text()
+          assert profile['future_execution']['action'] == 'PRECHECK'
+          assert profile['future_execution']['sudoers_install'] == 'NONE'
+
+          route = workflow + runner + remote
+          assert 'StrictHostKeyChecking=no' not in route
+          assert 'ssh-keyscan' not in route
+          assert '/etc/sudoers.d' not in route
+          assert 'agency-preprod-runtime-db-account.sudoers' not in route
+          assert 'DB_PASSWORD' not in route
+          assert 'runtime.env' not in route
+          assert '/usr/bin/mariadb' not in route
+          assert 'shell=True' not in remote
+          assert 'os.system(' not in remote
+          assert '"APPLY"' not in remote
+          assert '"VERIFY"' not in remote
+          assert ' APPLY ' not in runner
+          assert ' VERIFY ' not in runner
+          assert 'ACTION=' not in runner
+          for statement in ('CREATE USER', 'ALTER USER', 'DROP USER', 'GRANT ALL', 'REVOKE ALL'):
+              assert statement not in route
+          print('EXACT_TRUSTED_MAIN=REQUIRED')
+          print('FUTURE_RUNNER=[self-hosted,linux,x64,agency]')
+          print('ROOT_PROVISIONING_IDENTITY=TRANSIENT_GOVERNED')
+          print('PINNED_HOST_TRUST=PRESERVED')
+          print('SUDOERS_INSTALL=NONE')
+          print('PRECHECK_ONLY=YES')
+          print('APPLY_REACHABLE=NO')
+          print('VERIFY_REACHABLE=NO')
+          print('MARIADB_MUTATION_PATH=NONE')
+          PY
+
+      - name: Preserve #849, #891, #887, #889, #874 and #876 boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          refresh='scripts/preproduction-refresh/activation-capability'
+          provisioning="$refresh/provisioning"
+
+          test "$(git rev-parse HEAD:scripts/preproduction-staging-import/privileged/agency-preprod-staging-db)" = \
+            'cd8e5a5dea9ab3ef45a7f9753af5933f4156c9db'
+          test "$(git rev-parse HEAD:$provisioning/runtime-db-identity-probe.py)" = \
+            'c123a68ec845ae65dfa66cec6b4ec9e7e361b3de'
+          test "$(git rev-parse HEAD:$provisioning/agency-preprod-refresh-control.sudoers)" = \
+            '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
+          test "$(git rev-parse HEAD:$provisioning/nginx-vhost-selector.py)" = \
+            'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
+          test "$(git rev-parse HEAD:$provisioning/run-plan.sh)" = \
+            '7f9fe7547894754ad008358a9792cf186ef3c209'
+          test "$(git rev-parse HEAD:.github/workflows/preprod-874-capability-provisioning.yml)" = \
+            'bf20a2767c28865bcbd53935b2df0628e5318fe1'
+          test "$(git rev-parse HEAD:$provisioning/validate-successor-authority.py)" = \
+            '183af3ec4276cb7b5c87217fbe8b96ef1ff8afb6'
+
+          python3 scripts/preproduction-staging-import/privileged/test-contract.py >/dev/null
+          python3 "$provisioning/test-runtime-db-identity-probe.py" >/dev/null
+          python3 "$provisioning/test-plan-evidence.py" >/dev/null
+          python3 "$provisioning/test-nginx-vhost-selector.py" >/dev/null
+
+          jq -e '
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.issue_874_grants_activation_authority == false
+          ' "$refresh/profile.json" >/dev/null
+
+          printf '%s\n' \
+            '#849_STAGING_ONLY=PRESERVED' \
+            '#891_FAIL_CLOSED=PRESERVED' \
+            '#887=PRESERVED' \
+            '#889=PRESERVED' \
+            '#874_AUTHORITY=NOT_WIDENED' \
+            '#876_AUTHORITY=UNCHANGED' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED' \
+            'REAL_PREPROD_EXECUTION=NONE' \
+            'REAL_PROD_ACCESS=NONE'

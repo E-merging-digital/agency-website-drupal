@@ -119,20 +119,8 @@ else
   printf '%s\n' 'runtime_release_target_sha256=NONE' 'runtime_release_name=NONE'
 fi
 
-runtime_db_state='UNAVAILABLE'
-runtime_db_name='NONE'
-if [[ -L "$current" && -x "$current/vendor/bin/drush" ]]; then
-  set +e
-  runtime_db_name="$( (cd "$current" && "$current/vendor/bin/drush" --quiet status --field=db-name) 2>/dev/null | tr -d '\r\n')"
-  db_rc=$?
-  set -e
-  if [[ "$db_rc" -eq 0 && "$runtime_db_name" =~ ^[A-Za-z0-9_]+$ ]]; then
-    runtime_db_state='OBSERVED'
-  else
-    runtime_db_name='NONE'
-  fi
-fi
-printf '%s\n' "runtime_db_name_state=$runtime_db_state" "runtime_db_name=$runtime_db_name"
+# Runtime DB identity is intentionally emitted by the separate fixed
+# runtime-db-identity-probe.py so unavailable reasons cannot collapse to NONE.
 
 printf '%s\n' \
   'PLAN_MUTATION=NONE' \

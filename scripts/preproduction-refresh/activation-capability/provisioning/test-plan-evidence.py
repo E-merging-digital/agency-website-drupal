@@ -28,6 +28,7 @@ EXPECTED = {
         "observer": H("observer"),
         "evaluator": H("evaluator"),
         "vhost_selector": H("vhost-selector"),
+        "runtime_db_probe": H("runtime-db-probe"),
     },
     "staging": {
         "staging_helper": H("staging-helper"),
@@ -106,7 +107,9 @@ def base_obs():
         "vhost_total_fence_include_count": "1",
         "runtime_release_target_sha256": H("/var/www/agency-preprod/releases/20260829010000-234760742223"),
         "runtime_release_name": "20260829010000-234760742223",
-        "runtime_db_name_state": "OBSERVED",
+        "runtime_db_probe_schema": "1",
+        "runtime_db_probe_state": "OBSERVED",
+        "runtime_db_probe_exit_class": "ZERO",
         "runtime_db_name": "agency_preprod",
         "PLAN_MUTATION": "NONE",
         "HELPER_EXECUTION": "NONE",
@@ -139,6 +142,54 @@ def expect_error(obs, needle):
         assert needle in str(exc), (needle, str(exc))
         return
     raise AssertionError(f"expected EvidenceError containing {needle!r}")
+
+
+def test_runtime_db_exact_and_mismatch():
+    result = mod.evaluate(base_obs(), EXPECTED)
+    assert result["RUNTIME_DATABASE_PROBE_STATE"] == "OBSERVED"
+    assert result["RUNTIME_DATABASE_PROBE_EXIT_CLASS"] == "ZERO"
+    assert result["RUNTIME_DATABASE_IDENTITY"] == "agency_preprod"
+    print("#891_A_EXPECTED_DB=PASS")
+
+    obs = base_obs()
+    obs["runtime_db_name"] = "different_preprod"
+    expect_error(obs, "runtime database identity mismatch")
+    print("#891_B_SAFE_RUNTIME_DB_MISMATCH=FAIL_CLOSED")
+
+
+def test_runtime_db_unavailable_reasons():
+    cases = {
+        "DRUSH_MISSING": "NOT_RUN",
+        "DRUSH_NOT_EXECUTABLE": "NOT_RUN",
+        "DRUSH_EXEC_FAILED": "NOT_RUN",
+        "DRUSH_FAILED": "NONZERO",
+        "OUTPUT_EMPTY": "ZERO",
+        "OUTPUT_INVALID": "ZERO",
+        "RELEASE_UNAVAILABLE": "NOT_RUN",
+    }
+    for state, exit_class in cases.items():
+        obs = base_obs()
+        obs["runtime_db_probe_state"] = state
+        obs["runtime_db_probe_exit_class"] = exit_class
+        obs["runtime_db_name"] = "NONE"
+        expect_error(obs, f"runtime database identity probe unavailable: {state}")
+    print("#891_C_G_BOUNDED_UNAVAILABLE_REASONS=FAIL_CLOSED")
+
+
+def test_runtime_db_probe_shape_fails_closed():
+    obs = base_obs()
+    obs["runtime_db_probe_schema"] = "2"
+    expect_error(obs, "runtime database probe schema mismatch")
+
+    obs = base_obs()
+    obs["runtime_db_probe_state"] = "OBSERVED"
+    obs["runtime_db_probe_exit_class"] = "NONZERO"
+    expect_error(obs, "runtime database probe evidence inconsistent")
+
+    obs = base_obs()
+    obs["runtime_db_name"] = "unsafe-name"
+    expect_error(obs, "unsafe runtime database identity observation")
+    print("#891_DB_PROBE_EVIDENCE_SHAPE=FAIL_CLOSED")
 
 
 def test_searchable_absent_clean_install():
@@ -310,6 +361,9 @@ def test_metadata_only():
 
 
 def main():
+    test_runtime_db_exact_and_mismatch()
+    test_runtime_db_unavailable_reasons()
+    test_runtime_db_probe_shape_fails_closed()
     test_searchable_absent_clean_install()
     test_searchable_exact_noop_with_certbot_topology()
     test_searchable_sudoers_drift()
@@ -323,6 +377,7 @@ def main():
     test_metadata_only()
     print("#887_REAL_R4_SUDOERS_DIR_SEARCHABLE_NO=PASS")
     print("#889_REAL_R5_HOSTNAME_COUNT_NOT_EQUAL_ONE=PASS")
+    print("#891_R6_DB_IDENTITY_DIAGNOSTIC_MODEL=PASS")
     print("#876_FUTURE_PLAN_CONTRACT=PASS")
     print("#879_PLAN_EVIDENCE_MATRIX=PASS")
 

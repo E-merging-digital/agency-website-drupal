@@ -27,18 +27,33 @@ VHOST_COUNT_KEYS = (
     "vhost_application_fence_include_count",
     "vhost_total_fence_include_count",
 )
+RUNTIME_DB_PROBE_STATES = {
+    "OBSERVED",
+    "RELEASE_UNAVAILABLE",
+    "RELEASE_ACCESS_FAILED",
+    "DRUSH_MISSING",
+    "DRUSH_ACCESS_FAILED",
+    "DRUSH_NOT_EXECUTABLE",
+    "DRUSH_EXEC_FAILED",
+    "DRUSH_FAILED",
+    "OUTPUT_EMPTY",
+    "OUTPUT_INVALID",
+}
+RUNTIME_DB_EXIT_CLASSES = {"ZERO", "NONZERO", "NOT_RUN"}
 TOP_LEVEL = {
     "observer_schema", "execution_uid", "execution_gid", "execution_user_sha256",
     "host_identity_sha256", "sudoers_dir_searchable", "state_dir_searchable",
     "vhost_selector_schema", *VHOST_COUNT_KEYS,
     "runtime_release_target_sha256", "runtime_release_name",
-    "runtime_db_name_state", "runtime_db_name",
+    "runtime_db_probe_schema", "runtime_db_probe_state",
+    "runtime_db_probe_exit_class", "runtime_db_name",
     "PLAN_MUTATION", "HELPER_EXECUTION", "SUDO_EXECUTION", "PROD_ACCESS",
     "PREPROD_DB_MUTATION", "PREPROD_BACKUP", "FENCE_MUTATION", "NGINX_MUTATION",
 }
 ALLOWED_KEYS = TOP_LEVEL | {f"{item}.{field}" for item in ITEMS for field in FIELDS}
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
+SAFE_DB_NAME = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 RELEASE_NAME = re.compile(r"^[0-9]{14}-[0-9a-f]{12}$")
 UNOBSERVABLE = "UNOBSERVABLE_UNPRIVILEGED"
 
@@ -120,6 +135,7 @@ def build_expected(repo_root: Path) -> dict:
     source_digests["observer"] = sha256_file(provisioning / "observe-host-state.sh")
     source_digests["evaluator"] = sha256_file(provisioning / "evaluate-plan-evidence.py")
     source_digests["vhost_selector"] = sha256_file(provisioning / "nginx-vhost-selector.py")
+    source_digests["runtime_db_probe"] = sha256_file(provisioning / "runtime-db-identity-probe.py")
 
     return {
         "source_digests": source_digests,
@@ -169,6 +185,36 @@ def bounded_count(obs: dict[str, str], key: str) -> int:
     return count
 
 
+def validate_runtime_db_probe_shape(obs: dict[str, str]) -> None:
+    if obs["runtime_db_probe_schema"] != "1":
+        raise EvidenceError("runtime database probe schema mismatch")
+
+    state = obs["runtime_db_probe_state"]
+    exit_class = obs["runtime_db_probe_exit_class"]
+    db_name = obs["runtime_db_name"]
+    if state not in RUNTIME_DB_PROBE_STATES:
+        raise EvidenceError("invalid runtime database probe state")
+    if exit_class not in RUNTIME_DB_EXIT_CLASSES:
+        raise EvidenceError("invalid runtime database probe exit class")
+    if db_name != "NONE" and not SAFE_DB_NAME.fullmatch(db_name):
+        raise EvidenceError("unsafe runtime database identity observation")
+
+    if state == "OBSERVED":
+        if exit_class != "ZERO" or db_name == "NONE":
+            raise EvidenceError("runtime database probe evidence inconsistent")
+        return
+    if state == "DRUSH_FAILED":
+        if exit_class != "NONZERO" or db_name != "NONE":
+            raise EvidenceError("runtime database probe evidence inconsistent")
+        return
+    if state in {"OUTPUT_EMPTY", "OUTPUT_INVALID"}:
+        if exit_class != "ZERO" or db_name != "NONE":
+            raise EvidenceError("runtime database probe evidence inconsistent")
+        return
+    if exit_class != "NOT_RUN" or db_name != "NONE":
+        raise EvidenceError("runtime database probe evidence inconsistent")
+
+
 def validate_metadata_shape(obs: dict[str, str]) -> None:
     if obs["observer_schema"] != "2":
         raise EvidenceError("observer schema mismatch")
@@ -176,6 +222,7 @@ def validate_metadata_shape(obs: dict[str, str]) -> None:
         raise EvidenceError("vhost selector schema mismatch")
     for key in VHOST_COUNT_KEYS:
         bounded_count(obs, key)
+    validate_runtime_db_probe_shape(obs)
     for key in ("host_identity_sha256", "execution_user_sha256", "runtime_release_target_sha256"):
         if obs[key] != "NONE" and not HEX64.fullmatch(obs[key]):
             raise EvidenceError(f"invalid digest-shaped metadata: {key}")
@@ -273,8 +320,14 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
         raise EvidenceError("runtime release identity unavailable or unsafe")
     if item(obs, "current_web", "type") != "DIRECTORY":
         raise EvidenceError("runtime web root unavailable")
-    if obs["runtime_db_name_state"] != "OBSERVED" or obs["runtime_db_name"] != expected["runtime_db"]:
-        raise EvidenceError("fixed runtime database identity not proven")
+
+    runtime_db_probe_state = obs["runtime_db_probe_state"]
+    if runtime_db_probe_state != "OBSERVED":
+        raise EvidenceError(
+            f"runtime database identity probe unavailable: {runtime_db_probe_state}"
+        )
+    if obs["runtime_db_name"] != expected["runtime_db"]:
+        raise EvidenceError("runtime database identity mismatch")
 
     drift: list[str] = []
     missing: list[str] = []
@@ -355,7 +408,7 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
 
     source = expected["source_digests"]
     result = {
-        "PLAN_EVIDENCE_MODEL": "READ_ONLY_FIXED_PATH_METADATA_V3_SEMANTIC_VHOST",
+        "PLAN_EVIDENCE_MODEL": "READ_ONLY_FIXED_PATH_METADATA_V4_BOUNDED_RUNTIME_DB_PROBE",
         "FUTURE_APPLY_CLASSIFICATION": classification,
         "FUTURE_APPLY_MUTATION_INVENTORY": ";".join(mutations),
         "FUTURE_APPLY_ROLLBACK_INVENTORY": ";".join(rollback),
@@ -363,6 +416,8 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
         "SUDOERS_OBSERVABILITY": UNOBSERVABLE if sudoers_unobservable else "OBSERVABLE_UNPRIVILEGED",
         "PREPROD_EXECUTION_SURFACE_IDENTITY": obs["host_identity_sha256"],
         "RUNTIME_RELEASE_IDENTITY": obs["runtime_release_name"],
+        "RUNTIME_DATABASE_PROBE_STATE": runtime_db_probe_state,
+        "RUNTIME_DATABASE_PROBE_EXIT_CLASS": obs["runtime_db_probe_exit_class"],
         "RUNTIME_DATABASE_IDENTITY": obs["runtime_db_name"],
         "DEPLOY_LOCK_STATE": item(obs, "deploy_lock", "state") + "/" + item(obs, "deploy_lock", "type"),
         "REFRESH_LOCK_STATE": item(obs, "refresh_lock", "state") + "/" + item(obs, "refresh_lock", "type"),
@@ -374,7 +429,7 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
         "DATA_ACTIVATION_AUTHORITY_AFTER_APPLY": "DISABLED",
         "PROVISIONING_PROFILE_DIGEST": source["provisioning_profile"],
         "PINNED_SOURCE_BUNDLE_DIGESTS": ",".join(f"{k}:{source[k]}" for k in sorted(source) if k not in {"provisioning_profile", "observer", "evaluator"}),
-        "HOST_METADATA_FIELDS": "presence,type,owner,group,mode,digest_state,sha256,release_identity,runtime_db_identity,lock_state,bounded_vhost_topology_counts",
+        "HOST_METADATA_FIELDS": "presence,type,owner,group,mode,digest_state,sha256,release_identity,runtime_db_probe_state,runtime_db_identity,lock_state,bounded_vhost_topology_counts",
         "PLAN_MUTATION": "NONE",
         "HELPER_EXECUTION": "NONE",
         "SUDO_EXECUTION": "NONE",

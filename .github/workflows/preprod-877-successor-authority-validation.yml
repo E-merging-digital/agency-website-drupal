@@ -63,7 +63,7 @@ jobs:
           test "$(git rev-parse "HEAD:$base/provisioning/profile.json")" = '6103f8f316771d837652a7758af35a89291cee1b'
           test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = 'a0e6b46ed1e3cee89c591007fae6c447f4736bb3'
           test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '79d698cff3ad5f8de4db8da5ba669119d84caa51'
-          test "$(git rev-parse "HEAD:$base/provisioning/run-plan.sh")" = '2fa7589debe28e16ca8b75e89880b28105ce9bc0'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-plan.sh")" = 'b3f7fa7bece7f71b4515c8882d3b3328f9fd6f24'
           jq -e '
             .issue_number == 874 and
             .parent_issue == 816 and

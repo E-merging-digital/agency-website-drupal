@@ -8,7 +8,7 @@ PROFILE="$BASE/provisioning/profile.json"
 CAPABILITY_PROFILE="$BASE/profile.json"
 BUNDLE="$BASE/bundle.json"
 VHOST_SELECTOR="$BASE/provisioning/nginx-vhost-selector.py"
-VHOST_SELECTOR_SHA256='e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
+VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
 TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 REQUEST_ID="${REQUEST_ID:-}"
 REPOSITORY_SHA="${REPOSITORY_SHA:-}"
@@ -25,7 +25,7 @@ test "$(git rev-parse HEAD)" = "$REPOSITORY_SHA"
 for path in "$REMOTE" "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$VHOST_SELECTOR" "$BASE/agency-preprod-refresh-control" "$BASE/side_effect_hardening.py" "$BASE/runtime_state_digest.py" "$BASE/data-activation-authority.disabled.json" "$BASE/nginx/agency-preprod-refresh-fence.conf" "$BASE/nginx/agency-preprod-refresh-internal-readiness.conf" "$BASE/provisioning/agency-preprod-refresh-control.sudoers"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
-[[ "$(sha256sum "$VHOST_SELECTOR" | awk '{print $1}')" == "$VHOST_SELECTOR_SHA256" ]]
+[[ "$(git rev-parse "HEAD:$VHOST_SELECTOR")" == "$VHOST_SELECTOR_BLOB" ]]
 for pair in \
   "helper:$BASE/agency-preprod-refresh-control" \
   "side_effect_hardening:$BASE/side_effect_hardening.py" \

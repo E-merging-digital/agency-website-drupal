@@ -63,7 +63,7 @@
       "owner": "root",
       "group": "root",
       "mode": "0755",
-      "sha256": "eebbad2f5a3179838b3b4a7d89377e50519d73df40e88338211de6a7991f7ed2"
+      "sha256": "2cebfb459bf66e27a819e8ba580ebd6f2bddac08ce2c317f7746c71616a01db1"
     },
     "sudoers": {
       "path": "/etc/sudoers.d/agency-preprod-runtime-db-account",

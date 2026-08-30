@@ -103,6 +103,41 @@ assert missing_db["RUNTIME_ACCOUNT_STATE"] == "UNSAFE"
 unexpected_host = module.classify(True, ("127.0.0.1", "10.0.0.5"), True)
 assert unexpected_host["RUNTIME_ACCOUNT_STATE"] == "UNSAFE"
 
+# Exact grant proof cannot hide global privileges or a global grant option.
+usage = (
+    module.EXPECTED_USAGE_PREFIX
+    + " IDENTIFIED BY PASSWORD '*SYNTHETIC_NOT_A_SECRET'"
+)
+original_root_sql = module.root_sql
+try:
+    module.root_sql = lambda _query: usage + "\n" + module.EXPECTED_DB_GRANT
+    assert module.expected_grant_exact() is True
+
+    module.root_sql = lambda _query: (
+        usage
+        + " WITH GRANT OPTION\n"
+        + module.EXPECTED_DB_GRANT
+    )
+    assert module.expected_grant_exact() is False
+
+    module.root_sql = lambda _query: (
+        usage
+        + "\nGRANT SELECT ON *.* TO `agency_preprod`@`127.0.0.1`"
+        + "\n"
+        + module.EXPECTED_DB_GRANT
+    )
+    assert module.expected_grant_exact() is False
+
+    module.root_sql = lambda _query: (
+        usage
+        + "\n"
+        + module.EXPECTED_DB_GRANT
+        + "\nGRANT `unexpected_role` TO `agency_preprod`@`127.0.0.1`"
+    )
+    assert module.expected_grant_exact() is False
+finally:
+    module.root_sql = original_root_sql
+
 # Caller cannot supply SQL, target, secret, path, command, or executable.
 assert "len(sys.argv) != 2" in source
 for forbidden in (
@@ -125,6 +160,8 @@ for forbidden in (
 assert "read_runtime_password()" in source
 assert 're.fullmatch(r"[0-9a-f]{64}", values[0])' in source
 assert "stderr=subprocess.DEVNULL" in source
+assert 'if len(lines) != 2 or EXPECTED_DB_GRANT not in lines:' in source
+assert 'if " WITH GRANT OPTION" in usage:' in source
 assert "password = \"\"" in source
 assert "print(password" not in source
 assert "print(query" not in source
@@ -192,6 +229,8 @@ assert 'expect_error(obs, f"runtime database identity probe unavailable: {state}
 print("FRESH_BOOTSTRAP_TCP_LOOPBACK=PASS")
 print("LOCALHOST_ONLY=INSUFFICIENT")
 print("WILDCARD_ACCOUNT=FORBIDDEN")
+print("GLOBAL_RUNTIME_GRANT=NOT_EXACT")
+print("GLOBAL_GRANT_OPTION=NOT_EXACT")
 print("RUNTIME_GRANT_SCOPE=agency_preprod.*")
 print("#849_RUNTIME_TARGET=FORBIDDEN")
 print("CAPABILITY_ACTIONS=PRECHECK,APPLY,VERIFY")

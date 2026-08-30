@@ -104,7 +104,7 @@ jobs:
     name: Mutation-free PREPROD capability provisioning PLAN
     needs: validate-authority
     if: ${{ needs.validate-authority.outputs.mode == 'plan' }}
-    runs-on: [self-hosted, linux, x64, agency]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -122,12 +122,40 @@ jobs:
           PREPROD_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]]
+          [[ "$RUNNER_OS" == 'Linux' ]]
+          [[ "$RUNNER_ARCH" == 'X64' ]]
+          [[ "$RUNNER_ENVIRONMENT" == 'github-hosted' ]]
           test -n "$PREPROD_PRIVATE_KEY"
           key="$RUNNER_TEMP/agency-874-plan-${GITHUB_RUN_ID}.key"
-          printf '%s\n' "$PREPROD_PRIVATE_KEY" > "$key"
-          chmod 600 "$key"
+          plan_home="$RUNNER_TEMP/agency-874-plan-home-${GITHUB_RUN_ID}"
           echo "AGENCY_874_PLAN_KEY=$key" >> "$GITHUB_ENV"
+          echo "AGENCY_874_PLAN_HOME=$plan_home" >> "$GITHUB_ENV"
+          umask 077
+          mkdir -p "$plan_home"
+          AGENCY_874_PLAN_KEY="$key"
+          AGENCY_874_PLAN_HOME="$plan_home"
+          chmod 700 "$AGENCY_874_PLAN_HOME"
+          printf '%s\n' "$PREPROD_PRIVATE_KEY" > "$AGENCY_874_PLAN_KEY"
+          chmod 600 "$AGENCY_874_PLAN_KEY"
+          test "$(stat -c '%a' "$AGENCY_874_PLAN_KEY")" = '600'
+
+      - name: Provision ephemeral repository-pinned PREPROD host trust
+        shell: bash
+        env:
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_SSH_HOST"
+          HOME="$AGENCY_874_PLAN_HOME" \
+            PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+          known_hosts="$AGENCY_874_PLAN_HOME/.ssh/known_hosts"
+          [[ -f "$known_hosts" && ! -L "$known_hosts" ]]
+          test "$(stat -c '%a' "$known_hosts")" = '600'
+          HOME="$AGENCY_874_PLAN_HOME" \
+            PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
+            PREPROD_KNOWN_HOSTS_FILE="$known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
 
       - name: Execute fixed metadata-only PLAN
         shell: bash
@@ -136,18 +164,20 @@ jobs:
           REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
           OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
           PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
-          PREPROD_SSH_USER: ${{ secrets.PREPROD_SERVER_USER }}
+          PREPROD_SSH_USER: agency-preprod
         run: |
           set -euo pipefail
           export PREPROD_SSH_KEY="$AGENCY_874_PLAN_KEY"
+          export PREPROD_KNOWN_HOSTS_FILE="$AGENCY_874_PLAN_HOME/.ssh/known_hosts"
           bash scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh
 
-      - name: Remove transient PLAN identity
+      - name: Remove transient PLAN identity and trust
         if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
-          [[ -z "${AGENCY_874_PLAN_KEY:-}" ]] || rm -f -- "$AGENCY_874_PLAN_KEY"
+          rm -f -- "$AGENCY_874_PLAN_KEY"
+          rm -rf -- "$AGENCY_874_PLAN_HOME"
 
   apply:
     name: Project-Lead-authorized capability-only provisioning APPLY

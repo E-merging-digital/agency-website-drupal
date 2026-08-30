@@ -35,7 +35,7 @@ EXPECTED_STAGING_HELPER='a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e9
 EXPECTED_SANITIZER='fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
 EXPECTED_POLICY='cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
 EXPECTED_CAPABILITY_PROFILE='75180d09b98852bdd0b05a92f397eefaad88d4cab6ae64dc12ea76886b963333'
-EXPECTED_VHOST_SELECTOR='e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
+EXPECTED_VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
 
 [[ -d "$SOURCE" && ! -L "$SOURCE" ]] || { echo 'Fixed provisioning stage missing.' >&2; exit 67; }
 for f in \
@@ -57,7 +57,7 @@ done
 [[ "$(sha256sum "$STAGING_SANITIZER" | awk '{print $1}')" == "$EXPECTED_SANITIZER" ]] || { echo 'Canonical sanitizer digest mismatch.' >&2; exit 69; }
 [[ "$(sha256sum "$STAGING_POLICY" | awk '{print $1}')" == "$EXPECTED_POLICY" ]] || { echo 'Canonical policy digest mismatch.' >&2; exit 69; }
 [[ "$(sha256sum "$SOURCE/capability-profile.json" | awk '{print $1}')" == "$EXPECTED_CAPABILITY_PROFILE" ]] || { echo 'Capability profile digest mismatch.' >&2; exit 69; }
-[[ "$(sha256sum "$SOURCE/nginx-vhost-selector.py" | awk '{print $1}')" == "$EXPECTED_VHOST_SELECTOR" ]] || { echo 'Vhost selector digest mismatch.' >&2; exit 69; }
+[[ "$(git hash-object "$SOURCE/nginx-vhost-selector.py")" == "$EXPECTED_VHOST_SELECTOR_BLOB" ]] || { echo 'Vhost selector Git blob mismatch.' >&2; exit 69; }
 for pair in \
   "helper:agency-preprod-refresh-control" \
   "side_effect_hardening:side_effect_hardening.py" \

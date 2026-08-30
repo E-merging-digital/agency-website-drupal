@@ -98,7 +98,8 @@ def test_privacy_contract() -> None:
     assert "settings.php" not in source
     assert "runtime.env" not in source
     assert "printenv" not in source
-    assert "env " not in source
+    assert "os.environ" not in source
+    assert "shell=True" not in source
     assert "sql" not in source.lower()
     assert "--field=db-name" in source
     assert "DRUSH = CURRENT / \"vendor/bin/drush\"" in source

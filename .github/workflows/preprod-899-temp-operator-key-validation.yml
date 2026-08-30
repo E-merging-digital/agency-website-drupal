@@ -61,7 +61,9 @@ jobs:
           assert 'StrictHostKeyChecking=no' not in route
           assert 'ssh-keyscan' not in route
           assert "SSH_USER='agency-preprod'" in runner
-          assert '/home/agency-preprod/.ssh/authorized_keys' in remote
+          assert 'HOME = Path("/home/agency-preprod")' in remote
+          assert 'AUTHORIZED_KEYS = SSH_DIR / "authorized_keys"' in remote
+          assert profile['fixed_target']['authorized_keys'] == '/home/agency-preprod/.ssh/authorized_keys'
           assert profile['fixed_target']['public_key'] == 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIArdJ26K9/VGRXKED9m9/dji80VjuY+0NTC9ANRV25fP agency-preprod-temp-2026-08-31'
           assert profile['fixed_target']['fingerprint'] == 'SHA256:xMkx4EF3Hu7b77DAYNwSW5iO0/VHwT/k2Ff25FhNxYg'
           assert profile['fixed_target']['action'] == 'ADD'

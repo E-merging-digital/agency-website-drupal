@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("nginx_vhost_selector", HERE / "nginx-vhost-selector.py")
 assert SPEC and SPEC.loader
 selector = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = selector
 SPEC.loader.exec_module(selector)
 
 HOST = selector.HOSTNAME

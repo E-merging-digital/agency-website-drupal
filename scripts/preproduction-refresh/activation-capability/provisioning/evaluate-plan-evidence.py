@@ -31,6 +31,7 @@ ALLOWED_KEYS = TOP_LEVEL | {f"{item}.{field}" for item in ITEMS for field in FIE
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 RELEASE_NAME = re.compile(r"^[0-9]{14}-[0-9a-f]{12}$")
+UNOBSERVABLE = "UNOBSERVABLE_UNPRIVILEGED"
 
 class EvidenceError(RuntimeError):
     pass
@@ -148,7 +149,7 @@ def is_absent(obs: dict[str, str], name: str) -> bool:
 
 
 def validate_metadata_shape(obs: dict[str, str]) -> None:
-    if obs["observer_schema"] != "1":
+    if obs["observer_schema"] != "2":
         raise EvidenceError("observer schema mismatch")
     for key in ("host_identity_sha256", "execution_user_sha256", "runtime_release_target_sha256"):
         if obs[key] != "NONE" and not HEX64.fullmatch(obs[key]):
@@ -158,6 +159,19 @@ def validate_metadata_shape(obs: dict[str, str]) -> None:
         typ = item(obs, name, "type")
         digest_state = item(obs, name, "digest_state")
         digest = item(obs, name, "sha256")
+        if state == UNOBSERVABLE:
+            if name != "sudoers":
+                raise EvidenceError(f"unobservable state forbidden for managed item: {name}")
+            if (
+                typ != "UNOBSERVABLE"
+                or item(obs, name, "owner") != "NONE"
+                or item(obs, name, "group") != "NONE"
+                or item(obs, name, "mode") != "NONE"
+                or digest_state != "UNOBSERVABLE"
+                or digest != "NONE"
+            ):
+                raise EvidenceError("invalid unprivileged sudoers observation shape")
+            continue
         if state not in {"ABSENT", "PRESENT"}:
             raise EvidenceError(f"invalid state: {name}")
         if typ not in {"ABSENT", "REGULAR", "DIRECTORY", "SYMLINK", "OTHER"}:
@@ -184,8 +198,16 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
         raise EvidenceError("PREPROD execution identity mismatch")
     if not HEX64.fullmatch(obs["host_identity_sha256"]):
         raise EvidenceError("host identity unavailable")
-    if obs["sudoers_dir_searchable"] != "YES":
-        raise EvidenceError("sudoers directory is not safely observable without privileged read")
+
+    if obs["sudoers_dir_searchable"] not in {"YES", "NO"}:
+        raise EvidenceError("invalid sudoers directory observability")
+    sudoers_unobservable = obs["sudoers_dir_searchable"] == "NO"
+    if sudoers_unobservable:
+        if item(obs, "sudoers", "state") != UNOBSERVABLE:
+            raise EvidenceError("sudoers evidence must be unobservable when directory is not searchable")
+    elif item(obs, "sudoers", "state") == UNOBSERVABLE:
+        raise EvidenceError("sudoers unobservable state inconsistent with searchable directory")
+
     if obs["state_dir_searchable"] not in {"YES", "NOT_PRESENT"}:
         raise EvidenceError("capability state directory is not safely observable without privileged read")
 
@@ -219,6 +241,11 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
     exact: list[str] = []
     for name, spec in expected["managed"].items():
         typ, owner, group, mode, digest = spec
+        if item(obs, name, "state") == UNOBSERVABLE:
+            if name != "sudoers" or not sudoers_unobservable:
+                raise EvidenceError(f"unexpected unobservable managed state: {name}")
+            drift.append(name)
+            continue
         if is_absent(obs, name):
             missing.append(name)
             continue
@@ -287,11 +314,12 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
 
     source = expected["source_digests"]
     result = {
-        "PLAN_EVIDENCE_MODEL": "READ_ONLY_FIXED_PATH_METADATA_V1",
+        "PLAN_EVIDENCE_MODEL": "READ_ONLY_FIXED_PATH_METADATA_V2",
         "FUTURE_APPLY_CLASSIFICATION": classification,
         "FUTURE_APPLY_MUTATION_INVENTORY": ";".join(mutations),
         "FUTURE_APPLY_ROLLBACK_INVENTORY": ";".join(rollback),
         "PRIVILEGED_READ_REQUIRED": "false",
+        "SUDOERS_OBSERVABILITY": UNOBSERVABLE if sudoers_unobservable else "OBSERVABLE_UNPRIVILEGED",
         "PREPROD_EXECUTION_SURFACE_IDENTITY": obs["host_identity_sha256"],
         "RUNTIME_RELEASE_IDENTITY": obs["runtime_release_name"],
         "RUNTIME_DATABASE_IDENTITY": obs["runtime_db_name"],
@@ -314,7 +342,9 @@ def evaluate(obs: dict[str, str], expected: dict) -> dict[str, str]:
         "DATA_ACTIVATION_AUTHORITY": "DISABLED",
     }
     for name in expected["managed"]:
-        if is_absent(obs, name):
+        if item(obs, name, "state") == UNOBSERVABLE:
+            status = UNOBSERVABLE
+        elif is_absent(obs, name):
             status = "ABSENT"
         elif name in exact:
             status = "EXACT"

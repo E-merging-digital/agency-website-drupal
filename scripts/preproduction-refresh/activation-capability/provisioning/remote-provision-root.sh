@@ -113,22 +113,6 @@ restore_prestate() {
   systemctl reload nginx >/dev/null 2>&1 || status=95
   return "$status"
 }
-restore_prestate() {
-  local status=0 state key path backup
-  while IFS=$'\t' read -r state key path; do
-    [[ -n "$path" ]] || continue
-    backup="$TX/backups/$key"
-    if [[ "$state" == PRESENT ]]; then
-      rm -rf -- "$path" || return 91
-      cp -a -- "$backup" "$path" || return 92
-    else
-      rm -rf -- "$path" || return 93
-    fi
-  done < <(tac "$MANIFEST")
-  nginx -t >/dev/null 2>&1 || status=94
-  systemctl reload nginx >/dev/null 2>&1 || status=95
-  return "$status"
-}
 mutated=0
 on_exit() {
   local rc="$?"

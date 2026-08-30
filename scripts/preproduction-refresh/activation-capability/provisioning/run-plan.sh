@@ -8,7 +8,7 @@ BUNDLE="$BASE/bundle.json"
 OBSERVER="$BASE/provisioning/observe-host-state.sh"
 EVALUATOR="$BASE/provisioning/evaluate-plan-evidence.py"
 VHOST_SELECTOR="$BASE/provisioning/nginx-vhost-selector.py"
-VHOST_SELECTOR_SHA256='e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
+VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
 REQUEST_ID="${REQUEST_ID:-}"
 REPOSITORY_SHA="${REPOSITORY_SHA:-}"
 OPERATION_PROFILE="${OPERATION_PROFILE:-}"
@@ -49,7 +49,7 @@ for path in "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$OBSERVER" "$EVALUATOR" 
   "$SUDOERS_SOURCE"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
-[[ "$(sha256sum "$VHOST_SELECTOR" | awk '{print $1}')" == "$VHOST_SELECTOR_SHA256" ]]
+[[ "$(git rev-parse "HEAD:$VHOST_SELECTOR")" == "$VHOST_SELECTOR_BLOB" ]]
 [[ "$(git rev-parse "HEAD:$SUDOERS_SOURCE")" == "$SUDOERS_SOURCE_BLOB" ]]
 [[ "$(sha256sum "$SUDOERS_SOURCE" | awk '{print $1}')" == "$SUDOERS_SOURCE_SHA256" ]]
 

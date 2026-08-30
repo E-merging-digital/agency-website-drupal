@@ -14,8 +14,10 @@ from pathlib import Path
 
 SSH_USER = "agency-preprod"
 HOME = Path("/home/agency-preprod")
-SSH_DIR = HOME / ".ssh"
-AUTHORIZED_KEYS = SSH_DIR / "authorized_keys"
+SSH_DIR_NAME = ".ssh"
+AUTHORIZED_KEYS_NAME = "authorized_keys"
+SSH_DIR = HOME / SSH_DIR_NAME
+AUTHORIZED_KEYS = SSH_DIR / AUTHORIZED_KEYS_NAME
 TEMP_PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIArdJ26K9/VGRXKED9m9/dji80VjuY+0NTC9ANRV25fP agency-preprod-temp-2026-08-31"
 TEMP_KEY_FINGERPRINT = "SHA256:xMkx4EF3Hu7b77DAYNwSW5iO0/VHwT/k2Ff25FhNxYg"
 MAX_AUTHORIZED_KEYS_BYTES = 1024 * 1024
@@ -61,64 +63,108 @@ def read_fd_bounded(fd: int) -> bytes:
     return b"".join(chunks)
 
 
-def append_exact_key(
-    ssh_dir: Path,
-    authorized_keys: Path,
-    owner_uid: int,
-    owner_gid: int,
-) -> tuple[str, str]:
-    ssh_meta = os.lstat(ssh_dir)
-    require(stat.S_ISDIR(ssh_meta.st_mode) and not stat.S_ISLNK(ssh_meta.st_mode), ".ssh type invalid")
-    require((ssh_meta.st_uid, ssh_meta.st_gid) == (owner_uid, owner_gid), ".ssh ownership invalid")
-    require(stat.S_IMODE(ssh_meta.st_mode) == 0o700, ".ssh mode invalid")
+def validate_home(path: Path, owner_uid: int, owner_gid: int) -> tuple[int, int]:
+    meta = os.lstat(path)
+    require(stat.S_ISDIR(meta.st_mode) and not stat.S_ISLNK(meta.st_mode), "home type invalid")
+    require((meta.st_uid, meta.st_gid) == (owner_uid, owner_gid), "home ownership invalid")
+    require(stat.S_IMODE(meta.st_mode) & 0o022 == 0, "home is writable by group/other")
+    return meta.st_dev, meta.st_ino
 
-    key_meta = os.lstat(authorized_keys)
-    require(stat.S_ISREG(key_meta.st_mode) and not stat.S_ISLNK(key_meta.st_mode), "authorized_keys type invalid")
-    require((key_meta.st_uid, key_meta.st_gid) == (owner_uid, owner_gid), "authorized_keys ownership invalid")
-    require(stat.S_IMODE(key_meta.st_mode) == 0o600, "authorized_keys mode invalid")
-    require(key_meta.st_nlink == 1, "authorized_keys hard-link count invalid")
 
-    flags = os.O_RDWR | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
-    fd = os.open(authorized_keys, flags)
+def require_path_identity(path: Path, fd: int, message: str) -> None:
+    path_meta = os.lstat(path)
+    fd_meta = os.fstat(fd)
+    require((path_meta.st_dev, path_meta.st_ino) == (fd_meta.st_dev, fd_meta.st_ino), message)
+
+
+def append_exact_key(home: Path, owner_uid: int, owner_gid: int) -> tuple[str, str]:
+    expected_home_identity = validate_home(home, owner_uid, owner_gid)
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    home_fd = os.open(home, directory_flags)
     try:
-        os.set_inheritable(fd, False)
-        opened = os.fstat(fd)
-        require(stat.S_ISREG(opened.st_mode), "opened authorized_keys type invalid")
-        require((opened.st_dev, opened.st_ino) == (key_meta.st_dev, key_meta.st_ino), "authorized_keys identity changed")
-        require((opened.st_uid, opened.st_gid) == (owner_uid, owner_gid), "opened authorized_keys ownership invalid")
-        require(stat.S_IMODE(opened.st_mode) == 0o600, "opened authorized_keys mode invalid")
-        require(opened.st_nlink == 1, "opened authorized_keys hard-link count invalid")
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        os.set_inheritable(home_fd, False)
+        home_open = os.fstat(home_fd)
+        require((home_open.st_dev, home_open.st_ino) == expected_home_identity, "home identity changed")
+        require(stat.S_ISDIR(home_open.st_mode), "opened home type invalid")
+        require((home_open.st_uid, home_open.st_gid) == (owner_uid, owner_gid), "opened home ownership invalid")
+        require(stat.S_IMODE(home_open.st_mode) & 0o022 == 0, "opened home is writable by group/other")
 
-        locked = os.fstat(fd)
-        require((locked.st_dev, locked.st_ino) == (opened.st_dev, opened.st_ino), "authorized_keys changed while locking")
-        before_bytes = read_fd_bounded(fd)
-        key_bytes = TEMP_PUBLIC_KEY.encode("ascii")
-        occurrences = sum(1 for line in before_bytes.splitlines() if line == key_bytes)
-        require(occurrences <= 1, "temporary key appears more than once")
+        ssh_meta = os.stat(SSH_DIR_NAME, dir_fd=home_fd, follow_symlinks=False)
+        require(stat.S_ISDIR(ssh_meta.st_mode) and not stat.S_ISLNK(ssh_meta.st_mode), ".ssh type invalid")
+        require((ssh_meta.st_uid, ssh_meta.st_gid) == (owner_uid, owner_gid), ".ssh ownership invalid")
+        require(stat.S_IMODE(ssh_meta.st_mode) == 0o700, ".ssh mode invalid")
 
-        present_before = "YES" if occurrences == 1 else "NO"
-        if occurrences == 0:
-            require(not before_bytes or before_bytes.endswith(b"\n"), "authorized_keys lacks terminal newline")
-            payload = key_bytes + b"\n"
-            written = 0
-            while written < len(payload):
-                count = os.write(fd, payload[written:])
-                require(count > 0, "authorized_keys append failed")
-                written += count
-            os.fsync(fd)
+        ssh_fd = os.open(SSH_DIR_NAME, directory_flags, dir_fd=home_fd)
+        try:
+            os.set_inheritable(ssh_fd, False)
+            ssh_open = os.fstat(ssh_fd)
+            require((ssh_open.st_dev, ssh_open.st_ino) == (ssh_meta.st_dev, ssh_meta.st_ino), ".ssh identity changed")
+            require((ssh_open.st_uid, ssh_open.st_gid) == (owner_uid, owner_gid), "opened .ssh ownership invalid")
+            require(stat.S_IMODE(ssh_open.st_mode) == 0o700, "opened .ssh mode invalid")
 
-        after_bytes = read_fd_bounded(fd)
-        if occurrences == 0:
-            require(after_bytes == before_bytes + key_bytes + b"\n", "unrelated authorized_keys bytes changed")
-        else:
-            require(after_bytes == before_bytes, "idempotent ADD changed authorized_keys")
+            key_meta = os.stat(AUTHORIZED_KEYS_NAME, dir_fd=ssh_fd, follow_symlinks=False)
+            require(stat.S_ISREG(key_meta.st_mode) and not stat.S_ISLNK(key_meta.st_mode), "authorized_keys type invalid")
+            require((key_meta.st_uid, key_meta.st_gid) == (owner_uid, owner_gid), "authorized_keys ownership invalid")
+            require(stat.S_IMODE(key_meta.st_mode) == 0o600, "authorized_keys mode invalid")
+            require(key_meta.st_nlink == 1, "authorized_keys hard-link count invalid")
 
-        after_occurrences = sum(1 for line in after_bytes.splitlines() if line == key_bytes)
-        require(after_occurrences == 1, "temporary key is not present exactly once after ADD")
-        return present_before, "YES"
+            flags = os.O_RDWR | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+            fd = os.open(AUTHORIZED_KEYS_NAME, flags, dir_fd=ssh_fd)
+            try:
+                os.set_inheritable(fd, False)
+                opened = os.fstat(fd)
+                require(stat.S_ISREG(opened.st_mode), "opened authorized_keys type invalid")
+                require((opened.st_dev, opened.st_ino) == (key_meta.st_dev, key_meta.st_ino), "authorized_keys identity changed")
+                require((opened.st_uid, opened.st_gid) == (owner_uid, owner_gid), "opened authorized_keys ownership invalid")
+                require(stat.S_IMODE(opened.st_mode) == 0o600, "opened authorized_keys mode invalid")
+                require(opened.st_nlink == 1, "opened authorized_keys hard-link count invalid")
+                fcntl.flock(fd, fcntl.LOCK_EX)
+
+                locked = os.fstat(fd)
+                require((locked.st_dev, locked.st_ino) == (opened.st_dev, opened.st_ino), "authorized_keys changed while locking")
+                current = os.stat(AUTHORIZED_KEYS_NAME, dir_fd=ssh_fd, follow_symlinks=False)
+                require((current.st_dev, current.st_ino) == (locked.st_dev, locked.st_ino), "authorized_keys path changed while locking")
+                require(locked.st_nlink == 1, "locked authorized_keys hard-link count invalid")
+
+                before_bytes = read_fd_bounded(fd)
+                key_bytes = TEMP_PUBLIC_KEY.encode("ascii")
+                occurrences = sum(1 for line in before_bytes.splitlines() if line == key_bytes)
+                require(occurrences <= 1, "temporary key appears more than once")
+
+                present_before = "YES" if occurrences == 1 else "NO"
+                if occurrences == 0:
+                    require(not before_bytes or before_bytes.endswith(b"\n"), "authorized_keys lacks terminal newline")
+                    payload = key_bytes + b"\n"
+                    written = 0
+                    while written < len(payload):
+                        count = os.write(fd, payload[written:])
+                        require(count > 0, "authorized_keys append failed")
+                        written += count
+                    os.fsync(fd)
+
+                after_bytes = read_fd_bounded(fd)
+                if occurrences == 0:
+                    require(after_bytes == before_bytes + key_bytes + b"\n", "unrelated authorized_keys bytes changed")
+                else:
+                    require(after_bytes == before_bytes, "idempotent ADD changed authorized_keys")
+
+                after_occurrences = sum(1 for line in after_bytes.splitlines() if line == key_bytes)
+                require(after_occurrences == 1, "temporary key is not present exactly once after ADD")
+
+                final_fd = os.fstat(fd)
+                final_path = os.stat(AUTHORIZED_KEYS_NAME, dir_fd=ssh_fd, follow_symlinks=False)
+                require(final_fd.st_nlink == 1, "final authorized_keys hard-link count invalid")
+                require((final_path.st_dev, final_path.st_ino) == (final_fd.st_dev, final_fd.st_ino), "authorized_keys path changed during ADD")
+                final_ssh = os.stat(SSH_DIR_NAME, dir_fd=home_fd, follow_symlinks=False)
+                require((final_ssh.st_dev, final_ssh.st_ino) == (ssh_open.st_dev, ssh_open.st_ino), ".ssh path changed during ADD")
+                require_path_identity(home, home_fd, "home path changed during ADD")
+                return present_before, "YES"
+            finally:
+                os.close(fd)
+        finally:
+            os.close(ssh_fd)
     finally:
-        os.close(fd)
+        os.close(home_fd)
 
 
 def main() -> int:
@@ -130,7 +176,7 @@ def main() -> int:
         pw = pwd.getpwuid(os.geteuid())
         require(pw.pw_name == SSH_USER, "runtime user invalid")
         require(pw.pw_dir == str(HOME), "runtime home invalid")
-        before, after = append_exact_key(SSH_DIR, AUTHORIZED_KEYS, pw.pw_uid, pw.pw_gid)
+        before, after = append_exact_key(HOME, pw.pw_uid, pw.pw_gid)
     except (ContractError, FileNotFoundError, PermissionError, OSError):
         print("RESULT=FAIL_CLOSED")
         return 1

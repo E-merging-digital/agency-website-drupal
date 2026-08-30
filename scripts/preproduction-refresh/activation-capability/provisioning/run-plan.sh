@@ -13,6 +13,7 @@ OPERATION_PROFILE="${OPERATION_PROFILE:-}"
 PREPROD_SSH_HOST="${PREPROD_SSH_HOST:-}"
 PREPROD_SSH_USER="${PREPROD_SSH_USER:-agency-preprod}"
 PREPROD_SSH_KEY="${PREPROD_SSH_KEY:-}"
+PREPROD_KNOWN_HOSTS_FILE="${PREPROD_KNOWN_HOSTS_FILE:-$HOME/.ssh/known_hosts}"
 HELPER_SOURCE="$BASE/$(jq -r '.files.helper.path' "$BUNDLE")"
 SUDOERS_SOURCE="$BASE/provisioning/$(basename "$(jq -r '.apply.sudoers_path' "$PROFILE")").sudoers"
 
@@ -20,9 +21,17 @@ SUDOERS_SOURCE="$BASE/provisioning/$(basename "$(jq -r '.apply.sudoers_path' "$P
 [[ "$REPOSITORY_SHA" =~ ^[0-9a-f]{40}$ ]]
 [[ "$OPERATION_PROFILE" == "$PROFILE_ID" ]]
 [[ "${GITHUB_RUN_ATTEMPT:-}" == '1' ]]
-[[ "${RUNNER_NAME:-}" == 'agency-browser-runner-01' ]]
+[[ "${RUNNER_OS:-}" == 'Linux' ]]
+[[ "${RUNNER_ARCH:-}" == 'X64' ]]
+[[ "${RUNNER_ENVIRONMENT:-}" == 'github-hosted' ]]
+[[ -n "${RUNNER_TEMP:-}" && -d "$RUNNER_TEMP" ]]
 [[ "$PREPROD_SSH_USER" == 'agency-preprod' ]]
-[[ -f "$PREPROD_SSH_KEY" ]]
+[[ "$PREPROD_SSH_KEY" == "$RUNNER_TEMP/"* ]]
+[[ "$PREPROD_KNOWN_HOSTS_FILE" == "$RUNNER_TEMP/"* ]]
+[[ -f "$PREPROD_SSH_KEY" && ! -L "$PREPROD_SSH_KEY" ]]
+[[ -f "$PREPROD_KNOWN_HOSTS_FILE" && ! -L "$PREPROD_KNOWN_HOSTS_FILE" ]]
+[[ "$(stat -c '%a' "$PREPROD_SSH_KEY")" == '600' ]]
+[[ "$(stat -c '%a' "$PREPROD_KNOWN_HOSTS_FILE")" == '600' ]]
 test "$(git rev-parse HEAD)" = "$REPOSITORY_SHA"
 
 for path in "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$OBSERVER" "$EVALUATOR" \
@@ -74,7 +83,7 @@ for pair in \
   [[ "$(sha256sum "$path" | awk '{print $1}')" == "$expected" ]]
 done
 
-PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
+PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" PREPROD_KNOWN_HOSTS_FILE="$PREPROD_KNOWN_HOSTS_FILE" \
   bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
 
 observation="$(mktemp)"
@@ -85,7 +94,7 @@ ssh -i "$PREPROD_SSH_KEY" \
   -o IdentitiesOnly=yes \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=yes \
-  -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+  -o UserKnownHostsFile="$PREPROD_KNOWN_HOSTS_FILE" \
   "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
   "env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash -s --" \
   < "$OBSERVER" > "$observation"
@@ -97,11 +106,17 @@ printf '%s\n' \
   "repository_sha=$REPOSITORY_SHA" \
   'operation_profile=agency-preprod-refresh-capability-provision-v1' \
   'EXACT_REPOSITORY_IDENTITY=PASS' \
+  'PLAN_RUNNER=ubuntu-24.04' \
+  'PLAN_RUNNER_ENVIRONMENT=github-hosted' \
+  'PREPROD_SSH_USER=agency-preprod' \
+  'ROOT_REMOTE_EXECUTION=FORBIDDEN' \
+  'PINNED_HOST_TRUST=PASS' \
   'PLAN_EVIDENCE=METADATA_ONLY' \
   'PLAN_MUTATION=NONE' \
   'PLAN_HELPER_EXECUTION=NONE' \
   'PLAN_SUDO_EXECUTION=NONE' \
   'PROD_ACCESS=NONE' \
+  'RAW_PROD_DATA_ON_GITHUB_HOSTED=FORBIDDEN' \
   'PREPROD_DB_MUTATION=NONE' \
   'PREPROD_BACKUP=NONE' \
   'FENCE_MUTATION=NONE' \

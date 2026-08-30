@@ -15,7 +15,9 @@ PREPROD_SSH_USER="${PREPROD_SSH_USER:-agency-preprod}"
 PREPROD_SSH_KEY="${PREPROD_SSH_KEY:-}"
 PREPROD_KNOWN_HOSTS_FILE="${PREPROD_KNOWN_HOSTS_FILE:-$HOME/.ssh/known_hosts}"
 HELPER_SOURCE="$BASE/$(jq -r '.files.helper.path' "$BUNDLE")"
-SUDOERS_SOURCE="$BASE/provisioning/$(basename "$(jq -r '.apply.sudoers_path' "$PROFILE")").sudoers"
+SUDOERS_SOURCE="$BASE/provisioning/agency-preprod-refresh-control.sudoers"
+SUDOERS_SOURCE_BLOB='193f05b9dc0422d62e0104e95a8f5444f34ec17c'
+SUDOERS_SOURCE_SHA256='d3997b2f9b3a0b615d082bbc65b7a49abef38f3e1523506a23083f9d4f217b9b'
 
 [[ "$REQUEST_ID" =~ ^[A-Za-z0-9._-]{8,80}$ ]]
 [[ "$REPOSITORY_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -44,6 +46,8 @@ for path in "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$OBSERVER" "$EVALUATOR" 
   "$SUDOERS_SOURCE"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
+[[ "$(git rev-parse "HEAD:$SUDOERS_SOURCE")" == "$SUDOERS_SOURCE_BLOB" ]]
+[[ "$(sha256sum "$SUDOERS_SOURCE" | awk '{print $1}')" == "$SUDOERS_SOURCE_SHA256" ]]
 
 jq -e '
   .issue_number == 874 and

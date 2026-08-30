@@ -126,7 +126,7 @@ def main() -> None:
     print("base_table_subset_enforcement=PASS")
     print("atomic_multi_table_rename_model=PASS")
 
-    assert "sudo " not in plan and "agency-preprod-refresh-control" not in plan and "PLAN_MUTATION=NONE" in plan
+    assert "sudo " not in plan and "agency-preprod-refresh-control PRECHECK" not in plan and "PLAN_MUTATION=NONE" in plan
     assert "restore_prestate" in remote and "nginx -t" in remote and "systemctl reload nginx" in remote
     assert "HUMAN_RECOVERY_REQUIRED=true" in remote and "data_activation_authority=DISABLED" in remote and "root:root:711" in remote
     print("provisioning_plan_mutation_none=PASS")

@@ -48,6 +48,32 @@ jobs:
           print('PROVISIONING_PROFILE_DIGEST=PASS')
           PY
 
+      - name: Prove #884 canonical sudoers source and null-path regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability/provisioning'
+          plan="$base/run-plan.sh"
+          sudoers="$base/agency-preprod-refresh-control.sudoers"
+          [[ -f "$sudoers" && ! -L "$sudoers" ]]
+          test "$(git rev-parse "HEAD:$sudoers")" = '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
+          test "$(sha256sum "$sudoers" | awk '{print $1}')" = 'd3997b2f9b3a0b615d082bbc65b7a49abef38f3e1523506a23083f9d4f217b9b'
+          python3 - <<'PY'
+          from pathlib import Path
+          plan = Path('scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh').read_text()
+          assignments = [line for line in plan.splitlines() if line.startswith('SUDOERS_SOURCE=')]
+          assert assignments == ['SUDOERS_SOURCE="$BASE/provisioning/agency-preprod-refresh-control.sudoers"']
+          assert '.apply.sudoers_path' not in plan
+          assert 'null.sudoers' not in plan
+          assert "SUDOERS_SOURCE_BLOB='193f05b9dc0422d62e0104e95a8f5444f34ec17c'" in plan
+          assert "SUDOERS_SOURCE_SHA256='d3997b2f9b3a0b615d082bbc65b7a49abef38f3e1523506a23083f9d4f217b9b'" in plan
+          assert 'git rev-parse "HEAD:$SUDOERS_SOURCE"' in plan
+          assert 'sha256sum "$SUDOERS_SOURCE"' in plan
+          print('SUDOERS_SOURCE=scripts/preproduction-refresh/activation-capability/provisioning/agency-preprod-refresh-control.sudoers')
+          print('NULL_SUDOERS_PATH=IMPOSSIBLE')
+          print('CALLER_CONTROLLED_SUDOERS_PATH=FORBIDDEN')
+          PY
+
       - name: Execute #879 synthetic classification and fail-closed matrix
         shell: bash
         run: |

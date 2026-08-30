@@ -7,9 +7,13 @@ on:
       - ".github/workflows/preprod-877-successor-authority-validation.yml"
       - ".github/workflows/preprod-879-plan-evidence-validation.yml"
       - "scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/run-apply.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/remote-provision-root.sh"
       - "scripts/preproduction-refresh/activation-capability/provisioning/observe-host-state.sh"
       - "scripts/preproduction-refresh/activation-capability/provisioning/evaluate-plan-evidence.py"
       - "scripts/preproduction-refresh/activation-capability/provisioning/test-plan-evidence.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/nginx-vhost-selector.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/test-nginx-vhost-selector.py"
 
 permissions:
   contents: read
@@ -32,8 +36,16 @@ jobs:
         run: |
           set -euo pipefail
           base='scripts/preproduction-refresh/activation-capability/provisioning'
-          bash -n "$base/run-plan.sh" "$base/observe-host-state.sh"
-          python3 -m py_compile "$base/evaluate-plan-evidence.py" "$base/test-plan-evidence.py"
+          bash -n \
+            "$base/run-plan.sh" \
+            "$base/run-apply.sh" \
+            "$base/remote-provision-root.sh" \
+            "$base/observe-host-state.sh"
+          python3 -m py_compile \
+            "$base/evaluate-plan-evidence.py" \
+            "$base/test-plan-evidence.py" \
+            "$base/nginx-vhost-selector.py" \
+            "$base/test-nginx-vhost-selector.py"
           python3 - <<'PY'
           import importlib.util
           from pathlib import Path
@@ -44,8 +56,10 @@ jobs:
           expected = module.build_expected(Path('.').resolve())
           assert expected['runtime_db'] == 'agency_preprod'
           assert expected['source_digests']['provisioning_profile']
+          assert expected['source_digests']['vhost_selector'] == 'e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
           print('PINNED_SOURCE_BUNDLE_DIGESTS=PASS')
           print('PROVISIONING_PROFILE_DIGEST=PASS')
+          print('#889_VHOST_SELECTOR_DIGEST=PASS')
           PY
 
       - name: Prove #884 canonical sudoers source and null-path regression
@@ -74,11 +88,58 @@ jobs:
           print('CALLER_CONTROLLED_SUDOERS_PATH=FORBIDDEN')
           PY
 
-      - name: Execute #879 synthetic classification and fail-closed matrix
+      - name: Execute #879/#887/#889 synthetic classification matrices
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/preproduction-refresh/activation-capability/provisioning/test-plan-evidence.py
+          base='scripts/preproduction-refresh/activation-capability/provisioning'
+          python3 "$base/test-plan-evidence.py"
+          python3 "$base/test-nginx-vhost-selector.py"
+
+      - name: Prove #889 shared semantic selector and r5 regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability/provisioning'
+          selector="$base/nginx-vhost-selector.py"
+          plan="$base/run-plan.sh"
+          apply="$base/run-apply.sh"
+          remote="$base/remote-provision-root.sh"
+          observer="$base/observe-host-state.sh"
+          evaluator="$base/evaluate-plan-evidence.py"
+          test "$(git rev-parse "HEAD:$selector")" = 'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
+          test "$(sha256sum "$selector" | awk '{print $1}')" = 'e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
+          python3 - <<'PY'
+          from pathlib import Path
+          base = Path('scripts/preproduction-refresh/activation-capability/provisioning')
+          selector = (base / 'nginx-vhost-selector.py').read_text()
+          plan = (base / 'run-plan.sh').read_text()
+          apply = (base / 'run-apply.sh').read_text()
+          remote = (base / 'remote-provision-root.sh').read_text()
+          observer = (base / 'observe-host-state.sh').read_text()
+          evaluator = (base / 'evaluate-plan-evidence.py').read_text()
+          assert 'VHOST = Path("/etc/nginx/sites-available/agency-preprod")' in selector
+          assert 'HOSTNAME = "preprod.emergingdigital.be"' in selector
+          assert 'APP_ROOT = "/var/www/agency-preprod/current/web"' in selector
+          assert 'PHP_UPSTREAM = "unix:/run/php/php8.4-fpm-agency-preprod.sock"' in selector
+          assert 'APPLY_FENCE' in selector and 'OBSERVE' in selector
+          assert 'VHOST.write_text(updated' in selector
+          assert 'print(text' not in selector and 'nginx -T' not in selector
+          assert '< "$VHOST_SELECTOR" >> "$observation"' in plan
+          assert 'python3 -I - OBSERVE' in plan
+          assert '"$VHOST_SELECTOR" \\' in apply
+          assert 'nginx-vhost-selector.py" OBSERVE' in remote
+          assert 'nginx-vhost-selector.py" APPLY_FENCE' in remote
+          assert "grep -Fc 'server_name preprod.emergingdigital.be;'" not in observer
+          assert "grep -Fc 'server_name preprod.emergingdigital.be;'" not in remote
+          assert 'vhost_server_name_count' not in evaluator
+          assert 'vhost_application_block_count' in evaluator
+          assert 'vhost_safe_auxiliary_block_count' in evaluator
+          print('#889_PLAN_APPLY_SELECTOR_IDENTITY=SHARED')
+          print('#889_HOSTNAME_DECLARATION_COUNT_NOT_APPLICATION_COUNT=PASS')
+          print('#889_ARBITRARY_FIRST_MATCH=FORBIDDEN')
+          print('#889_RAW_VHOST_OUTPUT=ABSENT')
+          PY
 
       - name: Prove PLAN route is fixed, non-root and mutation-free
         shell: bash
@@ -87,9 +148,11 @@ jobs:
           base='scripts/preproduction-refresh/activation-capability/provisioning'
           plan="$base/run-plan.sh"
           observer="$base/observe-host-state.sh"
+          selector="$base/nginx-vhost-selector.py"
           grep -Fq '[[ "$PREPROD_SSH_USER" == '\''agency-preprod'\'' ]]' "$plan"
           grep -Fq 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash -s --' "$plan"
           grep -Fq '< "$OBSERVER" > "$observation"' "$plan"
+          grep -Fq 'python3 -I - OBSERVE' "$plan"
           grep -Fq '[[ "$(id -u)" -ne 0 ]]' "$observer"
           ! grep -Eq '(^|[;&|()[:space:]])sudo[[:space:]]' "$plan" "$observer"
           ! grep -Eq '(^|[;&|()[:space:]])scp[[:space:]]' "$plan" "$observer"
@@ -97,9 +160,9 @@ jobs:
           ! grep -Eq '(^|[;&|()[:space:]])(install|chmod|chown|mkdir|rmdir|mv|cp|touch|truncate)[[:space:]]' "$observer"
           ! grep -Eq '(^|[;&|()[:space:]])rm[[:space:]]' "$observer"
           ! grep -Fq 'agency-preprod-refresh-control PRECHECK' "$plan" "$observer"
-          ! grep -Fq 'settings.php' "$observer"
-          ! grep -Fq 'runtime.env' "$observer"
-          ! grep -Fq 'auth_basic' "$observer"
+          ! grep -Fq 'settings.php' "$observer" "$selector"
+          ! grep -Fq 'runtime.env' "$observer" "$selector"
+          ! grep -Fq 'auth_basic' "$observer" "$selector"
           printf '%s\n' \
             'PLAN_MUTATION=NONE' \
             'HELPER_EXECUTION=NONE' \
@@ -190,8 +253,9 @@ jobs:
           test "$(git rev-parse "HEAD:$base/nginx")" = 'ba0ecbe23b82dd3fafc2fd1275e36f18761d2707'
           test "$(git rev-parse "HEAD:$base/provisioning/agency-preprod-refresh-control.sudoers")" = '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
           test "$(git rev-parse "HEAD:$base/provisioning/profile.json")" = '6103f8f316771d837652a7758af35a89291cee1b'
-          test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = 'a0e6b46ed1e3cee89c591007fae6c447f4736bb3'
-          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '79d698cff3ad5f8de4db8da5ba669119d84caa51'
+          test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = '9409c40faea3eaf67d1bf119e5bd6b92b24e813a'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '319946d35949cdf083323d8054bf28fcca561a35'
+          test "$(git rev-parse "HEAD:$base/provisioning/nginx-vhost-selector.py")" = 'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
           test "$(git rev-parse "HEAD:$base/provisioning/validate-successor-authority.py")" = '183af3ec4276cb7b5c87217fbe8b96ef1ff8afb6'
           test "$(git rev-parse "HEAD:$base/provisioning/test-successor-authority.py")" = 'b4aba6dce888ae29b51c670ef91bf6bb2bf35452'
           test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
@@ -205,13 +269,17 @@ jobs:
             '#874_REGRESSION=PASS' \
             '#877_SUCCESSOR_AUTHORITY_REGRESSION=PASS' \
             '#879_REGRESSION=PASS' \
+            '#881_REGRESSION=PASS' \
+            '#884_REGRESSION=PASS' \
+            '#887_REGRESSION=PASS' \
+            '#889_REGRESSION=PASS' \
             '#876_FUTURE_PLAN_CONTRACT=PASS' \
             'NO_PRIVILEGE_WIDENING=PASS' \
             'NO_HELPER_SEMANTIC_CHANGE=PASS' \
             'NO_SANITIZER_CHANGE=PASS' \
-            'NO_NGINX_RUNTIME_BEHAVIOR_CHANGE=PASS' \
+            'NO_NGINX_FENCE_BEHAVIOR_CHANGE=PASS' \
             'DATA_ACTIVATION_AUTHORITY_DISABLED=PASS' \
             'NO_REAL_PLAN=PASS' \
             'NO_PREPROD_MUTATION=PASS' \
             'NO_PROD_ACCESS=PASS' \
-            'NEW_879_PLAN_EVIDENCE_TESTS=SUCCESS'
+            'NEW_889_VHOST_SELECTOR_TESTS=SUCCESS'

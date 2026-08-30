@@ -130,7 +130,7 @@ def atomic_install(
     expected_digest: str,
     owner_uid: int = 0,
     owner_gid: int = 0,
-) -> tuple[int, int]:
+) -> tuple[int, int, int]:
     if path_exists(helper_path):
         raise ContractError("Fixed helper path already exists.")
 
@@ -148,8 +148,16 @@ def atomic_install(
         dir=str(parent),
     )
     tmp_path = Path(tmp_name)
-    linked = False
-    identity: tuple[int, int] | None = None
+    try:
+        guard_fd = os.dup(fd)
+    except BaseException:
+        os.close(fd)
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+        raise
+
     try:
         with os.fdopen(fd, "wb") as output, source_helper.open("rb") as source:
             shutil.copyfileobj(source, output, length=1024 * 1024)
@@ -163,32 +171,30 @@ def atomic_install(
         if sha256_file(tmp_path) != expected_digest:
             raise ContractError("Transient helper staged digest mismatch.")
 
+        guard_meta = os.fstat(guard_fd)
         try:
             os.link(tmp_path, helper_path)
         except FileExistsError as exc:
             raise ContractError("Fixed helper path appeared during atomic install.") from exc
-        linked = True
-        linked_meta = os.lstat(helper_path)
-        identity = (linked_meta.st_dev, linked_meta.st_ino)
-        verify_installed(
+
+        installed_identity = verify_installed(
             helper_path,
             expected_digest,
             owner_uid,
             owner_gid,
         )
-        return identity
+        if installed_identity != (guard_meta.st_dev, guard_meta.st_ino):
+            raise ContractError("Transient helper guard identity mismatch.")
+        return installed_identity[0], installed_identity[1], guard_fd
     except BaseException:
-        owned_identity = identity
-        if owned_identity is None:
-            try:
-                staged = os.lstat(tmp_path)
-                owned_identity = (staged.st_dev, staged.st_ino)
-            except FileNotFoundError:
-                owned_identity = None
-        if owned_identity is not None and path_exists(helper_path):
-            current = os.lstat(helper_path)
-            if (current.st_dev, current.st_ino) == owned_identity:
-                os.unlink(helper_path)
+        try:
+            owned = os.fstat(guard_fd)
+            if path_exists(helper_path):
+                current = os.lstat(helper_path)
+                if (current.st_dev, current.st_ino) == (owned.st_dev, owned.st_ino):
+                    os.unlink(helper_path)
+        finally:
+            os.close(guard_fd)
         raise
     finally:
         try:
@@ -197,15 +203,25 @@ def atomic_install(
             pass
 
 
-def remove_owned_helper(helper_path: Path, identity: tuple[int, int]) -> None:
-    if not path_exists(helper_path):
-        return
-    current = os.lstat(helper_path)
-    if (current.st_dev, current.st_ino) != identity:
-        raise ContractError("Transient helper identity changed; refusing unknown cleanup.")
-    os.unlink(helper_path)
-    if path_exists(helper_path):
-        raise ContractError("Transient helper cleanup failed.")
+def remove_owned_helper(
+    helper_path: Path,
+    identity: tuple[int, int, int],
+) -> None:
+    expected_dev, expected_ino, guard_fd = identity
+    try:
+        guard = os.fstat(guard_fd)
+        if (guard.st_dev, guard.st_ino) != (expected_dev, expected_ino):
+            raise ContractError("Transient helper ownership guard changed.")
+        if not path_exists(helper_path):
+            return
+        current = os.lstat(helper_path)
+        if (current.st_dev, current.st_ino) != (guard.st_dev, guard.st_ino):
+            raise ContractError("Transient helper identity changed; refusing unknown cleanup.")
+        os.unlink(helper_path)
+        if path_exists(helper_path):
+            raise ContractError("Transient helper cleanup failed.")
+    finally:
+        os.close(guard_fd)
 
 
 def run_fixed_helper(helper_path: Path) -> subprocess.CompletedProcess[str]:
@@ -306,7 +322,7 @@ def execute_precheck(
         raise ContractError("Fixed helper path pre-exists; no overwrite is allowed.")
 
     previous = install_signal_guard() if use_signal_guard else {}
-    identity: tuple[int, int] | None = None
+    identity: tuple[int, int, int] | None = None
     try:
         identity = atomic_install(
             source_helper,

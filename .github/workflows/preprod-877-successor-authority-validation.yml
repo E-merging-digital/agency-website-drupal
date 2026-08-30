@@ -8,6 +8,10 @@ on:
       - "docs/operations/preproduction-refresh-activation-capability.md"
       - "scripts/preproduction-refresh/activation-capability/provisioning/validate-successor-authority.py"
       - "scripts/preproduction-refresh/activation-capability/provisioning/test-successor-authority.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/run-apply.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/remote-provision-root.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/nginx-vhost-selector.py"
 
 permissions:
   contents: read
@@ -50,7 +54,7 @@ jobs:
             '#874_LIVE_EXECUTION_AUTHORITY=FORBIDDEN' \
             'SUCCESSOR_EVENT_ISSUE_AUTHORITY=PASS'
 
-      - name: Preserve implementation lineage, disabled data authority and frozen capability
+      - name: Preserve implementation lineage, disabled data authority and bounded #889 selector
         shell: bash
         run: |
           set -euo pipefail
@@ -61,9 +65,11 @@ jobs:
           test "$(git rev-parse "HEAD:$base/nginx")" = 'ba0ecbe23b82dd3fafc2fd1275e36f18761d2707'
           test "$(git rev-parse "HEAD:$base/provisioning/agency-preprod-refresh-control.sudoers")" = '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
           test "$(git rev-parse "HEAD:$base/provisioning/profile.json")" = '6103f8f316771d837652a7758af35a89291cee1b'
-          test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = 'a0e6b46ed1e3cee89c591007fae6c447f4736bb3'
-          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '79d698cff3ad5f8de4db8da5ba669119d84caa51'
-          test "$(git rev-parse "HEAD:$base/provisioning/run-plan.sh")" = 'ee054d9303f01815aabafbe365007c9926e32a9a'
+          test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = '9409c40faea3eaf67d1bf119e5bd6b92b24e813a'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '319946d35949cdf083323d8054bf28fcca561a35'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-plan.sh")" = '540a12ee2787ecc111f70b07adaf96cdd5da4c9f'
+          test "$(git rev-parse "HEAD:$base/provisioning/nginx-vhost-selector.py")" = 'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
+          test "$(sha256sum "$base/provisioning/nginx-vhost-selector.py" | awk '{print $1}')" = 'e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
           jq -e '
             .issue_number == 874 and
             .parent_issue == 816 and
@@ -77,6 +83,7 @@ jobs:
           ' "$base/provisioning/profile.json" >/dev/null
           printf '%s\n' \
             '#874_IMPLEMENTATION_LINEAGE=PRESERVED' \
+            '#889_SHARED_VHOST_SELECTOR=PINNED' \
             'DATA_ACTIVATION_AUTHORITY_DISABLED=PASS' \
             'NO_PRIVILEGE_WIDENING=PASS' \
             'NO_HELPER_SEMANTIC_CHANGE=PASS' \

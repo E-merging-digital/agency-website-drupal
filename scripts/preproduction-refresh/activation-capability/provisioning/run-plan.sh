@@ -9,6 +9,8 @@ OBSERVER="$BASE/provisioning/observe-host-state.sh"
 EVALUATOR="$BASE/provisioning/evaluate-plan-evidence.py"
 VHOST_SELECTOR="$BASE/provisioning/nginx-vhost-selector.py"
 VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
+RUNTIME_DB_PROBE="$BASE/provisioning/runtime-db-identity-probe.py"
+RUNTIME_DB_PROBE_BLOB='cb94aaa970441bfc03108b04b5bd7544d3f49414'
 REQUEST_ID="${REQUEST_ID:-}"
 REPOSITORY_SHA="${REPOSITORY_SHA:-}"
 OPERATION_PROFILE="${OPERATION_PROFILE:-}"
@@ -39,7 +41,7 @@ SUDOERS_SOURCE_SHA256='d3997b2f9b3a0b615d082bbc65b7a49abef38f3e1523506a23083f9d4
 test "$(git rev-parse HEAD)" = "$REPOSITORY_SHA"
 
 for path in "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$OBSERVER" "$EVALUATOR" \
-  "$VHOST_SELECTOR" \
+  "$VHOST_SELECTOR" "$RUNTIME_DB_PROBE" \
   "$HELPER_SOURCE" \
   "$BASE/side_effect_hardening.py" \
   "$BASE/runtime_state_digest.py" \
@@ -50,6 +52,7 @@ for path in "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$OBSERVER" "$EVALUATOR" 
   [[ -f "$path" && ! -L "$path" ]]
 done
 [[ "$(git rev-parse "HEAD:$VHOST_SELECTOR")" == "$VHOST_SELECTOR_BLOB" ]]
+[[ "$(git rev-parse "HEAD:$RUNTIME_DB_PROBE")" == "$RUNTIME_DB_PROBE_BLOB" ]]
 [[ "$(git rev-parse "HEAD:$SUDOERS_SOURCE")" == "$SUDOERS_SOURCE_BLOB" ]]
 [[ "$(sha256sum "$SUDOERS_SOURCE" | awk '{print $1}')" == "$SUDOERS_SOURCE_SHA256" ]]
 
@@ -115,6 +118,15 @@ ssh -i "$PREPROD_SSH_KEY" \
   "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
   "env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin python3 -I - OBSERVE" \
   < "$VHOST_SELECTOR" >> "$observation"
+
+ssh -i "$PREPROD_SSH_KEY" \
+  -o IdentitiesOnly=yes \
+  -o BatchMode=yes \
+  -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile="$PREPROD_KNOWN_HOSTS_FILE" \
+  "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
+  "env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin python3 -I -" \
+  < "$RUNTIME_DB_PROBE" >> "$observation"
 
 python3 "$EVALUATOR" --observation "$observation" --repository-root .
 

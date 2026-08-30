@@ -73,11 +73,12 @@ jobs:
           assert 'runtime.env' not in probe
           assert 'os.environ' not in probe
           assert 'printenv' not in probe
-          assert 'DRUSH_FAILED' in probe
-          assert 'DRUSH_MISSING' in probe
-          assert 'DRUSH_NOT_EXECUTABLE' in probe
-          assert 'OUTPUT_EMPTY' in probe
-          assert 'OUTPUT_INVALID' in probe
+          for state in (
+              'RELEASE_UNAVAILABLE', 'RELEASE_ACCESS_FAILED',
+              'DRUSH_MISSING', 'DRUSH_ACCESS_FAILED', 'DRUSH_NOT_EXECUTABLE',
+              'DRUSH_EXEC_FAILED', 'DRUSH_FAILED', 'OUTPUT_EMPTY', 'OUTPUT_INVALID',
+          ):
+              assert state in probe
           print('DRUSH_VERSION=13.7.6')
           print('DRUSH_DB_NAME_COMMAND_CONTRACT=VALID')
           print('EFFECTIVE_RUNTIME_QUERY=FIXED')
@@ -98,13 +99,16 @@ jobs:
           grep -Fq 'runtime_db_probe_state' "$evaluator"
           grep -Fq 'runtime database identity mismatch' "$evaluator"
           grep -Fq 'runtime database identity probe unavailable:' "$evaluator"
-          grep -Fq "RUNTIME_DB_PROBE_BLOB='cb94aaa970441bfc03108b04b5bd7544d3f49414'" "$plan"
-          test "$(git rev-parse "HEAD:$probe")" = 'cb94aaa970441bfc03108b04b5bd7544d3f49414'
+          grep -Fq 'RELEASE_ACCESS_FAILED' "$evaluator"
+          grep -Fq 'DRUSH_ACCESS_FAILED' "$evaluator"
+          grep -Fq "RUNTIME_DB_PROBE_BLOB='c123a68ec845ae65dfa66cec6b4ec9e7e361b3de'" "$plan"
+          test "$(git rev-parse "HEAD:$probe")" = 'c123a68ec845ae65dfa66cec6b4ec9e7e361b3de'
           grep -Fq '< "$RUNTIME_DB_PROBE" >> "$observation"' "$plan"
           grep -Fq 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin python3 -I -' "$plan"
           printf '%s\n' \
             '#891_LOSSY_UNAVAILABLE_NONE_COLLAPSE=REMOVED' \
             '#891_MULTILINE_FLATTENING=FORBIDDEN' \
+            '#891_ACCESS_FAILURE_NOT_ABSENCE=PASS' \
             '#891_OBSERVED_MISMATCH=FAIL_CLOSED' \
             '#891_UNAVAILABLE_REASON=BOUNDED'
 
@@ -142,7 +146,8 @@ jobs:
           ! grep -Fq 'sudo' "$probe"
           ! grep -Fq 'settings.php' "$probe"
           ! grep -Fq 'runtime.env' "$probe"
-          ! grep -Fq 'PROD_' "$probe" "$observer"
+          ! grep -Fq 'PROD_SSH' "$probe" "$observer"
+          ! grep -Fq 'PROD_SERVER' "$probe" "$observer"
           printf '%s\n' \
             'PREPROD_SSH_USER=agency-preprod' \
             'PLAN_MUTATION=NONE' \

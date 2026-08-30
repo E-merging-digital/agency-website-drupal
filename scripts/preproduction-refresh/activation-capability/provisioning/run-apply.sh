@@ -7,6 +7,8 @@ REMOTE="$BASE/provisioning/remote-provision-root.sh"
 PROFILE="$BASE/provisioning/profile.json"
 CAPABILITY_PROFILE="$BASE/profile.json"
 BUNDLE="$BASE/bundle.json"
+VHOST_SELECTOR="$BASE/provisioning/nginx-vhost-selector.py"
+VHOST_SELECTOR_SHA256='e621f2d070132e924e6c0ef6b6f2c2dca2806a1ea4662cd9cd30544ffb9ea5fe'
 TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 REQUEST_ID="${REQUEST_ID:-}"
 REPOSITORY_SHA="${REPOSITORY_SHA:-}"
@@ -20,9 +22,10 @@ PREPROD_PROVISIONING_SSH_KEY="${PREPROD_PROVISIONING_SSH_KEY:-}"
 [[ "${RUNNER_NAME:-}" == 'agency-browser-runner-01' ]]
 [[ -f "$PREPROD_PROVISIONING_SSH_KEY" ]]
 test "$(git rev-parse HEAD)" = "$REPOSITORY_SHA"
-for path in "$REMOTE" "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$BASE/agency-preprod-refresh-control" "$BASE/side_effect_hardening.py" "$BASE/runtime_state_digest.py" "$BASE/data-activation-authority.disabled.json" "$BASE/nginx/agency-preprod-refresh-fence.conf" "$BASE/nginx/agency-preprod-refresh-internal-readiness.conf" "$BASE/provisioning/agency-preprod-refresh-control.sudoers"; do
+for path in "$REMOTE" "$PROFILE" "$CAPABILITY_PROFILE" "$BUNDLE" "$VHOST_SELECTOR" "$BASE/agency-preprod-refresh-control" "$BASE/side_effect_hardening.py" "$BASE/runtime_state_digest.py" "$BASE/data-activation-authority.disabled.json" "$BASE/nginx/agency-preprod-refresh-fence.conf" "$BASE/nginx/agency-preprod-refresh-internal-readiness.conf" "$BASE/provisioning/agency-preprod-refresh-control.sudoers"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
+[[ "$(sha256sum "$VHOST_SELECTOR" | awk '{print $1}')" == "$VHOST_SELECTOR_SHA256" ]]
 for pair in \
   "helper:$BASE/agency-preprod-refresh-control" \
   "side_effect_hardening:$BASE/side_effect_hardening.py" \
@@ -55,6 +58,7 @@ scp "${scp_opts[@]}" \
   "$BASE/nginx/agency-preprod-refresh-fence.conf" \
   "$BASE/nginx/agency-preprod-refresh-internal-readiness.conf" \
   "$BASE/provisioning/agency-preprod-refresh-control.sudoers" \
+  "$VHOST_SELECTOR" \
   "root@$PREPROD_SSH_HOST:$remote_dir/source/" >/dev/null
 scp "${scp_opts[@]}" "$CAPABILITY_PROFILE" "root@$PREPROD_SSH_HOST:$remote_dir/source/capability-profile.json" >/dev/null
 scp "${scp_opts[@]}" "$PROFILE" "root@$PREPROD_SSH_HOST:$remote_dir/source/provisioning-profile.json" >/dev/null

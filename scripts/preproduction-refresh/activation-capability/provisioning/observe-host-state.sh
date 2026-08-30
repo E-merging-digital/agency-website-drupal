@@ -55,14 +55,27 @@ emit_path() {
     "$key.sha256=$digest"
 }
 
+emit_unobservable_unprivileged() {
+  local key="$1"
+  printf '%s\n' \
+    "$key.state=UNOBSERVABLE_UNPRIVILEGED" \
+    "$key.type=UNOBSERVABLE" \
+    "$key.owner=NONE" \
+    "$key.group=NONE" \
+    "$key.mode=NONE" \
+    "$key.digest_state=UNOBSERVABLE" \
+    "$key.sha256=NONE"
+}
+
 HOSTNAME_VALUE="$(hostname 2>/dev/null || uname -n)"
+SUDOERS_DIR_SEARCHABLE="$([[ -x /etc/sudoers.d ]] && printf YES || printf NO)"
 printf '%s\n' \
-  'observer_schema=1' \
+  'observer_schema=2' \
   "execution_uid=$(id -u)" \
   "execution_gid=$(id -g)" \
   "execution_user_sha256=$(sha_text "$(id -un)")" \
   "host_identity_sha256=$(sha_text "$HOSTNAME_VALUE")" \
-  "sudoers_dir_searchable=$([[ -x /etc/sudoers.d ]] && printf YES || printf NO)" \
+  "sudoers_dir_searchable=$SUDOERS_DIR_SEARCHABLE" \
   "state_dir_searchable=$([[ ! -e /var/lib/agency-preprod-refresh ]] && printf NOT_PRESENT || { [[ -x /var/lib/agency-preprod-refresh ]] && printf YES || printf NO; })"
 
 emit_path staging_helper '/usr/local/sbin/agency-preprod-staging-db'
@@ -80,7 +93,11 @@ emit_path candidates_dir '/var/lib/agency-preprod-refresh/candidates'
 emit_path backups_dir '/var/lib/agency-preprod-refresh/backups'
 emit_path authority_state '/var/lib/agency-preprod-refresh/data-activation-authority.json'
 emit_path maintenance_marker '/var/lib/agency-preprod-refresh/refresh-maintenance.flag'
-emit_path sudoers '/etc/sudoers.d/agency-preprod-refresh-control'
+if [[ "$SUDOERS_DIR_SEARCHABLE" == 'YES' ]]; then
+  emit_path sudoers '/etc/sudoers.d/agency-preprod-refresh-control'
+else
+  emit_unobservable_unprivileged sudoers
+fi
 emit_path nginx_snippets_dir '/etc/nginx/snippets'
 emit_path nginx_conf_dir '/etc/nginx/conf.d'
 emit_path fence_snippet '/etc/nginx/snippets/agency-preprod-refresh-fence.conf'

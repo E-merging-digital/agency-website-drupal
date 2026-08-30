@@ -1,0 +1,118 @@
+name: "#899 temporary PREPROD operator-key validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-899-temp-operator-key.yml"
+      - ".github/workflows/preprod-899-temp-operator-key-validation.yml"
+      - "scripts/preproduction/temp-operator-access/**"
+      - "docs/operations/preproduction-temp-operator-access.md"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: "#899 fixed non-root temporary access contract"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate #899 syntax and synthetic contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction/temp-operator-access'
+          bash -n "$base/run-add.sh"
+          python3 -m py_compile \
+            "$base/remote-add-key.py" \
+            "$base/validate-successor-authority.py" \
+            "$base/test-authority.py" \
+            "$base/test-contract.py"
+          python3 "$base/test-authority.py"
+          python3 "$base/test-contract.py"
+
+      - name: Prove fixed non-root route and secret boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          workflow = Path('.github/workflows/preprod-899-temp-operator-key.yml').read_text()
+          runner = Path('scripts/preproduction/temp-operator-access/run-add.sh').read_text()
+          remote = Path('scripts/preproduction/temp-operator-access/remote-add-key.py').read_text()
+          profile = json.loads(Path('scripts/preproduction/temp-operator-access/profile.json').read_text())
+          route = workflow + runner + remote
+
+          assert 'runs-on: ubuntu-24.04' in workflow
+          assert 'PREPROD_SSH_PRIVATE_KEY' in workflow
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in route
+          assert 'root@' not in route
+          assert re.search(r'(?m)^\s*sudo(?:\s|$)', route) is None
+          assert 'StrictHostKeyChecking=no' not in route
+          assert 'ssh-keyscan' not in route
+          assert "SSH_USER='agency-preprod'" in runner
+          assert '/home/agency-preprod/.ssh/authorized_keys' in remote
+          assert profile['fixed_target']['public_key'] == 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIArdJ26K9/VGRXKED9m9/dji80VjuY+0NTC9ANRV25fP agency-preprod-temp-2026-08-31'
+          assert profile['fixed_target']['fingerprint'] == 'SHA256:xMkx4EF3Hu7b77DAYNwSW5iO0/VHwT/k2Ff25FhNxYg'
+          assert profile['fixed_target']['action'] == 'ADD'
+          assert profile['future_execution']['remove_action'] == 'NOT_IMPLEMENTED'
+          assert 'truncate(' not in remote and 'O_TRUNC' not in remote and '.write_text(' not in remote
+          assert 'sys.argv' in remote and 'len(sys.argv) != 1' in remote
+          assert 'set -x' not in route
+          assert 'echo "$PREPROD_PRIVATE_KEY"' not in workflow
+          assert 'cat "$AGENCY_899_KEY"' not in workflow
+          assert 'REMOTE_COMMAND' not in route and 'CALLER_COMMAND' not in route
+          assert 'REMOVE' not in remote
+
+          print('FIXED_USER_TEST=PASS')
+          print('FIXED_PATH_TEST=PASS')
+          print('FIXED_KEY_TEST=PASS')
+          print('FINGERPRINT_TEST=PASS')
+          print('ARBITRARY_COMMAND_REJECTION=PASS')
+          print('SECRET_LOG_LEAKAGE_REGRESSION=PASS')
+          print('ROOT_SECRET=FORBIDDEN')
+          print('SUDO=FORBIDDEN')
+          print('REMOVE_ACTION=NOT_IMPLEMENTED')
+          PY
+
+      - name: Preserve repository-pinned PREPROD trust
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:scripts/preproduction-ssh-trust/manage-known-host.sh)" = \
+            'e10f8576b0fb5b6bd47b707fbdddf06a1651ae9f'
+          test "$(git rev-parse HEAD:scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh)" = \
+            '2487aba1cbece4aa00cc77a968e5e34fd48c7c5a'
+          home="$(mktemp -d)"
+          trap 'rm -rf "$home"' EXIT
+          HOME="$home" PREPROD_SERVER_HOST='preprod.synthetic.invalid' \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+          HOME="$home" PREPROD_SERVER_HOST='preprod.synthetic.invalid' \
+          PREPROD_KNOWN_HOSTS_FILE="$home/.ssh/known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+          printf '%s\n' 'PREPROD_PINNED_TRUST_REGRESSION=SUCCESS'
+
+      - name: Preserve disabled data authority and no-real-execution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.issue_874_grants_activation_authority == false
+          ' scripts/preproduction-refresh/activation-capability/profile.json >/dev/null
+          printf '%s\n' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED' \
+            'REAL_PREPROD_KEY_ADD=NOT_EXECUTED' \
+            'REAL_PREPROD_MUTATION=NONE' \
+            'REAL_MARIADB_QUERY=NONE' \
+            'REAL_PROD_ACCESS=NONE'

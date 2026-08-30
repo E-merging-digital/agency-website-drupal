@@ -9,6 +9,7 @@ PROJECT_ROOT="/var/www/agency-preprod"
 SHARED_DIR="$PROJECT_ROOT/shared"
 DB_NAME="agency_preprod"
 DB_USER="agency_preprod"
+DB_ACCOUNT_HOST="127.0.0.1"
 PHP_VERSION="8.4"
 PHP_SOCKET="/run/php/php8.4-fpm-agency-preprod.sock"
 HTPASSWD_FILE="/etc/nginx/agency-preprod.htpasswd"
@@ -161,9 +162,9 @@ systemctl restart mariadb
 mariadb --protocol=socket <<SQL
 CREATE DATABASE IF NOT EXISTS \`$DB_NAME\`
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
-ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
-GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
+CREATE USER IF NOT EXISTS '$DB_USER'@'$DB_ACCOUNT_HOST' IDENTIFIED BY '$DB_PASSWORD';
+ALTER USER '$DB_USER'@'$DB_ACCOUNT_HOST' IDENTIFIED BY '$DB_PASSWORD';
+GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'$DB_ACCOUNT_HOST';
 FLUSH PRIVILEGES;
 SQL
 

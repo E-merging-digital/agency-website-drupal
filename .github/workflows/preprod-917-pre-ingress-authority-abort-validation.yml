@@ -6,6 +6,7 @@ on:
       - ".github/workflows/preprod-917-pre-ingress-authority-abort-validation.yml"
       - ".github/workflows/preprod-915-fixed-refresh-capability-validation.yml"
       - "docs/operations/preproduction-refresh-activation-capability.md"
+      - "docs/operations/preproduction-refresh-pre-ingress-abort.md"
       - "scripts/preproduction-refresh/activation-capability/**"
 
 permissions:
@@ -55,7 +56,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Validate syntax and pure contract matrix
+      - name: Validate syntax, pure state contract and provisioning digests
         shell: bash
         run: |
           set -euo pipefail
@@ -72,8 +73,10 @@ jobs:
             "$base/agency-preprod-refresh-ingress" \
             "$base/agency-preprod-refresh-control" \
             "$base/test-917-contract.py" \
+            "$base/test-917-provisioning.py" \
             "$base/test-915-contract.py"
           python3 "$base/test-917-contract.py"
+          python3 "$base/test-917-provisioning.py"
 
       - name: Execute root-only abort state-machine proof
         env:
@@ -144,6 +147,7 @@ jobs:
           set -euo pipefail
           base='scripts/preproduction-refresh/activation-capability'
           python3 "$base/test-915-contract.py"
+          python3 "$base/test-917-provisioning.py"
           php "$base/test-915-admin-reconcile.php" absent
           php "$base/test-915-admin-reconcile.php" present
           python3 scripts/preproduction-refresh/activation-boundary/test-contract.py

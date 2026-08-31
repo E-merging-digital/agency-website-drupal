@@ -132,6 +132,14 @@ def main():
         comment_body=command(876, main=wrong_main),
     )
     run_case(
+        "main_advanced_while_queued",
+        expect=False,
+        issue_number=900,
+        issue_body=marker("apply"),
+        comment_body=command(900, "apply"),
+        live_main="1" * 40,
+    )
+    run_case(
         "wrong_profile",
         expect=False,
         comment_body=command(876, profile="wrong-profile"),
@@ -150,6 +158,32 @@ def main():
             {"body": duplicate, "user": {"login": OWNER}},
             {"body": duplicate, "user": {"login": OWNER}},
         ],
+    )
+    apply_comment = command(900, "apply")
+    run_case(
+        "authorization_comment_missing",
+        expect=False,
+        issue_number=900,
+        issue_body=marker("apply"),
+        comment_body=apply_comment,
+        comments=[],
+    )
+    run_case(
+        "authorization_comment_changed",
+        expect=False,
+        issue_number=900,
+        issue_body=marker("apply"),
+        comment_body=apply_comment,
+        comments=[
+            {"body": apply_comment + "-changed", "user": {"login": OWNER}},
+        ],
+    )
+    run_case(
+        "authority_marker_changed_after_queue",
+        expect=False,
+        issue_number=900,
+        issue_body=marker("plan"),
+        comment_body=apply_comment,
     )
     run_case(
         "implementation_issue_874_cannot_authorize_even_if_open",
@@ -174,6 +208,13 @@ def main():
     print("PLAN_APPLY_MODE_ISOLATION=PASS")
     print("#874_LIVE_EXECUTION_AUTHORITY=FORBIDDEN")
     print("DATA_ACTIVATION_AUTHORITY_DISABLED=PASS")
+    print("MAIN_ADVANCED_WHILE_QUEUED=FAIL_CLOSED")
+    print("AUTHORITY_ISSUE_CLOSED=FAIL_CLOSED")
+    print("AUTHORIZATION_COMMENT_MISSING=FAIL_CLOSED")
+    print("AUTHORIZATION_COMMENT_DUPLICATED=FAIL_CLOSED")
+    print("AUTHORIZATION_COMMENT_CHANGED=FAIL_CLOSED")
+    print("AUTHORITY_MARKER_CHANGED=FAIL_CLOSED")
+    print("RUN_ATTEMPT_NOT_1=FAIL_CLOSED")
 
 
 if __name__ == "__main__":

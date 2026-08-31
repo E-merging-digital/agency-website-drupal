@@ -49,7 +49,7 @@ jobs:
             .execution_authority.implementation_issue_may_execute == false and
             .execution_authority.authority_issue_must_be_greater_than == 917 and
             .execution_authority.modes == ["PLAN","APPLY","RECOVER_ABORT"] and
-            .authority_marker.schema_version == 2 and
+            .authority_marker.schema_version == 3 and
             .capability_precondition.revision_lineage == [915,917] and
             .capability_precondition.persistent_data_activation_authority == "DISABLED" and
             .plan.mutation == "NONE" and
@@ -71,7 +71,7 @@ jobs:
           set -euo pipefail
           python3 scripts/preproduction-refresh/governed-successor/test-authority.py
 
-      - name: Execute #915/#917 orchestration, hard-loss and recovery matrix
+      - name: Execute #915/#917 orchestration, hard-loss and trusted recovery-record matrix
         shell: bash
         run: |
           set -euo pipefail
@@ -90,6 +90,7 @@ jobs:
           plan = "  plan:\n" + w.split("\n  plan:\n", 1)[1].split("\n  apply:\n", 1)[0]
           apply = "  apply:\n" + w.split("\n  apply:\n", 1)[1].split("\n  recover-abort:\n", 1)[0]
           recovery = "  recover-abort:\n" + w.split("\n  recover-abort:\n", 1)[1]
+          validate = "  validate-authority:\n" + w.split("\n  validate-authority:\n", 1)[1].split("\n  plan:\n", 1)[0]
 
           for chunk, secret_token, execute_token, cleanup_token in (
               (plan, "secrets.SSH_PRIVATE_KEY", "run-plan.sh", "Cleanup PLAN identities always"),
@@ -111,17 +112,36 @@ jobs:
           assert "PREPROD_SSH_PRIVATE_KEY" not in recovery
           assert "PREPROD_PROVISIONING_SSH_PRIVATE_KEY" in recovery
           assert "RECOVERY_ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE" in recovery
-          assert "verify-recovery-target-comments" in recovery
+
+          # Recovery trust is bound to one immutable GitHub comment id. Neither
+          # validation nor JIT scans the target issue's arbitrary comments.
+          for chunk in (validate, recovery):
+              assert 'issues/comments/$TARGET_RECORD_COMMENT_ID' in chunk
+              assert 'verify-recovery-target-comment' in chunk
+              assert 'issues/$TARGET_ISSUE/comments?per_page=100' not in chunk
+          assert 'target_recovery_record_comment_id' in validate
+          assert 'RECOVERY_RECORD_COMMENT_ID_BINDING=PASS' in recovery
+          assert 'RECOVERY_RECORD_AUTHOR_AUTHENTICATION=PASS' in recovery
+          assert 'UNTRUSTED_RECOVERY_PREFIX=IGNORED' in recovery
 
           run_apply = (base / 'run-apply.sh').read_text()
           metadata = run_apply.index('RECOVERY_TARGET_METADATA=RECORDED_BEFORE_AUTHORITY_ARM')
           install = run_apply.index('install_output=')
           assert metadata < install
           assert 'AGENCY_PREPROD_REFRESH_RECOVERY_TARGET=' in run_apply
+          assert 'RECOVERY_TARGET_COMMENT_ID=' in run_apply
+          assert 'verify-recovery-target-comment' in run_apply
+          assert 'issues/comments/$record_id' in run_apply
           assert 'record_is_execution_authority' not in run_apply
           assert 'raw="$temp_abs/' in run_apply
           assert 'RUNNER_TEMP must be outside workspace' in run_apply
           assert "actions/upload-artifact" not in apply
+
+          contract = (base / 'orchestration-contract.py').read_text()
+          assert 'TRUSTED_RECOVERY_RECORD_LOGIN = "github-actions[bot]"' in contract
+          assert 'TRUSTED_RECOVERY_RECORD_TYPE = "Bot"' in contract
+          assert 'def verify_recovery_target_comment' in contract
+          assert 'def verify_recovery_target_comments' not in contract
 
           run_recovery = (base / 'run-recover-abort.sh').read_text()
           assert '/usr/local/sbin/agency-preprod-refresh-authority-abort' in run_recovery
@@ -141,6 +161,10 @@ jobs:
           print("JIT_BEFORE_ROOT_SECRET=PASS")
           print("RECOVERY_ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE")
           print("RECOVERY_PROD_ACCESS=NONE")
+          print("RECOVERY_RECORD_COMMENT_ID_BINDING=PASS")
+          print("RECOVERY_RECORD_AUTHOR_AUTHENTICATION=PASS")
+          print("UNTRUSTED_RECOVERY_PREFIX=IGNORED")
+          print("UNTRUSTED_DUPLICATE_RECORD=IGNORED")
           print("RECOVERY_FIXED_HELPER=agency-preprod-refresh-authority-abort_ONLY")
           print("RAW_PROD_GITHUB_HOSTED=IMPOSSIBLE")
           print("RAW_PROD_GITHUB_ARTIFACT=NONE")

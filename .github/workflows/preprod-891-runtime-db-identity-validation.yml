@@ -46,7 +46,7 @@ jobs:
           python3 "$base/test-plan-evidence.py"
           python3 "$base/test-nginx-vhost-selector.py"
 
-      - name: Prove exact Drush contract and fixed effective-runtime query
+      - name: Prove exact Drush contract and fixed active-connection query
         shell: bash
         run: |
           set -euo pipefail
@@ -65,7 +65,11 @@ jobs:
           probe = (base / 'runtime-db-identity-probe.py').read_text()
           assert 'CURRENT = Path("/var/www/agency-preprod/current")' in probe
           assert 'DRUSH = CURRENT / "vendor/bin/drush"' in probe
-          assert '[str(DRUSH), "--quiet", "status", "--field=db-name"]' in probe
+          assert '"php:eval"' in probe
+          assert 'SELECT DATABASE()' in probe
+          assert '\\Drupal::database()->query' in probe
+          assert 'getConnectionInfo' not in probe
+          assert 'status\", \"--field=db-name' not in probe
           assert 'stderr=subprocess.DEVNULL' in probe
           assert 'stdout=subprocess.PIPE' in probe
           assert 'shell=True' not in probe
@@ -80,12 +84,13 @@ jobs:
           ):
               assert state in probe
           print('DRUSH_VERSION=13.7.6')
-          print('DRUSH_DB_NAME_COMMAND_CONTRACT=VALID')
+          print('ACTIVE_DB_CONNECTION_QUERY=SELECT_DATABASE')
+          print('OLD_STATUS_DB_NAME_DEPENDENCY=REMOVED')
           print('EFFECTIVE_RUNTIME_QUERY=FIXED')
           print('DRUSH_STDERR_OUTPUT=FORBIDDEN')
           PY
 
-      - name: Prove r6 lossy observation defect is removed
+      - name: Prove r6 lossy observation defect remains removed
         shell: bash
         run: |
           set -euo pipefail
@@ -101,13 +106,14 @@ jobs:
           grep -Fq 'runtime database identity probe unavailable:' "$evaluator"
           grep -Fq 'RELEASE_ACCESS_FAILED' "$evaluator"
           grep -Fq 'DRUSH_ACCESS_FAILED' "$evaluator"
-          grep -Fq "RUNTIME_DB_PROBE_BLOB='c123a68ec845ae65dfa66cec6b4ec9e7e361b3de'" "$plan"
-          test "$(git rev-parse "HEAD:$probe")" = 'c123a68ec845ae65dfa66cec6b4ec9e7e361b3de'
+          grep -Fq "RUNTIME_DB_PROBE_BLOB='197a2da8173f902eb5f43b96f2f14399d00df220'" "$plan"
+          test "$(git rev-parse "HEAD:$probe")" = '197a2da8173f902eb5f43b96f2f14399d00df220'
           grep -Fq '< "$RUNTIME_DB_PROBE" >> "$observation"' "$plan"
           grep -Fq 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin python3 -I -' "$plan"
           printf '%s\n' \
             '#891_LOSSY_UNAVAILABLE_NONE_COLLAPSE=REMOVED' \
             '#891_MULTILINE_FLATTENING=FORBIDDEN' \
+            '#891_CR_OUTPUT=FORBIDDEN' \
             '#891_ACCESS_FAILURE_NOT_ABSENCE=PASS' \
             '#891_OBSERVED_MISMATCH=FAIL_CLOSED' \
             '#891_UNAVAILABLE_REASON=BOUNDED'

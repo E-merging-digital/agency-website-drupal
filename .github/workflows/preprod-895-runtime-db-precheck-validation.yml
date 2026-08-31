@@ -122,7 +122,7 @@ jobs:
           test "$(git rev-parse HEAD:$provisioning/nginx-vhost-selector.py)" = \
             'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
           test "$(git rev-parse HEAD:$provisioning/run-plan.sh)" = \
-            'e479b8de676a927235374c5b722218efa5db891a'
+            '981a719eb29f485a41500531e0ff24b0e2187470'
           test "$(git rev-parse HEAD:.github/workflows/preprod-874-capability-provisioning.yml)" = \
             'bf20a2767c28865bcbd53935b2df0628e5318fe1'
           test "$(git rev-parse HEAD:$provisioning/validate-successor-authority.py)" = \
@@ -145,6 +145,7 @@ jobs:
             '#889=PRESERVED' \
             '#874_AUTHORITY=NOT_WIDENED' \
             '#876_AUTHORITY=UNCHANGED' \
+            '#905_RUNTIME_DB_HOME_FIX=PINNED' \
             'DATA_ACTIVATION_AUTHORITY=DISABLED' \
             'REAL_PREPROD_EXECUTION=NONE' \
             'REAL_PROD_ACCESS=NONE'

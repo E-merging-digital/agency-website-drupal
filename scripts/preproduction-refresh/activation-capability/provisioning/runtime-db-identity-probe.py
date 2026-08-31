@@ -11,6 +11,13 @@ from pathlib import Path
 CURRENT = Path("/var/www/agency-preprod/current")
 DRUSH = CURRENT / "vendor/bin/drush"
 SAFE_DB_NAME = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+MAX_STDOUT_BYTES = 65
+PHP_EVAL = (
+    '$name = \\Drupal::database()->query("SELECT DATABASE()")->fetchField(); '
+    'if (!is_string($name) || $name === "") { '
+    'throw new \\RuntimeException("runtime database identity unavailable"); '
+    '} echo $name;'
+)
 
 OBSERVED = "OBSERVED"
 RELEASE_UNAVAILABLE = "RELEASE_UNAVAILABLE"
@@ -61,22 +68,23 @@ def inspect_runtime_preconditions() -> tuple[str, str, str] | None:
     return None
 
 
+def runtime_command() -> list[str]:
+    return [str(DRUSH), "--quiet", "php:eval", PHP_EVAL]
+
+
 def classify_command_result(returncode: int, stdout: bytes) -> tuple[str, str, str]:
     if returncode != 0:
         return DRUSH_FAILED, NONZERO, "NONE"
 
-    # Accept only the one normal terminal line ending produced by a scalar
-    # formatter. Never flatten embedded or repeated newlines into an identity.
-    if stdout.endswith(b"\r\n"):
-        candidate_bytes = stdout[:-2]
-    elif stdout.endswith(b"\n"):
-        candidate_bytes = stdout[:-1]
-    else:
-        candidate_bytes = stdout
+    if len(stdout) > MAX_STDOUT_BYTES:
+        return OUTPUT_INVALID, ZERO, "NONE"
+    if b"\r" in stdout or b"\x00" in stdout:
+        return OUTPUT_INVALID, ZERO, "NONE"
 
+    candidate_bytes = stdout[:-1] if stdout.endswith(b"\n") else stdout
     if not candidate_bytes:
         return OUTPUT_EMPTY, ZERO, "NONE"
-    if b"\n" in candidate_bytes or b"\r" in candidate_bytes or b"\x00" in candidate_bytes:
+    if b"\n" in candidate_bytes:
         return OUTPUT_INVALID, ZERO, "NONE"
 
     try:
@@ -96,14 +104,15 @@ def probe_runtime() -> tuple[str, str, str]:
 
     try:
         completed = subprocess.run(
-            [str(DRUSH), "--quiet", "status", "--field=db-name"],
+            runtime_command(),
             cwd=str(CURRENT),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             check=False,
+            timeout=30,
         )
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return DRUSH_EXEC_FAILED, NOT_RUN, "NONE"
 
     return classify_command_result(completed.returncode, completed.stdout)

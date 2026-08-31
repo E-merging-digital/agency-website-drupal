@@ -242,13 +242,13 @@ jobs:
           test "$(stat -c '%a' "$key")" = '600'
 
           HOME="$home" PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
-            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null 2>&1
           known_hosts="$home/.ssh/known_hosts"
           [[ -f "$known_hosts" && ! -L "$known_hosts" ]]
           test "$(stat -c '%a' "$known_hosts")" = '600'
           HOME="$home" PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
           PREPROD_KNOWN_HOSTS_FILE="$known_hosts" \
-            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null 2>&1
 
           echo "AGENCY_912_KEY=$key" >> "$GITHUB_ENV"
           echo "AGENCY_912_HOME=$home" >> "$GITHUB_ENV"

@@ -1,0 +1,186 @@
+name: "#899 Governed temporary PREPROD operator key ADD"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-preprod-899-temp-key-add
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate successor authority for temporary key ADD
+    if: >-
+      ${{
+        github.event.issue.pull_request == null &&
+        startsWith(github.event.comment.body, '/agency-preprod-temp-key-add ')
+      }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      request_id: ${{ steps.authority.outputs.request_id }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      operation_profile: ${{ steps.authority.outputs.operation_profile }}
+    steps:
+      - name: Resolve exact live main
+        id: live
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live_main" =~ ^[0-9a-f]{40}$ ]]
+          echo "main_sha=$live_main" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.live.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate owner, successor marker, exact main and one-shot request
+        id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHORITY_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LIVE_MAIN: ${{ steps.live.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          issue_json="$RUNNER_TEMP/agency-899-authority-issue.json"
+          comments_json="$RUNNER_TEMP/agency-899-authority-comments.json"
+          gh api "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER" > "$issue_json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments_json"
+          python3 scripts/preproduction/temp-operator-access/validate-successor-authority.py \
+            --issue-json "$issue_json" \
+            --comments-json "$comments_json" \
+            --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --event-action "$EVENT_ACTION" \
+            --github-actor "$GITHUB_ACTOR" \
+            --comment-author "$COMMENT_AUTHOR" \
+            --comment-body "$COMMENT_BODY" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --live-main "$LIVE_MAIN" \
+            --github-output "$GITHUB_OUTPUT"
+          rm -f -- "$issue_json" "$comments_json"
+
+      - name: Bind fixed #899 ADD profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .issue_number == 899 and
+            .profile_id == "agency-preprod-temp-key-add-v1" and
+            .implementation_only == true and
+            .fixed_target.ssh_user == "agency-preprod" and
+            .fixed_target.authorized_keys == "/home/agency-preprod/.ssh/authorized_keys" and
+            .fixed_target.action == "ADD" and
+            .future_execution.root_secret == "FORBIDDEN" and
+            .future_execution.sudo == "FORBIDDEN" and
+            .boundaries.data_activation_authority == "DISABLED"
+          ' scripts/preproduction/temp-operator-access/profile.json >/dev/null
+          test "${{ steps.authority.outputs.implementation_issue }}" = '899'
+          test "${{ steps.authority.outputs.authority_issue }}" != '899'
+
+  add-key:
+    name: Add exact temporary operator key as agency-preprod
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Revalidate live main before SSH secret materialization
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$live_main" = '${{ needs.validate-authority.outputs.main_sha }}'
+          test "$(git rev-parse HEAD)" = "$live_main"
+
+      - name: Configure transient deploy identity and pinned PREPROD trust
+        shell: bash
+        env:
+          PREPROD_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_ENVIRONMENT" == 'github-hosted' ]]
+          [[ "$RUNNER_OS" == 'Linux' ]]
+          [[ "$RUNNER_ARCH" == 'X64' ]]
+          test -n "$PREPROD_PRIVATE_KEY"
+          test -n "$PREPROD_SSH_HOST"
+
+          umask 077
+          key="$(mktemp "$RUNNER_TEMP/agency-899-key-${GITHUB_RUN_ID}.XXXXXX.key")"
+          home="$(mktemp -d "$RUNNER_TEMP/agency-899-home-${GITHUB_RUN_ID}.XXXXXX")"
+          echo "AGENCY_899_KEY=$key" >> "$GITHUB_ENV"
+          echo "AGENCY_899_HOME=$home" >> "$GITHUB_ENV"
+          chmod 600 "$key"
+          chmod 700 "$home"
+          printf '%s\n' "$PREPROD_PRIVATE_KEY" > "$key"
+          test "$(stat -c '%a' "$key")" = '600'
+
+          HOME="$home" PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+          known_hosts="$home/.ssh/known_hosts"
+          [[ -f "$known_hosts" && ! -L "$known_hosts" ]]
+          test "$(stat -c '%a' "$known_hosts")" = '600'
+          HOME="$home" PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
+          PREPROD_KNOWN_HOSTS_FILE="$known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+
+      - name: Execute fixed non-root temporary key ADD
+        shell: bash
+        env:
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          export PREPROD_SSH_KEY="$AGENCY_899_KEY"
+          export PREPROD_KNOWN_HOSTS_FILE="$AGENCY_899_HOME/.ssh/known_hosts"
+          bash scripts/preproduction/temp-operator-access/run-add.sh
+
+      - name: Remove transient deploy identity and trust
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="${AGENCY_899_KEY:-}"
+          home="${AGENCY_899_HOME:-}"
+          if [[ -n "$key" ]]; then
+            [[ "$key" == "$RUNNER_TEMP/agency-899-key-${GITHUB_RUN_ID}."*".key" ]]
+            [[ -f "$key" && ! -L "$key" ]]
+            rm -f -- "$key"
+            [[ ! -e "$key" && ! -L "$key" ]]
+          fi
+          if [[ -n "$home" ]]; then
+            [[ "$home" == "$RUNNER_TEMP/agency-899-home-${GITHUB_RUN_ID}."* ]]
+            [[ -d "$home" && ! -L "$home" ]]
+            rm -rf -- "$home"
+            [[ ! -e "$home" && ! -L "$home" ]]
+          fi

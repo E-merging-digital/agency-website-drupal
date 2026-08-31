@@ -53,6 +53,7 @@ case "$temp_abs/" in "$workspace_abs/"*) echo 'RUNNER_TEMP must be outside works
 raw="$temp_abs/agency-914-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.sql"
 prod_stderr="$temp_abs/agency-914-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.prod.stderr"
 abort_request_file="$temp_abs/agency-914-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.abort.json"
+recovery_comment_file="$temp_abs/agency-914-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.recovery-comment.json"
 authority_armed=0
 snapshot_ready=0
 authority_id=''
@@ -90,7 +91,7 @@ finish() {
   local status="$?"
   trap - EXIT HUP INT TERM
   set +e
-  rm -f -- "$abort_request_file"
+  rm -f -- "$abort_request_file" "$recovery_comment_file"
   if [[ "$status" -ne 0 && "$authority_armed" -eq 1 && "$snapshot_ready" -eq 0 ]]; then
     if ! pre_ingress_abort; then
       echo 'Pre-ingress failure could not be proven ABORTED; blind retry forbidden; fresh RECOVER_ABORT authority required if active remains.' >&2
@@ -126,7 +127,8 @@ authority_id="$(python3 "$CONTRACT" authority-id \
   --snapshot-bytes "$snapshot_bytes" --snapshot-sha256 "$snapshot_sha256")"
 
 # Durably record metadata-only exact target identity BEFORE authority can become
-# ARMED. This record is evidence/reconstruction metadata, never execution authority.
+# ARMED. The immutable GitHub comment id becomes part of any later RECOVER_ABORT
+# authority binding; the record itself is never execution authority.
 recovery_record="$(python3 "$CONTRACT" recovery-target-record \
   --issue "$AUTHORITY_ISSUE" --request-id "$REQUEST_ID" --main-sha "$REPOSITORY_SHA" \
   --snapshot-bytes "$snapshot_bytes" --snapshot-sha256 "$snapshot_sha256")"
@@ -135,9 +137,17 @@ record_id="$(gh api --method POST \
   "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE/comments" \
   -f body="$recovery_body" --jq '.id')"
 [[ "$record_id" =~ ^[0-9]+$ ]]
-recorded_body="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$record_id" --jq '.body')"
-[[ "$recorded_body" == "$recovery_body" ]]
-printf '%s\n' 'RECOVERY_TARGET_METADATA=RECORDED_BEFORE_AUTHORITY_ARM' 'RECOVERY_TARGET_METADATA_IS_EXECUTION_AUTHORITY=NO'
+gh api "repos/$GITHUB_REPOSITORY/issues/comments/$record_id" > "$recovery_comment_file"
+python3 "$CONTRACT" verify-recovery-target-comment \
+  --comment-json "$recovery_comment_file" --repository "$GITHUB_REPOSITORY" \
+  --comment-id "$record_id" --issue "$AUTHORITY_ISSUE" --request-id "$REQUEST_ID" \
+  --main-sha "$REPOSITORY_SHA" --authority-id "$authority_id" >/dev/null
+rm -f -- "$recovery_comment_file"
+printf '%s\n' \
+  'RECOVERY_TARGET_METADATA=RECORDED_BEFORE_AUTHORITY_ARM' \
+  "RECOVERY_TARGET_COMMENT_ID=$record_id" \
+  'RECOVERY_RECORD_AUTHOR_AUTHENTICATION=PASS' \
+  'RECOVERY_TARGET_METADATA_IS_EXECUTION_AUTHORITY=NO'
 
 install_output="$(printf '%s\n' "$envelope" | "${root_ssh[@]}" "root@$PREPROD_SSH_HOST" "$INSTALL")"
 grep -Fxq 'TRANSACTION_AUTHORITY=ARMED' <<<"$install_output"

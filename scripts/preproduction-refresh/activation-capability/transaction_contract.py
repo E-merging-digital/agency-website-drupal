@@ -372,6 +372,7 @@ def pre_ingress_aborted_state(
     return validate_authority_state(terminal)
 
 
+
 def validate_aborted_terminal_binding(
     authority: Mapping[str, Any],
     abort_request: Mapping[str, Any],
@@ -394,7 +395,6 @@ def validate_aborted_terminal_binding(
     if state["human_recovery_required"] is not False:
         raise ContractError("Aborted terminal recovery marker must remain false.")
     return state, request
-
 
 def spool_basename(authority: Mapping[str, Any]) -> str:
     state = validate_authority_state(authority)

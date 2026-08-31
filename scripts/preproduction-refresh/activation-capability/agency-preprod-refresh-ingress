@@ -56,7 +56,7 @@ def require_dir(path: str, mode: int) -> None:
 
 
 def load_contract() -> ModuleType:
-    require_file(CONTRACT_PATH, 0o644)
+    meta = require_file(CONTRACT_PATH, 0o644)
     if sha256_file(CONTRACT_PATH) != CONTRACT_SHA256:
         raise IngressError("Pinned transaction contract digest mismatch.")
     spec = importlib.util.spec_from_file_location("agency_preprod_transaction_contract", CONTRACT_PATH)

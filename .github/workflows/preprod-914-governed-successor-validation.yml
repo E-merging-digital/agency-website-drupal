@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   successor-contract:
-    name: "#914 authority / PLAN / APPLY / abort composition"
+    name: "#914 authority / PLAN / APPLY / RECOVER_ABORT composition"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -37,20 +37,30 @@ jobs:
             "$base/orchestration-contract.py" \
             "$base/test-authority.py" \
             "$base/test-orchestration.py"
-          bash -n "$base/run-plan.sh" "$base/run-apply.sh" "$base/remote-plan-observe.sh"
+          bash -n \
+            "$base/run-plan.sh" \
+            "$base/run-apply.sh" \
+            "$base/run-recover-abort.sh" \
+            "$base/remote-plan-observe.sh"
           jq -e '
             .issue_number == 914 and
             .parent_issue == 816 and
             .state == "SOURCE_ONLY_NOT_EXECUTION_AUTHORITY" and
             .execution_authority.implementation_issue_may_execute == false and
             .execution_authority.authority_issue_must_be_greater_than == 917 and
+            .execution_authority.modes == ["PLAN","APPLY","RECOVER_ABORT"] and
+            .authority_marker.schema_version == 2 and
             .capability_precondition.revision_lineage == [915,917] and
             .capability_precondition.persistent_data_activation_authority == "DISABLED" and
             .plan.mutation == "NONE" and
             .apply.prod_write == "NONE" and
+            .recover_abort.prod_access == "NONE" and
+            .recover_abort.normal_preprod_deploy_secret == "NONE" and
+            .recover_abort.fixed_helper == "/usr/local/sbin/agency-preprod-refresh-authority-abort" and
             .fixed_capability.normal_sudo_authority_installer == "NONE" and
             .fixed_capability.normal_sudo_authority_abort == "NONE" and
             .abort_semantics.aborted_is_rolled_back == false and
+            .delivery_boundary.real_recover_abort == "NONE" and
             .delivery_boundary.data_activation_authority == "DISABLED"
           ' "$base/profile.json" >/dev/null
           python3 "$base/orchestration-contract.py" verify-repository
@@ -61,45 +71,77 @@ jobs:
           set -euo pipefail
           python3 scripts/preproduction-refresh/governed-successor/test-authority.py
 
-      - name: Execute #915/#917 orchestration and abort matrix
+      - name: Execute #915/#917 orchestration, hard-loss and recovery matrix
         shell: bash
         run: |
           set -euo pipefail
           python3 scripts/preproduction-refresh/governed-successor/test-orchestration.py
 
-      - name: Prove future workflow JIT ordering and raw-data boundary statically
+      - name: Prove PLAN/APPLY/RECOVER_ABORT JIT ordering and least-secret boundaries statically
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           w = Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
+          base = Path('scripts/preproduction-refresh/governed-successor')
           assert "runs-on: [self-hosted, linux, x64, agency]" in w
-          for job in ("  plan:\n", "  apply:\n"):
-              chunk = job + w.split(job, 1)[1]
-              if job == "  plan:\n":
-                  chunk = chunk.split("\n  apply:\n", 1)[0]
-              checkout = chunk.index("Checkout exact originally authorized main")
-              jit = chunk.index("JIT revalidate live main and authority before")
-              secret = chunk.index("secrets.")
-              execute = chunk.index("run-" + ("plan" if job == "  plan:\n" else "apply") + ".sh")
-              cleanup = chunk.index("Cleanup " + ("PLAN" if job == "  plan:\n" else "APPLY") + " identities always")
+
+          plan = "  plan:\n" + w.split("\n  plan:\n", 1)[1].split("\n  apply:\n", 1)[0]
+          apply = "  apply:\n" + w.split("\n  apply:\n", 1)[1].split("\n  recover-abort:\n", 1)[0]
+          recovery = "  recover-abort:\n" + w.split("\n  recover-abort:\n", 1)[1]
+
+          for chunk, secret_token, execute_token, cleanup_token in (
+              (plan, "secrets.SSH_PRIVATE_KEY", "run-plan.sh", "Cleanup PLAN identities always"),
+              (apply, "secrets.SSH_PRIVATE_KEY", "run-apply.sh", "Cleanup APPLY identities always"),
+              (recovery, "secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY", "run-recover-abort.sh", "Cleanup RECOVER_ABORT root identity always"),
+          ):
+              checkout = chunk.index("Checkout exact")
+              jit = chunk.index("JIT revalidate")
+              secret = chunk.index(secret_token)
+              execute = chunk.index(execute_token)
+              cleanup = chunk.index(cleanup_token)
               assert checkout < jit < secret < execute < cleanup
-              assert "secrets." not in chunk[:jit]
-          apply = "  apply:\n" + w.split("\n  apply:\n", 1)[1]
-          assert "PREPROD_PROVISIONING_SSH_PRIVATE_KEY" in apply
-          run_apply = Path('scripts/preproduction-refresh/governed-successor/run-apply.sh').read_text()
+              assert secret_token not in chunk[:jit]
+
+          assert "secrets.SSH_PRIVATE_KEY" not in recovery
+          assert "secrets.PREPROD_SSH_PRIVATE_KEY" not in recovery
+          assert "secrets.SERVER_HOST" not in recovery
+          assert "secrets.SERVER_USER" not in recovery
+          assert "PREPROD_SSH_PRIVATE_KEY" not in recovery
+          assert "PREPROD_PROVISIONING_SSH_PRIVATE_KEY" in recovery
+          assert "RECOVERY_ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE" in recovery
+          assert "verify-recovery-target-comments" in recovery
+
+          run_apply = (base / 'run-apply.sh').read_text()
+          metadata = run_apply.index('RECOVERY_TARGET_METADATA=RECORDED_BEFORE_AUTHORITY_ARM')
+          install = run_apply.index('install_output=')
+          assert metadata < install
+          assert 'AGENCY_PREPROD_REFRESH_RECOVERY_TARGET=' in run_apply
+          assert 'record_is_execution_authority' not in run_apply
           assert 'raw="$temp_abs/' in run_apply
-          assert 'GITHUB_WORKSPACE' in run_apply and 'RUNNER_TEMP must be outside workspace' in run_apply
+          assert 'RUNNER_TEMP must be outside workspace' in run_apply
           assert "actions/upload-artifact" not in apply
-          assert "/usr/local/sbin/agency-preprod-refresh-authority-install" in run_apply
-          assert "/usr/local/sbin/agency-preprod-refresh-authority-abort" in run_apply
-          assert "sudo -n -- $INGRESS" in run_apply
-          assert "sudo -n -- $CONTROL" in run_apply
+
+          run_recovery = (base / 'run-recover-abort.sh').read_text()
+          assert '/usr/local/sbin/agency-preprod-refresh-authority-abort' in run_recovery
+          for forbidden in (
+              'agency-preprod-refresh-authority-install',
+              'agency-preprod-refresh-ingress',
+              'agency-preprod-refresh-control',
+              'PROD_SSH_KEY=', 'PROD_REMOTE=', 'scripts/production-readonly-snapshot',
+              'IMPORT_SANITIZE_HARDEN_RETAIN',
+              'BACKUP_ACTIVATE_CONVERGE_VALIDATE',
+              'ROLLBACK_RECORDED',
+          ):
+              assert forbidden not in run_recovery
+
           print("JIT_BEFORE_PROD_SECRET=PASS")
           print("JIT_BEFORE_PREPROD_SECRET=PASS")
           print("JIT_BEFORE_ROOT_SECRET=PASS")
-          print("SECRET_BEFORE_JIT=IMPOSSIBLE")
+          print("RECOVERY_ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE")
+          print("RECOVERY_PROD_ACCESS=NONE")
+          print("RECOVERY_FIXED_HELPER=agency-preprod-refresh-authority-abort_ONLY")
           print("RAW_PROD_GITHUB_HOSTED=IMPOSSIBLE")
           print("RAW_PROD_GITHUB_ARTIFACT=NONE")
           PY

@@ -30,6 +30,11 @@ jobs:
       prod_release_sha: ${{ steps.authority.outputs.prod_release_sha }}
       operation_profile: ${{ steps.authority.outputs.operation_profile }}
       authority_issue: ${{ steps.authority.outputs.authority_issue }}
+      target_successor_issue: ${{ steps.authority.outputs.target_successor_issue }}
+      target_request_id: ${{ steps.authority.outputs.target_request_id }}
+      target_main_sha: ${{ steps.authority.outputs.target_main_sha }}
+      target_profile_id: ${{ steps.authority.outputs.target_profile_id }}
+      target_authority_id: ${{ steps.authority.outputs.target_authority_id }}
     steps:
       - name: Resolve exact live main
         id: live
@@ -68,17 +73,12 @@ jobs:
           gh api --paginate --slurp \
             "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments_json"
           python3 scripts/preproduction-refresh/governed-successor/validate-execution-authority.py \
-            --issue-json "$issue_json" \
-            --comments-json "$comments_json" \
+            --issue-json "$issue_json" --comments-json "$comments_json" \
             --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
-            --comment-body "$COMMENT_BODY" \
-            --comment-author "$COMMENT_AUTHOR" \
-            --github-actor "$GITHUB_ACTOR" \
-            --event-name "$GITHUB_EVENT_NAME" \
-            --event-action "$EVENT_ACTION" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --live-main "$LIVE_MAIN" \
-            --github-output "$GITHUB_OUTPUT"
+            --comment-body "$COMMENT_BODY" --comment-author "$COMMENT_AUTHOR" \
+            --github-actor "$GITHUB_ACTOR" --event-name "$GITHUB_EVENT_NAME" \
+            --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --live-main "$LIVE_MAIN" --github-output "$GITHUB_OUTPUT"
 
       - name: Bind repository safety profile before executor scheduling
         shell: bash
@@ -87,6 +87,26 @@ jobs:
           python3 scripts/preproduction-refresh/governed-successor/orchestration-contract.py verify-repository
           test "${{ steps.authority.outputs.implementation_issue }}" = '914'
           test "${{ steps.authority.outputs.authority_issue }}" -gt '917'
+
+      - name: Prove exact durable target metadata for RECOVER_ABORT before scheduling root executor
+        if: ${{ steps.authority.outputs.mode == 'RECOVER_ABORT' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_ISSUE: ${{ steps.authority.outputs.target_successor_issue }}
+          TARGET_REQUEST: ${{ steps.authority.outputs.target_request_id }}
+          TARGET_MAIN: ${{ steps.authority.outputs.target_main_sha }}
+          TARGET_AUTHORITY_ID: ${{ steps.authority.outputs.target_authority_id }}
+        run: |
+          set -euo pipefail
+          comments_json="$RUNNER_TEMP/agency-914-recovery-target-comments.json"
+          trap 'rm -f -- "$comments_json"' EXIT
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/$TARGET_ISSUE/comments?per_page=100" > "$comments_json"
+          python3 scripts/preproduction-refresh/governed-successor/orchestration-contract.py \
+            verify-recovery-target-comments --comments-json "$comments_json" \
+            --issue "$TARGET_ISSUE" --request-id "$TARGET_REQUEST" \
+            --main-sha "$TARGET_MAIN" --authority-id "$TARGET_AUTHORITY_ID"
 
   plan:
     name: Data-free mutation-free governed successor PLAN
@@ -128,17 +148,16 @@ jobs:
           comments_json="$RUNNER_TEMP/agency-914-plan-jit-comments.json"
           trap 'rm -f -- "$issue_json" "$comments_json"' EXIT
           gh api "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER" > "$issue_json"
-          gh api --paginate --slurp \
-            "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments_json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments_json"
           python3 scripts/preproduction-refresh/governed-successor/validate-execution-authority.py \
             --issue-json "$issue_json" --comments-json "$comments_json" \
-            --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
-            --comment-body "$COMMENT_BODY" --comment-author "$COMMENT_AUTHOR" \
-            --github-actor "$GITHUB_ACTOR" --event-name "$GITHUB_EVENT_NAME" \
-            --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --live-main "$current_main" --checked-out-head "$checked_out" \
-            --expected-mode "$EXPECTED_MODE" --expected-request-id "$EXPECTED_REQUEST_ID" \
-            --expected-profile "$EXPECTED_PROFILE" --expected-main "$EXPECTED_MAIN"
+            --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" --comment-body "$COMMENT_BODY" \
+            --comment-author "$COMMENT_AUTHOR" --github-actor "$GITHUB_ACTOR" \
+            --event-name "$GITHUB_EVENT_NAME" --event-action "$EVENT_ACTION" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" --live-main "$current_main" \
+            --checked-out-head "$checked_out" --expected-mode "$EXPECTED_MODE" \
+            --expected-request-id "$EXPECTED_REQUEST_ID" --expected-profile "$EXPECTED_PROFILE" \
+            --expected-main "$EXPECTED_MAIN"
           python3 scripts/preproduction-refresh/governed-successor/orchestration-contract.py verify-repository
           printf '%s\n' 'JIT_BEFORE_PROD_SECRET=PASS' 'JIT_BEFORE_PREPROD_SECRET=PASS' 'SECRET_BEFORE_JIT=IMPOSSIBLE'
 
@@ -192,7 +211,7 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
-      issues: read
+      issues: write
     steps:
       - name: Checkout exact originally authorized main
         uses: actions/checkout@v6
@@ -224,17 +243,16 @@ jobs:
           comments_json="$RUNNER_TEMP/agency-914-apply-jit-comments.json"
           trap 'rm -f -- "$issue_json" "$comments_json"' EXIT
           gh api "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER" > "$issue_json"
-          gh api --paginate --slurp \
-            "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments_json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments_json"
           python3 scripts/preproduction-refresh/governed-successor/validate-execution-authority.py \
             --issue-json "$issue_json" --comments-json "$comments_json" \
-            --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
-            --comment-body "$COMMENT_BODY" --comment-author "$COMMENT_AUTHOR" \
-            --github-actor "$GITHUB_ACTOR" --event-name "$GITHUB_EVENT_NAME" \
-            --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --live-main "$current_main" --checked-out-head "$checked_out" \
-            --expected-mode "$EXPECTED_MODE" --expected-request-id "$EXPECTED_REQUEST_ID" \
-            --expected-profile "$EXPECTED_PROFILE" --expected-main "$EXPECTED_MAIN"
+            --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" --comment-body "$COMMENT_BODY" \
+            --comment-author "$COMMENT_AUTHOR" --github-actor "$GITHUB_ACTOR" \
+            --event-name "$GITHUB_EVENT_NAME" --event-action "$EVENT_ACTION" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" --live-main "$current_main" \
+            --checked-out-head "$checked_out" --expected-mode "$EXPECTED_MODE" \
+            --expected-request-id "$EXPECTED_REQUEST_ID" --expected-profile "$EXPECTED_PROFILE" \
+            --expected-main "$EXPECTED_MAIN"
           python3 scripts/preproduction-refresh/governed-successor/orchestration-contract.py verify-repository
           printf '%s\n' 'JIT_BEFORE_PROD_SECRET=PASS' 'JIT_BEFORE_PREPROD_SECRET=PASS' 'JIT_BEFORE_ROOT_SECRET=PASS' 'SECRET_BEFORE_JIT=IMPOSSIBLE'
 
@@ -260,6 +278,7 @@ jobs:
       - name: Execute exact governed APPLY orchestration
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           AUTHORITY_ISSUE: ${{ needs.validate-authority.outputs.authority_issue }}
           REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
           REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
@@ -284,3 +303,112 @@ jobs:
           for key in "${AGENCY_914_PROD_KEY:-}" "${AGENCY_914_PREPROD_KEY:-}" "${AGENCY_914_ROOT_KEY:-}"; do
             [[ -z "$key" ]] || rm -f -- "$key"
           done
+
+  recover-abort:
+    name: Fresh-authority stale pre-ingress RECOVER_ABORT
+    needs: validate-authority
+    if: ${{ needs.validate-authority.outputs.mode == 'RECOVER_ABORT' }}
+    runs-on: [self-hosted, linux, x64, agency]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Checkout exact recovery-authorized current main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: JIT revalidate recovery current main, fresh authority and durable target before root secret
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHORITY_ISSUE_NUMBER: ${{ needs.validate-authority.outputs.authority_issue }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EXPECTED_MODE: ${{ needs.validate-authority.outputs.mode }}
+          EXPECTED_REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          EXPECTED_MAIN: ${{ needs.validate-authority.outputs.main_sha }}
+          EXPECTED_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          TARGET_ISSUE: ${{ needs.validate-authority.outputs.target_successor_issue }}
+          TARGET_REQUEST: ${{ needs.validate-authority.outputs.target_request_id }}
+          TARGET_MAIN: ${{ needs.validate-authority.outputs.target_main_sha }}
+          TARGET_PROFILE: ${{ needs.validate-authority.outputs.target_profile_id }}
+          TARGET_AUTHORITY_ID: ${{ needs.validate-authority.outputs.target_authority_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME" == 'agency-browser-runner-01' ]]
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          checked_out="$(git rev-parse HEAD)"
+          test "$current_main" = "$EXPECTED_MAIN"
+          test "$checked_out" = "$current_main"
+          issue_json="$RUNNER_TEMP/agency-914-recovery-jit-issue.json"
+          comments_json="$RUNNER_TEMP/agency-914-recovery-jit-comments.json"
+          target_comments_json="$RUNNER_TEMP/agency-914-recovery-jit-target-comments.json"
+          trap 'rm -f -- "$issue_json" "$comments_json" "$target_comments_json"' EXIT
+          gh api "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER" > "$issue_json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments_json"
+          python3 scripts/preproduction-refresh/governed-successor/validate-execution-authority.py \
+            --issue-json "$issue_json" --comments-json "$comments_json" \
+            --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" --comment-body "$COMMENT_BODY" \
+            --comment-author "$COMMENT_AUTHOR" --github-actor "$GITHUB_ACTOR" \
+            --event-name "$GITHUB_EVENT_NAME" --event-action "$EVENT_ACTION" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" --live-main "$current_main" \
+            --checked-out-head "$checked_out" --expected-mode "$EXPECTED_MODE" \
+            --expected-request-id "$EXPECTED_REQUEST_ID" --expected-profile "$EXPECTED_PROFILE" \
+            --expected-main "$EXPECTED_MAIN" \
+            --expected-target-successor-issue "$TARGET_ISSUE" \
+            --expected-target-request-id "$TARGET_REQUEST" \
+            --expected-target-main-sha "$TARGET_MAIN" \
+            --expected-target-profile-id "$TARGET_PROFILE" \
+            --expected-target-authority-id "$TARGET_AUTHORITY_ID"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$TARGET_ISSUE/comments?per_page=100" > "$target_comments_json"
+          python3 scripts/preproduction-refresh/governed-successor/orchestration-contract.py \
+            verify-recovery-target-comments --comments-json "$target_comments_json" \
+            --issue "$TARGET_ISSUE" --request-id "$TARGET_REQUEST" \
+            --main-sha "$TARGET_MAIN" --authority-id "$TARGET_AUTHORITY_ID"
+          python3 scripts/preproduction-refresh/governed-successor/orchestration-contract.py verify-repository
+          printf '%s\n' \
+            'RECOVERY_EXECUTION_MAIN_BINDING=EXACT_CURRENT_MAIN' \
+            'TARGET_TRANSACTION_BINDING=EXACT_HISTORICAL_AUTHORITY' \
+            'RECOVERY_PROD_ACCESS=NONE' \
+            'RECOVERY_ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE'
+
+      - name: Materialize transient PREPROD root identity after recovery JIT only
+        shell: bash
+        env:
+          PREPROD_ROOT_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          root_key="$RUNNER_TEMP/agency-914-recover-abort-root-${GITHUB_RUN_ID}.key"
+          printf '%s\n' "$PREPROD_ROOT_PRIVATE_KEY" > "$root_key"
+          chmod 600 "$root_key"
+          echo "AGENCY_914_RECOVERY_ROOT_KEY=$root_key" >> "$GITHUB_ENV"
+
+      - name: Execute fixed #917 abort recovery only
+        shell: bash
+        env:
+          RECOVERY_AUTHORITY_ISSUE: ${{ needs.validate-authority.outputs.authority_issue }}
+          RECOVERY_REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          RECOVERY_REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          TARGET_SUCCESSOR_ISSUE: ${{ needs.validate-authority.outputs.target_successor_issue }}
+          TARGET_REQUEST_ID: ${{ needs.validate-authority.outputs.target_request_id }}
+          TARGET_MAIN_SHA: ${{ needs.validate-authority.outputs.target_main_sha }}
+          TARGET_PROFILE_ID: ${{ needs.validate-authority.outputs.target_profile_id }}
+          TARGET_AUTHORITY_ID: ${{ needs.validate-authority.outputs.target_authority_id }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          export PREPROD_ROOT_SSH_KEY="$AGENCY_914_RECOVERY_ROOT_KEY"
+          bash scripts/preproduction-refresh/governed-successor/run-recover-abort.sh
+
+      - name: Cleanup RECOVER_ABORT root identity always
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -z "${AGENCY_914_RECOVERY_ROOT_KEY:-}" ]] || rm -f -- "$AGENCY_914_RECOVERY_ROOT_KEY"

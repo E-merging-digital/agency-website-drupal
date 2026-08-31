@@ -11,6 +11,7 @@ INSTALL='/usr/local/sbin/agency-preprod-refresh-authority-install'
 ABORT='/usr/local/sbin/agency-preprod-refresh-authority-abort'
 INGRESS='/usr/local/sbin/agency-preprod-refresh-ingress'
 CONTROL='/usr/local/sbin/agency-preprod-refresh-control'
+RECOVERY_TARGET_PREFIX='AGENCY_PREPROD_REFRESH_RECOVERY_TARGET='
 
 AUTHORITY_ISSUE="${AUTHORITY_ISSUE:-}"
 REQUEST_ID="${REQUEST_ID:-}"
@@ -27,6 +28,8 @@ PREPROD_ROOT_SSH_KEY="${PREPROD_ROOT_SSH_KEY:-}"
 RUNNER_TEMP="${RUNNER_TEMP:-}"
 GITHUB_WORKSPACE="${GITHUB_WORKSPACE:-}"
 GITHUB_RUN_ID="${GITHUB_RUN_ID:-}"
+GH_TOKEN="${GH_TOKEN:-}"
+GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-}"
 
 [[ "$AUTHORITY_ISSUE" =~ ^[0-9]+$ && "$AUTHORITY_ISSUE" -gt 917 ]]
 [[ "$REQUEST_ID" == apply-"$AUTHORITY_ISSUE"-*-r1 ]]
@@ -37,6 +40,7 @@ GITHUB_RUN_ID="${GITHUB_RUN_ID:-}"
 [[ "${RUNNER_NAME:-}" == 'agency-browser-runner-01' ]]
 [[ "$PREPROD_SSH_USER" == 'agency-preprod' ]]
 [[ -n "$RUNNER_TEMP" && -n "$GITHUB_WORKSPACE" && -n "$GITHUB_RUN_ID" ]]
+[[ -n "$GH_TOKEN" && "$GITHUB_REPOSITORY" == 'E-merging-digital/agency-website-drupal' ]]
 for path in "$CONTRACT" "$PROD_REMOTE" "$PROD_TRUST" "$PREPROD_TRUST" "$PROD_SSH_KEY" "$PREPROD_SSH_KEY" "$PREPROD_ROOT_SSH_KEY"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
@@ -89,7 +93,7 @@ finish() {
   rm -f -- "$abort_request_file"
   if [[ "$status" -ne 0 && "$authority_armed" -eq 1 && "$snapshot_ready" -eq 0 ]]; then
     if ! pre_ingress_abort; then
-      echo 'Pre-ingress failure could not be proven ABORTED; blind retry forbidden.' >&2
+      echo 'Pre-ingress failure could not be proven ABORTED; blind retry forbidden; fresh RECOVER_ABORT authority required if active remains.' >&2
       cleanup_raw >/dev/null 2>&1 || true
       exit 98
     fi
@@ -120,6 +124,21 @@ envelope="$(python3 "$CONTRACT" authority-envelope \
 authority_id="$(python3 "$CONTRACT" authority-id \
   --issue "$AUTHORITY_ISSUE" --request-id "$REQUEST_ID" --main-sha "$REPOSITORY_SHA" \
   --snapshot-bytes "$snapshot_bytes" --snapshot-sha256 "$snapshot_sha256")"
+
+# Durably record metadata-only exact target identity BEFORE authority can become
+# ARMED. This record is evidence/reconstruction metadata, never execution authority.
+recovery_record="$(python3 "$CONTRACT" recovery-target-record \
+  --issue "$AUTHORITY_ISSUE" --request-id "$REQUEST_ID" --main-sha "$REPOSITORY_SHA" \
+  --snapshot-bytes "$snapshot_bytes" --snapshot-sha256 "$snapshot_sha256")"
+recovery_body="${RECOVERY_TARGET_PREFIX}${recovery_record}"
+record_id="$(gh api --method POST \
+  "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE/comments" \
+  -f body="$recovery_body" --jq '.id')"
+[[ "$record_id" =~ ^[0-9]+$ ]]
+recorded_body="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$record_id" --jq '.body')"
+[[ "$recorded_body" == "$recovery_body" ]]
+printf '%s\n' 'RECOVERY_TARGET_METADATA=RECORDED_BEFORE_AUTHORITY_ARM' 'RECOVERY_TARGET_METADATA_IS_EXECUTION_AUTHORITY=NO'
+
 install_output="$(printf '%s\n' "$envelope" | "${root_ssh[@]}" "root@$PREPROD_SSH_HOST" "$INSTALL")"
 grep -Fxq 'TRANSACTION_AUTHORITY=ARMED' <<<"$install_output"
 authority_armed=1

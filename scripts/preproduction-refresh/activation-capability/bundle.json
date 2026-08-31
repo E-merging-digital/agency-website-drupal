@@ -2,29 +2,37 @@
   "schema_version": 1,
   "issue_number": 874,
   "revision_issue": 915,
+  "abort_revision_issue": 917,
   "parent_issue": 816,
   "profile_id": "agency-preprod-refresh-capability-provision-v1",
   "persistent_data_activation_authority_after_provisioning": "DISABLED",
   "transaction_authority_after_provisioning": "ABSENT",
+  "pre_ingress_abort_after_provisioning": "INSTALLED_ROOT_ONLY",
+  "normal_sudo_exposure_for_abort": "NONE",
   "files": {
     "helper": {
       "path": "agency-preprod-refresh-control",
-      "sha256": "b0068f503844cf55da235fa87da176cc5a492f728890421b0adc34fbfefff346",
+      "sha256": "dc27cdc748a6f8be70a06093630f362ac4a86ea30735f9805f55b0a00fb5cc06",
       "mode": "0755"
     },
     "ingress": {
       "path": "agency-preprod-refresh-ingress",
-      "sha256": "ffb67a4dcf6e585920e4c5667e2a80ef50c65222c3850a19ed595b1adc20754c",
+      "sha256": "0df0ade08583609743f8c0fd75e37b3b84c6f3d29876510cc397f70b0818a22f",
       "mode": "0755"
     },
     "authority_installer": {
       "path": "agency-preprod-refresh-authority-install",
-      "sha256": "99347f259cecf337f22b8311fe78bf7ab5f9a8921f60f3372a7d9d6d86a47abb",
+      "sha256": "e39083d97788122545953c26b0ffb72d87e2eab274a6c5bbd30beca51458bf7a",
+      "mode": "0750_REMOTE_ROOT_ONLY"
+    },
+    "authority_abort": {
+      "path": "agency-preprod-refresh-authority-abort",
+      "sha256": "54aef136d7a815511cbe8aed5543f9494b49222660354dac9a01b4ee58764a8d",
       "mode": "0750_REMOTE_ROOT_ONLY"
     },
     "transaction_contract": {
       "path": "transaction_contract.py",
-      "sha256": "47b576faccde9903371828c6cc54564ea25838fd0f37547da3e7b3c2a3b78a90",
+      "sha256": "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb",
       "mode": "0644"
     },
     "admin_reconcile": {
@@ -74,7 +82,7 @@
     },
     "capability_profile": {
       "path": "profile.json",
-      "sha256": "e4efbb9b235839b26ff3a499dca76099da843578ce0bc961edf015da5f5fee1b",
+      "sha256": "08eb1518e38012d73857848b4808be707938ed9511040b2854c920667fa437bc",
       "mode": "0644"
     }
   },
@@ -85,8 +93,15 @@
     866,
     868,
     870,
-    871
+    871,
+    915
   ],
   "data_activation_authority_after_provisioning": "DISABLED",
-  "future_data_activation_authority": "TRANSACTION_BOUND_ONE_SHOT_SUCCESSOR_ONLY"
+  "future_data_activation_authority": "TRANSACTION_BOUND_ONE_SHOT_SUCCESSOR_ONLY",
+  "pre_ingress_abort": {
+    "source_state": "ARMED/AWAITING_INGRESS",
+    "terminal_state": "ABORTED/TERMINAL",
+    "runtime_rollback_claim": "NONE",
+    "normal_sudo_exposure": "NONE"
+  }
 }

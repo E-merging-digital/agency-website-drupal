@@ -17,7 +17,7 @@ from pathlib import Path
 from types import ModuleType
 
 CONTRACT_PATH = "/usr/local/lib/agency-preprod-refresh/transaction_contract.py"
-CONTRACT_SHA256 = "47b576faccde9903371828c6cc54564ea25838fd0f37547da3e7b3c2a3b78a90"
+CONTRACT_SHA256 = "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb"
 STATE_DIR = "/var/lib/agency-preprod-refresh"
 AUTHORITY_DIR = STATE_DIR + "/authority"
 INCOMING_DIR = STATE_DIR + "/incoming"
@@ -191,7 +191,7 @@ def ingest(contract: ModuleType, authority: dict, header: dict) -> tuple[str, st
             os.close(mfd)
         require_file(temp_manifest, 0o600)
 
-        # Both destination names are internally derived and root-only.  Rename
+        # Both destination names are internally derived and root-only. Rename
         # finalizes the verified objects atomically within the same directory.
         os.rename(temp_path, final_path)
         os.rename(temp_manifest, manifest_path)
@@ -240,6 +240,7 @@ def main() -> int:
     print("CALLER_PATH=IMPOSSIBLE")
     print("RAW_DATA_LOG_BOUNDARY=NONE")
     return 0
+
 
 if __name__ == "__main__":
     try:

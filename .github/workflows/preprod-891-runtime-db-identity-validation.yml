@@ -90,7 +90,7 @@ jobs:
           print('DRUSH_STDERR_OUTPUT=FORBIDDEN')
           PY
 
-      - name: Prove r6 lossy observation defect remains removed
+      - name: Prove r6 lossy observation defect remains removed and #905 HOME is fixed
         shell: bash
         run: |
           set -euo pipefail
@@ -109,14 +109,17 @@ jobs:
           grep -Fq "RUNTIME_DB_PROBE_BLOB='197a2da8173f902eb5f43b96f2f14399d00df220'" "$plan"
           test "$(git rev-parse "HEAD:$probe")" = '197a2da8173f902eb5f43b96f2f14399d00df220'
           grep -Fq '< "$RUNTIME_DB_PROBE" >> "$observation"' "$plan"
-          grep -Fq 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin python3 -I -' "$plan"
+          grep -Fq 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/home/agency-preprod python3 -I -' "$plan"
+          test "$(grep -Fc 'HOME=/home/agency-preprod' "$plan")" = '1'
+          ! grep -Fq 'HOME=$HOME' "$plan"
           printf '%s\n' \
             '#891_LOSSY_UNAVAILABLE_NONE_COLLAPSE=REMOVED' \
             '#891_MULTILINE_FLATTENING=FORBIDDEN' \
             '#891_CR_OUTPUT=FORBIDDEN' \
             '#891_ACCESS_FAILURE_NOT_ABSENCE=PASS' \
             '#891_OBSERVED_MISMATCH=FAIL_CLOSED' \
-            '#891_UNAVAILABLE_REASON=BOUNDED'
+            '#891_UNAVAILABLE_REASON=BOUNDED' \
+            '#905_RUNTIME_DB_PROBE_HOME=FIXED_LITERAL'
 
       - name: Preserve PLAN non-privileged and APPLY boundary
         shell: bash

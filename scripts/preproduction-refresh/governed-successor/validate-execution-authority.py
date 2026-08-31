@@ -24,7 +24,7 @@ MARKER_KEYS = {
     "mode", "request_id", "main_sha", "prod_release_sha", "profile_id",
     "authorized_actor", "run_attempt", "target_successor_issue",
     "target_request_id", "target_main_sha", "target_profile_id",
-    "target_authority_id",
+    "target_authority_id", "target_recovery_record_comment_id",
 }
 MODES = {"PLAN", "APPLY", "RECOVER_ABORT"}
 
@@ -93,7 +93,7 @@ def _expected_request(mode: str, issue_number: int, request_id: str) -> bool:
 def _require_no_target(marker: dict[str, Any]) -> None:
     for key in (
         "target_successor_issue", "target_request_id", "target_main_sha",
-        "target_profile_id", "target_authority_id",
+        "target_profile_id", "target_authority_id", "target_recovery_record_comment_id",
     ):
         if marker[key] is not None:
             raise AuthorityError("PLAN/APPLY must not carry recovery target binding.")
@@ -114,6 +114,9 @@ def _validate_recovery_target(marker: dict[str, Any], authority_issue_number: in
         raise AuthorityError("Recovery target fixed capability profile is invalid.")
     if not isinstance(marker["target_authority_id"], str) or not SHA256_RE.fullmatch(marker["target_authority_id"]):
         raise AuthorityError("Recovery target authority id is invalid.")
+    comment_id = marker["target_recovery_record_comment_id"]
+    if not isinstance(comment_id, int) or isinstance(comment_id, bool) or comment_id <= 0:
+        raise AuthorityError("Recovery target durable record comment id is invalid.")
 
 
 def _expected_comment(marker: dict[str, Any]) -> str:
@@ -125,7 +128,7 @@ def _expected_comment(marker: dict[str, Any]) -> str:
         base += (
             f" {marker['target_successor_issue']} {marker['target_request_id']}"
             f" {marker['target_main_sha']} {marker['target_profile_id']}"
-            f" {marker['target_authority_id']}"
+            f" {marker['target_authority_id']} {marker['target_recovery_record_comment_id']}"
         )
     return base
 
@@ -141,6 +144,7 @@ def validate(
     expected_target_main_sha: str | None = None,
     expected_target_profile_id: str | None = None,
     expected_target_authority_id: str | None = None,
+    expected_target_recovery_record_comment_id: str | None = None,
 ) -> dict[str, str]:
     if event_name != "issue_comment" or event_action != "created":
         raise AuthorityError("Authority is valid only for a freshly created issue comment event.")
@@ -167,7 +171,7 @@ def validate(
         raise AuthorityError("Authority issue is not explicitly under #816.")
 
     marker = _single_marker(body)
-    if marker["schema_version"] != 2:
+    if marker["schema_version"] != 3:
         raise AuthorityError("Wrong authority schema version.")
     if marker["parent_issue"] != PARENT_ISSUE or marker["implementation_issue"] != IMPLEMENTATION_ISSUE:
         raise AuthorityError("Wrong parent/implementation authority binding.")
@@ -227,6 +231,7 @@ def validate(
         "target_main_sha": "" if marker["target_main_sha"] is None else marker["target_main_sha"],
         "target_profile_id": "" if marker["target_profile_id"] is None else marker["target_profile_id"],
         "target_authority_id": "" if marker["target_authority_id"] is None else marker["target_authority_id"],
+        "target_recovery_record_comment_id": "" if marker["target_recovery_record_comment_id"] is None else str(marker["target_recovery_record_comment_id"]),
     }
     expected_targets = {
         "target_successor_issue": expected_target_successor_issue,
@@ -234,6 +239,7 @@ def validate(
         "target_main_sha": expected_target_main_sha,
         "target_profile_id": expected_target_profile_id,
         "target_authority_id": expected_target_authority_id,
+        "target_recovery_record_comment_id": expected_target_recovery_record_comment_id,
     }
     for key, expected in expected_targets.items():
         if expected is not None and target_outputs[key] != expected:
@@ -282,6 +288,7 @@ def main() -> int:
     parser.add_argument("--expected-target-main-sha")
     parser.add_argument("--expected-target-profile-id")
     parser.add_argument("--expected-target-authority-id")
+    parser.add_argument("--expected-target-recovery-record-comment-id")
     parser.add_argument("--github-output")
     args = parser.parse_args()
     outputs = validate(
@@ -298,6 +305,7 @@ def main() -> int:
         expected_target_main_sha=args.expected_target_main_sha,
         expected_target_profile_id=args.expected_target_profile_id,
         expected_target_authority_id=args.expected_target_authority_id,
+        expected_target_recovery_record_comment_id=args.expected_target_recovery_record_comment_id,
     )
     if args.github_output:
         write_outputs(args.github_output, outputs)

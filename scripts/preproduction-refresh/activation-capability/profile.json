@@ -2,6 +2,7 @@
   "schema_version": 1,
   "issue_number": 874,
   "revision_issue": 915,
+  "abort_revision_issue": 917,
   "parent_issue": 816,
   "profile_id": "agency-preprod-refresh-capability-v1",
   "state": "SOURCE_AVAILABLE_NOT_PROVISIONED",
@@ -15,6 +16,7 @@
     "real_preprod_backup": "NOT_PERFORMED",
     "real_activation": "NOT_PERFORMED",
     "real_rollback": "NOT_PERFORMED",
+    "real_abort": "NOT_PERFORMED",
     "prod_write": "NONE",
     "merge": "FORBIDDEN"
   },
@@ -34,12 +36,14 @@
     "installed_state": "DISABLED",
     "permanent_enabled_state": "NONE",
     "issue_874_grants_activation_authority": false,
-    "issue_915_grants_live_activation_authority": false
+    "issue_915_grants_live_activation_authority": false,
+    "issue_917_grants_live_activation_authority": false
   },
   "data_activation_authority": {
     "installed_state": "DISABLED",
     "issue_874_grants_activation_authority": false,
     "issue_915_grants_activation_authority": false,
+    "issue_917_grants_activation_authority": false,
     "permanent_enabled_state": "NONE",
     "caller_self_authorization": "IMPOSSIBLE",
     "state_file": "/var/lib/agency-preprod-refresh/data-activation-authority.json",
@@ -80,13 +84,64 @@
       "DISABLED",
       "ARMED",
       "IN_PROGRESS",
-      "COMMITTED_OR_ROLLED_BACK_OR_FAILED_RECOVERY",
+      "COMMITTED_OR_ROLLED_BACK_OR_ABORTED_OR_FAILED_RECOVERY",
       "CONSUMED_TERMINAL"
+    ],
+    "terminal_states": [
+      "COMMITTED",
+      "ROLLED_BACK",
+      "ABORTED",
+      "FAILED_RECOVERY"
     ],
     "replay": "FAIL_CLOSED",
     "terminal_reuse": "FAIL_CLOSED",
     "corruption": "FAIL_CLOSED",
     "parallel_hijack": "FAIL_CLOSED"
+  },
+  "pre_ingress_abort": {
+    "revision_issue": 917,
+    "executable": "/usr/local/sbin/agency-preprod-refresh-authority-abort",
+    "owner": "root:root",
+    "mode": "0750",
+    "normal_agency_preprod_sudo_exposure": "NONE",
+    "caller_arguments": "NONE",
+    "stdin_schema": [
+      "successor_issue",
+      "request_id",
+      "main_sha",
+      "profile_id",
+      "authority_id"
+    ],
+    "caller_path": "FORBIDDEN",
+    "caller_state_selection": "FORBIDDEN",
+    "caller_sql": "FORBIDDEN",
+    "caller_database": "FORBIDDEN",
+    "caller_table": "FORBIDDEN",
+    "caller_executable": "FORBIDDEN",
+    "caller_command": "FORBIDDEN",
+    "source_state": "ARMED",
+    "source_phase": "AWAITING_INGRESS",
+    "target_state": "ABORTED",
+    "target_phase": "TERMINAL",
+    "target_terminal": true,
+    "runtime_rollback_claim": "NONE",
+    "absence_proof": [
+      "FINAL_INGRESS_SPOOL_ABSENT",
+      "FINAL_INGRESS_MANIFEST_ABSENT",
+      "PARTIAL_INGRESS_ABSENT",
+      "TEMP_INGRESS_MANIFEST_ABSENT",
+      "CANDIDATE_SEAL_ABSENT",
+      "BACKUP_ABSENT",
+      "FENCE_MARKER_ABSENT"
+    ],
+    "activation_metadata_required": "ALL_NULL_AND_HUMAN_RECOVERY_FALSE",
+    "lock": "/run/lock/agency-preprod-refresh-authority.lock",
+    "crash_recovery": "ACTIVE_ABORTED_TERMINAL_FIRST_THEN_EXACT_HISTORY_THEN_ACTIVE_REMOVAL",
+    "history": "/var/lib/agency-preprod-refresh/transactions/<authority_id>.json",
+    "history_owner": "root:root",
+    "history_mode": "0600",
+    "second_abort": "FAIL_CLOSED",
+    "authority_reinstall_after_abort": "FAIL_CLOSED"
   },
   "binary_ingress": {
     "executable": "/usr/local/sbin/agency-preprod-refresh-ingress",
@@ -108,7 +163,8 @@
     "partial_cleanup": "MANDATORY",
     "terminal_raw_cleanup": "MANDATORY",
     "raw_log_output": "NONE",
-    "github_artifact": "FORBIDDEN"
+    "github_artifact": "FORBIDDEN",
+    "failed_pre_finalize_terminalization": "ROOT_ONLY_PRE_INGRESS_ABORT"
   },
   "candidate_lifecycle": {
     "staging_database": "agency_preprod_stage_<derived>",
@@ -169,6 +225,7 @@
     "concurrent_deploy": "FAIL_CLOSED",
     "concurrent_refresh": "FAIL_CLOSED",
     "concurrent_authority_or_ingress": "FAIL_CLOSED",
+    "concurrent_abort": "FAIL_CLOSED",
     "privileged_refresh_lock": "/run/lock/agency-preprod-refresh.lock"
   },
   "activation": {
@@ -220,7 +277,8 @@
       "FIXED_PREPROD_ADMIN_ROUTE_PRESENT"
     ],
     "verify_failure": "FENCE_CLOSED_FAILED_RECOVERY_HUMAN_RECOVERY_REQUIRED",
-    "recovery_metadata": "/var/lib/agency-preprod-refresh/recovery/<authority_id>.json"
+    "recovery_metadata": "/var/lib/agency-preprod-refresh/recovery/<authority_id>.json",
+    "awaiting_ingress": "NOT_A_ROLLBACK_USE_PRE_INGRESS_ABORT"
   },
   "privilege": {
     "deploy_identity": "agency-preprod",
@@ -229,6 +287,7 @@
       "/usr/local/sbin/agency-preprod-refresh-ingress"
     ],
     "authority_installer_in_sudo": false,
+    "authority_abort_in_sudo": false,
     "nopasswd_all": "FORBIDDEN",
     "generic_shell": "FORBIDDEN",
     "generic_python": "FORBIDDEN",
@@ -246,6 +305,8 @@
     "apply": "INSTALL_EXACT_REVIEWED_CAPABILITY_ONLY",
     "persistent_data_activation_authority_after_apply": "DISABLED",
     "transaction_authority_after_apply": "ABSENT",
+    "abort_helper_after_apply": "INSTALLED_ROOT_ONLY",
+    "abort_helper_normal_sudo_exposure": "NONE",
     "real_data_activation": "FORBIDDEN"
   },
   "jit_before_secret": {
@@ -298,6 +359,7 @@
     "rule": "agency-preprod ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-preprod-refresh-control",
     "ingress_rule": "agency-preprod ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-preprod-refresh-ingress",
     "authority_installer_exposed": false,
+    "authority_abort_exposed": false,
     "generic_mariadb": "FORBIDDEN",
     "generic_shell": "FORBIDDEN",
     "generic_python": "FORBIDDEN",

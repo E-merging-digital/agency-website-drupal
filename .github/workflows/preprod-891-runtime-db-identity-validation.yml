@@ -132,7 +132,6 @@ jobs:
           workflow='.github/workflows/preprod-874-capability-provisioning.yml'
           python3 - <<'PY'
           from pathlib import Path
-          import hashlib
           text = Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
           assert '\n  plan:\n' in text and '\n  apply:\n' in text
           plan = text.split('\n  plan:\n', 1)[1].split('\n  apply:\n', 1)[0]
@@ -142,12 +141,22 @@ jobs:
           assert 'self-hosted' not in plan
           assert 'runs-on: [self-hosted, linux, x64, agency]' in apply
           assert "[[ \"$RUNNER_NAME\" == 'agency-browser-runner-01' ]]" in apply
-          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' in apply
-          assert 'run-apply.sh' in apply
-          assert hashlib.sha256(apply.encode()).hexdigest() == '3ef411d776606ec1fdab04a9ba10995617294789a078330c5dd10c31b215516f'
+          jit = apply.index('      - name: JIT revalidate live main and successor authority before root secret materialization')
+          secret = apply.index('PREPROD_PROVISIONING_SSH_PRIVATE_KEY')
+          execute = apply.index('run-apply.sh')
+          assert jit < secret < execute
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in apply[:jit]
+          jit_block = apply[jit:apply.index('      - name: Configure dedicated transient root provisioning identity')]
+          assert 'secrets.' not in jit_block
+          assert 'repos/$GITHUB_REPOSITORY/branches/main' in jit_block
+          assert 'validate-successor-authority.py' in jit_block
+          assert 'test "$checked_out_head" = "$current_live_main"' in jit_block
+          assert '.data_activation_authority.installed_state == "DISABLED"' in jit_block
           print('PLAN_RUNNER=ubuntu-24.04')
           print('APPLY_RUNNER=[self-hosted,linux,x64,agency]')
           print('APPLY_RUNNER_PATH_UNCHANGED=PASS')
+          print('#910_JIT_APPLY_AUTHORITY=PASS')
+          print('ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE')
           PY
           grep -Fq '[[ "$PREPROD_SSH_USER" == '\''agency-preprod'\'' ]]' "$plan"
           ! grep -Eq '(^|[;&|()[:space:]])sudo[[:space:]]' "$plan" "$observer"

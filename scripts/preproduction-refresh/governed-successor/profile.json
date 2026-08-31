@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "issue_number": 914,
   "parent_issue": 816,
   "profile_id": "agency-preprod-governed-refresh-successor-v1",
@@ -7,8 +7,9 @@
   "execution_authority": {
     "implementation_issue": 914,
     "implementation_issue_may_execute": false,
+    "known_non_execution_authority_through_issue": 917,
     "future_authority_issue": "FRESH_DISTINCT_816_CHILD_REQUIRED",
-    "authority_issue_must_be_greater_than": 914,
+    "authority_issue_must_be_greater_than": 917,
     "authorized_actor": "E-merging-digital",
     "modes": [
       "PLAN",
@@ -69,12 +70,19 @@
       "FIXED_OPERATION",
       "CLEANUP_ALWAYS"
     ],
-    "secret_before_jit": "IMPOSSIBLE",
+    "prod_secret_before_jit": "IMPOSSIBLE",
+    "preprod_secret_before_jit": "IMPOSSIBLE",
+    "root_secret_before_jit": "IMPOSSIBLE",
     "queued_state_change": "FAIL_BEFORE_SECRET_OR_SSH_SESSION"
   },
   "capability_precondition": {
     "source_issue": 874,
-    "revision_issue": 915,
+    "base_revision_issue": 915,
+    "abort_revision_issue": 917,
+    "revision_lineage": [
+      915,
+      917
+    ],
     "source_profile": "scripts/preproduction-refresh/activation-capability/profile.json",
     "bundle": "scripts/preproduction-refresh/activation-capability/bundle.json",
     "source_state": "SOURCE_AVAILABLE_NOT_PROVISIONED",
@@ -89,6 +97,7 @@
     "prod_snapshot": "NOT_PERFORMED",
     "prod_data_transfer": "NONE",
     "transaction_authority_install": "NONE",
+    "authority_abort": "NONE",
     "candidate_create": "NONE",
     "backup_create": "NONE",
     "fence_mutation": "NONE",
@@ -101,7 +110,7 @@
       "TRUSTED_EXECUTOR_IDENTITY",
       "CREDENTIAL_READINESS_NO_VALUES",
       "PINNED_PROD_PREPROD_HOST_TRUST",
-      "INSTALLED_915_CAPABILITY_IDENTITY",
+      "INSTALLED_915_917_CAPABILITY_IDENTITY",
       "PERSISTENT_DATA_AUTHORITY_STATE",
       "TRANSACTION_AUTHORITY_EXPECTED_ABSENT",
       "RUNTIME_RELEASE_IDENTITY",
@@ -113,7 +122,7 @@
       "CANDIDATE_NAMESPACE_READINESS",
       "BACKUP_NAMESPACE_READINESS",
       "EXPECTED_MUTATION_INVENTORY",
-      "ROLLBACK_INVENTORY"
+      "ROLLBACK_ABORT_INVENTORY"
     ]
   },
   "apply": {
@@ -130,32 +139,51 @@
       "REQUIRE_TRUSTED_EXECUTOR",
       "CREATE_FRESH_PROD_READ_ONLY_SNAPSHOT_USING_834_866_PRIMITIVE",
       "COMPUTE_SNAPSHOT_BYTES_SHA256",
-      "INSTALL_EXACT_915_ONE_SHOT_AUTHORITY",
-      "STREAM_SNAPSHOT_TO_EXACT_915_FIXED_INGRESS",
+      "INSTALL_EXACT_915_917_ONE_SHOT_AUTHORITY",
+      "STREAM_SNAPSHOT_TO_EXACT_915_917_FIXED_INGRESS",
+      "BRANCH_ON_INGRESS_RESULT"
+    ],
+    "ingress_success": [
+      "REQUIRE_SNAPSHOT_READY",
       "915_IMPORT_SANITIZE_HARDEN_RETAIN",
       "REQUIRE_SEALED_CANDIDATE",
       "915_BACKUP_ACTIVATE_CONVERGE_VALIDATE",
       "TERMINAL_COMMIT_OR_915_RECORDED_ROLLBACK",
-      "VERIFY_TERMINAL_CLEANUP_METADATA_WHERE_OBSERVABLE",
+      "VERIFY_TERMINAL_METADATA_WHERE_OBSERVABLE",
       "REMOVE_TRUSTED_RUNNER_RAW_TRANSIENT"
+    ],
+    "pre_snapshot_ready_failure": [
+      "PROVE_TRUSTED_RUNNER_RAW_TRANSIENT_CLEANUP",
+      "PROVE_FIXED_INGRESS_PARTIAL_FINAL_UNBOUND_CLEANUP",
+      "INVOKE_EXACT_917_ROOT_ONLY_AUTHORITY_ABORT",
+      "REQUIRE_ABORTED_TERMINAL_HISTORY",
+      "REQUIRE_ACTIVE_AUTHORITY_ABSENT",
+      "REMOVE_TRUSTED_RUNNER_TRANSIENT",
+      "FAIL_NO_BLIND_RETRY"
     ]
   },
-  "fixed_915": {
+  "fixed_capability": {
     "capability_profile_id": "agency-preprod-refresh-capability-v1",
-    "ingress": "/usr/local/sbin/agency-preprod-refresh-ingress",
+    "base_revision_issue": 915,
+    "abort_revision_issue": 917,
     "authority_installer": "/usr/local/sbin/agency-preprod-refresh-authority-install",
+    "authority_abort": "/usr/local/sbin/agency-preprod-refresh-authority-abort",
+    "ingress": "/usr/local/sbin/agency-preprod-refresh-ingress",
     "control": "/usr/local/sbin/agency-preprod-refresh-control",
     "normal_sudo_authority_installer": "NONE",
+    "normal_sudo_authority_abort": "NONE",
+    "normal_sudo_fixed_executables": [
+      "/usr/local/sbin/agency-preprod-refresh-ingress",
+      "/usr/local/sbin/agency-preprod-refresh-control"
+    ],
     "control_actions": [
       "IMPORT_SANITIZE_HARDEN_RETAIN",
       "BACKUP_ACTIVATE_CONVERGE_VALIDATE",
       "ROLLBACK_RECORDED"
     ],
-    "profile_legacy_metadata_actions": [
-      "PRECHECK",
-      "VERIFY_ABSENCE"
-    ],
-    "verify_absence_composition": "METADATA_ONLY_TERMINAL_OBSERVATION_WHERE_OBSERVABLE_NO_NEW_PRIVILEGED_ACTION"
+    "pre_ingress_abort_source": "ARMED/AWAITING_INGRESS",
+    "pre_ingress_abort_target": "ABORTED/TERMINAL",
+    "aborted_runtime_rollback_claim": "NONE"
   },
   "snapshot": {
     "prod_remote_stream": "scripts/production-readonly-snapshot/remote-stream.sh",
@@ -177,18 +205,27 @@
     "caller_filename": "IMPOSSIBLE"
   },
   "failure_model": {
-    "FAIL_BEFORE_SNAPSHOT": "NO_DATA_MOVEMENT",
-    "FAIL_DURING_SNAPSHOT": "TRUSTED_RUNNER_TRANSIENT_CLEANUP",
-    "FAIL_DURING_TRANSFER": "RAW_TRANSIENT_AND_PARTIAL_INGRESS_CLEANUP",
-    "FAIL_BEFORE_INGRESS_FINALIZATION": "FIXED_915_PARTIAL_CLEANUP",
-    "FAIL_CANDIDATE_SANITIZATION": "RUNTIME_UNTOUCHED_TRANSIENT_CLEANUP",
+    "FAIL_BEFORE_AUTHORITY_ARM": "NO_TRANSACTION_AUTHORITY_CLEANUP_TRANSIENT_SOURCE_IF_NEEDED",
+    "FAIL_AFTER_ARM_BEFORE_INGRESS": "917_ABORT_TO_ABORTED_TERMINAL",
+    "FAIL_DURING_TRANSFER": "RAW_AND_PARTIAL_CLEANUP_THEN_917_ABORT_TO_ABORTED_TERMINAL",
+    "FAIL_INGRESS_BYTE_OR_SHA": "FIXED_INGRESS_CLEANUP_THEN_917_ABORT_TO_ABORTED_TERMINAL",
+    "FAIL_AFTER_SNAPSHOT_READY_BEFORE_IMPORT": "NO_PRE_INGRESS_ABORT_USE_EXACT_VALID_TRANSACTION_STATE_HANDLING",
+    "FAIL_CANDIDATE_SANITIZATION": "RUNTIME_UNTOUCHED_FIXED_HELPER_CLEANUP",
     "FAIL_BEFORE_BACKUP": "RUNTIME_UNCHANGED",
     "BACKUP_VERIFY_FAILURE": "NO_ACTIVATION",
     "ATOMIC_SWAP_FAILURE": "PREVIOUS_RUNTIME_PROVEN",
-    "FAIL_POST_SWAP_PRE_CONVERGENCE": "915_RECORDED_ROLLBACK",
+    "FAIL_POST_SWAP_PRE_CONVERGENCE": "ROLLBACK_RECORDED",
     "FAIL_AFTER_CONVERGENCE_STARTED": "EXACT_PREACTIVATION_BACKUP_RESTORE",
     "ROLLBACK_VERIFY_FAILURE": "FENCE_CLOSED_FAILED_RECOVERY_HUMAN_RECOVERY_REQUIRED",
     "blind_apply_retry": "FORBIDDEN"
+  },
+  "abort_semantics": {
+    "aborted_is_rolled_back": false,
+    "abort_valid_only_before_snapshot_ready": true,
+    "rollback_from_awaiting_ingress": "FORBIDDEN",
+    "abort_from_snapshot_ready": "FAIL_CLOSED",
+    "authority_reinstall_after_abort": "FAIL_CLOSED",
+    "blind_retry_after_abort": "FORBIDDEN"
   },
   "privilege": {
     "nopasswd_all": "NONE",

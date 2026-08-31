@@ -1,0 +1,171 @@
+name: "#914 Governed PREPROD refresh successor validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-914-governed-successor.yml"
+      - ".github/workflows/preprod-914-governed-successor-validation.yml"
+      - "docs/operations/preproduction-refresh-governed-successor.md"
+      - "scripts/preproduction-refresh/governed-successor/**"
+      - "scripts/preproduction-refresh/activation-capability/**"
+      - "scripts/production-readonly-snapshot/**"
+      - "scripts/preproduction-staging-import/real-one-shot/**"
+
+permissions:
+  contents: read
+
+jobs:
+  successor-contract:
+    name: "#914 authority / PLAN / APPLY / abort composition"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate syntax and exact successor profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/governed-successor'
+          python3 -m py_compile \
+            "$base/validate-execution-authority.py" \
+            "$base/orchestration-contract.py" \
+            "$base/test-authority.py" \
+            "$base/test-orchestration.py"
+          bash -n "$base/run-plan.sh" "$base/run-apply.sh" "$base/remote-plan-observe.sh"
+          jq -e '
+            .issue_number == 914 and
+            .parent_issue == 816 and
+            .state == "SOURCE_ONLY_NOT_EXECUTION_AUTHORITY" and
+            .execution_authority.implementation_issue_may_execute == false and
+            .execution_authority.authority_issue_must_be_greater_than == 917 and
+            .capability_precondition.revision_lineage == [915,917] and
+            .capability_precondition.persistent_data_activation_authority == "DISABLED" and
+            .plan.mutation == "NONE" and
+            .apply.prod_write == "NONE" and
+            .fixed_capability.normal_sudo_authority_installer == "NONE" and
+            .fixed_capability.normal_sudo_authority_abort == "NONE" and
+            .abort_semantics.aborted_is_rolled_back == false and
+            .delivery_boundary.data_activation_authority == "DISABLED"
+          ' "$base/profile.json" >/dev/null
+          python3 "$base/orchestration-contract.py" verify-repository
+
+      - name: Execute successor authority matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/preproduction-refresh/governed-successor/test-authority.py
+
+      - name: Execute #915/#917 orchestration and abort matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/preproduction-refresh/governed-successor/test-orchestration.py
+
+      - name: Prove future workflow JIT ordering and raw-data boundary statically
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          w = Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
+          assert "runs-on: [self-hosted, linux, x64, agency]" in w
+          for job in ("  plan:\n", "  apply:\n"):
+              chunk = job + w.split(job, 1)[1]
+              if job == "  plan:\n":
+                  chunk = chunk.split("\n  apply:\n", 1)[0]
+              checkout = chunk.index("Checkout exact originally authorized main")
+              jit = chunk.index("JIT revalidate live main and authority before")
+              secret = chunk.index("secrets.")
+              execute = chunk.index("run-" + ("plan" if job == "  plan:\n" else "apply") + ".sh")
+              cleanup = chunk.index("Cleanup " + ("PLAN" if job == "  plan:\n" else "APPLY") + " identities always")
+              assert checkout < jit < secret < execute < cleanup
+              assert "secrets." not in chunk[:jit]
+          apply = "  apply:\n" + w.split("\n  apply:\n", 1)[1]
+          assert "PREPROD_PROVISIONING_SSH_PRIVATE_KEY" in apply
+          run_apply = Path('scripts/preproduction-refresh/governed-successor/run-apply.sh').read_text()
+          assert 'raw="$temp_abs/' in run_apply
+          assert 'GITHUB_WORKSPACE' in run_apply and 'RUNNER_TEMP must be outside workspace' in run_apply
+          assert "actions/upload-artifact" not in apply
+          assert "/usr/local/sbin/agency-preprod-refresh-authority-install" in run_apply
+          assert "/usr/local/sbin/agency-preprod-refresh-authority-abort" in run_apply
+          assert "sudo -n -- $INGRESS" in run_apply
+          assert "sudo -n -- $CONTROL" in run_apply
+          print("JIT_BEFORE_PROD_SECRET=PASS")
+          print("JIT_BEFORE_PREPROD_SECRET=PASS")
+          print("JIT_BEFORE_ROOT_SECRET=PASS")
+          print("SECRET_BEFORE_JIT=IMPOSSIBLE")
+          print("RAW_PROD_GITHUB_HOSTED=IMPOSSIBLE")
+          print("RAW_PROD_GITHUB_ARTIFACT=NONE")
+          PY
+
+  predecessor-regressions:
+    name: "#816/#834/#866/#868/#910/#915/#917 regressions"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Execute non-runtime predecessor contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cap='scripts/preproduction-refresh/activation-capability'
+          python3 scripts/preproduction-staging-import/real-one-shot/test-contract.py
+          python3 scripts/preproduction-refresh/activation-boundary/test-contract.py
+          python3 "$cap/test-915-contract.py"
+          python3 "$cap/test-917-contract.py"
+          python3 "$cap/test-917-provisioning.py"
+          php "$cap/test-915-admin-reconcile.php" absent
+          php "$cap/test-915-admin-reconcile.php" present
+          python3 "$cap/provisioning/test-successor-authority.py"
+          python3 "$cap/provisioning/test-runtime-db-identity-probe.py"
+          python3 "$cap/provisioning/test-plan-evidence.py"
+          printf '%s\n' \
+            '#816_REGRESSION=PASS' \
+            '#834_866_SNAPSHOT_LINEAGE=PASS' \
+            '#868_ROLLBACK_LINEAGE=PASS' \
+            '#915_REGRESSION=PASS' \
+            '#917_REGRESSION=PASS'
+
+      - name: Execute #917 root-only abort composition regression
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+          sudo --preserve-env=RUNNER_ENVIRONMENT \
+            bash scripts/preproduction-refresh/activation-capability/test-917-root-abort.sh
+          sudo --preserve-env=RUNNER_ENVIRONMENT \
+            bash scripts/preproduction-refresh/activation-capability/test-915-root-ingress.sh
+          printf '%s\n' '#917_REGRESSION=PASS'
+
+      - name: Prove #910 JIT-before-secret predecessor remains unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          workflow = Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
+          apply = '  apply:\n' + workflow.split('\n  apply:\n',1)[1]
+          checkout = apply.index('Checkout exact trusted main')
+          jit = apply.index('JIT revalidate live main and successor authority before root secret materialization')
+          secret = apply.index('PREPROD_PROVISIONING_SSH_PRIVATE_KEY')
+          execute = apply.index('run-apply.sh')
+          cleanup = apply.index('Remove transient APPLY identity')
+          assert checkout < jit < secret < execute < cleanup
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in apply[:jit]
+          print('#910_REGRESSION=PASS')
+          print('SECRET_BEFORE_JIT=IMPOSSIBLE')
+          PY

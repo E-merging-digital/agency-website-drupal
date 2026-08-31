@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Fail-closed successor execution authority validator for #914.
 
-#914 is implementation only and can never authorize execution. A future fresh
-#816 child issue must carry one canonical machine-readable authority marker and
-one exact trigger comment for exactly one PLAN or APPLY request.
+#914 is source implementation only. Issues through #917 are implementation /
+capability lineage and can never authorize execution. A future fresh #816 child
+must carry one canonical marker and one exact trigger for one PLAN or APPLY.
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 IMPLEMENTATION_ISSUE = 914
+LAST_KNOWN_NON_EXECUTION_AUTHORITY_ISSUE = 917
 PARENT_ISSUE = 816
 PROFILE_ID = "agency-preprod-governed-refresh-successor-v1"
 AUTHORIZED_ACTOR = "E-merging-digital"
@@ -22,17 +23,9 @@ TRIGGER = "/agency-preprod-refresh-successor"
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 REQUEST_SUFFIX_RE = re.compile(r"^[A-Za-z0-9._-]{8,40}$")
 MARKER_KEYS = {
-    "schema_version",
-    "parent_issue",
-    "implementation_issue",
-    "authority_issue",
-    "mode",
-    "request_id",
-    "main_sha",
-    "prod_release_sha",
-    "profile_id",
-    "authorized_actor",
-    "run_attempt",
+    "schema_version", "parent_issue", "implementation_issue", "authority_issue",
+    "mode", "request_id", "main_sha", "prod_release_sha", "profile_id",
+    "authorized_actor", "run_attempt",
 }
 
 
@@ -45,20 +38,20 @@ def _load_json(path: str) -> Any:
 
 
 def _flatten_comments(value: Any) -> list[dict[str, Any]]:
-    if isinstance(value, list):
-        out: list[dict[str, Any]] = []
-        for item in value:
-            if isinstance(item, list):
-                out.extend(_flatten_comments(item))
-            elif isinstance(item, dict):
-                out.append(item)
-            else:
-                raise AuthorityError("Comments JSON contains a non-object.")
-        return out
-    raise AuthorityError("Comments JSON must be an array.")
+    if not isinstance(value, list):
+        raise AuthorityError("Comments JSON must be an array.")
+    out: list[dict[str, Any]] = []
+    for item in value:
+        if isinstance(item, list):
+            out.extend(_flatten_comments(item))
+        elif isinstance(item, dict):
+            out.append(item)
+        else:
+            raise AuthorityError("Comments JSON contains a non-object.")
+    return out
 
 
-def _single_marker(body: str) -> tuple[str, dict[str, Any]]:
+def _single_marker(body: str) -> dict[str, Any]:
     lines = [line for line in body.splitlines() if line.startswith(MARKER_PREFIX)]
     if len(lines) != 1:
         raise AuthorityError("Authority issue must contain exactly one machine-readable marker.")
@@ -72,7 +65,7 @@ def _single_marker(body: str) -> tuple[str, dict[str, Any]]:
     canonical = json.dumps(marker, sort_keys=True, separators=(",", ":"))
     if raw != canonical:
         raise AuthorityError("Authority marker must use canonical JSON serialization.")
-    return raw, marker
+    return marker
 
 
 def _labels(issue: dict[str, Any]) -> set[str]:
@@ -120,10 +113,12 @@ def validate(
         raise AuthorityError("Request replay/rerun is forbidden.")
     if not SHA40_RE.fullmatch(live_main):
         raise AuthorityError("Live main identity is invalid.")
-    if authority_issue_number <= IMPLEMENTATION_ISSUE:
-        raise AuthorityError("#914 and older issues cannot be successor execution authority.")
+    if authority_issue_number <= LAST_KNOWN_NON_EXECUTION_AUTHORITY_ISSUE:
+        raise AuthorityError("Known implementation/capability issues through #917 cannot authorize execution.")
     if issue.get("number") != authority_issue_number:
         raise AuthorityError("Authority issue number mismatch.")
+    if issue.get("pull_request") is not None:
+        raise AuthorityError("A pull request cannot be successor execution authority.")
     if issue.get("state") != "open":
         raise AuthorityError("Authority issue is not open.")
     if issue.get("user", {}).get("login") != AUTHORIZED_ACTOR:
@@ -134,7 +129,7 @@ def validate(
     if not isinstance(body, str) or "Parent: #816" not in body:
         raise AuthorityError("Authority issue is not explicitly under #816.")
 
-    _, marker = _single_marker(body)
+    marker = _single_marker(body)
     if marker["schema_version"] != 1:
         raise AuthorityError("Wrong authority schema version.")
     if marker["parent_issue"] != PARENT_ISSUE:
@@ -163,9 +158,8 @@ def validate(
     if mode == "PLAN":
         if prod_release != "AUTO":
             raise AuthorityError("PLAN must use metadata-only AUTO PROD release observation.")
-    else:
-        if not isinstance(prod_release, str) or not SHA40_RE.fullmatch(prod_release):
-            raise AuthorityError("APPLY requires exact PROD release identity.")
+    elif not isinstance(prod_release, str) or not SHA40_RE.fullmatch(prod_release):
+        raise AuthorityError("APPLY requires exact PROD release identity.")
 
     expected_comment = f"{TRIGGER} {mode} {request_id} {main_sha} {prod_release} {PROFILE_ID}"
     if comment_body != expected_comment:
@@ -226,11 +220,9 @@ def main() -> int:
     parser.add_argument("--expected-main")
     parser.add_argument("--github-output")
     args = parser.parse_args()
-    issue = _load_json(args.issue_json)
-    comments = _flatten_comments(_load_json(args.comments_json))
     outputs = validate(
-        issue=issue,
-        comments=comments,
+        issue=_load_json(args.issue_json),
+        comments=_flatten_comments(_load_json(args.comments_json)),
         authority_issue_number=args.authority_issue_number,
         comment_body=args.comment_body,
         comment_author=args.comment_author,
@@ -250,6 +242,7 @@ def main() -> int:
     for key, value in outputs.items():
         print(f"{key}={value}")
     print("#914_EXECUTION_AUTHORITY=IMPOSSIBLE")
+    print("KNOWN_IMPLEMENTATION_CAPABILITY_ISSUES_AS_AUTHORITY=FAIL_CLOSED")
     print("PLAN_APPLY_SEPARATION=PASS")
     print("REQUEST_REPLAY=FAIL_CLOSED")
     return 0

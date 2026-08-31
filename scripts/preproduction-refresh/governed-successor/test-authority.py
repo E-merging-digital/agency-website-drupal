@@ -12,7 +12,7 @@ spec.loader.exec_module(authority)
 
 MAIN = "a" * 40
 PROD = "b" * 40
-ISSUE = 917
+ISSUE = 1914  # synthetic future #816 child; deliberately not a known project authority
 PROFILE = authority.PROFILE_ID
 
 
@@ -22,17 +22,10 @@ def marker(mode="PLAN", issue=ISSUE, request=None, main=MAIN, profile=PROFILE, a
     if prod is None:
         prod = "AUTO" if mode == "PLAN" else PROD
     value = {
-        "schema_version": 1,
-        "parent_issue": 816,
-        "implementation_issue": 914,
-        "authority_issue": issue,
-        "mode": mode,
-        "request_id": request,
-        "main_sha": main,
-        "prod_release_sha": prod,
-        "profile_id": profile,
-        "authorized_actor": actor,
-        "run_attempt": 1,
+        "schema_version": 1, "parent_issue": 816, "implementation_issue": 914,
+        "authority_issue": issue, "mode": mode, "request_id": request,
+        "main_sha": main, "prod_release_sha": prod, "profile_id": profile,
+        "authorized_actor": actor, "run_attempt": 1,
     }
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
     return value, "Parent: #816\n" + authority.MARKER_PREFIX + raw + "\n"
@@ -42,29 +35,20 @@ def valid_fixture(mode="PLAN", issue=ISSUE):
     m, body = marker(mode=mode, issue=issue)
     comment = f"{authority.TRIGGER} {m['mode']} {m['request_id']} {m['main_sha']} {m['prod_release_sha']} {m['profile_id']}"
     issue_json = {
-        "number": issue,
-        "state": "open",
-        "user": {"login": "E-merging-digital"},
-        "labels": [{"name": "status:in-progress"}],
-        "body": body,
+        "number": issue, "state": "open", "user": {"login": "E-merging-digital"},
+        "labels": [{"name": "status:in-progress"}], "body": body,
     }
     comments = [{"body": comment, "user": {"login": "E-merging-digital"}}]
     return m, issue_json, comments, comment
 
 
-def call(mode="PLAN", **overrides):
-    _, issue, comments, comment = valid_fixture(mode)
+def validate_fixture(mode="PLAN", issue_number=ISSUE, **overrides):
+    _, issue, comments, comment = valid_fixture(mode, issue_number)
     args = dict(
-        issue=issue,
-        comments=comments,
-        authority_issue_number=issue["number"],
-        comment_body=comment,
-        comment_author="E-merging-digital",
-        github_actor="E-merging-digital",
-        event_name="issue_comment",
-        event_action="created",
-        run_attempt="1",
-        live_main=MAIN,
+        issue=issue, comments=comments, authority_issue_number=issue_number,
+        comment_body=comment, comment_author="E-merging-digital",
+        github_actor="E-merging-digital", event_name="issue_comment",
+        event_action="created", run_attempt="1", live_main=MAIN,
     )
     args.update(overrides)
     return authority.validate(**args)
@@ -79,64 +63,72 @@ def reject(label, fn):
     raise AssertionError(label + " unexpectedly passed")
 
 
-assert call("PLAN")["mode"] == "PLAN"
-assert call("APPLY")["mode"] == "APPLY"
+assert validate_fixture("PLAN")["mode"] == "PLAN"
+assert validate_fixture("APPLY")["mode"] == "APPLY"
+print("FUTURE_AUTHORITY_IS_FRESH_816_CHILD=PASS")
 print("VALID_PLAN=PASS")
 print("VALID_APPLY=PASS")
 
-_, issue914, comments914, comment914 = valid_fixture("PLAN", 914)
-reject("#914_CANNOT_BE_EXECUTION_AUTHORITY", lambda: authority.validate(
-    issue=issue914, comments=comments914, authority_issue_number=914,
-    comment_body=comment914, comment_author="E-merging-digital", github_actor="E-merging-digital",
-    event_name="issue_comment", event_action="created", run_attempt="1", live_main=MAIN
-))
+for known in (914, 915, 916, 917):
+    reject(f"KNOWN_ISSUE_{known}_CANNOT_AUTHORIZE", lambda known=known: validate_fixture("PLAN", known))
+print("KNOWN_IMPLEMENTATION_CAPABILITY_ISSUES_AS_AUTHORITY=FAIL_CLOSED")
 
 _, issue, comments, comment = valid_fixture("PLAN")
 apply_comment = comment.replace(" PLAN ", " APPLY ", 1)
 reject("PLAN_REQUEST_CANNOT_AUTHORIZE_APPLY", lambda: authority.validate(
     issue=issue, comments=comments, authority_issue_number=ISSUE,
-    comment_body=apply_comment, comment_author="E-merging-digital", github_actor="E-merging-digital",
-    event_name="issue_comment", event_action="created", run_attempt="1", live_main=MAIN
+    comment_body=apply_comment, comment_author="E-merging-digital",
+    github_actor="E-merging-digital", event_name="issue_comment",
+    event_action="created", run_attempt="1", live_main=MAIN
 ))
 
-reject("RUN_ATTEMPT_NOT_1", lambda: call(run_attempt="2"))
-reject("WRONG_MAIN", lambda: call(live_main="c" * 40))
-reject("WRONG_ACTOR", lambda: call(github_actor="someone-else"))
-reject("CHECKED_OUT_HEAD_MISMATCH", lambda: call(checked_out_head="d" * 40))
+reject("RUN_ATTEMPT_NOT_1", lambda: validate_fixture(run_attempt="2"))
+reject("WRONG_MAIN", lambda: validate_fixture(live_main="c" * 40))
+reject("WRONG_ACTOR", lambda: validate_fixture(github_actor="someone-else"))
+reject("CHECKED_OUT_HEAD_MISMATCH", lambda: validate_fixture(checked_out_head="d" * 40))
+reject("WRONG_ISSUE", lambda: validate_fixture(authority_issue_number=ISSUE + 1))
+reject("WRONG_MODE", lambda: validate_fixture(expected_mode="APPLY"))
+reject("WRONG_REQUEST", lambda: validate_fixture(expected_request_id="plan-1914-otherone-r1"))
+reject("WRONG_PROFILE", lambda: validate_fixture(expected_profile="wrong"))
+reject("WRONG_AUTHORIZED_MAIN", lambda: validate_fixture(expected_main="d" * 40))
 
 _, issue, comments, comment = valid_fixture("PLAN")
 comments.append(dict(comments[0]))
 reject("REQUEST_REPLAY", lambda: authority.validate(
     issue=issue, comments=comments, authority_issue_number=ISSUE,
-    comment_body=comment, comment_author="E-merging-digital", github_actor="E-merging-digital",
-    event_name="issue_comment", event_action="created", run_attempt="1", live_main=MAIN
+    comment_body=comment, comment_author="E-merging-digital",
+    github_actor="E-merging-digital", event_name="issue_comment",
+    event_action="created", run_attempt="1", live_main=MAIN
 ))
 
 _, issue, comments, comment = valid_fixture("PLAN")
 issue["state"] = "closed"
 reject("AUTHORITY_REVOKED", lambda: authority.validate(
     issue=issue, comments=comments, authority_issue_number=ISSUE,
-    comment_body=comment, comment_author="E-merging-digital", github_actor="E-merging-digital",
-    event_name="issue_comment", event_action="created", run_attempt="1", live_main=MAIN
-))
-
-m, issue, comments, comment = valid_fixture("PLAN")
-bad_marker = dict(m)
-bad_marker["profile_id"] = "wrong"
-issue["body"] = "Parent: #816\n" + authority.MARKER_PREFIX + json.dumps(bad_marker, sort_keys=True, separators=(",", ":")) + "\n"
-reject("WRONG_PROFILE", lambda: authority.validate(
-    issue=issue, comments=comments, authority_issue_number=ISSUE,
-    comment_body=comment, comment_author="E-merging-digital", github_actor="E-merging-digital",
-    event_name="issue_comment", event_action="created", run_attempt="1", live_main=MAIN
+    comment_body=comment, comment_author="E-merging-digital",
+    github_actor="E-merging-digital", event_name="issue_comment",
+    event_action="created", run_attempt="1", live_main=MAIN
 ))
 
 _, issue, comments, comment = valid_fixture("PLAN")
-reject("JIT_EXPECTED_MODE_MISMATCH", lambda: authority.validate(
+issue["pull_request"] = {"url": "synthetic"}
+reject("PR_CANNOT_AUTHORIZE", lambda: authority.validate(
     issue=issue, comments=comments, authority_issue_number=ISSUE,
-    comment_body=comment, comment_author="E-merging-digital", github_actor="E-merging-digital",
-    event_name="issue_comment", event_action="created", run_attempt="1", live_main=MAIN,
-    checked_out_head=MAIN, expected_mode="APPLY"
+    comment_body=comment, comment_author="E-merging-digital",
+    github_actor="E-merging-digital", event_name="issue_comment",
+    event_action="created", run_attempt="1", live_main=MAIN
 ))
 
+m, issue, comments, comment = valid_fixture("PLAN")
+bad = dict(m); bad["profile_id"] = "wrong"
+issue["body"] = "Parent: #816\n" + authority.MARKER_PREFIX + json.dumps(bad, sort_keys=True, separators=(",", ":")) + "\n"
+reject("MARKER_WRONG_PROFILE", lambda: authority.validate(
+    issue=issue, comments=comments, authority_issue_number=ISSUE,
+    comment_body=comment, comment_author="E-merging-digital",
+    github_actor="E-merging-digital", event_name="issue_comment",
+    event_action="created", run_attempt="1", live_main=MAIN
+))
+
+print("#914_EXECUTION_AUTHORITY=IMPOSSIBLE")
 print("PLAN_APPLY_SEPARATION=PASS")
 print("SECRET_BEFORE_JIT=IMPOSSIBLE_BY_WORKFLOW_CONTRACT")

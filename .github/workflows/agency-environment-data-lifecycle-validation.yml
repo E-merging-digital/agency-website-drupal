@@ -70,16 +70,18 @@ jobs:
 
           doc = Path('docs/operations/agency-environment-data-lifecycle.md').read_text()
           workflow = Path('.github/workflows/agency-environment-data-lifecycle-validation.yml').read_text()
+          marker = '      - name: Preserve documentation-only authority boundary'
+          operational = workflow.split(marker, 1)[0]
 
-          assert 'runs-on: ubuntu-24.04' in workflow
-          assert 'runs-on: [self-hosted' not in workflow
-          assert 'runs-on: self-hosted' not in workflow
-          assert 'secrets.' not in workflow
-          assert 'workflow_dispatch:' not in workflow
-          assert 'issue_comment:' not in workflow
-          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in workflow
-          assert 'ssh ' not in workflow
-          assert 'scp ' not in workflow
+          assert 'runs-on: ubuntu-24.04' in operational
+          assert 'runs-on: [self-hosted' not in operational
+          assert 'runs-on: self-hosted' not in operational
+          assert 'secrets.' not in operational
+          assert 'workflow_dispatch:' not in operational
+          assert 'issue_comment:' not in operational
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in operational
+          assert 'ssh ' not in operational
+          assert 'scp ' not in operational
           assert 'DATA_ACTIVATION_AUTHORITY = DISABLED' in doc
           assert 'REAL PROVISIONING APPLY = EXECUTION_PENDING' in doc
           assert 'RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN' in doc

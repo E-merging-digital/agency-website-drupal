@@ -1,0 +1,263 @@
+#!/usr/bin/env python3
+"""Fail-closed successor execution authority validator for #914.
+
+#914 is implementation only and can never authorize execution. A future fresh
+#816 child issue must carry one canonical machine-readable authority marker and
+one exact trigger comment for exactly one PLAN or APPLY request.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+IMPLEMENTATION_ISSUE = 914
+PARENT_ISSUE = 816
+PROFILE_ID = "agency-preprod-governed-refresh-successor-v1"
+AUTHORIZED_ACTOR = "E-merging-digital"
+MARKER_PREFIX = "AGENCY_PREPROD_REFRESH_SUCCESSOR_AUTHORITY="
+TRIGGER = "/agency-preprod-refresh-successor"
+SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+REQUEST_SUFFIX_RE = re.compile(r"^[A-Za-z0-9._-]{8,40}$")
+MARKER_KEYS = {
+    "schema_version",
+    "parent_issue",
+    "implementation_issue",
+    "authority_issue",
+    "mode",
+    "request_id",
+    "main_sha",
+    "prod_release_sha",
+    "profile_id",
+    "authorized_actor",
+    "run_attempt",
+}
+
+
+class AuthorityError(RuntimeError):
+    pass
+
+
+def _load_json(path: str) -> Any:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _flatten_comments(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        out: list[dict[str, Any]] = []
+        for item in value:
+            if isinstance(item, list):
+                out.extend(_flatten_comments(item))
+            elif isinstance(item, dict):
+                out.append(item)
+            else:
+                raise AuthorityError("Comments JSON contains a non-object.")
+        return out
+    raise AuthorityError("Comments JSON must be an array.")
+
+
+def _single_marker(body: str) -> tuple[str, dict[str, Any]]:
+    lines = [line for line in body.splitlines() if line.startswith(MARKER_PREFIX)]
+    if len(lines) != 1:
+        raise AuthorityError("Authority issue must contain exactly one machine-readable marker.")
+    raw = lines[0][len(MARKER_PREFIX):]
+    try:
+        marker = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise AuthorityError("Authority marker JSON is invalid.") from exc
+    if not isinstance(marker, dict) or set(marker) != MARKER_KEYS:
+        raise AuthorityError("Authority marker schema mismatch.")
+    canonical = json.dumps(marker, sort_keys=True, separators=(",", ":"))
+    if raw != canonical:
+        raise AuthorityError("Authority marker must use canonical JSON serialization.")
+    return raw, marker
+
+
+def _labels(issue: dict[str, Any]) -> set[str]:
+    result: set[str] = set()
+    for item in issue.get("labels", []):
+        if isinstance(item, dict) and isinstance(item.get("name"), str):
+            result.add(item["name"])
+        elif isinstance(item, str):
+            result.add(item)
+    return result
+
+
+def _expected_request(mode: str, issue_number: int, request_id: str) -> bool:
+    prefix = "plan" if mode == "PLAN" else "apply"
+    expected_prefix = f"{prefix}-{issue_number}-"
+    if not request_id.startswith(expected_prefix) or not request_id.endswith("-r1"):
+        return False
+    middle = request_id[len(expected_prefix):-3]
+    return bool(REQUEST_SUFFIX_RE.fullmatch(middle))
+
+
+def validate(
+    *,
+    issue: dict[str, Any],
+    comments: list[dict[str, Any]],
+    authority_issue_number: int,
+    comment_body: str,
+    comment_author: str,
+    github_actor: str,
+    event_name: str,
+    event_action: str,
+    run_attempt: str,
+    live_main: str,
+    checked_out_head: str | None = None,
+    expected_mode: str | None = None,
+    expected_request_id: str | None = None,
+    expected_profile: str | None = None,
+    expected_main: str | None = None,
+) -> dict[str, str]:
+    if event_name != "issue_comment" or event_action != "created":
+        raise AuthorityError("Authority is valid only for a freshly created issue comment event.")
+    if github_actor != AUTHORIZED_ACTOR or comment_author != AUTHORIZED_ACTOR:
+        raise AuthorityError("Wrong owner actor.")
+    if run_attempt != "1":
+        raise AuthorityError("Request replay/rerun is forbidden.")
+    if not SHA40_RE.fullmatch(live_main):
+        raise AuthorityError("Live main identity is invalid.")
+    if authority_issue_number <= IMPLEMENTATION_ISSUE:
+        raise AuthorityError("#914 and older issues cannot be successor execution authority.")
+    if issue.get("number") != authority_issue_number:
+        raise AuthorityError("Authority issue number mismatch.")
+    if issue.get("state") != "open":
+        raise AuthorityError("Authority issue is not open.")
+    if issue.get("user", {}).get("login") != AUTHORIZED_ACTOR:
+        raise AuthorityError("Authority issue is not owner-created.")
+    if "status:in-progress" not in _labels(issue):
+        raise AuthorityError("Authority issue is not active.")
+    body = issue.get("body")
+    if not isinstance(body, str) or "Parent: #816" not in body:
+        raise AuthorityError("Authority issue is not explicitly under #816.")
+
+    _, marker = _single_marker(body)
+    if marker["schema_version"] != 1:
+        raise AuthorityError("Wrong authority schema version.")
+    if marker["parent_issue"] != PARENT_ISSUE:
+        raise AuthorityError("Wrong parent issue.")
+    if marker["implementation_issue"] != IMPLEMENTATION_ISSUE:
+        raise AuthorityError("Wrong implementation issue.")
+    if marker["authority_issue"] != authority_issue_number:
+        raise AuthorityError("Wrong successor authority issue binding.")
+    mode = marker["mode"]
+    if mode not in {"PLAN", "APPLY"}:
+        raise AuthorityError("Wrong execution mode.")
+    request_id = marker["request_id"]
+    if not isinstance(request_id, str) or not _expected_request(mode, authority_issue_number, request_id):
+        raise AuthorityError("Request identity is not mode/issue-bound one-shot identity.")
+    main_sha = marker["main_sha"]
+    if main_sha != live_main or not SHA40_RE.fullmatch(main_sha):
+        raise AuthorityError("Wrong or stale main authority.")
+    if marker["profile_id"] != PROFILE_ID:
+        raise AuthorityError("Wrong operation profile.")
+    if marker["authorized_actor"] != AUTHORIZED_ACTOR:
+        raise AuthorityError("Wrong authorized actor.")
+    if marker["run_attempt"] != 1:
+        raise AuthorityError("Marker does not authorize exactly run attempt 1.")
+
+    prod_release = marker["prod_release_sha"]
+    if mode == "PLAN":
+        if prod_release != "AUTO":
+            raise AuthorityError("PLAN must use metadata-only AUTO PROD release observation.")
+    else:
+        if not isinstance(prod_release, str) or not SHA40_RE.fullmatch(prod_release):
+            raise AuthorityError("APPLY requires exact PROD release identity.")
+
+    expected_comment = f"{TRIGGER} {mode} {request_id} {main_sha} {prod_release} {PROFILE_ID}"
+    if comment_body != expected_comment:
+        raise AuthorityError("Trigger comment does not exactly match authority marker.")
+    all_bodies = [c.get("body") for c in comments if isinstance(c.get("body"), str)]
+    if sum(body == expected_comment for body in all_bodies) != 1:
+        raise AuthorityError("Exact authority trigger must occur once.")
+    if sum(request_id in body for body in all_bodies) != 1:
+        raise AuthorityError("Request identity is duplicated/reused in authority comments.")
+
+    if checked_out_head is not None and checked_out_head != live_main:
+        raise AuthorityError("Checked-out HEAD is not current live main.")
+    if expected_mode is not None and mode != expected_mode:
+        raise AuthorityError("JIT mode no longer matches originally authorized mode.")
+    if expected_request_id is not None and request_id != expected_request_id:
+        raise AuthorityError("JIT request no longer matches originally authorized request.")
+    if expected_profile is not None and marker["profile_id"] != expected_profile:
+        raise AuthorityError("JIT profile no longer matches originally authorized profile.")
+    if expected_main is not None and main_sha != expected_main:
+        raise AuthorityError("JIT main no longer matches originally authorized main.")
+
+    return {
+        "implementation_issue": str(IMPLEMENTATION_ISSUE),
+        "authority_issue": str(authority_issue_number),
+        "mode": mode,
+        "request_id": request_id,
+        "main_sha": main_sha,
+        "prod_release_sha": prod_release,
+        "operation_profile": PROFILE_ID,
+        "authorized_actor": AUTHORIZED_ACTOR,
+    }
+
+
+def write_outputs(path: str, outputs: dict[str, str]) -> None:
+    with open(path, "a", encoding="utf-8") as handle:
+        for key, value in outputs.items():
+            if "\n" in value or "\r" in value:
+                raise AuthorityError("Multiline GitHub output is forbidden.")
+            handle.write(f"{key}={value}\n")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--issue-json", required=True)
+    parser.add_argument("--comments-json", required=True)
+    parser.add_argument("--authority-issue-number", required=True, type=int)
+    parser.add_argument("--comment-body", required=True)
+    parser.add_argument("--comment-author", required=True)
+    parser.add_argument("--github-actor", required=True)
+    parser.add_argument("--event-name", required=True)
+    parser.add_argument("--event-action", required=True)
+    parser.add_argument("--run-attempt", required=True)
+    parser.add_argument("--live-main", required=True)
+    parser.add_argument("--checked-out-head")
+    parser.add_argument("--expected-mode")
+    parser.add_argument("--expected-request-id")
+    parser.add_argument("--expected-profile")
+    parser.add_argument("--expected-main")
+    parser.add_argument("--github-output")
+    args = parser.parse_args()
+    issue = _load_json(args.issue_json)
+    comments = _flatten_comments(_load_json(args.comments_json))
+    outputs = validate(
+        issue=issue,
+        comments=comments,
+        authority_issue_number=args.authority_issue_number,
+        comment_body=args.comment_body,
+        comment_author=args.comment_author,
+        github_actor=args.github_actor,
+        event_name=args.event_name,
+        event_action=args.event_action,
+        run_attempt=args.run_attempt,
+        live_main=args.live_main,
+        checked_out_head=args.checked_out_head,
+        expected_mode=args.expected_mode,
+        expected_request_id=args.expected_request_id,
+        expected_profile=args.expected_profile,
+        expected_main=args.expected_main,
+    )
+    if args.github_output:
+        write_outputs(args.github_output, outputs)
+    for key, value in outputs.items():
+        print(f"{key}={value}")
+    print("#914_EXECUTION_AUTHORITY=IMPOSSIBLE")
+    print("PLAN_APPLY_SEPARATION=PASS")
+    print("REQUEST_REPLAY=FAIL_CLOSED")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (AuthorityError, OSError, ValueError, json.JSONDecodeError) as exc:
+        print(str(exc), file=__import__("sys").stderr)
+        raise SystemExit(80)

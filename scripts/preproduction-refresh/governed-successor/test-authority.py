@@ -14,6 +14,7 @@ MAIN = "a" * 40
 PROD = "b" * 40
 TARGET_MAIN = "c" * 40
 TARGET_AUTHORITY_ID = "d" * 64
+TARGET_COMMENT_ID = 123456789
 ISSUE = 1914
 TARGET_ISSUE = 1913
 PROFILE = authority.PROFILE_ID
@@ -21,7 +22,8 @@ CAP_PROFILE = authority.CAPABILITY_PROFILE_ID
 
 
 def marker(mode="PLAN", issue=ISSUE, request=None, main=MAIN, profile=PROFILE, actor="E-merging-digital", prod=None,
-           target_issue=None, target_request=None, target_main=None, target_profile=None, target_authority_id=None):
+           target_issue=None, target_request=None, target_main=None, target_profile=None,
+           target_authority_id=None, target_recovery_record_comment_id=None):
     if request is None:
         prefix = {"PLAN": "plan", "APPLY": "apply", "RECOVER_ABORT": "recover-abort"}[mode]
         request = f"{prefix}-{issue}-abcdefgh-r1"
@@ -33,14 +35,16 @@ def marker(mode="PLAN", issue=ISSUE, request=None, main=MAIN, profile=PROFILE, a
         target_main = TARGET_MAIN if target_main is None else target_main
         target_profile = CAP_PROFILE if target_profile is None else target_profile
         target_authority_id = TARGET_AUTHORITY_ID if target_authority_id is None else target_authority_id
+        target_recovery_record_comment_id = TARGET_COMMENT_ID if target_recovery_record_comment_id is None else target_recovery_record_comment_id
     value = {
-        "schema_version": 2, "parent_issue": 816, "implementation_issue": 914,
+        "schema_version": 3, "parent_issue": 816, "implementation_issue": 914,
         "authority_issue": issue, "mode": mode, "request_id": request,
         "main_sha": main, "prod_release_sha": prod, "profile_id": profile,
         "authorized_actor": actor, "run_attempt": 1,
         "target_successor_issue": target_issue, "target_request_id": target_request,
         "target_main_sha": target_main, "target_profile_id": target_profile,
         "target_authority_id": target_authority_id,
+        "target_recovery_record_comment_id": target_recovery_record_comment_id,
     }
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
     return value, "Parent: #816\n" + authority.MARKER_PREFIX + raw + "\n"
@@ -83,12 +87,14 @@ recovery = validate_fixture("RECOVER_ABORT")
 assert recovery["mode"] == "RECOVER_ABORT"
 assert recovery["main_sha"] == MAIN
 assert recovery["target_main_sha"] == TARGET_MAIN
+assert recovery["target_recovery_record_comment_id"] == str(TARGET_COMMENT_ID)
 print("FUTURE_AUTHORITY_IS_FRESH_816_CHILD=PASS")
 print("VALID_PLAN=PASS")
 print("VALID_APPLY=PASS")
 print("FRESH_RECOVERY_AUTHORITY=REQUIRED")
 print("RECOVERY_EXECUTION_MAIN_BINDING=EXACT_CURRENT_MAIN")
 print("TARGET_TRANSACTION_BINDING=EXACT_HISTORICAL_AUTHORITY")
+print("RECOVERY_RECORD_COMMENT_ID_BINDING=PASS")
 
 for known in (914, 915, 916, 917):
     reject(f"KNOWN_ISSUE_{known}_CANNOT_AUTHORIZE", lambda known=known: validate_fixture("PLAN", known))
@@ -131,11 +137,14 @@ reject("WRONG_TARGET_REQUEST", lambda: validate_fixture("RECOVER_ABORT", marker_
 reject("WRONG_TARGET_MAIN", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_main": "bad"}))
 reject("WRONG_TARGET_PROFILE", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_profile": "wrong"}))
 reject("WRONG_TARGET_AUTHORITY_ID", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_authority_id": "bad"}))
+reject("WRONG_RECORD_COMMENT_ID", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_recovery_record_comment_id": 0}))
 reject("RECOVERY_RUN_ATTEMPT_2", lambda: validate_fixture("RECOVER_ABORT", run_attempt="2"))
 reject("RECOVERY_WRONG_ACTOR", lambda: validate_fixture("RECOVER_ABORT", github_actor="someone-else"))
 reject("RECOVERY_STALE_EXECUTION_MAIN", lambda: validate_fixture("RECOVER_ABORT", live_main="e" * 40))
 reject("RECOVERY_TARGET_CHANGED_AT_JIT", lambda: validate_fixture(
     "RECOVER_ABORT", expected_target_authority_id="e" * 64))
+reject("RECOVERY_RECORD_COMMENT_CHANGED_AT_JIT", lambda: validate_fixture(
+    "RECOVER_ABORT", expected_target_recovery_record_comment_id=str(TARGET_COMMENT_ID + 1)))
 
 _, issue, comments, comment = valid_fixture("RECOVER_ABORT")
 comments.append(dict(comments[0]))

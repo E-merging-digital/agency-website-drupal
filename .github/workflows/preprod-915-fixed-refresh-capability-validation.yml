@@ -1,0 +1,221 @@
+name: "#915 Fixed PREPROD refresh capability validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-915-fixed-refresh-capability-validation.yml"
+      - ".github/workflows/preprod-874-activation-capability-validation.yml"
+      - ".github/workflows/preprod-877-successor-authority-validation.yml"
+      - ".github/workflows/preprod-879-plan-evidence-validation.yml"
+      - ".github/workflows/preprod-891-runtime-db-identity-validation.yml"
+      - "docs/operations/preproduction-refresh-activation-capability.md"
+      - "scripts/preproduction-refresh/activation-capability/**"
+
+permissions:
+  contents: read
+
+jobs:
+  fixed-contract:
+    name: "#915 authority / ingress / admin / rollback contract"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate source syntax and exact manifest digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          bash -n \
+            "$base/admin-reconcile.sh" \
+            "$base/test-915-root-ingress.sh" \
+            "$base/provisioning/run-plan.sh" \
+            "$base/provisioning/run-apply.sh" \
+            "$base/provisioning/remote-provision-root.sh"
+          python3 -m py_compile \
+            "$base/transaction_contract.py" \
+            "$base/agency-preprod-refresh-authority-install" \
+            "$base/agency-preprod-refresh-ingress" \
+            "$base/agency-preprod-refresh-control" \
+            "$base/test-915-contract.py"
+          php -l "$base/admin-reconcile.php"
+          php -l "$base/test-915-admin-reconcile.php"
+          python3 "$base/test-915-contract.py"
+
+      - name: Execute fixed PREPROD admin synthetic absent/present reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          php "$base/test-915-admin-reconcile.php" absent
+          php "$base/test-915-admin-reconcile.php" present
+          printf '%s\n' \
+            'ADMIN_SERVER_OWNED_SECRET_SOURCE=PASS' \
+            'PROD_CREDENTIAL_REUSE=NONE' \
+            'ADMIN_SECRET_LOGGING=NONE'
+
+      - name: Execute root-owned binary ingress filesystem proof on ephemeral runner only
+        shell: bash
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+          sudo --preserve-env=RUNNER_ENVIRONMENT \
+            bash scripts/preproduction-refresh/activation-capability/test-915-root-ingress.sh
+
+      - name: Prove privilege surface and permanent authority remain closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          control="$base/provisioning/agency-preprod-refresh-control.sudoers"
+          ingress="$base/provisioning/agency-preprod-refresh-ingress.sudoers"
+          grep -Fxq 'agency-preprod ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-preprod-refresh-control' "$control"
+          grep -Fxq 'agency-preprod ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-preprod-refresh-ingress' "$ingress"
+          ! grep -Eq 'NOPASSWD:[[:space:]]*ALL|(^|[[:space:]])SETENV:|[[:space:]](bash|sh|python|python3|mariadb|env)([[:space:]]|$)' "$control" "$ingress"
+          ! grep -Fq 'agency-preprod-refresh-authority-install' "$control" "$ingress"
+          jq -e '
+            .revision_issue == 915 and
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.permanent_enabled_state == "NONE" and
+            .data_activation_authority.caller_self_authorization == "IMPOSSIBLE" and
+            .transaction_authority.installer_in_agency_preprod_sudoers == false and
+            .binary_ingress.caller_path == "FORBIDDEN" and
+            .preprod_admin.fixed_identity == "preprod-admin" and
+            .preprod_admin.prod_credential_reuse == "NONE"
+          ' "$base/profile.json" >/dev/null
+          printf '%s\n' \
+            'CALLER_SELF_AUTHORIZATION=IMPOSSIBLE' \
+            'PERMANENT_ENABLE=NONE' \
+            'CALLER_PATH=IMPOSSIBLE' \
+            'GENERIC_ROOT=NONE' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED'
+
+  predecessor-regressions:
+    name: "#816/#834/#849/#855/#857/#859/#866/#868/#874/#876/#902/#905/#910 regressions"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Execute bounded predecessor synthetic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          python3 scripts/preproduction-staging-import/privileged/test-contract.py
+          python3 scripts/preproduction-refresh/activation-boundary/test-contract.py
+          python3 "$base/provisioning/test-successor-authority.py"
+          python3 "$base/provisioning/test-runtime-db-identity-probe.py"
+          python3 "$base/provisioning/test-plan-evidence.py"
+          python3 "$base/provisioning/test-nginx-vhost-selector.py"
+          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
+          test "$(sha256sum scripts/preproduction-refresh/sanitization-policy.json | awk '{print $1}')" = 'cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
+          printf '%s\n' \
+            'REGRESSION_816=PASS' \
+            'REGRESSION_834=PASS' \
+            'REGRESSION_849=PASS' \
+            'REGRESSION_855=PASS' \
+            'REGRESSION_857=PASS' \
+            'REGRESSION_859=PASS' \
+            'REGRESSION_866=PASS' \
+            'REGRESSION_868=PASS' \
+            'REGRESSION_874=SUPERSEDED_BY_915_STRONGER_CONTRACT' \
+            'REGRESSION_876=PASS' \
+            'REGRESSION_902=PASS' \
+            'REGRESSION_905=PASS'
+
+      - name: Prove #910 checkout-JIT-secret-APPLY-cleanup ordering unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          workflow = Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
+          assert '\n  plan:\n' in workflow and '\n  apply:\n' in workflow
+          plan = workflow.split('\n  plan:\n',1)[1].split('\n  apply:\n',1)[0]
+          apply = '  apply:\n' + workflow.split('\n  apply:\n',1)[1]
+          checkout = apply.index('      - name: Checkout exact trusted main')
+          jit = apply.index('      - name: JIT revalidate live main and successor authority before root secret materialization')
+          secret = apply.index('PREPROD_PROVISIONING_SSH_PRIVATE_KEY')
+          execute = apply.index('run-apply.sh')
+          cleanup = apply.index('      - name: Remove transient APPLY identity')
+          assert checkout < jit < secret < execute < cleanup
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in apply[:jit]
+          jit_block = apply[jit:apply.index('      - name: Configure dedicated transient root provisioning identity')]
+          assert 'secrets.' not in jit_block
+          assert 'repos/$GITHUB_REPOSITORY/branches/main' in jit_block
+          assert 'validate-successor-authority.py' in jit_block
+          assert 'test "$checked_out_head" = "$current_live_main"' in jit_block
+          assert '.data_activation_authority.installed_state == "DISABLED"' in jit_block
+          assert 'runs-on: ubuntu-24.04' in plan
+          assert 'self-hosted' not in plan
+          print('#910_JIT_BEFORE_SECRET=PRESERVED')
+          print('ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE')
+          print('MAIN_OR_AUTHORITY_CHANGE=FAIL_BEFORE_SECRET')
+          print('REAL_PREPROD_EXECUTION=NONE')
+          PY
+
+  mariadb-11-8-regression:
+    name: "MariaDB 11.8 exact backup/restore + #868 atomic regression"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: agency915-test-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 24
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install MariaDB client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mariadb-client
+
+      - name: Execute deterministic runtime-state and #868 proof
+        shell: bash
+        env:
+          AGENCY_874_TEST_DB_HOST: 127.0.0.1
+          AGENCY_874_TEST_DB_PORT: "3306"
+          AGENCY_874_TEST_DB_PASSWORD: agency915-test-root
+          MARIADB_HOST: 127.0.0.1
+          MARIADB_PORT: "3306"
+          MARIADB_USER: root
+          MARIADB_PASSWORD: agency915-test-root
+        run: |
+          set -euo pipefail
+          python3 scripts/preproduction-refresh/activation-capability/test-mariadb-state-identity.py
+          python3 scripts/preproduction-refresh/activation-boundary/test-contract.py
+          bash scripts/preproduction-refresh/activation-boundary/synthetic-proof.sh
+          printf '%s\n' \
+            'EXACT_BACKUP_RESTORE=PASS' \
+            'PREVIOUS_RUNTIME_DIGEST=RESTORED' \
+            'REGRESSION_868=PASS' \
+            'REAL_PREPROD_MUTATION=NONE'

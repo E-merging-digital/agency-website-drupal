@@ -67,7 +67,7 @@
     "fence_snippet": "35b084fabc0aacc80f55c1f789b35d5dd52259e85b153d87da99d26930c18b67",
     "internal_readiness": "352cd4cc40cdd961a51ff466acaf559c7a499c6a18fc4d51b95a675ced40a5fc",
     "capability_profile": "08eb1518e38012d73857848b4808be707938ed9511040b2854c920667fa437bc",
-    "bundle_manifest": "ab2e5f0045eca06f83b792f0615f44f851f261257044d4a3c661a431b93f76b8",
+    "bundle_manifest": "44d055b563c6e7b30419c98c84e6522ea13d737e16e3d6c205eae81a3964c4d6",
     "remote_provision_root": "9b21a2222c17ed21805ae5bf737ab1c6a86132e48a5406b3b77b22e7286fe3d3",
     "run_apply": "3c7eb563c6d4f2f583109ab8780d9df58080a28f6ff2ca155f1cca482658ff76"
   },

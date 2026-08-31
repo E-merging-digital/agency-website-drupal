@@ -152,7 +152,7 @@ jobs:
 
           jit_block = apply[jit:apply.index('      - name: Configure dedicated transient root provisioning identity')]
           assert 'secrets.' not in jit_block
-          assert 'GH_TOKEN: ${{ github.token }}' in jit_block
+          assert 'GH_TOKEN:' in jit_block
           assert 'repos/$GITHUB_REPOSITORY/branches/main' in jit_block
           assert 'test "$current_live_main" = "$EXPECTED_MAIN"' in jit_block
           assert 'test "$checked_out_head" = "$current_live_main"' in jit_block

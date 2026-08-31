@@ -116,13 +116,13 @@ jobs:
           test "$(git rev-parse HEAD:scripts/preproduction-staging-import/privileged/agency-preprod-staging-db)" = \
             'cd8e5a5dea9ab3ef45a7f9753af5933f4156c9db'
           test "$(git rev-parse HEAD:$provisioning/runtime-db-identity-probe.py)" = \
-            'c123a68ec845ae65dfa66cec6b4ec9e7e361b3de'
+            '197a2da8173f902eb5f43b96f2f14399d00df220'
           test "$(git rev-parse HEAD:$provisioning/agency-preprod-refresh-control.sudoers)" = \
             '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
           test "$(git rev-parse HEAD:$provisioning/nginx-vhost-selector.py)" = \
             'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
           test "$(git rev-parse HEAD:$provisioning/run-plan.sh)" = \
-            '7f9fe7547894754ad008358a9792cf186ef3c209'
+            'e479b8de676a927235374c5b722218efa5db891a'
           test "$(git rev-parse HEAD:.github/workflows/preprod-874-capability-provisioning.yml)" = \
             'bf20a2767c28865bcbd53935b2df0628e5318fe1'
           test "$(git rev-parse HEAD:$provisioning/validate-successor-authority.py)" = \
@@ -140,7 +140,7 @@ jobs:
 
           printf '%s\n' \
             '#849_STAGING_ONLY=PRESERVED' \
-            '#891_FAIL_CLOSED=PRESERVED' \
+            '#891_FAIL_CLOSED=PRESERVED_ACTIVE_CONNECTION' \
             '#887=PRESERVED' \
             '#889=PRESERVED' \
             '#874_AUTHORITY=NOT_WIDENED' \

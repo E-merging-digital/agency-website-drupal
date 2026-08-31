@@ -18,7 +18,7 @@ from pathlib import Path
 from types import ModuleType
 
 CONTRACT_PATH = "/usr/local/lib/agency-preprod-refresh/transaction_contract.py"
-CONTRACT_SHA256 = "47b576faccde9903371828c6cc54564ea25838fd0f37547da3e7b3c2a3b78a90"
+CONTRACT_SHA256 = "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb"
 STATE_DIR = "/var/lib/agency-preprod-refresh"
 AUTHORITY_DIR = STATE_DIR + "/authority"
 HISTORY_DIR = STATE_DIR + "/transactions"
@@ -105,7 +105,6 @@ def atomic_write(path: str, payload: bytes) -> None:
     finally:
         os.close(dirfd)
     require_file(path, 0o600)
-
 
 
 def acquire_lock():

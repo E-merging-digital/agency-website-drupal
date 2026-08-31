@@ -29,6 +29,7 @@ files=(
   "$BASE/agency-preprod-refresh-control"
   "$BASE/agency-preprod-refresh-ingress"
   "$BASE/agency-preprod-refresh-authority-install"
+  "$BASE/agency-preprod-refresh-authority-abort"
   "$BASE/transaction_contract.py"
   "$BASE/admin-reconcile.sh"
   "$BASE/admin-reconcile.php"
@@ -49,17 +50,21 @@ for path in "${files[@]}"; do [[ -f "$path" && ! -L "$path" ]]; done
 [[ "$(git rev-parse "HEAD:$VHOST_SELECTOR")" == "$VHOST_SELECTOR_BLOB" ]]
 
 jq -e '
-  .issue_number == 874 and .revision_issue == 915 and
+  .issue_number == 874 and .revision_issue == 915 and .abort_revision_issue == 917 and
   .profile_id == "agency-preprod-refresh-capability-provision-v1" and
   .apply.persistent_data_activation_authority_after_apply == "DISABLED" and
   .apply.transaction_authority_after_apply == "ABSENT" and
+  .apply.abort_helper_after_apply == "INSTALLED_ROOT_ONLY" and
   .apply.real_data_activation == "FORBIDDEN" and
-  .sudo.authority_installer_exposed == false
+  .sudo.authority_installer_exposed == false and
+  .sudo.abort_helper_exposed == false
 ' "$PROFILE" >/dev/null
 jq -e '
-  .issue_number == 874 and .revision_issue == 915 and
+  .issue_number == 874 and .revision_issue == 915 and .abort_revision_issue == 917 and
   .persistent_data_activation_authority_after_provisioning == "DISABLED" and
-  .transaction_authority_after_provisioning == "ABSENT"
+  .transaction_authority_after_provisioning == "ABSENT" and
+  .pre_ingress_abort_after_provisioning == "INSTALLED_ROOT_ONLY" and
+  .normal_sudo_exposure_for_abort == "NONE"
 ' "$BUNDLE" >/dev/null
 
 check_digest() {
@@ -71,6 +76,7 @@ check_digest() {
 check_digest helper "$BASE/agency-preprod-refresh-control"
 check_digest ingress "$BASE/agency-preprod-refresh-ingress"
 check_digest authority_installer "$BASE/agency-preprod-refresh-authority-install"
+check_digest authority_abort "$BASE/agency-preprod-refresh-authority-abort"
 check_digest transaction_contract "$BASE/transaction_contract.py"
 check_digest admin_reconcile "$BASE/admin-reconcile.sh"
 check_digest admin_reconcile_php "$BASE/admin-reconcile.php"
@@ -96,6 +102,7 @@ scp "${scp_opts[@]}" \
   "$BASE/agency-preprod-refresh-control" \
   "$BASE/agency-preprod-refresh-ingress" \
   "$BASE/agency-preprod-refresh-authority-install" \
+  "$BASE/agency-preprod-refresh-authority-abort" \
   "$BASE/transaction_contract.py" \
   "$BASE/admin-reconcile.sh" \
   "$BASE/admin-reconcile.php" \
@@ -117,8 +124,11 @@ ssh "${ssh_opts[@]}" "root@$PREPROD_SSH_HOST" \
   "chmod 700 '$remote_dir/remote-provision-root.sh'; env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash '$remote_dir/remote-provision-root.sh' APPLY '$REQUEST_ID' '$REPOSITORY_SHA' '$profile_sha'"
 printf '%s\n' \
   'CAPABILITY_PROVISIONING=PASS' \
-  'REVISION_ISSUE=915' \
+  'BASE_REVISION_ISSUE=915' \
+  'ABORT_REVISION_ISSUE=917' \
   'PERSISTENT_DATA_ACTIVATION_AUTHORITY=DISABLED' \
   'TRANSACTION_AUTHORITY=ABSENT' \
+  'ABORT_HELPER=INSTALLED_ROOT_ONLY' \
+  'NORMAL_SUDO_EXPOSURE=NONE' \
   'REAL_DATA_ACTIVATION=FORBIDDEN' \
   'PROD_ACCESS=NONE'

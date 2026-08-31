@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "issue_number": 914,
+  "parent_issue": 816,
+  "profile_id": "agency-preprod-governed-refresh-successor-v1",
+  "state": "SOURCE_ONLY_NOT_EXECUTION_AUTHORITY",
+  "execution_authority": {
+    "implementation_issue": 914,
+    "implementation_issue_may_execute": false,
+    "future_authority_issue": "FRESH_DISTINCT_816_CHILD_REQUIRED",
+    "authority_issue_must_be_greater_than": 914,
+    "authorized_actor": "E-merging-digital",
+    "modes": [
+      "PLAN",
+      "APPLY"
+    ],
+    "one_authority_issue_one_mode": true,
+    "plan_can_authorize_apply": false,
+    "apply_requires_fresh_distinct_authority": true,
+    "run_attempt": 1,
+    "marker_prefix": "AGENCY_PREPROD_REFRESH_SUCCESSOR_AUTHORITY=",
+    "trigger_command": "/agency-preprod-refresh-successor",
+    "request_replay": "FAIL_CLOSED",
+    "request_id_scope": "MODE_AND_AUTHORITY_ISSUE_BOUND",
+    "live_main_binding": "EXACT",
+    "capability_provisioning": "SEPARATE_AUTHORITY_EVENT"
+  },
+  "authority_marker": {
+    "schema_version": 1,
+    "required_keys": [
+      "schema_version",
+      "parent_issue",
+      "implementation_issue",
+      "authority_issue",
+      "mode",
+      "request_id",
+      "main_sha",
+      "prod_release_sha",
+      "profile_id",
+      "authorized_actor",
+      "run_attempt"
+    ],
+    "plan_prod_release_sha": "AUTO",
+    "apply_prod_release_sha": "EXACT_40_HEX"
+  },
+  "runner": {
+    "labels": [
+      "self-hosted",
+      "linux",
+      "x64",
+      "agency"
+    ],
+    "exact_name": "agency-browser-runner-01"
+  },
+  "jit_before_secret": {
+    "lineage_issue": 910,
+    "required_for_modes": [
+      "PLAN",
+      "APPLY"
+    ],
+    "order": [
+      "CHECKOUT_EXACT_ORIGINALLY_AUTHORIZED_MAIN",
+      "RELOAD_CURRENT_LIVE_MAIN",
+      "RELOAD_AUTHORITY_ISSUE_AND_COMMENTS",
+      "REVALIDATE_ACTOR_MODE_REQUEST_PROFILE_RUN_ATTEMPT",
+      "REQUIRE_CHECKED_OUT_HEAD_EQUALS_LIVE_MAIN_EQUALS_AUTHORIZED_MAIN",
+      "VALIDATE_REPOSITORY_SAFETY_PROFILE",
+      "MATERIALIZE_SSH_SECRETS",
+      "FIXED_OPERATION",
+      "CLEANUP_ALWAYS"
+    ],
+    "secret_before_jit": "IMPOSSIBLE",
+    "queued_state_change": "FAIL_BEFORE_SECRET_OR_SSH_SESSION"
+  },
+  "capability_precondition": {
+    "source_issue": 874,
+    "revision_issue": 915,
+    "source_profile": "scripts/preproduction-refresh/activation-capability/profile.json",
+    "bundle": "scripts/preproduction-refresh/activation-capability/bundle.json",
+    "source_state": "SOURCE_AVAILABLE_NOT_PROVISIONED",
+    "live_capability_provisioning": "SEPARATE_FUTURE_816_SUCCESSOR_REQUIRED",
+    "persistent_data_activation_authority": "DISABLED",
+    "transaction_authority_before_apply": "ABSENT"
+  },
+  "plan": {
+    "mode": "PLAN",
+    "mutation": "NONE",
+    "prod_db_content_read": "NONE",
+    "prod_snapshot": "NOT_PERFORMED",
+    "prod_data_transfer": "NONE",
+    "transaction_authority_install": "NONE",
+    "candidate_create": "NONE",
+    "backup_create": "NONE",
+    "fence_mutation": "NONE",
+    "preprod_db_mutation": "NONE",
+    "activation": "NONE",
+    "rollback": "NONE",
+    "inspections": [
+      "EXACT_CURRENT_MAIN",
+      "SUCCESSOR_AUTHORITY",
+      "TRUSTED_EXECUTOR_IDENTITY",
+      "CREDENTIAL_READINESS_NO_VALUES",
+      "PINNED_PROD_PREPROD_HOST_TRUST",
+      "INSTALLED_915_CAPABILITY_IDENTITY",
+      "PERSISTENT_DATA_AUTHORITY_STATE",
+      "TRANSACTION_AUTHORITY_EXPECTED_ABSENT",
+      "RUNTIME_RELEASE_IDENTITY",
+      "RUNTIME_DB_IDENTITY_AGENCY_PREPROD",
+      "FENCE_STATE",
+      "LOCK_READINESS",
+      "CAPACITY_READINESS",
+      "STALE_TRANSACTION_EXPECTED_ABSENT",
+      "CANDIDATE_NAMESPACE_READINESS",
+      "BACKUP_NAMESPACE_READINESS",
+      "EXPECTED_MUTATION_INVENTORY",
+      "ROLLBACK_INVENTORY"
+    ]
+  },
+  "apply": {
+    "mode": "APPLY",
+    "prod_role": "READ_ONLY_SNAPSHOT_SOURCE_ONLY",
+    "prod_write": "NONE",
+    "fresh_snapshot_each_transaction": true,
+    "raw_prod_github_hosted": "IMPOSSIBLE",
+    "raw_prod_github_artifact": "FORBIDDEN",
+    "sequence": [
+      "REQUIRE_FRESH_SUCCESSOR_APPLY_AUTHORITY",
+      "REQUIRE_EXACT_LIVE_MAIN",
+      "JIT_BEFORE_ALL_SSH_SECRETS",
+      "REQUIRE_TRUSTED_EXECUTOR",
+      "CREATE_FRESH_PROD_READ_ONLY_SNAPSHOT_USING_834_866_PRIMITIVE",
+      "COMPUTE_SNAPSHOT_BYTES_SHA256",
+      "INSTALL_EXACT_915_ONE_SHOT_AUTHORITY",
+      "STREAM_SNAPSHOT_TO_EXACT_915_FIXED_INGRESS",
+      "915_IMPORT_SANITIZE_HARDEN_RETAIN",
+      "REQUIRE_SEALED_CANDIDATE",
+      "915_BACKUP_ACTIVATE_CONVERGE_VALIDATE",
+      "TERMINAL_COMMIT_OR_915_RECORDED_ROLLBACK",
+      "VERIFY_TERMINAL_CLEANUP_METADATA_WHERE_OBSERVABLE",
+      "REMOVE_TRUSTED_RUNNER_RAW_TRANSIENT"
+    ]
+  },
+  "fixed_915": {
+    "capability_profile_id": "agency-preprod-refresh-capability-v1",
+    "ingress": "/usr/local/sbin/agency-preprod-refresh-ingress",
+    "authority_installer": "/usr/local/sbin/agency-preprod-refresh-authority-install",
+    "control": "/usr/local/sbin/agency-preprod-refresh-control",
+    "normal_sudo_authority_installer": "NONE",
+    "control_actions": [
+      "IMPORT_SANITIZE_HARDEN_RETAIN",
+      "BACKUP_ACTIVATE_CONVERGE_VALIDATE",
+      "ROLLBACK_RECORDED"
+    ],
+    "profile_legacy_metadata_actions": [
+      "PRECHECK",
+      "VERIFY_ABSENCE"
+    ],
+    "verify_absence_composition": "METADATA_ONLY_TERMINAL_OBSERVATION_WHERE_OBSERVABLE_NO_NEW_PRIVILEGED_ACTION"
+  },
+  "snapshot": {
+    "prod_remote_stream": "scripts/production-readonly-snapshot/remote-stream.sh",
+    "prod_plan_observer": "scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh",
+    "raw_location": "TRUSTED_RUNNER_TEMP_ONLY",
+    "workspace": "FORBIDDEN",
+    "logs": "FORBIDDEN",
+    "artifacts": "FORBIDDEN",
+    "rollback_source": "FORBIDDEN"
+  },
+  "ingress_binding": {
+    "successor_issue": "EXACT_AUTHORITY_ISSUE",
+    "request_id": "EXACT_REQUEST_ID",
+    "main_sha": "EXACT_LIVE_MAIN",
+    "profile_id": "agency-preprod-refresh-capability-v1",
+    "expected_bytes": "EXACT_FRESH_SNAPSHOT_BYTES",
+    "expected_sha256": "EXACT_FRESH_SNAPSHOT_SHA256",
+    "caller_path": "IMPOSSIBLE",
+    "caller_filename": "IMPOSSIBLE"
+  },
+  "failure_model": {
+    "FAIL_BEFORE_SNAPSHOT": "NO_DATA_MOVEMENT",
+    "FAIL_DURING_SNAPSHOT": "TRUSTED_RUNNER_TRANSIENT_CLEANUP",
+    "FAIL_DURING_TRANSFER": "RAW_TRANSIENT_AND_PARTIAL_INGRESS_CLEANUP",
+    "FAIL_BEFORE_INGRESS_FINALIZATION": "FIXED_915_PARTIAL_CLEANUP",
+    "FAIL_CANDIDATE_SANITIZATION": "RUNTIME_UNTOUCHED_TRANSIENT_CLEANUP",
+    "FAIL_BEFORE_BACKUP": "RUNTIME_UNCHANGED",
+    "BACKUP_VERIFY_FAILURE": "NO_ACTIVATION",
+    "ATOMIC_SWAP_FAILURE": "PREVIOUS_RUNTIME_PROVEN",
+    "FAIL_POST_SWAP_PRE_CONVERGENCE": "915_RECORDED_ROLLBACK",
+    "FAIL_AFTER_CONVERGENCE_STARTED": "EXACT_PREACTIVATION_BACKUP_RESTORE",
+    "ROLLBACK_VERIFY_FAILURE": "FENCE_CLOSED_FAILED_RECOVERY_HUMAN_RECOVERY_REQUIRED",
+    "blind_apply_retry": "FORBIDDEN"
+  },
+  "privilege": {
+    "nopasswd_all": "NONE",
+    "generic_root": "NONE",
+    "generic_shell": "NONE",
+    "generic_python": "NONE",
+    "generic_mariadb": "NONE",
+    "generic_env": "NONE",
+    "caller_path": "NONE",
+    "caller_sql": "NONE",
+    "caller_database": "NONE",
+    "caller_table": "NONE",
+    "caller_executable": "NONE",
+    "caller_arbitrary_command": "NONE"
+  },
+  "evidence": {
+    "metadata_only": true,
+    "raw_dump": "FORBIDDEN",
+    "raw_backup": "FORBIDDEN",
+    "sql_values": "FORBIDDEN",
+    "credentials": "FORBIDDEN",
+    "tokens": "FORBIDDEN",
+    "private_keys": "FORBIDDEN",
+    "server_environment_contents": "FORBIDDEN",
+    "generic_remote_output": "FORBIDDEN"
+  },
+  "delivery_boundary": {
+    "real_provisioning": "NONE",
+    "real_plan": "NONE",
+    "real_apply": "NONE",
+    "real_prod_data_read": "NONE",
+    "real_prod_data_transfer": "NONE",
+    "real_preprod_execution": "NONE",
+    "real_preprod_mutation": "NONE",
+    "data_activation_authority": "DISABLED",
+    "merge": "FORBIDDEN"
+  }
+}

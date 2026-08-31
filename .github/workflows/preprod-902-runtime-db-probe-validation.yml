@@ -87,19 +87,22 @@ jobs:
           test "$(git rev-parse "HEAD:$base/runtime-db-identity-probe.py")" = \
             '197a2da8173f902eb5f43b96f2f14399d00df220'
           test "$(git rev-parse "HEAD:$base/run-plan.sh")" = \
-            'e479b8de676a927235374c5b722218efa5db891a'
+            '981a719eb29f485a41500531e0ff24b0e2187470'
           grep -Fq "RUNTIME_DB_PROBE_BLOB='197a2da8173f902eb5f43b96f2f14399d00df220'" \
             "$base/run-plan.sh"
+          grep -Fq 'HOME=/home/agency-preprod python3 -I -' "$base/run-plan.sh"
+          test "$(grep -Fc 'HOME=/home/agency-preprod' "$base/run-plan.sh")" = '1'
           grep -Fq '197a2da8173f902eb5f43b96f2f14399d00df220' \
             .github/workflows/preprod-891-runtime-db-identity-validation.yml \
             .github/workflows/preprod-877-successor-authority-validation.yml \
             .github/workflows/preprod-895-runtime-db-precheck-validation.yml
-          grep -Fq 'e479b8de676a927235374c5b722218efa5db891a' \
+          grep -Fq '981a719eb29f485a41500531e0ff24b0e2187470' \
             .github/workflows/preprod-877-successor-authority-validation.yml \
             .github/workflows/preprod-895-runtime-db-precheck-validation.yml
           printf '%s\n' \
             'RUNTIME_DB_PROBE_BLOB=PINNED' \
             'PLAN_PROBE_BINDING=PINNED' \
+            '#905_FIXED_HOME_BINDING=PINNED' \
             '#891_PIN=UPDATED' \
             '#895_PIN=UPDATED' \
             '#876_PLAN_LINEAGE=UPDATED_WITHOUT_AUTHORITY_CHANGE'
@@ -120,7 +123,7 @@ jobs:
           printf '%s\n' \
             'REAL_PREPROD_PROBE_EXECUTION=NOT_PERFORMED_BY_DELIVERY' \
             'REAL_PREPROD_MUTATION=NONE' \
-            'R8=NOT_CREATED_NOT_RUN' \
+            'R9=NOT_CREATED_NOT_RUN' \
             'ROOT=FORBIDDEN' \
             'SUDO=FORBIDDEN' \
             'SUDOERS_MUTATION=NONE' \

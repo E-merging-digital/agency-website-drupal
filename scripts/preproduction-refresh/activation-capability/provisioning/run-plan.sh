@@ -125,7 +125,7 @@ ssh -i "$PREPROD_SSH_KEY" \
   -o StrictHostKeyChecking=yes \
   -o UserKnownHostsFile="$PREPROD_KNOWN_HOSTS_FILE" \
   "$PREPROD_SSH_USER@$PREPROD_SSH_HOST" \
-  "env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin python3 -I -" \
+  "env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/home/agency-preprod python3 -I -" \
   < "$RUNTIME_DB_PROBE" >> "$observation"
 
 python3 "$EVALUATOR" --observation "$observation" --repository-root .

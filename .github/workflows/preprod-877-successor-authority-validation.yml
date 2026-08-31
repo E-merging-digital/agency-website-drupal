@@ -68,7 +68,7 @@ jobs:
           test "$(git rev-parse "HEAD:$base/provisioning/profile.json")" = '6103f8f316771d837652a7758af35a89291cee1b'
           test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = '6c3059615d912dc999f3741a667bd7601a7f4eb3'
           test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '4779e8ee7c2104dc38bf8c6ff1f1bcb5a2e0be3c'
-          test "$(git rev-parse "HEAD:$base/provisioning/run-plan.sh")" = 'e479b8de676a927235374c5b722218efa5db891a'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-plan.sh")" = '981a719eb29f485a41500531e0ff24b0e2187470'
           test "$(git rev-parse "HEAD:$base/provisioning/observe-host-state.sh")" = 'ef6fc026b78978f0ce9398ea1726381b6356dcf7'
           test "$(git rev-parse "HEAD:$base/provisioning/nginx-vhost-selector.py")" = 'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
           test "$(git rev-parse "HEAD:$base/provisioning/runtime-db-identity-probe.py")" = '197a2da8173f902eb5f43b96f2f14399d00df220'
@@ -88,6 +88,7 @@ jobs:
             '#889_SHARED_VHOST_SELECTOR_GIT_BLOB=PINNED' \
             '#891_RUNTIME_DB_PROBE_GIT_BLOB=PINNED_ACTIVE_CONNECTION' \
             '#876_AUTHORITY_CONTRACT=PRESERVED' \
+            '#905_RUNTIME_DB_PROBE_HOME_LINEAGE=PINNED' \
             'DATA_ACTIVATION_AUTHORITY_DISABLED=PASS' \
             'NO_PRIVILEGE_WIDENING=PASS' \
             'NO_HELPER_SEMANTIC_CHANGE=PASS' \

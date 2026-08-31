@@ -1,8 +1,8 @@
 #!/usr/bin/python3 -I
-"""Shared fixed transaction contract for Agency PREPROD refresh capability (#915).
+"""Shared fixed transaction contract for Agency PREPROD refresh capability (#915/#917).
 
-This module contains validation/derivation only.  It has no CLI and performs no
-I/O.  Root-owned executables pin this file by SHA-256 before importing it.
+This module contains validation/derivation only. It has no CLI and performs no
+I/O. Root-owned executables pin this file by SHA-256 before importing it.
 """
 from __future__ import annotations
 
@@ -28,8 +28,14 @@ STATE_ARMED = "ARMED"
 STATE_IN_PROGRESS = "IN_PROGRESS"
 STATE_COMMITTED = "COMMITTED"
 STATE_ROLLED_BACK = "ROLLED_BACK"
+STATE_ABORTED = "ABORTED"
 STATE_FAILED_RECOVERY = "FAILED_RECOVERY"
-TERMINAL_STATES = frozenset({STATE_COMMITTED, STATE_ROLLED_BACK, STATE_FAILED_RECOVERY})
+TERMINAL_STATES = frozenset({
+    STATE_COMMITTED,
+    STATE_ROLLED_BACK,
+    STATE_ABORTED,
+    STATE_FAILED_RECOVERY,
+})
 
 PHASE_AWAITING_INGRESS = "AWAITING_INGRESS"
 PHASE_SNAPSHOT_READY = "SNAPSHOT_READY"
@@ -105,6 +111,15 @@ INGRESS_HEADER_KEYS = frozenset({
     "expected_bytes",
     "expected_sha256",
 })
+
+ABORT_REQUEST_KEYS = frozenset({
+    "successor_issue",
+    "request_id",
+    "main_sha",
+    "profile_id",
+    "authority_id",
+})
+
 
 class ContractError(RuntimeError):
     """Fail-closed transaction contract violation."""
@@ -207,8 +222,7 @@ def validate_authority_state(state: Mapping[str, Any]) -> dict[str, Any]:
     for key in ("preactivation_runtime_sha256", "application_release_sha256", "backup_sha256"):
         value = state.get(key)
         if value is not None:
-            pattern = SHA256_RE
-            _require_str(value, pattern, key)
+            _require_str(value, SHA256_RE, key)
     backup_bytes = state.get("backup_bytes")
     if backup_bytes is not None:
         _require_int(backup_bytes, minimum=1, name="backup byte count")
@@ -297,6 +311,89 @@ def validate_ingress_binding(authority: Mapping[str, Any], header: Mapping[str, 
         raise ContractError("Ingress SHA-256 binding mismatch.")
     if IMPORT not in state["allowed_actions"]:
         raise ContractError("Ingress transaction does not authorize import.")
+
+
+def parse_abort_request(payload: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, Mapping) or set(payload) != ABORT_REQUEST_KEYS:
+        raise ContractError("Abort schema mismatch; caller path/state/command fields are forbidden.")
+    successor_issue = _require_int(payload.get("successor_issue"), minimum=1, name="successor issue")
+    request_id = _require_str(payload.get("request_id"), REQUEST_RE, "request identity")
+    main_sha = _require_str(payload.get("main_sha"), SHA40_RE, "main SHA")
+    if payload.get("profile_id") != PROFILE_ID:
+        raise ContractError("Wrong operation profile.")
+    authority_id = _require_str(payload.get("authority_id"), AUTHORITY_ID_RE, "authority identity")
+    return {
+        "successor_issue": successor_issue,
+        "request_id": request_id,
+        "main_sha": main_sha,
+        "profile_id": PROFILE_ID,
+        "authority_id": authority_id,
+    }
+
+
+def validate_pre_ingress_abort_binding(
+    authority: Mapping[str, Any],
+    abort_request: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    state = validate_authority_state(authority)
+    request = parse_abort_request(abort_request)
+    if state["terminal"]:
+        raise ContractError("Terminal authority cannot be aborted.")
+    if state["state"] != STATE_ARMED or state["phase"] != PHASE_AWAITING_INGRESS:
+        raise ContractError("Pre-ingress abort requires ARMED/AWAITING_INGRESS.")
+    for key in ("successor_issue", "request_id", "main_sha", "profile_id", "authority_id"):
+        if state[key] != request[key]:
+            raise ContractError(f"Abort binding mismatch: {key}.")
+    for key in (
+        "preactivation_runtime_sha256",
+        "application_release_sha256",
+        "backup_sha256",
+        "backup_bytes",
+    ):
+        if state[key] is not None:
+            raise ContractError(f"Abort activation metadata must remain null: {key}.")
+    if state["human_recovery_required"] is not False:
+        raise ContractError("Abort recovery marker must remain false.")
+    return state, request
+
+
+def pre_ingress_aborted_state(
+    authority: Mapping[str, Any],
+    abort_request: Mapping[str, Any],
+) -> dict[str, Any]:
+    state, _ = validate_pre_ingress_abort_binding(authority, abort_request)
+    terminal = dict(state)
+    terminal.update(
+        state=STATE_ABORTED,
+        phase=PHASE_TERMINAL,
+        terminal=True,
+        human_recovery_required=False,
+    )
+    return validate_authority_state(terminal)
+
+
+def validate_aborted_terminal_binding(
+    authority: Mapping[str, Any],
+    abort_request: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    state = validate_authority_state(authority)
+    request = parse_abort_request(abort_request)
+    if state["state"] != STATE_ABORTED or state["phase"] != PHASE_TERMINAL or state["terminal"] is not True:
+        raise ContractError("Crash recovery requires exact ABORTED/TERMINAL state.")
+    for key in ("successor_issue", "request_id", "main_sha", "profile_id", "authority_id"):
+        if state[key] != request[key]:
+            raise ContractError(f"Aborted recovery binding mismatch: {key}.")
+    for key in (
+        "preactivation_runtime_sha256",
+        "application_release_sha256",
+        "backup_sha256",
+        "backup_bytes",
+    ):
+        if state[key] is not None:
+            raise ContractError(f"Aborted terminal activation metadata must remain null: {key}.")
+    if state["human_recovery_required"] is not False:
+        raise ContractError("Aborted terminal recovery marker must remain false.")
+    return state, request
 
 
 def spool_basename(authority: Mapping[str, Any]) -> str:

@@ -191,7 +191,6 @@ jobs:
           verify='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
           python3 - <<'PY'
           from pathlib import Path
-          import hashlib
           text = Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
           assert '\n  plan:\n' in text and '\n  apply:\n' in text
           plan = text.split('\n  plan:\n', 1)[1].split('\n  apply:\n', 1)[0]
@@ -206,11 +205,22 @@ jobs:
           assert 'verify-preprod-pinned-trust.sh' in plan
           assert 'runs-on: [self-hosted, linux, x64, agency]' in apply
           assert "[[ \"$RUNNER_NAME\" == 'agency-browser-runner-01' ]]" in apply
-          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' in apply
+          jit = apply.index('      - name: JIT revalidate live main and successor authority before root secret materialization')
+          secret = apply.index('PREPROD_PROVISIONING_SSH_PRIVATE_KEY')
+          execute = apply.index('run-apply.sh')
+          assert jit < secret < execute
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in apply[:jit]
+          jit_block = apply[jit:apply.index('      - name: Configure dedicated transient root provisioning identity')]
+          assert 'secrets.' not in jit_block
+          assert 'repos/$GITHUB_REPOSITORY/branches/main' in jit_block
+          assert 'validate-successor-authority.py' in jit_block
+          assert 'test "$checked_out_head" = "$current_live_main"' in jit_block
+          assert '.data_activation_authority.installed_state == "DISABLED"' in jit_block
           assert 'run-apply.sh' in apply
-          assert hashlib.sha256(apply.encode()).hexdigest() == '3ef411d776606ec1fdab04a9ba10995617294789a078330c5dd10c31b215516f'
           print('PLAN_RUNNER=ubuntu-24.04')
           print('APPLY_RUNNER_PATH_UNCHANGED=PASS')
+          print('#910_JIT_APPLY_AUTHORITY=PASS')
+          print('ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE')
           PY
           test "$(git rev-parse "HEAD:$trust")" = 'e10f8576b0fb5b6bd47b707fbdddf06a1651ae9f'
           test "$(git rev-parse "HEAD:$verify")" = '2487aba1cbece4aa00cc77a968e5e34fd48c7c5a'
@@ -262,7 +272,7 @@ jobs:
           test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '4779e8ee7c2104dc38bf8c6ff1f1bcb5a2e0be3c'
           test "$(git rev-parse "HEAD:$base/provisioning/nginx-vhost-selector.py")" = 'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
           test "$(git rev-parse "HEAD:$base/provisioning/validate-successor-authority.py")" = '183af3ec4276cb7b5c87217fbe8b96ef1ff8afb6'
-          test "$(git rev-parse "HEAD:$base/provisioning/test-successor-authority.py")" = 'b4aba6dce888ae29b51c670ef91bf6bb2bf35452'
+          test "$(git rev-parse "HEAD:$base/provisioning/test-successor-authority.py")" = '2f2f6215814fcef1669e599953ba8c79699e837c'
           test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
           python3 "$base/provisioning/test-successor-authority.py" >/dev/null
           jq -e '

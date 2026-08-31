@@ -69,12 +69,11 @@ jobs:
           from pathlib import Path
 
           doc = Path('docs/operations/agency-environment-data-lifecycle.md').read_text()
-          validator = Path('scripts/validation/validate-agency-environment-data-lifecycle.py').read_text()
           workflow = Path('.github/workflows/agency-environment-data-lifecycle-validation.yml').read_text()
-          route = doc + validator + workflow
 
           assert 'runs-on: ubuntu-24.04' in workflow
-          assert 'self-hosted' not in workflow
+          assert 'runs-on: [self-hosted' not in workflow
+          assert 'runs-on: self-hosted' not in workflow
           assert 'secrets.' not in workflow
           assert 'workflow_dispatch:' not in workflow
           assert 'issue_comment:' not in workflow

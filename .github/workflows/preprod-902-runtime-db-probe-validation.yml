@@ -7,9 +7,12 @@ on:
       - ".github/workflows/preprod-891-runtime-db-identity-validation.yml"
       - ".github/workflows/preprod-877-successor-authority-validation.yml"
       - ".github/workflows/preprod-895-runtime-db-precheck-validation.yml"
+      - "scripts/preproduction-refresh/activation-capability/profile.json"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/profile.json"
       - "scripts/preproduction-refresh/activation-capability/provisioning/runtime-db-identity-probe.py"
       - "scripts/preproduction-refresh/activation-capability/provisioning/test-runtime-db-identity-probe.py"
       - "scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/run-apply.sh"
 
 permissions:
   contents: read
@@ -94,18 +97,15 @@ jobs:
           test "$(grep -Fc 'HOME=/home/agency-preprod' "$base/run-plan.sh")" = '1'
           grep -Fq '197a2da8173f902eb5f43b96f2f14399d00df220' \
             .github/workflows/preprod-891-runtime-db-identity-validation.yml \
-            .github/workflows/preprod-877-successor-authority-validation.yml \
             .github/workflows/preprod-895-runtime-db-precheck-validation.yml
           grep -Fq '981a719eb29f485a41500531e0ff24b0e2187470' \
-            .github/workflows/preprod-877-successor-authority-validation.yml \
             .github/workflows/preprod-895-runtime-db-precheck-validation.yml
           printf '%s\n' \
             'RUNTIME_DB_PROBE_BLOB=PINNED' \
             'PLAN_PROBE_BINDING=PINNED' \
             '#905_FIXED_HOME_BINDING=PINNED' \
-            '#891_PIN=UPDATED' \
-            '#895_PIN=UPDATED' \
-            '#876_PLAN_LINEAGE=UPDATED_WITHOUT_AUTHORITY_CHANGE'
+            '#891_PIN=PRESERVED' \
+            '#895_PIN=PRESERVED'
 
       - name: Preserve no-execution and disabled-authority boundaries
         shell: bash
@@ -113,21 +113,32 @@ jobs:
           set -euo pipefail
           base='scripts/preproduction-refresh/activation-capability'
           jq -e '
+            .activation.runtime_database == "agency_preprod" and
             .data_activation_authority.installed_state == "DISABLED" and
-            .data_activation_authority.issue_874_grants_activation_authority == false
+            .data_activation_authority.permanent_enabled_state == "NONE" and
+            .transaction_authority.installer_in_agency_preprod_sudoers == false
           ' "$base/profile.json" >/dev/null
           test "$(git rev-parse "HEAD:$base/provisioning/agency-preprod-refresh-control.sudoers")" = \
             '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
-          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = \
-            '4779e8ee7c2104dc38bf8c6ff1f1bcb5a2e0be3c'
+          jq -e '
+            .revision_issue == 915 and
+            .apply.data_activation_authority_after_apply == "DISABLED" and
+            .apply.transaction_authority_after_apply == "ABSENT" and
+            .sudo.authority_installer_exposed == false
+          ' "$base/provisioning/profile.json" >/dev/null
+          grep -Fq 'TRANSACTION_AUTHORITY=ABSENT' "$base/provisioning/run-apply.sh"
+          ! grep -Fq 'agency-preprod-refresh-authority-install' \
+            "$base/provisioning/agency-preprod-refresh-control.sudoers" \
+            "$base/provisioning/agency-preprod-refresh-ingress.sudoers"
           printf '%s\n' \
             'REAL_PREPROD_PROBE_EXECUTION=NOT_PERFORMED_BY_DELIVERY' \
             'REAL_PREPROD_MUTATION=NONE' \
             'R9=NOT_CREATED_NOT_RUN' \
             'ROOT=FORBIDDEN' \
-            'SUDO=FORBIDDEN' \
-            'SUDOERS_MUTATION=NONE' \
+            'GENERIC_SUDO=FORBIDDEN' \
+            'SUDOERS_PRIVILEGE_WIDENING=NONE' \
             '#893_INSTALL=NONE' \
             'MARIADB_MUTATION=NONE' \
             'PROD_ACCESS=NONE' \
-            'DATA_ACTIVATION_AUTHORITY=DISABLED'
+            'DATA_ACTIVATION_AUTHORITY=DISABLED' \
+            'TRANSACTION_AUTHORITY_AFTER_PROVISIONING=ABSENT'

@@ -1,0 +1,148 @@
+name: "#902 PREPROD active runtime DB probe validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-902-runtime-db-probe-validation.yml"
+      - ".github/workflows/preprod-891-runtime-db-identity-validation.yml"
+      - ".github/workflows/preprod-877-successor-authority-validation.yml"
+      - ".github/workflows/preprod-895-runtime-db-precheck-validation.yml"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/runtime-db-identity-probe.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/test-runtime-db-identity-probe.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  active-runtime-db-probe:
+    name: "#902 fixed read-only active DB connection proof"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Execute #902 synthetic probe matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability/provisioning'
+          bash -n "$base/run-plan.sh"
+          python3 -m py_compile \
+            "$base/runtime-db-identity-probe.py" \
+            "$base/test-runtime-db-identity-probe.py"
+          python3 "$base/test-runtime-db-identity-probe.py"
+
+      - name: Prove fixed active connection mechanism and output boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          base = Path('scripts/preproduction-refresh/activation-capability/provisioning')
+          probe = (base / 'runtime-db-identity-probe.py').read_text()
+          test = (base / 'test-runtime-db-identity-probe.py').read_text()
+
+          assert 'CURRENT = Path("/var/www/agency-preprod/current")' in probe
+          assert 'DRUSH = CURRENT / "vendor/bin/drush"' in probe
+          assert '"php:eval"' in probe
+          assert 'SELECT DATABASE()' in probe
+          assert '\\Drupal::database()->query' in probe
+          assert 'getConnectionInfo' not in probe
+          assert 'status\", \"--field=db-name' not in probe
+          assert 'len(argv) != 1' in probe
+          assert 'os.geteuid() == 0' in probe
+          assert 'stderr=subprocess.DEVNULL' in probe
+          assert 'stdout=subprocess.PIPE' in probe
+          assert 'stdin=subprocess.DEVNULL' in probe
+          assert 'shell=True' not in probe
+          assert 'settings.php' not in probe
+          assert 'runtime.env' not in probe
+          assert 'DB_PASSWORD' not in probe
+          assert 'SHOW GRANTS' not in probe
+          assert 'mysql.user' not in probe
+          assert 'sudo' not in probe
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in probe
+          for forbidden in ('CREATE ', 'ALTER ', 'DROP ', 'GRANT ', 'REVOKE ', 'INSERT ', 'UPDATE ', 'DELETE '):
+              assert forbidden not in probe
+          for proof in (
+              'SUCCESSFUL_ACTIVE_DB_CONNECTION=OBSERVED/ZERO/agency_preprod',
+              'COMMAND_FAILURE=FAIL_CLOSED',
+              'EMPTY_OUTPUT=FAIL_CLOSED',
+              'MULTILINE_OUTPUT=FAIL_CLOSED',
+              'CR_INJECTION=FAIL_CLOSED',
+              'NUL=FAIL_CLOSED',
+              'NON_ASCII=FAIL_CLOSED',
+              'UNSAFE_IDENTIFIER_DASH=FAIL_CLOSED',
+              'ROOT_EXECUTION=FORBIDDEN',
+              'CALLER_ARGUMENTS=FORBIDDEN',
+              'CALLER_SQL=IMPOSSIBLE',
+              'CALLER_PHP=IMPOSSIBLE',
+              'SECRET_LEAKAGE=NONE',
+              'OLD_AUTHORITATIVE_DEPENDENCY=REMOVED',
+          ):
+              assert proof in test
+          print('OLD_PROBE_DEPENDENCY=status --field=db-name / REMOVED_FROM_LIVE_PROBE')
+          print('NEW_PROBE_MECHANISM=FIXED_DRUSH_PHP_EVAL_SELECT_DATABASE')
+          print('ACTIVE_CONNECTION_PROOF=QUERY_EXECUTION_REQUIRED')
+          print('BOUNDED_DB_IDENTIFIER=^[A-Za-z0-9_]{1,64}$')
+          print('GENERIC_SQL=FORBIDDEN')
+          print('GENERIC_PHP=FORBIDDEN')
+          print('SECRET_LEAKAGE=NONE')
+          PY
+
+      - name: Prove exact repository pin propagation
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability/provisioning'
+          test "$(git rev-parse "HEAD:$base/runtime-db-identity-probe.py")" = \
+            '197a2da8173f902eb5f43b96f2f14399d00df220'
+          test "$(git rev-parse "HEAD:$base/run-plan.sh")" = \
+            'e479b8de676a927235374c5b722218efa5db891a'
+          grep -Fq "RUNTIME_DB_PROBE_BLOB='197a2da8173f902eb5f43b96f2f14399d00df220'" \
+            "$base/run-plan.sh"
+          grep -Fq '197a2da8173f902eb5f43b96f2f14399d00df220' \
+            .github/workflows/preprod-891-runtime-db-identity-validation.yml \
+            .github/workflows/preprod-877-successor-authority-validation.yml \
+            .github/workflows/preprod-895-runtime-db-precheck-validation.yml
+          grep -Fq 'e479b8de676a927235374c5b722218efa5db891a' \
+            .github/workflows/preprod-877-successor-authority-validation.yml \
+            .github/workflows/preprod-895-runtime-db-precheck-validation.yml
+          printf '%s\n' \
+            'RUNTIME_DB_PROBE_BLOB=PINNED' \
+            'PLAN_PROBE_BINDING=PINNED' \
+            '#891_PIN=UPDATED' \
+            '#895_PIN=UPDATED' \
+            '#876_PLAN_LINEAGE=UPDATED_WITHOUT_AUTHORITY_CHANGE'
+
+      - name: Preserve no-execution and disabled-authority boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          jq -e '
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.issue_874_grants_activation_authority == false
+          ' "$base/profile.json" >/dev/null
+          test "$(git rev-parse "HEAD:$base/provisioning/agency-preprod-refresh-control.sudoers")" = \
+            '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
+          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = \
+            '4779e8ee7c2104dc38bf8c6ff1f1bcb5a2e0be3c'
+          printf '%s\n' \
+            'REAL_PREPROD_PROBE_EXECUTION=NOT_PERFORMED_BY_DELIVERY' \
+            'REAL_PREPROD_MUTATION=NONE' \
+            'R8=NOT_CREATED_NOT_RUN' \
+            'ROOT=FORBIDDEN' \
+            'SUDO=FORBIDDEN' \
+            'SUDOERS_MUTATION=NONE' \
+            '#893_INSTALL=NONE' \
+            'MARIADB_MUTATION=NONE' \
+            'PROD_ACCESS=NONE' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED'

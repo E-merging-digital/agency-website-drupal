@@ -2,6 +2,7 @@
   "schema_version": 1,
   "issue_number": 874,
   "revision_issue": 915,
+  "abort_revision_issue": 917,
   "parent_issue": 816,
   "profile_id": "agency-preprod-refresh-capability-provision-v1",
   "authority": {
@@ -20,10 +21,11 @@
     "state_detection": "METADATA_ONLY"
   },
   "apply": {
-    "scope": "INSTALL_EXACT_915_REVISED_CAPABILITY_ONLY",
+    "scope": "INSTALL_EXACT_915_917_REVISED_CAPABILITY_ONLY",
     "persistent_data_activation_authority_after_apply": "DISABLED",
     "data_activation_authority_after_apply": "DISABLED",
     "transaction_authority_after_apply": "ABSENT",
+    "abort_helper_after_apply": "INSTALLED_ROOT_ONLY",
     "real_data_activation": "FORBIDDEN",
     "rollback_on_post_install_failure": true
   },
@@ -41,6 +43,7 @@
       "/usr/local/sbin/agency-preprod-refresh-ingress"
     ],
     "authority_installer_exposed": false,
+    "abort_helper_exposed": false,
     "nopasswd_all": false,
     "setenv": false,
     "generic_shell": false,
@@ -49,10 +52,11 @@
     "generic_env": false
   },
   "digests": {
-    "helper": "b0068f503844cf55da235fa87da176cc5a492f728890421b0adc34fbfefff346",
-    "ingress": "ffb67a4dcf6e585920e4c5667e2a80ef50c65222c3850a19ed595b1adc20754c",
-    "authority_installer": "99347f259cecf337f22b8311fe78bf7ab5f9a8921f60f3372a7d9d6d86a47abb",
-    "transaction_contract": "47b576faccde9903371828c6cc54564ea25838fd0f37547da3e7b3c2a3b78a90",
+    "helper": "dc27cdc748a6f8be70a06093630f362ac4a86ea30735f9805f55b0a00fb5cc06",
+    "ingress": "0df0ade08583609743f8c0fd75e37b3b84c6f3d29876510cc397f70b0818a22f",
+    "authority_installer": "e39083d97788122545953c26b0ffb72d87e2eab274a6c5bbd30beca51458bf7a",
+    "authority_abort": "54aef136d7a815511cbe8aed5543f9494b49222660354dac9a01b4ee58764a8d",
+    "transaction_contract": "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb",
     "admin_reconcile": "4f48966b2a0ff1624a58102ffeeb7d06ac15127f409c51baad36f8ee22b98b8c",
     "admin_reconcile_php": "77f125c0fd6cc925a5a8311d696566dfb3d91b7e8ade12f33575ae79f62c1ffd",
     "side_effect_hardening": "2227fc6977f1c168710853a29981172a027fa41495b503095b24476ac46c1703",
@@ -62,10 +66,18 @@
     "ingress_sudoers": "17d88fbb8270a1a3627e8e5651c5b9abd4332a6439a520bf60e5337bae3e9939",
     "fence_snippet": "35b084fabc0aacc80f55c1f789b35d5dd52259e85b153d87da99d26930c18b67",
     "internal_readiness": "352cd4cc40cdd961a51ff466acaf559c7a499c6a18fc4d51b95a675ced40a5fc",
-    "capability_profile": "e4efbb9b235839b26ff3a499dca76099da843578ce0bc961edf015da5f5fee1b",
-    "bundle_manifest": "aa77a420ca5b913aa592d545de01cb9c024ee3825a01c6e9db2313bc42473634",
-    "remote_provision_root": "4b96bb983978242ac7513972651d058983ffd66de54b405b8dfb41568a554783",
-    "run_apply": "992346662cd4f0a970a1602317c0e0dc9fbf1e31f417c4dbabb808d6bbd5a5d0"
+    "capability_profile": "08eb1518e38012d73857848b4808be707938ed9511040b2854c920667fa437bc",
+    "bundle_manifest": "ab2e5f0045eca06f83b792f0615f44f851f261257044d4a3c661a431b93f76b8",
+    "remote_provision_root": "9b21a2222c17ed21805ae5bf737ab1c6a86132e48a5406b3b77b22e7286fe3d3",
+    "run_apply": "3c7eb563c6d4f2f583109ab8780d9df58080a28f6ff2ca155f1cca482658ff76"
+  },
+  "pre_ingress_abort": {
+    "state": "ABORTED",
+    "phase": "TERMINAL",
+    "root_only": true,
+    "normal_sudo_exposure": "NONE",
+    "runtime_rollback_claim": "NONE",
+    "crash_recovery": "EXACT_IDENTITY_ONLY"
   },
   "real_execution_in_delivery": {
     "plan": false,
@@ -76,7 +88,8 @@
     "preprod_db_mutation": false,
     "preprod_backup": false,
     "activation": false,
-    "rollback": false
+    "rollback": false,
+    "abort": false
   },
   "real_execution_in_874_delivery": {
     "plan": false,

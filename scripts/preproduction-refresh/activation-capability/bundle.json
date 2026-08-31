@@ -2,91 +2,37 @@
   "schema_version": 1,
   "issue_number": 874,
   "revision_issue": 915,
+  "abort_revision_issue": 917,
   "parent_issue": 816,
   "profile_id": "agency-preprod-refresh-capability-provision-v1",
   "persistent_data_activation_authority_after_provisioning": "DISABLED",
   "transaction_authority_after_provisioning": "ABSENT",
+  "pre_ingress_abort_after_provisioning": "INSTALLED_ROOT_ONLY",
+  "normal_sudo_exposure_for_abort": "NONE",
   "files": {
-    "helper": {
-      "path": "agency-preprod-refresh-control",
-      "sha256": "b0068f503844cf55da235fa87da176cc5a492f728890421b0adc34fbfefff346",
-      "mode": "0755"
-    },
-    "ingress": {
-      "path": "agency-preprod-refresh-ingress",
-      "sha256": "ffb67a4dcf6e585920e4c5667e2a80ef50c65222c3850a19ed595b1adc20754c",
-      "mode": "0755"
-    },
-    "authority_installer": {
-      "path": "agency-preprod-refresh-authority-install",
-      "sha256": "99347f259cecf337f22b8311fe78bf7ab5f9a8921f60f3372a7d9d6d86a47abb",
-      "mode": "0750_REMOTE_ROOT_ONLY"
-    },
-    "transaction_contract": {
-      "path": "transaction_contract.py",
-      "sha256": "47b576faccde9903371828c6cc54564ea25838fd0f37547da3e7b3c2a3b78a90",
-      "mode": "0644"
-    },
-    "admin_reconcile": {
-      "path": "admin-reconcile.sh",
-      "sha256": "4f48966b2a0ff1624a58102ffeeb7d06ac15127f409c51baad36f8ee22b98b8c",
-      "mode": "0755_REMOTE_ROOT_ONLY"
-    },
-    "admin_reconcile_php": {
-      "path": "admin-reconcile.php",
-      "sha256": "77f125c0fd6cc925a5a8311d696566dfb3d91b7e8ade12f33575ae79f62c1ffd",
-      "mode": "0644"
-    },
-    "side_effect_hardening": {
-      "path": "side_effect_hardening.py",
-      "sha256": "2227fc6977f1c168710853a29981172a027fa41495b503095b24476ac46c1703",
-      "mode": "0644"
-    },
-    "runtime_state_digest": {
-      "path": "runtime_state_digest.py",
-      "sha256": "5762bd3cfd73948be9b6879881384c77e98121cc5abe1c921d2034e0476c24f9",
-      "mode": "0644"
-    },
-    "disabled_authority_state": {
-      "path": "data-activation-authority.disabled.json",
-      "sha256": "8f860a5739ca7a163254cc760abca95414daa30356a8a019870b1a2a2b82ef37",
-      "mode": "0600_REMOTE"
-    },
-    "control_sudoers": {
-      "path": "provisioning/agency-preprod-refresh-control.sudoers",
-      "sha256": "d3997b2f9b3a0b615d082bbc65b7a49abef38f3e1523506a23083f9d4f217b9b",
-      "mode": "0440_REMOTE"
-    },
-    "ingress_sudoers": {
-      "path": "provisioning/agency-preprod-refresh-ingress.sudoers",
-      "sha256": "17d88fbb8270a1a3627e8e5651c5b9abd4332a6439a520bf60e5337bae3e9939",
-      "mode": "0440_REMOTE"
-    },
-    "fence_snippet": {
-      "path": "nginx/agency-preprod-refresh-fence.conf",
-      "sha256": "35b084fabc0aacc80f55c1f789b35d5dd52259e85b153d87da99d26930c18b67",
-      "mode": "0644"
-    },
-    "internal_readiness": {
-      "path": "nginx/agency-preprod-refresh-internal-readiness.conf",
-      "sha256": "352cd4cc40cdd961a51ff466acaf559c7a499c6a18fc4d51b95a675ced40a5fc",
-      "mode": "0644"
-    },
-    "capability_profile": {
-      "path": "profile.json",
-      "sha256": "e4efbb9b235839b26ff3a499dca76099da843578ce0bc961edf015da5f5fee1b",
-      "mode": "0644"
-    }
+    "helper": {"path": "agency-preprod-refresh-control", "sha256": "dc27cdc748a6f8be70a06093630f362ac4a86ea30735f9805f55b0a00fb5cc06", "mode": "0755"},
+    "ingress": {"path": "agency-preprod-refresh-ingress", "sha256": "0df0ade08583609743f8c0fd75e37b3b84c6f3d29876510cc397f70b0818a22f", "mode": "0755"},
+    "authority_installer": {"path": "agency-preprod-refresh-authority-install", "sha256": "e39083d97788122545953c26b0ffb72d87e2eab274a6c5bbd30beca51458bf7a", "mode": "0750_REMOTE_ROOT_ONLY"},
+    "authority_abort": {"path": "agency-preprod-refresh-authority-abort", "sha256": "54aef136d7a815511cbe8aed5543f9494b49222660354dac9a01b4ee58764a8d", "mode": "0750_REMOTE_ROOT_ONLY"},
+    "transaction_contract": {"path": "transaction_contract.py", "sha256": "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb", "mode": "0644"},
+    "admin_reconcile": {"path": "admin-reconcile.sh", "sha256": "4f48966b2a0ff1624a58102ffeeb7d06ac15127f409c51baad36f8ee22b98b8c", "mode": "0755_REMOTE_ROOT_ONLY"},
+    "admin_reconcile_php": {"path": "admin-reconcile.php", "sha256": "77f125c0fd6cc925a5a8311d696566dfb3d91b7e8ade12f33575ae79f62c1ffd", "mode": "0644"},
+    "side_effect_hardening": {"path": "side_effect_hardening.py", "sha256": "2227fc6977f1c168710853a29981172a027fa41495b503095b24476ac46c1703", "mode": "0644"},
+    "runtime_state_digest": {"path": "runtime_state_digest.py", "sha256": "5762bd3cfd73948be9b6879881384c77e98121cc5abe1c921d2034e0476c24f9", "mode": "0644"},
+    "disabled_authority_state": {"path": "data-activation-authority.disabled.json", "sha256": "8f860a5739ca7a163254cc760abca95414daa30356a8a019870b1a2a2b82ef37", "mode": "0600_REMOTE"},
+    "control_sudoers": {"path": "provisioning/agency-preprod-refresh-control.sudoers", "sha256": "d3997b2f9b3a0b615d082bbc65b7a49abef38f3e1523506a23083f9d4f217b9b", "mode": "0440_REMOTE"},
+    "ingress_sudoers": {"path": "provisioning/agency-preprod-refresh-ingress.sudoers", "sha256": "17d88fbb8270a1a3627e8e5651c5b9abd4332a6439a520bf60e5337bae3e9939", "mode": "0440_REMOTE"},
+    "fence_snippet": {"path": "nginx/agency-preprod-refresh-fence.conf", "sha256": "35b084fabc0aacc80f55c1f789b35d5dd52259e85b153d87da99d26930c18b67", "mode": "0644"},
+    "internal_readiness": {"path": "nginx/agency-preprod-refresh-internal-readiness.conf", "sha256": "352cd4cc40cdd961a51ff466acaf559c7a499c6a18fc4d51b95a675ced40a5fc", "mode": "0644"},
+    "capability_profile": {"path": "profile.json", "sha256": "08eb1518e38012d73857848b4808be707938ed9511040b2854c920667fa437bc", "mode": "0644"}
   },
-  "predecessors": [
-    859,
-    861,
-    864,
-    866,
-    868,
-    870,
-    871
-  ],
+  "predecessors": [859, 861, 864, 866, 868, 870, 871, 915],
   "data_activation_authority_after_provisioning": "DISABLED",
-  "future_data_activation_authority": "TRANSACTION_BOUND_ONE_SHOT_SUCCESSOR_ONLY"
+  "future_data_activation_authority": "TRANSACTION_BOUND_ONE_SHOT_SUCCESSOR_ONLY",
+  "pre_ingress_abort": {
+    "source_state": "ARMED/AWAITING_INGRESS",
+    "terminal_state": "ABORTED/TERMINAL",
+    "runtime_rollback_claim": "NONE",
+    "normal_sudo_exposure": "NONE"
+  }
 }

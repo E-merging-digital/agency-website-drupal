@@ -148,7 +148,10 @@ fi
 printf '%s\n' 'OVERSIZE=FAIL_CLOSED'
 
 collision_case() {
-  local name="$1" kind="$2" request="apply-918-${name,,}-r1" envelope id obstruction before after abort_request
+  local name="$1"
+  local kind="$2"
+  local request="apply-918-${name,,}-r1"
+  local envelope id obstruction before after abort_request
   envelope="$(make_envelope "$request" "$bytes" "$sha")"
   arm "$request" "$bytes" "$sha"; id="$(jq -r .authority_id "$ACTIVE")"
   case "$kind" in

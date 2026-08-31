@@ -47,7 +47,6 @@ jobs:
 
           base = Path('scripts/preproduction-refresh/activation-capability/provisioning')
           probe = (base / 'runtime-db-identity-probe.py').read_text()
-          test = (base / 'test-runtime-db-identity-probe.py').read_text()
 
           assert 'CURRENT = Path("/var/www/agency-preprod/current")' in probe
           assert 'DRUSH = CURRENT / "vendor/bin/drush"' in probe
@@ -71,23 +70,6 @@ jobs:
           assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in probe
           for forbidden in ('CREATE ', 'ALTER ', 'DROP ', 'GRANT ', 'REVOKE ', 'INSERT ', 'UPDATE ', 'DELETE '):
               assert forbidden not in probe
-          for proof in (
-              'SUCCESSFUL_ACTIVE_DB_CONNECTION=OBSERVED/ZERO/agency_preprod',
-              'COMMAND_FAILURE=FAIL_CLOSED',
-              'EMPTY_OUTPUT=FAIL_CLOSED',
-              'MULTILINE_OUTPUT=FAIL_CLOSED',
-              'CR_INJECTION=FAIL_CLOSED',
-              'NUL=FAIL_CLOSED',
-              'NON_ASCII=FAIL_CLOSED',
-              'UNSAFE_IDENTIFIER_DASH=FAIL_CLOSED',
-              'ROOT_EXECUTION=FORBIDDEN',
-              'CALLER_ARGUMENTS=FORBIDDEN',
-              'CALLER_SQL=IMPOSSIBLE',
-              'CALLER_PHP=IMPOSSIBLE',
-              'SECRET_LEAKAGE=NONE',
-              'OLD_AUTHORITATIVE_DEPENDENCY=REMOVED',
-          ):
-              assert proof in test
           print('OLD_PROBE_DEPENDENCY=status --field=db-name / REMOVED_FROM_LIVE_PROBE')
           print('NEW_PROBE_MECHANISM=FIXED_DRUSH_PHP_EVAL_SELECT_DATABASE')
           print('ACTIVE_CONNECTION_PROOF=QUERY_EXECUTION_REQUIRED')

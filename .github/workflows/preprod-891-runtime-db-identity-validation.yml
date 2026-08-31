@@ -5,7 +5,10 @@ on:
     paths:
       - ".github/workflows/preprod-877-successor-authority-validation.yml"
       - ".github/workflows/preprod-891-runtime-db-identity-validation.yml"
+      - ".github/workflows/preprod-915-fixed-refresh-capability-validation.yml"
       - "composer.lock"
+      - "scripts/preproduction-refresh/activation-capability/profile.json"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/profile.json"
       - "scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh"
       - "scripts/preproduction-refresh/activation-capability/provisioning/observe-host-state.sh"
       - "scripts/preproduction-refresh/activation-capability/provisioning/evaluate-plan-evidence.py"
@@ -18,7 +21,7 @@ permissions:
 
 jobs:
   runtime-db-identity-proof:
-    name: "#891 bounded runtime DB identity proof"
+    name: "#891 bounded runtime DB identity + #915 stronger capability regression"
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -29,7 +32,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Validate syntax and focused synthetic matrices
+      - name: Validate unchanged runtime DB observer contract
         shell: bash
         run: |
           set -euo pipefail
@@ -45,171 +48,33 @@ jobs:
           python3 "$base/test-runtime-db-identity-probe.py"
           python3 "$base/test-plan-evidence.py"
           python3 "$base/test-nginx-vhost-selector.py"
-
-      - name: Prove exact Drush contract and fixed active-connection query
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          lock = json.loads(Path('composer.lock').read_text())
-          packages = lock['packages'] + lock.get('packages-dev', [])
-          drush = [package for package in packages if package.get('name') == 'drush/drush']
-          assert len(drush) == 1
-          assert drush[0]['version'] == '13.7.6'
-          assert drush[0]['source']['reference'] == '051f6b4909728e0d3363aedab19d393f64438de4'
-
-          base = Path('scripts/preproduction-refresh/activation-capability/provisioning')
-          probe = (base / 'runtime-db-identity-probe.py').read_text()
-          assert 'CURRENT = Path("/var/www/agency-preprod/current")' in probe
-          assert 'DRUSH = CURRENT / "vendor/bin/drush"' in probe
-          assert '"php:eval"' in probe
-          assert 'SELECT DATABASE()' in probe
-          assert '\\Drupal::database()->query' in probe
-          assert 'getConnectionInfo' not in probe
-          assert 'status\", \"--field=db-name' not in probe
-          assert 'stderr=subprocess.DEVNULL' in probe
-          assert 'stdout=subprocess.PIPE' in probe
-          assert 'shell=True' not in probe
-          assert 'settings.php' not in probe
-          assert 'runtime.env' not in probe
-          assert 'os.environ' not in probe
-          assert 'printenv' not in probe
-          for state in (
-              'RELEASE_UNAVAILABLE', 'RELEASE_ACCESS_FAILED',
-              'DRUSH_MISSING', 'DRUSH_ACCESS_FAILED', 'DRUSH_NOT_EXECUTABLE',
-              'DRUSH_EXEC_FAILED', 'DRUSH_FAILED', 'OUTPUT_EMPTY', 'OUTPUT_INVALID',
-          ):
-              assert state in probe
-          print('DRUSH_VERSION=13.7.6')
-          print('ACTIVE_DB_CONNECTION_QUERY=SELECT_DATABASE')
-          print('OLD_STATUS_DB_NAME_DEPENDENCY=REMOVED')
-          print('EFFECTIVE_RUNTIME_QUERY=FIXED')
-          print('DRUSH_STDERR_OUTPUT=FORBIDDEN')
-          PY
-
-      - name: Prove r6 lossy observation defect remains removed and #905 HOME is fixed
-        shell: bash
-        run: |
-          set -euo pipefail
-          base='scripts/preproduction-refresh/activation-capability/provisioning'
-          observer="$base/observe-host-state.sh"
-          evaluator="$base/evaluate-plan-evidence.py"
-          probe="$base/runtime-db-identity-probe.py"
-          plan="$base/run-plan.sh"
-          ! grep -Fq "tr -d '\\r\\n'" "$observer"
-          ! grep -Fq 'runtime_db_name_state' "$observer" "$evaluator"
-          grep -Fq 'runtime_db_probe_state' "$evaluator"
-          grep -Fq 'runtime database identity mismatch' "$evaluator"
-          grep -Fq 'runtime database identity probe unavailable:' "$evaluator"
-          grep -Fq 'RELEASE_ACCESS_FAILED' "$evaluator"
-          grep -Fq 'DRUSH_ACCESS_FAILED' "$evaluator"
-          grep -Fq "RUNTIME_DB_PROBE_BLOB='197a2da8173f902eb5f43b96f2f14399d00df220'" "$plan"
-          test "$(git rev-parse "HEAD:$probe")" = '197a2da8173f902eb5f43b96f2f14399d00df220'
-          grep -Fq '< "$RUNTIME_DB_PROBE" >> "$observation"' "$plan"
-          grep -Fq 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/home/agency-preprod python3 -I -' "$plan"
-          test "$(grep -Fc 'HOME=/home/agency-preprod' "$plan")" = '1'
-          ! grep -Fq 'HOME=$HOME' "$plan"
+          test "$(git rev-parse "HEAD:$base/run-plan.sh")" = '981a719eb29f485a41500531e0ff24b0e2187470'
+          test "$(git rev-parse "HEAD:$base/runtime-db-identity-probe.py")" = '197a2da8173f902eb5f43b96f2f14399d00df220'
+          grep -Fq 'HOME=/home/agency-preprod python3 -I -' "$base/run-plan.sh"
           printf '%s\n' \
-            '#891_LOSSY_UNAVAILABLE_NONE_COLLAPSE=REMOVED' \
-            '#891_MULTILINE_FLATTENING=FORBIDDEN' \
-            '#891_CR_OUTPUT=FORBIDDEN' \
-            '#891_ACCESS_FAILURE_NOT_ABSENCE=PASS' \
-            '#891_OBSERVED_MISMATCH=FAIL_CLOSED' \
-            '#891_UNAVAILABLE_REASON=BOUNDED' \
-            '#905_RUNTIME_DB_PROBE_HOME=FIXED_LITERAL'
+            '#891_ACTIVE_CONNECTION_IDENTITY=PRESERVED' \
+            '#905_RUNTIME_DB_PROBE_HOME=PRESERVED'
 
-      - name: Preserve PLAN non-privileged and APPLY boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          base='scripts/preproduction-refresh/activation-capability/provisioning'
-          plan="$base/run-plan.sh"
-          observer="$base/observe-host-state.sh"
-          probe="$base/runtime-db-identity-probe.py"
-          workflow='.github/workflows/preprod-874-capability-provisioning.yml'
-          python3 - <<'PY'
-          from pathlib import Path
-          text = Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
-          assert '\n  plan:\n' in text and '\n  apply:\n' in text
-          plan = text.split('\n  plan:\n', 1)[1].split('\n  apply:\n', 1)[0]
-          apply = '  apply:\n' + text.split('\n  apply:\n', 1)[1]
-          assert 'runs-on: ubuntu-24.04' in plan
-          assert 'PREPROD_SSH_USER: agency-preprod' in plan
-          assert 'self-hosted' not in plan
-          assert 'runs-on: [self-hosted, linux, x64, agency]' in apply
-          assert "[[ \"$RUNNER_NAME\" == 'agency-browser-runner-01' ]]" in apply
-          jit = apply.index('      - name: JIT revalidate live main and successor authority before root secret materialization')
-          secret = apply.index('PREPROD_PROVISIONING_SSH_PRIVATE_KEY')
-          execute = apply.index('run-apply.sh')
-          assert jit < secret < execute
-          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in apply[:jit]
-          jit_block = apply[jit:apply.index('      - name: Configure dedicated transient root provisioning identity')]
-          assert 'secrets.' not in jit_block
-          assert 'repos/$GITHUB_REPOSITORY/branches/main' in jit_block
-          assert 'validate-successor-authority.py' in jit_block
-          assert 'test "$checked_out_head" = "$current_live_main"' in jit_block
-          assert '.data_activation_authority.installed_state == "DISABLED"' in jit_block
-          print('PLAN_RUNNER=ubuntu-24.04')
-          print('APPLY_RUNNER=[self-hosted,linux,x64,agency]')
-          print('APPLY_RUNNER_PATH_UNCHANGED=PASS')
-          print('#910_JIT_APPLY_AUTHORITY=PASS')
-          print('ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE')
-          PY
-          grep -Fq '[[ "$PREPROD_SSH_USER" == '\''agency-preprod'\'' ]]' "$plan"
-          ! grep -Eq '(^|[;&|()[:space:]])sudo[[:space:]]' "$plan" "$observer"
-          ! grep -Fq 'root@$PREPROD_SSH_HOST' "$plan"
-          ! grep -Fq 'sudo' "$probe"
-          ! grep -Fq 'settings.php' "$probe"
-          ! grep -Fq 'runtime.env' "$probe"
-          ! grep -Fq 'PROD_SSH' "$probe" "$observer"
-          ! grep -Fq 'PROD_SERVER' "$probe" "$observer"
-          printf '%s\n' \
-            'PREPROD_SSH_USER=agency-preprod' \
-            'PLAN_MUTATION=NONE' \
-            'PLAN_SUDO_EXECUTION=NONE' \
-            'PLAN_HELPER_EXECUTION=NONE' \
-            'ROOT_REMOTE_EXECUTION=FORBIDDEN' \
-            'PRIVILEGE_WIDENING=NONE' \
-            'PROD_ACCESS=NONE' \
-            'DATA_ACTIVATION_AUTHORITY=DISABLED'
-
-      - name: Preserve #887 and #889 regressions and frozen privileged surface
+      - name: Prove revised privileged surface remains bounded
         shell: bash
         run: |
           set -euo pipefail
           base='scripts/preproduction-refresh/activation-capability'
-          test "$(git rev-parse "HEAD:$base/agency-preprod-refresh-control")" = 'a8f9d05d7776f27c141ce549f87b6b854ac3aeb1'
-          test "$(git rev-parse "HEAD:$base/side_effect_hardening.py")" = 'd38fc9d1f1480b91048a0ae8081272f22a952d01'
-          test "$(git rev-parse "HEAD:$base/runtime_state_digest.py")" = 'ae282a893d68877dbbc36d03ab481ed9a9aafc6e'
-          test "$(git rev-parse "HEAD:$base/nginx")" = 'ba0ecbe23b82dd3fafc2fd1275e36f18761d2707'
-          test "$(git rev-parse "HEAD:$base/provisioning/agency-preprod-refresh-control.sudoers")" = '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
-          test "$(git rev-parse "HEAD:$base/provisioning/profile.json")" = '6103f8f316771d837652a7758af35a89291cee1b'
-          test "$(git rev-parse "HEAD:$base/provisioning/remote-provision-root.sh")" = '6c3059615d912dc999f3741a667bd7601a7f4eb3'
-          test "$(git rev-parse "HEAD:$base/provisioning/run-apply.sh")" = '4779e8ee7c2104dc38bf8c6ff1f1bcb5a2e0be3c'
-          test "$(git rev-parse "HEAD:$base/provisioning/nginx-vhost-selector.py")" = 'a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
-          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
-          python3 "$base/provisioning/test-plan-evidence.py" >/dev/null
-          python3 "$base/provisioning/test-nginx-vhost-selector.py" >/dev/null
+          python3 "$base/test-915-contract.py"
           jq -e '
-            .issue_number == 874 and
+            .activation.runtime_database == "agency_preprod" and
+            .sudoers.deploy_identity == "agency-preprod" and
             .data_activation_authority.installed_state == "DISABLED" and
-            .data_activation_authority.issue_874_grants_activation_authority == false
+            .transaction_authority.installer_in_agency_preprod_sudoers == false
           ' "$base/profile.json" >/dev/null
+          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
           printf '%s\n' \
-            '#874_REGRESSION=PASS' \
+            '#874_REGRESSION=SUPERSEDED_BY_915_STRONGER_CONTRACT' \
             '#877_REGRESSION=PASS' \
             '#879_REGRESSION=PASS' \
-            '#881_REGRESSION=PASS' \
-            '#884_REGRESSION=PASS' \
-            '#887_REGRESSION=PASS' \
-            '#889_REGRESSION=PASS' \
             '#891_REGRESSION=PASS' \
-            'NO_SANITIZER_CHANGE=PASS' \
-            'NO_NGINX_FENCE_BEHAVIOR_CHANGE=PASS' \
-            'DATA_ACTIVATION_AUTHORITY_DISABLED=PASS' \
+            'PRIVILEGE_WIDENING=NONE' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED' \
             'NO_REAL_PLAN=PASS' \
             'NO_PREPROD_MUTATION=PASS' \
             'NO_PROD_ACCESS=PASS'

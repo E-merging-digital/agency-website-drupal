@@ -1,0 +1,95 @@
+name: "#908 Agency environment/data lifecycle documentation validation"
+
+on:
+  pull_request:
+    paths:
+      - "docs/operations/agency-environment-data-lifecycle.md"
+      - "docs/operations/execution-capabilities.md"
+      - "docs/operations/agency-self-hosted-browser-runner.md"
+      - "docs/operations/preproduction-data-refresh.md"
+      - "docs/operations/preproduction-refresh-activation-boundary.md"
+      - "docs/operations/preproduction-refresh-activation-capability.md"
+      - "docs/operations/environment-side-effects.md"
+      - "docs/operations/agency-health-endpoints.md"
+      - "docs/operations/governed-editorial-publication.md"
+      - "scripts/validation/validate-agency-environment-data-lifecycle.py"
+      - "scripts/preproduction-refresh/sanitization-policy.json"
+      - "scripts/preproduction-refresh/activation-capability/**"
+      - ".github/workflows/agency-environment-data-lifecycle-validation.yml"
+      - ".github/workflows/build-release-candidate.yml"
+      - ".github/workflows/deploy-preproduction.yml"
+      - ".github/workflows/promote-production.yml"
+      - ".github/workflows/production-promotion-validation.yml"
+      - ".github/workflows/preprod-874-capability-provisioning.yml"
+      - ".github/workflows/preprod-891-runtime-db-identity-validation.yml"
+      - ".github/workflows/preprod-902-runtime-db-probe-validation.yml"
+      - ".github/workflows/preprod-905-runtime-db-home-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  documentation-contract:
+    name: "#908 canonical lifecycle documentation contract"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate canonical lifecycle contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validation/validate-agency-environment-data-lifecycle.py
+          python3 scripts/validation/validate-agency-environment-data-lifecycle.py
+
+      - name: Validate exact diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git diff --check "$BASE_SHA..$HEAD_SHA"
+          printf '%s\n' 'GIT_DIFF_CHECK=SUCCESS'
+
+      - name: Preserve documentation-only authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          doc = Path('docs/operations/agency-environment-data-lifecycle.md').read_text()
+          validator = Path('scripts/validation/validate-agency-environment-data-lifecycle.py').read_text()
+          workflow = Path('.github/workflows/agency-environment-data-lifecycle-validation.yml').read_text()
+          route = doc + validator + workflow
+
+          assert 'runs-on: ubuntu-24.04' in workflow
+          assert 'self-hosted' not in workflow
+          assert 'secrets.' not in workflow
+          assert 'workflow_dispatch:' not in workflow
+          assert 'issue_comment:' not in workflow
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in workflow
+          assert 'ssh ' not in workflow
+          assert 'scp ' not in workflow
+          assert 'DATA_ACTIVATION_AUTHORITY = DISABLED' in doc
+          assert 'REAL PROVISIONING APPLY = EXECUTION_PENDING' in doc
+          assert 'RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN' in doc
+          assert 'CONSUMED / NEVER REUSE' in doc
+
+          print('VALIDATION_RUNNER=GITHUB_HOSTED_UBUNTU_24_04')
+          print('SELF_HOSTED_EXECUTION=NONE')
+          print('SECRET_CONSUMPTION=NONE')
+          print('REAL_PREPROD_EXECUTION=NONE')
+          print('REAL_PROD_ACCESS=NONE')
+          print('DATA_ACTIVATION_AUTHORITY=DISABLED')
+          PY

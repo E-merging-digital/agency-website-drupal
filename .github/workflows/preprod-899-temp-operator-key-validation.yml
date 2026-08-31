@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/preprod-899-temp-operator-key.yml"
       - ".github/workflows/preprod-899-temp-operator-key-validation.yml"
+      - ".github/workflows/preprod-912-temp-operator-key-remove.yml"
       - "scripts/preproduction/temp-operator-access/**"
       - "docs/operations/preproduction-temp-operator-access.md"
 
@@ -123,3 +124,161 @@ jobs:
             'REAL_PREPROD_MUTATION=NONE' \
             'REAL_MARIADB_QUERY=NONE' \
             'REAL_PROD_ACCESS=NONE'
+
+  validate-remove:
+    name: "#912 exact temporary key REMOVE / JIT authority contract"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD with base
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate #912 syntax and synthetic contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction/temp-operator-access'
+          bash -n "$base/run-remove.sh"
+          python3 -m py_compile \
+            "$base/remote-remove-key.py" \
+            "$base/validate-remove-successor-authority.py" \
+            "$base/test-remove-authority.py" \
+            "$base/test-remove-contract.py"
+          python3 "$base/test-remove-authority.py"
+          python3 "$base/test-remove-contract.py"
+
+      - name: Prove exact REMOVE target and ADD immutability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          workflow = Path('.github/workflows/preprod-912-temp-operator-key-remove.yml').read_text()
+          runner = Path('scripts/preproduction/temp-operator-access/run-remove.sh').read_text()
+          remote = Path('scripts/preproduction/temp-operator-access/remote-remove-key.py').read_text()
+          authority = Path('scripts/preproduction/temp-operator-access/validate-remove-successor-authority.py').read_text()
+          profile = json.loads(Path('scripts/preproduction/temp-operator-access/remove-profile.json').read_text())
+          route = workflow + runner + remote + authority
+
+          expected_key = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIArdJ26K9/VGRXKED9m9/dji80VjuY+0NTC9ANRV25fP agency-preprod-temp-2026-08-31'
+          expected_fp = 'SHA256:xMkx4EF3Hu7b77DAYNwSW5iO0/VHwT/k2Ff25FhNxYg'
+          assert profile['issue_number'] == 912
+          assert profile['profile_id'] == 'agency-preprod-temp-key-remove-v1'
+          assert profile['fixed_target'] == {
+              'ssh_user': 'agency-preprod',
+              'authorized_keys': '/home/agency-preprod/.ssh/authorized_keys',
+              'public_key': expected_key,
+              'fingerprint': expected_fp,
+              'action': 'REMOVE',
+          }
+          assert profile['future_execution']['ssh_secret'] == 'PREPROD_SSH_PRIVATE_KEY'
+          assert profile['future_execution']['root_secret'] == 'FORBIDDEN'
+          assert profile['future_execution']['provisioning_root_secret'] == 'FORBIDDEN'
+          assert profile['future_execution']['sudo'] == 'FORBIDDEN'
+          assert profile['future_execution']['add_capability'] == 'PRESERVED'
+          for key in ('caller_supplied_key', 'caller_supplied_fingerprint', 'caller_supplied_user', 'caller_supplied_path', 'caller_supplied_command'):
+              assert profile['boundaries'][key] is False
+
+          assert 'workflow_dispatch' not in workflow and 'inputs:' not in workflow
+          assert "SSH_USER='agency-preprod'" in runner
+          assert 'HOME = Path("/home/agency-preprod")' in remote
+          assert 'AUTHORIZED_KEYS = SSH_DIR / AUTHORIZED_KEYS_NAME' in remote
+          assert 'TEMP_PUBLIC_KEY = ' in remote and expected_key in remote
+          assert 'TEMP_KEY_FINGERPRINT = ' in remote and expected_fp in remote
+          assert 'len(sys.argv) != 1' in remote
+          assert 'argparse' not in remote
+          assert 'os.replace(' in remote and 'O_EXCL' in remote
+          assert 'truncate(' not in remote and 'O_TRUNC' not in remote
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in route
+          assert 'root@' not in route
+          assert re.search(r'(?m)^\s*sudo(?:\s|$)', route) is None
+          assert 'StrictHostKeyChecking=no' not in route
+          assert 'ssh-keyscan' not in route
+          assert 'set -x' not in route
+          assert 'REMOTE_COMMAND' not in route and 'CALLER_COMMAND' not in route
+          assert '/agency-preprod-temp-key-remove ' in workflow
+          assert 'agency-preprod-temp-key-remove-v1' in authority
+          assert 'allowed_action=remove' in authority
+
+          remove_job = '  remove-key:\n' + workflow.split('\n  remove-key:\n', 1)[1]
+          checkout = remove_job.index('      - name: Checkout exact trusted main')
+          jit = remove_job.index('      - name: JIT revalidate live main and successor authority before SSH secret materialization')
+          ssh_secret = remove_job.index('secrets.PREPROD_SSH_PRIVATE_KEY')
+          execute = remove_job.index('      - name: Execute fixed non-root temporary key REMOVE')
+          cleanup = remove_job.index('      - name: Remove transient non-root identity and trust')
+          assert checkout < jit < ssh_secret < execute < cleanup
+          assert 'secrets.' not in remove_job[:jit]
+          jit_block = remove_job[jit:ssh_secret]
+          assert 'repos/$GITHUB_REPOSITORY/branches/main' in jit_block
+          assert 'issues/$AUTHORITY_ISSUE_NUMBER' in jit_block
+          assert 'comments?per_page=100' in jit_block
+          assert 'validate-remove-successor-authority.py' in jit_block
+          assert 'test "$current_live_main" = "$EXPECTED_MAIN"' in jit_block
+          assert 'test "$checked_out_head" = "$current_live_main"' in jit_block
+          assert 'DATA_ACTIVATION_AUTHORITY=DISABLED' in jit_block
+
+          print('REMOVE_CAPABILITY=MATERIALIZED')
+          print('EXACT_REMOVE_TARGET=PINNED_TEMP_KEY_ONLY')
+          print('ARBITRARY_KEY_INPUT=IMPOSSIBLE')
+          print('ARBITRARY_FINGERPRINT_INPUT=IMPOSSIBLE')
+          print('ARBITRARY_USER_INPUT=IMPOSSIBLE')
+          print('ARBITRARY_PATH_INPUT=IMPOSSIBLE')
+          print('ARBITRARY_COMMAND_INPUT=IMPOSSIBLE')
+          print('SSH_SECRET_BEFORE_JIT=IMPOSSIBLE')
+          print('JIT_AUTHORITY_REGRESSION=SUCCESS')
+          print('ROOT_SECRET=FORBIDDEN')
+          print('SUDO=FORBIDDEN')
+          PY
+
+          test "$(git rev-parse HEAD:.github/workflows/preprod-899-temp-operator-key.yml)" = \
+            '530aa18a1a915dbe41b9fab19fc132c510e7c5b3'
+          test "$(git rev-parse HEAD:scripts/preproduction/temp-operator-access/profile.json)" = \
+            'f5ce1828fdf315eeb11dbaa1ad6dfee15ae79795'
+          test "$(git rev-parse HEAD:scripts/preproduction/temp-operator-access/remote-add-key.py)" = \
+            'a63b9e7b9c1bf7ea25d01a89e8134ba355939336'
+          test "$(git rev-parse HEAD:scripts/preproduction/temp-operator-access/run-add.sh)" = \
+            '1ec707d29943cc054f6c75add43a18514d27aaf5'
+          test "$(git rev-parse HEAD:scripts/preproduction/temp-operator-access/test-authority.py)" = \
+            '960554d3522b9d6bb4b699bcc80caa415c91a040'
+          test "$(git rev-parse HEAD:scripts/preproduction/temp-operator-access/test-contract.py)" = \
+            '2d86b277cbc242b3a7138820d1b401b93441f818'
+          test "$(git rev-parse HEAD:scripts/preproduction/temp-operator-access/validate-successor-authority.py)" = \
+            '12f0505cdb097c3bdedd4fbc0c71e6c8dabaa666'
+          printf '%s\n' 'ADD_CAPABILITY_PRESERVED=YES' '#899_ADD_REGRESSION=SUCCESS'
+
+      - name: Prove pinned trust, no-real-execution and disabled data authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:scripts/preproduction-ssh-trust/manage-known-host.sh)" = \
+            'e10f8576b0fb5b6bd47b707fbdddf06a1651ae9f'
+          test "$(git rev-parse HEAD:scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh)" = \
+            '2487aba1cbece4aa00cc77a968e5e34fd48c7c5a'
+          jq -e '
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.issue_874_grants_activation_authority == false
+          ' scripts/preproduction-refresh/activation-capability/profile.json >/dev/null
+          printf '%s\n' \
+            'PREPROD_PINNED_TRUST_REGRESSION=SUCCESS' \
+            'REAL_KEY_REMOVE=NOT_PERFORMED' \
+            'REAL_PREPROD_EXECUTION=NONE' \
+            'REAL_PREPROD_MUTATION=NONE' \
+            'REAL_PROD_ACCESS=NONE' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED'
+
+      - name: Git diff check
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA...$HEAD_SHA"
+          printf '%s\n' 'GIT_DIFF_CHECK=SUCCESS'

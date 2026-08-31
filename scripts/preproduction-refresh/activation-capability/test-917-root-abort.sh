@@ -63,7 +63,8 @@ PY
 }
 
 make_abort_from_active() {
-  local change_key="${1:-}" change_value="${2:-}"
+  local change_key="${1:-}"
+  local change_value="${2:-}"
   python3 - "$ACTIVE" "$change_key" "$change_value" <<'PY'
 import json,sys
 path,key,value=sys.argv[1:]
@@ -83,10 +84,6 @@ arm() {
   [[ "$(jq -r '.state+"/"+.phase' "$ACTIVE")" == 'ARMED/AWAITING_INGRESS' ]]
 }
 
-abort_exact() {
-  make_abort_from_active | "$ABORT"
-}
-
 prove_terminal() {
   local authority_id="$1"
   local history="$HISTORY/$authority_id.json"
@@ -98,7 +95,9 @@ prove_terminal() {
 }
 
 finish_case() {
-  local envelope="$1" request_json="$2" authority_id="$3"
+  local envelope="$1"
+  local request_json="$2"
+  local authority_id="$3"
   "$ABORT" <<<"$request_json" >/dev/null
   prove_terminal "$authority_id"
   if "$ABORT" <<<"$request_json" >/dev/null 2>&1; then
@@ -109,7 +108,6 @@ finish_case() {
   fi
 }
 
-# Exact positive path + replay/reinstall proof.
 request='apply-918-abort-positive-r1'
 envelope="$(make_envelope "$request")"
 arm "$request"
@@ -132,11 +130,16 @@ printf '%s\n' \
   'AUTHORITY_REINSTALL_AFTER_ABORT=FAIL_CLOSED'
 
 binding_negative() {
-  local label="$1" key="$2" value="$3" request="apply-918-${label,,}-r1"
+  local label="$1"
+  local key="$2"
+  local value="$3"
+  local request="apply-918-${label,,}-r1"
   local envelope authority_id good bad before after
-  envelope="$(make_envelope "$request")"; arm "$request"
+  envelope="$(make_envelope "$request")"
+  arm "$request"
   authority_id="$(jq -r .authority_id "$ACTIVE")"
-  good="$(make_abort_from_active)"; bad="$(make_abort_from_active "$key" "$value")"
+  good="$(make_abort_from_active)"
+  bad="$(make_abort_from_active "$key" "$value")"
   before="$(sha256sum "$ACTIVE" | awk '{print $1}')"
   if "$ABORT" <<<"$bad" >/dev/null 2>&1; then echo "$label unexpectedly succeeded." >&2; exit 84; fi
   after="$(sha256sum "$ACTIVE" | awk '{print $1}')"
@@ -151,10 +154,14 @@ binding_negative WRONG_PROFILE profile_id wrong-profile
 binding_negative WRONG_AUTHORITY_ID authority_id 0000000000000000000000000000000000000000000000000000000000000000
 
 absence_case() {
-  local label="$1" kind="$2" request="apply-918-${label,,}-r1"
+  local label="$1"
+  local kind="$2"
+  local request="apply-918-${label,,}-r1"
   local envelope authority_id good target before after
-  envelope="$(make_envelope "$request")"; arm "$request"
-  authority_id="$(jq -r .authority_id "$ACTIVE")"; good="$(make_abort_from_active)"
+  envelope="$(make_envelope "$request")"
+  arm "$request"
+  authority_id="$(jq -r .authority_id "$ACTIVE")"
+  good="$(make_abort_from_active)"
   case "$kind" in
     spool) target="$INCOMING/$authority_id.sql";;
     manifest) target="$INCOMING/$authority_id.json";;
@@ -165,10 +172,12 @@ absence_case() {
     fence) target="$FENCE";;
     *) exit 90;;
   esac
-  printf 'synthetic obstruction\n' > "$target"; chmod 600 "$target"; chown root:root "$target"
+  printf 'synthetic obstruction\n' > "$target"
+  chmod 600 "$target"; chown root:root "$target"
   before="$(sha256sum "$ACTIVE" | awk '{print $1}')"
   if "$ABORT" <<<"$good" >/dev/null 2>&1; then echo "$label unexpectedly succeeded." >&2; exit 85; fi
-  after="$(sha256sum "$ACTIVE" | awk '{print $1}')"; [[ "$before" == "$after" ]]
+  after="$(sha256sum "$ACTIVE" | awk '{print $1}')"
+  [[ "$before" == "$after" ]]
   rm -f -- "$target"
   finish_case "$envelope" "$good" "$authority_id"
   printf '%s=FAIL_CLOSED\n' "$label"
@@ -182,22 +191,27 @@ absence_case BACKUP_PRESENT backup
 absence_case FENCE_CLOSED fence
 
 metadata_case() {
-  local label="$1" key="$2" json_value="$3" request="apply-918-${label,,}-r1"
+  local label="$1"
+  local key="$2"
+  local json_value="$3"
+  local request="apply-918-${label,,}-r1"
   local envelope authority_id good saved before after
-  envelope="$(make_envelope "$request")"; arm "$request"
-  authority_id="$(jq -r .authority_id "$ACTIVE")"; good="$(make_abort_from_active)"
+  envelope="$(make_envelope "$request")"
+  arm "$request"
+  authority_id="$(jq -r .authority_id "$ACTIVE")"
+  good="$(make_abort_from_active)"
   saved="$(cat "$ACTIVE")"
   python3 - "$ACTIVE" "$key" "$json_value" <<'PY'
 import json,sys
 path,key,raw=sys.argv[1:]
-x=json.load(open(path,encoding='utf-8'))
-x[key]=json.loads(raw)
+x=json.load(open(path,encoding='utf-8')); x[key]=json.loads(raw)
 with open(path,'w',encoding='utf-8') as f: json.dump(x,f,separators=(',',':')); f.write('\n')
 PY
   chmod 600 "$ACTIVE"; chown root:root "$ACTIVE"
   before="$(sha256sum "$ACTIVE" | awk '{print $1}')"
   if "$ABORT" <<<"$good" >/dev/null 2>&1; then echo "$label unexpectedly succeeded." >&2; exit 86; fi
-  after="$(sha256sum "$ACTIVE" | awk '{print $1}')"; [[ "$before" == "$after" ]]
+  after="$(sha256sum "$ACTIVE" | awk '{print $1}')"
+  [[ "$before" == "$after" ]]
   printf '%s\n' "$saved" > "$ACTIVE"; chmod 600 "$ACTIVE"; chown root:root "$ACTIVE"
   finish_case "$envelope" "$good" "$authority_id"
   printf '%s=FAIL_CLOSED\n' "$label"
@@ -209,10 +223,17 @@ metadata_case BACKUP_BYTES_NON_NULL backup_bytes '1'
 metadata_case HUMAN_RECOVERY_TRUE human_recovery_required 'true'
 
 state_case() {
-  local label="$1" state="$2" phase="$3" terminal="$4" request="apply-918-${label,,}-r1"
+  local label="$1"
+  local state="$2"
+  local phase="$3"
+  local terminal="$4"
+  local request="apply-918-${label,,}-r1"
   local envelope authority_id good saved before after
-  envelope="$(make_envelope "$request")"; arm "$request"
-  authority_id="$(jq -r .authority_id "$ACTIVE")"; good="$(make_abort_from_active)"; saved="$(cat "$ACTIVE")"
+  envelope="$(make_envelope "$request")"
+  arm "$request"
+  authority_id="$(jq -r .authority_id "$ACTIVE")"
+  good="$(make_abort_from_active)"
+  saved="$(cat "$ACTIVE")"
   python3 - "$ACTIVE" "$state" "$phase" "$terminal" <<'PY'
 import json,sys
 path,state,phase,terminal=sys.argv[1:]
@@ -224,7 +245,8 @@ PY
   chmod 600 "$ACTIVE"; chown root:root "$ACTIVE"
   before="$(sha256sum "$ACTIVE" | awk '{print $1}')"
   if "$ABORT" <<<"$good" >/dev/null 2>&1; then echo "$label unexpectedly succeeded." >&2; exit 87; fi
-  after="$(sha256sum "$ACTIVE" | awk '{print $1}')"; [[ "$before" == "$after" ]]
+  after="$(sha256sum "$ACTIVE" | awk '{print $1}')"
+  [[ "$before" == "$after" ]]
   printf '%s\n' "$saved" > "$ACTIVE"; chmod 600 "$ACTIVE"; chown root:root "$ACTIVE"
   finish_case "$envelope" "$good" "$authority_id"
   printf '%s=FAIL_CLOSED\n' "$label"
@@ -233,9 +255,11 @@ state_case WRONG_STATE IN_PROGRESS IMPORTING false
 state_case WRONG_PHASE ARMED SNAPSHOT_READY false
 state_case TERMINAL_AUTHORITY COMMITTED TERMINAL true
 
-# Concurrent authority lock collision preserves active.
-request='apply-918-concurrent-lock-r1'; envelope="$(make_envelope "$request")"; arm "$request"
-authority_id="$(jq -r .authority_id "$ACTIVE")"; good="$(make_abort_from_active)"
+request='apply-918-concurrent-lock-r1'
+envelope="$(make_envelope "$request")"
+arm "$request"
+authority_id="$(jq -r .authority_id "$ACTIVE")"
+good="$(make_abort_from_active)"
 exec 9>"$LOCK"; chmod 600 "$LOCK"; chown root:root "$LOCK"; flock -n 9
 before="$(sha256sum "$ACTIVE" | awk '{print $1}')"
 if "$ABORT" <<<"$good" >/dev/null 2>&1; then echo 'Concurrent lock unexpectedly accepted.' >&2; exit 88; fi
@@ -244,36 +268,44 @@ flock -u 9; exec 9>&-
 finish_case "$envelope" "$good" "$authority_id"
 printf '%s\n' 'CONCURRENT_LOCK_COLLISION=FAIL_CLOSED'
 
-# Crash recovery: simulate interruption immediately after durable ABORTED active.
-request='apply-918-crash-active-terminal-r1'; envelope="$(make_envelope "$request")"; arm "$request"
-authority_id="$(jq -r .authority_id "$ACTIVE")"; good="$(make_abort_from_active)"
+request='apply-918-crash-active-terminal-r1'
+envelope="$(make_envelope "$request")"
+arm "$request"
+authority_id="$(jq -r .authority_id "$ACTIVE")"
+good="$(make_abort_from_active)"
 python3 - "$BASE/transaction_contract.py" "$ACTIVE" "$good" <<'PY'
 import importlib.util,json,os,sys,tempfile
 contract_path,active_path,request_raw=sys.argv[1:]
-spec=importlib.util.spec_from_file_location('tx',contract_path); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+spec=importlib.util.spec_from_file_location('tx',contract_path)
+m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 a=json.load(open(active_path,encoding='utf-8')); r=json.loads(request_raw)
 t=m.pre_ingress_aborted_state(a,r)
-parent=os.path.dirname(active_path); fd,tmp=tempfile.mkstemp(prefix='.crash.',dir=parent)
-with os.fdopen(fd,'w',encoding='utf-8') as f: json.dump(t,f,separators=(',',':')); f.write('\n'); f.flush(); os.fsync(f.fileno())
+parent=os.path.dirname(active_path)
+fd,tmp=tempfile.mkstemp(prefix='.crash.',dir=parent)
+with os.fdopen(fd,'w',encoding='utf-8') as f:
+    json.dump(t,f,separators=(',',':')); f.write('\n'); f.flush(); os.fsync(f.fileno())
 os.chmod(tmp,0o600); os.replace(tmp,active_path)
 PY
 [[ "$(jq -r '.state+"/"+.phase' "$ACTIVE")" == 'ABORTED/TERMINAL' ]]
-output="$("$ABORT" <<<"$good")"; grep -Fxq 'ABORT_OUTCOME=RECOVERED' <<<"$output"
+output="$("$ABORT" <<<"$good")"
+grep -Fxq 'ABORT_OUTCOME=RECOVERED' <<<"$output"
 prove_terminal "$authority_id"
 printf '%s\n' 'CRASH_RECOVERY_EXACT_IDENTITY=PASS'
 
-# Corruption must fail closed and preserve exact corrupt bytes. Restore fixture only for teardown proof.
-request='apply-918-corrupt-active-r1'; arm "$request"; good="$(make_abort_from_active)"; saved="$(cat "$ACTIVE")"
+request='apply-918-corrupt-active-r1'
+arm "$request"
+good="$(make_abort_from_active)"
+saved="$(cat "$ACTIVE")"
 printf '{corrupt-json\n' > "$ACTIVE"; chmod 600 "$ACTIVE"; chown root:root "$ACTIVE"
 before="$(sha256sum "$ACTIVE" | awk '{print $1}')"
 if "$ABORT" <<<"$good" >/dev/null 2>&1; then echo 'Corrupt active unexpectedly accepted.' >&2; exit 89; fi
 after="$(sha256sum "$ACTIVE" | awk '{print $1}')"; [[ "$before" == "$after" ]]
 printf '%s\n' "$saved" > "$ACTIVE"; chmod 600 "$ACTIVE"; chown root:root "$ACTIVE"
-printf '%s\n' 'CORRUPTED_ACTIVE_AUTHORITY=FAIL_CLOSED'
-
+authority_id="$(jq -r .authority_id "$ACTIVE")"
+finish_case "$(make_envelope "$request")" "$good" "$authority_id"
 printf '%s\n' \
+  'CORRUPTED_ACTIVE_AUTHORITY=FAIL_CLOSED' \
   'ABSENCE_PROOF=PASS' \
-  'REPLAY=FAIL_CLOSED' \
-  'NORMAL_SUDO_EXPOSURE=NONE' \
-  'GENERIC_EXECUTION=NONE' \
+  'CRASH_RECOVERY_MODEL=PASS' \
+  'INGRESS_FAILURE_TO_ABORT_PRIMITIVE=PASS' \
   'ROOT_917_ABORT_SYNTHETIC=PASS'

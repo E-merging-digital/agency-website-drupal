@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Thin source-only orchestration contract for governed PREPROD refresh #914."""
 from __future__ import annotations
+
 import argparse
 import hashlib
 import importlib.util
@@ -20,10 +21,11 @@ CONTROL_SUDOERS = CAP_BASE / "provisioning/agency-preprod-refresh-control.sudoer
 INGRESS_SUDOERS = CAP_BASE / "provisioning/agency-preprod-refresh-ingress.sudoers"
 INSTALLER_SOURCE = CAP_BASE / "agency-preprod-refresh-authority-install"
 ABORT_SOURCE = CAP_BASE / "agency-preprod-refresh-authority-abort"
-INGRESS_SOURCE = CAP_BASE / "agency-preprod-refresh-ingress"
 PROFILE_ID = "agency-preprod-governed-refresh-successor-v1"
 CAPABILITY_PROFILE_ID = "agency-preprod-refresh-capability-v1"
 RECOVERY_TARGET_PREFIX = "AGENCY_PREPROD_REFRESH_RECOVERY_TARGET="
+TRUSTED_RECOVERY_RECORD_LOGIN = "github-actions[bot]"
+TRUSTED_RECOVERY_RECORD_TYPE = "Bot"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -144,7 +146,10 @@ def require_snapshot(bytes_value: int, digest: str) -> tuple[int, str]:
 
 
 def authority_envelope(issue: int, request_id: str, main_sha: str, snapshot_bytes: int, snapshot_sha256: str) -> dict[str, Any]:
-    require_issue(issue); require_apply_request(issue, request_id); require_main(main_sha); require_snapshot(snapshot_bytes, snapshot_sha256)
+    require_issue(issue)
+    require_apply_request(issue, request_id)
+    require_main(main_sha)
+    require_snapshot(snapshot_bytes, snapshot_sha256)
     envelope = {
         "schema_version": 1,
         "successor_issue": issue,
@@ -179,74 +184,121 @@ def recovery_target_record(issue: int, request_id: str, main_sha: str, snapshot_
 
 
 def validate_recovery_target_record(value: dict[str, Any], *, issue: int, request_id: str, main_sha: str, authority_id_value: str) -> None:
-    expected = recovery_target_record(issue, request_id, main_sha, int(value.get("snapshot_bytes", 0)), str(value.get("snapshot_sha256", "")))
+    expected = recovery_target_record(
+        issue,
+        request_id,
+        main_sha,
+        int(value.get("snapshot_bytes", 0)),
+        str(value.get("snapshot_sha256", "")),
+    )
     if value != expected or expected["authority_id"] != authority_id_value:
         raise OrchestrationError("Durable recovery target metadata does not exactly bind target transaction.")
 
 
-def _flatten_comment_objects(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        raise OrchestrationError("Target comments JSON must be an array.")
-    out: list[dict[str, Any]] = []
-    for item in value:
-        if isinstance(item, list):
-            out.extend(_flatten_comment_objects(item))
-        elif isinstance(item, dict):
-            out.append(item)
-        else:
-            raise OrchestrationError("Target comments JSON contains a non-object.")
-    return out
+def verify_recovery_target_comment(
+    comment_value: Any,
+    *,
+    repository: str,
+    comment_id: int,
+    issue: int,
+    request_id: str,
+    main_sha: str,
+    authority_id_value: str,
+) -> None:
+    """Verify one exact GitHub Actions metadata record by immutable comment id.
 
-
-def verify_recovery_target_comments(comments_value: Any, *, issue: int, request_id: str, main_sha: str, authority_id_value: str) -> None:
-    require_issue(issue); require_apply_request(issue, request_id); require_main(main_sha)
+    No issue-wide comment scan occurs. Untrusted comments therefore cannot
+    participate in parsing, matching, duplication, or ambiguity.
+    """
+    require_issue(issue)
+    require_apply_request(issue, request_id)
+    require_main(main_sha)
     if not SHA256.fullmatch(authority_id_value):
         raise OrchestrationError("Invalid target authority id.")
-    matches: list[dict[str, Any]] = []
-    for comment in _flatten_comment_objects(comments_value):
-        body = comment.get("body")
-        if not isinstance(body, str):
-            continue
-        for line in body.splitlines():
-            if not line.startswith(RECOVERY_TARGET_PREFIX):
-                continue
-            raw = line[len(RECOVERY_TARGET_PREFIX):]
-            try:
-                value = json.loads(raw)
-            except json.JSONDecodeError as exc:
-                raise OrchestrationError("Durable recovery target metadata JSON invalid.") from exc
-            if not isinstance(value, dict) or raw != canonical(value):
-                raise OrchestrationError("Durable recovery target metadata is not canonical.")
-            if (value.get("successor_issue"), value.get("request_id"), value.get("main_sha"), value.get("authority_id")) == (issue, request_id, main_sha, authority_id_value):
-                validate_recovery_target_record(value, issue=issue, request_id=request_id, main_sha=main_sha, authority_id_value=authority_id_value)
-                matches.append(value)
-    if len(matches) != 1:
-        raise OrchestrationError("Exactly one durable metadata-only recovery target record is required.")
+    if not isinstance(comment_id, int) or isinstance(comment_id, bool) or comment_id <= 0:
+        raise OrchestrationError("Invalid recovery record comment id.")
+    if not isinstance(repository, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise OrchestrationError("Invalid repository identity for recovery record.")
+    if not isinstance(comment_value, dict):
+        raise OrchestrationError("Recovery record comment JSON must be an object.")
+    if comment_value.get("id") != comment_id:
+        raise OrchestrationError("Recovery record comment id mismatch.")
+    expected_issue_url = f"https://api.github.com/repos/{repository}/issues/{issue}"
+    if comment_value.get("issue_url") != expected_issue_url:
+        raise OrchestrationError("Recovery record belongs to the wrong target issue.")
+    user = comment_value.get("user")
+    if not isinstance(user, dict) or user.get("login") != TRUSTED_RECOVERY_RECORD_LOGIN:
+        raise OrchestrationError("Recovery record author is not trusted GitHub Actions automation.")
+    if user.get("type") != TRUSTED_RECOVERY_RECORD_TYPE:
+        raise OrchestrationError("Recovery record author type is not Bot.")
+    body = comment_value.get("body")
+    if not isinstance(body, str):
+        raise OrchestrationError("Trusted recovery record body is missing.")
+    lines = body.splitlines()
+    prefixed = [line for line in lines if line.startswith(RECOVERY_TARGET_PREFIX)]
+    if len(prefixed) != 1 or len(lines) != 1:
+        raise OrchestrationError("Trusted recovery record must contain exactly one canonical prefixed line.")
+    raw = prefixed[0][len(RECOVERY_TARGET_PREFIX):]
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise OrchestrationError("Trusted durable recovery target metadata JSON invalid.") from exc
+    if not isinstance(value, dict) or raw != canonical(value):
+        raise OrchestrationError("Trusted durable recovery target metadata is not canonical.")
+    validate_recovery_target_record(
+        value,
+        issue=issue,
+        request_id=request_id,
+        main_sha=main_sha,
+        authority_id_value=authority_id_value,
+    )
 
 
 def ingress_header(issue: int, request_id: str, main_sha: str, snapshot_bytes: int, snapshot_sha256: str) -> dict[str, Any]:
     envelope = authority_envelope(issue, request_id, main_sha, snapshot_bytes, snapshot_sha256)
     return {
-        "successor_issue": envelope["successor_issue"], "request_id": envelope["request_id"],
-        "main_sha": envelope["main_sha"], "profile_id": CAPABILITY_PROFILE_ID,
-        "expected_bytes": envelope["snapshot_bytes"], "expected_sha256": envelope["snapshot_sha256"],
+        "successor_issue": envelope["successor_issue"],
+        "request_id": envelope["request_id"],
+        "main_sha": envelope["main_sha"],
+        "profile_id": CAPABILITY_PROFILE_ID,
+        "expected_bytes": envelope["snapshot_bytes"],
+        "expected_sha256": envelope["snapshot_sha256"],
     }
 
 
 def operation(action: str, issue: int, request_id: str, main_sha: str) -> dict[str, Any]:
-    require_issue(issue); require_apply_request(issue, request_id); require_main(main_sha)
-    value = {"action": action, "successor_issue": issue, "request_id": request_id, "main_sha": main_sha, "profile_id": CAPABILITY_PROFILE_ID}
+    require_issue(issue)
+    require_apply_request(issue, request_id)
+    require_main(main_sha)
+    value = {
+        "action": action,
+        "successor_issue": issue,
+        "request_id": request_id,
+        "main_sha": main_sha,
+        "profile_id": CAPABILITY_PROFILE_ID,
+    }
     load_contract().parse_operation(value)
     return value
 
 
-def abort_request(issue: int, request_id: str, main_sha: str, authority_id_value: str, profile_id: str = CAPABILITY_PROFILE_ID) -> dict[str, Any]:
-    require_issue(issue); require_apply_request(issue, request_id); require_main(main_sha)
+def abort_request(
+    issue: int,
+    request_id: str,
+    main_sha: str,
+    authority_id_value: str,
+    profile_id: str = CAPABILITY_PROFILE_ID,
+) -> dict[str, Any]:
+    require_issue(issue)
+    require_apply_request(issue, request_id)
+    require_main(main_sha)
     if profile_id != CAPABILITY_PROFILE_ID or not SHA256.fullmatch(authority_id_value):
         raise OrchestrationError("Invalid exact abort binding.")
     value = {
-        "successor_issue": issue, "request_id": request_id, "main_sha": main_sha,
-        "profile_id": profile_id, "authority_id": authority_id_value,
+        "successor_issue": issue,
+        "request_id": request_id,
+        "main_sha": main_sha,
+        "profile_id": profile_id,
+        "authority_id": authority_id_value,
     }
     load_contract().parse_abort_request(value)
     return value
@@ -262,25 +314,38 @@ def main() -> int:
     sub.add_parser("verify-repository")
     for name in ("authority-envelope", "ingress-header", "recovery-target-record"):
         p = sub.add_parser(name)
-        p.add_argument("--issue", type=int, required=True); p.add_argument("--request-id", required=True)
-        p.add_argument("--main-sha", required=True); p.add_argument("--snapshot-bytes", type=int, required=True)
+        p.add_argument("--issue", type=int, required=True)
+        p.add_argument("--request-id", required=True)
+        p.add_argument("--main-sha", required=True)
+        p.add_argument("--snapshot-bytes", type=int, required=True)
         p.add_argument("--snapshot-sha256", required=True)
     p = sub.add_parser("authority-id")
-    p.add_argument("--issue", type=int, required=True); p.add_argument("--request-id", required=True)
-    p.add_argument("--main-sha", required=True); p.add_argument("--snapshot-bytes", type=int, required=True)
+    p.add_argument("--issue", type=int, required=True)
+    p.add_argument("--request-id", required=True)
+    p.add_argument("--main-sha", required=True)
+    p.add_argument("--snapshot-bytes", type=int, required=True)
     p.add_argument("--snapshot-sha256", required=True)
     p = sub.add_parser("operation")
-    p.add_argument("--action", required=True); p.add_argument("--issue", type=int, required=True)
-    p.add_argument("--request-id", required=True); p.add_argument("--main-sha", required=True)
+    p.add_argument("--action", required=True)
+    p.add_argument("--issue", type=int, required=True)
+    p.add_argument("--request-id", required=True)
+    p.add_argument("--main-sha", required=True)
     p = sub.add_parser("abort-request")
-    p.add_argument("--issue", type=int, required=True); p.add_argument("--request-id", required=True)
-    p.add_argument("--main-sha", required=True); p.add_argument("--authority-id", required=True)
+    p.add_argument("--issue", type=int, required=True)
+    p.add_argument("--request-id", required=True)
+    p.add_argument("--main-sha", required=True)
+    p.add_argument("--authority-id", required=True)
     p.add_argument("--profile-id", default=CAPABILITY_PROFILE_ID)
-    p = sub.add_parser("verify-recovery-target-comments")
-    p.add_argument("--comments-json", required=True); p.add_argument("--issue", type=int, required=True)
-    p.add_argument("--request-id", required=True); p.add_argument("--main-sha", required=True)
+    p = sub.add_parser("verify-recovery-target-comment")
+    p.add_argument("--comment-json", required=True)
+    p.add_argument("--repository", required=True)
+    p.add_argument("--comment-id", type=int, required=True)
+    p.add_argument("--issue", type=int, required=True)
+    p.add_argument("--request-id", required=True)
+    p.add_argument("--main-sha", required=True)
     p.add_argument("--authority-id", required=True)
     args = parser.parse_args()
+
     if args.command == "verify-repository":
         verify_repository()
         print("FIXED_915_917_AUTHORITY_INSTALLER_COMPOSITION=PASS")
@@ -293,19 +358,38 @@ def main() -> int:
         return 0
     if args.command in {"authority-envelope", "ingress-header", "recovery-target-record"}:
         values = (args.issue, args.request_id, args.main_sha, args.snapshot_bytes, args.snapshot_sha256)
-        if args.command == "authority-envelope": value = authority_envelope(*values)
-        elif args.command == "ingress-header": value = ingress_header(*values)
-        else: value = recovery_target_record(*values)
-        print(canonical(value)); return 0
+        if args.command == "authority-envelope":
+            value = authority_envelope(*values)
+        elif args.command == "ingress-header":
+            value = ingress_header(*values)
+        else:
+            value = recovery_target_record(*values)
+        print(canonical(value))
+        return 0
     if args.command == "authority-id":
-        print(authority_id(authority_envelope(args.issue, args.request_id, args.main_sha, args.snapshot_bytes, args.snapshot_sha256))); return 0
+        print(authority_id(authority_envelope(args.issue, args.request_id, args.main_sha, args.snapshot_bytes, args.snapshot_sha256)))
+        return 0
     if args.command == "operation":
-        print(canonical(operation(args.action, args.issue, args.request_id, args.main_sha))); return 0
+        print(canonical(operation(args.action, args.issue, args.request_id, args.main_sha)))
+        return 0
     if args.command == "abort-request":
-        print(canonical(abort_request(args.issue, args.request_id, args.main_sha, args.authority_id, args.profile_id))); return 0
-    if args.command == "verify-recovery-target-comments":
-        verify_recovery_target_comments(json.loads(Path(args.comments_json).read_text(encoding="utf-8")), issue=args.issue, request_id=args.request_id, main_sha=args.main_sha, authority_id_value=args.authority_id)
-        print("DURABLE_RECOVERY_TARGET_METADATA=PASS"); return 0
+        print(canonical(abort_request(args.issue, args.request_id, args.main_sha, args.authority_id, args.profile_id)))
+        return 0
+    if args.command == "verify-recovery-target-comment":
+        verify_recovery_target_comment(
+            json.loads(Path(args.comment_json).read_text(encoding="utf-8")),
+            repository=args.repository,
+            comment_id=args.comment_id,
+            issue=args.issue,
+            request_id=args.request_id,
+            main_sha=args.main_sha,
+            authority_id_value=args.authority_id,
+        )
+        print("DURABLE_RECOVERY_TARGET_METADATA=PASS")
+        print("RECOVERY_RECORD_COMMENT_ID_BINDING=PASS")
+        print("RECOVERY_RECORD_AUTHOR_AUTHENTICATION=PASS")
+        print("UNTRUSTED_RECOVERY_PREFIX=IGNORED")
+        return 0
     raise OrchestrationError("Unknown command.")
 
 

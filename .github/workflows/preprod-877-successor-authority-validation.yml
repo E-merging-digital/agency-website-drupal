@@ -102,3 +102,106 @@ jobs:
           set -euo pipefail
           test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
           printf '%s\n' 'NO_SANITIZER_CHANGE=PASS' 'REGRESSION_816=PASS' 'REGRESSION_874=PASS' 'REGRESSION_876=PASS'
+
+  jit-delayed-apply-authority:
+    name: "#910 JIT authority before privileged PREPROD secret"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove delayed authority fail-closed matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability/provisioning'
+          python3 "$base/test-successor-authority.py" | tee "$RUNNER_TEMP/agency-910-authority-matrix.log"
+          grep -Fq 'MAIN_ADVANCED_WHILE_QUEUED=FAIL_CLOSED' "$RUNNER_TEMP/agency-910-authority-matrix.log"
+          grep -Fq 'AUTHORITY_ISSUE_CLOSED=FAIL_CLOSED' "$RUNNER_TEMP/agency-910-authority-matrix.log"
+          grep -Fq 'AUTHORIZATION_COMMENT_MISSING=FAIL_CLOSED' "$RUNNER_TEMP/agency-910-authority-matrix.log"
+          grep -Fq 'AUTHORIZATION_COMMENT_DUPLICATED=FAIL_CLOSED' "$RUNNER_TEMP/agency-910-authority-matrix.log"
+          grep -Fq 'AUTHORIZATION_COMMENT_CHANGED=FAIL_CLOSED' "$RUNNER_TEMP/agency-910-authority-matrix.log"
+          grep -Fq 'AUTHORITY_MARKER_CHANGED=FAIL_CLOSED' "$RUNNER_TEMP/agency-910-authority-matrix.log"
+          grep -Fq 'RUN_ATTEMPT_NOT_1=FAIL_CLOSED' "$RUNNER_TEMP/agency-910-authority-matrix.log"
+
+      - name: Prove checkout JIT secret APPLY cleanup ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
+          assert '\n  plan:\n' in workflow and '\n  apply:\n' in workflow
+          plan = workflow.split('\n  plan:\n', 1)[1].split('\n  apply:\n', 1)[0]
+          apply = '  apply:\n' + workflow.split('\n  apply:\n', 1)[1]
+
+          checkout = apply.index('      - name: Checkout exact trusted main')
+          jit = apply.index('      - name: JIT revalidate live main and successor authority before root secret materialization')
+          secret = apply.index('PREPROD_PROVISIONING_SSH_PRIVATE_KEY')
+          execute = apply.index('bash scripts/preproduction-refresh/activation-capability/provisioning/run-apply.sh')
+          cleanup = apply.index('      - name: Remove transient APPLY identity')
+          assert checkout < jit < secret < execute < cleanup
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in apply[:jit]
+          assert apply.count('PREPROD_PROVISIONING_SSH_PRIVATE_KEY') == 1
+
+          jit_block = apply[jit:apply.index('      - name: Configure dedicated transient root provisioning identity')]
+          assert 'secrets.' not in jit_block
+          assert 'GH_TOKEN:' in jit_block
+          assert 'repos/$GITHUB_REPOSITORY/branches/main' in jit_block
+          assert 'test "$current_live_main" = "$EXPECTED_MAIN"' in jit_block
+          assert 'test "$checked_out_head" = "$current_live_main"' in jit_block
+          assert 'issues/$AUTHORITY_ISSUE_NUMBER' in jit_block
+          assert 'comments?per_page=100' in jit_block
+          assert 'validate-successor-authority.py' in jit_block
+          assert 'test "$(read_jit_output authority_issue)" = "$EXPECTED_AUTHORITY_ISSUE"' in jit_block
+          assert 'test "$(read_jit_output request_id)" = "$EXPECTED_REQUEST_ID"' in jit_block
+          assert 'test "$(read_jit_output mode)" = "$EXPECTED_MODE"' in jit_block
+          assert 'test "$(read_jit_output operation_profile)" = "$EXPECTED_PROFILE"' in jit_block
+          assert '.data_activation_authority.installed_state == "DISABLED"' in jit_block
+          assert '.apply.data_activation_authority_after_apply == "DISABLED"' in jit_block
+
+          assert 'runs-on: ubuntu-24.04' in plan
+          assert 'PREPROD_SSH_USER: agency-preprod' in plan
+          assert 'self-hosted' not in plan
+          assert 'runs-on: [self-hosted, linux, x64, agency]' in apply
+          assert "[[ \"$RUNNER_NAME\" == 'agency-browser-runner-01' ]]" in apply
+
+          print('UNCHANGED_MAIN_VALID_AUTHORITY=PASS')
+          print('MAIN_ADVANCED_WHILE_QUEUED=FAIL_BEFORE_ROOT_SECRET')
+          print('AUTHORITY_REVOCATION=FAIL_BEFORE_ROOT_SECRET')
+          print('CHECKOUT_MISMATCH=FAIL_BEFORE_ROOT_SECRET')
+          print('ROOT_SECRET_BEFORE_JIT=IMPOSSIBLE')
+          print('STEP_ORDERING=CHECKOUT_JIT_SECRET_APPLY_CLEANUP')
+          print('PLAN_PATH=UNCHANGED')
+          print('PLAN_RUNNER=ubuntu-24.04')
+          print('APPLY_RUNNER=[self-hosted,linux,x64,agency]')
+          print('RUNNER_NAME=agency-browser-runner-01')
+          print('JIT_SECRET_CONSUMPTION=NONE')
+          print('REAL_PREPROD_EXECUTION=NONE')
+          print('REAL_PREPROD_MUTATION=NONE')
+          print('REAL_PROD_ACCESS=NONE')
+          print('DATA_ACTIVATION_AUTHORITY=DISABLED')
+          PY
+
+      - name: Prove non-disabled data authority is rejected structurally
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          mutated_profile="$RUNNER_TEMP/agency-910-profile-enabled.json"
+          mutated_provisioning="$RUNNER_TEMP/agency-910-provisioning-enabled.json"
+          trap 'rm -f -- "$mutated_profile" "$mutated_provisioning"' EXIT
+          jq '.data_activation_authority.installed_state = "ENABLED"' "$base/profile.json" > "$mutated_profile"
+          jq '.apply.data_activation_authority_after_apply = "ENABLED"' "$base/provisioning/profile.json" > "$mutated_provisioning"
+          ! jq -e '.data_activation_authority.installed_state == "DISABLED"' "$mutated_profile" >/dev/null
+          ! jq -e '.apply.data_activation_authority_after_apply == "DISABLED"' "$mutated_provisioning" >/dev/null
+          printf '%s\n' \
+            'DATA_ACTIVATION_NOT_DISABLED=FAIL_BEFORE_ROOT_SECRET' \
+            'ROOT_SECRET_MATERIALIZATION=NONE' \
+            'PREPROD_SSH_SESSION=NONE'

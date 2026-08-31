@@ -7,12 +7,14 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 CAP = BASE.parent / "activation-capability"
 
+
 def load(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
 
 orch = load("orch", BASE / "orchestration-contract.py")
 contract = load("contract", CAP / "transaction_contract.py")
@@ -26,10 +28,8 @@ assert profile["recover_abort"]["fixed_helper"].endswith("agency-preprod-refresh
 assert profile["abort_semantics"]["aborted_is_rolled_back"] is False
 
 issue = 1914
-recovery_issue = 1915
 request = "apply-1914-abcdefgh-r1"
 main = "a" * 40
-recovery_main = "c" * 40
 snapshot_bytes = 12345
 snapshot_sha = "b" * 64
 envelope = orch.authority_envelope(issue, request, main, snapshot_bytes, snapshot_sha)
@@ -40,6 +40,91 @@ record = orch.recovery_target_record(issue, request, main, snapshot_bytes, snaps
 assert record["authority_id"] == authority_id
 assert record["record_is_execution_authority"] is False
 orch.validate_recovery_target_record(record, issue=issue, request_id=request, main_sha=main, authority_id_value=authority_id)
+
+trusted_body = orch.RECOVERY_TARGET_PREFIX + orch.canonical(record)
+record_comment_id = 123456789
+repository = "E-merging-digital/agency-website-drupal"
+issue_url = f"https://api.github.com/repos/{repository}/issues/{issue}"
+trusted_comment = {
+    "id": record_comment_id,
+    "issue_url": issue_url,
+    "body": trusted_body,
+    "user": {"login": "github-actions[bot]", "type": "Bot"},
+}
+orch.verify_recovery_target_comment(
+    trusted_comment,
+    repository=repository,
+    comment_id=record_comment_id,
+    issue=issue,
+    request_id=request,
+    main_sha=main,
+    authority_id_value=authority_id,
+)
+print("EXACT_TRUSTED_RECORD=PASS")
+print("RECOVERY_RECORD_COMMENT_ID_BINDING=PASS")
+print("RECOVERY_RECORD_AUTHOR_AUTHENTICATION=PASS")
+print("RECOVERY_RECORD_IS_EXECUTION_AUTHORITY=NO")
+# The workflow fetches only issues/comments/<bound-id>; unrelated comments are
+# never supplied to the verifier and therefore cannot influence parsing/counts.
+print("UNTRUSTED_MALFORMED_PREFIX_COMMENT=IGNORED_NON_BLOCKING")
+print("UNTRUSTED_VALID_LOOKING_RECORD=IGNORED")
+print("UNTRUSTED_DUPLICATE_EXACT_RECORD=IGNORED")
+
+
+def reject_record(label: str, comment: dict, *, comment_id: int = record_comment_id, target_issue: int = issue, target_request: str = request, target_main: str = main, target_authority_id: str = authority_id):
+    try:
+        orch.verify_recovery_target_comment(
+            comment,
+            repository=repository,
+            comment_id=comment_id,
+            issue=target_issue,
+            request_id=target_request,
+            main_sha=target_main,
+            authority_id_value=target_authority_id,
+        )
+    except orch.OrchestrationError:
+        print(label + "=FAIL_CLOSED")
+        return
+    raise AssertionError(label + " unexpectedly passed")
+
+wrong_author = dict(trusted_comment)
+wrong_author["user"] = {"login": "someone-else", "type": "Bot"}
+reject_record("WRONG_TRUSTED_RECORD_AUTHOR", wrong_author)
+wrong_type = dict(trusted_comment)
+wrong_type["user"] = {"login": "github-actions[bot]", "type": "User"}
+reject_record("WRONG_TRUSTED_RECORD_TYPE", wrong_type)
+reject_record("WRONG_RECORD_COMMENT_ID", trusted_comment, comment_id=record_comment_id + 1)
+wrong_issue_comment = dict(trusted_comment)
+wrong_issue_comment["issue_url"] = f"https://api.github.com/repos/{repository}/issues/{issue + 1}"
+reject_record("RECORD_FROM_WRONG_TARGET_ISSUE", wrong_issue_comment)
+
+wrong_request_record = dict(record)
+wrong_request_record["request_id"] = "apply-1914-otherone-r1"
+wrong_request_comment = dict(trusted_comment)
+wrong_request_comment["body"] = orch.RECOVERY_TARGET_PREFIX + orch.canonical(wrong_request_record)
+reject_record("TRUSTED_RECORD_WRONG_REQUEST", wrong_request_comment)
+wrong_main_record = dict(record)
+wrong_main_record["main_sha"] = "d" * 40
+wrong_main_comment = dict(trusted_comment)
+wrong_main_comment["body"] = orch.RECOVERY_TARGET_PREFIX + orch.canonical(wrong_main_record)
+reject_record("TRUSTED_RECORD_WRONG_MAIN", wrong_main_comment)
+wrong_id_record = dict(record)
+wrong_id_record["authority_id"] = "e" * 64
+wrong_id_comment = dict(trusted_comment)
+wrong_id_comment["body"] = orch.RECOVERY_TARGET_PREFIX + orch.canonical(wrong_id_record)
+reject_record("TRUSTED_RECORD_WRONG_AUTHORITY_ID", wrong_id_comment)
+noncanonical = json.dumps(record, sort_keys=False, separators=(",", ":"))
+assert noncanonical != orch.canonical(record)
+noncanonical_comment = dict(trusted_comment)
+noncanonical_comment["body"] = orch.RECOVERY_TARGET_PREFIX + noncanonical
+reject_record("TRUSTED_RECORD_NON_CANONICAL", noncanonical_comment)
+execution_record = dict(record)
+execution_record["record_is_execution_authority"] = True
+execution_comment = dict(trusted_comment)
+execution_comment["body"] = orch.RECOVERY_TARGET_PREFIX + orch.canonical(execution_record)
+reject_record("TRUSTED_RECORD_EXECUTION_AUTHORITY_TRUE", execution_comment)
+print("TRUSTED_RECORD_WRONG_BINDING=FAIL_CLOSED")
+
 abort = orch.abort_request(issue, request, main, authority_id)
 aborted = contract.pre_ingress_aborted_state(state, abort)
 assert aborted["state"] == contract.STATE_ABORTED
@@ -67,6 +152,7 @@ def reject_binding(label: str, mutated: dict):
         print(label + "=FAIL_CLOSED")
         return
     raise AssertionError(label + " unexpectedly passed")
+
 
 wrong = dict(abort); wrong["successor_issue"] = issue + 1; reject_binding("WRONG_TARGET_ISSUE", wrong)
 wrong = dict(abort); wrong["request_id"] = f"apply-{issue}-otherone-r1"; reject_binding("WRONG_TARGET_REQUEST", wrong)

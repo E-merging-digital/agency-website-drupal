@@ -51,7 +51,7 @@ jq -e '
 
 PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" \
 PREPROD_KNOWN_HOSTS_FILE="$PREPROD_KNOWN_HOSTS_FILE" \
-  bash "$TRUST" >/dev/null
+  bash "$TRUST" >/dev/null 2>&1
 
 ssh_opts=(
   -i "$PREPROD_SSH_KEY"

@@ -156,7 +156,7 @@ def main() -> int:
         'worker_started=1',
     ):
         require(required in control, f'control-plane invariant missing: {required}')
-    require('prod_ssh=(' not in control, 'control plane gained direct PROD SSH path')
+    require('\nprod_ssh=(' not in '\n' + control, 'control plane gained direct PROD SSH path')
     require('"$PROD_SSH_USER@$PROD_SSH_HOST"' not in control, 'control plane connects to PROD')
     require('.sql' not in control, 'control plane contains SQL materialization path')
     require('actions/upload-artifact' not in control, 'control plane exposes artifact path')

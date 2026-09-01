@@ -27,7 +27,7 @@ Use status terms narrowly:
 - `SOURCE_IMPLEMENTED`: versioned implementation exists.
 - `SYNTHETICALLY_PROVEN`: source/static/synthetic tests prove the stated contract without claiming a real environment execution.
 - `PROVISIONED`: required runtime infrastructure/credential surface has been installed and proven at the stated boundary.
-- `EXECUTABLE`: a real governed route is available, subject to its own fresh authority and runtime checks.
+- `EXECUTABLE`: a real governed route is available, subject to fresh authority/runtime checks.
 - `REAL_EXECUTION_PROVEN`: a real execution reached terminal evidence at the stated boundary.
 - `EXECUTION_PENDING`: implementation exists but the relevant real execution has not reached terminal proof.
 - `DEFERRED`: intentionally postponed.
@@ -46,9 +46,9 @@ CAPABILITY EXISTS != EXECUTOR CURRENTLY ONLINE
 DATA_ACTIVATION_AUTHORITY = DISABLED
 ```
 
-`DATA_ACTIVATION_AUTHORITY = DISABLED` means source, credentials, provisioning or helper existence does not grant a persistent data-activation privilege. A real #914 run still requires a fresh valid one-shot authority.
+`DATA_ACTIVATION_AUTHORITY = DISABLED` means source, credentials, provisioning or helper existence does not grant persistent activation authority. Every real #914 execution still requires a fresh one-shot authority.
 
-An emitted one-shot request ID is consumed regardless of success, failure, cancellation, queueing or transport outcome. A new attempt requires a new valid request identity.
+An emitted request ID is consumed regardless of success, failure, cancellation, queueing or transport outcome. A new attempt requires a new request ID.
 
 ### Current command dispatch topology (#922 completed)
 
@@ -62,7 +62,7 @@ user command
 -> capability-owned authorization
 ```
 
-The dispatcher is a router, **not execution authority**. Its classifier performs syntax selection only; actor, issue state, exact identity, replay/JIT and other authorization rules remain owned by the reusable capability.
+The dispatcher is a router, **not execution authority**. Actor, issue state, exact identity, replay/JIT and operation-specific authorization remain owned by the selected reusable capability.
 
 Current reusable command workflows are exactly five:
 
@@ -72,19 +72,19 @@ Current reusable command workflows are exactly five:
 4. `.github/workflows/trusted-editorial-feature-image.yml`
 5. `.github/workflows/preprod-914-governed-successor.yml`
 
-Historical command listeners removed by #922 are not current capabilities merely because old issues, docs or runs still exist.
+Historical issue-comment listeners removed by #922 are not current capabilities.
 
 ## 2. Environment map
 
 | Surface | Role | Code source | Database ownership | Settings ownership | Secrets ownership | Allowed mutations | Forbidden mutations | Execution surface / side effects |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DDEV / local | Development, tests, reproduction | Developer/agent Git checkout | Local DDEV DB only | Local/DDEV-owned | Local only | Local code/data inside task scope | Any upstream DB push; PREPROD/PROD mutation by implication | Developer host or trusted Agency DDEV. Mailpit/fake/null; external egress off unless explicitly governed. |
-| PREPROD | Production-like release gate and independent refresh target | Exact immutable candidate deployed through the PREPROD route | PREPROD-owned independent DB | PREPROD server-owned shared settings + repository config | PREPROD-only scopes | Exact code deployment; separately authorized PREPROD operations/refresh | PROD mutation; PROD runtime credentials; unsanitized PROD DB activation | PREPROD deployment route and trusted surfaces required by the selected operation. Side effects hardened; Basic Auth/noindex preserved. |
-| PROD | Live service and live data authority | Exact validated artifact promoted through governed production route | PROD-owned live DB | PROD server-owned shared settings + repository config | PROD-only scopes | Explicit governed production operations only | PREPROD DB promotion; refresh writes from #816; arbitrary DDEV push | Production promotion/editorial/scheduler routes. Real side effects only where explicitly intended. |
-| GitHub-hosted control / validation | CI, build, command dispatch, authority validation, metadata/static/synthetic evidence | Exact repository checkout/artifacts | **No raw PROD DB** | Workflow metadata only | Scoped secrets only in governed routes | Repository/build/control and metadata-only operations explicitly encoded by the route | Raw PROD data materialization/manipulation, SQL/PII evidence, widening trust because another runner is unavailable | GitHub-hosted runners. Metadata-only validation may be appropriate; raw PROD remains forbidden. |
-| Trusted self-hosted Agency executor | Registered trusted execution surface for DDEV/private/raw-data work | Exact checkout required by the route | Only data classes authorized by that route | Executor/environment-owned | Governed route-specific secrets | Fixed-purpose route operations | Generic authority, arbitrary PROD/PREPROD mutation, credential reuse across environments | `agency-browser-runner-01` on `preflight-runner-01`, account `agency-runner`; availability is dynamic. |
+| DDEV / local | Development, tests, reproduction | Developer/agent Git checkout | Local DDEV DB only | Local/DDEV-owned | Local only | Local code/data inside task scope | Any upstream DB push; PREPROD/PROD mutation by implication | Developer host or trusted Agency DDEV. External side effects remain fake/null/disabled unless explicitly governed. |
+| PREPROD | Production-like release gate and independent refresh target | Exact immutable candidate deployed through PREPROD route | PREPROD-owned independent DB | PREPROD server-owned settings + repository config | PREPROD-only scopes | Exact code deploy; separately authorized PREPROD operations/refresh | PROD mutation; PROD runtime credentials; unsanitized PROD activation | PREPROD deployment route and trusted execution surfaces required by the operation. |
+| PROD | Live service and live data authority | Exact validated artifact through governed promotion | PROD-owned live DB | PROD server-owned settings + repository config | PROD-only scopes | Explicit governed production operations only | PREPROD DB promotion; arbitrary DDEV push | Production promotion/editorial/scheduler routes only. |
+| GitHub-hosted control / validation | CI, build, dispatcher, authority, metadata-only PLAN, static/synthetic evidence | Exact repository checkout/artifacts | **No raw PROD DB** | Workflow metadata only | Scoped route secrets only after route-specific gates | Repository/build/control plus #914 metadata-only PLAN | Raw PROD materialization/manipulation, SQL/PII evidence | GitHub-hosted `ubuntu-24.04`; raw PROD remains forbidden. |
+| Trusted self-hosted Agency executor | Registered trusted surface for DDEV/private/raw-data APPLY | Exact checkout required by route | Only route-authorized data classes | Executor/environment-owned | Governed route-specific secrets | Fixed-purpose route operations | Generic authority, arbitrary PROD/PREPROD mutation | `self-hosted`, `linux`, `x64`, `agency`; current availability is dynamic. |
 
-The Agency self-hosted runner remains a **registered/provisioned capability** even when physically unavailable. Capability registration and current online/busy state are separate facts.
+The self-hosted Agency runner remains a registered/provisioned capability even when physically unavailable. `CAPABILITY REGISTERED != CURRENTLY ONLINE`; availability must be reloaded live. APPLY/raw-data requirements do not move because the runner is temporarily offline.
 
 Runtime references:
 
@@ -98,13 +98,13 @@ Runtime references:
 
 | Class | Durable owner/source of truth | Promotion/copy rule |
 | --- | --- | --- |
-| **CODE** | Git + immutable release candidate identity | Build once; PREPROD validates exact bytes; functional PROD promotion consumes the same exact artifact. |
-| **CONFIG** | `config/sync` + approved split directories in Git; active environment selection remains environment-specific | `cim`/Config Split converge the deployed release. PREPROD active config is not promoted to PROD. |
-| **EDITORIAL CONTENT** | For ordinary published editor-owned content: Drupal PROD after successful publication | Never promoted as a database. #576 mutates bounded Article content through Drupal Entity API. Governed Content is a separate product-owned baseline class. |
-| **DATABASE DATA** | Each runtime owns its own DB; PROD is live source for the governed one-way refresh | PROD -> sanitized PREPROD only through #816/#914; PREPROD -> PROD is forbidden; Development Seed -> DDEV only when the real seed source is provisioned. |
+| **CODE** | Git + immutable release candidate identity | Build once; PREPROD validates exact bytes; functional PROD promotion consumes the same artifact. |
+| **CONFIG** | `config/sync` + approved split directories in Git | `cim`/Config Split converge the deployed release; PREPROD active config is not promoted as a database. |
+| **EDITORIAL CONTENT** | Ordinary published editor-owned content lives in Drupal PROD after bounded publication | Never promoted as a database. #576 mutates bounded Article content through Drupal Entity API. |
+| **DATABASE DATA** | Each runtime owns its DB; PROD is live source for one-way governed refresh | PROD -> sanitized PREPROD only through #816/#914; PREPROD -> PROD forbidden; Development Seed -> DDEV only when real seed source exists. |
 | **ENVIRONMENT SETTINGS** | Each environment's local/server-owned settings | Never copied as another environment's runtime settings. PREPROD hash salt remains PREPROD-owned. |
 | **SECRETS** | Environment/route-specific secret store or local developer scope | Never embedded in Git, seed metadata or another environment's runtime credential set. |
-| **FILES** | Environment-owned persistent files | Release artifacts exclude runtime files. #914 DB refresh does not copy public files; private files are excluded. Development Seed v1 is database-only. |
+| **FILES** | Environment-owned persistent files | Release artifacts exclude runtime files. #914 is DB-only; private files excluded; Development Seed v1 is DB-only. |
 
 ```text
 Git is not the source of truth for already-published ordinary editorial content.
@@ -121,10 +121,10 @@ Git / PR
 -> release/*
 -> immutable candidate identity
 -> PREPROD exact-artifact deployment
--> PREPROD runtime + browser validation
+-> PREPROD validation
 -> explicit human GO where required
 -> agency-command-dispatch.yml
--> promote-production.yml reusable capability
+-> promote-production.yml
 -> same exact artifact to PROD
 -> post-deploy validation
 ```
@@ -143,11 +143,16 @@ Primary sources:
 ```text
 fresh one-shot command
 -> agency-command-dispatch.yml
--> preprod-914-governed-successor.yml reusable capability
--> authority/JIT checks
--> PROD read-only
--> transient raw dump on trusted surface only
--> DDEV raw staging isolated BEFORE import
+-> preprod-914-governed-successor.yml
+-> authority validation on GitHub-hosted
+-> PLAN on GitHub-hosted ubuntu-24.04 OR separately authorized APPLY on self-hosted
+```
+
+PLAN is metadata/readiness-only. APPLY is the only #914 mode that may enter the raw-data path:
+
+```text
+PROD read-only dump
+-> trusted raw staging isolated BEFORE import
 -> Drush sql:sanitize
 -> thin Agency sanitization/assertions
 -> sanitized SQL only to PREPROD
@@ -170,15 +175,20 @@ Primary sources:
 - `scripts/preproduction-refresh/governed-successor/run-apply.sh`
 - `scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh`
 
-**Current evidence boundary:** #914 is `SOURCE_IMPLEMENTED` + `SYNTHETICALLY_PROVEN`. #816 remains open and no complete real PROD -> PREPROD refresh has terminal end-to-end proof.
+Current source state: #914 is `SOURCE_IMPLEMENTED` + `SYNTHETICALLY_PROVEN`. #927 is **CLOSED / COMPLETED** and moved only PLAN execution to GitHub-hosted `ubuntu-24.04`; APPLY remains `[self-hosted, linux, x64, agency]`. JIT-before-secret and pinned PROD/PREPROD SSH trust remain mandatory.
 
-Current `main` still runs both #914 PLAN and APPLY on the trusted Agency self-hosted runner after GitHub-hosted authority validation. #927 is a **PENDING / PROPOSED ADAPTATION** to move only mutation-free metadata PLAN execution to GitHub-hosted; it is not current repository behavior until separately implemented and merged.
+#929 provides `REAL_EXECUTION_PROVEN` evidence for the mutation-free PLAN execution surface: authority and JIT passed, transient SSH identities were materialized only after JIT, the metadata/readiness PLAN executed and returned `FAIL_CLOSED`, SSH identity cleanup succeeded, and APPLY was skipped. No PROD DB content read, PROD snapshot, PROD data transfer, PROD write or PREPROD mutation occurred. The exact failed readiness predicate is **NOT YET PROVEN** and must not be guessed.
+
+#930 is the **CURRENT RECOVERY / IN PROGRESS** repository-only diagnostic tranche. It may make future PLAN failures return bounded metadata-only reason enums, but no #930 behavior is current until separately implemented and merged.
+
+#816 remains OPEN/in-progress. A real full PROD -> PREPROD refresh is **NOT YET PROVEN**.
 
 Never:
 
 ```text
 PREPROD DB -> PROD
 RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN
+RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN
 ```
 
 ### C. EDITORIAL CONTENT
@@ -188,7 +198,7 @@ Current:
 ```text
 #576 bounded Article request
 -> agency-command-dispatch.yml
--> trusted-editorial-publication.yml reusable capability
+-> trusted-editorial-publication.yml
 -> inspect
 -> canonical payload + SHA-256
 -> dry-run
@@ -198,9 +208,9 @@ Current:
 -> reload/evidence
 ```
 
-Ordinary Articles are editor-owned Drupal content, outside Governed Content. The current route is documented in `docs/operations/governed-editorial-publication.md`.
+Ordinary Articles are editor-owned Drupal content, outside Governed Content. Current route: `docs/operations/governed-editorial-publication.md`.
 
-Future #872 Editorial Candidate is `DESIGN_ONLY`: PREPROD preview + exact hash-bound human approval + bounded PROD promotion is a future capability. There is no PREPROD DB -> PROD editorial route.
+Future #872 Editorial Candidate is `DESIGN_ONLY`: PREPROD preview + exact hash-bound human approval + bounded PROD promotion is future work. There is no PREPROD DB -> PROD editorial route.
 
 ### D. DEVELOPMENT DATA
 
@@ -221,141 +231,128 @@ immutable sanitized Development Seed
 Current classification:
 
 ```text
+REPOSITORY_DDEV_IMPLEMENTATION = COMPLETE
 REPOSITORY_IMPLEMENTATION = SOURCE_IMPLEMENTED
-SYNTHETIC_PROOF = SYNTHETICALLY_PROVEN
-REAL_PREPROD_SEED_GENERATION = EXECUTION_PENDING
-REAL_STORAGE_PROVISIONING = EXECUTION_PENDING
-REAL_DISTRIBUTION = EXECUTION_PENDING
+SYNTHETIC_PROOF = COMPLETE
+REAL_PREPROD_SEED_GENERATION = PENDING #816
+REAL_STORAGE_PROVISIONING = PENDING
+REAL_DISTRIBUTION = PENDING
+DDEV_PULL = ddev pull agency
 DDEV_PUSH = NONE
 PUBLIC_FILES = NONE
 PRIVATE_FILES = NEVER
 ```
 
-The provider exists, but a live seed service is not claimed. Real generation depends on #816's safe source boundary; storage/distribution requires separate provisioning authority.
+The provider exists, but a live seed service is not claimed.
 
 ## 5. Current capability/status matrix
 
 | Capability | Owner | Current status | Real mutation/data status |
 | --- | --- | --- | --- |
-| Local DDEV Drupal runtime | repository / developer | `SOURCE_IMPLEMENTED` / `EXECUTABLE` | Local only. |
-| PREPROD release environment | release/deployment program | `PROVISIONED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | Code/config deployment route proven; independently owned DB/settings/secrets. |
-| Single Agency command dispatcher | #922 | `SOURCE_IMPLEMENTED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | Syntax routing only; grants no downstream authority. |
-| Same-artifact functional PROD promotion | production promotion route | `SOURCE_IMPLEMENTED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | Routed through dispatcher; requires exact human GO. |
-| Governed Article publication #576 | #576 | `SOURCE_IMPLEMENTED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | Routed through dispatcher; bounded PROD Article mutation only. |
-| PROD -> PREPROD refresh implementation | #914 under #816 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `EXECUTION_PENDING` | Current PLAN/APPLY reusable route exists; no terminal full real #816 refresh proof. |
-| PLAN GitHub-hosted adaptation | #927 | `DESIGN_ONLY` / `EXECUTION_PENDING` | **PENDING / PROPOSED ADAPTATION**; current PLAN remains self-hosted. |
-| Editorial Candidate | #872 | `DESIGN_ONLY` | No current implementation/execution authority. |
-| Development Seed repository/DDEV tranche | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Real PREPROD generation/storage/distribution pending. |
+| Local DDEV runtime | repository / developer | `SOURCE_IMPLEMENTED` / `EXECUTABLE` | Local only. |
+| PREPROD release environment | deployment program | `PROVISIONED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | Code/config deployment route proven. |
+| Single Agency command dispatcher | #922 | `SOURCE_IMPLEMENTED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | Syntax routing only. |
+| Same-artifact PROD promotion | production promotion route | `SOURCE_IMPLEMENTED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | Exact human GO required. |
+| Governed Article publication | #576 | `SOURCE_IMPLEMENTED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | Bounded PROD Article mutation. |
+| PROD -> PREPROD refresh source | #914 under #816 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `EXECUTABLE` | PLAN executable; full APPLY/end-to-end remains unproven. |
+| GitHub-hosted metadata-only PLAN | #927 | `SOURCE_IMPLEMENTED` / `EXECUTABLE` / `REAL_EXECUTION_PROVEN` | #929 reached the real PLAN and failed closed on readiness; no runtime mutation. |
+| PLAN diagnostics recovery | #930 | `DESIGN_ONLY` / `EXECUTION_PENDING` | OPEN/in-progress; no implementation claimed by #871. |
+| Editorial Candidate | #872 | `DESIGN_ONLY` | Not implemented. |
+| Development Seed repository/DDEV tranche | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Real generation/storage/distribution pending #816. |
 
-The previous `#873 = DESIGN_ONLY` classification is obsolete. Older #907/#874 activation-capability status and #915/#917 transaction/recovery designs are historical implementation lineage, not the current #914 operational route.
+Older #907/#874 activation-capability status and #915/#917 transaction/recovery designs are historical implementation lineage, not operational dependencies of current #914.
 
-The still-existing #908 validation workflow checks the following historical literal. It is retained **only as labelled validator compatibility**, not as current #907 state:
+The #908 validation workflow still protects this historical literal for validator compatibility only; it is **not current #907 architecture**:
 
 ```text
 HISTORICAL_ONLY / NOT CURRENT:
 REAL PROVISIONING APPLY = EXECUTION_PENDING
 ```
 
-Current operation has no pending #907 provisioning dependency.
-
 ## 6. Code/configuration recipe
 
-### Build and validate a release in PREPROD
+### Deploy/validate a release in PREPROD
 
-1. Work through the normal issue/branch/PR path and merge only reviewed work.
-2. Create/update the coherent `release/*` candidate according to the release process.
-3. `.github/workflows/build-release-candidate.yml` checks out the exact SHA, installs production Composer dependencies once and creates one immutable archive.
-4. Candidate identity combines candidate Git SHA, artifact SHA-256, composer.lock SHA-256 and builder provenance.
-5. The artifact excludes environment-owned `settings.php`, persistent public files, `.ddev` state and secrets.
-6. `.github/workflows/deploy-preproduction.yml` consumes the existing artifact; PREPROD does not rebuild it.
-7. PREPROD attaches its own shared settings/files, creates its own DB backup when applicable, runs `updb`, `cim`, PREPROD Config Split/convergence and cache rebuild, then validates runtime, side effects, health and browser behavior.
+1. Work through normal issue/branch/PR review.
+2. Build the coherent `release/*` candidate with `.github/workflows/build-release-candidate.yml`.
+3. Preserve exact candidate Git SHA, artifact SHA-256 and Composer lock identity.
+4. `.github/workflows/deploy-preproduction.yml` consumes the existing artifact; PREPROD does not rebuild it.
+5. PREPROD attaches its own settings/files, then runs required `updb`, `cim`, PREPROD Config Split/convergence, cache rebuild and runtime/browser validation.
 
 ### Promote the same artifact to PROD
 
-1. Reload current candidate/build/PREPROD evidence and live dispatcher/reusable promotion workflow.
-2. Use only the exact current production promotion command accepted by `.github/workflows/agency-command-dispatch.yml`.
-3. Dispatcher classification must select only `promote-production.yml`; downstream promotion authorization remains authoritative.
-4. The production capability must consume the same candidate bytes that PREPROD validated.
-5. PROD attaches PROD-owned settings/files, creates the pre-promotion DB backup, runs release convergence and post-deploy validation.
-6. Ordinary merge/push to `main` is not by itself functional PROD deployment authority.
+1. Reload current candidate/build/PREPROD evidence and live dispatcher route.
+2. Use only the current promotion command accepted by `.github/workflows/agency-command-dispatch.yml`.
+3. Dispatcher classification must select `promote-production.yml`; downstream authorization remains authoritative.
+4. Production consumes the same candidate bytes validated in PREPROD.
+5. PROD attaches PROD-owned settings/files and performs governed post-deploy validation.
 
-Code/config rollback is distinct from data refresh rollback. `docs/operations/preproduction.md` and `docs/deployment.md` own deployment-specific recovery details.
+Code/config rollback is separate from data-refresh rollback.
 
 ## 7. PROD -> PREPROD refresh recipe (#816 / current #914)
 
 ### Authority boundary
 
-The merged #914 implementation is not execution authority. A real run requires a fresh owner-created active authority issue under #816 whose canonical marker matches exact live main and exactly one requested mode.
+#914 source implementation is not persistent execution authority. A real run requires a fresh owner-created active authority issue under #816 whose marker matches exact live `main`, mode/profile and one fresh request identity. Attempt/replay/stale-main/duplicate mismatches fail closed.
 
-The current validator accepts `PLAN` or `APPLY`, attempt 1 only. It rejects replay/rerun, stale main, duplicate request identity and trigger/marker mismatch.
-
-The owner command is first classified by `agency-command-dispatch.yml`; the reusable #914 workflow then performs its own authorization. Dispatcher routing never substitutes for the #914 authority contract.
+The dispatcher only classifies the command; #914 owns execution authorization.
 
 ### Current PLAN
 
-Current `main` executes PLAN on `[self-hosted, linux, x64, agency]` after the GitHub-hosted authority job. PLAN is metadata/readiness-only and creates no PROD snapshot, raw staging import, PREPROD backup, maintenance state or PREPROD DB mutation.
+Current `main` executes PLAN on `ubuntu-24.04` / GitHub-hosted after authority validation. Immediately before SSH secret materialization it revalidates live main, checked-out HEAD, exact request/authority and `runner.environment == github-hosted`.
 
-#926 is closed `NOT_PLANNED`; its request IDs are consumed and it is not an operational route. #927 is the pending implementation issue for a possible GitHub-hosted metadata-only PLAN. Until #927 is implemented and merged, **do not document or operate PLAN as GitHub-hosted**.
+After JIT only, transient PROD/PREPROD SSH identities are materialized under `RUNNER_TEMP`; repository-pinned ED25519 trust is provisioned/verified; PLAN observes bounded metadata/readiness only; identities are removed in cleanup.
 
-The durable boundary is independent of #927:
+PLAN performs no PROD DB content read, PROD snapshot, PROD data transfer, PROD write, PREPROD backup, maintenance, DB/runtime mutation or activation.
+
+#927 is CLOSED / COMPLETED. #929 proves the real hosted PLAN execution surface is reachable, but its readiness result was `FAIL_CLOSED`; the failed predicate is not yet known. #930 is OPEN / IN_PROGRESS to make that failure diagnosable without leaking sensitive output.
+
+### Current APPLY
+
+APPLY remains `[self-hosted, linux, x64, agency]` and requires separate fresh authority. Its current source sequence is:
 
 ```text
-metadata-only validation may execute on GitHub-hosted when a current route explicitly implements it
-RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN
+JIT exact main/authority before secrets
+-> trusted Agency runner
+-> exact source code in DDEV
+-> isolate DDEV web/db on fresh internal network BEFORE raw import
+-> PROD read-only Drush sql:dump
+-> Drush sql:sanitize
+-> Agency sanitizer/assertions
+-> sanitized SQL only to PREPROD
+-> exact PREPROD Drush backup
+-> maint:set 1
+-> sql:drop + sql:cli
+-> updb + cim + PREPROD split/admin convergence
+-> validate-runtime + cr
+-> maint:set 0
+-> COMMITTED
 ```
 
-### APPLY — current source implementation
+Failure after destructive replacement restores the exact backup and validates it. Proven restore => `ROLLED_BACK`. Unprovable restore => `HUMAN_RECOVERY_REQUIRED` and maintenance stays ON.
 
-Only when separately authorized:
-
-1. Revalidate live `main` and exact one-shot authority before SSH secrets are materialized.
-2. Execute raw-data work only on the trusted self-hosted Agency surface.
-3. Prepare exact source release in DDEV; isolate web/db onto an internal-only Docker network **before raw import**.
-4. Obtain PROD via reviewed read-only Drush `sql:dump`; PROD is never mutated.
-5. Keep raw SQL only in protected transient trusted storage / isolated DDEV; never GitHub-hosted, logged or uploaded.
-6. Run Drush `sql:sanitize`, then thin Agency sanitizer/assertions.
-7. Export sanitized SQL, delete raw transient material and transfer sanitized SQL only to PREPROD.
-8. Launch detached non-root PREPROD worker; it owns terminal transaction independently of runner/SSH session.
-9. Acquire deploy lock and create non-empty SHA-256 verified PREPROD Drush backup before destructive replacement.
-10. Enable bounded maintenance; standard `sql:drop` + `sql:cli`; `updb`, `cim`, PREPROD split/admin convergence, cache/runtime validation; disable maintenance and report `COMMITTED`.
-11. Failure after destructive replacement restores exact backup and validates it before maintenance is disabled: `ROLLED_BACK`.
-12. If restore/validation cannot be proven, maintenance stays ON and terminal result is `HUMAN_RECOVERY_REQUIRED`.
-
-No GitHub transaction reconstruction, `RECOVER_CURRENT`, `RECOVER_ABORT`, historical target reconstruction or near-zero-downtime swap belongs to the current route. #915/#917 are not operational dependencies.
+No `RECOVER_CURRENT`, `RECOVER_ABORT`, GitHub transaction reconstruction, historical target lookup or near-zero-downtime #915 swap belongs to the current route.
 
 ## 8. Privacy and data classification
 
-### Preserve for fidelity when present and required
+Preserve for fidelity where present/relevant:
 
 - public/editorial nodes and revisions;
-- translations;
-- taxonomy and references;
-- Paragraphs/entity-reference revisions;
-- menu/link content where needed;
-- aliases/redirects;
-- public media metadata required for editorial fidelity.
+- taxonomy, translations and Paragraphs/entity-reference revisions;
+- menu/link content, aliases and redirects;
+- public media metadata required by editorial behavior.
 
-### Remove, clear or sanitize before PREPROD eligibility
+Remove/sanitize before PREPROD activation:
 
+- user identity/auth/reset/session material as required;
 - Webform submissions/data;
-- active sessions;
+- sessions;
 - flood/rate-limit state;
 - watchdog/dblog request/user/IP state;
-- externally acting queues;
-- cache/render/discovery state;
-- batch/temp/runtime state;
-- sensitive user names/emails and authentication/reset/session material;
+- queues, caches, batch/temp/runtime state;
 - persisted provider/API credentials and production-only state.
 
-Sanitization stack:
-
-```text
-Drush sql:sanitize
--> thin Agency project-specific sanitizer
--> fail-closed assertions
-```
-
-### Raw PROD boundary
+Hard evidence/privacy rules:
 
 ```text
 RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN
@@ -364,193 +361,127 @@ PII IN EVIDENCE/LOGS = FORBIDDEN
 PRIVATE FILES = EXCLUDED
 ```
 
-Raw PROD is trusted-only and transient. Evidence may contain request/run identity, hashes, sizes/counts and PASS/FAIL statuses, never values from sensitive records.
+Metadata-only evidence may include request/issue identity, hashes, sizes, aggregate counts and bounded PASS/FAIL state. It must not include raw SQL, copied values, email/IP/PII, credentials, tokens or private files.
 
 ## 9. Backup, rollback and recovery
 
-### PREPROD data refresh
+Data refresh does not deploy code and PROD is never part of rollback.
 
-- exact PREPROD DB backup is created and verified before destructive DB replacement;
-- PROD is read-only and never part of rollback;
-- failure before destructive replacement means no PREPROD runtime DB mutation;
-- failure after replacement restores exact PREPROD backup and validates it;
-- maintenance reopens only after rollback/runtime state is proven;
-- unprovable rollback = `HUMAN_RECOVERY_REQUIRED`, maintenance stays ON.
+Before destructive PREPROD replacement, #914 APPLY must create and verify an exact protected PREPROD Drush backup. If failure occurs after replacement, restore the exact backup, rebuild/validate runtime, and reopen maintenance only after proof.
 
-This is standard DB backup/restore, not GitHub transaction reconstruction.
+```text
+restore proven      -> ROLLED_BACK
+restore unprovable  -> HUMAN_RECOVERY_REQUIRED
+                       maintenance stays ON
+```
 
-### Code/config promotion
+`recoverable technical failure != HUMAN_REQUIRED`. The #929 PLAN failure is a recoverable technical failure. #930 is current diagnostic recovery work, not a human-recovery boundary.
 
-Use previous-release and DB backup evidence described by `docs/operations/preproduction.md` / `docs/deployment.md`. Code rollback alone is not a universal DB rollback after schema/config/content mutation.
-
-### Editorial #576
-
-Bounded apply verifies a production SQL backup before first Article mutation. Recovery remains owned by that route and never becomes whole-DB promotion.
-
-### DDEV
-
-Development Seed consumption uses DDEV's native snapshot before pull and native snapshot restore for local recovery. No custom upstream rollback/push framework exists.
+For DDEV, rollback is DDEV's native snapshot / snapshot restore mechanism.
 
 ## 10. Development Seed / DDEV
 
-Current local baseline in `.ddev/config.yaml`:
+Start local development from repository state:
 
 ```text
-Drupal 11
-PHP 8.4
-MariaDB 11.8
-Composer 2
-```
-
-Normal local startup:
-
-```text
+git clone <repository>
+cd agency-website-drupal
 ddev start
 ```
 
-#873 merged the repository source contract:
+Developers/agents do **not** need PROD credentials.
 
-- `.ddev/providers/agency.yaml`;
-- `.ddev/config.development-seed.yaml`;
-- `scripts/development-seed/`;
-- `docs/operations/development-seed.md`.
-
-Consumer command:
+The merged #873 consumer contract supports:
 
 ```text
 ddev pull agency
 ```
 
-Real remote consumption is **not** currently claimed available. Future local configuration needs separately provisioned read-only seed-distribution storage/identity; it must not be a PROD credential or PREPROD runtime credential.
+only when the real read-only seed source is later provisioned. Current repository implementation already includes SHA-256 verification, same-or-seed-ancestor compatibility, local snapshot/restore, local convergence/admin creation and side-effect assertions.
 
-The v1 contract is DB-only, public files are not bundled, private files are never distributed, and the provider has no push stanza:
+No provider push stanza exists:
 
 ```text
-Development Seed -> DDEV = allowed once real distribution is provisioned
-DDEV -> seed store       = forbidden
-DDEV -> PREPROD          = forbidden
-DDEV -> PROD             = forbidden
-DDEV_PUSH                = NONE
+DDEV_PUSH = NONE
+DDEV -> PREPROD = FORBIDDEN
+DDEV -> PROD = FORBIDDEN
 ```
 
-Compatibility is same release or seed-release ancestor; unsupported downgrade/divergence fails closed. SHA-256 is checked before import. Local convergence uses normal `updb`/`cim`/`cr`, local-only admin creation and side-effect assertions.
+Real PREPROD seed generation remains pending #816. Real storage/distribution remains pending separate provisioning. Do not present onboarding as though a live seed service already exists.
 
 ## 11. Editorial publication boundary
 
-The current #576 Article route is a specialized production content mutation surface, not deployment, data refresh or Governed Content.
+Current #576 bounded Article publication is separate from code/config promotion, PREPROD DB refresh and Governed Content. It uses exact payload/hash/idempotence/dry-run/apply evidence and bounded PROD Drupal Entity API mutation.
 
-Current commands are the three `/agency-editorial ...` commands defined by the **current dispatcher** and documented in `docs/operations/governed-editorial-publication.md`. The dispatcher routes the command to `.github/workflows/trusted-editorial-publication.yml`; authorization remains inside that capability.
-
-`dry-run` is read-only and binds canonical payload SHA-256. `apply` requires exact prior dry-run/live-main identity, runs a fresh preflight, verifies a backup before mutation and writes only the bounded Article profile through Drupal Entity API.
-
-Published ordinary editorial content remains editor-owned in PROD Drupal. GitHub is request/audit control, not editorial source of truth.
-
-#872 Editorial Candidate is future/not implemented by #871. Its intended PREPROD preview and exact approved-hash promotion must extend this bounded philosophy without creating a PREPROD DB -> PROD path.
+#872 Editorial Candidate remains future / `DESIGN_ONLY`. #871 does not design or implement it.
 
 ## 12. Settings, Config Split and secrets ownership
 
-- `config/sync/config_split.config_split.production.yml` and `config/sync/config_split.config_split.preproduction.yml` are stored OFF by default.
-- PREPROD server-owned settings force production split OFF and preproduction split ON, automated cron OFF, production analytics OFF, null/native mail without production credentials and AI egress OFF.
-- PROD shared settings activate PROD-specific runtime/config boundary.
-- PREPROD hash salt and DB credentials remain PREPROD-owned.
-- PROD settings/secrets remain PROD-owned.
-- DDEV/local settings/secrets remain local-owned.
+```text
+PROD settings/secrets     = PROD-owned
+PREPROD settings/secrets  = PREPROD-owned
+DDEV settings/secrets     = local-owned
+```
 
-No environment receives another environment's runtime credential. Development Seed contains no PREPROD runtime credential.
+No environment receives another environment's runtime credential. PREPROD hash salt remains PREPROD-owned. Development Seed contains no PREPROD runtime credential.
+
+Config Split remains environment-specific. Data refresh must converge the code already deployed in PREPROD; it does not promote PREPROD active config or server settings into PROD.
 
 ## 13. Failure classification
 
-Use `HUMAN_RECOVERY_REQUIRED` only when automatic safe recovery cannot be proven.
+Use three distinct outcomes:
 
-Normally recoverable technical conditions include CI/test failure, stale branch/main mismatch, runner temporarily offline/busy, transport failure before destructive work, consumed/invalid one-shot authority requiring a fresh identity, and deterministic script defects inside Delivery authority.
+1. **recoverable technical failure** — CI/tool/runner/transport/readiness defect still diagnosable within project authority;
+2. **runtime operation terminal outcome** — e.g. `COMMITTED` or proven `ROLLED_BACK`;
+3. **`HUMAN_RECOVERY_REQUIRED`** — automatic safe rollback cannot be proven after destructive PREPROD replacement.
 
-`recoverable technical failure != HUMAN_REQUIRED`.
-
-Do not widen credentials, move raw PROD data onto GitHub-hosted infrastructure or resurrect historical executors/commands to work around an ordinary recoverable failure.
+A temporarily offline registered runner is an availability fact, not architectural removal and not `HUMAN_REQUIRED` by itself.
 
 ## 14. Evidence, request IDs and replay
 
-For every governed operation:
+Evidence must be durable enough to identify exact code/authority/run while remaining non-sensitive. Do not hardcode transient run IDs as operational instructions; use the governing issue/PR and GitHub run evidence.
 
-1. reload live `main`, issue/PR and current route;
-2. bind exact repository/release/request identities required by the route;
-3. keep evidence metadata-only;
-4. distinguish queued/in-progress from terminal outcomes;
-5. never treat PLAN as APPLY;
-6. never reuse an emitted request ID.
+Every emitted one-shot request ID becomes:
 
-Safe evidence may include Git/release SHA, request/run identity, hashes/sizes, aggregate counts without values, bounded backup identity and validation statuses. Raw SQL, PII, passwords, sessions/reset data, private files and secret values are forbidden.
+```text
+CONSUMED / NEVER REUSE
+```
+
+#929's emitted PLAN identities are consumed. Future PLAN/APPLY requires fresh authority and fresh identity.
 
 ## 15. Onboarding, handoff and rebaseline
 
-- **Source of truth?** GitHub + repository + execution evidence; never a handoff alone.
-- **How do I start locally?** Read `AGENTS.md`, ADR-003, this page and `docs/operations/execution-capabilities.md`, then use DDEV.
-- **How do I obtain safe realistic data?** #873 source/synthetic pull contract exists, but real seed generation/storage/distribution remains pending. Do not seek PROD credentials as a workaround.
-- **Do I need PROD credentials for DDEV?** No.
-- **Can DDEV push to PREPROD/PROD?** No.
-- **Who owns settings/secrets?** Each environment owns its own.
-- **Where do owner commands enter?** The single current `.github/workflows/agency-command-dispatch.yml` listener.
-- **Does dispatch grant authority?** No; the selected reusable capability revalidates its own authority.
-- **What is real vs synthetic?** Use the capability matrix and fresh live evidence.
-- **How do I avoid replay?** Emitted one-shot IDs are `CONSUMED / NEVER REUSE`.
-- **What happened to historical configuration-language commands?** They are not part of the current five-command dispatcher and must not be reintroduced as current capability just to satisfy old tests/docs.
+A safe onboarding/handoff should answer:
 
-A safe handoff includes last reloaded main SHA/tree, exact issue/PR/run/head identities, terminal/non-terminal evidence, consumed IDs, current allowed/forbidden operations and STOP boundary; it is explicitly non-authoritative.
+- source of truth: live GitHub + repository + execution evidence;
+- local start: repository + DDEV;
+- safe realistic data: #873 contract exists, real seed source still pending #816/provisioning;
+- PROD credentials for developers: **NO**;
+- DDEV upstream push: **NO**;
+- current command topology: single dispatcher + five reusable workflows;
+- PLAN runner: GitHub-hosted `ubuntu-24.04`;
+- APPLY/raw data: self-hosted Agency runner only under current #914;
+- environment settings/secrets: environment-owned;
+- #816 full refresh: not yet proven;
+- request IDs: consumed/never reuse;
+- handoff state: always reload before repeating it.
 
-After another PR merges:
-
-```text
-reload main
--> integrate current main into the same issue branch if it moved
--> re-audit current dispatcher/workflow/script paths
--> rerun exact-head validation
-```
+After a merge, rebaseline by reloading `main`, merge commit/tree, governing issues/PRs and exact post-merge validations. Never infer current state from a prior handoff alone.
 
 ## 16. Authoritative links
-
-Cross-environment:
 
 - `AGENTS.md`
 - `docs/decisions/ADR-003-use-existing-first.md`
 - `docs/operations/execution-capabilities.md`
 - `docs/operations/preproduction.md`
 - `docs/deployment.md`
-- `docs/operations/environment-side-effects.md`
-
-Command control:
-
-- `.github/workflows/agency-command-dispatch.yml`
-- `.github/workflows/promote-production.yml`
-- `.github/workflows/production-scheduler-change.yml`
-- `.github/workflows/trusted-editorial-publication.yml`
-- `.github/workflows/trusted-editorial-feature-image.yml`
-- `.github/workflows/preprod-914-governed-successor.yml`
-
-Code/config:
-
-- `.github/workflows/build-release-candidate.yml`
-- `.github/workflows/deploy-preproduction.yml`
-
-Data refresh:
-
-- `docs/operations/preproduction-refresh-governed-successor.md`
 - `docs/operations/preproduction-data-refresh.md`
-- `scripts/preproduction-refresh/governed-successor/profile.json`
-- `scripts/preproduction-refresh/governed-successor/validate-execution-authority.py`
-- `scripts/preproduction-refresh/governed-successor/run-plan.sh`
-- `scripts/preproduction-refresh/governed-successor/run-apply.sh`
-- `scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh`
-- `scripts/preproduction-refresh/sanitization-policy.json`
-
-Editorial:
-
+- `docs/operations/preproduction-refresh-governed-successor.md`
+- `docs/operations/environment-side-effects.md`
 - `docs/operations/governed-editorial-publication.md`
-
-Development data:
-
 - `docs/operations/development-seed.md`
+- `.github/workflows/agency-command-dispatch.yml`
+- `.github/workflows/preprod-914-governed-successor.yml`
 - `.ddev/providers/agency.yaml`
-- `.ddev/config.development-seed.yaml`
-- `scripts/development-seed/sanitization-policy.json`
 
-This page contains no secret values, raw data, hard-coded historical run ID or execution authority. Dynamic state must always be reloaded live.
+Primary current-state rule: implementation and live execution evidence win over historical prose. #915/#917 and other predecessor designs are not operational dependencies of #914.

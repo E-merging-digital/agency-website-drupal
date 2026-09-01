@@ -61,6 +61,17 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
 
     $prefixes = array_column($routes, 'prefix');
     self::assertCount(count($prefixes), array_unique($prefixes));
+    foreach ($prefixes as $index => $prefix) {
+      foreach ($prefixes as $otherIndex => $otherPrefix) {
+        if ($index === $otherIndex) {
+          continue;
+        }
+        self::assertFalse(
+          str_starts_with($prefix, $otherPrefix),
+          sprintf('Command prefix %s overlaps %s.', $prefix, $otherPrefix),
+        );
+      }
+    }
 
     $sha40 = str_repeat('a', 40);
     $sha64 = str_repeat('b', 64);
@@ -89,7 +100,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     $collision = $routes;
     $collision[] = [
       'route' => 'COLLISION',
-      'prefix' => '/collision',
+      'prefix' => '/collision ',
       'exact' => ['/agency-editorial inspect'],
     ];
     self::assertSame('NONE', $this->classify($collision, '/agency-editorial inspect', 402));

@@ -127,8 +127,11 @@ def main() -> int:
                 f'temporary server-to-server path missing from {label}')
         require('CURRENTLY UNAVAILABLE' in text or 'currently unavailable' in text,
                 f'self-hosted alternative availability missing from {label}')
-        require('RAW PROD' in text and 'GITHUB-HOSTED' in text,
-                f'raw GitHub-hosted prohibition missing from {label}')
+        raw_hosted_boundary = (
+            ('RAW PROD' in text and 'GITHUB-HOSTED' in text)
+            or 'RAW_PROD_ON_GITHUB_HOSTED' in text
+        )
+        require(raw_hosted_boundary, f'raw GitHub-hosted prohibition missing from {label}')
 
     require('APPLY_EXECUTION_PATH = CONTROLLED_SERVER_TO_SERVER / TEMPORARY CURRENT' in refresh,
             'refresh contract missing temporary current APPLY path')

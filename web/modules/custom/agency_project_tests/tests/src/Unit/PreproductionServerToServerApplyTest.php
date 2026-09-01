@@ -120,6 +120,7 @@ final class PreproductionServerToServerApplyTest extends TestCase {
       $paths['CONTROLLED_SERVER_TO_SERVER']['requirement'],
     );
 
+    // The worker requires the concrete post-sanitization evidence contract.
     foreach ([
       'user_sanitization',
       'auth_material_invalidation',
@@ -134,8 +135,38 @@ final class PreproductionServerToServerApplyTest extends TestCase {
       'credential_state_removal',
     ] as $evidence) {
       self::assertStringContainsString($evidence, $worker);
-      self::assertStringContainsString($evidence, $sanitizer);
     }
+
+    // The sanitizer builds <class>_purge evidence dynamically. Prove its real
+    // contract through the sole policy's mandatory classes and handlers rather
+    // than requiring dynamically generated evidence keys as source literals.
+    $execution = $policy['sanitization_execution'];
+    self::assertIsArray($execution);
+    self::assertSame('FAIL_CLOSED', $execution['unknown_mandatory_class']);
+    $handlers = $execution['mandatory_class_handlers'];
+    self::assertIsArray($handlers);
+    $mandatoryIds = array_column($policy['mandatory_sanitization'], 'id');
+    foreach ([
+      'users',
+      'preprod_admin',
+      'webform_submissions',
+      'sessions',
+      'flood_rate_limit',
+      'dblog_watchdog',
+      'caches',
+      'batch_temp_state',
+      'queues',
+      'cron_update_announcements_linkchecker_state',
+      'one_time_auth_material',
+      'persisted_credentials',
+      'production_environment_state',
+    ] as $classId) {
+      self::assertContains($classId, $mandatoryIds);
+      self::assertArrayHasKey($classId, $handlers);
+      self::assertIsString($handlers[$classId]);
+      self::assertStringContainsString($handlers[$classId], $sanitizer);
+    }
+
     foreach ([
       'preprod-user-',
       'webform_submission',

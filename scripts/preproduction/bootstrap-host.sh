@@ -123,8 +123,18 @@ install -d -m 750 -o "$PROJECT_USER" -g "$PROJECT_GROUP" \
   "$SHARED_DIR/backups" \
   "$SHARED_DIR/logs" \
   "$SHARED_DIR/settings"
+for jobs_dir in "$SHARED_DIR/deploy-jobs" "$SHARED_DIR/refresh-jobs"; do
+  if [[ -e "$jobs_dir" || -L "$jobs_dir" ]]; then
+    [[ -d "$jobs_dir" && ! -L "$jobs_dir" ]] || fail "Unsafe shared jobs path: $jobs_dir"
+  fi
+done
 install -d -m 700 -o "$PROJECT_USER" -g "$PROJECT_USER" \
-  "$SHARED_DIR/deploy-jobs"
+  "$SHARED_DIR/deploy-jobs" \
+  "$SHARED_DIR/refresh-jobs"
+for jobs_dir in "$SHARED_DIR/deploy-jobs" "$SHARED_DIR/refresh-jobs"; do
+  [[ "$(stat -c '%U:%G:%a' "$jobs_dir")" == "$PROJECT_USER:$PROJECT_USER:700" ]] || \
+    fail "Shared jobs directory contract mismatch: $jobs_dir"
+done
 install -d -m 2770 -o "$PROJECT_USER" -g "$PROJECT_GROUP" \
   "$SHARED_DIR/files" \
   "$SHARED_DIR/private"

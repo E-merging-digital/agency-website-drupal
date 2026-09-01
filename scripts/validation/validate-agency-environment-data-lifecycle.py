@@ -29,8 +29,6 @@ REQUIRED_PATHS = (
     ".github/workflows/promote-production.yml",
     ".github/workflows/production-promotion-validation.yml",
     ".github/workflows/preprod-891-runtime-db-identity-validation.yml",
-    ".github/workflows/preprod-902-runtime-db-probe-validation.yml",
-    ".github/workflows/preprod-905-runtime-db-home-validation.yml",
 )
 
 REQUIRED_HEADINGS = (

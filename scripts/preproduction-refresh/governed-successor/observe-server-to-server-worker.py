@@ -16,6 +16,7 @@ REQUEST_ROOT = Path('/run/agency-preprod-refresh')
 REQUEST_RE = re.compile(r'^apply-[0-9]+-[A-Za-z0-9._-]{8,40}-r1$')
 SHA40_RE = re.compile(r'^[0-9a-f]{40}$')
 TERMINAL_OUTCOMES = {'COMMITTED', 'ROLLED_BACK', 'HUMAN_RECOVERY_REQUIRED'}
+DETAIL_RE = re.compile(r'^[A-Z0-9_]+$')
 MAX_RESULT_BYTES = 4096
 MAX_MATCHED_PROCESSES = 8
 
@@ -24,39 +25,46 @@ class ObservationError(RuntimeError):
     """Raised when worker state cannot be proven safely."""
 
 
-def parse_result(path: Path, request_id: str, expected_main: str, uid: int, gid: int) -> tuple[str, str]:
+def parse_result(
+    path: Path,
+    request_id: str,
+    expected_main: str,
+    uid: int,
+    gid: int,
+) -> tuple[str, str, str]:
     try:
         metadata = os.lstat(path)
     except FileNotFoundError:
-        return 'ABSENT', 'NONE'
+        return 'ABSENT', 'NONE', 'NONE'
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-        return 'UNSAFE', 'NONE'
+        return 'UNSAFE', 'NONE', 'NONE'
     if metadata.st_uid != uid or metadata.st_gid != gid or stat.S_IMODE(metadata.st_mode) != 0o600:
-        return 'UNSAFE', 'NONE'
+        return 'UNSAFE', 'NONE', 'NONE'
     if metadata.st_size <= 0 or metadata.st_size > MAX_RESULT_BYTES:
-        return 'UNSAFE', 'NONE'
+        return 'UNSAFE', 'NONE', 'NONE'
     try:
         raw = path.read_text(encoding='ascii')
     except (OSError, UnicodeError):
-        return 'UNSAFE', 'NONE'
+        return 'UNSAFE', 'NONE', 'NONE'
     values: dict[str, str] = {}
     for line in raw.splitlines():
         if '=' not in line:
-            return 'UNSAFE', 'NONE'
+            return 'UNSAFE', 'NONE', 'NONE'
         key, value = line.split('=', 1)
         if key in values:
-            return 'UNSAFE', 'NONE'
+            return 'UNSAFE', 'NONE', 'NONE'
         values[key] = value
     if values.get('schema_version') != '1':
-        return 'UNSAFE', 'NONE'
+        return 'UNSAFE', 'NONE', 'NONE'
     if values.get('request_id') != request_id or values.get('main_sha') != expected_main:
-        return 'UNSAFE', 'NONE'
+        return 'UNSAFE', 'NONE', 'NONE'
     outcome = values.get('outcome', '')
     if outcome not in TERMINAL_OUTCOMES:
-        return 'UNSAFE', 'NONE'
-    if not re.fullmatch(r'[A-Z0-9_]+', values.get('detail', '')):
-        return 'UNSAFE', 'NONE'
-    return 'PRESENT', outcome
+        return 'UNSAFE', 'NONE', 'NONE'
+    detail = values.get('detail', '')
+    if DETAIL_RE.fullmatch(detail) is None:
+        return 'UNSAFE', 'NONE', 'NONE'
+    return 'PRESENT', outcome, detail
 
 
 def process_state(request_id: str, expected_main: str) -> str:
@@ -93,21 +101,29 @@ def process_state(request_id: str, expected_main: str) -> str:
     return 'ALIVE' if matched else 'DEAD'
 
 
-def observe(request_id: str, expected_main: str) -> tuple[str, str, str]:
+def observe(request_id: str, expected_main: str) -> tuple[str, str, str, str]:
     account = pwd.getpwnam(DEPLOY_USER)
     result = SHARED / 'refresh-jobs' / request_id / 'result.env'
-    terminal, outcome = parse_result(result, request_id, expected_main, account.pw_uid, account.pw_gid)
+    terminal, outcome, detail = parse_result(
+        result,
+        request_id,
+        expected_main,
+        account.pw_uid,
+        account.pw_gid,
+    )
     if terminal == 'PRESENT':
-        return terminal, outcome, 'UNOBSERVABLE'
+        return terminal, outcome, detail, 'UNOBSERVABLE'
     if terminal == 'UNSAFE':
-        return terminal, 'NONE', 'UNOBSERVABLE'
-    return terminal, 'NONE', process_state(request_id, expected_main)
+        return terminal, 'NONE', 'NONE', 'UNOBSERVABLE'
+    return terminal, 'NONE', 'NONE', process_state(request_id, expected_main)
 
 
 def self_test() -> None:
     assert REQUEST_RE.fullmatch('apply-945-example000-r1')
     assert not REQUEST_RE.fullmatch('apply-945-example000-r1/reuse')
     assert SHA40_RE.fullmatch('a' * 40)
+    assert DETAIL_RE.fullmatch('ROLLBACK_HEALTH_FAILED')
+    assert DETAIL_RE.fullmatch('unsafe-value') is None
     assert TERMINAL_OUTCOMES == {'COMMITTED', 'ROLLED_BACK', 'HUMAN_RECOVERY_REQUIRED'}
     print('SELF_TEST=PASS')
 
@@ -123,9 +139,10 @@ def main(argv: list[str]) -> int:
         raise ObservationError('Invalid request/main authority.')
     if os.geteuid() != 0:
         raise ObservationError('Observer requires fixed PREPROD root identity.')
-    terminal, outcome, worker = observe(request_id, expected_main)
+    terminal, outcome, detail, worker = observe(request_id, expected_main)
     print(f'terminal_metadata={terminal}')
     print(f'outcome={outcome}')
+    print(f'detail={detail}')
     print(f'worker_process={worker}')
     return 0
 
@@ -136,5 +153,6 @@ if __name__ == '__main__':
     except (ObservationError, KeyError, OSError):
         print('terminal_metadata=UNOBSERVABLE')
         print('outcome=NONE')
+        print('detail=NONE')
         print('worker_process=UNOBSERVABLE')
         raise SystemExit(78)

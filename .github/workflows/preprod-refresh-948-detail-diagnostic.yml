@@ -1,0 +1,166 @@
+name: "#949 Fixed read-only #948 rollback detail diagnostic"
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: agency-preprod-refresh-948-detail-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    if: >-
+      ${{ github.event_name == 'issue_comment' && github.event.issue.pull_request == null &&
+          github.event.issue.number == 949 && github.event.comment.user.login == 'E-merging-digital' &&
+          github.actor == 'E-merging-digital' &&
+          github.event.comment.body == '/agency-preprod-refresh-948-detail diagnose' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - id: live
+        name: Resolve exact live main without secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live" =~ ^[0-9a-f]{40}$ ]]
+          printf 'main_sha=%s\n' "$live" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.live.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: JIT validate exact #949 authority before root SSH secret
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EVENT_ACTION: ${{ github.event.action }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = issue_comment
+          test "$EVENT_ACTION" = created
+          test "$ISSUE_NUMBER" = 949
+          test "$COMMENT_AUTHOR" = E-merging-digital
+          test "$GITHUB_ACTOR" = E-merging-digital
+          test "$COMMENT_BODY" = '/agency-preprod-refresh-948-detail diagnose'
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$live" = '${{ steps.live.outputs.main_sha }}'
+          test "$(git rev-parse HEAD)" = "$live"
+          issue_state="$(gh api "repos/$GITHUB_REPOSITORY/issues/949" --jq '.state')"
+          test "$issue_state" = open
+          observer='scripts/preproduction-refresh/governed-successor/observe-server-to-server-worker.py'
+          test -f "$observer"
+          test ! -L "$observer"
+
+      - name: Validate pinned PREPROD SSH trust
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$PREPROD_SERVER_HOST" ]]
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+
+      - name: Materialize transient fixed PREPROD root diagnostic identity after JIT
+        env:
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$PREPROD_ROOT_KEY" ]]
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-949-preprod-root.key"
+          chmod 600 "$RUNNER_TEMP/agency-949-preprod-root.key"
+
+      - name: Execute exact hard-bounded read-only #948 observation
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          observer='scripts/preproduction-refresh/governed-successor/observe-server-to-server-worker.py'
+          key="$RUNNER_TEMP/agency-949-preprod-root.key"
+          output="$RUNNER_TEMP/agency-949-detail.env"
+          [[ -f "$observer" && ! -L "$observer" && -f "$key" && ! -L "$key" ]]
+
+          set +e
+          timeout 30s ssh \
+            -i "$key" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=10 \
+            -o ServerAliveInterval=5 \
+            -o ServerAliveCountMax=2 \
+            "root@$PREPROD_SERVER_HOST" \
+            '/usr/bin/python3 -I - apply-948-final-real-s2s-r1 2e4fa695f57fb8605379cb27837a2d03b6e78ecd' \
+            < "$observer" > "$output" 2>/dev/null
+          diagnostic_status=$?
+          set -e
+          if [[ "$diagnostic_status" -eq 124 || "$diagnostic_status" -eq 137 ]]; then
+            echo 'Fixed #948 diagnostic exceeded the hard 30-second wall-clock bound.' >&2
+            exit 75
+          fi
+          [[ "$diagnostic_status" -eq 0 ]]
+
+          python3 - "$output" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          data = path.read_bytes()
+          if len(data) > 1024:
+              raise SystemExit('Diagnostic output exceeds bounded size.')
+          text = data.decode('ascii')
+          lines = text.splitlines()
+          if len(lines) != 4:
+              raise SystemExit('Diagnostic output line count is invalid.')
+          pairs = {}
+          for line in lines:
+              if re.fullmatch(r'[A-Za-z0-9_]+=[A-Z0-9_]+', line) is None:
+                  raise SystemExit('Diagnostic output contains an unsafe line.')
+              key, value = line.split('=', 1)
+              if key in pairs:
+                  raise SystemExit('Diagnostic output contains a duplicate key.')
+              pairs[key] = value
+          if set(pairs) != {'terminal_metadata', 'outcome', 'detail', 'worker_process'}:
+              raise SystemExit('Diagnostic output key contract violated.')
+          if pairs['terminal_metadata'] != 'PRESENT':
+              raise SystemExit('Expected terminal metadata is not present.')
+          if pairs['outcome'] != 'ROLLED_BACK':
+              raise SystemExit('Expected #948 rollback outcome is not present.')
+          if re.fullmatch(r'[A-Z0-9_]+', pairs['detail']) is None or pairs['detail'] == 'NONE':
+              raise SystemExit('Bounded rollback detail is absent or invalid.')
+          if pairs['worker_process'] != 'UNOBSERVABLE':
+              raise SystemExit('Terminal metadata must remain authoritative over liveness.')
+          PY
+
+          while IFS= read -r bounded_line; do
+            printf '%s\n' "$bounded_line"
+          done < "$output"
+
+      - if: ${{ always() }}
+        name: Cleanup runner-only #949 diagnostic material
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-949-preprod-root.key" "$RUNNER_TEMP/agency-949-detail.env"

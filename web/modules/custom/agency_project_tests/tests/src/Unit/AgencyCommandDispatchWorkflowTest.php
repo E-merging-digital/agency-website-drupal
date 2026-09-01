@@ -31,7 +31,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   public function testSingleTopLevelIssueCommentListener(): void {
     $root = dirname(DRUPAL_ROOT);
     $listeners = [];
-    foreach (glob($root . '/.github/workflows/*.{yml,yaml}', GLOB_BRACE) ?: [] as $path) {
+    $pattern = $root . '/.github/workflows/*.{yml,yaml}';
+    foreach (glob($pattern, GLOB_BRACE) ?: [] as $path) {
       $parsed = Yaml::parseFile($path);
       self::assertIsArray($parsed, $path);
       $on = $parsed['on'] ?? NULL;
@@ -76,37 +77,72 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     $sha40 = str_repeat('a', 40);
     $sha64 = str_repeat('b', 64);
     $known = [
-      ["/agency-production-promote go sha={$sha40} artifact={$sha64} composer={$sha64} build=123 preprod=456", 401, 'PRODUCTION_PROMOTE'],
-      ["/agency-production-scheduler action=CREATE release={$sha40} expected=ABSENT", 401, 'PRODUCTION_SCHEDULER'],
+      [
+        "/agency-production-promote go sha={$sha40} artifact={$sha64} "
+          . "composer={$sha64} build=123 preprod=456",
+        401,
+        'PRODUCTION_PROMOTE',
+      ],
+      [
+        "/agency-production-scheduler action=CREATE release={$sha40} "
+          . 'expected=ABSENT',
+        401,
+        'PRODUCTION_SCHEDULER',
+      ],
       ['/agency-editorial inspect', 402, 'EDITORIAL_PUBLICATION'],
-      ['/agency-editorial-image dry-run', 401, 'EDITORIAL_FEATURE_IMAGE'],
-      ["/agency-preprod-refresh-successor PLAN plan-923-abcdefgh-r1 {$sha40} AUTO agency-preprod-refresh-simple-v1", 923, 'PREPROD_REFRESH'],
+      [
+        '/agency-editorial-image dry-run',
+        401,
+        'EDITORIAL_FEATURE_IMAGE',
+      ],
+      [
+        '/agency-preprod-refresh-successor PLAN '
+          . "plan-923-abcdefgh-r1 {$sha40} AUTO "
+          . 'agency-preprod-refresh-simple-v1',
+        923,
+        'PREPROD_REFRESH',
+      ],
     ];
     foreach ($known as [$body, $issue, $expected]) {
-      self::assertSame($expected, $this->classify($routes, $body, $issue));
+      self::assertSame(
+        $expected,
+        $this->classify($routes, $body, $issue),
+      );
     }
 
-    foreach ([
+    $invalid = [
       'ordinary project lead comment',
       '/agency-production-promote go sha=bad',
-      '/agency-production-scheduler action=CREATE release=' . $sha40 . ' expected=CONTROLLED',
+      '/agency-production-scheduler action=CREATE release=' . $sha40
+        . ' expected=CONTROLLED',
       '/agency-editorial inspect now',
       '/agency-unknown apply',
-    ] as $body) {
-      self::assertSame('NONE', $this->classify($routes, $body, 923), $body);
+    ];
+    foreach ($invalid as $body) {
+      self::assertSame(
+        'NONE',
+        $this->classify($routes, $body, 923),
+        $body,
+      );
     }
 
-    // An accidental future route collision must fail closed rather than pick one.
+    // An accidental future route collision must fail closed.
     $collision = $routes;
     $collision[] = [
       'route' => 'COLLISION',
       'prefix' => '/collision ',
       'exact' => ['/agency-editorial inspect'],
     ];
-    self::assertSame('NONE', $this->classify($collision, '/agency-editorial inspect', 402));
+    self::assertSame(
+      'NONE',
+      $this->classify($collision, '/agency-editorial inspect', 402),
+    );
 
     $source = $this->source(self::DISPATCHER);
-    self::assertStringContainsString("route = matches[0] if len(matches) == 1 else 'NONE'", $source);
+    self::assertStringContainsString(
+      "route = matches[0] if len(matches) == 1 else 'NONE'",
+      $source,
+    );
   }
 
   /**
@@ -121,21 +157,59 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertSame([], $jobs['classify']['permissions'] ?? NULL);
     self::assertArrayNotHasKey('secrets', $jobs['classify']);
 
+    $prodSecrets = [
+      'SSH_PRIVATE_KEY',
+      'SERVER_HOST',
+      'SERVER_USER',
+    ];
+    $preprodSecrets = [
+      'SSH_PRIVATE_KEY',
+      'PREPROD_SSH_PRIVATE_KEY',
+      'SERVER_HOST',
+      'SERVER_USER',
+      'PREPROD_SERVER_HOST',
+    ];
     $jobMap = [
-      'production-promote' => ['PRODUCTION_PROMOTE', ['actions' => 'read', 'contents' => 'read', 'issues' => 'write'], ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER']],
-      'production-scheduler' => ['PRODUCTION_SCHEDULER', ['contents' => 'read', 'issues' => 'read'], ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER']],
-      'editorial-publication' => ['EDITORIAL_PUBLICATION', ['contents' => 'read', 'issues' => 'write'], ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER']],
-      'editorial-feature-image' => ['EDITORIAL_FEATURE_IMAGE', ['contents' => 'read', 'issues' => 'write'], ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER']],
-      'preprod-refresh' => ['PREPROD_REFRESH', ['contents' => 'read', 'issues' => 'read'], ['SSH_PRIVATE_KEY', 'PREPROD_SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER', 'PREPROD_SERVER_HOST']],
+      'production-promote' => [
+        'PRODUCTION_PROMOTE',
+        ['actions' => 'read', 'contents' => 'read', 'issues' => 'write'],
+        $prodSecrets,
+      ],
+      'production-scheduler' => [
+        'PRODUCTION_SCHEDULER',
+        ['contents' => 'read', 'issues' => 'read'],
+        $prodSecrets,
+      ],
+      'editorial-publication' => [
+        'EDITORIAL_PUBLICATION',
+        ['contents' => 'read', 'issues' => 'write'],
+        $prodSecrets,
+      ],
+      'editorial-feature-image' => [
+        'EDITORIAL_FEATURE_IMAGE',
+        ['contents' => 'read', 'issues' => 'write'],
+        $prodSecrets,
+      ],
+      'preprod-refresh' => [
+        'PREPROD_REFRESH',
+        ['contents' => 'read', 'issues' => 'read'],
+        $preprodSecrets,
+      ],
     ];
 
     foreach ($jobMap as $jobId => [$route, $permissions, $secretNames]) {
       $job = $jobs[$jobId] ?? NULL;
       self::assertIsArray($job, $jobId);
-      self::assertSame('./' . self::REUSABLES[$route], $job['uses'] ?? NULL);
+      self::assertSame(
+        './' . self::REUSABLES[$route],
+        $job['uses'] ?? NULL,
+      );
       self::assertSame($permissions, $job['permissions'] ?? NULL);
       self::assertSame($secretNames, array_keys($job['secrets'] ?? []));
-      self::assertStringContainsString("needs.classify.outputs.route == '{$route}'", (string) ($job['if'] ?? ''));
+      self::assertStringContainsString(
+        "needs.classify.outputs.route == '{$route}'",
+        (string) ($job['if'] ?? ''),
+      );
     }
 
     foreach (self::REUSABLES as $path) {
@@ -145,8 +219,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       self::assertArrayHasKey('workflow_call', $on, $path);
       self::assertArrayNotHasKey('issue_comment', $on, $path);
       $workflowSource = $this->source($path);
-      self::assertStringContainsString('github.event.issue', $workflowSource, $path);
-      self::assertStringContainsString('github.event.comment', $workflowSource, $path);
+      self::assertStringContainsString(
+        'github.event.issue',
+        $workflowSource,
+        $path,
+      );
+      self::assertStringContainsString(
+        'github.event.comment',
+        $workflowSource,
+        $path,
+      );
     }
 
     self::assertStringNotContainsString('GENERIC_COMMAND_EXECUTION', $source);
@@ -154,7 +236,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * Classify using the exact route table embedded in the dispatcher.
+   * Classifies a body using the exact repository-owned route table.
    */
   private function classify(array $routes, string $body, int $issue): string {
     $matches = [];
@@ -162,12 +244,14 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $matched = in_array($body, $route['exact'] ?? [], TRUE);
       $pattern = $route['regex'] ?? NULL;
       if (is_string($pattern)) {
-        $matched = $matched || preg_match('~' . str_replace('~', '\\~', $pattern) . '~D', $body) === 1;
+        $regex = '~' . str_replace('~', '\\~', $pattern) . '~D';
+        $matched = $matched || preg_match($regex, $body) === 1;
       }
       $template = $route['regex_template'] ?? NULL;
       if (is_string($template)) {
         $pattern = str_replace('{issue}', (string) $issue, $template);
-        $matched = $matched || preg_match('~' . str_replace('~', '\\~', $pattern) . '~D', $body) === 1;
+        $regex = '~' . str_replace('~', '\\~', $pattern) . '~D';
+        $matched = $matched || preg_match($regex, $body) === 1;
       }
       if ($matched) {
         $matches[] = $route['route'];
@@ -176,6 +260,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     return count($matches) === 1 ? $matches[0] : 'NONE';
   }
 
+  /**
+   * Parses one repository workflow structurally.
+   */
   private function parsed(string $relativePath): array {
     $root = dirname(DRUPAL_ROOT);
     $path = $root . '/' . $relativePath;
@@ -185,8 +272,13 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     return $parsed;
   }
 
+  /**
+   * Returns one repository workflow as source text.
+   */
   private function source(string $relativePath): string {
-    return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);
+    return (string) file_get_contents(
+      dirname(DRUPAL_ROOT) . '/' . $relativePath,
+    );
   }
 
 }

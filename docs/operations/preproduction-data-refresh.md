@@ -113,7 +113,7 @@ START exact source code in DDEV
 Raw PROD SQL exists only in protected transient trusted storage and the isolated DDEV DB. While raw data is present, the isolated DDEV containers have no normal external network egress.
 
 ```text
-RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN
+RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN
 RAW PROD SQL AS GITHUB ARTIFACT = FORBIDDEN
 RAW PROD SQL IN LOGS = FORBIDDEN
 ```

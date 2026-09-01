@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
-use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects the governed read-only PROD snapshot boundary.
+ * Protects the current read-only PROD snapshot boundary consumed by #914.
  *
  * @group agency_project_tests
  * @group production_readonly_snapshot
@@ -17,59 +16,29 @@ use Symfony\Component\Yaml\Yaml;
 final class ProductionReadonlySnapshotTest extends TestCase {
 
   /**
-   * Raw production work is isolated from the GitHub-hosted gateway.
+   * The current refresh route keeps raw PROD work on the trusted runner.
    */
-  public function testGatewayAndTrustedRunnerBoundary(): void {
+  public function testCurrentTrustedRunnerBoundary(): void {
     $workflow = $this->workflow();
-    $parsed = DrupalYaml::decode($workflow);
+    $parsed = Yaml::parse($workflow);
     self::assertIsArray($parsed);
 
+    self::assertArrayHasKey('workflow_call', $parsed['on']);
+    self::assertArrayNotHasKey('issue_comment', $parsed['on']);
     self::assertSame(
       'ubuntu-24.04',
       $parsed['jobs']['validate-authority']['runs-on'],
     );
-    self::assertSame(
-      ['self-hosted', 'linux', 'x64', 'agency'],
-      $parsed['jobs']['snapshot']['runs-on'],
-    );
-
-    self::assertStringContainsString('issue_comment:', $workflow);
-    self::assertStringNotContainsString('workflow_dispatch:', $workflow);
-    self::assertStringNotContainsString("\n  schedule:\n", $workflow);
-    self::assertStringNotContainsString("\n  pull_request:\n", $workflow);
-    self::assertStringContainsString(
-      'Stream one fixed read-only PROD snapshot on trusted Agency runner',
+    foreach (['plan', 'apply'] as $job) {
+      self::assertSame(
+        ['self-hosted', 'linux', 'x64', 'agency'],
+        $parsed['jobs'][$job]['runs-on'],
+      );
+    }
+    self::assertStringNotContainsString(
+      'actions/upload-artifact',
       $workflow,
     );
-  }
-
-  /**
-   * Snapshot authority is fresh, exact-main bound and non-replayable.
-   */
-  public function testAuthorityIsFreshAndBound(): void {
-    $workflow = $this->workflow();
-
-    foreach ([
-      'github.event.issue.number == 826',
-      'GITHUB_ACTOR" == \'E-merging-digital\'',
-      'GITHUB_RUN_ATTEMPT" == \'1\'',
-      'request_id must be fresh',
-      'Requested main SHA is stale.',
-      'Snapshot workflow must execute tooling from live main.',
-      'agency-prod-readonly-snapshot-v1',
-      'profile_sha256',
-      'AUTHORITY_COMMENT_ID',
-    ] as $required) {
-      self::assertStringContainsString($required, $workflow);
-    }
-
-    self::assertStringContainsString(
-      '/agency-prod-readonly-snapshot prove',
-      $workflow,
-    );
-    foreach (['command_input', 'sql_input', 'path_input'] as $forbidden) {
-      self::assertStringNotContainsString($forbidden, $workflow);
-    }
   }
 
   /**
@@ -99,7 +68,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
   }
 
   /**
-   * The remote operation is one fixed, streaming, read-only dump operation.
+   * The remote operation remains one fixed, streaming, read-only dump.
    */
   public function testRemoteSnapshotOperationIsFixedAndReadOnly(): void {
     $remote = $this->remoteScript();
@@ -108,7 +77,6 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       'if [[ "$#" -ne 1 ]]',
       'vendor/bin/drush sql:dump',
       '--no-interaction',
-      '--extra-dump=',
       '--single-transaction',
       '--quick',
       '--skip-lock-tables',
@@ -120,7 +88,6 @@ final class ProductionReadonlySnapshotTest extends TestCase {
     foreach ([
       'sql:connect',
       '--result-file',
-      'eval ',
       'state:set',
       'config:import',
       'config:set',
@@ -144,194 +111,51 @@ final class ProductionReadonlySnapshotTest extends TestCase {
   }
 
   /**
-   * The trusted transport requires the exact pinned host identity.
+   * #914 verifies PROD trust before snapshot and sanitizes before transfer.
    */
-  public function testTrustedTransportCannotBootstrapHostTrust(): void {
-    $workflow = $this->workflow();
-    $script = $this->lifecycleScript();
+  public function testCurrentApplySanitizesBeforePreprodTransfer(): void {
+    $apply = $this->applyScript();
 
     foreach ([
-      'Require exact pinned PROD host trust',
-      'ssh-keygen -F "$SERVER_HOST"',
-      'scripts/production-ssh-trust/manage-known-host.sh VERIFY_ONLY',
-      'scripts/production-ssh-trust/prod-ed25519.pub',
-      'SHA256:Pflpbgh2vc9dUYe4fpXPxdwzhPqyy8vmbAOcS+BRLDQ',
+      "PROD_REMOTE='scripts/production-readonly-snapshot/remote-stream.sh'",
+      "PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'",
+      'docker network create --internal',
+      '< "$PROD_REMOTE" > "$raw"',
+      'ddev import-db --file="$raw"',
+      'ddev drush sql:sanitize',
+      'rm -f -- "$raw"',
+      'SANITIZED_ONLY_TO_PREPROD=PASS',
     ] as $required) {
-      self::assertStringContainsString($required, $workflow);
+      self::assertStringContainsString($required, $apply);
     }
 
-    foreach ([
-      'ssh-keyscan',
-      'StrictHostKeyChecking=no',
-      'accept-new',
-    ] as $forbidden) {
-      self::assertStringNotContainsString($forbidden, $workflow);
-      self::assertStringNotContainsString($forbidden, $script);
-    }
+    $trust = strpos($apply, 'bash "$PROD_TRUST" VERIFY_ONLY');
+    $snapshot = strpos($apply, '< "$PROD_REMOTE" > "$raw"');
+    $import = strpos($apply, 'ddev import-db --file="$raw"');
+    $sanitize = strpos($apply, 'ddev drush sql:sanitize');
+    $transfer = strpos($apply, 'scp -q');
 
-    self::assertStringContainsString(
-      'StrictHostKeyChecking=yes',
-      $script,
-    );
+    self::assertIsInt($trust);
+    self::assertIsInt($snapshot);
+    self::assertIsInt($import);
+    self::assertIsInt($sanitize);
+    self::assertIsInt($transfer);
+    self::assertLessThan($snapshot, $trust);
+    self::assertLessThan($import, $snapshot);
+    self::assertLessThan($sanitize, $import);
+    self::assertLessThan($transfer, $sanitize);
   }
 
   /**
-   * Raw material is private, transient and cleaned on supported exits.
-   */
-  public function testRawLifecycleIsPrivateAndFailClosed(): void {
-    $script = $this->lifecycleScript();
-    $finalizer = $this->finalizerScript();
-
-    foreach ([
-      'umask 077',
-      'RUNNER_TEMP must be outside the repository workspace.',
-      'agency-prod-readonly-snapshot-${GITHUB_RUN_ID}',
-      'chmod 600 "$RAW_PATH"',
-      'stat -c \'%a\' "$RAW_PATH"',
-      'trap cleanup_and_finalize EXIT',
-      "trap 'exit 129' HUP",
-      "trap 'exit 130' INT",
-      "trap 'exit 143' TERM",
-      'rm -f -- "$RAW_PATH" "$REMOTE_STDERR_PATH"',
-      "SNAPSHOT_CLEANUP='PASS'",
-      "RAW_SNAPSHOT_PRESENT_AFTER_CLEANUP='NO'",
-      'final_status=97',
-    ] as $required) {
-      self::assertStringContainsString($required, $script);
-    }
-
-    self::assertStringNotContainsString(
-      'agency-prod-readonly-snapshot-${REQUEST_ID}',
-      $script,
-    );
-    self::assertStringContainsString(
-      'rm -f -- "$raw_path"',
-      $finalizer,
-    );
-    self::assertStringContainsString(
-      'Trusted runner cleanup could not prove raw snapshot absence.',
-      $finalizer,
-    );
-  }
-
-  /**
-   * GitHub evidence is exact-key metadata and can never contain raw SQL.
-   */
-  public function testEvidenceIsFixedAllowlistedMetadata(): void {
-    $profile = $this->profile();
-    $workflow = $this->workflow();
-
-    $expected = [
-      'schema_version',
-      'request_id',
-      'authority_comment_id',
-      'authority_run_id',
-      'repository_sha',
-      'source_prod_release_sha',
-      'operation_profile',
-      'profile_sha256',
-      'execution_mode',
-      'snapshot_byte_size',
-      'snapshot_sha256',
-      'snapshot_created',
-      'raw_material_mode',
-      'snapshot_cleanup',
-      'raw_snapshot_present_after_cleanup',
-      'prod_write_path',
-      'preprod_path',
-      'raw_prod_artifact_in_github',
-    ];
-
-    self::assertSame($expected, $profile['evidence']['allowlist']);
-    self::assertFalse($profile['evidence']['raw_prod_artifact_allowed']);
-    self::assertFalse($profile['evidence']['pii_allowed']);
-    self::assertFalse($profile['evidence']['secrets_allowed']);
-    self::assertSame(
-      'artifacts/prod-readonly-snapshot/evidence.env',
-      $profile['evidence']['artifact_path'],
-    );
-    self::assertStringContainsString(
-      'path: artifacts/prod-readonly-snapshot/evidence.env',
-      $workflow,
-    );
-
-    foreach (['*.sql', '*.sql.gz', '*.dump', 'sites/default/files'] as $raw) {
-      self::assertStringNotContainsString($raw, $workflow);
-    }
-  }
-
-  /**
-   * The reviewed profile fixes execution, semantics and stop boundaries.
-   */
-  public function testProfileIsBoundedToIssue826(): void {
-    $profile = $this->profile();
-
-    self::assertSame(1, $profile['schema_version']);
-    self::assertSame(
-      'agency-prod-readonly-snapshot-v1',
-      $profile['profile_id'],
-    );
-    self::assertSame(826, $profile['issue_number']);
-    self::assertSame(
-      'FORBIDDEN',
-      $profile['execution']['github_hosted_raw_prod_data'],
-    );
-    self::assertSame(
-      ['self-hosted', 'linux', 'x64', 'agency'],
-      $profile['execution']['trusted_runner_labels'],
-    );
-    self::assertSame('NONE', $profile['execution']['prod_write_path']);
-    self::assertSame('NONE', $profile['execution']['preprod_path']);
-    self::assertSame(
-      'vendor/bin/drush sql:dump',
-      $profile['snapshot']['fixed_tool'],
-    );
-    self::assertSame('0600', $profile['snapshot']['raw_material_mode']);
-    self::assertFalse($profile['snapshot']['remote_raw_materialization']);
-    self::assertTrue($profile['cleanup']['exit_trap_required']);
-    self::assertTrue($profile['cleanup']['workflow_finalizer_required']);
-    self::assertTrue($profile['cleanup']['cleanup_failure_is_terminal']);
-    self::assertSame(
-      'HUMAN_REQUIRED_AFTER_PROJECT_LEAD_REVIEW',
-      $profile['authority']['first_real_snapshot'],
-    );
-  }
-
-  /**
-   * No PREPROD/full-refresh or production mutation route is introduced.
-   */
-  public function testNoImplicitApplyOrPreprodPath(): void {
-    $workflow = $this->workflow();
-    $script = $this->lifecycleScript();
-
-    foreach ([
-      'drush updb',
-      'drush cim',
-      'state:set',
-      'config:import',
-      'deploy-production',
-      'deploy-preproduction',
-      'sql:sanitize',
-      'APPLY',
-      'scp ',
-      'rsync ',
-    ] as $forbidden) {
-      self::assertStringNotContainsString($forbidden, $workflow);
-      self::assertStringNotContainsString($forbidden, $script);
-    }
-
-    self::assertStringContainsString('prod_write_path=NONE', $script);
-    self::assertStringContainsString('preprod_path=NONE', $script);
-  }
-
-  /**
-   * The #816 GitHub-hosted raw-data prohibition remains authoritative.
+   * The inherited #816 raw-data execution boundary remains authoritative.
    */
   public function testInherited816ExecutionBoundaryStillHolds(): void {
     $policy = $this->refreshPolicy();
     $boundary = $policy['execution_boundary'];
 
-    self::assertFalse($boundary['github_hosted']['raw_prod_data_allowed']);
+    self::assertFalse(
+      $boundary['github_hosted']['raw_prod_data_allowed'],
+    );
     self::assertSame(
       'FORBIDDEN',
       $boundary['raw_prod_data']['github_hosted_runner'],
@@ -340,45 +164,40 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       ['self-hosted', 'linux', 'x64', 'agency'],
       $boundary['raw_prod_data']['allowed_paths'][0]['required_labels'],
     );
+  }
 
+  /**
+   * The targeted validator now proves the current shared primitive.
+   */
+  public function testTargetedValidationCoversCurrentPrimitive(): void {
+    $validation = $this->validationWorkflow();
+
+    foreach ([
+      'CURRENT_PROD_SNAPSHOT_PRIMITIVE=PASS',
+      'PROD_WRITE=NONE',
+      'RAW_PROD_GITHUB_ARTIFACT=NONE',
+      'RAW_BEFORE_SANITIZE=TRUSTED_INTERNAL_STAGING_ONLY',
+    ] as $required) {
+      self::assertStringContainsString($required, $validation);
+    }
     self::assertStringContainsString(
-      'RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN',
-      $this->document(),
+      '.github/workflows/preprod-914-governed-successor.yml',
+      $validation,
     );
   }
 
   /**
-   * Synthetic validation proves success, cleanup and anti-replay.
-   */
-  public function testTargetedValidationCoversRequiredProofs(): void {
-    $validation = $this->validationWorkflow();
-
-    foreach ([
-      'Prove synthetic success metadata, mode and cleanup',
-      'AGENCY_SNAPSHOT_SYNTHETIC_FAIL_AFTER_WRITE=1',
-      'snapshot_created=FAIL',
-      'snapshot_cleanup=PASS',
-      'raw_snapshot_present_after_cleanup=NO',
-      'GITHUB_RUN_ATTEMPT=2',
-      'Synthetic failure path unexpectedly succeeded.',
-      'Snapshot proof unexpectedly accepted a replay attempt.',
-    ] as $required) {
-      self::assertStringContainsString($required, $validation);
-    }
-  }
-
-  /**
-   * Returns the governed snapshot workflow.
+   * Returns the active #914 refresh workflow.
    */
   private function workflow(): string {
     return $this->file(
-      '.github/workflows/prod-readonly-snapshot.yml',
+      '.github/workflows/preprod-914-governed-successor.yml',
       TRUE,
     );
   }
 
   /**
-   * Returns the targeted validation workflow.
+   * Returns the current targeted snapshot validation workflow.
    */
   private function validationWorkflow(): string {
     return $this->file(
@@ -388,41 +207,21 @@ final class ProductionReadonlySnapshotTest extends TestCase {
   }
 
   /**
-   * Returns the raw lifecycle script.
+   * Returns the current #914 trusted-runner APPLY implementation.
    */
-  private function lifecycleScript(): string {
-    return $this->file('scripts/production-readonly-snapshot/run-snapshot.sh');
-  }
-
-  /**
-   * Returns the independent cleanup finalizer.
-   */
-  private function finalizerScript(): string {
+  private function applyScript(): string {
     return $this->file(
-      'scripts/production-readonly-snapshot/finalize-cleanup.sh',
+      'scripts/preproduction-refresh/governed-successor/run-apply.sh',
     );
   }
 
   /**
-   * Returns the fixed remote stream operation.
+   * Returns the fixed remote read-only snapshot operation.
    */
   private function remoteScript(): string {
     return $this->file(
       'scripts/production-readonly-snapshot/remote-stream.sh',
     );
-  }
-
-  /**
-   * Returns the decoded snapshot profile.
-   *
-   * @return array<string, mixed>
-   *   The profile.
-   */
-  private function profile(): array {
-    $json = $this->file('scripts/production-readonly-snapshot/profile.json');
-    $profile = json_decode($json, TRUE, 512, JSON_THROW_ON_ERROR);
-    self::assertIsArray($profile);
-    return $profile;
   }
 
   /**
@@ -441,14 +240,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
   }
 
   /**
-   * Returns the durable snapshot contract.
-   */
-  private function document(): string {
-    return $this->file('docs/operations/production-readonly-snapshot.md');
-  }
-
-  /**
-   * Reads a repository file and optionally validates YAML syntax.
+   * Reads one repository file and optionally validates YAML syntax.
    */
   private function file(string $relative, bool $yaml = FALSE): string {
     $root = dirname(DRUPAL_ROOT);

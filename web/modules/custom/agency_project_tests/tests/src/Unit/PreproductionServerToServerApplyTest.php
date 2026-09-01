@@ -16,7 +16,7 @@ use Symfony\Component\Yaml\Yaml;
 final class PreproductionServerToServerApplyTest extends TestCase {
 
   /**
-   * APPLY uses GitHub-hosted only as a control plane after JIT.
+   * APPLY uses GitHub-hosted only as a post-JIT control plane.
    */
   public function testHostedControlPlaneContainsNoRawProdPath(): void {
     $workflow = $this->source('.github/workflows/preprod-914-governed-successor.yml');
@@ -42,10 +42,7 @@ final class PreproductionServerToServerApplyTest extends TestCase {
       'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
       $apply,
     );
-    self::assertStringContainsString(
-      'run-server-to-server-apply.sh',
-      $apply,
-    );
+    self::assertStringContainsString('run-server-to-server-apply.sh', $apply);
     self::assertStringNotContainsString(
       'run: bash scripts/preproduction-refresh/governed-successor/run-apply.sh',
       $apply,
@@ -55,14 +52,8 @@ final class PreproductionServerToServerApplyTest extends TestCase {
       'scripts/preproduction-refresh/governed-successor/'
       . 'run-server-to-server-apply.sh',
     );
-    self::assertStringContainsString(
-      'RAW_PROD_ON_GITHUB_HOSTED=NONE',
-      $control,
-    );
-    self::assertStringContainsString(
-      'RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT',
-      $control,
-    );
+    self::assertStringContainsString('RAW_PROD_ON_GITHUB_HOSTED=NONE', $control);
+    self::assertStringContainsString('RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT', $control);
     self::assertStringContainsString('StrictHostKeyChecking=yes', $control);
     self::assertStringNotContainsString('ssh-keyscan', strtolower($control));
     self::assertStringNotContainsString('prod_ssh=(', $control);
@@ -74,47 +65,36 @@ final class PreproductionServerToServerApplyTest extends TestCase {
   }
 
   /**
-   * Raw PROD is streamed only inside PREPROD isolated staging.
+   * Raw PROD is streamed directly into the PREPROD derived staging DB.
    */
   public function testRawProdRouteIsDirectAndRequestScoped(): void {
-    $worker = $this->source(
-      'scripts/preproduction-refresh/governed-successor/'
-      . 'remote-server-to-server-worker.py',
-    );
+    $worker = $this->worker();
 
     foreach ([
-      'HELPER_PATH = Path("/usr/local/sbin/agency-preprod-staging-db")',
+      "HELPER_PATH = Path('/usr/local/sbin/agency-preprod-staging-db')",
       'EXPECTED_HELPER_SHA256',
       'controlled_server_to_server_allowed(policy)',
       'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE',
-      'scripts/production-readonly-snapshot/remote-stream.sh',
-      '"/usr/bin/ssh"',
-      '"StrictHostKeyChecking=yes"',
+      "stage / 'scripts/production-readonly-snapshot/remote-stream.sh'",
+      "'/usr/bin/ssh'",
+      "'StrictHostKeyChecking=yes'",
       'import_snapshot_stream(helper, scope, client_file, snapshot.stdout)',
       'helper.prepare_import_scope(scope)',
-      'helper.cleanup_scope(scope)',
-      'helper.require_absent(scope)',
-      'prod-read.key',
+      "prod_key = stage / 'prod-read.key'",
       '0o600',
+      'stderr=subprocess.DEVNULL',
     ] as $required) {
       self::assertStringContainsString($required, $worker);
     }
     self::assertStringNotContainsString('raw.sql', strtolower($worker));
     self::assertStringNotContainsString('raw_dump', strtolower($worker));
-    self::assertStringContainsString(
-      'stderr=subprocess.DEVNULL',
-      $worker,
-    );
   }
 
   /**
-   * The existing single policy and sanitizer cover the #914 outcome.
+   * Existing policy/sanitizer preserve the complete #914 semantic outcome.
    */
   public function testExistingSanitizerSemanticCoverageIsPreserved(): void {
-    $worker = $this->source(
-      'scripts/preproduction-refresh/governed-successor/'
-      . 'remote-server-to-server-worker.py',
-    );
+    $worker = $this->worker();
     $sanitizer = $this->source(
       'scripts/preproduction-staging-import/privileged/'
       . 'agency-preprod-staging-sanitizer.py',
@@ -175,27 +155,59 @@ final class PreproductionServerToServerApplyTest extends TestCase {
   }
 
   /**
-   * Sanitized export precedes the unchanged activation/rollback worker.
+   * Both cleanup boundaries are proven before activation can begin.
+   */
+  public function testUnprovenCleanupBlocksActivationAndRequiresHumanRecovery(): void {
+    $worker = $this->worker();
+
+    foreach ([
+      'def cleanup_raw_scope',
+      'helper.cleanup_scope(scope)',
+      'helper.require_absent(scope)',
+      'def cleanup_root_stage',
+      'shutil.rmtree(stage)',
+      'not os.path.lexists(stage)',
+      "'HUMAN_RECOVERY_REQUIRED', 'RAW_STAGING_CLEANUP_UNPROVEN'",
+      "'PROD_IDENTITY_STAGE_CLEANUP_UNPROVEN'",
+      'emergency_result(sys.argv)',
+      'Prevent unexpected pre-activation exceptions from becoming poll timeouts.',
+    ] as $required) {
+      self::assertStringContainsString($required, $worker);
+    }
+
+    $sanitize = strpos($worker, 'sanitizer.assert_sanitized');
+    $dump = strpos($worker, 'dump = subprocess.run(');
+    $rawCleanup = strpos(
+      $worker,
+      'raw_cleanup_proven = cleanup_raw_scope(helper, scope)',
+    );
+    $rawGate = strpos($worker, 'if preparation_failed or not raw_cleanup_proven:');
+    $rootGate = strpos(
+      $worker,
+      'if not cleanup_root_stage(stage) or os.path.lexists(stage):',
+    );
+    $handoff = strpos($worker, 'os.execv(');
+    foreach ([$sanitize, $dump, $rawCleanup, $rawGate, $rootGate, $handoff] as $offset) {
+      self::assertIsInt($offset);
+    }
+    self::assertLessThan($dump, $sanitize);
+    self::assertLessThan($rawCleanup, $dump);
+    self::assertLessThan($rawGate, $rawCleanup);
+    self::assertLessThan($rootGate, $rawGate);
+    self::assertLessThan($handoff, $rootGate);
+  }
+
+  /**
+   * Sanitized-only activation reuses the unchanged #914 worker/rollback model.
    */
   public function testSanitizedOnlyActivationReusesExistingWorker(): void {
-    $worker = $this->source(
-      'scripts/preproduction-refresh/governed-successor/'
-      . 'remote-server-to-server-worker.py',
-    );
+    $worker = $this->worker();
     $activation = $this->source(
       'scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh',
     );
 
-    $assertion = strpos($worker, 'sanitizer.assert_sanitized');
-    $dump = strpos($worker, 'MARIADB_DUMP');
-    $cleanup = strpos($worker, 'shutil.rmtree(stage)');
-    $handoff = strpos($worker, 'os.execv(');
-    foreach ([$assertion, $dump, $cleanup, $handoff] as $offset) {
-      self::assertIsInt($offset);
-    }
-    self::assertLessThan($dump, $assertion);
-    self::assertLessThan($handoff, $cleanup);
-    self::assertStringContainsString('remote-apply-worker.sh', $worker);
+    self::assertStringContainsString("stage / 'remote-apply-worker.sh'", $worker);
+    self::assertStringContainsString("job / 'sanitized.sql'", $worker);
 
     $backup = strpos(
       $activation,
@@ -215,9 +227,13 @@ final class PreproductionServerToServerApplyTest extends TestCase {
     self::assertStringNotContainsString('#917', $worker);
   }
 
-  /**
-   * Reads a repository source file.
-   */
+  private function worker(): string {
+    return $this->source(
+      'scripts/preproduction-refresh/governed-successor/'
+      . 'remote-server-to-server-worker.py',
+    );
+  }
+
   private function source(string $relativePath): string {
     $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
     self::assertFileExists($path);

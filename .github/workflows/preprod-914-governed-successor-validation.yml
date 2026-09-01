@@ -245,7 +245,10 @@ jobs:
           assert '#915' not in control and '#917' not in control
           assert '#915' not in prep and '#917' not in prep
 
-          assert 'caller_database_name' in helper and 'Runtime database is outside privileged authority' in helper
+          assert 'database = f"{STAGING_PREFIX}{suffix}"' in helper
+          assert 'database_user = f"{DB_USER_PREFIX}{suffix}"' in helper
+          assert 'if database == RUNTIME_DB:' in helper
+          assert 'Runtime database is outside privileged authority.' in helper
           assert 'shell=True' not in prep and 'os.system(' not in prep and 'eval(' not in prep
           assert 'GENERIC' not in control
 

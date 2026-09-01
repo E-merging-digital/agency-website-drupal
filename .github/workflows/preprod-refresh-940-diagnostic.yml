@@ -1,0 +1,158 @@
+name: "#941 Read-only PREPROD refresh #940 diagnostic"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: agency-preprod-refresh-940-readonly-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    if: >-
+      ${{ github.event.issue.pull_request == null && github.event.issue.number == 941 &&
+          github.event.comment.user.login == 'E-merging-digital' && github.actor == 'E-merging-digital' &&
+          github.event.comment.body == '/agency-preprod-refresh-940-diagnostic diagnose' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - id: live
+        name: Resolve exact live main without secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live" =~ ^[0-9a-f]{40}$ ]]
+          printf 'main_sha=%s\n' "$live" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.live.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: JIT validate exact #941 diagnostic authority before SSH secret
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EVENT_ACTION: ${{ github.event.action }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = issue_comment
+          test "$EVENT_ACTION" = created
+          test "$ISSUE_NUMBER" = 941
+          test "$COMMENT_AUTHOR" = E-merging-digital
+          test "$GITHUB_ACTOR" = E-merging-digital
+          test "$COMMENT_BODY" = '/agency-preprod-refresh-940-diagnostic diagnose'
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$live" = '${{ steps.live.outputs.main_sha }}'
+          test "$(git rev-parse HEAD)" = "$live"
+          issue_state="$(gh api "repos/$GITHUB_REPOSITORY/issues/941" --jq '.state')"
+          test "$issue_state" = open
+          test -f scripts/preproduction-refresh/governed-successor/diagnose-940-worker.sh
+          test ! -L scripts/preproduction-refresh/governed-successor/diagnose-940-worker.sh
+
+      - name: Validate pinned PREPROD SSH trust
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$PREPROD_SERVER_HOST" ]]
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+
+      - name: Materialize transient read-only PREPROD identity after JIT
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$PREPROD_KEY" ]]
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-941-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-941-preprod.key"
+
+      - name: Execute hard-bounded metadata-only diagnostic
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          observer='scripts/preproduction-refresh/governed-successor/diagnose-940-worker.sh'
+          key="$RUNNER_TEMP/agency-941-preprod.key"
+          output="$RUNNER_TEMP/agency-941-diagnostic.env"
+          [[ -f "$observer" && ! -L "$observer" && -f "$key" && ! -L "$key" ]]
+
+          set +e
+          timeout 30s ssh \
+            -i "$key" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=10 \
+            -o ServerAliveInterval=5 \
+            -o ServerAliveCountMax=2 \
+            "agency-preprod@$PREPROD_SERVER_HOST" \
+            'bash -s' < "$observer" > "$output" 2>/dev/null
+          diagnostic_status=$?
+          set -e
+          if [[ "$diagnostic_status" -eq 124 ]]; then
+            echo 'Diagnostic SSH observation exceeded the hard 30-second wall-clock bound.' >&2
+            exit 75
+          fi
+          [[ "$diagnostic_status" -eq 0 ]]
+
+          python3 - "$output" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          data = path.read_bytes()
+          if len(data) > 8192:
+              raise SystemExit('Diagnostic output exceeds bounded size.')
+          text = data.decode('ascii')
+          lines = [line for line in text.splitlines() if line]
+          allowed = {
+              'schema_version', 'request_id', 'expected_main', 'request_dir',
+              'result_env', 'terminal_metadata_state', 'result_outcome', 'result_detail',
+              'worker_process', 'worker_process_count', 'worker_elapsed_seconds',
+              'bootstrap_log', 'bootstrap_log_bytes', 'sanitized_sql', 'sanitized_sql_tmp',
+              'activation_worker', 'raw_staging_scope', 'root_identity_stage', 'refresh_lock',
+              'deploy_lock', 'maintenance_mode', 'refresh_fence', 'active_release_sha',
+              'active_release_prefix', 'health_live', 'health_ready', 'classification',
+          }
+          seen = set()
+          for line in lines:
+              if not re.fullmatch(r'[A-Za-z0-9_]+=[A-Za-z0-9._:-]{1,160}', line):
+                  raise SystemExit('Diagnostic output contains an unsafe line.')
+              key, _ = line.split('=', 1)
+              if key not in allowed or key in seen:
+                  raise SystemExit('Diagnostic output key contract violated.')
+              seen.add(key)
+          if seen != allowed:
+              raise SystemExit('Diagnostic output is incomplete.')
+          PY
+
+          while IFS= read -r bounded_line; do
+            printf '%s\n' "$bounded_line"
+          done < "$output"
+
+      - if: ${{ always() }}
+        name: Cleanup runner-only diagnostic material
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-941-preprod.key" "$RUNNER_TEMP/agency-941-diagnostic.env"

@@ -1,8 +1,18 @@
 name: "#914 Governed PREPROD refresh successor"
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
 
 permissions:
   contents: read

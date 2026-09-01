@@ -77,7 +77,7 @@ jobs:
   plan:
     needs: validate-authority
     if: ${{ needs.validate-authority.outputs.mode == 'PLAN' }}
-    runs-on: [self-hosted, linux, x64, agency]
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: read
@@ -94,10 +94,11 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           EVENT_ACTION: ${{ github.event.action }}
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$RUNNER_NAME" == agency-browser-runner-01 ]]
+          [[ "$RUNNER_ENVIRONMENT" == github-hosted ]]
           live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           test "$live" = "${{ needs.validate-authority.outputs.main_sha }}"
           test "$(git rev-parse HEAD)" = "$live"
@@ -129,6 +130,7 @@ jobs:
           REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
           SOURCE_PROD_RELEASE_SHA: ${{ needs.validate-authority.outputs.prod_release_sha }}
           OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
           PROD_SSH_HOST: ${{ secrets.SERVER_HOST }}
           PROD_SSH_USER: ${{ secrets.SERVER_USER }}
           PROD_SSH_KEY: ${{ runner.temp }}/agency-914-plan-prod.key

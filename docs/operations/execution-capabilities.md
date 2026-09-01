@@ -3,7 +3,7 @@
 Status: **AUTHORITATIVE CAPABILITY REGISTRY**  
 Repository: `E-merging-digital/agency-website-drupal`  
 Registry owner: #421  
-Last materialized: 2026-08-28
+Last materialized: 2026-09-01
 
 ## 1. Purpose
 
@@ -79,7 +79,7 @@ current Agency DDEV runtime.
 | Playwright Test | AVAILABLE | Reproducible browser validation, desktop/mobile, DOM, console, network, screenshots and traces |
 | Chromium for Playwright | AVAILABLE | Real browser used by the validation suite |
 | Playwright MCP | AVAILABLE | Interactive agent-driven browser inspection on the runner |
-| Chrome DevTools MCP | AVAILABLE | Interactive DevTools-level diagnosis on the runner |
+| Chrome DevTools MCP | AVAILABLE | Interactive DevTools-level diagnosis for console/network/CSS/JS/runtime work |
 | DDEV | AVAILABLE | Real Agency Drupal runtime and trusted dependency resolution |
 | Docker | AVAILABLE | DDEV/container execution |
 
@@ -578,4 +578,49 @@ Full contract:
 
 ```text
 docs/operations/preproduction-refresh-activation-capability.md
+```
+
+## 16. Development Seed -> DDEV pull-only
+
+Issue #873 adds the repository-supported developer consumption route:
+
+```text
+immutable sanitized Development Seed
+-> authenticated read-only SSH/SCP distribution
+-> .ddev/providers/agency.yaml
+-> ddev pull agency
+-> SHA-256 + code compatibility guard
+-> DDEV native snapshot/import
+-> Drush updb/cim/cr
+-> local-only admin + side-effect assertions
+```
+
+Boundaries:
+
+```text
+DDEV -> seed storage      = FORBIDDEN
+DDEV -> PREPROD runtime   = FORBIDDEN
+DDEV -> PROD              = FORBIDDEN
+seed -> DDEV              = ONLY ALLOWED DATA DIRECTION
+files                     = NONE in v1
+private files             = NEVER
+consumer PROD credential  = NONE
+consumer PREPROD runtime credential = NONE
+```
+
+The provider contains no push stanza. DDEV 1.25.3 owns pull/import and local
+snapshot recovery; Drush 13.7.6 plus the existing #914 Agency sanitizer own the
+generic/PREPROD sanitization layers. #873 adds only the stricter distributable-
+development pass, immutable metadata/hash, simple same-or-ancestor compatibility
+guard and local safety assertions.
+
+This capability is **SOURCE + SYNTHETIC PROOF ONLY** until #816 terminally
+establishes the real source boundary and a separate authorization provisions a
+dedicated read-only seed-distribution identity/storage. #873 itself performs no
+real PREPROD data read, seed generation or seed distribution.
+
+Full contract:
+
+```text
+docs/operations/development-seed.md
 ```

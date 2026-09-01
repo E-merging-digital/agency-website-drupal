@@ -7,6 +7,8 @@ on:
         required: true
       PREPROD_SSH_PRIVATE_KEY:
         required: true
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY:
+        required: true
       SERVER_HOST:
         required: true
       SERVER_USER:
@@ -144,8 +146,8 @@ jobs:
   apply:
     needs: validate-authority
     if: ${{ needs.validate-authority.outputs.mode == 'APPLY' }}
-    runs-on: [self-hosted, linux, x64, agency]
-    timeout-minutes: 90
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
     permissions:
       contents: read
       issues: read
@@ -162,10 +164,11 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           EVENT_ACTION: ${{ github.event.action }}
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$RUNNER_NAME" == agency-browser-runner-01 ]]
+          [[ "$RUNNER_ENVIRONMENT" == github-hosted ]]
           live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           test "$live" = "${{ needs.validate-authority.outputs.main_sha }}"
           test "$(git rev-parse HEAD)" = "$live"
@@ -184,25 +187,29 @@ jobs:
         env:
           PROD_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
         shell: bash
         run: |
           set -euo pipefail
           printf '%s\n' "$PROD_KEY" > "$RUNNER_TEMP/agency-914-apply-prod.key"
           printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-914-apply-preprod.key"
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-914-apply-preprod-root.key"
           chmod 600 "$RUNNER_TEMP"/agency-914-apply-*.key
-      - name: Execute sanitized-only bounded-downtime APPLY
+      - name: Execute temporary controlled server-to-server APPLY
         env:
           AUTHORITY_ISSUE: ${{ needs.validate-authority.outputs.authority_issue }}
           REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
           REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
           SOURCE_PROD_RELEASE_SHA: ${{ needs.validate-authority.outputs.prod_release_sha }}
           OPERATION_PROFILE: ${{ needs.validate-authority.outputs.operation_profile }}
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
           PROD_SSH_HOST: ${{ secrets.SERVER_HOST }}
           PROD_SSH_USER: ${{ secrets.SERVER_USER }}
           PROD_SSH_KEY: ${{ runner.temp }}/agency-914-apply-prod.key
           PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
           PREPROD_SSH_KEY: ${{ runner.temp }}/agency-914-apply-preprod.key
-        run: bash scripts/preproduction-refresh/governed-successor/run-apply.sh
+          PREPROD_ROOT_KEY: ${{ runner.temp }}/agency-914-apply-preprod-root.key
+        run: bash scripts/preproduction-refresh/governed-successor/run-server-to-server-apply.sh
       - if: ${{ always() }}
         name: Cleanup APPLY identities
         run: rm -f -- "$RUNNER_TEMP"/agency-914-apply-*.key

@@ -109,18 +109,15 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          old=Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
-          apply='  apply:\n'+old.split('\n  apply:\n',1)[1]
-          jit=apply.index('JIT revalidate live main and successor authority before root secret materialization')
-          secret=apply.index('PREPROD_PROVISIONING_SSH_PRIVATE_KEY')
-          assert jit < secret
-          new=Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
-          for job in ('plan','apply'):
-              chunk='  '+job+':\n'+new.split('\n  '+job+':\n',1)[1]
-              if job=='plan': chunk=chunk.split('\n  apply:\n',1)[0]
+          workflow=Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
+          for job in ('plan', 'apply'):
+              chunk='  '+job+':\n'+workflow.split('\n  '+job+':\n',1)[1]
+              if job == 'plan':
+                  chunk=chunk.split('\n  apply:\n',1)[0]
               jit=chunk.index('JIT revalidate before')
               secret=chunk.index('secrets.SSH_PRIVATE_KEY')
-              assert jit < secret and 'secrets.' not in chunk[:jit]
+              assert jit < secret
+              assert 'secrets.' not in chunk[:jit]
           print('#910_JIT_REGRESSION=PASS')
           PY
       - name: PREPROD bootstrap regression

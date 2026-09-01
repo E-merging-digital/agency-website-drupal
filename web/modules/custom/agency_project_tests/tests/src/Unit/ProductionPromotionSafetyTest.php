@@ -16,13 +16,13 @@ use Symfony\Component\Yaml\Yaml;
 final class ProductionPromotionSafetyTest extends TestCase {
 
   /**
-   * Promotion requires a newly created owner GO bound to exact identity.
+   * Promotion keeps exact owner GO authority inside the reusable workflow.
    */
   public function testWorkflowRequiresExactHumanGoIdentity(): void {
     $workflow = $this->workflow();
 
-    self::assertStringContainsString('issue_comment:', $workflow);
-    self::assertStringContainsString('- created', $workflow);
+    self::assertStringContainsString('workflow_call:', $workflow);
+    self::assertStringNotContainsString('issue_comment:', $workflow);
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
     self::assertStringNotContainsString("\n  push:\n", $workflow);
     self::assertStringContainsString(

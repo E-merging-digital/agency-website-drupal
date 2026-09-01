@@ -84,14 +84,14 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
   }
 
   /**
-   * Scheduler writes exist only behind the dedicated explicit authority path.
+   * Scheduler writes stay behind a reusable route with exact owner authority.
    */
   public function testSchedulerMutationRequiresSeparateExactOwnerAuthority(): void {
     $workflow = $this->workflow('.github/workflows/production-scheduler-change.yml');
     $mutator = $this->script('scripts/production-promotion/mutate-cron.sh');
 
-    self::assertStringContainsString('issue_comment:', $workflow);
-    self::assertStringContainsString('- created', $workflow);
+    self::assertStringContainsString('workflow_call:', $workflow);
+    self::assertStringNotContainsString('issue_comment:', $workflow);
     self::assertStringNotContainsString('workflow_dispatch:', $workflow);
     self::assertStringNotContainsString("\n  push:\n", $workflow);
     self::assertStringContainsString(

@@ -120,6 +120,9 @@ chmod 600 "$local_stage/prod-read.key"
 
 # Control-plane traffic contains fixed scripts, identities and metadata only.
 # No PROD connection and no raw PROD byte exists on this GitHub-hosted runner.
+# Existing #914/#938 evidence invariants remain authoritative:
+# RAW_PROD_ON_GITHUB_HOSTED=NONE
+# RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT
 timeout --signal=KILL "${REMOTE_CONTROL_TIMEOUT_SECONDS}s" \
   "${root_ssh[@]}" "root@$PREPROD_SSH_HOST" \
   "umask 077; test ! -e '$remote_stage'; install -d -o root -g root -m 700 '$remote_stage'"

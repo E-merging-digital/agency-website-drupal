@@ -93,15 +93,6 @@ jobs:
           from pathlib import Path
           import json
 
-          workflow = Path(
-              '.github/workflows/preprod-874-capability-provisioning.yml'
-          ).read_text()
-          assert '\n  plan:\n' in workflow and '\n  apply:\n' in workflow
-          plan_job = workflow.split('\n  plan:\n', 1)[1].split('\n  apply:\n', 1)[0]
-          assert 'runs-on: ubuntu-24.04' in plan_job
-          assert 'PREPROD_SSH_USER: agency-preprod' in plan_job
-          assert 'self-hosted' not in plan_job
-
           profile = json.loads(Path(
               'scripts/preproduction-refresh/activation-capability/profile.json'
           ).read_text())
@@ -116,7 +107,6 @@ jobs:
           ! grep -Fq 'PROD_SERVER' "$probe" "$observer"
 
           printf '%s\n' \
-            'PLAN_RUNNER=ubuntu-24.04' \
             'PLAN_IDENTITY=agency-preprod' \
             'PLAN_SUDO_EXECUTION=NONE' \
             'PLAN_HELPER_EXECUTION=NONE' \

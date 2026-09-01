@@ -20,16 +20,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   private const REUSABLES = [
     'PRODUCTION_PROMOTE' => '.github/workflows/promote-production.yml',
     'PRODUCTION_SCHEDULER' =>
-      '.github/workflows/production-scheduler-change.yml',
+    '.github/workflows/production-scheduler-change.yml',
     'EDITORIAL_PUBLICATION' =>
-      '.github/workflows/trusted-editorial-publication.yml',
+    '.github/workflows/trusted-editorial-publication.yml',
     'EDITORIAL_FEATURE_IMAGE' =>
-      '.github/workflows/trusted-editorial-feature-image.yml',
+    '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
     'PREPROD_REFRESH_940_DIAGNOSTIC' =>
-      '.github/workflows/preprod-refresh-940-diagnostic.yml',
+    '.github/workflows/preprod-refresh-940-diagnostic.yml',
     'PREPROD_REFRESH_940_RECOVERY' =>
-      '.github/workflows/preprod-refresh-940-recovery.yml',
+    '.github/workflows/preprod-refresh-940-recovery.yml',
   ];
 
   private const INCIDENT_ISSUES = [

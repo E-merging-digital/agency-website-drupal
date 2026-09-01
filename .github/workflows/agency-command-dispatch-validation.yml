@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          vendor/bin/phpunit -c phpunit.xml web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
           git diff --check HEAD^..HEAD
 
       - name: Prove non-operational validation boundary

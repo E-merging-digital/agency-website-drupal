@@ -58,6 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import ast
           import json
           from pathlib import Path
 
@@ -181,9 +182,25 @@ jobs:
           mandatory_ids={entry['id'] for entry in mandatory}
           assert all(entry.get('required') is True for entry in mandatory)
           assert set(handlers) == mandatory_ids
-          for handler in handlers.values():
-              assert isinstance(handler, str) and handler
-              assert f'def {handler}(' in sanitizer
+
+          tree=ast.parse(sanitizer)
+          functions={node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+          handler_map=None
+          for node in tree.body:
+              if not isinstance(node, ast.Assign):
+                  continue
+              if not any(isinstance(target, ast.Name) and target.id == 'HANDLERS' for target in node.targets):
+                  continue
+              assert isinstance(node.value, ast.Dict)
+              handler_map={}
+              for key, value in zip(node.value.keys, node.value.values):
+                  assert isinstance(key, ast.Constant) and isinstance(key.value, str)
+                  assert isinstance(value, ast.Name)
+                  handler_map[key.value]=value.id
+              break
+          assert handler_map is not None
+          assert set(handler_map) == set(handlers.values())
+          assert set(handler_map.values()) <= functions
 
           paths={entry['type']: entry for entry in policy['execution_boundary']['raw_prod_data']['allowed_paths']}
           assert paths['CONTROLLED_SERVER_TO_SERVER']['requirement'] == 'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE'

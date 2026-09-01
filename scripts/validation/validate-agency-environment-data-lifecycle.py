@@ -10,6 +10,16 @@ DOC = ROOT / "docs/operations/agency-environment-data-lifecycle.md"
 REGISTRY = ROOT / "docs/operations/execution-capabilities.md"
 REFRESH = ROOT / "docs/operations/preproduction-data-refresh.md"
 PROVIDER = ROOT / ".ddev/providers/agency.yaml"
+DISPATCHER = ROOT / ".github/workflows/agency-command-dispatch.yml"
+PREPROD_WORKFLOW = ROOT / ".github/workflows/preprod-914-governed-successor.yml"
+
+ACTIVE_REUSABLE_WORKFLOWS = (
+    ".github/workflows/promote-production.yml",
+    ".github/workflows/production-scheduler-change.yml",
+    ".github/workflows/trusted-editorial-publication.yml",
+    ".github/workflows/trusted-editorial-feature-image.yml",
+    ".github/workflows/preprod-914-governed-successor.yml",
+)
 
 REQUIRED_PATHS = (
     "docs/operations/agency-environment-data-lifecycle.md",
@@ -35,10 +45,8 @@ REQUIRED_PATHS = (
     ".github/workflows/ci.yml",
     ".github/workflows/build-release-candidate.yml",
     ".github/workflows/deploy-preproduction.yml",
-    ".github/workflows/promote-production.yml",
-    ".github/workflows/trusted-editorial-publication.yml",
-    ".github/workflows/trusted-editorial-feature-image.yml",
-    ".github/workflows/preprod-914-governed-successor.yml",
+    ".github/workflows/agency-command-dispatch.yml",
+    *ACTIVE_REUSABLE_WORKFLOWS,
 )
 
 REQUIRED_HEADINGS = (
@@ -90,6 +98,11 @@ STALE_CURRENT_WORKFLOW_REFERENCES = (
     ".github/workflows/preprod-917-pre-ingress-authority-abort-validation.yml",
 )
 
+HISTORICAL_COMMANDS_NOT_CURRENT = (
+    "/agency-config-language inspect",
+    "/agency-config-language-lock evaluate",
+)
+
 
 def require(condition: bool, message: str) -> None:
     if not condition:
@@ -104,6 +117,8 @@ def main() -> int:
     registry = REGISTRY.read_text(encoding="utf-8")
     refresh = REFRESH.read_text(encoding="utf-8")
     provider = PROVIDER.read_text(encoding="utf-8")
+    dispatcher = DISPATCHER.read_text(encoding="utf-8")
+    preprod_workflow = PREPROD_WORKFLOW.read_text(encoding="utf-8")
 
     for heading in REQUIRED_HEADINGS:
         require(heading in doc, f"missing required canonical heading: {heading}")
@@ -114,7 +129,6 @@ def main() -> int:
     for invariant in AUTHORITY_INVARIANTS:
         require(invariant in doc, f"missing authority invariant: {invariant}")
 
-    # The canonical entrypoint must expose all four independent operational flows.
     for flow in (
         "### A. CODE / CONFIG",
         "### B. DATA REFRESH",
@@ -123,34 +137,64 @@ def main() -> int:
     ):
         require(flow in doc, f"missing operational flow: {flow}")
 
-    # Current #914/#816 truth: source/synthetic implementation exists, but the
-    # full real refresh is not terminally proven by documentation work.
+    # #922 current topology: exactly one top-level issue_comment listener and
+    # exactly five reusable command workflows. Dispatch is syntax, not authority.
+    listener_files = []
+    for workflow_path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        if "issue_comment:" in workflow_path.read_text(encoding="utf-8"):
+            listener_files.append(workflow_path.relative_to(ROOT).as_posix())
+    require(listener_files == [".github/workflows/agency-command-dispatch.yml"],
+            f"unexpected issue_comment listeners: {listener_files}")
+    require("Route syntax only; authorization remains downstream" in dispatcher,
+            "dispatcher incorrectly owns execution authorization")
+    for path in ACTIVE_REUSABLE_WORKFLOWS:
+        text = (ROOT / path).read_text(encoding="utf-8")
+        require("workflow_call:" in text, f"active command workflow is not reusable: {path}")
+        require("issue_comment:" not in text, f"active reusable still owns top-level issue_comment: {path}")
+        require(path in dispatcher, f"dispatcher does not route current reusable workflow: {path}")
+        require(path in doc, f"canonical doc missing current reusable workflow: {path}")
+        require(path in registry, f"registry missing current reusable workflow: {path}")
+    require("#922 is **COMPLETED**" in doc, "#922 is not documented as completed current state")
+    require("#922 is **COMPLETED**" in registry, "registry does not document completed dispatcher consolidation")
+
+    # Current #914/#816 truth.
     require("#914 is `SOURCE_IMPLEMENTED` + `SYNTHETICALLY_PROVEN`" in doc,
             "current #914 source/synthetic status missing")
     require("#816 remains open" in doc, "#816 pending real state missing")
     require("REAL_END_TO_END_REFRESH = NOT_YET_PROVEN" in refresh,
             "refresh doc incorrectly implies terminal real execution")
     require("REAL_APPLY = PENDING" in refresh, "real APPLY pending state missing")
+    require("runs-on: [self-hosted, linux, x64, agency]" in preprod_workflow,
+            "current #914 PLAN/APPLY self-hosted execution boundary missing")
+    require("#927" in doc and "PENDING / PROPOSED ADAPTATION" in doc,
+            "#927 pending adaptation status missing")
+    require("#927" in registry and "PENDING / PROPOSED ADAPTATION" in registry,
+            "#927 pending adaptation missing from registry")
+    require("PLAN_RUNNER = GitHub-hosted" not in doc + registry,
+            "#927 proposed PLAN runner is incorrectly presented as current")
 
-    # The obsolete activation/fence workflow family must not be presented as a
-    # current primary route in the canonical docs/registry.
     for stale in STALE_CURRENT_WORKFLOW_REFERENCES:
         require(stale not in doc, f"stale current workflow reference in canonical doc: {stale}")
         require(stale not in registry, f"stale current workflow reference in registry: {stale}")
 
-    require("No `RECOVER_CURRENT`, `RECOVER_ABORT`" in refresh,
+    require("No GitHub transaction reconstruction" in refresh,
             "obsolete recovery model is not explicitly rejected")
     require("not operational dependencies" in doc,
             "#915/#917 historical lineage is not clearly non-operational")
 
-    # Current editorial boundary: #576 exists; #872 is future/design-only.
+    # Historical command surfaces removed by #922 must not be resurrected as
+    # current lifecycle/registry commands solely for old tests or documentation.
+    for command in HISTORICAL_COMMANDS_NOT_CURRENT:
+        require(command not in doc, f"historical command reintroduced in canonical doc: {command}")
+        require(command not in registry, f"historical command reintroduced in registry: {command}")
+
+    # Editorial current/future boundary.
     require("#576 bounded Article" in doc, "current #576 editorial route missing")
-    require("#872 Editorial Candidate is `DESIGN_ONLY`" in doc,
+    require("#872 Editorial Candidate" in doc and "`DESIGN_ONLY`" in doc,
             "#872 future/not-implemented status missing")
     require("PREPROD DB -> PROD" in doc, "editorial/data no-DB-promotion boundary missing")
 
-    # Current #873 truth: repository/DDEV implementation and synthetic proof are
-    # complete, while real PREPROD generation/storage/distribution is pending.
+    # #873 source/synthetic current state, real service still pending.
     require("#873" in doc and "SOURCE_IMPLEMENTED" in doc and "SYNTHETICALLY_PROVEN" in doc,
             "current #873 source/synthetic status missing")
     require("REAL_PREPROD_SEED_GENERATION = EXECUTION_PENDING" in doc,
@@ -160,7 +204,6 @@ def main() -> int:
     require("db_push_command" not in provider, "Development Seed provider exposes DB push")
     require("files_push_command" not in provider, "Development Seed provider exposes files push")
 
-    # Ownership/privacy/rollback must be explicit current-state contracts.
     for ownership in (
         "**CODE**",
         "**CONFIG**",
@@ -184,10 +227,9 @@ def main() -> int:
             "current fail-closed rollback boundary missing")
     require("DDEV's native snapshot" in doc, "DDEV native rollback model missing")
 
-    # Registry must identify the important current routes without resurrecting
-    # the old activation/fence architecture as operational state.
     for registry_contract in (
-        "## 2. Current operational capability index",
+        "## 2. Current command dispatcher (#922 completed)",
+        "## 3. Current operational capability index",
         "Same-artifact functional PROD promotion",
         "Governed Article publication",
         "PROD -> PREPROD sanitized DB refresh",
@@ -197,8 +239,7 @@ def main() -> int:
     ):
         require(registry_contract in registry, f"registry not synchronized: {registry_contract}")
 
-    # Dynamic run IDs and secret-shaped assignments do not belong in the
-    # canonical current-state documentation contract.
+    # Dynamic evidence and secret-shaped assignments do not belong in current docs.
     for name, text in (("canonical", doc), ("refresh", refresh), ("registry", registry)):
         require(not re.search(r"\b3\d{10}\b", text),
                 f"ephemeral workflow run number embedded in {name} documentation")
@@ -213,7 +254,12 @@ def main() -> int:
     print("CANONICAL_LIFECYCLE_DOC=PRESENT")
     print("CURRENT_OPERATIONAL_FLOWS=4")
     print("ENVIRONMENT_OWNERSHIP_MATRIX=COMPLETE")
+    print("SINGLE_COMMAND_DISPATCHER=DOCUMENTED_CURRENT")
+    print("ACTIVE_REUSABLE_COMMANDS=5")
+    print("DISPATCHER_AUTHORITY=NONE")
     print("CURRENT_914_MODEL=DOCUMENTED")
+    print("CURRENT_914_PLAN_RUNNER=SELF_HOSTED")
+    print("ISSUE_927=PENDING_NOT_CURRENT")
     print("REAL_816_EXECUTION=NOT_YET_PROVEN")
     print("EDITORIAL_576=CURRENT")
     print("EDITORIAL_872=DESIGN_ONLY")
@@ -221,6 +267,7 @@ def main() -> int:
     print("DEVELOPMENT_SEED_REAL_DISTRIBUTION=PENDING")
     print("DDEV_PUSH=NONE")
     print("STALE_CURRENT_WORKFLOW_REFERENCES=0")
+    print("HISTORICAL_CONFIG_LANGUAGE_COMMAND_REINTRODUCED=NO")
     print("PRIVACY_CLASSIFICATION=COMPLETE")
     print("BACKUP_ROLLBACK_MODEL=CURRENT")
     print("EXECUTION_CAPABILITY_REGISTRY=SYNCHRONIZED")

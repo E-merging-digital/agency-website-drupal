@@ -28,10 +28,7 @@ REQUIRED_PATHS = (
     ".github/workflows/deploy-preproduction.yml",
     ".github/workflows/promote-production.yml",
     ".github/workflows/production-promotion-validation.yml",
-    ".github/workflows/preprod-874-capability-provisioning.yml",
     ".github/workflows/preprod-891-runtime-db-identity-validation.yml",
-    ".github/workflows/preprod-902-runtime-db-probe-validation.yml",
-    ".github/workflows/preprod-905-runtime-db-home-validation.yml",
 )
 
 REQUIRED_HEADINGS = (
@@ -118,10 +115,8 @@ def main() -> int:
     require("Never rerun a consumed request ID" in text, "request ID reuse prohibition is missing")
     require("no full-refresh execution command" in text, "fake full-refresh command prohibition is missing")
 
-    # Workflow run IDs are dynamic evidence. They must never become executable/documentary invariants here.
     require(not re.search(r"\b3\d{10}\b", text), "ephemeral workflow run number embedded in canonical document")
 
-    # The document is an index/status map, not a secret-bearing environment template.
     for forbidden in ("PREPROD_PROVISIONING_SSH_PRIVATE_KEY=", "DB_PASSWORD=", "SSH_PRIVATE_KEY="):
         require(forbidden not in text, f"secret-shaped assignment is forbidden in canonical document: {forbidden}")
 

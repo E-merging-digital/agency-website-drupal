@@ -110,10 +110,11 @@ if ($schema->tableExists('users_field_data')) {
 }
 
 if ($schema->tableExists('config')) {
-  $or = $db->orConditionGroup()
+  $query = $db->select('config', 'c');
+  $or = $query->orConditionGroup()
     ->condition('name', 'ai_provider_openai.settings')
     ->condition('name', 'key.key.%', 'LIKE');
-  $credentials = (int) $db->select('config', 'c')
+  $credentials = (int) $query
     ->condition($or)
     ->countQuery()
     ->execute()

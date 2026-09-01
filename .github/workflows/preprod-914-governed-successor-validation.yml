@@ -169,8 +169,22 @@ jobs:
               'credential_state_removal',
           }
           for key in required_evidence:
-              assert key in prep and key in sanitizer
+              assert key in prep
+
+          # The sanitizer builds some evidence keys dynamically. The existing
+          # policy is the source of truth for mandatory classes and handlers.
           assert policy['policy_version'] == 'agency-preprod-refresh-v1'
+          execution=policy['sanitization_execution']
+          assert execution['unknown_mandatory_class'] == 'FAIL_CLOSED'
+          handlers=execution['mandatory_class_handlers']
+          mandatory=policy['mandatory_sanitization']
+          mandatory_ids={entry['id'] for entry in mandatory}
+          assert all(entry.get('required') is True for entry in mandatory)
+          assert set(handlers) == mandatory_ids
+          for handler in handlers.values():
+              assert isinstance(handler, str) and handler
+              assert f'def {handler}(' in sanitizer
+
           paths={entry['type']: entry for entry in policy['execution_boundary']['raw_prod_data']['allowed_paths']}
           assert paths['CONTROLLED_SERVER_TO_SERVER']['requirement'] == 'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE'
           assert policy['execution_boundary']['github_hosted']['raw_prod_data_allowed'] is False

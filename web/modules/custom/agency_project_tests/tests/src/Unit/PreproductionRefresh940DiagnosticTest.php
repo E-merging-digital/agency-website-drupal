@@ -140,9 +140,9 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
     }
 
     foreach ([
-      'cat ',
-      'tail ',
-      'less ',
+      "\ncat ",
+      "\ntail ",
+      "\nless ",
       'head "$BOOTSTRAP_LOG"',
       'head -n "$BOOTSTRAP_LOG"',
       '< "$BOOTSTRAP_LOG"',
@@ -171,9 +171,9 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
       'ROLLED_BACK',
       'HUMAN_RECOVERY_REQUIRED',
       'UNOBSERVABLE_FAIL_CLOSED',
-      'result_outcome=INVALID',
-      'worker_process=UNOBSERVABLE',
-      'worker_phase=UNOBSERVABLE',
+      "result_outcome='INVALID'",
+      "worker_process='UNOBSERVABLE'",
+      "worker_phase='UNOBSERVABLE'",
       "raw_staging_scope='UNOBSERVABLE'",
       "maintenance_mode='UNOBSERVABLE'",
       "refresh_fence='UNOBSERVABLE'",

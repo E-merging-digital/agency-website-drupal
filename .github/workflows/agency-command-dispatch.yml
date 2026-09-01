@@ -7,11 +7,11 @@ on:
 env:
   AGENCY_COMMAND_ROUTES: >-
     [
-      {"route":"PRODUCTION_PROMOTE","prefix":"/agency-production-promote","regex":"^/agency-production-promote go sha=[0-9a-f]{40} artifact=[0-9a-f]{64} composer=[0-9a-f]{64} build=[0-9]+ preprod=[0-9]+$"},
-      {"route":"PRODUCTION_SCHEDULER","prefix":"/agency-production-scheduler","regex":"^/agency-production-scheduler (action=CREATE release=[0-9a-f]{40} expected=ABSENT|action=UPDATE release=[0-9a-f]{40} expected=MANAGED_DRIFT|action=REMOVE release=[0-9a-f]{40} expected=CONTROLLED)$"},
-      {"route":"EDITORIAL_PUBLICATION","prefix":"/agency-editorial","exact":["/agency-editorial inspect","/agency-editorial dry-run","/agency-editorial apply"]},
-      {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply"]},
-      {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"}
+      {"route":"PRODUCTION_PROMOTE","prefix":"/agency-production-promote ","regex":"^/agency-production-promote go sha=[0-9a-f]{40} artifact=[0-9a-f]{64} composer=[0-9a-f]{64} build=[0-9]+ preprod=[0-9]+$"},
+      {"route":"PRODUCTION_SCHEDULER","prefix":"/agency-production-scheduler ","regex":"^/agency-production-scheduler (action=CREATE release=[0-9a-f]{40} expected=ABSENT|action=UPDATE release=[0-9a-f]{40} expected=MANAGED_DRIFT|action=REMOVE release=[0-9a-f]{40} expected=CONTROLLED)$"},
+      {"route":"EDITORIAL_PUBLICATION","prefix":"/agency-editorial ","exact":["/agency-editorial inspect","/agency-editorial dry-run","/agency-editorial apply"]},
+      {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image ","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply"]},
+      {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor ","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"}
     ]
 
 jobs:

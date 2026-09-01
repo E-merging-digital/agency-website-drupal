@@ -148,7 +148,7 @@ final class PreproductionRefresh948DetailDiagnosticTest extends TestCase {
     );
     self::assertStringContainsString("pairs['detail'] == 'NONE'", $workflow);
 
-    $validator = strpos($workflow, "python3 - \"$output\" <<'PY'");
+    $validator = strpos($workflow, "python3 - \"\$output\" <<'PY'");
     $printer = strpos($workflow, 'while IFS= read -r bounded_line; do');
     self::assertIsInt($validator);
     self::assertIsInt($printer);

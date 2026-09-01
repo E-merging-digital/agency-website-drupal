@@ -1,22 +1,40 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 export LC_ALL=C
-[[ "$#" -eq 0 ]] || exit 64
-[[ "$(id -u)" -ne 0 ]] || exit 65
+
+fail_reason() {
+  printf '%s\n' \
+    'PLAN_OBSERVER_RESULT=FAIL_CLOSED' \
+    "PLAN_REASON=$1"
+  exit 1
+}
+
+[[ "$#" -eq 0 ]] || fail_reason 'PREPROD_OBSERVER_CONTEXT'
+[[ "$(id -u)" -ne 0 ]] || fail_reason 'PREPROD_OBSERVER_CONTEXT'
 
 ROOT=/var/www/agency-preprod
 CURRENT="$ROOT/current"
 SHARED="$ROOT/shared"
 DRUSH="$CURRENT/vendor/bin/drush"
 
-[[ -L "$CURRENT" && -x "$DRUSH" ]]
-[[ -d "$SHARED/backups" && -w "$SHARED/backups" ]]
-[[ -f "$SHARED/settings/runtime.env" && ! -L "$SHARED/settings/runtime.env" && -r "$SHARED/settings/runtime.env" ]]
-[[ -x "$CURRENT/scripts/preproduction/validate-runtime.sh" ]]
-[[ -f "$CURRENT/scripts/preproduction-refresh/activation-capability/admin-reconcile.php" ]]
-[[ -d "$CURRENT/config/splits/preproduction" ]]
+[[ -L "$CURRENT" ]] || fail_reason 'PREPROD_CURRENT_RELEASE'
+[[ -x "$DRUSH" ]] || fail_reason 'PREPROD_DRUSH_EXECUTABLE'
+[[ -d "$SHARED/backups" && -w "$SHARED/backups" ]] \
+  || fail_reason 'PREPROD_BACKUP_PATH'
+[[ -f "$SHARED/settings/runtime.env" && ! -L "$SHARED/settings/runtime.env" && -r "$SHARED/settings/runtime.env" ]] \
+  || fail_reason 'PREPROD_RUNTIME_ENV'
+[[ -x "$CURRENT/scripts/preproduction/validate-runtime.sh" ]] \
+  || fail_reason 'PREPROD_RUNTIME_VALIDATOR'
+[[ -f "$CURRENT/scripts/preproduction-refresh/activation-capability/admin-reconcile.php" ]] \
+  || fail_reason 'PREPROD_ADMIN_RECONCILER'
+[[ -d "$CURRENT/config/splits/preproduction" ]] \
+  || fail_reason 'PREPROD_CONFIG_SPLIT'
+
+drush_commands="$("$DRUSH" list --format=list 2>/dev/null)" \
+  || fail_reason 'PREPROD_DRUSH_COMMAND_SET'
 for cmd in sql:dump sql:cli sql:drop sql:sanitize maint:set updb cim cr; do
-  "$DRUSH" list --format=list | grep -Fxq "$cmd"
+  grep -Fxq "$cmd" <<<"$drush_commands" \
+    || fail_reason 'PREPROD_DRUSH_COMMAND_SET'
 done
 
 printf '%s\n' \

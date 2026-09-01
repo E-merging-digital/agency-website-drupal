@@ -47,6 +47,61 @@ command. PLAN creates no snapshot, transfers no PROD data, and performs no PROD
 write, PREPROD database mutation, runtime mutation, backup, maintenance or
 activation. Transient SSH identities are deleted in the workflow cleanup step.
 
+### Diagnostics de readiness bornés
+
+A failed PLAN reports only this fixed metadata contract:
+
+```text
+PLAN_RESULT=FAIL_CLOSED
+PLAN_STAGE=<bounded enum>
+PLAN_REASON=<bounded enum>
+```
+
+The local PLAN process suppresses trust/SSH stderr, captures remote stdout/stderr
+only in `0600` transient files under the ephemeral runner, limits observer stdout
+to 4096 bytes, deletes those files, and never forwards their raw contents. A
+remote readiness refusal is accepted only when its output is exactly the fixed
+two-line `PLAN_OBSERVER_RESULT=FAIL_CLOSED` + allowlisted `PLAN_REASON` contract.
+Unknown, additional or malformed remote output is reduced to
+`OBSERVER_OUTPUT_INVALID`; an SSH/observer failure with no valid bounded marker is
+reduced to `PROD_SSH_OBSERVER` or `PREPROD_SSH_OBSERVER`.
+
+Current bounded reasons are:
+
+```text
+PLAN_CONTEXT_INVALID
+PLAN_REPOSITORY_IDENTITY
+UNEXPECTED_LOCAL_FAILURE
+PROD_PINNED_TRUST
+PREPROD_PINNED_TRUST
+PROD_SSH_OBSERVER
+PREPROD_SSH_OBSERVER
+PROD_OBSERVER_CONTEXT
+PROD_CURRENT_RELEASE
+PROD_PROMOTION_RECEIPT
+PREPROD_OBSERVER_CONTEXT
+PREPROD_CURRENT_RELEASE
+PREPROD_DRUSH_EXECUTABLE
+PREPROD_BACKUP_PATH
+PREPROD_RUNTIME_ENV
+PREPROD_RUNTIME_VALIDATOR
+PREPROD_ADMIN_RECONCILER
+PREPROD_CONFIG_SPLIT
+PREPROD_DRUSH_COMMAND_SET
+OBSERVER_OUTPUT_INVALID
+```
+
+These diagnostics classify existing predicates; they do not remove or weaken any
+readiness requirement. In particular,
+`scripts/preproduction-refresh/activation-capability/admin-reconcile.php` remains
+required because the current APPLY worker consumes it after sanitized DB import
+to reconcile the PREPROD administrator from server-owned state. A missing file is
+therefore a legitimate `PREPROD_ADMIN_RECONCILER` readiness failure, not authority
+for the data-refresh route to deploy application code.
+
+The success contract remains unchanged and still emits only the observed PROD
+release SHA plus the existing mutation/data-boundary PASS metadata.
+
 This #927 change does not broaden a runner class for these SSH secrets: the same
 PROD and PREPROD SSH secret classes are already consumed by existing
 GitHub-hosted Agency workflows. That precedent is not authority to broaden any

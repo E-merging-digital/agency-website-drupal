@@ -7,6 +7,7 @@ on:
       - ".github/workflows/preprod-914-governed-successor-validation.yml"
       - "docs/operations/preproduction-refresh-governed-successor.md"
       - "scripts/preproduction-refresh/governed-successor/**"
+      - "scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh"
 
 permissions:
   contents: read
@@ -26,10 +27,11 @@ jobs:
         run: |
           set -euo pipefail
           b=scripts/preproduction-refresh/governed-successor
+          prod=scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh
           python3 -m py_compile "$b/validate-execution-authority.py" "$b/test-authority.py"
           python3 "$b/test-authority.py"
           php -l "$b/agency-sanitize.php"
-          bash -n "$b/run-plan.sh" "$b/run-apply.sh" "$b/remote-plan-observe.sh" "$b/remote-apply-worker.sh"
+          bash -n "$prod" "$b/run-plan.sh" "$b/run-apply.sh" "$b/remote-plan-observe.sh" "$b/remote-apply-worker.sh"
           jq -e '
             .decision == "EXTEND_EXISTING" and
             .execution_authority.modes == ["PLAN","APPLY"] and
@@ -40,12 +42,14 @@ jobs:
             .merged_capabilities.operational_dependency == "NONE" and
             .invariants.data_activation_authority == "DISABLED"
           ' "$b/profile.json" >/dev/null
-      - name: Prove simplified orchestration statically
+      - name: Prove simplified orchestration and bounded diagnostics statically
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import re
           from pathlib import Path
+
           b=Path('scripts/preproduction-refresh/governed-successor')
           w=Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
           plan_job='  plan:\n'+w.split('\n  plan:\n',1)[1].split('\n  apply:\n',1)[0]
@@ -55,6 +59,7 @@ jobs:
           validator=(b/'validate-execution-authority.py').read_text()
           prod_observer=Path('scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh').read_text()
           preprod_observer=(b/'remote-plan-observe.sh').read_text()
+
           assert 'RECOVER_ABORT' not in w and 'RECOVER_CURRENT' not in w
           assert 'issues: write' not in w and 'issues:write' not in w
           assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in w
@@ -68,6 +73,7 @@ jobs:
           plan_surface=plan_job.index('[[ "$RUNNER_ENVIRONMENT" == github-hosted ]]')
           plan_secret=plan_job.index('secrets.SSH_PRIVATE_KEY')
           assert plan_jit < plan_surface < plan_secret
+
           assert "PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'" in plan
           assert "PREPROD_TRUST_PROVISION='scripts/preproduction-ssh-trust/manage-known-host.sh'" in plan
           assert 'bash "$PROD_TRUST" PROVISION' in plan
@@ -77,6 +83,78 @@ jobs:
           assert 'StrictHostKeyChecking=yes' in plan
           assert 'ssh-keyscan' not in plan.lower()
           assert 'ssh-keyscan' not in plan_job.lower()
+
+          prod_reasons=set(re.findall(r"fail_reason '([A-Z0-9_]+)'", prod_observer))
+          preprod_reasons=set(re.findall(r"fail_reason '([A-Z0-9_]+)'", preprod_observer))
+          assert prod_reasons == {
+              'PROD_OBSERVER_CONTEXT',
+              'PROD_CURRENT_RELEASE',
+              'PROD_PROMOTION_RECEIPT',
+          }
+          assert preprod_reasons == {
+              'PREPROD_OBSERVER_CONTEXT',
+              'PREPROD_CURRENT_RELEASE',
+              'PREPROD_DRUSH_EXECUTABLE',
+              'PREPROD_BACKUP_PATH',
+              'PREPROD_RUNTIME_ENV',
+              'PREPROD_RUNTIME_VALIDATOR',
+              'PREPROD_ADMIN_RECONCILER',
+              'PREPROD_CONFIG_SPLIT',
+              'PREPROD_DRUSH_COMMAND_SET',
+          }
+          bounded_reasons = prod_reasons | preprod_reasons | {
+              'PLAN_CONTEXT_INVALID',
+              'PLAN_REPOSITORY_IDENTITY',
+              'PROD_PINNED_TRUST',
+              'PREPROD_PINNED_TRUST',
+              'PROD_SSH_OBSERVER',
+              'PREPROD_SSH_OBSERVER',
+              'OBSERVER_OUTPUT_INVALID',
+              'UNEXPECTED_LOCAL_FAILURE',
+          }
+          for reason in bounded_reasons:
+              assert reason in plan or reason in prod_observer or reason in preprod_observer
+
+          assert "'PLAN_RESULT=FAIL_CLOSED'" in plan
+          assert '"PLAN_STAGE=$stage"' in plan
+          assert '"PLAN_REASON=$reason"' in plan
+          assert "'PLAN_OBSERVER_RESULT=FAIL_CLOSED'" in prod_observer
+          assert "'PLAN_OBSERVER_RESULT=FAIL_CLOSED'" in preprod_observer
+          assert 'MAX_OBSERVER_BYTES=4096' in plan
+          assert '>"$prod_stdout" 2>"$prod_stderr"' in plan
+          assert '>"$preprod_stdout" 2>"$preprod_stderr"' in plan
+          assert 'cat "$prod_stderr"' not in plan
+          assert 'cat "$preprod_stderr"' not in plan
+          assert 'echo "$prod_out"' not in plan
+          assert 'echo "$preprod_out"' not in plan
+          assert 'printf \'%s\\n\' "$prod_out"' not in plan
+          assert 'printf \'%s\\n\' "$preprod_out"' not in plan
+          assert '>&2' not in prod_observer
+          assert '>&2' not in preprod_observer
+          assert "[[ \"${#lines[@]}\" -eq 2 ]]" in plan
+          assert "[[ \"${lines[0]}\" == 'PLAN_OBSERVER_RESULT=FAIL_CLOSED' ]]" in plan
+          assert '^PLAN_REASON=([A-Z0-9_]+)$' in plan
+
+          for required in (
+              '[[ -L "$CURRENT_RELEASE" ]]',
+              '[[ -d "$PROMOTIONS_DIR" ]]',
+              'readlink -f "$CURRENT_RELEASE"',
+              '[[ "$matched" -eq 1 ]]',
+          ):
+              assert required in prod_observer
+          for required in (
+              '[[ -L "$CURRENT" ]]',
+              '[[ -x "$DRUSH" ]]',
+              '[[ -d "$SHARED/backups" && -w "$SHARED/backups" ]]',
+              '$SHARED/settings/runtime.env',
+              '$CURRENT/scripts/preproduction/validate-runtime.sh',
+              '$CURRENT/scripts/preproduction-refresh/activation-capability/admin-reconcile.php',
+              '$CURRENT/config/splits/preproduction',
+              'sql:dump sql:cli sql:drop sql:sanitize maint:set updb cim cr',
+          ):
+              assert required in preprod_observer
+          assert "fail_reason 'PREPROD_ADMIN_RECONCILER'" in preprod_observer
+
           assert 'vendor/bin/drush' not in prod_observer.lower()
           assert 'sql:' not in prod_observer.lower()
           assert 'prod_db_content_read=NONE' in prod_observer
@@ -84,10 +162,18 @@ jobs:
           assert 'prod_write=NONE' in prod_observer
           assert 'PLAN_MUTATION=NONE' in preprod_observer
           assert 'PREPROD_DB_MUTATION=NONE' in preprod_observer
-          assert "'PROD_DB_CONTENT_READ=NONE'" in plan
-          assert "'PROD_SNAPSHOT=NOT_PERFORMED'" in plan
-          assert "'PROD_DATA_TRANSFER=NONE'" in plan
-          assert "'PREPROD_DB_MUTATION=NONE'" in plan
+          for success_marker in (
+              "'PLAN_RESULT=PASS'",
+              '"OBSERVED_PROD_RELEASE_SHA=$actual_prod"',
+              "'PROD_DB_CONTENT_READ=NONE'",
+              "'PROD_SNAPSHOT=NOT_PERFORMED'",
+              "'PROD_DATA_TRANSFER=NONE'",
+              "'PREPROD_DB_MUTATION=NONE'",
+              "'PROD_WRITE=NONE'",
+              "'DATA_ACTIVATION_AUTHORITY=DISABLED'",
+          ):
+              assert success_marker in plan
+
           isolate=a.index('docker network create --internal')
           raw_import=a.index('ddev import-db --file="$raw"')
           sanitize=a.index('ddev drush sql:sanitize')
@@ -106,6 +192,7 @@ jobs:
           assert restore < worker.index('HUMAN_RECOVERY_REQUIRED')
           assert 'maint:set 0' in worker
           assert '#915' not in a and '#917' not in a
+
           print('PLAN_RUNNER=ubuntu-24.04')
           print('PLAN_RUNNER_ENVIRONMENT=github-hosted')
           print('APPLY_RUNNER=self-hosted/linux/x64/agency')
@@ -113,6 +200,10 @@ jobs:
           print('PREPROD_PINNED_TRUST_PROVISION=PASS')
           print('STRICT_HOST_KEY_CHECKING=YES')
           print('PLAN_METADATA_ONLY=PASS')
+          print('BOUNDED_PLAN_DIAGNOSTICS=PASS')
+          print('RAW_STDERR_FORWARDING=NONE')
+          print('RAW_STDOUT_FORWARDING=NONE')
+          print('ADMIN_RECONCILER_REQUIREMENT=PRESERVED')
           print('RAW_STAGING_EGRESS_ISOLATION=PASS')
           print('SANITIZED_ONLY_TO_PREPROD=PASS')
           print('PREPROD_BACKUP_BEFORE_REPLACEMENT=PASS')

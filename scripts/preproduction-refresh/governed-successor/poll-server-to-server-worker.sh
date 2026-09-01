@@ -45,20 +45,24 @@ while true; do
   fi
 
   mapfile -t lines <<< "$observation"
-  if (( ${#lines[@]} != 3 )); then
+  if (( ${#lines[@]} != 4 )); then
     printf '%s\n' 'PREPROD_WORKER_STATE=UNOBSERVABLE_FAIL_CLOSED' >&2
     exit 76
   fi
   [[ "${lines[0]}" == terminal_metadata=* ]] || exit 76
   [[ "${lines[1]}" == outcome=* ]] || exit 76
-  [[ "${lines[2]}" == worker_process=* ]] || exit 76
+  [[ "${lines[2]}" == detail=* ]] || exit 76
+  [[ "${lines[3]}" == worker_process=* ]] || exit 76
   terminal="${lines[0]#terminal_metadata=}"
   outcome="${lines[1]#outcome=}"
-  worker="${lines[2]#worker_process=}"
+  detail="${lines[2]#detail=}"
+  worker="${lines[3]#worker_process=}"
 
   if [[ "$terminal" == PRESENT ]]; then
     [[ "$outcome" =~ ^(COMMITTED|ROLLED_BACK|HUMAN_RECOVERY_REQUIRED)$ ]] || exit 76
+    [[ "$detail" =~ ^[A-Z0-9_]+$ ]] || exit 76
     printf 'PREPROD_WORKER_OUTCOME=%s\n' "$outcome"
+    printf 'PREPROD_WORKER_DETAIL=%s\n' "$detail"
     printf '%s\n' \
       'CONTROL_PLANE=GITHUB_HOSTED_METADATA_SECRETS_SCRIPTS_ONLY' \
       'RAW_PROD_ON_GITHUB_HOSTED=NONE' \
@@ -74,7 +78,7 @@ while true; do
     esac
   fi
 
-  if [[ "$terminal" != ABSENT || "$outcome" != NONE ]]; then
+  if [[ "$terminal" != ABSENT || "$outcome" != NONE || "$detail" != NONE ]]; then
     printf '%s\n' 'PREPROD_WORKER_STATE=UNOBSERVABLE_FAIL_CLOSED' >&2
     exit 76
   fi

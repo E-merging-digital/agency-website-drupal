@@ -167,22 +167,68 @@ final class PreproductionServerToServerApplyTest extends TestCase {
       self::assertStringContainsString($handlers[$classId], $sanitizer);
     }
 
+    // Policy-owned values stay in the sole policy; the sanitizer consumes the
+    // mapped contracts generically instead of duplicating those values.
+    self::assertSame(
+      ['webform_submission', 'webform_submission_data'],
+      $execution['purge_tables_by_class']['webform_submissions'],
+    );
+    self::assertSame(['sessions'], $execution['purge_tables_by_class']['sessions']);
+    self::assertSame(['flood'], $execution['purge_tables_by_class']['flood_rate_limit']);
+    self::assertSame(['watchdog'], $execution['purge_tables_by_class']['dblog_watchdog']);
+    self::assertSame(['queue'], $execution['purge_tables_by_class']['queues']);
+    self::assertSame(['cache_'], $execution['cache_table_prefixes']);
+
+    $runtimeState = $execution['runtime_key_value_state'];
+    self::assertIsArray($runtimeState);
+    self::assertSame('key_value', $runtimeState['table']);
+    self::assertSame('state', $runtimeState['collection']);
+    self::assertSame(
+      ['system.cron_last', 'update.last_check', 'update.available_releases'],
+      $runtimeState['exact_names'],
+    );
+    self::assertSame(
+      ['announcements_feed.', 'linkchecker.'],
+      $runtimeState['name_prefixes'],
+    );
+
+    $credentialConfig = $execution['credential_config'];
+    self::assertIsArray($credentialConfig);
+    self::assertSame(['ai_provider_openai.settings'], $credentialConfig['exact_names']);
+    self::assertSame(['key.key.'], $credentialConfig['name_prefixes']);
+
     foreach ([
-      'preprod-user-',
-      'webform_submission',
-      'sessions',
-      'flood',
-      'watchdog',
-      'queue',
-      'cache_',
-      'system.cron_last',
-      'announcements_feed.',
-      'linkchecker.',
-      'ai_provider_openai.settings',
-      'key.key.',
-    ] as $semantic) {
-      self::assertStringContainsString($semantic, $sanitizer);
+      'purge_by_class = execution.get("purge_tables_by_class", {})',
+      'tables = purge_by_class.get(class_id)',
+      'prefixes = execution.get("cache_table_prefixes")',
+      'contract = execution["runtime_key_value_state"]',
+      'for name in contract["exact_names"]',
+      'for raw_prefix in contract["name_prefixes"]',
+      'contract = execution["credential_config"]',
+      'HANDLERS[str(handlers[rule_id])](database, execution)',
+    ] as $genericContract) {
+      self::assertStringContainsString($genericContract, $sanitizer);
     }
+    self::assertSame(
+      'reset_runtime_state',
+      $handlers['cron_update_announcements_linkchecker_state'],
+    );
+    self::assertSame(
+      'remove_production_state',
+      $handlers['production_environment_state'],
+    );
+    self::assertStringContainsString(
+      '"reset_runtime_state": handle_runtime_state',
+      $sanitizer,
+    );
+    self::assertStringContainsString(
+      '"remove_production_state": handle_production_state',
+      $sanitizer,
+    );
+    self::assertStringContainsString(
+      'delete_key_value_state(database, execution)',
+      $sanitizer,
+    );
   }
 
   /**

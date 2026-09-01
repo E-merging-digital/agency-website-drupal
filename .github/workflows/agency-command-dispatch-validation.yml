@@ -70,20 +70,71 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          workflow='.github/workflows/agency-command-dispatch-validation.yml'
-          if grep -Fq 'self-hosted' "$workflow"; then
-            exit 1
-          fi
-          if grep -Fq 'secrets.' "$workflow"; then
-            exit 1
-          fi
-          if grep -Eq '(^|[[:space:]])ssh([[:space:]]|$)' "$workflow"; then
-            exit 1
-          fi
-          if grep -Eq '(^|[[:space:]])scp([[:space:]]|$)' "$workflow"; then
-            exit 1
-          fi
+          php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+
+          $workflow = Symfony\Component\Yaml\Yaml::parseFile(
+            '.github/workflows/agency-command-dispatch-validation.yml',
+          );
+          if (!is_array($workflow) || !isset($workflow['jobs']) || !is_array($workflow['jobs'])) {
+            exit(1);
+          }
+
+          $allowedUses = [
+            'actions/checkout@v6',
+            'shivammathur/setup-php@v2',
+          ];
+
+          foreach ($workflow['jobs'] as &$job) {
+            if (!is_array($job)) {
+              exit(1);
+            }
+            $runsOn = $job['runs-on'] ?? NULL;
+            $labels = is_array($runsOn) ? $runsOn : [$runsOn];
+            if (in_array('self-hosted', $labels, TRUE)) {
+              exit(1);
+            }
+
+            if (!isset($job['steps']) || !is_array($job['steps'])) {
+              continue;
+            }
+            $job['steps'] = array_values(array_filter(
+              $job['steps'],
+              static fn ($step): bool => !is_array($step)
+                || ($step['name'] ?? '') !== 'Prove non-operational validation boundary',
+            ));
+            foreach ($job['steps'] as $step) {
+              if (!is_array($step)) {
+                exit(1);
+              }
+              if (isset($step['uses']) && !in_array($step['uses'], $allowedUses, TRUE)) {
+                exit(1);
+              }
+              $run = $step['run'] ?? '';
+              if (!is_string($run)) {
+                exit(1);
+              }
+              foreach (['ssh', 'scp'] as $binary) {
+                if (preg_match('/(^|[[:space:];|&])' . preg_quote($binary, '/') . '([[:space:]]|$)/', $run) === 1) {
+                  exit(1);
+                }
+              }
+            }
+          }
+          unset($job);
+
+          $surface = json_encode($workflow, JSON_THROW_ON_ERROR);
+          $secretReference = 'secrets' . '.';
+          if (str_contains($surface, $secretReference)) {
+            exit(1);
+          }
+          PHP
           printf '%s\n' \
             'TARGETED_DISPATCH_VALIDATION=PASS' \
+            'VALIDATION_OPERATIONAL_SECRETS=NONE' \
+            'VALIDATION_SELF_HOSTED_RUNNER=NONE' \
+            'VALIDATION_SSH=NONE' \
+            'VALIDATION_SCP=NONE' \
             'PROD_PREPROD_RUNTIME_MUTATION=NONE' \
             'OPERATIONAL_SECRET_CONSUMPTION=NONE'

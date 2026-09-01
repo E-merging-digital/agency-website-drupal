@@ -130,7 +130,7 @@ jobs:
           allowed = {
               'schema_version', 'request_id', 'expected_main', 'request_dir',
               'result_env', 'terminal_metadata_state', 'result_outcome', 'result_detail',
-              'worker_process', 'worker_process_count', 'worker_elapsed_seconds',
+              'worker_process', 'worker_phase', 'worker_process_count', 'worker_elapsed_seconds',
               'bootstrap_log', 'bootstrap_log_bytes', 'sanitized_sql', 'sanitized_sql_tmp',
               'activation_worker', 'raw_staging_scope', 'root_identity_stage', 'refresh_lock',
               'deploy_lock', 'maintenance_mode', 'refresh_fence', 'active_release_sha',

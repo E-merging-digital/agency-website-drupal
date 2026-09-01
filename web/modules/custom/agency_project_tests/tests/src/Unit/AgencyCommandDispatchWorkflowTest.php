@@ -23,6 +23,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'EDITORIAL_PUBLICATION' => '.github/workflows/trusted-editorial-publication.yml',
     'EDITORIAL_FEATURE_IMAGE' => '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
+    'PREPROD_REFRESH_940_DIAGNOSTIC' => '.github/workflows/preprod-refresh-940-diagnostic.yml',
   ];
 
   /**
@@ -54,7 +55,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(5, $routes);
+    self::assertCount(6, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -102,6 +103,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         923,
         'PREPROD_REFRESH',
       ],
+      [
+        '/agency-preprod-refresh-940-diagnostic diagnose',
+        941,
+        'PREPROD_REFRESH_940_DIAGNOSTIC',
+      ],
     ];
     foreach ($known as [$body, $issue, $expected]) {
       self::assertSame(
@@ -109,6 +115,15 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         $this->classify($routes, $body, $issue),
       );
     }
+
+    self::assertSame(
+      'NONE',
+      $this->classify(
+        $routes,
+        '/agency-preprod-refresh-940-diagnostic diagnose',
+        940,
+      ),
+    );
 
     $invalid = [
       'ordinary project lead comment',
@@ -143,6 +158,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       "route = matches[0] if len(matches) == 1 else 'NONE'",
       $source,
     );
+    self::assertStringContainsString(
+      "spec['route'] == 'PREPROD_REFRESH_940_DIAGNOSTIC'",
+      $source,
+    );
+    self::assertStringContainsString("issue != '941'", $source);
   }
 
   /**
@@ -170,6 +190,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'SERVER_USER',
       'PREPROD_SERVER_HOST',
     ];
+    $diagnosticSecrets = [
+      'PREPROD_SSH_PRIVATE_KEY',
+      'PREPROD_SERVER_HOST',
+    ];
     $jobMap = [
       'production-promote' => [
         'PRODUCTION_PROMOTE',
@@ -195,6 +219,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'PREPROD_REFRESH',
         ['contents' => 'read', 'issues' => 'read'],
         $preprodSecrets,
+      ],
+      'preprod-refresh-940-diagnostic' => [
+        'PREPROD_REFRESH_940_DIAGNOSTIC',
+        ['contents' => 'read', 'issues' => 'read'],
+        $diagnosticSecrets,
       ],
     ];
 
@@ -242,6 +271,12 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   private function classify(array $routes, string $body, int $issue): string {
     $matches = [];
     foreach ($routes as $route) {
+      if (
+        ($route['route'] ?? NULL) === 'PREPROD_REFRESH_940_DIAGNOSTIC'
+        && $issue !== 941
+      ) {
+        continue;
+      }
       $matched = in_array($body, $route['exact'] ?? [], TRUE);
       $pattern = $route['regex'] ?? NULL;
       if (is_string($pattern)) {

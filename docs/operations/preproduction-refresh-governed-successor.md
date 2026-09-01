@@ -1,179 +1,205 @@
 # Governed PROD → PREPROD refresh successor (#914)
 
-Status: source/static/synthetic only. No execution authority is granted by #914.
-Architecture authority: `AGENTS.md` and accepted `ADR-003-use-existing-first`.
+Status: `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN`; real PLAN proven; real APPLY still pending.
+Architecture authority: `AGENTS.md` and accepted `ADR-003-use-existing-first.md`.
+Parent authority: #816. Current temporary execution adaptation: #938.
 
 ## Decision
 
-`EXTEND_EXISTING`: reuse Drupal/Drush/DDEV/MariaDB/SSH and existing Agency safety
-controls. Custom code is limited to Agency-specific sanitization/assertions and a
-small PREPROD worker that sequences standard Drush operations.
+`EXTEND_EXISTING`.
 
-The former #914 `RECOVER_ABORT`, GitHub recovery records, historical target
-reconstruction, comment-id binding and near-zero-downtime #915 transaction path
-are not part of this route. #915/#917 remain merged history but are not an
-operational dependency.
+The refresh reuses existing Drupal/Drush/MariaDB/SSH and Agency primitives. No generic orchestration framework, transaction registry, recovery framework, new sanitization policy or new issue-comment listener is part of the current route. #915/#917 remain historical lineage only.
+
+The current #938 route is deliberately temporary while the registered Agency self-hosted runner is unavailable. The trusted self-hosted route remains an authorized alternative under the existing sanitization policy; it is not currently the active APPLY executor.
 
 ## Authority
 
-A future fresh issue under #816 may authorize exactly one `PLAN` or `APPLY`.
-The implementation/governance issues through #920 cannot execute. Marker schema
-v4 contains only authority issue, mode, one-shot request, current main SHA,
-PROD release (`AUTO` for PLAN, exact SHA for APPLY), profile, actor and attempt 1.
-GitHub stores authorization/audit only; it stores no transaction/recovery state.
-
-## PLAN
-
-PLAN performs metadata/readiness observation only. It runs on GitHub-hosted
-`ubuntu-24.04`, which is permitted by the durable #816 boundary because PLAN
-never materializes or manipulates raw PROD data. Immediately before any SSH
-secret is materialized, the PLAN JIT revalidates live `main`, exact one-shot
-authority, checked-out HEAD and `runner.environment == github-hosted`.
-
-After that JIT gate only, transient PROD/PREPROD SSH identities are written under
-`RUNNER_TEMP`. The ephemeral runner provisions both `known_hosts` entries with
-the existing PROD/PREPROD `manage-known-host.sh PROVISION` primitives. Those
-primitives use only repository-pinned ED25519 key material and SHA-256
-fingerprints; no network-discovered host key, TOFU, `ssh-keyscan`, `accept-new`
-or disabled host-key checking is permitted. PROD trust is then rechecked through
-`VERIFY_ONLY`, PREPROD trust through the existing strict
-`verify-preprod-pinned-trust.sh`, and all observations use
-`StrictHostKeyChecking=yes` with the explicit ephemeral `known_hosts` file.
-
-PLAN may then observe current PROD release/promotion receipt metadata and PREPROD
-readiness (Drush command availability, backup path, Config Split, runtime/admin
-inputs and lock presence). The PROD observer intentionally performs no Drush/DB
-command. PLAN creates no snapshot, transfers no PROD data, and performs no PROD
-write, PREPROD database mutation, runtime mutation, backup, maintenance or
-activation. Transient SSH identities are deleted in the workflow cleanup step.
-
-### Diagnostics de readiness bornés
-
-A failed PLAN reports only this fixed metadata contract:
+Every real `PLAN` or `APPLY` requires a fresh one-shot authority issue under #816. #914 and #938 do not grant persistent execution authority. The current validator binds mode, request ID, live `main`, exact PROD release for APPLY, profile, actor and `run_attempt = 1`.
 
 ```text
-PLAN_RESULT=FAIL_CLOSED
-PLAN_STAGE=<bounded enum>
-PLAN_REASON=<bounded enum>
+PLAN != APPLY
+CONSUMED / NEVER REUSE
+DATA_ACTIVATION_AUTHORITY = DISABLED
 ```
 
-The local PLAN process suppresses trust/SSH stderr, captures remote stdout/stderr
-only in `0600` transient files under the ephemeral runner, limits observer stdout
-to 4096 bytes, deletes those files, and never forwards their raw contents. A
-remote readiness refusal is accepted only when its output is exactly the fixed
-two-line `PLAN_OBSERVER_RESULT=FAIL_CLOSED` + allowlisted `PLAN_REASON` contract.
-Unknown, additional or malformed remote output is reduced to
-`OBSERVER_OUTPUT_INVALID`; an SSH/observer failure with no valid bounded marker is
-reduced to `PROD_SSH_OBSERVER` or `PREPROD_SSH_OBSERVER`.
+GitHub stores authorization/audit metadata only; it stores no data-refresh transaction state.
 
-Current bounded reasons are:
+## Current PLAN
+
+PLAN runs on GitHub-hosted `ubuntu-24.04`. JIT revalidates live `main`, exact checkout, one-shot authority and `runner.environment == github-hosted` before SSH identities are materialized.
+
+PLAN is metadata/readiness-only. It performs no:
+
+- PROD DB content read;
+- PROD snapshot;
+- PROD data transfer;
+- PROD write;
+- PREPROD DB/runtime mutation;
+- backup, maintenance or activation.
+
+#937 is CLOSED / COMPLETED and provides the current terminal PLAN evidence:
 
 ```text
-PLAN_CONTEXT_INVALID
-PLAN_REPOSITORY_IDENTITY
-UNEXPECTED_LOCAL_FAILURE
-PROD_PINNED_TRUST
-PREPROD_PINNED_TRUST
-PROD_SSH_OBSERVER
-PREPROD_SSH_OBSERVER
-PROD_OBSERVER_CONTEXT
-PROD_CURRENT_RELEASE
-PROD_PROMOTION_RECEIPT
-PREPROD_OBSERVER_CONTEXT
-PREPROD_CURRENT_RELEASE
-PREPROD_DRUSH_EXECUTABLE
-PREPROD_BACKUP_PATH
-PREPROD_RUNTIME_ENV
-PREPROD_RUNTIME_VALIDATOR
-PREPROD_ADMIN_RECONCILER
-PREPROD_CONFIG_SPLIT
-PREPROD_DRUSH_COMMAND_SET
-OBSERVER_OUTPUT_INVALID
+PLAN_RESULT = PASS
+PROD_DB_CONTENT_READ = NONE
+PROD_SNAPSHOT = NOT_PERFORMED
+PROD_DATA_TRANSFER = NONE
+PROD_WRITE = NONE
+PREPROD_DB_MUTATION = NONE
+DATA_ACTIVATION_AUTHORITY = DISABLED
+APPLY = SKIPPED
 ```
 
-These diagnostics classify existing predicates; they do not remove or weaken any
-readiness requirement. In particular,
-`scripts/preproduction-refresh/activation-capability/admin-reconcile.php` remains
-required because the current APPLY worker consumes it after sanitized DB import
-to reconcile the PREPROD administrator from server-owned state. A missing file is
-therefore a legitimate `PREPROD_ADMIN_RECONCILER` readiness failure, not authority
-for the data-refresh route to deploy application code.
+The observed PROD release is bound by the real #937 execution evidence. Future commands must always reload current live state rather than copy a stale SHA from this document.
 
-The success contract remains unchanged and still emits only the observed PROD
-release SHA plus the existing mutation/data-boundary PASS metadata.
+## Current temporary APPLY — #938
 
-This #927 change does not broaden a runner class for these SSH secrets: the same
-PROD and PREPROD SSH secret classes are already consumed by existing
-GitHub-hosted Agency workflows. That precedent is not authority to broaden any
-other secret or workflow.
+Current APPLY execution path:
 
-## APPLY
+```text
+GitHub-hosted ubuntu-24.04 control plane
+-> exact-main + fresh authority + JIT-before-secret
+-> fixed scripts / fixed identities / metadata only to PREPROD
+-> detached request-scoped PREPROD root preparation worker
+-> direct pinned read-only SSH PREPROD -> PROD
+-> existing production-readonly-snapshot/remote-stream.sh
+-> raw stream directly into derived PREPROD staging DB
+-> existing root-owned Agency sanitizer + existing single policy
+-> sanitization assertions
+-> sanitized SQL export only
+-> prove raw staging DB/account absent
+-> remove request-scoped PROD identity/trust root stage
+-> prove root stage absent
+-> existing #914 remote-apply-worker.sh as agency-preprod
+-> backup / maintenance / activation / rollback
+```
 
-1. JIT revalidate live main and exact authority before SSH secrets exist.
-2. On `agency-browser-runner-01`, prepare the exact PROD release DDEV project.
-3. Before importing raw data, disconnect its web+db containers from every normal
-   Docker network and attach them only to a fresh `docker network --internal`.
-4. Use the reviewed read-only PROD `drush sql:dump` primitive. Raw SQL exists only
-   under trusted `RUNNER_TEMP` and inside the isolated DDEV database.
-5. Import raw SQL only after isolation, then run Drush 13.7.6 `sql:sanitize`.
-   Drush owns generic user email/password and session sanitization.
-6. Run `agency-sanitize.php` only for Agency gaps: usernames, Webform, flood,
-   watchdog, queues, caches/temp/state and persisted provider/key configuration.
-   Fail-closed assertions prove the required classes are sanitized.
-7. Export a sanitized SQL dump, delete the raw dump, and transfer only the
-   sanitized SQL to PREPROD over pinned SSH.
-8. Start `remote-apply-worker.sh` detached with `nohup setsid --wait` as the
-   non-root `agency-preprod` user. No root/provisioning/recovery secret exists.
-9. The worker acquires the existing PREPROD deploy lock and creates a non-empty,
-   SHA-256 verified Drush backup before any destructive replacement.
-10. It enables bounded maintenance, uses `sql:drop` + `sql:cli`, then `updb`,
-    `cim`, PREPROD Config Split, server-owned PREPROD admin reconciliation,
-    runtime validation, `cr`, and disables maintenance. Success is `COMMITTED`.
-11. Any failure after destructive replacement restores the exact backup through
-    `sql:drop` + `sql:cli`, validates runtime, and only then disables maintenance:
-    `ROLLED_BACK`. If restore/validation is unprovable, maintenance stays ON and
-    the terminal result is `HUMAN_RECOVERY_REQUIRED`.
+GitHub-hosted is **control plane only**. It never opens the PROD snapshot SSH connection and never receives raw PROD bytes.
 
-APPLY remains strictly assigned to `[self-hosted, linux, x64, agency]`. Its raw
-staging, isolation, sanitization and sanitized-only transfer architecture is
-unchanged by #927. Raw PROD data on GitHub-hosted infrastructure remains
-forbidden and impossible on the PLAN path.
+```text
+RAW_PROD_ON_GITHUB_HOSTED = NONE
+RAW_PROD_GITHUB_ARTIFACT = NONE
+RAW_PROD_GITHUB_TEMP = NONE
+RAW_PROD_IN_GITHUB_LOGS = NONE
+RAW_PROD_ROUTE = PROD -> PREPROD DIRECT
+PROD_WRITE = NONE
+PRIVATE_FILES = NONE
+```
 
-## Hard runner loss
+The registered trusted self-hosted Agency runner (`self-hosted`, `linux`, `x64`, `agency`) remains an authorized raw-data alternative under the single policy, but is currently unavailable. #938 does not create a permanent multi-provider execution framework.
 
-Before detached worker launch there is no PREPROD runtime mutation. After launch,
-the worker is independent of the runner/SSH session and owns backup, maintenance,
-replacement and rollback. GitHub does not reconstruct old transactions and no
-`RECOVER_CURRENT` or historical lookup exists.
+## Read-only PROD identity
 
-## Raw staging isolation
+The temporary PREPROD-side PROD SSH identity is:
 
-The safety order is strict: **ISOLATE → IMPORT RAW → BOOTSTRAP/SANITIZE**.
-The DDEV web and DB containers are attached exclusively to an internal Docker
-network before raw import. Therefore mail, webhook, analytics, provider/API,
-cron/queue and arbitrary third-party network egress cannot leave the staging
-network while production data is present. Existing PREPROD settings additionally
-keep mail, analytics, cron and AI egress disabled after sanitized activation.
+```text
+REQUEST_SCOPED = YES
+TRANSIENT = YES
+ROOT_ONLY = YES
+MODE = 0600
+PINNED_TRUST = YES
+PROD_ACCESS = EXISTING READ_ONLY SNAPSHOT PATH ONLY
+GENERIC PROD SHELL AUTHORITY = NONE
+```
+
+The worker uses the existing pinned PROD host key/fingerprint and the existing `scripts/production-readonly-snapshot/remote-stream.sh`. That remote primitive binds the exact promoted PROD release and executes only fixed Drush `sql:dump` against PROD server-owned settings.
+
+## Raw staging and sanitization
+
+Raw data is never imported into the PREPROD live Drupal database. The existing bounded root-owned staging helper derives a request-specific MariaDB database/account namespace that cannot target `agency_preprod`.
+
+The server-side sanitizer and `scripts/preproduction-refresh/sanitization-policy.json` remain the single sanitization implementation/policy for this temporary route. They cover the #914 semantic outcome:
+
+- deterministic imported usernames;
+- anonymized mail/init and invalidated auth/password/access/login state;
+- sessions removed;
+- Webform submissions removed;
+- flood/watchdog removed;
+- queues removed;
+- batch/temp/cache state removed;
+- targeted cron/update/announcement/linkchecker state removed;
+- persisted provider/key config removed;
+- PREPROD admin remains server-owned.
+
+No second Drush emulation or sanitization policy is introduced.
+
+## Mandatory pre-activation cleanup gates
+
+Activation is impossible until both cleanup proofs pass.
+
+First, after sanitized SQL is exported:
+
+```text
+helper.cleanup_scope(scope)
+-> helper.require_absent(scope)
+-> RAW_STAGING_CLEANUP = PROVEN
+```
+
+The cleanup is retried only a small fixed number of times. If the derived DB/account cannot be proven absent:
+
+```text
+ACTIVATION = NOT_STARTED
+OUTCOME = HUMAN_RECOVERY_REQUIRED
+DETAIL = RAW_STAGING_CLEANUP_UNPROVEN
+```
+
+Second, the request-scoped root stage containing `prod-read.key`, pinned PROD trust material and fixed scripts is removed and absence is independently checked before activation:
+
+```text
+PROD_IDENTITY_STAGE_CLEANUP = PROVEN
+```
+
+If that cleanup/absence proof fails:
+
+```text
+ACTIVATION = NOT_STARTED
+OUTCOME = HUMAN_RECOVERY_REQUIRED
+DETAIL = PROD_IDENTITY_STAGE_CLEANUP_UNPROVEN
+```
+
+Only after both gates pass may the root preparation worker `exec` the existing non-root #914 activation worker. Unexpected pre-activation exceptions are reduced to bounded terminal metadata rather than leaving the control plane polling until timeout.
+
+## Existing activation and rollback
+
+`scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh` remains authoritative and unchanged in responsibility.
+
+It:
+
+1. validates sanitized SQL identity/mode;
+2. acquires the existing PREPROD deploy lock;
+3. creates and verifies an exact protected Drush backup before destructive replacement;
+4. enables maintenance;
+5. executes `sql:drop` + `sql:cli`;
+6. runs `updb`, `cim`, PREPROD Config Split, server-owned admin reconciliation, `cr` and runtime validation;
+7. disables maintenance only after successful validation;
+8. returns `COMMITTED`.
+
+Failure after destructive replacement restores the exact backup and validates it. Proven restore returns `ROLLED_BACK`; unprovable restore returns `HUMAN_RECOVERY_REQUIRED` and maintenance stays ON.
+
+## Hard runner/control-plane loss
+
+Before the detached PREPROD preparation worker starts, there is no raw PROD stream and no PREPROD runtime mutation. After launch, PREPROD owns the preparation, cleanup gates and handoff to the existing activation worker independently of the GitHub-hosted session.
+
+No GitHub transaction reconstruction, `RECOVER_CURRENT`, `RECOVER_ABORT` or historical target lookup exists.
 
 ## Files
 
-Public files are out of scope. Stage File Proxy is the preferred future standard
-solution to evaluate/use rather than custom synchronization. Private files remain
-excluded.
+Public files are out of scope for #914/#938. Stage File Proxy remains the preferred standard primitive to evaluate if public-file fidelity becomes necessary. Private files remain excluded.
 
 ## Non-negotiable invariants
 
-- PROD write: none.
-- PLAN PROD DB content read: none.
-- PLAN PROD snapshot: not performed.
-- PLAN PROD data transfer: none.
-- PLAN PREPROD DB/runtime mutation: none.
-- Raw PROD data on GitHub-hosted runners/artifacts/logs: none.
-- Raw data execution surface: trusted self-hosted only.
-- APPLY runner: `self-hosted`, `linux`, `x64`, `agency` only.
-- PREPROD runtime never sees unsanitized PROD data.
-- PREPROD settings/secrets remain environment-owned.
+- PLAN = GitHub-hosted / current.
+- APPLY = `CONTROLLED_SERVER_TO_SERVER` / temporary current.
+- Trusted self-hosted runner = authorized alternative / currently unavailable.
+- Raw PROD on GitHub-hosted = none.
+- PROD write = none.
+- PREPROD live runtime raw access = forbidden.
+- Single existing sanitization policy = preserved.
+- Raw staging cleanup proven before activation.
+- PROD identity/root stage cleanup proven before activation.
+- Any unproven pre-activation cleanup = `HUMAN_RECOVERY_REQUIRED`; activation not started.
+- Existing `remote-apply-worker.sh` = reused.
 - Verified PREPROD backup precedes destructive replacement.
-- Rollback must be proven before maintenance reopens.
-- Caller-selected generic root execution: none.
-- Persistent `DATA_ACTIVATION_AUTHORITY`: disabled.
+- PREPROD settings/secrets remain environment-owned.
+- Persistent `DATA_ACTIVATION_AUTHORITY` = disabled.
+- New framework = none.

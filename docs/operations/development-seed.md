@@ -1,8 +1,8 @@
 # Development Seed — DDEV pull-only
 
-Status: **source/configuration contract + synthetic proof only**  
-Owner: **#873**  
-Parent: **#870**  
+Status: **source/configuration contract + synthetic proof only**
+Owner: **#873**
+Parent: **#870**
 Source dependency: **#816**
 
 ## Purpose
@@ -177,7 +177,6 @@ feature branch descended from seed release
 
 checkout older than seed release
   -> FAIL CLOSED
-
 divergent/unknown seed history
   -> FAIL CLOSED
 ```

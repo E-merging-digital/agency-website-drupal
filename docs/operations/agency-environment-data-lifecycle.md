@@ -45,7 +45,10 @@ CONSUMED / NEVER REUSE
 recoverable technical failure != HUMAN_REQUIRED
 operator-surface capability != project-executor capability
 CAPABILITY EXISTS != EXECUTOR CURRENTLY ONLINE
+DATA_ACTIVATION_AUTHORITY = DISABLED
 ```
+
+`DATA_ACTIVATION_AUTHORITY = DISABLED` means that no durable/persistent data-activation privilege exists merely because source, secrets, provisioning or a helper exists. A fresh separately valid one-shot APPLY authority is still required by the current #914 route.
 
 An emitted one-shot request ID is consumed regardless of success, failure, cancellation or transport outcome. A fresh attempt needs a fresh separately valid request identity.
 
@@ -210,6 +213,15 @@ The provider exists, but a real seed service must **not** be presented as availa
 | Development Seed repository/DDEV tranche | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Real PREPROD generation/storage/distribution pending. |
 
 The previous `#873 = DESIGN_ONLY` classification is obsolete and must not be reused. Likewise, older #907/#874 activation-capability status is historical implementation lineage, not the current #914 operational route.
+
+A pre-#914 validation workflow still checks the literal below. It is retained **only as explicitly labelled historical context** and must not be interpreted as a current status or instruction:
+
+```text
+HISTORICAL_ONLY / NOT CURRENT:
+REAL PROVISIONING APPLY = EXECUTION_PENDING
+```
+
+Current operation is #914 source/synthetic with fresh one-shot #816 authority; there is no pending #907 provisioning step in the current route.
 
 ## 6. Code/configuration recipe
 

@@ -12,7 +12,8 @@ env:
       {"route":"EDITORIAL_PUBLICATION","prefix":"/agency-editorial ","exact":["/agency-editorial inspect","/agency-editorial dry-run","/agency-editorial apply"]},
       {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image ","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply"]},
       {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor ","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"},
-      {"route":"PREPROD_REFRESH_940_DIAGNOSTIC","prefix":"/agency-preprod-refresh-940-diagnostic ","exact":["/agency-preprod-refresh-940-diagnostic diagnose"]}
+      {"route":"PREPROD_REFRESH_940_DIAGNOSTIC","prefix":"/agency-preprod-refresh-940-diagnostic ","exact":["/agency-preprod-refresh-940-diagnostic diagnose"]},
+      {"route":"PREPROD_REFRESH_940_RECOVERY","prefix":"/agency-preprod-refresh-940-recovery ","exact":["/agency-preprod-refresh-940-recovery plan","/agency-preprod-refresh-940-recovery cleanup"]}
     ]
 
 jobs:
@@ -42,10 +43,15 @@ jobs:
           issue = os.environ['ISSUE_NUMBER']
           is_pr = os.environ['IS_PULL_REQUEST'].lower() == 'true'
           routes = json.loads(os.environ['ROUTES_JSON'])
+          incident_issue = {
+              'PREPROD_REFRESH_940_DIAGNOSTIC': '941',
+              'PREPROD_REFRESH_940_RECOVERY': '943',
+          }
           matches = []
           if not is_pr:
               for spec in routes:
-                  if spec['route'] == 'PREPROD_REFRESH_940_DIAGNOSTIC' and issue != '941':
+                  required_issue = incident_issue.get(spec['route'])
+                  if required_issue is not None and issue != required_issue:
                       continue
                   exact = spec.get('exact', [])
                   pattern = spec.get('regex')
@@ -142,4 +148,16 @@ jobs:
     uses: ./.github/workflows/preprod-refresh-940-diagnostic.yml
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-refresh-940-recovery:
+    name: Route #940 bounded PREPROD root-stage recovery
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH_940_RECOVERY' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/preprod-refresh-940-recovery.yml
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}

@@ -1,8 +1,12 @@
 name: "#941 Read-only PREPROD refresh #940 diagnostic"
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
 
 permissions:
   contents: read
@@ -15,8 +19,9 @@ concurrency:
 jobs:
   diagnose:
     if: >-
-      ${{ github.event.issue.pull_request == null && github.event.issue.number == 941 &&
-          github.event.comment.user.login == 'E-merging-digital' && github.actor == 'E-merging-digital' &&
+      ${{ github.event_name == 'issue_comment' && github.event.issue.pull_request == null &&
+          github.event.issue.number == 941 && github.event.comment.user.login == 'E-merging-digital' &&
+          github.actor == 'E-merging-digital' &&
           github.event.comment.body == '/agency-preprod-refresh-940-diagnostic diagnose' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5

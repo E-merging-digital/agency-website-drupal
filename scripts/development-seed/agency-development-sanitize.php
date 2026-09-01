@@ -36,14 +36,28 @@ if ($schema->tableExists('key_value')) {
     ->execute();
 }
 
+// Keep this pass database-portable so the exact production logic can be proven
+// on Drupal's synthetic SQLite BrowserTestBase surface as well as MariaDB.
 if ($schema->tableExists('users_field_data')) {
-  $db->update('users_field_data')
-    ->expression('name', "CONCAT('dev-user-', uid)")
-    ->expression('mail', "CONCAT('dev-user+', uid, '@example.invalid')")
-    ->expression('init', "CONCAT('dev-user+', uid, '@example.invalid')")
-    ->fields(['access' => 0, 'login' => 0])
+  $uids = $db->select('users_field_data', 'u')
+    ->fields('u', ['uid'])
     ->condition('uid', 0, '>')
-    ->execute();
+    ->execute()
+    ->fetchCol();
+  foreach ($uids as $rawUid) {
+    $uid = (int) $rawUid;
+    $email = "dev-user+{$uid}@example.invalid";
+    $db->update('users_field_data')
+      ->fields([
+        'name' => "dev-user-{$uid}",
+        'mail' => $email,
+        'init' => $email,
+        'access' => 0,
+        'login' => 0,
+      ])
+      ->condition('uid', $uid)
+      ->execute();
+  }
 }
 
 // Drush + #914 own the generic/Agency sanitization. Development only asserts
@@ -67,12 +81,24 @@ foreach (['user__roles', 'user__user_picture', 'users_data', 'history'] as $tabl
 }
 
 if ($schema->tableExists('users_field_data')) {
-  $bad = (int) $db->query(
-    "SELECT COUNT(*) FROM {users_field_data} WHERE uid > 0 AND (name NOT REGEXP '^dev-user-[0-9]+$' OR mail NOT REGEXP '^dev-user\\+[0-9]+@example\\.invalid$' OR init NOT REGEXP '^dev-user\\+[0-9]+@example\\.invalid$' OR access <> 0 OR login <> 0)"
-  )->fetchField();
-  if ($bad !== 0) {
-    throw new RuntimeException('Development user minimization assertion failed.');
+  $users = $db->select('users_field_data', 'u')
+    ->fields('u', ['uid', 'name', 'mail', 'init', 'access', 'login'])
+    ->condition('uid', 0, '>')
+    ->execute();
+  foreach ($users as $user) {
+    $uid = (int) $user->uid;
+    $email = "dev-user+{$uid}@example.invalid";
+    if (
+      $user->name !== "dev-user-{$uid}"
+      || $user->mail !== $email
+      || $user->init !== $email
+      || (int) $user->access !== 0
+      || (int) $user->login !== 0
+    ) {
+      throw new RuntimeException('Development user minimization assertion failed.');
+    }
   }
+
   $localAdmin = (int) $db->select('users_field_data', 'u')
     ->condition('name', 'agency-local-admin')
     ->countQuery()
@@ -84,9 +110,14 @@ if ($schema->tableExists('users_field_data')) {
 }
 
 if ($schema->tableExists('config')) {
-  $credentials = (int) $db->query(
-    "SELECT COUNT(*) FROM {config} WHERE name='ai_provider_openai.settings' OR name LIKE 'key.key.%'"
-  )->fetchField();
+  $or = $db->orConditionGroup()
+    ->condition('name', 'ai_provider_openai.settings')
+    ->condition('name', 'key.key.%', 'LIKE');
+  $credentials = (int) $db->select('config', 'c')
+    ->condition($or)
+    ->countQuery()
+    ->execute()
+    ->fetchField();
   if ($credentials !== 0) {
     throw new RuntimeException('Known credential-bearing configuration survived.');
   }

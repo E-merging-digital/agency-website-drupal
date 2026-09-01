@@ -88,7 +88,7 @@ Before SSH secrets are materialized:
 
 Raw-data execution is never moved to GitHub-hosted infrastructure because a runner is unavailable or busy.
 
-The durable #816 boundary allows raw data only on the trusted Agency runner **or** a separately reviewed strictly controlled server-to-server path where the raw bytes never transit through or materialize on GitHub-hosted infrastructure. The current #914 implementation uses the trusted Agency runner/DDEV route; this clause does not invent a second current execution path.
+The durable #816 boundary allows raw data only on the trusted Agency runner **or** a separately reviewed strictly controlled server-to-server path where the raw bytes never transit through GitHub-hosted infrastructure and raw PROD data never materializes on GitHub-hosted infrastructure. The current #914 implementation uses the trusted Agency runner/DDEV route; this clause does not invent a second current execution path.
 
 ### 2. Read-only PROD source
 

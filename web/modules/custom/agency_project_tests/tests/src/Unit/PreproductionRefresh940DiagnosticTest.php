@@ -229,6 +229,7 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
 
   /**
    * SSH observation is fixed and hard-bounded.
+   *
    * It uses only the normal PREPROD key.
    */
   public function testWorkflowUsesBoundedFixedPreprodObservation(): void {

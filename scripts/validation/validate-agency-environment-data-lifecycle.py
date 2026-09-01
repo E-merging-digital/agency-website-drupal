@@ -103,6 +103,14 @@ HISTORICAL_COMMANDS_NOT_CURRENT = (
     "/agency-config-language-lock evaluate",
 )
 
+STALE_CURRENT_STATUS_REFERENCES = (
+    "#927 is a **PENDING / PROPOSED ADAPTATION**",
+    "#927 is **PENDING / PROPOSED ADAPTATION**",
+    "current PLAN remains self-hosted",
+    "Current `main` still runs both #914 PLAN and APPLY on the trusted Agency self-hosted runner",
+    "PLAN               = [self-hosted, linux, x64, agency]",
+)
+
 
 def require(condition: bool, message: str) -> None:
     if not condition:
@@ -129,6 +137,11 @@ def has_top_level_issue_comment_trigger(text: str) -> bool:
     return False
 
 
+def job_runs_on(workflow: str, job: str, expected: str) -> bool:
+    pattern = rf"(?ms)^  {re.escape(job)}:\n.*?^    runs-on: {re.escape(expected)}\s*$"
+    return re.search(pattern, workflow) is not None
+
+
 def main() -> int:
     for path in REQUIRED_PATHS:
         require((ROOT / path).is_file(), f"required current path does not exist: {path}")
@@ -139,6 +152,7 @@ def main() -> int:
     provider = PROVIDER.read_text(encoding="utf-8")
     dispatcher = DISPATCHER.read_text(encoding="utf-8")
     preprod_workflow = PREPROD_WORKFLOW.read_text(encoding="utf-8")
+    current_docs = doc + "\n" + registry + "\n" + refresh
 
     for heading in REQUIRED_HEADINGS:
         require(heading in doc, f"missing required canonical heading: {heading}")
@@ -159,13 +173,13 @@ def main() -> int:
 
     listener_files = []
     for workflow_path in sorted((ROOT / ".github/workflows").glob("*.yml")):
-        workflow_text = workflow_path.read_text(encoding="utf-8")
-        if has_top_level_issue_comment_trigger(workflow_text):
+        if has_top_level_issue_comment_trigger(workflow_path.read_text(encoding="utf-8")):
             listener_files.append(workflow_path.relative_to(ROOT).as_posix())
     require(listener_files == [".github/workflows/agency-command-dispatch.yml"],
             f"unexpected issue_comment listeners: {listener_files}")
     require("Route syntax only; authorization remains downstream" in dispatcher,
             "dispatcher incorrectly owns execution authorization")
+
     for path in ACTIVE_REUSABLE_WORKFLOWS:
         text = (ROOT / path).read_text(encoding="utf-8")
         require("workflow_call:" in text, f"active command workflow is not reusable: {path}")
@@ -174,37 +188,77 @@ def main() -> int:
         require(path in dispatcher, f"dispatcher does not route current reusable workflow: {path}")
         require(path in doc, f"canonical doc missing current reusable workflow: {path}")
         require(path in registry, f"registry missing current reusable workflow: {path}")
-    require("#922 is **COMPLETED**" in doc, "#922 is not documented as completed current state")
-    require("#922 is **COMPLETED**" in registry, "registry does not document completed dispatcher consolidation")
+
+    require("#922 is **COMPLETED**" in doc, "#922 is not documented as completed")
+    require("#922 is **COMPLETED**" in registry, "registry does not document #922 completed")
+
+    # Current #914/#927 runner split and security boundary.
+    require(job_runs_on(preprod_workflow, "validate-authority", "ubuntu-24.04"),
+            "#914 authority job is not current GitHub-hosted")
+    require(job_runs_on(preprod_workflow, "plan", "ubuntu-24.04"),
+            "#914 PLAN is not current GitHub-hosted ubuntu-24.04")
+    require(job_runs_on(preprod_workflow, "apply", "[self-hosted, linux, x64, agency]"),
+            "#914 APPLY trusted runner boundary changed")
+    require("runner.environment" in preprod_workflow and "github-hosted" in preprod_workflow,
+            "PLAN hosted-runner JIT assertion missing")
+    require("JIT revalidate before PLAN SSH secrets" in preprod_workflow,
+            "PLAN JIT-before-secret boundary missing")
 
     require("#914 is `SOURCE_IMPLEMENTED` + `SYNTHETICALLY_PROVEN`" in doc,
             "current #914 source/synthetic status missing")
-    require("#816 remains open" in doc, "#816 pending real state missing")
+    require("#927 is **CLOSED / COMPLETED**" in doc,
+            "#927 completed status missing from canonical doc")
+    require("#927 is **CLOSED / COMPLETED**" in registry,
+            "#927 completed status missing from registry")
+    require("PLAN_RUNNER = ubuntu-24.04 / github-hosted" in refresh,
+            "refresh contract missing current hosted PLAN runner")
+    require("APPLY_RUNNER = self-hosted / linux / x64 / agency" in refresh,
+            "refresh contract missing current APPLY runner")
+
+    # Real #929 PLAN evidence is factual and deliberately bounded.
+    for required in (
+        "REAL_PLAN = EXECUTED / FAIL_CLOSED",
+        "REAL_END_TO_END_REFRESH = NOT_YET_PROVEN",
+        "PROD_WRITE = NONE",
+    ):
+        require(required in refresh, f"refresh evidence missing: {required}")
+    require("#929" in doc and "returned `FAIL_CLOSED`" in doc,
+            "canonical doc missing real #929 fail-closed evidence")
+    require("exact failed readiness predicate is **NOT YET PROVEN**" in doc,
+            "canonical doc does not preserve unknown #929 readiness cause")
+    require("REAL_METADATA_ONLY_PLAN = EXECUTED" in registry,
+            "registry missing #929 real PLAN execution")
+    require("FAILED_READINESS_PREDICATE = NOT_YET_PROVEN" in registry,
+            "registry incorrectly claims #929 readiness cause")
+
+    # #930 is recovery work in progress, not current implementation.
+    require("#930 is the **CURRENT RECOVERY / IN PROGRESS**" in doc,
+            "canonical doc missing #930 in-progress recovery status")
+    require("#930 is **CURRENT RECOVERY / IN PROGRESS**" in registry,
+            "registry missing #930 in-progress recovery status")
+    require("#930 is not yet implemented/current behavior" in refresh,
+            "refresh doc incorrectly implies #930 is implemented")
+
+    require("#816 remains OPEN/in-progress" in doc,
+            "#816 pending real state missing")
     require("REAL_END_TO_END_REFRESH = NOT_YET_PROVEN" in refresh,
             "refresh doc incorrectly implies terminal real execution")
-    require("REAL_APPLY = PENDING" in refresh, "real APPLY pending state missing")
-    require("runs-on: [self-hosted, linux, x64, agency]" in preprod_workflow,
-            "current #914 PLAN/APPLY self-hosted execution boundary missing")
-    require("#927" in doc and "PENDING / PROPOSED ADAPTATION" in doc,
-            "#927 pending adaptation status missing")
-    require("#927" in registry and "PENDING / PROPOSED ADAPTATION" in registry,
-            "#927 pending adaptation missing from registry")
-    require("PLAN_RUNNER = GitHub-hosted" not in doc + registry,
-            "#927 proposed PLAN runner is incorrectly presented as current")
+    require("REAL_APPLY = PENDING" in refresh,
+            "real APPLY pending state missing")
 
     for stale in STALE_CURRENT_WORKFLOW_REFERENCES:
         require(stale not in doc, f"stale current workflow reference in canonical doc: {stale}")
         require(stale not in registry, f"stale current workflow reference in registry: {stale}")
 
-    require(
-        all(term in refresh for term in (
-            "RECOVER_CURRENT",
-            "RECOVER_ABORT",
-            "GitHub transaction reconstruction",
-            "historical target lookup",
-        )),
-        "obsolete recovery model is not explicitly rejected",
-    )
+    for stale in STALE_CURRENT_STATUS_REFERENCES:
+        require(stale not in current_docs, f"stale current status reference remains: {stale}")
+
+    require(all(term in refresh for term in (
+        "RECOVER_CURRENT",
+        "RECOVER_ABORT",
+        "GitHub transaction reconstruction",
+        "historical target lookup",
+    )), "obsolete recovery model is not explicitly rejected")
     require("not operational dependencies" in doc,
             "#915/#917 historical lineage is not clearly non-operational")
 
@@ -212,14 +266,16 @@ def main() -> int:
         require(command not in doc, f"historical command reintroduced in canonical doc: {command}")
         require(command not in registry, f"historical command reintroduced in registry: {command}")
 
+    # Editorial current/future boundary.
     require("#576 bounded Article" in doc, "current #576 editorial route missing")
     require("#872 Editorial Candidate" in doc and "`DESIGN_ONLY`" in doc,
             "#872 future/not-implemented status missing")
     require("PREPROD DB -> PROD" in doc, "editorial/data no-DB-promotion boundary missing")
 
-    require("#873" in doc and "SOURCE_IMPLEMENTED" in doc and "SYNTHETICALLY_PROVEN" in doc,
+    # #873 source/synthetic current state, real service pending #816.
+    require("#873" in doc and "SOURCE_IMPLEMENTED" in doc and "SYNTHETIC_PROOF = COMPLETE" in doc,
             "current #873 source/synthetic status missing")
-    require("REAL_PREPROD_SEED_GENERATION = EXECUTION_PENDING" in doc,
+    require("REAL_PREPROD_SEED_GENERATION = PENDING #816" in doc,
             "real Development Seed generation pending state missing")
     require("DDEV_PUSH = NONE" in doc, "DDEV push prohibition missing")
     require("ddev pull agency" in doc, "current DDEV pull command missing")
@@ -261,6 +317,7 @@ def main() -> int:
     ):
         require(registry_contract in registry, f"registry not synchronized: {registry_contract}")
 
+    # Current docs contain durable classifications, not hardcoded transient run IDs or secrets.
     for name, text in (("canonical", doc), ("refresh", refresh), ("registry", registry)):
         require(not re.search(r"\b3\d{10}\b", text),
                 f"ephemeral workflow run number embedded in {name} documentation")
@@ -270,7 +327,7 @@ def main() -> int:
             "SSH_PRIVATE_KEY=",
         ):
             require(forbidden not in text,
-                    f"secret-shaped assignment forbidden in {name} documentation: {forbidden}")
+                    f"secret-shaped assignment forbidden in {name}: {forbidden}")
 
     print("CANONICAL_LIFECYCLE_DOC=PRESENT")
     print("CURRENT_OPERATIONAL_FLOWS=4")
@@ -279,8 +336,11 @@ def main() -> int:
     print("ACTIVE_REUSABLE_COMMANDS=5")
     print("DISPATCHER_AUTHORITY=NONE")
     print("CURRENT_914_MODEL=DOCUMENTED")
-    print("CURRENT_914_PLAN_RUNNER=SELF_HOSTED")
-    print("ISSUE_927=PENDING_NOT_CURRENT")
+    print("CURRENT_914_PLAN_RUNNER=GITHUB_HOSTED_UBUNTU_24_04")
+    print("CURRENT_914_APPLY_RUNNER=SELF_HOSTED_LINUX_X64_AGENCY")
+    print("ISSUE_927=CLOSED_COMPLETED")
+    print("ISSUE_929_REAL_PLAN=FAIL_CLOSED_CAUSE_UNPROVEN")
+    print("ISSUE_930=OPEN_IN_PROGRESS")
     print("REAL_816_EXECUTION=NOT_YET_PROVEN")
     print("EDITORIAL_576=CURRENT")
     print("EDITORIAL_872=DESIGN_ONLY")
@@ -288,6 +348,7 @@ def main() -> int:
     print("DEVELOPMENT_SEED_REAL_DISTRIBUTION=PENDING")
     print("DDEV_PUSH=NONE")
     print("STALE_CURRENT_WORKFLOW_REFERENCES=0")
+    print("STALE_CURRENT_STATUS_REFERENCES=0")
     print("HISTORICAL_CONFIG_LANGUAGE_COMMAND_REINTRODUCED=NO")
     print("PRIVACY_CLASSIFICATION=COMPLETE")
     print("BACKUP_ROLLBACK_MODEL=CURRENT")

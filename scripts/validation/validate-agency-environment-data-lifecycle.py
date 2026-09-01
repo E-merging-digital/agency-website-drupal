@@ -121,9 +121,14 @@ def main() -> int:
     require('run-server-to-server-apply.sh' in workflow, 'server-to-server control script not selected')
 
     for text, label in ((doc, 'canonical'), (registry, 'registry'), (refresh, 'refresh'), (successor, 'successor')):
-        require('PLAN_RESULT = PASS' in text or 'PLAN_RESULT=PASS' in text
-                or 'real PLAN proven' in text,
-                f'PLAN PASS/current proof missing from {label}')
+        plan_proven = (
+            'PLAN_RESULT = PASS' in text
+            or 'PLAN_RESULT=PASS' in text
+            or 'real PLAN proven' in text
+            or 'PLAN = GitHub-hosted ubuntu-24.04 / REAL_EXECUTION_PROVEN' in text
+            or 'PLAN               = GitHub-hosted ubuntu-24.04 / REAL_EXECUTION_PROVEN' in text
+        )
+        require(plan_proven, f'PLAN PASS/current proof missing from {label}')
         require('CONTROLLED_SERVER_TO_SERVER' in text,
                 f'controlled server-to-server path missing from {label}')
         require('AUTHORIZED ALTERNATIVE' in text or 'authorized alternative' in text,

@@ -29,7 +29,8 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
       $bootstrap,
     );
     self::assertStringContainsString(
-      '"$(stat -c \'%U:%G:%a\' "$jobs_dir")" == "$PROJECT_USER:$PROJECT_USER:700"',
+      '"$(stat -c \'%U:%G:%a\' "$jobs_dir")" == '
+      . '"$PROJECT_USER:$PROJECT_USER:700"',
       $bootstrap,
     );
     self::assertStringContainsString(
@@ -48,10 +49,16 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
     $jit = strpos($control, 'REFRESH_JOBS_ROOT=READY');
     $ordinaryProof = strpos(
       $control,
-      "stat -c '%U:%G:%a' '$REFRESH_JOBS_ROOT'",
+      "stat -c '%U:%G:%a' '\$REFRESH_JOBS_ROOT'",
     );
-    $keyCopy = strpos($control, 'cp "$PROD_SSH_KEY" "$local_stage/prod-read.key"');
-    $remoteStage = strpos($control, "install -d -o root -g root -m 700 '$remote_stage'");
+    $keyCopy = strpos(
+      $control,
+      'cp "$PROD_SSH_KEY" "$local_stage/prod-read.key"',
+    );
+    $remoteStage = strpos(
+      $control,
+      "install -d -o root -g root -m 700 '\$remote_stage'",
+    );
     foreach ([$jit, $ordinaryProof, $keyCopy, $remoteStage] as $offset) {
       self::assertIsInt($offset);
     }
@@ -63,16 +70,34 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
       "REFRESH_JOBS = SHARED / 'refresh-jobs'",
       $prerequisite,
     );
-    self::assertStringContainsString("DEPLOY_USER = 'agency-preprod'", $prerequisite);
+    self::assertStringContainsString(
+      "DEPLOY_USER = 'agency-preprod'",
+      $prerequisite,
+    );
     self::assertStringContainsString('EXPECTED_MODE = 0o700', $prerequisite);
     self::assertStringContainsString('os.lstat(path)', $prerequisite);
-    self::assertStringContainsString('stat.S_ISLNK(metadata.st_mode)', $prerequisite);
-    self::assertStringContainsString('not stat.S_ISDIR(metadata.st_mode)', $prerequisite);
+    self::assertStringContainsString(
+      'stat.S_ISLNK(metadata.st_mode)',
+      $prerequisite,
+    );
+    self::assertStringContainsString(
+      'not stat.S_ISDIR(metadata.st_mode)',
+      $prerequisite,
+    );
     self::assertStringContainsString('metadata.st_uid != uid', $prerequisite);
     self::assertStringContainsString('metadata.st_gid != gid', $prerequisite);
-    self::assertStringContainsString('stat.S_IMODE(metadata.st_mode) != EXPECTED_MODE', $prerequisite);
-    self::assertStringContainsString('os.mkdir(REFRESH_JOBS, EXPECTED_MODE)', $prerequisite);
-    self::assertStringContainsString('Fixed prerequisite accepts no arguments.', $prerequisite);
+    self::assertStringContainsString(
+      'stat.S_IMODE(metadata.st_mode) != EXPECTED_MODE',
+      $prerequisite,
+    );
+    self::assertStringContainsString(
+      'os.mkdir(REFRESH_JOBS, EXPECTED_MODE)',
+      $prerequisite,
+    );
+    self::assertStringContainsString(
+      'Fixed prerequisite accepts no arguments.',
+      $prerequisite,
+    );
   }
 
   /**
@@ -81,7 +106,16 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
   public function testPrerequisiteHasNoProdDbOrGenericExecutionSurface(): void {
     $prerequisite = strtolower($this->prerequisite());
 
-    foreach (['ssh', 'mariadb', 'mysql', 'drush', 'subprocess', 'os.system', 'shell=true'] as $forbidden) {
+    $forbiddenTerms = [
+      'ssh',
+      'mariadb',
+      'mysql',
+      'drush',
+      'subprocess',
+      'os.system',
+      'shell=true',
+    ];
+    foreach ($forbiddenTerms as $forbidden) {
       self::assertStringNotContainsString($forbidden, $prerequisite);
     }
     self::assertStringContainsString(
@@ -98,13 +132,22 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
     $control = $this->control();
     $poll = $this->poll();
 
-    self::assertStringContainsString('PER_OBSERVATION_HARD_TIMEOUT_SECONDS=20', $poll);
+    self::assertStringContainsString(
+      'PER_OBSERVATION_HARD_TIMEOUT_SECONDS=20',
+      $poll,
+    );
     self::assertStringContainsString(
       'timeout --signal=KILL "${PER_OBSERVATION_HARD_TIMEOUT_SECONDS}s"',
       $poll,
     );
-    self::assertSame(1, substr_count($poll, '"${root_ssh[@]}" "root@$PREPROD_SSH_HOST"'));
-    self::assertStringContainsString('CONTROL_PLANE_HARD_TIMEOUT_SECONDS=5400', $control);
+    self::assertSame(
+      1,
+      substr_count($poll, '"${root_ssh[@]}" "root@$PREPROD_SSH_HOST"'),
+    );
+    self::assertStringContainsString(
+      'CONTROL_PLANE_HARD_TIMEOUT_SECONDS=5400',
+      $control,
+    );
     self::assertStringContainsString(
       'timeout --signal=KILL "${CONTROL_PLANE_HARD_TIMEOUT_SECONDS}s" env',
       $control,
@@ -113,7 +156,10 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
       'CONTROL_PLANE_STATE=BOUND_EXHAUSTED_NO_TERMINAL_METADATA',
       $control,
     );
-    self::assertStringNotContainsString('worker still running', strtolower($control));
+    self::assertStringNotContainsString(
+      'worker still running',
+      strtolower($control),
+    );
   }
 
   /**
@@ -122,13 +168,22 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
   public function testTransportFailureIsNotEmptyObservation(): void {
     $poll = $this->poll();
 
-    self::assertStringContainsString('if (( observation_status != 0 )); then', $poll);
+    self::assertStringContainsString(
+      'if (( observation_status != 0 )); then',
+      $poll,
+    );
     self::assertStringContainsString(
       'PREPROD_WORKER_STATE=UNOBSERVABLE_FAIL_CLOSED',
       $poll,
     );
-    self::assertStringContainsString('CONTROL_PLANE_OBSERVATION_STATUS=', $poll);
-    self::assertStringContainsString('if (( ${#lines[@]} != 3 )); then', $poll);
+    self::assertStringContainsString(
+      'CONTROL_PLANE_OBSERVATION_STATUS=',
+      $poll,
+    );
+    self::assertStringContainsString(
+      'if (( ${#lines[@]} != 3 )); then',
+      $poll,
+    );
   }
 
   /**
@@ -138,16 +193,21 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
     $observer = $this->observer();
     $poll = $this->poll();
 
-    foreach ([
-      "TERMINAL_OUTCOMES = {'COMMITTED', 'ROLLED_BACK', 'HUMAN_RECOVERY_REQUIRED'}",
+    $requiredObserverContracts = [
+      "TERMINAL_OUTCOMES = {'COMMITTED', 'ROLLED_BACK', "
+      . "'HUMAN_RECOVERY_REQUIRED'}",
       "return 'ABSENT', 'NONE'",
       "return 'PRESENT', outcome",
       "return 'ALIVE' if matched else 'DEAD'",
       "return 'UNOBSERVABLE'",
-    ] as $required) {
+    ];
+    foreach ($requiredObserverContracts as $required) {
       self::assertStringContainsString($required, $observer);
     }
-    self::assertStringContainsString('if [[ "$terminal" == PRESENT ]]; then', $poll);
+    self::assertStringContainsString(
+      'if [[ "$terminal" == PRESENT ]]; then',
+      $poll,
+    );
     self::assertStringContainsString(
       'PREPROD_WORKER_STATE=WORKER_DEAD_NO_TERMINAL_METADATA',
       $poll,
@@ -168,10 +228,19 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
   public function testObserverDoesNotExposeProcessOrSecretContent(): void {
     $observer = $this->observer();
 
-    self::assertStringContainsString("MAX_RESULT_BYTES = 4096", $observer);
-    self::assertStringContainsString("stage_worker = str(REQUEST_ROOT / suffix", $observer);
-    self::assertStringContainsString("activation_worker = str(SHARED / 'refresh-jobs'", $observer);
-    self::assertStringContainsString('request_id not in argv or expected_main not in argv', $observer);
+    self::assertStringContainsString('MAX_RESULT_BYTES = 4096', $observer);
+    self::assertStringContainsString(
+      'stage_worker = str(REQUEST_ROOT / suffix',
+      $observer,
+    );
+    self::assertStringContainsString(
+      "activation_worker = str(SHARED / 'refresh-jobs'",
+      $observer,
+    );
+    self::assertStringContainsString(
+      'request_id not in argv or expected_main not in argv',
+      $observer,
+    );
     self::assertStringNotContainsString('print(argv', $observer);
     self::assertStringNotContainsString('print(raw', $observer);
     self::assertStringNotContainsString('bootstrap.log', $observer);
@@ -190,7 +259,10 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
       $this->poll(),
     ]);
 
-    self::assertStringNotContainsString('apply-940-first-real-s2s-r1', $surface);
+    self::assertStringNotContainsString(
+      'apply-940-first-real-s2s-r1',
+      $surface,
+    );
     self::assertStringNotContainsString('rerun', strtolower($surface));
     self::assertStringNotContainsString('retry #940', strtolower($surface));
   }
@@ -201,17 +273,24 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
   public function testExistingActivationAndRawRouteSemanticsArePreserved(): void {
     $control = $this->control();
     $worker = $this->source(
-      'scripts/preproduction-refresh/governed-successor/remote-server-to-server-worker.py',
+      'scripts/preproduction-refresh/governed-successor/'
+      . 'remote-server-to-server-worker.py',
     );
     $activation = $this->source(
       'scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh',
     );
 
-    self::assertStringContainsString('RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT', $this->poll());
+    self::assertStringContainsString(
+      'RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT',
+      $this->poll(),
+    );
     self::assertStringNotContainsString("\nprod_ssh=(", "\n" . $control);
     self::assertStringContainsString('helper.require_absent(scope)', $worker);
     self::assertStringContainsString('cleanup_root_stage(stage)', $worker);
-    self::assertStringContainsString('sql:dump --no-interaction --result-file="$BACKUP"', $activation);
+    self::assertStringContainsString(
+      'sql:dump --no-interaction --result-file="$BACKUP"',
+      $activation,
+    );
     self::assertStringContainsString('sql:cli < "$BACKUP"', $activation);
     self::assertStringContainsString('HUMAN_RECOVERY_REQUIRED', $activation);
   }
@@ -221,7 +300,8 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
    */
   private function control(): string {
     return $this->source(
-      'scripts/preproduction-refresh/governed-successor/run-server-to-server-apply.sh',
+      'scripts/preproduction-refresh/governed-successor/'
+      . 'run-server-to-server-apply.sh',
     );
   }
 
@@ -230,7 +310,8 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
    */
   private function prerequisite(): string {
     return $this->source(
-      'scripts/preproduction-refresh/governed-successor/ensure-refresh-jobs-root.py',
+      'scripts/preproduction-refresh/governed-successor/'
+      . 'ensure-refresh-jobs-root.py',
     );
   }
 
@@ -239,7 +320,8 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
    */
   private function observer(): string {
     return $this->source(
-      'scripts/preproduction-refresh/governed-successor/observe-server-to-server-worker.py',
+      'scripts/preproduction-refresh/governed-successor/'
+      . 'observe-server-to-server-worker.py',
     );
   }
 
@@ -248,7 +330,8 @@ final class PreproductionServerToServerDefectFixTest extends TestCase {
    */
   private function poll(): string {
     return $this->source(
-      'scripts/preproduction-refresh/governed-successor/poll-server-to-server-worker.sh',
+      'scripts/preproduction-refresh/governed-successor/'
+      . 'poll-server-to-server-worker.sh',
     );
   }
 

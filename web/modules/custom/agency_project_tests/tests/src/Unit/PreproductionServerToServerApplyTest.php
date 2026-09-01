@@ -258,6 +258,9 @@ final class PreproductionServerToServerApplyTest extends TestCase {
     self::assertStringNotContainsString('#917', $worker);
   }
 
+  /**
+   * Returns the server-to-server preparation worker source.
+   */
   private function worker(): string {
     return $this->source(
       'scripts/preproduction-refresh/governed-successor/'
@@ -265,6 +268,9 @@ final class PreproductionServerToServerApplyTest extends TestCase {
     );
   }
 
+  /**
+   * Reads one repository source file.
+   */
   private function source(string $relativePath): string {
     $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
     self::assertFileExists($path);

@@ -7,6 +7,7 @@ on:
       - "docs/operations/execution-capabilities.md"
       - "docs/operations/agency-self-hosted-browser-runner.md"
       - "docs/operations/preproduction-data-refresh.md"
+      - "docs/operations/preproduction-refresh-governed-successor.md"
       - "docs/operations/preproduction-refresh-activation-boundary.md"
       - "docs/operations/preproduction-refresh-activation-capability.md"
       - "docs/operations/environment-side-effects.md"
@@ -14,8 +15,10 @@ on:
       - "docs/operations/governed-editorial-publication.md"
       - "scripts/validation/validate-agency-environment-data-lifecycle.py"
       - "scripts/preproduction-refresh/sanitization-policy.json"
+      - "scripts/preproduction-refresh/governed-successor/**"
       - "scripts/preproduction-refresh/activation-capability/**"
       - ".github/workflows/agency-environment-data-lifecycle-validation.yml"
+      - ".github/workflows/agency-command-dispatch.yml"
       - ".github/workflows/build-release-candidate.yml"
       - ".github/workflows/deploy-preproduction.yml"
       - ".github/workflows/promote-production.yml"
@@ -81,8 +84,12 @@ jobs:
           assert 'ssh ' not in operational
           assert 'scp ' not in operational
           assert 'DATA_ACTIVATION_AUTHORITY = DISABLED' in doc
-          assert 'REAL PROVISIONING APPLY = EXECUTION_PENDING' in doc
+          assert 'PLAN_RESULT = PASS' in doc
+          assert 'APPLY = CONTROLLED_SERVER_TO_SERVER / TEMPORARY CURRENT' in doc
+          assert 'TRUSTED_SELF_HOSTED_RUNNER = AUTHORIZED ALTERNATIVE / CURRENTLY UNAVAILABLE' in doc
           assert 'RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN' in doc
+          assert 'RAW_STAGING_CLEANUP_UNPROVEN' in doc
+          assert 'PROD_IDENTITY_STAGE_CLEANUP_UNPROVEN' in doc
           assert 'CONSUMED / NEVER REUSE' in doc
 
           print('VALIDATION_RUNNER=GITHUB_HOSTED_UBUNTU_24_04')

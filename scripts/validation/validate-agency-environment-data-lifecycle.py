@@ -109,6 +109,26 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def has_top_level_issue_comment_trigger(text: str) -> bool:
+    """Detect issue_comment only inside the root-level YAML `on` mapping."""
+    lines = text.splitlines()
+    in_on = False
+    for line in lines:
+        if not in_on:
+            if line == "on:":
+                in_on = True
+                continue
+            if re.fullmatch(r"on:\s*issue_comment\s*", line):
+                return True
+            continue
+
+        if line and not line.startswith((" ", "\t")):
+            return False
+        if re.fullmatch(r"  issue_comment:\s*", line):
+            return True
+    return False
+
+
 def main() -> int:
     for path in REQUIRED_PATHS:
         require((ROOT / path).is_file(), f"required current path does not exist: {path}")
@@ -138,10 +158,12 @@ def main() -> int:
         require(flow in doc, f"missing operational flow: {flow}")
 
     # #922 current topology: exactly one top-level issue_comment listener and
-    # exactly five reusable command workflows. Dispatch is syntax, not authority.
+    # exactly five reusable command workflows. Strings inside scripts/tests do
+    # not count as YAML triggers.
     listener_files = []
     for workflow_path in sorted((ROOT / ".github/workflows").glob("*.yml")):
-        if "issue_comment:" in workflow_path.read_text(encoding="utf-8"):
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        if has_top_level_issue_comment_trigger(workflow_text):
             listener_files.append(workflow_path.relative_to(ROOT).as_posix())
     require(listener_files == [".github/workflows/agency-command-dispatch.yml"],
             f"unexpected issue_comment listeners: {listener_files}")
@@ -150,7 +172,8 @@ def main() -> int:
     for path in ACTIVE_REUSABLE_WORKFLOWS:
         text = (ROOT / path).read_text(encoding="utf-8")
         require("workflow_call:" in text, f"active command workflow is not reusable: {path}")
-        require("issue_comment:" not in text, f"active reusable still owns top-level issue_comment: {path}")
+        require(not has_top_level_issue_comment_trigger(text),
+                f"active reusable still owns top-level issue_comment: {path}")
         require(path in dispatcher, f"dispatcher does not route current reusable workflow: {path}")
         require(path in doc, f"canonical doc missing current reusable workflow: {path}")
         require(path in registry, f"registry missing current reusable workflow: {path}")

@@ -81,16 +81,13 @@ def controlled_server_to_server_allowed(policy: dict[str, object]) -> bool:
     paths = raw.get("allowed_paths")
     if not isinstance(paths, list):
         return False
-    for entry in paths:
-        if not isinstance(entry, dict):
-            continue
-        if (
-            entry.get("type") == "CONTROLLED_SERVER_TO_SERVER"
-            and entry.get("requirement")
-            == "RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE"
-        ):
-            return True
-    return False
+    return any(
+        isinstance(entry, dict)
+        and entry.get("type") == "CONTROLLED_SERVER_TO_SERVER"
+        and entry.get("requirement")
+        == "RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE"
+        for entry in paths
+    )
 
 
 def import_snapshot_stream(helper: ModuleType, scope: object, client_file: str, source: BinaryIO) -> int:
@@ -111,7 +108,6 @@ def import_snapshot_stream(helper: ModuleType, scope: object, client_file: str, 
         process.kill()
         process.wait()
         raise WorkerError("Restricted staging import stdin is unavailable.")
-
     total = 0
     failed = False
     try:
@@ -159,7 +155,13 @@ def require_semantic_coverage(evidence: dict[str, str]) -> None:
             raise WorkerError("Sanitization semantic coverage assertion failed.")
 
 
-def write_preactivation_result(job: Path, request_id: str, expected_main: str) -> None:
+def write_preactivation_result(
+    job: Path,
+    request_id: str,
+    expected_main: str,
+    uid: int,
+    gid: int,
+) -> None:
     result = job / "result.env"
     if result.exists():
         return
@@ -172,6 +174,7 @@ def write_preactivation_result(job: Path, request_id: str, expected_main: str) -
         "detail=NO_PREPROD_RUNTIME_MUTATION_SERVER_TO_SERVER_PREP_FAILED\n",
         encoding="utf-8",
     )
+    os.chown(tmp, uid, gid)
     os.chmod(tmp, 0o600)
     os.replace(tmp, result)
 
@@ -189,24 +192,10 @@ def main(argv: list[str]) -> int:
     if not HOST_RE.fullmatch(prod_host) or not USER_RE.fullmatch(prod_user):
         raise WorkerError("Invalid fixed PROD SSH metadata.")
 
-    helper = load_installed_helper()
-    sanitizer, policy = helper.load_bundle()
-    if not controlled_server_to_server_allowed(policy):
-        raise WorkerError("Single sanitization policy does not authorize server-to-server raw data.")
-
     suffix = hashlib.sha256(request_id.encode("utf-8")).hexdigest()[:12]
     stage = REQUEST_ROOT / suffix
-    expected_stage = Path(__file__).resolve().parent
-    if expected_stage != stage.resolve():
+    if Path(__file__).resolve().parent != stage.resolve():
         raise WorkerError("Worker is outside the request-scoped root stage.")
-
-    prod_key = stage / "prod-read.key"
-    trust_repo = stage / "trust-repo"
-    trust_home = stage / "trust-home"
-    remote_snapshot = stage / "scripts/production-readonly-snapshot/remote-stream.sh"
-    activation_source = stage / "remote-apply-worker.sh"
-    for path in (prod_key, remote_snapshot, activation_source):
-        require_root_regular(path, 0o600 if path == prod_key else 0o700)
 
     deploy_meta = os.stat(SHARED)
     if deploy_meta.st_uid == 0:
@@ -232,15 +221,29 @@ def main(argv: list[str]) -> int:
     sanitized = job / "sanitized.sql"
     activation = job / "worker.sh"
     result = job / "result.env"
-    if result.exists() or sanitized.exists():
+    if result.exists() or sanitized.exists() or activation.exists():
         raise WorkerError("Request-scoped activation state already exists.")
 
-    scope = helper.derive_scope(request_id)
-    password = ""
+    scope = None
+    helper = None
     client_file = ""
     snapshot: subprocess.Popen[bytes] | None = None
-    prep_complete = False
     try:
+        helper = load_installed_helper()
+        sanitizer, policy = helper.load_bundle()
+        if not controlled_server_to_server_allowed(policy):
+            raise WorkerError("Single sanitization policy does not authorize server-to-server raw data.")
+        if not os.path.isfile(MARIADB_DUMP) or not os.access(MARIADB_DUMP, os.X_OK):
+            raise WorkerError("Fixed MariaDB dump client is unavailable.")
+
+        prod_key = stage / "prod-read.key"
+        trust_repo = stage / "trust-repo"
+        trust_home = stage / "trust-home"
+        remote_snapshot = stage / "scripts/production-readonly-snapshot/remote-stream.sh"
+        activation_source = stage / "remote-apply-worker.sh"
+        for path in (prod_key, remote_snapshot, activation_source):
+            require_root_regular(path, 0o600 if path == prod_key else 0o700)
+
         trust_home.mkdir(mode=0o700)
         trust_script = trust_repo / "scripts/production-ssh-trust/manage-known-host.sh"
         require_root_regular(trust_script, 0o700)
@@ -257,8 +260,10 @@ def main(argv: list[str]) -> int:
         known_hosts = trust_home / ".ssh/known_hosts"
         require_root_regular(known_hosts, 0o600)
 
+        scope = helper.derive_scope(request_id)
         password = helper.prepare_import_scope(scope)
         client_file = helper.write_restricted_client_file(scope, password)
+        password = ""
         with remote_snapshot.open("rb") as remote_stdin:
             snapshot = subprocess.Popen(
                 [
@@ -317,8 +322,20 @@ def main(argv: list[str]) -> int:
             )
         if dump.returncode != 0 or sanitized_tmp.stat().st_size <= 0:
             raise WorkerError("Sanitized SQL export failed.")
+    except Exception:
+        sanitized_tmp.unlink(missing_ok=True)
+        sanitized.unlink(missing_ok=True)
+        activation.unlink(missing_ok=True)
+        write_preactivation_result(
+            job,
+            request_id,
+            expected_main,
+            deploy_meta.st_uid,
+            deploy_meta.st_gid,
+        )
+        shutil.rmtree(stage, ignore_errors=True)
+        return 80
     finally:
-        password = ""
         if snapshot is not None and snapshot.poll() is None:
             snapshot.kill()
             snapshot.wait()
@@ -327,39 +344,72 @@ def main(argv: list[str]) -> int:
                 os.unlink(client_file)
             except FileNotFoundError:
                 pass
-        try:
-            helper.cleanup_scope(scope)
-        except Exception as exc:
-            raise WorkerError("Mandatory isolated staging cleanup failed.") from exc
+        if helper is not None and scope is not None:
+            try:
+                helper.cleanup_scope(scope)
+            except Exception:
+                sanitized_tmp.unlink(missing_ok=True)
+                sanitized.unlink(missing_ok=True)
+                activation.unlink(missing_ok=True)
+                write_preactivation_result(
+                    job,
+                    request_id,
+                    expected_main,
+                    deploy_meta.st_uid,
+                    deploy_meta.st_gid,
+                )
+                shutil.rmtree(stage, ignore_errors=True)
+                return 81
 
     helper.require_absent(scope)
     os.chown(sanitized_tmp, deploy_meta.st_uid, deploy_meta.st_gid)
     os.chmod(sanitized_tmp, 0o600)
     os.replace(sanitized_tmp, sanitized)
-    shutil.copyfile(activation_source, activation)
+    shutil.copyfile(stage / "remote-apply-worker.sh", activation)
     os.chown(activation, deploy_meta.st_uid, deploy_meta.st_gid)
     os.chmod(activation, 0o700)
     sanitized_sha = sha256_file(sanitized)
     if not re.fullmatch(r"[0-9a-f]{64}", sanitized_sha):
-        raise WorkerError("Sanitized SQL digest is invalid.")
-    prep_complete = True
+        sanitized.unlink(missing_ok=True)
+        activation.unlink(missing_ok=True)
+        write_preactivation_result(
+            job,
+            request_id,
+            expected_main,
+            deploy_meta.st_uid,
+            deploy_meta.st_gid,
+        )
+        shutil.rmtree(stage, ignore_errors=True)
+        return 82
 
     # The PROD identity and all request-scoped trust material are removed before
     # the PREPROD runtime activation worker starts.
     shutil.rmtree(stage)
-    os.execv(
-        RUNUSER,
-        [
+    try:
+        os.execv(
             RUNUSER,
-            "-u",
-            deploy_user,
-            "--",
-            str(activation),
+            [
+                RUNUSER,
+                "-u",
+                deploy_user,
+                "--",
+                str(activation),
+                request_id,
+                expected_main,
+                sanitized_sha,
+            ],
+        )
+    except OSError:
+        sanitized.unlink(missing_ok=True)
+        activation.unlink(missing_ok=True)
+        write_preactivation_result(
+            job,
             request_id,
             expected_main,
-            sanitized_sha,
-        ],
-    )
+            deploy_meta.st_uid,
+            deploy_meta.st_gid,
+        )
+        return 83
     return 0
 
 
@@ -367,15 +417,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv))
     except Exception:
-        # No raw command output is forwarded. Failure before activation is
-        # represented only by existing terminal outcome metadata.
-        try:
-            if len(sys.argv) >= 3 and REQUEST_RE.fullmatch(sys.argv[1]) and SHA40_RE.fullmatch(sys.argv[2]):
-                job_path = SHARED / "refresh-jobs" / sys.argv[1]
-                if job_path.is_dir() and not job_path.is_symlink():
-                    write_preactivation_result(job_path, sys.argv[1], sys.argv[2])
-        finally:
-            if len(sys.argv) >= 2 and REQUEST_RE.fullmatch(sys.argv[1]):
-                suffix_value = hashlib.sha256(sys.argv[1].encode("utf-8")).hexdigest()[:12]
-                shutil.rmtree(REQUEST_ROOT / suffix_value, ignore_errors=True)
+        # Unexpected pre-job failures expose no raw command output.
         raise SystemExit(80)

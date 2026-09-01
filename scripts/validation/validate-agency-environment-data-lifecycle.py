@@ -157,9 +157,6 @@ def main() -> int:
     ):
         require(flow in doc, f"missing operational flow: {flow}")
 
-    # #922 current topology: exactly one top-level issue_comment listener and
-    # exactly five reusable command workflows. Strings inside scripts/tests do
-    # not count as YAML triggers.
     listener_files = []
     for workflow_path in sorted((ROOT / ".github/workflows").glob("*.yml")):
         workflow_text = workflow_path.read_text(encoding="utf-8")
@@ -180,7 +177,6 @@ def main() -> int:
     require("#922 is **COMPLETED**" in doc, "#922 is not documented as completed current state")
     require("#922 is **COMPLETED**" in registry, "registry does not document completed dispatcher consolidation")
 
-    # Current #914/#816 truth.
     require("#914 is `SOURCE_IMPLEMENTED` + `SYNTHETICALLY_PROVEN`" in doc,
             "current #914 source/synthetic status missing")
     require("#816 remains open" in doc, "#816 pending real state missing")
@@ -200,24 +196,27 @@ def main() -> int:
         require(stale not in doc, f"stale current workflow reference in canonical doc: {stale}")
         require(stale not in registry, f"stale current workflow reference in registry: {stale}")
 
-    require("No GitHub transaction reconstruction" in refresh,
-            "obsolete recovery model is not explicitly rejected")
+    require(
+        all(term in refresh for term in (
+            "RECOVER_CURRENT",
+            "RECOVER_ABORT",
+            "GitHub transaction reconstruction",
+            "historical target lookup",
+        )),
+        "obsolete recovery model is not explicitly rejected",
+    )
     require("not operational dependencies" in doc,
             "#915/#917 historical lineage is not clearly non-operational")
 
-    # Historical command surfaces removed by #922 must not be resurrected as
-    # current lifecycle/registry commands solely for old tests or documentation.
     for command in HISTORICAL_COMMANDS_NOT_CURRENT:
         require(command not in doc, f"historical command reintroduced in canonical doc: {command}")
         require(command not in registry, f"historical command reintroduced in registry: {command}")
 
-    # Editorial current/future boundary.
     require("#576 bounded Article" in doc, "current #576 editorial route missing")
     require("#872 Editorial Candidate" in doc and "`DESIGN_ONLY`" in doc,
             "#872 future/not-implemented status missing")
     require("PREPROD DB -> PROD" in doc, "editorial/data no-DB-promotion boundary missing")
 
-    # #873 source/synthetic current state, real service still pending.
     require("#873" in doc and "SOURCE_IMPLEMENTED" in doc and "SYNTHETICALLY_PROVEN" in doc,
             "current #873 source/synthetic status missing")
     require("REAL_PREPROD_SEED_GENERATION = EXECUTION_PENDING" in doc,
@@ -262,7 +261,6 @@ def main() -> int:
     ):
         require(registry_contract in registry, f"registry not synchronized: {registry_contract}")
 
-    # Dynamic evidence and secret-shaped assignments do not belong in current docs.
     for name, text in (("canonical", doc), ("refresh", refresh), ("registry", registry)):
         require(not re.search(r"\b3\d{10}\b", text),
                 f"ephemeral workflow run number embedded in {name} documentation")

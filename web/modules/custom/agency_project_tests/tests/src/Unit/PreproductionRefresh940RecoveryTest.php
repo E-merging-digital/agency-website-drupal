@@ -60,8 +60,8 @@ final class PreproductionRefresh940RecoveryTest extends TestCase {
     $workflow = $this->workflow();
 
     foreach ([
-      "'python3 -I - PLAN' < \"$capability\"",
-      "'python3 -I - CLEANUP' < \"$capability\"",
+      "'python3 -I - PLAN' < \"\$capability\"",
+      "'python3 -I - CLEANUP' < \"\$capability\"",
       '"root@$PREPROD_SERVER_HOST"',
       'timeout 30s ssh',
       'PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}',

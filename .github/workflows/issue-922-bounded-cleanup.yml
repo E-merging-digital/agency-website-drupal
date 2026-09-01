@@ -1,0 +1,130 @@
+name: "#922 bounded GitHub hygiene one-shot"
+
+on:
+  push:
+    branches:
+      - feature/922-actions-issue-comment-cleanup
+    paths:
+      - .github/workflows/issue-922-bounded-cleanup.yml
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    if: >-
+      github.repository == 'E-merging-digital/agency-website-drupal' &&
+      github.actor == 'E-merging-digital'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_DUMMY_SHA: 554dcd6845f2f314ca514704454d396b4e90f953
+      MAX_DELETE_PER_ONE_SHOT: '1000'
+      API_SAFE_DELETE_CAP: '900'
+    steps:
+      - name: Delete verified dummy branch and bounded skipped history
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          repo="$GITHUB_REPOSITORY"
+          dummy='__dummy_should_not_create'
+          cutoff="$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ')"
+
+          dummy_sha="$(gh api "repos/$repo/git/ref/heads/$dummy" --jq '.object.sha')"
+          if [[ "$dummy_sha" != "$EXPECTED_DUMMY_SHA" ]]; then
+            echo "Unexpected dummy SHA: $dummy_sha" >&2
+            exit 1
+          fi
+
+          pr_count="$(gh api -X GET "repos/$repo/pulls" \
+            -f state=all \
+            -f head="E-merging-digital:$dummy" \
+            -f per_page=100 \
+            --jq 'length')"
+          if [[ "$pr_count" != '0' ]]; then
+            echo "Dummy branch has pull requests: $pr_count" >&2
+            exit 1
+          fi
+
+          ahead_by="$(gh api "repos/$repo/compare/main...$dummy" --jq '.ahead_by')"
+          if [[ "$ahead_by" != '0' ]]; then
+            echo "Dummy branch has unique commits: ahead_by=$ahead_by" >&2
+            exit 1
+          fi
+
+          gh api --method DELETE "repos/$repo/git/refs/heads/$dummy"
+          if gh api "repos/$repo/git/ref/heads/$dummy" >/dev/null 2>&1; then
+            echo 'Dummy branch still exists after deletion.' >&2
+            exit 1
+          fi
+
+          first_page="$(mktemp)"
+          ids_file="$(mktemp)"
+          trap 'rm -f "$first_page" "$ids_file"' EXIT
+
+          gh api -X GET "repos/$repo/actions/runs" \
+            -f event=issue_comment \
+            -f status=skipped \
+            -f created="<$cutoff" \
+            -f per_page=100 \
+            -f page=1 >"$first_page"
+
+          eligible="$(jq -r '.total_count' "$first_page")"
+          delete_target="$eligible"
+          if (( delete_target > MAX_DELETE_PER_ONE_SHOT )); then
+            delete_target="$MAX_DELETE_PER_ONE_SHOT"
+          fi
+          if (( delete_target > API_SAFE_DELETE_CAP )); then
+            delete_target="$API_SAFE_DELETE_CAP"
+          fi
+
+          if (( delete_target > 0 )); then
+            pages=$(( (delete_target + 99) / 100 ))
+            for ((page = 1; page <= pages; page++)); do
+              page_file="$(mktemp)"
+              gh api -X GET "repos/$repo/actions/runs" \
+                -f event=issue_comment \
+                -f status=skipped \
+                -f created="<$cutoff" \
+                -f per_page=100 \
+                -f page="$page" >"$page_file"
+              jq -r '.workflow_runs[].id' "$page_file" >>"$ids_file"
+              rm -f "$page_file"
+            done
+          fi
+
+          deleted=0
+          if (( delete_target > 0 )); then
+            while IFS= read -r run_id; do
+              [[ -n "$run_id" ]] || continue
+              gh api --method DELETE "repos/$repo/actions/runs/$run_id"
+              deleted=$((deleted + 1))
+              if (( deleted >= delete_target )); then
+                break
+              fi
+            done <"$ids_file"
+          fi
+
+          remaining="$(gh api -X GET "repos/$repo/actions/runs" \
+            -f event=issue_comment \
+            -f status=skipped \
+            -f created="<$cutoff" \
+            -f per_page=1 \
+            -f page=1 \
+            --jq '.total_count')"
+
+          expected_remaining=$((eligible - deleted))
+          if (( remaining != expected_remaining )); then
+            echo "Historical remainder mismatch: actual=$remaining expected=$expected_remaining" >&2
+            exit 1
+          fi
+
+          echo "PURGE_CUTOFF=$cutoff"
+          echo "HISTORICAL_SKIPPED_RUNS_ELIGIBLE=$eligible"
+          echo "HISTORICAL_SKIPPED_RUNS_DELETED=$deleted"
+          echo "HISTORICAL_SKIPPED_RUNS_REMAINING=$remaining"
+          echo 'DUMMY_BRANCH=DELETED'

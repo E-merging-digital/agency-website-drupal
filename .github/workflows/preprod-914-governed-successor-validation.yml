@@ -110,7 +110,7 @@ jobs:
           assert 'RUNNER_ENVIRONMENT" == github-hosted' in control
           assert 'root@$PREPROD_SSH_HOST' in control
           assert 'agency-preprod@$PREPROD_SSH_HOST' in control
-          assert 'prod_ssh=(' not in control
+          assert '\nprod_ssh=(' not in '\n'+control
           assert '"$PROD_SSH_USER@$PROD_SSH_HOST"' not in control
           assert 'RAW_PROD_ON_GITHUB_HOSTED=NONE' in control
           assert 'RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT' in control

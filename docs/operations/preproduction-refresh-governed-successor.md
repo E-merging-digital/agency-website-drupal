@@ -24,11 +24,33 @@ GitHub stores authorization/audit only; it stores no transaction/recovery state.
 
 ## PLAN
 
-PLAN performs metadata/readiness observation only. It may validate the trusted
-runner, pinned SSH trust, current PROD release identity, PREPROD Drush commands,
-backup path, Config Split, runtime settings/admin reconciliation inputs and lock
-presence. It creates no snapshot, staging DB, backup, maintenance state or DB
-mutation.
+PLAN performs metadata/readiness observation only. It runs on GitHub-hosted
+`ubuntu-24.04`, which is permitted by the durable #816 boundary because PLAN
+never materializes or manipulates raw PROD data. Immediately before any SSH
+secret is materialized, the PLAN JIT revalidates live `main`, exact one-shot
+authority, checked-out HEAD and `runner.environment == github-hosted`.
+
+After that JIT gate only, transient PROD/PREPROD SSH identities are written under
+`RUNNER_TEMP`. The ephemeral runner provisions both `known_hosts` entries with
+the existing PROD/PREPROD `manage-known-host.sh PROVISION` primitives. Those
+primitives use only repository-pinned ED25519 key material and SHA-256
+fingerprints; no network-discovered host key, TOFU, `ssh-keyscan`, `accept-new`
+or disabled host-key checking is permitted. PROD trust is then rechecked through
+`VERIFY_ONLY`, PREPROD trust through the existing strict
+`verify-preprod-pinned-trust.sh`, and all observations use
+`StrictHostKeyChecking=yes` with the explicit ephemeral `known_hosts` file.
+
+PLAN may then observe current PROD release/promotion receipt metadata and PREPROD
+readiness (Drush command availability, backup path, Config Split, runtime/admin
+inputs and lock presence). The PROD observer intentionally performs no Drush/DB
+command. PLAN creates no snapshot, transfers no PROD data, and performs no PROD
+write, PREPROD database mutation, runtime mutation, backup, maintenance or
+activation. Transient SSH identities are deleted in the workflow cleanup step.
+
+This #927 change does not broaden a runner class for these SSH secrets: the same
+PROD and PREPROD SSH secret classes are already consumed by existing
+GitHub-hosted Agency workflows. That precedent is not authority to broaden any
+other secret or workflow.
 
 ## APPLY
 
@@ -57,6 +79,11 @@ mutation.
     `ROLLED_BACK`. If restore/validation is unprovable, maintenance stays ON and
     the terminal result is `HUMAN_RECOVERY_REQUIRED`.
 
+APPLY remains strictly assigned to `[self-hosted, linux, x64, agency]`. Its raw
+staging, isolation, sanitization and sanitized-only transfer architecture is
+unchanged by #927. Raw PROD data on GitHub-hosted infrastructure remains
+forbidden and impossible on the PLAN path.
+
 ## Hard runner loss
 
 Before detached worker launch there is no PREPROD runtime mutation. After launch,
@@ -82,8 +109,13 @@ excluded.
 ## Non-negotiable invariants
 
 - PROD write: none.
+- PLAN PROD DB content read: none.
+- PLAN PROD snapshot: not performed.
+- PLAN PROD data transfer: none.
+- PLAN PREPROD DB/runtime mutation: none.
 - Raw PROD data on GitHub-hosted runners/artifacts/logs: none.
 - Raw data execution surface: trusted self-hosted only.
+- APPLY runner: `self-hosted`, `linux`, `x64`, `agency` only.
 - PREPROD runtime never sees unsanitized PROD data.
 - PREPROD settings/secrets remain environment-owned.
 - Verified PREPROD backup precedes destructive replacement.

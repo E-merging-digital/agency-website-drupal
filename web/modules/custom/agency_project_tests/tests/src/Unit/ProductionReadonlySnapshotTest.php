@@ -17,7 +17,7 @@ use Symfony\Component\Yaml\Yaml;
 final class ProductionReadonlySnapshotTest extends TestCase {
 
   /**
-   * The current refresh route keeps raw PROD work on the trusted runner.
+   * Metadata-only PLAN is hosted while raw PROD APPLY stays trusted-only.
    */
   public function testCurrentTrustedRunnerBoundary(): void {
     $workflow = $this->workflow();
@@ -30,12 +30,22 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       'ubuntu-24.04',
       $parsed['jobs']['validate-authority']['runs-on'],
     );
-    foreach (['plan', 'apply'] as $job) {
-      self::assertSame(
-        ['self-hosted', 'linux', 'x64', 'agency'],
-        $parsed['jobs'][$job]['runs-on'],
-      );
-    }
+    self::assertSame(
+      'ubuntu-24.04',
+      $parsed['jobs']['plan']['runs-on'],
+    );
+    self::assertSame(
+      ['self-hosted', 'linux', 'x64', 'agency'],
+      $parsed['jobs']['apply']['runs-on'],
+    );
+    self::assertStringContainsString(
+      'runner.environment',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'github-hosted',
+      $workflow,
+    );
     self::assertStringNotContainsString(
       'actions/upload-artifact',
       $workflow,

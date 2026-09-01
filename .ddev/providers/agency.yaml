@@ -1,0 +1,68 @@
+# #873 — pull-only provider for immutable sanitized Development Seeds.
+#
+# Runtime provisioning is intentionally absent in this tranche. Consumers must
+# configure AGENCY_SEED_SSH_TARGET and AGENCY_SEED_REMOTE_DIR locally and use a
+# future dedicated read-only seed-distribution SSH identity via `ddev auth ssh`.
+# These values must never be PROD credentials or PREPROD runtime credentials.
+db_pull_command:
+  command: |
+    set -eu -o pipefail
+    umask 077
+
+    : "${AGENCY_SEED_SSH_TARGET:?Configure AGENCY_SEED_SSH_TARGET locally}"
+    : "${AGENCY_SEED_REMOTE_DIR:?Configure AGENCY_SEED_REMOTE_DIR locally}"
+
+    case "$AGENCY_SEED_SSH_TARGET" in
+      *[!A-Za-z0-9._@-]*|'')
+        echo "Unsafe AGENCY_SEED_SSH_TARGET" >&2
+        exit 2
+        ;;
+    esac
+    case "$AGENCY_SEED_REMOTE_DIR" in
+      /*) ;;
+      *)
+        echo "AGENCY_SEED_REMOTE_DIR must be an absolute remote path" >&2
+        exit 2
+        ;;
+    esac
+    case "$AGENCY_SEED_REMOTE_DIR" in
+      *[!A-Za-z0-9_./-]*)
+        echo "Unsafe AGENCY_SEED_REMOTE_DIR" >&2
+        exit 2
+        ;;
+    esac
+
+    downloads=/var/www/html/.ddev/.downloads
+    metadata="$downloads/agency-seed.json"
+    database="$downloads/db.sql.gz"
+    mkdir -p "$downloads"
+    chmod 700 "$downloads"
+    rm -f -- "$metadata" "$database"
+
+    cleanup_failed_download() {
+      rm -f -- "$metadata" "$database"
+    }
+    trap cleanup_failed_download HUP INT TERM EXIT
+
+    remote="${AGENCY_SEED_REMOTE_DIR%/}/current"
+    scp -q -o BatchMode=yes -- \
+      "${AGENCY_SEED_SSH_TARGET}:${remote}/seed.json" "$metadata"
+    scp -q -o BatchMode=yes -- \
+      "${AGENCY_SEED_SSH_TARGET}:${remote}/database.sql.gz" "$database"
+    chmod 600 "$metadata" "$database"
+
+    php /var/www/html/scripts/development-seed/verify-seed.php \
+      --metadata="$metadata" \
+      --database="$database" \
+      --repository=/var/www/html \
+      --checkout-ref=HEAD
+
+    # Keep the verified candidate only for DDEV's native import and the
+    # post-pull hook. DDEV owns the downloaded DB import lifecycle.
+    trap - HUP INT TERM EXIT
+
+files_pull_command:
+  command: |
+    set -eu -o pipefail
+    # Development Seed v1 is database-only by contract.
+    true

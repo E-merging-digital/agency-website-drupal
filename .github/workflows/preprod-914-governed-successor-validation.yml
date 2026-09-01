@@ -3,11 +3,14 @@ name: "#914 Simplified PREPROD refresh validation"
 on:
   pull_request:
     paths:
+      - ".github/workflows/agency-command-dispatch.yml"
       - ".github/workflows/preprod-914-governed-successor.yml"
       - ".github/workflows/preprod-914-governed-successor-validation.yml"
       - "docs/operations/preproduction-refresh-governed-successor.md"
       - "scripts/preproduction-refresh/governed-successor/**"
       - "scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh"
+      - "scripts/preproduction-staging-import/privileged/**"
+      - "scripts/production-readonly-snapshot/remote-stream.sh"
 
 permissions:
   contents: read
@@ -28,25 +31,33 @@ jobs:
           set -euo pipefail
           b=scripts/preproduction-refresh/governed-successor
           prod=scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh
-          python3 -m py_compile "$b/validate-execution-authority.py" "$b/test-authority.py"
+          python3 -m py_compile "$b/validate-execution-authority.py" "$b/test-authority.py" "$b/remote-server-to-server-worker.py"
           python3 "$b/test-authority.py"
           php -l "$b/agency-sanitize.php"
-          bash -n "$prod" "$b/run-plan.sh" "$b/run-apply.sh" "$b/remote-plan-observe.sh" "$b/remote-apply-worker.sh"
+          bash -n "$prod" "$b/run-plan.sh" "$b/run-apply.sh" "$b/run-server-to-server-apply.sh" "$b/remote-plan-observe.sh" "$b/remote-apply-worker.sh"
           jq -e '
             .decision == "EXTEND_EXISTING" and
+            .temporary_execution_issue == 938 and
             .execution_authority.modes == ["PLAN","APPLY"] and
             .execution_authority.github_transactional_state == "NONE" and
-            .raw_staging.external_egress_before_sanitize == "IMPOSSIBLE_BY_INTERNAL_DOCKER_NETWORK" and
-            .preprod_apply.root_secret == "NONE" and
+            .raw_staging.surface == "CONTROLLED_SERVER_TO_SERVER_PREPROD_DERIVED_STAGING" and
+            .raw_staging.route == "PROD_TO_PREPROD_DIRECT" and
+            .raw_staging.github_hosted_raw_data == "FORBIDDEN" and
+            .raw_staging.preprod_live_runtime_access == "FORBIDDEN" and
+            .sanitization.policy_count == 1 and
+            .sanitization.semantic_outcome == "EQUIVALENT_TO_914_REQUIRED_CLASSES" and
+            .preprod_apply.activation_worker == "EXISTING_DETACHED_NON_ROOT_REMOTE_APPLY_WORKER" and
+            .preprod_apply.prod_read_identity_removed_before_activation == true and
             .hard_runner_loss.github_reconstruction == "NONE" and
             .merged_capabilities.operational_dependency == "NONE" and
             .invariants.data_activation_authority == "DISABLED"
           ' "$b/profile.json" >/dev/null
-      - name: Prove simplified orchestration and bounded diagnostics statically
+      - name: Prove PLAN and temporary server-to-server APPLY statically
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import json
           import re
           from pathlib import Path
 
@@ -55,161 +66,144 @@ jobs:
           plan_job='  plan:\n'+w.split('\n  plan:\n',1)[1].split('\n  apply:\n',1)[0]
           apply_job='  apply:\n'+w.split('\n  apply:\n',1)[1]
           plan=(b/'run-plan.sh').read_text()
-          a=(b/'run-apply.sh').read_text(); worker=(b/'remote-apply-worker.sh').read_text()
+          control=(b/'run-server-to-server-apply.sh').read_text()
+          prep=(b/'remote-server-to-server-worker.py').read_text()
+          activation=(b/'remote-apply-worker.sh').read_text()
           validator=(b/'validate-execution-authority.py').read_text()
           prod_observer=Path('scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh').read_text()
           preprod_observer=(b/'remote-plan-observe.sh').read_text()
+          prod_snapshot=Path('scripts/production-readonly-snapshot/remote-stream.sh').read_text()
+          helper=Path('scripts/preproduction-staging-import/privileged/agency-preprod-staging-db').read_text()
+          sanitizer=Path('scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py').read_text()
+          policy=json.loads(Path('scripts/preproduction-refresh/sanitization-policy.json').read_text())
 
           assert 'RECOVER_ABORT' not in w and 'RECOVER_CURRENT' not in w
           assert 'issues: write' not in w and 'issues:write' not in w
-          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in w
           assert 'target_' not in validator and 'recovery_record' not in validator
           assert 'runs-on: ubuntu-24.04' in plan_job
-          assert '${{ runner.environment }}' in plan_job
+          assert 'runs-on: ubuntu-24.04' in apply_job
+          assert 'runs-on: [self-hosted, linux, x64, agency]' not in apply_job
+          assert '${{ runner.environment }}' in plan_job and '${{ runner.environment }}' in apply_job
           assert '[[ "$RUNNER_ENVIRONMENT" == github-hosted ]]' in plan_job
-          assert 'runs-on: [self-hosted, linux, x64, agency]' in apply_job
-          assert '[[ "$RUNNER_NAME" == agency-browser-runner-01 ]]' in apply_job
-          plan_jit=plan_job.index('JIT revalidate before PLAN SSH secrets')
-          plan_surface=plan_job.index('[[ "$RUNNER_ENVIRONMENT" == github-hosted ]]')
-          plan_secret=plan_job.index('secrets.SSH_PRIVATE_KEY')
-          assert plan_jit < plan_surface < plan_secret
+          assert '[[ "$RUNNER_ENVIRONMENT" == github-hosted ]]' in apply_job
+          for chunk, label in ((plan_job, 'PLAN'), (apply_job, 'APPLY')):
+              jit=chunk.index(f'JIT revalidate before {label} SSH secrets')
+              secret=chunk.index('secrets.SSH_PRIVATE_KEY')
+              assert jit < secret
+              assert 'secrets.' not in chunk[:jit]
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' in apply_job
+          assert 'run-server-to-server-apply.sh' in apply_job
+          assert 'run-apply.sh' not in apply_job
 
+          # PLAN remains metadata-only and pinned-trust fail-closed.
           assert "PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'" in plan
           assert "PREPROD_TRUST_PROVISION='scripts/preproduction-ssh-trust/manage-known-host.sh'" in plan
-          assert 'bash "$PROD_TRUST" PROVISION' in plan
-          assert 'bash "$PROD_TRUST" VERIFY_ONLY' in plan
-          assert 'bash "$PREPROD_TRUST_PROVISION" PROVISION' in plan
-          assert 'verify-preprod-pinned-trust.sh' in plan
           assert 'StrictHostKeyChecking=yes' in plan
-          assert 'ssh-keyscan' not in plan.lower()
-          assert 'ssh-keyscan' not in plan_job.lower()
-
-          prod_reasons=set(re.findall(r"fail_reason '([A-Z0-9_]+)'", prod_observer))
-          preprod_reasons=set(re.findall(r"fail_reason '([A-Z0-9_]+)'", preprod_observer))
-          assert prod_reasons == {
-              'PROD_OBSERVER_CONTEXT',
-              'PROD_CURRENT_RELEASE',
-              'PROD_PROMOTION_RECEIPT',
-          }
-          assert preprod_reasons == {
-              'PREPROD_OBSERVER_CONTEXT',
-              'PREPROD_CURRENT_RELEASE',
-              'PREPROD_DRUSH_EXECUTABLE',
-              'PREPROD_BACKUP_PATH',
-              'PREPROD_RUNTIME_ENV',
-              'PREPROD_RUNTIME_VALIDATOR',
-              'PREPROD_ADMIN_RECONCILER',
-              'PREPROD_CONFIG_SPLIT',
-              'PREPROD_DRUSH_COMMAND_SET',
-          }
-          bounded_reasons = prod_reasons | preprod_reasons | {
-              'PLAN_CONTEXT_INVALID',
-              'PLAN_REPOSITORY_IDENTITY',
-              'PROD_PINNED_TRUST',
-              'PREPROD_PINNED_TRUST',
-              'PROD_SSH_OBSERVER',
-              'PREPROD_SSH_OBSERVER',
-              'OBSERVER_OUTPUT_INVALID',
-              'UNEXPECTED_LOCAL_FAILURE',
-          }
-          for reason in bounded_reasons:
-              assert reason in plan or reason in prod_observer or reason in preprod_observer
-
-          assert "'PLAN_RESULT=FAIL_CLOSED'" in plan
-          assert '"PLAN_STAGE=$stage"' in plan
-          assert '"PLAN_REASON=$reason"' in plan
-          assert "'PLAN_OBSERVER_RESULT=FAIL_CLOSED'" in prod_observer
-          assert "'PLAN_OBSERVER_RESULT=FAIL_CLOSED'" in preprod_observer
-          assert 'MAX_OBSERVER_BYTES=4096' in plan
-          assert '>"$prod_stdout" 2>"$prod_stderr"' in plan
-          assert '>"$preprod_stdout" 2>"$preprod_stderr"' in plan
-          assert 'cat "$prod_stderr"' not in plan
-          assert 'cat "$preprod_stderr"' not in plan
-          assert 'echo "$prod_out"' not in plan
-          assert 'echo "$preprod_out"' not in plan
-          assert 'printf \'%s\\n\' "$prod_out"' not in plan
-          assert 'printf \'%s\\n\' "$preprod_out"' not in plan
-          assert '>&2' not in prod_observer
-          assert '>&2' not in preprod_observer
-          assert "[[ \"${#lines[@]}\" -eq 2 ]]" in plan
-          assert "[[ \"${lines[0]}\" == 'PLAN_OBSERVER_RESULT=FAIL_CLOSED' ]]" in plan
-          assert '^PLAN_REASON=([A-Z0-9_]+)$' in plan
-
-          for required in (
-              '[[ -L "$CURRENT_RELEASE" ]]',
-              '[[ -d "$PROMOTIONS_DIR" ]]',
-              'readlink -f "$CURRENT_RELEASE"',
-              '[[ "$matched" -eq 1 ]]',
-          ):
-              assert required in prod_observer
-          for required in (
-              '[[ -L "$CURRENT" ]]',
-              '[[ -x "$DRUSH" ]]',
-              '[[ -d "$SHARED/backups" && -w "$SHARED/backups" ]]',
-              '$SHARED/settings/runtime.env',
-              '$CURRENT/scripts/preproduction/validate-runtime.sh',
-              '$CURRENT/scripts/preproduction-refresh/activation-capability/admin-reconcile.php',
-              '$CURRENT/config/splits/preproduction',
-              'sql:dump sql:cli sql:drop sql:sanitize maint:set updb cim cr',
-          ):
-              assert required in preprod_observer
-          assert "fail_reason 'PREPROD_ADMIN_RECONCILER'" in preprod_observer
-
-          assert 'vendor/bin/drush' not in prod_observer.lower()
-          assert 'sql:' not in prod_observer.lower()
+          assert 'ssh-keyscan' not in plan.lower() and 'ssh-keyscan' not in w.lower()
+          assert 'vendor/bin/drush' not in prod_observer.lower() and 'sql:' not in prod_observer.lower()
           assert 'prod_db_content_read=NONE' in prod_observer
           assert 'prod_snapshot=NOT_PERFORMED' in prod_observer
           assert 'prod_write=NONE' in prod_observer
           assert 'PLAN_MUTATION=NONE' in preprod_observer
           assert 'PREPROD_DB_MUTATION=NONE' in preprod_observer
-          for success_marker in (
-              "'PLAN_RESULT=PASS'",
-              '"OBSERVED_PROD_RELEASE_SHA=$actual_prod"',
-              "'PROD_DB_CONTENT_READ=NONE'",
-              "'PROD_SNAPSHOT=NOT_PERFORMED'",
-              "'PROD_DATA_TRANSFER=NONE'",
-              "'PREPROD_DB_MUTATION=NONE'",
-              "'PROD_WRITE=NONE'",
-              "'DATA_ACTIVATION_AUTHORITY=DISABLED'",
-          ):
-              assert success_marker in plan
 
-          isolate=a.index('docker network create --internal')
-          raw_import=a.index('ddev import-db --file="$raw"')
-          sanitize=a.index('ddev drush sql:sanitize')
-          transfer=a.index('scp -q')
-          detach=a.index('nohup setsid --wait')
-          assert isolate < raw_import < sanitize < transfer < detach
-          assert 'docker network disconnect -f' in a
-          assert 'rm -f -- "$raw"' in a
-          assert 'SANITIZED_ONLY_TO_PREPROD=PASS' in a
-          assert 'actions/upload-artifact' not in w
-          backup=worker.index('sql:dump --no-interaction --result-file="$BACKUP"')
-          maint=worker.index('maint:set 1')
-          drop=worker.index('sql:drop -y', maint)
-          restore=worker.index('sql:cli < "$BACKUP"')
+          # Control plane can stage fixed scripts/identities to PREPROD only.
+          assert 'RUNNER_ENVIRONMENT" == github-hosted' in control
+          assert 'root@$PREPROD_SSH_HOST' in control
+          assert 'agency-preprod@$PREPROD_SSH_HOST' in control
+          assert 'prod_ssh=(' not in control
+          assert '"$PROD_SSH_USER@$PROD_SSH_HOST"' not in control
+          assert 'RAW_PROD_ON_GITHUB_HOSTED=NONE' in control
+          assert 'RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT' in control
+          assert "PROD_REMOTE='scripts/production-readonly-snapshot/remote-stream.sh'" in control
+          assert "PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'" in control
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in control
+          assert 'StrictHostKeyChecking=yes' in control
+          assert 'ssh-keyscan' not in control.lower()
+          assert 'remote_staged=1' in control and 'worker_started=1' in control
+          assert 'worker_started" -eq 0' in control and "rm -rf -- '$remote_stage'" in control
+          assert 'prod-read.key' in control and 'chmod 600' in control
+          assert 'actions/upload-artifact' not in control and 'actions/upload-artifact' not in w
+          assert '.sql' not in control
+
+          # Raw PROD starts only inside the detached PREPROD root preparation worker.
+          assert 'HELPER_PATH = Path("/usr/local/sbin/agency-preprod-staging-db")' in prep
+          assert 'EXPECTED_HELPER_SHA256' in prep
+          assert 'controlled_server_to_server_allowed(policy)' in prep
+          assert 'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE' in prep
+          assert 'scripts/production-readonly-snapshot/remote-stream.sh' in prep
+          assert '"/usr/bin/ssh"' in prep and '"StrictHostKeyChecking=yes"' in prep
+          assert 'stderr=subprocess.DEVNULL' in prep
+          assert 'snapshot.stdout' in prep and 'import_snapshot_stream(helper, scope, client_file, snapshot.stdout)' in prep
+          assert 'raw.sql' not in prep.lower() and 'raw_dump' not in prep.lower()
+          assert 'helper.prepare_import_scope(scope)' in prep
+          assert 'helper.cleanup_scope(scope)' in prep and 'helper.require_absent(scope)' in prep
+          assert 'sanitizer.sanitize(scope.database, policy)' in prep
+          assert 'sanitizer.assert_sanitized(scope.database, execution)' in prep
+          assert prep.index('sanitizer.assert_sanitized') < prep.index('MARIADB_DUMP')
+          assert 'sanitized.sql.tmp' in prep and 'sanitized.sql' in prep
+          assert 'shutil.rmtree(stage)' in prep
+          assert prep.index('shutil.rmtree(stage)') < prep.index('os.execv(')
+          assert 'remote-apply-worker.sh' in prep and 'RUNUSER' in prep
+          assert 'prod-read.key' in prep and '0o600' in prep
+
+          # The root-owned sanitizer is the single existing policy implementation
+          # and covers the semantic #914 outcome before sanitized-only activation.
+          required_evidence={
+              'user_sanitization','auth_material_invalidation','webform_submissions_purge',
+              'sessions_purge','flood_rate_limit_purge','dblog_watchdog_purge',
+              'batch_temp_state_purge','queues_purge','cache_purge','runtime_state_reset',
+              'credential_state_removal',
+          }
+          for key in required_evidence:
+              assert key in prep and key in sanitizer
+          assert policy['policy_version'] == 'agency-preprod-refresh-v1'
+          paths={entry['type']: entry for entry in policy['execution_boundary']['raw_prod_data']['allowed_paths']}
+          assert paths['CONTROLLED_SERVER_TO_SERVER']['requirement'] == 'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE'
+          assert policy['execution_boundary']['github_hosted']['raw_prod_data_allowed'] is False
+          assert "name = f\"preprod-user-{uid}\"" in sanitizer
+          assert 'webform_submission' in sanitizer and 'sessions' in sanitizer
+          assert 'watchdog' in sanitizer and 'queue' in sanitizer
+          assert 'cache_' in sanitizer and 'ai_provider_openai.settings' in sanitizer
+          assert 'announcements_feed.' in sanitizer and 'linkchecker.' in sanitizer
+
+          # Existing fixed read-only PROD route and existing activation/rollback remain authoritative.
+          assert 'exec vendor/bin/drush sql:dump' in prod_snapshot
+          assert '--single-transaction' in prod_snapshot and '--skip-lock-tables' in prod_snapshot
+          assert 'PROD' not in activation or 'PROD' in activation  # activation has no PROD route requirement
+          backup=activation.index('sql:dump --no-interaction --result-file="$BACKUP"')
+          maint=activation.index('maint:set 1')
+          drop=activation.index('sql:drop -y', maint)
+          restore=activation.index('sql:cli < "$BACKUP"')
           assert backup < maint < drop
-          assert restore < worker.index('HUMAN_RECOVERY_REQUIRED')
-          assert 'maint:set 0' in worker
-          assert '#915' not in a and '#917' not in a
+          assert restore < activation.index('HUMAN_RECOVERY_REQUIRED')
+          assert 'admin-reconcile.php' in activation
+          assert 'maint:set 0' in activation
+          assert '#915' not in control and '#917' not in control
+          assert '#915' not in prep and '#917' not in prep
 
-          print('PLAN_RUNNER=ubuntu-24.04')
-          print('PLAN_RUNNER_ENVIRONMENT=github-hosted')
-          print('APPLY_RUNNER=self-hosted/linux/x64/agency')
-          print('PROD_PINNED_TRUST_PROVISION=PASS')
-          print('PREPROD_PINNED_TRUST_PROVISION=PASS')
-          print('STRICT_HOST_KEY_CHECKING=YES')
-          print('PLAN_METADATA_ONLY=PASS')
-          print('BOUNDED_PLAN_DIAGNOSTICS=PASS')
-          print('RAW_STDERR_FORWARDING=NONE')
-          print('RAW_STDOUT_FORWARDING=NONE')
-          print('ADMIN_RECONCILER_REQUIREMENT=PRESERVED')
-          print('RAW_STAGING_EGRESS_ISOLATION=PASS')
-          print('SANITIZED_ONLY_TO_PREPROD=PASS')
-          print('PREPROD_BACKUP_BEFORE_REPLACEMENT=PASS')
+          # The installed helper remains bounded; no new sanitization policy or generic root executor.
+          assert 'caller_database_name' in helper and 'Runtime database is outside privileged authority' in helper
+          assert 'shell=True' not in prep and 'os.system(' not in prep and 'eval(' not in prep
+          assert 'GENERIC' not in control
+
+          print('PLAN_RUNNER=ubuntu-24.04/github-hosted')
+          print('APPLY_CONTROL_PLANE=ubuntu-24.04/github-hosted')
+          print('EXECUTION_PATH=CONTROLLED_SERVER_TO_SERVER')
+          print('RAW_PROD_ON_GITHUB_HOSTED=NONE')
+          print('RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT')
+          print('PROD_WRITE=NONE')
+          print('PROD_READ_IDENTITY=READ_ONLY_REQUEST_SCOPED_TRANSIENT')
+          print('SANITIZATION_POLICY=EXISTING_SINGLE_POLICY')
+          print('SANITIZATION_SEMANTIC_EQUIVALENCE=PASS')
+          print('PREPROD_LIVE_RUNTIME_RAW_ACCESS=IMPOSSIBLE')
+          print('SANITIZED_ONLY_ACTIVATION=PASS')
+          print('EXISTING_REMOTE_APPLY_WORKER=REUSED')
+          print('PREPROD_BACKUP_BEFORE_ACTIVATION=PASS')
           print('ROLLBACK_MODEL=PASS')
-          print('HARD_RUNNER_LOSS_MODEL=PASS')
-          print('GITHUB_TRANSACTIONAL_STATE=NONE')
+          print('TRANSIENT_PROD_READ_IDENTITY_CLEANUP=PASS')
+          print('OLD_915_STATE_MACHINE_REVIVED=NO')
+          print('NEW_FRAMEWORK=NONE')
           PY
 
   regressions:

@@ -114,31 +114,45 @@ def main() -> int:
 
     require(job_runs_on(workflow, 'validate-authority', 'ubuntu-24.04'), 'authority runner changed')
     require(job_runs_on(workflow, 'plan', 'ubuntu-24.04'), 'PLAN is not hosted ubuntu-24.04')
-    require(job_runs_on(workflow, 'apply', 'ubuntu-24.04'), 'temporary APPLY control plane is not hosted ubuntu-24.04')
+    require(job_runs_on(workflow, 'apply', 'ubuntu-24.04'), 'APPLY control plane is not hosted ubuntu-24.04')
     require('${{ runner.environment }}' in workflow and 'github-hosted' in workflow,
             'hosted JIT assertion missing')
-    require('PREPROD_PROVISIONING_SSH_PRIVATE_KEY' in workflow, 'temporary PREPROD root identity mapping missing')
-    require('run-server-to-server-apply.sh' in workflow, 'temporary server-to-server control script not selected')
+    require('PREPROD_PROVISIONING_SSH_PRIVATE_KEY' in workflow, 'PREPROD root identity mapping missing')
+    require('run-server-to-server-apply.sh' in workflow, 'server-to-server control script not selected')
 
     for text, label in ((doc, 'canonical'), (registry, 'registry'), (refresh, 'refresh'), (successor, 'successor')):
-        require('PLAN_RESULT = PASS' in text or 'PLAN_RESULT=PASS' in text,
-                f'#937 PLAN PASS missing from {label}')
+        require('PLAN_RESULT = PASS' in text or 'PLAN_RESULT=PASS' in text
+                or 'real PLAN proven' in text,
+                f'PLAN PASS/current proof missing from {label}')
         require('CONTROLLED_SERVER_TO_SERVER' in text,
-                f'temporary server-to-server path missing from {label}')
-        require('CURRENTLY UNAVAILABLE' in text or 'currently unavailable' in text,
-                f'self-hosted alternative availability missing from {label}')
+                f'controlled server-to-server path missing from {label}')
+        require('AUTHORIZED ALTERNATIVE' in text or 'authorized alternative' in text,
+                f'self-hosted authorized alternative missing from {label}')
         raw_hosted_boundary = (
             ('RAW PROD' in text and 'GITHUB-HOSTED' in text)
             or 'RAW_PROD_ON_GITHUB_HOSTED' in text
         )
         require(raw_hosted_boundary, f'raw GitHub-hosted prohibition missing from {label}')
 
-    require('APPLY_EXECUTION_PATH = CONTROLLED_SERVER_TO_SERVER / TEMPORARY CURRENT' in refresh,
-            'refresh contract missing temporary current APPLY path')
-    require('TRUSTED_SELF_HOSTED_RUNNER = AUTHORIZED ALTERNATIVE / CURRENTLY UNAVAILABLE' in refresh,
-            'refresh contract missing authorized self-hosted alternative')
-    require('FIRST_REAL_APPLY=NOT_AUTHORIZED' in refresh, 'real APPLY boundary missing')
-    require('REAL_END_TO_END_REFRESH = NOT_YET_PROVEN' in refresh, 'real end-to-end pending state missing')
+    require('APPLY_EXECUTION_PATH = CONTROLLED_SERVER_TO_SERVER / CURRENT' in refresh,
+            'refresh contract missing current controlled APPLY path')
+    require('PROD_TO_PREPROD_REFRESH = REAL_EXECUTION_PROVEN' in refresh,
+            'real end-to-end refresh proof missing')
+    require('TERMINAL_REAL_PROOF = #953 / COMMITTED' in refresh,
+            'terminal #953 proof missing')
+    require('PREPROD_RUNTIME = SANITIZED_DATABASE_ACTIVE_AND_VALIDATED' in refresh,
+            'terminal PREPROD runtime detail missing')
+    require('PROD_ACCESS = READ_ONLY_REQUEST_SCOPED_TRANSIENT' in refresh,
+            'read-only request-scoped PROD access state missing')
+    require('PROD_WRITE = NONE' in refresh, 'PROD write prohibition missing')
+    require('RAW_PROD_ON_GITHUB_HOSTED = NONE' in refresh,
+            'terminal raw GitHub-hosted boundary missing')
+    require('RAW_PROD_ROUTE = PROD_TO_PREPROD_DIRECT' in refresh,
+            'direct PROD-to-PREPROD route missing')
+    require('SANITIZED_ONLY_ACTIVATION = PASS' in refresh,
+            'sanitized-only activation proof missing')
+    require('HUMAN_RECOVERY_REQUIRED = NO' in refresh,
+            'terminal human-recovery state missing')
 
     require(policy['policy_version'] == 'agency-preprod-refresh-v1', 'sanitization policy identity changed')
     require(policy['execution_boundary']['github_hosted']['raw_prod_data_allowed'] is False,
@@ -149,7 +163,7 @@ def main() -> int:
             'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE',
             'controlled server-to-server boundary weakened')
     require(profile['decision'] == 'EXTEND_EXISTING' and profile['temporary_execution_issue'] == 938,
-            '#914 profile not aligned to temporary #938 extension')
+            '#914 profile no longer matches the repository implementation lineage')
 
     for required in (
         'RAW_PROD_ON_GITHUB_HOSTED=NONE',
@@ -204,10 +218,33 @@ def main() -> int:
     require('db_push_command' not in provider and 'files_push_command' not in provider,
             'DDEV provider exposes upstream push')
     require('#872' in doc and '`DESIGN_ONLY`' in doc, 'editorial future/current boundary missing')
-    require('REAL_PREPROD_SEED_GENERATION = PENDING #816' in doc,
-            'development seed real-generation pending state missing')
+
+    for text, label in ((doc, 'canonical'), (registry, 'registry')):
+        require('#873_BLOCKED_BY_816 = NO' in text,
+                f'#873 source blocker status missing from {label}')
+        require('REPOSITORY_DDEV_IMPLEMENTATION = COMPLETE' in text,
+                f'#873 repository implementation status missing from {label}')
+        require('SYNTHETIC_PROOF = COMPLETE' in text,
+                f'#873 synthetic proof status missing from {label}')
+        require('REAL_PREPROD_SEED_GENERATION = PENDING' in text,
+                f'#873 real seed generation pending state missing from {label}')
+        require('REAL_STORAGE_PROVISIONING = PENDING' in text,
+                f'#873 real storage pending state missing from {label}')
+    require('REAL_DISTRIBUTION = PENDING' in doc,
+            '#873 real distribution pending state missing from canonical doc')
+    require('REAL_SEED_DISTRIBUTION = PENDING' in registry or 'REAL_DISTRIBUTION = PENDING' in registry,
+            '#873 real distribution pending state missing from registry')
 
     for stale in (
+        'Owner: #871 while #816 real end-to-end execution remains pending.',
+        '#816 real end-to-end execution remains pending',
+        'REAL_APPLY = PENDING',
+        'REAL_END_TO_END_REFRESH = NOT_YET_PROVEN',
+        'FIRST_REAL_APPLY=NOT_AUTHORIZED',
+        'real APPLY still pending',
+        'real APPLY pending',
+        'REAL_PREPROD_SEED_GENERATION = PENDING #816',
+        'real source pending #816',
         'APPLY remains `[self-hosted, linux, x64, agency]`',
         'APPLY remains strictly assigned to `[self-hosted, linux, x64, agency]`',
         '#930 is the **CURRENT RECOVERY / IN PROGRESS**',
@@ -232,14 +269,20 @@ def main() -> int:
     print('SINGLE_COMMAND_DISPATCHER=DOCUMENTED_CURRENT')
     print('CURRENT_914_PLAN_RUNNER=GITHUB_HOSTED_UBUNTU_24_04')
     print('CURRENT_914_PLAN_RESULT=PASS')
-    print('CURRENT_914_APPLY_PATH=CONTROLLED_SERVER_TO_SERVER_TEMPORARY')
-    print('TRUSTED_SELF_HOSTED_RUNNER=AUTHORIZED_ALTERNATIVE_CURRENTLY_UNAVAILABLE')
+    print('CURRENT_914_APPLY_PATH=CONTROLLED_SERVER_TO_SERVER')
+    print('PROD_TO_PREPROD_REFRESH=REAL_EXECUTION_PROVEN')
+    print('PREPROD_WORKER_OUTCOME=COMMITTED')
+    print('PREPROD_RUNTIME=SANITIZED_DATABASE_ACTIVE_AND_VALIDATED')
     print('RAW_PROD_ON_GITHUB_HOSTED=NONE')
+    print('RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT')
+    print('SANITIZED_ONLY_ACTIVATION=PASS')
+    print('HUMAN_RECOVERY_REQUIRED=NO')
     print('RAW_STAGING_CLEANUP=PROVEN_BEFORE_ACTIVATION')
     print('PROD_IDENTITY_STAGE_CLEANUP=PROVEN_BEFORE_ACTIVATION')
-    print('CLEANUP_UNPROVEN_OUTCOME=HUMAN_RECOVERY_REQUIRED')
     print('EXISTING_REMOTE_APPLY_WORKER=REUSED')
     print('DDEV_PUSH=NONE')
+    print('DEVELOPMENT_SEED_BLOCKED_BY_816=NO')
+    print('DEVELOPMENT_SEED_REAL_SERVICE=STILL_PENDING')
     print('DOC_CONTRACT=SUCCESS')
     return 0
 

@@ -43,6 +43,10 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
       "EXPECTED_MAIN='0b61d56264ad0163cd3bdbd5ea6e07253a155fbb'",
       $observer,
     );
+    self::assertStringContainsString(
+      'ROOT_STAGE="$ROOT_STAGE_PARENT/412fc11485c5"',
+      $observer,
+    );
     self::assertStringContainsString('[[ "$#" -eq 0 ]]', $observer);
     self::assertStringNotContainsString('REQUEST_ID="${1:-}"', $observer);
     self::assertStringNotContainsString('JOB_ROOT="${', $observer);
@@ -169,6 +173,7 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
       'UNOBSERVABLE_FAIL_CLOSED',
       'result_outcome=INVALID',
       'worker_process=UNOBSERVABLE',
+      'worker_phase=UNOBSERVABLE',
       "raw_staging_scope='UNOBSERVABLE'",
       "maintenance_mode='UNOBSERVABLE'",
       "refresh_fence='UNOBSERVABLE'",
@@ -177,19 +182,47 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
     }
 
     self::assertStringContainsString(
-      'classify ABSENT NONE ALIVE ABSENT ABSENT ABSENT NO',
+      'classify ABSENT NONE ALIVE PREACTIVATION NO',
       $observer,
     );
     self::assertStringContainsString(
-      'classify ABSENT NONE DEAD ABSENT ABSENT ABSENT NO',
+      'classify ABSENT NONE ALIVE ACTIVATION_OR_CONVERGENCE NO',
       $observer,
     );
     self::assertStringContainsString(
-      'classify ABSENT NONE UNOBSERVABLE ABSENT ABSENT ABSENT NO',
+      'classify ABSENT NONE DEAD NONE NO',
       $observer,
     );
     self::assertStringContainsString(
-      'classify PRESENT COMMITTED DEAD ABSENT ABSENT ABSENT NO',
+      'classify ABSENT NONE UNOBSERVABLE UNOBSERVABLE NO',
+      $observer,
+    );
+    self::assertStringContainsString(
+      'classify PRESENT COMMITTED DEAD NONE NO',
+      $observer,
+    );
+  }
+
+  /**
+   * Process phase comes from bounded identity, not artifact absence.
+   */
+  public function testWorkerPhaseUsesBoundedProcessIdentity(): void {
+    $observer = $this->observer();
+
+    foreach ([
+      'head -c 1 /proc/1/cmdline',
+      'pgrep -f -- "$REQUEST_ID"',
+      'ps -o euid=,etimes= -p "$worker_pid"',
+      'seen_root',
+      'seen_deploy_user',
+      "worker_phase='ACTIVATION_OR_CONVERGENCE'",
+      "worker_phase='PREACTIVATION'",
+    ] as $required) {
+      self::assertStringContainsString($required, $observer);
+    }
+
+    self::assertStringNotContainsString(
+      'ALIVE && "$activation_worker"',
       $observer,
     );
   }
@@ -212,6 +245,7 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
       'Validate pinned PREPROD SSH trust',
       'Diagnostic output exceeds bounded size.',
       'Diagnostic output key contract violated.',
+      '\'worker_process\', \'worker_phase\'',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }

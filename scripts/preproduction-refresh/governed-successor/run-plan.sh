@@ -5,6 +5,7 @@ umask 077
 PROD_PLAN='scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh'
 PREPROD_PLAN='scripts/preproduction-refresh/governed-successor/remote-plan-observe.sh'
 PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'
+PREPROD_TRUST_PROVISION='scripts/preproduction-ssh-trust/manage-known-host.sh'
 PREPROD_TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 
 : "${AUTHORITY_ISSUE:?}" "${REQUEST_ID:?}" "${REPOSITORY_SHA:?}" "${OPERATION_PROFILE:?}"
@@ -14,11 +15,13 @@ PREPROD_TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.
 [[ "$REPOSITORY_SHA" =~ ^[0-9a-f]{40}$ ]]
 [[ "${SOURCE_PROD_RELEASE_SHA:-}" == AUTO ]]
 [[ "$OPERATION_PROFILE" == agency-preprod-refresh-simple-v1 ]]
-[[ "${RUNNER_NAME:-}" == agency-browser-runner-01 ]]
+[[ "${RUNNER_ENVIRONMENT:-}" == github-hosted ]]
 [[ "${GITHUB_RUN_ATTEMPT:-}" == 1 ]]
 [[ "$(git rev-parse HEAD)" == "$REPOSITORY_SHA" ]]
 
+SERVER_HOST="$PROD_SSH_HOST" bash "$PROD_TRUST" PROVISION >/dev/null
 SERVER_HOST="$PROD_SSH_HOST" bash "$PROD_TRUST" VERIFY_ONLY >/dev/null
+PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" bash "$PREPROD_TRUST_PROVISION" PROVISION >/dev/null
 PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" bash "$PREPROD_TRUST" >/dev/null
 ssh_common=(-o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15)
 prod=(ssh -i "$PROD_SSH_KEY" "${ssh_common[@]}")

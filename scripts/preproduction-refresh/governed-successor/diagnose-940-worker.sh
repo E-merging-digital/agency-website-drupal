@@ -26,10 +26,8 @@ classify() {
   local terminal_state="$1"
   local result_outcome="$2"
   local worker_process="$3"
-  local activation_worker="$4"
-  local sanitized_sql="$5"
-  local sanitized_sql_tmp="$6"
-  local unsafe="$7"
+  local worker_phase="$4"
+  local unsafe="$5"
 
   if [[ "$unsafe" == YES ]]; then
     printf '%s\n' 'UNOBSERVABLE_FAIL_CLOSED'
@@ -48,15 +46,14 @@ classify() {
     return
   fi
 
-  case "$worker_process" in
-    ALIVE)
-      if [[ "$activation_worker" == PRESENT || "$sanitized_sql" == PRESENT || "$sanitized_sql_tmp" == PRESENT ]]; then
-        printf '%s\n' 'WORKER_ALIVE_ACTIVATION_OR_CONVERGENCE'
-      else
-        printf '%s\n' 'WORKER_ALIVE_PREACTIVATION'
-      fi
+  case "$worker_process:$worker_phase" in
+    ALIVE:PREACTIVATION)
+      printf '%s\n' 'WORKER_ALIVE_PREACTIVATION'
       ;;
-    DEAD)
+    ALIVE:ACTIVATION_OR_CONVERGENCE)
+      printf '%s\n' 'WORKER_ALIVE_ACTIVATION_OR_CONVERGENCE'
+      ;;
+    DEAD:NONE)
       printf '%s\n' 'WORKER_DEAD_NO_TERMINAL_METADATA'
       ;;
     *)
@@ -66,15 +63,15 @@ classify() {
 }
 
 self_test() {
-  [[ "$(classify ABSENT NONE ALIVE ABSENT ABSENT ABSENT NO)" == WORKER_ALIVE_PREACTIVATION ]]
-  [[ "$(classify ABSENT NONE ALIVE PRESENT PRESENT ABSENT NO)" == WORKER_ALIVE_ACTIVATION_OR_CONVERGENCE ]]
-  [[ "$(classify ABSENT NONE DEAD ABSENT ABSENT ABSENT NO)" == WORKER_DEAD_NO_TERMINAL_METADATA ]]
-  [[ "$(classify ABSENT NONE UNOBSERVABLE ABSENT ABSENT ABSENT NO)" == UNOBSERVABLE_FAIL_CLOSED ]]
-  [[ "$(classify PRESENT COMMITTED DEAD ABSENT ABSENT ABSENT NO)" == COMMITTED ]]
-  [[ "$(classify PRESENT ROLLED_BACK ALIVE PRESENT PRESENT ABSENT NO)" == ROLLED_BACK ]]
-  [[ "$(classify PRESENT HUMAN_RECOVERY_REQUIRED DEAD ABSENT ABSENT ABSENT NO)" == HUMAN_RECOVERY_REQUIRED ]]
-  [[ "$(classify PRESENT INVALID ALIVE ABSENT ABSENT ABSENT NO)" == UNOBSERVABLE_FAIL_CLOSED ]]
-  [[ "$(classify ABSENT NONE ALIVE ABSENT ABSENT ABSENT YES)" == UNOBSERVABLE_FAIL_CLOSED ]]
+  [[ "$(classify ABSENT NONE ALIVE PREACTIVATION NO)" == WORKER_ALIVE_PREACTIVATION ]]
+  [[ "$(classify ABSENT NONE ALIVE ACTIVATION_OR_CONVERGENCE NO)" == WORKER_ALIVE_ACTIVATION_OR_CONVERGENCE ]]
+  [[ "$(classify ABSENT NONE DEAD NONE NO)" == WORKER_DEAD_NO_TERMINAL_METADATA ]]
+  [[ "$(classify ABSENT NONE UNOBSERVABLE UNOBSERVABLE NO)" == UNOBSERVABLE_FAIL_CLOSED ]]
+  [[ "$(classify PRESENT COMMITTED DEAD NONE NO)" == COMMITTED ]]
+  [[ "$(classify PRESENT ROLLED_BACK ALIVE ACTIVATION_OR_CONVERGENCE NO)" == ROLLED_BACK ]]
+  [[ "$(classify PRESENT HUMAN_RECOVERY_REQUIRED DEAD NONE NO)" == HUMAN_RECOVERY_REQUIRED ]]
+  [[ "$(classify PRESENT INVALID ALIVE PREACTIVATION NO)" == UNOBSERVABLE_FAIL_CLOSED ]]
+  [[ "$(classify ABSENT NONE ALIVE PREACTIVATION YES)" == UNOBSERVABLE_FAIL_CLOSED ]]
 }
 
 if [[ "${1:-}" == '--self-test' ]]; then
@@ -202,36 +199,62 @@ elif [[ "$result_env" == UNSAFE ]]; then
 fi
 
 worker_process='UNOBSERVABLE'
+worker_phase='UNOBSERVABLE'
 worker_process_count='0'
 worker_elapsed_seconds='NONE'
-if command -v pgrep >/dev/null 2>&1 && command -v ps >/dev/null 2>&1 && head -c 1 /proc/1/stat >/dev/null 2>&1; then
+# PID 1 is root-owned on the PREPROD host. If its cmdline is readable by the
+# ordinary deploy user, cross-UID process command lines are observable enough
+# for fixed request-id matching; otherwise absence must not be classified DEAD.
+if command -v pgrep >/dev/null 2>&1 && command -v ps >/dev/null 2>&1 && head -c 1 /proc/1/cmdline >/dev/null 2>&1; then
   mapfile -t worker_pids < <(pgrep -f -- "$REQUEST_ID" 2>/dev/null | head -n 9 || true)
   if [[ "${#worker_pids[@]}" -gt 8 ]]; then
     worker_process='UNOBSERVABLE'
+    worker_phase='UNOBSERVABLE'
     worker_process_count='0'
   elif [[ "${#worker_pids[@]}" -eq 0 ]]; then
     worker_process='DEAD'
+    worker_phase='NONE'
   else
     worker_process='ALIVE'
     worker_process_count="${#worker_pids[@]}"
     max_elapsed=0
     elapsed_observable='YES'
+    seen_root='NO'
+    seen_deploy_user='NO'
+    process_identity_observable='YES'
     for worker_pid in "${worker_pids[@]}"; do
       if [[ ! "$worker_pid" =~ ^[0-9]{1,8}$ || ! -r "/proc/$worker_pid/stat" ]]; then
         elapsed_observable='NO'
+        process_identity_observable='NO'
         continue
       fi
-      elapsed="$(ps -o etimes= -p "$worker_pid" 2>/dev/null | awk '{$1=$1; print}' || true)"
-      if [[ ! "$elapsed" =~ ^[0-9]{1,8}$ ]]; then
+      process_meta="$(ps -o euid=,etimes= -p "$worker_pid" 2>/dev/null | awk '{$1=$1; print}' || true)"
+      read -r process_euid elapsed <<< "$process_meta"
+      if [[ ! "$process_euid" =~ ^[0-9]{1,8}$ || ! "$elapsed" =~ ^[0-9]{1,8}$ ]]; then
         elapsed_observable='NO'
+        process_identity_observable='NO'
         continue
       fi
       if (( elapsed > max_elapsed )); then
         max_elapsed="$elapsed"
       fi
+      if [[ "$process_euid" == "$CURRENT_UID" ]]; then
+        seen_deploy_user='YES'
+      elif [[ "$process_euid" == 0 ]]; then
+        seen_root='YES'
+      else
+        process_identity_observable='NO'
+      fi
     done
     if [[ "$elapsed_observable" == YES ]]; then
       worker_elapsed_seconds="$max_elapsed"
+    fi
+    if [[ "$process_identity_observable" == YES && "$seen_deploy_user" == YES ]]; then
+      worker_phase='ACTIVATION_OR_CONVERGENCE'
+    elif [[ "$process_identity_observable" == YES && "$seen_root" == YES ]]; then
+      worker_phase='PREACTIVATION'
+    else
+      worker_phase='UNOBSERVABLE'
     fi
   fi
 fi
@@ -320,7 +343,7 @@ raw_staging_scope='UNOBSERVABLE'
 maintenance_mode='UNOBSERVABLE'
 refresh_fence='UNOBSERVABLE'
 
-classification="$(classify "$result_env" "$result_outcome" "$worker_process" "$activation_worker" "$sanitized_sql" "$sanitized_sql_tmp" "$unsafe")"
+classification="$(classify "$result_env" "$result_outcome" "$worker_process" "$worker_phase" "$unsafe")"
 
 printf '%s\n' \
   'schema_version=1' \
@@ -332,6 +355,7 @@ printf '%s\n' \
   "result_outcome=$result_outcome" \
   "result_detail=$result_detail" \
   "worker_process=$worker_process" \
+  "worker_phase=$worker_phase" \
   "worker_process_count=$worker_process_count" \
   "worker_elapsed_seconds=$worker_elapsed_seconds" \
   "bootstrap_log=$bootstrap_log" \

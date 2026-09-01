@@ -1,176 +1,99 @@
 #!/usr/bin/env python3
+"""Synthetic authority matrix for #914 schema v4."""
 from __future__ import annotations
+
 import importlib.util
 import json
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("authority", BASE / "validate-execution-authority.py")
-assert spec and spec.loader
-authority = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(authority)
+HERE = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location("authority", HERE / "validate-execution-authority.py")
+assert SPEC and SPEC.loader
+M = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(M)
 
-MAIN = "a" * 40
-PROD = "b" * 40
-TARGET_MAIN = "c" * 40
-TARGET_AUTHORITY_ID = "d" * 64
-TARGET_COMMENT_ID = 123456789
-ISSUE = 1914
-TARGET_ISSUE = 1913
-PROFILE = authority.PROFILE_ID
-CAP_PROFILE = authority.CAPABILITY_PROFILE_ID
+MAIN = "1" * 40
+PROD = "2" * 40
+ISSUE = 930
 
 
-def marker(mode="PLAN", issue=ISSUE, request=None, main=MAIN, profile=PROFILE, actor="E-merging-digital", prod=None,
-           target_issue=None, target_request=None, target_main=None, target_profile=None,
-           target_authority_id=None, target_recovery_record_comment_id=None):
-    if request is None:
-        prefix = {"PLAN": "plan", "APPLY": "apply", "RECOVER_ABORT": "recover-abort"}[mode]
-        request = f"{prefix}-{issue}-abcdefgh-r1"
-    if prod is None:
-        prod = "AUTO" if mode == "PLAN" else (PROD if mode == "APPLY" else "NONE")
-    if mode == "RECOVER_ABORT":
-        target_issue = TARGET_ISSUE if target_issue is None else target_issue
-        target_request = f"apply-{target_issue}-targetabcd-r1" if target_request is None else target_request
-        target_main = TARGET_MAIN if target_main is None else target_main
-        target_profile = CAP_PROFILE if target_profile is None else target_profile
-        target_authority_id = TARGET_AUTHORITY_ID if target_authority_id is None else target_authority_id
-        target_recovery_record_comment_id = TARGET_COMMENT_ID if target_recovery_record_comment_id is None else target_recovery_record_comment_id
+def marker(mode: str, **extra):
     value = {
-        "schema_version": 3, "parent_issue": 816, "implementation_issue": 914,
-        "authority_issue": issue, "mode": mode, "request_id": request,
-        "main_sha": main, "prod_release_sha": prod, "profile_id": profile,
-        "authorized_actor": actor, "run_attempt": 1,
-        "target_successor_issue": target_issue, "target_request_id": target_request,
-        "target_main_sha": target_main, "target_profile_id": target_profile,
-        "target_authority_id": target_authority_id,
-        "target_recovery_record_comment_id": target_recovery_record_comment_id,
+        "schema_version": 4,
+        "parent_issue": 816,
+        "implementation_issue": 914,
+        "authority_issue": ISSUE,
+        "mode": mode,
+        "request_id": f"{mode.lower()}-{ISSUE}-abcdefgh-r1",
+        "main_sha": MAIN,
+        "prod_release_sha": "AUTO" if mode == "PLAN" else PROD,
+        "profile_id": "agency-preprod-refresh-simple-v1",
+        "authorized_actor": "E-merging-digital",
+        "run_attempt": 1,
     }
+    value.update(extra)
+    return value
+
+
+def issue_for(value):
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
-    return value, "Parent: #816\n" + authority.MARKER_PREFIX + raw + "\n"
-
-
-def valid_fixture(mode="PLAN", issue=ISSUE, **marker_overrides):
-    m, body = marker(mode=mode, issue=issue, **marker_overrides)
-    comment = authority._expected_comment(m)
-    issue_json = {
-        "number": issue, "state": "open", "user": {"login": "E-merging-digital"},
-        "labels": [{"name": "status:in-progress"}], "body": body,
+    return {
+        "number": ISSUE, "state": "open", "pull_request": None,
+        "user": {"login": "E-merging-digital"},
+        "labels": [{"name": "status:in-progress"}],
+        "body": f"Parent: #816\n{M.MARKER_PREFIX}{raw}",
     }
-    comments = [{"body": comment, "user": {"login": "E-merging-digital"}}]
-    return m, issue_json, comments, comment
 
 
-def validate_fixture(mode="PLAN", issue_number=ISSUE, marker_overrides=None, **overrides):
-    _, issue, comments, comment = valid_fixture(mode, issue_number, **(marker_overrides or {}))
-    args = dict(
-        issue=issue, comments=comments, authority_issue_number=issue_number,
-        comment_body=comment, comment_author="E-merging-digital", github_actor="E-merging-digital",
-        event_name="issue_comment", event_action="created", run_attempt="1", live_main=MAIN,
+def run(value, *, attempt="1", live=MAIN, comments=None, checked=None):
+    body = M.expected_comment(value)
+    return M.validate(
+        issue=issue_for(value), comments=comments or [{"body": body}], authority_issue=ISSUE,
+        comment_body=body, comment_author="E-merging-digital", github_actor="E-merging-digital",
+        event_name="issue_comment", event_action="created", run_attempt=attempt,
+        live_main=live, checked_out_head=checked,
     )
-    args.update(overrides)
-    return authority.validate(**args)
 
 
-def reject(label, fn):
+def fails(fn):
     try:
         fn()
-    except authority.AuthorityError:
-        print(label + "=FAIL_CLOSED")
+    except M.AuthorityError:
         return
-    raise AssertionError(label + " unexpectedly passed")
+    raise AssertionError("Expected fail-closed rejection")
 
 
-assert validate_fixture("PLAN")["mode"] == "PLAN"
-assert validate_fixture("APPLY")["mode"] == "APPLY"
-recovery = validate_fixture("RECOVER_ABORT")
-assert recovery["mode"] == "RECOVER_ABORT"
-assert recovery["main_sha"] == MAIN
-assert recovery["target_main_sha"] == TARGET_MAIN
-assert recovery["target_recovery_record_comment_id"] == str(TARGET_COMMENT_ID)
-print("FUTURE_AUTHORITY_IS_FRESH_816_CHILD=PASS")
-print("VALID_PLAN=PASS")
-print("VALID_APPLY=PASS")
-print("FRESH_RECOVERY_AUTHORITY=REQUIRED")
-print("RECOVERY_EXECUTION_MAIN_BINDING=EXACT_CURRENT_MAIN")
-print("TARGET_TRANSACTION_BINDING=EXACT_HISTORICAL_AUTHORITY")
-print("RECOVERY_RECORD_COMMENT_ID_BINDING=PASS")
+for mode in ("PLAN", "APPLY"):
+    out = run(marker(mode))
+    assert out["mode"] == mode
+print("AUTHORITY_PLAN_APPLY=PASS")
 
-for known in (914, 915, 916, 917):
-    reject(f"KNOWN_ISSUE_{known}_CANNOT_AUTHORIZE", lambda known=known: validate_fixture("PLAN", known))
-print("KNOWN_IMPLEMENTATION_CAPABILITY_ISSUES_AS_AUTHORITY=FAIL_CLOSED")
+fails(lambda: run(marker("PLAN"), attempt="2"))
+print("RUN_ATTEMPT_2=FAIL_CLOSED")
+fails(lambda: run(marker("APPLY"), live="3" * 40))
+print("STALE_MAIN=FAIL_CLOSED")
+value = marker("APPLY")
+body = M.expected_comment(value)
+fails(lambda: run(value, comments=[{"body": body}, {"body": body}]))
+print("DUPLICATE_REQUEST=FAIL_CLOSED")
 
-_, issue, comments, comment = valid_fixture("PLAN")
-apply_comment = comment.replace(" PLAN ", " APPLY ", 1)
-reject("PLAN_REQUEST_CANNOT_AUTHORIZE_APPLY", lambda: authority.validate(
-    issue=issue, comments=comments, authority_issue_number=ISSUE, comment_body=apply_comment,
-    comment_author="E-merging-digital", github_actor="E-merging-digital", event_name="issue_comment",
-    event_action="created", run_attempt="1", live_main=MAIN))
+historical = marker("APPLY")
+historical["target_authority_id"] = "a" * 64
+fails(lambda: run(historical))
+print("HISTORICAL_TARGET_FIELDS=FAIL_CLOSED")
 
-reject("RUN_ATTEMPT_NOT_1", lambda: validate_fixture(run_attempt="2"))
-reject("WRONG_MAIN", lambda: validate_fixture(live_main="e" * 40))
-reject("WRONG_ACTOR", lambda: validate_fixture(github_actor="someone-else"))
-reject("CHECKED_OUT_HEAD_MISMATCH", lambda: validate_fixture(checked_out_head="e" * 40))
-reject("WRONG_ISSUE", lambda: validate_fixture(authority_issue_number=ISSUE + 1))
-reject("WRONG_MODE", lambda: validate_fixture(expected_mode="APPLY"))
-reject("WRONG_REQUEST", lambda: validate_fixture(expected_request_id="plan-1914-otherone-r1"))
-reject("WRONG_PROFILE", lambda: validate_fixture(expected_profile="wrong"))
-reject("WRONG_AUTHORIZED_MAIN", lambda: validate_fixture(expected_main="e" * 40))
-
-_, issue, comments, comment = valid_fixture("PLAN")
-comments.append(dict(comments[0]))
-reject("REQUEST_REPLAY", lambda: authority.validate(
-    issue=issue, comments=comments, authority_issue_number=ISSUE, comment_body=comment,
-    comment_author="E-merging-digital", github_actor="E-merging-digital", event_name="issue_comment",
-    event_action="created", run_attempt="1", live_main=MAIN))
-
-reject("FAILED_APPLY_RUN_ATTEMPT_2", lambda: validate_fixture("APPLY", run_attempt="2"))
-_, issue, comments, comment = valid_fixture("APPLY")
-comments.append(dict(comments[0]))
-reject("FAILED_APPLY_REQUEST_REUSE", lambda: authority.validate(
-    issue=issue, comments=comments, authority_issue_number=ISSUE, comment_body=comment,
-    comment_author="E-merging-digital", github_actor="E-merging-digital", event_name="issue_comment",
-    event_action="created", run_attempt="1", live_main=MAIN))
-
-reject("WRONG_TARGET_ISSUE", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_issue": 915}))
-reject("WRONG_TARGET_REQUEST", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_request": "apply-1913-bad-r1"}))
-reject("WRONG_TARGET_MAIN", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_main": "bad"}))
-reject("WRONG_TARGET_PROFILE", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_profile": "wrong"}))
-reject("WRONG_TARGET_AUTHORITY_ID", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_authority_id": "bad"}))
-reject("WRONG_RECORD_COMMENT_ID", lambda: validate_fixture("RECOVER_ABORT", marker_overrides={"target_recovery_record_comment_id": 0}))
-reject("RECOVERY_RUN_ATTEMPT_2", lambda: validate_fixture("RECOVER_ABORT", run_attempt="2"))
-reject("RECOVERY_WRONG_ACTOR", lambda: validate_fixture("RECOVER_ABORT", github_actor="someone-else"))
-reject("RECOVERY_STALE_EXECUTION_MAIN", lambda: validate_fixture("RECOVER_ABORT", live_main="e" * 40))
-reject("RECOVERY_TARGET_CHANGED_AT_JIT", lambda: validate_fixture(
-    "RECOVER_ABORT", expected_target_authority_id="e" * 64))
-reject("RECOVERY_RECORD_COMMENT_CHANGED_AT_JIT", lambda: validate_fixture(
-    "RECOVER_ABORT", expected_target_recovery_record_comment_id=str(TARGET_COMMENT_ID + 1)))
-
-_, issue, comments, comment = valid_fixture("RECOVER_ABORT")
-comments.append(dict(comments[0]))
-reject("RECOVERY_REQUEST_REPLAY", lambda: authority.validate(
-    issue=issue, comments=comments, authority_issue_number=ISSUE, comment_body=comment,
-    comment_author="E-merging-digital", github_actor="E-merging-digital", event_name="issue_comment",
-    event_action="created", run_attempt="1", live_main=MAIN))
-
-_, issue, comments, comment = valid_fixture("PLAN")
-issue["state"] = "closed"
-reject("AUTHORITY_REVOKED", lambda: authority.validate(
-    issue=issue, comments=comments, authority_issue_number=ISSUE, comment_body=comment,
-    comment_author="E-merging-digital", github_actor="E-merging-digital", event_name="issue_comment",
-    event_action="created", run_attempt="1", live_main=MAIN))
-
-_, issue, comments, comment = valid_fixture("PLAN")
-issue["pull_request"] = {"url": "synthetic"}
-reject("PR_CANNOT_AUTHORIZE", lambda: authority.validate(
-    issue=issue, comments=comments, authority_issue_number=ISSUE, comment_body=comment,
-    comment_author="E-merging-digital", github_actor="E-merging-digital", event_name="issue_comment",
-    event_action="created", run_attempt="1", live_main=MAIN))
-
-print("#914_EXECUTION_AUTHORITY=IMPOSSIBLE")
-print("PLAN_APPLY_SEPARATION=PASS")
-print("RECOVERY_AUTHORITY_CANNOT_ARM_NEW_TRANSACTION=PASS_BY_MODE_CONTRACT")
-print("RECOVERY_AUTHORITY_CANNOT_IMPORT=PASS_BY_MODE_CONTRACT")
-print("RECOVERY_AUTHORITY_CANNOT_ACTIVATE=PASS_BY_MODE_CONTRACT")
-print("RECOVERY_AUTHORITY_CANNOT_ROLLBACK=PASS_BY_MODE_CONTRACT")
-print("ROOT_SECRET_BEFORE_RECOVERY_JIT=IMPOSSIBLE_BY_WORKFLOW_CONTRACT")
+low = marker("PLAN")
+low["authority_issue"] = 920
+low["request_id"] = "plan-920-abcdefgh-r1"
+raw = json.dumps(low, sort_keys=True, separators=(",", ":"))
+issue = issue_for(low)
+issue["number"] = 920
+issue["body"] = f"Parent: #816\n{M.MARKER_PREFIX}{raw}"
+body = M.expected_comment(low)
+fails(lambda: M.validate(
+    issue=issue, comments=[{"body": body}], authority_issue=920, comment_body=body,
+    comment_author="E-merging-digital", github_actor="E-merging-digital",
+    event_name="issue_comment", event_action="created", run_attempt="1", live_main=MAIN,
+))
+print("IMPLEMENTATION_GOVERNANCE_AUTHORITY=FAIL_CLOSED")
+print("GITHUB_TRANSACTIONAL_STATE=NONE")

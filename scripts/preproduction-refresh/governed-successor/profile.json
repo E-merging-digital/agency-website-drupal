@@ -1,270 +1,78 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "issue_number": 914,
   "parent_issue": 816,
-  "profile_id": "agency-preprod-governed-refresh-successor-v1",
+  "profile_id": "agency-preprod-refresh-simple-v1",
+  "adr": "ADR-003-use-existing-first",
+  "decision": "EXTEND_EXISTING",
   "state": "SOURCE_ONLY_NOT_EXECUTION_AUTHORITY",
   "execution_authority": {
-    "implementation_issue": 914,
     "implementation_issue_may_execute": false,
-    "known_non_execution_authority_through_issue": 917,
-    "future_authority_issue": "FRESH_DISTINCT_816_CHILD_REQUIRED",
-    "authority_issue_must_be_greater_than": 917,
-    "authorized_actor": "E-merging-digital",
-    "modes": ["PLAN", "APPLY", "RECOVER_ABORT"],
-    "one_authority_issue_one_mode": true,
-    "plan_can_authorize_apply": false,
-    "apply_requires_fresh_distinct_authority": true,
-    "recover_abort_requires_fresh_distinct_authority": true,
-    "failed_apply_may_be_reused_for_recovery": false,
+    "authority_issue_must_be_greater_than": 920,
+    "modes": ["PLAN", "APPLY"],
     "run_attempt": 1,
-    "marker_prefix": "AGENCY_PREPROD_REFRESH_SUCCESSOR_AUTHORITY=",
-    "trigger_command": "/agency-preprod-refresh-successor",
-    "request_replay": "FAIL_CLOSED",
-    "request_id_scope": "MODE_AND_AUTHORITY_ISSUE_BOUND",
-    "recovery_execution_main_binding": "EXACT_CURRENT_LIVE_MAIN",
-    "target_transaction_main_binding": "EXACT_HISTORICAL_AUTHORITY",
-    "capability_provisioning": "SEPARATE_AUTHORITY_EVENT"
+    "github_transactional_state": "NONE",
+    "historical_recovery_target": "NONE"
   },
-  "authority_marker": {
-    "schema_version": 3,
-    "required_keys": [
-      "schema_version", "parent_issue", "implementation_issue", "authority_issue",
-      "mode", "request_id", "main_sha", "prod_release_sha", "profile_id",
-      "authorized_actor", "run_attempt", "target_successor_issue",
-      "target_request_id", "target_main_sha", "target_profile_id",
-      "target_authority_id", "target_recovery_record_comment_id"
-    ],
-    "plan_prod_release_sha": "AUTO",
-    "apply_prod_release_sha": "EXACT_40_HEX",
-    "recover_abort_prod_release_sha": "NONE",
-    "plan_apply_target_binding": "ALL_TARGET_FIELDS_NULL",
-    "recover_abort_target_binding": "EXACT_HISTORICAL_915_917_AUTHORITY_PLUS_TRUSTED_RECORD_COMMENT_ID"
+  "drush": {
+    "locked_version": "13.7.6",
+    "reused": ["sql:dump", "sql:cli", "sql:drop", "sql:sanitize", "maint:set", "updb", "cim", "cr"],
+    "generic_sanitization": ["user_email", "user_password", "sessions"]
   },
-  "runner": {
-    "labels": ["self-hosted", "linux", "x64", "agency"],
-    "exact_name": "agency-browser-runner-01"
+  "raw_staging": {
+    "surface": "TRUSTED_SELF_HOSTED_DDEV_ONLY",
+    "database": "DDEV_MARIADB_11_8",
+    "isolation_order": ["START_CODE_ONLY", "ISOLATE_DOCKER_NETWORK_INTERNAL_ONLY", "IMPORT_RAW", "SANITIZE"],
+    "external_egress_before_sanitize": "IMPOSSIBLE_BY_INTERNAL_DOCKER_NETWORK",
+    "raw_sql_workspace": "FORBIDDEN",
+    "raw_sql_github_artifact": "FORBIDDEN"
   },
-  "jit_before_secret": {
-    "lineage_issue": 910,
-    "required_for_modes": ["PLAN", "APPLY", "RECOVER_ABORT"],
-    "order": [
-      "CHECKOUT_EXACT_ORIGINALLY_AUTHORIZED_CURRENT_MAIN",
-      "RELOAD_CURRENT_LIVE_MAIN",
-      "RELOAD_FRESH_AUTHORITY_ISSUE_AND_COMMENTS",
-      "REVALIDATE_ACTOR_MODE_REQUEST_PROFILE_RUN_ATTEMPT",
-      "REQUIRE_CHECKED_OUT_HEAD_EQUALS_LIVE_MAIN_EQUALS_RECOVERY_OR_EXECUTION_AUTHORIZED_MAIN",
-      "VALIDATE_REPOSITORY_915_917_SAFETY_PROFILE",
-      "MATERIALIZE_ONLY_MODE_REQUIRED_SSH_SECRETS",
-      "FIXED_OPERATION",
-      "CLEANUP_ALWAYS"
-    ],
-    "prod_secret_before_jit": "IMPOSSIBLE",
-    "preprod_secret_before_jit": "IMPOSSIBLE",
-    "root_secret_before_jit": "IMPOSSIBLE",
-    "recovery_root_secret_before_jit": "IMPOSSIBLE",
-    "queued_state_change": "FAIL_BEFORE_SECRET_OR_SSH_SESSION"
+  "agency_sanitization_gaps": [
+    "usernames", "webform", "flood", "watchdog", "queues", "cache_state",
+    "batch_temp_state", "persisted_provider_credentials", "project_specific_runtime_state"
+  ],
+  "preprod_apply": {
+    "input": "SANITIZED_SQL_ONLY",
+    "worker": "DETACHED_NON_ROOT",
+    "root_secret": "NONE",
+    "downtime": "BOUNDED_MAINTENANCE_ACCEPTED",
+    "backup_before_destructive_replace": true,
+    "replacement": ["maint:set 1", "sql:drop", "sql:cli", "updb", "cim", "PREPROD_CONFIG_SPLIT", "ADMIN_RECONCILE", "VALIDATE", "cr", "maint:set 0"],
+    "success": "COMMITTED",
+    "failure_after_destructive_step": "RESTORE_EXACT_BACKUP_AND_VALIDATE",
+    "rollback_success": "ROLLED_BACK",
+    "rollback_unprovable": "HUMAN_RECOVERY_REQUIRED_MAINTENANCE_ON"
   },
-  "capability_precondition": {
-    "source_issue": 874,
-    "base_revision_issue": 915,
-    "abort_revision_issue": 917,
-    "revision_lineage": [915, 917],
-    "source_profile": "scripts/preproduction-refresh/activation-capability/profile.json",
-    "bundle": "scripts/preproduction-refresh/activation-capability/bundle.json",
-    "source_state": "SOURCE_AVAILABLE_NOT_PROVISIONED",
-    "live_capability_provisioning": "SEPARATE_FUTURE_816_SUCCESSOR_REQUIRED",
-    "persistent_data_activation_authority": "DISABLED",
-    "transaction_authority_before_fresh_apply": "ABSENT",
-    "fresh_apply_over_stale_active": "FAIL_CLOSED_BY_FIXED_915"
+  "hard_runner_loss": {
+    "before_worker": "NO_PREPROD_RUNTIME_MUTATION",
+    "after_worker": "WORKER_INDEPENDENT_OF_RUNNER",
+    "terminal_results": ["COMMITTED", "ROLLED_BACK", "HUMAN_RECOVERY_REQUIRED"],
+    "github_reconstruction": "NONE",
+    "recover_current": "NONE"
   },
-  "plan": {
-    "mode": "PLAN",
-    "mutation": "NONE",
-    "prod_db_content_read": "NONE",
-    "prod_snapshot": "NOT_PERFORMED",
-    "prod_data_transfer": "NONE",
-    "transaction_authority_install": "NONE",
-    "authority_abort": "NONE",
-    "candidate_create": "NONE",
-    "backup_create": "NONE",
-    "fence_mutation": "NONE",
-    "preprod_db_mutation": "NONE",
-    "activation": "NONE",
-    "rollback": "NONE",
-    "inspections": [
-      "EXACT_CURRENT_MAIN", "SUCCESSOR_AUTHORITY", "TRUSTED_EXECUTOR_IDENTITY",
-      "CREDENTIAL_READINESS_NO_VALUES", "PINNED_PROD_PREPROD_HOST_TRUST",
-      "INSTALLED_915_917_CAPABILITY_IDENTITY", "PERSISTENT_DATA_AUTHORITY_STATE",
-      "TRANSACTION_AUTHORITY_EXPECTED_ABSENT", "RUNTIME_RELEASE_IDENTITY",
-      "RUNTIME_DB_IDENTITY_AGENCY_PREPROD", "FENCE_STATE", "LOCK_READINESS",
-      "CAPACITY_READINESS", "STALE_TRANSACTION_EXPECTED_ABSENT",
-      "CANDIDATE_NAMESPACE_READINESS", "BACKUP_NAMESPACE_READINESS",
-      "EXPECTED_MUTATION_INVENTORY", "ROLLBACK_ABORT_INVENTORY"
-    ]
+  "merged_capabilities": {
+    "915_present": true,
+    "917_present": true,
+    "operational_dependency": "NONE"
   },
-  "apply": {
-    "mode": "APPLY",
-    "prod_role": "READ_ONLY_SNAPSHOT_SOURCE_ONLY",
+  "files": {
+    "public": "OUT_OF_SCOPE_STAGE_FILE_PROXY_RECOMMENDATION_ONLY",
+    "private": "EXCLUDED"
+  },
+  "invariants": {
     "prod_write": "NONE",
-    "fresh_snapshot_each_transaction": true,
-    "raw_prod_github_hosted": "IMPOSSIBLE",
-    "raw_prod_github_artifact": "FORBIDDEN",
-    "sequence": [
-      "REQUIRE_FRESH_SUCCESSOR_APPLY_AUTHORITY",
-      "REQUIRE_EXACT_LIVE_MAIN",
-      "JIT_BEFORE_ALL_SSH_SECRETS",
-      "REQUIRE_TRUSTED_EXECUTOR",
-      "CREATE_FRESH_PROD_READ_ONLY_SNAPSHOT_USING_834_866_PRIMITIVE",
-      "COMPUTE_SNAPSHOT_BYTES_SHA256_AND_DERIVED_AUTHORITY_ID",
-      "WRITE_DURABLE_METADATA_ONLY_RECOVERY_TARGET_BEFORE_ARM",
-      "VERIFY_TRUSTED_GITHUB_ACTIONS_RECORD_AND_CAPTURE_COMMENT_ID",
-      "INSTALL_EXACT_915_917_ONE_SHOT_AUTHORITY",
-      "STREAM_SNAPSHOT_TO_EXACT_915_917_FIXED_INGRESS",
-      "BRANCH_ON_INGRESS_RESULT"
-    ],
-    "recovery_target_record": {
-      "prefix": "AGENCY_PREPROD_REFRESH_RECOVERY_TARGET=",
-      "timing": "AFTER_SNAPSHOT_IDENTITY_BEFORE_AUTHORITY_INSTALL",
-      "execution_authority": false,
-      "metadata_only": true,
-      "trusted_author_login": "github-actions[bot]",
-      "trusted_author_type": "Bot",
-      "comment_id": "IMMUTABLE_GITHUB_COMMENT_ID_BOUND_BY_LATER_RECOVER_ABORT_AUTHORITY",
-      "required_fields": [
-        "successor_issue", "request_id", "main_sha", "profile_id", "authority_id",
-        "snapshot_bytes", "snapshot_sha256"
-      ],
-      "raw_snapshot": "FORBIDDEN",
-      "secret_values": "FORBIDDEN"
-    },
-    "ingress_success": [
-      "REQUIRE_SNAPSHOT_READY", "915_IMPORT_SANITIZE_HARDEN_RETAIN",
-      "REQUIRE_SEALED_CANDIDATE", "915_BACKUP_ACTIVATE_CONVERGE_VALIDATE",
-      "TERMINAL_COMMIT_OR_915_RECORDED_ROLLBACK",
-      "VERIFY_TERMINAL_METADATA_WHERE_OBSERVABLE", "REMOVE_TRUSTED_RUNNER_RAW_TRANSIENT"
-    ],
-    "pre_snapshot_ready_failure": [
-      "PROVE_TRUSTED_RUNNER_RAW_TRANSIENT_CLEANUP",
-      "PROVE_FIXED_INGRESS_PARTIAL_FINAL_UNBOUND_CLEANUP",
-      "INVOKE_EXACT_917_ROOT_ONLY_AUTHORITY_ABORT",
-      "REQUIRE_ABORTED_TERMINAL_HISTORY",
-      "REQUIRE_ACTIVE_AUTHORITY_ABSENT",
-      "REMOVE_TRUSTED_RUNNER_TRANSIENT",
-      "FAIL_NO_BLIND_RETRY"
-    ],
-    "hard_executor_loss_after_arm": "LATER_FRESH_RECOVER_ABORT_REQUIRED"
-  },
-  "recover_abort": {
-    "mode": "RECOVER_ABORT",
-    "purpose": "RECOVER_STALE_ARMED_AWAITING_INGRESS_ONLY",
-    "fresh_distinct_816_authority": "REQUIRED",
-    "failed_apply_authority_reuse": "FAIL_CLOSED",
-    "run_attempt": 1,
-    "recovery_execution_main": "EXACT_CURRENT_MAIN",
-    "target_transaction_main": "EXACT_HISTORICAL_MAIN_FROM_STALE_AUTHORITY",
-    "target_binding": [
-      "target_successor_issue", "target_request_id", "target_main_sha",
-      "target_profile_id", "target_authority_id", "target_recovery_record_comment_id"
-    ],
-    "recovery_record_trust_model": "EXACT_GITHUB_COMMENT_ID_PLUS_GITHUB_ACTIONS_BOT_IDENTITY",
-    "recovery_record_comment_fetch": "EXACT_COMMENT_ID_ONLY_NO_TARGET_ISSUE_SCAN",
-    "trusted_record_author_login": "github-actions[bot]",
-    "trusted_record_author_type": "Bot",
-    "untrusted_prefixed_comments": "IGNORED_BY_NON_PARTICIPATION",
-    "record_is_execution_authority": false,
-    "prod_access": "NONE",
-    "prod_secret": "NONE",
-    "normal_preprod_deploy_secret": "NONE",
-    "root_secret": "PREPROD_ROOT_ONLY_AFTER_JIT",
-    "fixed_helper": "/usr/local/sbin/agency-preprod-refresh-authority-abort",
-    "authority_install": "NONE",
-    "ingress": "NONE",
-    "import": "NONE",
-    "activation": "NONE",
-    "rollback": "NONE",
-    "remote_state_authority": "FIXED_917_ABSENCE_AND_PHASE_PROOF",
-    "success": ["ABORTED_TERMINAL_HISTORY", "ACTIVE_AUTHORITY_ABSENT"],
-    "wrong_target_state": "FAIL_CLOSED",
-    "replay": "FAIL_CLOSED"
-  },
-  "fixed_capability": {
-    "capability_profile_id": "agency-preprod-refresh-capability-v1",
-    "base_revision_issue": 915,
-    "abort_revision_issue": 917,
-    "authority_installer": "/usr/local/sbin/agency-preprod-refresh-authority-install",
-    "authority_abort": "/usr/local/sbin/agency-preprod-refresh-authority-abort",
-    "ingress": "/usr/local/sbin/agency-preprod-refresh-ingress",
-    "control": "/usr/local/sbin/agency-preprod-refresh-control",
-    "normal_sudo_authority_installer": "NONE",
-    "normal_sudo_authority_abort": "NONE",
-    "normal_sudo_fixed_executables": [
-      "/usr/local/sbin/agency-preprod-refresh-ingress",
-      "/usr/local/sbin/agency-preprod-refresh-control"
-    ],
-    "control_actions": [
-      "IMPORT_SANITIZE_HARDEN_RETAIN", "BACKUP_ACTIVATE_CONVERGE_VALIDATE", "ROLLBACK_RECORDED"
-    ],
-    "pre_ingress_abort_source": "ARMED/AWAITING_INGRESS",
-    "pre_ingress_abort_target": "ABORTED/TERMINAL",
-    "aborted_runtime_rollback_claim": "NONE"
-  },
-  "snapshot": {
-    "prod_remote_stream": "scripts/production-readonly-snapshot/remote-stream.sh",
-    "prod_plan_observer": "scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh",
-    "raw_location": "TRUSTED_RUNNER_TEMP_ONLY",
-    "workspace": "FORBIDDEN",
-    "logs": "FORBIDDEN",
-    "artifacts": "FORBIDDEN",
-    "rollback_source": "FORBIDDEN"
-  },
-  "failure_model": {
-    "FAIL_BEFORE_AUTHORITY_ARM": "NO_TRANSACTION_AUTHORITY_CLEANUP_TRANSIENT_SOURCE_IF_NEEDED",
-    "FAIL_AFTER_ARM_BEFORE_INGRESS": "IMMEDIATE_917_ABORT_IF_EXECUTOR_ALIVE_ELSE_FRESH_RECOVER_ABORT",
-    "FAIL_DURING_TRANSFER": "FIXED_INGRESS_CLEANUP_THEN_IMMEDIATE_OR_LATER_FRESH_917_ABORT",
-    "FAIL_INGRESS_BYTE_OR_SHA": "FIXED_INGRESS_CLEANUP_THEN_IMMEDIATE_OR_LATER_FRESH_917_ABORT",
-    "HARD_RUNNER_LOSS_AFTER_ARM": "RECOVERABLE_BY_FRESH_RECOVER_ABORT_ONLY",
-    "FAIL_AFTER_SNAPSHOT_READY_BEFORE_IMPORT": "NO_PRE_INGRESS_ABORT_USE_EXACT_VALID_TRANSACTION_STATE_HANDLING",
-    "FAIL_CANDIDATE_SANITIZATION": "RUNTIME_UNTOUCHED_FIXED_HELPER_CLEANUP",
-    "FAIL_BEFORE_BACKUP": "RUNTIME_UNCHANGED",
-    "BACKUP_VERIFY_FAILURE": "NO_ACTIVATION",
-    "ATOMIC_SWAP_FAILURE": "PREVIOUS_RUNTIME_PROVEN",
-    "FAIL_POST_SWAP_PRE_CONVERGENCE": "ROLLBACK_RECORDED",
-    "FAIL_AFTER_CONVERGENCE_STARTED": "EXACT_PREACTIVATION_BACKUP_RESTORE",
-    "ROLLBACK_VERIFY_FAILURE": "FENCE_CLOSED_FAILED_RECOVERY_HUMAN_RECOVERY_REQUIRED",
-    "blind_apply_retry": "FORBIDDEN"
-  },
-  "abort_semantics": {
-    "aborted_is_rolled_back": false,
-    "abort_valid_only_before_snapshot_ready": true,
-    "rollback_from_awaiting_ingress": "FORBIDDEN",
-    "abort_from_snapshot_ready": "FAIL_CLOSED",
-    "authority_reinstall_after_abort": "FAIL_CLOSED",
-    "blind_retry_after_abort": "FORBIDDEN",
-    "second_recovery_after_abort": "FAIL_CLOSED_BY_917_TERMINAL_HISTORY"
-  },
-  "privilege": {
-    "nopasswd_all": "NONE", "generic_root": "NONE", "generic_shell": "NONE",
-    "generic_python": "NONE", "generic_mariadb": "NONE", "generic_env": "NONE",
-    "caller_path": "NONE", "caller_sql": "NONE", "caller_database": "NONE",
-    "caller_table": "NONE", "caller_executable": "NONE", "caller_arbitrary_command": "NONE"
-  },
-  "evidence": {
-    "metadata_only": true,
-    "raw_dump": "FORBIDDEN", "raw_backup": "FORBIDDEN", "sql_values": "FORBIDDEN",
-    "credentials": "FORBIDDEN", "tokens": "FORBIDDEN", "private_keys": "FORBIDDEN",
-    "server_environment_contents": "FORBIDDEN", "generic_remote_output": "FORBIDDEN"
+    "raw_prod_github": "NONE",
+    "raw_prod_log": "NONE",
+    "preprod_settings_secrets": "ENVIRONMENT_OWNED",
+    "caller_generic_root_execution": "NONE",
+    "data_activation_authority": "DISABLED"
   },
   "delivery_boundary": {
-    "real_provisioning": "NONE",
     "real_plan": "NONE",
     "real_apply": "NONE",
-    "real_recover_abort": "NONE",
-    "real_prod_data_read": "NONE",
-    "real_prod_data_transfer": "NONE",
-    "real_preprod_execution": "NONE",
+    "real_prod_read": "NONE",
     "real_preprod_mutation": "NONE",
-    "data_activation_authority": "DISABLED",
+    "secret_consumption": "NONE",
     "merge": "FORBIDDEN"
   }
 }

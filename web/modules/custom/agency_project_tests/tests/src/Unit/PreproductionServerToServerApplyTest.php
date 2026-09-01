@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Yaml\Yaml;
 
 /**
  * Protects the temporary #938 controlled server-to-server APPLY route.
@@ -20,7 +20,7 @@ final class PreproductionServerToServerApplyTest extends TestCase {
    */
   public function testHostedControlPlaneContainsNoRawProdPath(): void {
     $workflow = $this->source('.github/workflows/preprod-914-governed-successor.yml');
-    self::assertIsArray(Yaml::parse($workflow));
+    self::assertIsArray(DrupalYaml::decode($workflow));
     $apply = "  apply:\n" . explode("\n  apply:\n", $workflow, 2)[1];
 
     self::assertStringContainsString('runs-on: ubuntu-24.04', $apply);

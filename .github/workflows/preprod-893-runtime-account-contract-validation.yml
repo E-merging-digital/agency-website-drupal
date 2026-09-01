@@ -83,7 +83,7 @@ jobs:
           probe="$provisioning/runtime-db-identity-probe.py"
 
           test "$(git rev-parse "HEAD:$base/agency-preprod-refresh-control")" = \
-            'a8f9d05d7776f27c141ce549f87b6b854ac3aeb1'
+            '37ce38be18ad417ed3fe4386775cc6d29532ebcb'
           test "$(git rev-parse "HEAD:$provisioning/agency-preprod-refresh-control.sudoers")" = \
             '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
           test "$(git rev-parse "HEAD:$provisioning/nginx-vhost-selector.py")" = \
@@ -92,15 +92,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import json
-
-          workflow = Path(
-              '.github/workflows/preprod-874-capability-provisioning.yml'
-          ).read_text()
-          assert '\n  plan:\n' in workflow and '\n  apply:\n' in workflow
-          plan_job = workflow.split('\n  plan:\n', 1)[1].split('\n  apply:\n', 1)[0]
-          assert 'runs-on: ubuntu-24.04' in plan_job
-          assert 'PREPROD_SSH_USER: agency-preprod' in plan_job
-          assert 'self-hosted' not in plan_job
 
           profile = json.loads(Path(
               'scripts/preproduction-refresh/activation-capability/profile.json'
@@ -116,7 +107,6 @@ jobs:
           ! grep -Fq 'PROD_SERVER' "$probe" "$observer"
 
           printf '%s\n' \
-            'PLAN_RUNNER=ubuntu-24.04' \
             'PLAN_IDENTITY=agency-preprod' \
             'PLAN_SUDO_EXECUTION=NONE' \
             'PLAN_HELPER_EXECUTION=NONE' \

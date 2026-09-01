@@ -27,8 +27,8 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
       "github.event.comment.user.login == 'E-merging-digital'",
       "github.actor == 'E-merging-digital'",
       "github.event.comment.body == '/agency-preprod-refresh-940-diagnostic diagnose'",
-      "test \"$ISSUE_NUMBER\" = 941",
-      "test \"$COMMENT_BODY\" = '/agency-preprod-refresh-940-diagnostic diagnose'",
+      'test "$ISSUE_NUMBER" = 941',
+      'test "$COMMENT_BODY" = \'/agency-preprod-refresh-940-diagnostic diagnose\'',
       'persist-credentials: false',
       'JIT validate exact #941 diagnostic authority before SSH secret',
     ] as $required) {
@@ -97,11 +97,11 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
   public function testResultParserIsNonEvaluatingAndAllowlisted(): void {
     $observer = $this->observer();
 
-    self::assertStringContainsString("awk -F= -v wanted=\"$key\"", $observer);
+    self::assertStringContainsString('awk -F= -v wanted="$key"', $observer);
     self::assertStringNotContainsString('source "$RESULT"', $observer);
     self::assertStringNotContainsString('eval ', $observer);
     self::assertStringNotContainsString('. "$RESULT"', $observer);
-    self::assertStringContainsString("result_bytes\" -gt 4096", $observer);
+    self::assertStringContainsString('"$result_bytes" -gt 4096', $observer);
 
     foreach ([
       'SANITIZED_DATABASE_ACTIVE_AND_VALIDATED',
@@ -127,10 +127,10 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
     $observer = $this->observer();
 
     foreach ([
-      "BOOTSTRAP_LOG=\"$ROOT_STAGE/bootstrap.log\"",
-      "bootstrap_bytes=\"$(stat -c '%s' -- \"$BOOTSTRAP_LOG\"",
-      "SANITIZED=\"$JOB/sanitized.sql\"",
-      "SANITIZED_TMP=\"$JOB/sanitized.sql.tmp\"",
+      'BOOTSTRAP_LOG="$ROOT_STAGE/bootstrap.log"',
+      'bootstrap_bytes="$(stat -c \'%s\' -- "$BOOTSTRAP_LOG"',
+      'SANITIZED="$JOB/sanitized.sql"',
+      'SANITIZED_TMP="$JOB/sanitized.sql.tmp"',
     ] as $required) {
       self::assertStringContainsString($required, $observer);
     }
@@ -206,9 +206,9 @@ final class PreproductionRefresh940DiagnosticTest extends TestCase {
       '-o ServerAliveInterval=5',
       '-o ServerAliveCountMax=2',
       '"agency-preprod@$PREPROD_SERVER_HOST"',
-      "'bash -s' < \"$observer\"",
+      '\'bash -s\' < "$observer"',
       'Diagnostic SSH observation exceeded the hard 30-second wall-clock bound.',
-      "PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}",
+      'PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}',
       'Validate pinned PREPROD SSH trust',
       'Diagnostic output exceeds bounded size.',
       'Diagnostic output key contract violated.',

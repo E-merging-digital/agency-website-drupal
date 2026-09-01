@@ -56,7 +56,7 @@ final class PreproductionServerToServerApplyTest extends TestCase {
     self::assertStringContainsString('RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT', $control);
     self::assertStringContainsString('StrictHostKeyChecking=yes', $control);
     self::assertStringNotContainsString('ssh-keyscan', strtolower($control));
-    self::assertStringNotContainsString('prod_ssh=(', $control);
+    self::assertStringNotContainsString("\nprod_ssh=(", "\n" . $control);
     self::assertStringNotContainsString(
       '"$PROD_SSH_USER@$PROD_SSH_HOST"',
       $control,

@@ -1,12 +1,10 @@
 # PREPROD data refresh from sanitized PROD data
 
 Parent issue: #816.
-Current repository implementation: #914 + completed #927 PLAN runner adaptation.
+Current repository implementation: #914 with temporary #938 controlled server-to-server APPLY adaptation.
 Architecture: `EXTEND_EXISTING` under `docs/decisions/ADR-003-use-existing-first.md`.
 
-This is the durable safety contract for the one-way Agency PROD -> PREPROD database refresh. It is **not** code deployment, production mutation, editorial promotion or Development Seed distribution.
-
-The current executable source is documented by `docs/operations/preproduction-refresh-governed-successor.md` and implemented under `scripts/preproduction-refresh/governed-successor/`. #816 remains open and the full real end-to-end refresh has not yet reached terminal execution proof.
+This is the durable safety contract for the one-way Agency PROD -> PREPROD database refresh. It is not code deployment, production mutation, editorial promotion or Development Seed distribution.
 
 ## Current status
 
@@ -14,9 +12,11 @@ The current executable source is documented by `docs/operations/preproduction-re
 REPOSITORY_IMPLEMENTATION = SOURCE_IMPLEMENTED
 STATIC_SYNTHETIC_PROOF = COMPLETE
 PLAN_RUNNER = ubuntu-24.04 / github-hosted
-APPLY_RUNNER = self-hosted / linux / x64 / agency
-REAL_PLAN = EXECUTED / FAIL_CLOSED
-REAL_APPLY = PENDING fresh #816 child authority
+PLAN_RESULT = PASS / real #937 proof
+APPLY_CONTROL_PLANE = ubuntu-24.04 / github-hosted
+APPLY_EXECUTION_PATH = CONTROLLED_SERVER_TO_SERVER / TEMPORARY CURRENT
+TRUSTED_SELF_HOSTED_RUNNER = AUTHORIZED ALTERNATIVE / CURRENTLY UNAVAILABLE
+REAL_APPLY = PENDING fresh #816 child authority after merge/post-merge green
 REAL_END_TO_END_REFRESH = NOT_YET_PROVEN
 FIRST_REAL_APPLY=NOT_AUTHORIZED
 PROD_WRITE = NONE
@@ -24,52 +24,34 @@ PUBLIC_FILES = OUT_OF_SCOPE
 PRIVATE_FILES = EXCLUDED
 ```
 
-`FIRST_REAL_APPLY=NOT_AUTHORIZED` remains the current #816/#871 evidence boundary. #871 creates no APPLY authority. A future fresh #816 child may separately authorize one APPLY under the live #914 validator.
+`FIRST_REAL_APPLY=NOT_AUTHORIZED` remains the current evidence boundary. #938 is implementation work only; it does not itself authorize execution. A future fresh #816 child may authorize one APPLY only after this implementation is merged and post-merge validation is green.
 
-#927 is CLOSED / COMPLETED. It moved only PLAN to GitHub-hosted `ubuntu-24.04`; APPLY remains on `[self-hosted, linux, x64, agency]`. JIT-before-secret and pinned PROD/PREPROD SSH trust remain mandatory.
+#937 is CLOSED / COMPLETED and proves the current hosted PLAN route reaches terminal `PASS` with no PROD DB content read, no snapshot, no data transfer, no PROD write and no PREPROD mutation.
 
-#929 executed the first real metadata-only PLAN on the hosted route. Authority and JIT passed, transient SSH identities were materialized only after JIT, the PLAN reached readiness observation and returned `FAIL_CLOSED`, cleanup succeeded, and APPLY was skipped. No PROD DB content read, PROD snapshot, PROD data transfer, PROD write or PREPROD mutation occurred. The exact failed readiness predicate is **NOT YET PROVEN** and must not be guessed.
-
-#930 is OPEN / `status:in-progress` and is the current repository-only recovery tranche for bounded metadata-only PLAN diagnostics. #930 is not yet implemented/current behavior.
+The trusted Agency runner remains a registered authorized raw-data execution alternative under the existing policy, with labels `self-hosted`, `linux`, `x64`, `agency`, but it is currently unavailable. That availability fact does not weaken the raw-data boundary.
 
 ## Authority and replay
 
 The current route supports exactly two modes:
 
 - `PLAN`: mutation-free metadata/readiness observation on GitHub-hosted `ubuntu-24.04`.
-- `APPLY`: bounded real refresh sequence on the trusted Agency self-hosted runner, only when a fresh separately authorized #816 child permits it.
+- `APPLY`: a separately authorized bounded refresh. During #938 the GitHub-hosted job is control plane only; raw PROD travels directly PROD -> PREPROD.
 
-#914 itself does not grant persistent execution authority. The authority validator requires an owner-created OPEN active issue under #816, a canonical marker bound to exact live `main`, exact mode/profile, one fresh request identity and `run_attempt = 1`.
-
-Conceptual trigger shape:
-
-```text
-/agency-preprod-refresh-successor PLAN  plan-<authority-issue>-<fresh-id>-r1 <live-main-sha> AUTO <profile>
-/agency-preprod-refresh-successor APPLY apply-<authority-issue>-<fresh-id>-r1 <live-main-sha> <exact-prod-release-sha> <profile>
-```
-
-A request emitted for execution is:
+#914/#938 do not grant persistent execution authority. The validator requires an owner-created OPEN active issue under #816, exact live `main`, exact mode/profile, a fresh request identity and `run_attempt = 1`.
 
 ```text
 CONSUMED / NEVER REUSE
 ```
 
-Rerun/replay, duplicate request identity, stale `main` or trigger/marker mismatch fails closed. PLAN never authorizes APPLY.
-
-Primary authority source:
-
-- `scripts/preproduction-refresh/governed-successor/validate-execution-authority.py`
-- `scripts/preproduction-refresh/governed-successor/profile.json`
+Rerun/replay, duplicate request identity, stale `main` or trigger/marker mismatch fail closed. PLAN never authorizes APPLY.
 
 ## PLAN contract
 
-PLAN is mutation-free. The current #914 PLAN runs on GitHub-hosted `ubuntu-24.04`. Immediately before any SSH secret materialization, it revalidates exact live main, checked-out HEAD, one-shot authority and `runner.environment == github-hosted`.
+PLAN runs on GitHub-hosted `ubuntu-24.04`. Immediately before SSH secret materialization it revalidates exact live main, checked-out HEAD, one-shot authority and `runner.environment == github-hosted`.
 
-After JIT only, transient PROD/PREPROD identities are written under `RUNNER_TEMP`. The runner provisions `known_hosts` only through existing repository-pinned trust primitives; `ssh-keyscan`, TOFU, `accept-new` and disabled host-key checking remain forbidden. PROD/PREPROD observations use strict pinned SSH trust.
+After JIT only, transient PROD/PREPROD identities are written under `RUNNER_TEMP`. Existing repository-pinned trust primitives are used; TOFU, `ssh-keyscan`, `accept-new` and disabled host-key checking remain forbidden.
 
 Metadata-only PLAN jobs may remain on `ubuntu-24.04` because no raw PROD data is materialized or manipulated there.
-
-PLAN may observe bounded metadata/readiness such as current release/promotion receipt identity, SSH readiness, PREPROD Drush/runtime capability, backup path, Config Split/admin convergence inputs and lock state.
 
 PLAN performs no:
 
@@ -82,81 +64,136 @@ PLAN performs no:
 - PREPROD DB/runtime mutation;
 - production write.
 
-The #929 result proves the hosted PLAN route executes and fails closed when readiness is not satisfied. It does **not** prove which predicate failed. #930 exists to make future failure classification bounded and non-sensitive without weakening readiness.
+Current real evidence from #937 is `PLAN_RESULT=PASS`.
 
-## APPLY contract — current implementation
+## APPLY contract — temporary current route (#938)
 
-A separately authorized APPLY uses existing primitives rather than the superseded transactional architecture.
+The #938 route exists only because the trusted self-hosted runner is currently unavailable. It is straightforward to retire when that runner returns; it is not a permanent multi-provider execution architecture.
 
-### 1. JIT and trusted execution
+### 1. GitHub-hosted control plane only
 
-Before SSH secrets are materialized:
+Before any APPLY SSH identities are materialized:
 
-1. reload live `main`;
-2. prove exact checkout is that main;
-3. revalidate fresh authority marker/request;
-4. require `[self-hosted, linux, x64, agency]`.
+1. resolve live `main`;
+2. checkout that exact SHA;
+3. revalidate fresh one-shot APPLY authority;
+4. require `runner.environment == github-hosted`.
 
-The required runner labels are `self-hosted`, `linux`, `x64`, `agency`.
-
-Raw-data execution is never moved to GitHub-hosted because a runner is unavailable or busy.
-
-The durable #816 boundary allows raw data only on the trusted Agency runner **or** a separately reviewed strictly controlled server-to-server path where raw bytes never transit through GitHub-hosted infrastructure and raw PROD data never materializes on GitHub-hosted infrastructure. Current #914 APPLY uses the trusted Agency runner/DDEV route; this clause does not create a second current path.
-
-### 2. Read-only PROD source
-
-The source operation uses reviewed production Drush `sql:dump` against the exact source release. PROD is read-only and is never part of rollback. PROD is never part of rollback.
-
-It may not enable PROD maintenance, mutate Drupal/config/users/tables, alter scheduler state, change the active release, write settings/credentials or trigger deployment.
-
-### 3. Raw staging isolation before import
-
-The current implementation uses DDEV as the isolated staging database. The safety order is mandatory:
-
-```text
-START exact source code in DDEV
--> detach web/db from normal Docker networks
--> attach only a fresh --internal Docker network
--> IMPORT RAW
--> BOOTSTRAP / SANITIZE
-```
-
-Raw PROD SQL exists only in protected transient trusted storage and the isolated staging database. While raw data is present, isolated DDEV containers have no normal external network egress.
+After JIT, GitHub-hosted may handle only fixed scripts, route identities and metadata needed to start the PREPROD-side worker.
 
 ```text
 RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN
 RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN
-RAW PROD SQL AS GITHUB ARTIFACT = FORBIDDEN
+RAW SQL AS GITHUB ARTIFACT = FORBIDDEN
 RAW PROD SQL IN LOGS = FORBIDDEN
+RAW_PROD_GITHUB_TEMP = NONE
 ```
 
-### 4. Sanitization stack
+The durable #816 policy permits a strictly controlled server-to-server path only when raw data never materializes on GitHub-hosted infrastructure.
 
-After isolation/import:
+### 2. Direct read-only PROD source
+
+The detached PREPROD preparation worker uses existing pinned PROD SSH trust and the reviewed `scripts/production-readonly-snapshot/remote-stream.sh` primitive.
+
+The only raw route is:
 
 ```text
-Drush 13.7.6 sql:sanitize
--> scripts/preproduction-refresh/governed-successor/agency-sanitize.php
--> fail-closed Agency assertions
+PROD
+-> DIRECT SERVER-TO-SERVER STREAM
+-> PREPROD isolated staging database
 ```
 
-Drush owns generic user email/password/session sanitization. The thin Agency pass owns project-specific gaps such as usernames, Webform data, flood, watchdog, queues, caches/temp/runtime state and persisted provider/key configuration.
+PROD is read-only. PROD is never part of rollback.
 
-Only after all assertions pass may sanitized SQL be exported. Raw transient material is deleted before transfer to PREPROD.
+No generic PROD shell executor is introduced. The PROD identity is request-scoped, transient, root-only on PREPROD, mode `0600`, and used only for the existing fixed read-only snapshot route.
 
-### 5. Sanitized-only PREPROD ingress
+### 3. Raw PREPROD boundary
 
-Only sanitized SQL is transferred over the pinned encrypted channel. PREPROD runtime never receives unsanitized PROD data.
+The raw stream is imported only into the request-derived staging database managed by the existing bounded root-owned `agency-preprod-staging-db` capability.
 
-The remote worker is launched detached as the non-root PREPROD deploy identity and then owns backup/maintenance/replacement/rollback independently of the initiating runner session.
+The live PREPROD Drupal database `agency_preprod` is not targetable by that helper and the live runtime never connects to the raw staging database.
 
-### 6. Backup before destructive replacement
+```text
+PREPROD_LIVE_DB_RAW_IMPORT = FORBIDDEN
+PREPROD_RUNTIME_ACCESS_TO_RAW = FORBIDDEN
+SANITIZATION_BEFORE_ACTIVATION = REQUIRED
+SANITIZATION_ASSERTIONS = REQUIRED
+```
 
-The worker acquires the existing PREPROD deploy lock and creates a protected Drush SQL backup. Before destructive replacement it requires that backup to exist, be non-symlink, non-empty, restrictively permissioned and SHA-256 verifiable.
+### 4. Existing single sanitization policy
+
+The temporary route reuses exactly one policy:
+
+`scripts/preproduction-refresh/sanitization-policy.json`
+
+and the already-installed root-owned server sanitizer. It preserves the #914 semantic result for:
+
+- deterministic username anonymization;
+- mail/init/password/auth invalidation;
+- sessions;
+- Webform submissions;
+- flood/watchdog;
+- queues;
+- batch/temp/cache state;
+- targeted cron/update/announcement/linkchecker state;
+- persisted provider/key config;
+- PREPROD admin server-owned boundary.
+
+No second Drush emulation/sanitizer or second policy is created.
+
+### 5. Raw cleanup before activation
+
+After sanitization assertions and sanitized SQL export, the worker must prove the derived raw staging DB and account are absent.
+
+```text
+helper.cleanup_scope(scope)
+-> helper.require_absent(scope)
+-> RAW_STAGING_CLEANUP = PROVEN
+```
+
+A small fixed idempotent retry is allowed. If cleanup/absence remains unproven:
+
+```text
+ACTIVATION = NOT_STARTED
+OUTCOME = HUMAN_RECOVERY_REQUIRED
+DETAIL = RAW_STAGING_CLEANUP_UNPROVEN
+```
+
+This is intentionally not reported as `ROLLED_BACK`, because raw PROD staging may still exist.
+
+### 6. PROD identity/root stage cleanup before activation
+
+The request-scoped root stage contains the transient PROD read identity, pinned PROD trust material and fixed worker/scripts. It must be deleted and its absence proven before the existing activation worker starts.
+
+```text
+PROD_IDENTITY_STAGE_CLEANUP = PROVEN
+```
+
+If deletion or absence proof fails:
+
+```text
+ACTIVATION = NOT_STARTED
+OUTCOME = HUMAN_RECOVERY_REQUIRED
+DETAIL = PROD_IDENTITY_STAGE_CLEANUP_UNPROVEN
+```
+
+Unexpected pre-activation exceptions produce only bounded terminal metadata and do not leave the control plane polling until timeout.
+
+### 7. Sanitized-only activation
+
+Only after both cleanup gates pass is sanitized SQL handed to the existing non-root #914 worker:
+
+`scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh`
+
+The preparation worker does not rewrite activation.
+
+### 8. Backup before destructive replacement
+
+The existing worker acquires the PREPROD deploy lock and creates a protected Drush SQL backup. Before destructive replacement it requires the backup to exist, be non-symlink, non-empty, restrictively permissioned and SHA-256 verifiable.
 
 No destructive replacement is allowed before this boundary.
 
-### 7. Bounded maintenance and standard replacement
+### 9. Bounded maintenance and standard replacement
 
 ```text
 maint:set 1
@@ -172,15 +209,13 @@ maint:set 1
 -> COMMITTED
 ```
 
-PREPROD shared settings, hash salt, DB credentials, Basic Auth/noindex host policy and other runtime ownership remain PREPROD-owned.
+PREPROD settings, hash salt, DB credentials, Basic Auth/noindex policy and other runtime ownership remain PREPROD-owned.
 
-The refresh must **not** automatically execute `emerging:governed-content --all`. Governed Content is a separate repository/product baseline mechanism.
+The refresh must **not** automatically execute `emerging:governed-content --all`. Governed Content remains a separate mechanism.
 
 ## Rollback and HUMAN_RECOVERY_REQUIRED
 
-The remote worker owns rollback.
-
-Failure before destructive replacement leaves PREPROD DB unchanged.
+After activation begins, the existing #914 worker owns rollback.
 
 Failure after destructive replacement attempts:
 
@@ -200,45 +235,41 @@ HUMAN_RECOVERY_REQUIRED
 maintenance remains ON
 ```
 
-`HUMAN_RECOVERY_REQUIRED` is reserved for this real safety boundary. Ordinary CI/script/runner/transport/readiness defects are recoverable technical failures when they remain diagnosable within project authority. The #929 PLAN failure is not `HUMAN_REQUIRED`.
+The pre-activation cleanup boundary is separate: unproven raw staging cleanup or unproven PROD identity-stage cleanup also returns `HUMAN_RECOVERY_REQUIRED`, with activation not started.
 
-No `RECOVER_CURRENT`, `RECOVER_ABORT`, GitHub transaction reconstruction, historical target lookup or near-zero-downtime #915 swap belongs to the current route. #915/#917 are historical lineage only, not execution dependencies.
+No `RECOVER_CURRENT`, `RECOVER_ABORT`, GitHub transaction reconstruction, historical target lookup or #915 transaction state machine belongs to the current route.
 
 ## Data classification
 
-### Preserve for fidelity when present/relevant
+Preserve for fidelity where relevant:
 
-- public/editorial nodes and revisions;
-- taxonomy and translations;
+- nodes/revisions;
+- taxonomy/translations;
 - Paragraphs/entity-reference revisions;
 - menu/link content;
-- aliases and redirects;
-- public media metadata needed by editorial content.
+- aliases/redirects;
+- public media metadata.
 
-### Remove or sanitize
+Remove/sanitize before activation:
 
-At minimum:
-
-- imported user identity/auth/reset/session material;
+- imported user/auth/reset/session material;
 - Webform submissions/data;
 - sessions;
 - flood/rate-limit state;
-- watchdog/dblog request/user/IP state;
-- imported queues;
+- watchdog/dblog state;
+- queues;
 - cache/render/discovery, batch and temporary state;
-- cron/update/announcement/link-checker runtime state where policy requires;
-- persisted provider/API credentials and production-only environment state.
-
-The machine-readable authority is `scripts/preproduction-refresh/sanitization-policy.json` plus the current #914 sanitizer/assertions.
+- targeted cron/update/announcement/link-checker state;
+- persisted provider/API credentials and production-only state.
 
 ## PREPROD side-effect contract
 
-After sanitized import/convergence and before maintenance reopens, PREPROD must still satisfy its own environment contract:
+Before maintenance reopens, PREPROD must still satisfy:
 
 - production Config Split OFF;
 - preproduction Config Split ON;
-- GA/Google Tag outbound OFF;
-- mail sink/null behavior without production credential;
+- analytics/Google Tag outbound OFF;
+- mail sink/null behavior;
 - automated Drupal cron OFF;
 - external AI/provider egress OFF by default;
 - no production webhook/API credential;
@@ -246,8 +277,6 @@ After sanitized import/convergence and before maintenance reopens, PREPROD must 
 - Webform submissions and active sessions absent;
 - Drupal bootstrap/runtime validation PASS;
 - Basic Auth/noindex preserved.
-
-`scripts/preproduction/settings.php.template`, `scripts/preproduction/validate-runtime.sh` and `docs/operations/environment-side-effects.md` remain PREPROD runtime sources of truth.
 
 ## Settings and secrets
 
@@ -257,31 +286,23 @@ PREPROD settings/secrets  = PREPROD-owned
 DDEV settings/secrets     = local-owned
 ```
 
-No production credential becomes a PREPROD runtime credential. PREPROD hash salt stays PREPROD-owned. No secret value belongs in repository documentation/evidence.
+No production credential becomes a PREPROD runtime credential. The transient PROD SSH read identity is not a Drupal/runtime credential and is deleted before activation.
 
 ## Files
 
-The current #914 route is database-only.
+The current route is database-only.
 
 - private files: excluded;
-- public-file synchronization: not implemented by this route;
-- Stage File Proxy or another existing standard primitive should be evaluated before custom sync if public-file fidelity becomes necessary.
+- public-file synchronization: not implemented;
+- Stage File Proxy or another existing standard primitive should be evaluated before custom sync.
 
-Private files are never copied by default. Do not silently add files to the DB refresh mechanism.
+Private files are never copied by default.
 
 ## Evidence contract
 
-Evidence is metadata only. Safe examples include authority/request identity, repository/source release SHA, policy version/digest, byte size/hash, aggregate removed-row counts, backup/result identity and bounded PASS/FAIL/terminal state.
+Evidence is metadata only. Safe values include issue/request identity, repository/source release identity, policy identity, non-sensitive hashes/counts and bounded PASS/FAIL/terminal state.
 
 Never expose raw SQL, copied values, email/IP/PII, passwords/hashes, session/reset tokens, DB credentials, API tokens or private files.
-
-## Relationship to other flows
-
-- **Code/config deployment:** separate; refresh preserves currently deployed PREPROD application release.
-- **PROD promotion:** never triggered by refresh.
-- **Governed Content:** not automatically applied because data refresh occurred.
-- **Editorial publication:** separate bounded Drupal Entity API route; no DB promotion.
-- **Development Seed:** #873 consumes a stricter development seed contract; real generation/distribution remains pending #816 + separate provisioning.
 
 ## Authoritative implementation
 
@@ -290,10 +311,11 @@ Never expose raw SQL, copied values, email/IP/PII, passwords/hashes, session/res
 - `scripts/preproduction-refresh/governed-successor/profile.json`
 - `scripts/preproduction-refresh/governed-successor/validate-execution-authority.py`
 - `scripts/preproduction-refresh/governed-successor/run-plan.sh`
-- `scripts/preproduction-refresh/governed-successor/run-apply.sh`
+- `scripts/preproduction-refresh/governed-successor/run-server-to-server-apply.sh`
+- `scripts/preproduction-refresh/governed-successor/remote-server-to-server-worker.py`
 - `scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh`
-- `scripts/preproduction-refresh/governed-successor/agency-sanitize.php`
+- `scripts/preproduction-staging-import/privileged/agency-preprod-staging-db`
+- `scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py`
 - `scripts/preproduction-refresh/sanitization-policy.json`
-- `scripts/preproduction/settings.php.template`
 
-No command in this document grants execution authority. Before any future real PLAN/APPLY, reload current `main`, #816 and the fresh authority issue, then follow the exact live validator/workflow.
+No command in this document grants execution authority. Reload current `main`, #816 and the fresh authority issue before any real execution.

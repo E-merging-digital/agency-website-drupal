@@ -111,7 +111,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
   }
 
   /**
-   * Issue #914 verifies PROD trust before snapshot and sanitizes before transfer.
+   * Issue #914 verifies PROD trust and sanitization ordering.
    */
   public function testCurrentApplySanitizesBeforePreprodTransfer(): void {
     $apply = $this->applyScript();

@@ -180,7 +180,15 @@ jobs:
           handlers=execution['mandatory_class_handlers']
           mandatory=policy['mandatory_sanitization']
           mandatory_ids={entry['id'] for entry in mandatory}
+          expected_mandatory={
+              'users','preprod_admin','webform_submissions','sessions',
+              'flood_rate_limit','dblog_watchdog','caches','batch_temp_state',
+              'queues','cron_update_announcements_linkchecker_state',
+              'one_time_auth_material','persisted_credentials',
+              'production_environment_state',
+          }
           assert all(entry.get('required') is True for entry in mandatory)
+          assert mandatory_ids == expected_mandatory
           assert set(handlers) == mandatory_ids
 
           tree=ast.parse(sanitizer)
@@ -202,14 +210,26 @@ jobs:
           assert set(handler_map) == set(handlers.values())
           assert set(handler_map.values()) <= functions
 
+          purge=execution['purge_tables_by_class']
+          assert set(purge['webform_submissions']) == {'webform_submission','webform_submission_data'}
+          assert purge['sessions'] == ['sessions']
+          assert purge['flood_rate_limit'] == ['flood']
+          assert purge['dblog_watchdog'] == ['watchdog']
+          assert set(purge['batch_temp_state']) == {'batch','semaphore','key_value_expire'}
+          assert purge['queues'] == ['queue']
+          assert execution['cache_table_prefixes'] == ['cache_']
+          runtime_state=execution['runtime_key_value_state']
+          assert 'system.cron_last' in runtime_state['exact_names']
+          assert set(runtime_state['name_prefixes']) == {'announcements_feed.','linkchecker.'}
+          credentials=execution['credential_config']
+          assert credentials['exact_names'] == ['ai_provider_openai.settings']
+          assert credentials['name_prefixes'] == ['key.key.']
+          assert execution['users']['username_format'] == 'preprod-user-<uid>'
+          assert execution['users']['email_format'] == 'preprod-user+<uid>@example.invalid'
+
           paths={entry['type']: entry for entry in policy['execution_boundary']['raw_prod_data']['allowed_paths']}
           assert paths['CONTROLLED_SERVER_TO_SERVER']['requirement'] == 'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE'
           assert policy['execution_boundary']['github_hosted']['raw_prod_data_allowed'] is False
-          assert 'preprod-user-' in sanitizer
-          assert 'webform_submission' in sanitizer and 'sessions' in sanitizer
-          assert 'watchdog' in sanitizer and 'queue' in sanitizer
-          assert 'cache_' in sanitizer and 'ai_provider_openai.settings' in sanitizer
-          assert 'announcements_feed.' in sanitizer and 'linkchecker.' in sanitizer
 
           # Existing fixed read-only source and existing activation/rollback stay authoritative.
           assert 'exec vendor/bin/drush sql:dump' in prod_snapshot

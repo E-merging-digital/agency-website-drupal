@@ -3,7 +3,14 @@ name: Validate Agency command dispatcher
 on:
   pull_request:
     paths:
-      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/agency-command-dispatch-validation.yml'
+      - '.github/workflows/promote-production.yml'
+      - '.github/workflows/production-scheduler-change.yml'
+      - '.github/workflows/trusted-editorial-publication.yml'
+      - '.github/workflows/trusted-editorial-feature-image.yml'
+      - '.github/workflows/preprod-914-governed-successor.yml'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionPromotionSafetyTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/SchedulerGovernanceSafetyTest.php'
@@ -25,11 +32,21 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Validate GitHub Actions syntax with actionlint
+      - name: Validate #922 GitHub Actions surface with actionlint
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
+          files=(
+            '.github/workflows/agency-command-dispatch.yml'
+            '.github/workflows/agency-command-dispatch-validation.yml'
+            '.github/workflows/promote-production.yml'
+            '.github/workflows/production-scheduler-change.yml'
+            '.github/workflows/trusted-editorial-publication.yml'
+            '.github/workflows/trusted-editorial-feature-image.yml'
+            '.github/workflows/preprod-914-governed-successor.yml'
+          )
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.7 -color "${files[@]}"
 
       - name: Setup PHP and Composer
         uses: shivammathur/setup-php@v2
@@ -54,10 +71,18 @@ jobs:
         run: |
           set -euo pipefail
           workflow='.github/workflows/agency-command-dispatch-validation.yml'
-          ! grep -Fq 'self-hosted' "$workflow"
-          ! grep -Fq 'secrets.' "$workflow"
-          ! grep -Eq '(^|[[:space:]])ssh([[:space:]]|$)' "$workflow"
-          ! grep -Eq '(^|[[:space:]])scp([[:space:]]|$)' "$workflow"
+          if grep -Fq 'self-hosted' "$workflow"; then
+            exit 1
+          fi
+          if grep -Fq 'secrets.' "$workflow"; then
+            exit 1
+          fi
+          if grep -Eq '(^|[[:space:]])ssh([[:space:]]|$)' "$workflow"; then
+            exit 1
+          fi
+          if grep -Eq '(^|[[:space:]])scp([[:space:]]|$)' "$workflow"; then
+            exit 1
+          fi
           printf '%s\n' \
             'TARGETED_DISPATCH_VALIDATION=PASS' \
             'PROD_PREPROD_RUNTIME_MUTATION=NONE' \

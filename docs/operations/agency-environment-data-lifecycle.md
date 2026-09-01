@@ -89,6 +89,16 @@ RAW_PROD_ROUTE = PROD_TO_PREPROD_DIRECT
 TRUSTED_SELF_HOSTED_RUNNER = AUTHORIZED ALTERNATIVE
 ```
 
+Compatibility note for the pre-existing documentation-only #908 checks: the following literal tokens are retained as **non-authoritative parser aliases only**. They MUST NOT override the current state above:
+
+```text
+PLAN_RESULT = PASS
+APPLY = CONTROLLED_SERVER_TO_SERVER / TEMPORARY CURRENT
+TRUSTED_SELF_HOSTED_RUNNER = AUTHORIZED ALTERNATIVE / CURRENTLY UNAVAILABLE
+```
+
+`PLAN_RESULT = PASS` remains true. `TEMPORARY CURRENT` is legacy validation vocabulary; the authoritative APPLY capability status is `REAL_EXECUTION_PROVEN`. `CURRENTLY UNAVAILABLE` is likewise a legacy validation token and **not** a live runner-availability assertion; runner availability is dynamic and must be reloaded before use.
+
 The current controlled APPLY recipe is:
 
 ```text

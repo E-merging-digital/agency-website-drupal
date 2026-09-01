@@ -1,0 +1,129 @@
+name: Agency command dispatch
+
+on:
+  issue_comment:
+    types: [created]
+
+env:
+  AGENCY_COMMAND_ROUTES: >-
+    [
+      {"route":"PRODUCTION_PROMOTE","prefix":"/agency-production-promote","regex":"^/agency-production-promote go sha=[0-9a-f]{40} artifact=[0-9a-f]{64} composer=[0-9a-f]{64} build=[0-9]+ preprod=[0-9]+$"},
+      {"route":"PRODUCTION_SCHEDULER","prefix":"/agency-production-scheduler","regex":"^/agency-production-scheduler (action=CREATE release=[0-9a-f]{40} expected=ABSENT|action=UPDATE release=[0-9a-f]{40} expected=MANAGED_DRIFT|action=REMOVE release=[0-9a-f]{40} expected=CONTROLLED)$"},
+      {"route":"EDITORIAL_PUBLICATION","prefix":"/agency-editorial","exact":["/agency-editorial inspect","/agency-editorial dry-run","/agency-editorial apply"]},
+      {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply"]},
+      {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"}
+    ]
+
+jobs:
+  classify:
+    name: Classify exact Agency command
+    runs-on: ubuntu-24.04
+    permissions: {}
+    outputs:
+      route: ${{ steps.route.outputs.route }}
+    steps:
+      - id: route
+        name: Route syntax only; authorization remains downstream
+        shell: bash
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          ROUTES_JSON: ${{ env.AGENCY_COMMAND_ROUTES }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          body = os.environ['COMMENT_BODY']
+          issue = os.environ['ISSUE_NUMBER']
+          is_pr = os.environ['IS_PULL_REQUEST'].lower() == 'true'
+          routes = json.loads(os.environ['ROUTES_JSON'])
+          matches = []
+          if not is_pr:
+              for spec in routes:
+                  exact = spec.get('exact', [])
+                  pattern = spec.get('regex')
+                  template = spec.get('regex_template')
+                  matched = body in exact
+                  if pattern is not None:
+                      matched = matched or re.fullmatch(pattern, body) is not None
+                  if template is not None:
+                      matched = matched or re.fullmatch(template.replace('{issue}', re.escape(issue)), body) is not None
+                  if matched:
+                      matches.append(spec['route'])
+          route = matches[0] if len(matches) == 1 else 'NONE'
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'route={route}\n')
+          print(f'ROUTE={route}')
+          PY
+
+  production-promote:
+    name: Route production promotion
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PRODUCTION_PROMOTE' }}
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: ./.github/workflows/promote-production.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  production-scheduler:
+    name: Route production scheduler change
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PRODUCTION_SCHEDULER' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/production-scheduler-change.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  editorial-publication:
+    name: Route editorial publication
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'EDITORIAL_PUBLICATION' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-publication.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  editorial-feature-image:
+    name: Route editorial feature image
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'EDITORIAL_FEATURE_IMAGE' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-feature-image.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  preprod-refresh:
+    name: Route governed PREPROD refresh
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/preprod-914-governed-successor.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}

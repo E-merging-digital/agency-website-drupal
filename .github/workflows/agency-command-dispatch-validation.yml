@@ -1,0 +1,64 @@
+name: Validate Agency command dispatcher
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionPromotionSafetyTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/SchedulerGovernanceSafetyTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialPublicationWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialFeatureImageWorkflowTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  dispatcher-contract:
+    name: Single listener and exact native routing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate GitHub Actions syntax with actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
+
+      - name: Setup PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install exact locked dependencies
+        shell: bash
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Execute dispatcher structural and routing contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          vendor/bin/phpunit -c phpunit.xml web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          git diff --check HEAD^..HEAD
+
+      - name: Prove non-operational validation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/agency-command-dispatch-validation.yml'
+          ! grep -Fq 'self-hosted' "$workflow"
+          ! grep -Fq 'secrets.' "$workflow"
+          ! grep -Eq '(^|[[:space:]])ssh([[:space:]]|$)' "$workflow"
+          ! grep -Eq '(^|[[:space:]])scp([[:space:]]|$)' "$workflow"
+          printf '%s\n' \
+            'TARGETED_DISPATCH_VALIDATION=PASS' \
+            'PROD_PREPROD_RUNTIME_MUTATION=NONE' \
+            'OPERATIONAL_SECRET_CONSUMPTION=NONE'

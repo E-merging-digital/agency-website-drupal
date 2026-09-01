@@ -48,12 +48,46 @@ jobs:
           from pathlib import Path
           b=Path('scripts/preproduction-refresh/governed-successor')
           w=Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
+          plan_job='  plan:\n'+w.split('\n  plan:\n',1)[1].split('\n  apply:\n',1)[0]
+          apply_job='  apply:\n'+w.split('\n  apply:\n',1)[1]
+          plan=(b/'run-plan.sh').read_text()
           a=(b/'run-apply.sh').read_text(); worker=(b/'remote-apply-worker.sh').read_text()
           validator=(b/'validate-execution-authority.py').read_text()
+          prod_observer=Path('scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh').read_text()
+          preprod_observer=(b/'remote-plan-observe.sh').read_text()
           assert 'RECOVER_ABORT' not in w and 'RECOVER_CURRENT' not in w
           assert 'issues: write' not in w and 'issues:write' not in w
           assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in w
           assert 'target_' not in validator and 'recovery_record' not in validator
+          assert 'runs-on: ubuntu-24.04' in plan_job
+          assert '${{ runner.environment }}' in plan_job
+          assert '[[ "$RUNNER_ENVIRONMENT" == github-hosted ]]' in plan_job
+          assert 'runs-on: [self-hosted, linux, x64, agency]' in apply_job
+          assert '[[ "$RUNNER_NAME" == agency-browser-runner-01 ]]' in apply_job
+          plan_jit=plan_job.index('JIT revalidate before PLAN SSH secrets')
+          plan_surface=plan_job.index('[[ "$RUNNER_ENVIRONMENT" == github-hosted ]]')
+          plan_secret=plan_job.index('secrets.SSH_PRIVATE_KEY')
+          assert plan_jit < plan_surface < plan_secret
+          assert "PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'" in plan
+          assert "PREPROD_TRUST_PROVISION='scripts/preproduction-ssh-trust/manage-known-host.sh'" in plan
+          assert 'bash "$PROD_TRUST" PROVISION' in plan
+          assert 'bash "$PROD_TRUST" VERIFY_ONLY' in plan
+          assert 'bash "$PREPROD_TRUST_PROVISION" PROVISION' in plan
+          assert 'verify-preprod-pinned-trust.sh' in plan
+          assert 'StrictHostKeyChecking=yes' in plan
+          assert 'ssh-keyscan' not in plan.lower()
+          assert 'ssh-keyscan' not in plan_job.lower()
+          assert 'vendor/bin/drush' not in prod_observer.lower()
+          assert 'sql:' not in prod_observer.lower()
+          assert 'prod_db_content_read=NONE' in prod_observer
+          assert 'prod_snapshot=NOT_PERFORMED' in prod_observer
+          assert 'prod_write=NONE' in prod_observer
+          assert 'PLAN_MUTATION=NONE' in preprod_observer
+          assert 'PREPROD_DB_MUTATION=NONE' in preprod_observer
+          assert "'PROD_DB_CONTENT_READ=NONE'" in plan
+          assert "'PROD_SNAPSHOT=NOT_PERFORMED'" in plan
+          assert "'PROD_DATA_TRANSFER=NONE'" in plan
+          assert "'PREPROD_DB_MUTATION=NONE'" in plan
           isolate=a.index('docker network create --internal')
           raw_import=a.index('ddev import-db --file="$raw"')
           sanitize=a.index('ddev drush sql:sanitize')
@@ -72,6 +106,13 @@ jobs:
           assert restore < worker.index('HUMAN_RECOVERY_REQUIRED')
           assert 'maint:set 0' in worker
           assert '#915' not in a and '#917' not in a
+          print('PLAN_RUNNER=ubuntu-24.04')
+          print('PLAN_RUNNER_ENVIRONMENT=github-hosted')
+          print('APPLY_RUNNER=self-hosted/linux/x64/agency')
+          print('PROD_PINNED_TRUST_PROVISION=PASS')
+          print('PREPROD_PINNED_TRUST_PROVISION=PASS')
+          print('STRICT_HOST_KEY_CHECKING=YES')
+          print('PLAN_METADATA_ONLY=PASS')
           print('RAW_STAGING_EGRESS_ISOLATION=PASS')
           print('SANITIZED_ONLY_TO_PREPROD=PASS')
           print('PREPROD_BACKUP_BEFORE_REPLACEMENT=PASS')

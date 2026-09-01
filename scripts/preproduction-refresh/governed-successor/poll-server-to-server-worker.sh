@@ -45,6 +45,8 @@ while true; do
   fi
 
   mapfile -t lines <<< "$observation"
+  # #945 originally guarded: if (( ${#lines[@]} != 3 )); then
+  # #949 extends that exact bounded semantic record by one validated detail line.
   if (( ${#lines[@]} != 4 )); then
     printf '%s\n' 'PREPROD_WORKER_STATE=UNOBSERVABLE_FAIL_CLOSED' >&2
     exit 76

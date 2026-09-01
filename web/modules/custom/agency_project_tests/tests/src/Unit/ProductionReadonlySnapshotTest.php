@@ -81,7 +81,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
 
     $registry = $this->file('docs/operations/execution-capabilities.md');
     self::assertStringContainsString(
-      'APPLY control plane= GitHub-hosted ubuntu-24.04 / TEMPORARY CURRENT',
+      'APPLY control plane= GitHub-hosted ubuntu-24.04 / REAL_EXECUTION_PROVEN',
       $registry,
     );
     self::assertStringContainsString(
@@ -89,7 +89,11 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       $registry,
     );
     self::assertStringContainsString(
-      'self-hosted runner = AUTHORIZED ALTERNATIVE / CURRENTLY UNAVAILABLE',
+      'self-hosted runner = AUTHORIZED ALTERNATIVE',
+      $registry,
+    );
+    self::assertStringContainsString(
+      'availability is dynamic',
       $registry,
     );
   }

@@ -30,10 +30,8 @@ DRUSH="$CURRENT/vendor/bin/drush"
 [[ -d "$CURRENT/config/splits/preproduction" ]] \
   || fail_reason 'PREPROD_CONFIG_SPLIT'
 
-drush_commands="$("$DRUSH" list --format=list 2>/dev/null)" \
-  || fail_reason 'PREPROD_DRUSH_COMMAND_SET'
 for cmd in sql:dump sql:cli sql:drop sql:sanitize maint:set updb cim cr; do
-  grep -Fxq "$cmd" <<<"$drush_commands" \
+  "$DRUSH" help "$cmd" >/dev/null 2>&1 \
     || fail_reason 'PREPROD_DRUSH_COMMAND_SET'
 done
 

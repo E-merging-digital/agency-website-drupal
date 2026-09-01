@@ -97,13 +97,15 @@ Before SSH secrets are materialized:
 3. revalidate fresh authority marker/request;
 4. require `[self-hosted, linux, x64, agency]`.
 
+The required runner labels are `self-hosted`, `linux`, `x64`, `agency`.
+
 Raw-data execution is never moved to GitHub-hosted because a runner is unavailable or busy.
 
 The durable #816 boundary allows raw data only on the trusted Agency runner **or** a separately reviewed strictly controlled server-to-server path where raw bytes never transit through GitHub-hosted infrastructure and raw PROD data never materializes on GitHub-hosted infrastructure. Current #914 APPLY uses the trusted Agency runner/DDEV route; this clause does not create a second current path.
 
 ### 2. Read-only PROD source
 
-The source operation uses reviewed production Drush `sql:dump` against the exact source release. PROD is read-only and is never part of rollback.
+The source operation uses reviewed production Drush `sql:dump` against the exact source release. PROD is read-only and is never part of rollback. PROD is never part of rollback.
 
 It may not enable PROD maintenance, mutate Drupal/config/users/tables, alter scheduler state, change the active release, write settings/credentials or trigger deployment.
 

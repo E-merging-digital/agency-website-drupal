@@ -1,0 +1,14 @@
+# #873 — DDEV-native Development Seed consumption.
+#
+# DDEV remains the import/rollback engine. No Agency push or custom backup
+# mechanism is introduced here.
+ddev_version_constraint: ">=1.25.3"
+
+hooks:
+  pre-pull:
+    - exec-host: |
+        set -eu
+        stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+        ddev snapshot --name="agency-before-pull-${stamp}" -y
+  post-pull:
+    - exec: bash scripts/development-seed/post-pull.sh

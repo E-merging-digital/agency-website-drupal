@@ -2,6 +2,7 @@
 """Bounded root observer for one governed server-to-server refresh request."""
 from __future__ import annotations
 
+import hashlib
 import os
 import pwd
 import re
@@ -59,7 +60,7 @@ def parse_result(path: Path, request_id: str, expected_main: str, uid: int, gid:
 
 
 def process_state(request_id: str, expected_main: str) -> str:
-    suffix = __import__('hashlib').sha256(request_id.encode('ascii')).hexdigest()[:12]
+    suffix = hashlib.sha256(request_id.encode('ascii')).hexdigest()[:12]
     stage_worker = str(REQUEST_ROOT / suffix / 'remote-server-to-server-worker.py')
     activation_worker = str(SHARED / 'refresh-jobs' / request_id / 'worker.sh')
     matched = 0
@@ -105,7 +106,7 @@ def observe(request_id: str, expected_main: str) -> tuple[str, str, str]:
 
 def self_test() -> None:
     assert REQUEST_RE.fullmatch('apply-945-example000-r1')
-    assert not REQUEST_RE.fullmatch('apply-940-first-real-s2s-r1/reuse')
+    assert not REQUEST_RE.fullmatch('apply-945-example000-r1/reuse')
     assert SHA40_RE.fullmatch('a' * 40)
     assert TERMINAL_OUTCOMES == {'COMMITTED', 'ROLLED_BACK', 'HUMAN_RECOVERY_REQUIRED'}
     print('SELF_TEST=PASS')

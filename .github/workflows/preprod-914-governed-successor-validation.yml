@@ -1,0 +1,136 @@
+name: "#914 Simplified PREPROD refresh validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-914-governed-successor.yml"
+      - ".github/workflows/preprod-914-governed-successor-validation.yml"
+      - "docs/operations/preproduction-refresh-governed-successor.md"
+      - "scripts/preproduction-refresh/governed-successor/**"
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Syntax and authority matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          b=scripts/preproduction-refresh/governed-successor
+          python3 -m py_compile "$b/validate-execution-authority.py" "$b/test-authority.py"
+          python3 "$b/test-authority.py"
+          php -l "$b/agency-sanitize.php"
+          bash -n "$b/run-plan.sh" "$b/run-apply.sh" "$b/remote-plan-observe.sh" "$b/remote-apply-worker.sh"
+          jq -e '
+            .decision == "EXTEND_EXISTING" and
+            .execution_authority.modes == ["PLAN","APPLY"] and
+            .execution_authority.github_transactional_state == "NONE" and
+            .raw_staging.external_egress_before_sanitize == "IMPOSSIBLE_BY_INTERNAL_DOCKER_NETWORK" and
+            .preprod_apply.root_secret == "NONE" and
+            .hard_runner_loss.github_reconstruction == "NONE" and
+            .merged_capabilities.operational_dependency == "NONE" and
+            .invariants.data_activation_authority == "DISABLED"
+          ' "$b/profile.json" >/dev/null
+      - name: Prove simplified orchestration statically
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          b=Path('scripts/preproduction-refresh/governed-successor')
+          w=Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
+          a=(b/'run-apply.sh').read_text(); worker=(b/'remote-apply-worker.sh').read_text()
+          validator=(b/'validate-execution-authority.py').read_text()
+          assert 'RECOVER_ABORT' not in w and 'RECOVER_CURRENT' not in w
+          assert 'issues: write' not in w and 'issues:write' not in w
+          assert 'PREPROD_PROVISIONING_SSH_PRIVATE_KEY' not in w
+          assert 'target_' not in validator and 'recovery_record' not in validator
+          isolate=a.index('docker network create --internal')
+          raw_import=a.index('ddev import-db --file="$raw"')
+          sanitize=a.index('ddev drush sql:sanitize')
+          transfer=a.index('scp -q')
+          detach=a.index('nohup setsid --wait')
+          assert isolate < raw_import < sanitize < transfer < detach
+          assert 'docker network disconnect -f' in a
+          assert 'rm -f -- "$raw"' in a
+          assert 'SANITIZED_ONLY_TO_PREPROD=PASS' in a
+          assert 'actions/upload-artifact' not in w
+          backup=worker.index('sql:dump --no-interaction --result-file="$BACKUP"')
+          maint=worker.index('maint:set 1')
+          drop=worker.index('sql:drop -y', maint)
+          restore=worker.index('sql:cli < "$BACKUP"')
+          assert backup < maint < drop
+          assert restore < worker.index('HUMAN_RECOVERY_REQUIRED')
+          assert 'maint:set 0' in worker
+          assert '#915' not in a and '#917' not in a
+          print('RAW_STAGING_EGRESS_ISOLATION=PASS')
+          print('SANITIZED_ONLY_TO_PREPROD=PASS')
+          print('PREPROD_BACKUP_BEFORE_REPLACEMENT=PASS')
+          print('ROLLBACK_MODEL=PASS')
+          print('HARD_RUNNER_LOSS_MODEL=PASS')
+          print('GITHUB_TRANSACTIONAL_STATE=NONE')
+          PY
+
+  regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: #816 sanitization regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(python3 scripts/preproduction-refresh/sanitize-staging-fixture.py PROVE)"
+          grep -Fxq 'SYNTHETIC_FIXTURE_PROOF=PASS' <<<"$out"
+          grep -Fxq 'USER_SANITIZATION=PASS' <<<"$out"
+          grep -Fxq 'WEBFORM_PURGE=PASS' <<<"$out"
+          grep -Fxq 'SESSIONS_PURGE=PASS' <<<"$out"
+          grep -Fxq 'QUEUES_POLICY=PASS' <<<"$out"
+          grep -Fxq 'SECRET_LIKE_STATE_HANDLING=PASS' <<<"$out"
+          grep -Fxq 'REAL_PROD_ACCESS=NONE' <<<"$out"
+          grep -Fxq 'REAL_PREPROD_DB_MUTATION=NONE' <<<"$out"
+          printf '%s\n' '#816_SANITIZATION_REGRESSION=PASS'
+      - name: #910 JIT-before-secret regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          old=Path('.github/workflows/preprod-874-capability-provisioning.yml').read_text()
+          apply='  apply:\n'+old.split('\n  apply:\n',1)[1]
+          jit=apply.index('JIT revalidate live main and successor authority before root secret materialization')
+          secret=apply.index('PREPROD_PROVISIONING_SSH_PRIVATE_KEY')
+          assert jit < secret
+          new=Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
+          for job in ('plan','apply'):
+              chunk='  '+job+':\n'+new.split('\n  '+job+':\n',1)[1]
+              if job=='plan': chunk=chunk.split('\n  apply:\n',1)[0]
+              jit=chunk.index('JIT revalidate before')
+              secret=chunk.index('secrets.SSH_PRIVATE_KEY')
+              assert jit < secret and 'secrets.' not in chunk[:jit]
+          print('#910_JIT_REGRESSION=PASS')
+          PY
+      - name: PREPROD bootstrap regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/preproduction/bootstrap-host.sh scripts/preproduction/deploy-candidate.sh scripts/preproduction/validate-runtime.sh
+          grep -Fq 'mariadb-11.8' scripts/preproduction/bootstrap-host.sh
+          grep -Fq 'sendmail_path = /bin/true' scripts/preproduction/bootstrap-host.sh
+          grep -Fq "agency_external_ai_egress_enabled'] = FALSE" scripts/preproduction/settings.php.template
+          grep -Fq 'side_effects=PASS' scripts/preproduction/validate-runtime.sh
+          grep -Fq 'config_split.config_split.preproduction' scripts/preproduction/settings.php.template
+          printf '%s\n' 'PREPROD_BOOTSTRAP_REGRESSION=PASS'

@@ -1,0 +1,78 @@
+{
+  "schema_version": 5,
+  "issue_number": 914,
+  "parent_issue": 816,
+  "profile_id": "agency-preprod-refresh-simple-v1",
+  "adr": "ADR-003-use-existing-first",
+  "decision": "EXTEND_EXISTING",
+  "state": "SOURCE_ONLY_NOT_EXECUTION_AUTHORITY",
+  "execution_authority": {
+    "implementation_issue_may_execute": false,
+    "authority_issue_must_be_greater_than": 920,
+    "modes": ["PLAN", "APPLY"],
+    "run_attempt": 1,
+    "github_transactional_state": "NONE",
+    "historical_recovery_target": "NONE"
+  },
+  "drush": {
+    "locked_version": "13.7.6",
+    "reused": ["sql:dump", "sql:cli", "sql:drop", "sql:sanitize", "maint:set", "updb", "cim", "cr"],
+    "generic_sanitization": ["user_email", "user_password", "sessions"]
+  },
+  "raw_staging": {
+    "surface": "TRUSTED_SELF_HOSTED_DDEV_ONLY",
+    "database": "DDEV_MARIADB_11_8",
+    "isolation_order": ["START_CODE_ONLY", "ISOLATE_DOCKER_NETWORK_INTERNAL_ONLY", "IMPORT_RAW", "SANITIZE"],
+    "external_egress_before_sanitize": "IMPOSSIBLE_BY_INTERNAL_DOCKER_NETWORK",
+    "raw_sql_workspace": "FORBIDDEN",
+    "raw_sql_github_artifact": "FORBIDDEN"
+  },
+  "agency_sanitization_gaps": [
+    "usernames", "webform", "flood", "watchdog", "queues", "cache_state",
+    "batch_temp_state", "persisted_provider_credentials", "project_specific_runtime_state"
+  ],
+  "preprod_apply": {
+    "input": "SANITIZED_SQL_ONLY",
+    "worker": "DETACHED_NON_ROOT",
+    "root_secret": "NONE",
+    "downtime": "BOUNDED_MAINTENANCE_ACCEPTED",
+    "backup_before_destructive_replace": true,
+    "replacement": ["maint:set 1", "sql:drop", "sql:cli", "updb", "cim", "PREPROD_CONFIG_SPLIT", "ADMIN_RECONCILE", "VALIDATE", "cr", "maint:set 0"],
+    "success": "COMMITTED",
+    "failure_after_destructive_step": "RESTORE_EXACT_BACKUP_AND_VALIDATE",
+    "rollback_success": "ROLLED_BACK",
+    "rollback_unprovable": "HUMAN_RECOVERY_REQUIRED_MAINTENANCE_ON"
+  },
+  "hard_runner_loss": {
+    "before_worker": "NO_PREPROD_RUNTIME_MUTATION",
+    "after_worker": "WORKER_INDEPENDENT_OF_RUNNER",
+    "terminal_results": ["COMMITTED", "ROLLED_BACK", "HUMAN_RECOVERY_REQUIRED"],
+    "github_reconstruction": "NONE",
+    "recover_current": "NONE"
+  },
+  "merged_capabilities": {
+    "915_present": true,
+    "917_present": true,
+    "operational_dependency": "NONE"
+  },
+  "files": {
+    "public": "OUT_OF_SCOPE_STAGE_FILE_PROXY_RECOMMENDATION_ONLY",
+    "private": "EXCLUDED"
+  },
+  "invariants": {
+    "prod_write": "NONE",
+    "raw_prod_github": "NONE",
+    "raw_prod_log": "NONE",
+    "preprod_settings_secrets": "ENVIRONMENT_OWNED",
+    "caller_generic_root_execution": "NONE",
+    "data_activation_authority": "DISABLED"
+  },
+  "delivery_boundary": {
+    "real_plan": "NONE",
+    "real_apply": "NONE",
+    "real_prod_read": "NONE",
+    "real_preprod_mutation": "NONE",
+    "secret_consumption": "NONE",
+    "merge": "FORBIDDEN"
+  }
+}

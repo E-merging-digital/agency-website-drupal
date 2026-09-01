@@ -16,10 +16,13 @@ STATIC_SYNTHETIC_PROOF = COMPLETE
 REAL_PLAN = PENDING fresh #816 child authority
 REAL_APPLY = PENDING fresh #816 child authority
 REAL_END_TO_END_REFRESH = NOT_YET_PROVEN
+FIRST_REAL_APPLY=NOT_AUTHORIZED
 PROD_WRITE = NONE
 PUBLIC_FILES = OUT_OF_SCOPE
 PRIVATE_FILES = EXCLUDED
 ```
+
+`FIRST_REAL_APPLY=NOT_AUTHORIZED` describes the current #816/#871 evidence boundary: this documentation tranche creates no real execution authority. A future fresh #816 child may separately authorize one APPLY under the live #914 validator; that does not make #914 or #871 persistent authority.
 
 Do not infer real execution from source, CI, predecessor component proofs or issue history.
 
@@ -54,7 +57,9 @@ Primary authority source:
 
 ## PLAN contract
 
-PLAN runs on the trusted Agency executor after exact authority/JIT checks and may observe only the metadata/readiness required for a future APPLY, including current release identities, SSH trust/readiness, PREPROD Drush/runtime checks, backup path, Config Split/admin convergence inputs and lock presence.
+PLAN is mutation-free. The current #914 PLAN runs on the trusted Agency executor after exact authority/JIT checks and observes only metadata/readiness required for a future APPLY, including current release identities, SSH trust/readiness, PREPROD Drush/runtime checks, backup path, Config Split/admin convergence inputs and lock presence.
+
+The wider #816 execution policy also permits GitHub-hosted jobs for non-sensitive metadata/control validation where no raw data is materialized. Metadata-only PLAN jobs may remain on `ubuntu-24.04` as a policy allowance; this sentence does not reclassify the current #914 trusted-runner PLAN job.
 
 PLAN performs no:
 
@@ -79,9 +84,11 @@ Before SSH secrets are materialized:
 1. reload live `main`;
 2. prove the exact checkout is that main;
 3. revalidate the exact fresh authority marker/request;
-4. require the fixed trusted Agency runner.
+4. require the fixed trusted Agency runner labels `self-hosted`, `linux`, `x64`, `agency`.
 
 Raw-data execution is never moved to GitHub-hosted infrastructure because a runner is unavailable or busy.
+
+The durable #816 boundary allows raw data only on the trusted Agency runner **or** a separately reviewed strictly controlled server-to-server path where the raw bytes never transit through or materialize on GitHub-hosted infrastructure. The current #914 implementation uses the trusted Agency runner/DDEV route; this clause does not invent a second current execution path.
 
 ### 2. Read-only PROD source
 
@@ -96,11 +103,11 @@ It may not:
 - write settings/credentials;
 - trigger deployment.
 
-PROD is never part of refresh rollback.
+PROD is never part of rollback.
 
 ### 3. Raw staging isolation before import
 
-The safety order is mandatory:
+The current implementation uses DDEV as the isolated staging database. The safety order is mandatory:
 
 ```text
 START exact source code in DDEV
@@ -170,6 +177,8 @@ maint:set 1
 ```
 
 PREPROD shared settings, hash salt, DB credentials, Basic Auth/noindex host policy and other runtime ownership remain PREPROD-owned; they are not copied from PROD.
+
+The refresh must **not** automatically execute `emerging:governed-content --all`. Governed Content is a separately owned repository/product baseline mechanism, not a side effect to infer from a database refresh.
 
 ## Rollback and HUMAN_RECOVERY_REQUIRED
 
@@ -274,7 +283,7 @@ The current #914 route is database-only.
 - public-file synchronization: not implemented by this route;
 - Stage File Proxy or another existing standard primitive should be evaluated before custom synchronization if public-file fidelity becomes necessary.
 
-Do not silently add files to the DB refresh mechanism.
+Private files are never copied by default. Do not silently add files to the DB refresh mechanism.
 
 ## Evidence contract
 
@@ -295,6 +304,7 @@ Never expose raw SQL, copied data values, email/IP/PII, passwords/hashes, sessio
 
 - **Code/config deployment:** separate; refresh preserves the currently deployed PREPROD application release.
 - **PROD promotion:** never triggered by refresh.
+- **Governed Content:** not automatically applied merely because a data refresh occurred; preserve its separately owned contract.
 - **Editorial publication:** separate bounded Drupal Entity API route; no database promotion.
 - **Development Seed:** #873 consumes an already sanitized, stricter development seed contract; real generation/distribution remains pending #816 + separate authorization.
 

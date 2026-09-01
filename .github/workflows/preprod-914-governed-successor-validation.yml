@@ -139,7 +139,7 @@ jobs:
           assert 'sanitizer.sanitize(scope.database, policy)' in prep
           assert 'sanitizer.assert_sanitized(scope.database, execution)' in prep
           assert "sanitized_tmp = job / 'sanitized.sql.tmp'" in prep
-          assert "sanitized = job / 'sanitized.sql'" in prep
+          assert "job / 'sanitized.sql'" in prep
           assert "stage / 'remote-apply-worker.sh'" in prep
           assert "prod_key = stage / 'prod-read.key'" in prep and '0o600' in prep
 

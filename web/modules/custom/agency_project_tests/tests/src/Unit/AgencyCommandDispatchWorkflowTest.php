@@ -79,13 +79,13 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     $known = [
       [
         "/agency-production-promote go sha={$sha40} artifact={$sha64} "
-          . "composer={$sha64} build=123 preprod=456",
+        . "composer={$sha64} build=123 preprod=456",
         401,
         'PRODUCTION_PROMOTE',
       ],
       [
         "/agency-production-scheduler action=CREATE release={$sha40} "
-          . 'expected=ABSENT',
+        . 'expected=ABSENT',
         401,
         'PRODUCTION_SCHEDULER',
       ],
@@ -97,8 +97,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ],
       [
         '/agency-preprod-refresh-successor PLAN '
-          . "plan-923-abcdefgh-r1 {$sha40} AUTO "
-          . 'agency-preprod-refresh-simple-v1',
+        . "plan-923-abcdefgh-r1 {$sha40} AUTO "
+        . 'agency-preprod-refresh-simple-v1',
         923,
         'PREPROD_REFRESH',
       ],
@@ -114,7 +114,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'ordinary project lead comment',
       '/agency-production-promote go sha=bad',
       '/agency-production-scheduler action=CREATE release=' . $sha40
-        . ' expected=CONTROLLED',
+      . ' expected=CONTROLLED',
       '/agency-editorial inspect now',
       '/agency-unknown apply',
     ];

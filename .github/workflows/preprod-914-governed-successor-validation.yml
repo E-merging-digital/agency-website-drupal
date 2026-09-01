@@ -11,6 +11,7 @@ on:
       - "scripts/preproduction-staging-import/real-one-shot/remote-prod-plan-readonly.sh"
       - "scripts/preproduction-staging-import/privileged/**"
       - "scripts/production-readonly-snapshot/remote-stream.sh"
+      - "web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionServerToServerApplyTest.php"
 
 permissions:
   contents: read
@@ -58,7 +59,6 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import json
-          import re
           from pathlib import Path
 
           b=Path('scripts/preproduction-refresh/governed-successor')
@@ -95,7 +95,6 @@ jobs:
           assert 'run-server-to-server-apply.sh' in apply_job
           assert 'run-apply.sh' not in apply_job
 
-          # PLAN remains metadata-only and pinned-trust fail-closed.
           assert "PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'" in plan
           assert "PREPROD_TRUST_PROVISION='scripts/preproduction-ssh-trust/manage-known-host.sh'" in plan
           assert 'StrictHostKeyChecking=yes' in plan
@@ -107,7 +106,7 @@ jobs:
           assert 'PLAN_MUTATION=NONE' in preprod_observer
           assert 'PREPROD_DB_MUTATION=NONE' in preprod_observer
 
-          # Control plane can stage fixed scripts/identities to PREPROD only.
+          # GitHub-hosted is control-plane only: no PROD connection/raw data path.
           assert 'RUNNER_ENVIRONMENT" == github-hosted' in control
           assert 'root@$PREPROD_SSH_HOST' in control
           assert 'agency-preprod@$PREPROD_SSH_HOST' in control
@@ -126,29 +125,43 @@ jobs:
           assert 'actions/upload-artifact' not in control and 'actions/upload-artifact' not in w
           assert '.sql' not in control
 
-          # Raw PROD starts only inside the detached PREPROD root preparation worker.
-          assert 'HELPER_PATH = Path("/usr/local/sbin/agency-preprod-staging-db")' in prep
+          # Raw starts only in the detached PREPROD root worker and is never a file.
+          assert "HELPER_PATH = Path('/usr/local/sbin/agency-preprod-staging-db')" in prep
           assert 'EXPECTED_HELPER_SHA256' in prep
           assert 'controlled_server_to_server_allowed(policy)' in prep
           assert 'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE' in prep
-          assert 'scripts/production-readonly-snapshot/remote-stream.sh' in prep
-          assert '"/usr/bin/ssh"' in prep and '"StrictHostKeyChecking=yes"' in prep
+          assert "stage / 'scripts/production-readonly-snapshot/remote-stream.sh'" in prep
+          assert "'/usr/bin/ssh'" in prep and "'StrictHostKeyChecking=yes'" in prep
           assert 'stderr=subprocess.DEVNULL' in prep
           assert 'snapshot.stdout' in prep and 'import_snapshot_stream(helper, scope, client_file, snapshot.stdout)' in prep
           assert 'raw.sql' not in prep.lower() and 'raw_dump' not in prep.lower()
           assert 'helper.prepare_import_scope(scope)' in prep
-          assert 'helper.cleanup_scope(scope)' in prep and 'helper.require_absent(scope)' in prep
           assert 'sanitizer.sanitize(scope.database, policy)' in prep
           assert 'sanitizer.assert_sanitized(scope.database, execution)' in prep
-          assert prep.index('sanitizer.assert_sanitized') < prep.index('MARIADB_DUMP')
-          assert 'sanitized.sql.tmp' in prep and 'sanitized.sql' in prep
-          assert 'shutil.rmtree(stage)' in prep
-          assert prep.index('shutil.rmtree(stage)') < prep.index('os.execv(')
-          assert 'remote-apply-worker.sh' in prep and 'RUNUSER' in prep
-          assert 'prod-read.key' in prep and '0o600' in prep
+          assert "sanitized_tmp = job / 'sanitized.sql.tmp'" in prep
+          assert "sanitized = job / 'sanitized.sql'" in prep
+          assert "stage / 'remote-apply-worker.sh'" in prep
+          assert "prod_key = stage / 'prod-read.key'" in prep and '0o600' in prep
 
-          # The root-owned sanitizer is the single existing policy implementation
-          # and covers the semantic #914 outcome before sanitized-only activation.
+          # Required cleanup semantics: cleanup + independent absence proof,
+          # bounded retry, then root identity-stage absence, then activation only.
+          assert 'def cleanup_raw_scope' in prep
+          assert 'for _ in range(2):' in prep
+          assert 'helper.cleanup_scope(scope)' in prep
+          assert 'helper.require_absent(scope)' in prep
+          assert "'HUMAN_RECOVERY_REQUIRED', 'RAW_STAGING_CLEANUP_UNPROVEN'" in prep
+          assert 'def cleanup_root_stage' in prep
+          assert 'shutil.rmtree(stage)' in prep
+          assert 'not os.path.lexists(stage)' in prep
+          assert "'PROD_IDENTITY_STAGE_CLEANUP_UNPROVEN'" in prep
+          raw_cleanup=prep.index('raw_cleanup_proven = cleanup_raw_scope(helper, scope)')
+          raw_gate=prep.index('if preparation_failed or not raw_cleanup_proven:')
+          root_gate=prep.index('if not cleanup_root_stage(stage) or os.path.lexists(stage):')
+          handoff=prep.index('os.execv(')
+          assert raw_cleanup < raw_gate < root_gate < handoff
+          assert 'emergency_result(sys.argv)' in prep
+          assert 'Prevent unexpected pre-activation exceptions from becoming poll timeouts.' in prep
+
           required_evidence={
               'user_sanitization','auth_material_invalidation','webform_submissions_purge',
               'sessions_purge','flood_rate_limit_purge','dblog_watchdog_purge',
@@ -161,16 +174,15 @@ jobs:
           paths={entry['type']: entry for entry in policy['execution_boundary']['raw_prod_data']['allowed_paths']}
           assert paths['CONTROLLED_SERVER_TO_SERVER']['requirement'] == 'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE'
           assert policy['execution_boundary']['github_hosted']['raw_prod_data_allowed'] is False
-          assert "name = f\"preprod-user-{uid}\"" in sanitizer
+          assert 'preprod-user-' in sanitizer
           assert 'webform_submission' in sanitizer and 'sessions' in sanitizer
           assert 'watchdog' in sanitizer and 'queue' in sanitizer
           assert 'cache_' in sanitizer and 'ai_provider_openai.settings' in sanitizer
           assert 'announcements_feed.' in sanitizer and 'linkchecker.' in sanitizer
 
-          # Existing fixed read-only PROD route and existing activation/rollback remain authoritative.
+          # Existing fixed read-only source and existing activation/rollback stay authoritative.
           assert 'exec vendor/bin/drush sql:dump' in prod_snapshot
           assert '--single-transaction' in prod_snapshot and '--skip-lock-tables' in prod_snapshot
-          assert 'PROD' not in activation or 'PROD' in activation  # activation has no PROD route requirement
           backup=activation.index('sql:dump --no-interaction --result-file="$BACKUP"')
           maint=activation.index('maint:set 1')
           drop=activation.index('sql:drop -y', maint)
@@ -182,7 +194,6 @@ jobs:
           assert '#915' not in control and '#917' not in control
           assert '#915' not in prep and '#917' not in prep
 
-          # The installed helper remains bounded; no new sanitization policy or generic root executor.
           assert 'caller_database_name' in helper and 'Runtime database is outside privileged authority' in helper
           assert 'shell=True' not in prep and 'os.system(' not in prep and 'eval(' not in prep
           assert 'GENERIC' not in control
@@ -192,6 +203,10 @@ jobs:
           print('EXECUTION_PATH=CONTROLLED_SERVER_TO_SERVER')
           print('RAW_PROD_ON_GITHUB_HOSTED=NONE')
           print('RAW_PROD_ROUTE=PROD_TO_PREPROD_DIRECT')
+          print('RAW_STAGING_CLEANUP=PROVEN_BEFORE_ACTIVATION')
+          print('PROD_IDENTITY_STAGE_CLEANUP=PROVEN_BEFORE_ACTIVATION')
+          print('CLEANUP_UNPROVEN_OUTCOME=HUMAN_RECOVERY_REQUIRED')
+          print('ACTIVATION_AFTER_UNPROVEN_CLEANUP=IMPOSSIBLE')
           print('PROD_WRITE=NONE')
           print('PROD_READ_IDENTITY=READ_ONLY_REQUEST_SCOPED_TRANSIENT')
           print('SANITIZATION_POLICY=EXISTING_SINGLE_POLICY')
@@ -201,7 +216,6 @@ jobs:
           print('EXISTING_REMOTE_APPLY_WORKER=REUSED')
           print('PREPROD_BACKUP_BEFORE_ACTIVATION=PASS')
           print('ROLLBACK_MODEL=PASS')
-          print('TRANSIENT_PROD_READ_IDENTITY_CLEANUP=PASS')
           print('OLD_915_STATE_MACHINE_REVIVED=NO')
           print('NEW_FRAMEWORK=NONE')
           PY

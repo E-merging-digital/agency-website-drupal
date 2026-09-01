@@ -16,7 +16,7 @@ use Symfony\Component\Yaml\Yaml;
 final class GovernedEditorialPublicationWorkflowTest extends TestCase {
 
   /**
-   * The workflow must remain comment-triggered, actor-bound and main-trusted.
+   * The reusable route must remain actor-bound and main-trusted.
    */
   public function testWorkflowControlSurfaceIsBounded(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -25,7 +25,8 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
     self::assertIsArray(Yaml::parseFile($path));
 
     $workflow = (string) file_get_contents($path);
-    self::assertStringContainsString('issue_comment:', $workflow);
+    self::assertStringContainsString('workflow_call:', $workflow);
+    self::assertStringNotContainsString('issue_comment:', $workflow);
     self::assertStringContainsString("github.event.comment.body == '/agency-editorial inspect'", $workflow);
     self::assertStringContainsString("github.event.comment.body == '/agency-editorial dry-run'", $workflow);
     self::assertStringContainsString("github.event.comment.body == '/agency-editorial apply'", $workflow);

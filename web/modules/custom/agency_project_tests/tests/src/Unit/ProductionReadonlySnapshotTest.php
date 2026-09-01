@@ -17,7 +17,7 @@ use Symfony\Component\Yaml\Yaml;
 final class ProductionReadonlySnapshotTest extends TestCase {
 
   /**
-   * Metadata-only PLAN is hosted while raw PROD APPLY stays trusted-only.
+   * Current APPLY is hosted control with direct server-to-server raw routing.
    */
   public function testCurrentTrustedRunnerBoundary(): void {
     $workflow = $this->workflow();
@@ -35,7 +35,7 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       $parsed['jobs']['plan']['runs-on'],
     );
     self::assertSame(
-      ['self-hosted', 'linux', 'x64', 'agency'],
+      'ubuntu-24.04',
       $parsed['jobs']['apply']['runs-on'],
     );
     self::assertStringContainsString(
@@ -46,9 +46,51 @@ final class ProductionReadonlySnapshotTest extends TestCase {
       'github-hosted',
       $workflow,
     );
+    self::assertStringContainsString(
+      'run-server-to-server-apply.sh',
+      $workflow,
+    );
     self::assertStringNotContainsString(
       'actions/upload-artifact',
       $workflow,
+    );
+
+    $policy = $this->refreshPolicy();
+    $boundary = $policy['execution_boundary'];
+    self::assertFalse(
+      $boundary['github_hosted']['raw_prod_data_allowed'],
+    );
+    self::assertSame(
+      'FORBIDDEN',
+      $boundary['raw_prod_data']['github_hosted_runner'],
+    );
+    $paths = [];
+    foreach ($boundary['raw_prod_data']['allowed_paths'] as $path) {
+      $paths[$path['type']] = $path;
+    }
+    self::assertArrayHasKey('TRUSTED_AGENCY_RUNNER', $paths);
+    self::assertSame(
+      ['self-hosted', 'linux', 'x64', 'agency'],
+      $paths['TRUSTED_AGENCY_RUNNER']['required_labels'],
+    );
+    self::assertArrayHasKey('CONTROLLED_SERVER_TO_SERVER', $paths);
+    self::assertSame(
+      'RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE',
+      $paths['CONTROLLED_SERVER_TO_SERVER']['requirement'],
+    );
+
+    $registry = $this->file('docs/operations/execution-capabilities.md');
+    self::assertStringContainsString(
+      'APPLY control plane= GitHub-hosted ubuntu-24.04 / TEMPORARY CURRENT',
+      $registry,
+    );
+    self::assertStringContainsString(
+      'APPLY raw route    = CONTROLLED_SERVER_TO_SERVER / PROD -> PREPROD DIRECT',
+      $registry,
+    );
+    self::assertStringContainsString(
+      'self-hosted runner = AUTHORIZED ALTERNATIVE / CURRENTLY UNAVAILABLE',
+      $registry,
     );
   }
 

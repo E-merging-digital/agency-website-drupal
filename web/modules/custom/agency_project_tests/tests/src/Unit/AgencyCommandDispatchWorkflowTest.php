@@ -165,6 +165,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     $preprodSecrets = [
       'SSH_PRIVATE_KEY',
       'PREPROD_SSH_PRIVATE_KEY',
+      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
       'SERVER_HOST',
       'SERVER_USER',
       'PREPROD_SERVER_HOST',

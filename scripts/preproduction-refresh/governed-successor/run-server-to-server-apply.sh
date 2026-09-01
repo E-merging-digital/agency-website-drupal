@@ -34,6 +34,9 @@ suffix="$(printf '%s' "$REQUEST_ID" | sha256sum | awk '{print substr($1,1,12)}')
 [[ "$suffix" =~ ^[0-9a-f]{12}$ ]]
 local_stage="$temp/agency-938-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 remote_stage="/run/agency-preprod-refresh/$suffix"
+remote_staged=0
+worker_started=0
+
 mkdir -p \
   "$local_stage/trust-repo/scripts/production-ssh-trust" \
   "$local_stage/scripts/production-readonly-snapshot"
@@ -44,7 +47,11 @@ chmod 700 "$local_stage" "$local_stage/trust-repo" "$local_stage/trust-repo/scri
 cleanup() {
   local status=$?
   trap - EXIT HUP INT TERM
+  set +e
   rm -rf -- "$local_stage"
+  if [[ "$remote_staged" -eq 1 && "$worker_started" -eq 0 ]]; then
+    "${root_ssh[@]}" "root@$PREPROD_SSH_HOST" "rm -rf -- '$remote_stage'" >/dev/null 2>&1 || status=98
+  fi
   exit "$status"
 }
 trap cleanup EXIT
@@ -82,6 +89,7 @@ preprod_ssh=(ssh -i "$PREPROD_SSH_KEY" "${ssh_common[@]}")
 # No PROD connection and no raw PROD byte exists on this GitHub-hosted runner.
 "${root_ssh[@]}" "root@$PREPROD_SSH_HOST" \
   "umask 077; test ! -e '$remote_stage'; install -d -o root -g root -m 700 '$remote_stage'"
+remote_staged=1
 "${root_scp[@]}" -r "$local_stage/." "root@$PREPROD_SSH_HOST:$remote_stage/"
 "${root_ssh[@]}" "root@$PREPROD_SSH_HOST" \
   "chmod 700 '$remote_stage' '$remote_stage/remote-server-to-server-worker.py' '$remote_stage/remote-apply-worker.sh' '$remote_stage/scripts/production-readonly-snapshot/remote-stream.sh' '$remote_stage/trust-repo/scripts/production-ssh-trust/manage-known-host.sh'; chmod 600 '$remote_stage/prod-read.key' '$remote_stage/trust-repo/scripts/production-ssh-trust/prod-ed25519.pub' '$remote_stage/trust-repo/scripts/production-ssh-trust/prod-ed25519.sha256'; test \"\$(stat -c '%U:%G:%a' '$remote_stage/prod-read.key')\" = root:root:600"
@@ -91,9 +99,8 @@ preprod_ssh=(ssh -i "$PREPROD_SSH_KEY" "${ssh_common[@]}")
 # activation/rollback worker as the PREPROD deploy user.
 "${root_ssh[@]}" "root@$PREPROD_SSH_HOST" \
   "nohup setsid --wait /usr/bin/python3 -I '$remote_stage/remote-server-to-server-worker.py' '$REQUEST_ID' '$REPOSITORY_SHA' '$SOURCE_PROD_RELEASE_SHA' '$PROD_SSH_HOST' '$PROD_SSH_USER' </dev/null >'$remote_stage/bootstrap.log' 2>&1 &"
+worker_started=1
 rm -rf -- "$local_stage"
-mkdir -p "$local_stage"
-chmod 700 "$local_stage"
 
 remote_job="/var/www/agency-preprod/shared/refresh-jobs/$REQUEST_ID"
 for _ in $(seq 1 540); do

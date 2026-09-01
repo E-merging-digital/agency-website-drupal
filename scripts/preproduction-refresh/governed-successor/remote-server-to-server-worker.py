@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.machinery
 import importlib.util
 import os
 import pwd
@@ -54,7 +55,11 @@ def load_installed_helper() -> ModuleType:
     require_root_regular(HELPER_PATH, 0o755)
     if sha256_file(HELPER_PATH) != EXPECTED_HELPER_SHA256:
         raise WorkerError('Installed bounded staging helper identity mismatch.')
-    spec = importlib.util.spec_from_file_location('agency_preprod_staging_db', HELPER_PATH)
+    loader = importlib.machinery.SourceFileLoader(
+        'agency_preprod_staging_db',
+        str(HELPER_PATH),
+    )
+    spec = importlib.util.spec_from_loader(loader.name, loader)
     if spec is None or spec.loader is None:
         raise WorkerError('Installed bounded staging helper cannot be loaded.')
     module = importlib.util.module_from_spec(spec)

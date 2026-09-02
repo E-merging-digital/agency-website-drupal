@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -109,6 +110,41 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
     self::assertStringNotContainsString('ssh-keyscan', $runner);
     self::assertStringNotContainsString('StrictHostKeyChecking=no', $runner);
     self::assertStringNotContainsString('accept-new', $runner);
+  }
+
+  /**
+   * Proves the SHA command survives set -u without local positional arguments.
+   */
+  public function testSettingsShaCommandSurvivesSetUWithoutPositionalParameter(): void {
+    $runner = $this->source(self::RUNNER);
+    $matches = array_values(array_filter(
+      preg_split('/\R/', $runner) ?: [],
+      static fn(string $line): bool => str_contains(
+        $line,
+        "sha256sum '$EXPECTED_SETTINGS' | awk",
+      ),
+    ));
+
+    self::assertCount(1, $matches);
+    $expression = trim($matches[0]);
+    self::assertStringStartsWith('"set -euo pipefail;', $expression);
+    self::assertStringEndsWith('")"', $expression);
+    $expression = substr($expression, 0, -2);
+
+    $bash = implode("\n", [
+      'set -u',
+      "EXPECTED_SETTINGS='/var/www/agency-preprod/shared/settings/settings.php'",
+      'remote_command=' . $expression,
+      'printf \'%s\\n\' "$remote_command"',
+    ]);
+    $process = new Process(['bash', '-c', $bash]);
+    $process->run();
+
+    self::assertTrue($process->isSuccessful(), $process->getErrorOutput());
+    self::assertSame(
+      'set -euo pipefail; sha256sum \'/var/www/agency-preprod/shared/settings/settings.php\' | awk \'{print $1}\'' . "\n",
+      $process->getOutput(),
+    );
   }
 
   /**

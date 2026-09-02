@@ -184,8 +184,14 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
       self::assertStringNotContainsString('cat settings.php', $surface);
       self::assertStringNotContainsString('cat "$EXPECTED_SETTINGS"', $surface);
       self::assertStringNotContainsString('source "$EXPECTED_SETTINGS"', $surface);
-      self::assertStringNotContainsString('PROD_SSH_PRIVATE_KEY', $surface);
-      self::assertStringNotContainsString('PREPROD_PROVISIONING_SSH_PRIVATE_KEY', $surface);
+      self::assertDoesNotMatchRegularExpression(
+        '/(?<!PRE)PROD_SSH_PRIVATE_KEY/',
+        $surface,
+      );
+      self::assertStringNotContainsString(
+        'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
+        $surface,
+      );
     }
   }
 

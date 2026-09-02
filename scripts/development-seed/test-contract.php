@@ -88,8 +88,9 @@ assert_true(str_contains($workflow, 'JIT revalidate authority before PREPROD sec
 
 // Source is fixed read-only PREPROD and runtime identity is resolved JIT.
 assert_true(str_contains($source, "PROJECT_ROOT='/var/www/agency-preprod'"), 'Fixed PREPROD source root is missing.');
+assert_true(str_contains($source, 'SHARED="$PROJECT_ROOT/shared"'), 'PREPROD shared root must derive from fixed PROJECT_ROOT.');
+assert_true(str_contains($source, 'ARTIFACTS="$SHARED/artifacts"'), 'PREPROD application artifacts must derive from the fixed shared root.');
 assert_true(str_contains($source, 'SANITIZED_DATABASE_ACTIVE_AND_VALIDATED'), 'Current committed refresh proof is not required.');
-assert_true(str_contains($source, 'shared/artifacts'), 'Current PREPROD application release proof is missing.');
 assert_true(str_contains($source, 'sql:dump'), 'Fixed read-only PREPROD dump is missing.');
 foreach (['sql:drop', 'sql:query', 'updb', 'cim', 'maint:set', 'state:set', 'user:create'] as $forbidden) {
   assert_true(!str_contains($source, $forbidden), "PREPROD source contains forbidden mutation primitive: {$forbidden}");

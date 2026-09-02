@@ -21,6 +21,7 @@ on:
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/SchedulerGovernanceSafetyTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialPublicationWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialFeatureImageWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/Issue975EditorialFeatureImageRunnerTargetTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreprodBlogImageDiagnosticWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreprodEditorialImageRehydrate971WorkflowTest.php'
 
@@ -76,6 +77,8 @@ jobs:
           set -euo pipefail
           vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
           vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/PreprodBlogImageDiagnosticWorkflowTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialFeatureImageWorkflowTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/Issue975EditorialFeatureImageRunnerTargetTest.php
           vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/PreprodEditorialImageRehydrate971WorkflowTest.php
           git diff --check HEAD^..HEAD
 

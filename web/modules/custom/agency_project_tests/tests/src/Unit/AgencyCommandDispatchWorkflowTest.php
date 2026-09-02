@@ -23,6 +23,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     '.github/workflows/production-scheduler-change.yml',
     'EDITORIAL_PUBLICATION' =>
     '.github/workflows/trusted-editorial-publication.yml',
+    'EDITORIAL_PREPROD_CANDIDATE' =>
+    '.github/workflows/trusted-editorial-preprod-candidate.yml',
     'EDITORIAL_FEATURE_IMAGE' =>
     '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
@@ -71,7 +73,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(9, $routes);
+    self::assertCount(10, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -107,6 +109,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'PRODUCTION_SCHEDULER',
       ],
       ['/agency-editorial inspect', 402, 'EDITORIAL_PUBLICATION'],
+      ['/agency-editorial-candidate dry-run', 958, 'EDITORIAL_PREPROD_CANDIDATE'],
       [
         '/agency-editorial-image dry-run',
         401,
@@ -170,6 +173,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-production-scheduler action=CREATE release=' . $sha40
       . ' expected=CONTROLLED',
       '/agency-editorial inspect now',
+      '/agency-editorial-candidate apply now',
       '/agency-development-seed publish seed-956-bad-r1 ' . $sha40 . ' bad ' . $sha40,
       '/agency-preprod-refresh-940-recovery plan now',
       '/agency-preprod-refresh-948-detail diagnose now',
@@ -229,6 +233,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'PREPROD_SERVER_HOST',
     ];
     $diagnosticSecrets = ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
+    $candidateSecrets = ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
     $seedSecrets = ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
     $rootPreprodSecrets = ['PREPROD_PROVISIONING_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
     $jobMap = [
@@ -246,6 +251,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'EDITORIAL_PUBLICATION',
         ['contents' => 'read', 'issues' => 'write'],
         $prodSecrets,
+      ],
+      'editorial-preprod-candidate' => [
+        'EDITORIAL_PREPROD_CANDIDATE',
+        ['contents' => 'read', 'issues' => 'write'],
+        $candidateSecrets,
       ],
       'editorial-feature-image' => [
         'EDITORIAL_FEATURE_IMAGE',

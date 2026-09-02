@@ -121,7 +121,7 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
       preg_split('/\R/', $runner) ?: [],
       static fn(string $line): bool => str_contains(
         $line,
-        "sha256sum '$EXPECTED_SETTINGS' | awk",
+        'sha256sum \'$EXPECTED_SETTINGS\' | awk',
       ),
     ));
 
@@ -142,7 +142,9 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
 
     self::assertTrue($process->isSuccessful(), $process->getErrorOutput());
     self::assertSame(
-      'set -euo pipefail; sha256sum \'/var/www/agency-preprod/shared/settings/settings.php\' | awk \'{print $1}\'' . "\n",
+      'set -euo pipefail; sha256sum ' .
+      '\'/var/www/agency-preprod/shared/settings/settings.php\' | ' .
+      'awk \'{print $1}\'' . "\n",
       $process->getOutput(),
     );
   }

@@ -54,8 +54,10 @@ jobs:
         run: |
           set -euo pipefail
           vendor/bin/phpunit -c web/core/phpunit.xml.dist \
-            web/modules/custom/agency_project_tests/tests/src/Kernel/GovernedEditorialPublicationKernelTest.php \
-            web/modules/custom/agency_project_tests/tests/src/Kernel/GovernedEditorialPreprodCandidateKernelTest.php \
+            web/modules/custom/agency_project_tests/tests/src/Kernel/GovernedEditorialPublicationKernelTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            web/modules/custom/agency_project_tests/tests/src/Kernel/GovernedEditorialPreprodCandidateKernelTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist \
             web/modules/custom/agency_project_tests/tests/src/Unit/EditorialPreprodCandidateWorkflowTest.php
 
   candidate:
@@ -129,7 +131,6 @@ jobs:
           import re
           from pathlib import Path
 
-          # Exactly the #576 durable Article marker/schema/canonical hash contract.
           marker = '<!-- agency-editorial-payload:v1 -->'
           owner = 'E-merging-digital'
           issue_number = int(os.environ['ISSUE_NUMBER'])
@@ -201,11 +202,19 @@ jobs:
               for comment in comments:
                   if comment.get('user', {}).get('login') != 'github-actions[bot]':
                       continue
-                  match = pattern.search(comment.get('body') or '')
-                  if match and match.group(1) == digest and match.group(2) == revision and match.group(3) == trusted_main:
+                  body = comment.get('body') or ''
+                  match = pattern.search(body)
+                  if (
+                      match
+                      and match.group(1) == digest
+                      and match.group(2) == revision
+                      and match.group(3) == trusted_main
+                  ):
                       authorized = True
               if not authorized:
-                  raise SystemExit('PREPROD apply requires a prior candidate dry-run PASS for the same payload hash, comment revision and live main.')
+                  raise SystemExit(
+                      'PREPROD apply requires a prior candidate dry-run PASS for the same payload hash, comment revision and live main.'
+                  )
           with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
               output.write(f'payload_sha256={digest}\n')
               output.write(f'candidate_revision={revision}\n')
@@ -246,12 +255,53 @@ jobs:
           test "$live" = "$EXPECTED_MAIN"
           test "$(git rev-parse HEAD)" = "$live"
           if [[ "$MODE" != inspect ]]; then
-            latest="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" | jq -c '[.[] | select(.user.login == "E-merging-digital" and (.body | startswith("<!-- agency-editorial-payload:v1 -->")))] | last')"
-            test "$(jq -r '.id' <<<"$latest")" = "$EXPECTED_REVISION"
-            raw="$(jq -r '.body' <<<"$latest")"
-            json="${raw#'<!-- agency-editorial-payload:v1 -->'}"
-            actual="$(printf '%s' "$json" | jq -S -c . | { cat; printf '\n'; } | sha256sum | awk '{print $1}')"
-            test "$actual" = "$EXPECTED_HASH"
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
+              > "$RUNNER_TEMP/agency-editorial-jit-comments.json"
+            python3 - <<'PY'
+            import hashlib
+            import json
+            import os
+            from pathlib import Path
+
+            marker = '<!-- agency-editorial-payload:v1 -->'
+            pages = json.loads(
+                (Path(os.environ['RUNNER_TEMP']) / 'agency-editorial-jit-comments.json').read_text(encoding='utf-8')
+            )
+            comments = []
+            for page in pages:
+                if isinstance(page, list):
+                    comments.extend(page)
+            latest = None
+            payload = None
+            for comment in comments:
+                if comment.get('user', {}).get('login') != 'E-merging-digital':
+                    continue
+                body = comment.get('body') or ''
+                if not body.startswith(marker):
+                    continue
+                try:
+                    parsed = json.loads(body[len(marker):].strip())
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(parsed, dict):
+                    latest = comment
+                    payload = parsed
+            if latest is None or payload is None:
+                raise SystemExit('JIT candidate payload is missing.')
+            revision = str(latest.get('id'))
+            if revision != os.environ['EXPECTED_REVISION']:
+                raise SystemExit('JIT candidate revision changed before PREPROD secret materialization.')
+            canonical = json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(',', ':'),
+            ) + '\n'
+            digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+            if digest != os.environ['EXPECTED_HASH']:
+                raise SystemExit('JIT candidate hash changed before PREPROD secret materialization.')
+            PY
           fi
 
       - name: Materialize transient PREPROD identity after JIT
@@ -279,7 +329,11 @@ jobs:
       - if: ${{ always() }}
         name: Cleanup PREPROD identity and candidate payload
         shell: bash
-        run: rm -f -- "$RUNNER_TEMP/agency-959-preprod.key" "$RUNNER_TEMP/agency-editorial-payload.json" "$RUNNER_TEMP/agency-editorial-comments.b64"
+        run: >-
+          rm -f -- "$RUNNER_TEMP/agency-959-preprod.key"
+          "$RUNNER_TEMP/agency-editorial-payload.json"
+          "$RUNNER_TEMP/agency-editorial-comments.b64"
+          "$RUNNER_TEMP/agency-editorial-jit-comments.json"
 
       - name: Upload metadata-only PREPROD candidate evidence
         if: ${{ always() }}
@@ -305,7 +359,12 @@ jobs:
         run: |
           set -euo pipefail
           result_file='artifacts/editorial-preprod-candidate/result.json'
-          status='MISSING'; verdict='UNKNOWN'; node_id='n/a'; revision_id='n/a'; fr_alias='n/a'; en_alias='n/a'
+          status='MISSING'
+          verdict='UNKNOWN'
+          node_id='n/a'
+          revision_id='n/a'
+          fr_alias='n/a'
+          en_alias='n/a'
           if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
             status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
             verdict="$(jq -r '.verdict // "UNKNOWN"' "$result_file")"
@@ -318,7 +377,8 @@ jobs:
           if [[ "$ROUTE_OUTCOME" == success && "$status" == PASS ]]; then
             heading="### Agency editorial PREPROD candidate ${MODE} PASS"
           fi
-          fr_url='n/a'; en_url='n/a'
+          fr_url='n/a'
+          en_url='n/a'
           if [[ "$fr_alias" == /* ]]; then fr_url="https://preprod.emergingdigital.be${fr_alias}"; fi
           if [[ "$en_alias" == /* ]]; then en_url="https://preprod.emergingdigital.be${en_alias}"; fi
           body="$(cat <<EOF_BODY

@@ -315,6 +315,44 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString('${{ secrets.SSH_PRIVATE_KEY }}', $workflow);
     self::assertStringContainsString('${{ secrets.SERVER_HOST }}', $workflow);
     self::assertStringContainsString('${{ secrets.SERVER_USER }}', $workflow);
+    self::assertStringContainsString(
+      'test -f scripts/preproduction-ssh-trust/manage-known-host.sh',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'test -f scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      'test -x scripts/preproduction-ssh-trust/manage-known-host.sh',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      'test -x scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh',
+      $workflow,
+    );
+
+    $candidate = (string) file_get_contents(
+      $root . '/scripts/runner/run-editorial-preprod-candidate.sh',
+    );
+    self::assertStringContainsString(
+      'bash "$PREPROD_TRUST_PROVISION" PROVISION',
+      $candidate,
+    );
+    self::assertStringContainsString('bash "$PREPROD_TRUST_VERIFY"', $candidate);
+
+    $runner = (string) file_get_contents(
+      $root . '/scripts/runner/run-editorial-feature-image.sh',
+    );
+    self::assertStringContainsString('StrictHostKeyChecking=yes', $runner);
     self::assertStringContainsString('manage-known-host.sh PROVISION', $workflow);
     self::assertStringContainsString('verify-preprod-pinned-trust.sh', $workflow);
     self::assertStringNotContainsString('password:', $workflow);

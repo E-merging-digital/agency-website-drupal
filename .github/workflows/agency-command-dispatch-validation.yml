@@ -11,6 +11,7 @@ on:
       - '.github/workflows/trusted-editorial-publication.yml'
       - '.github/workflows/trusted-editorial-feature-image.yml'
       - '.github/workflows/preprod-914-governed-successor.yml'
+      - '.github/workflows/development-seed-publish.yml'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionPromotionSafetyTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/SchedulerGovernanceSafetyTest.php'
@@ -44,6 +45,7 @@ jobs:
             '.github/workflows/trusted-editorial-publication.yml'
             '.github/workflows/trusted-editorial-feature-image.yml'
             '.github/workflows/preprod-914-governed-successor.yml'
+            '.github/workflows/development-seed-publish.yml'
           )
           docker run --rm -v "$PWD:/repo" -w /repo \
             rhysd/actionlint:1.7.7 -color "${files[@]}"

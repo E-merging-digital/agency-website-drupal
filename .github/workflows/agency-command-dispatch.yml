@@ -16,7 +16,8 @@ env:
       {"route":"DEVELOPMENT_SEED","prefix":"/agency-development-seed ","regex_template":"^/agency-development-seed publish seed-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [A-Za-z0-9._:-]{8,80} [0-9a-f]{40}$"},
       {"route":"PREPROD_REFRESH_940_DIAGNOSTIC","prefix":"/agency-preprod-refresh-940-diagnostic ","exact":["/agency-preprod-refresh-940-diagnostic diagnose"]},
       {"route":"PREPROD_REFRESH_940_RECOVERY","prefix":"/agency-preprod-refresh-940-recovery ","exact":["/agency-preprod-refresh-940-recovery plan","/agency-preprod-refresh-940-recovery cleanup"]},
-      {"route":"PREPROD_REFRESH_948_DETAIL","prefix":"/agency-preprod-refresh-948-detail ","exact":["/agency-preprod-refresh-948-detail diagnose"]}
+      {"route":"PREPROD_REFRESH_948_DETAIL","prefix":"/agency-preprod-refresh-948-detail ","exact":["/agency-preprod-refresh-948-detail diagnose"]},
+      {"route":"PREPROD_BLOG_IMAGE_DIAGNOSTIC","prefix":"/agency-preprod-blog-image-diagnostic ","exact":["/agency-preprod-blog-image-diagnostic diagnose"]}
     ]
 
 jobs:
@@ -51,6 +52,7 @@ jobs:
               'PREPROD_REFRESH_940_DIAGNOSTIC': '941',
               'PREPROD_REFRESH_940_RECOVERY': '943',
               'PREPROD_REFRESH_948_DETAIL': '949',
+              'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
           }
           matches = []
           if not is_pr:
@@ -201,4 +203,16 @@ jobs:
     uses: ./.github/workflows/preprod-refresh-948-detail-diagnostic.yml
     secrets:
       PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-blog-image-diagnostic:
+    name: Route #966 read-only PREPROD Blog image diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_BLOG_IMAGE_DIAGNOSTIC' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/preprod-blog-image-diagnostic.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}

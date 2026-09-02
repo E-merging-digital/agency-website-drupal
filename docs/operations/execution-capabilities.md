@@ -23,13 +23,14 @@ Status vocabulary includes `DESIGN_ONLY`, `SOURCE_IMPLEMENTED`, `SYNTHETICALLY_P
 
 #922 is **COMPLETED**. `.github/workflows/agency-command-dispatch.yml` is the single top-level `issue_comment` listener. It classifies exact syntax only; the selected reusable workflow owns authorization.
 
-Current reusable capabilities are exactly five:
+Current reusable capabilities are exactly six:
 
 1. `.github/workflows/promote-production.yml`
 2. `.github/workflows/production-scheduler-change.yml`
 3. `.github/workflows/trusted-editorial-publication.yml`
 4. `.github/workflows/trusted-editorial-feature-image.yml`
 5. `.github/workflows/preprod-914-governed-successor.yml`
+6. `.github/workflows/development-seed-publish.yml`
 
 ## 3. Current operational capability index
 
@@ -45,8 +46,9 @@ Current reusable capabilities are exactly five:
 | PROD -> PREPROD sanitized DB refresh | #914 / completed #816 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `REAL_EXECUTION_PROVEN` | PLAN hosted; APPLY hosted control -> direct PROD/PREPROD server route | Raw never on GitHub-hosted; PREPROD activation receives sanitized SQL only. |
 | GitHub-hosted metadata-only PLAN | #927 / real proof #937 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted `ubuntu-24.04` | `PLAN_RESULT=PASS`; no DB content/snapshot/transfer/mutation. |
 | Controlled server-to-server APPLY | #914 / terminal proof #953 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PREPROD worker -> direct read-only PROD stream | `COMMITTED`; raw PROD route direct to isolated PREPROD staging; sanitized-only activation. |
-| Trusted self-hosted Agency executor | runner capability | `PROVISIONED` | `self-hosted`, `linux`, `x64`, `agency` | Authorized raw-data alternative under policy; availability is a live fact. |
-| Development Seed -> DDEV pull-only | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Local/trusted DDEV consumer | Pull-only; #816 blocker removed; real seed service still pending. |
+| Trusted self-hosted Agency executor | runner capability | `PROVISIONED` | `self-hosted`, `linux`, `x64`, `agency`, `ddev`, `browser` | Authorized trusted DDEV/raw-data surface; availability is a live fact. |
+| Development Seed DDEV consumer | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Local/trusted DDEV consumer | Pull-only; native snapshot/import/convergence; no push. |
+| Development Seed publisher/distribution | #956 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `EXECUTION_PENDING` | GitHub-hosted authority validation -> trusted self-hosted Agency/DDEV -> PREPROD read-only source + fixed seed storage | No PROD; no PREPROD runtime DB write; raw PREPROD never GitHub-hosted; real proof still pending. |
 | Editorial Candidate | #872 | `DESIGN_ONLY` | None | Not implemented. |
 
 ## 4. Self-hosted Agency executor
@@ -57,7 +59,7 @@ Agency has a registered runner capability with labels:
 self-hosted, linux, x64, agency, ddev, browser
 ```
 
-Registration/provisioning is durable; availability is dynamic. A conversation must reload live state before relying on current runner availability. The registered alternative does not authorize raw PROD data on GitHub-hosted infrastructure.
+Registration/provisioning is durable; availability is dynamic. A conversation must reload live state before relying on current runner availability. The registered surface does not authorize raw PROD or raw PREPROD database material on GitHub-hosted infrastructure.
 
 Current #914 split:
 
@@ -69,7 +71,18 @@ APPLY raw route    = CONTROLLED_SERVER_TO_SERVER / PROD -> PREPROD DIRECT
 self-hosted runner = AUTHORIZED ALTERNATIVE
 ```
 
-This remains `EXTEND_EXISTING`, not a permanent multi-provider architecture.
+Current #956 implementation split, pending first real proof:
+
+```text
+authority validation = GitHub-hosted ubuntu-24.04 / metadata only
+seed generation       = self-hosted, linux, x64, agency, ddev
+source                 = CURRENT SANITIZED PREPROD / READ ONLY
+storage                = /var/www/agency-preprod/shared/development-seeds
+consumer               = ddev pull agency
+raw PREPROD on hosted  = NONE
+```
+
+Both remain `EXTEND_EXISTING`, not permanent multi-provider architectures.
 
 ## 5. Browser, DDEV and developer execution
 
@@ -79,7 +92,7 @@ This remains `EXTEND_EXISTING`, not a permanent multi-provider architecture.
 | Chromium | AVAILABLE on registered executor | Browser validation |
 | Playwright MCP | AVAILABLE on registered executor | Interactive inspection when transport exists |
 | Chrome DevTools MCP | AVAILABLE on registered executor | DevTools diagnosis |
-| DDEV | AVAILABLE on registered executor/local hosts | Drupal runtime/dependency execution |
+| DDEV | AVAILABLE on registered executor/local hosts | Drupal runtime/dependency/Development Seed isolated execution |
 | Docker | AVAILABLE on registered executor | DDEV/container execution |
 
 A conversation without direct MCP transport must not conclude that the registered project capability does not exist.
@@ -152,19 +165,7 @@ PROD_READ_IDENTITY = READ_ONLY_REQUEST_SCOPED_TRANSIENT
 SANITIZED_ONLY_ACTIVATION = PASS
 ```
 
-Pre-activation cleanup remains fail-closed:
-
-```text
-RAW staging absence unproven
--> HUMAN_RECOVERY_REQUIRED / RAW_STAGING_CLEANUP_UNPROVEN
--> ACTIVATION NOT STARTED
-
-PROD identity/root stage absence unproven
--> HUMAN_RECOVERY_REQUIRED / PROD_IDENTITY_STAGE_CLEANUP_UNPROVEN
--> ACTIVATION NOT STARTED
-```
-
-After activation begins, the unchanged #914 worker owns backup and rollback. Proven rollback => `ROLLED_BACK`; unproven rollback => `HUMAN_RECOVERY_REQUIRED` with maintenance ON.
+Pre-activation cleanup remains fail-closed. After activation begins, the unchanged #914 worker owns backup and rollback. Proven rollback => `ROLLED_BACK`; unproven rollback => `HUMAN_RECOVERY_REQUIRED` with maintenance ON.
 
 Hard boundaries:
 
@@ -193,7 +194,9 @@ Primary sources:
 - `scripts/preproduction-refresh/governed-successor/remote-server-to-server-worker.py`
 - `scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh`
 
-## 7. Development Seed -> DDEV pull-only (#873)
+## 7. Development Seed -> DDEV pull-only (#873 / #956)
+
+#816 is terminal and no longer blocks Development Seed work. The repository/DDEV consumer from #873 remains complete and #956 adds the smallest publisher/storage/reader route needed for a first real proof.
 
 ```text
 #873_BLOCKED_BY_816 = NO
@@ -202,22 +205,76 @@ SYNTHETIC_PROOF = COMPLETE
 DDEV_PROVIDER = .ddev/providers/agency.yaml
 LOCAL_UX = ddev pull agency
 PULL_ONLY = YES
+PUBLISHER_SOURCE_IMPLEMENTED = YES
+FIXED_STORAGE_CONTRACT_IMPLEMENTED = YES
+RESTRICTED_READER_CONTRACT_IMPLEMENTED = YES
 REAL_PREPROD_SEED_GENERATION = PENDING
 REAL_STORAGE_PROVISIONING = PENDING
 REAL_SEED_DISTRIBUTION = PENDING
+REAL_DDEV_PULL = PENDING
 DDEV_PUSH = NONE
 ```
 
-The DDEV provider is pull-only and does not imply a live seed service. #816 removed the source-data blocker only; real generation, controlled storage and distribution require a successor proof before the service is operational.
+### Publisher route
+
+`.github/workflows/development-seed-publish.yml` is called only by the existing dispatcher for the exact #956 command. GitHub-hosted performs owner/live-main authority validation only. The real data path is restricted to the trusted self-hosted DDEV runner.
+
+The publisher JIT proves the current #914 `COMMITTED / SANITIZED_DATABASE_ACTIVE_AND_VALIDATED` source refresh and current PREPROD release before a fixed read-only Drush dump. No PROD secret/path is part of the route and the PREPROD runtime DB is never a mutation target.
+
+The isolated generation path reuses:
+
+```text
+DDEV native database import
+-> Drush sql:sanitize
+-> existing #914 agency-sanitize.php
+-> existing Development Seed sanitizer/assertions
+-> database.sql.gz + seed.json
+-> existing metadata/SHA verifier
+```
+
+### Storage and reader
+
+Fixed server-owned storage is:
+
+```text
+/var/www/agency-preprod/shared/development-seeds/
+  immutable/<seed-id>/{database.sql.gz,seed.json}
+  current -> immutable/<seed-id>
+```
+
+`current` switches only after verification. An ephemeral proof reader key is installed on the existing `agency-preprod` account with `restrict` plus a forced SCP read command. It can read only the two files under `current`, has no upload/general-shell/PTY/forwarding path, and is removed terminally. Long-lived human reader keys remain a small separate onboarding operation, not a registration service.
+
+### DDEV consumer
+
+The provider uses repository-pinned PREPROD host trust, fixed remote storage and standard OpenSSH legacy SCP read mode required by the forced command. It has no caller-controlled remote directory and no push stanza. `ddev pull agency` preserves DDEV snapshot/import/restore and post-pull Drupal convergence.
+
+Until the first post-merge #956 execution proves publication and a real `ddev pull agency`, this capability remains `EXECUTION_PENDING`; source implementation is not real execution evidence.
+
+Primary sources:
+
+- `.github/workflows/agency-command-dispatch.yml`
+- `.github/workflows/development-seed-publish.yml`
+- `.ddev/providers/agency.yaml`
+- `.ddev/config.development-seed.yaml`
+- `docs/operations/development-seed.md`
+- `scripts/development-seed/validate-publish-authority.py`
+- `scripts/development-seed/remote-readonly-preprod-source.sh`
+- `scripts/development-seed/run-publish.sh`
+- `scripts/development-seed/remote-storage.sh`
+- `scripts/development-seed/remote-reader-key.sh`
+- `scripts/development-seed/remote-read-only-scp.sh`
+- `scripts/development-seed/sanitization-policy.json`
+- `scripts/development-seed/verify-seed.php`
 
 ## 8. Reload rule
 
-Before saying a route, workflow, runner or command exists today:
+Before saying a route, workflow, runner, seed or command exists today:
 
 1. reload `main`;
 2. reload the dispatcher;
 3. reload the selected reusable workflow and route-specific docs;
 4. reload governing issue/authority and exact execution evidence;
-5. then classify status.
+5. for Development Seed real-use claims, reload the latest successful #956 proof and current PREPROD source identity;
+6. then classify status.
 
 If this registry and current repository differ, current repository wins and this registry must be corrected.

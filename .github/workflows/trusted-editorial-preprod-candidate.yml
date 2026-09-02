@@ -57,8 +57,10 @@ jobs:
         run: php -S 127.0.0.1:8888 -t web >/tmp/php-server.log 2>&1 &
       - name: Prepare BrowserTestBase HTML output directory
         run: |
+          mkdir -p web/tmp
           mkdir -p web/sites/simpletest/browser_output
           mkdir -p sites/simpletest/browser_output
+          chmod -R 777 web/tmp
           chmod -R 777 web/sites/simpletest
           chmod -R 777 sites/simpletest
       - name: Regress #576 and prove #959 candidate behavior

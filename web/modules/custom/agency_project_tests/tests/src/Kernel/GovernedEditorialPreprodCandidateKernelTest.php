@@ -153,7 +153,8 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
   }
 
   /**
-   * Changed editorial content changes the hash and updates the same PREPROD node.
+   * Changed editorial content changes the hash and updates the same PREPROD
+   * node.
    */
   public function testChangedPayloadUpdatesSameCandidateWithNewRevision(): void {
     $first = $this->validPayload();

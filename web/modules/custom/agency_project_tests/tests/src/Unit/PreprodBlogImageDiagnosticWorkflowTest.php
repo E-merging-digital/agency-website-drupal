@@ -19,6 +19,9 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
   private const RUNNER = 'scripts/runner/run-preprod-blog-image-diagnostic.sh';
   private const DIAGNOSTIC = 'scripts/runner/preprod-blog-image-diagnostic.php';
 
+  /**
+   * Proves the workflow is bound to issue #966 and its exact command.
+   */
   public function testWorkflowIsBoundToIssue966AndExactCommand(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
@@ -43,6 +46,9 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
     );
   }
 
+  /**
+   * Proves pull-request validation cannot reach the operational runtime path.
+   */
   public function testPullRequestValidationCannotReachRuntime(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $static = $workflow['jobs']['static-validation'] ?? NULL;
@@ -60,6 +66,9 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
     self::assertStringNotContainsString('scp ', $staticSource);
   }
 
+  /**
+   * Proves the runner uses only the existing pinned PREPROD read path.
+   */
   public function testRunnerUsesOnlyExistingPinnedPreprodReadPath(): void {
     $runner = $this->source(self::RUNNER);
 
@@ -98,6 +107,9 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
     self::assertStringNotContainsString('entity:delete', $runner);
   }
 
+  /**
+   * Proves the Drupal probe covers the exact entity and physical-file chain.
+   */
   public function testDrupalDiagnosticProvesExactEntityFileAndPhysicalChain(): void {
     $php = $this->source(self::DIAGNOSTIC);
 
@@ -122,6 +134,9 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
     self::assertStringContainsString('NO_BY_MODEL', $php);
   }
 
+  /**
+   * Proves the bounded diagnostic does not mutate Drupal or public files.
+   */
   public function testDiagnosticScopeIsBoundedAndDoesNotMutateDrupalOrFiles(): void {
     $php = $this->source(self::DIAGNOSTIC);
 
@@ -156,14 +171,50 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
     }
   }
 
+  /**
+   * Proves the evidence contract preserves exact PREPROD-only secrets.
+   */
   public function testEvidenceContractExplicitlyPreservesSafetyBoundary(): void {
     $php = $this->source(self::DIAGNOSTIC);
     $runner = $this->source(self::RUNNER);
     $workflow = $this->source(self::WORKFLOW);
+    $parsedWorkflow = $this->parsed(self::WORKFLOW);
 
-    foreach ([$php, $runner, $workflow] as $surface) {
+    $declaredSecrets = array_keys(
+      $parsedWorkflow['on']['workflow_call']['secrets'] ?? [],
+    );
+    self::assertSame(
+      ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'],
+      $declaredSecrets,
+    );
+    self::assertNotContains('PROD_SSH_PRIVATE_KEY', $declaredSecrets);
+    self::assertNotContains('PROD_SERVER_HOST', $declaredSecrets);
+    self::assertNotContains(
+      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
+      $declaredSecrets,
+    );
+
+    preg_match_all(
+      '/secrets\.([A-Z0-9_]+)/',
+      $workflow,
+      $secretMatches,
+    );
+    $referencedSecrets = array_values(array_unique($secretMatches[1] ?? []));
+    self::assertContains('PREPROD_SSH_PRIVATE_KEY', $referencedSecrets);
+    self::assertContains('PREPROD_SERVER_HOST', $referencedSecrets);
+    self::assertNotContains('PROD_SSH_PRIVATE_KEY', $referencedSecrets);
+    self::assertNotContains('PROD_SERVER_HOST', $referencedSecrets);
+    self::assertNotContains(
+      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
+      $referencedSecrets,
+    );
+
+    foreach ([$php, $runner] as $surface) {
       self::assertStringNotContainsString('PROD_SSH_PRIVATE_KEY', $surface);
-      self::assertStringNotContainsString('PREPROD_PROVISIONING_SSH_PRIVATE_KEY', $surface);
+      self::assertStringNotContainsString(
+        'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
+        $surface,
+      );
     }
 
     self::assertStringContainsString("'prod_access' => 'NONE'", $php);
@@ -178,7 +229,7 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
   /**
    * Parses one repository workflow structurally.
    *
-   * @return array<string, mixed>
+   * @return array<string, mixed> The parsed workflow structure.
    */
   private function parsed(string $relativePath): array {
     $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
@@ -188,6 +239,11 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
     return $parsed;
   }
 
+  /**
+   * Reads one repository source file as text.
+   *
+   * @return string The repository source contents.
+   */
   private function source(string $relativePath): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);
   }

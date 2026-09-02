@@ -148,8 +148,10 @@ jobs:
 
       - name: Prepare BrowserTestBase HTML output directory
         run: |
+          mkdir -p web/tmp
           mkdir -p web/sites/simpletest/browser_output
           mkdir -p sites/simpletest/browser_output
+          chmod -R 777 web/tmp
           chmod -R 777 web/sites/simpletest
           chmod -R 777 sites/simpletest
 

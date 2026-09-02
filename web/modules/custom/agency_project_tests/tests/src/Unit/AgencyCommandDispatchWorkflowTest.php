@@ -41,6 +41,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     '.github/workflows/preprod-editorial-image-rehydrate-971.yml',
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' =>
     '.github/workflows/config-sync-runtime-diagnostic.yml',
+    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' =>
+    '.github/workflows/prod-config-sync-runtime-diagnostic.yml',
   ];
 
   private const INCIDENT_ISSUES = [
@@ -51,6 +53,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => 961,
+    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => 980,
   ];
 
   /**
@@ -82,7 +85,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(13, $routes);
+    self::assertCount(14, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -177,6 +180,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         961,
         'CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
+      [
+        '/agency-config-sync-prod-runtime diagnose',
+        980,
+        'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
+      ],
     ];
     foreach ($known as [$body, $issue, $expected]) {
       self::assertSame(
@@ -202,6 +210,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-preprod-image-rehydrate apply', 972],
       ['/agency-config-sync-runtime diagnose', 960],
       ['/agency-config-sync-runtime diagnose', 962],
+      ['/agency-config-sync-prod-runtime diagnose', 979],
+      ['/agency-config-sync-prod-runtime diagnose', 981],
     ] as [$body, $wrongIssue]) {
       self::assertSame('NONE', $this->classify($routes, $body, $wrongIssue));
     }
@@ -221,6 +231,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-preprod-image-rehydrate apply asset=other.png',
       '/agency-config-sync-runtime diagnose now',
       '/agency-config-sync-runtime diagnose target=PROD',
+      '/agency-config-sync-prod-runtime diagnose now',
+      '/agency-config-sync-prod-runtime diagnose target=PREPROD',
       '/agency-unknown apply',
     ];
     foreach ($invalid as $body) {
@@ -249,12 +261,34 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString("'DEVELOPMENT_SEED': '956'", $source);
-    self::assertStringContainsString("'PREPROD_REFRESH_940_DIAGNOSTIC': '941'", $source);
-    self::assertStringContainsString("'PREPROD_REFRESH_940_RECOVERY': '943'", $source);
-    self::assertStringContainsString("'PREPROD_REFRESH_948_DETAIL': '949'", $source);
-    self::assertStringContainsString("'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966'", $source);
-    self::assertStringContainsString("'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971'", $source);
-    self::assertStringContainsString("'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '961'", $source);
+    self::assertStringContainsString(
+      "'PREPROD_REFRESH_940_DIAGNOSTIC': '941'",
+      $source,
+    );
+    self::assertStringContainsString(
+      "'PREPROD_REFRESH_940_RECOVERY': '943'",
+      $source,
+    );
+    self::assertStringContainsString(
+      "'PREPROD_REFRESH_948_DETAIL': '949'",
+      $source,
+    );
+    self::assertStringContainsString(
+      "'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966'",
+      $source,
+    );
+    self::assertStringContainsString(
+      "'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971'",
+      $source,
+    );
+    self::assertStringContainsString(
+      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '961'",
+      $source,
+    );
+    self::assertStringContainsString(
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '980'",
+      $source,
+    );
     self::assertStringContainsString('required_issue = incident_issue.get', $source);
   }
 
@@ -282,7 +316,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     $diagnosticSecrets = ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
     $candidateSecrets = ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
     $seedSecrets = ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
-    $rootPreprodSecrets = ['PREPROD_PROVISIONING_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
+    $rootPreprodSecrets = [
+      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
+      'PREPROD_SERVER_HOST',
+    ];
     $jobMap = [
       'production-promote' => [
         'PRODUCTION_PROMOTE',
@@ -348,6 +385,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
         ['contents' => 'read', 'issues' => 'write'],
         $diagnosticSecrets,
+      ],
+      'prod-config-sync-runtime-diagnostic' => [
+        'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
+        ['contents' => 'read', 'issues' => 'write'],
+        $prodSecrets,
       ],
     ];
 

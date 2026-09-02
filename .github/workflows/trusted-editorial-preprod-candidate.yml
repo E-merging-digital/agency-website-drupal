@@ -205,26 +205,47 @@ jobs:
           digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
           revision = str(payload_comment['id'])
           if mode == 'apply':
-              pattern = re.compile(
-                  r'^### Agency editorial PREPROD candidate dry-run PASS\s*$.*?'
-                  r'^payload_sha256: `([0-9a-f]{64})`\s*$.*?'
-                  r'^candidate_revision: `([0-9]+)`\s*$.*?'
-                  r'^trusted_main: `([0-9a-f]{40})`\s*$',
-                  re.MULTILINE | re.DOTALL,
-              )
+              heading = '### Agency editorial PREPROD candidate dry-run PASS'
+              field_patterns = {
+                  'candidate_revision': re.compile(r'^candidate_revision: `([0-9]+)`$'),
+                  'payload_sha256': re.compile(r'^payload_sha256: `([0-9a-f]{64})`$'),
+                  'trusted_main': re.compile(r'^trusted_main: `([0-9a-f]{40})`$'),
+              }
               authorized = False
               for comment in comments:
                   if comment.get('user', {}).get('login') != 'github-actions[bot]':
                       continue
                   body = comment.get('body') or ''
-                  match = pattern.search(body)
+                  lines = body.splitlines()
+                  if not lines or lines[0] != heading:
+                      continue
+                  fields = {}
+                  invalid = False
+                  for name, pattern in field_patterns.items():
+                      prefix = f'{name}:'
+                      matches = []
+                      malformed = False
+                      for line in lines[1:]:
+                          if not line.startswith(prefix):
+                              continue
+                          match = pattern.fullmatch(line)
+                          if match is None:
+                              malformed = True
+                              break
+                          matches.append(match.group(1))
+                      if malformed or len(matches) != 1:
+                          invalid = True
+                          break
+                      fields[name] = matches[0]
+                  if invalid:
+                      continue
                   if (
-                      match
-                      and match.group(1) == digest
-                      and match.group(2) == revision
-                      and match.group(3) == trusted_main
+                      fields['payload_sha256'] == digest
+                      and fields['candidate_revision'] == revision
+                      and fields['trusted_main'] == trusted_main
                   ):
                       authorized = True
+                      break
               if not authorized:
                   raise SystemExit(
                       'PREPROD apply requires a prior candidate dry-run PASS for the same payload hash, comment revision and live main.'

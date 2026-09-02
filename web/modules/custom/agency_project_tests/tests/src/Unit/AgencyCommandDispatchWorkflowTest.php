@@ -37,6 +37,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     '.github/workflows/preprod-refresh-948-detail-diagnostic.yml',
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' =>
     '.github/workflows/preprod-blog-image-diagnostic.yml',
+    'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' =>
+    '.github/workflows/preprod-editorial-image-rehydrate-971.yml',
   ];
 
   private const INCIDENT_ISSUES = [
@@ -45,6 +47,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_REFRESH_940_RECOVERY' => 943,
     'PREPROD_REFRESH_948_DETAIL' => 949,
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
+    'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
   ];
 
   /**
@@ -76,7 +79,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(11, $routes);
+    self::assertCount(12, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -156,6 +159,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         966,
         'PREPROD_BLOG_IMAGE_DIAGNOSTIC',
       ],
+      [
+        '/agency-preprod-image-rehydrate dry-run',
+        971,
+        'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971',
+      ],
+      [
+        '/agency-preprod-image-rehydrate apply',
+        971,
+        'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971',
+      ],
     ];
     foreach ($known as [$body, $issue, $expected]) {
       self::assertSame(
@@ -173,6 +186,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-preprod-refresh-948-detail diagnose', 950],
       ['/agency-preprod-blog-image-diagnostic diagnose', 965],
       ['/agency-preprod-blog-image-diagnostic diagnose', 967],
+      ['/agency-preprod-image-rehydrate dry-run', 970],
+      ['/agency-preprod-image-rehydrate apply', 972],
     ] as [$body, $wrongIssue]) {
       self::assertSame('NONE', $this->classify($routes, $body, $wrongIssue));
     }
@@ -188,6 +203,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-preprod-refresh-940-recovery plan now',
       '/agency-preprod-refresh-948-detail diagnose now',
       '/agency-preprod-blog-image-diagnostic diagnose now',
+      '/agency-preprod-image-rehydrate dry-run now',
+      '/agency-preprod-image-rehydrate apply asset=other.png',
       '/agency-unknown apply',
     ];
     foreach ($invalid as $body) {
@@ -220,6 +237,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertStringContainsString("'PREPROD_REFRESH_940_RECOVERY': '943'", $source);
     self::assertStringContainsString("'PREPROD_REFRESH_948_DETAIL': '949'", $source);
     self::assertStringContainsString("'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966'", $source);
+    self::assertStringContainsString("'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971'", $source);
     self::assertStringContainsString('required_issue = incident_issue.get', $source);
   }
 
@@ -301,6 +319,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ],
       'preprod-blog-image-diagnostic' => [
         'PREPROD_BLOG_IMAGE_DIAGNOSTIC',
+        ['contents' => 'read', 'issues' => 'write'],
+        $diagnosticSecrets,
+      ],
+      'preprod-editorial-image-rehydrate-971' => [
+        'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971',
         ['contents' => 'read', 'issues' => 'write'],
         $diagnosticSecrets,
       ],

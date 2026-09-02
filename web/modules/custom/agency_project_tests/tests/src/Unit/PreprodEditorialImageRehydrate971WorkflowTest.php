@@ -173,7 +173,7 @@ final class PreprodEditorialImageRehydrate971WorkflowTest extends TestCase {
     $dryRunBlock = substr($shell, $dryRunStart, $applyStart - $dryRunStart);
     self::assertStringNotContainsString('scp ', $dryRunBlock);
     self::assertStringNotContainsString('remote_cleanup_armed=1', $dryRunBlock);
-    self::assertStringNotContainsString("rm -f '$REMOTE_ASSET'", $dryRunBlock);
+    self::assertStringNotContainsString('rm -f', $dryRunBlock);
 
     $preapply = strpos($shell, 'remote_eval dry-run "$ARTIFACT_DIR/preapply.json"');
     $remoteTempAbsent = strpos($shell, "test ! -e '\$REMOTE_ASSET'");

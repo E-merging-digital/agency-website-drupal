@@ -18,7 +18,8 @@ env:
       {"route":"PREPROD_REFRESH_940_RECOVERY","prefix":"/agency-preprod-refresh-940-recovery ","exact":["/agency-preprod-refresh-940-recovery plan","/agency-preprod-refresh-940-recovery cleanup"]},
       {"route":"PREPROD_REFRESH_948_DETAIL","prefix":"/agency-preprod-refresh-948-detail ","exact":["/agency-preprod-refresh-948-detail diagnose"]},
       {"route":"PREPROD_BLOG_IMAGE_DIAGNOSTIC","prefix":"/agency-preprod-blog-image-diagnostic ","exact":["/agency-preprod-blog-image-diagnostic diagnose"]},
-      {"route":"PREPROD_EDITORIAL_IMAGE_REHYDRATE_971","prefix":"/agency-preprod-image-rehydrate ","exact":["/agency-preprod-image-rehydrate dry-run","/agency-preprod-image-rehydrate apply"]}
+      {"route":"PREPROD_EDITORIAL_IMAGE_REHYDRATE_971","prefix":"/agency-preprod-image-rehydrate ","exact":["/agency-preprod-image-rehydrate dry-run","/agency-preprod-image-rehydrate apply"]},
+      {"route":"CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-runtime ","exact":["/agency-config-sync-runtime diagnose"]}
     ]
 
 jobs:
@@ -55,6 +56,7 @@ jobs:
               'PREPROD_REFRESH_948_DETAIL': '949',
               'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
               'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
+              'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '961',
           }
           matches = []
           if not is_pr:
@@ -227,6 +229,18 @@ jobs:
       contents: read
       issues: write
     uses: ./.github/workflows/preprod-editorial-image-rehydrate-971.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  config-sync-runtime-diagnostic:
+    name: Route #961 read-only PREPROD config sync runtime diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/config-sync-runtime-diagnostic.yml
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}

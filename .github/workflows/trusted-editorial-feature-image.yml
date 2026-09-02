@@ -269,8 +269,8 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           if [[ "$TARGET" == 'PREPROD' ]]; then
-            test -x scripts/preproduction-ssh-trust/manage-known-host.sh
-            test -x scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh
+            test -f scripts/preproduction-ssh-trust/manage-known-host.sh
+            test -f scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh
             PREPROD_SERVER_HOST="$SERVER_HOST" \
               bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
             PREPROD_SERVER_HOST="$SERVER_HOST" \

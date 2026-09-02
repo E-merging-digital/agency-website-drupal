@@ -316,6 +316,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertStringNotContainsString('workflow_dispatch:', $source);
   }
 
+  /**
+   * Classifies a body using the exact repository-owned route table.
+   */
   private function classify(array $routes, string $body, int $issue): string {
     $matches = [];
     foreach ($routes as $route) {
@@ -343,6 +346,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     return count($matches) === 1 ? $matches[0] : 'NONE';
   }
 
+  /**
+   * Parses one repository workflow structurally.
+   */
   private function parsed(string $relativePath): array {
     $root = dirname(DRUPAL_ROOT);
     $path = $root . '/' . $relativePath;
@@ -352,6 +358,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     return $parsed;
   }
 
+  /**
+   * Returns one repository workflow as source text.
+   */
   private function source(string $relativePath): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);
   }

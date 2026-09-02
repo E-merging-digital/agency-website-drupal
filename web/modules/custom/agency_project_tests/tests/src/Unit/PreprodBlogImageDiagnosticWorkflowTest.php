@@ -26,9 +26,12 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
 
-    self::assertArrayHasKey('workflow_call', $workflow['on'] ?? []);
-    self::assertArrayHasKey('pull_request', $workflow['on'] ?? []);
-    self::assertArrayNotHasKey('issue_comment', $workflow['on'] ?? []);
+    self::assertArrayHasKey('on', $workflow);
+    $on = $workflow['on'];
+    self::assertIsArray($on);
+    self::assertArrayHasKey('workflow_call', $on);
+    self::assertArrayHasKey('pull_request', $on);
+    self::assertArrayNotHasKey('issue_comment', $on);
     self::assertStringContainsString('github.event.issue.number == 966', $source);
     self::assertStringContainsString(
       "github.event.comment.body == '/agency-preprod-blog-image-diagnostic diagnose'",
@@ -39,7 +42,7 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
     self::assertStringContainsString('EVENT_DEFAULT_SHA', $source);
     self::assertStringContainsString('JIT revalidate live main before PREPROD identity', $source);
 
-    $secrets = $workflow['on']['workflow_call']['secrets'] ?? [];
+    $secrets = $on['workflow_call']['secrets'] ?? [];
     self::assertSame(
       ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'],
       array_keys($secrets),
@@ -199,7 +202,7 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
       $workflow,
       $secretMatches,
     );
-    $referencedSecrets = array_values(array_unique($secretMatches[1] ?? []));
+    $referencedSecrets = array_values(array_unique($secretMatches[1]));
     self::assertContains('PREPROD_SSH_PRIVATE_KEY', $referencedSecrets);
     self::assertContains('PREPROD_SERVER_HOST', $referencedSecrets);
     self::assertNotContains('PROD_SSH_PRIVATE_KEY', $referencedSecrets);

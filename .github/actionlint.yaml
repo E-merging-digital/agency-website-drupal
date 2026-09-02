@@ -1,6 +1,7 @@
 self-hosted-runner:
   labels:
     - agency
+    - ddev
 
 paths:
   .github/workflows/promote-production.yml:

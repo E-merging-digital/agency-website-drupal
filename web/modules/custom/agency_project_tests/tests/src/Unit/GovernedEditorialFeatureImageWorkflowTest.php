@@ -34,6 +34,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     }
     self::assertStringContainsString("GITHUB_ACTOR\" == 'E-merging-digital'", $workflow);
     self::assertStringContainsString('currently on live main', $workflow);
+    self::assertStringContainsString("401) target='PROD'", $workflow);
+    self::assertStringContainsString("958) target='PREPROD'", $workflow);
     self::assertStringContainsString('persist-credentials: false', $workflow);
     self::assertStringContainsString(
       "always() && steps.request.outcome == 'success'",
@@ -56,7 +58,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       JSON_THROW_ON_ERROR,
     );
     self::assertSame(1, $profile['schema_version']);
-    self::assertSame([401], array_keys($profile['profiles']));
+    self::assertSame([401, 958], array_keys($profile['profiles']));
+
     $issue = $profile['profiles']['401'];
     self::assertSame('article', $issue['bundle']);
     self::assertSame('field_feature_image', $issue['field_name']);
@@ -76,22 +79,60 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertSame('Checklist de préparation avant la refonte d’un site web', $issue['alt']['fr']);
     self::assertSame('Website redesign preparation checklist', $issue['alt']['en']);
 
-    $generator = $root . '/scripts/runner/generate-editorial-feature-image-401.py';
-    self::assertFileExists($generator);
-    $generatorSource = (string) file_get_contents($generator);
-    foreach (['urllib', 'requests', 'http://', 'https://', 'subprocess'] as $forbidden) {
-      self::assertStringNotContainsString($forbidden, $generatorSource);
-    }
-
-    $trackedOutput = [];
-    $trackedExit = 0;
-    exec(
-      'git -C ' . escapeshellarg($root) . ' ls-files --error-unmatch '
-      . escapeshellarg($issue['asset']['path']) . ' 2>/dev/null',
-      $trackedOutput,
-      $trackedExit,
+    $preprod = $profile['profiles']['958'];
+    self::assertSame('article', $preprod['bundle']);
+    self::assertSame('field_feature_image', $preprod['field_name']);
+    self::assertSame(
+      '2e92228480ee6ae7410c028eab2b88c7d7db1534668477f6eafbc236668cb700',
+      $preprod['article_payload_sha256'],
     );
-    self::assertNotSame(0, $trackedExit, 'Generated #401 PNG must not be committed as opaque binary bytes.');
+    self::assertSame('image/png', $preprod['asset']['mime']);
+    self::assertSame(1200, $preprod['asset']['width']);
+    self::assertSame(630, $preprod['asset']['height']);
+    self::assertSame(
+      '3a705624b08ac2c21a10db0e8573841ff8c4cecf087409cd8782953e3684c6f4',
+      $preprod['asset']['sha256'],
+    );
+    self::assertSame(
+      'Préparation d’une mise à niveau Drupal 10 vers Drupal 11',
+      $preprod['alt']['fr'],
+    );
+    self::assertSame(
+      'Planning a Drupal 10 to Drupal 11 upgrade',
+      $preprod['alt']['en'],
+    );
+    $preprodAssetPath = $this->governedAssetPath(958);
+    self::assertSame(
+      $preprod['asset']['sha256'],
+      hash_file('sha256', $preprodAssetPath),
+    );
+    self::assertLessThanOrEqual(
+      $preprod['asset']['max_bytes'],
+      filesize($preprodAssetPath),
+    );
+
+    foreach ([401, 958] as $issueNumber) {
+      $generator = $root . "/scripts/runner/generate-editorial-feature-image-{$issueNumber}.py";
+      self::assertFileExists($generator);
+      $generatorSource = (string) file_get_contents($generator);
+      foreach (['urllib', 'requests', 'http://', 'https://', 'subprocess'] as $forbidden) {
+        self::assertStringNotContainsString($forbidden, $generatorSource);
+      }
+      $asset = $profile['profiles'][(string) $issueNumber]['asset'];
+      $trackedOutput = [];
+      $trackedExit = 0;
+      exec(
+        'git -C ' . escapeshellarg($root) . ' ls-files --error-unmatch '
+        . escapeshellarg($asset['path']) . ' 2>/dev/null',
+        $trackedOutput,
+        $trackedExit,
+      );
+      self::assertNotSame(
+        0,
+        $trackedExit,
+        sprintf('Generated #%d PNG must not be committed as opaque binary bytes.', $issueNumber),
+      );
+    }
 
     $workflow = (string) file_get_contents(
       $root . '/.github/workflows/trusted-editorial-feature-image.yml',
@@ -100,6 +141,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       self::assertStringNotContainsString($forbidden, $workflow);
     }
     self::assertStringContainsString('generate-editorial-feature-image-401.py', $workflow);
+    self::assertStringContainsString('generate-editorial-feature-image-958.py', $workflow);
     self::assertStringContainsString('imagecreatefrompng', $workflow);
     self::assertStringContainsString('hashlib.sha256', $workflow);
     self::assertStringContainsString('asset_sha256', $workflow);
@@ -177,37 +219,39 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
    * Generated editorial PNGs must remain GD-decodable.
    */
   public function testGovernedEditorialAssetIsGdDecodable(): void {
-    $assetPath = $this->governedAssetPath();
+    foreach ([401, 958] as $issueNumber) {
+      $assetPath = $this->governedAssetPath($issueNumber);
 
-    self::assertTrue(
-      function_exists('imagecreatefrompng'),
-      'The governed editorial-image validation environment must provide GD PNG decoding.',
-    );
+      self::assertTrue(
+        function_exists('imagecreatefrompng'),
+        'The governed editorial-image validation environment must provide GD PNG decoding.',
+      );
 
-    $warning = NULL;
-    set_error_handler(static function (int $severity, string $message) use (&$warning): bool {
-      $warning = $message;
-      return TRUE;
-    });
-    try {
-      $image = imagecreatefrompng($assetPath);
+      $warning = NULL;
+      set_error_handler(static function (int $severity, string $message) use (&$warning): bool {
+        $warning = $message;
+        return TRUE;
+      });
+      try {
+        $image = imagecreatefrompng($assetPath);
+      }
+      finally {
+        restore_error_handler();
+      }
+
+      self::assertInstanceOf(
+        \GdImage::class,
+        $image,
+        $warning ?? 'GD returned false while decoding the generated editorial PNG asset.',
+      );
+      self::assertSame(1200, imagesx($image));
+      self::assertSame(630, imagesy($image));
+      imagedestroy($image);
     }
-    finally {
-      restore_error_handler();
-    }
-
-    self::assertInstanceOf(
-      \GdImage::class,
-      $image,
-      $warning ?? 'GD returned false while decoding the generated editorial PNG asset.',
-    );
-    self::assertSame(1200, imagesx($image));
-    self::assertSame(630, imagesy($image));
-    imagedestroy($image);
   }
 
   /**
-   * The production runner may transport only the trusted profile and asset.
+   * The runner may transport only the trusted profile and asset.
    */
   public function testRunnerIsFixedAndSyntaxValid(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -219,7 +263,12 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     $shell = (string) file_get_contents($shellPath);
     $php = (string) file_get_contents($phpPath);
     $combined = $shell . "\n" . $php;
-    self::assertStringContainsString('/var/www/agency/current', $shell);
+    self::assertStringContainsString("TARGET='PROD'", $shell);
+    self::assertStringContainsString("TARGET='PREPROD'", $shell);
+    self::assertStringContainsString("PROJECT_ROOT='/var/www/agency'", $shell);
+    self::assertStringContainsString("PROJECT_ROOT='/var/www/agency-preprod'", $shell);
+    self::assertStringContainsString("SERVER_USER='agency-preprod'", $shell);
+    self::assertStringContainsString('scripts/preproduction/validate-runtime.sh', $shell);
     self::assertStringContainsString('vendor/bin/drush sql:dump', $shell);
     self::assertStringContainsString('vendor/bin/drush php:script', $shell);
     self::assertStringContainsString('scp "${ssh_opts[@]}" "$ASSET_FILE"', $shell);
@@ -256,7 +305,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
-   * The route may reuse only the existing production SSH secret surface.
+   * The workflow reuses only the existing bounded SSH secret surface.
    */
   public function testWorkflowReusesExistingSshSecrets(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -266,14 +315,16 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString('${{ secrets.SSH_PRIVATE_KEY }}', $workflow);
     self::assertStringContainsString('${{ secrets.SERVER_HOST }}', $workflow);
     self::assertStringContainsString('${{ secrets.SERVER_USER }}', $workflow);
+    self::assertStringContainsString('manage-known-host.sh PROVISION', $workflow);
+    self::assertStringContainsString('verify-preprod-pinned-trust.sh', $workflow);
     self::assertStringNotContainsString('password:', $workflow);
     self::assertStringNotContainsString('settings.php', $workflow);
   }
 
   /**
-   * Generates the exact closed #401 asset from repository-owned source code.
+   * Generates one exact closed asset from repository-owned source code.
    */
-  private function governedAssetPath(): string {
+  private function governedAssetPath(int $issueNumber = 401): string {
     $root = dirname(DRUPAL_ROOT);
     $profile = json_decode(
       (string) file_get_contents($root . '/scripts/runner/editorial-feature-image-profiles.json'),
@@ -281,9 +332,9 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       16,
       JSON_THROW_ON_ERROR,
     );
-    $asset = $profile['profiles']['401']['asset'];
+    $asset = $profile['profiles'][(string) $issueNumber]['asset'];
     $assetPath = $root . '/' . $asset['path'];
-    $generator = $root . '/scripts/runner/generate-editorial-feature-image-401.py';
+    $generator = $root . "/scripts/runner/generate-editorial-feature-image-{$issueNumber}.py";
 
     $output = [];
     $exitCode = 0;

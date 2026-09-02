@@ -102,7 +102,9 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-preprod-candidate.php';
     }
     $factory = ['AgencyEditorialPreprodCandidate', 'fromContainer'];
-    self::assertIsCallable($factory);
+    if (!is_callable($factory)) {
+      throw new \RuntimeException('PREPROD editorial candidate helper factory did not load.');
+    }
     $this->candidate = $factory($this->container);
   }
 

@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 MODE="${EDITORIAL_IMAGE_MODE:-}"
 ISSUE_NUMBER="${ISSUE_NUMBER:-}"
+TARGET="${EDITORIAL_IMAGE_TARGET:-}"
 PROFILE_SHA256="${PROFILE_SHA256:-}"
 PROFILE_FILE="${PROFILE_FILE:-}"
 ASSET_SHA256="${ASSET_SHA256:-}"
@@ -18,6 +19,28 @@ case "$MODE" in
   *) echo "Unsupported EDITORIAL_IMAGE_MODE: $MODE" >&2; exit 1 ;;
 esac
 [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo 'ISSUE_NUMBER must be positive numeric.' >&2; exit 1; }
+case "$TARGET" in
+  PROD|PREPROD) ;;
+  *) echo "Unsupported EDITORIAL_IMAGE_TARGET: $TARGET" >&2; exit 1 ;;
+esac
+
+case "$ISSUE_NUMBER:$TARGET" in
+  401:PROD)
+    PROJECT_ROOT='/var/www/agency'
+    ;;
+  958:PREPROD)
+    PROJECT_ROOT='/var/www/agency-preprod'
+    SERVER_USER='agency-preprod'
+    ;;
+  958:PROD)
+    PROJECT_ROOT='/var/www/agency'
+    ;;
+  *)
+    echo 'No bounded editorial image issue/target pair is approved.' >&2
+    exit 1
+    ;;
+esac
+
 [[ "$RUN_ID" =~ ^[0-9]+$ ]]
 [[ "$RUN_ATTEMPT" =~ ^[0-9]+$ ]]
 [[ "$PROFILE_SHA256" =~ ^[0-9a-f]{64}$ ]]
@@ -25,21 +48,6 @@ esac
 [[ -f "$PROFILE_FILE" ]]
 [[ -f "$ASSET_FILE" ]]
 
-case "$ISSUE_NUMBER" in
-  401)
-    TARGET='PROD'
-    PROJECT_ROOT='/var/www/agency'
-    ;;
-  958)
-    TARGET='PREPROD'
-    PROJECT_ROOT='/var/www/agency-preprod'
-    SERVER_USER='agency-preprod'
-    ;;
-  *)
-    echo 'No bounded editorial image runtime target is approved for this issue.' >&2
-    exit 1
-    ;;
-esac
 CURRENT_ROOT="$PROJECT_ROOT/current"
 BACKUP_DIR="$PROJECT_ROOT/shared/backups"
 

@@ -17,7 +17,8 @@ env:
       {"route":"PREPROD_REFRESH_940_DIAGNOSTIC","prefix":"/agency-preprod-refresh-940-diagnostic ","exact":["/agency-preprod-refresh-940-diagnostic diagnose"]},
       {"route":"PREPROD_REFRESH_940_RECOVERY","prefix":"/agency-preprod-refresh-940-recovery ","exact":["/agency-preprod-refresh-940-recovery plan","/agency-preprod-refresh-940-recovery cleanup"]},
       {"route":"PREPROD_REFRESH_948_DETAIL","prefix":"/agency-preprod-refresh-948-detail ","exact":["/agency-preprod-refresh-948-detail diagnose"]},
-      {"route":"PREPROD_BLOG_IMAGE_DIAGNOSTIC","prefix":"/agency-preprod-blog-image-diagnostic ","exact":["/agency-preprod-blog-image-diagnostic diagnose"]}
+      {"route":"PREPROD_BLOG_IMAGE_DIAGNOSTIC","prefix":"/agency-preprod-blog-image-diagnostic ","exact":["/agency-preprod-blog-image-diagnostic diagnose"]},
+      {"route":"PREPROD_EDITORIAL_IMAGE_REHYDRATE_971","prefix":"/agency-preprod-image-rehydrate ","exact":["/agency-preprod-image-rehydrate dry-run","/agency-preprod-image-rehydrate apply"]}
     ]
 
 jobs:
@@ -53,6 +54,7 @@ jobs:
               'PREPROD_REFRESH_940_RECOVERY': '943',
               'PREPROD_REFRESH_948_DETAIL': '949',
               'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
+              'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
           }
           matches = []
           if not is_pr:
@@ -213,6 +215,18 @@ jobs:
       contents: read
       issues: write
     uses: ./.github/workflows/preprod-blog-image-diagnostic.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-editorial-image-rehydrate-971:
+    name: Route #971 bounded PREPROD image rehydration
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/preprod-editorial-image-rehydrate-971.yml
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}

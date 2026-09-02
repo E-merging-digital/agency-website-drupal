@@ -1,262 +1,306 @@
-# Development Seed — DDEV pull-only
+# Agency Development Seed
 
-Status: **source/configuration contract + synthetic proof only**
-Owner: **#873**
-Parent: **#870**
-Source dependency: **#816**
+Status: **SOURCE_IMPLEMENTED / SYNTHETICALLY_PROVEN / REAL PROOF PENDING**
+Owner: #873; first real publisher/proof tranche: #956.
+Architecture: `EXTEND_EXISTING` under `docs/decisions/ADR-003-use-existing-first.md`.
 
-## Purpose
+This runbook covers only the pull-only Development Seed flow. It does not replace code/config deployment, PROD -> PREPROD refresh or editorial publication.
 
-Agency developers and AI agents consume one immutable, privacy-safe database
-baseline without PROD access, PROD credentials, PREPROD runtime credentials, or
-a shared mutable development database.
-
-The v1 direction is intentionally one-way and database-only:
+## Current truth
 
 ```text
-sanitized PREPROD (future source, only after terminal #816 proof)
--> bounded read-only dump on an isolated seed-generation surface
+#816 = CLOSED / COMPLETED
+PROD_TO_PREPROD_REFRESH = REAL_EXECUTION_PROVEN
+PREPROD = CURRENT SANITIZED SOURCE AVAILABLE
+#873_BLOCKED_BY_816 = NO
+
+REPOSITORY_DDEV_IMPLEMENTATION = COMPLETE
+SYNTHETIC_PROOF = COMPLETE
+
+REAL_SEED_GENERATION = PENDING
+REAL_STORAGE = PENDING
+REAL_DISTRIBUTION = PENDING
+REAL_DDEV_PULL = PENDING
+```
+
+#956 materializes the repository publisher, fixed storage contract and restricted read-only distribution path. Until the first post-merge #956 execution reaches the complete real proof, those four `REAL_*` states remain `PENDING`.
+
+## Boundary and target flow
+
+```text
+CURRENT SANITIZED PREPROD runtime DB
+-> fixed read-only PREPROD logical dump
+-> trusted self-hosted Agency/DDEV generation surface
+-> isolated temporary DDEV database
 -> Drush sql:sanitize
 -> existing #914 Agency sanitizer
--> thin development sanitizer
--> immutable database.sql.gz + seed.json + SHA-256
--> controlled SSH/SCP read-only storage
--> DDEV provider agency
+-> agency-development-seed-v1 sanitizer/assertions
+-> database.sql.gz
+-> seed.json + SHA-256
+-> fixed PREPROD-host seed storage
+-> restricted read-only SCP identity
 -> ddev pull agency
--> DDEV snapshot of current local DB
--> native DDEV import
--> drush updb / cim / cr
--> local-only administrator + side-effect assertions
+-> DDEV native import/snapshot recovery
+-> updb / cim / cr
+-> local-only admin + local side-effect assertions
 ```
 
-There is no reverse path. `.ddev/providers/agency.yaml` contains no database or
-files push stanza.
-
-## Current execution boundary
-
-#816 is not yet terminally proven with a real refresh, so #873 does **not**
-perform or authorize a real PREPROD dump, real PREPROD data read, seed
-publication, or distribution. The repository materializes the future contract
-and proves it only with synthetic/local data.
+Permanent boundaries:
 
 ```text
-PROD access                     = NONE
-real PREPROD data read          = NONE
-real Development Seed generated = NONE
-real Development Seed published = NONE
-real storage/account provisioned = NONE
+PROD_ACCESS = NONE
+PROD_CREDENTIALS = NONE
+SOURCE = CURRENT SANITIZED PREPROD ONLY
+PREPROD_RUNTIME_DB_WRITE = NONE
+PREPROD_RUNTIME_SETTINGS_MUTATION = NONE
+RAW_PREPROD_ON_GITHUB_HOSTED = NONE
+UNSANITIZED_PREPROD_COPY_DISTRIBUTED = NONE
+DB_AS_GITHUB_ARTIFACT = NONE
+PII_IN_LOGS = NONE
+SECRETS_IN_SEED = NONE
+PUBLIC_FILES_V1 = NONE
+PRIVATE_FILES = NONE
+DDEV_PUSH = NONE
 ```
 
-A future real publisher must be separately authorized after #816 establishes
-the safe source boundary.
+All destructive sanitization occurs in the isolated DDEV generation database. The live PREPROD Drupal runtime never points to that temporary database.
 
-## USE EXISTING FIRST
+## Source identity — current and JIT
 
-The implementation extends existing primitives rather than replacing them:
+`scripts/development-seed/remote-readonly-preprod-source.sh` is the fixed PREPROD source primitive. It accepts only `PROBE` or `STREAM` plus the exact expected source refresh and application release identities.
 
-- Drush 13.7.6 `sql:sanitize` owns generic user/password/session sanitization;
-- `scripts/preproduction-refresh/governed-successor/agency-sanitize.php` owns the
-  existing Agency PREPROD-specific pass;
-- the development pass only removes additional distributable-development state;
-- DDEV 1.25.3 owns `pull`, database import and `snapshot` / `snapshot restore`;
-- standard Git ancestry owns the simple code/seed compatibility guard;
-- standard SSH/SCP is the selected distribution contract; no seed API/registry
-  or cloud platform is introduced.
+It resolves current data identity from the durable #914 `shared/refresh-jobs/*/result.env` terminal evidence:
 
-## Future seed generation recipe
+- a current unresolved `HUMAN_RECOVERY_REQUIRED` state fails closed;
+- a proven `ROLLED_BACK` result leaves the previous proven runtime source current;
+- the accepted source must resolve to `COMMITTED / SANITIZED_DATABASE_ACTIVE_AND_VALIDATED`.
 
-This recipe is **documentation of the bounded future generation surface**, not
-an authorization to execute it against PREPROD today. The source database must
-already be a separately authorized sanitized PREPROD-derived copy isolated from
-the PREPROD runtime.
+It independently binds the current `/var/www/agency-preprod/current` release to the existing full-SHA archive under `shared/artifacts/<candidate-sha>/...`. Both resolved identities must equal the #956 one-shot authority immediately before streaming.
 
-The sanitization order is mandatory:
+`STREAM` executes only fixed Drush bootstrap/read-only `sql:dump` against server-owned PREPROD settings. It accepts no caller SQL, DB name, result path or dump options.
 
-```bash
-drush sql:sanitize -y
-drush php:script scripts/preproduction-refresh/governed-successor/agency-sanitize.php
-drush php:script scripts/development-seed/agency-development-sanitize.php
-drush sql:dump --gzip --result-file=/protected/temp/database.sql.gz
-php scripts/development-seed/build-seed-metadata.php \
-  --database=/protected/temp/database.sql.gz \
-  --seed-id=agency-development-seed-v1-<immutable-id> \
-  --created-at=<UTC-RFC3339> \
-  --source-refresh=<preprod-refresh-identity> \
-  --source-release=<40-hex-application-release> \
-  --output=/protected/temp/seed.json
-```
+## Sanitization and seed identity
 
-The seed DB and metadata are immutable after publication. `database_sha256` is
-the authoritative byte identity. Metadata contains no DB values or PII.
+The existing layers remain authoritative:
 
-## Storage/distribution contract and provisioning gap
+1. Drush `sql:sanitize`, with non-persisted random password material and deterministic `example.invalid` mail;
+2. `scripts/preproduction-refresh/governed-successor/agency-sanitize.php`;
+3. `scripts/development-seed/agency-development-sanitize.php`;
+4. Development Seed assertions from `scripts/development-seed/sanitization-policy.json`.
 
-Prefer existing Agency/PREPROD server storage with a **dedicated seed-reader
-SSH identity** that can read only the sanitized seed directory. This identity is
-a distribution credential, not a PREPROD runtime credential. It must have no
-shell/database/runtime authority and no write route from DDEV.
-
-Expected storage shape:
+Only after those passes does the publisher create:
 
 ```text
-/srv/agency-development-seeds/
-  immutable/<seed-id>/database.sql.gz
-  immutable/<seed-id>/seed.json
+database.sql.gz
+seed.json
+```
+
+`build-seed-metadata.php` records the immutable seed identity, source PREPROD refresh identity, source PREPROD application release SHA, policy identity/version, byte size, SHA-256 and compatibility metadata. `verify-seed.php` must pass before publication.
+
+## Fixed storage
+
+Agency reuses the existing PREPROD project-owned `shared` root rather than introducing `/srv` provisioning or another system account:
+
+```text
+/var/www/agency-preprod/shared/development-seeds/
+  immutable/
+    <seed-id>/
+      database.sql.gz
+      seed.json
   current -> immutable/<seed-id>
+  .incoming/<request-id>/
+  read-only-scp.sh
 ```
 
-`current` is only a small storage pointer; the addressed seed remains immutable.
-If the pointer changes between the metadata and DB transfers, SHA-256
-verification fails closed.
+Contract:
 
-**Provisioning is intentionally absent in #873.** No seed-reader account/key,
-real directory or external infrastructure is created until separately
-authorized. A sanitized DB must never be committed, placed in a public GitHub
-release, or uploaded as a normal GitHub Actions artifact.
+```text
+SEED_DIRECTORY = FIXED / NOT CALLER-CONTROLLED
+IMMUTABLE_SEED_ID_REUSE = FORBIDDEN
+CURRENT_POINTER_SWITCH = AFTER DATABASE + METADATA + READER VERIFICATION ONLY
+INCOMING_TEMP = CLEANED / ABSENCE REQUIRED
+```
 
-## First use
+`remote-storage.sh` refuses an already published seed identity, validates the database SHA-256 and metadata before moving the two-file payload to `immutable/<seed-id>`, then switches `current` atomically. It never touches the PREPROD runtime DB or Drupal settings.
+
+## Restricted reader identity
+
+The smallest safe reader uses the existing `agency-preprod` Unix account with a **distinct dedicated SSH key**, not the deployment key.
+
+The reader public key is installed as an `authorized_keys` line using:
+
+```text
+restrict
++ forced command /var/www/agency-preprod/shared/development-seeds/read-only-scp.sh
+```
+
+The forced command accepts only legacy SCP server read mode for exactly:
+
+```text
+.../development-seeds/current/seed.json
+.../development-seeds/current/database.sql.gz
+```
+
+It rejects upload mode, general shell and all other paths. `restrict` disables PTY and forwarding capabilities. The first automated #956 proof uses an ephemeral reader key and removes it terminally. A future human developer may supply a developer-generated public key through a small controlled onboarding operation; no key-registration service is implied.
+
+## Operational publication route
+
+The single existing top-level dispatcher remains authoritative. #956 adds one exact route to `.github/workflows/agency-command-dispatch.yml`, calling `.github/workflows/development-seed-publish.yml`.
+
+Phase-B command shape:
+
+```text
+/agency-development-seed publish \
+  seed-956-<fresh-suffix>-r1 \
+  <exact-live-main> \
+  <current-preprod-refresh-id> \
+  <current-preprod-release-sha>
+```
+
+The route is bound to #956 and owner `E-merging-digital`, requires `run_attempt=1`, an exact unique request ID, exact live main and exact source identities. The same authority is revalidated on the trusted self-hosted runner **before** the PREPROD SSH key is materialized. Duplicate request IDs, reruns and stale main/source identities fail closed.
+
+No PLAN ceremony and no generic authority framework are introduced.
+
+## Generation and terminal cleanup
+
+The real publisher runs only on the registered trusted Agency DDEV surface:
+
+```text
+self-hosted, linux, x64, agency, ddev
+```
+
+The raw sanitized-PREPROD dump exists only in `RUNNER_TEMP` on that trusted runner until DDEV native import succeeds, then is deleted immediately. The isolated generation DDEV environment is deleted before the distribution proof.
+
+Every terminal path attempts and proves cleanup of all temporary material it may have created:
+
+```text
+RAW_PREPROD_TEMP_DUMP
+TEMP_DDEV_GENERATION_DB
+TEMP_DDEV_PROOF_DB
+TEMP_WORKTREES
+TEMP_INCOMING_STORAGE
+TEMP_READER_IDENTITY
+TEMP_SSH_KEYS / KNOWN_HOSTS / AGENT
+```
+
+Unproven cleanup fails the publication job. No recovery registry/state machine is added.
+
+## Developer UX
+
+The normal consumer command remains:
 
 ```bash
-git clone <repository>
-cd agency-website-drupal
-ddev start
+ddev pull agency
 ```
 
-Configure the future read-only seed location in the gitignored
-`.ddev/config.local.yaml`, for example:
+Local setup requires only the dedicated restricted reader target, for example in an ignored `.ddev/config.local.yaml`:
 
 ```yaml
 web_environment:
-  - AGENCY_SEED_SSH_TARGET=agency-seed-reader@seed-host.example
-  - AGENCY_SEED_REMOTE_DIR=/srv/agency-development-seeds
+  - AGENCY_SEED_SSH_TARGET=agency-preprod@preprod.example.invalid
 ```
 
-Load the dedicated read-only SSH key into the host agent, then expose the agent
-to DDEV using the native command:
+The private key stays local and is exposed to DDEV through standard `ddev auth ssh`. `.ddev/providers/agency.yaml` pins the existing repository PREPROD host key, uses the fixed remote seed root and downloads only `seed.json` plus `database.sql.gz` using standard OpenSSH SCP read mode.
 
-```bash
-ddev auth ssh
-ddev restart
-ddev pull agency
-```
+There is no `AGENCY_SEED_REMOTE_DIR` setting and no push stanza.
 
-Do not place the SSH private key in Git or in provider YAML.
+## DDEV import, convergence and rollback
 
-After a successful pull, the non-sensitive consumed seed metadata is recorded in
-`.ddev/.state-agency-seed.json` (already covered by the repository's `.state*`
-ignore rule). Obtain a local one-time login without transporting a password in
-the seed:
-
-```bash
-ddev drush uli --name=agency-local-admin
-```
-
-## Routine refresh
-
-When the authorized storage pointer moves to a newer compatible immutable seed:
-
-```bash
-ddev pull agency
-```
-
-DDEV snapshots the current local database before import. The pulled bytes are
-verified before DDEV's native import. Normal Drupal convergence then runs:
-`updb`, `cim`, `cr`, local admin recreation and side-effect assertions.
-
-## Compatibility
+The #873 consumer remains native:
 
 ```text
-seed release == checkout release
-  -> supported
-
-seed release is an ancestor of checkout
-  -> supported; normal updb/cim handles forward convergence
-
-feature branch descended from seed release
-  -> supported through the same deterministic convergence
-
-checkout older than seed release
-  -> FAIL CLOSED
-divergent/unknown seed history
-  -> FAIL CLOSED
+pre-pull -> ddev snapshot
+pull -> verify seed metadata/SHA + compatibility
+DDEV native DB import
+post-pull -> drush updb -y
+             drush cim -y
+             drush cr
+             local-converge.php
+             drush cr
 ```
 
-There is no downgrade engine. If local Git history does not contain the seed
-source release, fetch the required history and retry rather than bypassing the
-guard.
+`local-converge.php` requires:
 
-## Recovery
+- production Config Split OFF;
+- PREPROD Config Split OFF;
+- analytics OFF;
+- provider/AI egress OFF;
+- secret-free local mail baseline;
+- sessions/Webform/log/queue state empty;
+- local-only `agency-local-admin` creation after import.
 
-No custom recovery engine exists. Use the standard DDEV snapshot created just
-before pull:
+If import/convergence fails, recovery is DDEV-native:
 
 ```bash
 ddev snapshot list
-ddev snapshot restore <agency-before-pull-...>
+ddev snapshot restore <snapshot-name>
 ```
 
-or, when the immediately previous snapshot is the intended recovery point:
+No Agency database rollback engine exists.
 
-```bash
-ddev snapshot restore --latest
-```
+## Compatibility
 
-If convergence failed, restore the snapshot, fix the code/compatibility problem,
-and rerun `ddev pull agency`.
-
-## Local safety after import
-
-The local convergence script fails closed unless all of these hold:
-
-- DDEV is the active environment;
-- production and PREPROD Config Splits are OFF;
-- Analytics container is OFF;
-- external AI/provider egress is OFF by default;
-- mail remains the secret-free native DDEV/Mailpit baseline;
-- sessions, Webform submissions, flood state, watchdog and queues are empty;
-- `agency-local-admin` is recreated locally with random authentication material.
-
-The seed never carries the local administrator password/account state.
-
-## Reproduce a bug
-
-Record only non-sensitive identity:
+`verify-seed.php` preserves the #873 Git ancestry rule:
 
 ```text
-CODE_SHA=<git rev-parse HEAD>
-SEED_ID=<seed_id from .ddev/.state-agency-seed.json>
-SEED_SOURCE_PREPROD_REFRESH=<source_preprod_refresh_identity>
-SANITIZATION_POLICY=agency-development-seed-v1:1
-DDEV_VERSION=1.25.3
-DATABASE=mariadb:11.8
-DRUSH_VERSION=13.7.6
+checkout == seed release          -> allowed
+seed release ancestor of checkout -> allowed
+checkout older/diverged           -> fail closed
 ```
 
-Another human or agent can consume the same immutable seed in an independent
-DDEV project/worktree. No shared mutable DB and no PROD access are required.
+The immutable seed identity remains unchanged even when a newer branch applies its own `updb`/`cim` locally.
 
-## Files
+## Phase A vs first real proof
 
-Development Seed v1 contains **database only**.
+Repository implementation and synthetic/static validation do **not** constitute real seed operation.
+
+Before Project Lead authorizes Phase B on #956:
 
 ```text
-PUBLIC_FILES = NONE
-PRIVATE_FILES = NEVER
+PREPROD_ACCESS = NONE
+REAL_PREPROD_DB_READ = NONE
+REAL_STORAGE_PROVISIONING = NONE
+REAL_SEED_GENERATION = NONE
+REAL_DISTRIBUTION = NONE
+REAL_DDEV_PULL = NONE
 ```
 
-Public-file fidelity, if later required, belongs to a separate issue and should
-first evaluate Stage File Proxy or another existing primitive.
+The first real proof must establish all of:
 
-## Synthetic proof
-
-Run locally or in canonical CI:
-
-```bash
-php scripts/development-seed/test-contract.php
+```text
+SOURCE_PREPROD_REFRESH_ID = CURRENT / PROVEN
+SOURCE_PREPROD_RELEASE_SHA = CURRENT / PROVEN
+PREPROD_RUNTIME_DB_WRITE = NONE
+DEVELOPMENT_SANITIZATION = PASS
+SEED_ID = IMMUTABLE
+DATABASE_SHA256 = VERIFIED
+SEED_STORAGE = PUBLISHED
+CURRENT_POINTER = VERIFIED
+READ_ONLY_DISTRIBUTION = PROVEN
+DDEV_PULL_AGENCY = REAL SUCCESS
+LOCAL_SIDE_EFFECT_ASSERTIONS = PASS
+TEMPORARY_GENERATION_MATERIAL = ABSENT
 ```
 
-The proof uses a generated synthetic SQL gzip and a temporary Git repository. It
-also reruns the existing #816 synthetic sanitization fixture. It proves metadata
-reproducibility, SHA-256 refusal on corruption, fail-closed downgrade handling,
-pull-only provider topology and local side-effect contract without network,
-PROD/PREPROD credentials or real data.
+Only after that evidence exists may the capability be documented as real/operational and #871 terminally close.
+
+## Authoritative files
+
+- `.ddev/providers/agency.yaml`
+- `.ddev/config.development-seed.yaml`
+- `.github/workflows/agency-command-dispatch.yml`
+- `.github/workflows/development-seed-publish.yml`
+- `scripts/development-seed/validate-publish-authority.py`
+- `scripts/development-seed/remote-readonly-preprod-source.sh`
+- `scripts/development-seed/run-publish.sh`
+- `scripts/development-seed/remote-storage.sh`
+- `scripts/development-seed/remote-reader-key.sh`
+- `scripts/development-seed/remote-read-only-scp.sh`
+- `scripts/development-seed/sanitization-policy.json`
+- `scripts/development-seed/agency-development-sanitize.php`
+- `scripts/development-seed/build-seed-metadata.php`
+- `scripts/development-seed/verify-seed.php`
+- `scripts/development-seed/post-pull.sh`
+- `scripts/development-seed/local-converge.php`
+
+No command in this document grants execution authority. Reload live main, #956 and current PREPROD source identities before any real publication.

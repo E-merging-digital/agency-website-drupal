@@ -48,7 +48,7 @@ settings_target="$(ssh "${ssh_common[@]}" "$remote_target" \
 [[ "$settings_target" == "$EXPECTED_SETTINGS" ]]
 
 settings_sha256="$(ssh "${ssh_common[@]}" "$remote_target" \
-  "set -euo pipefail; sha256sum '$EXPECTED_SETTINGS' | awk '{print \\$1}'")"
+  "set -euo pipefail; sha256sum '$EXPECTED_SETTINGS' | awk '{print \$1}'")"
 [[ "$settings_sha256" =~ ^[0-9a-f]{64}$ ]]
 
 bootstrap_raw=''

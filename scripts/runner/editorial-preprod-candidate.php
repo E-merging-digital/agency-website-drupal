@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Session\AccountSwitcherInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\node\NodeInterface;
 use Drupal\taxonomy\TermInterface;
+use Drupal\user\UserInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -30,6 +32,7 @@ final class AgencyEditorialPreprodCandidate {
     private readonly AgencyEditorialPublication $publisher,
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly StateInterface $state,
+    private readonly AccountSwitcherInterface $accountSwitcher,
   ) {}
 
   public static function fromContainer(ContainerInterface $container): self {
@@ -37,6 +40,7 @@ final class AgencyEditorialPreprodCandidate {
       AgencyEditorialPublication::fromContainer($container),
       $container->get('entity_type.manager'),
       $container->get('state'),
+      $container->get('account_switcher'),
     );
   }
 
@@ -119,67 +123,75 @@ final class AgencyEditorialPreprodCandidate {
     $mappedId = (int) $dryRun['node']['id'];
     $node = $this->loadMappedArticle($mappedId);
     $category = $this->resolveCategory($payload['category']);
+    $author = $this->loadAuthor();
+    $this->accountSwitcher->switchTo($author);
 
-    $node->setTitle($payload['fr']['title']);
-    $node->set('field_short_description', [[
-      'value' => $payload['fr']['short_description'],
-      'format' => self::TEXT_FORMAT,
-    ]]);
-    $node->set('body', [[
-      'value' => $payload['fr']['body_html'],
-      'format' => self::TEXT_FORMAT,
-    ]]);
-    $node->set('field_blog_category', [['target_id' => (int) $category->id()]]);
-    $node->set('status', $payload['published']);
-
-    if ($node->hasTranslation(self::TRANSLATION_LANGCODE)) {
-      $translation = $node->getTranslation(self::TRANSLATION_LANGCODE);
-      $translation->setTitle($payload['en']['title']);
-      $translation->set('field_short_description', [[
-        'value' => $payload['en']['short_description'],
+    try {
+      $node->setTitle($payload['fr']['title']);
+      $node->set('field_short_description', [[
+        'value' => $payload['fr']['short_description'],
         'format' => self::TEXT_FORMAT,
       ]]);
-      $translation->set('body', [[
-        'value' => $payload['en']['body_html'],
+      $node->set('body', [[
+        'value' => $payload['fr']['body_html'],
         'format' => self::TEXT_FORMAT,
       ]]);
-      $translation->set('field_blog_category', [['target_id' => (int) $category->id()]]);
-      $translation->set('status', $payload['published']);
-    }
-    else {
-      $node->addTranslation(self::TRANSLATION_LANGCODE, [
-        'title' => $payload['en']['title'],
-        'field_short_description' => [[
+      $node->set('field_blog_category', [['target_id' => (int) $category->id()]]);
+      $node->set('status', $payload['published']);
+
+      if ($node->hasTranslation(self::TRANSLATION_LANGCODE)) {
+        $translation = $node->getTranslation(self::TRANSLATION_LANGCODE);
+        $translation->setTitle($payload['en']['title']);
+        $translation->set('field_short_description', [[
           'value' => $payload['en']['short_description'],
           'format' => self::TEXT_FORMAT,
-        ]],
-        'body' => [[
+        ]]);
+        $translation->set('body', [[
           'value' => $payload['en']['body_html'],
           'format' => self::TEXT_FORMAT,
-        ]],
-        'field_blog_category' => [['target_id' => (int) $category->id()]],
-        'status' => $payload['published'],
-      ]);
-    }
-
-    $node->setNewRevision(TRUE);
-    $node->setRevisionLogMessage(sprintf(
-      'Agency PREPROD editorial candidate issue #%d payload %s',
-      $issueNumber,
-      $payloadSha,
-    ));
-    $node->setRevisionUserId(self::AUTHOR_UID);
-
-    $violations = $node->validate();
-    if ($violations->count() > 0) {
-      $messages = [];
-      foreach ($violations as $violation) {
-        $messages[] = $violation->getPropertyPath() . ': ' . $violation->getMessage();
+        ]]);
+        $translation->set('field_blog_category', [['target_id' => (int) $category->id()]]);
+        $translation->set('status', $payload['published']);
       }
-      throw new RuntimeException('PREPROD Article validation failed: ' . implode(' | ', $messages));
+      else {
+        $node->addTranslation(self::TRANSLATION_LANGCODE, [
+          'title' => $payload['en']['title'],
+          'field_short_description' => [[
+            'value' => $payload['en']['short_description'],
+            'format' => self::TEXT_FORMAT,
+          ]],
+          'body' => [[
+            'value' => $payload['en']['body_html'],
+            'format' => self::TEXT_FORMAT,
+          ]],
+          'field_blog_category' => [['target_id' => (int) $category->id()]],
+          'status' => $payload['published'],
+        ]);
+      }
+
+      $node->setNewRevision(TRUE);
+      $node->setRevisionLogMessage(sprintf(
+        'Agency PREPROD editorial candidate issue #%d payload %s',
+        $issueNumber,
+        $payloadSha,
+      ));
+      $node->setRevisionUserId(self::AUTHOR_UID);
+
+      $violations = $node->validate();
+      if ($violations->count() > 0) {
+        $messages = [];
+        foreach ($violations as $violation) {
+          $messages[] = $violation->getPropertyPath() . ': ' . $violation->getMessage();
+        }
+        throw new RuntimeException('PREPROD Article validation failed: ' . implode(' | ', $messages));
+      }
+
+      $node->save();
+    }
+    finally {
+      $this->accountSwitcher->switchBack();
     }
 
-    $node->save();
     $this->state->set(self::STATE_PREFIX . $issueNumber, [
       'node_id' => (int) $node->id(),
       'payload_sha256' => $payloadSha,
@@ -207,6 +219,14 @@ final class AgencyEditorialPreprodCandidate {
 
   private function candidateId(int $issueNumber): string {
     return 'agency-article-' . $issueNumber;
+  }
+
+  private function loadAuthor(): UserInterface {
+    $author = $this->entityTypeManager->getStorage('user')->load(self::AUTHOR_UID);
+    if (!$author instanceof UserInterface || !$author->isActive()) {
+      throw new RuntimeException('Required Drupal author uid=1 is unavailable.');
+    }
+    return $author;
   }
 
   private function loadMappedArticle(int $nodeId): NodeInterface {

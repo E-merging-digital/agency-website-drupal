@@ -17,6 +17,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
 
   private const WORKFLOW = '.github/workflows/trusted-editorial-preprod-candidate.yml';
 
+  /**
+   * Proves the workflow stays reusable behind the single dispatcher.
+   */
   public function testWorkflowIsReusableAndNeverOwnsIssueCommentListener(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root . '/' . self::WORKFLOW;
@@ -35,6 +38,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringNotContainsString('workflow_dispatch:', $source);
   }
 
+  /**
+   * Proves the PREPROD route reuses the exact #576 payload contract.
+   */
   public function testExisting576PayloadContractIsReusedExactly(): void {
     $source = $this->source(self::WORKFLOW);
     foreach ([
@@ -54,6 +60,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringContainsString('same payload hash, comment revision and live main', $source);
   }
 
+  /**
+   * Proves PREPROD execution cannot receive production execution inputs.
+   */
   public function testPreprodRouteHasNoProductionExecutionInput(): void {
     $workflow = $this->source(self::WORKFLOW);
     $runner = $this->source('scripts/runner/run-editorial-preprod-candidate.sh');
@@ -75,6 +84,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringNotContainsString('emerging:governed-content', $combined);
   }
 
+  /**
+   * Proves only bounded metadata evidence is uploaded by the workflow.
+   */
   public function testOnlyMetadataEvidenceIsUploaded(): void {
     $source = $this->source(self::WORKFLOW);
     self::assertStringContainsString(
@@ -82,10 +94,19 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString('prod_write: `NONE`', $source);
-    self::assertStringContainsString('GITHUB_ISSUE_COMMENT', $this->source('scripts/runner/editorial-preprod-candidate.php'));
-    self::assertStringNotContainsString('agency-editorial-payload.json\n          if-no-files-found', $source);
+    self::assertStringContainsString(
+      'GITHUB_ISSUE_COMMENT',
+      $this->source('scripts/runner/editorial-preprod-candidate.php'),
+    );
+    self::assertStringNotContainsString(
+      'agency-editorial-payload.json\n          if-no-files-found',
+      $source,
+    );
   }
 
+  /**
+   * Proves the runner syntax and helper remain Article-specific.
+   */
   public function testRunnerSyntaxAndArticleSpecificHelper(): void {
     $root = dirname(DRUPAL_ROOT);
     $shell = $root . '/scripts/runner/run-editorial-preprod-candidate.sh';
@@ -116,6 +137,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringNotContainsString('entity_type', $source);
   }
 
+  /**
+   * Returns one repository file as source text.
+   */
   private function source(string $relative): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relative);
   }

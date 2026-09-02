@@ -4,7 +4,7 @@ Status: **AUTHORITATIVE CURRENT CAPABILITY REGISTRY**
 Repository: `E-merging-digital/agency-website-drupal`
 Registry owner: #421
 Current lifecycle index: `docs/operations/agency-environment-data-lifecycle.md`
-Last materialized: 2026-09-01
+Last materialized: 2026-09-02
 
 ## 1. Purpose and interpretation
 
@@ -42,10 +42,11 @@ Current reusable capabilities are exactly five:
 | Production scheduler change | scheduler governance | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD | Bounded scheduler transition. |
 | Governed Article publication | #576 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD Drupal | Bounded Article Entity API mutation. |
 | Governed Article feature image | #584 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD Drupal | Bounded existing Article image mutation. |
-| PROD -> PREPROD sanitized DB refresh | #914 / #816 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `EXECUTABLE` | PLAN hosted; temporary #938 APPLY hosted control -> direct PROD/PREPROD server route | Raw never on GitHub-hosted; PREPROD receives only sanitized SQL for activation. |
+| PROD -> PREPROD sanitized DB refresh | #914 / completed #816 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `REAL_EXECUTION_PROVEN` | PLAN hosted; APPLY hosted control -> direct PROD/PREPROD server route | Raw never on GitHub-hosted; PREPROD activation receives sanitized SQL only. |
 | GitHub-hosted metadata-only PLAN | #927 / real proof #937 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted `ubuntu-24.04` | `PLAN_RESULT=PASS`; no DB content/snapshot/transfer/mutation. |
-| Trusted self-hosted Agency executor | runner capability | `PROVISIONED` / currently unavailable | `self-hosted`, `linux`, `x64`, `agency` | Authorized raw-data alternative under policy; not current #938 APPLY executor. |
-| Development Seed -> DDEV pull-only | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Local/trusted DDEV consumer | Pull-only; real source pending #816. |
+| Controlled server-to-server APPLY | #914 / terminal proof #953 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PREPROD worker -> direct read-only PROD stream | `COMMITTED`; raw PROD route direct to isolated PREPROD staging; sanitized-only activation. |
+| Trusted self-hosted Agency executor | runner capability | `PROVISIONED` | `self-hosted`, `linux`, `x64`, `agency` | Authorized raw-data alternative under policy; availability is a live fact. |
+| Development Seed -> DDEV pull-only | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Local/trusted DDEV consumer | Pull-only; #816 blocker removed; real seed service still pending. |
 | Editorial Candidate | #872 | `DESIGN_ONLY` | None | Not implemented. |
 
 ## 4. Self-hosted Agency executor
@@ -56,19 +57,19 @@ Agency has a registered runner capability with labels:
 self-hosted, linux, x64, agency, ddev, browser
 ```
 
-Registration/provisioning is durable; availability is dynamic. The executor is currently unavailable for #938. That does not authorize raw PROD data on GitHub-hosted.
+Registration/provisioning is durable; availability is dynamic. A conversation must reload live state before relying on current runner availability. The registered alternative does not authorize raw PROD data on GitHub-hosted infrastructure.
 
-Current #914/#938 split:
+Current #914 split:
 
 ```text
 validate-authority = GitHub-hosted ubuntu-24.04
-PLAN               = GitHub-hosted ubuntu-24.04 / CURRENT
-APPLY control plane= GitHub-hosted ubuntu-24.04 / TEMPORARY CURRENT
+PLAN               = GitHub-hosted ubuntu-24.04 / REAL_EXECUTION_PROVEN
+APPLY control plane= GitHub-hosted ubuntu-24.04 / REAL_EXECUTION_PROVEN
 APPLY raw route    = CONTROLLED_SERVER_TO_SERVER / PROD -> PREPROD DIRECT
-self-hosted runner = AUTHORIZED ALTERNATIVE / CURRENTLY UNAVAILABLE
+self-hosted runner = AUTHORIZED ALTERNATIVE
 ```
 
-The temporary #938 path is intentionally retireable when the trusted runner is available again. It is not a permanent multi-provider architecture.
+This remains `EXTEND_EXISTING`, not a permanent multi-provider architecture.
 
 ## 5. Browser, DDEV and developer execution
 
@@ -83,22 +84,29 @@ The temporary #938 path is intentionally retireable when the trusted runner is a
 
 A conversation without direct MCP transport must not conclude that the registered project capability does not exist.
 
-## 6. Governed PROD -> PREPROD refresh (#914 / #816 / temporary #938)
+## 6. Governed PROD -> PREPROD refresh (#914 / completed #816)
 
 ```text
 DECISION = EXTEND_EXISTING
-CURRENT_IMPLEMENTATION = #914 + temporary #938 execution-path adaptation
-PARENT = #816
-REAL_PLAN = PASS / #937
-REAL_END_TO_END_REFRESH = EXECUTION_PENDING
-REAL_APPLY = PENDING
+CURRENT_IMPLEMENTATION = #914 governed successor + controlled server-to-server APPLY
+PARENT_PROGRAM_816 = CLOSED / COMPLETED
+REAL_PLAN = PASS
+REAL_END_TO_END_REFRESH = REAL_EXECUTION_PROVEN
+REAL_APPLY = COMMITTED / #953
+PREPROD_RUNTIME = SANITIZED_DATABASE_ACTIVE_AND_VALIDATED
+PROD_ACCESS = READ_ONLY_REQUEST_SCOPED_TRANSIENT
+PROD_WRITE = NONE
+RAW_PROD_ON_GITHUB_HOSTED = NONE
+RAW_PROD_ROUTE = PROD_TO_PREPROD_DIRECT
+SANITIZED_ONLY_ACTIVATION = PASS
+HUMAN_RECOVERY_REQUIRED = NO
 ```
 
 ### Current PLAN
 
 Authority validation and PLAN run on GitHub-hosted `ubuntu-24.04`. JIT revalidates live main, exact authority and hosted runner environment before transient SSH identities are materialized.
 
-#937 terminal real PLAN evidence is:
+The real PLAN contract remains:
 
 ```text
 PLAN_RESULT = PASS
@@ -111,7 +119,7 @@ DATA_ACTIVATION_AUTHORITY = DISABLED
 APPLY = SKIPPED
 ```
 
-### Temporary current APPLY
+### Current controlled APPLY
 
 The GitHub-hosted APPLY job is only a control plane. It stages fixed scripts/identities to PREPROD after JIT and launches a detached request-scoped PREPROD worker. Raw PROD bytes never transit or materialize on GitHub-hosted infrastructure.
 
@@ -128,9 +136,23 @@ GitHub-hosted control plane
 -> PROD identity/root-stage cleanup + absence proof
 -> existing #914 remote-apply-worker.sh
 -> backup / maintenance / activation / rollback
+-> validation
+-> COMMITTED or fail-closed terminal outcome
 ```
 
-Pre-activation cleanup is fail-closed:
+Terminal #953 proves the happy path reaches:
+
+```text
+PREPROD_WORKER_OUTCOME = COMMITTED
+PREPROD_WORKER_DETAIL = SANITIZED_DATABASE_ACTIVE_AND_VALIDATED
+RAW_PROD_ON_GITHUB_HOSTED = NONE
+RAW_PROD_ROUTE = PROD_TO_PREPROD_DIRECT
+PROD_WRITE = NONE
+PROD_READ_IDENTITY = READ_ONLY_REQUEST_SCOPED_TRANSIENT
+SANITIZED_ONLY_ACTIVATION = PASS
+```
+
+Pre-activation cleanup remains fail-closed:
 
 ```text
 RAW staging absence unproven
@@ -174,15 +196,19 @@ Primary sources:
 ## 7. Development Seed -> DDEV pull-only (#873)
 
 ```text
+#873_BLOCKED_BY_816 = NO
 REPOSITORY_DDEV_IMPLEMENTATION = COMPLETE
 SYNTHETIC_PROOF = COMPLETE
-REAL_PREPROD_SEED_GENERATION = PENDING #816
+DDEV_PROVIDER = .ddev/providers/agency.yaml
+LOCAL_UX = ddev pull agency
+PULL_ONLY = YES
+REAL_PREPROD_SEED_GENERATION = PENDING
 REAL_STORAGE_PROVISIONING = PENDING
 REAL_SEED_DISTRIBUTION = PENDING
 DDEV_PUSH = NONE
 ```
 
-The DDEV provider is pull-only and does not imply a live seed service.
+The DDEV provider is pull-only and does not imply a live seed service. #816 removed the source-data blocker only; real generation, controlled storage and distribution require a successor proof before the service is operational.
 
 ## 8. Reload rule
 

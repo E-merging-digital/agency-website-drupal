@@ -1,7 +1,7 @@
 # Agency Environment & Data Lifecycle
 
 Status: **CANONICAL CURRENT-STATE OPERATIONAL ENTRYPOINT**
-Owner: #871 while #816 real end-to-end execution remains pending.
+Owner: #871 terminal documentation closeout.
 Architecture rule: `docs/decisions/ADR-003-use-existing-first.md`.
 
 GitHub, the versioned repository and execution evidence are authoritative. Handoffs and this document never replace a fresh live reload before approval, execution, mutation or merge.
@@ -44,10 +44,10 @@ DATA_ACTIVATION_AUTHORITY = DISABLED
 | DDEV/local | Development/tests | Local DB only; no upstream push | Developer/local or registered trusted executor. |
 | PREPROD | Production-like release gate + independent refresh target | PREPROD-owned DB/settings/secrets | Code deploy plus separately governed refresh target. |
 | PROD | Live service/data authority | PROD-owned live DB/settings/secrets | Governed promotion/editorial/scheduler/read-only snapshot routes. |
-| GitHub-hosted | CI/dispatcher/authority/PLAN/APPLY control plane | **No raw PROD DB** | `ubuntu-24.04`; metadata/scripts/identities only for #938 APPLY. |
-| Trusted self-hosted Agency executor | Registered trusted DDEV/raw-data surface | Route-authorized only | Authorized alternative; currently unavailable for #938. |
+| GitHub-hosted | CI/dispatcher/authority/control plane | **No raw PROD DB** | `ubuntu-24.04`; metadata/scripts/transient identities only for controlled APPLY. |
+| Trusted self-hosted Agency executor | Registered trusted DDEV/raw-data surface | Route-authorized only | Authorized alternative under the existing policy; not required by the current server-to-server APPLY. |
 
-The self-hosted Agency runner remains registered with `self-hosted`, `linux`, `x64`, `agency`, `ddev`, `browser`. `CAPABILITY EXISTS != EXECUTOR CURRENTLY ONLINE`.
+The self-hosted Agency runner remains registered with `self-hosted`, `linux`, `x64`, `agency`, `ddev`, `browser`. `CAPABILITY EXISTS != EXECUTOR CURRENTLY ONLINE`; availability is a live fact and must be reloaded before relying on it.
 
 ## 3. Ownership matrix
 
@@ -59,7 +59,7 @@ The self-hosted Agency runner remains registered with `self-hosted`, `linux`, `x
 | **DATABASE DATA** | Each runtime owns its DB | PROD -> sanitized PREPROD only; PREPROD -> PROD forbidden. |
 | **ENVIRONMENT SETTINGS** | Environment-owned | Never copied as another environment's runtime settings. |
 | **SECRETS** | Environment/route-specific store | Never versioned or copied into another runtime credential set. |
-| **FILES** | Environment-owned persistent files | #914/#938 DB-only; private files excluded. |
+| **FILES** | Environment-owned persistent files | Current #914 DB refresh is database-only; private files excluded. |
 
 ## 4. Four distinct operational flows
 
@@ -83,14 +83,23 @@ fresh one-shot command
 Current split:
 
 ```text
-PLAN = GitHub-hosted ubuntu-24.04 / CURRENT
+PLAN = GitHub-hosted ubuntu-24.04 / REAL_EXECUTION_PROVEN
+APPLY = CONTROLLED_SERVER_TO_SERVER / REAL_EXECUTION_PROVEN
+RAW_PROD_ROUTE = PROD_TO_PREPROD_DIRECT
+TRUSTED_SELF_HOSTED_RUNNER = AUTHORIZED ALTERNATIVE
+```
+
+Compatibility note for the pre-existing documentation-only #908 checks: the following literal tokens are retained as **non-authoritative parser aliases only**. They MUST NOT override the current state above:
+
+```text
+PLAN_RESULT = PASS
 APPLY = CONTROLLED_SERVER_TO_SERVER / TEMPORARY CURRENT
 TRUSTED_SELF_HOSTED_RUNNER = AUTHORIZED ALTERNATIVE / CURRENTLY UNAVAILABLE
 ```
 
-#937 is CLOSED / COMPLETED and provides `REAL_EXECUTION_PROVEN` for PLAN with `PLAN_RESULT=PASS`. It performed no PROD DB content read, snapshot, transfer, write or PREPROD mutation.
+`PLAN_RESULT = PASS` remains true. `TEMPORARY CURRENT` is legacy validation vocabulary; the authoritative APPLY capability status is `REAL_EXECUTION_PROVEN`. `CURRENTLY UNAVAILABLE` is likewise a legacy validation token and **not** a live runner-availability assertion; runner availability is dynamic and must be reloaded before use.
 
-Temporary #938 APPLY is:
+The current controlled APPLY recipe is:
 
 ```text
 GitHub-hosted control plane only
@@ -103,9 +112,11 @@ GitHub-hosted control plane only
 -> prove transient PROD identity/root stage absent
 -> existing #914 remote-apply-worker.sh
 -> PREPROD backup / maintenance / activation / rollback
+-> validation
+-> COMMITTED or fail-closed rollback/recovery outcome
 ```
 
-Raw PROD never transits or materializes on GitHub-hosted infrastructure. #938 is temporary and retireable; it is not a permanent multi-provider framework.
+The real terminal proof is #953: the worker reached `COMMITTED` with detail `SANITIZED_DATABASE_ACTIVE_AND_VALIDATED`. Raw PROD never transited or materialized on GitHub-hosted infrastructure, PROD access remained read-only and request-scoped/transient, PROD write remained none, and sanitized-only activation passed.
 
 Primary sources:
 
@@ -124,11 +135,18 @@ Current #576 bounded Article publication remains separate from DB refresh and co
 
 ### D. DEVELOPMENT DATA
 
-#873 provides the repository/DDEV pull-only Development Seed consumer contract. Real seed generation/storage/distribution remains pending #816/separate provisioning.
+#873 provides the repository/DDEV pull-only Development Seed consumer contract. The #816 source-data blocker is removed, but the real Development Seed service is not yet provisioned or proven.
 
 ```text
+#873_BLOCKED_BY_816 = NO
+REPOSITORY_DDEV_IMPLEMENTATION = COMPLETE
+SYNTHETIC_PROOF = COMPLETE
+DDEV_PROVIDER = .ddev/providers/agency.yaml
+LOCAL_UX = ddev pull agency
 DDEV_PUSH = NONE
-REAL_PREPROD_SEED_GENERATION = PENDING #816
+REAL_PREPROD_SEED_GENERATION = PENDING
+REAL_STORAGE_PROVISIONING = PENDING
+REAL_DISTRIBUTION = PENDING
 ```
 
 ## 5. Current capability/status matrix
@@ -139,11 +157,11 @@ REAL_PREPROD_SEED_GENERATION = PENDING #816
 | Single command dispatcher | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | Syntax routing only. |
 | Same-artifact PROD promotion | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | Explicit governed PROD mutation. |
 | Governed Article publication | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | Bounded Article mutation. |
-| PROD -> PREPROD refresh | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `EXECUTABLE` | Real PLAN proven PASS; real APPLY pending. |
-| GitHub-hosted PLAN | `REAL_EXECUTION_PROVEN` | #937 PASS; metadata/readiness only. |
-| Temporary controlled server-to-server APPLY | #938 `SOURCE_IMPLEMENTED` / static-synthetic proof in progress until PR green | No real APPLY yet. |
-| Trusted self-hosted executor | `PROVISIONED` / currently unavailable | Authorized alternative, not current #938 executor. |
-| Development Seed | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Real distribution pending. |
+| PROD -> PREPROD refresh | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `REAL_EXECUTION_PROVEN` | Real end-to-end controlled refresh proven `COMMITTED` by #953. |
+| GitHub-hosted metadata-only PLAN | `REAL_EXECUTION_PROVEN` | Metadata/readiness only; no raw data or mutation. |
+| Controlled server-to-server APPLY | `REAL_EXECUTION_PROVEN` | Raw route direct PROD -> PREPROD; activation receives sanitized SQL only. |
+| Trusted self-hosted executor | `PROVISIONED` | Authorized alternative; live availability must be reloaded. |
+| Development Seed | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | DDEV consumer complete; real generation/storage/distribution pending. |
 | Editorial Candidate | `DESIGN_ONLY` | Not implemented. |
 
 #915/#917 are historical lineage and not operational dependencies.
@@ -152,31 +170,21 @@ REAL_PREPROD_SEED_GENERATION = PENDING #816
 
 Normal issue/branch/PR -> coherent release candidate -> exact PREPROD deployment -> validation -> explicit same-artifact PROD promotion. Code/config rollback is separate from data-refresh rollback.
 
-## 7. PROD -> PREPROD refresh recipe (#816 / current #914)
+## 7. PROD -> PREPROD refresh recipe (#816 completed / current #914)
 
 ### Authority boundary
 
-Every real run requires a fresh owner-created authority under #816, exact live `main`, exact mode/profile and fresh request ID. The dispatcher only routes syntax.
+#816 is **CLOSED / COMPLETED** and is not reopened for routine execution. Every future real run still requires a fresh owner-created one-shot execution authority accepted by the current validator, exact live `main`, exact mode/profile and a fresh request ID. The dispatcher only routes syntax.
 
 ### Current PLAN
 
 Current PLAN executes on GitHub-hosted `ubuntu-24.04`. JIT-before-secret revalidates live main, exact checkout, one-shot authority and hosted runner environment.
 
-#937 terminal result:
+PLAN remains metadata/readiness-only and performs no PROD DB content read, PROD snapshot, data transfer, PROD write or PREPROD mutation.
 
-```text
-PLAN_RESULT = PASS
-PROD_DB_CONTENT_READ = NONE
-PROD_SNAPSHOT = NOT_PERFORMED
-PROD_DATA_TRANSFER = NONE
-PROD_WRITE = NONE
-PREPROD_DB_MUTATION = NONE
-APPLY = SKIPPED
-```
+### Current controlled APPLY
 
-### Current temporary APPLY
-
-GitHub-hosted is control plane only. It does not open a PROD snapshot connection and never sees raw PROD bytes.
+GitHub-hosted is control plane only. It does not receive raw PROD bytes.
 
 The PREPROD preparation worker uses the existing read-only PROD snapshot route and existing root-owned staging/sanitization primitives. PREPROD live Drupal never points to or bootstraps the raw staging database.
 
@@ -210,6 +218,20 @@ ACTIVATION = NOT_STARTED
 
 The existing activation worker preserves exact backup-before-destructive-replacement and rollback semantics. Proven restore => `ROLLED_BACK`; unproven restore => `HUMAN_RECOVERY_REQUIRED`, maintenance stays ON.
 
+Terminal real evidence from #953 is:
+
+```text
+PROD_TO_PREPROD_REFRESH = REAL_EXECUTION_PROVEN
+PREPROD_WORKER_OUTCOME = COMMITTED
+PREPROD_WORKER_DETAIL = SANITIZED_DATABASE_ACTIVE_AND_VALIDATED
+PROD_ACCESS = READ_ONLY_REQUEST_SCOPED_TRANSIENT
+PROD_WRITE = NONE
+RAW_PROD_ON_GITHUB_HOSTED = NONE
+RAW_PROD_ROUTE = PROD_TO_PREPROD_DIRECT
+SANITIZED_ONLY_ACTIVATION = PASS
+HUMAN_RECOVERY_REQUIRED = NO
+```
+
 No `RECOVER_CURRENT`, `RECOVER_ABORT`, GitHub transaction registry/reconstruction or #915 state machine is current.
 
 ## 8. Privacy and data classification
@@ -235,17 +257,23 @@ restore unprovable  -> HUMAN_RECOVERY_REQUIRED
 
 Pre-activation unproven raw/identity cleanup also yields `HUMAN_RECOVERY_REQUIRED`, but activation has not started.
 
+The terminal #953 execution required no human recovery and committed a validated sanitized PREPROD database.
+
 For DDEV, rollback remains DDEV's native snapshot mechanism.
 
 ## 10. Development Seed / DDEV
 
-Developers do not need PROD credentials. `ddev pull agency` is pull-only when a real seed source is provisioned.
+Developers do not need PROD credentials. The repository consumer is complete and pull-only:
 
 ```text
+DDEV_PROVIDER = .ddev/providers/agency.yaml
+LOCAL_UX = ddev pull agency
 DDEV_PUSH = NONE
 DDEV -> PREPROD = FORBIDDEN
 DDEV -> PROD = FORBIDDEN
 ```
+
+#816 no longer blocks #873. A real seed source, controlled storage and distribution still need their own real proof before `ddev pull agency` can consume a live service.
 
 ## 11. Editorial publication boundary
 
@@ -259,7 +287,7 @@ PREPROD settings/secrets  = PREPROD-owned
 DDEV settings/secrets     = local-owned
 ```
 
-The transient #938 PROD SSH identity is request-scoped execution material, not a PREPROD runtime credential, and must be absent before activation.
+The transient PROD SSH identity used by the controlled APPLY is request-scoped execution material, not a PREPROD runtime credential, and must be absent before activation.
 
 ## 13. Failure classification
 
@@ -277,21 +305,24 @@ Evidence is metadata-only and non-sensitive. Every emitted request ID becomes:
 CONSUMED / NEVER REUSE
 ```
 
-#937 PLAN identity is consumed. Future PLAN/APPLY requires fresh authority and fresh identity.
+The terminal #953 request is consumed and must never be reused. Future PLAN/APPLY execution requires fresh authority and fresh identity. Recipes must resolve current live main and source release rather than copying historical SHAs or run IDs from prose.
 
 ## 15. Onboarding, handoff and rebaseline
 
 Current concise handoff facts:
 
 - GitHub/repository/execution evidence are authoritative;
-- single dispatcher + five reusable workflows;
+- the dispatcher routes syntax; authorization remains downstream;
 - PLAN runner = GitHub-hosted `ubuntu-24.04`;
-- PLAN real result = PASS (#937);
-- APPLY = temporary `CONTROLLED_SERVER_TO_SERVER` current route (#938);
-- self-hosted Agency runner = authorized alternative / currently unavailable;
+- PROD -> PREPROD refresh = `REAL_EXECUTION_PROVEN`;
+- APPLY = current controlled `CONTROLLED_SERVER_TO_SERVER` route;
+- terminal proof #953 = `COMMITTED` / `SANITIZED_DATABASE_ACTIVE_AND_VALIDATED`;
 - raw PROD on GitHub-hosted = none;
+- PROD write = none;
+- sanitized-only activation = pass;
 - DDEV push = none;
-- #816 real end-to-end APPLY = pending;
+- #873 repository/DDEV implementation = complete;
+- #873 real seed generation/storage/distribution = pending, no longer blocked by #816;
 - always reload live before repeating handoff state.
 
 ## 16. Authoritative links

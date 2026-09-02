@@ -216,7 +216,7 @@ final class PreproductionDataRefreshPlanTest extends TestCase {
     foreach ([
       'RAW PROD DATA ON GITHUB-HOSTED RUNNER = FORBIDDEN',
       '`self-hosted`, `linux`, `x64`, `agency`',
-      'strictly controlled server-to-server path',
+      'controlled server-to-server path',
       'never materializes on GitHub-hosted infrastructure',
       'Metadata-only PLAN jobs may remain on `ubuntu-24.04`',
     ] as $required) {
@@ -258,7 +258,7 @@ final class PreproductionDataRefreshPlanTest extends TestCase {
       'must **not** automatically execute `emerging:governed-content --all`',
       'isolated staging database',
       'PROD is never part of rollback',
-      'FIRST_REAL_APPLY=NOT_AUTHORIZED',
+      'TERMINAL_REAL_PROOF = #953 / COMMITTED',
       'Private files are never copied by default',
     ] as $required) {
       self::assertStringContainsString($required, $document);

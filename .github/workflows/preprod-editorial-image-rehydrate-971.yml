@@ -68,7 +68,7 @@ jobs:
           vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
 
   rehydrate:
-    name: Governed #401 source-file rehydration in PREPROD
+    name: "Governed #401 source-file rehydration in PREPROD"
     if: >-
       ${{
         github.event_name == 'issue_comment' &&
@@ -279,8 +279,8 @@ jobs:
               '' \
               "mode: \`$MODE\`" \
               "trusted_main: \`$TRUSTED_MAIN\`" \
-              'PROD_ACCESS: `NONE`' \
-              'PROD_WRITE: `NONE`')"
+              'PROD_ACCESS: NONE' \
+              'PROD_WRITE: NONE')"
             gh api "repos/$GITHUB_REPOSITORY/issues/971/comments" -f body="$body" >/dev/null
             exit 1
           fi
@@ -297,10 +297,10 @@ jobs:
             "profile_sha256: \`$PROFILE_SHA\`" \
             "asset_sha256: \`$ASSET_SHA\`" \
             "trusted_main: \`$TRUSTED_MAIN\`" \
-            'target_node: `37`' \
-            'target_fid: `2`' \
-            'target_uri: `public://articles/issue-401-redesign-checklist-70bf17abe69d.png`' \
-            'DERIVATIVES_GENERATED: `false`' \
-            'PROD_ACCESS: `NONE`' \
-            'PROD_WRITE: `NONE`')"
+            'target_node: 37' \
+            'target_fid: 2' \
+            'target_uri: public://articles/issue-401-redesign-checklist-70bf17abe69d.png' \
+            'DERIVATIVES_GENERATED: false' \
+            'PROD_ACCESS: NONE' \
+            'PROD_WRITE: NONE')"
           gh api "repos/$GITHUB_REPOSITORY/issues/971/comments" -f body="$body" >/dev/null

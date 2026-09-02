@@ -229,7 +229,8 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
   /**
    * Parses one repository workflow structurally.
    *
-   * @return array<string, mixed> The parsed workflow structure.
+   * @return array<string, mixed>
+   *   The parsed workflow structure.
    */
   private function parsed(string $relativePath): array {
     $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
@@ -242,7 +243,8 @@ final class PreprodBlogImageDiagnosticWorkflowTest extends TestCase {
   /**
    * Reads one repository source file as text.
    *
-   * @return string The repository source contents.
+   * @return string
+   *   The repository source contents.
    */
   private function source(string $relativePath): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);

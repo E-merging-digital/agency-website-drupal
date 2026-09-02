@@ -349,10 +349,22 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     );
     self::assertStringContainsString('bash "$PREPROD_TRUST_VERIFY"', $candidate);
 
-    $runner = (string) file_get_contents(
-      $root . '/scripts/runner/run-editorial-feature-image.sh',
+    $trustVerifier = (string) file_get_contents(
+      $root . '/scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh',
     );
-    self::assertStringContainsString('StrictHostKeyChecking=yes', $runner);
+    self::assertStringContainsString(
+      'PREPROD_STRICT_HOST_KEY_CHECKING=YES',
+      $trustVerifier,
+    );
+    self::assertStringContainsString(
+      "[[ \"${#entries[@]}\" -eq 1 ]]",
+      $trustVerifier,
+    );
+    self::assertStringContainsString(
+      '[[ "$known_host_blob" == "$key_blob" ]]',
+      $trustVerifier,
+    );
+
     self::assertStringContainsString('manage-known-host.sh PROVISION', $workflow);
     self::assertStringContainsString('verify-preprod-pinned-trust.sh', $workflow);
     self::assertStringNotContainsString('password:', $workflow);

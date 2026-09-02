@@ -357,7 +357,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       $trustVerifier,
     );
     self::assertStringContainsString(
-      "[[ \"${#entries[@]}\" -eq 1 ]]",
+      '[[ "${#entries[@]}" -eq 1 ]]',
       $trustVerifier,
     );
     self::assertStringContainsString(

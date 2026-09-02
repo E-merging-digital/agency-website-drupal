@@ -89,8 +89,12 @@ ssh_common=(
   -o ConnectTimeout=15
 )
 remote_target="agency-preprod@$PREPROD_SERVER_HOST"
+remote_cleanup_armed=0
 
 cleanup_remote() {
+  if [[ "$remote_cleanup_armed" != '1' ]]; then
+    return 0
+  fi
   set +e
   ssh "${ssh_common[@]}" "$remote_target" "rm -f '$REMOTE_ASSET'" >/dev/null 2>&1
 }
@@ -145,6 +149,8 @@ else
   preapply_verdict="$(jq -r '.verdict' "$ARTIFACT_DIR/preapply.json")"
   case "$preapply_verdict" in
     READY_TO_REHYDRATE)
+      ssh "${ssh_common[@]}" "$remote_target" "test ! -e '$REMOTE_ASSET'"
+      remote_cleanup_armed=1
       scp "${ssh_common[@]}" "$ASSET" "$remote_target:$REMOTE_ASSET" >/dev/null
       ;;
     IDEMPOTENT)

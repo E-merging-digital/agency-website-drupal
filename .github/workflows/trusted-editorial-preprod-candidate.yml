@@ -27,6 +27,9 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    env:
+      SIMPLETEST_BASE_URL: http://127.0.0.1:8888
+      SIMPLETEST_DB: sqlite://localhost/tmp/simpletest.sqlite
     steps:
       - uses: actions/checkout@v6
         with:
@@ -47,6 +50,7 @@ jobs:
           php-version: '8.4'
           tools: composer:v2
           coverage: none
+          extensions: sqlite3
       - name: Install exact locked dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
       - name: Regress #576 and prove #959 candidate behavior

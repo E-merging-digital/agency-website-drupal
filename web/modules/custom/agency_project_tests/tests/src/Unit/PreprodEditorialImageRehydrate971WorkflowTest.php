@@ -133,7 +133,7 @@ final class PreprodEditorialImageRehydrate971WorkflowTest extends TestCase {
       "private const EXPECTED_ASSET_SHA256 = '70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898'",
       "private const EXPECTED_PAYLOAD_SHA256 = '489bf57f89e519862d5a1ae46f2d3335dd213993be0d2cf83b47694cfab22acf'",
       "private const REMOTE_ASSET_PATH = '/tmp/agency-preprod-image-rehydrate-971-asset.png'",
-      "agency_editorial.issue.401",
+      'agency_editorial.issue.401',
       'FileExists::Error',
       'saveData($bytes, self::EXPECTED_URI',
       "realpath('public://articles')",
@@ -147,14 +147,70 @@ final class PreprodEditorialImageRehydrate971WorkflowTest extends TestCase {
     self::assertStringContainsString("ISSUE_NUMBER\" == '971'", $shell);
     self::assertStringContainsString("remote_target=\"agency-preprod@\$PREPROD_SERVER_HOST\"", $shell);
     self::assertStringContainsString("REMOTE_ASSET='/tmp/agency-preprod-image-rehydrate-971-asset.png'", $shell);
-    self::assertStringContainsString('remote_eval dry-run "$ARTIFACT_DIR/preapply.json"', $shell);
-    self::assertStringContainsString('scp "${ssh_common[@]}" "$ASSET"', $shell);
-    self::assertStringContainsString('remote_eval dry-run "$ARTIFACT_DIR/postapply.json"', $shell);
-    self::assertStringContainsString(".verdict == \"IDEMPOTENT\"", $shell);
 
     foreach (['node->save(', 'file->save(', 'image_style', 'flush_derivative', 'rsync ', 'curl ', 'wget '] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $php . "\n" . $shell);
     }
+  }
+
+  /**
+   * Dry-run is read-only; apply is preflighted and post-proved idempotent.
+   */
+  public function testDryRunApplyAndIdempotenceOrderingIsFailClosed(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $shell = (string) file_get_contents(
+      $root . '/scripts/runner/run-preprod-editorial-image-rehydrate-971.sh',
+    );
+    $runtime = (string) file_get_contents(
+      $root . '/scripts/runner/preprod-editorial-image-rehydrate-971.php',
+    );
+
+    $dryRunStart = strpos($shell, "if [[ \"\$MODE\" == 'dry-run' ]]");
+    $applyStart = strpos($shell, "else\n  remote_eval dry-run \"\$ARTIFACT_DIR/preapply.json\"");
+    self::assertIsInt($dryRunStart);
+    self::assertIsInt($applyStart);
+    self::assertLessThan($applyStart, $dryRunStart);
+    $dryRunBlock = substr($shell, $dryRunStart, $applyStart - $dryRunStart);
+    self::assertStringNotContainsString('scp ', $dryRunBlock);
+    self::assertStringNotContainsString('remote_cleanup_armed=1', $dryRunBlock);
+    self::assertStringNotContainsString("rm -f '$REMOTE_ASSET'", $dryRunBlock);
+
+    $preapply = strpos($shell, 'remote_eval dry-run "$ARTIFACT_DIR/preapply.json"');
+    $remoteTempAbsent = strpos($shell, "test ! -e '\$REMOTE_ASSET'");
+    $cleanupArm = strpos($shell, 'remote_cleanup_armed=1');
+    $scp = strpos($shell, 'scp "${ssh_common[@]}" "$ASSET"');
+    $apply = strpos($shell, 'remote_eval apply "$ARTIFACT_DIR/result.json"');
+    $postapply = strpos($shell, 'remote_eval dry-run "$ARTIFACT_DIR/postapply.json"');
+    self::assertIsInt($preapply);
+    self::assertIsInt($remoteTempAbsent);
+    self::assertIsInt($cleanupArm);
+    self::assertIsInt($scp);
+    self::assertIsInt($apply);
+    self::assertIsInt($postapply);
+    self::assertLessThan($remoteTempAbsent, $preapply);
+    self::assertLessThan($cleanupArm, $remoteTempAbsent);
+    self::assertLessThan($scp, $cleanupArm);
+    self::assertLessThan($apply, $scp);
+    self::assertLessThan($postapply, $apply);
+    self::assertStringContainsString(
+      '.mode == "dry-run" and .verdict == "IDEMPOTENT"',
+      $shell,
+    );
+
+    $dryRunRuntime = strpos($runtime, "if (\$mode === 'dry-run')");
+    $idempotentRuntime = strpos($runtime, "if (\$physical === 'PRESENT_EXACT')");
+    $saveRuntime = strpos($runtime, 'saveData($bytes, self::EXPECTED_URI, FileExists::Error)');
+    $afterState = strpos($runtime, '$after = $this->captureState();');
+    self::assertIsInt($dryRunRuntime);
+    self::assertIsInt($idempotentRuntime);
+    self::assertIsInt($saveRuntime);
+    self::assertIsInt($afterState);
+    self::assertLessThan($idempotentRuntime, $dryRunRuntime);
+    self::assertLessThan($saveRuntime, $idempotentRuntime);
+    self::assertLessThan($afterState, $saveRuntime);
+    self::assertStringContainsString("return \$this->result('apply', 'IDEMPOTENT'", $runtime);
+    self::assertStringContainsString("return \$this->result('apply', 'REHYDRATED'", $runtime);
+    self::assertStringContainsString('if ($after !== $before)', $runtime);
   }
 
   /**

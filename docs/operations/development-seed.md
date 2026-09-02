@@ -1,7 +1,7 @@
 # Agency Development Seed
 
-Status: **SOURCE_IMPLEMENTED / SYNTHETICALLY_PROVEN / REAL PROOF PENDING**  
-Owner: #873; first real publisher/proof tranche: #956.  
+Status: **SOURCE_IMPLEMENTED / SYNTHETICALLY_PROVEN / REAL PROOF PENDING**
+Owner: #873; first real publisher/proof tranche: #956.
 Architecture: `EXTEND_EXISTING` under `docs/decisions/ADR-003-use-existing-first.md`.
 
 This runbook covers only the pull-only Development Seed flow. It does not replace code/config deployment, PROD -> PREPROD refresh or editorial publication.

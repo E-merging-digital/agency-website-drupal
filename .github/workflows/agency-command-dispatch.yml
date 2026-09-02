@@ -127,17 +127,37 @@ jobs:
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   editorial-feature-image:
-    name: Route editorial feature image
+    name: Route PROD editorial feature image
     needs: classify
-    if: ${{ needs.classify.outputs.route == 'EDITORIAL_FEATURE_IMAGE' }}
+    if: >-
+      ${{
+        needs.classify.outputs.route == 'EDITORIAL_FEATURE_IMAGE' &&
+        github.event.issue.number != 958
+      }}
     permissions:
       contents: read
       issues: write
     uses: ./.github/workflows/trusted-editorial-feature-image.yml
     secrets:
-      SSH_PRIVATE_KEY: ${{ github.event.issue.number == 958 && secrets.PREPROD_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
-      SERVER_HOST: ${{ github.event.issue.number == 958 && secrets.PREPROD_SERVER_HOST || secrets.SERVER_HOST }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  editorial-feature-image-preprod:
+    name: Route #958 PREPROD editorial feature image
+    needs: classify
+    if: >-
+      ${{
+        needs.classify.outputs.route == 'EDITORIAL_FEATURE_IMAGE' &&
+        github.event.issue.number == 958
+      }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-feature-image.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   preprod-refresh:
     name: Route governed PREPROD refresh

@@ -1,0 +1,306 @@
+name: "#971 PREPROD editorial image rehydration"
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-editorial-image-rehydrate-971.yml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/agency-command-dispatch-validation.yml'
+      - 'scripts/runner/preprod-editorial-image-rehydrate-971.php'
+      - 'scripts/runner/run-preprod-editorial-image-rehydrate-971.sh'
+      - 'scripts/runner/editorial-feature-image-profiles.json'
+      - 'scripts/runner/generate-editorial-feature-image-401.py'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreprodEditorialImageRehydrate971WorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    name: "#971 static bounded rehydration contract"
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate fixed implementation syntax and asset hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/runner/run-preprod-editorial-image-rehydrate-971.sh
+          php -l scripts/runner/preprod-editorial-image-rehydrate-971.php
+          asset="$RUNNER_TEMP/issue-401.png"
+          python3 scripts/runner/generate-editorial-feature-image-401.py --output "$asset"
+          test "$(sha256sum "$asset" | awk '{print $1}')" = '70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898'
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: gd
+          tools: composer:v2
+          coverage: none
+
+      - name: Install exact locked dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prove #971 and inherited image contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/PreprodEditorialImageRehydrate971WorkflowTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialFeatureImageWorkflowTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/EditorialPreprodCandidateWorkflowTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+
+  rehydrate:
+    name: Governed #401 source-file rehydration in PREPROD
+    if: >-
+      ${{
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 971 &&
+        (
+          github.event.comment.body == '/agency-preprod-image-rehydrate dry-run' ||
+          github.event.comment.body == '/agency-preprod-image-rehydrate apply'
+        )
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: agency-preprod-image-rehydrate-971
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '971' ]]
+          case "$TRIGGER_COMMENT" in
+            '/agency-preprod-image-rehydrate dry-run') mode='dry-run' ;;
+            '/agency-preprod-image-rehydrate apply') mode='apply' ;;
+            *) echo 'Unsupported #971 command.' >&2; exit 1 ;;
+          esac
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo '#971 must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          printf '%s\n' "mode=$mode" "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize exact existing #584 asset and authority
+        id: profile
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          asset='assets/editorial/issue-401-redesign-checklist.png'
+          python3 scripts/runner/generate-editorial-feature-image-401.py --output "$asset"
+          asset_sha="$(sha256sum "$asset" | awk '{print $1}')"
+          [[ "$asset_sha" == '70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898' ]]
+          profile_sha="$(python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          data = json.loads(Path('scripts/runner/editorial-feature-image-profiles.json').read_text(encoding='utf-8'))
+          profile = data.get('profiles', {}).get('401')
+          if not isinstance(profile, dict):
+              raise SystemExit(2)
+          expected = {
+              'issue_number': 401,
+              'bundle': 'article',
+              'article_payload_sha256': '489bf57f89e519862d5a1ae46f2d3335dd213993be0d2cf83b47694cfab22acf',
+              'field_name': 'field_feature_image',
+          }
+          if any(profile.get(key) != value for key, value in expected.items()):
+              raise SystemExit(3)
+          asset = profile.get('asset', {})
+          if asset.get('path') != 'assets/editorial/issue-401-redesign-checklist.png':
+              raise SystemExit(4)
+          if asset.get('filename') != 'issue-401-redesign-checklist-70bf17abe69d.png':
+              raise SystemExit(5)
+          if asset.get('sha256') != '70bf17abe69d9b817b610de1e9529d468270a9a8206268bf0bb5736f82e6b898':
+              raise SystemExit(6)
+          if profile.get('alt') != {
+              'fr': 'Checklist de préparation avant la refonte d’un site web',
+              'en': 'Website redesign preparation checklist',
+          }:
+              raise SystemExit(7)
+          canonical = json.dumps(profile, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n'
+          print(hashlib.sha256(canonical.encode('utf-8')).hexdigest())
+          PY
+          )"
+          [[ "$profile_sha" =~ ^[0-9a-f]{64}$ ]]
+
+          if [[ "$MODE" == 'apply' ]]; then
+            comments="$(gh api "repos/$GITHUB_REPOSITORY/issues/971/comments?per_page=100")"
+            PROFILE_SHA="$profile_sha" ASSET_SHA="$asset_sha" COMMENTS="$comments" python3 - <<'PY'
+          import json
+          import os
+          import re
+          comments = json.loads(os.environ['COMMENTS'])
+          pattern = re.compile(
+              r'^### Agency #971 PREPROD image rehydration dry-run PASS\s*$.*?'
+              r'^profile_sha256: `([0-9a-f]{64})`\s*$.*?'
+              r'^asset_sha256: `([0-9a-f]{64})`\s*$.*?'
+              r'^trusted_main: `([0-9a-f]{40})`\s*$',
+              re.MULTILINE | re.DOTALL,
+          )
+          expected = (os.environ['PROFILE_SHA'], os.environ['ASSET_SHA'], os.environ['TRUSTED_MAIN'])
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'github-actions[bot]':
+                  continue
+              match = pattern.search(comment.get('body') or '')
+              if match and match.groups() == expected:
+                  break
+          else:
+              raise SystemExit('Apply requires a bot-authored #971 dry-run PASS for the same profile, asset and live main.')
+          PY
+          fi
+
+          printf '%s\n' "profile_sha256=$profile_sha" "asset_sha256=$asset_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Verify immutable implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          EXPECTED_ASSET_SHA: ${{ steps.profile.outputs.asset_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN" ]]
+          bash -n scripts/runner/run-preprod-editorial-image-rehydrate-971.sh
+          php -l scripts/runner/preprod-editorial-image-rehydrate-971.php
+          [[ "$(sha256sum assets/editorial/issue-401-redesign-checklist.png | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
+
+      - name: JIT revalidate live main before PREPROD identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live" == "$EXPECTED_MAIN" ]]
+          [[ "$(git rev-parse HEAD)" == "$live" ]]
+
+      - name: Materialize transient PREPROD identity after JIT
+        shell: bash
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_KEY"
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-971-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-971-preprod.key"
+
+      - name: Execute bounded #971 PREPROD route
+        id: route
+        shell: bash
+        env:
+          AGENCY_PREPROD_IMAGE_REHYDRATE_MODE: ${{ steps.request.outputs.mode }}
+          ISSUE_NUMBER: '971'
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-971-preprod.key
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/preprod-editorial-image-rehydrate-971
+        run: bash scripts/runner/run-preprod-editorial-image-rehydrate-971.sh
+
+      - name: Cleanup PREPROD identity
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-971-preprod.key"
+
+      - name: Upload metadata-only #971 evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-preprod-image-rehydrate-971-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/preprod-editorial-image-rehydrate-971/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded #971 result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          PROFILE_SHA: ${{ steps.profile.outputs.profile_sha256 }}
+          ASSET_SHA: ${{ steps.profile.outputs.asset_sha256 }}
+          ROUTE_OUTCOME: ${{ steps.route.outcome }}
+        run: |
+          set -euo pipefail
+          result='artifacts/preprod-editorial-image-rehydrate-971/result.json'
+          if [[ "$ROUTE_OUTCOME" != 'success' || ! -s "$result" ]] || ! jq -e . "$result" >/dev/null 2>&1; then
+            body="$(printf '%s\n' \
+              '### Agency #971 PREPROD image rehydration FAILURE' \
+              '' \
+              "mode: \`$MODE\`" \
+              "trusted_main: \`$TRUSTED_MAIN\`" \
+              'PROD_ACCESS: `NONE`' \
+              'PROD_WRITE: `NONE`')"
+            gh api "repos/$GITHUB_REPOSITORY/issues/971/comments" -f body="$body" >/dev/null
+            exit 1
+          fi
+
+          verdict="$(jq -r '.verdict' "$result")"
+          heading="### Agency #971 PREPROD image rehydration ${MODE} PASS"
+          if [[ "$MODE" == 'dry-run' ]]; then
+            heading='### Agency #971 PREPROD image rehydration dry-run PASS'
+          fi
+          body="$(printf '%s\n' \
+            "$heading" \
+            '' \
+            "verdict: \`$verdict\`" \
+            "profile_sha256: \`$PROFILE_SHA\`" \
+            "asset_sha256: \`$ASSET_SHA\`" \
+            "trusted_main: \`$TRUSTED_MAIN\`" \
+            'target_node: `37`' \
+            'target_fid: `2`' \
+            'target_uri: `public://articles/issue-401-redesign-checklist-70bf17abe69d.png`' \
+            'DERIVATIVES_GENERATED: `false`' \
+            'PROD_ACCESS: `NONE`' \
+            'PROD_WRITE: `NONE`')"
+          gh api "repos/$GITHUB_REPOSITORY/issues/971/comments" -f body="$body" >/dev/null

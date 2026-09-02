@@ -36,9 +36,9 @@ REMOTE_INCOMING="$REMOTE_ROOT/.incoming/$REQUEST_ID"
 for path in "$SOURCE_SCRIPT" "$STORAGE_SCRIPT" "$READER_SCRIPT" "$READER_KEY_SCRIPT" "$PREPROD_TRUST" "$PINNED_KEY"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
-for command_name in ddev git gzip jq php scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
+for command_name in ddev git gzip jq openssl scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
   command -v "$command_name" >/dev/null 2>&1
- done
+done
 
 workspace_abs="$(realpath -m "$GITHUB_WORKSPACE")"
 temp_abs="$(realpath -m "$RUNNER_TEMP")"
@@ -56,6 +56,8 @@ generation_added=0
 proof_added=0
 incoming_may_exist=0
 ssh_agent_started=0
+reader_blob=''
+reader_sha=''
 
 read -r pinned_type pinned_blob _ < "$PINNED_KEY"
 [[ "$pinned_type" == ssh-ed25519 && "$pinned_blob" =~ ^[A-Za-z0-9+/=]+$ ]]
@@ -74,15 +76,15 @@ source_action() {
     < "$SOURCE_SCRIPT"
 }
 storage_action() {
-  local action="$1" database_sha="${2:-NONE}" reader_sha="${3:-NONE}"
+  local action="$1" database_sha="${2:-NONE}" expected_reader_sha="${3:-NONE}"
   "${ssh_args[@]}" "$remote_target" \
-    "bash -s -- '$action' '$REQUEST_ID' '$database_sha' '$reader_sha'" \
+    "bash -s -- '$action' '$REQUEST_ID' '$database_sha' '$expected_reader_sha'" \
     < "$STORAGE_SCRIPT"
 }
 reader_action() {
-  local action="$1" blob="$2" reader_sha="$3"
+  local action="$1" blob="$2" expected_reader_sha="$3"
   "${ssh_args[@]}" "$remote_target" \
-    "bash -s -- '$action' '$REQUEST_ID' '$blob' '$reader_sha'" \
+    "bash -s -- '$action' '$REQUEST_ID' '$blob' '$expected_reader_sha'" \
     < "$READER_KEY_SCRIPT"
 }
 
@@ -116,9 +118,10 @@ cleanup() {
   fi
   if (( ssh_agent_started == 1 )); then
     ssh-agent -k >/dev/null 2>&1 || final=98
+    ssh_agent_started=0
   fi
   rm -f -- "$raw" "$known_hosts" "$reader_key" "$reader_key.pub"
-  [[ ! -e "$raw" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]] || final=98
+  [[ ! -e "$raw" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]] || final=98
   if [[ "$original" -ne 0 ]]; then final="$original"; fi
   exit "$final"
 }
@@ -154,7 +157,7 @@ generation_name="agency-seed-956-${GITHUB_RUN_ID}"
 sed -i "1s/^name:.*/name: $generation_name/" "$generation/.ddev/config.yaml"
 (
   cd "$generation"
-  ddev start -y >/dev/null
+  ddev start >/dev/null
   ddev import-db --file="$raw" >/dev/null
 )
 rm -f -- "$raw"
@@ -253,7 +256,7 @@ ssh-add "$reader_key" >/dev/null
 (
   cd "$proof"
   ddev auth ssh >/dev/null
-  ddev start -y >/dev/null
+  ddev start >/dev/null
   ddev pull agency -y >/dev/null
   ddev drush status --field=bootstrap 2>/dev/null | grep -q Successful
 )
@@ -269,6 +272,12 @@ delete_ddev_worktree "$proof"
 proof_added=0
 [[ ! -e "$proof" ]]
 storage_action CLEANUP NONE NONE >/dev/null
+
+# Terminal local cleanup is part of success, not best-effort housekeeping.
+ssh-agent -k >/dev/null
+ssh_agent_started=0
+rm -f -- "$raw" "$known_hosts" "$reader_key" "$reader_key.pub"
+[[ ! -e "$raw" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]]
 
 mkdir -p "$evidence_dir"
 cat > "$evidence.tmp" <<EOF_EVIDENCE
@@ -300,9 +309,6 @@ mv -f "$evidence.tmp" "$evidence"
 chmod 600 "$evidence"
 
 trap - EXIT HUP INT TERM
-cleanup_status=0
-cleanup || cleanup_status=$?
-[[ "$cleanup_status" -eq 0 ]]
 printf '%s\n' \
   "SEED_ID=$SEED_ID" \
   "DATABASE_SHA256=$database_sha" \

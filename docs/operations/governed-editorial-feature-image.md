@@ -1,20 +1,21 @@
 # Governed editorial feature image
 
-Status: **TRUSTED PRODUCTION MUTATION ROUTE**  
+Status: **TRUSTED BOUNDED ARTICLE FEATURE-IMAGE ROUTE**
 Owner issue: #584  
 Initial consumer: #401  
+PREPROD consumer: #958
 Parent Article route: #576
 
 ## Purpose
 
 The editor-owned Article route deliberately keeps media outside its v1 payload.
-This increment supplies the missing mechanical capability for one already mapped
+This increment supplies the missing mechanical capability for an already mapped
 Article to receive one reviewed feature-image asset without turning Agency into a
 generic uploader or remote downloader.
 
-Drupal remains the editorial source of truth after apply. The repository owns
-the reviewed transfer profile plus the deterministic source code needed to
-reproduce the exact image bytes and prove their provenance.
+Drupal remains the editorial source of truth for the selected environment after
+apply. The repository owns the reviewed transfer profile plus the deterministic
+source code needed to reproduce the exact image bytes and prove their provenance.
 
 ## Control surface
 
@@ -27,7 +28,8 @@ On an OPEN owner-created issue, `E-merging-digital` may post exactly one of:
 ```
 
 The trusted workflow executes only from the live `main` revision and checks the
-actor, comment author and issue owner before any production connection.
+actor, comment author, issue owner and closed issue-to-target binding before any
+target connection.
 
 There is no workflow-dispatch input, URL input, server path input, MIME input,
 filename input, ALT input, shell input or Drush input.
@@ -40,12 +42,14 @@ Profiles are versioned in:
 scripts/runner/editorial-feature-image-profiles.json
 ```
 
-The initial registry contains only issue #401. Its closed contract fixes:
+The registry contains only explicitly reviewed Article profiles. The initial
+#401 profile targets PROD; #958 is a closed PREPROD-only extension. Each profile
+fixes:
 
 - issue number;
 - bundle `article`;
 - the exact original Article payload SHA-256 already stored in
-  `agency_editorial.issue.401`;
+  `agency_editorial.issue.<issue_number>`;
 - field `field_feature_image`;
 - generated asset path;
 - final Drupal filename;
@@ -68,32 +72,34 @@ profile and generator change.
 ## Asset boundary
 
 V1 accepts only the exact PNG generated from the approved repository source for
-the closed profile. For #401 the source is:
+the closed profile. The deterministic sources currently are:
 
 ```text
 scripts/runner/generate-editorial-feature-image-401.py
+scripts/runner/generate-editorial-feature-image-958.py
 ```
 
 The generated PNG itself is deliberately **not committed as opaque binary
 bytes**. The trusted workflow generates it in the checked-out workspace, checks
 its exact SHA-256 and proves `imagecreatefrompng()` can decode it at the expected
-dimensions before the normal transport route may copy it to production.
+dimensions before the normal transport route may copy it to the selected bounded
+target.
 
-The generator is deterministic and uses Python standard-library primitives only.
-It does not depend on a font, external rasterizer, network resource or uploaded
-attachment. The route does not:
+The generators are deterministic and use Python standard-library primitives
+only. They do not depend on a font, external rasterizer, network resource or
+uploaded attachment. The route does not:
 
 - fetch HTTP/HTTPS URLs;
 - consume issue attachments;
 - accept base64 supplied in comments;
 - accept arbitrary repository paths;
 - scan directories;
-- generate an image on production;
+- generate an image on the Drupal target;
 - create Media entities.
 
-The #401 asset is a language-neutral, sober redesign-checklist illustration based
-on Agency design-system colors. The asset has no embedded marketing claim and
-uses translated Drupal ALT text instead of visible language-specific copy.
+The assets are language-neutral, sober illustrations based on Agency
+design-system colors. They have no embedded marketing claim and use translated
+Drupal ALT text instead of visible language-specific copy.
 
 ## Drupal contract
 
@@ -125,6 +131,27 @@ using Drupal File API. The same FID is referenced by FR and EN. Because Drupal's
 field configuration synchronizes the file property but not ALT, the route stores
 distinct mandatory ALT values on the two translations.
 
+## Target binding
+
+The runtime target is not caller-controlled. The repository currently admits
+exactly:
+
+```text
+issue #401 -> PROD -> /var/www/agency/current
+issue #958 -> PREPROD -> /var/www/agency-preprod/current
+```
+
+For #958, the existing #959 PREPROD connection primitives are reused:
+
+- `PREPROD_SSH_PRIVATE_KEY`;
+- `PREPROD_SERVER_HOST`;
+- fixed Unix account `agency-preprod`;
+- pinned PREPROD host trust;
+- PREPROD runtime validation before and after the image route.
+
+The #958 path does not connect to PROD and records `target=PREPROD` and
+`prod_write=NONE` in its bounded result evidence.
+
 ## Dry-run classification
 
 `dry-run` is read-only and returns one of:
@@ -146,11 +173,13 @@ route fails closed instead of replacing or guessing.
 
 ## Apply
 
-`apply` first runs a fresh production dry-run. For `READY` or
-`REPAIR_REQUIRED`, the runner creates and verifies a SQL backup under:
+`apply` first runs a fresh dry-run on the selected target. For `READY` or
+`REPAIR_REQUIRED`, the runner creates and verifies a SQL backup below the fixed
+target-specific shared backup directory:
 
 ```text
-/var/www/agency/shared/backups/editorial-image-issue-<N>-<UTC>.sql.gz
+PROD:    /var/www/agency/shared/backups/editorial-image-issue-<N>-<UTC>.sql.gz
+PREPROD: /var/www/agency-preprod/shared/backups/editorial-image-issue-<N>-<UTC>.sql.gz
 ```
 
 The helper then:
@@ -217,8 +246,9 @@ artifacts/production-image-source-repair/result.json
 ```
 
 Result evidence includes only bounded metadata: profile/asset hashes, trusted
-main, issue/run IDs, verdict, node/revision IDs, FID and public stream-wrapper
-URI. No SSH secret, file bytes or database content is copied into comments.
+main, issue/run IDs, target, verdict, node/revision IDs, FID and public
+stream-wrapper URI. No SSH secret, file bytes or database content is copied into
+comments.
 
 ## #401 profile
 
@@ -250,16 +280,58 @@ ALT EN:
 Website redesign preparation checklist
 ```
 
-Normal converged flow:
+## #958 PREPROD profile
+
+The #958 profile is intentionally PREPROD-only and is bound to the already
+materialized Editorial Candidate Article payload SHA-256:
+
+```text
+2e92228480ee6ae7410c028eab2b88c7d7db1534668477f6eafbc236668cb700
+```
+
+Deterministic source:
+
+```text
+scripts/runner/generate-editorial-feature-image-958.py
+```
+
+Generated asset:
+
+```text
+assets/editorial/issue-958-drupal-upgrade-roadmap.png
+final Drupal filename: issue-958-drupal-upgrade-roadmap-3a705624b08a.png
+SHA-256 3a705624b08ac2c21a10db0e8573841ff8c4cecf087409cd8782953e3684c6f4
+1200 x 630
+image/png
+```
+
+ALT FR:
+
+```text
+Préparation d’une mise à niveau Drupal 10 vers Drupal 11
+```
+
+ALT EN:
+
+```text
+Planning a Drupal 10 to Drupal 11 upgrade
+```
+
+The intended illustration is a clean 10 -> 11 modernization roadmap with a
+controlled checklist/validation metaphor. It contains no remote image, fake
+Drupal UI, humanoid robot, stock-photo scene or visible language-specific claim.
+
+Normal converged flow for either closed profile remains:
 
 ```text
 /agency-editorial-image inspect
 -> /agency-editorial-image dry-run
--> verify profile + asset hashes and READY/REPAIR_REQUIRED/IDEMPOTENT
+-> verify target + profile + asset hashes and READY/REPAIR_REQUIRED/IDEMPOTENT
 -> /agency-editorial-image apply when required
 -> verify FID + FR/EN ALT + new revision
 -> second dry-run must be IDEMPOTENT
--> Browser Validation production FR/EN desktop/mobile
--> canonical/hreflang/sitemap/internal links/console/network
--> close #401 only on complete DoD
+-> render/browser validation on the selected environment
 ```
+
+For #958, this flow stops after PREPROD render validation and human review;
+PROD publication remains a separate Project Lead decision.

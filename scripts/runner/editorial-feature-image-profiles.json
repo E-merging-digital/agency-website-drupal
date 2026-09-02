@@ -19,6 +19,25 @@
         "fr": "Checklist de préparation avant la refonte d’un site web",
         "en": "Website redesign preparation checklist"
       }
+    },
+    "958": {
+      "issue_number": 958,
+      "bundle": "article",
+      "article_payload_sha256": "2e92228480ee6ae7410c028eab2b88c7d7db1534668477f6eafbc236668cb700",
+      "field_name": "field_feature_image",
+      "asset": {
+        "path": "assets/editorial/issue-958-drupal-upgrade-roadmap.png",
+        "filename": "issue-958-drupal-upgrade-roadmap-3a705624b08a.png",
+        "sha256": "3a705624b08ac2c21a10db0e8573841ff8c4cecf087409cd8782953e3684c6f4",
+        "mime": "image/png",
+        "width": 1200,
+        "height": 630,
+        "max_bytes": 2000000
+      },
+      "alt": {
+        "fr": "Préparation d’une mise à niveau Drupal 10 vers Drupal 11",
+        "en": "Planning a Drupal 10 to Drupal 11 upgrade"
+      }
     }
   }
 }

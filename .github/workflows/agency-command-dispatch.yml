@@ -135,8 +135,8 @@ jobs:
       issues: write
     uses: ./.github/workflows/trusted-editorial-feature-image.yml
     secrets:
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SSH_PRIVATE_KEY: ${{ github.event.issue.number == 958 && secrets.PREPROD_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ github.event.issue.number == 958 && secrets.PREPROD_SERVER_HOST || secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
 
   preprod-refresh:

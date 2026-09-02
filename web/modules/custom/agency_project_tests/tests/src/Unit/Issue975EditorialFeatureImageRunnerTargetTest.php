@@ -170,7 +170,8 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
    * Approved pairs intentionally stop later because hashes/files are omitted;
    * no SSH command can be reached by this fixture.
    *
-   * @return array{exit:int,output:string} Process exit status and output.
+   * @return array{exit:int,output:string}
+   *   Process exit status and output.
    */
   private function runResolver(string $issue, string $target): array {
     $runner = dirname(DRUPAL_ROOT) . '/scripts/runner/run-editorial-feature-image.sh';

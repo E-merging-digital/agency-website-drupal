@@ -20,6 +20,7 @@ on:
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/SchedulerGovernanceSafetyTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialPublicationWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialFeatureImageWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialFeatureImageRunnerTargetTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreprodBlogImageDiagnosticWorkflowTest.php'
 
 permissions:
@@ -73,6 +74,8 @@ jobs:
           set -euo pipefail
           vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
           vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/PreprodBlogImageDiagnosticWorkflowTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialFeatureImageWorkflowTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Unit/GovernedEditorialFeatureImageRunnerTargetTest.php
           git diff --check HEAD^..HEAD
 
       - name: Prove non-operational validation boundary

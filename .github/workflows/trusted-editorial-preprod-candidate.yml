@@ -258,51 +258,53 @@ jobs:
             gh api --paginate --slurp \
               "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
               > "$RUNNER_TEMP/agency-editorial-jit-comments.json"
-            python3 - <<'PY'
-            import hashlib
-            import json
-            import os
-            from pathlib import Path
-
-            marker = '<!-- agency-editorial-payload:v1 -->'
-            pages = json.loads(
-                (Path(os.environ['RUNNER_TEMP']) / 'agency-editorial-jit-comments.json').read_text(encoding='utf-8')
-            )
-            comments = []
-            for page in pages:
-                if isinstance(page, list):
-                    comments.extend(page)
-            latest = None
-            payload = None
-            for comment in comments:
-                if comment.get('user', {}).get('login') != 'E-merging-digital':
-                    continue
-                body = comment.get('body') or ''
-                if not body.startswith(marker):
-                    continue
-                try:
-                    parsed = json.loads(body[len(marker):].strip())
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(parsed, dict):
-                    latest = comment
-                    payload = parsed
-            if latest is None or payload is None:
-                raise SystemExit('JIT candidate payload is missing.')
-            revision = str(latest.get('id'))
-            if revision != os.environ['EXPECTED_REVISION']:
-                raise SystemExit('JIT candidate revision changed before PREPROD secret materialization.')
-            canonical = json.dumps(
-                payload,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(',', ':'),
-            ) + '\n'
-            digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
-            if digest != os.environ['EXPECTED_HASH']:
-                raise SystemExit('JIT candidate hash changed before PREPROD secret materialization.')
-            PY
           fi
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          if os.environ['MODE'] == 'inspect':
+              raise SystemExit(0)
+          marker = '<!-- agency-editorial-payload:v1 -->'
+          pages = json.loads(
+              (Path(os.environ['RUNNER_TEMP']) / 'agency-editorial-jit-comments.json').read_text(encoding='utf-8')
+          )
+          comments = []
+          for page in pages:
+              if isinstance(page, list):
+                  comments.extend(page)
+          latest = None
+          payload = None
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'E-merging-digital':
+                  continue
+              body = comment.get('body') or ''
+              if not body.startswith(marker):
+                  continue
+              try:
+                  parsed = json.loads(body[len(marker):].strip())
+              except json.JSONDecodeError:
+                  continue
+              if isinstance(parsed, dict):
+                  latest = comment
+                  payload = parsed
+          if latest is None or payload is None:
+              raise SystemExit('JIT candidate payload is missing.')
+          revision = str(latest.get('id'))
+          if revision != os.environ['EXPECTED_REVISION']:
+              raise SystemExit('JIT candidate revision changed before PREPROD secret materialization.')
+          canonical = json.dumps(
+              payload,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(',', ':'),
+          ) + '\n'
+          digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+          if digest != os.environ['EXPECTED_HASH']:
+              raise SystemExit('JIT candidate hash changed before PREPROD secret materialization.')
+          PY
 
       - name: Materialize transient PREPROD identity after JIT
         env:

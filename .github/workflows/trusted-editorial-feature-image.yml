@@ -350,6 +350,7 @@ jobs:
         env:
           EDITORIAL_IMAGE_MODE: ${{ steps.request.outputs.mode }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EDITORIAL_IMAGE_TARGET: ${{ steps.request.outputs.target }}
           PROFILE_SHA256: ${{ steps.profile.outputs.profile_sha256 }}
           PROFILE_FILE: ${{ github.workspace }}/scripts/runner/editorial-feature-image-profiles.json
           ASSET_SHA256: ${{ steps.profile.outputs.asset_sha256 }}

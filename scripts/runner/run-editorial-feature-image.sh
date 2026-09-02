@@ -20,7 +20,8 @@ case "$MODE" in
 esac
 [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo 'ISSUE_NUMBER must be positive numeric.' >&2; exit 1; }
 case "$TARGET" in
-  PROD|PREPROD) ;;
+  PROD) TARGET='PROD' ;;
+  PREPROD) TARGET='PREPROD' ;;
   *) echo "Unsupported EDITORIAL_IMAGE_TARGET: $TARGET" >&2; exit 1 ;;
 esac
 

@@ -19,7 +19,8 @@ env:
       {"route":"PREPROD_REFRESH_948_DETAIL","prefix":"/agency-preprod-refresh-948-detail ","exact":["/agency-preprod-refresh-948-detail diagnose"]},
       {"route":"PREPROD_BLOG_IMAGE_DIAGNOSTIC","prefix":"/agency-preprod-blog-image-diagnostic ","exact":["/agency-preprod-blog-image-diagnostic diagnose"]},
       {"route":"PREPROD_EDITORIAL_IMAGE_REHYDRATE_971","prefix":"/agency-preprod-image-rehydrate ","exact":["/agency-preprod-image-rehydrate dry-run","/agency-preprod-image-rehydrate apply"]},
-      {"route":"CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-runtime ","exact":["/agency-config-sync-runtime diagnose"]}
+      {"route":"CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-runtime ","exact":["/agency-config-sync-runtime diagnose"]},
+      {"route":"PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-prod-runtime ","exact":["/agency-config-sync-prod-runtime diagnose"]}
     ]
 
 jobs:
@@ -57,6 +58,7 @@ jobs:
               'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
               'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
               'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '961',
+              'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '980',
           }
           matches = []
           if not is_pr:
@@ -244,3 +246,16 @@ jobs:
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  prod-config-sync-runtime-diagnostic:
+    name: Route #980 read-only PROD config sync runtime diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/prod-config-sync-runtime-diagnostic.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}

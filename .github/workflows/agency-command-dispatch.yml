@@ -10,6 +10,7 @@ env:
       {"route":"PRODUCTION_PROMOTE","prefix":"/agency-production-promote ","regex":"^/agency-production-promote go sha=[0-9a-f]{40} artifact=[0-9a-f]{64} composer=[0-9a-f]{64} build=[0-9]+ preprod=[0-9]+$"},
       {"route":"PRODUCTION_SCHEDULER","prefix":"/agency-production-scheduler ","regex":"^/agency-production-scheduler (action=CREATE release=[0-9a-f]{40} expected=ABSENT|action=UPDATE release=[0-9a-f]{40} expected=MANAGED_DRIFT|action=REMOVE release=[0-9a-f]{40} expected=CONTROLLED)$"},
       {"route":"EDITORIAL_PUBLICATION","prefix":"/agency-editorial ","exact":["/agency-editorial inspect","/agency-editorial dry-run","/agency-editorial apply"]},
+      {"route":"EDITORIAL_PREPROD_CANDIDATE","prefix":"/agency-editorial-candidate ","exact":["/agency-editorial-candidate inspect","/agency-editorial-candidate dry-run","/agency-editorial-candidate apply"]},
       {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image ","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply"]},
       {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor ","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"},
       {"route":"DEVELOPMENT_SEED","prefix":"/agency-development-seed ","regex_template":"^/agency-development-seed publish seed-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [A-Za-z0-9._:-]{8,80} [0-9a-f]{40}$"},
@@ -112,6 +113,18 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  editorial-preprod-candidate:
+    name: Route PREPROD Article candidate
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'EDITORIAL_PREPROD_CANDIDATE' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-preprod-candidate.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   editorial-feature-image:
     name: Route editorial feature image

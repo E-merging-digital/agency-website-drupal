@@ -35,6 +35,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     '.github/workflows/preprod-refresh-940-recovery.yml',
     'PREPROD_REFRESH_948_DETAIL' =>
     '.github/workflows/preprod-refresh-948-detail-diagnostic.yml',
+    'PREPROD_BLOG_IMAGE_DIAGNOSTIC' =>
+    '.github/workflows/preprod-blog-image-diagnostic.yml',
   ];
 
   private const INCIDENT_ISSUES = [
@@ -42,6 +44,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_REFRESH_940_DIAGNOSTIC' => 941,
     'PREPROD_REFRESH_940_RECOVERY' => 943,
     'PREPROD_REFRESH_948_DETAIL' => 949,
+    'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
   ];
 
   /**
@@ -73,7 +76,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(10, $routes);
+    self::assertCount(11, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -148,6 +151,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         949,
         'PREPROD_REFRESH_948_DETAIL',
       ],
+      [
+        '/agency-preprod-blog-image-diagnostic diagnose',
+        966,
+        'PREPROD_BLOG_IMAGE_DIAGNOSTIC',
+      ],
     ];
     foreach ($known as [$body, $issue, $expected]) {
       self::assertSame(
@@ -163,6 +171,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-preprod-refresh-940-recovery cleanup', 940],
       ['/agency-preprod-refresh-948-detail diagnose', 948],
       ['/agency-preprod-refresh-948-detail diagnose', 950],
+      ['/agency-preprod-blog-image-diagnostic diagnose', 965],
+      ['/agency-preprod-blog-image-diagnostic diagnose', 967],
     ] as [$body, $wrongIssue]) {
       self::assertSame('NONE', $this->classify($routes, $body, $wrongIssue));
     }
@@ -177,6 +187,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-development-seed publish seed-956-bad-r1 ' . $sha40 . ' bad ' . $sha40,
       '/agency-preprod-refresh-940-recovery plan now',
       '/agency-preprod-refresh-948-detail diagnose now',
+      '/agency-preprod-blog-image-diagnostic diagnose now',
       '/agency-unknown apply',
     ];
     foreach ($invalid as $body) {
@@ -208,6 +219,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertStringContainsString("'PREPROD_REFRESH_940_DIAGNOSTIC': '941'", $source);
     self::assertStringContainsString("'PREPROD_REFRESH_940_RECOVERY': '943'", $source);
     self::assertStringContainsString("'PREPROD_REFRESH_948_DETAIL': '949'", $source);
+    self::assertStringContainsString("'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966'", $source);
     self::assertStringContainsString('required_issue = incident_issue.get', $source);
   }
 
@@ -286,6 +298,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'PREPROD_REFRESH_948_DETAIL',
         ['contents' => 'read', 'issues' => 'read'],
         $rootPreprodSecrets,
+      ],
+      'preprod-blog-image-diagnostic' => [
+        'PREPROD_BLOG_IMAGE_DIAGNOSTIC',
+        ['contents' => 'read', 'issues' => 'write'],
+        $diagnosticSecrets,
       ],
     ];
 

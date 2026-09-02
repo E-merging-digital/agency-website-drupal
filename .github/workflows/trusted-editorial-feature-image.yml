@@ -70,9 +70,10 @@ jobs:
             echo 'Editorial image route must execute the workflow revision currently on live main.' >&2
             exit 1
           }
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "target=$target" >> "$GITHUB_OUTPUT"
-          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+          printf '%s\n' \
+            "mode=$mode" \
+            "target=$target" \
+            "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact trusted main
         uses: actions/checkout@v6
@@ -111,19 +112,24 @@ jobs:
           test -f "$generator"
           python3 "$generator" --output "$asset"
           test -s "$asset"
-          php -r '
-            $path = $argv[1];
-            if (!function_exists("imagecreatefrompng")) {
-              fwrite(STDERR, "GD PNG decoder is unavailable.\n");
-              exit(2);
-            }
-            $image = @imagecreatefrompng($path);
-            if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
-              fwrite(STDERR, "Generated editorial PNG is not GD-decodable at 1200x630.\n");
-              exit(3);
-            }
-            imagedestroy($image);
-          ' "$asset"
+          ASSET_TO_DECODE="$asset" php <<'PHP'
+          <?php
+          $path = getenv('ASSET_TO_DECODE');
+          if (!is_string($path) || $path === '') {
+            fwrite(STDERR, "Generated editorial PNG path is unavailable.\n");
+            exit(2);
+          }
+          if (!function_exists('imagecreatefrompng')) {
+            fwrite(STDERR, "GD PNG decoder is unavailable.\n");
+            exit(3);
+          }
+          $image = @imagecreatefrompng($path);
+          if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
+            fwrite(STDERR, "Generated editorial PNG is not GD-decodable at 1200x630.\n");
+            exit(4);
+          }
+          imagedestroy($image);
+          PHP
 
       - name: Resolve exact repository-owned image profile
         id: profile

@@ -1,0 +1,229 @@
+name: "#966 PREPROD Blog image diagnostic"
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-blog-image-diagnostic.yml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/agency-command-dispatch-validation.yml'
+      - 'scripts/runner/preprod-blog-image-diagnostic.php'
+      - 'scripts/runner/run-preprod-blog-image-diagnostic.sh'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreprodBlogImageDiagnosticWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    name: "#966 static read-only image diagnostic contract"
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate bounded diagnostic surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/runner/run-preprod-blog-image-diagnostic.sh
+          php -l scripts/runner/preprod-blog-image-diagnostic.php
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Install exact locked dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Prove #966 static contract
+        run: >-
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/PreprodBlogImageDiagnosticWorkflowTest.php
+
+  diagnose:
+    name: Read-only PREPROD Blog image diagnosis
+    if: >-
+      ${{
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request == null &&
+        github.event.issue.number == 966 &&
+        github.event.comment.body == '/agency-preprod-blog-image-diagnostic diagnose'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: agency-preprod-blog-image-diagnostic-966
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '966' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-preprod-blog-image-diagnostic diagnose' ]]
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo '#966 diagnostic must execute the workflow revision currently on live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable read-only implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          bash -n scripts/runner/run-preprod-blog-image-diagnostic.sh
+          php -l scripts/runner/preprod-blog-image-diagnostic.php
+
+      - name: JIT revalidate live main before PREPROD identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live" == "$EXPECTED_MAIN" ]]
+          [[ "$(git rev-parse HEAD)" == "$live" ]]
+
+      - name: Materialize transient PREPROD identity after JIT
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_KEY"
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-966-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-966-preprod.key"
+
+      - name: Execute bounded read-only PREPROD diagnosis
+        id: route
+        shell: bash
+        env:
+          ISSUE_NUMBER: '966'
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-966-preprod.key
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/preprod-blog-image-diagnostic
+        run: bash scripts/runner/run-preprod-blog-image-diagnostic.sh
+
+      - name: Cleanup PREPROD identity
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-966-preprod.key"
+
+      - name: Upload metadata-only diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-preprod-blog-image-diagnostic-966-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/preprod-blog-image-diagnostic/result.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded diagnostic result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROUTE_OUTCOME: ${{ steps.route.outcome }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          result='artifacts/preprod-blog-image-diagnostic/result.json'
+          if [[ "$ROUTE_OUTCOME" != 'success' || ! -s "$result" ]] || ! jq -e . "$result" >/dev/null 2>&1; then
+            gh issue comment 966 --repo "$GITHUB_REPOSITORY" --body "### Agency PREPROD Blog image diagnostic FAILURE
+
+trusted_main: \`${TRUSTED_MAIN}\`
+run_id: \`${GITHUB_RUN_ID}\`
+route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
+
+No runtime mutation authority was granted or consumed."
+            exit 1
+          fi
+
+          root_cause="$(jq -r '.root_cause' "$result")"
+          node_id="$(jq -r '.sample.node_id // "n/a"' "$result")"
+          fr_field="$(jq -r '.sample.fr.field // "UNOBSERVABLE"' "$result")"
+          fid="$(jq -r '.sample.fr.fid // .sample.en.fid // "n/a"' "$result")"
+          uri="$(jq -r '.sample.file.uri // .sample.fr.uri // "n/a"' "$result")"
+          physical="$(jq -r '.sample.file.physical_file // "UNOBSERVABLE"' "$result")"
+          listing="$(jq -r '.sample.listing.state // "UNOBSERVABLE"' "$result")"
+          detail="$(jq -r '.sample.detail.state // "UNOBSERVABLE"' "$result")"
+          observed="$(jq -r '.scope.published_articles_observed' "$result")"
+          with_image="$(jq -r '.scope.with_image_reference' "$result")"
+          missing_physical="$(jq -r '.scope.missing_physical_file' "$result")"
+          physical_present="$(jq -r '.scope.physical_file_present' "$result")"
+          field_empty="$(jq -r '.scope.field_empty' "$result")"
+          truncated="$(jq -r '.scope.scope_truncated' "$result")"
+          release="$(jq -r '.preprod_current_release // "n/a"' "$result")"
+          artifact="agency-preprod-blog-image-diagnostic-966-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          body="$(cat <<EOF_BODY
+          ### Agency PREPROD Blog image diagnostic PASS
+
+          trusted_main: \`${TRUSTED_MAIN}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          root_cause: \`${root_cause}\`
+          sample_node_id: \`${node_id}\`
+          image_field: \`${fr_field}\`
+          fid: \`${fid}\`
+          uri: \`${uri}\`
+          physical_file: \`${physical}\`
+          listing_render: \`${listing}\`
+          detail_render: \`${detail}\`
+          published_articles_observed: \`${observed}\`
+          with_image_reference: \`${with_image}\`
+          missing_physical_file: \`${missing_physical}\`
+          physical_file_present: \`${physical_present}\`
+          field_empty: \`${field_empty}\`
+          scope_truncated: \`${truncated}\`
+          preprod_release: \`${release}\`
+          artifact: \`${artifact}\`
+
+          PROD_ACCESS=NONE
+          PROD_WRITE=NONE
+          PREPROD_DESTRUCTIVE_MUTATION=NONE
+          MODULE_INSTALL=NONE
+          EOF_BODY
+          )"
+          gh issue comment 966 --repo "$GITHUB_REPOSITORY" --body "$body"

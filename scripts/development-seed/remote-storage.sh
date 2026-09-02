@@ -86,19 +86,25 @@ case "$ACTION" in
       '.schema_version == 1 and .seed_id == $seed and .database_sha256 == $digest and (.source_preprod_refresh_identity | type == "string") and (.source_preprod_application_release_sha | test("^[0-9a-f]{40}$")) and .sanitization_policy.id == "agency-development-seed-v1"' \
       "$metadata" >/dev/null || fail 'seed metadata contract failed before publication'
 
+    # Install the fixed reader command separately; immutable seed directories
+    # contain only the distributable database and metadata payload.
+    reader_tmp="$ROOT/.read-only-scp.$REQUEST_ID.tmp"
+    cp -- "$reader_candidate" "$reader_tmp"
+    chmod 500 "$reader_tmp"
+    [[ "$(sha256sum "$reader_tmp" | awk '{print $1}')" == "$EXPECTED_READER_SHA" ]] || fail 'fixed reader candidate changed'
+    rm -f -- "$reader_candidate"
+
     chmod 400 "$database" "$metadata"
-    chmod 500 "$reader_candidate"
     mv -- "$INCOMING" "$TARGET"
     chmod 500 "$TARGET"
     [[ -d "$TARGET" && ! -L "$TARGET" ]] || fail 'immutable seed move failed'
+    [[ -f "$TARGET/database.sql.gz" && -f "$TARGET/seed.json" ]] || fail 'immutable seed payload is incomplete'
+    [[ "$(find "$TARGET" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 2 ]] || fail 'immutable seed payload contains unexpected files'
     [[ "$(sha256sum "$TARGET/database.sql.gz" | awk '{print $1}')" == "$EXPECTED_DATABASE_SHA" ]] || fail 'published database digest mismatch'
 
-    reader_tmp="$ROOT/.read-only-scp.$REQUEST_ID.tmp"
-    cp -- "$TARGET/read-only-scp.sh" "$reader_tmp"
-    chmod 500 "$reader_tmp"
-    [[ "$(sha256sum "$reader_tmp" | awk '{print $1}')" == "$EXPECTED_READER_SHA" ]] || fail 'fixed reader candidate changed'
     mv -f -- "$reader_tmp" "$READER"
     chmod 500 "$READER"
+    [[ "$(sha256sum "$READER" | awk '{print $1}')" == "$EXPECTED_READER_SHA" ]] || fail 'fixed reader command installation failed'
 
     current_tmp="$ROOT/.current.$REQUEST_ID.tmp"
     rm -f -- "$current_tmp"
@@ -125,6 +131,7 @@ case "$ACTION" in
     [[ -d "$TARGET" && ! -L "$TARGET" ]] || fail 'expected immutable seed is unavailable'
     [[ -f "$TARGET/database.sql.gz" && ! -L "$TARGET/database.sql.gz" ]] || fail 'published database is unavailable'
     [[ -f "$TARGET/seed.json" && ! -L "$TARGET/seed.json" ]] || fail 'published metadata is unavailable'
+    [[ "$(find "$TARGET" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 2 ]] || fail 'immutable seed contains unexpected files'
     [[ "$(sha256sum "$TARGET/database.sql.gz" | awk '{print $1}')" == "$EXPECTED_DATABASE_SHA" ]] || fail 'published database digest changed'
     [[ -f "$READER" && ! -L "$READER" && "$(sha256sum "$READER" | awk '{print $1}')" == "$EXPECTED_READER_SHA" ]] || fail 'reader command identity changed'
     [[ ! -e "$INCOMING" && ! -L "$INCOMING" ]] || fail 'temporary storage material remains'

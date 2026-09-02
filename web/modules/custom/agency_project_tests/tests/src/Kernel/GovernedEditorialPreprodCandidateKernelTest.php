@@ -25,6 +25,11 @@ use PHPUnit\Framework\Attributes\Group;
 #[Group('governed_editorial_preprod_candidate')]
 final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
 
+  /**
+   * Drupal modules required by the bounded Article candidate Kernel tests.
+   *
+   * @var string[]
+   */
   protected static $modules = [
     'system',
     'user',
@@ -39,9 +44,19 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     'path_alias',
   ];
 
+  /**
+   * PREPROD candidate helper under test.
+   */
   private object $candidate;
+
+  /**
+   * Existing Blog category fixture identifier.
+   */
   private int $categoryTid;
 
+  /**
+   * Builds the minimal Drupal Article runtime reused by #576 and #959.
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -103,7 +118,9 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     }
     $factory = ['AgencyEditorialPreprodCandidate', 'fromContainer'];
     if (!is_callable($factory)) {
-      throw new \RuntimeException('PREPROD editorial candidate helper factory did not load.');
+      throw new \RuntimeException(
+        'PREPROD editorial candidate helper factory did not load.',
+      );
     }
     $this->candidate = $factory($this->container);
   }
@@ -161,7 +178,10 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     self::assertSame('UPDATED', $updated['verdict']);
     self::assertSame($nodeId, $updated['node']['id']);
     self::assertSame($firstHash, $updated['previous_payload_sha256']);
-    self::assertGreaterThan($firstRevision, (int) $updated['node']['revision_id']);
+    self::assertGreaterThan(
+      $firstRevision,
+      (int) $updated['node']['revision_id'],
+    );
 
     $node = Node::load($nodeId);
     self::assertNotNull($node);
@@ -186,7 +206,10 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       self::fail('A non-Article bundle was accepted.');
     }
     catch (\InvalidArgumentException $exception) {
-      self::assertStringContainsString('Only bundle=article', $exception->getMessage());
+      self::assertStringContainsString(
+        'Only bundle=article',
+        $exception->getMessage(),
+      );
     }
 
     $extra = $this->validPayload();
@@ -207,10 +230,15 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     $changed['fr']['body_html'] = '<p>Changed.</p>';
     $changed['category'] = ['tid' => 999999, 'name' => 'Missing'];
     $this->expectException(\InvalidArgumentException::class);
-    $this->expectExceptionMessage('Selected Blog category does not exist in PREPROD.');
+    $this->expectExceptionMessage(
+      'Selected Blog category does not exist in PREPROD.',
+    );
     $this->candidate->dryRun($changed, 958, str_repeat('1', 64));
   }
 
+  /**
+   * Creates the Article fields required by the reused #576 contract.
+   */
   private function createArticleFields(): void {
     FieldStorageConfig::create([
       'field_name' => 'body',
@@ -260,6 +288,9 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     ])->save();
   }
 
+  /**
+   * Returns one valid FR/EN Article payload fixture.
+   */
   private function validPayload(): array {
     return [
       'schema_version' => 1,

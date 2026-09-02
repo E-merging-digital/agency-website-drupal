@@ -171,13 +171,15 @@ jobs:
           set -euo pipefail
           result='artifacts/preprod-blog-image-diagnostic/result.json'
           if [[ "$ROUTE_OUTCOME" != 'success' || ! -s "$result" ]] || ! jq -e . "$result" >/dev/null 2>&1; then
-            gh issue comment 966 --repo "$GITHUB_REPOSITORY" --body "### Agency PREPROD Blog image diagnostic FAILURE
-
-trusted_main: \`${TRUSTED_MAIN}\`
-run_id: \`${GITHUB_RUN_ID}\`
-route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
-
-No runtime mutation authority was granted or consumed."
+            failure_body="$(printf '%s\n' \
+              '### Agency PREPROD Blog image diagnostic FAILURE' \
+              '' \
+              "trusted_main: \`$TRUSTED_MAIN\`" \
+              "run_id: \`$GITHUB_RUN_ID\`" \
+              "route_outcome: \`${ROUTE_OUTCOME:-unknown}\`" \
+              '' \
+              'No runtime mutation authority was granted or consumed.')"
+            gh issue comment 966 --repo "$GITHUB_REPOSITORY" --body "$failure_body"
             exit 1
           fi
 

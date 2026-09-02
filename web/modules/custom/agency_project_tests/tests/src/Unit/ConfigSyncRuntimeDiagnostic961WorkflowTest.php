@@ -115,7 +115,7 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   /**
    * Proves the SHA command survives set -u without local positional arguments.
    */
-  public function testSettingsShaCommandSurvivesSetUWithoutPositionalParameter(): void {
+  public function testSettingsShaCommandSurvivesNounsetWithoutPositionalParameter(): void {
     $runner = $this->source(self::RUNNER);
     $matches = array_values(array_filter(
       preg_split('/\R/', $runner) ?: [],

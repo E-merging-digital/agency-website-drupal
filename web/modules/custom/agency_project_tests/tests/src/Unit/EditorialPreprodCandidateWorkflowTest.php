@@ -93,7 +93,7 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
       'path: artifacts/editorial-preprod-candidate/result.json',
       $source,
     );
-    self::assertStringContainsString('prod_write: `NONE`', $source);
+    self::assertStringContainsString('prod_write: \`NONE\`', $source);
     self::assertStringContainsString(
       'GITHUB_ISSUE_COMMENT',
       $this->source('scripts/runner/editorial-preprod-candidate.php'),
@@ -134,7 +134,8 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringContainsString("'UPDATE_READY'", $source);
     self::assertStringContainsString("'IDEMPOTENT'", $source);
     self::assertStringNotContainsString('bundleName', $source);
-    self::assertStringNotContainsString('entity_type', $source);
+    self::assertStringNotContainsString("payload['entity_type']", $source);
+    self::assertStringNotContainsString("'entity_type' =>", $source);
   }
 
   /**

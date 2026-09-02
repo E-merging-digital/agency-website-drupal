@@ -61,6 +61,109 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
   }
 
   /**
+   * Regresses the exact real receipt format and all security-field failures.
+   */
+  public function testDryRunReceiptAuthorizationMatchesRealOutputAndFailsClosed(): void {
+    $source = $this->source(self::WORKFLOW);
+    foreach ([
+      "heading = '### Agency editorial PREPROD candidate dry-run PASS'",
+      "'candidate_revision': re.compile(r'^candidate_revision: `([0-9]+)`$')",
+      "'payload_sha256': re.compile(r'^payload_sha256: `([0-9a-f]{64})`$')",
+      "'trusted_main': re.compile(r'^trusted_main: `([0-9a-f]{40})`$')",
+      "if not lines or lines[0] != heading:",
+      "if malformed or len(matches) != 1:",
+      "comment.get('user', {}).get('login') != 'github-actions[bot]'",
+    ] as $needle) {
+      self::assertStringContainsString($needle, $source);
+    }
+
+    $revision = '5510862057';
+    $hash = '2e92228480ee6ae7410c028eab2b88c7d7db1534668477f6eafbc236668cb700';
+    $main = '65a067691431d130bbc083423e94fa0769318612';
+    $receipt = $this->realDryRunReceipt();
+
+    self::assertTrue($this->receiptAuthorizes(
+      'github-actions[bot]',
+      $receipt,
+      $revision,
+      $hash,
+      $main,
+    ));
+
+    self::assertFalse($this->receiptAuthorizes(
+      'E-merging-digital',
+      $receipt,
+      $revision,
+      $hash,
+      $main,
+    ));
+    self::assertFalse($this->receiptAuthorizes(
+      'github-actions[bot]',
+      str_replace('dry-run PASS', 'dry-run FAIL', $receipt),
+      $revision,
+      $hash,
+      $main,
+    ));
+    self::assertFalse($this->receiptAuthorizes(
+      'github-actions[bot]',
+      str_replace($hash, str_repeat('a', 64), $receipt),
+      $revision,
+      $hash,
+      $main,
+    ));
+    self::assertFalse($this->receiptAuthorizes(
+      'github-actions[bot]',
+      str_replace($revision, '5510862058', $receipt),
+      $revision,
+      $hash,
+      $main,
+    ));
+    self::assertFalse($this->receiptAuthorizes(
+      'github-actions[bot]',
+      str_replace($main, str_repeat('b', 40), $receipt),
+      $revision,
+      $hash,
+      $main,
+    ));
+
+    $missing = preg_replace('/^trusted_main: .*\R?/m', '', $receipt, 1);
+    self::assertIsString($missing);
+    self::assertFalse($this->receiptAuthorizes(
+      'github-actions[bot]',
+      $missing,
+      $revision,
+      $hash,
+      $main,
+    ));
+
+    $duplicate = str_replace(
+      "payload_sha256: `$hash`",
+      "payload_sha256: `$hash`\npayload_sha256: `$hash`",
+      $receipt,
+    );
+    self::assertFalse($this->receiptAuthorizes(
+      'github-actions[bot]',
+      $duplicate,
+      $revision,
+      $hash,
+      $main,
+    ));
+
+    $malformed = str_replace(
+      "candidate_revision: `$revision`",
+      'candidate_revision: `not-a-number`',
+      $receipt,
+    );
+    self::assertFalse($this->receiptAuthorizes(
+      'github-actions[bot]',
+      $malformed,
+      $revision,
+      $hash,
+      $main,
+    ));
+  }
+
+  /**
    * Proves PREPROD execution cannot receive production execution inputs.
    */
   public function testPreprodRouteHasNoProductionExecutionInput(): void {
@@ -136,6 +239,75 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringNotContainsString('bundleName', $source);
     self::assertStringNotContainsString("payload['entity_type']", $source);
     self::assertStringNotContainsString("'entity_type' =>", $source);
+  }
+
+  /**
+   * Mirrors the workflow's strict named-field receipt authorization contract.
+   */
+  private function receiptAuthorizes(
+    string $author,
+    string $body,
+    string $expectedRevision,
+    string $expectedHash,
+    string $expectedMain,
+  ): bool {
+    if ($author !== 'github-actions[bot]') {
+      return FALSE;
+    }
+
+    $lines = preg_split('/\R/u', $body) ?: [];
+    if (($lines[0] ?? '') !== '### Agency editorial PREPROD candidate dry-run PASS') {
+      return FALSE;
+    }
+
+    $patterns = [
+      'candidate_revision' => '/^candidate_revision: `([0-9]+)`$/',
+      'payload_sha256' => '/^payload_sha256: `([0-9a-f]{64})`$/',
+      'trusted_main' => '/^trusted_main: `([0-9a-f]{40})`$/',
+    ];
+    $fields = [];
+    foreach ($patterns as $name => $pattern) {
+      $matches = [];
+      foreach (array_slice($lines, 1) as $line) {
+        if (!str_starts_with($line, $name . ':')) {
+          continue;
+        }
+        if (preg_match($pattern, $line, $match) !== 1) {
+          return FALSE;
+        }
+        $matches[] = $match[1];
+      }
+      if (count($matches) !== 1) {
+        return FALSE;
+      }
+      $fields[$name] = $matches[0];
+    }
+
+    return $fields['candidate_revision'] === $expectedRevision
+      && hash_equals($expectedHash, $fields['payload_sha256'])
+      && hash_equals($expectedMain, $fields['trusted_main']);
+  }
+
+  /**
+   * Exact receipt emitted by real dry-run #958 / run 33640254463.
+   */
+  private function realDryRunReceipt(): string {
+    return <<<'RECEIPT'
+### Agency editorial PREPROD candidate dry-run PASS
+
+target: `PREPROD`
+candidate_id: `agency-article-958`
+candidate_revision: `5510862057`
+payload_sha256: `2e92228480ee6ae7410c028eab2b88c7d7db1534668477f6eafbc236668cb700`
+trusted_main: `65a067691431d130bbc083423e94fa0769318612`
+run_id: `33640254463`
+verdict: `READY`
+node_id: `n/a`
+revision_id: `n/a`
+fr_url: `n/a`
+en_url: `n/a`
+prod_write: `NONE`
+RECEIPT;
   }
 
   /**

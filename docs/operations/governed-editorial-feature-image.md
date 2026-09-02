@@ -1,9 +1,9 @@
 # Governed editorial feature image
 
-Status: **TRUSTED BOUNDED ARTICLE FEATURE-IMAGE ROUTE**  
+Status: **TRUSTED BOUNDED ARTICLE FEATURE-IMAGE ROUTE**
 Owner issue: #584  
 Initial consumer: #401  
-PREPROD consumer: #958  
+PREPROD consumer: #958
 Parent Article route: #576
 
 ## Purpose

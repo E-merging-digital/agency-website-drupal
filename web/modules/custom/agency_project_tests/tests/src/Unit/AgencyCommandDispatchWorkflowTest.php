@@ -26,6 +26,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'EDITORIAL_FEATURE_IMAGE' =>
     '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
+    'DEVELOPMENT_SEED' => '.github/workflows/development-seed-publish.yml',
     'PREPROD_REFRESH_940_DIAGNOSTIC' =>
     '.github/workflows/preprod-refresh-940-diagnostic.yml',
     'PREPROD_REFRESH_940_RECOVERY' =>
@@ -35,6 +36,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   ];
 
   private const INCIDENT_ISSUES = [
+    'DEVELOPMENT_SEED' => 956,
     'PREPROD_REFRESH_940_DIAGNOSTIC' => 941,
     'PREPROD_REFRESH_940_RECOVERY' => 943,
     'PREPROD_REFRESH_948_DETAIL' => 949,
@@ -69,7 +71,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(8, $routes);
+    self::assertCount(9, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -118,6 +120,12 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'PREPROD_REFRESH',
       ],
       [
+        "/agency-development-seed publish seed-956-abcdefgh-r1 {$sha40} "
+        . "apply-953-current-r1 {$sha40}",
+        956,
+        'DEVELOPMENT_SEED',
+      ],
+      [
         '/agency-preprod-refresh-940-diagnostic diagnose',
         941,
         'PREPROD_REFRESH_940_DIAGNOSTIC',
@@ -146,6 +154,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     }
 
     foreach ([
+      ["/agency-development-seed publish seed-956-abcdefgh-r1 {$sha40} apply-953-current-r1 {$sha40}", 955],
       ['/agency-preprod-refresh-940-diagnostic diagnose', 940],
       ['/agency-preprod-refresh-940-recovery plan', 941],
       ['/agency-preprod-refresh-940-recovery cleanup', 940],
@@ -161,6 +170,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-production-scheduler action=CREATE release=' . $sha40
       . ' expected=CONTROLLED',
       '/agency-editorial inspect now',
+      '/agency-development-seed publish seed-956-bad-r1 ' . $sha40 . ' bad ' . $sha40,
       '/agency-preprod-refresh-940-recovery plan now',
       '/agency-preprod-refresh-948-detail diagnose now',
       '/agency-unknown apply',
@@ -190,22 +200,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       "route = matches[0] if len(matches) == 1 else 'NONE'",
       $source,
     );
-    self::assertStringContainsString(
-      "'PREPROD_REFRESH_940_DIAGNOSTIC': '941'",
-      $source,
-    );
-    self::assertStringContainsString(
-      "'PREPROD_REFRESH_940_RECOVERY': '943'",
-      $source,
-    );
-    self::assertStringContainsString(
-      "'PREPROD_REFRESH_948_DETAIL': '949'",
-      $source,
-    );
-    self::assertStringContainsString(
-      'required_issue = incident_issue.get',
-      $source,
-    );
+    self::assertStringContainsString("'DEVELOPMENT_SEED': '956'", $source);
+    self::assertStringContainsString("'PREPROD_REFRESH_940_DIAGNOSTIC': '941'", $source);
+    self::assertStringContainsString("'PREPROD_REFRESH_940_RECOVERY': '943'", $source);
+    self::assertStringContainsString("'PREPROD_REFRESH_948_DETAIL': '949'", $source);
+    self::assertStringContainsString('required_issue = incident_issue.get', $source);
   }
 
   /**
@@ -220,11 +219,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertSame([], $jobs['classify']['permissions'] ?? NULL);
     self::assertArrayNotHasKey('secrets', $jobs['classify']);
 
-    $prodSecrets = [
-      'SSH_PRIVATE_KEY',
-      'SERVER_HOST',
-      'SERVER_USER',
-    ];
+    $prodSecrets = ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER'];
     $preprodSecrets = [
       'SSH_PRIVATE_KEY',
       'PREPROD_SSH_PRIVATE_KEY',
@@ -233,14 +228,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'SERVER_USER',
       'PREPROD_SERVER_HOST',
     ];
-    $diagnosticSecrets = [
-      'PREPROD_SSH_PRIVATE_KEY',
-      'PREPROD_SERVER_HOST',
-    ];
-    $rootPreprodSecrets = [
-      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
-      'PREPROD_SERVER_HOST',
-    ];
+    $diagnosticSecrets = ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
+    $seedSecrets = ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
+    $rootPreprodSecrets = ['PREPROD_PROVISIONING_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'];
     $jobMap = [
       'production-promote' => [
         'PRODUCTION_PROMOTE',
@@ -267,6 +257,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         ['contents' => 'read', 'issues' => 'read'],
         $preprodSecrets,
       ],
+      'development-seed' => [
+        'DEVELOPMENT_SEED',
+        ['contents' => 'read', 'issues' => 'write'],
+        $seedSecrets,
+      ],
       'preprod-refresh-940-diagnostic' => [
         'PREPROD_REFRESH_940_DIAGNOSTIC',
         ['contents' => 'read', 'issues' => 'read'],
@@ -287,10 +282,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     foreach ($jobMap as $jobId => [$route, $permissions, $secretNames]) {
       $job = $jobs[$jobId] ?? NULL;
       self::assertIsArray($job, $jobId);
-      self::assertSame(
-        './' . self::REUSABLES[$route],
-        $job['uses'] ?? NULL,
-      );
+      self::assertSame('./' . self::REUSABLES[$route], $job['uses'] ?? NULL);
       self::assertSame($permissions, $job['permissions'] ?? NULL);
       self::assertSame($secretNames, array_keys($job['secrets'] ?? []));
       self::assertStringContainsString(
@@ -306,16 +298,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       self::assertArrayHasKey('workflow_call', $on, $path);
       self::assertArrayNotHasKey('issue_comment', $on, $path);
       $workflowSource = $this->source($path);
-      self::assertStringContainsString(
-        'github.event.issue',
-        $workflowSource,
-        $path,
-      );
-      self::assertStringContainsString(
-        'github.event.comment',
-        $workflowSource,
-        $path,
-      );
+      self::assertStringContainsString('github.event.issue', $workflowSource, $path);
+      self::assertStringContainsString('github.event.comment', $workflowSource, $path);
     }
 
     self::assertStringNotContainsString('GENERIC_COMMAND_EXECUTION', $source);
@@ -368,9 +352,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
    * Returns one repository workflow as source text.
    */
   private function source(string $relativePath): string {
-    return (string) file_get_contents(
-      dirname(DRUPAL_ROOT) . '/' . $relativePath,
-    );
+    return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);
   }
 
 }

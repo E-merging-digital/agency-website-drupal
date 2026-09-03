@@ -30,8 +30,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     'docs/operations/production-health-diagnostic.md';
 
   /**
-   * Proves the operational workflow is bound to #982/#995
-   * and one exact command.
+   * Proves #982/#995 PROD binding and exact command.
    */
   public function testWorkflowIsBoundToIssues982And995AndExactCommand(): void {
     $workflow = $this->parsed(self::WORKFLOW);

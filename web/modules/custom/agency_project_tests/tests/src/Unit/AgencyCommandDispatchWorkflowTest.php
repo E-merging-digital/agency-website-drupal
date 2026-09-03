@@ -41,8 +41,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_REFRESH_948_DETAIL' => 949,
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
-    'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => 982,
-    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => 982,
+    'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995],
+    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995],
   ];
 
   /**
@@ -64,9 +64,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * The historical routing matrix stays covered with only #982 rebound.
+   * The historical routing matrix stays covered with #982/#995 bindings.
    */
-  public function testRoutingMatrixAndIssue982Bindings(): void {
+  public function testRoutingMatrixAndIssue982And995Bindings(): void {
     $dispatcher = $this->parsed(self::DISPATCHER);
     self::assertArrayHasKey('env', $dispatcher);
     $raw = $dispatcher['env']['AGENCY_COMMAND_ROUTES'] ?? NULL;
@@ -169,6 +169,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         982,
         'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
+      [
+        '/agency-config-sync-runtime diagnose',
+        995,
+        'CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
+      ],
+      [
+        '/agency-config-sync-prod-runtime diagnose',
+        995,
+        'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
+      ],
     ];
     foreach ($known as [$body, $issue, $expected]) {
       self::assertSame($expected, $this->classify($routes, $body, $issue));
@@ -222,6 +232,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     ];
     foreach ($invalid as $body) {
       self::assertSame('NONE', $this->classify($routes, $body, 982), $body);
+      self::assertSame('NONE', $this->classify($routes, $body, 995), $body);
     }
 
     $collision = $routes;
@@ -262,11 +273,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '982'",
+      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995')",
       $source,
     );
     self::assertStringContainsString(
-      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '982'",
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995')",
       $source,
     );
     self::assertStringNotContainsString(
@@ -416,7 +427,12 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     foreach ($routes as $route) {
       $routeName = $route['route'] ?? NULL;
       $requiredIssue = self::INCIDENT_ISSUES[$routeName] ?? NULL;
-      if ($requiredIssue !== NULL && $issue !== $requiredIssue) {
+      if (is_array($requiredIssue)) {
+        if (!in_array($issue, $requiredIssue, TRUE)) {
+          continue;
+        }
+      }
+      elseif ($requiredIssue !== NULL && $issue !== $requiredIssue) {
         continue;
       }
       $matched = in_array($body, $route['exact'] ?? [], TRUE);

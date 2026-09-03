@@ -71,8 +71,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -q 'runs-on:.*self-hosted' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
-          ! grep -q 'PREPROD_SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
-          ! grep -q 'SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
-          ! grep -qE '(^|[[:space:]])ssh[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
-          ! grep -qE '(^|[[:space:]])scp[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
+          if grep -q 'runs-on:.*self-hosted' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+            exit 1
+          fi
+          if grep -q 'PREPROD_SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+            exit 1
+          fi
+          if grep -q 'SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+            exit 1
+          fi
+          if grep -qE '(^|[[:space:]])ssh[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+            exit 1
+          fi
+          if grep -qE '(^|[[:space:]])scp[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+            exit 1
+          fi

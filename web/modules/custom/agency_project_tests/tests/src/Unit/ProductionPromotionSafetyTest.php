@@ -164,6 +164,74 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
+   * #985 reuses the #983 helper from the exact candidate before activation.
+   */
+  public function testPromotionConvergesConfigSyncFromExactCandidateBeforeActivation(): void {
+    $promotion = $this->script('scripts/production-promotion/promote-candidate.sh');
+    $legacyDeploy = $this->script('scripts/deploy-production.sh');
+
+    foreach ([
+      'SETTINGS_FILE="$SHARED_DIR/settings/settings.php"',
+      'CONFIG_SYNC_CONVERGER="$NEW_RELEASE/scripts/production-settings/converge-config-sync-directory.sh"',
+      '[[ -r "$CONFIG_SYNC_CONVERGER" && -x "$CONFIG_SYNC_CONVERGER" ]]',
+      'bash -n "$CONFIG_SYNC_CONVERGER"',
+      '"$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE"',
+    ] as $required) {
+      self::assertStringContainsString($required, $promotion);
+    }
+
+    $preflight = strpos($promotion, 'Preflight active production Drupal and database.');
+    $helper = strpos($promotion, 'CONFIG_SYNC_CONVERGER="$NEW_RELEASE/scripts/production-settings/converge-config-sync-directory.sh"');
+    $syntax = strpos($promotion, 'bash -n "$CONFIG_SYNC_CONVERGER"');
+    $convergence = strpos($promotion, '"$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE"');
+    $backup = strpos($promotion, 'vendor/bin/drush sql:dump --gzip');
+    $maintenance = strpos($promotion, 'system.maintenance_mode 1');
+    $newReleaseBootstrap = strpos($promotion, '(cd "$NEW_RELEASE" && vendor/bin/drush status --fields=bootstrap >/dev/null)');
+    $switch = strpos($promotion, 'ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"');
+
+    foreach ([
+      $preflight,
+      $helper,
+      $syntax,
+      $convergence,
+      $backup,
+      $maintenance,
+      $newReleaseBootstrap,
+      $switch,
+    ] as $position) {
+      self::assertIsInt($position);
+    }
+
+    self::assertTrue($preflight < $helper);
+    self::assertTrue($helper < $syntax);
+    self::assertTrue($syntax < $convergence);
+    self::assertTrue($convergence < $backup);
+    self::assertTrue($backup < $maintenance);
+    self::assertTrue($maintenance < $newReleaseBootstrap);
+    self::assertTrue($newReleaseBootstrap < $switch);
+
+    self::assertStringContainsString('set -Eeuo pipefail', $promotion);
+    self::assertMatchesRegularExpression(
+      '~^"\$CONFIG_SYNC_CONVERGER" "\$SETTINGS_FILE"$~m',
+      $promotion,
+    );
+    self::assertStringNotContainsString(
+      '"$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE" ||',
+      $promotion,
+    );
+    self::assertStringNotContainsString('preg_replace(', $promotion);
+
+    self::assertStringContainsString(
+      'PRODUCTION_SETTINGS_CONVERGER="$NEW_RELEASE/scripts/production-settings/converge-config-sync-directory.sh"',
+      $legacyDeploy,
+    );
+    self::assertStringContainsString(
+      'bash "$PRODUCTION_SETTINGS_CONVERGER" "$PRODUCTION_SETTINGS_FILE"',
+      $legacyDeploy,
+    );
+  }
+
+  /**
    * Detached worker shares the same server lock as the emergency lane.
    */
   public function testPromotionWorkerIsDetachedLockedAndIdentityBound(): void {

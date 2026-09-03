@@ -92,9 +92,14 @@ jobs:
           mkdir -p "$artifact"
 
           printf 'ASSERTION = INITIAL_CONFIG_STATUS_CLEAN\nEXPECTED = command succeeds and output contains: No differences\n'
+          set +e
           status_first="$(ddev drush config:status 2>&1)"
+          status_first_rc=$?
+          set -e
           printf '%s\n' "$status_first" | tee "$artifact/config-status-first.txt"
-          printf 'OBSERVED = %s\n' "$status_first"
+          printf '%s\n' "$status_first_rc" > "$artifact/config-status-first.exit-code"
+          printf 'OBSERVED = %s\nCOMMAND_EXIT_CODE = %s\n' "$status_first" "$status_first_rc"
+          test "$status_first_rc" -eq 0
           grep -Fq 'No differences' <<<"$status_first"
 
           ddev drush php:script "$state_script" > "$artifact/state-first.json"
@@ -174,16 +179,26 @@ jobs:
           done
 
           printf 'ASSERTION = SECOND_CONFIG_IMPORT_NO_OP\nEXPECTED = command succeeds and output contains: There are no changes to import.\n'
+          set +e
           second_cim="$(ddev drush cim -y 2>&1)"
+          second_cim_rc=$?
+          set -e
           printf '%s\n' "$second_cim" | tee "$artifact/config-import-second.txt"
-          printf 'OBSERVED = %s\n' "$second_cim"
+          printf '%s\n' "$second_cim_rc" > "$artifact/config-import-second.exit-code"
+          printf 'OBSERVED = %s\nCOMMAND_EXIT_CODE = %s\n' "$second_cim" "$second_cim_rc"
+          test "$second_cim_rc" -eq 0
           grep -Fq 'There are no changes to import.' <<<"$second_cim"
           ddev drush cr
 
           printf 'ASSERTION = SECOND_CONFIG_STATUS_CLEAN\nEXPECTED = command succeeds and output contains: No differences\n'
+          set +e
           status_second="$(ddev drush config:status 2>&1)"
+          status_second_rc=$?
+          set -e
           printf '%s\n' "$status_second" | tee "$artifact/config-status-second.txt"
-          printf 'OBSERVED = %s\n' "$status_second"
+          printf '%s\n' "$status_second_rc" > "$artifact/config-status-second.exit-code"
+          printf 'OBSERVED = %s\nCOMMAND_EXIT_CODE = %s\n' "$status_second" "$status_second_rc"
+          test "$status_second_rc" -eq 0
           grep -Fq 'No differences' <<<"$status_second"
 
           ddev drush php:script "$state_script" > "$artifact/state-second.json"
@@ -236,6 +251,7 @@ jobs:
           cat "$artifact/result.json"
 
       - name: Upload bounded hosted fresh-DDEV evidence
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-config-language-609-hosted-ddev-${{ github.run_id }}-${{ github.run_attempt }}

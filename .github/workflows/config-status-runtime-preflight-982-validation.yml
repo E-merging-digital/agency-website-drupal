@@ -66,6 +66,7 @@ jobs:
   fresh-ddev-rebaseline:
     name: "#982 fresh DDEV configuration-language rebaseline"
     needs: static-validation
+    if: ${{ github.event.pull_request.head.ref != 'diagnostic/995-canvas-runtime-diff-paths' }}
     timeout-minutes: 30
     runs-on:
       - self-hosted

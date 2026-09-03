@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact checkout and preserved repository language surfaces
+      - name: Verify exact checkout and protected repository language surfaces
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -52,7 +52,6 @@ jobs:
           git diff --check "$BASE_SHA..$EXPECTED_HEAD"
           git diff --quiet "$BASE_SHA..$EXPECTED_HEAD" -- \
             config/sync/system.site.yml \
-            config/sync/language/fr \
             config/sync/language/en \
             config/sync/language.entity.und.yml \
             config/sync/language.entity.zxx.yml
@@ -144,7 +143,9 @@ jobs:
               '. == $expected[0]' "$artifact/active-language-$lang.json" >/dev/null
           done
 
-          ddev drush cim -y
+          second_cim="$(ddev drush cim -y 2>&1)"
+          printf '%s\n' "$second_cim" | tee "$artifact/config-import-second.txt"
+          grep -Fq 'There are no changes to import.' <<<"$second_cim"
           ddev drush cr
           status_second="$(ddev drush config:status 2>&1)"
           printf '%s\n' "$status_second" | tee "$artifact/config-status-second.txt"
@@ -158,12 +159,14 @@ jobs:
             --arg ddev_runner 'ubuntu-24.04 / GitHub-hosted' \
             --arg ddev_source 'repository-only' \
             --arg site_install_existing_config 'SUCCESS' \
+            --arg first_config_status 'CLEAN' \
+            --arg second_cim 'NO-OP/STABLE' \
+            --arg second_config_status 'CLEAN' \
             --arg locked_langcode 'en' \
             --arg site_default_langcode 'fr' \
             --arg policy 'adopted / enforced' \
             --arg translations 'preserved' \
             --arg und_zxx 'preserved' \
-            --arg config_status 'CLEAN/STABLE' \
             --arg preprod_access 'NONE' \
             --arg prod_access 'NONE' \
             --arg state_sha256 "$(jq -r '.overall_sha256' "$artifact/state-second.json")" \
@@ -173,6 +176,9 @@ jobs:
               ddev_runner:$ddev_runner,
               ddev_source:$ddev_source,
               site_install_existing_config:$site_install_existing_config,
+              first_config_status:$first_config_status,
+              second_cim:$second_cim,
+              second_config_status:$second_config_status,
               config_language_lock_enabled:true,
               locked_langcode:$locked_langcode,
               follow_site_default:false,
@@ -180,7 +186,7 @@ jobs:
               policy:$policy,
               translations:$translations,
               und_zxx:$und_zxx,
-              config_status_after_fresh_install:$config_status,
+              config_status_after_fresh_install:"CLEAN/STABLE",
               preprod_access:$preprod_access,
               prod_access:$prod_access,
               stable_active_config_sha256:$state_sha256

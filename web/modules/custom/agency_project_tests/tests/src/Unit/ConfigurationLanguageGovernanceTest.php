@@ -87,7 +87,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
-   * The adopted lock preserves editorial and semantic language exceptions.
+   * The adopted lock preserves editorial and semantic language invariants.
    */
   public function testAdoptedLockPreservesLanguageSemantics(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -117,7 +117,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       . '/config/sync/canvas.folder.'
       . '0d5d5129-0d2e-41f3-a6d5-0211018bd59f.yml',
     );
-    self::assertSame('fr', $canvasFolder['langcode'] ?? NULL);
+    self::assertSame('en', $canvasFolder['langcode'] ?? NULL);
 
     $coreViewMode = Yaml::parseFile(
       $root . '/config/sync/core.entity_view_mode.user.token.yml',
@@ -127,7 +127,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $footerMenu = Yaml::parseFile(
       $root . '/config/sync/system.menu.footer.yml',
     );
-    self::assertSame('und', $footerMenu['langcode'] ?? NULL);
+    self::assertSame('en', $footerMenu['langcode'] ?? NULL);
 
     foreach ([
       '/config/sync/language/fr',

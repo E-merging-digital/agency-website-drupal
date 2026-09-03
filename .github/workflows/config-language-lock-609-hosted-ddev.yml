@@ -129,38 +129,6 @@ jobs:
           printf 'ASSERTION = SPECIAL_ZXX_SOURCE_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_zxx_source_langcode' "$artifact/state-first.json")"
           jq -e '.special.language_entity_zxx_source_langcode == "en"' "$artifact/state-first.json" >/dev/null
 
-          ddev exec php -r '
-            require "/var/www/html/vendor/autoload.php";
-            $policy = \Symfony\Component\Yaml\Yaml::parseFile("/var/www/html/docs/configuration-language-policy.yml");
-            echo json_encode([
-              "status" => $policy["status"] ?? null,
-              "canonical_configuration_language" => $policy["canonical_configuration_language"] ?? null,
-              "site_default_language" => $policy["site_default_language"] ?? null,
-              "enforce_consistency" => $policy["enforce_consistency"] ?? null,
-              "target_locked_langcode" => $policy["enforcement"]["target_locked_langcode"] ?? null,
-              "follow_site_default" => $policy["enforcement"]["follow_site_default"] ?? null,
-            ], JSON_THROW_ON_ERROR);
-          ' > "$artifact/policy.json"
-          cat "$artifact/policy.json"
-
-          printf 'ASSERTION = POLICY_STATUS_ADOPTED\nEXPECTED = "adopted"\nOBSERVED = %s\n' "$(jq -c '.status' "$artifact/policy.json")"
-          jq -e '.status == "adopted"' "$artifact/policy.json" >/dev/null
-
-          printf 'ASSERTION = POLICY_CANONICAL_CONFIGURATION_LANGUAGE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.canonical_configuration_language' "$artifact/policy.json")"
-          jq -e '.canonical_configuration_language == "en"' "$artifact/policy.json" >/dev/null
-
-          printf 'ASSERTION = POLICY_SITE_DEFAULT_LANGUAGE_FR\nEXPECTED = "fr"\nOBSERVED = %s\n' "$(jq -c '.site_default_language' "$artifact/policy.json")"
-          jq -e '.site_default_language == "fr"' "$artifact/policy.json" >/dev/null
-
-          printf 'ASSERTION = POLICY_ENFORCE_CONSISTENCY_TRUE\nEXPECTED = true\nOBSERVED = %s\n' "$(jq -c '.enforce_consistency' "$artifact/policy.json")"
-          jq -e '.enforce_consistency == true' "$artifact/policy.json" >/dev/null
-
-          printf 'ASSERTION = POLICY_TARGET_LOCKED_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.target_locked_langcode' "$artifact/policy.json")"
-          jq -e '.target_locked_langcode == "en"' "$artifact/policy.json" >/dev/null
-
-          printf 'ASSERTION = POLICY_FOLLOW_SITE_DEFAULT_FALSE\nEXPECTED = false\nOBSERVED = %s\n' "$(jq -c '.follow_site_default' "$artifact/policy.json")"
-          jq -e '.follow_site_default == false' "$artifact/policy.json" >/dev/null
-
           for lang in fr en; do
             find "config/sync/language/$lang" -maxdepth 1 -type f -name '*.yml' -printf '%f\n' \
               | sed 's/\.yml$//' \

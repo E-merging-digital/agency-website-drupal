@@ -90,7 +90,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves historical fixed PROD trust, identity source and paths remain intact.
+   * Proves historical PROD trust, identity and paths remain intact.
    */
   public function testRunnerIsFixedToProdAndReusesPinnedTrust(): void {
     $runner = $this->source(self::RUNNER);

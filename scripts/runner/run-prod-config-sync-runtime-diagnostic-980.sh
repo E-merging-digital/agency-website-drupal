@@ -3,15 +3,27 @@ set -Eeuo pipefail
 umask 077
 
 ISSUE_NUMBER="${ISSUE_NUMBER:-}"
+DIAGNOSTIC_PROFILE="${DIAGNOSTIC_PROFILE:-metadata}"
 SERVER_HOST="${SERVER_HOST:-}"
 SERVER_USER="${SERVER_USER:-}"
 PROD_SSH_KEY="${PROD_SSH_KEY:-}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/prod-config-sync-runtime-diagnostic}"
 
-[[ "$ISSUE_NUMBER" == '980' || "$ISSUE_NUMBER" == '982' ]] || {
-  echo 'This diagnostic is bound to issue #980 or #982.' >&2
+[[ "$ISSUE_NUMBER" == '980' || "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' ]] || {
+  echo 'This diagnostic is bound to issue #980, #982 or #995.' >&2
   exit 1
 }
+if [[ "$ISSUE_NUMBER" == '995' ]]; then
+  [[ "$DIAGNOSTIC_PROFILE" == 'canvas_paths' ]] || {
+    echo '#995 requires the bounded canvas_paths diagnostic profile.' >&2
+    exit 1
+  }
+else
+  [[ "$DIAGNOSTIC_PROFILE" == 'metadata' ]] || {
+    echo '#980/#982 require the metadata diagnostic profile.' >&2
+    exit 1
+  }
+fi
 [[ -n "$SERVER_HOST" ]]
 [[ "$SERVER_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
 [[ -n "$SERVER_USER" ]]
@@ -23,8 +35,10 @@ CURRENT_LINK="$PROJECT_ROOT/current"
 EXPECTED_SETTINGS="$PROJECT_ROOT/shared/settings/settings.php"
 PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'
 CONFIG_STATUS_FILTER='scripts/runner/filter-config-status-metadata.php'
+CANVAS_PATH_PROBE='scripts/runner/canvas-runtime-diff-paths-995.php'
 
 [[ -f "$CONFIG_STATUS_FILTER" ]]
+[[ -f "$CANVAS_PATH_PROBE" ]]
 mkdir -p "$ARTIFACT_DIR"
 
 SERVER_HOST="$SERVER_HOST" bash "$PROD_TRUST" PROVISION >/dev/null
@@ -123,9 +137,102 @@ if [[ "$effective_config_sync" != 'UNOBSERVABLE' ]]; then
 fi
 
 [[ "$drush_bootstrap" == 'SUCCESS' ]] || {
-  echo 'Drush bootstrap is required for #982 metadata inventory.' >&2
+  echo 'Drush bootstrap is required for the bounded runtime diagnostic.' >&2
   exit 1
 }
+
+if [[ "$DIAGNOSTIC_PROFILE" == 'canvas_paths' ]]; then
+  canvas_probe_code="$(tail -n +2 "$CANVAS_PATH_PROBE")"
+  encoded_canvas_probe="$(printf '%s' "$canvas_probe_code" | base64 -w 0)"
+  [[ "$encoded_canvas_probe" =~ ^[A-Za-z0-9+/=]+$ ]]
+
+  printf -v canvas_command \
+    "set -euo pipefail; cd /var/www/agency/current; code=\$(printf '%%s' '%s' | base64 -d); AGENCY_CANVAS_995_EXECUTE=1 AGENCY_CANVAS_995_ENVIRONMENT=PROD vendor/bin/drush php:eval \"\$code\" 2>/dev/null" \
+    "$encoded_canvas_probe"
+  canvas_paths_raw=''
+  set +e
+  canvas_paths_raw="$(ssh "${ssh_common[@]}" "$remote_target" "$canvas_command")"
+  canvas_paths_rc="$?"
+  set -e
+  [[ "$canvas_paths_rc" -eq 0 ]] || {
+    echo 'PROD #995 path-only Canvas probe failed.' >&2
+    exit 1
+  }
+
+  canvas_paths_public="$ARTIFACT_DIR/canvas-runtime-diff-paths.json"
+  printf '%s\n' "$canvas_paths_raw" > "$canvas_paths_public"
+  unset canvas_paths_raw canvas_probe_code encoded_canvas_probe canvas_command
+
+  jq -e '
+    .schema_version == 1
+    and .environment == "PROD"
+    and .public_schema == "environment + config_name + differing_paths[] + classification"
+    and .config_values_exposed == false
+    and .cohort_size == 15
+    and .summary.total == 15
+    and (.items | length == 15)
+    and (.items | all(
+      .environment == "PROD"
+      and (.config_name | startswith("canvas.component.block."))
+      and (.differing_paths | type == "array" and length > 0)
+      and (.differing_paths | all(type == "string" and length > 0))
+      and (
+        .classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"
+        or .classification == "UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED"
+      )
+    ))
+  ' "$canvas_paths_public" >/dev/null
+
+  jq -n \
+    --arg current_release "$current_release" \
+    --arg current_symlink_target "$current_target" \
+    --arg drupal_root "$drupal_root" \
+    --arg settings_symlink_target "$settings_target" \
+    --arg shared_settings_sha256 "$settings_sha256" \
+    --arg effective_config_sync_directory "$effective_config_sync" \
+    --arg resolved_config_sync_path "$resolved_path" \
+    --arg resolved_path_exists "$resolved_exists" \
+    --argjson config_sync_entry_count "$entry_count" \
+    --arg drush_bootstrap "$drush_bootstrap" \
+    --slurpfile runtime_canvas_paths "$canvas_paths_public" \
+    '{
+      schema_version: 3,
+      target: "PROD",
+      diagnostic_profile: "canvas_paths",
+      current_release: $current_release,
+      current_symlink_target: $current_symlink_target,
+      drupal_root: $drupal_root,
+      settings_symlink_target: $settings_symlink_target,
+      shared_settings_sha256: $shared_settings_sha256,
+      effective_config_sync_directory: $effective_config_sync_directory,
+      resolved_config_sync_path: $resolved_config_sync_path,
+      resolved_path_exists: $resolved_path_exists,
+      config_sync_entry_count: $config_sync_entry_count,
+      drush_bootstrap: $drush_bootstrap,
+      runtime_canvas_paths: $runtime_canvas_paths[0],
+      prod_access: "READ_ONLY",
+      prod_mutation: "NONE",
+      prod_write: "NONE",
+      preprod_access: "NONE",
+      preprod_write: "NONE"
+    }' > "$ARTIFACT_DIR/result.json"
+
+  jq -e '
+    .schema_version == 3
+    and .target == "PROD"
+    and .diagnostic_profile == "canvas_paths"
+    and .drush_bootstrap == "SUCCESS"
+    and .runtime_canvas_paths.environment == "PROD"
+    and .runtime_canvas_paths.config_values_exposed == false
+    and .runtime_canvas_paths.cohort_size == 15
+    and .prod_access == "READ_ONLY"
+    and .prod_mutation == "NONE"
+    and .prod_write == "NONE"
+    and .preprod_access == "NONE"
+    and .preprod_write == "NONE"
+  ' "$ARTIFACT_DIR/result.json" >/dev/null
+  exit 0
+fi
 
 config_status_raw=''
 set +e
@@ -187,7 +294,7 @@ jq -n \
     settings_symlink_target: $settings_symlink_target,
     shared_settings_sha256: $shared_settings_sha256,
     effective_config_sync_directory: $effective_config_sync_directory,
-    resolved_config_sync_path: $resolved_config_sync_path,
+    resolved_config_sync_path: $resolved_path,
     resolved_path_exists: $resolved_path_exists,
     config_sync_entry_count: $config_sync_entry_count,
     drush_bootstrap: $drush_bootstrap,

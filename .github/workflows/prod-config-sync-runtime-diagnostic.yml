@@ -1,4 +1,4 @@
-name: "#980 PROD config sync runtime diagnostic"
+name: "#982 PROD config status runtime inventory"
 
 on:
   workflow_call:
@@ -14,15 +14,17 @@ on:
       - '.github/workflows/prod-config-sync-runtime-diagnostic.yml'
       - '.github/workflows/agency-command-dispatch.yml'
       - 'scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh'
+      - 'scripts/runner/filter-config-status-metadata.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php'
 
 permissions:
   contents: read
 
 jobs:
   static-validation:
-    name: "#980 static read-only PROD config sync diagnostic contract"
+    name: "#982 static read-only PROD config status contract"
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     permissions:
@@ -38,6 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh
+          php -l scripts/runner/filter-config-status-metadata.php
           docker run --rm -v "$PWD:/repo" -w /repo \
             rhysd/actionlint:1.7.7 -color \
             .github/workflows/prod-config-sync-runtime-diagnostic.yml
@@ -49,19 +52,19 @@ jobs:
           coverage: none
       - name: Install exact locked dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
-      - name: Prove #980 PROD and #961 PREPROD read-only contracts
+      - name: Prove #982 PROD metadata-only contract
         run: >-
           vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php
           web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php
-          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php
 
   diagnose:
-    name: Read-only PROD config sync runtime diagnosis
+    name: Read-only PROD config status metadata inventory
     if: >-
       ${{
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request == null &&
-        github.event.issue.number == 980 &&
+        github.event.issue.number == 982 &&
         github.event.comment.body == '/agency-config-sync-prod-runtime diagnose'
       }}
     runs-on: ubuntu-24.04
@@ -70,11 +73,11 @@ jobs:
       contents: read
       issues: write
     concurrency:
-      group: agency-config-sync-prod-runtime-diagnostic-980
+      group: agency-config-status-runtime-preflight-982-prod
       cancel-in-progress: false
 
     steps:
-      - name: Validate owner, issue, command and live main
+      - name: Validate owner, authority, issue, command and live main
         id: request
         shell: bash
         env:
@@ -87,7 +90,7 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
           [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
-          [[ "$ISSUE_NUMBER" == '980' ]]
+          [[ "$ISSUE_NUMBER" == '982' ]]
           [[ "$TRIGGER_COMMENT" == '/agency-config-sync-prod-runtime diagnose' ]]
 
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
@@ -95,10 +98,15 @@ jobs:
           [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
           [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
 
+          authority_json="$(gh api 'repos/'"$GITHUB_REPOSITORY"'/issues/comments/5528251064')"
+          [[ "$(jq -r '.user.login' <<<"$authority_json")" == 'E-merging-digital' ]]
+          [[ "$(jq -r '.issue_url' <<<"$authority_json")" == \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/982" ]]
+
           main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
           [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
-            echo '#980 diagnostic must execute the workflow revision currently on live main.' >&2
+            echo '#982 PROD inventory must execute the workflow revision currently on live main.' >&2
             exit 1
           }
           echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
@@ -119,6 +127,7 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
           bash -n scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh
           bash -n scripts/production-ssh-trust/manage-known-host.sh
+          php -l scripts/runner/filter-config-status-metadata.php
 
       - name: JIT revalidate live main before PROD identity
         shell: bash
@@ -138,35 +147,45 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$PROD_KEY"
-          printf '%s\n' "$PROD_KEY" > "$RUNNER_TEMP/agency-980-prod.key"
-          chmod 600 "$RUNNER_TEMP/agency-980-prod.key"
+          printf '%s\n' "$PROD_KEY" > "$RUNNER_TEMP/agency-982-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-982-prod.key"
 
-      - name: Execute bounded read-only PROD diagnosis
+      - name: Execute bounded read-only PROD inventory
         id: route
         shell: bash
         env:
-          ISSUE_NUMBER: '980'
+          ISSUE_NUMBER: '982'
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          PROD_SSH_KEY: ${{ runner.temp }}/agency-980-prod.key
-          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/prod-config-sync-runtime-diagnostic
+          PROD_SSH_KEY: ${{ runner.temp }}/agency-982-prod.key
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/config-status-runtime-preflight-982-prod
         run: bash scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh
 
       - name: Cleanup PROD identity
         if: ${{ always() }}
         shell: bash
-        run: rm -f -- "$RUNNER_TEMP/agency-980-prod.key"
+        run: rm -f -- "$RUNNER_TEMP/agency-982-prod.key"
 
-      - name: Upload metadata-only diagnostic evidence
+      - name: Materialize public metadata-only evidence
+        if: ${{ steps.route.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/config-status-runtime-preflight-982-prod/result.json'
+          public='artifacts/config-status-runtime-preflight-982-prod/public-result.json'
+          jq '.runtime_config_metadata' "$result" > "$public"
+          jq -e '.environment == "PROD" and .config_values_exposed == false' "$public" >/dev/null
+
+      - name: Upload metadata-only PROD evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: agency-config-sync-prod-runtime-980-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/prod-config-sync-runtime-diagnostic/result.json
+          name: agency-config-status-preflight-982-prod-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-status-runtime-preflight-982-prod/public-result.json
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Publish bounded diagnostic result
+      - name: Publish bounded PROD result
         if: ${{ always() && steps.request.outcome == 'success' }}
         shell: bash
         env:
@@ -175,60 +194,40 @@ jobs:
           TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
         run: |
           set -euo pipefail
-          result='artifacts/prod-config-sync-runtime-diagnostic/result.json'
+          result='artifacts/config-status-runtime-preflight-982-prod/public-result.json'
           if [[ "$ROUTE_OUTCOME" != 'success' || ! -s "$result" ]] || \
             ! jq -e . "$result" >/dev/null 2>&1; then
             body="$(printf '%s\n' \
-              '### Agency #980 PROD config sync runtime diagnostic FAILURE' \
+              '### Agency #982 PROD config drift inventory FAILURE' \
               '' \
               "trusted_main: \`$TRUSTED_MAIN\`" \
               "run_id: \`$GITHUB_RUN_ID\`" \
-              "route_outcome: \`${ROUTE_OUTCOME:-unknown}\`" \
               '' \
-              'PROD_MUTATION=NONE' \
+              'CONFIG_VALUES_EXPOSED=NO' \
               'PROD_WRITE=NONE' \
               'PREPROD_ACCESS=NONE' \
               'PREPROD_WRITE=NONE')"
-            gh issue comment 980 --repo "$GITHUB_REPOSITORY" --body "$body"
+            gh issue comment 982 --repo "$GITHUB_REPOSITORY" --body "$body"
             exit 1
           fi
 
-          current_release="$(jq -r '.current_release' "$result")"
-          current_target="$(jq -r '.current_symlink_target' "$result")"
-          drupal_root="$(jq -r '.drupal_root' "$result")"
-          settings_target="$(jq -r '.settings_symlink_target' "$result")"
-          settings_sha="$(jq -r '.shared_settings_sha256' "$result")"
-          effective="$(jq -r '.effective_config_sync_directory' "$result")"
-          resolved="$(jq -r '.resolved_config_sync_path' "$result")"
-          exists="$(jq -r '.resolved_path_exists' "$result")"
-          count="$(jq -r '.config_sync_entry_count' "$result")"
-          bootstrap="$(jq -r '.drush_bootstrap' "$result")"
-          config_status="$(jq -r '.drush_config_status' "$result")"
-          warning="$(jq -r '.drupal_status_config_sync_warning' "$result")"
-
+          items="$(jq -c '.items' "$result")"
+          summary="$(jq -c '.summary' "$result")"
           body="$(cat <<EOF_BODY
-          ### Agency #980 PROD config sync runtime diagnostic PASS
+          ### Agency #982 PROD config drift inventory PASS
 
           trusted_main: \`${TRUSTED_MAIN}\`
           run_id: \`${GITHUB_RUN_ID}\`
-          CURRENT_RELEASE=\`${current_release}\`
-          CURRENT_SYMLINK_TARGET=\`${current_target}\`
-          DRUPAL_ROOT=\`${drupal_root}\`
-          SETTINGS_SYMLINK_TARGET=\`${settings_target}\`
-          SHARED_SETTINGS_SHA256=\`${settings_sha}\`
-          EFFECTIVE_CONFIG_SYNC_DIRECTORY=\`${effective}\`
-          RESOLVED_CONFIG_SYNC_PATH=\`${resolved}\`
-          RESOLVED_PATH_EXISTS=\`${exists}\`
-          CONFIG_SYNC_ENTRY_COUNT=\`${count}\`
-          DRUSH_BOOTSTRAP=\`${bootstrap}\`
-          DRUSH_CONFIG_STATUS=\`${config_status}\`
-          DRUPAL_STATUS_CONFIG_SYNC_WARNING=\`${warning}\`
+          environment: \`PROD\`
+          metadata_schema: \`environment + config_name + operation/state\`
+          items: \`${items}\`
+          summary: \`${summary}\`
 
+          CONFIG_VALUES_EXPOSED=NO
           PROD_ACCESS=READ_ONLY
-          PROD_MUTATION=NONE
           PROD_WRITE=NONE
           PREPROD_ACCESS=NONE
           PREPROD_WRITE=NONE
           EOF_BODY
           )"
-          gh issue comment 980 --repo "$GITHUB_REPOSITORY" --body "$body"
+          gh issue comment 982 --repo "$GITHUB_REPOSITORY" --body "$body"

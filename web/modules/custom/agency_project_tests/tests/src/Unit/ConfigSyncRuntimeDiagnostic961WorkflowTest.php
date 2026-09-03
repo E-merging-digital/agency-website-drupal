@@ -9,7 +9,7 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects the bounded read-only PREPROD config sync runtime probe.
+ * Protects the reused #961 PREPROD primitive for #982.
  *
  * @group agency_project_tests
  * @group config_sync_runtime_diagnostic_961
@@ -18,11 +18,12 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
 
   private const WORKFLOW = '.github/workflows/config-sync-runtime-diagnostic.yml';
   private const RUNNER = 'scripts/runner/run-config-sync-runtime-diagnostic-961.sh';
+  private const FILTER = 'scripts/runner/filter-config-status-metadata.php';
 
   /**
-   * Proves the workflow is bound to issue #961 and one exact command.
+   * Proves the operational workflow is now bound to #982 and one exact command.
    */
-  public function testWorkflowIsBoundToIssue961AndExactCommand(): void {
+  public function testWorkflowIsBoundToIssue982AndExactCommand(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
 
@@ -32,15 +33,18 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
     self::assertArrayHasKey('workflow_call', $on);
     self::assertArrayHasKey('pull_request', $on);
     self::assertArrayNotHasKey('issue_comment', $on);
-    self::assertStringContainsString('github.event.issue.number == 961', $source);
+    self::assertStringContainsString('github.event.issue.number == 982', $source);
     self::assertStringContainsString(
       "github.event.comment.body == '/agency-config-sync-runtime diagnose'",
       $source,
     );
-    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'961\' ]]', $source);
-    self::assertStringContainsString('[[ "$GITHUB_ACTOR" == \'E-merging-digital\' ]]', $source);
+    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'982\' ]]', $source);
+    self::assertStringContainsString(
+      '[[ "$GITHUB_ACTOR" == \'E-merging-digital\' ]]',
+      $source,
+    );
     self::assertStringContainsString("== 'open'", $source);
-    self::assertStringContainsString('5516638679', $source);
+    self::assertStringContainsString('5528251064', $source);
     self::assertStringContainsString('EVENT_DEFAULT_SHA', $source);
     self::assertStringContainsString(
       'JIT revalidate live main before PREPROD identity',
@@ -76,12 +80,15 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves the runner uses fixed PREPROD trust, identity and paths only.
+   * Proves historical PREPROD trust and path fences remain intact.
    */
   public function testRunnerIsFixedToPreprodAndHasNoArbitraryExecution(): void {
     $runner = $this->source(self::RUNNER);
 
-    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'961\' ]]', $runner);
+    self::assertStringContainsString(
+      '[[ "$ISSUE_NUMBER" == \'961\' || "$ISSUE_NUMBER" == \'982\' ]]',
+      $runner,
+    );
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency-preprod'", $runner);
     self::assertStringContainsString('agency-preprod@$PREPROD_SERVER_HOST', $runner);
     self::assertStringContainsString(
@@ -113,7 +120,7 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves the SHA command survives set -u without local positional arguments.
+   * Proves the historical SHA command remains nounset-safe and exact.
    */
   public function testSettingsShaCommandSurvivesNounsetWithoutPositionalParameter(): void {
     $runner = $this->source(self::RUNNER);
@@ -150,7 +157,7 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves Drupal supplies the setting and config status remains read-only.
+   * Proves the Drupal getter and config status remain strictly read-only.
    */
   public function testDrupalGetterAndConfigStatusAreReadOnly(): void {
     $runner = $this->source(self::RUNNER);
@@ -160,10 +167,19 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
       $runner,
     );
     self::assertStringContainsString('base64_encode(DRUPAL_ROOT)', $runner);
-    self::assertStringContainsString('vendor/bin/drush status --field=bootstrap', $runner);
+    self::assertStringContainsString(
+      'vendor/bin/drush status --field=bootstrap',
+      $runner,
+    );
     self::assertStringContainsString('vendor/bin/drush php:eval', $runner);
-    self::assertStringContainsString('vendor/bin/drush config:status --format=json', $runner);
-    self::assertStringContainsString('DRUPAL_STATUS_CONFIG_SYNC_WARNING', strtoupper($runner));
+    self::assertStringContainsString(
+      'vendor/bin/drush config:status --format=json',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'DRUPAL_STATUS_CONFIG_SYNC_WARNING',
+      strtoupper($runner),
+    );
 
     foreach ([
       'vendor/bin/drush cim',
@@ -184,11 +200,12 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves evidence is metadata-only and settings contents cannot be emitted.
+   * Restores historical evidence/security assertions and adds #982 metadata.
    */
   public function testEvidenceAndSecretBoundaryIsMetadataOnly(): void {
     $runner = $this->source(self::RUNNER);
     $workflow = $this->source(self::WORKFLOW);
+    $filter = $this->source(self::FILTER);
 
     foreach ([
       'CURRENT_RELEASE',
@@ -204,7 +221,11 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
       'DRUSH_CONFIG_STATUS',
       'DRUPAL_STATUS_CONFIG_SYNC_WARNING',
     ] as $field) {
-      self::assertStringContainsString($field, strtoupper($workflow . $runner), $field);
+      self::assertStringContainsString(
+        $field,
+        strtoupper($workflow . $runner),
+        $field,
+      );
     }
 
     self::assertStringContainsString('sha256sum', $runner);
@@ -215,7 +236,21 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
     self::assertStringContainsString('prod_access: "NONE"', $runner);
     self::assertStringContainsString('prod_write: "NONE"', $runner);
 
-    foreach ([$runner, $workflow] as $surface) {
+    self::assertStringContainsString(
+      'php "$CONFIG_STATUS_FILTER" PREPROD',
+      $runner,
+    );
+    self::assertStringContainsString('runtime_config_metadata', $runner);
+    self::assertStringContainsString('config_values_exposed', $runner . $filter);
+    self::assertStringContainsString(
+      'environment + config_name + operation/state',
+      $filter . $workflow,
+    );
+    self::assertStringContainsString('public-result.json', $workflow);
+    self::assertStringContainsString("jq '.runtime_config_metadata'", $workflow);
+    self::assertStringNotContainsString('config_status_raw`', $workflow);
+
+    foreach ([$runner, $workflow, $filter] as $surface) {
       self::assertStringNotContainsString('DB_PASSWORD', $surface);
       self::assertStringNotContainsString('DATABASE_URL', $surface);
       self::assertStringNotContainsString('runtime.env', $surface);
@@ -235,9 +270,6 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
 
   /**
    * Parses one repository workflow structurally.
-   *
-   * @return array<string, mixed>
-   *   The parsed workflow structure.
    */
   private function parsed(string $relativePath): array {
     $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
@@ -249,9 +281,6 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
 
   /**
    * Reads one repository source file as text.
-   *
-   * @return string
-   *   The repository source contents.
    */
   private function source(string $relativePath): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);

@@ -9,7 +9,7 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects the bounded read-only PROD config sync runtime probe.
+ * Protects the reused #980 PROD primitive for #982.
  *
  * @group agency_project_tests
  * @group prod_config_sync_runtime_diagnostic_980
@@ -22,15 +22,17 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
   private const RUNNER =
     'scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh';
 
+  private const FILTER = 'scripts/runner/filter-config-status-metadata.php';
+
   private const DISPATCHER = '.github/workflows/agency-command-dispatch.yml';
 
   private const LEGACY_PROD_HEALTH_DOC =
     'docs/operations/production-health-diagnostic.md';
 
   /**
-   * Proves the workflow is bound to issue #980 and one exact command.
+   * Proves the operational workflow is now bound to #982 and one exact command.
    */
-  public function testWorkflowIsBoundToIssue980AndExactCommand(): void {
+  public function testWorkflowIsBoundToIssue982AndExactCommand(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
 
@@ -40,17 +42,18 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     self::assertArrayHasKey('workflow_call', $on);
     self::assertArrayHasKey('pull_request', $on);
     self::assertArrayNotHasKey('issue_comment', $on);
-    self::assertStringContainsString('github.event.issue.number == 980', $source);
+    self::assertStringContainsString('github.event.issue.number == 982', $source);
     self::assertStringContainsString(
       "github.event.comment.body == '/agency-config-sync-prod-runtime diagnose'",
       $source,
     );
-    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'980\' ]]', $source);
+    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'982\' ]]', $source);
     self::assertStringContainsString(
       '[[ "$GITHUB_ACTOR" == \'E-merging-digital\' ]]',
       $source,
     );
     self::assertStringContainsString("== 'open'", $source);
+    self::assertStringContainsString('5528251064', $source);
     self::assertStringContainsString('EVENT_DEFAULT_SHA', $source);
     self::assertStringContainsString(
       'JIT revalidate live main before PROD identity',
@@ -87,12 +90,15 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves fixed PROD trust, identity source and paths only are used.
+   * Proves historical PROD trust, identity and paths remain intact.
    */
   public function testRunnerIsFixedToProdAndReusesPinnedTrust(): void {
     $runner = $this->source(self::RUNNER);
 
-    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'980\' ]]', $runner);
+    self::assertStringContainsString(
+      '[[ "$ISSUE_NUMBER" == \'980\' || "$ISSUE_NUMBER" == \'982\' ]]',
+      $runner,
+    );
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency'", $runner);
     self::assertStringContainsString('$SERVER_USER@$SERVER_HOST', $runner);
     self::assertStringContainsString(
@@ -126,7 +132,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves SHA construction survives set -u without positional arguments.
+   * Proves historical SHA construction remains nounset-safe and exact.
    */
   public function testSettingsShaCommandSurvivesNounset(): void {
     $runner = $this->source(self::RUNNER);
@@ -163,7 +169,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves Drupal provides the value and config status remains read-only.
+   * Proves the Drupal getter and config status remain strictly read-only.
    */
   public function testDrupalGetterResolutionAndConfigStatusAreReadOnly(): void {
     $runner = $this->source(self::RUNNER);
@@ -206,11 +212,12 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves metadata-only evidence and preserves existing diagnostic contracts.
+   * Restores historical evidence/security assertions and adds #982 metadata.
    */
   public function testEvidenceAndExistingRoutesRemainBounded(): void {
     $runner = $this->source(self::RUNNER);
     $workflow = $this->source(self::WORKFLOW);
+    $filter = $this->source(self::FILTER);
     $dispatcher = $this->source(self::DISPATCHER);
     $legacyHealth = $this->source(self::LEGACY_PROD_HEALTH_DOC);
 
@@ -243,7 +250,20 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     self::assertStringContainsString('preprod_access: "NONE"', $runner);
     self::assertStringContainsString('preprod_write: "NONE"', $runner);
 
-    foreach ([$runner, $workflow] as $surface) {
+    self::assertStringContainsString(
+      'php "$CONFIG_STATUS_FILTER" PROD',
+      $runner,
+    );
+    self::assertStringContainsString('runtime_config_metadata', $runner);
+    self::assertStringContainsString('config_values_exposed', $runner . $filter);
+    self::assertStringContainsString(
+      'environment + config_name + operation/state',
+      $filter . $workflow,
+    );
+    self::assertStringContainsString('public-result.json', $workflow);
+    self::assertStringContainsString("jq '.runtime_config_metadata'", $workflow);
+
+    foreach ([$runner, $workflow, $filter] as $surface) {
       self::assertStringNotContainsString('DB_PASSWORD', $surface);
       self::assertStringNotContainsString('DATABASE_URL', $surface);
       self::assertStringNotContainsString('runtime.env', $surface);
@@ -274,9 +294,6 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
 
   /**
    * Parses one repository workflow structurally.
-   *
-   * @return array<string, mixed>
-   *   The parsed workflow structure.
    */
   private function parsed(string $relativePath): array {
     $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;

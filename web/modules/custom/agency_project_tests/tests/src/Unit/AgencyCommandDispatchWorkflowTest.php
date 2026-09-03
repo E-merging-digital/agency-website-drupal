@@ -19,30 +19,19 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
 
   private const REUSABLES = [
     'PRODUCTION_PROMOTE' => '.github/workflows/promote-production.yml',
-    'PRODUCTION_SCHEDULER' =>
-    '.github/workflows/production-scheduler-change.yml',
-    'EDITORIAL_PUBLICATION' =>
-    '.github/workflows/trusted-editorial-publication.yml',
-    'EDITORIAL_PREPROD_CANDIDATE' =>
-    '.github/workflows/trusted-editorial-preprod-candidate.yml',
-    'EDITORIAL_FEATURE_IMAGE' =>
-    '.github/workflows/trusted-editorial-feature-image.yml',
+    'PRODUCTION_SCHEDULER' => '.github/workflows/production-scheduler-change.yml',
+    'EDITORIAL_PUBLICATION' => '.github/workflows/trusted-editorial-publication.yml',
+    'EDITORIAL_PREPROD_CANDIDATE' => '.github/workflows/trusted-editorial-preprod-candidate.yml',
+    'EDITORIAL_FEATURE_IMAGE' => '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
     'DEVELOPMENT_SEED' => '.github/workflows/development-seed-publish.yml',
-    'PREPROD_REFRESH_940_DIAGNOSTIC' =>
-    '.github/workflows/preprod-refresh-940-diagnostic.yml',
-    'PREPROD_REFRESH_940_RECOVERY' =>
-    '.github/workflows/preprod-refresh-940-recovery.yml',
-    'PREPROD_REFRESH_948_DETAIL' =>
-    '.github/workflows/preprod-refresh-948-detail-diagnostic.yml',
-    'PREPROD_BLOG_IMAGE_DIAGNOSTIC' =>
-    '.github/workflows/preprod-blog-image-diagnostic.yml',
-    'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' =>
-    '.github/workflows/preprod-editorial-image-rehydrate-971.yml',
-    'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' =>
-    '.github/workflows/config-sync-runtime-diagnostic.yml',
-    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' =>
-    '.github/workflows/prod-config-sync-runtime-diagnostic.yml',
+    'PREPROD_REFRESH_940_DIAGNOSTIC' => '.github/workflows/preprod-refresh-940-diagnostic.yml',
+    'PREPROD_REFRESH_940_RECOVERY' => '.github/workflows/preprod-refresh-940-recovery.yml',
+    'PREPROD_REFRESH_948_DETAIL' => '.github/workflows/preprod-refresh-948-detail-diagnostic.yml',
+    'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => '.github/workflows/preprod-blog-image-diagnostic.yml',
+    'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => '.github/workflows/preprod-editorial-image-rehydrate-971.yml',
+    'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => '.github/workflows/config-sync-runtime-diagnostic.yml',
+    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => '.github/workflows/prod-config-sync-runtime-diagnostic.yml',
   ];
 
   private const INCIDENT_ISSUES = [
@@ -52,18 +41,17 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_REFRESH_948_DETAIL' => 949,
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
-    'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => 961,
-    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => 980,
+    'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => 982,
+    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => 982,
   ];
 
   /**
-   * Exactly one workflow may listen to issue_comment, and it is the dispatcher.
+   * Exactly one workflow listens to issue comments.
    */
   public function testSingleTopLevelIssueCommentListener(): void {
     $root = dirname(DRUPAL_ROOT);
     $listeners = [];
-    $pattern = $root . '/.github/workflows/*.{yml,yaml}';
-    foreach (glob($pattern, GLOB_BRACE) ?: [] as $path) {
+    foreach (glob($root . '/.github/workflows/*.{yml,yaml}', GLOB_BRACE) ?: [] as $path) {
       $parsed = Yaml::parseFile($path);
       self::assertIsArray($parsed, $path);
       $on = $parsed['on'] ?? NULL;
@@ -76,9 +64,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * The exact repository-owned route table is unique and fail-closed.
+   * The historical routing matrix stays covered with only #982 rebound.
    */
-  public function testRoutingMatrixAndPrefixUniqueness(): void {
+  public function testRoutingMatrixAndIssue982Bindings(): void {
     $dispatcher = $this->parsed(self::DISPATCHER);
     self::assertArrayHasKey('env', $dispatcher);
     $raw = $dispatcher['env']['AGENCY_COMMAND_ROUTES'] ?? NULL;
@@ -122,11 +110,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ],
       ['/agency-editorial inspect', 402, 'EDITORIAL_PUBLICATION'],
       ['/agency-editorial-candidate dry-run', 958, 'EDITORIAL_PREPROD_CANDIDATE'],
-      [
-        '/agency-editorial-image dry-run',
-        401,
-        'EDITORIAL_FEATURE_IMAGE',
-      ],
+      ['/agency-editorial-image dry-run', 401, 'EDITORIAL_FEATURE_IMAGE'],
       [
         '/agency-preprod-refresh-successor PLAN '
         . "plan-923-abcdefgh-r1 {$sha40} AUTO "
@@ -177,20 +161,17 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ],
       [
         '/agency-config-sync-runtime diagnose',
-        961,
+        982,
         'CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
       [
         '/agency-config-sync-prod-runtime diagnose',
-        980,
+        982,
         'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
     ];
     foreach ($known as [$body, $issue, $expected]) {
-      self::assertSame(
-        $expected,
-        $this->classify($routes, $body, $issue),
-      );
+      self::assertSame($expected, $this->classify($routes, $body, $issue));
     }
 
     foreach ([
@@ -208,10 +189,14 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-preprod-blog-image-diagnostic diagnose', 967],
       ['/agency-preprod-image-rehydrate dry-run', 970],
       ['/agency-preprod-image-rehydrate apply', 972],
-      ['/agency-config-sync-runtime diagnose', 960],
-      ['/agency-config-sync-runtime diagnose', 962],
-      ['/agency-config-sync-prod-runtime diagnose', 979],
+      ['/agency-config-sync-runtime diagnose', 961],
+      ['/agency-config-sync-runtime diagnose', 980],
+      ['/agency-config-sync-runtime diagnose', 981],
+      ['/agency-config-sync-runtime diagnose', 983],
+      ['/agency-config-sync-prod-runtime diagnose', 961],
+      ['/agency-config-sync-prod-runtime diagnose', 980],
       ['/agency-config-sync-prod-runtime diagnose', 981],
+      ['/agency-config-sync-prod-runtime diagnose', 983],
     ] as [$body, $wrongIssue]) {
       self::assertSame('NONE', $this->classify($routes, $body, $wrongIssue));
     }
@@ -236,14 +221,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-unknown apply',
     ];
     foreach ($invalid as $body) {
-      self::assertSame(
-        'NONE',
-        $this->classify($routes, $body, 923),
-        $body,
-      );
+      self::assertSame('NONE', $this->classify($routes, $body, 982), $body);
     }
 
-    // An accidental future route collision must fail closed.
     $collision = $routes;
     $collision[] = [
       'route' => 'COLLISION',
@@ -282,10 +262,18 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '961'",
+      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '982'",
       $source,
     );
     self::assertStringContainsString(
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '982'",
+      $source,
+    );
+    self::assertStringNotContainsString(
+      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '961'",
+      $source,
+    );
+    self::assertStringNotContainsString(
       "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '980'",
       $source,
     );
@@ -293,7 +281,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * Routing stays native, permissions bounded, and secrets mapped explicitly.
+   * Historical permissions and explicit secret mappings remain protected.
    */
   public function testReusableRoutesRemainAuthorizedDownstream(): void {
     $dispatcher = $this->parsed(self::DISPATCHER);
@@ -421,7 +409,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * Classifies a body using the exact repository-owned route table.
+   * Classifies one body with the repository-owned route table.
    */
   private function classify(array $routes, string $body, int $issue): string {
     $matches = [];
@@ -454,8 +442,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
    * Parses one repository workflow structurally.
    */
   private function parsed(string $relativePath): array {
-    $root = dirname(DRUPAL_ROOT);
-    $path = $root . '/' . $relativePath;
+    $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
     self::assertFileExists($path);
     $parsed = Yaml::parseFile($path);
     self::assertIsArray($parsed);
@@ -463,7 +450,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * Returns one repository workflow as source text.
+   * Reads one repository source file.
    */
   private function source(string $relativePath): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);

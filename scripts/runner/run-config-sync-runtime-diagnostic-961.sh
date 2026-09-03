@@ -7,8 +7,8 @@ PREPROD_SERVER_HOST="${PREPROD_SERVER_HOST:-}"
 PREPROD_SSH_KEY="${PREPROD_SSH_KEY:-}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/config-sync-runtime-diagnostic}"
 
-[[ "$ISSUE_NUMBER" == '961' ]] || {
-  echo 'This diagnostic is bound to issue #961.' >&2
+[[ "$ISSUE_NUMBER" == '961' || "$ISSUE_NUMBER" == '982' ]] || {
+  echo 'This diagnostic is bound to issue #961 or #982.' >&2
   exit 1
 }
 [[ -n "$PREPROD_SERVER_HOST" ]]
@@ -20,7 +20,9 @@ CURRENT_LINK="$PROJECT_ROOT/current"
 EXPECTED_SETTINGS="$PROJECT_ROOT/shared/settings/settings.php"
 PREPROD_TRUST_PROVISION='scripts/preproduction-ssh-trust/manage-known-host.sh'
 PREPROD_TRUST_VERIFY='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
+CONFIG_STATUS_FILTER='scripts/runner/filter-config-status-metadata.php'
 
+[[ -f "$CONFIG_STATUS_FILTER" ]]
 mkdir -p "$ARTIFACT_DIR"
 
 PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" bash "$PREPROD_TRUST_PROVISION" PROVISION >/dev/null
@@ -120,35 +122,47 @@ if [[ "$effective_config_sync" != 'UNOBSERVABLE' ]]; then
   [[ "$entry_count" =~ ^[0-9]+$ ]]
 fi
 
-config_status='ERROR'
-if [[ "$drush_bootstrap" == 'SUCCESS' ]]; then
-  config_status_raw=''
-  set +e
-  config_status_raw="$(ssh "${ssh_common[@]}" "$remote_target" \
-    'set -euo pipefail; cd /var/www/agency-preprod/current; vendor/bin/drush config:status --format=json 2>/dev/null')"
-  config_status_rc="$?"
-  set -e
-  if [[ "$config_status_rc" -eq 0 ]]; then
-    if [[ -z "$config_status_raw" ]]; then
-      config_status='CLEAN'
-    else
-      set +e
-      CONFIG_STATUS_RAW="$config_status_raw" php -r '
-        $decoded = json_decode((string) getenv("CONFIG_STATUS_RAW"), TRUE);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-          exit(2);
-        }
-        exit(empty($decoded) ? 0 : 1);
-      '
-      decoded_rc="$?"
-      set -e
-      case "$decoded_rc" in
-        0) config_status='CLEAN' ;;
-        1) config_status='DIFFERENT' ;;
-        *) config_status='ERROR' ;;
-      esac
-    fi
-  fi
+[[ "$drush_bootstrap" == 'SUCCESS' ]] || {
+  echo 'Drush bootstrap is required for #982 metadata inventory.' >&2
+  exit 1
+}
+
+config_status_raw=''
+set +e
+config_status_raw="$(ssh "${ssh_common[@]}" "$remote_target" \
+  'set -euo pipefail; cd /var/www/agency-preprod/current; vendor/bin/drush config:status --format=json 2>/dev/null')"
+config_status_rc="$?"
+set -e
+[[ "$config_status_rc" -eq 0 ]] || {
+  echo 'PREPROD drush config:status failed.' >&2
+  exit 1
+}
+
+config_status_metadata="$ARTIFACT_DIR/config-status-metadata.json"
+printf '%s' "$config_status_raw" \
+  | php "$CONFIG_STATUS_FILTER" PREPROD \
+  > "$config_status_metadata"
+unset config_status_raw
+
+jq -e '
+  .schema_version == 1
+  and .environment == "PREPROD"
+  and .metadata_schema == "environment + config_name + operation/state"
+  and .config_values_exposed == false
+  and (.summary.total | type == "number")
+  and (.summary.persistent_language_lock_cim_safety == "YES" or .summary.persistent_language_lock_cim_safety == "REVIEW_REQUIRED")
+  and (.items | all(
+    .environment == "PREPROD"
+    and (.config_name | type == "string")
+    and (.state == "Only in DB" or .state == "Only in sync dir" or .state == "Different")
+    and (.operation == "CREATE" or .operation == "UPDATE" or .operation == "DELETE")
+    and (.classification == "EXPECTED_REPOSITORY_DEPLOY_DRIFT" or .classification == "INTENTIONAL_RUNTIME_ONLY" or .classification == "UNEXPECTED_REVIEW_REQUIRED")
+  ))
+' "$config_status_metadata" >/dev/null
+
+config_status='CLEAN'
+if [[ "$(jq -r '.summary.total' "$config_status_metadata")" -gt 0 ]]; then
+  config_status='DIFFERENT'
 fi
 
 jq -n \
@@ -163,8 +177,9 @@ jq -n \
   --argjson config_sync_entry_count "$entry_count" \
   --arg drush_bootstrap "$drush_bootstrap" \
   --arg drush_config_status "$config_status" \
+  --slurpfile runtime_config_metadata "$config_status_metadata" \
   '{
-    schema_version: 1,
+    schema_version: 2,
     target: "PREPROD",
     current_release: $current_release,
     current_symlink_target: $current_symlink_target,
@@ -177,14 +192,19 @@ jq -n \
     config_sync_entry_count: $config_sync_entry_count,
     drush_bootstrap: $drush_bootstrap,
     drush_config_status: $drush_config_status,
+    runtime_config_metadata: $runtime_config_metadata[0],
     drupal_status_config_sync_warning: "NOT_OBSERVABLE",
+    preprod_access: "READ_ONLY",
     preprod_mutation: "NONE",
+    preprod_write: "NONE",
     prod_access: "NONE",
     prod_write: "NONE"
   }' > "$ARTIFACT_DIR/result.json"
 
+rm -f -- "$config_status_metadata"
+
 jq -e '
-  .schema_version == 1
+  .schema_version == 2
   and .target == "PREPROD"
   and (.current_release | type == "string")
   and (.current_symlink_target | startswith("/var/www/agency-preprod/releases/"))
@@ -193,10 +213,14 @@ jq -e '
   and (.shared_settings_sha256 | test("^[0-9a-f]{64}$"))
   and (.resolved_path_exists == "YES" or .resolved_path_exists == "NO")
   and (.config_sync_entry_count | type == "number")
-  and (.drush_bootstrap == "SUCCESS" or .drush_bootstrap == "FAILURE")
-  and (.drush_config_status == "CLEAN" or .drush_config_status == "DIFFERENT" or .drush_config_status == "ERROR")
+  and .drush_bootstrap == "SUCCESS"
+  and (.drush_config_status == "CLEAN" or .drush_config_status == "DIFFERENT")
+  and .runtime_config_metadata.environment == "PREPROD"
+  and .runtime_config_metadata.config_values_exposed == false
   and .drupal_status_config_sync_warning == "NOT_OBSERVABLE"
+  and .preprod_access == "READ_ONLY"
   and .preprod_mutation == "NONE"
+  and .preprod_write == "NONE"
   and .prod_access == "NONE"
   and .prod_write == "NONE"
 ' "$ARTIFACT_DIR/result.json" >/dev/null

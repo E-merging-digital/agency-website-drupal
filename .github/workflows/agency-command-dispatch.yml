@@ -57,8 +57,8 @@ jobs:
               'PREPROD_REFRESH_948_DETAIL': '949',
               'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
               'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
-              'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '961',
-              'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '980',
+              'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '982',
+              'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '982',
           }
           matches = []
           if not is_pr:
@@ -236,7 +236,7 @@ jobs:
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   config-sync-runtime-diagnostic:
-    name: Route #961 read-only PREPROD config sync runtime diagnostic
+    name: Route #982 read-only PREPROD config status inventory
     needs: classify
     if: ${{ needs.classify.outputs.route == 'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
     permissions:
@@ -248,7 +248,7 @@ jobs:
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   prod-config-sync-runtime-diagnostic:
-    name: Route #980 read-only PROD config sync runtime diagnostic
+    name: Route #982 read-only PROD config status inventory
     needs: classify
     if: ${{ needs.classify.outputs.route == 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
     permissions:

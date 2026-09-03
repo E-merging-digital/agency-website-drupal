@@ -181,7 +181,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
     $pair['sync']['third_party_settings'] = [];
 
     $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('Unsafe dynamic Canvas map key.');
+    $this->expectExceptionMessage('Unknown Canvas array shape at path: third_party_settings');
     agency_canvas_995_analyze_config($pair['active'], $pair['sync']);
   }
 

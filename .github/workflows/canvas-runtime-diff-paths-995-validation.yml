@@ -73,7 +73,7 @@ jobs:
           set -euo pipefail
           target='.github/workflows/canvas-runtime-diff-paths-995-validation.yml'
           self_hosted='self-''hosted'
-          preprod_secret='PREPROD_''SSH_PRIVATE_KEY'
+          preprod_secret='PREPROD_SSH_''PRIVATE_KEY'
           prod_secret='SSH_''PRIVATE_KEY'
           ssh_word='s''sh'
           scp_word='s''cp'

@@ -274,7 +274,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    *     known_canvas_deterministic_drift_pattern: int,
    *     unexpected_canvas_business_path_review_required: int
    *   }
-   * }
+   *   }
    */
   private function analyzeDataset(string $environment, array $dataset): array {
     $name = 'agency_canvas_995_analyze_dataset';
@@ -339,7 +339,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    * @return array<
    *   string,
    *   array{active: array<string, mixed>, sync: array<string, mixed>}
-   * >
+   *   >
    */
   private function knownDataset(): array {
     $dataset = [];

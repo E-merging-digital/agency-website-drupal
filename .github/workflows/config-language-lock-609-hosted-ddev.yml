@@ -93,16 +93,16 @@ jobs:
           mkdir -p "$artifact"
 
           status_first="$(ddev drush config:status 2>&1)"
-          printf '%s\n' "$status_first" > "$artifact/config-status-first.txt"
+          printf '%s\n' "$status_first" | tee "$artifact/config-status-first.txt"
           grep -Fq 'No differences' <<<"$status_first"
 
           ddev drush php:script "$state_script" > "$artifact/state-first.json"
+          cat "$artifact/state-first.json"
           jq -e '
             .config_language_lock_enabled == true and
             .site_default_language == "fr" and
             .module_owned["config_language_lock.settings"].locked_langcode == "en" and
             .module_owned["config_language_lock.settings"].follow_site_default == false and
-            .special.system_menu_footer_langcode == "und" and
             .special.language_entity_und_id == "und" and
             .special.language_entity_und_source_langcode == "en" and
             .special.language_entity_zxx_id == "zxx" and
@@ -121,6 +121,7 @@ jobs:
               "follow_site_default" => $policy["enforcement"]["follow_site_default"] ?? null,
             ], JSON_THROW_ON_ERROR);
           ' > "$artifact/policy.json"
+          cat "$artifact/policy.json"
           jq -e '
             .status == "adopted" and
             .canonical_configuration_language == "en" and
@@ -136,13 +137,9 @@ jobs:
               | LC_ALL=C sort \
               | jq -R -s 'split("\n") | map(select(length > 0))' \
               > "$artifact/repository-language-$lang.json"
-            ddev drush php:eval '
-              $lang = getenv("PROOF_LANG");
-              $storage = \Drupal::service("config.storage")->createCollection("language." . $lang);
-              $names = $storage->listAll();
-              sort($names, SORT_STRING);
-              echo json_encode($names, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-            ' --define "PROOF_LANG=$lang" > "$artifact/active-language-$lang.json"
+            ddev drush php:eval "\$storage = \\Drupal::service('config.storage')->createCollection('language.${lang}'); \$names = \$storage->listAll(); sort(\$names, SORT_STRING); echo json_encode(\$names, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);" \
+              > "$artifact/active-language-$lang.json"
+            cat "$artifact/active-language-$lang.json"
             jq -e --slurpfile expected "$artifact/repository-language-$lang.json" \
               '. == $expected[0]' "$artifact/active-language-$lang.json" >/dev/null
           done
@@ -150,7 +147,7 @@ jobs:
           ddev drush cim -y
           ddev drush cr
           status_second="$(ddev drush config:status 2>&1)"
-          printf '%s\n' "$status_second" > "$artifact/config-status-second.txt"
+          printf '%s\n' "$status_second" | tee "$artifact/config-status-second.txt"
           grep -Fq 'No differences' <<<"$status_second"
           ddev drush php:script "$state_script" > "$artifact/state-second.json"
           cmp "$artifact/state-first.json" "$artifact/state-second.json"

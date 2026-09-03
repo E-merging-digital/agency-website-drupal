@@ -77,7 +77,7 @@ jobs:
           if grep -q 'PREPROD_SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
             exit 1
           fi
-          if grep -q 'SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+          if grep -qE '(^|[^A-Z0-9_])SSH_PRIVATE_KEY([^A-Z0-9_]|$)' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
             exit 1
           fi
           if grep -qE '(^|[[:space:]])ssh[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then

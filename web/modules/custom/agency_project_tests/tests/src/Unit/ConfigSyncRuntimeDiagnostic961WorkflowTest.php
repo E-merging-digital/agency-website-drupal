@@ -80,7 +80,7 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   }
 
   /**
-   * Proves the historical PREPROD trust, identity and path fences remain intact.
+   * Proves historical PREPROD trust and path fences remain intact.
    */
   public function testRunnerIsFixedToPreprodAndHasNoArbitraryExecution(): void {
     $runner = $this->source(self::RUNNER);

@@ -10,7 +10,7 @@ require __DIR__ . '/default.settings.php';
 /**
  * Project-wide paths shared by all environments.
  */
-$settings['config_sync_directory'] = '../config/sync';
+$settings['config_sync_directory'] = dirname(DRUPAL_ROOT) . '/config/sync';
 $settings['file_private_path'] = '../private';
 
 // Disable production-only configuration split in local/DDEV.

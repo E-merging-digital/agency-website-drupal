@@ -22,6 +22,8 @@ MAINTENANCE_ENABLED=0
 SWITCH_COMPLETED=0
 SHARED_FILES_DIR="$SHARED_DIR/files"
 RELEASE_FILES_LINK="$NEW_RELEASE/web/sites/default/files"
+PRODUCTION_SETTINGS_FILE="$SHARED_DIR/settings/settings.php"
+PRODUCTION_SETTINGS_CONVERGER="$NEW_RELEASE/scripts/production-settings/converge-config-sync-directory.sh"
 
 log() {
   local message="$1"
@@ -287,6 +289,13 @@ fi
 
 test "$(git -C "$NEW_RELEASE" rev-parse HEAD)" = "$EXPECTED_SHA"
 verify_runtime_permissions
+
+if [[ ! -r "$PRODUCTION_SETTINGS_CONVERGER" ]]; then
+  log "ERROR: Production settings converger is missing from exact release: ${PRODUCTION_SETTINGS_CONVERGER}."
+  exit 1
+fi
+log "[deploy] Converge deterministic production config sync setting"
+bash "$PRODUCTION_SETTINGS_CONVERGER" "$PRODUCTION_SETTINGS_FILE"
 
 log "[deploy] Switch release"
 ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"

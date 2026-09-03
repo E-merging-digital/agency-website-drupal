@@ -36,27 +36,118 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
       'Functional promotion may only VERIFY_ONLY the PROD scheduler.',
       $verifier,
     );
+    self::assertStringContainsString('SCHEDULER_ACTION=VERIFY_ONLY', $promotion);
+    self::assertStringContainsString('SCHEDULER_CONTEXT=IN_FLIGHT_PROMOTION', $promotion);
     self::assertStringNotContainsString('crontab "$tmp"', $verifier);
     self::assertStringNotContainsString('mktemp', $verifier);
   }
 
   /**
-   * Verify-only binds scheduler proof to the exact current production release.
+   * Standalone verify-only stays receipt-backed to the exact current release.
    */
   public function testVerifyOnlyBindsCurrentReleaseReceipt(): void {
     $verifier = $this->script('scripts/production-promotion/reconcile-cron.sh');
 
     foreach ([
+      'SCHEDULER_CONTEXT="${SCHEDULER_CONTEXT:-STANDALONE}"',
       'PROMOTIONS_DIR="$PROJECT_ROOT/shared/promotions"',
       'current_release="$(readlink -f "$CURRENT")"',
+      'STANDALONE)',
       "'^release_path='",
       "'^candidate_sha='",
       'Current production release must map to exactly one promotion receipt.',
+      'Standalone scheduler verification does not accept in-flight identity.',
       'production_current_release=%s',
       'production_current_release_sha=%s',
     ] as $required) {
       self::assertStringContainsString($required, $verifier);
     }
+  }
+
+  /**
+   * In-flight promotion binds exact current identity without a final receipt.
+   */
+  public function testInFlightPromotionBindsExactCurrentReleaseWithoutFinalReceipt(): void {
+    $promotion = $this->script('scripts/production-promotion/promote-candidate.sh');
+    $verifier = $this->script('scripts/production-promotion/reconcile-cron.sh');
+
+    foreach ([
+      'SCHEDULER_EXPECTED_CANDIDATE_SHA="${SCHEDULER_EXPECTED_CANDIDATE_SHA:-}"',
+      'SCHEDULER_EXPECTED_CURRENT_RELEASE="${SCHEDULER_EXPECTED_CURRENT_RELEASE:-}"',
+      'IN_FLIGHT_PROMOTION)',
+      '[[ "$SCHEDULER_EXPECTED_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]',
+      'readlink -f -- "$SCHEDULER_EXPECTED_CURRENT_RELEASE"',
+      '[[ "$SCHEDULER_EXPECTED_CURRENT_RELEASE" == "$expected_current_release" ]]',
+      '[[ "$expected_current_release" == "$RELEASES_DIR/"* ]]',
+      '[[ "$(dirname -- "$expected_current_release")" == "$RELEASES_DIR" ]]',
+      '[[ "$expected_release_name" =~ ^[0-9]{14}-[0-9a-f]{12}$ ]]',
+      '[[ "${expected_release_name#*-}" == "${SCHEDULER_EXPECTED_CANDIDATE_SHA:0:12}" ]]',
+      '[[ "$current_release" == "$expected_current_release" ]]',
+      'In-flight promotion candidate identity is invalid.',
+      'In-flight promotion expected current release must be canonical.',
+      'In-flight promotion expected current release must remain under the production releases directory.',
+      'In-flight promotion expected current release must be a direct production release path.',
+      'In-flight promotion release identity differs from expected candidate identity.',
+      'Current production release differs from in-flight promotion expectation.',
+    ] as $required) {
+      self::assertStringContainsString($required, $verifier);
+    }
+
+    foreach ([
+      'SCHEDULER_ACTION=VERIFY_ONLY',
+      'SCHEDULER_CONTEXT=IN_FLIGHT_PROMOTION',
+      'SCHEDULER_EXPECTED_CANDIDATE_SHA="$EXPECTED_SHA"',
+      'SCHEDULER_EXPECTED_CURRENT_RELEASE="$NEW_RELEASE"',
+      '"$CURRENT_LINK/scripts/production-promotion/reconcile-cron.sh"',
+    ] as $required) {
+      self::assertStringContainsString($required, $promotion);
+    }
+
+    $standaloneStart = strpos($verifier, "  STANDALONE)\n");
+    $inFlightStart = strpos($verifier, "  IN_FLIGHT_PROMOTION)\n");
+    $caseEnd = is_int($inFlightStart) ? strpos($verifier, "\nesac", $inFlightStart) : FALSE;
+
+    self::assertIsInt($standaloneStart);
+    self::assertIsInt($inFlightStart);
+    self::assertIsInt($caseEnd);
+    self::assertTrue($standaloneStart < $inFlightStart);
+    self::assertTrue($inFlightStart < $caseEnd);
+
+    $standaloneBlock = substr(
+      $verifier,
+      $standaloneStart,
+      $inFlightStart - $standaloneStart,
+    );
+    $inFlightBlock = substr(
+      $verifier,
+      $inFlightStart,
+      $caseEnd - $inFlightStart,
+    );
+
+    self::assertStringContainsString(
+      'for receipt in "$PROMOTIONS_DIR"/*.env; do',
+      $standaloneBlock,
+    );
+    self::assertStringNotContainsString(
+      'for receipt in "$PROMOTIONS_DIR"/*.env; do',
+      $inFlightBlock,
+    );
+
+    $maintenanceOff = strpos(
+      $promotion,
+      '"$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 0',
+    );
+    $scheduler = strpos($promotion, 'SCHEDULER_CONTEXT=IN_FLIGHT_PROMOTION');
+    $evidence = strpos($promotion, "printf 'schema_version=2\\n'");
+    $receipt = strpos($promotion, 'mv -f "$receipt_tmp" "$RECEIPT"');
+
+    foreach ([$maintenanceOff, $scheduler, $evidence, $receipt] as $position) {
+      self::assertIsInt($position);
+    }
+
+    self::assertTrue($maintenanceOff < $scheduler);
+    self::assertTrue($scheduler < $evidence);
+    self::assertTrue($evidence < $receipt);
   }
 
   /**
@@ -147,30 +238,49 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
   }
 
   /**
-   * The PR-time PROD audit executes only read-only verification and probes.
+   * PR-time scheduler validation stays offline and cannot access PROD runtime.
    */
-  public function testProductionSchedulerAuditIsReadOnly(): void {
+  public function testProductionSchedulerAuditIsOfflineOnPullRequest(): void {
     $workflow = $this->workflow('.github/workflows/production-scheduler-readonly-audit.yml');
 
     self::assertStringContainsString('pull_request:', $workflow);
     self::assertStringContainsString(
-      "'SCHEDULER_ACTION=VERIFY_ONLY bash -s'",
+      'Validate PROD scheduler contract without runtime access',
       $workflow,
     );
+    self::assertStringContainsString(
+      'Validate scheduler verifier without PROD runtime access',
+      $workflow,
+    );
+    self::assertStringContainsString('bash -n "$verifier"', $workflow);
     self::assertStringContainsString(
       '! grep -Fq \'crontab "$tmp"\' "$verifier"',
       $workflow,
     );
-    self::assertStringNotContainsString(
-      'SCHEDULER_AUTHORITY_KIND=OWNER_ISSUE_COMMENT',
-      $workflow,
-    );
     foreach ([
-      'Verify current production health and public smoke without mutation',
+      'SSH_PRIVATE_KEY',
+      'SERVER_HOST',
+      'SERVER_USER',
+      'ssh -o ConnectTimeout',
       'https://emergingdigital.be',
-      '"$PROD_URL/health/$endpoint"',
-      '"$PROD_URL/fr/blog"',
-      'production_smoke=PASS',
+      'curl --silent',
+      'SCHEDULER_AUTHORITY_KIND=OWNER_ISSUE_COMMENT',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+    }
+    foreach ([
+      'SCHEDULER_CONTEXT="${SCHEDULER_CONTEXT:-STANDALONE}"',
+      'IN_FLIGHT_PROMOTION)',
+      'Current production release must map to exactly one promotion receipt.',
+      'Drupal automated cron must remain disabled in PROD.',
+      'An unmanaged system cron Drupal scheduler exists.',
+      'An unmanaged systemd Drupal scheduler exists.',
+      'Controlled Agency scheduler marker count is not exactly one.',
+      'Controlled Agency scheduler does not match the exact expected contract.',
+      'Deploy-user Drupal scheduler count is not exactly one.',
+      'An unmanaged deploy-user Drupal cron scheduler exists.',
+      'production_scheduler_action=VERIFY_ONLY',
+      'production_scheduler_runtime_state=CONTROLLED',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }

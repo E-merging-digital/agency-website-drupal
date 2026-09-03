@@ -145,8 +145,12 @@ production_split="$CURRENT_LINK/config/splits/production"
 "$CURRENT_LINK/vendor/bin/drush" state:set system.maintenance_mode 0 --input-format=integer
 MAINTENANCE_ENABLED=0
 
-log "Reconcile the single controlled PROD Drupal cron scheduler."
-"$CURRENT_LINK/scripts/production-promotion/reconcile-cron.sh"
+log "Verify the single controlled PROD Drupal cron scheduler."
+SCHEDULER_ACTION=VERIFY_ONLY \
+SCHEDULER_CONTEXT=IN_FLIGHT_PROMOTION \
+SCHEDULER_EXPECTED_CANDIDATE_SHA="$EXPECTED_SHA" \
+SCHEDULER_EXPECTED_CURRENT_RELEASE="$NEW_RELEASE" \
+  "$CURRENT_LINK/scripts/production-promotion/reconcile-cron.sh"
 
 {
   printf 'schema_version=2\n'

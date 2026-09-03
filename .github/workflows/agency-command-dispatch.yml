@@ -57,14 +57,17 @@ jobs:
               'PREPROD_REFRESH_948_DETAIL': '949',
               'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
               'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
-              'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '982',
-              'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': '982',
+              'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995'),
+              'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995'),
           }
           matches = []
           if not is_pr:
               for spec in routes:
                   required_issue = incident_issue.get(spec['route'])
-                  if required_issue is not None and issue != required_issue:
+                  if isinstance(required_issue, tuple):
+                      if issue not in required_issue:
+                          continue
+                  elif required_issue is not None and issue != required_issue:
                       continue
                   exact = spec.get('exact', [])
                   pattern = spec.get('regex')
@@ -236,7 +239,7 @@ jobs:
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   config-sync-runtime-diagnostic:
-    name: Route #982 read-only PREPROD config status inventory
+    name: Route #982/#995 read-only PREPROD config diagnostic
     needs: classify
     if: ${{ needs.classify.outputs.route == 'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
     permissions:
@@ -248,7 +251,7 @@ jobs:
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   prod-config-sync-runtime-diagnostic:
-    name: Route #982 read-only PROD config status inventory
+    name: Route #982/#995 read-only PROD config diagnostic
     needs: classify
     if: ${{ needs.classify.outputs.route == 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
     permissions:

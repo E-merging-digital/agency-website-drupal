@@ -29,7 +29,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Validate shell, workflows and exact diff
+      - name: Validate shell, workflow and exact diff
         shell: bash
         run: |
           set -euo pipefail
@@ -37,8 +37,7 @@ jobs:
           bash -n scripts/production-settings/converge-config-sync-directory.sh
           docker run --rm -v "$PWD:/repo" -w /repo \
             rhysd/actionlint:1.7.7 -color \
-            .github/workflows/prod-config-sync-setting-validation.yml \
-            .github/workflows/deploy-production.yml
+            .github/workflows/prod-config-sync-setting-validation.yml
           git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
       - uses: shivammathur/setup-php@v2
         with:

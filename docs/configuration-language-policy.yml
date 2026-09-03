@@ -1,6 +1,6 @@
 schema_version: 1
 policy_id: agency-configuration-language-v1
-status: migration_required
+status: adopted
 canonical_configuration_language: en
 site_default_language: fr
 site_languages:
@@ -11,7 +11,7 @@ target_configuration_translation_languages:
 current_configuration_translation_directories:
   - config/sync/language/fr
   - config/sync/language/en
-enforce_consistency: false
+enforce_consistency: true
 enforcement:
   strategy: use_drupal
   candidate: drupal/config_language_lock

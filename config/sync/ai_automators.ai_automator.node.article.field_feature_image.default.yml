@@ -1,11 +1,11 @@
 uuid: 39183251-6af4-416f-ba4e-d9c6b6e5cd11
-langcode: fr
+langcode: en
 status: true
 dependencies:
   config:
     - field.field.node.article.field_feature_image
 id: node.article.field_feature_image.default
-label: 'Image principale Default'
+label: 'Featured image Default'
 rule: llm_image_alt_text
 input_mode: base
 weight: 100
@@ -26,7 +26,7 @@ plugin_config:
   automator_prompt: 'Write concise, meaningful alternative text in the same language as the article. Describe only relevant visible information. Do not start with “image of” and do not invent details or add SEO keyword stuffing.'
   automator_token: ''
   automator_edit_mode: 0
-  automator_label: 'Image principale Default'
+  automator_label: 'Featured image Default'
   automator_weight: '100'
   automator_worker_type: field_widget_actions
   automator_queue_allow_requeue: 0

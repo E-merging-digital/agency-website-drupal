@@ -1,0 +1,246 @@
+name: "#609 hosted fresh DDEV adopted state"
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/config-language-lock-609-hosted-ddev.yml'
+      - 'config/sync/core.extension.yml'
+      - 'config/sync/config_language_lock.settings.yml'
+      - 'config/sync/system.site.yml'
+      - 'config/sync/language/**'
+      - 'config/sync/language.entity.und.yml'
+      - 'config/sync/language.entity.zxx.yml'
+      - 'docs/configuration-language-policy.yml'
+      - 'scripts/runner/config-language-lock-state.php'
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-fresh-ddev:
+    name: "#609 hosted fresh DDEV adopted state"
+    if: ${{ github.event.pull_request.head.ref == 'feature/609-configuration-language-audit' }}
+    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checkout and protected repository language surfaces
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_HEAD" ]]
+          test -f config/sync/core.extension.yml
+          test -f config/sync/config_language_lock.settings.yml
+          test -f config/sync/system.site.yml
+          test -d config/sync/language/fr
+          test -d config/sync/language/en
+          test -f config/sync/language.entity.und.yml
+          test -f config/sync/language.entity.zxx.yml
+          test -f docs/configuration-language-policy.yml
+          test -f scripts/runner/config-language-lock-state.php
+          php -l scripts/runner/config-language-lock-state.php >/dev/null
+          git diff --check "$BASE_SHA..$EXPECTED_HEAD"
+          git diff --quiet "$BASE_SHA..$EXPECTED_HEAD" -- \
+            config/sync/system.site.yml \
+            config/sync/language/en \
+            config/sync/language.entity.und.yml \
+            config/sync/language.entity.zxx.yml
+
+      - name: Setup DDEV without autostart
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Isolate fresh DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-609-hosted.yaml <<EOF
+          name: agency-config-language-609-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-config-language-609-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild Drupal from repository-owned configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l /var/www/html/scripts/runner/config-language-lock-state.php >/dev/null
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+
+      - name: Prove adopted lock, policy, translations and clean stable configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-lock-609-hosted-ddev'
+          state_script='/var/www/html/scripts/runner/config-language-lock-state.php'
+          mkdir -p "$artifact"
+
+          printf 'ASSERTION = INITIAL_CONFIG_STATUS_CLEAN\nEXPECTED = command succeeds and output contains: No differences\n'
+          set +e
+          status_first="$(ddev drush config:status 2>&1)"
+          status_first_rc=$?
+          set -e
+          printf '%s\n' "$status_first" | tee "$artifact/config-status-first.txt"
+          printf '%s\n' "$status_first_rc" > "$artifact/config-status-first.exit-code"
+          printf 'OBSERVED = %s\nCOMMAND_EXIT_CODE = %s\n' "$status_first" "$status_first_rc"
+          test "$status_first_rc" -eq 0
+          grep -Fq 'No differences' <<<"$status_first"
+
+          ddev drush php:script "$state_script" > "$artifact/state-first.json"
+          cat "$artifact/state-first.json"
+
+          printf 'ASSERTION = CONFIG_LANGUAGE_LOCK_ENABLED\nEXPECTED = true\nOBSERVED = %s\n' "$(jq -c '.config_language_lock_enabled' "$artifact/state-first.json")"
+          jq -e '.config_language_lock_enabled == true' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SITE_DEFAULT_LANGUAGE_FR\nEXPECTED = "fr"\nOBSERVED = %s\n' "$(jq -c '.site_default_language' "$artifact/state-first.json")"
+          jq -e '.site_default_language == "fr"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = LOCKED_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.module_owned["config_language_lock.settings"].locked_langcode' "$artifact/state-first.json")"
+          jq -e '.module_owned["config_language_lock.settings"].locked_langcode == "en"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = FOLLOW_SITE_DEFAULT_FALSE\nEXPECTED = false\nOBSERVED = %s\n' "$(jq -c '.module_owned["config_language_lock.settings"].follow_site_default' "$artifact/state-first.json")"
+          jq -e '.module_owned["config_language_lock.settings"].follow_site_default == false' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SPECIAL_UND_ID_PRESERVED\nEXPECTED = "und"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_und_id' "$artifact/state-first.json")"
+          jq -e '.special.language_entity_und_id == "und"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SPECIAL_UND_SOURCE_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_und_source_langcode' "$artifact/state-first.json")"
+          jq -e '.special.language_entity_und_source_langcode == "en"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SPECIAL_ZXX_ID_PRESERVED\nEXPECTED = "zxx"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_zxx_id' "$artifact/state-first.json")"
+          jq -e '.special.language_entity_zxx_id == "zxx"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SPECIAL_ZXX_SOURCE_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_zxx_source_langcode' "$artifact/state-first.json")"
+          jq -e '.special.language_entity_zxx_source_langcode == "en"' "$artifact/state-first.json" >/dev/null
+
+          for lang in fr en; do
+            find "config/sync/language/$lang" -maxdepth 1 -type f -name '*.yml' -printf '%f\n' \
+              | sed 's/\.yml$//' \
+              | LC_ALL=C sort \
+              | jq -R -s 'split("\n") | map(select(length > 0))' \
+              > "$artifact/repository-language-$lang.json"
+            ddev drush php:eval "\$storage = \\Drupal::service('config.storage')->createCollection('language.${lang}'); \$names = \$storage->listAll(); sort(\$names, SORT_STRING); echo json_encode(\$names, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);" \
+              > "$artifact/active-language-$lang.json"
+            cat "$artifact/active-language-$lang.json"
+            printf 'ASSERTION = TRANSLATION_COLLECTION_%s_MATCHES_REPOSITORY\nEXPECTED = %s\nOBSERVED = %s\n' \
+              "${lang^^}" \
+              "$(jq -c . "$artifact/repository-language-$lang.json")" \
+              "$(jq -c . "$artifact/active-language-$lang.json")"
+            jq -e --slurpfile expected "$artifact/repository-language-$lang.json" \
+              '. == $expected[0]' "$artifact/active-language-$lang.json" >/dev/null
+          done
+
+          printf 'ASSERTION = SECOND_CONFIG_IMPORT_NO_OP\nEXPECTED = command succeeds and output contains: There are no changes to import.\n'
+          set +e
+          second_cim="$(ddev drush cim -y 2>&1)"
+          second_cim_rc=$?
+          set -e
+          printf '%s\n' "$second_cim" | tee "$artifact/config-import-second.txt"
+          printf '%s\n' "$second_cim_rc" > "$artifact/config-import-second.exit-code"
+          printf 'OBSERVED = %s\nCOMMAND_EXIT_CODE = %s\n' "$second_cim" "$second_cim_rc"
+          test "$second_cim_rc" -eq 0
+          grep -Fq 'There are no changes to import.' <<<"$second_cim"
+          ddev drush cr
+
+          printf 'ASSERTION = SECOND_CONFIG_STATUS_CLEAN\nEXPECTED = command succeeds and output contains: No differences\n'
+          set +e
+          status_second="$(ddev drush config:status 2>&1)"
+          status_second_rc=$?
+          set -e
+          printf '%s\n' "$status_second" | tee "$artifact/config-status-second.txt"
+          printf '%s\n' "$status_second_rc" > "$artifact/config-status-second.exit-code"
+          printf 'OBSERVED = %s\nCOMMAND_EXIT_CODE = %s\n' "$status_second" "$status_second_rc"
+          test "$status_second_rc" -eq 0
+          grep -Fq 'No differences' <<<"$status_second"
+
+          ddev drush php:script "$state_script" > "$artifact/state-second.json"
+          printf 'ASSERTION = STATE_STABLE_AFTER_SECOND_IMPORT\nEXPECTED = %s\nOBSERVED = %s\n' \
+            "$(sha256sum "$artifact/state-first.json" | awk '{print $1}')" \
+            "$(sha256sum "$artifact/state-second.json" | awk '{print $1}')"
+          cmp "$artifact/state-first.json" "$artifact/state-second.json"
+
+          config_sync_status="$(git status --short config/sync)"
+          printf 'ASSERTION = CONFIG_SYNC_WORKTREE_UNCHANGED\nEXPECTED = <empty>\nOBSERVED = %s\n' "${config_sync_status:-<empty>}"
+          test -z "$config_sync_status"
+
+          jq -n \
+            --arg head_sha "${{ github.event.pull_request.head.sha }}" \
+            --arg ddev_runner 'ubuntu-24.04 / GitHub-hosted' \
+            --arg ddev_source 'repository-only' \
+            --arg site_install_existing_config 'SUCCESS' \
+            --arg first_config_status 'CLEAN' \
+            --arg second_cim 'NO-OP/STABLE' \
+            --arg second_config_status 'CLEAN' \
+            --arg locked_langcode 'en' \
+            --arg site_default_langcode 'fr' \
+            --arg policy 'adopted / enforced' \
+            --arg translations 'preserved' \
+            --arg und_zxx 'preserved' \
+            --arg preprod_access 'NONE' \
+            --arg prod_access 'NONE' \
+            --arg state_sha256 "$(jq -r '.overall_sha256' "$artifact/state-second.json")" \
+            '{
+              schema_version:1,
+              head_sha:$head_sha,
+              ddev_runner:$ddev_runner,
+              ddev_source:$ddev_source,
+              site_install_existing_config:$site_install_existing_config,
+              first_config_status:$first_config_status,
+              second_cim:$second_cim,
+              second_config_status:$second_config_status,
+              config_language_lock_enabled:true,
+              locked_langcode:$locked_langcode,
+              follow_site_default:false,
+              site_default_langcode:$site_default_langcode,
+              policy:$policy,
+              translations:$translations,
+              und_zxx:$und_zxx,
+              config_status_after_fresh_install:"CLEAN/STABLE",
+              preprod_access:$preprod_access,
+              prod_access:$prod_access,
+              stable_active_config_sha256:$state_sha256
+            }' > "$artifact/result.json"
+          cat "$artifact/result.json"
+
+      - name: Upload bounded hosted fresh-DDEV evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-609-hosted-ddev-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-lock-609-hosted-ddev
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-609-hosted.yaml
+          rm -rf artifacts/config-language-lock-609-hosted-ddev
+          rmdir artifacts 2>/dev/null || true
+          git restore --worktree -- config/sync web/robots.txt 2>/dev/null || true
+          git clean -fd -- config/sync
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi

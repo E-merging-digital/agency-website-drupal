@@ -19,6 +19,7 @@ module:
   ckeditor5: 0
   comment: 0
   config: 0
+  config_language_lock: 0
   config_split: 0
   config_translation: 0
   contextual: 0

@@ -1,11 +1,11 @@
 uuid: 95942a76-ab52-4e2d-9997-2f4c80e45e1b
-langcode: fr
+langcode: en
 status: true
 dependencies:
   config:
     - field.field.node.article.field_short_description
 id: node.article.field_short_description.default
-label: 'Description courte Default'
+label: 'Short description Default'
 rule: llm_simple_text_long
 input_mode: base
 weight: 100
@@ -26,7 +26,7 @@ plugin_config:
   automator_prompt: 'Create a concise editorial short description from the article body in the same language as the source. Return one or two short sentences only. Do not invent facts. Return plain text without Markdown or HTML.'
   automator_token: ''
   automator_edit_mode: 0
-  automator_label: 'Description courte Default'
+  automator_label: 'Short description Default'
   automator_weight: '100'
   automator_worker_type: field_widget_actions
   automator_queue_allow_requeue: 0

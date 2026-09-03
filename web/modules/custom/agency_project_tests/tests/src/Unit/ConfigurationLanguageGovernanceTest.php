@@ -27,7 +27,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       'agency-configuration-language-v1',
       $policy['policy_id'] ?? NULL,
     );
-    self::assertSame('migration_required', $policy['status'] ?? NULL);
+    self::assertSame('adopted', $policy['status'] ?? NULL);
     self::assertSame('en', $policy['canonical_configuration_language'] ?? NULL);
     self::assertSame('fr', $policy['site_default_language'] ?? NULL);
     self::assertSame(['fr', 'en'], $policy['site_languages'] ?? NULL);
@@ -35,7 +35,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       ['fr'],
       $policy['target_configuration_translation_languages'] ?? NULL,
     );
-    self::assertFalse($policy['enforce_consistency'] ?? TRUE);
+    self::assertTrue($policy['enforce_consistency'] ?? FALSE);
 
     self::assertSame(
       'use_drupal',
@@ -87,14 +87,26 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
-   * Current repository state must remain visibly classified as a migration.
+   * The adopted lock preserves editorial and semantic language invariants.
    */
-  public function testCurrentMixedSnapshotRequiresMigration(): void {
+  public function testAdoptedLockPreservesLanguageSemantics(): void {
     $root = dirname(DRUPAL_ROOT);
     $policy = Yaml::parseFile($root . '/docs/configuration-language-policy.yml');
 
-    self::assertSame('migration_required', $policy['status'] ?? NULL);
-    self::assertFalse($policy['enforce_consistency'] ?? TRUE);
+    self::assertSame('adopted', $policy['status'] ?? NULL);
+    self::assertTrue($policy['enforce_consistency'] ?? FALSE);
+
+    $extensions = Yaml::parseFile($root . '/config/sync/core.extension.yml');
+    self::assertSame(
+      0,
+      $extensions['module']['config_language_lock'] ?? NULL,
+    );
+
+    $lock = Yaml::parseFile(
+      $root . '/config/sync/config_language_lock.settings.yml',
+    );
+    self::assertSame('en', $lock['locked_langcode'] ?? NULL);
+    self::assertFalse($lock['follow_site_default'] ?? TRUE);
 
     $site = Yaml::parseFile($root . '/config/sync/system.site.yml');
     self::assertSame('fr', $site['langcode'] ?? NULL);
@@ -105,7 +117,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       . '/config/sync/canvas.folder.'
       . '0d5d5129-0d2e-41f3-a6d5-0211018bd59f.yml',
     );
-    self::assertSame('fr', $canvasFolder['langcode'] ?? NULL);
+    self::assertSame('en', $canvasFolder['langcode'] ?? NULL);
 
     $coreViewMode = Yaml::parseFile(
       $root . '/config/sync/core.entity_view_mode.user.token.yml',
@@ -115,7 +127,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $footerMenu = Yaml::parseFile(
       $root . '/config/sync/system.menu.footer.yml',
     );
-    self::assertSame('und', $footerMenu['langcode'] ?? NULL);
+    self::assertSame('en', $footerMenu['langcode'] ?? NULL);
 
     foreach ([
       '/config/sync/language/fr',

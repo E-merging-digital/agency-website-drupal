@@ -21,7 +21,8 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   private const FILTER = 'scripts/runner/filter-config-status-metadata.php';
 
   /**
-   * Proves the operational workflow is bound to #982/#995 and one exact command.
+   * Proves the operational workflow is bound to #982/#995
+   * and one exact command.
    */
   public function testWorkflowIsBoundToIssues982And995AndExactCommand(): void {
     $workflow = $this->parsed(self::WORKFLOW);

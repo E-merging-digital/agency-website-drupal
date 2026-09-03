@@ -9,7 +9,7 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects the reused #980 PROD primitive for #982.
+ * Protects the reused #980 PROD primitive for #982/#995.
  *
  * @group agency_project_tests
  * @group prod_config_sync_runtime_diagnostic_980
@@ -30,9 +30,9 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     'docs/operations/production-health-diagnostic.md';
 
   /**
-   * Proves the operational workflow is now bound to #982 and one exact command.
+   * Proves the operational workflow is bound to #982/#995 and one exact command.
    */
-  public function testWorkflowIsBoundToIssue982AndExactCommand(): void {
+  public function testWorkflowIsBoundToIssues982And995AndExactCommand(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
 
@@ -42,18 +42,25 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     self::assertArrayHasKey('workflow_call', $on);
     self::assertArrayHasKey('pull_request', $on);
     self::assertArrayNotHasKey('issue_comment', $on);
-    self::assertStringContainsString('github.event.issue.number == 982', $source);
+    self::assertStringContainsString(
+      '(github.event.issue.number == 982 || github.event.issue.number == 995)',
+      $source,
+    );
     self::assertStringContainsString(
       "github.event.comment.body == '/agency-config-sync-prod-runtime diagnose'",
       $source,
     );
-    self::assertStringContainsString('[[ "$ISSUE_NUMBER" == \'982\' ]]', $source);
+    self::assertStringContainsString(
+      '[[ "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' ]]',
+      $source,
+    );
     self::assertStringContainsString(
       '[[ "$GITHUB_ACTOR" == \'E-merging-digital\' ]]',
       $source,
     );
     self::assertStringContainsString("== 'open'", $source);
     self::assertStringContainsString('5528251064', $source);
+    self::assertStringContainsString('5529562346', $source);
     self::assertStringContainsString('EVENT_DEFAULT_SHA', $source);
     self::assertStringContainsString(
       'JIT revalidate live main before PROD identity',
@@ -96,7 +103,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     $runner = $this->source(self::RUNNER);
 
     self::assertStringContainsString(
-      '[[ "$ISSUE_NUMBER" == \'980\' || "$ISSUE_NUMBER" == \'982\' ]]',
+      '[[ "$ISSUE_NUMBER" == \'980\' || "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' ]]',
       $runner,
     );
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency'", $runner);

@@ -35,7 +35,7 @@ jobs:
           php-version: '8.4'
           tools: composer:v2
           coverage: none
-      - name: Validate shell, parser and workflow syntax
+      - name: Validate shell, parser, workflow and forbidden diff boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -48,6 +48,11 @@ jobs:
             .github/workflows/prod-config-sync-runtime-diagnostic.yml \
             .github/workflows/agency-command-dispatch.yml
           git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          changed="$(git diff --name-only "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}")"
+          if grep -Eq '^(composer\.json|composer\.lock|config/sync/|docs/configuration-language-policy\.yml)$' <<<"$changed"; then
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
       - name: Install exact locked dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
       - name: Prove metadata-only contracts
@@ -104,9 +109,7 @@ jobs:
           admin_pass="$(openssl rand -hex 24)"
           ddev drush site:install --existing-config -y --account-pass="$admin_pass"
           unset admin_pass
-          ddev drush cim -y
-          ddev drush cr
-      - name: Capture current #609 baseline
+      - name: Capture current #609 baseline without import/export/cache mutation
         shell: bash
         env:
           TARGET_DIR: ${{ github.workspace }}
@@ -134,6 +137,7 @@ jobs:
           set -euo pipefail
           audit='artifacts/configuration-language-audit'
           out='artifacts/config-status-runtime-preflight-982/fresh-ddev.json'
+          grep -Fq 'No differences' "$audit/config-status.txt"
           jq -n \
             --arg config_status 'CLEAN' \
             --arg policy_status "$(jq -r '.policy.status' "$audit/snapshot.json")" \

@@ -57,7 +57,8 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
   }
 
   /**
-   * Both reusable workflows authorize #995 while remaining non-operational on PR.
+   * Both reusable workflows authorize #995 while remaining
+   * non-operational on PR.
    */
   public function testReusableWorkflowsRemainPrSafeAndIssueBound(): void {
     foreach ([self::PREPROD_WORKFLOW, self::PROD_WORKFLOW] as $path) {

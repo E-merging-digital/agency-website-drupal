@@ -71,18 +71,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -q 'runs-on:.*self-hosted' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+          target='.github/workflows/canvas-runtime-diff-paths-995-validation.yml'
+          self_hosted='self-''hosted'
+          preprod_secret='PREPROD_''SSH_PRIVATE_KEY'
+          prod_secret='SSH_''PRIVATE_KEY'
+          ssh_word='s''sh'
+          scp_word='s''cp'
+          if grep -q "runs-on:.*${self_hosted}" "$target"; then
             exit 1
           fi
-          if grep -q 'PREPROD_SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+          if grep -q "$preprod_secret" "$target"; then
             exit 1
           fi
-          if grep -qE '(^|[^A-Z0-9_])SSH_PRIVATE_KEY([^A-Z0-9_]|$)' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+          if grep -qE "(^|[^A-Z0-9_])${prod_secret}([^A-Z0-9_]|$)" "$target"; then
             exit 1
           fi
-          if grep -qE '(^|[[:space:]])ssh[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+          if grep -qE "(^|[[:space:]])${ssh_word}[[:space:]]" "$target"; then
             exit 1
           fi
-          if grep -qE '(^|[[:space:]])scp[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml; then
+          if grep -qE "(^|[[:space:]])${scp_word}[[:space:]]" "$target"; then
             exit 1
           fi

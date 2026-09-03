@@ -72,15 +72,14 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
       'environment + config_name + differing_paths[] + classification',
       $result['public_schema'],
     );
+    $summary = $result['summary'];
     self::assertSame(
       15,
-      $result['summary']['known_canvas_deterministic_drift_pattern'],
+      $summary['known_canvas_deterministic_drift_pattern'],
     );
     self::assertSame(
       0,
-      $result['summary'][
-        'unexpected_canvas_business_path_review_required'
-      ],
+      $summary['unexpected_canvas_business_path_review_required'],
     );
 
     $first = $result['items'][0] ?? NULL;
@@ -276,7 +275,6 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    *     unexpected_canvas_business_path_review_required: int
    *   }
    * }
-   *   Path-only analysis result.
    */
   private function analyzeDataset(string $environment, array $dataset): array {
     $name = 'agency_canvas_995_analyze_dataset';
@@ -342,7 +340,6 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    *   string,
    *   array{active: array<string, mixed>, sync: array<string, mixed>}
    * >
-   *   Exact synthetic cohort.
    */
   private function knownDataset(): array {
     $dataset = [];

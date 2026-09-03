@@ -1,0 +1,217 @@
+name: "#609 hosted fresh DDEV adopted state"
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/config-language-lock-609-hosted-ddev.yml'
+      - 'config/sync/core.extension.yml'
+      - 'config/sync/config_language_lock.settings.yml'
+      - 'config/sync/system.site.yml'
+      - 'config/sync/language/**'
+      - 'config/sync/language.entity.und.yml'
+      - 'config/sync/language.entity.zxx.yml'
+      - 'docs/configuration-language-policy.yml'
+      - 'scripts/runner/config-language-lock-state.php'
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-fresh-ddev:
+    name: "#609 hosted fresh DDEV adopted state"
+    if: ${{ github.event.pull_request.head.ref == 'feature/609-configuration-language-audit' }}
+    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checkout and preserved repository language surfaces
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_HEAD" ]]
+          test -f config/sync/core.extension.yml
+          test -f config/sync/config_language_lock.settings.yml
+          test -f config/sync/system.site.yml
+          test -d config/sync/language/fr
+          test -d config/sync/language/en
+          test -f config/sync/language.entity.und.yml
+          test -f config/sync/language.entity.zxx.yml
+          test -f docs/configuration-language-policy.yml
+          test -f scripts/runner/config-language-lock-state.php
+          php -l scripts/runner/config-language-lock-state.php >/dev/null
+          git diff --check "$BASE_SHA..$EXPECTED_HEAD"
+          git diff --quiet "$BASE_SHA..$EXPECTED_HEAD" -- \
+            config/sync/system.site.yml \
+            config/sync/language/fr \
+            config/sync/language/en \
+            config/sync/language.entity.und.yml \
+            config/sync/language.entity.zxx.yml
+
+      - name: Setup DDEV without autostart
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Isolate fresh DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-609-hosted.yaml <<EOF
+          name: agency-config-language-609-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-config-language-609-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Rebuild Drupal from repository-owned configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          ddev exec php -l /var/www/html/scripts/runner/config-language-lock-state.php >/dev/null
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+
+      - name: Prove adopted lock, policy, translations and clean stable configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-lock-609-hosted-ddev'
+          state_script='/var/www/html/scripts/runner/config-language-lock-state.php'
+          mkdir -p "$artifact"
+
+          status_first="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$status_first" > "$artifact/config-status-first.txt"
+          grep -Fq 'No differences' <<<"$status_first"
+
+          ddev drush php:script "$state_script" > "$artifact/state-first.json"
+          jq -e '
+            .config_language_lock_enabled == true and
+            .site_default_language == "fr" and
+            .module_owned["config_language_lock.settings"].locked_langcode == "en" and
+            .module_owned["config_language_lock.settings"].follow_site_default == false and
+            .special.system_menu_footer_langcode == "und" and
+            .special.language_entity_und_id == "und" and
+            .special.language_entity_und_source_langcode == "en" and
+            .special.language_entity_zxx_id == "zxx" and
+            .special.language_entity_zxx_source_langcode == "en"
+          ' "$artifact/state-first.json" >/dev/null
+
+          ddev exec php -r '
+            require "/var/www/html/vendor/autoload.php";
+            $policy = \Symfony\Component\Yaml\Yaml::parseFile("/var/www/html/docs/configuration-language-policy.yml");
+            echo json_encode([
+              "status" => $policy["status"] ?? null,
+              "canonical_configuration_language" => $policy["canonical_configuration_language"] ?? null,
+              "site_default_language" => $policy["site_default_language"] ?? null,
+              "enforce_consistency" => $policy["enforce_consistency"] ?? null,
+              "target_locked_langcode" => $policy["enforcement"]["target_locked_langcode"] ?? null,
+              "follow_site_default" => $policy["enforcement"]["follow_site_default"] ?? null,
+            ], JSON_THROW_ON_ERROR);
+          ' > "$artifact/policy.json"
+          jq -e '
+            .status == "adopted" and
+            .canonical_configuration_language == "en" and
+            .site_default_language == "fr" and
+            .enforce_consistency == true and
+            .target_locked_langcode == "en" and
+            .follow_site_default == false
+          ' "$artifact/policy.json" >/dev/null
+
+          for lang in fr en; do
+            find "config/sync/language/$lang" -maxdepth 1 -type f -name '*.yml' -printf '%f\n' \
+              | sed 's/\.yml$//' \
+              | LC_ALL=C sort \
+              | jq -R -s 'split("\n") | map(select(length > 0))' \
+              > "$artifact/repository-language-$lang.json"
+            ddev drush php:eval '
+              $lang = getenv("PROOF_LANG");
+              $storage = \Drupal::service("config.storage")->createCollection("language." . $lang);
+              $names = $storage->listAll();
+              sort($names, SORT_STRING);
+              echo json_encode($names, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            ' --define "PROOF_LANG=$lang" > "$artifact/active-language-$lang.json"
+            jq -e --slurpfile expected "$artifact/repository-language-$lang.json" \
+              '. == $expected[0]' "$artifact/active-language-$lang.json" >/dev/null
+          done
+
+          ddev drush cim -y
+          ddev drush cr
+          status_second="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$status_second" > "$artifact/config-status-second.txt"
+          grep -Fq 'No differences' <<<"$status_second"
+          ddev drush php:script "$state_script" > "$artifact/state-second.json"
+          cmp "$artifact/state-first.json" "$artifact/state-second.json"
+          test -z "$(git status --short config/sync)"
+
+          jq -n \
+            --arg head_sha "${{ github.event.pull_request.head.sha }}" \
+            --arg ddev_runner 'ubuntu-24.04 / GitHub-hosted' \
+            --arg ddev_source 'repository-only' \
+            --arg site_install_existing_config 'SUCCESS' \
+            --arg locked_langcode 'en' \
+            --arg site_default_langcode 'fr' \
+            --arg policy 'adopted / enforced' \
+            --arg translations 'preserved' \
+            --arg und_zxx 'preserved' \
+            --arg config_status 'CLEAN/STABLE' \
+            --arg preprod_access 'NONE' \
+            --arg prod_access 'NONE' \
+            --arg state_sha256 "$(jq -r '.overall_sha256' "$artifact/state-second.json")" \
+            '{
+              schema_version:1,
+              head_sha:$head_sha,
+              ddev_runner:$ddev_runner,
+              ddev_source:$ddev_source,
+              site_install_existing_config:$site_install_existing_config,
+              config_language_lock_enabled:true,
+              locked_langcode:$locked_langcode,
+              follow_site_default:false,
+              site_default_langcode:$site_default_langcode,
+              policy:$policy,
+              translations:$translations,
+              und_zxx:$und_zxx,
+              config_status_after_fresh_install:$config_status,
+              preprod_access:$preprod_access,
+              prod_access:$prod_access,
+              stable_active_config_sha256:$state_sha256
+            }' > "$artifact/result.json"
+          cat "$artifact/result.json"
+
+      - name: Upload bounded hosted fresh-DDEV evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-609-hosted-ddev-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-lock-609-hosted-ddev
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-609-hosted.yaml
+          rm -rf artifacts/config-language-lock-609-hosted-ddev
+          rmdir artifacts 2>/dev/null || true
+          git restore --worktree -- config/sync web/robots.txt 2>/dev/null || true
+          git clean -fd -- config/sync
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi

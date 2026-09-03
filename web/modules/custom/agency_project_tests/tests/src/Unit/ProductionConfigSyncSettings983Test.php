@@ -16,25 +16,32 @@ use Symfony\Component\Process\Process;
 final class ProductionConfigSyncSettings983Test extends TestCase {
 
   /**
+   * Temporary sandboxes created by the tests.
+   *
+   * @var string[]
+   */
+  private array $sandboxes = [];
+
+  /**
    * The shared project scaffold and PREPROD use the same deterministic rule.
    */
   public function testRepositorySettingsUseDrupalRootConvention(): void {
-    $expected = "$settings['config_sync_directory'] = dirname(DRUPAL_ROOT) . '/config/sync';";
+    $expected = "\$settings['config_sync_directory'] = dirname(DRUPAL_ROOT) . '/config/sync';";
     $base = $this->file('web/sites/default/settings.php');
     $preprod = $this->file('scripts/preproduction/settings.php.template');
 
     self::assertStringContainsString($expected, $base);
     self::assertStringNotContainsString(
-      "$settings['config_sync_directory'] = '../config/sync';",
+      "\$settings['config_sync_directory'] = '../config/sync';",
       $base,
     );
     self::assertStringContainsString($expected, $preprod);
     self::assertStringContainsString(
-      "$config['config_split.config_split.production']['status'] = FALSE;",
+      "\$config['config_split.config_split.production']['status'] = FALSE;",
       $preprod,
     );
     self::assertStringContainsString(
-      "$config['config_split.config_split.preproduction']['status'] = TRUE;",
+      "\$config['config_split.config_split.preproduction']['status'] = TRUE;",
       $preprod,
     );
   }
@@ -56,16 +63,17 @@ final class ProductionConfigSyncSettings983Test extends TestCase {
       self::assertStringContainsString($required, $deploy);
     }
 
-    $finalVerify = strpos($deploy, "verify_runtime_permissions\n\nif [[ ! -r \"$PRODUCTION_SETTINGS_CONVERGER\" ]]");
     $converge = strpos(
       $deploy,
       'bash "$PRODUCTION_SETTINGS_CONVERGER" "$PRODUCTION_SETTINGS_FILE"',
     );
     $switch = strpos($deploy, 'log "[deploy] Switch release"');
-
-    self::assertIsInt($finalVerify);
     self::assertIsInt($converge);
     self::assertIsInt($switch);
+
+    $beforeConverge = substr($deploy, 0, $converge);
+    $finalVerify = strrpos($beforeConverge, 'verify_runtime_permissions');
+    self::assertIsInt($finalVerify);
     self::assertTrue($finalVerify < $converge);
     self::assertTrue($converge < $switch);
     self::assertStringNotContainsString('mkdir -p "$NEW_RELEASE/config/sync"', $deploy);
@@ -94,12 +102,12 @@ final class ProductionConfigSyncSettings983Test extends TestCase {
     $sandbox = $this->sandbox();
     $settings = $sandbox . '/settings.php';
     $otherCwd = $sandbox . '/cwd';
-    mkdir($otherCwd);
-    file_put_contents(
+    self::assertTrue(mkdir($otherCwd));
+    self::assertIsInt(file_put_contents(
       $settings,
       "<?php\n\$settings['config_sync_directory'] = '../config/sync';\n\$settings['secret_sentinel'] = 'keep-me';\n",
-    );
-    chmod($settings, 0640);
+    ));
+    self::assertTrue(chmod($settings, 0640));
 
     $first = new Process(['bash', $this->helper(), $settings], $otherCwd);
     $first->run();
@@ -112,10 +120,10 @@ final class ProductionConfigSyncSettings983Test extends TestCase {
 
     $afterFirst = (string) file_get_contents($settings);
     self::assertStringContainsString(
-      "$settings['config_sync_directory'] = dirname(DRUPAL_ROOT) . '/config/sync';",
+      "\$settings['config_sync_directory'] = dirname(DRUPAL_ROOT) . '/config/sync';",
       $afterFirst,
     );
-    self::assertStringNotContainsString("../config/sync", $afterFirst);
+    self::assertStringNotContainsString('../config/sync', $afterFirst);
     self::assertStringContainsString("'secret_sentinel'] = 'keep-me'", $afterFirst);
     self::assertSame(0640, fileperms($settings) & 0777);
 
@@ -134,7 +142,7 @@ final class ProductionConfigSyncSettings983Test extends TestCase {
     $original = "<?php\n"
       . "\$settings['config_sync_directory'] = '../config/sync';\n"
       . "\$settings['config_sync_directory'] = '/tmp/other';\n";
-    file_put_contents($settings, $original);
+    self::assertIsInt(file_put_contents($settings, $original));
 
     $process = new Process(['bash', $this->helper(), $settings], $sandbox);
     $process->run();
@@ -145,6 +153,32 @@ final class ProductionConfigSyncSettings983Test extends TestCase {
       $process->getErrorOutput(),
     );
     self::assertSame($original, (string) file_get_contents($settings));
+  }
+
+  /**
+   * Removes temporary test sandboxes.
+   */
+  protected function tearDown(): void {
+    foreach ($this->sandboxes as $path) {
+      if (!is_dir($path)) {
+        continue;
+      }
+      $iterator = new \RecursiveIteratorIterator(
+        new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+        \RecursiveIteratorIterator::CHILD_FIRST,
+      );
+      foreach ($iterator as $item) {
+        if ($item->isDir()) {
+          rmdir($item->getPathname());
+        }
+        else {
+          unlink($item->getPathname());
+        }
+      }
+      rmdir($path);
+    }
+    $this->sandboxes = [];
+    parent::tearDown();
   }
 
   /**
@@ -167,38 +201,13 @@ final class ProductionConfigSyncSettings983Test extends TestCase {
   }
 
   /**
-   * Creates one isolated temporary directory removed after the test.
+   * Creates one isolated temporary directory.
    */
   private function sandbox(): string {
     $path = sys_get_temp_dir() . '/agency-983-' . bin2hex(random_bytes(8));
     self::assertTrue(mkdir($path, 0700));
-    $this->registerCleanup($path);
+    $this->sandboxes[] = $path;
     return $path;
-  }
-
-  /**
-   * Registers recursive cleanup for a temporary sandbox.
-   */
-  private function registerCleanup(string $path): void {
-    $this->addToAssertionCount(0);
-    register_shutdown_function(static function () use ($path): void {
-      if (!is_dir($path)) {
-        return;
-      }
-      $iterator = new \RecursiveIteratorIterator(
-        new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
-        \RecursiveIteratorIterator::CHILD_FIRST,
-      );
-      foreach ($iterator as $item) {
-        if ($item->isDir()) {
-          rmdir($item->getPathname());
-        }
-        else {
-          unlink($item->getPathname());
-        }
-      }
-      rmdir($path);
-    });
   }
 
 }

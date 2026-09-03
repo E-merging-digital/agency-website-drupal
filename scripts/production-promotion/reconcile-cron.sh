@@ -69,6 +69,8 @@ case "$SCHEDULER_CONTEXT" in
       || fail 'In-flight promotion expected current release must be canonical.'
     [[ "$expected_current_release" == "$RELEASES_DIR/"* ]] \
       || fail 'In-flight promotion expected current release must remain under the production releases directory.'
+    [[ "$(dirname -- "$expected_current_release")" == "$RELEASES_DIR" ]] \
+      || fail 'In-flight promotion expected current release must be a direct production release path.'
 
     expected_release_name="${expected_current_release##*/}"
     [[ "$expected_release_name" =~ ^[0-9]{14}-[0-9a-f]{12}$ ]] \

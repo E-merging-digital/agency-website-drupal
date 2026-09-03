@@ -112,10 +112,10 @@ log "Preflight active production Drupal and database."
 (cd "$ACTIVE_RELEASE" && vendor/bin/drush status --fields=bootstrap >/dev/null && vendor/bin/drush sql:query 'SELECT 1' >/dev/null)
 
 CONFIG_SYNC_CONVERGER="$NEW_RELEASE/scripts/production-settings/converge-config-sync-directory.sh"
-[[ -r "$CONFIG_SYNC_CONVERGER" && -x "$CONFIG_SYNC_CONVERGER" ]] || fail "Exact candidate config sync converger is unavailable or not executable."
+[[ -f "$CONFIG_SYNC_CONVERGER" && -r "$CONFIG_SYNC_CONVERGER" ]] || fail "Exact candidate config sync converger is unavailable or unreadable."
 bash -n "$CONFIG_SYNC_CONVERGER"
 log "Converge deterministic production config sync setting from exact candidate bytes."
-"$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE"
+bash "$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE"
 
 DB_BACKUP_BASE="$BACKUPS_DIR/db-${TIMESTAMP}-${EXPECTED_SHA:0:12}.sql"
 log "Create pre-promotion database backup."

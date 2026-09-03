@@ -236,30 +236,49 @@ final class SchedulerGovernanceSafetyTest extends TestCase {
   }
 
   /**
-   * The PR-time PROD audit executes only read-only verification and probes.
+   * PR-time scheduler validation stays offline and cannot access PROD runtime.
    */
-  public function testProductionSchedulerAuditIsReadOnly(): void {
+  public function testProductionSchedulerAuditIsOfflineOnPullRequest(): void {
     $workflow = $this->workflow('.github/workflows/production-scheduler-readonly-audit.yml');
 
     self::assertStringContainsString('pull_request:', $workflow);
     self::assertStringContainsString(
-      "'SCHEDULER_ACTION=VERIFY_ONLY bash -s'",
+      'Validate PROD scheduler contract without runtime access',
       $workflow,
     );
+    self::assertStringContainsString(
+      'Validate scheduler verifier without PROD runtime access',
+      $workflow,
+    );
+    self::assertStringContainsString('bash -n "$verifier"', $workflow);
     self::assertStringContainsString(
       '! grep -Fq \'crontab "$tmp"\' "$verifier"',
       $workflow,
     );
-    self::assertStringNotContainsString(
-      'SCHEDULER_AUTHORITY_KIND=OWNER_ISSUE_COMMENT',
-      $workflow,
-    );
     foreach ([
-      'Verify current production health and public smoke without mutation',
+      'SSH_PRIVATE_KEY',
+      'SERVER_HOST',
+      'SERVER_USER',
+      'ssh -o ConnectTimeout',
       'https://emergingdigital.be',
-      '"$PROD_URL/health/$endpoint"',
-      '"$PROD_URL/fr/blog"',
-      'production_smoke=PASS',
+      'curl --silent',
+      'SCHEDULER_AUTHORITY_KIND=OWNER_ISSUE_COMMENT',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+    }
+    foreach ([
+      'SCHEDULER_CONTEXT="${SCHEDULER_CONTEXT:-STANDALONE}"',
+      'IN_FLIGHT_PROMOTION)',
+      'Current production release must map to exactly one promotion receipt.',
+      'Drupal automated cron must remain disabled in PROD.',
+      'An unmanaged system cron Drupal scheduler exists.',
+      'An unmanaged systemd Drupal scheduler exists.',
+      'Controlled Agency scheduler marker count is not exactly one.',
+      'Controlled Agency scheduler does not match the exact expected contract.',
+      'Deploy-user Drupal scheduler count is not exactly one.',
+      'An unmanaged deploy-user Drupal cron scheduler exists.',
+      'production_scheduler_action=VERIFY_ONLY',
+      'production_scheduler_runtime_state=CONTROLLED',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }

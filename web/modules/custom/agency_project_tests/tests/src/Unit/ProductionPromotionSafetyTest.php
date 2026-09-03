@@ -164,7 +164,7 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
-   * #985 reuses the #983 helper from the exact candidate before activation.
+   * Issue #985 reuses the #983 helper from the exact candidate before activation.
    */
   public function testPromotionConvergesConfigSyncFromExactCandidateBeforeActivation(): void {
     $promotion = $this->script('scripts/production-promotion/promote-candidate.sh');

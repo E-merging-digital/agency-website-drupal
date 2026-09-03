@@ -91,22 +91,38 @@ jobs:
           state_script='/var/www/html/scripts/runner/config-language-lock-state.php'
           mkdir -p "$artifact"
 
+          printf 'ASSERTION = INITIAL_CONFIG_STATUS_CLEAN\nEXPECTED = command succeeds and output contains: No differences\n'
           status_first="$(ddev drush config:status 2>&1)"
           printf '%s\n' "$status_first" | tee "$artifact/config-status-first.txt"
+          printf 'OBSERVED = %s\n' "$status_first"
           grep -Fq 'No differences' <<<"$status_first"
 
           ddev drush php:script "$state_script" > "$artifact/state-first.json"
           cat "$artifact/state-first.json"
-          jq -e '
-            .config_language_lock_enabled == true and
-            .site_default_language == "fr" and
-            .module_owned["config_language_lock.settings"].locked_langcode == "en" and
-            .module_owned["config_language_lock.settings"].follow_site_default == false and
-            .special.language_entity_und_id == "und" and
-            .special.language_entity_und_source_langcode == "en" and
-            .special.language_entity_zxx_id == "zxx" and
-            .special.language_entity_zxx_source_langcode == "en"
-          ' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = CONFIG_LANGUAGE_LOCK_ENABLED\nEXPECTED = true\nOBSERVED = %s\n' "$(jq -c '.config_language_lock_enabled' "$artifact/state-first.json")"
+          jq -e '.config_language_lock_enabled == true' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SITE_DEFAULT_LANGUAGE_FR\nEXPECTED = "fr"\nOBSERVED = %s\n' "$(jq -c '.site_default_language' "$artifact/state-first.json")"
+          jq -e '.site_default_language == "fr"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = LOCKED_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.module_owned["config_language_lock.settings"].locked_langcode' "$artifact/state-first.json")"
+          jq -e '.module_owned["config_language_lock.settings"].locked_langcode == "en"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = FOLLOW_SITE_DEFAULT_FALSE\nEXPECTED = false\nOBSERVED = %s\n' "$(jq -c '.module_owned["config_language_lock.settings"].follow_site_default' "$artifact/state-first.json")"
+          jq -e '.module_owned["config_language_lock.settings"].follow_site_default == false' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SPECIAL_UND_ID_PRESERVED\nEXPECTED = "und"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_und_id' "$artifact/state-first.json")"
+          jq -e '.special.language_entity_und_id == "und"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SPECIAL_UND_SOURCE_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_und_source_langcode' "$artifact/state-first.json")"
+          jq -e '.special.language_entity_und_source_langcode == "en"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SPECIAL_ZXX_ID_PRESERVED\nEXPECTED = "zxx"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_zxx_id' "$artifact/state-first.json")"
+          jq -e '.special.language_entity_zxx_id == "zxx"' "$artifact/state-first.json" >/dev/null
+
+          printf 'ASSERTION = SPECIAL_ZXX_SOURCE_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.special.language_entity_zxx_source_langcode' "$artifact/state-first.json")"
+          jq -e '.special.language_entity_zxx_source_langcode == "en"' "$artifact/state-first.json" >/dev/null
 
           ddev exec php -r '
             require "/var/www/html/vendor/autoload.php";
@@ -121,14 +137,24 @@ jobs:
             ], JSON_THROW_ON_ERROR);
           ' > "$artifact/policy.json"
           cat "$artifact/policy.json"
-          jq -e '
-            .status == "adopted" and
-            .canonical_configuration_language == "en" and
-            .site_default_language == "fr" and
-            .enforce_consistency == true and
-            .target_locked_langcode == "en" and
-            .follow_site_default == false
-          ' "$artifact/policy.json" >/dev/null
+
+          printf 'ASSERTION = POLICY_STATUS_ADOPTED\nEXPECTED = "adopted"\nOBSERVED = %s\n' "$(jq -c '.status' "$artifact/policy.json")"
+          jq -e '.status == "adopted"' "$artifact/policy.json" >/dev/null
+
+          printf 'ASSERTION = POLICY_CANONICAL_CONFIGURATION_LANGUAGE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.canonical_configuration_language' "$artifact/policy.json")"
+          jq -e '.canonical_configuration_language == "en"' "$artifact/policy.json" >/dev/null
+
+          printf 'ASSERTION = POLICY_SITE_DEFAULT_LANGUAGE_FR\nEXPECTED = "fr"\nOBSERVED = %s\n' "$(jq -c '.site_default_language' "$artifact/policy.json")"
+          jq -e '.site_default_language == "fr"' "$artifact/policy.json" >/dev/null
+
+          printf 'ASSERTION = POLICY_ENFORCE_CONSISTENCY_TRUE\nEXPECTED = true\nOBSERVED = %s\n' "$(jq -c '.enforce_consistency' "$artifact/policy.json")"
+          jq -e '.enforce_consistency == true' "$artifact/policy.json" >/dev/null
+
+          printf 'ASSERTION = POLICY_TARGET_LOCKED_LANGCODE_EN\nEXPECTED = "en"\nOBSERVED = %s\n' "$(jq -c '.target_locked_langcode' "$artifact/policy.json")"
+          jq -e '.target_locked_langcode == "en"' "$artifact/policy.json" >/dev/null
+
+          printf 'ASSERTION = POLICY_FOLLOW_SITE_DEFAULT_FALSE\nEXPECTED = false\nOBSERVED = %s\n' "$(jq -c '.follow_site_default' "$artifact/policy.json")"
+          jq -e '.follow_site_default == false' "$artifact/policy.json" >/dev/null
 
           for lang in fr en; do
             find "config/sync/language/$lang" -maxdepth 1 -type f -name '*.yml' -printf '%f\n' \
@@ -139,20 +165,36 @@ jobs:
             ddev drush php:eval "\$storage = \\Drupal::service('config.storage')->createCollection('language.${lang}'); \$names = \$storage->listAll(); sort(\$names, SORT_STRING); echo json_encode(\$names, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);" \
               > "$artifact/active-language-$lang.json"
             cat "$artifact/active-language-$lang.json"
+            printf 'ASSERTION = TRANSLATION_COLLECTION_%s_MATCHES_REPOSITORY\nEXPECTED = %s\nOBSERVED = %s\n' \
+              "${lang^^}" \
+              "$(jq -c . "$artifact/repository-language-$lang.json")" \
+              "$(jq -c . "$artifact/active-language-$lang.json")"
             jq -e --slurpfile expected "$artifact/repository-language-$lang.json" \
               '. == $expected[0]' "$artifact/active-language-$lang.json" >/dev/null
           done
 
+          printf 'ASSERTION = SECOND_CONFIG_IMPORT_NO_OP\nEXPECTED = command succeeds and output contains: There are no changes to import.\n'
           second_cim="$(ddev drush cim -y 2>&1)"
           printf '%s\n' "$second_cim" | tee "$artifact/config-import-second.txt"
+          printf 'OBSERVED = %s\n' "$second_cim"
           grep -Fq 'There are no changes to import.' <<<"$second_cim"
           ddev drush cr
+
+          printf 'ASSERTION = SECOND_CONFIG_STATUS_CLEAN\nEXPECTED = command succeeds and output contains: No differences\n'
           status_second="$(ddev drush config:status 2>&1)"
           printf '%s\n' "$status_second" | tee "$artifact/config-status-second.txt"
+          printf 'OBSERVED = %s\n' "$status_second"
           grep -Fq 'No differences' <<<"$status_second"
+
           ddev drush php:script "$state_script" > "$artifact/state-second.json"
+          printf 'ASSERTION = STATE_STABLE_AFTER_SECOND_IMPORT\nEXPECTED = %s\nOBSERVED = %s\n' \
+            "$(sha256sum "$artifact/state-first.json" | awk '{print $1}')" \
+            "$(sha256sum "$artifact/state-second.json" | awk '{print $1}')"
           cmp "$artifact/state-first.json" "$artifact/state-second.json"
-          test -z "$(git status --short config/sync)"
+
+          config_sync_status="$(git status --short config/sync)"
+          printf 'ASSERTION = CONFIG_SYNC_WORKTREE_UNCHANGED\nEXPECTED = <empty>\nOBSERVED = %s\n' "${config_sync_status:-<empty>}"
+          test -z "$config_sync_status"
 
           jq -n \
             --arg head_sha "${{ github.event.pull_request.head.sha }}" \

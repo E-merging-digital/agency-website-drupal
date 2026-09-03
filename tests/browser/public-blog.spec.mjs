@@ -18,9 +18,11 @@ async function getVisiblePrimaryNavigationLink(page, name) {
   );
 
   if (isMobile) {
+    const header = page.locator('.page-header');
     const toggle = page.locator('[data-mobile-nav-toggle]');
     const drawer = page.locator('[data-mobile-nav-drawer]');
 
+    await expect(header).toHaveAttribute('data-mobile-nav-ready', 'true');
     await expect(toggle).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-label', 'Ouvrir le menu principal');
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');

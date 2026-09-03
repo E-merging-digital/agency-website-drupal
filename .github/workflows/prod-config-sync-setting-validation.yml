@@ -1,0 +1,57 @@
+name: "#983 deterministic PROD config sync settings"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/prod-config-sync-setting-validation.yml'
+      - 'scripts/deploy-production.sh'
+      - 'scripts/production-settings/converge-config-sync-directory.sh'
+      - 'web/sites/default/settings.php'
+      - 'scripts/preproduction/settings.php.template'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionConfigSyncSettings983Test.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionDeploymentSafetyTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionDeployRuntimePermissionsTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionHostBootstrapTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    name: "#983 deterministic PROD settings/deploy contract"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate shell, workflows and exact diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/deploy-production.sh
+          bash -n scripts/production-settings/converge-config-sync-directory.sh
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.7 -color \
+            .github/workflows/prod-config-sync-setting-validation.yml \
+            .github/workflows/deploy-production.yml
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Install exact locked dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Prove #983 settings, deploy, PREPROD and config-sync regressions
+        run: >-
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/ProductionConfigSyncSettings983Test.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ProductionDeploymentSafetyTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ProductionDeployRuntimePermissionsTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionHostBootstrapTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php

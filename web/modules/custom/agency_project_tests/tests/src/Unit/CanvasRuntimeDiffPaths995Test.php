@@ -249,9 +249,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
       self::fail('The #995 Canvas allowlist function was not loaded.');
     }
 
-    /** @var callable(): list<string> $callable */
-    $callable = $name;
-    return $callable();
+    return \agency_canvas_995_allowed_names();
   }
 
   /**
@@ -282,28 +280,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
       self::fail('The #995 Canvas dataset analyzer was not loaded.');
     }
 
-    /**
-     * @var callable(string, array): array{
-     *   schema_version: int,
-     *   environment: string,
-     *   public_schema: string,
-     *   config_values_exposed: bool,
-     *   cohort_size: int,
-     *   items: list<array{
-     *     environment: string,
-     *     config_name: string,
-     *     differing_paths: list<string>,
-     *     classification: string
-     *   }>,
-     *   summary: array{
-     *     total: int,
-     *     known_canvas_deterministic_drift_pattern: int,
-     *     unexpected_canvas_business_path_review_required: int
-     *   }
-     * } $callable
-     */
-    $callable = $name;
-    return $callable($environment, $dataset);
+    return \agency_canvas_995_analyze_dataset($environment, $dataset);
   }
 
   /**
@@ -323,14 +300,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
       self::fail('The #995 Canvas config analyzer was not loaded.');
     }
 
-    /**
-     * @var callable(array, array): array{
-     *   differing_paths: list<string>,
-     *   classification: string
-     * } $callable
-     */
-    $callable = $name;
-    return $callable($active, $sync);
+    return \agency_canvas_995_analyze_config($active, $sync);
   }
 
   /**

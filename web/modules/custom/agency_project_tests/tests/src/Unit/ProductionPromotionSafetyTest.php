@@ -164,26 +164,45 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
-   * Issue #985 reuses the exact-candidate #983 helper before activation.
+   * Issue #990 accepts the exact 100644 #983 helper before activation.
    */
   public function testPromotionConvergesConfigSyncFromExactCandidateBeforeActivation(): void {
     $promotion = $this->script('scripts/production-promotion/promote-candidate.sh');
     $legacyDeploy = $this->script('scripts/deploy-production.sh');
+    $root = dirname(DRUPAL_ROOT);
+    $helperPath = $root . '/scripts/production-settings/converge-config-sync-directory.sh';
+
+    self::assertFileExists($helperPath);
+    self::assertTrue(is_file($helperPath));
+    self::assertTrue(is_readable($helperPath));
+    self::assertFalse(is_executable($helperPath));
+    self::assertSame(0644, ((int) fileperms($helperPath)) & 0777);
 
     foreach ([
       'SETTINGS_FILE="$SHARED_DIR/settings/settings.php"',
       'CONFIG_SYNC_CONVERGER="$NEW_RELEASE/scripts/production-settings/converge-config-sync-directory.sh"',
-      '[[ -r "$CONFIG_SYNC_CONVERGER" && -x "$CONFIG_SYNC_CONVERGER" ]]',
+      '[[ -f "$CONFIG_SYNC_CONVERGER" && -r "$CONFIG_SYNC_CONVERGER" ]]',
+      'Exact candidate config sync converger is unavailable or unreadable.',
       'bash -n "$CONFIG_SYNC_CONVERGER"',
-      '"$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE"',
+      'bash "$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE"',
     ] as $required) {
       self::assertStringContainsString($required, $promotion);
     }
 
+    self::assertStringNotContainsString('-x "$CONFIG_SYNC_CONVERGER"', $promotion);
+    self::assertDoesNotMatchRegularExpression(
+      '~^"\$CONFIG_SYNC_CONVERGER" "\$SETTINGS_FILE"$~m',
+      $promotion,
+    );
+    self::assertStringNotContainsString(
+      '$ACTIVE_RELEASE/scripts/production-settings/converge-config-sync-directory.sh',
+      $promotion,
+    );
+
     $preflight = strpos($promotion, 'Preflight active production Drupal and database.');
     $helper = strpos($promotion, 'CONFIG_SYNC_CONVERGER="$NEW_RELEASE/scripts/production-settings/converge-config-sync-directory.sh"');
     $syntax = strpos($promotion, 'bash -n "$CONFIG_SYNC_CONVERGER"');
-    $convergence = strpos($promotion, '"$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE"');
+    $convergence = strpos($promotion, 'bash "$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE"');
     $backup = strpos($promotion, 'vendor/bin/drush sql:dump --gzip');
     $maintenance = strpos($promotion, 'system.maintenance_mode 1');
     $newReleaseBootstrap = strpos($promotion, '(cd "$NEW_RELEASE" && vendor/bin/drush status --fields=bootstrap >/dev/null)');
@@ -212,11 +231,11 @@ final class ProductionPromotionSafetyTest extends TestCase {
 
     self::assertStringContainsString('set -Eeuo pipefail', $promotion);
     self::assertMatchesRegularExpression(
-      '~^"\$CONFIG_SYNC_CONVERGER" "\$SETTINGS_FILE"$~m',
+      '~^bash "\$CONFIG_SYNC_CONVERGER" "\$SETTINGS_FILE"$~m',
       $promotion,
     );
     self::assertStringNotContainsString(
-      '"$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE" ||',
+      'bash "$CONFIG_SYNC_CONVERGER" "$SETTINGS_FILE" ||',
       $promotion,
     );
     self::assertStringNotContainsString('preg_replace(', $promotion);

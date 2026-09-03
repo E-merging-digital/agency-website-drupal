@@ -43,7 +43,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
       'canvas.component.block.system_powered_by_block',
       'canvas.component.block.user_login_block',
       'canvas.component.block.views_block.content_recent-block_1',
-    ], agency_canvas_995_allowed_names());
+    ], $this->allowedNames());
   }
 
   /**
@@ -55,25 +55,33 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
 
     $this->expectException(\RuntimeException::class);
     $this->expectExceptionMessage('Exact #995 Canvas cohort mismatch.');
-    agency_canvas_995_analyze_dataset('PREPROD', $dataset);
+    $this->analyzeDataset('PREPROD', $dataset);
   }
 
   /**
    * Known historical Canvas drift emits paths only, never compared values.
    */
   public function testKnownHistoricalPatternIsPathOnly(): void {
-    $result = agency_canvas_995_analyze_dataset('PREPROD', $this->knownDataset());
+    $result = $this->analyzeDataset('PREPROD', $this->knownDataset());
 
-    self::assertSame(1, $result['schema_version'] ?? NULL);
-    self::assertSame('PREPROD', $result['environment'] ?? NULL);
-    self::assertSame(15, $result['cohort_size'] ?? NULL);
-    self::assertFalse($result['config_values_exposed'] ?? TRUE);
+    self::assertSame(1, $result['schema_version']);
+    self::assertSame('PREPROD', $result['environment']);
+    self::assertSame(15, $result['cohort_size']);
+    self::assertFalse($result['config_values_exposed']);
     self::assertSame(
       'environment + config_name + differing_paths[] + classification',
-      $result['public_schema'] ?? NULL,
+      $result['public_schema'],
     );
-    self::assertSame(15, $result['summary']['known_canvas_deterministic_drift_pattern'] ?? NULL);
-    self::assertSame(0, $result['summary']['unexpected_canvas_business_path_review_required'] ?? NULL);
+    self::assertSame(
+      15,
+      $result['summary']['known_canvas_deterministic_drift_pattern'],
+    );
+    self::assertSame(
+      0,
+      $result['summary'][
+        'unexpected_canvas_business_path_review_required'
+      ],
+    );
 
     $first = $result['items'][0] ?? NULL;
     self::assertIsArray($first);
@@ -82,10 +90,10 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
       'label',
       'versioned_properties.<version>',
       'versioned_properties.active.settings.default_settings.label',
-    ], $first['differing_paths'] ?? NULL);
+    ], $first['differing_paths']);
     self::assertSame(
       'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
-      $first['classification'] ?? NULL,
+      $first['classification'],
     );
 
     $encoded = json_encode($result, JSON_THROW_ON_ERROR);
@@ -99,7 +107,9 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $encoded, $forbidden);
     }
-    foreach (['active_value', 'sync_value', 'before', 'after', 'raw_yaml'] as $field) {
+    foreach (
+      ['active_value', 'sync_value', 'before', 'after', 'raw_yaml'] as $field
+    ) {
       self::assertStringNotContainsString($field, $encoded, $field);
     }
   }
@@ -108,8 +118,8 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    * PREPROD and PROD use the same schema and paths except environment.
    */
   public function testPreprodAndProdSchemasAreIdenticalExceptEnvironment(): void {
-    $preprod = agency_canvas_995_analyze_dataset('PREPROD', $this->knownDataset());
-    $prod = agency_canvas_995_analyze_dataset('PROD', $this->knownDataset());
+    $preprod = $this->analyzeDataset('PREPROD', $this->knownDataset());
+    $prod = $this->analyzeDataset('PROD', $this->knownDataset());
 
     self::assertSame('PREPROD', $preprod['environment']);
     self::assertSame('PROD', $prod['environment']);
@@ -133,8 +143,10 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
     $pair['active']['versioned_properties'] = 'not-an-array';
 
     $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('Unsupported Canvas component storage structure.');
-    agency_canvas_995_analyze_config($pair['active'], $pair['sync']);
+    $this->expectExceptionMessage(
+      'Unsupported Canvas component storage structure.',
+    );
+    $this->analyzeConfig($pair['active'], $pair['sync']);
   }
 
   /**
@@ -145,7 +157,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
     $pair['active']['status'] = TRUE;
     $pair['sync']['status'] = FALSE;
 
-    $result = agency_canvas_995_analyze_config($pair['active'], $pair['sync']);
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
     self::assertContains('status', $result['differing_paths']);
     self::assertSame(
       'UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
@@ -161,7 +173,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
     $pair['active']['langcode'] = 'fr';
     $pair['sync']['langcode'] = 'en';
 
-    $result = agency_canvas_995_analyze_config($pair['active'], $pair['sync']);
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
     self::assertContains('active_version', $result['differing_paths']);
     self::assertContains('langcode', $result['differing_paths']);
     self::assertSame(
@@ -181,8 +193,10 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
     $pair['sync']['third_party_settings'] = [];
 
     $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('Unknown Canvas array shape at path: third_party_settings');
-    agency_canvas_995_analyze_config($pair['active'], $pair['sync']);
+    $this->expectExceptionMessage(
+      'Unknown Canvas array shape at path: third_party_settings',
+    );
+    $this->analyzeConfig($pair['active'], $pair['sync']);
   }
 
   /**
@@ -195,8 +209,11 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
       'settings' => ['default_settings' => ['label' => 'historic']],
     ];
 
-    $result = agency_canvas_995_analyze_config($pair['active'], $pair['sync']);
-    self::assertContains('versioned_properties.<version>', $result['differing_paths']);
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+    self::assertContains(
+      'versioned_properties.<version>',
+      $result['differing_paths'],
+    );
     self::assertSame(
       'UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
       $result['classification'],
@@ -208,10 +225,10 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    */
   public function testDeterministicOrdering(): void {
     $dataset = array_reverse($this->knownDataset(), TRUE);
-    $result = agency_canvas_995_analyze_dataset('PROD', $dataset);
+    $result = $this->analyzeDataset('PROD', $dataset);
 
     $names = array_column($result['items'], 'config_name');
-    $expectedNames = agency_canvas_995_allowed_names();
+    $expectedNames = $this->allowedNames();
     self::assertSame($expectedNames, $names);
     foreach ($result['items'] as $item) {
       $paths = $item['differing_paths'];
@@ -222,14 +239,114 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
+   * Calls the dynamically loaded allowlist through a guarded callable.
+   *
+   * @return list<string>
+   *   Exact #995 config-name allowlist.
+   */
+  private function allowedNames(): array {
+    $name = 'agency_canvas_995_allowed_names';
+    if (!function_exists($name)) {
+      self::fail('The #995 Canvas allowlist function was not loaded.');
+    }
+
+    /** @var callable(): list<string> $callable */
+    $callable = $name;
+    return $callable();
+  }
+
+  /**
+   * Calls the dynamically loaded dataset analyzer through a guarded callable.
+   *
+   * @return array{
+   *   schema_version: int,
+   *   environment: string,
+   *   public_schema: string,
+   *   config_values_exposed: bool,
+   *   cohort_size: int,
+   *   items: list<array{
+   *     environment: string,
+   *     config_name: string,
+   *     differing_paths: list<string>,
+   *     classification: string
+   *   }>,
+   *   summary: array{
+   *     total: int,
+   *     known_canvas_deterministic_drift_pattern: int,
+   *     unexpected_canvas_business_path_review_required: int
+   *   }
+   * }
+   *   Path-only analysis result.
+   */
+  private function analyzeDataset(string $environment, array $dataset): array {
+    $name = 'agency_canvas_995_analyze_dataset';
+    if (!function_exists($name)) {
+      self::fail('The #995 Canvas dataset analyzer was not loaded.');
+    }
+
+    /**
+     * @var callable(string, array): array{
+     *   schema_version: int,
+     *   environment: string,
+     *   public_schema: string,
+     *   config_values_exposed: bool,
+     *   cohort_size: int,
+     *   items: list<array{
+     *     environment: string,
+     *     config_name: string,
+     *     differing_paths: list<string>,
+     *     classification: string
+     *   }>,
+     *   summary: array{
+     *     total: int,
+     *     known_canvas_deterministic_drift_pattern: int,
+     *     unexpected_canvas_business_path_review_required: int
+     *   }
+     * } $callable
+     */
+    $callable = $name;
+    return $callable($environment, $dataset);
+  }
+
+  /**
+   * Calls the single-config analyzer through a guarded callable.
+   *
+   * @param array<string, mixed> $active
+   *   Active config structure.
+   * @param array<string, mixed> $sync
+   *   Sync config structure.
+   *
+   * @return array{differing_paths: list<string>, classification: string}
+   *   Path-only config analysis result.
+   */
+  private function analyzeConfig(array $active, array $sync): array {
+    $name = 'agency_canvas_995_analyze_config';
+    if (!function_exists($name)) {
+      self::fail('The #995 Canvas config analyzer was not loaded.');
+    }
+
+    /**
+     * @var callable(array, array): array{
+     *   differing_paths: list<string>,
+     *   classification: string
+     * } $callable
+     */
+    $callable = $name;
+    return $callable($active, $sync);
+  }
+
+  /**
    * Produces the exact 15-name synthetic dataset.
    *
-   * @return array<string, array<string, array<string, mixed>>>
+   * @return array<
+   *   string,
+   *   array{active: array<string, mixed>, sync: array<string, mixed>}
+   * >
    *   Exact synthetic cohort.
    */
   private function knownDataset(): array {
     $dataset = [];
-    foreach (agency_canvas_995_allowed_names() as $name) {
+    foreach ($this->allowedNames() as $name) {
       $dataset[$name] = $this->knownPair();
     }
     return $dataset;

@@ -1,0 +1,76 @@
+name: "#995 Canvas runtime path-only validation"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/canvas-runtime-diff-paths-995-validation.yml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/config-sync-runtime-diagnostic.yml'
+      - '.github/workflows/prod-config-sync-runtime-diagnostic.yml'
+      - 'scripts/runner/canvas-runtime-diff-paths-995.php'
+      - 'scripts/runner/run-config-sync-runtime-diagnostic-961.sh'
+      - 'scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/CanvasRuntimeDiffPaths995Test.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: "#995 path-only contracts"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate shell, PHP, workflow and diff syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/runner/run-config-sync-runtime-diagnostic-961.sh
+          bash -n scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh
+          php -l scripts/runner/canvas-runtime-diff-paths-995.php
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.7 -color \
+            .github/workflows/canvas-runtime-diff-paths-995-validation.yml \
+            .github/workflows/agency-command-dispatch.yml \
+            .github/workflows/config-sync-runtime-diagnostic.yml \
+            .github/workflows/prod-config-sync-runtime-diagnostic.yml
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install exact locked dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Execute #995 and retained safety contracts
+        run: >-
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/CanvasRuntimeDiffPaths995Test.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php
+
+      - name: Prove PR validation has no runtime execution surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -q 'runs-on:.*self-hosted' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
+          ! grep -q 'PREPROD_SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
+          ! grep -q 'SSH_PRIVATE_KEY' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
+          ! grep -qE '(^|[[:space:]])ssh[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml
+          ! grep -qE '(^|[[:space:]])scp[[:space:]]' .github/workflows/canvas-runtime-diff-paths-995-validation.yml

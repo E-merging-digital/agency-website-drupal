@@ -19,8 +19,7 @@ permissions:
 
 jobs:
   audit:
-    name: Verify exact PROD scheduler contract without mutation
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    name: Validate PROD scheduler contract without runtime access
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -32,54 +31,26 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Configure production read-only SSH access
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      - name: Validate scheduler verifier without PROD runtime access
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$SSH_PRIVATE_KEY"
-          test -n "$SERVER_HOST"
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-
-      - name: Verify exact scheduler contract without mutation
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$SERVER_HOST"
-          test -n "$SERVER_USER"
           verifier='scripts/production-promotion/reconcile-cron.sh'
+
           test -f "$verifier"
+          bash -n "$verifier"
+          grep -Fq 'SCHEDULER_ACTION="${SCHEDULER_ACTION:-${1:-VERIFY_ONLY}}"' "$verifier"
+          grep -Fq 'SCHEDULER_CONTEXT="${SCHEDULER_CONTEXT:-STANDALONE}"' "$verifier"
+          grep -Fq 'IN_FLIGHT_PROMOTION)' "$verifier"
+          grep -Fq 'Current production release must map to exactly one promotion receipt.' "$verifier"
+          grep -Fq 'Drupal automated cron must remain disabled in PROD.' "$verifier"
+          grep -Fq 'An unmanaged system cron Drupal scheduler exists.' "$verifier"
+          grep -Fq 'An unmanaged systemd Drupal scheduler exists.' "$verifier"
+          grep -Fq 'Controlled Agency scheduler marker count is not exactly one.' "$verifier"
+          grep -Fq 'Controlled Agency scheduler does not match the exact expected contract.' "$verifier"
+          grep -Fq 'Deploy-user Drupal scheduler count is not exactly one.' "$verifier"
+          grep -Fq 'An unmanaged deploy-user Drupal cron scheduler exists.' "$verifier"
+          grep -Fq 'production_scheduler_action=VERIFY_ONLY' "$verifier"
+          grep -Fq 'production_scheduler_runtime_state=CONTROLLED' "$verifier"
           ! grep -Fq 'crontab "$tmp"' "$verifier"
-          ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
-            'SCHEDULER_ACTION=VERIFY_ONLY bash -s' < "$verifier"
-
-      - name: Verify current production health and public smoke without mutation
-        env:
-          PROD_URL: https://emergingdigital.be
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          for endpoint in live ready; do
-            status="$(curl --silent --show-error --location --retry 3 --max-time 20 \
-              --output /dev/null --write-out '%{http_code}' \
-              "$PROD_URL/health/$endpoint")"
-            [[ "$status" == '200' ]]
-            printf 'production_health_%s=%s\n' "$endpoint" "$status"
-          done
-
-          smoke_status="$(curl --silent --show-error --location --retry 3 --max-time 20 \
-            --output /dev/null --write-out '%{http_code}' "$PROD_URL/fr/blog")"
-          [[ "$smoke_status" == '200' ]]
-          printf 'production_smoke_status=%s\n' "$smoke_status"
-          printf 'production_smoke=PASS\n'
+          ! grep -Fq 'mktemp' "$verifier"

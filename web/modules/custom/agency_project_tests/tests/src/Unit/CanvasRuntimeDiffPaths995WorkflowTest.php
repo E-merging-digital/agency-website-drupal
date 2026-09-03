@@ -81,7 +81,7 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
       self::assertStringContainsString('github.event.issue.number == 995', $source);
       self::assertStringContainsString('5528251064', $source);
       self::assertStringContainsString('5529562346', $source);
-      self::assertStringContainsString("DIAGNOSTIC_PROFILE:", $source);
+      self::assertStringContainsString('DIAGNOSTIC_PROFILE:', $source);
       self::assertStringContainsString("'canvas_paths'", $source);
       self::assertStringContainsString('runtime_canvas_paths', $source);
       self::assertStringContainsString(
@@ -113,8 +113,11 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
     );
 
     foreach ([$preprod, $prod] as $runner) {
-      self::assertStringContainsString("$ISSUE_NUMBER\" == '995'", $runner);
-      self::assertStringContainsString("$DIAGNOSTIC_PROFILE\" == 'canvas_paths'", $runner);
+      self::assertStringContainsString("\$ISSUE_NUMBER\" == '995'", $runner);
+      self::assertStringContainsString(
+        "\$DIAGNOSTIC_PROFILE\" == 'canvas_paths'",
+        $runner,
+      );
       self::assertStringContainsString('canvas-runtime-diff-paths-995.php', $runner);
       self::assertStringContainsString('AGENCY_CANVAS_995_EXECUTE=1', $runner);
       self::assertStringContainsString('runtime_canvas_paths', $runner);
@@ -143,8 +146,8 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
   public function testPublicEvidenceAndHostedValidationBoundary(): void {
     $probe = $this->source(self::PROBE);
     foreach ([
-      "'environment' => $environment",
-      "'config_name' => $name",
+      "'environment' => \$environment",
+      "'config_name' => \$name",
       "'differing_paths' =>",
       "'classification' =>",
       "'config_values_exposed' => FALSE",

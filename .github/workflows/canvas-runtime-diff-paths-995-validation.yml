@@ -11,6 +11,7 @@ on:
       - 'scripts/runner/run-config-sync-runtime-diagnostic-961.sh'
       - 'scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/CanvasRuntimeDiffPaths995Test.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/CanvasRuntimeDiffPaths995WorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php'
@@ -60,6 +61,7 @@ jobs:
         run: >-
           vendor/bin/phpunit -c web/core/phpunit.xml.dist
           web/modules/custom/agency_project_tests/tests/src/Unit/CanvasRuntimeDiffPaths995Test.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/CanvasRuntimeDiffPaths995WorkflowTest.php
           web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
           web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php
           web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php

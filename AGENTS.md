@@ -73,6 +73,53 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Cette doctrine s'applique a **tous** les domaines du projet : contenu,
   deploiement, PREPROD/PROD, donnees, DDEV, IA, frontend et exploitation.
 
+## 2.0.1 Doctrine DOD-first / Minimum Necessary
+
+Cette doctrine s'applique a **chaque unite de travail Agency et a chaque domaine
+projet**, sans exception de produit, contenu, frontend, Drupal, IA,
+PREPROD/PROD, CI, tests, securite, operations, maintenance, recherche ou
+gouvernance.
+
+```text
+DOD_FIRST = REQUIRED
+MINIMUM_NECESSARY = REQUIRED
+USE_EXISTING_FIRST = REQUIRED
+NO_GATE_INFLATION = REQUIRED
+NO_TEST_INFLATION = REQUIRED
+NO_PROOF_FOR_PROOF_SAKE = REQUIRED
+NO_CORRECTION_LOOP = REQUIRED
+NO_PREEMPTIVE_HARDENING = REQUIRED
+NO_INFRASTRUCTURE_SIDE_QUEST = REQUIRED
+WHEN_DOD_IS_PROVEN = STOP
+```
+
+Avant toute action supplementaire, demander :
+
+> Est-ce necessaire pour atteindre ou prouver la Definition of Done de l'unite
+> de travail actuelle ?
+
+- Si **oui**, faire uniquement le minimum necessaire.
+- Si **non**, ne pas l'ajouter a l'unite de travail courante.
+- Un defaut materiel hors scope est signale au Project Lead plutot qu'absorbe
+  silencieusement ; il releve d'un scope separe si necessaire.
+- Ajouter des tests uniquement lorsque cela est necessaire pour prouver un
+  comportement modifie ou un gate deja applicable.
+- Ajouter un nouveau gate uniquement si un risque materiel non couvert est
+  demontre.
+- Ne pas durcir preventivement, accumuler des preuves pour elles-memes ni lancer
+  une side quest d'infrastructure simplement parce qu'une amelioration est
+  possible.
+- Une fois le defaut prouve corrige, ne pas relancer une boucle de correction si
+  le DOD est atteint.
+- Retirer les diagnostics temporaires lorsqu'ils ne sont plus necessaires.
+- Une fois le DOD prouve, **STOP** et retourner au Project Lead.
+
+```text
+CI_GREEN_AND_DOD_PROVEN = STOP
+CI_RED = ISOLATE_AND_FIX_ONLY_FIRST_MATERIAL_DOD_BLOCKER
+POSSIBLE_IMPROVEMENT_NOT_REQUIRED_BY_DOD = OUT_OF_SCOPE
+```
+
 ## 2.1 Doctrine Drupal AI
 
 - Pour toute tache touchant l'IA, la traduction IA ou une fonctionnalite IA du

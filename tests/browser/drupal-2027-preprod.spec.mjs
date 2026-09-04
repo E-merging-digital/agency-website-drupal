@@ -13,6 +13,7 @@ const h1 = 'Votre plateforme Drupal est-elle prête pour 2027 ?';
 const submessage = "Avant de parler migration ou refonte, faites le point sur l'existant. Nous vous aidons à identifier ce qui mérite réellement d'être vérifié — version, dépendances, code sur mesure, hébergement et tests — puis à choisir une trajectoire réaliste, sans urgence artificielle.";
 const primaryCta = 'Faire le point sur mon Drupal';
 const secondaryCta = 'Voir les points à vérifier';
+const secondaryCtaTarget = '#points-a-verifier-socle';
 
 const orderedHeadings = [
   'Pourquoi 2027 ? Les jalons à connaître',
@@ -59,8 +60,11 @@ test.describe('Drupal 2027 protected PREPROD landing review', () => {
     await expect(secondary).toBeVisible();
 
     await secondary.click();
-    await expect(page).toHaveURL(/#points-a-verifier$/);
-    await expect(page.locator('#points-a-verifier')).toBeVisible();
+    await expect(page).toHaveURL(/#points-a-verifier-socle$/);
+    const secondaryTarget = page.locator(secondaryCtaTarget);
+    await expect(secondaryTarget).toBeVisible();
+    await expect(secondaryTarget).toContainText('1. Socle technique');
+    await expect(secondaryTarget).toBeInViewport();
     audit.checks.secondary_cta = 'PASS';
 
     await primary.click();
@@ -100,7 +104,7 @@ test.describe('Drupal 2027 protected PREPROD landing review', () => {
     for (const reassurance of [
       'Diagnostic humain',
       'pas de scanner automatique',
-      "pas de migration décidée à l'avance",
+      "pas de migration décidée d'avance",
       'audit payant uniquement si une analyse plus poussée est utile',
       "livrable d'audit exploitable indépendamment de la suite",
     ]) {

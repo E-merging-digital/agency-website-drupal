@@ -11,6 +11,7 @@ const contractFile = path.basename(
 const contractTestMatches = {
   'public-blog.json': '**/public-blog.spec.mjs',
   'production-editorial-401.json': '**/production-editorial-article.spec.mjs',
+  'drupal-2027-preprod.json': '**/drupal-2027-preprod.spec.mjs',
 };
 const contractTestMatch = contractTestMatches[contractFile];
 

@@ -31,6 +31,7 @@ visibility:
     context_mapping: {  }
     pages: |-
       /fr/audit-drupal
+      /fr/drupal-2027
       /fr/migration-drupal
       /fr/refonte-site-drupal
       /en/drupal-audit

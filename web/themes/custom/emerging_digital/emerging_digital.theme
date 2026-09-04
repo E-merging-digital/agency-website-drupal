@@ -520,6 +520,7 @@ function emerging_digital_hero_illustration(bool $is_front = FALSE): array {
       '/ia-drupal' => 'ia-drupal',
       '/ai-drupal' => 'ia-drupal',
       '/services' => 'services',
+      '/drupal-2027' => 'services',
       '/contact' => 'contact',
       '/cas-clients' => 'case-clients',
       '/case-studies' => 'case-clients',

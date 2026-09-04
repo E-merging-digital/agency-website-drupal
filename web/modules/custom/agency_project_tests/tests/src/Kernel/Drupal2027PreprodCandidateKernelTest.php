@@ -24,7 +24,11 @@ use PHPUnit\Framework\Attributes\Group;
 #[Group('drupal_2027_preprod_candidate')]
 final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
 
-  /** @var string[] */
+  /**
+   * Drupal modules required by the closed Drupal 2027 candidate Kernel test.
+   *
+   * @var string[]
+   */
   protected static $modules = [
     'system',
     'user',
@@ -40,8 +44,14 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     'paragraphs',
   ];
 
+  /**
+   * Closed PREPROD candidate helper under test.
+   */
   private object $candidate;
 
+  /**
+   * Builds the minimal Page and Paragraph runtime used by the closed profile.
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -112,7 +122,13 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     self::assertFalse($node->hasTranslation('en'));
     self::assertSame($payload['title'], $node->label());
     self::assertSame($payload['short_description'], $node->get('field_short_description')->value);
-    self::assertCount(10, $node->get('field_home_components')->referencedEntities());
+    $components = $node->get('field_home_components')->referencedEntities();
+    self::assertCount(10, $components);
+    $secondary = $components[0]->get('field_secondary_link')->first()?->getValue() ?? [];
+    self::assertSame(
+      'internal:/drupal-2027#points-a-verifier-socle',
+      $secondary['uri'] ?? NULL,
+    );
     self::assertSame(
       '/drupal-2027',
       $this->container->get('path_alias.manager')->getAliasByPath(
@@ -175,6 +191,9 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     $this->candidate->dryRun($payload, str_repeat('e', 64));
   }
 
+  /**
+   * Creates the fields required by the bounded Page and Paragraph contract.
+   */
   private function createFields(): void {
     $this->createStorage('field_short_description', 'node', 'text_long', 1);
     $this->createConfig('field_short_description', 'node', 'page', 'Short description');
@@ -222,6 +241,12 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     $this->createConfig('field_items', 'paragraph', 'trust_list', 'Items');
   }
 
+  /**
+   * Creates one field storage definition for the Kernel fixture.
+   *
+   * @param array<string, mixed> $settings
+   *   Optional field storage settings.
+   */
   private function createStorage(
     string $name,
     string $entityType,
@@ -238,6 +263,12 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     ])->save();
   }
 
+  /**
+   * Creates one bundle field definition for the Kernel fixture.
+   *
+   * @param array<string, mixed> $settings
+   *   Optional field handler settings.
+   */
   private function createConfig(
     string $name,
     string $entityType,
@@ -255,6 +286,12 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     ])->save();
   }
 
+  /**
+   * Returns one valid closed Drupal 2027 payload fixture.
+   *
+   * @return array<string, mixed>
+   *   Candidate payload fixture.
+   */
   private function validPayload(): array {
     return [
       'schema_version' => 1,
@@ -279,7 +316,10 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
       'sections' => [
         'lifecycle' => $this->section('Pourquoi 2027 ?', '<p>Jalons.</p>'),
         'situations' => $this->section('Situations', '<p>Situations.</p>'),
-        'checks' => $this->section('Les points à vérifier', '<h3 id="points-a-verifier">Socle</h3>'),
+        'checks' => $this->section(
+          'Les points à vérifier',
+          '<h3 id="points-a-verifier-socle">Socle</h3>',
+        ),
         'composer_callout' => $this->section('Composer', '<p>Vérifier.</p>'),
         'method' => $this->section('Méthode', '<h3>1. COMPRENDRE</h3>'),
         'reassurance' => [
@@ -295,6 +335,12 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     ];
   }
 
+  /**
+   * Builds one text section fixture.
+   *
+   * @return array{heading: string, body_html: string}
+   *   Section fixture.
+   */
   private function section(string $heading, string $body): array {
     return [
       'heading' => $heading,

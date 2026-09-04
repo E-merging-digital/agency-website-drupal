@@ -59,8 +59,8 @@ test.describe('Drupal 2027 protected PREPROD landing review', () => {
     await expect(secondary).toBeVisible();
 
     await secondary.click();
-    await expect(page).toHaveURL(/#points-a-verifier-socle$/);
-    await expect(page.locator('#points-a-verifier-socle')).toBeVisible();
+    await expect(page).toHaveURL(/#points-a-verifier$/);
+    await expect(page.locator('#points-a-verifier')).toBeVisible();
     audit.checks.secondary_cta = 'PASS';
 
     await primary.click();

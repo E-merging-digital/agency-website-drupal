@@ -276,10 +276,12 @@ jobs:
 
           jq -e '.status == "PASS" and .verdict == "AUTHORIZED" and .image_waiver == "UNSUPPORTED"' \
             "$approval_json" >/dev/null
-          echo "profile_sha256=$(jq -r '.profile_sha256' "$approval_json")" >> "$GITHUB_OUTPUT"
-          echo "asset_sha256=$(jq -r '.asset_sha256' "$approval_json")" >> "$GITHUB_OUTPUT"
-          echo "asset_path=$(jq -r '.asset_path' "$approval_json")" >> "$GITHUB_OUTPUT"
-          echo "approval_comment_id=$(jq -r '.approval_comment_id' "$approval_json")" >> "$GITHUB_OUTPUT"
+          {
+            echo "profile_sha256=$(jq -r '.profile_sha256' "$approval_json")"
+            echo "asset_sha256=$(jq -r '.asset_sha256' "$approval_json")"
+            echo "asset_path=$(jq -r '.asset_path' "$approval_json")"
+            echo "approval_comment_id=$(jq -r '.approval_comment_id' "$approval_json")"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Configure existing production SSH channel
         env:

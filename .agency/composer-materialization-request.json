@@ -1,6 +1,6 @@
 {
-  "request_id": "issue-530-ai-agents-v6",
-  "pr_number": 533,
-  "head_sha": "148931ba80cb2f57575429a8264756c6c6ca68a2",
-  "profile": "canvas-ai-agents-530"
+  "request_id": "issue-962-lock-refresh-r1",
+  "pr_number": 1000,
+  "head_sha": "a87244600b967f83022ded7102d61932580fac65",
+  "profile": "dependency-maintenance-962"
 }

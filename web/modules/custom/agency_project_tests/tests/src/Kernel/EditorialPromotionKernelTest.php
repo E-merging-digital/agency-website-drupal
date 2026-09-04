@@ -157,7 +157,8 @@ final class EditorialPromotionKernelTest extends KernelTestBase {
     }
 
     $fileSystem = $this->container->get('file_system');
-    self::assertTrue($fileSystem->prepareDirectory('public://articles', 3));
+    $directory = 'public://articles';
+    self::assertTrue($fileSystem->prepareDirectory($directory, 3));
     $file = $this->container->get('file.repository')->writeData(
       $bytes,
       'public://articles/promotion-test.png',

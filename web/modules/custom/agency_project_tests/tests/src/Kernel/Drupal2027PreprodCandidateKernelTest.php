@@ -244,6 +244,14 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
   /**
    * Creates one field storage definition for the Kernel fixture.
    *
+   * @param string $name
+   *   Field storage name.
+   * @param string $entityType
+   *   Entity type receiving the field storage.
+   * @param string $type
+   *   Drupal field type identifier.
+   * @param int $cardinality
+   *   Field storage cardinality.
    * @param array<string, mixed> $settings
    *   Optional field storage settings.
    */
@@ -266,6 +274,14 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
   /**
    * Creates one bundle field definition for the Kernel fixture.
    *
+   * @param string $name
+   *   Field name.
+   * @param string $entityType
+   *   Entity type receiving the bundle field.
+   * @param string $bundle
+   *   Bundle receiving the field definition.
+   * @param string $label
+   *   Human-readable field label.
    * @param array<string, mixed> $settings
    *   Optional field handler settings.
    */

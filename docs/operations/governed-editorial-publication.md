@@ -1,9 +1,9 @@
 # Governed editorial publication
 
-Status: **PREPROD-FIRST / HUMAN-APPROVED PROD PROMOTION**  
-Owner hardening issue: #1014  
-Historical route owner: #576  
-Candidate capability: #872 / #959  
+Status: **PREPROD-FIRST / HUMAN-APPROVED PROD PROMOTION**
+Owner hardening issue: #1014
+Historical route owner: #576
+Candidate capability: #872 / #959
 Feature-image primitive: #584
 
 ## Durable policy

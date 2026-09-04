@@ -1,0 +1,49 @@
+title: 'Diagnostic cycle de vie Drupal'
+description: 'Demande faible friction pour un premier diagnostic Drupal relu par une personne.'
+elements: |-
+  intro:
+    '#type': webform_markup
+    '#markup': '<p>Partagez l’URL de votre site Drupal et décrivez brièvement le problème ou l’objectif de modernisation. Nous relisons la demande avant toute reprise humaine. Ce premier diagnostic n’est pas un audit automatisé exhaustif.</p>'
+  website_url:
+    '#type': url
+    '#title': 'URL du site'
+    '#required': true
+    '#placeholder': 'https://exemple.be'
+  organization:
+    '#type': textfield
+    '#title': 'Organisation'
+    '#placeholder': 'Nom de votre organisation (facultatif)'
+  name:
+    '#type': textfield
+    '#title': 'Votre nom'
+    '#required': true
+    '#default_value': '[current-user:display-name]'
+  email:
+    '#type': email
+    '#title': 'Votre email'
+    '#required': true
+    '#default_value': '[current-user:mail]'
+  message:
+    '#type': textarea
+    '#title': 'Contexte'
+    '#required': true
+    '#rows': 5
+    '#placeholder': 'Décrivez brièvement ce qui vous bloque, ce que vous souhaitez moderniser ou ce que vous voulez nous faire examiner.'
+  audit_note:
+    '#type': webform_markup
+    '#markup': '<p>Si une analyse plus approfondie est utile, un audit technique payant peut couvrir Drupal Core et PHP, Composer, les modules contrib et le code spécifique, le thème, les dépréciations et la préparation à une mise à niveau, la sécurité et la maintenance, les tests automatisés, l’infrastructure et le déploiement, puis fournir une estimation et un plan d’action. Le livrable reste utile même si vous ne nous confiez pas la migration.</p>'
+  rgpd_consent:
+    '#type': checkbox
+    '#title': 'J’accepte que mes données soient utilisées pour traiter ma demande, conformément à la'
+    '#description': '<a href="/fr/politique-de-confidentialite">politique de confidentialité</a>.<span id="drupal-diagnostic-consent-help" class="contact-consent-help">Ce consentement est obligatoire pour envoyer le formulaire.</span>'
+    '#required': true
+    '#default_value': 0
+    '#attributes':
+      aria-describedby: drupal-diagnostic-consent-help
+  actions:
+    '#type': webform_actions
+    '#title': 'Submit button(s)'
+    '#submit__label': 'Demander un diagnostic Drupal'
+settings:
+  confirmation_title: 'Demande reçue'
+  confirmation_message: 'Merci. Votre demande de diagnostic Drupal a bien été reçue et sera relue par une personne avant toute recommandation.'

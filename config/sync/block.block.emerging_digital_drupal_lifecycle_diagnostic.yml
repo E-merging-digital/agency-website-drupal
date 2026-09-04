@@ -1,0 +1,38 @@
+uuid: c426cfeb-fc36-4c73-a7f0-d7fd71cf06b2
+langcode: en
+status: true
+dependencies:
+  config:
+    - webform.webform.drupal_lifecycle_diagnostic
+  module:
+    - system
+    - webform
+  theme:
+    - emerging_digital
+id: emerging_digital_drupal_lifecycle_diagnostic
+theme: emerging_digital
+region: content
+weight: 10
+provider: null
+plugin: webform_block
+settings:
+  id: webform_block
+  label: 'Request a Drupal diagnostic'
+  label_display: visible
+  provider: webform
+  webform_id: drupal_lifecycle_diagnostic
+  default_data: ''
+  redirect: false
+  lazy: false
+visibility:
+  request_path:
+    id: request_path
+    negate: false
+    context_mapping: {  }
+    pages: |-
+      /fr/audit-drupal
+      /fr/migration-drupal
+      /fr/refonte-site-drupal
+      /en/drupal-audit
+      /en/drupal-migration
+      /en/drupal-website-redesign

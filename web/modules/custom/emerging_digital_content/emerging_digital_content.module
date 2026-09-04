@@ -14,7 +14,11 @@ use Drupal\node\NodeInterface;
  * Implements hook_form_alter().
  */
 function emerging_digital_content_form_alter(array &$form, FormStateInterface $form_state, string $form_id): void {
-  if (($form['#webform_id'] ?? NULL) !== 'contact') {
+  $protected_webforms = [
+    'contact',
+    'drupal_lifecycle_diagnostic',
+  ];
+  if (!in_array(($form['#webform_id'] ?? NULL), $protected_webforms, TRUE)) {
     return;
   }
 

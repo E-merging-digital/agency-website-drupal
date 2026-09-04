@@ -29,6 +29,10 @@ final class Drupal2027HeroVariantTest extends TestCase {
       $theme,
     );
     self::assertStringContainsString(
+      "'services' => [",
+      $theme,
+    );
+    self::assertStringContainsString(
       "'path' => 'images/services/services-page-hero.svg'",
       $theme,
     );

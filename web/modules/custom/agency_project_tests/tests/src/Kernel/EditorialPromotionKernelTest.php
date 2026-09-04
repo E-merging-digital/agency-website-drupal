@@ -168,14 +168,18 @@ final class EditorialPromotionKernelTest extends KernelTestBase {
 
     $node = Node::load($stageResult['node']['id']);
     self::assertNotNull($node);
-    $node->set('field_feature_image', [[
-      'target_id' => (int) $file->id(),
-      'alt' => $profile['alt']['fr'],
-    ]]);
-    $node->getTranslation('en')->set('field_feature_image', [[
-      'target_id' => (int) $file->id(),
-      'alt' => $profile['alt']['en'],
-    ]]);
+    $node->set('field_feature_image', [
+      [
+        'target_id' => (int) $file->id(),
+        'alt' => $profile['alt']['fr'],
+      ],
+    ]);
+    $node->getTranslation('en')->set('field_feature_image', [
+      [
+        'target_id' => (int) $file->id(),
+        'alt' => $profile['alt']['en'],
+      ],
+    ]);
     $node->save();
 
     $promoted = $this->promotion->finalize($payload, $profile, 999, $hash);
@@ -203,10 +207,12 @@ final class EditorialPromotionKernelTest extends KernelTestBase {
 
     $node = Node::load($result['node']['id']);
     self::assertNotNull($node);
-    $node->set('body', [[
-      'value' => '<p>Drifted after approval.</p>',
-      'format' => 'basic_html',
-    ]]);
+    $node->set('body', [
+      [
+        'value' => '<p>Drifted after approval.</p>',
+        'format' => 'basic_html',
+      ],
+    ]);
     $node->save();
 
     $this->expectException(\RuntimeException::class);

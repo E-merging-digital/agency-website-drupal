@@ -154,14 +154,71 @@ jobs:
           CANDIDATE_SHA256: ${{ steps.candidate.outputs.candidate_sha256 }}
         run: |
           set -euo pipefail
-          comments="$(gh api --paginate "repos/$REPO/issues/1012/comments?per_page=100")"
-          needle="candidate_revision=$CANDIDATE_REVISION"
-          sha_line="candidate_sha256=$CANDIDATE_SHA256"
-          main_line="trusted_main=$TRUSTED_MAIN"
-          jq -e --arg needle "$needle" --arg sha "$sha_line" --arg main "$main_line" '
-            [ .[] | select(.user.type == "Bot") | .body ] |
-            any(.[]; contains("### Agency Drupal 2027 PREPROD candidate dry-run PASS") and contains($needle) and contains($sha) and contains($main))
-          ' <<<"$comments" >/dev/null
+          receipt_comments='artifacts/drupal-2027-preprod-candidate/receipt-comments-pages.json'
+          gh api --paginate --slurp \
+            "repos/$REPO/issues/1012/comments?per_page=100" \
+            > "$receipt_comments"
+          export COMMENTS_FILE="$receipt_comments"
+          # BEGIN DRUPAL_2027_RECEIPT_PARSER
+          import json
+          import os
+          import re
+
+          heading = '### Agency Drupal 2027 PREPROD candidate dry-run PASS'
+          expected = {
+              'candidate_revision': os.environ['CANDIDATE_REVISION'],
+              'candidate_sha256': os.environ['CANDIDATE_SHA256'],
+              'trusted_main': os.environ['TRUSTED_MAIN'],
+          }
+          patterns = {
+              'candidate_revision': re.compile(r'^candidate_revision=([1-9][0-9]*)$'),
+              'candidate_sha256': re.compile(r'^candidate_sha256=([0-9a-f]{64})$'),
+              'trusted_main': re.compile(r'^trusted_main=([0-9a-f]{40})$'),
+          }
+          pages = json.load(open(os.environ['COMMENTS_FILE'], encoding='utf-8'))
+          comments = []
+          for page in pages:
+              if isinstance(page, list):
+                  comments.extend(page)
+              elif isinstance(page, dict):
+                  comments.append(page)
+
+          authorized = False
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'github-actions[bot]':
+                  continue
+              body = comment.get('body') or ''
+              lines = body.splitlines()
+              if not lines or lines[0] != heading or lines.count(heading) != 1:
+                  continue
+
+              fields = {}
+              invalid = False
+              for name, pattern in patterns.items():
+                  prefix = f'{name}='
+                  candidates = [line for line in lines[1:] if line.startswith(prefix)]
+                  if len(candidates) != 1:
+                      invalid = True
+                      break
+                  match = pattern.fullmatch(candidates[0])
+                  if match is None:
+                      invalid = True
+                      break
+                  fields[name] = match.group(1)
+
+              if invalid:
+                  continue
+              if all(fields[name] == value for name, value in expected.items()):
+                  authorized = True
+                  break
+
+          if not authorized:
+              raise SystemExit(
+                  'PREPROD apply requires one exact github-actions[bot] dry-run PASS '
+                  'for the same candidate revision, SHA-256 and trusted main.'
+              )
+          # END DRUPAL_2027_RECEIPT_PARSER
+          PY
 
       - name: Checkout exact live main execution source
         uses: actions/checkout@v5

@@ -1,24 +1,61 @@
-# Agent-Ready trajectory — post-PROD only
+# Agent-Ready trajectory — bounded post-PROD roadmap
 
-Status: **durable backlog / not authorized for runtime implementation yet**.
+Status: **durable roadmap / implementation only by explicit Project Lead authority**.
 
 Authority: `docs/decisions/ADR-003-agent-ready-drupal-capabilities.md`.
 
+External/adoption roadmap: `docs/research/external-capability-adoption-backlog.md`.
+
 ## Current gate
 
-Agency's operational priority remains the PREPROD -> PROD stabilization program.
+The historical PREPROD -> PROD stabilization gate has been satisfied with durable
+runtime evidence. Agent-Ready work is therefore no longer globally blocked by
+that gate, but **nothing in this document creates automatic runtime authority**.
 
 ```text
-CURRENT_PRIORITY = PREPROD_TO_PROD_STABILIZATION
-AGENT_READY_RUNTIME_IMPLEMENTATION = BLOCKED
-UNBLOCK_CONDITION = PREPROD_TO_PROD_HEALTHY_WITH_EVIDENCE
+PREPROD_TO_PROD_GATE = SATISFIED
+AGENT_READY_RUNTIME_IMPLEMENTATION = EXPLICIT_AUTHORITY_ONLY
+CURRENT_TECHNICAL_PRIORITY = #962 WHEN REQUIRED RUNNER IS AVAILABLE
+#962_CURRENT_STATE = HOLD_ON_SELF_HOSTED_RUNNER
+ONE_ACTIVE_P2_PILOT = MAXIMUM
 ```
 
-This document preserves the future trajectory so it cannot be lost while the Ops
-program is completed. It does **not** create READY implementation work and does
-not authorize changes to #816, #834, #842/#843 or related production paths.
+When #962 cannot progress because the required runner is unavailable, Project
+Lead may select bounded hosted-only work from the roadmap. This must not create a
+parallel infrastructure path merely to bypass the temporary runner outage.
 
-## Ordered trajectory after the gate
+## Architecture convergence
+
+Agency should support two first-class consumers of the same authoritative Drupal
+content and capabilities:
+
+```text
+HUMAN_EXPERIENCE
++
+AGENT_EXPERIENCE
+```
+
+`Agent Experience` is not a second website or a permission shortcut. It combines
+machine-readable semantics, discovery, bounded capabilities, explicit identity /
+account / authority, deterministic rules where practical, validation and
+receipts.
+
+Durable principles:
+
+```text
+DISCOVER_BEFORE_MUTATE = REQUIRED
+GENERIC_DRUPAL_KNOWLEDGE != PROJECT_COMPATIBILITY
+MODEL_CONTEXT = CACHE_NOT_AUTHORITY
+PROJECT_INDEX = CACHE_NOT_AUTHORITY
+CAPABILITY != AUTHORITY
+ACCOUNT_IS_PART_OF_AUTHORITY = YES
+LLMS_TXT != AUTHORITY
+MODEL != POLICY_ENGINE
+UNKNOWN_EXECUTION_STATE -> RECONCILE_NOT_REPLAY
+EXECUTION -> VALIDATION -> RECEIPT
+```
+
+## Ordered trajectory
 
 ### A. Audit SDC machine readability
 
@@ -38,7 +75,7 @@ truth.
 
 ### C. Expose the component catalogue read-only
 
-First real Agent-Ready capability candidate:
+First concrete Agent-Ready capability family:
 
 ```text
 list_components()
@@ -50,55 +87,106 @@ Names are illustrative, not a frozen API.
 Required properties: read-only, permission-aware, structured output, no secrets,
 no mutation, deterministic enough for tests.
 
-### D. Evaluate WebMCP as a read-only adapter
+### D. Evaluate WebMCP / Tool API as read-only adapters
 
-Evaluate current WebMCP/Site Tools standards only after the catalogue contract is
-proven. Candidate use cases include component discovery, design rules, page
-structure, content requirements, validation, draft status and publication
-readiness.
+Evaluate current WebMCP/Site Tools/MCP standards only after the domain capability
+contract is proven. Candidate use cases include component discovery, design
+rules, page structure, content requirements, validation, draft status and
+publication readiness.
 
-Do not make browser registration the security authority.
+Do not make browser registration, MCP connection or model approval the security
+authority.
 
-### E. Evaluate API/MCP convergence
+### E. Converge browser and non-browser agent capabilities
 
-Determine how Codex, ForgePilot and non-browser agents can consume the same
-structured domain capabilities without scraping the back-office DOM.
+Codex, ForgePilot and browser agents should consume the same bounded Drupal domain
+services where practical instead of scraping the administrative DOM or exposing
+arbitrary Drush/entity operations.
 
-MCP/API and WebMCP should converge on the same Drupal services and access rules
-when possible.
+Identity, selected account and authority scope must remain explicit.
 
-### F. Governed draft composition
+### F. Project discovery before mutation
+
+Agents should discover the live project's installed modules, versions, content
+model, SDC catalogue, workflows and relevant constraints before planning changes.
+
+A generated project index or context summary is useful only as a cache:
+
+```text
+PROJECT_INDEX = CACHE_NOT_AUTHORITY
+LIVE_REPOSITORY_AND_RUNTIME = AUTHORITATIVE
+```
+
+A bounded discovery/index pilot may compare scan cost and correctness before any
+persistent indexing architecture is adopted.
+
+### G. Skills instead of repeated giant prompts
+
+Evaluate one low-risk, maintained Drupal skill/procedure for a read-only or
+static-analysis task. Compare it to the equivalent repeated prompt/handoff.
+
+A skill is an executable supply-chain input, not merely documentation. Require
+provenance, reviewed revision, declared preconditions and least privilege.
+
+Do not invent an Agency skill if a maintained Drupal/upstream skill already covers
+the need.
+
+### H. Governed draft composition
 
 Only after read-only capabilities are proven, evaluate controlled draft
 operations such as composing approved SDC components or updating draft content.
 
-`draft != publish` remains absolute.
+```text
+draft != publish
+```
 
-### G. Governed publication workflows
+remains absolute.
 
-Publication/external effects are a later and separately governed capability.
-They require explicit permissions, moderation/workflow proof, auditability,
+### I. Governed publication workflows
+
+Publication and external effects are separately governed capabilities. They
+require explicit permissions, moderation/workflow proof, auditability,
 rollback/recovery and separate Project Lead authorization.
 
-## Preserved ideas — not issues yet
+## P1 convergence work
 
-The following ideas are intentionally retained here without turning each one into
-an active GitHub issue:
+The current strategic P1 items are intentionally few:
 
-### Agent-readable SDC catalog
+1. **GitHub Actions supply chain** — pin reviewed third-party actions to immutable
+   full commit SHAs and audit `GITHUB_TOKEN` permissions without redesigning CI.
+2. **Agent Experience principle** — fold semantic machine exposure and explicit
+   identity/account/authority into #863/#390 rather than creating a new platform.
 
-Expose the governed SDC component catalogue to AI agents using native metadata as
-far as possible.
+These items do not automatically preempt #962 when its runner becomes available.
+
+## P2 pilots — one at a time
+
+Current candidates are tracked in
+`docs/research/external-capability-adoption-backlog.md`:
+
+1. FlowDrop synthetic orchestration pilot;
+2. project discovery/index comparison;
+3. one reusable Drupal skill pilot;
+4. Codex context-management long-task pilot;
+5. hosted CI egress/Harden-Runner observation.
+
+Only one P2 pilot should be active at a time. A pilot must answer a concrete gap
+question and stop when that question is answered.
+
+## Preserved ideas — not automatically READY
+
+### Agent-readable SDC catalogue
+
+Expose the governed SDC catalogue using native metadata as far as possible.
 
 ### WebMCP Site Tools
 
-Expose selected authenticated Agency back-office capabilities through WebMCP,
-starting read-only.
+Expose selected authenticated Agency capabilities through a read-only-first
+adapter.
 
 ### MCP capability adapter
 
-Allow non-browser agents such as Codex/ForgePilot to consume the same structured
-capabilities.
+Allow non-browser agents to consume the same structured domain capabilities.
 
 ### Governed page composition
 
@@ -128,25 +216,76 @@ No massive autonomous publishing is implied or authorized.
 
 ## Commercial sequencing
 
-Agent-Ready architecture is an enabling layer, not the commercial positioning of
-the public site.
+Agent-Ready architecture is an enabling layer, not an acronym-led commercial
+positioning.
 
-After PREPROD -> PROD stabilization and the bounded architecture work above,
-Agency can move into the dedicated content/acquisition phase: improve public
-content, landing pages, SEO and technical proof, then execute commercial
-campaigns. Drupal migration/EOL expertise can be a strong targeted acquisition
-channel without making E-merging Digital appear Drupal-only.
+A future offer may evolve from `AI / Agent Readiness Audit` toward
+`Agent-Ready Drupal Architecture` only when the technical proof exists.
 
-## Re-entry checklist after PROD is healthy
+Sell outcomes:
 
-Before creating the first implementation issue from this trajectory:
+- machine readability and semantic structure;
+- bounded capabilities;
+- explicit permissions and human approval;
+- provenance and auditability;
+- supply-chain posture;
+- agent development readiness.
 
-- reload live repository and current upstream Drupal/SDC/Drupal AI state;
+Do not sell “we install MCP / llms.txt / FlowDrop”.
+
+Agency should continue improving public content, landing pages, SEO and technical
+proof in parallel where those tasks do not depend on blocked infrastructure.
+Drupal migration/EOL expertise remains a targeted acquisition channel without
+making E-merging Digital appear Drupal-only.
+
+## External capability discovery
+
+The wider adoption program is preserved in:
+
+`docs/research/external-capability-adoption-backlog.md`
+
+It includes:
+
+- FlowDrop;
+- DrupalClaw patterns/skills/index ideas;
+- Codex context management and account-scoped approvals;
+- GPT-6 Astra readiness without model dependency;
+- GitHub Actions supply-chain hardening;
+- egress/Harden-Runner observation;
+- Open Design;
+- community/upstream skills;
+- content naturalisation;
+- ownership Agency / Preflight / ForgePilot;
+- licence and supply-chain review;
+- content/acquisition ideas.
+
+Every named upstream is a dated snapshot. Reload its current state before making a
+decision.
+
+## Re-entry checklist
+
+Before creating or resuming implementation work from this trajectory:
+
+- reload live repository, issues, PRs and active priorities;
 - revalidate ADR-001 and ADR-003;
-- inspect the live SDC/component catalogue;
-- verify whether Context Control Center or successor primitives remain relevant;
-- re-evaluate MCP/WebMCP standards rather than relying on this document's 2026
-  assumptions;
-- choose exactly one first vertical slice;
+- inspect the current Drupal/SDC/Canvas/Drupal AI primitives;
+- consult the external capability roadmap if an upstream may reduce custom work;
+- reload the upstream, licence, maintenance and security state;
+- verify whether the capability already exists in Agency, Preflight or ForgePilot;
+- perform a bounded gap analysis;
+- choose exactly one vertical slice;
 - preserve one issue = one branch = one PR;
-- start read-only unless a stronger need is explicitly demonstrated.
+- start read-only unless a stronger need is explicitly demonstrated;
+- stop when the requested outcome is sufficiently proven.
+
+## Execution boundary
+
+```text
+ROADMAP != IMPLEMENTATION_AUTHORITY
+NEW_FRAMEWORK = FORBIDDEN_BY_DEFAULT
+NEW_DEPENDENCY = EXPLICIT_ISSUE_ONLY
+PREPROD_MUTATION = EXPLICIT_GATE_ONLY
+PROD_MUTATION = EXPLICIT_GATE_ONLY
+MINIMUM_NECESSARY = REQUIRED
+WHEN_REQUESTED_OUTCOME_IS_PROVEN = STOP
+```

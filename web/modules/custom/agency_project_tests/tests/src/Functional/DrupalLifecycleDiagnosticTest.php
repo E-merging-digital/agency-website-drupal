@@ -217,6 +217,9 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
     $this->assertSession()->elementExists('css', '[role="alert"]');
     self::assertSame(0, $this->countDiagnosticSubmissions());
 
+    // Reload the form so this scenario starts without the consent checkbox
+    // state preserved from the intentionally invalid preceding submission.
+    $this->drupalGet($this->diagnosticWebform->toUrl());
     $this->submitForm([
       'website_url' => 'https://example.com',
       'name' => 'Diagnostic Consent',

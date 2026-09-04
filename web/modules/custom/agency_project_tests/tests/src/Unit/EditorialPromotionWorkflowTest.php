@@ -44,7 +44,7 @@ final class EditorialPromotionWorkflowTest extends TestCase {
   }
 
   /**
-   * The promotion runner must stage content before visual completion/publication.
+   * Promotion must stage before visual completion/publication.
    */
   public function testPromotionRunnerIsBoundedAndSyntaxValid(): void {
     $root = dirname(DRUPAL_ROOT);

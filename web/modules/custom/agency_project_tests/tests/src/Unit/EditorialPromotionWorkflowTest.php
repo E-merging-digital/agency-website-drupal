@@ -61,7 +61,7 @@ final class EditorialPromotionWorkflowTest extends TestCase {
 
     self::assertStringContainsString('/var/www/agency/current', $runner);
     self::assertStringContainsString('vendor/bin/drush sql:dump', $runner);
-    self::assertStringContainsString("$stagedPayload['published'] = FALSE;", $runtime);
+    self::assertStringContainsString("\$stagedPayload['published'] = FALSE;", $runtime);
     self::assertStringContainsString('Feature image did not converge before publication.', $runtime);
     self::assertStringContainsString('visual_completeness', $runtime);
     self::assertStringContainsString('REFUSED_BY_DESIGN', $runtime);

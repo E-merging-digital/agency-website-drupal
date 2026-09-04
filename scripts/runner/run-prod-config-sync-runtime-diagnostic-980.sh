@@ -291,7 +291,7 @@ jq -n \
     current_release: $current_release,
     current_symlink_target: $current_symlink_target,
     drupal_root: $drupal_root,
-    settings_symlink_target: $settings_target,
+    settings_symlink_target: $settings_symlink_target,
     shared_settings_sha256: $shared_settings_sha256,
     effective_config_sync_directory: $effective_config_sync_directory,
     resolved_config_sync_path: $resolved_config_sync_path,

@@ -34,7 +34,7 @@ final class AgencyDrupal2027PreprodCandidate {
   private const AUTHOR_UID = 1;
   private const STATE_KEY = 'agency_editorial.drupal_2027_landing';
   private const PRIMARY_URI = 'internal:/drupal-2027#block-emerging-digital-drupal-lifecycle-diagnostic';
-  private const SECONDARY_URI = 'internal:/drupal-2027#points-a-verifier';
+  private const SECONDARY_URI = 'internal:/drupal-2027#points-a-verifier-socle';
 
   /** @var string[] */
   private const TOP_LEVEL_KEYS = [

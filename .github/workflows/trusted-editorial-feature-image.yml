@@ -1,9 +1,14 @@
 name: Agency trusted editorial feature image
 
 on:
-  issue_comment:
-    types:
-      - created
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
 
 permissions:
   contents: read
@@ -18,7 +23,10 @@ jobs:
         (
           github.event.comment.body == '/agency-editorial-image inspect' ||
           github.event.comment.body == '/agency-editorial-image dry-run' ||
-          github.event.comment.body == '/agency-editorial-image apply'
+          github.event.comment.body == '/agency-editorial-image apply' ||
+          github.event.comment.body == '/agency-editorial-image-prod inspect' ||
+          github.event.comment.body == '/agency-editorial-image-prod dry-run' ||
+          github.event.comment.body == '/agency-editorial-image-prod apply'
         )
       }}
     runs-on: ubuntu-24.04
@@ -43,11 +51,27 @@ jobs:
           [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
           [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]
           case "$TRIGGER_COMMENT" in
-            '/agency-editorial-image inspect') mode='inspect' ;;
-            '/agency-editorial-image dry-run') mode='dry-run' ;;
-            '/agency-editorial-image apply') mode='apply' ;;
+            '/agency-editorial-image inspect') mode='inspect'; surface='standard' ;;
+            '/agency-editorial-image dry-run') mode='dry-run'; surface='standard' ;;
+            '/agency-editorial-image apply') mode='apply'; surface='standard' ;;
+            '/agency-editorial-image-prod inspect') mode='inspect'; surface='prod' ;;
+            '/agency-editorial-image-prod dry-run') mode='dry-run'; surface='prod' ;;
+            '/agency-editorial-image-prod apply') mode='apply'; surface='prod' ;;
             *) echo 'Unsupported editorial image command.' >&2; exit 1 ;;
           esac
+          if [[ "$surface" == 'standard' ]]; then
+            case "$ISSUE_NUMBER" in
+              401) target='PROD' ;;
+              958) target='PREPROD' ;;
+              *) echo 'No bounded editorial image target is approved for this issue.' >&2; exit 1 ;;
+            esac
+          else
+            [[ "$surface" == 'prod' && "$ISSUE_NUMBER" == '958' ]] || {
+              echo 'The explicit editorial image PROD command is approved only for issue #958.' >&2
+              exit 1
+            }
+            target='PROD'
+          fi
 
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
           [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
@@ -60,8 +84,11 @@ jobs:
             echo 'Editorial image route must execute the workflow revision currently on live main.' >&2
             exit 1
           }
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+          printf '%s\n' \
+            "mode=$mode" \
+            "surface=$surface" \
+            "target=$target" \
+            "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact trusted main
         uses: actions/checkout@v6
@@ -88,6 +115,10 @@ jobs:
               generator='scripts/runner/generate-editorial-feature-image-401.py'
               asset='assets/editorial/issue-401-redesign-checklist.png'
               ;;
+            958)
+              generator='scripts/runner/generate-editorial-feature-image-958.py'
+              asset='assets/editorial/issue-958-drupal-upgrade-roadmap.png'
+              ;;
             *)
               echo 'No deterministic editorial image generator is approved for this issue.' >&2
               exit 1
@@ -96,19 +127,24 @@ jobs:
           test -f "$generator"
           python3 "$generator" --output "$asset"
           test -s "$asset"
-          php -r '
-            $path = $argv[1];
-            if (!function_exists("imagecreatefrompng")) {
-              fwrite(STDERR, "GD PNG decoder is unavailable.\n");
-              exit(2);
-            }
-            $image = @imagecreatefrompng($path);
-            if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
-              fwrite(STDERR, "Generated editorial PNG is not GD-decodable at 1200x630.\n");
-              exit(3);
-            }
-            imagedestroy($image);
-          ' "$asset"
+          ASSET_TO_DECODE="$asset" php <<'PHP'
+          <?php
+          $path = getenv('ASSET_TO_DECODE');
+          if (!is_string($path) || $path === '') {
+            fwrite(STDERR, "Generated editorial PNG path is unavailable.\n");
+            exit(2);
+          }
+          if (!function_exists('imagecreatefrompng')) {
+            fwrite(STDERR, "GD PNG decoder is unavailable.\n");
+            exit(3);
+          }
+          $image = @imagecreatefrompng($path);
+          if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
+            fwrite(STDERR, "Generated editorial PNG is not GD-decodable at 1200x630.\n");
+            exit(4);
+          }
+          imagedestroy($image);
+          PHP
 
       - name: Resolve exact repository-owned image profile
         id: profile
@@ -117,7 +153,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MODE: ${{ steps.request.outputs.mode }}
+          COMMAND_SURFACE: ${{ steps.request.outputs.surface }}
           TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          TARGET: ${{ steps.request.outputs.target }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -130,7 +168,19 @@ jobs:
 
           issue = os.environ['ISSUE_NUMBER']
           mode = os.environ['MODE']
+          surface = os.environ['COMMAND_SURFACE']
           trusted_main = os.environ['TRUSTED_MAIN']
+          target = os.environ['TARGET']
+          if surface == 'standard':
+              approved_targets = {'401': 'PROD', '958': 'PREPROD'}
+              if approved_targets.get(issue) != target:
+                  raise SystemExit('Editorial image issue/target binding is invalid.')
+          elif surface == 'prod':
+              if issue != '958' or target != 'PROD':
+                  raise SystemExit('Explicit editorial image PROD binding is valid only for issue #958.')
+          else:
+              raise SystemExit('Editorial image command surface is invalid.')
+
           registry_path = Path('scripts/runner/editorial-feature-image-profiles.json')
           data = json.loads(registry_path.read_text(encoding='utf-8'))
           if set(data) != {'schema_version', 'profiles'} or data['schema_version'] != 1 or not isinstance(data['profiles'], dict):
@@ -168,6 +218,44 @@ jobs:
           canonical = json.dumps(profile, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n'
           profile_sha = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
 
+          if issue == '958' and target == 'PROD':
+              approval_comment_id = 5514934920
+              approved_article_sha = '2e92228480ee6ae7410c028eab2b88c7d7db1534668477f6eafbc236668cb700'
+              approved_profile_sha = 'bd6412a6547fdcd3dda3bab9a1e2f65d89bc9aafcdbc8744dc5717888ef231d6'
+              approved_asset_sha = '3a705624b08ac2c21a10db0e8573841ff8c4cecf087409cd8782953e3684c6f4'
+              if profile['article_payload_sha256'] != approved_article_sha:
+                  raise SystemExit('Approved #958 Article payload hash mismatch.')
+              if profile_sha != approved_profile_sha:
+                  raise SystemExit('Approved #958 image profile hash mismatch.')
+              if actual_sha != approved_asset_sha:
+                  raise SystemExit('Approved #958 image asset hash mismatch.')
+              approval_raw = subprocess.check_output([
+                  'gh', 'api',
+                  f'repos/{os.environ["GITHUB_REPOSITORY"]}/issues/comments/{approval_comment_id}',
+              ], text=True)
+              approval = json.loads(approval_raw)
+              if approval.get('id') != approval_comment_id:
+                  raise SystemExit('Exact #958 approval receipt ID mismatch.')
+              if approval.get('user', {}).get('login') != 'E-merging-digital' or approval.get('author_association') != 'OWNER':
+                  raise SystemExit('Exact #958 approval receipt is not owner-authored.')
+              if not str(approval.get('issue_url') or '').endswith('/issues/958'):
+                  raise SystemExit('Exact #958 approval receipt is attached to the wrong issue.')
+              approval_body = approval.get('body') or ''
+              required_approval_lines = [
+                  'CANDIDATE_ID = agency-article-958',
+                  'CANDIDATE_REVISION = 5510862057',
+                  f'ARTICLE_PAYLOAD_SHA256 = {approved_article_sha}',
+                  f'IMAGE_PROFILE_SHA256 = {approved_profile_sha}',
+                  f'IMAGE_ASSET_SHA256 = {approved_asset_sha}',
+                  'HUMAN_REVIEW = PASS',
+                  'CONTENT = APPROVED',
+                  'IMAGE = APPROVED',
+                  'ALT_FR_EN = APPROVED',
+                  'EXACT_CANDIDATE_PROMOTION_TO_PROD = AUTHORIZED',
+              ]
+              if any(line not in approval_body for line in required_approval_lines):
+                  raise SystemExit('Exact #958 human approval receipt no longer matches the approved candidate.')
+
           if mode == 'apply':
               raw = subprocess.check_output([
                   'gh', 'api', f'repos/{os.environ["GITHUB_REPOSITORY"]}/issues/{issue}/comments?per_page=100',
@@ -179,7 +267,8 @@ jobs:
                   r'^### Agency editorial image dry-run PASS\s*$.*?'
                   r'^profile_sha256: `([0-9a-f]{64})`\s*$.*?'
                   r'^asset_sha256: `([0-9a-f]{64})`\s*$.*?'
-                  r'^trusted_main: `([0-9a-f]{40})`\s*$',
+                  r'^trusted_main: `([0-9a-f]{40})`\s*$.*?'
+                  r'^target: `(PROD|PREPROD)`\s*$',
                   re.MULTILINE | re.DOTALL,
               )
               authorized = False
@@ -187,11 +276,11 @@ jobs:
                   if comment.get('user', {}).get('login') != 'github-actions[bot]':
                       continue
                   match = pattern.search(comment.get('body') or '')
-                  if match and match.groups() == (profile_sha, actual_sha, trusted_main):
+                  if match and match.groups() == (profile_sha, actual_sha, trusted_main, target):
                       authorized = True
                       break
               if not authorized:
-                  raise SystemExit('Apply requires a bot-authored image dry-run PASS for the same profile, asset and live main.')
+                  raise SystemExit('Apply requires a bot-authored image dry-run PASS for the same profile, asset, live main and target.')
 
           with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as out:
               out.write(f'profile_sha256={profile_sha}\n')
@@ -206,27 +295,34 @@ jobs:
           EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
           EXPECTED_ASSET_SHA: ${{ steps.profile.outputs.asset_sha256 }}
           ASSET_PATH: ${{ steps.profile.outputs.asset_path }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
           test -f scripts/runner/run-editorial-feature-image.sh
           test -f scripts/runner/editorial-feature-image.php
           test -f scripts/runner/editorial-feature-image-profiles.json
-          test -f scripts/runner/generate-editorial-feature-image-401.py
           test -f "$ASSET_PATH"
+          case "$ISSUE_NUMBER" in
+            401) generator='scripts/runner/generate-editorial-feature-image-401.py' ;;
+            958) generator='scripts/runner/generate-editorial-feature-image-958.py' ;;
+            *) exit 1 ;;
+          esac
+          test -f "$generator"
           bash -n scripts/runner/run-editorial-feature-image.sh
           php -l scripts/runner/editorial-feature-image.php
           [[ "$(sha256sum "$ASSET_PATH" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
           candidate="$(mktemp --suffix=.png)"
           trap 'rm -f "$candidate"' EXIT
-          python3 scripts/runner/generate-editorial-feature-image-401.py --output "$candidate"
+          python3 "$generator" --output "$candidate"
           [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
           cmp -s "$candidate" "$ASSET_PATH"
 
-      - name: Configure existing production SSH channel
+      - name: Configure bounded SSH channel
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          TARGET: ${{ steps.request.outputs.target }}
         run: |
           set -euo pipefail
           test -n "$SSH_PRIVATE_KEY"
@@ -235,8 +331,18 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          if [[ "$TARGET" == 'PREPROD' ]]; then
+            test -f scripts/preproduction-ssh-trust/manage-known-host.sh
+            test -f scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh
+            PREPROD_SERVER_HOST="$SERVER_HOST" \
+              bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+            PREPROD_SERVER_HOST="$SERVER_HOST" \
+              PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
+              bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+          else
+            ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+            chmod 644 ~/.ssh/known_hosts
+          fi
 
       - name: Execute bounded editorial image route
         id: route
@@ -244,6 +350,7 @@ jobs:
         env:
           EDITORIAL_IMAGE_MODE: ${{ steps.request.outputs.mode }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EDITORIAL_IMAGE_TARGET: ${{ steps.request.outputs.target }}
           PROFILE_SHA256: ${{ steps.profile.outputs.profile_sha256 }}
           PROFILE_FILE: ${{ github.workspace }}/scripts/runner/editorial-feature-image-profiles.json
           ASSET_SHA256: ${{ steps.profile.outputs.asset_sha256 }}
@@ -271,6 +378,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MODE: ${{ steps.request.outputs.mode }}
+          TARGET: ${{ steps.request.outputs.target }}
           TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
           PROFILE_SHA256: ${{ steps.profile.outputs.profile_sha256 }}
           ASSET_SHA256: ${{ steps.profile.outputs.asset_sha256 }}
@@ -284,6 +392,7 @@ jobs:
           revision_id='n/a'
           fid='n/a'
           uri='n/a'
+          prod_write='n/a'
           if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
             status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
             verdict="$(jq -r '.verdict // "UNKNOWN"' "$result_file")"
@@ -291,6 +400,10 @@ jobs:
             revision_id="$(jq -r '.node.revision_id // "n/a"' "$result_file")"
             fid="$(jq -r '.node.image.fid // "n/a"' "$result_file")"
             uri="$(jq -r '.node.image.uri // "n/a"' "$result_file")"
+            prod_write="$(jq -r '.prod_write // "n/a"' "$result_file")"
+          fi
+          if [[ "$TARGET" == 'PREPROD' ]]; then
+            prod_write='NONE'
           fi
           heading="### Agency editorial image ${MODE} ${status}"
           if [[ "$ROUTE_OUTCOME" == 'success' && "$status" == 'PASS' ]]; then
@@ -303,6 +416,7 @@ jobs:
           profile_sha256: \`${PROFILE_SHA256:-n/a}\`
           asset_sha256: \`${ASSET_SHA256:-n/a}\`
           trusted_main: \`${TRUSTED_MAIN:-n/a}\`
+          target: \`${TARGET:-n/a}\`
           run_id: \`${GITHUB_RUN_ID}\`
           route_outcome: \`${ROUTE_OUTCOME:-unknown}\`
           verdict: \`${verdict}\`
@@ -310,6 +424,7 @@ jobs:
           revision_id: \`${revision_id}\`
           fid: \`${fid}\`
           uri: \`${uri}\`
+          prod_write: \`${prod_write}\`
           artifact: \`${artifact}\`
 
           This route is restricted to the repository-owned Article feature-image profile and does not accept URLs, arbitrary paths, arbitrary shell or Content Sync input.

@@ -1,0 +1,260 @@
+#!/usr/bin/python3 -I
+"""Fixed root-only pre-ingress authority abort for Agency PREPROD refresh (#917).
+
+The helper terminalizes only the exact already-armed transaction while it is
+still AWAITING_INGRESS and while every internally-derived data/activation
+artifact is proven absent. It is intentionally absent from agency-preprod sudo.
+"""
+from __future__ import annotations
+
+import fcntl
+import hashlib
+import importlib.util
+import json
+import os
+import stat
+import sys
+from pathlib import Path
+from types import ModuleType
+
+CONTRACT_PATH = "/usr/local/lib/agency-preprod-refresh/transaction_contract.py"
+CONTRACT_SHA256 = "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb"
+STATE_DIR = "/var/lib/agency-preprod-refresh"
+AUTHORITY_DIR = STATE_DIR + "/authority"
+HISTORY_DIR = STATE_DIR + "/transactions"
+INCOMING_DIR = STATE_DIR + "/incoming"
+CANDIDATE_DIR = STATE_DIR + "/candidates"
+BACKUP_DIR = STATE_DIR + "/backups"
+ACTIVE_AUTHORITY = AUTHORITY_DIR + "/active.json"
+FENCE_MARKER = STATE_DIR + "/refresh-maintenance.flag"
+AUTHORITY_LOCK = "/run/lock/agency-preprod-refresh-authority.lock"
+MAX_INPUT = 8192
+
+class AbortError(RuntimeError):
+    pass
+
+
+def sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def require_file(path: str, mode: int) -> os.stat_result:
+    meta = os.lstat(path)
+    if stat.S_ISLNK(meta.st_mode) or not stat.S_ISREG(meta.st_mode) or meta.st_nlink != 1:
+        raise AbortError("Fixed file type/link contract invalid.")
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != mode:
+        raise AbortError("Fixed file ownership/mode invalid.")
+    return meta
+
+
+def require_dir(path: str, mode: int) -> None:
+    meta = os.lstat(path)
+    if stat.S_ISLNK(meta.st_mode) or not stat.S_ISDIR(meta.st_mode):
+        raise AbortError("Fixed directory type invalid.")
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != mode:
+        raise AbortError("Fixed directory ownership/mode invalid.")
+
+
+def load_contract() -> ModuleType:
+    require_file(CONTRACT_PATH, 0o644)
+    if sha256_file(CONTRACT_PATH) != CONTRACT_SHA256:
+        raise AbortError("Pinned transaction contract digest mismatch.")
+    spec = importlib.util.spec_from_file_location("agency_preprod_transaction_contract", CONTRACT_PATH)
+    if spec is None or spec.loader is None:
+        raise AbortError("Pinned transaction contract loader unavailable.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_json_file(path: str, contract: ModuleType) -> dict:
+    require_file(path, 0o600)
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+        return contract.validate_authority_state(value)
+    except Exception as exc:
+        raise AbortError("Authority state/history invalid or corrupt.") from exc
+
+
+def read_request(contract: ModuleType) -> dict:
+    if len(sys.argv) != 1:
+        raise AbortError("Abort accepts no arguments; exact structured stdin only.")
+    raw = sys.stdin.buffer.read(MAX_INPUT + 1)
+    if len(raw) > MAX_INPUT:
+        raise AbortError("Abort request exceeds fixed bound.")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+        return contract.parse_abort_request(payload)
+    except Exception as exc:
+        raise AbortError("Abort request rejected.") from exc
+
+
+def acquire_lock():
+    fd = os.open(AUTHORITY_LOCK, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    stream = os.fdopen(fd, "r+b", buffering=0)
+    try:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        stream.close()
+        raise AbortError("Concurrent authority operation collision.") from exc
+    meta = os.fstat(stream.fileno())
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o600:
+        stream.close()
+        raise AbortError("Authority lock ownership/mode invalid.")
+    return stream
+
+
+def fsync_dir(path: str) -> None:
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def atomic_replace_active(value: dict) -> None:
+    raw = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    tmp = AUTHORITY_DIR + "/.abort." + str(os.getpid()) + ".tmp"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(tmp, flags, 0o600)
+    try:
+        os.write(fd, raw)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    require_file(tmp, 0o600)
+    os.replace(tmp, ACTIVE_AUTHORITY)
+    fsync_dir(AUTHORITY_DIR)
+    require_file(ACTIVE_AUTHORITY, 0o600)
+
+
+def write_history_exclusive(path: str, value: dict) -> None:
+    raw = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags, 0o600)
+    try:
+        os.write(fd, raw)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    require_file(path, 0o600)
+    fsync_dir(HISTORY_DIR)
+
+
+def derived_absence_paths(contract: ModuleType, authority: dict) -> tuple[str, ...]:
+    authority_id = authority["authority_id"]
+    return (
+        INCOMING_DIR + "/" + contract.spool_basename(authority),
+        INCOMING_DIR + "/" + contract.manifest_basename(authority),
+        INCOMING_DIR + "/." + authority_id + ".partial",
+        INCOMING_DIR + "/." + authority_id + ".manifest.tmp",
+        CANDIDATE_DIR + "/" + authority_id + ".json",
+        BACKUP_DIR + "/" + authority_id + ".sql",
+    )
+
+
+def prove_absence(contract: ModuleType, authority: dict) -> None:
+    for directory in (STATE_DIR, AUTHORITY_DIR, HISTORY_DIR, INCOMING_DIR, CANDIDATE_DIR, BACKUP_DIR):
+        mode = 0o711 if directory == STATE_DIR else 0o700
+        require_dir(directory, mode)
+    for path in derived_absence_paths(contract, authority):
+        if os.path.lexists(path):
+            raise AbortError("Pre-ingress abort absence proof failed.")
+    if os.path.lexists(FENCE_MARKER):
+        raise AbortError("Pre-ingress abort requires fence open/unchanged.")
+    for key in (
+        "preactivation_runtime_sha256",
+        "application_release_sha256",
+        "backup_sha256",
+        "backup_bytes",
+    ):
+        if authority.get(key) is not None:
+            raise AbortError("Pre-ingress abort activation metadata is non-null.")
+    if authority.get("human_recovery_required") is not False:
+        raise AbortError("Pre-ingress abort recovery marker is not false.")
+
+
+def exact_history_or_none(path: str, terminal: dict, contract: ModuleType, request: dict) -> bool:
+    if not os.path.lexists(path):
+        return False
+    history = load_json_file(path, contract)
+    contract.validate_aborted_terminal_binding(history, request)
+    if history != terminal:
+        raise AbortError("Existing terminal history does not exactly match active transaction.")
+    return True
+
+
+def finish_terminalization(contract: ModuleType, request: dict) -> str:
+    if not os.path.lexists(ACTIVE_AUTHORITY):
+        history_path = HISTORY_DIR + "/" + request["authority_id"] + ".json"
+        if os.path.lexists(history_path):
+            history = load_json_file(history_path, contract)
+            contract.validate_aborted_terminal_binding(history, request)
+            raise AbortError("Abort replay/already terminal.")
+        raise AbortError("No active transaction authority to abort.")
+
+    active = load_json_file(ACTIVE_AUTHORITY, contract)
+    recovery = False
+    if active["state"] == contract.STATE_ABORTED:
+        terminal, _ = contract.validate_aborted_terminal_binding(active, request)
+        recovery = True
+    else:
+        active, _ = contract.validate_pre_ingress_abort_binding(active, request)
+        prove_absence(contract, active)
+        terminal = contract.pre_ingress_aborted_state(active, request)
+        # First make the active state terminal. If interrupted here, ingress and
+        # control already fail closed and the exact same helper can resume.
+        atomic_replace_active(terminal)
+
+    prove_absence(contract, terminal)
+    history_path = HISTORY_DIR + "/" + terminal["authority_id"] + ".json"
+    if not exact_history_or_none(history_path, terminal, contract, request):
+        write_history_exclusive(history_path, terminal)
+
+    # Re-read both durable objects before removing active state.
+    active_now = load_json_file(ACTIVE_AUTHORITY, contract)
+    contract.validate_aborted_terminal_binding(active_now, request)
+    history_now = load_json_file(history_path, contract)
+    contract.validate_aborted_terminal_binding(history_now, request)
+    if active_now != history_now:
+        raise AbortError("Abort terminal/history identity mismatch.")
+
+    os.unlink(ACTIVE_AUTHORITY)
+    fsync_dir(AUTHORITY_DIR)
+    if os.path.lexists(ACTIVE_AUTHORITY):
+        raise AbortError("Active authority removal could not be proven.")
+    return "RECOVERED" if recovery else "ABORTED"
+
+
+def main() -> int:
+    if os.geteuid() != 0:
+        raise AbortError("Pre-ingress abort requires root.")
+    contract = load_contract()
+    request = read_request(contract)
+    lock = acquire_lock()
+    try:
+        outcome = finish_terminalization(contract, request)
+    finally:
+        lock.close()
+    print("PRE_INGRESS_ABORT=PASS")
+    print("ABORTED_TERMINAL_STATE=PRESENT")
+    print("ACTIVE_AUTHORITY_AFTER_ABORT=ABSENT")
+    print("EXACT_BINDING=PASS")
+    print("ABSENCE_PROOF=PASS")
+    print("CRASH_RECOVERY_EXACT_IDENTITY=PASS")
+    print("PERMANENT_ENABLE=NONE")
+    print("RUNTIME_ROLLBACK_CLAIM=NONE")
+    print("ABORT_OUTCOME=" + outcome)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (AbortError, OSError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(80)

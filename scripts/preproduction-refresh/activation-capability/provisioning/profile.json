@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "issue_number": 874,
+  "revision_issue": 915,
+  "abort_revision_issue": 917,
+  "parent_issue": 816,
+  "profile_id": "agency-preprod-refresh-capability-provision-v1",
+  "authority": {
+    "provisioning_authority_issue": 874,
+    "owner_actor": "E-merging-digital",
+    "attempt": 1,
+    "main_binding": "EXACT_LIVE_MAIN",
+    "plan_requires_fresh_owner_comment": true,
+    "apply_requires_fresh_separate_owner_comment": true,
+    "data_activation_authority": "NONE"
+  },
+  "plan": {
+    "preprod_mutation": "NONE",
+    "helper_execution": "NONE",
+    "sudo_execution": "NONE",
+    "state_detection": "METADATA_ONLY"
+  },
+  "apply": {
+    "scope": "INSTALL_EXACT_915_917_REVISED_CAPABILITY_ONLY",
+    "persistent_data_activation_authority_after_apply": "DISABLED",
+    "data_activation_authority_after_apply": "DISABLED",
+    "transaction_authority_after_apply": "ABSENT",
+    "abort_helper_after_apply": "INSTALLED_ROOT_ONLY",
+    "real_data_activation": "FORBIDDEN",
+    "rollback_on_post_install_failure": true
+  },
+  "canonical_sanitization": {
+    "sanitizer": "agency-preprod-staging-sanitizer.py",
+    "sanitizer_sha256": "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f",
+    "policy_id": "agency-preprod-refresh-v1",
+    "policy_sha256": "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb",
+    "duplicate_authority": "ABSENT"
+  },
+  "sudo": {
+    "deploy_identity": "agency-preprod",
+    "fixed_executables": [
+      "/usr/local/sbin/agency-preprod-refresh-control",
+      "/usr/local/sbin/agency-preprod-refresh-ingress"
+    ],
+    "authority_installer_exposed": false,
+    "abort_helper_exposed": false,
+    "nopasswd_all": false,
+    "setenv": false,
+    "generic_shell": false,
+    "generic_python": false,
+    "generic_mariadb": false,
+    "generic_env": false
+  },
+  "digests": {
+    "helper": "dc27cdc748a6f8be70a06093630f362ac4a86ea30735f9805f55b0a00fb5cc06",
+    "ingress": "0df0ade08583609743f8c0fd75e37b3b84c6f3d29876510cc397f70b0818a22f",
+    "authority_installer": "e39083d97788122545953c26b0ffb72d87e2eab274a6c5bbd30beca51458bf7a",
+    "authority_abort": "54aef136d7a815511cbe8aed5543f9494b49222660354dac9a01b4ee58764a8d",
+    "transaction_contract": "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb",
+    "admin_reconcile": "4f48966b2a0ff1624a58102ffeeb7d06ac15127f409c51baad36f8ee22b98b8c",
+    "admin_reconcile_php": "77f125c0fd6cc925a5a8311d696566dfb3d91b7e8ade12f33575ae79f62c1ffd",
+    "side_effect_hardening": "2227fc6977f1c168710853a29981172a027fa41495b503095b24476ac46c1703",
+    "runtime_state_digest": "5762bd3cfd73948be9b6879881384c77e98121cc5abe1c921d2034e0476c24f9",
+    "disabled_authority_state": "8f860a5739ca7a163254cc760abca95414daa30356a8a019870b1a2a2b82ef37",
+    "control_sudoers": "d3997b2f9b3a0b615d082bbc65b7a49abef38f3e1523506a23083f9d4f217b9b",
+    "ingress_sudoers": "17d88fbb8270a1a3627e8e5651c5b9abd4332a6439a520bf60e5337bae3e9939",
+    "fence_snippet": "35b084fabc0aacc80f55c1f789b35d5dd52259e85b153d87da99d26930c18b67",
+    "internal_readiness": "352cd4cc40cdd961a51ff466acaf559c7a499c6a18fc4d51b95a675ced40a5fc",
+    "capability_profile": "08eb1518e38012d73857848b4808be707938ed9511040b2854c920667fa437bc",
+    "bundle_manifest": "44d055b563c6e7b30419c98c84e6522ea13d737e16e3d6c205eae81a3964c4d6",
+    "remote_provision_root": "9b21a2222c17ed21805ae5bf737ab1c6a86132e48a5406b3b77b22e7286fe3d3",
+    "run_apply": "3c7eb563c6d4f2f583109ab8780d9df58080a28f6ff2ca155f1cca482658ff76"
+  },
+  "pre_ingress_abort": {
+    "state": "ABORTED",
+    "phase": "TERMINAL",
+    "root_only": true,
+    "normal_sudo_exposure": "NONE",
+    "runtime_rollback_claim": "NONE",
+    "crash_recovery": "EXACT_IDENTITY_ONLY"
+  },
+  "real_execution_in_delivery": {
+    "plan": false,
+    "provisioning": false,
+    "prod_data_read": false,
+    "prod_data_transfer": false,
+    "preprod_host_mutation": false,
+    "preprod_db_mutation": false,
+    "preprod_backup": false,
+    "activation": false,
+    "rollback": false,
+    "abort": false
+  },
+  "real_execution_in_874_delivery": {
+    "plan": false,
+    "provisioning": false,
+    "prod_data_read": false,
+    "prod_data_transfer": false,
+    "preprod_host_mutation": false,
+    "preprod_db_mutation": false,
+    "preprod_backup": false,
+    "activation": false,
+    "rollback": false
+  }
+}

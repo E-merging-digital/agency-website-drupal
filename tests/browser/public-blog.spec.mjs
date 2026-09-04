@@ -5,41 +5,76 @@ import { test, expect } from './support/browser-audit.mjs';
 const contract = JSON.parse(
   await readFile(new URL('./contracts/public-blog.json', import.meta.url), 'utf8'),
 );
+const browserBaseUrl = process.env.BROWSER_VALIDATION_BASE_URL ?? 'http://127.0.0.1';
+const expectZeroGa4 =
+  new URL(browserBaseUrl).hostname === 'preprod.emergingdigital.be'
+  || process.env.BROWSER_VALIDATION_EXPECT_ZERO_GA4 === '1';
+const ga4MeasurementId = 'G-K5TDNZCPTY';
+const consentStorageKey = 'ed_cookie_consent_v1';
 
 async function getVisiblePrimaryNavigationLink(page, name) {
-  const link = page.getByRole('link', {
+  const isMobile = await page.evaluate(() =>
+    window.matchMedia('(max-width: 48rem)').matches,
+  );
+
+  if (isMobile) {
+    const header = page.locator('.page-header');
+    const toggle = page.locator('[data-mobile-nav-toggle]');
+    const drawer = page.locator('[data-mobile-nav-drawer]');
+
+    await expect(header).toHaveAttribute('data-mobile-nav-ready', 'true');
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-label', 'Ouvrir le menu principal');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(drawer).toHaveAttribute('role', 'dialog');
+    await expect(drawer).toHaveAttribute('aria-label', 'Menu principal');
+    await expect(drawer).toHaveAttribute('aria-hidden', 'true');
+
+    await toggle.click();
+
+    await expect(toggle).toHaveAttribute('aria-label', 'Fermer le menu principal');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(drawer).toHaveAttribute('aria-hidden', 'false');
+    await expect(
+      page.getByRole('dialog', {
+        name: 'Menu principal',
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    const drawerLink = drawer.getByRole('link', {
+      name,
+      exact: true,
+    }).first();
+    await expect(drawerLink).toBeVisible();
+    return drawerLink;
+  }
+
+  const desktopLink = page.getByRole('link', {
     name,
     exact: true,
   }).first();
+  await expect(desktopLink).toBeVisible();
+  return desktopLink;
+}
 
-  if (await link.isVisible()) {
-    return link;
-  }
+async function acceptExternalConsent(page, audit) {
+  const banner = page.locator('#ed-cookie-banner');
+  const acceptButton = page.locator('[data-ed-cookie-action="accept"]');
 
-  const toggle = page.locator('[data-mobile-nav-toggle]');
-  const drawer = page.locator('[data-mobile-nav-drawer]');
+  await expect(banner).toBeVisible();
+  await expect(acceptButton).toBeVisible();
+  await acceptButton.click();
+  await expect(banner).toHaveCount(0);
 
-  await expect(toggle).toBeVisible();
-  await expect(toggle).toHaveAttribute('aria-label', 'Ouvrir le menu principal');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(drawer).toHaveAttribute('role', 'dialog');
-  await expect(drawer).toHaveAttribute('aria-label', 'Menu principal');
-  await expect(drawer).toHaveAttribute('aria-hidden', 'true');
+  const consent = await page.evaluate((storageKey) => {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : null;
+  }, consentStorageKey);
 
-  await toggle.click();
-
-  await expect(toggle).toHaveAttribute('aria-label', 'Fermer le menu principal');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(drawer).toHaveAttribute('aria-hidden', 'false');
-  await expect(
-    page.getByRole('dialog', {
-      name: 'Menu principal',
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(link).toBeVisible();
-
-  return link;
+  expect(consent?.necessary).toBe(true);
+  expect(consent?.external).toBe(true);
+  audit.checks.consent = 'PASS';
 }
 
 test.describe('Browser validation capability proof', () => {
@@ -62,6 +97,10 @@ test.describe('Browser validation capability proof', () => {
     ).toBeVisible();
     await expect(page.locator('main')).toBeVisible();
 
+    if (expectZeroGa4) {
+      await acceptExternalConsent(page, audit);
+    }
+
     const servicesLink = await getVisiblePrimaryNavigationLink(page, 'Services');
     await servicesLink.click();
     await expect(page).toHaveURL(/\/fr\/services(?:[/?#]|$)/);
@@ -82,6 +121,7 @@ test.describe('Browser validation capability proof', () => {
       viewportWidth: window.innerWidth,
       hasHorizontalOverflow:
         document.documentElement.scrollWidth > window.innerWidth + 1,
+      html: document.documentElement.outerHTML,
     }));
 
     expect(dom.h1Count, 'The page must expose exactly one H1.').toBe(1);
@@ -92,6 +132,23 @@ test.describe('Browser validation capability proof', () => {
     ).toBeFalsy();
 
     audit.checks.dom = 'PASS';
+
+    if (expectZeroGa4) {
+      expect(audit.checks.consent).toBe('PASS');
+      expect(
+        audit.analyticsRequests,
+        'PREPROD must not emit Google Tag / Google Analytics / collect requests.',
+      ).toEqual([]);
+      expect(
+        audit.analyticsMeasurementRequests,
+        `PREPROD must not emit requests containing ${ga4MeasurementId}.`,
+      ).toEqual([]);
+      expect(
+        dom.html,
+        `PREPROD must not inject ${ga4MeasurementId} into the rendered page.`,
+      ).not.toContain(ga4MeasurementId);
+      audit.checks.analytics = 'PASS';
+    }
 
     const screenshotDirectory = path.resolve(
       'artifacts/browser-validation/screenshots',

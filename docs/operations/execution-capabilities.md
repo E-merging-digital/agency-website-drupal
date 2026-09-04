@@ -1,544 +1,323 @@
 # Agency execution capabilities
 
-Status: **AUTHORITATIVE CAPABILITY REGISTRY**  
-Repository: `E-merging-digital/agency-website-drupal`  
-Registry owner: #421  
-Last materialized: 2026-08-22
+Status: **AUTHORITATIVE CURRENT CAPABILITY REGISTRY**
+Repository: `E-merging-digital/agency-website-drupal`
+Registry owner: #421
+Current lifecycle index: `docs/operations/agency-environment-data-lifecycle.md`
+Last materialized: 2026-09-02
 
-## 1. Purpose
+## 1. Purpose and interpretation
 
-This file is the durable source of truth for Agency machine execution and UI
-inspection capabilities.
-
-Every agent working on this repository MUST read this file before concluding
-that an executor, browser, MCP, DDEV environment or governed mutation route is
-missing, unavailable or requires a human.
-
-Fundamental invariant:
+This registry answers which useful capabilities currently exist, where they execute and which route owns authority.
 
 ```text
-operator-surface capability
-!=
-project-executor capability
+operator-surface capability != project-executor capability
+registered capability != currently online executor
+command dispatch != execution authority
+implementation authority != execution authority
 ```
 
-Therefore:
+Status vocabulary includes `DESIGN_ONLY`, `SOURCE_IMPLEMENTED`, `SYNTHETICALLY_PROVEN`, `PROVISIONED`, `EXECUTABLE`, `REAL_EXECUTION_PROVEN` and `EXECUTION_PENDING`.
+
+## 2. Current command dispatcher (#922 completed)
+
+#922 is **COMPLETED**. `.github/workflows/agency-command-dispatch.yml` is the single top-level `issue_comment` listener. It classifies exact syntax only; the selected reusable workflow owns authorization.
+
+Current reusable capabilities are exactly seven:
+
+1. `.github/workflows/promote-production.yml`
+2. `.github/workflows/production-scheduler-change.yml`
+3. `.github/workflows/trusted-editorial-publication.yml`
+4. `.github/workflows/trusted-editorial-preprod-candidate.yml`
+5. `.github/workflows/trusted-editorial-feature-image.yml`
+6. `.github/workflows/preprod-914-governed-successor.yml`
+7. `.github/workflows/development-seed-publish.yml`
+
+## 3. Current operational capability index
+
+| Capability | Owner | Status | Current execution surface | Mutation/data boundary |
+| --- | --- | --- | --- | --- |
+| Immutable code/config build | release system | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted | Artifact creation only. |
+| Exact PREPROD deploy | release system | `PROVISIONED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PREPROD | PREPROD code/config only. |
+| Single command dispatcher | #922 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted | Syntax routing only. |
+| Same-artifact PROD promotion | promotion route | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD | Exact approved artifact only. |
+| Production scheduler change | scheduler governance | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD | Bounded scheduler transition. |
+| Governed Article publication | #576 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD Drupal | Bounded Article Entity API mutation. |
+| Editorial Candidate PREPROD | #959 / parent #872 | `SOURCE_IMPLEMENTED` / `EXECUTION_PENDING` | GitHub-hosted control -> PREPROD Drupal | Reuses #576 Article contract; FR+EN PREPROD review materialization only; `PROD_WRITE=NONE`; first real #958 proof pending. |
+| Governed Article feature image | #584 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD Drupal | Bounded existing Article image mutation. |
+| PROD -> PREPROD sanitized DB refresh | #914 / completed #816 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `REAL_EXECUTION_PROVEN` | PLAN hosted; APPLY hosted control -> direct PROD/PREPROD server route | Raw never on GitHub-hosted; PREPROD activation receives sanitized SQL only. |
+| GitHub-hosted metadata-only PLAN | #927 / real proof #937 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted `ubuntu-24.04` | `PLAN_RESULT=PASS`; no DB content/snapshot/transfer/mutation. |
+| Controlled server-to-server APPLY | #914 / terminal proof #953 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PREPROD worker -> direct read-only PROD stream | `COMMITTED`; raw PROD route direct to isolated PREPROD staging; sanitized-only activation. |
+| Trusted self-hosted Agency executor | runner capability | `PROVISIONED` | `self-hosted`, `linux`, `x64`, `agency`, `ddev`, `browser` | Authorized trusted DDEV/raw-data surface; availability is a live fact. |
+| Development Seed DDEV consumer | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Local/trusted DDEV consumer | Pull-only; native snapshot/import/convergence; no push. |
+| Development Seed publisher/distribution | #956 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `EXECUTION_PENDING` | GitHub-hosted authority validation -> trusted self-hosted Agency/DDEV -> PREPROD read-only source + fixed seed storage | No PROD; no PREPROD runtime DB write; raw PREPROD never GitHub-hosted; real proof still pending. |
+
+## 4. Self-hosted Agency executor
+
+Agency has a registered runner capability with labels:
 
 ```text
-tool not exposed directly in the current ChatGPT cockpit
-!= tool absent from Agency
-!= HUMAN_REQUIRED
+self-hosted, linux, x64, agency, ddev, browser
 ```
 
-If a governed machine route exists, use or extend that route rather than asking
-Jonathan to perform a mechanical step.
+Registration/provisioning is durable; availability is dynamic. A conversation must reload live state before relying on current runner availability. The registered surface does not authorize raw PROD or raw PREPROD database material on GitHub-hosted infrastructure.
 
-## 2. Self-hosted Agency runner
-
-Agency has a dedicated repository-scoped self-hosted runner on the managed Linux
-host:
+Current #914 split:
 
 ```text
-host                 = preflight-runner-01
-runner               = agency-browser-runner-01
-account              = agency-runner
-runner directory     = /opt/actions-runner-agency
-workdir              = /opt/actions-runner-agency/_work
-labels               = self-hosted, linux, x64, agency, ddev, browser
+validate-authority = GitHub-hosted ubuntu-24.04
+PLAN               = GitHub-hosted ubuntu-24.04 / REAL_EXECUTION_PROVEN
+APPLY control plane= GitHub-hosted ubuntu-24.04 / REAL_EXECUTION_PROVEN
+APPLY raw route    = CONTROLLED_SERVER_TO_SERVER / PROD -> PREPROD DIRECT
+self-hosted runner = AUTHORIZED ALTERNATIVE
 ```
 
-The Agency runner is distinct from the Preflight runner even though both use the
-same host. Their Unix accounts, runner installation directories, workdirs and
-services are separate.
-
-Observed runtime evidence from trusted Agency runs includes:
+Current #956 implementation split, pending first real proof:
 
 ```text
-Ubuntu               = 24.04 LTS class host
-GitHub Actions runner= 2.336.0
-Docker               = 29.7.2
-DDEV                 = 1.25.3
-DDEV database image  = MariaDB 11.8
-PHP in DDEV           = 8.4
-Node for browser jobs = 24 via actions/setup-node
-Chromium              = Playwright-managed
+authority validation = GitHub-hosted ubuntu-24.04 / metadata only
+seed generation       = self-hosted, linux, x64, agency, ddev
+source                 = CURRENT SANITIZED PREPROD / READ ONLY
+storage                = /var/www/agency-preprod/shared/development-seeds
+consumer               = ddev pull agency
+raw PREPROD on hosted  = NONE
 ```
 
-The host account is not required to expose a standalone PHP binary. PHP checks
-for Drupal/runtime routes must use DDEV unless a workflow explicitly provisions
-host PHP.
+Both remain `EXTEND_EXISTING`, not permanent multi-provider architectures.
 
-The repository `.ddev/config.yaml` also targets MariaDB 11.8. Any older
-reference to MariaDB 10.11 in DDEV documentation is historical debt, not the
-current Agency DDEV runtime.
-
-## 3. Browser and UI capabilities available on the runner
+## 5. Browser, DDEV and developer execution
 
 | Capability | Status | Primary use |
 | --- | --- | --- |
-| Playwright Test | AVAILABLE | Reproducible browser validation, desktop/mobile, DOM, console, network, screenshots and traces |
-| Chromium for Playwright | AVAILABLE | Real browser used by the validation suite |
-| Playwright MCP | AVAILABLE | Interactive agent-driven browser inspection on the runner |
-| Chrome DevTools MCP | AVAILABLE | Interactive DevTools-level diagnosis on the runner |
-| DDEV | AVAILABLE | Real Agency Drupal runtime and trusted dependency resolution |
-| Docker | AVAILABLE | DDEV/container execution |
+| Playwright Test | AVAILABLE on registered executor | Deterministic browser validation/evidence |
+| Chromium | AVAILABLE on registered executor | Browser validation |
+| Playwright MCP | AVAILABLE on registered executor | Interactive inspection when transport exists |
+| Chrome DevTools MCP | AVAILABLE on registered executor | DevTools diagnosis |
+| DDEV | AVAILABLE on registered executor/local hosts | Drupal runtime/dependency/Development Seed isolated execution |
+| Docker | AVAILABLE on registered executor | DDEV/container execution |
 
-Playwright MCP and Chrome DevTools MCP are **project-executor capabilities**.
-They remain available even when the current ChatGPT product surface does not
-present them as direct top-level tools.
+A conversation without direct MCP transport must not conclude that the registered project capability does not exist.
 
-An agent MUST NOT infer `MCP unavailable` from `no MCP tool visible in this
-chat`.
-
-## 4. Governed browser validation route
-
-The unattended route is:
+## 6. Governed PROD -> PREPROD refresh (#914 / completed #816)
 
 ```text
-ChatGPT / authorized operator
--> GitHub control branch request
--> GitHub-hosted validation gateway
--> trusted workflow on main
--> agency-browser-runner-01
--> exact checkout
--> Node / Playwright / Chromium
--> isolated DDEV
--> Drupal site:install --existing-config
--> final drush config:import
--> fail-closed config:status
--> Content Sync validate / dry-run / apply
--> fail-closed config:status
--> browser validation
--> GitHub artifacts
--> DDEV/workspace cleanup
+DECISION = EXTEND_EXISTING
+CURRENT_IMPLEMENTATION = #914 governed successor + controlled server-to-server APPLY
+PARENT_PROGRAM_816 = CLOSED / COMPLETED
+REAL_PLAN = PASS
+REAL_END_TO_END_REFRESH = REAL_EXECUTION_PROVEN
+REAL_APPLY = COMMITTED / #953
+PREPROD_RUNTIME = SANITIZED_DATABASE_ACTIVE_AND_VALIDATED
+PROD_ACCESS = READ_ONLY_REQUEST_SCOPED_TRANSIENT
+PROD_WRITE = NONE
+RAW_PROD_ON_GITHUB_HOSTED = NONE
+RAW_PROD_ROUTE = PROD_TO_PREPROD_DIRECT
+SANITIZED_ONLY_ACTIVATION = PASS
+HUMAN_RECOVERY_REQUIRED = NO
 ```
 
-The final `config:import` is intentional. Install-profile and module lifecycle
-work can mutate active configuration after the install-time import. A browser
-proof is only canonical when active configuration is converged back to the
-repository sync directory and `config:status` reports no differences.
+### Current PLAN
 
-The runner is never reached directly by an untrusted pull request. Agency is a
-public repository, so self-hosted execution remains trusted-dispatch only.
+Authority validation and PLAN run on GitHub-hosted `ubuntu-24.04`. JIT revalidates live main, exact authority and hosted runner environment before transient SSH identities are materialized.
 
-Implementation:
+The real PLAN contract remains:
 
 ```text
-docs/operations/agency-self-hosted-browser-runner.md
+PLAN_RESULT = PASS
+PROD_DB_CONTENT_READ = NONE
+PROD_SNAPSHOT = NOT_PERFORMED
+PROD_DATA_TRANSFER = NONE
+PROD_WRITE = NONE
+PREPROD_DB_MUTATION = NONE
+DATA_ACTIVATION_AUTHORITY = DISABLED
+APPLY = SKIPPED
 ```
 
-### Governed Content transition proof route
+### Current controlled APPLY
 
-Issue #446 adds a trusted-dispatch route for migrations that must preserve the
-**same Drupal database** while repository governance changes across commits.
-It is not interchangeable with the fresh-install browser route.
+The GitHub-hosted APPLY job is only a control plane. It stages fixed scripts/identities to PREPROD after JIT and launches a detached request-scoped PREPROD worker. Raw PROD bytes never transit or materialize on GitHub-hosted infrastructure.
 
 ```text
-agency/governed-content-transition-dispatch-control
--> strict JSON request
--> GitHub-hosted PR/base/release/exact-HEAD validation
--> trusted workflow on main
--> agency-browser-runner-01
--> one isolated DDEV database
--> base state + active mappings
--> reviewed release candidate + explicit release
--> exact final HEAD + Content Sync persistence proof
--> browser evidence
--> controlled rollback / readmission
--> artifact
--> cleanup always()
+GitHub-hosted control plane
+-> PREPROD detached root preparation worker
+-> pinned read-only PROD snapshot route
+-> PROD -> PREPROD direct raw stream
+-> request-derived PREPROD staging DB
+-> existing root-owned sanitizer + single policy
+-> sanitization assertions
+-> sanitized SQL
+-> raw staging cleanup + absence proof
+-> PROD identity/root-stage cleanup + absence proof
+-> existing #914 remote-apply-worker.sh
+-> backup / maintenance / activation / rollback
+-> validation
+-> COMMITTED or fail-closed terminal outcome
 ```
 
-For the #440 pilot the profile is fixed to `case-studies-440`; callers may not
-supply arbitrary content IDs or shell commands. The request carries an exact PR
-HEAD and a reviewed `release_sha`, and the trusted gateway proves ancestry and
-the expected path set before the self-hosted runner is allocated.
-
-Implementation:
+Terminal #953 proves the happy path reaches:
 
 ```text
-docs/operations/governed-content-transition-proof.md
+PREPROD_WORKER_OUTCOME = COMMITTED
+PREPROD_WORKER_DETAIL = SANITIZED_DATABASE_ACTIVE_AND_VALIDATED
+RAW_PROD_ON_GITHUB_HOSTED = NONE
+RAW_PROD_ROUTE = PROD_TO_PREPROD_DIRECT
+PROD_WRITE = NONE
+PROD_READ_IDENTITY = READ_ONLY_REQUEST_SCOPED_TRANSIENT
+SANITIZED_ONLY_ACTIVATION = PASS
 ```
 
-## 5. Governed Composer materialization route
+Pre-activation cleanup remains fail-closed. After activation begins, the unchanged #914 worker owns backup and rollback. Proven rollback => `ROLLED_BACK`; unproven rollback => `HUMAN_RECOVERY_REQUIRED` with maintenance ON.
 
-Issue #531 adds a reusable route for dependency-only Composer resolution when a
-reviewed `composer.json` change needs a real lockfile generated by the managed
-DDEV executor.
-
-This route closes the historical gap where a self-hosted run could generate a
-`composer.lock` artifact but a human still had to copy it back to the branch.
-It does **not** grant repository write credentials to the self-hosted runner.
+Hard boundaries:
 
 ```text
-agency/composer-materialization-dispatch-control
--> .agency/composer-materialization-request.json
--> GitHub-hosted actor/schema/PR/HEAD/profile validation
--> semantic proof that composer.json contains only the profiled change
--> trusted workflow from main
--> self-hosted DDEV with contents:read
--> targeted Composer resolution --no-scripts
--> composer.lock + result.json artifact
--> GitHub-hosted artifact/package/hash revalidation
--> final live-HEAD check
--> fast-forward composer.lock commit to the PR branch
+PROD_WRITE = NONE
+RAW PROD DATA ON GITHUB-HOSTED = FORBIDDEN
+RAW_PROD_IN_GITHUB_ARTIFACT/LOG/TEMP = NONE
+PREPROD_LIVE_RUNTIME_RAW_ACCESS = FORBIDDEN
+SANITIZATION_POLICY = EXISTING SINGLE POLICY
+PREPROD_RECEIVES_FOR_ACTIVATION = SANITIZED_SQL_ONLY
+PERSISTENT_DATA_ACTIVATION_AUTHORITY = DISABLED
 ```
 
-The request may contain only a request ID, PR number, exact HEAD SHA and a
-repository-owned profile identifier. Package names, constraints, Composer
-arguments and commands are not request inputs.
+No `RECOVER_ABORT`, `RECOVER_CURRENT`, transaction registry, historical target reconstruction or #915 state machine is current.
 
-Profiles are versioned in:
+Primary sources:
+
+- `.github/workflows/agency-command-dispatch.yml`
+- `.github/workflows/preprod-914-governed-successor.yml`
+- `docs/operations/preproduction-refresh-governed-successor.md`
+- `docs/operations/preproduction-data-refresh.md`
+- `scripts/preproduction-refresh/governed-successor/profile.json`
+- `scripts/preproduction-refresh/governed-successor/validate-execution-authority.py`
+- `scripts/preproduction-refresh/governed-successor/run-plan.sh`
+- `scripts/preproduction-refresh/governed-successor/run-server-to-server-apply.sh`
+- `scripts/preproduction-refresh/governed-successor/remote-server-to-server-worker.py`
+- `scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh`
+
+## 7. Development Seed -> DDEV pull-only (#873 / #956)
+
+#816 is terminal and no longer blocks Development Seed work. The repository/DDEV consumer from #873 remains complete and #956 adds the smallest publisher/storage/reader route needed for a first real proof.
 
 ```text
-scripts/runner/composer-materialization-profiles.sh
+#873_BLOCKED_BY_816 = NO
+REPOSITORY_DDEV_IMPLEMENTATION = COMPLETE
+SYNTHETIC_PROOF = COMPLETE
+DDEV_PROVIDER = .ddev/providers/agency.yaml
+LOCAL_UX = ddev pull agency
+PULL_ONLY = YES
+PUBLISHER_SOURCE_IMPLEMENTED = YES
+FIXED_STORAGE_CONTRACT_IMPLEMENTED = YES
+RESTRICTED_READER_CONTRACT_IMPLEMENTED = YES
+REAL_PREPROD_SEED_GENERATION = PENDING
+REAL_STORAGE_PROVISIONING = PENDING
+REAL_SEED_DISTRIBUTION = PENDING
+REAL_DDEV_PULL = PENDING
+DDEV_PUSH = NONE
 ```
 
-The initial profile is `canvas-ai-agents-530`, owned by product issue #530. New
-packages require an explicit reviewed profile change; never generalize the
-request schema into arbitrary Composer or shell input.
+### Publisher route
 
-The self-hosted job checks out trusted code and the target with
-`persist-credentials: false` and `contents: read`. The only write-capable step
-runs later on GitHub-hosted infrastructure and may publish only the validated
-`composer.lock` after proving that the PR has not advanced.
+`.github/workflows/development-seed-publish.yml` is called only by the existing dispatcher for the exact #956 command. GitHub-hosted performs owner/live-main authority validation only. The real data path is restricted to the trusted self-hosted DDEV runner.
 
-Implementation and full contract:
+The publisher JIT proves the current #914 `COMMITTED / SANITIZED_DATABASE_ACTIVE_AND_VALIDATED` source refresh and current PREPROD release before a fixed read-only Drush dump. No PROD secret/path is part of the route and the PREPROD runtime DB is never a mutation target.
+
+The isolated generation path reuses:
 
 ```text
-docs/operations/governed-composer-materialization.md
+DDEV native database import
+-> Drush sql:sanitize
+-> existing #914 agency-sanitize.php
+-> existing Development Seed sanitizer/assertions
+-> database.sql.gz + seed.json
+-> existing metadata/SHA verifier
 ```
 
-## 6. Governed editor-owned Article publication route
+### Storage and reader
 
-Issue #576 adds a bounded production mutation route for ordinary Blog Articles
-that are explicitly editor-owned in Drupal and outside Content Sync / Governed
-Content.
-
-This is **not** a generic production shell or content API. The only control
-surface is an exact issue comment authored by `E-merging-digital` on an OPEN
-owner-created issue:
+Fixed server-owned storage is:
 
 ```text
-/agency-editorial inspect
-/agency-editorial dry-run
-/agency-editorial apply
+/var/www/agency-preprod/shared/development-seeds/
+  immutable/<seed-id>/{database.sql.gz,seed.json}
+  current -> immutable/<seed-id>
 ```
 
-The trusted workflow runs from the live `main` revision on GitHub-hosted
-infrastructure and reuses the existing deployment SSH secrets and production
-channel. Payload values are transferred only as a canonical JSON file and are
-never interpolated into shell or Drush commands.
+`current` switches only after verification. An ephemeral proof reader key is installed on the existing `agency-preprod` account with `restrict` plus a forced SCP read command. It can read only the two files under `current`, has no upload/general-shell/PTY/forwarding path, and is removed terminally. Long-lived human reader keys remain a small separate onboarding operation, not a registration service.
 
-The v1 contract is fixed to:
+### DDEV consumer
+
+The provider uses repository-pinned PREPROD host trust, fixed remote storage and standard OpenSSH legacy SCP read mode required by the forced command. It has no caller-controlled remote directory and no push stanza. `ddev pull agency` preserves DDEV snapshot/import/restore and post-pull Drupal convergence.
+
+Until the first post-merge #956 execution proves publication and a real `ddev pull agency`, this capability remains `EXECUTION_PENDING`; source implementation is not real execution evidence.
+
+Primary sources:
+
+- `.github/workflows/agency-command-dispatch.yml`
+- `.github/workflows/development-seed-publish.yml`
+- `.ddev/providers/agency.yaml`
+- `.ddev/config.development-seed.yaml`
+- `docs/operations/development-seed.md`
+- `scripts/development-seed/validate-publish-authority.py`
+- `scripts/development-seed/remote-readonly-preprod-source.sh`
+- `scripts/development-seed/run-publish.sh`
+- `scripts/development-seed/remote-storage.sh`
+- `scripts/development-seed/remote-reader-key.sh`
+- `scripts/development-seed/remote-read-only-scp.sh`
+- `scripts/development-seed/sanitization-policy.json`
+- `scripts/development-seed/verify-seed.php`
+
+## 8. Editorial Candidate -> PREPROD review (#959 / #872)
+
+#959 materializes the smallest V1 required by #872. The durable candidate is not a new service or database: it is the existing owner-authored #576 Article payload comment. PREPROD Drupal is only the disposable review rendering surface.
 
 ```text
-bundle                 = article
-source language        = fr
-required translation   = en
-text format            = basic_html
-category vocabulary    = blog_categories
-technical author       = uid 1
-aliases                 = Pathauto-owned
+ARTICLE_CONTRACT = #576 REUSED
+CANDIDATE_STORE = GITHUB_ISSUE_COMMENT
+CANDIDATE_ID = agency-article-<issue_number>
+CANDIDATE_REVISION = PAYLOAD_COMMENT_ID
+PAYLOAD_HASH = #576 CANONICAL SHA-256
+FR = REQUIRED
+EN = REQUIRED
+CATEGORY = EXISTING blog_categories TERM ONLY
+PREPROD_TARGET = FIXED
+PROD_ACCESS = NONE
+PROD_WRITE = NONE
+REAL_PREPROD_#958 = PENDING
 ```
 
-`dry-run` is read-only and publishes the canonical payload SHA-256. `apply`
-requires a previous bot-authored dry-run PASS for the same payload hash and the
-same live `main` SHA, performs a fresh Drupal preflight, creates a SQL backup,
-then mutates content only through Drupal Entity API. An issue-to-node state
-mapping is used only for idempotence/audit; it is not an editorial source of
-truth.
+The existing dispatcher recognizes only `inspect`, `dry-run` and `apply` under `/agency-editorial-candidate`. The reusable workflow receives only PREPROD host/key secrets and JIT revalidates live main plus the latest exact candidate revision/hash before the PREPROD key is materialized.
 
-The route may not invoke Content Sync, deployment, arbitrary Drush/shell,
-configuration import/update, taxonomy creation, another bundle or another text
-format.
+The execution script fixes `agency-preprod@<configured host>` and `/var/www/agency-preprod/current`, uses repository-pinned PREPROD SSH trust and runs the existing PREPROD runtime side-effect validator before and after mutation. It exposes no caller shell, Drush command, path, Unix user or PROD target.
 
-Implementation and full contract:
+Initial create and exact replay reuse `AgencyEditorialPublication`; same hash is idempotent. A changed hash may revise only the already-mapped PREPROD Article through the Article-specific helper after #576 validation. The PROD #576 route remains unchanged and continues to fail closed on a changed issue/hash mapping.
 
-```text
-docs/operations/governed-editorial-publication.md
-```
+Image is not part of V1. #584 remains the existing bounded image primitive and is not duplicated here.
 
-## 7. Governed editor-owned Article feature-image route
+Primary sources:
 
-Issue #584 adds the bounded media increment deliberately excluded from the
-Article publication v1 payload. It can attach or repair only the reviewed
-`field_feature_image` state of an Article already mapped by the publication
-route.
+- `.github/workflows/agency-command-dispatch.yml`
+- `.github/workflows/trusted-editorial-preprod-candidate.yml`
+- `.github/workflows/trusted-editorial-publication.yml`
+- `docs/operations/editorial-candidate.md`
+- `scripts/runner/editorial-publication.php`
+- `scripts/runner/editorial-preprod-candidate.php`
+- `scripts/runner/editorial-preprod-candidate-runner.php`
+- `scripts/runner/run-editorial-preprod-candidate.sh`
+- `scripts/preproduction/validate-runtime.sh`
 
-The control surface is limited to exact owner-authored comments:
+Until the first post-merge #958 execution proves FR/EN rendering in real PREPROD, this capability remains `EXECUTION_PENDING`.
 
-```text
-/agency-editorial-image inspect
-/agency-editorial-image dry-run
-/agency-editorial-image apply
-```
+## 9. Reload rule
 
-The workflow executes from live `main`, reuses the existing production SSH
-channel and resolves a repository-owned closed profile. The initial profile is
-#401 only and fixes the original Article payload hash, repository asset path,
-final filename, PNG SHA-256, MIME, dimensions, byte limit and FR/EN ALT values.
-No runtime URL, arbitrary path, uploaded attachment, shell argument or alternate
-field is accepted.
+Before saying a route, workflow, runner, seed or command exists today:
 
-The helper verifies the existing `agency_editorial.issue.<N>` mapping, stores the
-exact file under `public://articles/` through Drupal File API, uses the same FID
-for FR/EN and preserves distinct mandatory translated ALT values. `apply`
-requires a prior bot-authored dry-run PASS for the same profile hash, asset hash
-and live main, performs a fresh dry-run and creates a SQL backup before any
-READY/REPAIR_REQUIRED mutation. A converged second apply is write-free and
-revision-stable.
+1. reload `main`;
+2. reload the dispatcher;
+3. reload the selected reusable workflow and route-specific docs;
+4. reload governing issue/authority and exact execution evidence;
+5. for Development Seed real-use claims, reload the latest successful #956 proof and current PREPROD source identity;
+6. for Editorial Candidate real-use claims, reload the latest exact candidate comment/hash and #958 PREPROD execution evidence;
+7. then classify status.
 
-Implementation and full contract:
-
-```text
-docs/operations/governed-editorial-feature-image.md
-```
-
-## 8. What the agent can verify visually today
-
-The browser workflow publishes evidence including:
-
-```text
-artifacts/browser-validation/result.json
-artifacts/browser-validation/evidence/*.json
-screenshots
-Playwright test screenshots on failure
-Playwright traces on failure
-playwright-report
-```
-
-These GitHub Actions artifacts can be fetched by the agent and the screenshots
-can be inspected visually. This means an agent can perform a real UI review from
-the runner output rather than relying only on DOM assertions or log text.
-
-The final #399 proof on 2026-08-15 demonstrated this end-to-end. The #519 and
-#526 governed SDC/Canvas proofs subsequently reused the same route for exact-HEAD
-desktop/mobile validation and human visual review.
-
-## 9. Interactive MCP versus artifact review
-
-Do not conflate these two paths.
-
-### Artifact-based review
-
-```text
-runner executes Playwright
--> artifact uploaded to GitHub
--> agent fetches artifact
--> agent examines screenshot / trace / result
-```
-
-This path is reachable from the ChatGPT/GitHub control surface and gives the
-agent final rendered browser evidence.
-
-### Interactive Playwright MCP / Chrome DevTools MCP
-
-Both MCP servers are available on the self-hosted runner. They support a more
-interactive diagnostic loop from an agent runtime attached to the runner and
-permitted to invoke them.
-
-Availability on the runner does **not** imply that every ChatGPT conversation
-has a direct MCP transport attached to that runner. If the current cockpit lacks
-that direct transport, the correct conclusion is:
-
-```text
-MCP AVAILABLE ON PROJECT EXECUTOR
-DIRECT COCKPIT ROUTE NOT CURRENTLY EXPOSED
-```
-
-not:
-
-```text
-MCP UNAVAILABLE
-```
-
-When a task benefits from interactive MCP and the current operator surface lacks
-an invocation route, first look for an existing governed executor/agent route.
-Only create a new route under a dedicated issue if the existing routes truly
-cannot invoke the installed capability.
-
-## 10. Tool responsibilities
-
-```text
-Drupal BrowserTestBase
-  -> server-side/runtime Drupal functional confidence
-
-Playwright Test
-  -> deterministic real-browser delivery evidence
-
-Playwright MCP
-  -> interactive browser navigation and inspection by an agent
-
-Chrome DevTools MCP
-  -> deeper DevTools diagnosis for console/network/CSS/JS/runtime work
-
-Governed Composer materializer
-  -> dependency-only lock resolution with separated write privilege
-
-Governed editorial publisher
-  -> bounded editor-owned Article inspect/dry-run/apply via trusted main
-
-Governed editorial feature-image publisher
-  -> bounded repository-owned field_feature_image inspect/dry-run/apply via trusted main
-
-Configuration language audit
-  -> fresh-DDEV read-only repository/active config snapshot and langcode evidence
-```
-
-MCP is not a replacement for deterministic tests, and deterministic tests are
-not a replacement for visual inspection. The Composer materializer is not a
-generic command executor. The editorial publisher and feature-image publisher
-are not generic production content, upload or shell APIs. The configuration
-language audit is not an enforcement or migration route.
-
-## 11. Secrets and authenticated UI
-
-Public validation requires no secret.
-
-For future authenticated Drupal scenarios:
-
-- use ephemeral credentials supplied through a governed secret surface;
-- use Playwright `storageState` only as ephemeral runtime state;
-- keep `tests/browser/.auth/` ignored;
-- never commit cookies, passwords or browser profiles;
-- never upload auth state as a normal artifact;
-- exclude sensitive/private pages from screenshots unless explicitly required
-  and safe.
-
-The Composer materialization route carries no provider secret and must never be
-extended to transport one.
-
-The editorial publication and feature-image routes reuse only the existing
-production SSH secrets. They must never expose those values in artifacts or
-comments and must not be widened to provider keys, Drupal passwords or arbitrary
-credentials.
-
-The configuration language audit uses no production SSH or provider credential.
-Its generated Drupal administrator password exists only for the isolated DDEV
-installation and is not persisted as evidence.
-
-## 12. Reload rule for future agents
-
-Before any statement such as:
-
-```text
-there is no runner
-Playwright is unavailable
-Playwright MCP is unavailable
-Chrome DevTools MCP is unavailable
-Composer cannot be materialized without human file copying
-ordinary Drupal Article publication requires mechanical human entry
-Article feature-image publication requires mechanical human upload
-configuration language cannot be audited on a fresh Drupal without a human
-I cannot validate the UI
-Jonathan must run this manually
-```
-
-reload, in this order:
-
-1. `docs/operations/execution-capabilities.md`;
-2. the route-specific operations document;
-3. the relevant open issue/PR and latest trusted workflow runs;
-4. only then decide whether a capability or governed route is actually missing.
-
-If repository documentation and live executor evidence disagree, live evidence
-wins and this registry must be corrected rather than forgetting the capability.
-
-## 13. Proven configuration language audit route
-
-Issue #609/#614 provides a trusted read-only audit of configuration language on a
-fresh Drupal rebuilt from repository-owned configuration.
-
-Control surface:
-
-```text
-/agency-config-language inspect
-```
-
-The command is accepted only from `E-merging-digital` on open owner-created
-issue #609. The GitHub-hosted gateway pins live `main`, then the Agency
-self-hosted runner executes with `contents: read`, `persist-credentials: false`,
-no production SSH and no provider secret.
-
-Execution:
-
-```text
-live main
--> isolated DDEV
--> PHP lint in DDEV
--> composer install from existing lock
--> site:install --existing-config
--> cim
--> clean config:status
--> repository + active config language snapshot
--> artifact
--> cleanup
-```
-
-Admission proof:
-
-```text
-run                  = 32528341256
-trusted main         = c6d77fd109aa40cc6cf5849249d04e3d87bae65e
-verdict              = PASS / SNAPSHOT_CAPTURED
-snapshot SHA-256     = df4d389eafaad6135fcd7d995354ff433111be62f745208ac0a65ddf8783629d
-repository/active    = 595 / 595, zero langcode mismatch
-```
-
-The baseline confirms mixed FR/EN technical configuration and therefore does not
-authorize enforcement. Durable evidence summary:
-
-```text
-docs/evidence/configuration-language-baseline-609.yml
-```
-
-Full route contract:
-
-```text
-docs/operations/configuration-language-audit.md
-```
-
-## 14. Configuration Language Lock non-enforcing evaluation
-
-Issue #630 adds a bounded **candidate** evaluation route for #628 / PR #629.
-It does not adopt or enforce Configuration Language Lock merely by existing on
-`main`.
-
-Composer materialization gains one explicit reviewed profile:
-
-```text
-config-language-lock-628
--> drupal/config_language_lock:^1.0
--> stable 1.0.x only
-```
-
-The generic Composer gateway remains closed to arbitrary packages and explicitly
-allowlists only repository-owned profiles. The #629 product PR must be
-`composer.json`-only before lock resolution.
-
-After the true lock is published, the DDEV proof is triggered only by:
-
-```text
-/agency-config-language-lock evaluate
-```
-
-on exact draft PR #629. The self-hosted runner then rebuilds the exact HEAD,
-audits the lock, fingerprints every active config object, enables
-`config_language_lock` with no language lock configured, permits no pre-existing
-config mutation except `core.extension`, then uninstalls the module and requires
-an exact return to the pre-enable active-config fingerprint.
-
-The proof also requires `system.menu.footer` to remain `und`, preserves
-`language.entity.und` and `language.entity.zxx`, performs no `cex`, and leaves
-`config/sync` untouched. No production SSH, provider secret or repository write
-credential is available to the self-hosted job.
-
-This capability remains **CANDIDATE / NOT YET PROVEN** until it executes
-successfully on the exact #629 HEAD after #630 has been merged.
-
-Full route contract:
-
-```text
-docs/operations/config-language-lock-evaluation.md
-```
+If this registry and current repository differ, current repository wins and this registry must be corrected.

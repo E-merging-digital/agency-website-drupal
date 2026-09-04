@@ -1,9 +1,14 @@
 name: Agency trusted editorial publication
 
 on:
-  issue_comment:
-    types:
-      - created
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
 
 permissions:
   contents: read

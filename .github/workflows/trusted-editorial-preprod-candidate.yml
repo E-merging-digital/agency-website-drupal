@@ -1,0 +1,440 @@
+name: "#959 Editorial Candidate PREPROD"
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+  pull_request:
+    paths:
+      - '.github/workflows/trusted-editorial-preprod-candidate.yml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - 'scripts/runner/editorial-preprod-candidate.php'
+      - 'scripts/runner/editorial-preprod-candidate-runner.php'
+      - 'scripts/runner/run-editorial-preprod-candidate.sh'
+      - 'web/modules/custom/agency_project_tests/tests/src/Kernel/GovernedEditorialPreprodCandidateKernelTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/EditorialPreprodCandidateWorkflowTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    name: "#959 static PREPROD Article candidate contract"
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      SIMPLETEST_BASE_URL: http://127.0.0.1:8888
+      SIMPLETEST_DB: sqlite://localhost/tmp/simpletest.sqlite
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate bounded candidate surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/runner/run-editorial-preprod-candidate.sh
+          php -l scripts/runner/editorial-publication.php
+          php -l scripts/runner/editorial-preprod-candidate.php
+          php -l scripts/runner/editorial-preprod-candidate-runner.php
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+          extensions: sqlite3
+      - name: Install exact locked dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Start local web server for BrowserTestBase
+        run: php -S 127.0.0.1:8888 -t web >/tmp/php-server.log 2>&1 &
+      - name: Prepare BrowserTestBase HTML output directory
+        run: |
+          mkdir -p web/tmp
+          mkdir -p web/sites/simpletest/browser_output
+          mkdir -p sites/simpletest/browser_output
+          chmod -R 777 web/tmp
+          chmod -R 777 web/sites/simpletest
+          chmod -R 777 sites/simpletest
+      - name: Regress #576 and prove #959 candidate behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            web/modules/custom/agency_project_tests/tests/src/Kernel/GovernedEditorialPublicationKernelTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            web/modules/custom/agency_project_tests/tests/src/Kernel/GovernedEditorialPreprodCandidateKernelTest.php
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            web/modules/custom/agency_project_tests/tests/src/Unit/EditorialPreprodCandidateWorkflowTest.php
+
+  candidate:
+    name: Governed Article candidate in real PREPROD
+    if: >-
+      ${{
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request == null &&
+        (
+          github.event.comment.body == '/agency-editorial-candidate inspect' ||
+          github.event.comment.body == '/agency-editorial-candidate dry-run' ||
+          github.event.comment.body == '/agency-editorial-candidate apply'
+        )
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: agency-editorial-preprod-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Validate actor, issue, command and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          case "$TRIGGER_COMMENT" in
+            '/agency-editorial-candidate inspect') mode='inspect' ;;
+            '/agency-editorial-candidate dry-run') mode='dry-run' ;;
+            '/agency-editorial-candidate apply') mode='apply' ;;
+            *) echo 'Unsupported editorial candidate command.' >&2; exit 1 ;;
+          esac
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Extract the existing #576 Article payload and stable hash
+        id: payload
+        if: ${{ steps.request.outputs.mode != 'inspect' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
+            --jq '.[] | @base64' > "$RUNNER_TEMP/agency-editorial-comments.b64"
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          marker = '<!-- agency-editorial-payload:v1 -->'
+          owner = 'E-merging-digital'
+          issue_number = int(os.environ['ISSUE_NUMBER'])
+          mode = os.environ['MODE']
+          trusted_main = os.environ['TRUSTED_MAIN']
+          expected_top = {
+              'schema_version', 'issue_number', 'bundle', 'published',
+              'category', 'fr', 'en',
+          }
+          expected_lang = {'title', 'short_description', 'body_html'}
+          expected_category = {'tid', 'name'}
+          source = Path(os.environ['RUNNER_TEMP']) / 'agency-editorial-comments.b64'
+          comments = []
+          for raw_line in source.read_text(encoding='utf-8').splitlines():
+              if raw_line.strip():
+                  comments.append(json.loads(base64.b64decode(raw_line).decode('utf-8')))
+          payload_comment = None
+          payload = None
+          for comment in comments:
+              if comment.get('user', {}).get('login') != owner:
+                  continue
+              body = comment.get('body') or ''
+              if not body.startswith(marker):
+                  continue
+              try:
+                  parsed = json.loads(body[len(marker):].strip())
+              except json.JSONDecodeError:
+                  continue
+              if isinstance(parsed, dict):
+                  payload_comment = comment
+                  payload = parsed
+          if payload is None or payload_comment is None:
+              raise SystemExit('No valid owner-authored #576 Article payload was found.')
+          if set(payload) != expected_top:
+              raise SystemExit(f'Editorial payload keys must be exactly {sorted(expected_top)}.')
+          if payload.get('schema_version') != 1:
+              raise SystemExit('schema_version must be 1.')
+          if payload.get('issue_number') != issue_number:
+              raise SystemExit('Payload issue_number does not match the triggering issue.')
+          if payload.get('bundle') != 'article':
+              raise SystemExit('Only bundle=article is allowed.')
+          if not isinstance(payload.get('published'), bool):
+              raise SystemExit('published must be boolean.')
+          if not isinstance(payload.get('category'), dict) or set(payload['category']) != expected_category:
+              raise SystemExit('category must contain exactly tid and name.')
+          for lang in ('fr', 'en'):
+              value = payload.get(lang)
+              if not isinstance(value, dict) or set(value) != expected_lang:
+                  raise SystemExit(f'{lang} must contain exactly {sorted(expected_lang)}.')
+          canonical = json.dumps(
+              payload,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(',', ':'),
+          ) + '\n'
+          payload_path = Path(os.environ['RUNNER_TEMP']) / 'agency-editorial-payload.json'
+          payload_path.write_text(canonical, encoding='utf-8')
+          digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+          revision = str(payload_comment['id'])
+          if mode == 'apply':
+              heading = '### Agency editorial PREPROD candidate dry-run PASS'
+              field_patterns = {
+                  'candidate_revision': re.compile(r'^candidate_revision: `([0-9]+)`$'),
+                  'payload_sha256': re.compile(r'^payload_sha256: `([0-9a-f]{64})`$'),
+                  'trusted_main': re.compile(r'^trusted_main: `([0-9a-f]{40})`$'),
+              }
+              authorized = False
+              for comment in comments:
+                  if comment.get('user', {}).get('login') != 'github-actions[bot]':
+                      continue
+                  body = comment.get('body') or ''
+                  lines = body.splitlines()
+                  if not lines or lines[0] != heading:
+                      continue
+                  fields = {}
+                  invalid = False
+                  for name, pattern in field_patterns.items():
+                      prefix = f'{name}:'
+                      matches = []
+                      malformed = False
+                      for line in lines[1:]:
+                          if not line.startswith(prefix):
+                              continue
+                          match = pattern.fullmatch(line)
+                          if match is None:
+                              malformed = True
+                              break
+                          matches.append(match.group(1))
+                      if malformed or len(matches) != 1:
+                          invalid = True
+                          break
+                      fields[name] = matches[0]
+                  if invalid:
+                      continue
+                  if (
+                      fields['payload_sha256'] == digest
+                      and fields['candidate_revision'] == revision
+                      and fields['trusted_main'] == trusted_main
+                  ):
+                      authorized = True
+                      break
+              if not authorized:
+                  raise SystemExit(
+                      'PREPROD apply requires a prior candidate dry-run PASS for the same payload hash, comment revision and live main.'
+                  )
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
+              output.write(f'payload_sha256={digest}\n')
+              output.write(f'candidate_revision={revision}\n')
+              output.write(f'candidate_id=agency-article-{issue_number}\n')
+          PY
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable PREPROD implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          bash -n scripts/runner/run-editorial-preprod-candidate.sh
+          php -l scripts/runner/editorial-publication.php
+          php -l scripts/runner/editorial-preprod-candidate.php
+          php -l scripts/runner/editorial-preprod-candidate-runner.php
+
+      - name: JIT revalidate main and exact candidate before PREPROD secret
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EXPECTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          MODE: ${{ steps.request.outputs.mode }}
+          EXPECTED_HASH: ${{ steps.payload.outputs.payload_sha256 }}
+          EXPECTED_REVISION: ${{ steps.payload.outputs.candidate_revision }}
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$live" = "$EXPECTED_MAIN"
+          test "$(git rev-parse HEAD)" = "$live"
+          if [[ "$MODE" != inspect ]]; then
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
+              > "$RUNNER_TEMP/agency-editorial-jit-comments.json"
+          fi
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          if os.environ['MODE'] == 'inspect':
+              raise SystemExit(0)
+          marker = '<!-- agency-editorial-payload:v1 -->'
+          pages = json.loads(
+              (Path(os.environ['RUNNER_TEMP']) / 'agency-editorial-jit-comments.json').read_text(encoding='utf-8')
+          )
+          comments = []
+          for page in pages:
+              if isinstance(page, list):
+                  comments.extend(page)
+          latest = None
+          payload = None
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'E-merging-digital':
+                  continue
+              body = comment.get('body') or ''
+              if not body.startswith(marker):
+                  continue
+              try:
+                  parsed = json.loads(body[len(marker):].strip())
+              except json.JSONDecodeError:
+                  continue
+              if isinstance(parsed, dict):
+                  latest = comment
+                  payload = parsed
+          if latest is None or payload is None:
+              raise SystemExit('JIT candidate payload is missing.')
+          revision = str(latest.get('id'))
+          if revision != os.environ['EXPECTED_REVISION']:
+              raise SystemExit('JIT candidate revision changed before PREPROD secret materialization.')
+          canonical = json.dumps(
+              payload,
+              ensure_ascii=False,
+              sort_keys=True,
+              separators=(',', ':'),
+          ) + '\n'
+          digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+          if digest != os.environ['EXPECTED_HASH']:
+              raise SystemExit('JIT candidate hash changed before PREPROD secret materialization.')
+          PY
+
+      - name: Materialize transient PREPROD identity after JIT
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-959-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-959-preprod.key"
+
+      - name: Execute bounded PREPROD Article candidate route
+        id: route
+        shell: bash
+        env:
+          EDITORIAL_MODE: ${{ steps.request.outputs.mode }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+          PAYLOAD_FILE: ${{ runner.temp }}/agency-editorial-payload.json
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-959-preprod.key
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/editorial-preprod-candidate
+        run: bash scripts/runner/run-editorial-preprod-candidate.sh
+
+      - if: ${{ always() }}
+        name: Cleanup PREPROD identity and candidate payload
+        shell: bash
+        run: >-
+          rm -f -- "$RUNNER_TEMP/agency-959-preprod.key"
+          "$RUNNER_TEMP/agency-editorial-payload.json"
+          "$RUNNER_TEMP/agency-editorial-comments.b64"
+          "$RUNNER_TEMP/agency-editorial-jit-comments.json"
+
+      - name: Upload metadata-only PREPROD candidate evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-editorial-preprod-${{ github.event.issue.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/editorial-preprod-candidate/result.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded PREPROD result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+          CANDIDATE_ID: ${{ steps.payload.outputs.candidate_id }}
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.candidate_revision }}
+          ROUTE_OUTCOME: ${{ steps.route.outcome }}
+        run: |
+          set -euo pipefail
+          result_file='artifacts/editorial-preprod-candidate/result.json'
+          status='MISSING'
+          verdict='UNKNOWN'
+          node_id='n/a'
+          revision_id='n/a'
+          fr_alias='n/a'
+          en_alias='n/a'
+          if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
+            status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
+            verdict="$(jq -r '.verdict // "UNKNOWN"' "$result_file")"
+            node_id="$(jq -r '.node.id // "n/a"' "$result_file")"
+            revision_id="$(jq -r '.node.revision_id // "n/a"' "$result_file")"
+            fr_alias="$(jq -r '.node.aliases.fr // "n/a"' "$result_file")"
+            en_alias="$(jq -r '.node.aliases.en // "n/a"' "$result_file")"
+          fi
+          heading="### Agency editorial PREPROD candidate ${MODE} ${status}"
+          if [[ "$ROUTE_OUTCOME" == success && "$status" == PASS ]]; then
+            heading="### Agency editorial PREPROD candidate ${MODE} PASS"
+          fi
+          fr_url='n/a'
+          en_url='n/a'
+          if [[ "$fr_alias" == /* ]]; then fr_url="https://preprod.emergingdigital.be${fr_alias}"; fi
+          if [[ "$en_alias" == /* ]]; then en_url="https://preprod.emergingdigital.be${en_alias}"; fi
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          target: \`PREPROD\`
+          candidate_id: \`${CANDIDATE_ID:-agency-article-${ISSUE_NUMBER}}\`
+          candidate_revision: \`${CANDIDATE_REVISION:-n/a}\`
+          payload_sha256: \`${PAYLOAD_SHA256:-n/a}\`
+          trusted_main: \`${TRUSTED_MAIN}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          verdict: \`${verdict}\`
+          node_id: \`${node_id}\`
+          revision_id: \`${revision_id}\`
+          fr_url: \`${fr_url}\`
+          en_url: \`${en_url}\`
+          prod_write: \`NONE\`
+
+          The durable candidate remains the owner-authored #576 Article payload comment on this issue. PREPROD is only the disposable rendered review surface.
+          EOF_BODY
+          )"
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

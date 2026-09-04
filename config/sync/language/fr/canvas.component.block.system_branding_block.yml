@@ -1,0 +1,6 @@
+label: 'Identité du site'
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: 'Identité du site'

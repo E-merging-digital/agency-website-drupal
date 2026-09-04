@@ -1,0 +1,155 @@
+name: Validate production promotion cutover
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/deploy-production.yml'
+      - '.github/workflows/promote-production.yml'
+      - '.github/workflows/production-promotion-validation.yml'
+      - '.github/workflows/production-scheduler-readonly-audit.yml'
+      - '.github/workflows/production-scheduler-change.yml'
+      - 'scripts/launch-production-deploy.sh'
+      - 'scripts/production-promotion/**'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionDeploymentSafetyTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionPromotionSafetyTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/SchedulerGovernanceSafetyTest.php'
+      - 'docs/operations/preproduction.md'
+      - 'docs/operations/environment-side-effects.md'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/deploy-production.yml'
+      - '.github/workflows/promote-production.yml'
+      - '.github/workflows/production-promotion-validation.yml'
+      - '.github/workflows/production-scheduler-readonly-audit.yml'
+      - '.github/workflows/production-scheduler-change.yml'
+      - 'scripts/launch-production-deploy.sh'
+      - 'scripts/production-promotion/**'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionDeploymentSafetyTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProductionPromotionSafetyTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/SchedulerGovernanceSafetyTest.php'
+      - 'docs/operations/preproduction.md'
+      - 'docs/operations/environment-side-effects.md'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Fail-closed production promotion contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact validation source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate shell syntax and repository diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          bash -n scripts/production-promotion/promote-candidate.sh
+          bash -n scripts/production-promotion/launch-promotion.sh
+          bash -n scripts/production-promotion/inspect-promotion.sh
+          bash -n scripts/production-promotion/reconcile-cron.sh
+          bash -n scripts/production-promotion/mutate-cron.sh
+          bash -n scripts/launch-production-deploy.sh
+
+      - name: Prove legacy push-main production deploy is retired
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/deploy-production.yml'
+          grep -Fq 'workflow_dispatch:' "$workflow"
+          ! grep -Eq '^  push:' "$workflow"
+          grep -Fq 'hotfix/*|security/*' "$workflow"
+          grep -Fq 'Reject non-emergency refs' "$workflow"
+          ! grep -Fq 'branches:' "$workflow"
+
+      - name: Prove functional promotion is dispatched and same-artifact only
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/promote-production.yml'
+          dispatcher='.github/workflows/agency-command-dispatch.yml'
+          grep -Fq 'workflow_call:' "$workflow"
+          ! grep -Fq 'issue_comment:' "$workflow"
+          grep -Fq "github.event.comment.author_association == 'OWNER'" "$workflow"
+          grep -Fq '/agency-production-promote\ go\ sha=' "$workflow"
+          grep -Fq 'Verify builder run provenance' "$workflow"
+          grep -Fq 'Verify exact terminal PREPROD run' "$workflow"
+          grep -Fq 'Bind PREPROD SUCCESS to exact candidate identity' "$workflow"
+          grep -Fq 'Reject stale functional identity' "$workflow"
+          grep -Fq 'authorization_body_sha256' "$workflow"
+          grep -Fq 'Run production Playwright desktop and mobile proof' "$workflow"
+          ! grep -Eq '^  workflow_dispatch:' "$workflow"
+          ! grep -Eq '^  push:' "$workflow"
+          grep -Fq 'issue_comment:' "$dispatcher"
+          grep -Fq 'uses: ./.github/workflows/promote-production.yml' "$dispatcher"
+          grep -Fq "needs.classify.outputs.route == 'PRODUCTION_PROMOTE'" "$dispatcher"
+          ! grep -R -Fq 'git clone' scripts/production-promotion
+          ! grep -R -Fq 'composer install' scripts/production-promotion
+          ! grep -R -Fq 'git pull' scripts/production-promotion
+
+      - name: Prove functional promotion scheduler handling is verify-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          promotion='scripts/production-promotion/promote-candidate.sh'
+          verifier='scripts/production-promotion/reconcile-cron.sh'
+          mutation_workflow='.github/workflows/production-scheduler-change.yml'
+          dispatcher='.github/workflows/agency-command-dispatch.yml'
+          mutator='scripts/production-promotion/mutate-cron.sh'
+
+          grep -Fq 'reconcile-cron.sh' "$promotion"
+          ! grep -Fq 'mutate-cron.sh' "$promotion"
+          grep -Fq 'VERIFY_ONLY' "$verifier"
+          grep -Fq 'Functional promotion may only VERIFY_ONLY the PROD scheduler.' "$verifier"
+          grep -Fq 'production_scheduler_runtime_state=CONTROLLED' "$verifier"
+          ! grep -Fq 'crontab "$tmp"' "$verifier"
+
+          grep -Fq 'workflow_call:' "$mutation_workflow"
+          ! grep -Fq 'issue_comment:' "$mutation_workflow"
+          grep -Fq "github.event.comment.author_association == 'OWNER'" "$mutation_workflow"
+          grep -Fq '/agency-production-scheduler\ action=' "$mutation_workflow"
+          grep -Fq 'release=([0-9a-f]{40})' "$mutation_workflow"
+          grep -Fq 'expected=(ABSENT|CONTROLLED|MANAGED_DRIFT)' "$mutation_workflow"
+          ! grep -Eq '^  workflow_dispatch:' "$mutation_workflow"
+          ! grep -Eq '^  push:' "$mutation_workflow"
+          grep -Fq 'uses: ./.github/workflows/production-scheduler-change.yml' "$dispatcher"
+          grep -Fq "needs.classify.outputs.route == 'PRODUCTION_SCHEDULER'" "$dispatcher"
+
+          grep -Fq 'OWNER_ISSUE_COMMENT' "$mutator"
+          grep -Fq 'Current production release identity differs from authorized identity.' "$mutator"
+          grep -Fq 'crontab "$tmp"' "$mutator"
+          grep -Fq 'CREATE requires expected state ABSENT.' "$mutator"
+          grep -Fq 'UPDATE requires expected state MANAGED_DRIFT.' "$mutator"
+          grep -Fq 'REMOVE requires expected state CONTROLLED.' "$mutator"
+
+      - name: Prove anti-replay and rollback boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          script='scripts/production-promotion/promote-candidate.sh'
+          grep -Fq 'successful production promotion receipt' "$script"
+          grep -Fq 'mv -f "$receipt_tmp" "$RECEIPT"' "$script"
+          grep -Fq 'rollback_boundary=PREVIOUS_RELEASE_PLUS_DB_BACKUP' "$script"
+          grep -Fq 'No automatic database rollback is attempted after schema/config mutation.' "$script"
+          grep -Fq 'vendor/bin/drush sql:dump --gzip' "$script"
+
+      - name: Lint production deployment regression tests
+        shell: bash
+        run: |
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/ProductionDeploymentSafetyTest.php
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/ProductionPromotionSafetyTest.php
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/SchedulerGovernanceSafetyTest.php

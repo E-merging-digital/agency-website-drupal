@@ -2,7 +2,7 @@ _core:
   default_config_hash: FzFKuqOuk667AkDorrqvXkc_-M4D-Ac1XeGGusxS1JU
 check_links_types: 0
 default_url_scheme: 'https://'
-base_path: emergingdigital.be
+base_path: agency-website-drupal.ddev.site
 search_published_contents_only: true
 extract:
   from_a: true

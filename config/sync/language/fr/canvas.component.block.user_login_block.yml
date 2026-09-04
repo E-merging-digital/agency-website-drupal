@@ -1,0 +1,6 @@
+label: 'Connexion utilisateur'
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: 'Connexion utilisateur'

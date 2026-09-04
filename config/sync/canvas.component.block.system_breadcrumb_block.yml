@@ -1,12 +1,21 @@
 uuid: 7166095b-7095-4a44-ab3c-04e63d197608
-langcode: fr
+langcode: en
 status: false
 dependencies:
   module:
     - system
-active_version: 86a25cdac9ce0ae8
+active_version: 79606a374669a74d
 versioned_properties:
   active:
+    settings:
+      default_settings:
+        id: system_breadcrumb_block
+        label: Breadcrumbs
+        label_display: '0'
+        provider: system
+    fallback_metadata:
+      slot_definitions: null
+  86a25cdac9ce0ae8:
     settings:
       default_settings:
         id: system_breadcrumb_block

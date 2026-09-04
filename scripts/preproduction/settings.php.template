@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+$databases['default']['default'] = [
+  'database' => '@@DB_NAME@@',
+  'username' => '@@DB_USER@@',
+  'password' => '@@DB_PASSWORD@@',
+  'prefix' => '',
+  'host' => '127.0.0.1',
+  'port' => '3306',
+  'namespace' => 'Drupal\\mysql\\Driver\\Database\\mysql',
+  'driver' => 'mysql',
+];
+
+$settings['hash_salt'] = '@@HASH_SALT@@';
+$settings['config_sync_directory'] = dirname(DRUPAL_ROOT) . '/config/sync';
+$settings['file_private_path'] = '@@PROJECT_ROOT@@/shared/private';
+$settings['trusted_host_patterns'] = [
+  '^@@TRUSTED_HOST_REGEX@@$',
+];
+$settings['update_free_access'] = FALSE;
+$settings['rebuild_access'] = FALSE;
+
+// PREPROD is fail-safe: never inherit production-only configuration.
+$config['config_split.config_split.production']['status'] = FALSE;
+$config['config_split.config_split.preproduction']['status'] = TRUE;
+$config['automated_cron.settings']['interval'] = 0;
+$config['google_tag.settings']['default_google_tag_entity'] = NULL;
+$config['system.mail']['interface'] = [
+  'default' => 'symfony_mailer',
+];
+$config['system.mail']['mailer_dsn'] = [
+  'scheme' => 'native',
+  'host' => 'default',
+  'user' => NULL,
+  'password' => NULL,
+  'port' => NULL,
+  'options' => [],
+];
+
+// Secret presence must never authorize provider egress in normal PREPROD.
+$settings['agency_external_ai_egress_enabled'] = FALSE;
+$config['key.key.openai_api_key']['status'] = FALSE;

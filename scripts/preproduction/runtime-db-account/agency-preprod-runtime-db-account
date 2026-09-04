@@ -1,0 +1,276 @@
+#!/usr/bin/python3 -I
+"""Fixed-purpose PREPROD runtime MariaDB account reconciliation capability."""
+
+from __future__ import annotations
+
+import os
+import pwd
+import re
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+MARIADB_BIN = "/usr/bin/mariadb"
+HELPER_PATH = "/usr/local/sbin/agency-preprod-runtime-db-account"
+RUNTIME_ENV = Path("/var/www/agency-preprod/shared/settings/runtime.env")
+PROJECT_USER = "agency-preprod"
+
+TARGET_DATABASE = "agency_preprod"
+TARGET_USER = "agency_preprod"
+TARGET_HOST = "127.0.0.1"
+LEGACY_LOCALHOST = "localhost"
+FORBIDDEN_WILDCARD_HOST = "%"
+ALLOWED_ACTIONS = frozenset({"PRECHECK", "APPLY", "VERIFY"})
+CLEAN_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/root", "LC_ALL": "C"}
+
+EXPECTED_DB_GRANT = (
+    "GRANT ALL PRIVILEGES ON `agency_preprod`.* "
+    "TO `agency_preprod`@`127.0.0.1`"
+)
+EXPECTED_USAGE_PREFIX = (
+    "GRANT USAGE ON *.* TO `agency_preprod`@`127.0.0.1`"
+)
+
+
+class ContractError(RuntimeError):
+    """Fail-closed runtime-account reconciliation violation."""
+
+
+def root_sql(query: str) -> str:
+    """Execute only SQL constructed from immutable constants in this helper."""
+    result = subprocess.run(
+        [
+            MARIADB_BIN,
+            "--protocol=socket",
+            "--batch",
+            "--skip-column-names",
+            "--raw",
+        ],
+        input=query + "\n",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+        env=CLEAN_ENV,
+    )
+    if result.returncode != 0:
+        raise ContractError("Bounded MariaDB operation failed.")
+    return result.stdout.strip()
+
+
+def database_present() -> bool:
+    value = root_sql(
+        "SELECT COUNT(*) FROM information_schema.SCHEMATA "
+        "WHERE SCHEMA_NAME='agency_preprod'"
+    )
+    if value not in {"0", "1"}:
+        raise ContractError("Runtime database presence proof is invalid.")
+    return value == "1"
+
+
+def account_hosts() -> tuple[str, ...]:
+    output = root_sql(
+        "SELECT Host FROM mysql.user "
+        "WHERE User='agency_preprod' ORDER BY Host"
+    )
+    if not output:
+        return ()
+    hosts = tuple(line.strip() for line in output.splitlines())
+    if any(not host or "\t" in host or "\n" in host for host in hosts):
+        raise ContractError("Runtime account host proof is invalid.")
+    return hosts
+
+
+def expected_grant_exact() -> bool:
+    output = root_sql(
+        "SHOW GRANTS FOR 'agency_preprod'@'127.0.0.1'"
+    )
+    lines = tuple(line.strip() for line in output.splitlines() if line.strip())
+    if len(lines) != 2 or EXPECTED_DB_GRANT not in lines:
+        return False
+
+    usage_lines = tuple(
+        line for line in lines if line != EXPECTED_DB_GRANT
+    )
+    if len(usage_lines) != 1:
+        return False
+
+    usage = usage_lines[0]
+    if not usage.startswith(EXPECTED_USAGE_PREFIX):
+        return False
+    if " WITH GRANT OPTION" in usage:
+        return False
+    return True
+
+
+def classify(
+    target_database_present: bool,
+    hosts: tuple[str, ...],
+    grant_exact: bool,
+) -> dict[str, str]:
+    allowed_hosts = {TARGET_HOST, LEGACY_LOCALHOST}
+    unknown_hosts = tuple(host for host in hosts if host not in allowed_hosts)
+
+    target_present = TARGET_HOST in hosts
+    localhost_present = LEGACY_LOCALHOST in hosts
+
+    if (
+        not target_database_present
+        or FORBIDDEN_WILDCARD_HOST in hosts
+        or bool(unknown_hosts)
+    ):
+        state = "UNSAFE"
+    elif target_present and grant_exact and not localhost_present:
+        state = "EXACT"
+    else:
+        state = "RECONCILIATION_REQUIRED"
+
+    return {
+        "TARGET_DATABASE_PRESENT": "YES" if target_database_present else "NO",
+        "ACCOUNT_127_PRESENT": "YES" if target_present else "NO",
+        "ACCOUNT_LOCALHOST_PRESENT": "YES" if localhost_present else "NO",
+        "EXPECTED_DB_GRANT": "EXACT" if target_present and grant_exact else "NOT_EXACT",
+        "RUNTIME_ACCOUNT_STATE": state,
+    }
+
+
+def observe() -> dict[str, str]:
+    db_present = database_present()
+    hosts = account_hosts()
+    grant_exact = expected_grant_exact() if TARGET_HOST in hosts else False
+    return classify(db_present, hosts, grant_exact)
+
+
+def emit_metadata(metadata: dict[str, str]) -> None:
+    for key in (
+        "TARGET_DATABASE_PRESENT",
+        "ACCOUNT_127_PRESENT",
+        "ACCOUNT_LOCALHOST_PRESENT",
+        "EXPECTED_DB_GRANT",
+        "RUNTIME_ACCOUNT_STATE",
+    ):
+        print(f"{key}={metadata[key]}")
+
+
+def emit_unknown_fail_closed() -> None:
+    print("TARGET_DATABASE_PRESENT=UNKNOWN_FAIL_CLOSED")
+    print("ACCOUNT_127_PRESENT=UNKNOWN_FAIL_CLOSED")
+    print("ACCOUNT_LOCALHOST_PRESENT=UNKNOWN_FAIL_CLOSED")
+    print("EXPECTED_DB_GRANT=UNKNOWN_FAIL_CLOSED")
+    print("RUNTIME_ACCOUNT_STATE=UNSAFE")
+
+
+def require_installed_identity() -> None:
+    invoked = Path(sys.argv[0])
+    try:
+        metadata = os.lstat(HELPER_PATH)
+    except FileNotFoundError as exc:
+        raise ContractError("Installed helper is absent.") from exc
+    if invoked.resolve() != Path(HELPER_PATH):
+        raise ContractError("Helper must run from its fixed installation path.")
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ContractError("Installed helper type is invalid.")
+    if metadata.st_uid != 0 or metadata.st_gid != 0:
+        raise ContractError("Installed helper ownership is invalid.")
+    if stat.S_IMODE(metadata.st_mode) != 0o755:
+        raise ContractError("Installed helper mode is invalid.")
+
+
+def read_runtime_password() -> str:
+    try:
+        metadata = os.lstat(RUNTIME_ENV)
+    except FileNotFoundError as exc:
+        raise ContractError("Authoritative runtime state is absent.") from exc
+
+    project = pwd.getpwnam(PROJECT_USER)
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise ContractError("Authoritative runtime state type is invalid.")
+    if metadata.st_uid != project.pw_uid or metadata.st_gid != project.pw_gid:
+        raise ContractError("Authoritative runtime state ownership is invalid.")
+    if stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise ContractError("Authoritative runtime state mode is invalid.")
+
+    try:
+        lines = RUNTIME_ENV.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise ContractError("Authoritative runtime state cannot be read.") from exc
+
+    values = [
+        line.removeprefix("DB_PASSWORD=")
+        for line in lines
+        if line.startswith("DB_PASSWORD=")
+    ]
+    if len(values) != 1 or re.fullmatch(r"[0-9a-f]{64}", values[0]) is None:
+        raise ContractError("Authoritative database password contract is invalid.")
+    return values[0]
+
+
+def apply_fixed_reconciliation() -> dict[str, str]:
+    before = observe()
+    if before["RUNTIME_ACCOUNT_STATE"] == "UNSAFE":
+        raise ContractError("Unsafe runtime account state requires separate authority.")
+
+    password = read_runtime_password()
+
+    root_sql(
+        "CREATE USER IF NOT EXISTS 'agency_preprod'@'127.0.0.1' "
+        f"IDENTIFIED BY '{password}'"
+    )
+    root_sql(
+        "ALTER USER 'agency_preprod'@'127.0.0.1' "
+        f"IDENTIFIED BY '{password}'"
+    )
+    password = ""
+
+    root_sql(
+        "REVOKE ALL PRIVILEGES, GRANT OPTION "
+        "FROM 'agency_preprod'@'127.0.0.1'"
+    )
+    root_sql(
+        "GRANT ALL PRIVILEGES ON `agency_preprod`.* "
+        "TO 'agency_preprod'@'127.0.0.1'"
+    )
+
+    if not expected_grant_exact():
+        raise ContractError("Canonical runtime account grant verification failed.")
+
+    if before["ACCOUNT_LOCALHOST_PRESENT"] == "YES":
+        root_sql("DROP USER IF EXISTS 'agency_preprod'@'localhost'")
+
+    after = observe()
+    if after["RUNTIME_ACCOUNT_STATE"] != "EXACT":
+        raise ContractError("Runtime account reconciliation verification failed.")
+    return after
+
+
+def main() -> int:
+    if len(sys.argv) != 2 or sys.argv[1] not in ALLOWED_ACTIONS:
+        print("RUNTIME_ACCOUNT_RECONCILIATION=REJECTED")
+        return 64
+    if os.geteuid() != 0:
+        print("RUNTIME_ACCOUNT_RECONCILIATION=REJECTED")
+        return 77
+
+    action = sys.argv[1]
+    try:
+        require_installed_identity()
+        if action in {"PRECHECK", "VERIFY"}:
+            emit_metadata(observe())
+            return 0
+        if action == "APPLY":
+            emit_metadata(apply_fixed_reconciliation())
+            return 0
+    except (ContractError, KeyError, OSError, pwd.KeyError):
+        if action in {"PRECHECK", "VERIFY"}:
+            emit_unknown_fail_closed()
+        else:
+            print("RUNTIME_ACCOUNT_RECONCILIATION=FAILED_CLOSED")
+        return 1
+
+    print("RUNTIME_ACCOUNT_RECONCILIATION=REJECTED")
+    return 64
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

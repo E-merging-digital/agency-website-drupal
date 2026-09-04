@@ -3,10 +3,26 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const artifactRoot = path.resolve('artifacts/browser-validation');
+const ga4MeasurementId = 'G-K5TDNZCPTY';
 
 function isSameOrigin(url, baseURL) {
   try {
     return new URL(url).origin === new URL(baseURL).origin;
+  }
+  catch {
+    return false;
+  }
+}
+
+function isGoogleAnalyticsRequest(url) {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    return hostname === 'www.googletagmanager.com'
+      || hostname.endsWith('.googletagmanager.com')
+      || hostname === 'www.google-analytics.com'
+      || hostname.endsWith('.google-analytics.com')
+      || parsed.pathname.includes('/collect');
   }
   catch {
     return false;
@@ -26,6 +42,7 @@ export const test = base.extend({
         visual: 'NOT_RUN',
         console: 'NOT_RUN',
         network: 'NOT_RUN',
+        analytics: 'NOT_RUN',
       },
       consoleErrors: [],
       consoleWarnings: [],
@@ -33,6 +50,8 @@ export const test = base.extend({
       unexpectedHttp4xx: [],
       http5xx: [],
       failedRequests: [],
+      analyticsRequests: [],
+      analyticsMeasurementRequests: [],
       screenshot: null,
     };
 
@@ -55,6 +74,22 @@ export const test = base.extend({
         name: error.name,
         message: error.message,
       });
+    };
+
+    const onRequest = (request) => {
+      const url = request.url();
+      const entry = {
+        method: request.method(),
+        resourceType: request.resourceType(),
+        url,
+      };
+
+      if (isGoogleAnalyticsRequest(url)) {
+        audit.analyticsRequests.push(entry);
+      }
+      if (url.includes(ga4MeasurementId)) {
+        audit.analyticsMeasurementRequests.push(entry);
+      }
     };
 
     const onResponse = (response) => {
@@ -92,6 +127,7 @@ export const test = base.extend({
 
     page.on('console', onConsole);
     page.on('pageerror', onPageError);
+    page.on('request', onRequest);
     page.on('response', onResponse);
     page.on('requestfailed', onRequestFailed);
 
@@ -99,6 +135,7 @@ export const test = base.extend({
 
     page.off('console', onConsole);
     page.off('pageerror', onPageError);
+    page.off('request', onRequest);
     page.off('response', onResponse);
     page.off('requestfailed', onRequestFailed);
 
@@ -108,7 +145,7 @@ export const test = base.extend({
     await mkdir(evidenceDirectory, { recursive: true });
 
     const evidence = {
-      schema_version: 1,
+      schema_version: 2,
       project,
       result,
       status: testInfo.status,
@@ -120,6 +157,8 @@ export const test = base.extend({
       unexpected_http_4xx: audit.unexpectedHttp4xx.length,
       http_5xx: audit.http5xx.length,
       failed_requests: audit.failedRequests.length,
+      google_analytics_requests: audit.analyticsRequests.length,
+      ga4_measurement_id_requests: audit.analyticsMeasurementRequests.length,
       details: {
         console_errors: audit.consoleErrors,
         console_warnings: audit.consoleWarnings,
@@ -127,6 +166,8 @@ export const test = base.extend({
         unexpected_http_4xx: audit.unexpectedHttp4xx,
         http_5xx: audit.http5xx,
         failed_requests: audit.failedRequests,
+        google_analytics_requests: audit.analyticsRequests,
+        ga4_measurement_id_requests: audit.analyticsMeasurementRequests,
       },
       screenshot: audit.screenshot,
       trace: result === 'FAIL' ? 'See test-results trace.zip for this project.' : null,

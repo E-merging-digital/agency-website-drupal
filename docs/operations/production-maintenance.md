@@ -7,6 +7,9 @@ Elle complète le mécanisme de déploiement applicatif existant dans
 `scripts/deploy-production.sh`. Elle ne remplace pas ce script et ne doit pas le
 modifier sans ticket explicite.
 
+Pour les droits de lecture/traversée nécessaires à Nginx/PHP-FPM sur les releases,
+voir également `docs/operations/production-runtime-permissions.md`.
+
 ## Principes obligatoires
 
 - Une intervention planifiée doit être rattachée à une issue GitHub.
@@ -35,15 +38,15 @@ outils de la VM.
 
 ### Maintenance de la base de données
 
-Concerne les mises à jour correctives de la branche MariaDB déjà utilisée. Une
-mise à jour majeure, par exemple de MariaDB 10.11 vers 11.x ou 12.x, est hors de
-cette procédure courante.
+Concerne les mises à jour correctives de la branche MariaDB 11.8 actuellement
+utilisée en production. Une migration vers une autre branche majeure, par exemple
+de MariaDB 11.8 vers 12.x, est hors de cette procédure courante.
 
 ### Maintenance applicative Drupal
 
 Concerne le code versionné, Composer, les mises à jour de base Drupal, les imports
-de configuration, Config Split et Content Sync. Elle passe normalement par une
-PR mergée puis par `scripts/deploy-production.sh`.
+de configuration, Config Split et Governed Content. Elle passe normalement par
+une PR mergée puis par `scripts/deploy-production.sh`.
 
 ## 1. Préparer l'intervention
 
@@ -228,15 +231,29 @@ intervention manuelle si la liste n'a pas déjà été validée par simulation.
 
 ### MariaDB
 
-Une mise à jour corrective peut être appliquée seulement si la version candidate
-reste dans la branche 10.11 :
+La production utilise MariaDB 11.8 depuis la migration #367. Une mise à jour
+corrective courante peut être appliquée seulement si la version candidate reste
+dans cette branche 11.8 :
 
 ```bash
 apt-cache policy mariadb-server mariadb-client
 ```
 
-Si la version installée est identique à la version candidate, aucune action
-MariaDB n'est nécessaire.
+Vérifier également la version réellement active et le paramètre de paquet serveur
+qui a été relevé à 64 MiB lors de #660 :
+
+```bash
+sudo mariadb -NBe "SELECT VERSION(); SELECT @@global.max_allowed_packet;"
+```
+
+L'état vérifié après #660 est MariaDB `11.8.8-MariaDB-ubu2404` avec
+`max_allowed_packet=67108864`. Ne pas ramener ce paramètre à 16 MiB lors d'une
+maintenance corrective : le cache de parsing/routing Drupal a déjà dépassé
+15 MiB et cette limite a provoqué un échec réel de `drush cr`.
+
+Toute migration hors de la branche 11.8 ou toute modification supplémentaire de
+configuration MariaDB doit disposer d'un ticket, d'une sauvegarde, d'un rollback
+et de validations dédiés.
 
 ## 6. Valider les configurations et redémarrer les services
 
@@ -324,6 +341,12 @@ Vérifier également :
 - les erreurs Nginx et PHP-FPM récentes ;
 - l'absence de service en échec.
 
+Si Drupal CLI boote correctement mais que les requêtes HTTP retournent 403/404,
+ne pas conclure immédiatement à un défaut de routage Drupal et ne pas redémarrer
+les services au hasard. Vérifier le docroot Nginx et les droits de traversée de
+`/var/www/agency/current` selon
+`docs/operations/production-runtime-permissions.md`.
+
 Exemples :
 
 ```bash
@@ -375,9 +398,9 @@ sudo -u deploy -H bash -lc '
 '
 ```
 
-Ce script gère notamment la nouvelle release, Composer, la sauvegarde SQL, le
-mode maintenance, `drush updb`, `drush cim`, Config Split, Content Sync et le
-basculement du lien `current`.
+Ce script gère notamment la nouvelle release, Composer, les droits runtime avant
+activation, la sauvegarde SQL, le mode maintenance, `drush updb`, `drush cim`,
+Config Split, Governed Content et le basculement du lien `current`.
 
 Ne pas lancer un `drush cim` global manuellement pour corriger une dérive non
 analysée.

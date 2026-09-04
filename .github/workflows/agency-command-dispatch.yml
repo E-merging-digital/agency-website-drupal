@@ -1,0 +1,264 @@
+name: Agency command dispatch
+
+on:
+  issue_comment:
+    types: [created]
+
+env:
+  AGENCY_COMMAND_ROUTES: >-
+    [
+      {"route":"PRODUCTION_PROMOTE","prefix":"/agency-production-promote ","regex":"^/agency-production-promote go sha=[0-9a-f]{40} artifact=[0-9a-f]{64} composer=[0-9a-f]{64} build=[0-9]+ preprod=[0-9]+$"},
+      {"route":"PRODUCTION_SCHEDULER","prefix":"/agency-production-scheduler ","regex":"^/agency-production-scheduler (action=CREATE release=[0-9a-f]{40} expected=ABSENT|action=UPDATE release=[0-9a-f]{40} expected=MANAGED_DRIFT|action=REMOVE release=[0-9a-f]{40} expected=CONTROLLED)$"},
+      {"route":"EDITORIAL_PUBLICATION","prefix":"/agency-editorial ","exact":["/agency-editorial inspect","/agency-editorial dry-run","/agency-editorial apply"]},
+      {"route":"EDITORIAL_PREPROD_CANDIDATE","prefix":"/agency-editorial-candidate ","exact":["/agency-editorial-candidate inspect","/agency-editorial-candidate dry-run","/agency-editorial-candidate apply"]},
+      {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image ","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply","/agency-editorial-image-prod inspect","/agency-editorial-image-prod dry-run","/agency-editorial-image-prod apply"]},
+      {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor ","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"},
+      {"route":"DEVELOPMENT_SEED","prefix":"/agency-development-seed ","regex_template":"^/agency-development-seed publish seed-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [A-Za-z0-9._:-]{8,80} [0-9a-f]{40}$"},
+      {"route":"PREPROD_REFRESH_940_DIAGNOSTIC","prefix":"/agency-preprod-refresh-940-diagnostic ","exact":["/agency-preprod-refresh-940-diagnostic diagnose"]},
+      {"route":"PREPROD_REFRESH_940_RECOVERY","prefix":"/agency-preprod-refresh-940-recovery ","exact":["/agency-preprod-refresh-940-recovery plan","/agency-preprod-refresh-940-recovery cleanup"]},
+      {"route":"PREPROD_REFRESH_948_DETAIL","prefix":"/agency-preprod-refresh-948-detail ","exact":["/agency-preprod-refresh-948-detail diagnose"]},
+      {"route":"PREPROD_BLOG_IMAGE_DIAGNOSTIC","prefix":"/agency-preprod-blog-image-diagnostic ","exact":["/agency-preprod-blog-image-diagnostic diagnose"]},
+      {"route":"PREPROD_EDITORIAL_IMAGE_REHYDRATE_971","prefix":"/agency-preprod-image-rehydrate ","exact":["/agency-preprod-image-rehydrate dry-run","/agency-preprod-image-rehydrate apply"]},
+      {"route":"CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-runtime ","exact":["/agency-config-sync-runtime diagnose"]},
+      {"route":"PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-prod-runtime ","exact":["/agency-config-sync-prod-runtime diagnose"]}
+    ]
+
+jobs:
+  classify:
+    name: Classify exact Agency command
+    runs-on: ubuntu-24.04
+    permissions: {}
+    outputs:
+      route: ${{ steps.route.outputs.route }}
+    steps:
+      - id: route
+        name: Route syntax only; authorization remains downstream
+        shell: bash
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          ROUTES_JSON: ${{ env.AGENCY_COMMAND_ROUTES }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          body = os.environ['COMMENT_BODY']
+          issue = os.environ['ISSUE_NUMBER']
+          is_pr = os.environ['IS_PULL_REQUEST'].lower() == 'true'
+          routes = json.loads(os.environ['ROUTES_JSON'])
+          incident_issue = {
+              'DEVELOPMENT_SEED': '956',
+              'PREPROD_REFRESH_940_DIAGNOSTIC': '941',
+              'PREPROD_REFRESH_940_RECOVERY': '943',
+              'PREPROD_REFRESH_948_DETAIL': '949',
+              'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
+              'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
+              'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995'),
+              'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995'),
+          }
+          matches = []
+          if not is_pr:
+              for spec in routes:
+                  required_issue = incident_issue.get(spec['route'])
+                  if isinstance(required_issue, tuple):
+                      if issue not in required_issue:
+                          continue
+                  elif required_issue is not None and issue != required_issue:
+                      continue
+                  exact = spec.get('exact', [])
+                  pattern = spec.get('regex')
+                  template = spec.get('regex_template')
+                  matched = body in exact
+                  if pattern is not None:
+                      matched = matched or re.fullmatch(pattern, body) is not None
+                  if template is not None:
+                      matched = matched or re.fullmatch(template.replace('{issue}', re.escape(issue)), body) is not None
+                  if matched:
+                      matches.append(spec['route'])
+          route = matches[0] if len(matches) == 1 else 'NONE'
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'route={route}\n')
+          print(f'ROUTE={route}')
+          PY
+
+  production-promote:
+    name: Route production promotion
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PRODUCTION_PROMOTE' }}
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: ./.github/workflows/promote-production.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  production-scheduler:
+    name: Route production scheduler change
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PRODUCTION_SCHEDULER' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/production-scheduler-change.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  editorial-publication:
+    name: Route editorial publication
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'EDITORIAL_PUBLICATION' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-publication.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  editorial-preprod-candidate:
+    name: Route PREPROD Article candidate
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'EDITORIAL_PREPROD_CANDIDATE' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-preprod-candidate.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  editorial-feature-image:
+    name: Route editorial feature image
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'EDITORIAL_FEATURE_IMAGE' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-feature-image.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ') && secrets.PREPROD_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ') && secrets.PREPROD_SERVER_HOST || secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  preprod-refresh:
+    name: Route governed PREPROD refresh
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/preprod-914-governed-successor.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  development-seed:
+    name: Route Development Seed publication
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'DEVELOPMENT_SEED' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/development-seed-publish.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-refresh-940-diagnostic:
+    name: Route #940 read-only PREPROD refresh diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH_940_DIAGNOSTIC' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/preprod-refresh-940-diagnostic.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-refresh-940-recovery:
+    name: Route #940 bounded PREPROD root-stage recovery
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH_940_RECOVERY' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/preprod-refresh-940-recovery.yml
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-refresh-948-detail:
+    name: Route fixed #948 read-only rollback detail diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH_948_DETAIL' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/preprod-refresh-948-detail-diagnostic.yml
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-blog-image-diagnostic:
+    name: Route #966 read-only PREPROD Blog image diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_BLOG_IMAGE_DIAGNOSTIC' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/preprod-blog-image-diagnostic.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-editorial-image-rehydrate-971:
+    name: Route #971 bounded PREPROD image rehydration
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/preprod-editorial-image-rehydrate-971.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  config-sync-runtime-diagnostic:
+    name: Route #982/#995 read-only PREPROD config diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/config-sync-runtime-diagnostic.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  prod-config-sync-runtime-diagnostic:
+    name: Route #982/#995 read-only PROD config diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/prod-config-sync-runtime-diagnostic.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}

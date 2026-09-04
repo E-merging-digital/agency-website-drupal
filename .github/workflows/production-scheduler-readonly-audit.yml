@@ -1,0 +1,56 @@
+name: Audit production scheduler read-only
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-scheduler-readonly-audit.yml'
+      - '.github/workflows/production-scheduler-change.yml'
+      - 'config/sync/automated_cron.settings.yml'
+      - 'config/splits/production/automated_cron.settings.yml'
+      - 'config/splits/preproduction/automated_cron.settings.yml'
+      - 'scripts/production-promotion/reconcile-cron.sh'
+      - 'scripts/production-promotion/mutate-cron.sh'
+      - 'docs/operations/environment-side-effects.md'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Validate PROD scheduler contract without runtime access
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact scheduler verifier
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate scheduler verifier without PROD runtime access
+        shell: bash
+        run: |
+          set -euo pipefail
+          verifier='scripts/production-promotion/reconcile-cron.sh'
+
+          test -f "$verifier"
+          bash -n "$verifier"
+          grep -Fq 'SCHEDULER_ACTION="${SCHEDULER_ACTION:-${1:-VERIFY_ONLY}}"' "$verifier"
+          grep -Fq 'SCHEDULER_CONTEXT="${SCHEDULER_CONTEXT:-STANDALONE}"' "$verifier"
+          grep -Fq 'IN_FLIGHT_PROMOTION)' "$verifier"
+          grep -Fq 'Current production release must map to exactly one promotion receipt.' "$verifier"
+          grep -Fq 'Drupal automated cron must remain disabled in PROD.' "$verifier"
+          grep -Fq 'An unmanaged system cron Drupal scheduler exists.' "$verifier"
+          grep -Fq 'An unmanaged systemd Drupal scheduler exists.' "$verifier"
+          grep -Fq 'Controlled Agency scheduler marker count is not exactly one.' "$verifier"
+          grep -Fq 'Controlled Agency scheduler does not match the exact expected contract.' "$verifier"
+          grep -Fq 'Deploy-user Drupal scheduler count is not exactly one.' "$verifier"
+          grep -Fq 'An unmanaged deploy-user Drupal cron scheduler exists.' "$verifier"
+          grep -Fq 'production_scheduler_action=VERIFY_ONLY' "$verifier"
+          grep -Fq 'production_scheduler_runtime_state=CONTROLLED' "$verifier"
+          ! grep -Fq 'crontab "$tmp"' "$verifier"
+          ! grep -Fq 'mktemp' "$verifier"

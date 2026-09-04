@@ -1,0 +1,57 @@
+name: "Validate #943 bounded #940 root-stage recovery"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/preprod-refresh-940-recovery.yml'
+      - '.github/workflows/preprod-refresh-940-recovery-validation.yml'
+      - 'scripts/preproduction-refresh/governed-successor/recover-940-residual-root-stage.py'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940DiagnosticTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940RecoveryTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate fixed recovery capability syntax and fail-closed self-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          capability='scripts/preproduction-refresh/governed-successor/recover-940-residual-root-stage.py'
+          python3 -m py_compile "$capability"
+          python3 "$capability" --self-test
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate targeted PHP test syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940DiagnosticTest.php
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940RecoveryTest.php
+
+      - name: Install dependencies
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Run targeted #943 and retained #941/dispatcher regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940RecoveryTest.php \
+            web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940DiagnosticTest.php \
+            web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php

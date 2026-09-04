@@ -1,0 +1,17 @@
+uuid: b7f8d828-5c1b-4a45-b58f-e4fe3fdca798
+langcode: en
+status: false
+dependencies: {  }
+id: preproduction
+label: Preproduction
+description: 'PREPROD-only fail-safe overrides for external side effects.'
+weight: 0
+stackable: false
+no_patching: false
+storage: ../config/splits/preproduction
+folder: ../config/splits/preproduction
+module: {  }
+theme: {  }
+complete_list:
+  - linkchecker.settings
+partial_list: {  }

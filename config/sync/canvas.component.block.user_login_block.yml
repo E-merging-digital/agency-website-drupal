@@ -1,5 +1,5 @@
 uuid: 15fa5cac-6bd3-4873-b7b6-2bc5a849b6e8
-langcode: fr
+langcode: en
 status: false
 dependencies:
   module:
@@ -10,12 +10,12 @@ versioned_properties:
     settings:
       default_settings:
         id: user_login_block
-        label: 'Connexion utilisateur'
+        label: 'User login'
         label_display: '0'
         provider: user
     fallback_metadata:
       slot_definitions: null
-label: 'Connexion utilisateur'
+label: 'User login'
 id: block.user_login_block
 provider: user
 source: block

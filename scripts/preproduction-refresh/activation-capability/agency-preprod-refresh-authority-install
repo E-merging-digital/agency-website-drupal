@@ -1,0 +1,163 @@
+#!/usr/bin/python3 -I
+"""Root-only fixed one-shot transaction authority installer for #915.
+
+This executable is intentionally NOT present in the agency-preprod sudo policy.
+A future JIT-governed privileged orchestration may invoke it only after validating
+live Project Lead authority and exact main identity.
+"""
+from __future__ import annotations
+
+import fcntl
+import hashlib
+import importlib.util
+import json
+import os
+import stat
+import sys
+from pathlib import Path
+from types import ModuleType
+
+CONTRACT_PATH = "/usr/local/lib/agency-preprod-refresh/transaction_contract.py"
+CONTRACT_SHA256 = "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb"
+STATE_DIR = "/var/lib/agency-preprod-refresh"
+AUTHORITY_DIR = STATE_DIR + "/authority"
+HISTORY_DIR = STATE_DIR + "/transactions"
+ACTIVE_AUTHORITY = AUTHORITY_DIR + "/active.json"
+DISABLED_AUTHORITY = STATE_DIR + "/data-activation-authority.json"
+AUTHORITY_LOCK = "/run/lock/agency-preprod-refresh-authority.lock"
+DISABLED_AUTHORITY_SHA256 = "8f860a5739ca7a163254cc760abca95414daa30356a8a019870b1a2a2b82ef37"
+EXPECTED_DISABLED = {
+    "schema_version": 1,
+    "state": "DISABLED",
+    "profile_id": None,
+    "successor_issue": None,
+    "request_authority_model": "NOT_INSTALLED",
+}
+
+class InstallError(RuntimeError):
+    pass
+
+
+def sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def require_file(path: str, mode: int, digest: str | None = None) -> None:
+    meta = os.lstat(path)
+    if stat.S_ISLNK(meta.st_mode) or not stat.S_ISREG(meta.st_mode) or meta.st_nlink != 1:
+        raise InstallError("Fixed file type/link contract invalid.")
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != mode:
+        raise InstallError("Fixed file ownership/mode invalid.")
+    if digest is not None and sha256_file(path) != digest:
+        raise InstallError("Fixed file digest mismatch.")
+
+
+def require_dir(path: str, mode: int) -> None:
+    meta = os.lstat(path)
+    if stat.S_ISLNK(meta.st_mode) or not stat.S_ISDIR(meta.st_mode):
+        raise InstallError("Fixed directory type invalid.")
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != mode:
+        raise InstallError("Fixed directory ownership/mode invalid.")
+
+
+def load_contract() -> ModuleType:
+    require_file(CONTRACT_PATH, 0o644, CONTRACT_SHA256)
+    spec = importlib.util.spec_from_file_location("agency_preprod_transaction_contract", CONTRACT_PATH)
+    if spec is None or spec.loader is None:
+        raise InstallError("Pinned transaction contract loader unavailable.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def require_persistent_disabled() -> None:
+    require_file(DISABLED_AUTHORITY, 0o600, DISABLED_AUTHORITY_SHA256)
+    try:
+        value = json.loads(Path(DISABLED_AUTHORITY).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise InstallError("Persistent disabled authority cannot be loaded.") from exc
+    if value != EXPECTED_DISABLED:
+        raise InstallError("Persistent data activation authority is not exact DISABLED state.")
+
+
+def atomic_write(path: str, payload: bytes) -> None:
+    parent = os.path.dirname(path)
+    tmp = parent + "/.active." + str(os.getpid()) + ".tmp"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(tmp, flags, 0o600)
+    try:
+        os.write(fd, payload)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    require_file(tmp, 0o600)
+    if os.path.lexists(path):
+        os.unlink(tmp)
+        raise InstallError("Another active transaction already exists.")
+    os.rename(tmp, path)
+    dirfd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(dirfd)
+    finally:
+        os.close(dirfd)
+    require_file(path, 0o600)
+
+
+def acquire_lock():
+    fd = os.open(AUTHORITY_LOCK, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    stream = os.fdopen(fd, "r+b", buffering=0)
+    try:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        stream.close()
+        raise InstallError("Concurrent authority installation/transaction collision.") from exc
+    meta = os.fstat(stream.fileno())
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != 0o600:
+        stream.close()
+        raise InstallError("Authority lock ownership/mode invalid.")
+    return stream
+
+def main() -> int:
+    if os.geteuid() != 0:
+        raise InstallError("Transaction authority installer requires root.")
+    if len(sys.argv) != 1:
+        raise InstallError("Authority installer accepts no arguments; fixed JSON stdin only.")
+    require_dir(STATE_DIR, 0o711)
+    require_dir(AUTHORITY_DIR, 0o700)
+    require_dir(HISTORY_DIR, 0o700)
+    require_persistent_disabled()
+    contract = load_contract()
+    raw = sys.stdin.buffer.read(8193)
+    if len(raw) > 8192:
+        raise InstallError("Authority envelope exceeds fixed bound.")
+    try:
+        envelope = json.loads(raw.decode("utf-8"))
+        state = contract.new_authority_state(envelope)
+    except Exception as exc:
+        raise InstallError("Authority envelope rejected.") from exc
+    lock = acquire_lock()
+    try:
+        history = HISTORY_DIR + "/" + state["authority_id"] + ".json"
+        if os.path.lexists(ACTIVE_AUTHORITY):
+            raise InstallError("Active transaction collision/hijack refused.")
+        if os.path.lexists(history):
+            raise InstallError("One-shot transaction authority replay refused.")
+        payload = (json.dumps(state, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+        atomic_write(ACTIVE_AUTHORITY, payload)
+    finally:
+        lock.close()
+    print("TRANSACTION_AUTHORITY=ARMED")
+    print("PERMANENT_ENABLE=NONE")
+    print("CALLER_SELF_AUTHORIZATION=IMPOSSIBLE")
+    return 0
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (InstallError, OSError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(80)

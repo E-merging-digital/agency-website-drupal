@@ -4,7 +4,7 @@ status: false
 dependencies: {  }
 id: production
 label: Production
-description: 'Production-only overrides (analytics, etc.).'
+description: 'Production-only overrides (analytics, mail and canonical external checks).'
 weight: 0
 stackable: false
 no_patching: false
@@ -16,4 +16,5 @@ complete_list:
   - google_tag.settings
   - google_tag.container.G-K5TDNZCPTY.69f8b7287a84a3.47771255
   - system.mail
+  - linkchecker.settings
 partial_list: {  }

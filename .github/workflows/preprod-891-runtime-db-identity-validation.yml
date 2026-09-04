@@ -1,0 +1,80 @@
+name: "#891 PREPROD runtime DB identity proof validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-877-successor-authority-validation.yml"
+      - ".github/workflows/preprod-891-runtime-db-identity-validation.yml"
+      - ".github/workflows/preprod-915-fixed-refresh-capability-validation.yml"
+      - "composer.lock"
+      - "scripts/preproduction-refresh/activation-capability/profile.json"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/profile.json"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/observe-host-state.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/evaluate-plan-evidence.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/runtime-db-identity-probe.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/test-runtime-db-identity-probe.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/test-plan-evidence.py"
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-db-identity-proof:
+    name: "#891 bounded runtime DB identity + #915 stronger capability regression"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate unchanged runtime DB observer contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability/provisioning'
+          bash -n "$base/run-plan.sh" "$base/observe-host-state.sh"
+          python3 -m py_compile \
+            "$base/evaluate-plan-evidence.py" \
+            "$base/runtime-db-identity-probe.py" \
+            "$base/test-runtime-db-identity-probe.py" \
+            "$base/test-plan-evidence.py" \
+            "$base/nginx-vhost-selector.py" \
+            "$base/test-nginx-vhost-selector.py"
+          python3 "$base/test-runtime-db-identity-probe.py"
+          python3 "$base/test-plan-evidence.py"
+          python3 "$base/test-nginx-vhost-selector.py"
+          test "$(git rev-parse "HEAD:$base/run-plan.sh")" = '981a719eb29f485a41500531e0ff24b0e2187470'
+          test "$(git rev-parse "HEAD:$base/runtime-db-identity-probe.py")" = '197a2da8173f902eb5f43b96f2f14399d00df220'
+          grep -Fq 'HOME=/home/agency-preprod python3 -I -' "$base/run-plan.sh"
+          printf '%s\n' \
+            '#891_ACTIVE_CONNECTION_IDENTITY=PRESERVED' \
+            '#905_RUNTIME_DB_PROBE_HOME=PRESERVED'
+
+      - name: Prove revised privileged surface remains bounded
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          python3 "$base/test-915-contract.py"
+          jq -e '
+            .activation.runtime_database == "agency_preprod" and
+            .sudoers.deploy_identity == "agency-preprod" and
+            .data_activation_authority.installed_state == "DISABLED" and
+            .transaction_authority.installer_in_agency_preprod_sudoers == false
+          ' "$base/profile.json" >/dev/null
+          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
+          printf '%s\n' \
+            '#874_REGRESSION=SUPERSEDED_BY_915_STRONGER_CONTRACT' \
+            '#877_REGRESSION=PASS' \
+            '#879_REGRESSION=PASS' \
+            '#891_REGRESSION=PASS' \
+            'PRIVILEGE_WIDENING=NONE' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED' \
+            'NO_REAL_PLAN=PASS' \
+            'NO_PREPROD_MUTATION=PASS' \
+            'NO_PROD_ACCESS=PASS'

@@ -1,5 +1,5 @@
 uuid: 4d22b479-bed2-4768-99e2-b695c1e82934
-langcode: fr
+langcode: en
 status: true
 dependencies:
   config:
@@ -18,7 +18,7 @@ _core:
 id: media_library
 label: 'Media library'
 module: views
-description: 'Trouver et gérer des media.'
+description: 'Find and manage media.'
 tag: ''
 base_table: media_field_data
 base_field: mid
@@ -29,7 +29,7 @@ display:
     display_plugin: default
     position: 0
     display_options:
-      title: Média
+      title: Media
       fields:
         media_bulk_form:
           id: media_bulk_form
@@ -157,7 +157,7 @@ display:
       exposed_form:
         type: basic
         options:
-          submit_button: 'Appliquer les filtres'
+          submit_button: 'Apply filters'
           reset_button: false
           reset_button_label: Reset
           exposed_sorts_label: 'Sort by'
@@ -181,7 +181,7 @@ display:
           admin_label: ''
           plugin_id: text_custom
           empty: true
-          content: 'Aucun média disponible.'
+          content: 'No media available.'
           tokenize: false
       sorts:
         created:
@@ -196,7 +196,7 @@ display:
           plugin_id: date
           order: DESC
           expose:
-            label: "Le plus récent d'abord"
+            label: 'Newest first'
             field_identifier: created
           exposed: true
           granularity: second
@@ -212,7 +212,7 @@ display:
           plugin_id: standard
           order: ASC
           expose:
-            label: 'Nom (A-Z)'
+            label: 'Name (A-Z)'
             field_identifier: name
           exposed: true
         name_1:
@@ -227,7 +227,7 @@ display:
           plugin_id: standard
           order: DESC
           expose:
-            label: 'Nom (Z-A)'
+            label: 'Name (Z-A)'
             field_identifier: name_1
           exposed: true
       filters:
@@ -247,7 +247,7 @@ display:
           exposed: true
           expose:
             operator_id: ''
-            label: 'Statut de publication'
+            label: 'Publishing status'
             description: null
             use_operator: false
             operator: status_op
@@ -335,7 +335,7 @@ display:
           exposed: true
           expose:
             operator_id: bundle_op
-            label: 'Type de média'
+            label: 'Media type'
             description: ''
             use_operator: false
             operator: bundle_op
@@ -350,7 +350,7 @@ display:
             reduce: false
           is_grouped: false
           group_info:
-            label: 'Type de média'
+            label: 'Media type'
             description: null
             identifier: bundle
             optional: true
@@ -619,7 +619,7 @@ display:
           exclude: false
           alter:
             alter_text: true
-            text: 'Modifier {{ name }}'
+            text: 'Edit {{ name }}'
             make_link: true
             path: ''
             absolute: false
@@ -627,7 +627,7 @@ display:
             replace_spaces: false
             path_case: none
             trim_whitespace: false
-            alt: 'Modifier {{ name }}'
+            alt: 'Edit {{ name }}'
             rel: ''
             link_class: ''
             prefix: ''
@@ -656,7 +656,7 @@ display:
           hide_empty: false
           empty_zero: false
           hide_alter_empty: true
-          text: Modifier
+          text: Edit
           output_url_as_text: false
           absolute: false
         delete_media:
@@ -672,7 +672,7 @@ display:
           exclude: false
           alter:
             alter_text: true
-            text: 'Supprimer {{ name }}'
+            text: 'Delete {{ name }}'
             make_link: true
             path: ''
             absolute: false
@@ -680,7 +680,7 @@ display:
             replace_spaces: false
             path_case: none
             trim_whitespace: false
-            alt: 'Supprimer {{ name }}'
+            alt: 'Delete {{ name }}'
             rel: ''
             link_class: ''
             prefix: ''
@@ -1072,7 +1072,7 @@ display:
           table: views
           field: display_link
           plugin_id: display_link
-          label: Grille
+          label: Grid
           empty: true
           display_id: widget
         display_link_table:
@@ -1080,7 +1080,7 @@ display:
           table: views
           field: display_link
           plugin_id: display_link
-          label: Tableau
+          label: Table
           empty: true
           display_id: widget_table
       rendering_language: '***LANGUAGE_language_interface***'
@@ -1097,7 +1097,7 @@ display:
       tags: {  }
   widget_table:
     id: widget_table
-    display_title: 'Widget (tableau)'
+    display_title: 'Widget (table)'
     display_plugin: page
     position: 3
     display_options:
@@ -1120,7 +1120,7 @@ display:
           entity_type: media
           entity_field: thumbnail
           plugin_id: field
-          label: Vignette
+          label: Thumbnail
           type: image
           settings:
             image_link: ''
@@ -1369,7 +1369,7 @@ display:
           table: views
           field: display_link
           plugin_id: display_link
-          label: Grille
+          label: Grid
           empty: true
           display_id: widget
         display_link_table:
@@ -1377,7 +1377,7 @@ display:
           table: views
           field: display_link
           plugin_id: display_link
-          label: Tableau
+          label: Table
           empty: true
           display_id: widget_table
       rendering_language: '***LANGUAGE_language_interface***'

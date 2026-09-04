@@ -1,0 +1,114 @@
+schema_version: 1
+issue: 764
+parent_issue: 609
+source:
+  issue: 748
+  run_id: 32706400681
+  artifact_id: 9512525119
+  artifact_name: agency-config-language-review-provenance-748-32706400681-1
+  artifact_digest: sha256:54a02cb5bd9d24d0264e3a8b329817c943dd0cc507d01b39c13183d497c7cce0
+  source_classification: material_review_required
+  excluded_resolved_prefix: core.base_field_override.
+baseline:
+  trusted_main: a7c26c1817195b5f8f213a26633ceca11c305bff
+  total_config: 595
+  distribution:
+    __none__: 59
+    en: 466
+    fr: 69
+    und: 1
+cohort:
+  total: 69
+  names_sha256: 3386c99b57a7c3de9191107664e51ca80336e1d40557b717be8faf7b3c9c7a07
+  groups:
+    canvas_component: 30
+    canvas_folder: 13
+    media_type: 5
+    field_field: 4
+    system_action: 4
+    ai_automator: 2
+    block: 2
+    node_type: 2
+    pathauto_pattern: 2
+    view: 2
+    image_style: 1
+    language_entity: 1
+    system_site: 1
+  names:
+    - ai_automators.ai_automator.node.article.field_feature_image.default
+    - ai_automators.ai_automator.node.article.field_short_description.default
+    - block.block.emerging_digital_chatbot_widget
+    - block.block.emerging_digital_languagedropdownswitchercontent
+    - canvas.component.block.announce_block
+    - canvas.component.block.emerging_digital_language_switcher
+    - canvas.component.block.help_block
+    - canvas.component.block.language_block.language_content
+    - canvas.component.block.language_block.language_interface
+    - canvas.component.block.local_actions_block
+    - canvas.component.block.local_tasks_block
+    - canvas.component.block.page_title_block
+    - canvas.component.block.shortcuts
+    - canvas.component.block.system_branding_block
+    - canvas.component.block.system_breadcrumb_block
+    - canvas.component.block.system_clear_cache_block
+    - canvas.component.block.system_menu_block.account
+    - canvas.component.block.system_menu_block.admin
+    - canvas.component.block.system_menu_block.footer
+    - canvas.component.block.system_menu_block.main
+    - canvas.component.block.system_menu_block.online-presence
+    - canvas.component.block.system_menu_block.tools
+    - canvas.component.block.system_messages_block
+    - canvas.component.block.system_powered_by_block
+    - canvas.component.block.user_login_block
+    - canvas.component.block.views_block.comments_recent-block_1
+    - canvas.component.block.views_block.content_recent-block_1
+    - canvas.component.block.views_block.who_s_new-block_1
+    - canvas.component.block.views_block.who_s_online-who_s_online_block
+    - canvas.component.block.webform_block
+    - canvas.component.sdc.emerging_digital.cta
+    - canvas.component.sdc.emerging_digital.hero
+    - canvas.component.sdc.emerging_digital.trust-list
+    - canvas.component.sdc.olivero.teaser
+    - canvas.folder.03defdd3-dea9-425d-9c90-46b02bc37817
+    - canvas.folder.0d5d5129-0d2e-41f3-a6d5-0211018bd59f
+    - canvas.folder.1e12db1e-d732-42bb-bcab-cb8a17035f75
+    - canvas.folder.3ada2cbb-43cc-46cb-993a-6d5a6b41d4d6
+    - canvas.folder.4da10d5f-e7eb-40fe-a3c5-a74f580fd5d0
+    - canvas.folder.614ea4f1-16fc-4c8e-8588-9beee8d7c77e
+    - canvas.folder.674648e0-ab48-4005-8544-eb3cda63e8c0
+    - canvas.folder.809a63d3-9eca-447d-8fe3-a854ff8084cb
+    - canvas.folder.a1893971-0c01-42f6-88d1-9d0bfaa392b5
+    - canvas.folder.cdf409dd-7bb8-4668-b2eb-2fa771bcab33
+    - canvas.folder.cf2cc6af-a4b8-41db-80f3-98252aac22a7
+    - canvas.folder.d089a30d-c78f-46ea-9fbb-7aee85564e8b
+    - canvas.folder.fbb161e9-0cca-4f81-99e4-34522e274752
+    - field.field.media.audio.field_media_audio_file
+    - field.field.media.remote_video.field_media_oembed_video
+    - field.field.media.video.field_media_video_file
+    - field.field.node.article.ai_automator_status
+    - image.style.media_library
+    - language.entity.fr
+    - media.type.audio
+    - media.type.document
+    - media.type.image
+    - media.type.remote_video
+    - media.type.video
+    - node.type.article
+    - node.type.page
+    - pathauto.pattern.content_path_pattern_article
+    - pathauto.pattern.content_path_pattern_article_en
+    - system.action.media_delete_action
+    - system.action.media_publish_action
+    - system.action.media_save_action
+    - system.action.media_unpublish_action
+    - system.site
+    - views.view.media
+    - views.view.media_library
+constraints:
+  read_only: true
+  migration_allowed: false
+  config_export_allowed: false
+  config_language_lock_activation_allowed: false
+  production_access_allowed: false
+  provider_secret_allowed: false
+  natural_language_heuristic_used: false

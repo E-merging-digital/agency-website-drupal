@@ -23,23 +23,55 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Documentation projet dans `docs/`.
 - Scripts d'exploitation dans `scripts/`.
 
-## 2.0 Doctrine CONTRIBUTED MODULES FIRST
+## 2.0 Doctrine USE EXISTING FIRST
 
-- Invariant : **CONTRIBUTED MODULES FIRST**. Avant toute nouvelle capacite ou
-  implementation custom Agency, rechercher d'abord si Drupal core couvre le
-  besoin, puis rechercher et evaluer les modules contrib pertinents.
-- `USE DRUPAL` signifie **core + contrib**. Une absence de familiarite avec un
-  module existant ou l'absence de recherche contrib n'est jamais un gap Drupal.
-- L'evaluation contrib doit verifier au minimum : compatibilite Drupal/PHP,
-  release stable pertinente, maintenance recente, couverture de securite,
-  permissions/dependances introduites et adequation fonctionnelle au besoin.
-- Preferer un module core/contrib stable et security-covered a du code custom,
-  puis `EXTEND DRUPAL` si une extension bornee suffit. `BUILD IN AGENCY` exige
-  un gap reel, documente et demontre apres cette evaluation.
+- Lire **obligatoirement** `docs/decisions/ADR-003-use-existing-first.md` avant
+  toute nouvelle capacite custom substantielle, nouvelle abstraction, nouveau
+  moteur, nouvel orchestrateur ou nouveau mecanisme d'exploitation.
+- Invariant : **USE EXISTING FIRST**. Avant de concevoir du custom Agency,
+  evaluer dans cet ordre :
+  1. Drupal Core ;
+  2. Drush et les APIs Drupal officielles ;
+  3. DDEV et ses primitives officielles lorsque le besoin concerne les
+     environnements locaux/developpement ;
+  4. les modules contrib stables, maintenus et couverts par la Drupal Security
+     Team lorsque pertinent ;
+  5. les outils systeme standards deja adaptes au probleme (Git, Composer,
+     MariaDB, rsync/SSH, systemd, etc.) ;
+  6. les primitives Agency deja presentes ;
+  7. seulement ensuite `EXTEND EXISTING`, puis `BUILD IN AGENCY` si un gap reel
+     reste demontre.
+- `USE DRUPAL` signifie **core + contrib + APIs/Drush adaptes au besoin**. Une
+  absence de familiarite avec un outil existant ou l'absence de recherche n'est
+  jamais un gap Drupal.
+- `USE EXISTING FIRST` ne signifie pas ajouter une dependance a chaque besoin :
+  une primitive systeme simple et eprouvee peut etre preferable a un module
+  contrib supplementaire.
+- Toute issue/PR introduisant une surface custom substantielle doit rendre
+  explicite son `EXISTING_CAPABILITY_AUDIT` : Drupal core, Drush/API, DDEV,
+  contrib stable/security-covered, outils systeme et primitives Agency deja
+  presentes ; puis conclure `USE EXISTING`, `EXTEND EXISTING` ou `BUILD CUSTOM`.
+- `BUILD CUSTOM` exige un `CUSTOM_GAP` precis, documente et demontre. Une
+  preference personnelle, une implementation custom deja commencee ou un CI
+  vert ne constituent pas un `CUSTOM_GAP`.
+- Invariant de revue : **CI GREEN != ARCHITECTURE APPROVED**.
+- Invariant de cout irrecuperable : **CUSTOM ALREADY WRITTEN != MUST KEEP**.
+  Supprimer ou simplifier du code non merge lorsque l'existant couvre mieux le
+  besoin.
+- Budget de simplicite : une nouvelle couche n'est admissible que si elle
+  apporte une garantie/capacite necessaire non couverte par l'existant et si son
+  benefice justifie sa complexite operationnelle durable.
+- Preferer configuration a framework, composition a reimplementation,
+  delegation a duplication, API Drupal a SQL custom, Drush/DDEV a orchestrateur
+  maison, et un fail-closed simple a une recovery sophistiquee inutile.
+- Un downtime PREPROD borne est acceptable lorsque le besoin metier le permet et
+  qu'il supprime une complexite transactionnelle disproportionnee sans reduire
+  privacy, backup, rollback ou isolation.
 - Pour le page building et l'IA de composition, evaluer et utiliser en priorite
   Drupal Canvas, Drupal AI, Canvas AI, AI Agents et les autres primitives
   upstream adaptees avant toute orchestration ou moteur Agency concurrent.
-- Cette doctrine s'applique a tous les domaines du projet, pas seulement a l'IA.
+- Cette doctrine s'applique a **tous** les domaines du projet : contenu,
+  deploiement, PREPROD/PROD, donnees, DDEV, IA, frontend et exploitation.
 
 ## 2.1 Doctrine Drupal AI
 
@@ -309,6 +341,9 @@ preuves visuelles publiees.
 ## 15. Bonnes pratiques Codex
 
 - Lire le ticket, `AGENTS.md`, puis les fichiers touches avant modification.
+- Lire `docs/decisions/ADR-003-use-existing-first.md` avant toute nouvelle
+  abstraction/capacite custom substantielle et produire l'audit requis avant de
+  conclure qu'un nouveau moteur Agency est necessaire.
 - Lire `docs/operations/execution-capabilities.md` avant toute conclusion sur
   les capacites machine ou UI disponibles.
 - Limiter les changements au perimetre exact du ticket.

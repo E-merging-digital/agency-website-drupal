@@ -1,5 +1,5 @@
 uuid: 315ead20-d016-42b1-ba9f-2aba31965409
-langcode: fr
+langcode: en
 status: true
 dependencies:
   module:
@@ -15,7 +15,7 @@ provider: null
 plugin: emerging_digital_chatbot
 settings:
   id: emerging_digital_chatbot
-  label: 'Assistant E-merging Digital'
+  label: 'E-merging Digital Assistant'
   label_display: '0'
   provider: emerging_digital_chatbot
   suppress_contact_pages: true

@@ -1,0 +1,152 @@
+name: Change production scheduler with explicit owner authority
+
+on:
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: agency-production-scheduler
+  cancel-in-progress: false
+
+jobs:
+  change:
+    name: Explicitly authorized production scheduler mutation
+    if: >-
+      ${{ github.event.issue.state == 'open'
+          && github.event.issue.pull_request == null
+          && github.event.issue.user.login == 'E-merging-digital'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.author_association == 'OWNER'
+          && startsWith(github.event.comment.body, '/agency-production-scheduler ') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout live scheduler tooling
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Authorize exact scheduler transition
+        id: auth
+        env:
+          GO_BODY: ${{ github.event.comment.body }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GO_BODY" != *$'\n'* ]]
+          if [[ ! "$GO_BODY" =~ ^/agency-production-scheduler\ action=(CREATE|UPDATE|REMOVE)\ release=([0-9a-f]{40})\ expected=(ABSENT|CONTROLLED|MANAGED_DRIFT)$ ]]; then
+            echo 'Scheduler command does not match the explicit authority contract.' >&2
+            exit 1
+          fi
+
+          action="${BASH_REMATCH[1]}"
+          release_sha="${BASH_REMATCH[2]}"
+          expected_state="${BASH_REMATCH[3]}"
+          auth_body_sha="$(printf '%s' "$GO_BODY" | sha256sum | awk '{print $1}')"
+
+          case "$action:$expected_state" in
+            CREATE:ABSENT|UPDATE:MANAGED_DRIFT|REMOVE:CONTROLLED) ;;
+            *)
+              echo 'Requested scheduler transition is not valid for the authorized expected state.' >&2
+              exit 1
+              ;;
+          esac
+
+          [[ "$COMMENT_ID" =~ ^[0-9]+$ ]]
+          [[ "$auth_body_sha" =~ ^[0-9a-f]{64}$ ]]
+
+          echo "action=$action" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+          echo "expected_state=$expected_state" >> "$GITHUB_OUTPUT"
+          echo "auth_body_sha=$auth_body_sha" >> "$GITHUB_OUTPUT"
+          echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Configure production SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Stage bounded scheduler request
+        id: request
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          RELEASE_SHA: ${{ steps.auth.outputs.release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          request_id="scheduler-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${RELEASE_SHA:0:12}"
+          remote_dir="/var/www/agency/shared/scheduler-jobs/${request_id}"
+          [[ "$request_id" =~ ^scheduler-[0-9]+-[0-9]+-[0-9a-f]{12}$ ]]
+          echo "remote_dir=$remote_dir" >> "$GITHUB_OUTPUT"
+
+          ssh "$SERVER_USER@$SERVER_HOST" \
+            "umask 077; mkdir -p '$remote_dir'; test ! -L '$remote_dir'; test ! -e '$remote_dir/scheduler-change-evidence.env'"
+          scp \
+            scripts/production-promotion/mutate-cron.sh \
+            "$SERVER_USER@$SERVER_HOST:$remote_dir/"
+          ssh "$SERVER_USER@$SERVER_HOST" "chmod 700 '$remote_dir/mutate-cron.sh'"
+
+      - name: Apply explicitly authorized scheduler transition
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          ACTION: ${{ steps.auth.outputs.action }}
+          RELEASE_SHA: ${{ steps.auth.outputs.release_sha }}
+          EXPECTED_STATE: ${{ steps.auth.outputs.expected_state }}
+          COMMENT_ID: ${{ steps.auth.outputs.comment_id }}
+          AUTH_BODY_SHA: ${{ steps.auth.outputs.auth_body_sha }}
+          REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
+            "SCHEDULER_AUTHORITY_KIND=OWNER_ISSUE_COMMENT '$REMOTE_DIR/mutate-cron.sh' '$ACTION' '$RELEASE_SHA' '$EXPECTED_STATE' '$COMMENT_ID' '$AUTH_BODY_SHA' '$REMOTE_DIR'"
+
+      - name: Recover non-sensitive scheduler mutation evidence
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/production-scheduler
+          scp "$SERVER_USER@$SERVER_HOST:$REMOTE_DIR/scheduler-change-evidence.env" \
+            artifacts/production-scheduler/scheduler-change-evidence.env
+          chmod 600 artifacts/production-scheduler/scheduler-change-evidence.env
+
+      - name: Upload scheduler mutation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-production-scheduler-${{ steps.auth.outputs.release_sha }}-${{ github.run_id }}
+          path: artifacts/production-scheduler
+          if-no-files-found: error
+          retention-days: 30

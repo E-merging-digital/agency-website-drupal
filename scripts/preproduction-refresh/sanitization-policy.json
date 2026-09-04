@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "policy_version": "agency-preprod-refresh-v1",
+  "scope": {
+    "source": "PROD_READ_ONLY",
+    "target": "PREPROD_ISOLATED_STAGING_DB",
+    "private_files": "NEVER",
+    "public_files": "OUT_OF_SCOPE_PHASE_1"
+  },
+  "execution_boundary": {
+    "github_hosted": {
+      "allowed_roles": [
+        "AUTHORITY_GATEWAY",
+        "NON_SENSITIVE_METADATA_VALIDATION",
+        "POLICY_VALIDATION",
+        "SYNTHETIC_EPHEMERAL_DB_VALIDATION"
+      ],
+      "raw_prod_data_allowed": false
+    },
+    "raw_prod_data": {
+      "github_hosted_runner": "FORBIDDEN",
+      "allowed_paths": [
+        {
+          "type": "TRUSTED_AGENCY_RUNNER",
+          "required_labels": [
+            "self-hosted",
+            "linux",
+            "x64",
+            "agency"
+          ]
+        },
+        {
+          "type": "CONTROLLED_SERVER_TO_SERVER",
+          "requirement": "RAW_DATA_NEVER_TRANSITS_OR_MATERIALIZES_ON_GITHUB_HOSTED_INFRASTRUCTURE"
+        }
+      ]
+    }
+  },
+  "preserve_for_fidelity": [
+    "nodes_and_revisions",
+    "taxonomy_and_translations",
+    "paragraphs_and_entity_reference_revisions",
+    "menu_link_content",
+    "path_aliases_and_redirects",
+    "public_media_metadata",
+    "other_public_editorial_state_required_by_current_release"
+  ],
+  "mandatory_sanitization": [
+    {
+      "id": "users",
+      "action": "ANONYMIZE_IDENTIFIERS_AND_INVALIDATE_AUTH",
+      "deterministic_rule": "Imported account identifiers are transformed by uid to preprod-user-<uid> and preprod-user+<uid>@example.invalid; imported passwords, init/reset/session material are invalidated; no imported account supplies PREPROD administrative access.",
+      "required": true
+    },
+    {
+      "id": "preprod_admin",
+      "action": "RESTORE_SERVER_OWNED_PREPROD_ADMIN_ROUTE",
+      "deterministic_rule": "PREPROD administrative access is recreated or preserved from PREPROD server-owned bootstrap state only after imported account authentication material is invalidated.",
+      "required": true
+    },
+    {
+      "id": "webform_submissions",
+      "action": "DELETE_ALL",
+      "deterministic_rule": "All imported Webform submissions and submission data are removed before activation.",
+      "required": true
+    },
+    {
+      "id": "sessions",
+      "action": "DELETE_ALL",
+      "deterministic_rule": "All imported active session state is removed before activation.",
+      "required": true
+    },
+    {
+      "id": "flood_rate_limit",
+      "action": "DELETE_ALL",
+      "deterministic_rule": "All imported flood/rate-limit state is removed before activation.",
+      "required": true
+    },
+    {
+      "id": "dblog_watchdog",
+      "action": "DELETE_ALL",
+      "deterministic_rule": "Imported watchdog/dblog rows are removed because request, user or IP data may be present.",
+      "required": true
+    },
+    {
+      "id": "caches",
+      "action": "CLEAR_ALL_IMPORTED_CACHE_STATE",
+      "deterministic_rule": "Imported cache, render, dynamic-page-cache and discovery cache state is cleared.",
+      "required": true
+    },
+    {
+      "id": "batch_temp_state",
+      "action": "DELETE_ALL",
+      "deterministic_rule": "Imported batch and temporary execution state is cleared.",
+      "required": true
+    },
+    {
+      "id": "queues",
+      "action": "DELETE_ALL_BY_DEFAULT",
+      "deterministic_rule": "Imported queue items are cleared by default, including Link Checker, mail and AI/provider work; unknown externally acting queue state fails closed.",
+      "required": true
+    },
+    {
+      "id": "cron_update_announcements_linkchecker_state",
+      "action": "RESET_IMPORTED_RUNTIME_STATE",
+      "deterministic_rule": "Imported cron/update/announcements/link-checker execution state is reset before activation.",
+      "required": true
+    },
+    {
+      "id": "one_time_auth_material",
+      "action": "INVALIDATE_OR_DELETE",
+      "deterministic_rule": "One-time login, password-reset, session and equivalent authentication material is invalidated or removed.",
+      "required": true
+    },
+    {
+      "id": "persisted_credentials",
+      "action": "REMOVE_OR_REPLACE_FROM_PREPROD_SERVER_STATE",
+      "deterministic_rule": "Persisted credential or secret-like state is removed or replaced only from PREPROD server-owned state; unknown credential-bearing state fails closed.",
+      "required": true
+    },
+    {
+      "id": "production_environment_state",
+      "action": "REMOVE",
+      "deterministic_rule": "Production-only environment state never survives PREPROD activation.",
+      "required": true
+    }
+  ],
+  "sanitization_execution": {
+    "mode": "SYNTHETIC_FIXTURE_ONLY",
+    "real_runtime_enabled": false,
+    "unknown_mandatory_class": "FAIL_CLOSED",
+    "unknown_table_scanning": "NOT_IMPLEMENTED",
+    "mandatory_class_handlers": {
+      "users": "sanitize_users",
+      "preprod_admin": "assert_preprod_admin_boundary",
+      "webform_submissions": "purge_webform",
+      "sessions": "purge_sessions",
+      "flood_rate_limit": "purge_flood",
+      "dblog_watchdog": "purge_dblog",
+      "caches": "clear_caches",
+      "batch_temp_state": "purge_batch_temp",
+      "queues": "clear_queues",
+      "cron_update_announcements_linkchecker_state": "reset_runtime_state",
+      "one_time_auth_material": "invalidate_one_time_auth",
+      "persisted_credentials": "remove_persisted_credentials",
+      "production_environment_state": "remove_production_state"
+    },
+    "users": {
+      "table": "users_field_data",
+      "uid_column": "uid",
+      "name_column": "name",
+      "mail_column": "mail",
+      "init_column": "init",
+      "password_column": "pass",
+      "access_column": "access",
+      "login_column": "login",
+      "username_format": "preprod-user-<uid>",
+      "email_format": "preprod-user+<uid>@example.invalid"
+    },
+    "preprod_admin": {
+      "source": "PREPROD_SERVER_OWNED",
+      "restore_in_issue_855": false
+    },
+    "purge_tables_by_class": {
+      "webform_submissions": [
+        "webform_submission",
+        "webform_submission_data"
+      ],
+      "sessions": [
+        "sessions"
+      ],
+      "flood_rate_limit": [
+        "flood"
+      ],
+      "dblog_watchdog": [
+        "watchdog"
+      ],
+      "batch_temp_state": [
+        "batch",
+        "semaphore",
+        "key_value_expire"
+      ],
+      "queues": [
+        "queue"
+      ]
+    },
+    "cache_table_prefixes": [
+      "cache_"
+    ],
+    "runtime_key_value_state": {
+      "table": "key_value",
+      "collection": "state",
+      "exact_names": [
+        "system.cron_last",
+        "update.last_check",
+        "update.available_releases"
+      ],
+      "name_prefixes": [
+        "announcements_feed.",
+        "linkchecker."
+      ]
+    },
+    "credential_config": {
+      "table": "config",
+      "exact_names": [
+        "ai_provider_openai.settings"
+      ],
+      "name_prefixes": [
+        "key.key."
+      ],
+      "observed_repository_key_source": "ENV_PROVIDER_ONLY"
+    },
+    "mariadb_proof": {
+      "mode": "EPHEMERAL_SYNTHETIC_CI_ONLY",
+      "mariadb_version": "11.8",
+      "real_runtime_enabled": false,
+      "raw_prod_data": "FORBIDDEN",
+      "real_preprod_connection": "FORBIDDEN",
+      "target_database": {
+        "runtime_database": "agency_preprod",
+        "runtime_targetable": false,
+        "staging_prefix": "agency_preprod_stage_",
+        "derivation": "SHA256_REQUEST_ID_FIRST_12_HEX",
+        "caller_database_name": "FORBIDDEN"
+      },
+      "caller_inputs": {
+        "database_name": "FORBIDDEN",
+        "sql": "FORBIDDEN",
+        "shell": "FORBIDDEN",
+        "executable": "FORBIDDEN",
+        "host": "FORBIDDEN",
+        "credential": "FORBIDDEN",
+        "filesystem_path": "FORBIDDEN",
+        "request_id": "FORBIDDEN"
+      },
+      "schema_contract": {
+        "required_tables": [
+          "users_field_data"
+        ],
+        "optional_if_absent": [
+          "webform_submission",
+          "webform_submission_data",
+          "sessions",
+          "flood",
+          "watchdog",
+          "batch",
+          "semaphore",
+          "key_value_expire",
+          "queue",
+          "key_value",
+          "config"
+        ],
+        "cache_tables": "DISCOVER_BY_VERSIONED_PREFIX_ONLY",
+        "known_sensitive_incompatible_schema": "FAIL_CLOSED"
+      },
+      "evidence": {
+        "values": "FORBIDDEN",
+        "allowed": [
+          "COUNTS",
+          "PASS_FAIL",
+          "POLICY_ID",
+          "POLICY_DIGEST",
+          "NON_SENSITIVE_STATE_DIGESTS"
+        ]
+      }
+    }
+  },
+  "activation_assertions": [
+    "webform_submissions_zero",
+    "active_sessions_zero",
+    "production_mail_transport_inactive",
+    "production_config_split_off",
+    "preproduction_config_split_on",
+    "google_tag_off",
+    "provider_egress_off",
+    "production_credentials_absent",
+    "externally_acting_queues_cleared_or_explicitly_bounded",
+    "staged_db_bootstrap_health_pass",
+    "basic_auth_preserved",
+    "noindex_preserved"
+  ],
+  "governed_content": {
+    "refresh_default": "VALIDATE_AND_DRY_RUN_ONLY",
+    "automatic_apply": false,
+    "apply_rule": "Only the current release/content governance path may authorize an apply; data refresh itself is never authority to overwrite refreshed editorial content."
+  },
+  "future_apply": {
+    "implemented": false,
+    "owner_authorization_required": true,
+    "anti_replay_required": true,
+    "isolated_staging_db_required": true,
+    "preprod_backup_verified_before_activation": true,
+    "preserve_application_release_identity": true,
+    "prod_rollback_path": "NONE"
+  },
+  "github_evidence": {
+    "raw_sql_allowed": false,
+    "pii_allowed": false,
+    "secrets_allowed": false,
+    "private_files_allowed": false,
+    "phase_1_artifact_path": "artifacts/preproduction-refresh-plan/plan.env"
+  }
+}

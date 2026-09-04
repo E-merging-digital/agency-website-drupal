@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "bundle_id": "agency-preprod-staging-one-shot-v1",
+  "revision_issue_number": 859,
+  "root_owned_bundle_directory": "/usr/local/lib/agency-preprod-staging",
+  "mutable_checkout_runtime_read": "FORBIDDEN",
+  "files": {
+    "helper": {
+      "repository_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db",
+      "digest_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256",
+      "destination": "/usr/local/sbin/agency-preprod-staging-db",
+      "sha256": "a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71",
+      "owner_uid": 0,
+      "group_gid": 0,
+      "mode": "0755"
+    },
+    "sanitizer": {
+      "repository_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py",
+      "digest_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py.sha256",
+      "destination": "/usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py",
+      "sha256": "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f",
+      "owner_uid": 0,
+      "group_gid": 0,
+      "mode": "0644"
+    },
+    "policy": {
+      "repository_source": "scripts/preproduction-refresh/sanitization-policy.json",
+      "digest_source": "scripts/preproduction-staging-import/privileged/sanitization-policy.sha256",
+      "destination": "/usr/local/lib/agency-preprod-staging/sanitization-policy.json",
+      "sha256": "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb",
+      "policy_version": "agency-preprod-refresh-v1",
+      "byte_identical_copy_required": true,
+      "owner_uid": 0,
+      "group_gid": 0,
+      "mode": "0644"
+    }
+  },
+  "sudoers": {
+    "change_required": false,
+    "scope": "FIXED_HELPER_PATH_ONLY"
+  },
+  "real_provisioning_performed": false
+}

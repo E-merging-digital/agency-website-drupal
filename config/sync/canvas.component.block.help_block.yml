@@ -1,12 +1,21 @@
 uuid: 7d1cd17f-699e-42fa-a423-e8ba36ed28d3
-langcode: fr
+langcode: en
 status: false
 dependencies:
   module:
     - help
-active_version: af8568475f7526ac
+active_version: 447761d5e173d4a3
 versioned_properties:
   active:
+    settings:
+      default_settings:
+        id: help_block
+        label: Help
+        label_display: '0'
+        provider: help
+    fallback_metadata:
+      slot_definitions: null
+  af8568475f7526ac:
     settings:
       default_settings:
         id: help_block

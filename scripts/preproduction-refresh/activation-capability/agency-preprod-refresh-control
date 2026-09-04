@@ -1,0 +1,869 @@
+#!/usr/bin/python3 -I
+"""Fixed privileged PREPROD refresh transaction capability (#915 revision).
+
+The normal agency-preprod caller can invoke only this fixed executable through
+sudo and can supply only a strict operation identity on stdin.  Transaction
+authority is installed independently by a root-only JIT-governed installer.
+"""
+from __future__ import annotations
+
+import fcntl
+import hashlib
+import importlib.util
+import json
+import os
+import re
+import stat
+import subprocess
+import sys
+from pathlib import Path
+from types import ModuleType
+from typing import Any, BinaryIO
+
+# Pinned reusable predecessor sources.
+STAGING_BUNDLE_DIR = "/usr/local/lib/agency-preprod-staging"
+SANITIZER_PATH = STAGING_BUNDLE_DIR + "/agency-preprod-staging-sanitizer.py"
+POLICY_PATH = STAGING_BUNDLE_DIR + "/sanitization-policy.json"
+SANITIZER_SHA256 = "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f"
+POLICY_SHA256 = "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb"
+
+REFRESH_BUNDLE_DIR = "/usr/local/lib/agency-preprod-refresh"
+CONTRACT_PATH = REFRESH_BUNDLE_DIR + "/transaction_contract.py"
+SIDE_EFFECT_PATH = REFRESH_BUNDLE_DIR + "/side_effect_hardening.py"
+STATE_DIGEST_PATH = REFRESH_BUNDLE_DIR + "/runtime_state_digest.py"
+ADMIN_RECONCILE_PATH = REFRESH_BUNDLE_DIR + "/admin-reconcile.sh"
+ADMIN_RECONCILE_PHP = REFRESH_BUNDLE_DIR + "/admin-reconcile.php"
+CONTRACT_SHA256 = "469e7c7ab39434a92c5161df51756b6524055821f71242f0a06420eee89335cb"
+SIDE_EFFECT_SHA256 = "2227fc6977f1c168710853a29981172a027fa41495b503095b24476ac46c1703"
+STATE_DIGEST_SHA256 = "5762bd3cfd73948be9b6879881384c77e98121cc5abe1c921d2034e0476c24f9"
+ADMIN_RECONCILE_SHA256 = "4f48966b2a0ff1624a58102ffeeb7d06ac15127f409c51baad36f8ee22b98b8c"
+ADMIN_RECONCILE_PHP_SHA256 = "77f125c0fd6cc925a5a8311d696566dfb3d91b7e8ade12f33575ae79f62c1ffd"
+
+STATE_DIR = "/var/lib/agency-preprod-refresh"
+AUTHORITY_DIR = STATE_DIR + "/authority"
+HISTORY_DIR = STATE_DIR + "/transactions"
+RECOVERY_DIR = STATE_DIR + "/recovery"
+INCOMING_DIR = STATE_DIR + "/incoming"
+CANDIDATE_DIR = STATE_DIR + "/candidates"
+BACKUP_DIR = STATE_DIR + "/backups"
+ACTIVE_AUTHORITY = AUTHORITY_DIR + "/active.json"
+FENCE_MARKER = STATE_DIR + "/refresh-maintenance.flag"
+AUTHORITY_LOCK = "/run/lock/agency-preprod-refresh-authority.lock"
+REFRESH_LOCK = "/run/lock/agency-preprod-refresh.lock"
+
+RUNTIME_DB = "agency_preprod"
+PROJECT_ROOT = "/var/www/agency-preprod"
+CURRENT_LINK = PROJECT_ROOT + "/current"
+OUTER_DEPLOY_LOCK = PROJECT_ROOT + "/shared/deploy.lock"
+INTERNAL_READY_URL = "http://127.0.0.1:18087/health/ready"
+MARIADB_BIN = "/usr/bin/mariadb"
+CURL_BIN = "/usr/bin/curl"
+SAFE_DB_RE = re.compile(r"^agency_preprod_(?:stage|candidate|rollback)_[0-9a-f]{12}$")
+SAFE_TABLE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+CLEAN_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/root", "LC_ALL": "C"}
+
+class ContractError(RuntimeError):
+    """Fail-closed fixed capability contract violation."""
+
+
+def sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def require_fixed_file(path: str, digest: str | None, mode: int) -> os.stat_result:
+    try:
+        meta = os.lstat(path)
+    except FileNotFoundError as exc:
+        raise ContractError("Required fixed root-owned file is absent.") from exc
+    if stat.S_ISLNK(meta.st_mode) or not stat.S_ISREG(meta.st_mode) or meta.st_nlink != 1:
+        raise ContractError("Required fixed file type/link count invalid.")
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != mode:
+        raise ContractError("Required fixed file ownership/mode invalid.")
+    if digest is not None and sha256_file(path) != digest:
+        raise ContractError("Required fixed file digest mismatch.")
+    return meta
+
+
+def require_fixed_dir(path: str, mode: int) -> None:
+    try:
+        meta = os.lstat(path)
+    except FileNotFoundError as exc:
+        raise ContractError("Required fixed directory is absent.") from exc
+    if stat.S_ISLNK(meta.st_mode) or not stat.S_ISDIR(meta.st_mode):
+        raise ContractError("Required fixed directory type invalid.")
+    if meta.st_uid != 0 or meta.st_gid != 0 or stat.S_IMODE(meta.st_mode) != mode:
+        raise ContractError("Required fixed directory ownership/mode invalid.")
+
+
+def load_python_module(path: str, digest: str, name: str) -> ModuleType:
+    require_fixed_file(path, digest, 0o644)
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ContractError("Pinned module loader unavailable.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_contract() -> ModuleType:
+    return load_python_module(CONTRACT_PATH, CONTRACT_SHA256, "agency_preprod_transaction_contract")
+
+
+def load_json_fixed(path: str, digest: str, mode: int) -> dict[str, Any]:
+    require_fixed_file(path, digest, mode)
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ContractError("Fixed JSON cannot be loaded.") from exc
+    if not isinstance(value, dict):
+        raise ContractError("Fixed JSON must be an object.")
+    return value
+
+
+def load_canonical_sanitizer() -> tuple[ModuleType, dict[str, Any]]:
+    sanitizer = load_python_module(SANITIZER_PATH, SANITIZER_SHA256, "agency_preprod_staging_sanitizer")
+    policy = load_json_fixed(POLICY_PATH, POLICY_SHA256, 0o644)
+    try:
+        sanitizer.validate_policy(policy)
+    except Exception as exc:
+        raise ContractError("Canonical agency-preprod-refresh-v1 policy rejected.") from exc
+    return sanitizer, policy
+
+
+def load_refresh_modules() -> tuple[ModuleType, ModuleType]:
+    hardening = load_python_module(SIDE_EFFECT_PATH, SIDE_EFFECT_SHA256, "agency_preprod_refresh_hardening")
+    state_digest = load_python_module(STATE_DIGEST_PATH, STATE_DIGEST_SHA256, "agency_preprod_runtime_state_digest")
+    return hardening, state_digest
+
+
+def atomic_json_replace(path: str, value: dict[str, Any]) -> None:
+    parent = os.path.dirname(path)
+    tmp = parent + "/.state." + str(os.getpid()) + ".tmp"
+    raw = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(tmp, flags, 0o600)
+    try:
+        os.write(fd, raw)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    require_fixed_file(tmp, None, 0o600)
+    os.replace(tmp, path)
+    dirfd = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(dirfd)
+    finally:
+        os.close(dirfd)
+    require_fixed_file(path, None, 0o600)
+
+
+def write_json_exclusive(path: str, value: dict[str, Any]) -> None:
+    raw = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags, 0o600)
+    try:
+        os.write(fd, raw)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    require_fixed_file(path, None, 0o600)
+
+
+def load_active(contract: ModuleType) -> dict[str, Any]:
+    require_fixed_dir(AUTHORITY_DIR, 0o700)
+    require_fixed_file(ACTIVE_AUTHORITY, None, 0o600)
+    try:
+        value = json.loads(Path(ACTIVE_AUTHORITY).read_text(encoding="utf-8"))
+        return contract.validate_authority_state(value)
+    except Exception as exc:
+        raise ContractError("Active transaction authority invalid/corrupt.") from exc
+
+
+def update_active(contract: ModuleType, authority: dict[str, Any], **changes: Any) -> dict[str, Any]:
+    current = load_active(contract)
+    if current["authority_id"] != authority["authority_id"]:
+        raise ContractError("Active transaction hijack/collision detected.")
+    updated = dict(current)
+    updated.update(changes)
+    try:
+        updated = contract.validate_authority_state(updated)
+    except Exception as exc:
+        raise ContractError("Refused invalid transaction state transition.") from exc
+    atomic_json_replace(ACTIVE_AUTHORITY, updated)
+    return updated
+
+
+def terminalize(contract: ModuleType, authority: dict[str, Any], state_name: str, human: bool = False) -> dict[str, Any]:
+    updated = update_active(
+        contract,
+        authority,
+        state=state_name,
+        phase=contract.PHASE_TERMINAL,
+        terminal=True,
+        human_recovery_required=human,
+    )
+    if state_name == contract.STATE_FAILED_RECOVERY:
+        return updated
+    history_path = HISTORY_DIR + "/" + updated["authority_id"] + ".json"
+    require_fixed_dir(HISTORY_DIR, 0o700)
+    write_json_exclusive(history_path, updated)
+    os.unlink(ACTIVE_AUTHORITY)
+    return updated
+
+
+def parse_operation(contract: ModuleType) -> dict[str, Any]:
+    if len(sys.argv) != 1:
+        raise ContractError("Helper accepts no command-line arguments; structured stdin only.")
+    raw = sys.stdin.buffer.read(8193)
+    if len(raw) > 8192:
+        raise ContractError("Operation input exceeds fixed bound.")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+        return contract.parse_operation(payload)
+    except Exception as exc:
+        raise ContractError("Operation input rejected.") from exc
+
+
+def root_sql(query: str) -> str:
+    result = subprocess.run(
+        [MARIADB_BIN, "--protocol=socket", "--batch", "--skip-column-names", "--raw"],
+        input=query + "\n",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        check=False,
+        env=CLEAN_ENV,
+    )
+    if result.returncode != 0:
+        raise ContractError("Fixed MariaDB operation failed.")
+    return result.stdout.strip()
+
+
+def quote_identifier(value: str) -> str:
+    if value == RUNTIME_DB or SAFE_DB_RE.fullmatch(value) or SAFE_TABLE_RE.fullmatch(value):
+        return "`" + value + "`"
+    raise ContractError("Unsafe internally-derived identifier.")
+
+
+def schema_exists(database: str) -> bool:
+    value = root_sql(
+        "SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME="
+        + "CONVERT(0x" + database.encode().hex() + " USING utf8mb4)"
+    )
+    return value == "1"
+
+
+def require_schema_absent(database: str) -> None:
+    if schema_exists(database):
+        raise ContractError("Derived transient database unexpectedly exists.")
+
+
+def information_schema_count(database: str, object_name: str) -> int:
+    dbhex = database.encode().hex()
+    queries = {
+        "views": "SELECT COUNT(*) FROM information_schema.VIEWS WHERE TABLE_SCHEMA=CONVERT(0x%s USING utf8mb4)" % dbhex,
+        "triggers": "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=CONVERT(0x%s USING utf8mb4)" % dbhex,
+        "events": "SELECT COUNT(*) FROM information_schema.EVENTS WHERE EVENT_SCHEMA=CONVERT(0x%s USING utf8mb4)" % dbhex,
+        "routines": "SELECT COUNT(*) FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA=CONVERT(0x%s USING utf8mb4)" % dbhex,
+        "foreign_keys": "SELECT COUNT(*) FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=CONVERT(0x%s USING utf8mb4)" % dbhex,
+    }
+    value = root_sql(queries[object_name])
+    if not re.fullmatch(r"[0-9]+", value):
+        raise ContractError("MariaDB object-count proof invalid.")
+    return int(value)
+
+
+def base_tables(database: str) -> list[str]:
+    dbhex = database.encode().hex()
+    output = root_sql(
+        "SELECT TABLE_NAME FROM information_schema.TABLES "
+        "WHERE TABLE_SCHEMA=CONVERT(0x%s USING utf8mb4) AND TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME" % dbhex
+    )
+    names = [line for line in output.splitlines() if line]
+    if not names:
+        raise ContractError("Activation subset contains no base tables.")
+    for name in names:
+        if not SAFE_TABLE_RE.fullmatch(name):
+            raise ContractError("Invalid table identity in activation subset.")
+    total = root_sql(
+        "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=CONVERT(0x%s USING utf8mb4)" % dbhex
+    )
+    if not re.fullmatch(r"[0-9]+", total) or int(total) != len(names):
+        raise ContractError("Unsupported non-base table object present.")
+    for kind in ("views", "triggers", "events", "routines", "foreign_keys"):
+        if information_schema_count(database, kind) != 0:
+            raise ContractError(f"Unsupported MariaDB object present: {kind}")
+    return names
+
+
+def derived_paths(contract: ModuleType, authority: dict[str, Any]) -> dict[str, str]:
+    staging, candidate, rollback = contract.derived_db_names(authority)
+    return {
+        "staging_db": staging,
+        "candidate_db": candidate,
+        "rollback_db": rollback,
+        "snapshot": INCOMING_DIR + "/" + contract.spool_basename(authority),
+        "manifest": INCOMING_DIR + "/" + contract.manifest_basename(authority),
+        "seal": CANDIDATE_DIR + "/" + authority["authority_id"] + ".json",
+        "backup": BACKUP_DIR + "/" + authority["authority_id"] + ".sql",
+        "recovery": RECOVERY_DIR + "/" + authority["authority_id"] + ".json",
+    }
+
+
+def require_bound_spool(contract: ModuleType, authority: dict[str, Any], paths: dict[str, str]) -> None:
+    require_fixed_dir(INCOMING_DIR, 0o700)
+    snapshot_meta = require_fixed_file(paths["snapshot"], None, 0o600)
+    require_fixed_file(paths["manifest"], None, 0o600)
+    if snapshot_meta.st_size != authority["snapshot_bytes"]:
+        raise ContractError("Bound spool byte count mismatch.")
+    if sha256_file(paths["snapshot"]) != authority["snapshot_sha256"]:
+        raise ContractError("Bound spool SHA-256 mismatch.")
+    try:
+        manifest = json.loads(Path(paths["manifest"]).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ContractError("Bound spool manifest invalid.") from exc
+    expected = {
+        "schema_version": 1,
+        "authority_id": authority["authority_id"],
+        "successor_issue": authority["successor_issue"],
+        "request_id": authority["request_id"],
+        "main_sha": authority["main_sha"],
+        "profile_id": authority["profile_id"],
+        "snapshot_bytes": authority["snapshot_bytes"],
+        "snapshot_sha256": authority["snapshot_sha256"],
+        "spool_basename": contract.spool_basename(authority),
+    }
+    if manifest != expected:
+        raise ContractError("Bound spool manifest transaction mismatch.")
+
+
+def safe_unlink(path: str) -> None:
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+def import_snapshot_to_staging(authority: dict[str, Any], paths: dict[str, str]) -> None:
+    require_schema_absent(paths["staging_db"])
+    root_sql(f"CREATE DATABASE {quote_identifier(paths['staging_db'])} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+    with open(paths["snapshot"], "rb") as source:
+        result = subprocess.run(
+            [MARIADB_BIN, "--protocol=socket", "--local-infile=0", f"--database={paths['staging_db']}"],
+            stdin=source,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            env=CLEAN_ENV,
+        )
+    if result.returncode != 0:
+        raise ContractError("Root-owned bound-spool import failed.")
+
+
+def move_staging_to_candidate(paths: dict[str, str], tables: list[str]) -> None:
+    require_schema_absent(paths["candidate_db"])
+    root_sql(f"CREATE DATABASE {quote_identifier(paths['candidate_db'])} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+    pairs = [
+        f"{quote_identifier(paths['staging_db'])}.{quote_identifier(table)} TO {quote_identifier(paths['candidate_db'])}.{quote_identifier(table)}"
+        for table in tables
+    ]
+    root_sql("RENAME TABLE " + ",".join(pairs))
+    root_sql(f"DROP DATABASE {quote_identifier(paths['staging_db'])}")
+
+
+def write_candidate_seal(authority: dict[str, Any], paths: dict[str, str], tables: list[str], sanitizer_evidence: dict[str, str], hardening: dict[str, str]) -> None:
+    require_fixed_dir(CANDIDATE_DIR, 0o700)
+    table_digest = hashlib.sha256("\n".join(tables).encode()).hexdigest()
+    payload = {
+        "schema_version": 2,
+        "authority_id": authority["authority_id"],
+        "successor_issue": authority["successor_issue"],
+        "request_id_sha256": hashlib.sha256(authority["request_id"].encode()).hexdigest(),
+        "main_sha": authority["main_sha"],
+        "candidate_db_sha256": hashlib.sha256(paths["candidate_db"].encode()).hexdigest(),
+        "candidate_state": "SEALED_SANITIZED_HARDENED_ASSERTED",
+        "canonical_policy": "agency-preprod-refresh-v1",
+        "canonical_policy_sha256": POLICY_SHA256,
+        "canonical_sanitizer_sha256": SANITIZER_SHA256,
+        "sanitized_state_sha256": sanitizer_evidence.get("sanitized_state_sha256", ""),
+        "hardening_profile_sha256": hardening.get("hardening_profile_sha256", ""),
+        "base_table_count": len(tables),
+        "base_table_set_sha256": table_digest,
+        "runtime_database": RUNTIME_DB,
+        "runtime_reachable_before_activation": False,
+        "generic_candidate_credential": "NONE",
+    }
+    write_json_exclusive(paths["seal"], payload)
+
+
+def require_candidate_seal(authority: dict[str, Any], paths: dict[str, str]) -> dict[str, Any]:
+    require_fixed_file(paths["seal"], None, 0o600)
+    try:
+        seal = json.loads(Path(paths["seal"]).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ContractError("Candidate seal invalid.") from exc
+    if seal.get("authority_id") != authority["authority_id"] or seal.get("main_sha") != authority["main_sha"]:
+        raise ContractError("Candidate seal transaction binding mismatch.")
+    if seal.get("candidate_state") != "SEALED_SANITIZED_HARDENED_ASSERTED":
+        raise ContractError("Candidate is not sealed/hardened.")
+    if seal.get("runtime_database") != RUNTIME_DB or seal.get("runtime_reachable_before_activation") is not False:
+        raise ContractError("Candidate runtime-isolation seal invalid.")
+    return seal
+
+
+def action_import(contract: ModuleType, authority: dict[str, Any]) -> None:
+    paths = derived_paths(contract, authority)
+    require_bound_spool(contract, authority, paths)
+    state_digest = load_refresh_modules()[1]
+    runtime_before = state_digest.runtime_state_sha256()
+    release_before = application_release_identity_sha256()
+    authority = update_active(contract, authority, state=contract.STATE_IN_PROGRESS, phase=contract.PHASE_IMPORTING)
+    sanitizer, policy = load_canonical_sanitizer()
+    hardening, _ = load_refresh_modules()
+    failure: BaseException | None = None
+    try:
+        import_snapshot_to_staging(authority, paths)
+        execution = sanitizer.sanitize(paths["staging_db"], policy)
+        pre = sanitizer.assert_sanitized(paths["staging_db"], execution)
+        binding = hardening.harden_candidate(paths["staging_db"], sanitizer, pre)
+        hardening.assert_candidate_hardened(paths["staging_db"], sanitizer, pre)
+        evidence = sanitizer.assert_sanitized(paths["staging_db"], execution)
+        tables = base_tables(paths["staging_db"])
+        move_staging_to_candidate(paths, tables)
+        write_candidate_seal(authority, paths, tables, evidence, binding)
+        safe_unlink(paths["snapshot"])
+        safe_unlink(paths["manifest"])
+        if state_digest.runtime_state_sha256() != runtime_before or application_release_identity_sha256() != release_before:
+            raise ContractError("Candidate import changed runtime or application release.")
+        update_active(contract, authority, phase=contract.PHASE_CANDIDATE_SEALED)
+        print("CANDIDATE_SANITIZED_HARDENED_SEALED=PASS")
+        print("RAW_SNAPSHOT_TERMINAL_CLEANUP=PASS")
+    except BaseException as exc:
+        failure = exc
+    finally:
+        safe_unlink(paths["snapshot"])
+        safe_unlink(paths["manifest"])
+        if schema_exists(paths["staging_db"]):
+            root_sql(f"DROP DATABASE {quote_identifier(paths['staging_db'])}")
+    if failure is not None:
+        try:
+            if state_digest.runtime_state_sha256() != runtime_before or application_release_identity_sha256() != release_before:
+                raise ContractError("Pre-swap failure runtime proof failed.")
+            cleanup_transaction_databases(paths)
+            safe_unlink(paths["seal"])
+            terminalize(contract, authority, contract.STATE_ROLLED_BACK)
+        except Exception as recovery_exc:
+            failed = update_active(contract, authority, state=contract.STATE_FAILED_RECOVERY, phase=contract.PHASE_TERMINAL, terminal=True, human_recovery_required=True)
+            record_recovery_metadata(failed, paths, "IMPORT_PRE_SWAP_PROOF_FAILED")
+            print("HUMAN_RECOVERY_REQUIRED=true", file=sys.stderr)
+            raise ContractError("Candidate import failed and unchanged-runtime proof failed.") from recovery_exc
+        raise ContractError("Candidate lifecycle failed closed; runtime unchanged proven.") from failure
+
+
+def application_release_identity_sha256() -> str:
+    if not os.path.islink(CURRENT_LINK):
+        raise ContractError("Current release symlink missing.")
+    target = os.path.realpath(CURRENT_LINK)
+    if not target.startswith(PROJECT_ROOT + "/releases/"):
+        raise ContractError("Current release target outside immutable release root.")
+    return hashlib.sha256(target.encode("utf-8")).hexdigest()
+
+
+def close_fence() -> None:
+    require_fixed_dir(STATE_DIR, 0o711)
+    if os.path.lexists(FENCE_MARKER):
+        raise ContractError("Fence marker already present.")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(FENCE_MARKER, flags, 0o600)
+    try:
+        os.write(fd, b"closed\n")
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    require_fixed_file(FENCE_MARKER, None, 0o600)
+
+
+def require_fence_closed() -> None:
+    require_fixed_file(FENCE_MARKER, None, 0o600)
+
+
+def open_fence_after_terminal_proof() -> None:
+    require_fence_closed()
+    os.unlink(FENCE_MARKER)
+
+
+def acquire_lock(path: str, create: bool) -> BinaryIO:
+    flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0)
+    if create:
+        flags |= os.O_CREAT
+    fd = os.open(path, flags, 0o600)
+    stream = os.fdopen(fd, "r+b", buffering=0)
+    try:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        stream.close()
+        raise ContractError("Concurrent deploy/refresh transaction collision.") from exc
+    return stream
+
+
+def drain_runtime_sessions() -> None:
+    dbhex = RUNTIME_DB.encode().hex()
+    ids = root_sql(
+        "SELECT ID FROM information_schema.PROCESSLIST "
+        "WHERE DB=CONVERT(0x%s USING utf8mb4) AND ID<>CONNECTION_ID() ORDER BY ID" % dbhex
+    )
+    for raw in [line for line in ids.splitlines() if line]:
+        if not re.fullmatch(r"[0-9]+", raw):
+            raise ContractError("Runtime session identity invalid.")
+        root_sql("KILL " + raw)
+    remaining = root_sql(
+        "SELECT COUNT(*) FROM information_schema.PROCESSLIST "
+        "WHERE DB=CONVERT(0x%s USING utf8mb4) AND ID<>CONNECTION_ID()" % dbhex
+    )
+    if remaining != "0":
+        raise ContractError("Runtime database sessions did not drain.")
+
+
+def atomic_swap(paths: dict[str, str], candidate_tables: list[str], runtime_tables: list[str]) -> None:
+    if candidate_tables != runtime_tables:
+        raise ContractError("Runtime/candidate table sets are incompatible.")
+    require_schema_absent(paths["rollback_db"])
+    root_sql(f"CREATE DATABASE {quote_identifier(paths['rollback_db'])} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+    pairs: list[str] = []
+    for table in runtime_tables:
+        pairs.append(f"{quote_identifier(RUNTIME_DB)}.{quote_identifier(table)} TO {quote_identifier(paths['rollback_db'])}.{quote_identifier(table)}")
+        pairs.append(f"{quote_identifier(paths['candidate_db'])}.{quote_identifier(table)} TO {quote_identifier(RUNTIME_DB)}.{quote_identifier(table)}")
+    root_sql("RENAME TABLE " + ",".join(pairs))
+
+
+def reverse_atomic_swap(paths: dict[str, str]) -> None:
+    runtime_tables = base_tables(RUNTIME_DB)
+    previous_tables = base_tables(paths["rollback_db"])
+    if runtime_tables != previous_tables:
+        raise ContractError("Reverse-swap table sets incompatible.")
+    # Candidate namespace exists and is empty after the forward swap.
+    if not schema_exists(paths["candidate_db"]):
+        raise ContractError("Candidate namespace missing for reverse swap.")
+    pairs: list[str] = []
+    for table in runtime_tables:
+        pairs.append(f"{quote_identifier(RUNTIME_DB)}.{quote_identifier(table)} TO {quote_identifier(paths['candidate_db'])}.{quote_identifier(table)}")
+        pairs.append(f"{quote_identifier(paths['rollback_db'])}.{quote_identifier(table)} TO {quote_identifier(RUNTIME_DB)}.{quote_identifier(table)}")
+    root_sql("RENAME TABLE " + ",".join(pairs))
+
+
+def run_fixed_drupal_convergence(contract: ModuleType, authority: dict[str, Any]) -> dict[str, Any]:
+    current = os.path.realpath(CURRENT_LINK)
+    drush = current + "/vendor/bin/drush"
+    if not os.path.isfile(drush) or not os.access(drush, os.X_OK):
+        raise ContractError("Fixed Drush executable unavailable.")
+    authority = update_active(contract, authority, phase=contract.PHASE_CONVERGENCE_STARTED)
+    commands = (
+        ("updatedb", "-y"),
+        ("config:import", "-y"),
+    )
+    for command in commands:
+        result = subprocess.run([drush, *command], cwd=current, env=CLEAN_ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        if result.returncode != 0:
+            raise ContractError("Fixed Drupal convergence step failed.")
+    split = current + "/config/splits/preproduction"
+    if not os.path.isdir(split):
+        raise ContractError("PREPROD config split directory unavailable.")
+    result = subprocess.run([drush, "config:import", f"--source={split}", "--partial", "-y"], cwd=current, env=CLEAN_ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    if result.returncode != 0:
+        raise ContractError("Fixed PREPROD split import failed.")
+
+    require_fixed_file(ADMIN_RECONCILE_PATH, ADMIN_RECONCILE_SHA256, 0o755)
+    require_fixed_file(ADMIN_RECONCILE_PHP, ADMIN_RECONCILE_PHP_SHA256, 0o644)
+    result = subprocess.run([ADMIN_RECONCILE_PATH], cwd=current, env=CLEAN_ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    if result.returncode != 0:
+        raise ContractError("Fixed PREPROD admin reconciliation failed.")
+
+    for command in (
+        ("emerging:governed-content:validate",),
+        ("emerging:governed-content", "--all", "--dry-run"),
+        ("cache:rebuild",),
+    ):
+        result = subprocess.run([drush, *command], cwd=current, env=CLEAN_ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        if result.returncode != 0:
+            raise ContractError("Fixed post-activation Drupal validation/convergence failed.")
+    # Governed-content APPLY is intentionally absent.
+    return authority
+
+
+def validate_runtime_invariants() -> None:
+    current = os.path.realpath(CURRENT_LINK)
+    validator = current + "/scripts/preproduction/validate-runtime.sh"
+    if not os.path.isfile(validator) or not os.access(validator, os.X_OK):
+        raise ContractError("Canonical PREPROD runtime validator unavailable.")
+    result = subprocess.run([validator], cwd=current, env=CLEAN_ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    if result.returncode != 0:
+        raise ContractError("Canonical PREPROD runtime invariant validation failed.")
+    result = subprocess.run(
+        [CURL_BIN, "--fail", "--silent", "--show-error", "--max-time", "5", INTERNAL_READY_URL],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+        env=CLEAN_ENV,
+        text=True,
+    )
+    if result.returncode != 0 or result.stdout.strip() != '{"status":"ok"}':
+        raise ContractError("Internal Drupal /health/ready validation failed.")
+
+
+def verify_runtime_admin_identity() -> None:
+    current = os.path.realpath(CURRENT_LINK)
+    drush = current + "/vendor/bin/drush"
+    code = r'''$u=user_load_by_name("preprod-admin"); if (!$u || !$u->isActive() || !$u->hasRole("administrator")) { throw new \\RuntimeException("fixed preprod admin missing"); }'''
+    result = subprocess.run([drush, "--quiet", "php:eval", code], cwd=current, env=CLEAN_ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    if result.returncode != 0:
+        raise ContractError("Fixed PREPROD admin invariant absent.")
+
+
+def record_recovery_metadata(authority: dict[str, Any], paths: dict[str, str], reason: str) -> None:
+    require_fixed_dir(RECOVERY_DIR, 0o700)
+    payload = {
+        "schema_version": 1,
+        "authority_id": authority["authority_id"],
+        "successor_issue": authority["successor_issue"],
+        "main_sha": authority["main_sha"],
+        "phase": authority["phase"],
+        "state": authority["state"],
+        "preactivation_runtime_sha256": authority.get("preactivation_runtime_sha256"),
+        "application_release_sha256": authority.get("application_release_sha256"),
+        "backup_sha256": authority.get("backup_sha256"),
+        "backup_bytes": authority.get("backup_bytes"),
+        "backup_basename": os.path.basename(paths["backup"]),
+        "failure_class": reason,
+        "fence": "CLOSED",
+        "human_recovery_required": True,
+    }
+    if os.path.lexists(paths["recovery"]):
+        atomic_json_replace(paths["recovery"], payload)
+    else:
+        write_json_exclusive(paths["recovery"], payload)
+
+
+def drop_schema_if_present(database: str) -> None:
+    if schema_exists(database):
+        root_sql(f"DROP DATABASE {quote_identifier(database)}")
+
+
+def cleanup_transaction_databases(paths: dict[str, str]) -> None:
+    for key in ("staging_db", "candidate_db", "rollback_db"):
+        drop_schema_if_present(paths[key])
+
+
+def rollback_transaction(contract: ModuleType, authority: dict[str, Any], paths: dict[str, str]) -> None:
+    _, state_digest = load_refresh_modules()
+    authority = load_active(contract)
+    if authority["terminal"]:
+        raise ContractError("Terminal authority cannot be reused for rollback.")
+    phase = authority["phase"]
+    pre_sha = authority.get("preactivation_runtime_sha256")
+    release_sha = authority.get("application_release_sha256")
+    backup_sha = authority.get("backup_sha256")
+    authority = update_active(contract, authority, state=contract.STATE_IN_PROGRESS, phase=contract.PHASE_ROLLBACK_STARTED)
+    require_fence_closed()
+    try:
+        if not isinstance(pre_sha, str) or not isinstance(release_sha, str):
+            raise ContractError("Recorded preactivation recovery identity unavailable.")
+        strategy = contract.rollback_strategy(phase)
+        if strategy == "VERIFY_UNCHANGED_OR_EXACT_BACKUP":
+            current_sha = state_digest.runtime_state_sha256()
+            if current_sha != pre_sha:
+                if not isinstance(backup_sha, str):
+                    raise ContractError("Pre-swap runtime changed without verified backup.")
+                state_digest.restore_verified_backup(paths["backup"], backup_sha)
+        elif strategy == "REVERSE_ATOMIC_SWAP_THEN_EXACT_BACKUP_FALLBACK":
+            try:
+                reverse_atomic_swap(paths)
+            except Exception:
+                if not isinstance(backup_sha, str):
+                    raise
+                state_digest.restore_verified_backup(paths["backup"], backup_sha)
+        elif strategy == "EXACT_PREACTIVATION_BACKUP":
+            if not isinstance(backup_sha, str):
+                raise ContractError("Post-convergence rollback requires verified backup.")
+            state_digest.restore_verified_backup(paths["backup"], backup_sha)
+        else:
+            raise ContractError("Unknown fixed rollback strategy.")
+
+        if state_digest.runtime_state_sha256() != pre_sha:
+            raise ContractError("Rollback previous runtime digest verification failed.")
+        if application_release_identity_sha256() != release_sha:
+            raise ContractError("Rollback application release identity changed.")
+        validate_runtime_invariants()
+        verify_runtime_admin_identity()
+        cleanup_transaction_databases(paths)
+        safe_unlink(paths["seal"])
+        safe_unlink(paths["snapshot"])
+        safe_unlink(paths["manifest"])
+        open_fence_after_terminal_proof()
+        terminalize(contract, authority, contract.STATE_ROLLED_BACK)
+        print("ROLLBACK_RECORDED=PASS")
+        print("PREVIOUS_RUNTIME_DIGEST=RESTORED")
+        print("RELEASE_UNCHANGED=PASS")
+        print("FENCE_REOPEN_ONLY_AFTER_PROOF=PASS")
+        print("HUMAN_RECOVERY_REQUIRED=false")
+    except BaseException as exc:
+        try:
+            failed = update_active(
+                contract,
+                authority,
+                state=contract.STATE_FAILED_RECOVERY,
+                phase=contract.PHASE_TERMINAL,
+                terminal=True,
+                human_recovery_required=True,
+            )
+        except Exception:
+            failed = authority
+        record_recovery_metadata(failed, paths, "ROLLBACK_VERIFY_FAILED")
+        print("ROLLBACK_VERIFY_FAILURE=FENCE_CLOSED", file=sys.stderr)
+        print("HUMAN_RECOVERY_REQUIRED=true", file=sys.stderr)
+        raise ContractError("Rollback failed closed; fence remains closed and recovery identity retained.") from exc
+
+
+def action_activate(contract: ModuleType, authority: dict[str, Any]) -> None:
+    paths = derived_paths(contract, authority)
+    require_candidate_seal(authority, paths)
+    _, state_digest = load_refresh_modules()
+    outer = acquire_lock(OUTER_DEPLOY_LOCK, create=False)
+    refresh = acquire_lock(REFRESH_LOCK, create=True)
+    pre_sha: str | None = None
+    release_sha: str | None = None
+    try:
+        pre_sha = state_digest.runtime_state_sha256()
+        release_sha = application_release_identity_sha256()
+        close_fence()
+        authority = update_active(
+            contract,
+            authority,
+            state=contract.STATE_IN_PROGRESS,
+            phase=contract.PHASE_FENCE_CLOSED,
+            preactivation_runtime_sha256=pre_sha,
+            application_release_sha256=release_sha,
+        )
+        drain_runtime_sessions()
+        if application_release_identity_sha256() != release_sha:
+            raise ContractError("Application release changed inside closed fence.")
+        require_fixed_dir(BACKUP_DIR, 0o700)
+        backup_sha, backup_bytes = state_digest.write_verified_backup(paths["backup"])
+        if state_digest.runtime_state_sha256() != pre_sha:
+            raise ContractError("Deterministic backup repeatability proof failed.")
+        authority = update_active(
+            contract,
+            authority,
+            phase=contract.PHASE_BACKUP_VERIFIED,
+            backup_sha256=backup_sha,
+            backup_bytes=backup_bytes,
+        )
+        candidate_tables = base_tables(paths["candidate_db"])
+        runtime_tables = base_tables(RUNTIME_DB)
+        authority = update_active(contract, authority, phase=contract.PHASE_SWAP_ATTEMPTED)
+        atomic_swap(paths, candidate_tables, runtime_tables)
+        authority = update_active(contract, authority, phase=contract.PHASE_SWAPPED)
+        authority = run_fixed_drupal_convergence(contract, authority)
+        validate_runtime_invariants()
+        verify_runtime_admin_identity()
+        if application_release_identity_sha256() != release_sha:
+            raise ContractError("Application release changed during refresh transaction.")
+        authority = update_active(contract, authority, phase=contract.PHASE_RUNTIME_VALIDATED)
+        cleanup_transaction_databases(paths)
+        safe_unlink(paths["seal"])
+        safe_unlink(paths["snapshot"])
+        safe_unlink(paths["manifest"])
+        open_fence_after_terminal_proof()
+        terminalize(contract, authority, contract.STATE_COMMITTED)
+        print("BACKUP_ACTIVATE_CONVERGE_VALIDATE=PASS")
+        print("PREPROD_ADMIN_RECONCILIATION=PASS")
+        print("APPLICATION_RELEASE_CHANGE=NONE")
+        print("GOVERNED_CONTENT_APPLY=FORBIDDEN_NOT_PERFORMED")
+        print("FENCE_REOPEN_ONLY_AFTER_PROOF=PASS")
+    except BaseException as exc:
+        try:
+            active = load_active(contract)
+            if os.path.lexists(FENCE_MARKER) and active["phase"] in {
+                contract.PHASE_FENCE_CLOSED, contract.PHASE_BACKUP_VERIFIED,
+                contract.PHASE_SWAP_ATTEMPTED, contract.PHASE_SWAPPED,
+                contract.PHASE_CONVERGENCE_STARTED, contract.PHASE_RUNTIME_VALIDATED,
+                contract.PHASE_ROLLBACK_STARTED,
+            }:
+                rollback_transaction(contract, active, paths)
+            else:
+                # Failure before the transaction fence/swap: no runtime mutation
+                # authority was exercised. Prove unchanged before terminal reuse.
+                if pre_sha is None or release_sha is None:
+                    raise ContractError("Pre-fence runtime identity was not captured.")
+                if state_digest.runtime_state_sha256() != pre_sha:
+                    raise ContractError("Pre-fence failure changed runtime unexpectedly.")
+                if application_release_identity_sha256() != release_sha:
+                    raise ContractError("Pre-fence failure changed application release.")
+                cleanup_transaction_databases(paths)
+                safe_unlink(paths["seal"])
+                terminalize(contract, active, contract.STATE_ROLLED_BACK)
+        except Exception as rollback_exc:
+            raise ContractError("Activation failed and terminal rollback did not complete.") from rollback_exc
+        raise ContractError("Activation transaction failed; exact previous runtime restored or unchanged proven.") from exc
+    finally:
+        refresh.close()
+        outer.close()
+
+
+def action_rollback(contract: ModuleType, authority: dict[str, Any]) -> None:
+    paths = derived_paths(contract, authority)
+    outer = acquire_lock(OUTER_DEPLOY_LOCK, create=False)
+    refresh = acquire_lock(REFRESH_LOCK, create=True)
+    try:
+        rollback_transaction(contract, authority, paths)
+    finally:
+        refresh.close()
+        outer.close()
+
+
+def dispatch(contract: ModuleType, operation: dict[str, Any]) -> None:
+    authority = load_active(contract)
+    try:
+        contract.validate_operation_binding(authority, operation)
+    except Exception as exc:
+        raise ContractError("Transaction authority/action/phase binding rejected.") from exc
+    if operation["action"] == contract.IMPORT:
+        action_import(contract, authority)
+        return
+    if operation["action"] == contract.ACTIVATE:
+        action_activate(contract, authority)
+        return
+    if operation["action"] == contract.ROLLBACK:
+        action_rollback(contract, authority)
+        return
+    raise ContractError("Invalid fixed action dispatch.")
+
+
+def main() -> int:
+    if os.geteuid() != 0:
+        raise ContractError("Privileged helper must execute as root.")
+    for path, mode in (
+        (STATE_DIR, 0o711), (AUTHORITY_DIR, 0o700), (HISTORY_DIR, 0o700),
+        (RECOVERY_DIR, 0o700), (INCOMING_DIR, 0o700), (CANDIDATE_DIR, 0o700),
+        (BACKUP_DIR, 0o700),
+    ):
+        require_fixed_dir(path, mode)
+    contract = load_contract()
+    operation = parse_operation(contract)
+    # Serialize helper state transitions with ingress/authority installation.
+    authority_lock = acquire_lock(AUTHORITY_LOCK, create=True)
+    try:
+        dispatch(contract, operation)
+    finally:
+        authority_lock.close()
+    return 0
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (ContractError, OSError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(80)

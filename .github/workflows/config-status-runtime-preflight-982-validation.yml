@@ -1,0 +1,178 @@
+name: "#982 config status runtime preflight validation"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/config-status-runtime-preflight-982-validation.yml'
+      - '.github/workflows/config-sync-runtime-diagnostic.yml'
+      - '.github/workflows/prod-config-sync-runtime-diagnostic.yml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - 'scripts/runner/run-config-sync-runtime-diagnostic-961.sh'
+      - 'scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh'
+      - 'scripts/runner/filter-config-status-metadata.php'
+      - 'scripts/runner/run-configuration-language-audit.sh'
+      - 'scripts/runner/configuration-language-audit.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    name: "#982 static metadata-only contracts"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Validate shell, parser, workflow and forbidden diff boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/runner/run-config-sync-runtime-diagnostic-961.sh
+          bash -n scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh
+          php -l scripts/runner/filter-config-status-metadata.php
+          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color \
+            .github/workflows/config-status-runtime-preflight-982-validation.yml \
+            .github/workflows/config-sync-runtime-diagnostic.yml \
+            .github/workflows/prod-config-sync-runtime-diagnostic.yml \
+            .github/workflows/agency-command-dispatch.yml
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          changed="$(git diff --name-only "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}")"
+          if grep -Eq '^(composer\.json|composer\.lock|docs/configuration-language-policy\.yml|config/sync/)' <<<"$changed"; then
+            printf '%s\n' "$changed" >&2
+            exit 1
+          fi
+      - name: Install exact locked dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Prove metadata-only contracts
+        run: >-
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+
+  fresh-ddev-rebaseline:
+    name: "#982 fresh DDEV configuration-language rebaseline"
+    needs: static-validation
+    if: ${{ github.event.pull_request.head.ref != 'diagnostic/995-canvas-runtime-diff-paths' }}
+    timeout-minutes: 30
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact checkout and existing #609 primitive
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_HEAD" ]]
+          test -f docs/configuration-language-policy.yml
+          test -f scripts/runner/run-configuration-language-audit.sh
+          test -f scripts/runner/configuration-language-audit.php
+          bash -n scripts/runner/run-configuration-language-audit.sh
+          git diff --check
+      - name: Isolate fresh DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-982.yaml <<EOF
+          name: agency-config-language-982-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-config-language-982-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+      - name: Rebuild Drupal from repository-owned configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev exec php -l /var/www/html/scripts/runner/configuration-language-audit.php
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+      - name: Capture current #609 baseline without import/export/cache mutation
+        shell: bash
+        env:
+          TARGET_DIR: ${{ github.workspace }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/configuration-language-audit
+          TRUSTED_MAIN: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/runner/run-configuration-language-audit.sh
+      - name: Prove lock remains disabled and settings absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/config-status-runtime-preflight-982
+          # shellcheck disable=SC2016
+          ddev drush php:eval '
+            $enabled = \Drupal::moduleHandler()->moduleExists("config_language_lock");
+            $settings = \Drupal::service("config.storage")->read("config_language_lock.settings");
+            echo json_encode([
+              "config_language_lock_enabled" => $enabled,
+              "config_language_lock_settings_present" => is_array($settings),
+            ], JSON_THROW_ON_ERROR);
+          ' > artifacts/config-status-runtime-preflight-982/lock-state.json
+          jq -e '.config_language_lock_enabled == false and .config_language_lock_settings_present == false' \
+            artifacts/config-status-runtime-preflight-982/lock-state.json >/dev/null
+      - name: Materialize bounded fresh-DDEV result
+        shell: bash
+        run: |
+          set -euo pipefail
+          audit='artifacts/configuration-language-audit'
+          out='artifacts/config-status-runtime-preflight-982/fresh-ddev.json'
+          grep -Fq 'No differences' "$audit/config-status.txt"
+          jq -n \
+            --arg config_status 'CLEAN' \
+            --arg policy_status "$(jq -r '.policy.status' "$audit/snapshot.json")" \
+            --arg canonical_language "$(jq -r '.policy.canonical_configuration_language' "$audit/snapshot.json")" \
+            --arg site_default_language "$(jq -r '.drupal.site_default_language' "$audit/snapshot.json")" \
+            --argjson lock_enabled "$(jq '.config_language_lock_enabled' artifacts/config-status-runtime-preflight-982/lock-state.json)" \
+            --argjson lock_settings_present "$(jq '.config_language_lock_settings_present' artifacts/config-status-runtime-preflight-982/lock-state.json)" \
+            '{schema_version:1,fresh_ddev_config_status:$config_status,current_policy_status:$policy_status,current_canonical_language:$canonical_language,current_site_default_language:$site_default_language,config_language_lock_enabled:$lock_enabled,config_language_lock_settings_present:$lock_settings_present}' \
+            > "$out"
+          jq -e '.fresh_ddev_config_status == "CLEAN" and .current_policy_status == "migration_required" and .current_canonical_language == "en" and .current_site_default_language == "fr" and .config_language_lock_enabled == false and .config_language_lock_settings_present == false' "$out" >/dev/null
+      - name: Upload bounded fresh-DDEV evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-status-preflight-982-ddev-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/config-status-runtime-preflight-982/fresh-ddev.json
+            artifacts/configuration-language-audit/result.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-982.yaml
+          rm -rf artifacts/configuration-language-audit artifacts/config-status-runtime-preflight-982
+          rmdir artifacts 2>/dev/null || true
+          git restore --worktree -- config/sync web/robots.txt 2>/dev/null || true
+          git clean -fd -- config/sync
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi

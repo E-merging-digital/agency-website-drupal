@@ -1,0 +1,82 @@
+# #873/#956 — DDEV-native pull-only consumer for immutable sanitized seeds.
+#
+# The location is fixed by the publisher contract. Consumers configure only the
+# dedicated restricted reader SSH target locally and expose its key with
+# `ddev auth ssh`. No PROD or PREPROD runtime credential is accepted here.
+db_pull_command:
+  command: |
+    set -eu -o pipefail
+    umask 077
+
+    : "${AGENCY_SEED_SSH_TARGET:?Configure AGENCY_SEED_SSH_TARGET locally}"
+    case "$AGENCY_SEED_SSH_TARGET" in
+      agency-preprod@*) ;;
+      *)
+        echo "AGENCY_SEED_SSH_TARGET must use the restricted agency-preprod reader identity" >&2
+        exit 2
+        ;;
+    esac
+    host="${AGENCY_SEED_SSH_TARGET#agency-preprod@}"
+    case "$host" in
+      ''|*[!A-Za-z0-9.-]*)
+        echo "Unsafe Development Seed host" >&2
+        exit 2
+        ;;
+    esac
+
+    remote_root=/var/www/agency-preprod/shared/development-seeds/current
+    downloads=/var/www/html/.ddev/.downloads
+    metadata="$downloads/agency-seed.json"
+    database="$downloads/db.sql.gz"
+    known_hosts="$downloads/agency-seed-known-hosts"
+    pinned=/var/www/html/scripts/preproduction-ssh-trust/preprod-ed25519.pub
+    mkdir -p "$downloads"
+    chmod 700 "$downloads"
+    rm -f -- "$metadata" "$database" "$known_hosts"
+
+    cleanup_failed_download() {
+      rm -f -- "$metadata" "$database" "$known_hosts"
+    }
+    trap cleanup_failed_download HUP INT TERM EXIT
+
+    test -f "$pinned"
+    read -r key_type key_blob _ < "$pinned"
+    test "$key_type" = ssh-ed25519
+    case "$key_blob" in ''|*[!A-Za-z0-9+/=]*) exit 2;; esac
+    printf '%s %s %s\n' "$host" "$key_type" "$key_blob" > "$known_hosts"
+    chmod 600 "$known_hosts"
+
+    # -O intentionally selects the legacy SCP protocol: the server-side reader
+    # key is restricted with an authorized_keys forced command that accepts only
+    # `scp -f` for these two fixed current-seed files.
+    scp -O -q -o BatchMode=yes -o IdentitiesOnly=no \
+      -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -- \
+      "${AGENCY_SEED_SSH_TARGET}:${remote_root}/seed.json" "$metadata"
+    scp -O -q -o BatchMode=yes -o IdentitiesOnly=no \
+      -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -- \
+      "${AGENCY_SEED_SSH_TARGET}:${remote_root}/database.sql.gz" "$database"
+    chmod 600 "$metadata" "$database"
+    rm -f -- "$known_hosts"
+
+    php /var/www/html/scripts/development-seed/verify-seed.php \
+      --metadata="$metadata" \
+      --database="$database" \
+      --repository=/var/www/html \
+      --checkout-ref=HEAD
+
+    # Keep the verified candidate only for DDEV's native import and post-pull
+    # hook. DDEV owns the database import lifecycle.
+    trap - HUP INT TERM EXIT
+
+files_pull_command:
+  command: |
+    set -eu -o pipefail
+    # Development Seed v1 is database-only by contract.
+    true
+
+files_import_command:
+  command: |
+    set -eu -o pipefail
+    # Explicit no-op: public files are out of scope and private files are never
+    # transported. This keeps plain `ddev pull agency` database-only.
+    true

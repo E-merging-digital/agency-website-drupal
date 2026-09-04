@@ -1,0 +1,101 @@
+name: Validate current PREPROD SSH trust governance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-914-governed-successor.yml'
+      - '.github/workflows/preprod-ssh-trust-validation.yml'
+      - 'scripts/preproduction-refresh/governed-successor/run-apply.sh'
+      - 'scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
+      - 'scripts/preproduction-ssh-trust/**'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-preprod-ssh-trust:
+    name: Prove current #914 pinned PREPROD trust and fail-closed behavior
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Validate exact pinned trust and current #914 binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager='scripts/preproduction-ssh-trust/manage-known-host.sh'
+          verifier='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
+          apply='scripts/preproduction-refresh/governed-successor/run-apply.sh'
+          bash -n "$manager" "$verifier" "$apply"
+          read -r key_type key_blob _ < scripts/preproduction-ssh-trust/preprod-ed25519.pub
+          test "$key_type" = 'ssh-ed25519'
+          test "$key_blob" = 'AAAAC3NzaC1lZDI1NTE5AAAAIGh7BlJYlVE0rWVDBbzvV8alYpn+1ue1WnplrhavORWA'
+          fingerprint="$(ssh-keygen -lf scripts/preproduction-ssh-trust/preprod-ed25519.pub -E sha256 | awk '{print $2}')"
+          test "$fingerprint" = 'SHA256:eVHEHd6Xakhu6ZCeGCNzhCO62aSR81bq8E4j34Z1nhU'
+          grep -Fxq "$fingerprint" scripts/preproduction-ssh-trust/preprod-ed25519.sha256
+          python3 - <<'PY'
+          from pathlib import Path
+          apply = Path('scripts/preproduction-refresh/governed-successor/run-apply.sh').read_text()
+          verifier = Path('scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh').read_text()
+          manager = Path('scripts/preproduction-ssh-trust/manage-known-host.sh').read_text()
+          assert "PREPROD_TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'" in apply
+          trust = apply.index('bash "$PREPROD_TRUST"')
+          transfer = apply.index('ssh -i "$PREPROD_SSH_KEY"', trust)
+          assert trust < transfer
+          assert 'StrictHostKeyChecking=yes' in apply
+          assert 'UserKnownHostsFile="$HOME/.ssh/known_hosts"' in apply
+          for source in (apply, verifier, manager):
+              assert 'StrictHostKeyChecking=no' not in source
+              assert 'accept-new' not in source
+              assert 'ssh-keyscan' not in source
+          print('CURRENT_PREPROD_PINNED_TRUST=PASS')
+          print('NETWORK_DERIVED_TRUST=NONE')
+          PY
+
+      - name: Prove verifier fail-closed and exact pinned evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager="$GITHUB_WORKSPACE/scripts/preproduction-ssh-trust/manage-known-host.sh"
+          verifier="$GITHUB_WORKSPACE/scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          host='preprod.example.invalid'
+
+          mkdir -p "$tmp/absent/.ssh"
+          chmod 700 "$tmp/absent/.ssh"
+          : > "$tmp/absent/.ssh/known_hosts"
+          chmod 600 "$tmp/absent/.ssh/known_hosts"
+          if HOME="$tmp/absent" PREPROD_SERVER_HOST="$host" bash "$manager" VERIFY_ONLY; then
+            exit 1
+          fi
+
+          ssh-keygen -q -t ed25519 -N '' -f "$tmp/wrong" >/dev/null
+          read -r wrong_type wrong_blob _ < "$tmp/wrong.pub"
+          mkdir -p "$tmp/wrong-home/.ssh"
+          chmod 700 "$tmp/wrong-home/.ssh"
+          printf '%s %s %s\n' "$host" "$wrong_type" "$wrong_blob" > "$tmp/wrong-home/.ssh/known_hosts"
+          chmod 600 "$tmp/wrong-home/.ssh/known_hosts"
+          if HOME="$tmp/wrong-home" PREPROD_SERVER_HOST="$host" bash "$manager" VERIFY_ONLY; then
+            exit 1
+          fi
+
+          read -r pinned_type pinned_blob _ < scripts/preproduction-ssh-trust/preprod-ed25519.pub
+          mkdir -p "$tmp/home/.ssh"
+          chmod 700 "$tmp/home/.ssh"
+          printf '%s %s %s\n' "$host" "$pinned_type" "$pinned_blob" > "$tmp/home/.ssh/known_hosts"
+          chmod 600 "$tmp/home/.ssh/known_hosts"
+          evidence="$(cd "$GITHUB_WORKSPACE" && HOME="$tmp/home" PREPROD_SERVER_HOST="$host" PREPROD_KNOWN_HOSTS_FILE="$tmp/home/.ssh/known_hosts" bash "$verifier")"
+          grep -Fxq 'PREPROD_PINNED_TRUST=PASS' <<< "$evidence"
+          grep -Fxq 'PREPROD_KNOWN_HOSTS_ENTRY_COUNT=1' <<< "$evidence"
+          grep -Fxq 'PREPROD_KNOWN_HOSTS_KEY_TYPE=ssh-ed25519' <<< "$evidence"
+          grep -Fxq 'PREPROD_KNOWN_HOSTS_KEY_BLOB_MATCH=PASS' <<< "$evidence"
+          grep -Fxq 'PREPROD_FINGERPRINT=SHA256:eVHEHd6Xakhu6ZCeGCNzhCO62aSR81bq8E4j34Z1nhU' <<< "$evidence"
+          grep -Fxq 'PREPROD_TRUST_SOURCE=OUT_OF_BAND_PREPROD_CONSOLE' <<< "$evidence"
+          grep -Fxq 'PREPROD_STRICT_HOST_KEY_CHECKING=YES' <<< "$evidence"
+          printf '%s\n' 'PREPROD_TRUST_FAIL_CLOSED_MATRIX=PASS'

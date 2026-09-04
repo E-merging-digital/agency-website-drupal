@@ -1,0 +1,239 @@
+name: "#956 Development Seed publish"
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+  pull_request:
+    paths:
+      - ".github/workflows/development-seed-publish.yml"
+      - ".github/workflows/agency-command-dispatch.yml"
+      - ".ddev/providers/agency.yaml"
+      - ".ddev/config.development-seed.yaml"
+      - "scripts/development-seed/**"
+      - "docs/operations/development-seed.md"
+      - "docs/operations/execution-capabilities.md"
+      - "web/modules/custom/agency_project_tests/tests/src/Unit/DevelopmentSeedContractTest.php"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-development-seed-${{ github.event.issue.number || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  static-validation:
+    name: "#956 static Development Seed contract"
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate bounded publisher surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/development-seed/validate-publish-authority.py
+          for script in \
+            scripts/development-seed/remote-readonly-preprod-source.sh \
+            scripts/development-seed/remote-storage.sh \
+            scripts/development-seed/remote-read-only-scp.sh \
+            scripts/development-seed/remote-reader-key.sh \
+            scripts/development-seed/run-publish.sh; do
+            bash -n "$script"
+          done
+          php scripts/development-seed/test-contract.php
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+  validate-authority:
+    name: Validate one-shot #956 publication authority
+    if: ${{ github.event_name == 'issue_comment' && github.event.issue.number == 956 && github.event.issue.pull_request == null }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      request_id: ${{ steps.authority.outputs.request_id }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      source_refresh: ${{ steps.authority.outputs.source_refresh }}
+      source_release: ${{ steps.authority.outputs.source_release }}
+    steps:
+      - id: live
+        name: Resolve exact live main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live" =~ ^[0-9a-f]{40}$ ]]
+          echo "main_sha=$live" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.live.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - id: authority
+        name: Validate fresh owner command
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LIVE_MAIN: ${{ steps.live.outputs.main_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          issue="$RUNNER_TEMP/issue.json"
+          comments="$RUNNER_TEMP/comments.json"
+          trap 'rm -f -- "$issue" "$comments"' EXIT
+          gh api "repos/$GITHUB_REPOSITORY/issues/956" > "$issue"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/956/comments?per_page=100" > "$comments"
+          python3 scripts/development-seed/validate-publish-authority.py \
+            --issue-json "$issue" \
+            --comments-json "$comments" \
+            --authority-issue-number 956 \
+            --comment-body "$COMMENT_BODY" \
+            --comment-author "$COMMENT_AUTHOR" \
+            --github-actor "$GITHUB_ACTOR" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --event-action "$EVENT_ACTION" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --live-main "$LIVE_MAIN" \
+            --github-output "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish and prove Development Seed
+    needs: validate-authority
+    if: ${{ needs.validate-authority.result == 'success' }}
+    runs-on: [self-hosted, linux, x64, agency, ddev]
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: JIT revalidate authority before PREPROD secret materialization
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_ACTION: ${{ github.event.action }}
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$live" = "${{ needs.validate-authority.outputs.main_sha }}"
+          test "$(git rev-parse HEAD)" = "$live"
+          issue="$RUNNER_TEMP/jit-issue.json"
+          comments="$RUNNER_TEMP/jit-comments.json"
+          trap 'rm -f -- "$issue" "$comments"' EXIT
+          gh api "repos/$GITHUB_REPOSITORY/issues/956" > "$issue"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/956/comments?per_page=100" > "$comments"
+          python3 scripts/development-seed/validate-publish-authority.py \
+            --issue-json "$issue" \
+            --comments-json "$comments" \
+            --authority-issue-number 956 \
+            --comment-body "$COMMENT_BODY" \
+            --comment-author "$COMMENT_AUTHOR" \
+            --github-actor "$GITHUB_ACTOR" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --event-action "$EVENT_ACTION" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --live-main "$live" \
+            --checked-out-head "$live" \
+            --expected-request-id "${{ needs.validate-authority.outputs.request_id }}" \
+            --expected-main "$live" \
+            --expected-source-refresh "${{ needs.validate-authority.outputs.source_refresh }}" \
+            --expected-source-release "${{ needs.validate-authority.outputs.source_release }}"
+
+      - name: Materialize transient PREPROD read/deploy identity after JIT
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_KEY"
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-956-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-956-preprod.key"
+
+      - id: publish
+        name: Generate, publish and prove through existing DDEV provider
+        env:
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          SOURCE_PREPROD_REFRESH_ID: ${{ needs.validate-authority.outputs.source_refresh }}
+          SOURCE_PREPROD_RELEASE_SHA: ${{ needs.validate-authority.outputs.source_release }}
+          PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-956-preprod.key
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        shell: bash
+        run: bash scripts/development-seed/run-publish.sh
+
+      - name: Publish bounded metadata-only proof
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROUTE_OUTCOME: ${{ steps.publish.outcome }}
+          TRUSTED_MAIN: ${{ needs.validate-authority.outputs.main_sha }}
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          SOURCE_REFRESH: ${{ needs.validate-authority.outputs.source_refresh }}
+          SOURCE_RELEASE: ${{ needs.validate-authority.outputs.source_release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/development-seed/result.env'
+          heading='### Agency Development Seed publish FAILED'
+          seed_id='n/a'
+          database_sha='n/a'
+          ddev_pull='NOT_PROVEN'
+          cleanup='NOT_PROVEN'
+          if [[ "$ROUTE_OUTCOME" == success && -s "$result" ]]; then
+            seed_id="$(grep -m1 '^seed_id=' "$result" | cut -d= -f2-)"
+            database_sha="$(grep -m1 '^database_sha256=' "$result" | cut -d= -f2-)"
+            ddev_pull="$(grep -m1 '^ddev_pull_agency=' "$result" | cut -d= -f2-)"
+            cleanup="$(grep -m1 '^temporary_generation_material=' "$result" | cut -d= -f2-)"
+            [[ "$seed_id" =~ ^agency-development-seed-v1-seed-956-[A-Za-z0-9._-]{8,40}-r1$ ]]
+            [[ "$database_sha" =~ ^[0-9a-f]{64}$ ]]
+            [[ "$ddev_pull" == REAL_SUCCESS && "$cleanup" == ABSENT ]]
+            heading='### Agency Development Seed publish PASS'
+          fi
+          body="$(cat <<EOF_BODY
+          ${heading}
+
+          request_id: \`${REQUEST_ID}\`
+          trusted_main: \`${TRUSTED_MAIN}\`
+          source_preprod_refresh: \`${SOURCE_REFRESH}\`
+          source_preprod_release: \`${SOURCE_RELEASE}\`
+          seed_id: \`${seed_id}\`
+          database_sha256: \`${database_sha}\`
+          ddev_pull_agency: \`${ddev_pull}\`
+          temporary_generation_material: \`${cleanup}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          route_outcome: \`${ROUTE_OUTCOME}\`
+
+          Evidence is metadata-only. No database, PREPROD value, secret or PII is uploaded to GitHub.
+          EOF_BODY
+          )"
+          gh issue comment 956 --repo "$GITHUB_REPOSITORY" --body "$body"
+
+      - name: Cleanup workflow PREPROD identity
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-956-preprod.key"

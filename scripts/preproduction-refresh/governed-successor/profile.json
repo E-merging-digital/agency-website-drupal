@@ -1,0 +1,102 @@
+{
+  "schema_version": 6,
+  "issue_number": 914,
+  "parent_issue": 816,
+  "temporary_execution_issue": 938,
+  "profile_id": "agency-preprod-refresh-simple-v1",
+  "adr": "ADR-003-use-existing-first",
+  "decision": "EXTEND_EXISTING",
+  "state": "SOURCE_ONLY_NOT_EXECUTION_AUTHORITY",
+  "execution_authority": {
+    "implementation_issue_may_execute": false,
+    "authority_issue_must_be_greater_than": 920,
+    "modes": ["PLAN", "APPLY"],
+    "run_attempt": 1,
+    "github_transactional_state": "NONE",
+    "historical_recovery_target": "NONE"
+  },
+  "drush": {
+    "locked_version": "13.7.6",
+    "reused": ["sql:dump", "sql:cli", "sql:drop", "sql:sanitize", "maint:set", "updb", "cim", "cr"],
+    "activation_reused": ["sql:dump", "sql:cli", "sql:drop", "maint:set", "updb", "cim", "cr"],
+    "legacy_trusted_runner_sanitization_source_retained": true
+  },
+  "raw_staging": {
+    "surface": "CONTROLLED_SERVER_TO_SERVER_PREPROD_DERIVED_STAGING",
+    "database": "PREPROD_MARIADB_DERIVED_REQUEST_SCOPE",
+    "route": "PROD_TO_PREPROD_DIRECT",
+    "github_hosted_raw_data": "FORBIDDEN",
+    "preprod_live_runtime_access": "FORBIDDEN",
+    "isolation_order": ["REQUEST_SCOPED_ROOT_IDENTITY", "DIRECT_PROD_READ_ONLY_STREAM", "DERIVED_STAGING_IMPORT", "SANITIZE_ASSERT", "EXPORT_SANITIZED_ONLY", "DESTROY_STAGING", "REMOVE_PROD_IDENTITY", "ACTIVATE"],
+    "external_egress_before_sanitize": "FIXED_PINNED_READ_ONLY_PROD_SNAPSHOT_ROUTE_ONLY",
+    "raw_sql_file": "NONE",
+    "raw_sql_workspace": "FORBIDDEN",
+    "raw_sql_github_artifact": "FORBIDDEN"
+  },
+  "sanitization": {
+    "policy": "agency-preprod-refresh-v1",
+    "policy_count": 1,
+    "implementation": "EXISTING_ROOT_OWNED_AGENCY_PREPROD_STAGING_SANITIZER",
+    "semantic_outcome": "EQUIVALENT_TO_914_REQUIRED_CLASSES",
+    "assertions_before_export": true,
+    "sanitized_sql_only_after_assertions": true
+  },
+  "agency_sanitization_gaps": [
+    "usernames", "webform", "flood", "watchdog", "queues", "cache_state",
+    "batch_temp_state", "persisted_provider_credentials", "project_specific_runtime_state"
+  ],
+  "preprod_apply": {
+    "control_plane": "GITHUB_HOSTED_METADATA_SECRETS_SCRIPTS_ONLY",
+    "preparation_worker": "DETACHED_REQUEST_SCOPED_ROOT_PREPROD",
+    "activation_worker": "EXISTING_DETACHED_NON_ROOT_REMOTE_APPLY_WORKER",
+    "input": "SANITIZED_SQL_ONLY",
+    "prod_read_identity": "READ_ONLY_ROUTE_REQUEST_SCOPED_TRANSIENT_ROOT_ONLY",
+    "prod_read_identity_removed_before_activation": true,
+    "downtime": "BOUNDED_MAINTENANCE_ACCEPTED",
+    "backup_before_destructive_replace": true,
+    "replacement": ["maint:set 1", "sql:drop", "sql:cli", "updb", "cim", "PREPROD_CONFIG_SPLIT", "ADMIN_RECONCILE", "VALIDATE", "cr", "maint:set 0"],
+    "success": "COMMITTED",
+    "failure_before_activation": "ROLLED_BACK_NO_PREPROD_RUNTIME_MUTATION",
+    "failure_after_destructive_step": "RESTORE_EXACT_BACKUP_AND_VALIDATE",
+    "rollback_success": "ROLLED_BACK",
+    "rollback_unprovable": "HUMAN_RECOVERY_REQUIRED_MAINTENANCE_ON"
+  },
+  "hard_runner_loss": {
+    "before_preprod_worker": "NO_PREPROD_RUNTIME_MUTATION",
+    "after_preprod_worker": "WORKER_INDEPENDENT_OF_GITHUB_HOSTED_CONTROL_PLANE",
+    "terminal_results": ["COMMITTED", "ROLLED_BACK", "HUMAN_RECOVERY_REQUIRED"],
+    "github_reconstruction": "NONE",
+    "recover_current": "NONE"
+  },
+  "merged_capabilities": {
+    "915_present": true,
+    "917_present": true,
+    "operational_dependency": "NONE"
+  },
+  "files": {
+    "public": "OUT_OF_SCOPE_STAGE_FILE_PROXY_RECOMMENDATION_ONLY",
+    "private": "EXCLUDED"
+  },
+  "invariants": {
+    "prod_write": "NONE",
+    "raw_prod_github": "NONE",
+    "raw_prod_log": "NONE",
+    "raw_prod_artifact": "NONE",
+    "preprod_settings_secrets": "ENVIRONMENT_OWNED",
+    "caller_generic_root_execution": "NONE",
+    "data_activation_authority": "DISABLED"
+  },
+  "temporary_route": {
+    "reason": "SELF_HOSTED_AGENCY_RUNNER_UNAVAILABLE",
+    "retireable": true,
+    "permanent_multi_provider_framework": "NONE"
+  },
+  "delivery_boundary": {
+    "real_plan": "NONE",
+    "real_apply": "NONE",
+    "real_prod_read": "NONE",
+    "real_preprod_mutation": "NONE",
+    "secret_consumption": "NONE",
+    "merge": "FORBIDDEN"
+  }
+}

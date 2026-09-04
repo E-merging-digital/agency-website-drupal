@@ -1,0 +1,151 @@
+name: Validate PREPRODUCTION bootstrap
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/build-release-candidate.yml'
+      - '.github/workflows/deploy-preproduction.yml'
+      - '.github/workflows/preproduction-bootstrap-validation.yml'
+      - '.github/workflows/preproduction-data-refresh-plan.yml'
+      - 'config/splits/preproduction/**'
+      - 'config/sync/config_split.config_split.preproduction.yml'
+      - 'docs/operations/preproduction-data-refresh.md'
+      - 'playwright.config.mjs'
+      - 'scripts/preproduction/**'
+      - 'scripts/preproduction-refresh/**'
+      - 'scripts/run-browser-validation.mjs'
+      - 'tests/browser/**'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionDataRefreshPlanTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionHostBootstrapTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-preproduction-bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Validate PREPROD shell and browser syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/preproduction/bootstrap-host.sh
+          bash -n scripts/preproduction/deploy-candidate.sh
+          bash -n scripts/preproduction/launch-deploy.sh
+          bash -n scripts/preproduction/inspect-deploy.sh
+          bash -n scripts/preproduction/validate-runtime.sh
+          bash -n scripts/preproduction/reconcile-basic-auth.sh
+          bash -n scripts/preproduction-refresh/plan.sh
+          jq -e . scripts/preproduction-refresh/sanitization-policy.json >/dev/null
+          node --check playwright.config.mjs
+          node --check tests/browser/public-blog.spec.mjs
+      - name: Validate PREPROD templates and immutable deploy boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'max_allowed_packet=64M' scripts/preproduction/bootstrap-host.sh
+          grep -Fq 'mariadb-11.8' scripts/preproduction/bootstrap-host.sh
+          grep -Fq 'sendmail_path = /bin/true' scripts/preproduction/bootstrap-host.sh
+          grep -Fq 'auth_basic off' scripts/preproduction/nginx-agency-preprod.conf.template
+          grep -Fq 'sha256sum -c' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'ARTIFACTS_DIR="$SHARED_DIR/artifacts"' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'scripts/preproduction/settings.php.template' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'source "$RUNTIME_ENV"' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'reconcile_settings' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'mv -f "$SETTINGS_TMP" "$SETTINGS_FILE"' scripts/preproduction/deploy-candidate.sh
+          grep -Fq "agency_external_ai_egress_enabled'] = FALSE" scripts/preproduction/settings.php.template
+          ! grep -Fq 'openssl rand' scripts/preproduction/deploy-candidate.sh
+          ! grep -Fq 'composer install' scripts/preproduction/deploy-candidate.sh
+          ! grep -Fq 'git clone' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'side_effects=PASS' scripts/preproduction/validate-runtime.sh
+          grep -Fq 'oom_kill_count=' scripts/preproduction/validate-runtime.sh
+          grep -Fq 'sendmail_path' scripts/preproduction/validate-runtime.sh
+          grep -Fq 'scripts/preproduction/validate-runtime.sh' .github/workflows/deploy-preproduction.yml
+          grep -Fq 'scripts/preproduction/reconcile-basic-auth.sh' .github/workflows/deploy-preproduction.yml
+          grep -Fq 'basic_auth_credentials=PASS' scripts/preproduction/reconcile-basic-auth.sh
+          grep -Fq 'basic_auth_reconciliation_method=NO_PRIVILEGED_WRITE' scripts/preproduction/reconcile-basic-auth.sh
+          grep -Fq 'sudo -n install -o root -g www-data -m 640' scripts/preproduction/reconcile-basic-auth.sh
+          grep -Fq 'curl --silent --show-error --location' .github/workflows/deploy-preproduction.yml
+          grep -Fq 'db-${TIMESTAMP}-${EXPECTED_SHA:0:12}.sql"' scripts/preproduction/deploy-candidate.sh
+          grep -Fq -- "-name 'db-*.sql.gz.gz'" scripts/preproduction/deploy-candidate.sh
+          grep -Fq "release_retention='WARNING'" scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'active candidate remains valid' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'emerging:governed-content:validate' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'emerging:governed-content --all --dry-run' scripts/preproduction/deploy-candidate.sh
+          grep -Fq 'emerging:governed-content --all' scripts/preproduction/deploy-candidate.sh
+          grep -Fq "governed_content='PASS'" scripts/preproduction/deploy-candidate.sh
+          ! grep -Fq 'drush" list --format=list' scripts/preproduction/deploy-candidate.sh
+          test -f tests/browser/contracts/public-blog.json
+          test -f tests/browser/contracts/production-editorial-401.json
+          grep -Fq "'public-blog.json': '**/public-blog.spec.mjs'" playwright.config.mjs
+          grep -Fq "'production-editorial-401.json': '**/production-editorial-article.spec.mjs'" playwright.config.mjs
+          grep -Fq 'testMatch: contractTestMatch' playwright.config.mjs
+          grep -Fq 'Unsupported BROWSER_VALIDATION_CONTRACT' playwright.config.mjs
+          grep -Fq 'assert.deepEqual(Object.keys(contract).sort(), requiredTopLevelKeys.sort())' tests/browser/production-editorial-article.spec.mjs
+          grep -Fq "window.matchMedia('(max-width: 48rem)').matches" tests/browser/public-blog.spec.mjs
+          ! grep -Fq "if (await toggle.isVisible())" tests/browser/public-blog.spec.mjs
+          grep -Fq "const drawerLink = drawer.getByRole('link'" tests/browser/public-blog.spec.mjs
+          grep -Fq "await expect(drawerLink).toBeVisible()" tests/browser/public-blog.spec.mjs
+      - name: Validate PREPROD data-refresh PLAN safety boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/preproduction-data-refresh-plan.yml'
+          policy='scripts/preproduction-refresh/sanitization-policy.json'
+          script='scripts/preproduction-refresh/plan.sh'
+          sha="$(git rev-parse HEAD)"
+
+          grep -Fq 'workflow_dispatch:' "$workflow"
+          ! grep -Fq 'secrets.' "$workflow"
+          grep -Fq 'path: artifacts/preproduction-refresh-plan/plan.env' "$workflow"
+          ! grep -Fq '*.sql' "$workflow"
+          ! grep -Fq '*.sql.gz' "$workflow"
+          ! grep -Fq 'scp ' "$workflow"
+          ! grep -Fq 'ssh ' "$workflow"
+          ! grep -Fq 'rsync ' "$workflow"
+          ! grep -Fq 'sql:dump' "$workflow"
+
+          jq -e '.future_apply.implemented == false' "$policy" >/dev/null
+          jq -e '.future_apply.owner_authorization_required == true' "$policy" >/dev/null
+          jq -e '.github_evidence.raw_sql_allowed == false' "$policy" >/dev/null
+          jq -e '.github_evidence.pii_allowed == false' "$policy" >/dev/null
+          jq -e '.github_evidence.secrets_allowed == false' "$policy" >/dev/null
+
+          base_env=(
+            REQUEST_ID=ci-816-plan
+            REPOSITORY_SHA="$sha"
+            SOURCE_PROD_RELEASE_SHA="$sha"
+            PREPROD_RELEASE_SHA="$sha"
+            PREPROD_DISK_AVAILABLE_BYTES=3000
+            ESTIMATED_STAGING_BYTES=1000
+            REFRESH_LOCK_STATE=FREE
+          )
+
+          env "${base_env[@]}" bash "$script" PLAN
+          evidence='artifacts/preproduction-refresh-plan/plan.env'
+          test -f "$evidence"
+          grep -Fxq 'mode=PLAN' "$evidence"
+          grep -Fxq 'prod_write_path=NONE' "$evidence"
+          grep -Fxq 'real_prod_data_transfer=NONE' "$evidence"
+          grep -Fxq 'preprod_db_activation=NONE' "$evidence"
+          grep -Fxq 'raw_prod_data_in_github=NONE' "$evidence"
+          grep -Fxq 'apply_authority=NOT_AUTHORIZED' "$evidence"
+
+          if env "${base_env[@]}" bash "$script" APPLY; then
+            echo 'APPLY unexpectedly became executable.' >&2
+            exit 1
+          fi
+
+          if env "${base_env[@]}" REFRESH_LOCK_STATE=HELD bash "$script" PLAN; then
+            echo 'PLAN accepted an occupied refresh lock.' >&2
+            exit 1
+          fi
+
+          if env "${base_env[@]}" PREPROD_DISK_AVAILABLE_BYTES=2999 bash "$script" PLAN; then
+            echo 'PLAN accepted insufficient declared capacity.' >&2
+            exit 1
+          fi

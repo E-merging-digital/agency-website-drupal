@@ -1,0 +1,1754 @@
+schema_version: 1
+issue: 720
+source_issue: 718
+source_trusted_run: 32661601566
+source_artifact_id: 9498925772
+source_artifact_digest: 'sha256:7159ac6d670e4d0d8c9d1981d7882c7dbc72604db0be56a9f4a966d8aecef990'
+expected_count: 173
+names_sha256: 3908bb3b785091d996e969f67af5d0060b3548d2ec732fb055c748085c0d6547
+material_translatable_leaf_count: 930
+explicit_en_coverage_count: 930
+expected_fr_override_names:
+  - block.block.emerging_digital_footer_branding
+  - block.block.emerging_digital_online_presence
+  - core.entity_form_display.node.page.default
+  - llms_txt.settings
+  - metatag.metatag_defaults.front
+  - system.menu.online-presence
+  - webform.webform.contact
+preserved_fr_overrides_outside_cohort:
+  block.block.emerging_digital_footer_menu: 4187c165413bd5152efdab5009ec9a0488fecb76907383a615581812e66d6b25
+  views.view.blog: aef511133219592c2b07b9d55c39259c64203b19c13184ae3dd4208cd0a87bca
+preserved_en_overrides_outside_cohort:
+  system.menu.footer: 5cfa7ccbfed5e13578c69492009beca9c02943a372cadabde419334370dae606
+items:
+  -
+    name: agency_ai_translation.settings
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 93b92994ad4890c5a2c34412c428907a95c427fa3fcb62deb65b5b52a834e57f
+    en_override_before_fingerprint: 9747844616461ca15a40f1ab8b3b1e768d4427bf422403c5d9f7ca0a0778a278
+    base_after_fingerprint: 4846fbedf9a1024361033d347869883c92579ab9988c8975f4925230071dc500
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.claro_breadcrumbs
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 0e4a91fe1e892ef3f106973daf5e6883e1a0991908d2025680afbe782420fb5d
+    en_override_before_fingerprint: e1a1793e9a9f745506ed84bdacbfc1d811d38826a29306404e1300f6c42e9c3b
+    base_after_fingerprint: 67667e500c300a110ad01d531fa96317cd10a38f01073d5756fad7020b171a35
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.claro_content
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: ddfa9d82556cb363ae1bab53710be7bf0aedc41f879e247baddf2bba60bca838
+    en_override_before_fingerprint: fef732836ee4aebed00cad40327eda19f914279d4a734bcb84b0ff7b4d6a6e82
+    base_after_fingerprint: 35f1be6c83d754d13050e236de48c20faf7434aceff7f58818ec149fe9fe0aed
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.claro_help
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 8e104d88502817c2706c88bb63b8290d0964db12002816b5e4840caeb3ea5478
+    en_override_before_fingerprint: f3edd756fbeed732829262cf2070190ca36de018a551dc46cfc9c6e5278dbd6b
+    base_after_fingerprint: 62efb226f5c6bc8ed35fa9e3f7114305b656f04c3c91b9c6e278bdda581ac479
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.claro_local_actions
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: dbae4ac44dfa9008b5ea144c13fb012f5f1eb270f6fd96e99b488e4dbb23765d
+    en_override_before_fingerprint: e0bdf24258496d4115a810d41464f3aaa595b1897de119ac93e3b2cb75379ea4
+    base_after_fingerprint: 641314cc2c05b95986c0034a6a400ffc536e8ab1a7bf32161ff33cdb9c713a73
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.claro_messages
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 1b0b44dd042be1657a6bbd63ecac0b27071a0b1c48c80c8fb4a9cb79e5240621
+    en_override_before_fingerprint: 007f4c2478a76df8c049553604337b67cd953e16586947e97e24768a35ac85d1
+    base_after_fingerprint: 3c39a42d23a275849a1048d856627ab43d2e4d58ace34868e39af756e60bba48
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.claro_page_title
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 386f45169fb6d79da5c9f18b56a31d59cc07197f47414410687cf92bbcf285d0
+    en_override_before_fingerprint: 758a74284ac61416420e216e8cc42ab6c6ba657a3cb1057d016d1d135794b71b
+    base_after_fingerprint: 1bb14aae7d3faf8c256e68abc23902c5dede0a86b644e757c079bae8824b7c8c
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.claro_primary_local_tasks
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 16d61252120afc1e4904190d7266b7de163fb9eb349be0d6059bee5c62374945
+    en_override_before_fingerprint: d950230b3ce21e55385b05e9935854877961231f8d03282b3495873ad52e1fd5
+    base_after_fingerprint: d934df57b64130e86ce092da3adb316dff3ce8e9d6869c3c9339c346e39b060b
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.claro_secondary_local_tasks
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 121efecaf7b2149612471efa42d24974ee1a91e5a63bf196da141ab05cb651aa
+    en_override_before_fingerprint: 90897d4b84e59433e86ea261d28942854bb0aeee96db8e453c62486ad1ecf16a
+    base_after_fingerprint: 79846e602c388ca90880439bbc7d4c22c1caa5cf57e1fc086c9b91483f2d2a3f
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.emerging_digital_footer_branding
+    origin: issue_707_complete
+    fr_override_required: true
+    material_translatable_leaf_count: 9
+    explicit_en_coverage_count: 9
+    base_before_fingerprint: 9db201cd6809a9bfa6056b9729939fc769c72a58f7e0e6e1174921dfa3be193f
+    en_override_before_fingerprint: a7802632c926bfcc572325102e80ba00ab1d3a1586a5547ba2b191ae5d74716f
+    base_after_fingerprint: 57f396df1e484e20d94f047e8d45e3a12bb9bbd54d9a4166fd50ba8a59049e9a
+    fr_override_after_fingerprint: dfa7602e1b48e36b5f0728a2fa8ac437bb63ca30e2916b954fa9cbcc8fe7d3e3
+  -
+    name: block.block.emerging_digital_online_presence
+    origin: issue_707_complete
+    fr_override_required: true
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 74a112fcaf0dc7cdca10c3f1d937f4cc0f8c03d67b72dc92f5655186769a3cf5
+    en_override_before_fingerprint: b1f302ad61b80fe3c173678f3a7c13c22848f13e05ac33efb3766f3cf2fec75e
+    base_after_fingerprint: 8dda1838f8397960ab0049b61d1628d3d6571f581e09ee26fc5143062f13854b
+    fr_override_after_fingerprint: ad53d99618eb90931a1e6c2b8316d4ca447c7d0b9a99c36f1818fd3a43d60ce1
+  -
+    name: block.block.olivero_account_menu
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 0c9a7978e8f01ac8268a53f441842a97a089443897aca27de4c8aa4ff482b900
+    en_override_before_fingerprint: fb55945fa93527b3054d9fbd95321420405592b99dad7e8ae4234804c372f9ab
+    base_after_fingerprint: 693aea7cc9eb0f31a7afcdccc471a4aedf0d75f6c532298db10fd4073749824d
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_breadcrumbs
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 1ee130987993cb009bbba4db1f1ace008aa6545d4995471605cee5aed3a6edb5
+    en_override_before_fingerprint: e1a1793e9a9f745506ed84bdacbfc1d811d38826a29306404e1300f6c42e9c3b
+    base_after_fingerprint: 24e45555e220b73622572d037762929c3c9c7c12217de456a60431e676c02fc1
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_content
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 0685a38d84c52f84adff5af9a4e1701baa963ee8d67990414259fcdcd4f83d04
+    en_override_before_fingerprint: fef732836ee4aebed00cad40327eda19f914279d4a734bcb84b0ff7b4d6a6e82
+    base_after_fingerprint: 4ee9fc0c968e0378d07a31e2eb114ec455e1fb923992a3f1752be85ace3ea795
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_help
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 46077947a29ce0ee75eb322234880b565198411c46456021fa86d0b896687d7a
+    en_override_before_fingerprint: f3edd756fbeed732829262cf2070190ca36de018a551dc46cfc9c6e5278dbd6b
+    base_after_fingerprint: 63ce65f7d692a136ce09f03f862ecf5c79dcfb94b50d223da492d6733f88bb67
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_main_menu
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: e5042fd787a832788a222d0c51c43addc2ff512340cc29daad47edc4640e800e
+    en_override_before_fingerprint: 10c092e93488f1730a9a99fba937f7ae22881b8fc3c2a86264b74f9823e2bdf0
+    base_after_fingerprint: c7657475c1d16fffeea72da4df53ee80050c58f33acccd4c7c567aba3b907d90
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_messages
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 9810bc57e1462a17f31fedad2fcd364689f80a37a5d1245818b3349c6a332c7e
+    en_override_before_fingerprint: 007f4c2478a76df8c049553604337b67cd953e16586947e97e24768a35ac85d1
+    base_after_fingerprint: 25c2b9d1a5b4dc0fdb62c364058d17dd1040e99c142fbbbc3d2657216b33c13c
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_page_title
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: c2ac3d0bd8d23acce98cb0ce601620cd3b330f82a92c29afccbbb5d731230cce
+    en_override_before_fingerprint: 758a74284ac61416420e216e8cc42ab6c6ba657a3cb1057d016d1d135794b71b
+    base_after_fingerprint: b594cb74392c624575f0cd5f638b556ee4226bb4309340c2c05a73a73cdb312b
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_powered
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: ba02b6fb1c58993f5bd26535058bd1037650b047a66b1f9b2cc6f636848a5ca1
+    en_override_before_fingerprint: 521b459a6fd7faa46652f65d4bafd25cdc0d79dca26a127d84b650a014393bbe
+    base_after_fingerprint: 7eb3fc2e6da18c2be9d2b0600729a73a8b164a50eb0ba8a8c683737399dd7d78
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_primary_admin_actions
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: d70067bb1ca8fd3f750b66d293cc50aaf77ccc33284f29c51a16acce3588d865
+    en_override_before_fingerprint: e0bdf24258496d4115a810d41464f3aaa595b1897de119ac93e3b2cb75379ea4
+    base_after_fingerprint: f6cf22ea6914d991fbcd042acf41c4f8988e3f083a700d01784b542de9673a12
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_primary_local_tasks
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 7859fa741150189f1d9dbd748ea2b25b85b0ef6e9a4a919d8b1b9eef560581aa
+    en_override_before_fingerprint: d950230b3ce21e55385b05e9935854877961231f8d03282b3495873ad52e1fd5
+    base_after_fingerprint: 76a2e0bd3d288e9a48e4eba9af674b6d0ac0ca8207658448286836bf500eecc7
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_secondary_local_tasks
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: c91de03e1e7142b057e61f8dae346f4dfe10efef548c693ef23e1868eeaf1050
+    en_override_before_fingerprint: 90897d4b84e59433e86ea261d28942854bb0aeee96db8e453c62486ad1ecf16a
+    base_after_fingerprint: 9159afa74cbd8b74974a181e42ac6f2291ceeb3dcde297ff6799979b0f382fe1
+    fr_override_after_fingerprint: null
+  -
+    name: block.block.olivero_site_branding
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: dc911a365f5b14e350dc1b8f97552d4111db49bf3c09922a792e70f19e47c9c6
+    en_override_before_fingerprint: 951986b74f017e0312ff00afa94c5b59ce334d1a35b00e3cd6bcee19e06168b3
+    base_after_fingerprint: a1ed4959dcb201d20770e1e09e5bb9d1f743c0e59889fbc76865bc1120904ed2
+    fr_override_after_fingerprint: null
+  -
+    name: block_content.type.basic
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 16b743be45e79dd5624a7a9a35a1cd6b79c0b08a77428ed8132f08c39144a0fb
+    en_override_before_fingerprint: 8ce1c2e7edabab627be6c77449fdb3ec435062db401713feae3fd9a3c5c73906
+    base_after_fingerprint: 59bda85354a79ff1b2de6c23947e46ed5630d7cd27152afd33023857614520f6
+    fr_override_after_fingerprint: null
+  -
+    name: comment.type.comment
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 82f1544257e3e304a56c8cd83bf1d5e7203426b7688c7152385a607eeaa47b80
+    en_override_before_fingerprint: 79fa17d22254c9c40e8252287f214daf30af4bc6b8e3dce9ecb9a33fdea825f9
+    base_after_fingerprint: cd2d4f6e59c3a281c79f3b6fce55eac3a955dd9f4f0d0676d4fb54b646cd0c4a
+    fr_override_after_fingerprint: null
+  -
+    name: core.base_field_override.node.article.promote
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 75dd578e5844bc88fc80518cd20de7045a249f35d9eab87d8c1dd62c69a0a611
+    en_override_before_fingerprint: db42f9cdb78e1458226d5c8ee15daafc0fddd159875a978b58b3cace68a324e3
+    base_after_fingerprint: b968aaacb44c5b4c6dda9f5ba69a95762e68fbfb966eafdaf9b4bf255e4899c4
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.fallback
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 2e0e62886f5413c0aeca72301d119f3e4604b4e82d2874daf77706e76843379a
+    en_override_before_fingerprint: d2a027b51c4375e3bc25f4e3625c144b98c8e2bd2ca0c498fc2169cd6aa96816
+    base_after_fingerprint: cfa7520d12df935b8c44da5954a250f0afd3ead373cea3b4461bf99c82a2e079
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.html_date
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: c62eade836cf97785b943f3c0e880a434062676f9f7559a0f4395f6126dff195
+    en_override_before_fingerprint: f3ef2797c20770d1aa3a03c628e353abb3abb88a1ebee77299a1e1284b240d2b
+    base_after_fingerprint: 1db83f2e0e40a45a67de91e55ecff81f6fdc2195d093fad8d95e0347fe65f89c
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.html_datetime
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 42f4ddfc8eb001cb7d9c00b4652c9320258a1f38fa20a1c20dc40394390b8f21
+    en_override_before_fingerprint: f993dc022e8081d0da03d7c6b7f53a8ea910f5b966cfa7c6fca3cf46476c0680
+    base_after_fingerprint: 95ffe7bad79fa1feb824e5fd2d33b4ad78a6c931a47ac68ece52d24cb130b137
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.html_month
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: c673352f2a9936bd4713811e1f405fc80753c57ea8925e555295e88db501b710
+    en_override_before_fingerprint: 38430fdf1856fb57ff5f16043a485430c4a231d751b34f3600b18354de27deca
+    base_after_fingerprint: ad10b728df8455687642cc7cea314ecb6fa31e18a85cf16500b03fb88e9a22c4
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.html_time
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 0a2e2dbc9c9a75f225edad5bdcaa390d0339e3a228ecaf969b798f8da3faa424
+    en_override_before_fingerprint: 484b76b48bde2d3104aef6aed32fb81972dd22b9e7e721fcaf15f6f3677113f5
+    base_after_fingerprint: 85ebabb7ff68ecbeb9baaa43b21a3c6686c6651cc5346ad6e5b231c092f32667
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.html_week
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: d34f75554941ccbb7a3ed0d4ecb6e78765c16701497fc201f07d202423764c82
+    en_override_before_fingerprint: 081cbd54566a7a6f3de4b96e8afde198db07c67fcfa885843eca598e36df8a3c
+    base_after_fingerprint: 8f4361a1e9fd7d47e90fd8cd360eece5b44307586428268971b37f3978af509b
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.html_year
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: db1eedfd44d45195eba7fb33a6a445f33ea433ba1b15dbf9b3a8bdc950513c03
+    en_override_before_fingerprint: 74611d4345a5a27c97c578d0b5e24962e38207b9c6ec2bd89e34a7489071401c
+    base_after_fingerprint: aa2f431220145751a368af78aa8a95fbaed540ef949faae6ab55d2c3441543a0
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.html_yearless_date
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 2800b3b3b7f8c5c5f9fbb4ebb8bb2d2f1f0b57178b20dfe8dc2aa349edbe6dbf
+    en_override_before_fingerprint: e5dd26e5c53b8b4b8c8b2c92efdc5ace61d724cf85d7e311530bde7519c42065
+    base_after_fingerprint: 94a7d16e32346b2ada3dcd74506dc816bc07a897f395271dbb569c284ebff28f
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.long
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 271d5ebb07bb3dfedf13f311e7ae858672f40165fb64233f318e1b6ae26dca23
+    en_override_before_fingerprint: 5caa2852d4cfda96c5afb4ec6404f201bc9ea623834ac5f0661bb303a10eca9b
+    base_after_fingerprint: 010b61e44032f0bd086699f9986511f87b0120afb5326efc31f850085bd5b098
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.medium
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 96157720ce1dc3cd966d0e5fa3bd4d3e6e8f8df37bfa028c475b03d75c69cc39
+    en_override_before_fingerprint: 64c9684b774167e0a0507b874709fb1abbdd222ad61d59b235191c48f5a4a24e
+    base_after_fingerprint: 1e6241efd8318093c13d623f04aabe33b4b6f8743d917b57df2c58a955701a3b
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.olivero_medium
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 49bb87ddfbbb0dbc31f57563d6d858513b4a7e639cca5edb0d663b7f547cc283
+    en_override_before_fingerprint: f1a42beb2fb032b674bc5853ff4e5c7ad0c4571eccfda75de32959772f72e744
+    base_after_fingerprint: 704defa768e301c566ca5bb89c683bef31cb9d0301ca86f00f7928576aceb9da
+    fr_override_after_fingerprint: null
+  -
+    name: core.date_format.short
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 06f900dc6cf42675ccc05dc6a6c3f78ad9d718bbb27c360bd6634e0d8643a576
+    en_override_before_fingerprint: 7573029be55b2523cb6042c87a4937ca1bd10d8f938169f2dfb0b104ca88f2b0
+    base_after_fingerprint: 9edb4afcf1172d3a78ed61d2bcca520eadf5931a40786559131abdb219a563b4
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_form_display.node.page.default
+    origin: issue_711_exception
+    fr_override_required: true
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 46d8526df4bfea287607c52c1126128dded934580c2b8438d849f7a6fb1e3101
+    en_override_before_fingerprint: 8f97ee6b8c2187e5d55e7cec669a504173a740d5c3678050cdb14e7a75ec52b5
+    base_after_fingerprint: 730df912c1a48bfd90089a8214f95352df09884e62bbfe8da757e6a72547b8ea
+    fr_override_after_fingerprint: 7e1603ecd04aceab35d1ed05cf94e05b1bf4479d0c16481414b44b6e3cde78e3
+  -
+    name: core.entity_form_mode.user.register
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: d6bac8b28afc0305c686bd41ed49b412de5b085eb1f3a1da953c999a6ed9d572
+    en_override_before_fingerprint: 65f360191e0eb59f7d1336a0277ce40d479ee7dbd27d0184d45043d72f8cea1f
+    base_after_fingerprint: 7ca185b841cc95a3a14e0a4a039a7b1997c075ad84b492d81b147ad03b853026
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.block_content.full
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: fc953f83c998457a88ced43f5305131248e2763fee24c673ffb5e5123ab90394
+    en_override_before_fingerprint: 34cbeb3779d0aa787191d6a3531bafec7bea4815cfaa1b8f56efd7eac97e77dc
+    base_after_fingerprint: bcfc640d07ce4d88c92af56f917464f89473781156919bd2a97c799b937861e1
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.comment.full
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 6b7744a71e01bc45c7cdd461f09eb6ed00d557f66b91353a86ff56f47e373836
+    en_override_before_fingerprint: c72463de90b56b9ec33211606c6d6906f6a44bf8c28f6181514c93c9138dba15
+    base_after_fingerprint: 739bdc7cd85762ecde3af55ce41738ca6e4eca67ad09b8453ba5d1d44399afa7
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.node.full
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 742c6b4aebfc4787a2b7993ed7623eafd309ac2480aa8b4cf0a5943e16a62c87
+    en_override_before_fingerprint: bcccb00511df8b11ef8246b8a860a76dbce80959b3fda25ff27071907b25616e
+    base_after_fingerprint: eeab9e54033a9484f81842f0bb9aaa2eaa3626ca53c73ea3ec7d8b4cc805cc5f
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.node.rss
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 679dd9a8a39fbfda3b6295140226fd099dff3e8eb24eb3ad84eb33a748d7bc71
+    en_override_before_fingerprint: 328539fe882649e6e5aabeeac07426ff6a041a0c014e734b68a535939d34a140
+    base_after_fingerprint: 3d775ed96ef434075817bcc275aedb0a04ee2ebe13bd1fe587daeb8f5c352ec7
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.node.search_index
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: f2dae14a8ec59cd5fb2ad1e6a17c647e10a9d203e2797bd3b485fa08cb6d52a8
+    en_override_before_fingerprint: 2b5470b396718e538738bba77d016568e51b28f415da15279c04fc3e92b7b26c
+    base_after_fingerprint: 13710c099860134c9ee90b6297915c87835c035dab8f463a0842f9071174c365
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.node.search_result
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 4edecf7ab5047354b7c11dd6858daec195ec0a8cdb5bf83e9d71a3dfb46d4e70
+    en_override_before_fingerprint: 7f4537a75e59b7e8e9bbe11d5617737ec0ae08ed184f11547abc2d17974c661c
+    base_after_fingerprint: d817544ce646be28257d9786658cf45885f72dab7fc5b83c8dae5afb837c611f
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.node.teaser
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: e4d3453403bcebf2148698fdd68644a6827ec487651bd560d16dfdc76c4b0dd8
+    en_override_before_fingerprint: bd481c5d5fac6f5928a8eacdf0f48a7a13b876c688124747d392faa1b1fd7f2a
+    base_after_fingerprint: cb666c47906ffb4678f529fa24734d8a136eeaa811eab38d9ce87fe5eed1dc21
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.paragraph.preview
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 71805f4707c971e6c1bf5d1226c89ac47885126475f679e98d1194163ff697da
+    en_override_before_fingerprint: f05594ae4d929a2a500e5d29522c07241d30e571d24dee3d33c0b626523577d8
+    base_after_fingerprint: 859faf803696c1e754664232e15ef6f3ab5b2682ea3dbfc104476f1ccbdf677d
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.taxonomy_term.full
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 07b35cc44b97ed41dc97e91c82f88a06bd4ee15f193f30de33c00b1600b92093
+    en_override_before_fingerprint: a98503acade8d2acdac41e79267a6bb4b8d18fb1f24f3988fe0a6d4c8afe2048
+    base_after_fingerprint: a32d32325cd1f8a68e755c6eb3ead1d9dc43ac788f4229892d93bf5c4f6ef64f
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.user.compact
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 66b3c7c3c4ada25bce6a2d2a5200233b4baf85d654ff2ae7708369699c26ab9c
+    en_override_before_fingerprint: 4b6e489af878806fdf7cb44ec0f3c5cf4f6819b90e3c3840bfa4d4397abf0d46
+    base_after_fingerprint: 3b9f759343fe4d4525a75ad84bf7472aa4a40ae1f0813f730a401a59812bee00
+    fr_override_after_fingerprint: null
+  -
+    name: core.entity_view_mode.user.full
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 4657d02d5a671b1fa72befb0ca576642a4d8fa4c76e929080f2f23d9bebc52fb
+    en_override_before_fingerprint: e5b607d7553a20ac9ae7be2868e053e3d07076206f912851d1cfbc11a279bcd3
+    base_after_fingerprint: 9ef67a71be8497b00dd12489b8b66c23afd5215e78ce263606b5a7ff894a4cc2
+    fr_override_after_fingerprint: null
+  -
+    name: editor.editor.full_html
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 14
+    explicit_en_coverage_count: 14
+    base_before_fingerprint: e37f4f769b75bcf1e76c230ebcedf5d5fa6de2608374a00c5a068f7eb61920d5
+    en_override_before_fingerprint: 06ea20d69c8eedcc52fb7392f4b8004542163ee2c2a95c8a3d8c5a8f04dc3d41
+    base_after_fingerprint: 63d68dfbde230d55aab9d5997f8e237784103c251af99ff27985b1e9cf59426b
+    fr_override_after_fingerprint: null
+  -
+    name: field.field.block_content.basic.body
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 2f3513edf5e97a400058819b1ef61ac954a699c31e87e3bf2e5cd105a2337923
+    en_override_before_fingerprint: 668b716d4d23a89edab41daf5f29cd353ee8407c3f6b9eea3712530a749b6f34
+    base_after_fingerprint: 80c9a8d6cc7b8bcc932c79a8edfd06a56475eb1812a31256d35ddca75f76fdaf
+    fr_override_after_fingerprint: null
+  -
+    name: field.field.comment.comment.comment_body
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: fff23743d0d3a47b40e613416a516dc26956b9061629e6aa98b74ad8cee50335
+    en_override_before_fingerprint: 9727229316aa95560c7a66f149fa2409f37af4aedeb7c50060f0636ef0a2c2ef
+    base_after_fingerprint: 4c54fb5243cc9d476c1410995da772f1883ccf0f409b553450fb5438c94f7207
+    fr_override_after_fingerprint: null
+  -
+    name: field.field.user.user.user_picture
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 0fb01a1d2cc4e162015651703d108d8b9ea2ab3954e3301f58c1eef214e7a52c
+    en_override_before_fingerprint: 84ac995dde17cca7e1439db01fafdc5cdefdd4dd5b44f7f1aa23c387a076306c
+    base_after_fingerprint: 20b5987255855a310b4cb7ee09dafd657790b2119e9b5d9b41bc136ab3399d43
+    fr_override_after_fingerprint: null
+  -
+    name: field.storage.node.ai_automator_status
+    origin: issue_711_exception
+    fr_override_required: false
+    material_translatable_leaf_count: 4
+    explicit_en_coverage_count: 4
+    base_before_fingerprint: 198bab37a41f038c54d659b17d80713bceef06b02d1e5ca0f87a329f419a9281
+    en_override_before_fingerprint: 21308cb2d99aa4cd4862de0c2834f22c049921c5f1c27e8f9c5e3ac3fa3075f7
+    base_after_fingerprint: ec21da698bdf679d5c06e4e4c5abc3ecfedcb8475ca3ee904909aeeb08c9e2f8
+    fr_override_after_fingerprint: null
+  -
+    name: filter.format.basic_html
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 4d8a9fa7945d677891f84b5c4088cae61142d7fa44808e92dc121ce1b00d5ca8
+    en_override_before_fingerprint: 3e4253d5a8bc2a087631169b95e93160a257fb1d78326f57064d575428723227
+    base_after_fingerprint: e97c2fc3503e8ab75219858ee7c6d0f9dd5a8c79f433e6c5b79017a9e69e1c2d
+    fr_override_after_fingerprint: null
+  -
+    name: filter.format.full_html
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: dea1db460d7c45bf001b9fa56b1c8e7fc26c35eaa77073d84a7c27dafffbf67f
+    en_override_before_fingerprint: 44a8ac77bd85e8ff9602619cb3e358a9d1cd56b9945d041aa338191a703dbdda
+    base_after_fingerprint: 2e7644d294a744842d0ea73edbdf9631c330d80e134e6e238b2f28d3446ad572
+    fr_override_after_fingerprint: null
+  -
+    name: filter.format.plain_text
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 12b6707bd4d21773e010bfae9ab8ff0204361f53f49abc72c1e15da4af0eba2b
+    en_override_before_fingerprint: 01711b33dcf3727606c35c28d36bb89f200883e948b6ff3d3a14f8daf69f9bda
+    base_after_fingerprint: 0f732215799c4b37bdd4e326fdc01ab0e3838286f4b1880267761f2bad8d6964
+    fr_override_after_fingerprint: null
+  -
+    name: filter.format.restricted_html
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 45db127d820e235a86e47f9f09c62539dfd8c3e4eb4ba25570d5a70227ee20e0
+    en_override_before_fingerprint: 00dd0bea8d3c3ec81b7fbc7c69ffa7986c1645868d56302fd804a7140c546e1a
+    base_after_fingerprint: ba4c6164614739effa60cb7bad6ce104b343a204e6feeeda9f571c02145eadea
+    fr_override_after_fingerprint: null
+  -
+    name: image.style.large
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 2edb8cd4471cf6c5961ca99fb2cef908e73ad53b8d6a1850fcd0338c28a7bcbe
+    en_override_before_fingerprint: 29da995282af16dc4a6592dbf2b1946bb83ad1c6653c94de905d1abbb1eedcda
+    base_after_fingerprint: 321eee930abf4bed284ee26b43553d2420230b5f7aa6a7b42202222830cfd0e3
+    fr_override_after_fingerprint: null
+  -
+    name: image.style.medium
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 3cc4d753112245c23cde1a7e6772a0f3efa14a4f909fe46805c2d07555b29eb1
+    en_override_before_fingerprint: c554eff38e199b467edaf317ccc95d6faadd6dd436ca358cc49b1528db1efeaa
+    base_after_fingerprint: 43d44d453b0b2dcd5a7f8a3599dcae2c257c02a425133f0903767fbe8eb16357
+    fr_override_after_fingerprint: null
+  -
+    name: image.style.thumbnail
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: bc21a864e38f542e4d89f972a33bda0135f36ef53cf4a7a0e9fd198e8bab136a
+    en_override_before_fingerprint: 690ce96c0ce45da5a26cf078977b802156163906df4025acc479aa5835c3128d
+    base_after_fingerprint: 0ca9c55bcee2d257e16663dc11cb607e081bb16b4dfd19ea67b23c68ff5faede
+    fr_override_after_fingerprint: null
+  -
+    name: image.style.wide
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 19cd2caa37a0634d8061299fdbffdccd5e18aa652a6003cbd786b69a65fdb526
+    en_override_before_fingerprint: 4eb33ec6b72a19744363ce1b40ec0af6c0662e5edaf4ddef11caeb0c0dc2d5a5
+    base_after_fingerprint: fff6d46c108322f2f60f0b3c7499d4e36fd254866fbca6a4283ad003b20ed18d
+    fr_override_after_fingerprint: null
+  -
+    name: language.entity.en
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 81ec7f66e22bcb86c88b3015cebcc813e6c0e344ab4dd8702950fa0a4f53386a
+    en_override_before_fingerprint: 81ad16120b4bd9043e762914d31fecba565478fbc81e3de5493ce8a80b4d20d0
+    base_after_fingerprint: bceb3d41010bcf234202a7740831e8301bc3c1c05a205709ff54c3ae521a34e1
+    fr_override_after_fingerprint: null
+  -
+    name: llms_txt.settings
+    origin: issue_707_complete
+    fr_override_required: true
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: f34f7babe0e4c1cf1a23eb14476bddbf1bcc18ddee43d99c04699140b706e2cc
+    en_override_before_fingerprint: 68635e6a322ce86f2d7692fdf31a6f34aa02f9e51afccecb0df245312336f736
+    base_after_fingerprint: 98efb06f767c98b761b0d2bf6771474eb1ad4611f9e1ad6bebac68e50c5e57e0
+    fr_override_after_fingerprint: caf7d6d64340bfd719a244727deb1a264098fd31da8f5791c515974b47e851a0
+  -
+    name: metatag.metatag_defaults.403
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 4
+    explicit_en_coverage_count: 4
+    base_before_fingerprint: 32b74b6abb3cd2ddfa8a39b4cfa284ded200671a497fc5d2f221e781b1510084
+    en_override_before_fingerprint: bbe3eba1bde11c5ed2e3cd9275ddc3d6790115d11fc38ecc85d0eb47ad423005
+    base_after_fingerprint: 6c85a306e707a1bfa45ed616d6f548f346f0cbc0e283f9809e0d19cf58087902
+    fr_override_after_fingerprint: null
+  -
+    name: metatag.metatag_defaults.404
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 03f4e85f8f98ea9833d3cdf21fc5d37353a06ad9e4d41c1a41e363fc60b7f5ad
+    en_override_before_fingerprint: 8b10b22ecd84de95c6e7f01436aef94b357aa3415cb285bfad4cad5b3464d889
+    base_after_fingerprint: 5928fe941b3eeaf78c5cb008b621738305ca68de8143b1590d72aba59829a674
+    fr_override_after_fingerprint: null
+  -
+    name: metatag.metatag_defaults.front
+    origin: issue_707_complete
+    fr_override_required: true
+    material_translatable_leaf_count: 17
+    explicit_en_coverage_count: 17
+    base_before_fingerprint: 3ab97c44ba03c11e842c1fb80f46c0f68a34a055d008dc17b229e55d0e93df12
+    en_override_before_fingerprint: 9f60112537ecaecf9adfc5644e8927740615cd53fd8393a450cb1da735f96f4b
+    base_after_fingerprint: 8e06da131fffe8f7f93d4e57243b008128499044366c74513bf7e51727141f26
+    fr_override_after_fingerprint: 24ef92ce2552a95a220e1d4d7cb8bb77a0e5b912eca169e02e80c2c50a93bab1
+  -
+    name: metatag.metatag_defaults.node
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 14
+    explicit_en_coverage_count: 14
+    base_before_fingerprint: d7f58d08e7c5a78d6d5e9e6da0624612bb46732a17a385f853e773857820511a
+    en_override_before_fingerprint: 411a9fc66cb821de7bc3fb24397ebf9cc4d55216dd04bf757b5288cf45c68ab0
+    base_after_fingerprint: 163a0e6e68aa5d8003df4459c74e3553508e6c7f1279d868c0cb7ba89f19c1f6
+    fr_override_after_fingerprint: null
+  -
+    name: metatag.metatag_defaults.taxonomy_term
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 4
+    explicit_en_coverage_count: 4
+    base_before_fingerprint: a368315ab42845431cd90d76efc35902765e00d19215e6ae26f5530928f24e7d
+    en_override_before_fingerprint: 980b513b9c6bc875b0dcabb9c1fc6d57da646a792e7ee0688dea5542f49c6dce
+    base_after_fingerprint: 5cc51b15dda752dfbaa3fb26451ece0e5e2dfc753c7900795a7d7ed647e8125b
+    fr_override_after_fingerprint: null
+  -
+    name: metatag.metatag_defaults.user
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 4
+    explicit_en_coverage_count: 4
+    base_before_fingerprint: 749df0bac3351fe39a8e33eacba131c05b258b94ae24ce21e0e96f6691677541
+    en_override_before_fingerprint: 9429c141a7c42d3c2f9e70b68e30995946b2237e3d99897e2fbc564cafef1c15
+    base_after_fingerprint: c805379c50bb009f339b0c7c7de01da1b35087fae3a93e809b34526eab3dc9b3
+    fr_override_after_fingerprint: null
+  -
+    name: shortcut.set.default
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 105b6fa19cb1ba54ffd65ee948b671991b0fcee4871504b9946a151d215a071c
+    en_override_before_fingerprint: 7b6ade6d98ea105e5b0064b178d919469b3c6ea4710968a6f720208259ca8381
+    base_after_fingerprint: b92e665c80537d6f0275a14a6c14ebae942c1bcc1306d63a49545e61f70c2915
+    fr_override_after_fingerprint: null
+  -
+    name: simple_sitemap.sitemap.default
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 4987938197cf2c45d7d2781cb2d5ea2b037f8496abda42eeb642589b4b0b47ee
+    en_override_before_fingerprint: b2482ceb61bf420be9184c48fae0a6c6eed857400abd974d6143137e54344b47
+    base_after_fingerprint: 862be937572c24d04b2967d6cd348540e3cf3ab4c381aa0cf0d2180f86aade01
+    fr_override_after_fingerprint: null
+  -
+    name: simple_sitemap.sitemap.index
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 8b263743782d6e76f12bbba2ad43c9b804ba128d8ecc90e9c109ca8e42399ad0
+    en_override_before_fingerprint: 8923c0cbba1f8ca89dd0e7a61fde9a17fce35a06979137df2caf28aa7e5a682e
+    base_after_fingerprint: 6b1225eb352ae6262425cbec71128cc392b4f946abbecd314ed8d3df2a917f6a
+    fr_override_after_fingerprint: null
+  -
+    name: simple_sitemap.type.default_hreflang
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 659d217dee87cfe322bf6a8ef766c3016db1ed97503ee480465bfb8c349023f0
+    en_override_before_fingerprint: 4fa68fe272df2d254c8f7301b4f966cdbb80ae8dc25f676e4d3a525615c46c62
+    base_after_fingerprint: b319feaa248fef2687e8188bf73444c398e2708432777008acb3a279fafbf71c
+    fr_override_after_fingerprint: null
+  -
+    name: simple_sitemap.type.index
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: b7d49d73fa16c8008a0eb39cc17a2676f4c6a5e4550dddb37e9928bdd1b033ba
+    en_override_before_fingerprint: 3b9ebec4c20222741b14cbde7a49f16e37da619f735aeef18495633cbd969190
+    base_after_fingerprint: 97a0c2dc51ef4d98905bbe61cd9064bf8110849092487e762bb95b86ccc7de5a
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.comment_delete_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 458a53f51a0697140ac033382bd0bb15f3ef8d414acb83860143395d2342387c
+    en_override_before_fingerprint: 15288886ef3ef57fc888db658f4a0fc7ae4c348bec275cb3d91e06785f9ca647
+    base_after_fingerprint: 5f09d28691a50eac06a455f0c00cf4e0f270732f3758d904e49c6debc6916f44
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.comment_publish_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 99c84e59bc036b315212a3895c4dd37b9c753f52ca352e44beee8bd67bf6261c
+    en_override_before_fingerprint: 2b2e67bc5c12208ed045501ecf680338f828604ddad2f1aeaddbf1845c38299a
+    base_after_fingerprint: 96db9aa6c90c78e1ef201756280472ba899a686b6fb6cc677c46b48a260b1568
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.comment_save_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 3d485cb3d2ef3c68f1ed9f6725524f0ad597f089788fa8eb10891a715dd4932f
+    en_override_before_fingerprint: 8d8e9378acf7e502c2791eb726a2c3d35ce44e1d828773d240f92dd49c36f875
+    base_after_fingerprint: f3df62b7cf39c412d2d0871cc4475787b8a9c70f4e3f7e2d2a41eb31c99e92f2
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.comment_unpublish_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: f28f3b993e24cf1efc7cf2b711c68739de959b631399f2e46206dd746c09f198
+    en_override_before_fingerprint: 257b4d934451a93314794204bdcae24256d53165c2fe094d2bc9d43a50a5035c
+    base_after_fingerprint: a035dccd13c1271901360d175bdb259a54e415d11018cbae017d95be0e734a64
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.llms_txt_section_delete_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: e5d1e79fb186b3591862d4435d6c12adacec07e15fca88531364951e0cfffb1c
+    en_override_before_fingerprint: 46f0c775ad3c0c170732cb3647918868888c0f8490aea150c92652404dcba16e
+    base_after_fingerprint: 456c5f2c125008c1f52283dea40bea8f393bb5beb48c65b190e3e875c0def0ee
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.node_delete_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 30889c6e9116931dea36c77a51da80db1caf50c36e5b9021cce44219e179d71b
+    en_override_before_fingerprint: b131bd05194516f951e8635778de231bd6bd458b14ca4834d5288528464b6e8b
+    base_after_fingerprint: 8edb9ee41949c16d24b9a5b6c3f70117f7705ae6f2fba3c0ed914769b858986b
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.node_make_sticky_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: f7e283e6ff9f5088a82db9106a0cdfbc51606bec1f0d2d157b1e2233084a7206
+    en_override_before_fingerprint: d11483a4dcb7d8864b050d32f3919669f4729e6c0468c0320bde9f3499e406a1
+    base_after_fingerprint: 3ab81a083da0dcd4153c1d3615d75c66e03f1acbb733404f6edd70634cf800f6
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.node_make_unsticky_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: cdff35aa2a73304d77af231606777c22bef49274c084e857e978711d3b298e95
+    en_override_before_fingerprint: 833b0e43855abff865509ee83ed968fcd3b2c266e87bcc8181ebf0b0c77b24bb
+    base_after_fingerprint: 16e79734051d5775b058f273d032d198d19163fce42b78cdba3d634cf6857865
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.node_promote_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: b5b025c186ed5eae069b06675242143f88d985873bbdacac94f14c7a4999fcb5
+    en_override_before_fingerprint: b4a641779cfd084fdc8800fbe050df63af7a03ccc68d459678e563dbeab07659
+    base_after_fingerprint: 662c9117c4553510efd2c51b269e9a5bb6b51ed1bfed80c6c3cd4d04ebf8de68
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.node_publish_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 91af36e5ecc9d5b468ef1f161016194faa603fbbf5db104066e86eb99506b71b
+    en_override_before_fingerprint: 1cdb0cf4895d86ae5314bb9f6369350b0d7f0a38f605dfcfedcbbf675928e58d
+    base_after_fingerprint: c4118fc6389d7927ef8ecf799b2f79920de422003398b21c4d97049510109f3b
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.node_save_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 8da2c1cd97c9b4c62c4923b3e4ce05412bc9b16cf8edab01e55097f602bc8b64
+    en_override_before_fingerprint: 4328ad8ddf6043ee7f60f6fbcf7d540fa18fc4c8a4a2c17fca6cb484be46e571
+    base_after_fingerprint: 489ec9acfe2f3796492036e8da52f7875bcd8bb0d7f2ac23a42c661a273d96ce
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.node_unpromote_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: cdc2017e4a3cd403013c8c27076636b5e6554ba4326b0dcdfe497b4b98dc17d5
+    en_override_before_fingerprint: e4e18aef4ba732026f73332561dbe73d165426ac29f6ec971d82285cfbe4dc10
+    base_after_fingerprint: 386bb2835174ff4d57133328fbd6f0014b30ae0cd2f82c9bdd9c572132fa520d
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.node_unpublish_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 67aace1fa144384c59ca17a91c398544ab6197aee3b11e61d8c0bbffe3afb035
+    en_override_before_fingerprint: 16e22d165bd2661ea9a869cfc3c65ffd8d4fed8b314c211d60efedd152c96af8
+    base_after_fingerprint: 2e283a1102ce6ca74cf96ac59e83bde73d41903fc4b6b98d3905eca625f5b7e2
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.pathauto_update_alias_node
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 597f2df2aac1f9753dda2f6dda98b119535dffa9f46f6e636486374a2eb17c9a
+    en_override_before_fingerprint: 5e7559c88aa072ec39d8096f25235415154ff907c24afc6d1ed40e1965356fdf
+    base_after_fingerprint: 66b404f8c8f35a55d31e191b8829b25257468f525387d30204d6202d73ecbacf
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.pathauto_update_alias_user
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 875a254cf96dfe1be6b16a4eebab73dca07078cc989ad394e15820eaa5fd7842
+    en_override_before_fingerprint: 5e7559c88aa072ec39d8096f25235415154ff907c24afc6d1ed40e1965356fdf
+    base_after_fingerprint: d35be018bbea2131d2b955cec1c04e898f71ac3724df2545f4d294fac4f5c77e
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.redirect_delete_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 6901cbb69bc4113751894280bd0abdadc25813fc51839af3adb6644960f19b56
+    en_override_before_fingerprint: fc66d422c4158d1a0596fb774191220ae3e8e0635dda414e338f286776d5efec
+    base_after_fingerprint: 14db47c1d84268c054748a6bc9bc97ccf424358d1d4bf6732701b199e5394a2e
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.taxonomy_term_publish_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: b6bddbd7dd932c0e28085a63483b5351a004730571e4579d9332c1c5d1d2cefe
+    en_override_before_fingerprint: 2eed8bcc4c5235fef8996ba70be1c3e0cae689693f80dbefbd4da18b7f9c47dd
+    base_after_fingerprint: eff93106c57beab9a7b87b7368676229d39c5ebaad0d401be73805c30a6a3466
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.taxonomy_term_unpublish_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 8538fe5546a990065a91d38585573635b8ce0215b1aaac8b32e21b7708529ecd
+    en_override_before_fingerprint: 8bb8b0ee41b9da7fc6992f80344742da9459acc61c81fe97db66e482261c9fbd
+    base_after_fingerprint: 3a4afc714efe6eb1cfc51f55dcc7c394743cfaa812e3d5965a7d6c8479aa10c1
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.user_block_user_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 204353cfb0ccc8440b8261f5f26656bc47ab1c27c6f501c423d436cd135a24b4
+    en_override_before_fingerprint: 00102e5cd041bc05322e9067ed819af9308430af1c07600e897b0d6ccfe3d448
+    base_after_fingerprint: 2aa07a1a38c304b82c79c9babeaa3eda13c9f7012c134fd6d55964036522a2e2
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.user_cancel_user_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 7ce4a2bb7a6e6f4735b4c77dfc2d4a586c654640df563d2b02cc7e30eca9b0a2
+    en_override_before_fingerprint: 48a0e7cf61eaba79d5b50df6637e1d00bc0089340b5807b3dca2cf4fb52802e3
+    base_after_fingerprint: 81d44e3bb7457a53b4df202f0fa5875fc67a3130dd24dd4a05b4df864e30dacf
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.user_unblock_user_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: c68fde13a2184a29ac97fdeb7ac1f4d7d96ddc63e46e1b9e1ae6ad9c749ddcc7
+    en_override_before_fingerprint: 5a8e21ff79d250191fa4be890c97e05fc7fe9ebc24c6cee8febb7030217325f8
+    base_after_fingerprint: 9e976a84051e9c22a5d10a971e1006d18c05ecac8384544f2bd7d6133b4ed486
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_archive_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 62f8bcbbe1388da2f44a4eef063ea8ff5c05580a1ad3908c59d45ab15298ba3a
+    en_override_before_fingerprint: cafd7ba07ba53211e4252a51d7ddb3b10eae533d9ed207a3631e0c4e6c38e577
+    base_after_fingerprint: 084c8ac92cbc1c804baeea369ebe70e64bd23ef74b2014573c97b6a47825223f
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_close_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 93a3ff13448d3cf7853275020233e70d0623b7dfad0c9ae90b5312ec35133112
+    en_override_before_fingerprint: 2cb5b1b3b181d82ad8d7a181469997928b1b83f48cb120273ddfa6312e209073
+    base_after_fingerprint: fca8c9d1a1da8fa716199160ea07039f29e933596d3fd926ff4f6bc61d32a5b7
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_delete_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: b04c314819fbfef9cde7ae894114919d1891ab12121dc9c886c34f5ed87b73b3
+    en_override_before_fingerprint: 6986d2c1c922420cb32ea6c7767c209bb6dc16305542563cccef9c119c59dd50
+    base_after_fingerprint: 1397f76a69e9947c8ae9b821cdd22a34488375f6c21742bf924f9cfb23ab758b
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_open_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 0c4e8a8ed96d785e9f736274b916a7642387af742893ce2b20fe61e4e3b19b23
+    en_override_before_fingerprint: ba91acf1dfbad4e84aa535c2c47013ab99de815b6994761f2eb244ac79710820
+    base_after_fingerprint: 062f423de16336bbd1eede99fdc070c24f4b34493d2a397b91032308cb08e56b
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_submission_delete_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 43c8921e5bb7accbd12d525280170f9cebca9c484b9c7c875a931d6644dd7a7c
+    en_override_before_fingerprint: bdb3351232af76588013a0057ec2b19f824d2fca0a1d697ea821b395cfe01324
+    base_after_fingerprint: 47460f3993435e6f403fc43e6f8685c06ca43662431d971d329b2dc0c0bc28eb
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_submission_make_lock_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: b035cefb39537f17b13cb978a1d0c4474ff488b40515ab3fbfe7ad8c38a93937
+    en_override_before_fingerprint: eeec8a04493b91f6cc838c88475cd9cb0523a91652d1a637ddcc8a8fd56a22b7
+    base_after_fingerprint: a42a52155e8affb3e0c746b81da2221ba1d9de34785cb5b12b7c2411c7deacda
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_submission_make_sticky_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: f181faf17e7002712941437e7a3273cb1f1863292737e150b67c963e1cdb546a
+    en_override_before_fingerprint: dc82acbe4562024f360b297ce46698a47bc12fb426fa1ff5048a8a728e923010
+    base_after_fingerprint: a25f1540b36aac3b53d028021570673751199e4d6b5435bee8e0c5647022d732
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_submission_make_unlock_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 316b8d15b761da2bb3e7833af625f55e53f6715694c0c8565fa5e6ed243a9b02
+    en_override_before_fingerprint: b04f1c44ec09c498d9f2cad896f86d671268c9eef6948bdce34a4fdcf2066873
+    base_after_fingerprint: bfee458acaddeb34b884eaf1ed1adbc0e2f0e1fd7c5e8d9ad12f26b1c38fc6fc
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_submission_make_unsticky_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: eaca32c9322ff1abcc5766cb5deb2ff7a24c2d3f0e3eff9474fda6c667921460
+    en_override_before_fingerprint: 1382358310ea302d28127303598d255c16739129698ae0b1ca0279818846f934
+    base_after_fingerprint: 515480c46684669ba1de54ade17c90386ed85a5278da4b98d09373b286c8e128
+    fr_override_after_fingerprint: null
+  -
+    name: system.action.webform_unarchive_action
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 433dab4e6e45ddf0f842564b0ac718ef420acc4f98cf06999d07d67e14030acf
+    en_override_before_fingerprint: 0684a84124d65a57c6ac024be5551a04714b66d10f20416a70b001af50fa344a
+    base_after_fingerprint: f88e9ac8e59c2eaaa42ccbe3b3cb35a26f4acdb6926a035182b532e3f4c97082
+    fr_override_after_fingerprint: null
+  -
+    name: system.maintenance
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 4a226ba57fb33fed8cea411cf99f9aeb60b6b47726263313e19882964936a5c7
+    en_override_before_fingerprint: f66db90fceef11a76972925e510ad0caf70468f973daf5bc921f689f6881b7f1
+    base_after_fingerprint: a5d08f75b35fd8dd594c7f3c38849056437a5c39cdcbb24e29cdfa96a6ef2dc9
+    fr_override_after_fingerprint: null
+  -
+    name: system.menu.account
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: ab8b3a90006fd64b9de5b3278a89d6224ff3ff3689fd58d4b4029891aad3b6fd
+    en_override_before_fingerprint: a55cd339320383a1816f688c440eb28d58749b3480035e305f0d0d06b7ba4e15
+    base_after_fingerprint: 6de0af0b302b3a26f24241927ca0eeb34464ddcc80503271593d98d759493d5d
+    fr_override_after_fingerprint: null
+  -
+    name: system.menu.admin
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 86e7a76d8f6702ded75cd7bba83ca94b3e57f035a1461a87420b4b0fbba451cc
+    en_override_before_fingerprint: 4bef42581dfefeabd90d293e6379240fbeebe5791bd71ff14977f0d73de782c2
+    base_after_fingerprint: 137a9e7ac81cca5857bd38b414e6e545b651874232fcdb4dabce28bbac09601d
+    fr_override_after_fingerprint: null
+  -
+    name: system.menu.main
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 71125f02177005b632f24281d59dc7f0f6241a645c09e4fb30e2ee528427ee3c
+    en_override_before_fingerprint: b276d67581fec03443ffbba4bc994304b270106ab6f674e101c8875333333e07
+    base_after_fingerprint: 65ecd74620ae8e75bf48c0417c009dbcbcc15a9d9f8055b7b9d7c80be2e154df
+    fr_override_after_fingerprint: null
+  -
+    name: system.menu.online-presence
+    origin: issue_707_complete
+    fr_override_required: true
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: be61957118aaed09d5a2172b0d8711cd7fe3e734798be15961c78479a3f102fd
+    en_override_before_fingerprint: 87477236e045aa88d1881a6acae8ac4b925b99a6c9d26f3cbcb066be7db096f2
+    base_after_fingerprint: 2740d2dbadc6234c0e64037187142a30369cc495eaae5444394680e998eff4d2
+    fr_override_after_fingerprint: 19ea59a2fbd8f08e51f3e1989af633d94054caa7aaf97171de88b818ae4ab591
+  -
+    name: system.menu.tools
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 5cdb3954bf523ec92ababe4be071c9da2c83187b6b61e03599ff533a0cf778a3
+    en_override_before_fingerprint: 63acddcdaaac3d01c2b5df2602ec801d56119d076ff35cf018991860e1c38f84
+    base_after_fingerprint: 055e7d587ef852ca788463ec723ccc7ac2d28c2bd54b1e6735f709c7e241fc3d
+    fr_override_after_fingerprint: null
+  -
+    name: taxonomy.vocabulary.tags
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 50ccedbd46f418a17b4f69ce4ecc851cb9b332cd9c9df5e57f37c5f22fbd8b19
+    en_override_before_fingerprint: 8b62f618540df445425b8d38c7220827f7facb9f694b95cc5ae74c656efa5fc8
+    base_after_fingerprint: ece429f1b77d57534b733c61379b8adb971b9c40e8ecd5af00bd04a9ded5a978
+    fr_override_after_fingerprint: null
+  -
+    name: user.mail
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 18
+    explicit_en_coverage_count: 18
+    base_before_fingerprint: 55e6b2a5e586546e4399aa58b8c2c6df91d07082631cf7e810e2f907e70bf951
+    en_override_before_fingerprint: 9cf8eda6842088ade751896d75a79c79556d79447b9078efa267a84977c0423d
+    base_after_fingerprint: acc246c5cafa33b4687b6180a1cc80bd2ed4f33bf637bcce7e25edf18d349270
+    fr_override_after_fingerprint: null
+  -
+    name: user.role.administrator
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: ce2f0a73ab53b15fdd952d53ceda7dd355d082a29423e774990b4412ba671df1
+    en_override_before_fingerprint: d88823f68503e221bffaa11b2d48d4f0ee6bec78f5603be6d4f6606775dee2c5
+    base_after_fingerprint: 10a3e85cfcd6e7c07723a5a1c61a80ac149b6dfb8e0d288cbd32b76bdbe15998
+    fr_override_after_fingerprint: null
+  -
+    name: user.role.anonymous
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: fe99a905280ecd048e630d60d771276a7115d66b9a007bb07f2a871fc5ca0b63
+    en_override_before_fingerprint: 868a5388da70b36dfa75a2ec85a4135ef083ce9178985ff08de1bbc653ba336c
+    base_after_fingerprint: 0e78d70311c7a75a448b6525bc3e294cd0369be219240a734ea66453725b23a5
+    fr_override_after_fingerprint: null
+  -
+    name: user.role.authenticated
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: 10fbe29e71987a9856bc246d24f8455875f10fd3801b824433189bd11fcb1134
+    en_override_before_fingerprint: dcf83dae3c569d486792126a44824bc53c576b27d476da65e59d486801cd3067
+    base_after_fingerprint: 78209cf599ac84a32ef668d2d3efa2971d2cd019632faeb3fa8ac4670d3fcbf0
+    fr_override_after_fingerprint: null
+  -
+    name: user.role.content_editor
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: f30e362ebb74540a1879bfc49cb5dfd2f5caf09032443636e7baadad13f68836
+    en_override_before_fingerprint: 978c84467db6ff731ac42ce575fc8d616f8d8899761a0939f396f99c4609ff09
+    base_after_fingerprint: ccd47653f83f4e59a3e9e7537b5bb3f869752e2c6a831a797f8785fea1814652
+    fr_override_after_fingerprint: null
+  -
+    name: user.settings
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 1
+    explicit_en_coverage_count: 1
+    base_before_fingerprint: e997d346a38ba8ce4912a2a5a185c41ce5db8b51ee61bd29551db62c21fae15c
+    en_override_before_fingerprint: bf357fea5809d856a0f55017da709af7a5d54b91536866d455b3b7e3694670f8
+    base_after_fingerprint: d4e13cdb5ad07f77c7b975343469b5c297979ab82af4da700677111bbb53202e
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.archive
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 18
+    explicit_en_coverage_count: 18
+    base_before_fingerprint: e7ceeb814373b49a5052a83336cf8c1e0c0fd4affbb615ac98256bfc3eb22f1e
+    en_override_before_fingerprint: 79a585ba66cc102ac1eaf0b0264df67398bdb84cd2e47770a6d591d4f28fab0e
+    base_after_fingerprint: 7eacc1309616f2712566901a5287998c90befaba76eb3845bd0ac00389edd982
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.block_content
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 26
+    explicit_en_coverage_count: 26
+    base_before_fingerprint: 2dceec229e7a22f87193e1f365e25408e4a4d36d6d5ae714ac447347947d7896
+    en_override_before_fingerprint: 6adf20a6113ed548cb84a3a5c7320bd564c6f91e57055d616c6f2e1fde74cb5b
+    base_after_fingerprint: 6973ec29dd41f49e555019b8e37b10b44169d92ee5fa12e312f56b37253ac371
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.broken_links_report
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 50
+    explicit_en_coverage_count: 50
+    base_before_fingerprint: 8f6f00367cd1f77c3a51f284a8a9a06478c2c23361dfc91a611c105dbeade4e2
+    en_override_before_fingerprint: 749c33b9bc351f0ea7eff7e7d2c6400ff97ef2c1e83a4fdc5ba4ce853ed21ad6
+    base_after_fingerprint: b72a2522e8692df91f17f13eae33f6ca8368ca2d8fb8d8c2734e9057c9c2216b
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.comment
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 56
+    explicit_en_coverage_count: 56
+    base_before_fingerprint: ef7f1d8b699b9cf334a008ec29f801c13a8c5597f7aaa35d9e4366d42498e9bf
+    en_override_before_fingerprint: ec957b188bec1d1fbfa5c2aa0d4114c808a43d5dab32931a8fb9006e0fc41449
+    base_after_fingerprint: 1d66c6ce6cb78be4e7e86e7c4a7db6f87ebcc1afed4dce27e2698b16834ad377
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.comments_recent
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 10
+    explicit_en_coverage_count: 10
+    base_before_fingerprint: e728ec4e2a716dc5eacfe87378d93d443848316341dd7966a49389968768e4a9
+    en_override_before_fingerprint: d1a6d540984adc3f22de7c5a54aad10774f466da8a34dc7e1c29278e9997307b
+    base_after_fingerprint: c9fc88a323f2472886424371ff73f7155b8b81244e4d7f93a03d9f2cf0888bb8
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.content
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 36
+    explicit_en_coverage_count: 36
+    base_before_fingerprint: 6e41d65b1c367385014ea993a360275490dc5a558d8fd1963e3602494e143738
+    en_override_before_fingerprint: 5b798ad48f129751c702ddb71c22a23b1aeca242e4d95096be563f7cb2b6e9bb
+    base_after_fingerprint: 1d05df04bcb991eb15bf4029d61d584d8ff757be096a746465fa70583b174438
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.content_recent
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 13
+    explicit_en_coverage_count: 13
+    base_before_fingerprint: 84e3ddbbe7e71c1452587fca874c9a5e18e077770938786a4463d3da755f0cae
+    en_override_before_fingerprint: 526eb876319175b4b044f64ad16f31510eb89214c8ee190773baac48c79aebd6
+    base_after_fingerprint: 297892e67e9062cc74e403b1f56d31e71e1c4369f5d5ba694416cd3ab4f6e795
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.files
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 48
+    explicit_en_coverage_count: 48
+    base_before_fingerprint: 08ef9d79e34b59ccfec64edd06c4e3ffcbcd12f913d656ffddeb4b8a6ebeff3f
+    en_override_before_fingerprint: 78a0eef1ad12d309e58ccf5c1f31e71c544fd34cd9fbdfcbf7f1426fd20578f4
+    base_after_fingerprint: 8fe6d895c2b85c76f806a941078709460a0cee06b63fcde1a442349b14805c5e
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.frontpage
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 19
+    explicit_en_coverage_count: 19
+    base_before_fingerprint: dcddafbefd00a145d35e4a20ed6f99acd5ef04b12dac2e83a4c0195979c57a09
+    en_override_before_fingerprint: d6682fc0364ec8e87521e857c87dbaea74dee19d399b2ff54356faa58b620a23
+    base_after_fingerprint: d1828a307336036269da8c4d42af19b050297a67c552e9a9fbfd81d964d75eb1
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.glossary
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 19
+    explicit_en_coverage_count: 19
+    base_before_fingerprint: c5471fd23db092c27b11cf2bba848fff5d33c2a05b094ce80cc04e15ec4ee9ab
+    en_override_before_fingerprint: 09df3048af53ee2e1a77be7ea691be124d79d6356ceeab36c7b4672cf02415c1
+    base_after_fingerprint: 2feee178fa116ddb7b7429f2954fb30462e472b8e601f6b909cda0f31beb68de
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.redirect
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 36
+    explicit_en_coverage_count: 36
+    base_before_fingerprint: ff76a23ae524e4eb4345c545084e502d862fd78bbb8949bb11adeadf87d93c54
+    en_override_before_fingerprint: 1d8dc8d39ba3823dbeb826cd43bfb136d72910dc76041070cf4d770ccc05f8a2
+    base_after_fingerprint: ec4e92b39bf876c4b9582388fe1a7f80023b2596fbcd0e7cad355b495a80e18c
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.taxonomy_term
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 17
+    explicit_en_coverage_count: 17
+    base_before_fingerprint: 7a73d00c6a5de498c07cefc600250c5ea1a31e9e7d430d6d9958bd1e70982211
+    en_override_before_fingerprint: 78d364307c874a090daae4d9b1a39ba6a2d487d3ae8c07a89b04458c88de98d2
+    base_after_fingerprint: 8ecadabda52940dc1f0eb6ea9088993b8d1ce855c5eef643f8c5562894f5d1c9
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.user_admin_people
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 43
+    explicit_en_coverage_count: 43
+    base_before_fingerprint: 401ce1c4e019146bce3a5a42c017254040024b935eb83b51fb1dbc7497853e53
+    en_override_before_fingerprint: 22fd8a8c8cdfbca1d0dc25d4b3a0783c0fe4791be45197b1a6e10b67760d2822
+    base_after_fingerprint: 034f5eb0dee298aaac9b1eaa3d8157c6454c7dda40fc94cec81d38c24c93de99
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.watchdog
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 30
+    explicit_en_coverage_count: 30
+    base_before_fingerprint: c052b7d3dc140d61a11bfc68e15b7ceb19da989c49b2084eb6bf290abab99bf2
+    en_override_before_fingerprint: bd55c9bd7d130d8880e281ac4a35963c4a077a3ac12d7f2abfbce2531277cfd8
+    base_after_fingerprint: eb8ae9d3d823df797fd9e90f85a3158ec57ca42870b2d43e102e73421835632b
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.webform_submissions
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 99
+    explicit_en_coverage_count: 99
+    base_before_fingerprint: 1496baec16d9aa5271f03dd9f5f51dc3bbd1a764d69b87cbfd045657e31f7ce8
+    en_override_before_fingerprint: 614c6b620eec4ee9112f038701ed24adb5d27538ea69ee5ee07d3fd6d31d94c5
+    base_after_fingerprint: dec7b5cac4ced0b57f2bebc85ad35b8e559eaa2e660aaa099cf5dce728696f8c
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.who_s_new
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 13
+    explicit_en_coverage_count: 13
+    base_before_fingerprint: 317d45e16671bb304cdf37b06e885e75253c4b5c8740f009d71de359e88587a6
+    en_override_before_fingerprint: 6ce2e3fff1d6f3f8deeb07aaa35450a58c38dc8cea063b057db9e8925ef4c37a
+    base_after_fingerprint: 0b0dfecad67308e2a76bcd784e9540bea40b17984bd7ddd7762e6374c8eef5dd
+    fr_override_after_fingerprint: null
+  -
+    name: views.view.who_s_online
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 16
+    explicit_en_coverage_count: 16
+    base_before_fingerprint: 5f5d5715b666708b6910453b89f5a43119ba31b5a959151d7cbaaedafcd5ce03
+    en_override_before_fingerprint: 73fddbdb5ad13fc71ab71db70e180cc5d99f582c5b14d69dabc9fc2e75921d9f
+    base_after_fingerprint: e72e9686de39ed30a2845a00d998cb9094be5a99d83c63a72d43d898ba1b146e
+    fr_override_after_fingerprint: null
+  -
+    name: webform.settings
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 50
+    explicit_en_coverage_count: 50
+    base_before_fingerprint: 8e019970b571442765ddb23f5f0533d683a20feced80cb2525d052a0acebdfd0
+    en_override_before_fingerprint: 36b2f2102644ae1316d34e44baacfd3ca302c06776d93673d2398d1e1fb1dd3f
+    base_after_fingerprint: 096cd1fa4cd0b2fa3349ca88e99d586810b0a1385a8a03751292c80388a117c5
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform.contact
+    origin: issue_707_complete
+    fr_override_required: true
+    material_translatable_leaf_count: 15
+    explicit_en_coverage_count: 15
+    base_before_fingerprint: 9ccef2e1468186480747daccf805e45cfca67e389d85cd0f835c86dc17489dd7
+    en_override_before_fingerprint: 8b4e99a95f7fe419b76ff8dcf8d51a8ffa0427dbf5d108aca56408594a9636b1
+    base_after_fingerprint: 00e7868ee36309b42cfa9a59463e9bd9010121abe680d144a3e8b2934c9f1399
+    fr_override_after_fingerprint: 54ff721777c682f749de9bfde18b7498354fc413102cd7d7b14e380e7b79c792
+  -
+    name: webform.webform_options.country_codes
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: bfe26b210f21bf9b94bbdecc9019b59e5df03055e56a3bdca5b0bd7ea32cc16e
+    en_override_before_fingerprint: d9202c538b81e21bd0467d5d4dfc6714a878fb7e97a0323a98b62bdd569fc042
+    base_after_fingerprint: 80b380580b6a405f46f99379baa5c71942abc8610fb445aed76e2d63704cb9e3
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.country_names
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 0fd1e284fe099e0d189dcfbec883077e6ae3aecec9d280184635d19aaaef3f9d
+    en_override_before_fingerprint: 0b3cae79d30becc8018bcf2c983ed34f743df005f9ccbe46e1fdae294db9d5cb
+    base_after_fingerprint: f0a55cdb462e574ea10d4ef92f094d9815b106485607094bd08e1c3f83ec8f8b
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.days
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 98087cdd5647b8bf2e107f90cdd9fe7c2f378b6b54653507e4db8a09437e015b
+    en_override_before_fingerprint: b7c070088d36980098b57ebf58d8d5ad20006baf28a9abac6afd4eb31d6947e6
+    base_after_fingerprint: 8e42ac3c54dddbe2fb620a127ff99d85704584c47cf1a8388c56642f48604304
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.education
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: eb01fdc8e8ad5202a95c6835a69329d5cc4726141023ff210a9851e451df906d
+    en_override_before_fingerprint: 4dc7e1aca69089fc5012957dae51c86a811b322efbf2e58b12e02d1e3c74381d
+    base_after_fingerprint: 97da23b9e238dcc6acbd29faabff453d72eedccb30eb2f5c4cfce63bbfc3a61c
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.employment_status
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 0bce70eab6075d5b6fe8a1e94d908cd683f4a09310ff97df80d2437bf3ed934d
+    en_override_before_fingerprint: d4a4896ff465510c0ec2977ba2de1d733d69fc50f19e8a11579b470b181bdfc0
+    base_after_fingerprint: 1db0a41a0fbbc029a68303a6bc1870fd7e1b811260080f9a75c81787fc0fb6d1
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.ethnicity
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 679434445d211970fb70eed43466e7d421d269daed59283526ec0a20809a2f28
+    en_override_before_fingerprint: 2498493642f475a493353174674695707f4ad0f0b338fb2363884b55b289b638
+    base_after_fingerprint: ed66c06a1298fa2c023f590b79c339fa0fba50bf52432d113ff7de47acca6367
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.gender
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 337dbebc672aaca19aa9520808df71266f2ca79f57f0391bfe65907709b4c5e8
+    en_override_before_fingerprint: 17a9471f0cc8b7929743954e6042be09a0f46d60387070ae0e570c647e7fffc8
+    base_after_fingerprint: 887d5583bae75c526efcca5dab5689e757a033729046e7a6ec24fbaaea269f2b
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.industry
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 2c09bf9fb758513a8d92e4824b7c03057caf59ab4e78fb3e54816605550110b3
+    en_override_before_fingerprint: f6f8ecf0ad8fa8c1c4709a51b3321e2ae5173ee47188fe96f317455bfcd09621
+    base_after_fingerprint: 1cfa52cd0684568d78c403bf24bd0a92e643acb0baf1dc70fdfda13677e660c8
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.languages
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 4f05fe37e03806eb6e7ea17f1272a2df123609d820733f2b9d241b69ff0f259c
+    en_override_before_fingerprint: 4209c53acaeda001fa4370bbc25e14c46ba14d898bceb66816d5675e41afa906
+    base_after_fingerprint: 0220c6666f57ff8730a54f3a620a47f8e8c70e02d0e98243a55c676af446d78b
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.likert_agreement
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 545f12a892fd8748976d494d893dec0dcb88d64bd9f73c77860980bf6419ff1b
+    en_override_before_fingerprint: 2243a3a1e9769f4e1449784fb9cb17ff2fde16511cba945cdc1ac14dabc28d60
+    base_after_fingerprint: e4a336ffed15718a632bb41423198d539ab5b84e97ed0aa1361cd5eb2379905e
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.likert_comparison
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 9ce989959a319cf4f8ade2bbc2e2bca8a6a94b52e321e9269894bbaa7753e913
+    en_override_before_fingerprint: 9eedb2a35efbcb61679734b0e9aad64973f447c385558ef0ad4a39548ece5d68
+    base_after_fingerprint: 71126821135e55a20747167897689df8eabb325812fda6f80f9cc7750ec7b2bc
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.likert_importance
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: ab1d5d0a0d64822a2a07f7d54e53a6e52baea7e79cbd603f17094f9b8b683a6f
+    en_override_before_fingerprint: e0cfd65d5950a67763b90b61f39fdd93c9621dd564c0a5d30ba165e9e9d5e5b3
+    base_after_fingerprint: 189a05baf0339142c62313b388cf053386d771bbd89b3d38909b276ec7c1d529
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.likert_quality
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: f7f825b4677fa4907afc981481bd032c4670e1af5d7d68124c10f69f32bdee3c
+    en_override_before_fingerprint: 6d8a4c966354cbbecbf014ab0c7ab943b40405f80bb0bbc2d15144c1c11ae439
+    base_after_fingerprint: f5372673833de4ef9e50007fa3a25b6f292e85a1ed5a3f7b505fb76b95f710c8
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.likert_satisfaction
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 86be363115c29542723b883ff2522f279daef9cd812a196146091c5426e84eff
+    en_override_before_fingerprint: ceea02a8c8e2b2d891a6d0e63b94dc8a7ba030f4834afa6ac7bf9e898b610d45
+    base_after_fingerprint: 2bda7929e696b45c57a9fed2b0faf6e7ca44c616b6a7679ecdd0d779ae44ae1c
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.likert_ten_scale
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 785d4bf7fcbf2593fc34638e3c124ee5c14b5643c7398286e06b4265976aa80b
+    en_override_before_fingerprint: 8edb72c8d02e61c753c2833c9d949ab20460ed742c2b0ab8478ac70e50f79e17
+    base_after_fingerprint: 4ca8e8bfbc3b6ae0658b80350e5135c4e87dbbd6d205ad3b78796c46f83b79bf
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.likert_would_you
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: a0310a4db637487099a7c59e21fb11313e588887e2c0b12ce4c8ce9eef5adf3f
+    en_override_before_fingerprint: 63871027a01a69de793c4718b9bd628ef152d3c343dd8eecf42c0b37c14300f7
+    base_after_fingerprint: ded32949855d91e0a7029c38bbd4796a52dcd4c4ec0fd3c4aafd026f798f3cad
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.marital_status
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: fff4fa495801cda8d74e873b3cbef8acc130b9322a7852ae28277439b0831bc8
+    en_override_before_fingerprint: 713927410625335094640468031797883b2a57ed7ce13c9a75fc9a3be849465f
+    base_after_fingerprint: 57352562495b72ba10794e92924f79f22c79896f179524682ff58effc72465e6
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.months
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 5b1419450a1195e78ff3642cc8d3015fe5478667e1b9c17e2792e7102330d590
+    en_override_before_fingerprint: d9118ee1008cdf24e7fa7202d20527b40c4f3650a4590368f20c6274b4f51edf
+    base_after_fingerprint: 4a5c5aad509713d796480fb05e43f6d4a8a51095cd11fedda7a6bf616a642f76
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.phone_types
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: c3be317b1fca57165ae19c145dc8327ce60efe66dffd3cce1e99ebd86ed173c5
+    en_override_before_fingerprint: 626658573506d09f1a632cb7ea95bf26ccfa0acabdb79015a82688c80d346d4d
+    base_after_fingerprint: c860fa8f526a1ae4357a3985951195f3bd08a7ff356d13a901535f218ce99161
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.province_codes
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: fe38f9b9d65501fdf3b8687eccb523d8b155a91354b79247b7f2299ebbced8e2
+    en_override_before_fingerprint: 7d0aa2a469059381cd94428a80007d3fc2bbe673ada2b76f28056fb07b14501c
+    base_after_fingerprint: 3f36e6eeddf003a86c55fc18dec67dd20e7574cbf23c3499de76df74668765c5
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.province_names
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 3cb53650548a89a7a739c33919bf5981f54cb791ed40c93418947383a1688c66
+    en_override_before_fingerprint: 5600f54f99508d8199eb26b57e9a7f6e1b8527dcdaefd139a45ba70ea8c4242f
+    base_after_fingerprint: cd49a127d14ef945bc07d6168cde5ff2ea1d38a39e3c60c0a2dded637ae1b0af
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.relationship
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 2959d9d4c8dd0e998403e50d6b061065b3e443a472ef81d78e4e98b2add5d509
+    en_override_before_fingerprint: 8ffed48a375e31bdd71560360620054bb82bb5959dcd44c59f2ebcd4f905ed69
+    base_after_fingerprint: 0e9d5dd16fbc75fe9b4625b6f9ffc58be4a628d4b6da72bcd0285dcd35fe41a4
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.sex
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 28d1e9940c7613cf416cbe67f21a61c92a8d1fa4dce14aa16482b591d110c335
+    en_override_before_fingerprint: 0f80b63fb36cf8bb69d84b39a3a92f81f692fd910dbbbaab487aefcbc2c1abff
+    base_after_fingerprint: 9fc4b52494b7c038f070045b816d48f5c419fa0f66604619258c5fc7307cd5e2
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.sex_icao
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 0851be380aa6450933d01597edef641202af567345718beca2898ec952d19984
+    en_override_before_fingerprint: ac710300da268a07491eed2e00859e22dc710b99e04239e00f31a994933a74c5
+    base_after_fingerprint: c57cbbe89d5f7a8018c0ad88675015531503301b6abc7a242b595f034e2cea22
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.size
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 35927cc32cf092d86af825262b19d090a0b6b71202fdfc29bac1b3766dda3ae7
+    en_override_before_fingerprint: eec23c6629d87a3cafabd71a2df87d2e800119b85105e0d48c4aac050e09cdcc
+    base_after_fingerprint: d3869eb31c29a55d581397b81bef2eb2bc0eb700a6b8e85c9c23ad94d146036f
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.state_codes
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 5d361a8b773979b8f139270d2c8eedde2054c37e386b49cdd8901900ececf84b
+    en_override_before_fingerprint: 9e72e509c41f2438a7ce1d35e53c16c2c7b37fb57092a461d61c12dd002ff25c
+    base_after_fingerprint: efb823a0c117e63b6f9dae63a7dfb4263bf063b74a29bbaa356953035080c58a
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.state_names
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: e3cb9c68428119a9d541428eb6cfa643963cc31b06f8c57e6c15f53b666c9515
+    en_override_before_fingerprint: 1f361856317ba3aff895d7cec32a7db38219cfb0d2eb0a7b9a46a2ea31a3e231
+    base_after_fingerprint: 0af83d4b2d05839dbd99677dab906acfeb6888ab36ad83c92f151a139e0f170b
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.state_province_codes
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 4653f0a27a16967c959750b1c2a9eb8b27fa4b7e7560e03764e7687dcb6268a6
+    en_override_before_fingerprint: cdd40c38971006cca3d14545db504d2ed0bb844700a45f50ee682ceec01f16a7
+    base_after_fingerprint: 42ceb6b3de28aba6a1b7f8d4fbf2bf9a915b49a60ebfaa6f837f4479a8a66707
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.state_province_names
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: d994671786cb0909b79b6b0376f1168b7ca15e79f31c1bb183e1bbc762999df5
+    en_override_before_fingerprint: 3eaaa7eb47346ec8d1b2a60bc6f9aa01cbb252a7cd6c0ea27c92d0412ca18c2a
+    base_after_fingerprint: fd2b8232521d0474f802ac8970daba98c0e9b5bb15d0cc41721c6ed86e175a7d
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.time_zones
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: 1f0aceffe7152742aac305f473e03fa87e8821ee466f8eb17b9eb8d77faa4a56
+    en_override_before_fingerprint: 9a763e437edb888b19ec09d3ee6fdbd5194a60a44a0e6a1c863bd6ac577cdd98
+    base_after_fingerprint: 9afda2f0c3510f875433491a438f2ebd660a621e6c2fa59cf28cb88bea4f2599
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.titles
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: 1d6ce0cb16538eb7310e9e0e5556e6b09ca0d59c9dc420e6c6ccec642ba5e3d6
+    en_override_before_fingerprint: 43827a9ce7946903f4035f169a14fde8fb6a59d88828e7ba450deb882379a0b2
+    base_after_fingerprint: 412169f93fdb3b08a0435ca6a93c9603a25939f5f44c089dcdb658da20925680
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.translations
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 2
+    explicit_en_coverage_count: 2
+    base_before_fingerprint: e7064778df5726c04dd8c23ca433f5f459e11dd8d5342f2dd5b640c8c6d6dde3
+    en_override_before_fingerprint: dfe725a16005beec6c3405b17d10cc4e11d617e87d053dd42e60f7a482d10451
+    base_after_fingerprint: 20bb6cda749b10cd9dcd35eee5e2f7398fcd91eaf3ebc4766f0e44b0005a9d64
+    fr_override_after_fingerprint: null
+  -
+    name: webform.webform_options.yes_no
+    origin: issue_707_complete
+    fr_override_required: false
+    material_translatable_leaf_count: 3
+    explicit_en_coverage_count: 3
+    base_before_fingerprint: a398519845b6c501948a96b0f8aa6f5d5b2ae13f56e51d54317041c213d34f40
+    en_override_before_fingerprint: deaf1ef94118d2ee62ebc892510d81492e177f5cda0634a33f4b826fc829630e
+    base_after_fingerprint: e56d043ab765473c9795ae243b2fa378496d9a4acacc4d8cf264ee1550990cd1
+    fr_override_after_fingerprint: null

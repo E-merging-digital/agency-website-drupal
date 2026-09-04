@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "profile_id": "agency-preprod-capability-provision-v1",
+  "issue_number": 851,
+  "revision_issue_number": 859,
+  "authority_lineage": {
+    "provisioning_contract_origin_issue": 851,
+    "capability_revision_issue": 859,
+    "current_execution_authority_issue": 861
+  },
+  "authority": {
+    "trigger": "ISSUE_COMMENT",
+    "command_prefix": "/agency-preprod-capability-provision",
+    "owner_actor": "E-merging-digital",
+    "execution_authority_issue": 861,
+    "live_main_required": true,
+    "run_attempt_must_equal": 1,
+    "unique_request_id_required": true,
+    "historical_request_issues": [834, 851],
+    "request_mode_binding": "REQUIRED",
+    "plan_request_prefix": "plan-861-",
+    "apply_request_prefix": "apply-861-",
+    "modes": ["PLAN", "APPLY"],
+    "plan_authority_does_not_authorize_apply": true,
+    "apply_requires_fresh_separate_owner_comment": true,
+    "real_apply_executor": "PROJECT_LEAD_ONLY"
+  },
+  "execution": {
+    "trusted_runner_labels": ["self-hosted", "linux", "x64", "agency"],
+    "trusted_runner_name": "agency-browser-runner-01",
+    "preprod_pinned_ssh_trust_required": true,
+    "network_derived_trust": "FORBIDDEN",
+    "prod_access": "NONE",
+    "issue_834_apply": "NOT_PERFORMED"
+  },
+  "helper": {
+    "source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db",
+    "digest_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256",
+    "expected_sha256": "a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71",
+    "destination": "/usr/local/sbin/agency-preprod-staging-db",
+    "owner_uid": 0,
+    "group_gid": 0,
+    "mode": "0755",
+    "symlink": "FORBIDDEN"
+  },
+  "bundle": {
+    "manifest": "scripts/preproduction-staging-import/privileged/bundle.json",
+    "destination_directory": "/usr/local/lib/agency-preprod-staging",
+    "directory_owner_uid": 0,
+    "directory_group_gid": 0,
+    "directory_mode": "0755",
+    "mutable_checkout_runtime_read": "FORBIDDEN",
+    "sanitizer": {
+      "source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py",
+      "digest_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py.sha256",
+      "expected_sha256": "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f",
+      "destination": "/usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py",
+      "owner_uid": 0,
+      "group_gid": 0,
+      "mode": "0644"
+    },
+    "policy": {
+      "source": "scripts/preproduction-refresh/sanitization-policy.json",
+      "digest_source": "scripts/preproduction-staging-import/privileged/sanitization-policy.sha256",
+      "expected_sha256": "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb",
+      "destination": "/usr/local/lib/agency-preprod-staging/sanitization-policy.json",
+      "policy_version": "agency-preprod-refresh-v1",
+      "byte_identical_copy_required": true,
+      "owner_uid": 0,
+      "group_gid": 0,
+      "mode": "0644"
+    }
+  },
+  "sudoers": {
+    "destination": "/etc/sudoers.d/agency-preprod-staging-db",
+    "owner_uid": 0,
+    "group_gid": 0,
+    "mode": "0440",
+    "deploy_identity_source": "SERVER_OWNED_PREPROD_SHARED_DIRECTORY_OWNER",
+    "nopasswd_scope": "FIXED_HELPER_ONLY",
+    "change_required_for_issue_859": false,
+    "direct_mariadb": "FORBIDDEN",
+    "generic_root_executor_for_deploy_user": "NONE",
+    "shell": "FORBIDDEN",
+    "setenv": "FORBIDDEN",
+    "wildcard_executable_or_path": "FORBIDDEN",
+    "visudo_prevalidation": "REQUIRED_BEFORE_ACTIVATION"
+  },
+  "bootstrap": {
+    "apply_credential_secret": "PREPROD_PROVISIONING_SSH_PRIVATE_KEY",
+    "remote_user": "root",
+    "owner_supplied_credential": "FORBIDDEN",
+    "owner_supplied_user": "FORBIDDEN",
+    "owner_supplied_host": "FORBIDDEN",
+    "owner_supplied_command": "FORBIDDEN"
+  },
+  "plan": {
+    "preprod_mutation": "NONE",
+    "prod_access": "NONE",
+    "helper_execution": "NONE",
+    "sudo_execution": "NONE",
+    "state_detection": "METADATA_ONLY"
+  },
+  "apply": {
+    "one_shot": true,
+    "allowed_helper_proofs": ["PRECHECK", "VERIFY_ABSENCE"],
+    "snapshot_bytes": 0,
+    "import": "FORBIDDEN",
+    "import_sanitize_prove": "FORBIDDEN",
+    "runtime_db_mutation": "NONE",
+    "rollback_on_post_install_failure": true,
+    "bundle_atomic_install": true
+  },
+  "fixed_paths": {
+    "project_shared": "/var/www/agency-preprod/shared",
+    "helper": "/usr/local/sbin/agency-preprod-staging-db",
+    "bundle_directory": "/usr/local/lib/agency-preprod-staging",
+    "sanitizer": "/usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py",
+    "policy": "/usr/local/lib/agency-preprod-staging/sanitization-policy.json",
+    "sudoers": "/etc/sudoers.d/agency-preprod-staging-db"
+  },
+  "evidence": {
+    "artifact_path": "artifacts/preprod-capability-provisioning/evidence.env",
+    "metadata_only": true,
+    "pii_allowed": false,
+    "secrets_allowed": false,
+    "apply_contract": "scripts/preproduction-staging-import/provisioning/apply-evidence-contract.json",
+    "apply_contract_id": "agency-preprod-capability-provision-apply-evidence-v1",
+    "apply_contract_revision_issue": 864,
+    "apply_validator": "scripts/preproduction-staging-import/provisioning/validate-apply-evidence.py"
+  },
+  "real_provisioning_performed_in_issue_859": false,
+  "real_plan_performed_in_issue_861_phase_a": false,
+  "real_provisioning_performed_in_issue_861_phase_a": false
+}

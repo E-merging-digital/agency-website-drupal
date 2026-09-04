@@ -294,7 +294,7 @@ jq -n \
     settings_symlink_target: $settings_symlink_target,
     shared_settings_sha256: $shared_settings_sha256,
     effective_config_sync_directory: $effective_config_sync_directory,
-    resolved_config_sync_path: $resolved_path,
+    resolved_config_sync_path: $resolved_config_sync_path,
     resolved_path_exists: $resolved_path_exists,
     config_sync_entry_count: $config_sync_entry_count,
     drush_bootstrap: $drush_bootstrap,

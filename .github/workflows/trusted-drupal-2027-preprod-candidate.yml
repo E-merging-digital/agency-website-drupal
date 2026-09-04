@@ -1,0 +1,298 @@
+name: '#1012 Drupal 2027 Candidate PREPROD'
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/trusted-drupal-2027-preprod-candidate.yml'
+      - 'scripts/runner/drupal-2027-preprod-candidate.php'
+      - 'scripts/runner/drupal-2027-preprod-candidate-runner.php'
+      - 'scripts/runner/run-drupal-2027-preprod-candidate.sh'
+      - 'tests/browser/contracts/drupal-2027-preprod.json'
+      - 'tests/browser/drupal-2027-preprod.spec.mjs'
+      - 'playwright.config.mjs'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/Drupal2027PreprodCandidateWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Kernel/Drupal2027PreprodCandidateKernelTest.php'
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: agency-drupal-2027-preprod-candidate-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  static-validation:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validate closed profile sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l scripts/runner/drupal-2027-preprod-candidate.php
+          php -l scripts/runner/drupal-2027-preprod-candidate-runner.php
+          bash -n scripts/runner/run-drupal-2027-preprod-candidate.sh
+          node --check tests/browser/drupal-2027-preprod.spec.mjs
+          node --check playwright.config.mjs
+          jq -e '.id == "drupal-2027-preprod" and .target == "/fr/drupal-2027"' \
+            tests/browser/contracts/drupal-2027-preprod.json >/dev/null
+          grep -Fq "private const BUNDLE = 'article';" \
+            scripts/runner/editorial-preprod-candidate.php
+          grep -Fq "private const TRANSLATION_LANGCODE = 'en';" \
+            web/modules/custom/emerging_digital_content/src/Service/EditorialPathautoFinalizer.php
+
+  candidate:
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.issue.number == 1012
+          && (github.event.comment.body == '/agency-drupal-2027-candidate inspect'
+              || github.event.comment.body == '/agency-drupal-2027-candidate dry-run'
+              || github.event.comment.body == '/agency-drupal-2027-candidate apply') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      EXPECTED_OWNER: E-merging-digital
+      SOURCE_COMMENT_ID: '5545732650'
+      SOURCE_ISSUE: '1010'
+      PREPROD_URL: https://preprod.emergingdigital.be
+    steps:
+      - name: Authorize exact issue and owner command
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.actor }}' = "$EXPECTED_OWNER"
+          issue_json="$(gh api "repos/$REPO/issues/1012")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          test "$(jq -r '.user.login' <<<"$issue_json")" = "$EXPECTED_OWNER"
+          mode='${{ github.event.comment.body }}'
+          mode="${mode##* }"
+          case "$mode" in inspect|dry-run|apply) ;; *) exit 1 ;; esac
+          echo "MODE=$mode" >> "$GITHUB_ENV"
+
+      - name: Reload authoritative main
+        shell: bash
+        run: |
+          set -euo pipefail
+          main="$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')"
+          [[ "$main" =~ ^[0-9a-f]{40}$ ]]
+          echo "TRUSTED_MAIN=$main" >> "$GITHUB_ENV"
+
+      - name: Extract exact owner-authored candidate and verify source authority
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/drupal-2027-preprod-candidate
+          gh api --paginate "repos/$REPO/issues/1012/comments?per_page=100" \
+            > artifacts/drupal-2027-preprod-candidate/comments-pages.json
+          gh api "repos/$REPO/issues/comments/$SOURCE_COMMENT_ID" \
+            > artifacts/drupal-2027-preprod-candidate/source.json
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          pages = json.load(open('artifacts/drupal-2027-preprod-candidate/comments-pages.json', encoding='utf-8'))
+          if pages and isinstance(pages[0], list):
+              comments = [item for page in pages for item in page]
+          else:
+              comments = pages
+          marker = '<!-- agency-drupal-2027-payload:v1 -->\n'
+          candidates = [c for c in comments if c.get('user', {}).get('login') == os.environ['EXPECTED_OWNER'] and c.get('body', '').startswith(marker)]
+          if not candidates:
+              raise SystemExit('No owner-authored Drupal 2027 candidate payload found.')
+          comment = max(candidates, key=lambda c: c['id'])
+          payload = json.loads(comment['body'][len(marker):])
+          expected_keys = sorted(['alias','bundle','candidate_id','hero','issue_number','language','profile','published','schema_version','sections','short_description','source_comment_id','source_issue','source_updated_at','target','title'])
+          if sorted(payload) != expected_keys:
+              raise SystemExit('Candidate payload top-level schema mismatch.')
+          fixed = {
+              'schema_version': 1,
+              'profile': 'drupal-2027-landing',
+              'candidate_id': 'agency-drupal-2027-landing-1012',
+              'issue_number': 1012,
+              'source_issue': 1010,
+              'source_comment_id': 5545732650,
+              'target': 'PREPROD',
+              'bundle': 'page',
+              'language': 'fr',
+              'alias': '/fr/drupal-2027',
+              'published': True,
+          }
+          for key, value in fixed.items():
+              if payload.get(key) != value:
+                  raise SystemExit(f'Fixed candidate field mismatch: {key}')
+          source = json.load(open('artifacts/drupal-2027-preprod-candidate/source.json', encoding='utf-8'))
+          if source.get('id') != 5545732650 or source.get('user', {}).get('login') != os.environ['EXPECTED_OWNER']:
+              raise SystemExit('Source comment identity mismatch.')
+          if not source.get('issue_url', '').endswith('/issues/1010'):
+              raise SystemExit('Source comment is not attached to #1010.')
+          if source.get('updated_at') != payload.get('source_updated_at'):
+              raise SystemExit('Source candidate changed: old approval/dry-run is invalid.')
+          canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n'
+          sha = hashlib.sha256(canonical.encode()).hexdigest()
+          pathlib.Path('artifacts/drupal-2027-preprod-candidate/payload.json').write_text(canonical, encoding='utf-8')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
+              out.write(f'candidate_revision={comment["id"]}\n')
+              out.write(f'candidate_sha256={sha}\n')
+              out.write(f'source_updated_at={payload["source_updated_at"]}\n')
+          PY
+
+      - name: Require exact prior dry-run before apply
+        if: ${{ env.MODE == 'apply' }}
+        shell: bash
+        env:
+          CANDIDATE_REVISION: ${{ steps.candidate.outputs.candidate_revision }}
+          CANDIDATE_SHA256: ${{ steps.candidate.outputs.candidate_sha256 }}
+        run: |
+          set -euo pipefail
+          comments="$(gh api --paginate "repos/$REPO/issues/1012/comments?per_page=100")"
+          needle="candidate_revision=$CANDIDATE_REVISION"
+          sha_line="candidate_sha256=$CANDIDATE_SHA256"
+          main_line="trusted_main=$TRUSTED_MAIN"
+          jq -e --arg needle "$needle" --arg sha "$sha_line" --arg main "$main_line" '
+            [ .[] | select(.user.type == "Bot") | .body ] |
+            any(.[]; contains("### Agency Drupal 2027 PREPROD candidate dry-run PASS") and contains($needle) and contains($sha) and contains($main))
+          ' <<<"$comments" >/dev/null
+
+      - name: Checkout exact live main execution source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TRUSTED_MAIN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: JIT revalidate main, candidate and source before PREPROD secret use
+        env:
+          CANDIDATE_REVISION: ${{ steps.candidate.outputs.candidate_revision }}
+          CANDIDATE_SHA256: ${{ steps.candidate.outputs.candidate_sha256 }}
+          SOURCE_UPDATED_AT: ${{ steps.candidate.outputs.source_updated_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN"
+          test "$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')" = "$TRUSTED_MAIN"
+          test "$(gh api "repos/$REPO/issues/comments/$SOURCE_COMMENT_ID" --jq '.updated_at')" = "$SOURCE_UPDATED_AT"
+          body="$(gh api "repos/$REPO/issues/comments/$CANDIDATE_REVISION" --jq '.body')"
+          BODY="$body" EXPECTED_SHA="$CANDIDATE_SHA256" python3 - <<'PY'
+          import hashlib, json, os
+          marker = '<!-- agency-drupal-2027-payload:v1 -->\n'
+          body = os.environ['BODY']
+          if not body.startswith(marker):
+              raise SystemExit('Candidate marker changed.')
+          payload = json.loads(body[len(marker):])
+          canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n'
+          if hashlib.sha256(canonical.encode()).hexdigest() != os.environ['EXPECTED_SHA']:
+              raise SystemExit('Candidate changed after authorization.')
+          open('artifacts/drupal-2027-preprod-candidate/payload.json', 'w', encoding='utf-8').write(canonical)
+          PY
+
+      - name: Materialize PREPROD SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/agency_preprod_ed25519
+          chmod 600 ~/.ssh/agency_preprod_ed25519
+          echo "PREPROD_SSH_KEY=$HOME/.ssh/agency_preprod_ed25519" >> "$GITHUB_ENV"
+
+      - name: Execute closed Drupal 2027 PREPROD profile
+        env:
+          DRUPAL_2027_MODE: ${{ env.MODE }}
+          PAYLOAD_SHA256: ${{ steps.candidate.outputs.candidate_sha256 }}
+          PAYLOAD_FILE: artifacts/drupal-2027-preprod-candidate/payload.json
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-drupal-2027-preprod-candidate.sh
+
+      - name: Setup Node for real browser review
+        if: ${{ env.MODE == 'apply' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Run desktop/mobile/accessibility baseline against real PREPROD
+        if: ${{ env.MODE == 'apply' }}
+        env:
+          BROWSER_VALIDATION_BASE_URL: ${{ env.PREPROD_URL }}
+          BROWSER_VALIDATION_CONTRACT: tests/browser/contracts/drupal-2027-preprod.json
+          BROWSER_VALIDATION_HTTP_USERNAME: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          BROWSER_VALIDATION_HTTP_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run browser:validate
+          jq -e '.result == "PASS" and .visual_desktop == "PASS" and .visual_mobile == "PASS" and .console_errors == 0 and .page_errors == 0 and .unexpected_http_4xx == 0 and .http_5xx == 0' \
+            artifacts/browser-validation/result.json >/dev/null
+
+      - name: Persist candidate verdict on #1012
+        if: ${{ success() }}
+        env:
+          CANDIDATE_REVISION: ${{ steps.candidate.outputs.candidate_revision }}
+          CANDIDATE_SHA256: ${{ steps.candidate.outputs.candidate_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          verdict="$(jq -r '.verdict' artifacts/drupal-2027-preprod-candidate/result.json)"
+          node_id="$(jq -r '.node.id // "N/A"' artifacts/drupal-2027-preprod-candidate/result.json)"
+          revision_id="$(jq -r '.node.revision_id // "N/A"' artifacts/drupal-2027-preprod-candidate/result.json)"
+          if [[ "$MODE" == dry-run ]]; then
+            heading='### Agency Drupal 2027 PREPROD candidate dry-run PASS'
+          elif [[ "$MODE" == apply ]]; then
+            heading='### Agency Drupal 2027 PREPROD candidate apply PASS'
+          else
+            heading='### Agency Drupal 2027 PREPROD candidate inspect PASS'
+          fi
+          browser='NOT_YET'
+          if [[ "$MODE" == apply ]]; then
+            browser="$(jq -r '.result' artifacts/browser-validation/result.json)"
+          fi
+          body="$heading
+
+          mode=$MODE
+          profile=drupal-2027-landing
+          candidate_revision=$CANDIDATE_REVISION
+          candidate_sha256=$CANDIDATE_SHA256
+          trusted_main=$TRUSTED_MAIN
+          verdict=$verdict
+          target=PREPROD
+          bundle=page
+          language=fr
+          alias=/fr/drupal-2027
+          node_id=$node_id
+          revision_id=$revision_id
+          browser_validation=$browser
+          prod_write=NONE
+          content_sync=NONE"
+          gh issue comment 1012 --repo "$REPO" --body "$body"
+
+      - name: Upload non-sensitive #1012 evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: drupal-2027-preprod-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/drupal-2027-preprod-candidate/result.json
+            artifacts/browser-validation/result.json
+            artifacts/browser-validation/evidence
+            artifacts/browser-validation/screenshots
+            artifacts/browser-validation/test-results
+          if-no-files-found: warn
+          retention-days: 30

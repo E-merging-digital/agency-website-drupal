@@ -159,6 +159,7 @@ jobs:
             "repos/$REPO/issues/1012/comments?per_page=100" \
             > "$receipt_comments"
           export COMMENTS_FILE="$receipt_comments"
+          python3 - <<'PY'
           # BEGIN DRUPAL_2027_RECEIPT_PARSER
           import json
           import os

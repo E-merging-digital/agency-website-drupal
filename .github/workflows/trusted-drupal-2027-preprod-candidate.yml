@@ -12,8 +12,16 @@ on:
       - 'playwright.config.mjs'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/Drupal2027PreprodCandidateWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Kernel/Drupal2027PreprodCandidateKernelTest.php'
-  issue_comment:
-    types: [created]
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+      PREPROD_BASIC_AUTH_USER:
+        required: true
+      PREPROD_BASIC_AUTH_PASSWORD:
+        required: true
 
 permissions:
   contents: read

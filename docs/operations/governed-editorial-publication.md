@@ -1,25 +1,46 @@
 # Governed editorial publication
 
-Status: **TRUSTED PRODUCTION MUTATION ROUTE**  
-Owner issue: #576  
-Initial consumer: #401
+Status: **PREPROD-FIRST / HUMAN-APPROVED PROD PROMOTION**
+Owner hardening issue: #1014
+Historical route owner: #576
+Candidate capability: #872 / #959
+Feature-image primitive: #584
 
-## Purpose
+## Durable policy
 
-Agency ordinary editorial content, including Blog Articles, is editor-owned in
-Drupal and remains outside Content Sync / Governed Content.
+Agency ordinary editorial content is editor-owned in Drupal and remains outside
+Content Sync / Governed Content. GitHub is the governed candidate, authority and
+audit surface; Drupal becomes the public editorial source of truth only after an
+exact approved promotion.
 
-This route exists only to remove mechanical human data entry when an authorized
-operator or agent already has a reviewed Article payload. It does not move the
-editorial source of truth into Git. GitHub is the governed request and audit
-surface; after a successful apply, Drupal is the editorial source of truth.
+For every new public Article, the mandatory path is:
 
-The initial route is deliberately limited to the `article` bundle.
+```text
+owner-authored deterministic Article payload
+-> candidate_id + candidate_revision + payload_sha256
+-> PREPROD materialization through #959
+-> exact feature image through #584 on PREPROD
+-> real human review of the rendered FR/EN candidate
+-> explicit Project Lead approval bound to content + image identities
+-> fresh PROD dry-run on current main
+-> same-artifact PROD promotion
+-> post-promotion verification
+```
+
+```text
+DIRECT_PROD_EDITORIAL_CREATION = FORBIDDEN_BY_DEFAULT
+PREPROD_FIRST = MANDATORY
+HUMAN_APPROVAL = MANDATORY
+ARTICLE_IMAGE = MANDATORY
+IMAGE_WAIVER = UNSUPPORTED_BY_NORMAL_ROUTE
+```
+
+A green PR, successful CI, an open issue, candidate creation, an available
+workflow or approval of another candidate is never PROD publication authority.
 
 ## Control surface
 
-On an OPEN repository issue created by `E-merging-digital`, the owner can post
-exactly one of:
+On an open issue created by `E-merging-digital`, the owner may use:
 
 ```text
 /agency-editorial inspect
@@ -27,249 +48,224 @@ exactly one of:
 /agency-editorial apply
 ```
 
-The workflow refuses every other comment. It also verifies that:
+`inspect` and `dry-run` remain read-only. `apply` is no longer a direct-create
+authority. It is the final promotion command and fails closed before PROD SSH
+unless the complete PREPROD-first authority below is present.
 
-- `GITHUB_ACTOR` is exactly `E-merging-digital`;
-- the comment author is the actor;
-- the target is an OPEN issue, not a pull request;
-- the issue author is `E-merging-digital`;
-- the workflow revision is the current live `main` SHA.
+The workflow remains fixed to:
 
-The trigger contains no shell, Drush command, server path or URL input.
+```text
+bundle = article
+source language = fr
+required translation = en
+text format = basic_html
+category vocabulary = blog_categories
+technical author = uid 1
+aliases = Pathauto-owned
+image field = field_feature_image
+```
 
-## Payload v1
+No caller-controlled bundle, entity type, field, text format, shell, Drush
+command, server path, host, URL or Content Sync surface exists.
 
-`inspect` needs no payload.
+## Durable candidate identity
 
-`dry-run` and `apply` use the latest owner-authored issue comment beginning
-exactly with:
+The latest owner-authored comment beginning exactly with:
 
 ```text
 <!-- agency-editorial-payload:v1 -->
 ```
 
-The remainder of that comment must be one JSON object with exactly:
+must contain the closed #576 Article JSON schema. The canonical bytes use sorted
+JSON keys, compact separators, UTF-8 and exactly one trailing newline.
 
-```json
-{
-  "schema_version": 1,
-  "issue_number": 401,
-  "bundle": "article",
-  "published": true,
-  "category": {
-    "tid": 123,
-    "name": "Existing category name"
-  },
-  "fr": {
-    "title": "...",
-    "short_description": "...",
-    "body_html": "..."
-  },
-  "en": {
-    "title": "...",
-    "short_description": "...",
-    "body_html": "..."
-  }
-}
-```
-
-Unknown fields are refused. The workflow canonicalizes the JSON with stable key
-ordering and hashes the canonical UTF-8 bytes with SHA-256. The canonical JSON
-is transferred as a file; payload values are never interpolated into a command.
-
-## Drupal contract
-
-V1 is fixed to:
+The promotion identity is:
 
 ```text
-bundle                 = article
-source language        = fr
-required translation   = en
-text format            = basic_html
-category vocabulary    = blog_categories
-technical author       = uid 1
-aliases                 = Pathauto-owned
+candidate_id       = agency-article-<issue_number>
+candidate_revision = exact GitHub payload comment id
+payload_sha256     = SHA-256 of canonical payload bytes
+trusted_main       = exact current main SHA
 ```
 
-The runtime script checks that the Article bundle, required fields, languages,
-`basic_html`, active uid 1 and the selected existing Blog category are present
-before any write.
+Immediately before PROD secrets are configured, the workflow reloads live
+`main` and all issue comments, then recomputes the latest owner payload identity.
+Any newer payload comment, content hash drift or main drift refuses the request.
 
-No user, role, permission, bundle, text format, alias or taxonomy creation is an
-input.
+## PREPROD evidence required for apply
 
-### HTML boundary
-
-The body accepts only a conservative subset of the existing `basic_html`
-contract:
+The exact issue must contain one bot-authored PREPROD Article apply receipt whose
+fields match all of:
 
 ```text
-p h2 h3 h4 ul ol li strong em a blockquote dl dt dd code br
+target = PREPROD
+candidate_id = exact candidate
+candidate_revision = exact payload comment id
+payload_sha256 = exact current payload
+trusted_main = exact current main
+node_id = exact PREPROD Article
+prod_write = NONE
 ```
 
-Only `href` is accepted on `<a>`. Links must be same-site relative paths or an
-`https://emergingdigital.be/` URL. Scripts, styles, iframes, images, arbitrary
-attributes, unsafe schemes and tables are refused.
-
-This is intentionally narrower than the editor format. For #401 the audit
-"table" is therefore represented as structured paragraphs/list/definition list
-instead of widening the text format.
-
-`title`, category name and short description are plain text only.
-
-## Inspect
-
-`/agency-editorial inspect` performs no mutation. It returns a machine-readable
-`result.json` containing:
-
-- Article/runtime readiness;
-- presence of FR and EN;
-- `basic_html` availability;
-- active technical author uid 1;
-- existing `blog_categories` TIDs and FR/EN labels;
-- existing technical issue mapping, if any.
-
-Use inspect before preparing the final category/TID pair for an Article.
-
-## Dry-run
-
-`/agency-editorial dry-run`:
-
-1. loads and hashes the latest valid payload;
-2. transfers only the canonical JSON and trusted PHP helper over the existing
-   production SSH channel;
-3. validates the same schema again inside Drupal;
-4. checks runtime prerequisites and category TID/name consistency;
-5. checks idempotence and exact-title collision rules;
-6. performs no `save()`;
-7. publishes `DRY_RUN PASS` evidence with payload hash and trusted `main` SHA.
-
-The dry-run verdict is `READY` or `IDEMPOTENT`.
-
-## Apply authorization
-
-`/agency-editorial apply` is refused unless the same issue already contains a
-`github-actions[bot]` dry-run PASS for:
-
-- the exact current payload SHA-256; and
-- the exact current live `main` SHA.
-
-A change to the payload or trusted `main` therefore requires a new dry-run.
-
-The production runner also performs a fresh Drupal dry-run immediately before
-any backup or mutation.
-
-## Apply
-
-For a `READY` payload, the runner creates:
+The Article must also have an exact repository-owned #584 feature-image profile:
 
 ```text
-/var/www/agency/shared/backups/editorial-issue-<N>-<UTC timestamp>.sql.gz
+issue_number
+bundle = article
+article_payload_sha256 = exact current payload
+field_name = field_feature_image
+asset.path
+asset.sha256
+asset MIME/dimensions/size limits
+ALT FR + EN
 ```
 
-and verifies that the backup is non-empty before the first content write.
+The profile is canonicalized and SHA-256 bound. Its bounded issue-specific image
+generator must reproduce the exact asset hash. Arbitrary image URLs/downloads
+are not accepted.
 
-The Drupal helper then:
+PREPROD must then contain both:
 
-- switches the current account to active uid 1;
-- creates one FR Article through Entity API;
-- sets `field_short_description` and `body` with `basic_html`;
-- references only the validated existing Blog taxonomy term;
-- adds the EN translation through Entity API;
-- creates a revision with issue + payload hash in the technical revision log;
-- saves the Article;
-- writes the technical idempotence mapping;
-- reloads and verifies the Article and EN translation;
-- reports node ID, UUID, revision ID and FR/EN aliases;
-- returns control to the runner, which rebuilds Drupal caches.
+1. a bot-authored image apply PASS for the exact profile/asset/current main;
+2. a later bot-authored image dry-run PASS with `IDEMPOTENT` for the same
+   node/revision/profile/asset/current main.
 
-No direct SQL content mutation is used.
+## Explicit human approval
 
-## Idempotence and collision rules
-
-The technical state key is:
+The normal route accepts exactly one owner-authored approval headed:
 
 ```text
-agency_editorial.issue.<issue_number>
+## PROJECT LEAD — HUMAN APPROVAL / exact #<issue> candidate approved for PROD promotion
 ```
 
-It stores only:
+It must bind the exact current identities and PREPROD evidence:
 
 ```text
-node_id
-payload_sha256
+CANDIDATE_ID
+CANDIDATE_REVISION
+ARTICLE_PAYLOAD_SHA256
+PREPROD_ARTICLE_APPLY
+PREPROD_NODE_ID
+PREPROD_ARTICLE_REVISION_AFTER_IMAGE
+IMAGE_PROFILE_SHA256
+IMAGE_ASSET_SHA256
+PREPROD_IMAGE_APPLY
+PREPROD_IMAGE_POST_APPLY_DRY_RUN
 ```
 
-This mapping is audit/idempotence metadata, not editorial content.
-
-Rules:
-
-- no mapping + no exact FR Article title => creation may proceed;
-- coherent mapping + same hash + same Article => `IDEMPOTENT`;
-- different hash for an existing mapping => fail closed;
-- missing/invalid mapped node => fail closed;
-- exact FR title already present without mapping => fail closed;
-- multiple/ambiguous content states are never auto-repaired.
-
-V1 never updates an existing Article.
-
-## Image boundary
-
-`field_feature_image` is optional at the Drupal field level, so the initial
-route can publish a safe textual Article. #401 is not complete until its required
-feature image and translated ALT are present and validated.
-
-V1 does not accept a remote image URL and does not download arbitrary media.
-Media support requires a separately reviewed bounded increment if no existing
-safe primitive is available.
-
-## Evidence
-
-Every run uploads:
+It must contain exact FR and EN `https://preprod.emergingdigital.be/...`
+rendered URLs and explicitly assert:
 
 ```text
-artifacts/editorial-publication/result.json
-artifacts/editorial-publication/preapply.json   # apply only
+HUMAN_REVIEW = PASS
+CONTENT = APPROVED
+IMAGE = APPROVED
+ALT_FR_EN = APPROVED
+IMAGE_SOURCE_POLICY = APPROVED
+RESPONSIVE_RENDER = APPROVED
+LISTING_DETAIL_RENDER = APPROVED
+EXACT_CANDIDATE_PROMOTION_TO_PROD = AUTHORIZED
+CONTENT_CHANGE_AFTER_APPROVAL = INVALIDATES_APPROVAL
+IMAGE_CHANGE_AFTER_APPROVAL = INVALIDATES_APPROVAL
 ```
 
-`apply` evidence also records the server-side backup path. Result comments expose
-only bounded metadata: status, verdict, node/revision IDs, aliases, trusted main,
-payload hash, run ID and artifact name.
+The approval comment must be later than the candidate Article and image evidence.
+A fresh bot-authored PROD dry-run for the exact payload/current main must be
+later than the human approval. This makes stale approval and pre-approval PROD
+dry-runs unusable.
 
-No secret, settings.php content, database content or payload body is copied into
-the result comment.
+No general image waiver or direct-PROD exception flag exists. A legal/emergency
+exception requires a separate explicit, bounded, auditable Project Lead
+capability and cannot become a reusable precedent.
+
+## Same-artifact PROD promotion
+
+After the authority gate passes, the production runner takes a database backup
+before any Drupal mutation. The runner does not call the historical direct
+published-Article path for `apply`.
+
+Instead it composes the already proven #576 and #584 primitives:
+
+```text
+1. validate exact payload/profile/asset again
+2. create/reuse the mapped Article as UNPUBLISHED
+3. attach/reconcile the exact approved feature image + FR/EN ALT
+4. compare mapped FR/EN title/description/body/category with approved payload
+5. compare image bytes/ALT with approved image profile
+6. publish FR + EN in a new revision only after all comparisons pass
+7. finalize Pathauto aliases
+8. rebuild caches
+```
+
+If image materialization or any later check fails after initial creation, the new
+Article remains unpublished. A public Article cannot escape from the normal
+route without the exact visual.
+
+Exact replay is idempotent. Candidate content drift, image bytes drift, ALT
+drift, missing translation, mismatched mapping or divergent publication states
+fail closed.
+
+## Visual completeness gate
+
+For Article promotion, the human review must cover:
+
+```text
+IMAGE_PRESENT = YES
+IMAGE_RELEVANCE_REVIEW = PASS
+IMAGE_SOURCE_POLICY = PASS
+ALT_FR_EN = PASS
+RESPONSIVE_RENDER_REVIEW = PASS
+LISTING_AND_DETAIL_REVIEW = PASS
+```
+
+The machine gate additionally proves the image is the exact repository-owned
+asset attached to FR/EN before publication. Human visual judgment is never
+inferred from an automated test.
+
+## Evidence and privacy
+
+Runs upload metadata-only evidence. Result comments may expose:
+
+- status/verdict;
+- trusted main;
+- payload hash;
+- approval comment id;
+- visual-completeness verdict;
+- node/revision IDs;
+- aliases;
+- run/artifact identifiers.
+
+They must not expose secrets, database data, settings.php, payload body, private
+PREPROD credentials or arbitrary runtime output.
+
+## Historical note
+
+#576 originally allowed direct Article creation in PROD after only a same-hash,
+same-main bot dry-run. That behavior is historical and superseded by #1014.
+#403 proved why the distinction matters: a technical route remained capable of
+publishing even though the Project Lead authority for the editorial pass said
+publication was not yet authorized.
+
+#872/#959 and the #958 real candidate established the correct architecture:
+PREPROD materialization, exact image, real human review, immutable approval and
+only then PROD promotion. #1014 makes that architecture an enforcement boundary
+instead of documentation-only guidance.
 
 ## Explicit non-capabilities
 
-This route cannot:
+The normal route cannot:
 
+- bypass PREPROD;
+- infer human approval;
+- publish an Article without its exact governed feature image;
+- use an image waiver;
 - execute arbitrary shell or Drush input;
 - run `drush cim` or `updb`;
-- invoke Governed Content / Content Sync;
+- invoke Content Sync / Governed Content;
 - deploy code;
-- change users or permissions;
 - create taxonomy terms;
-- edit menus or homepage;
 - mutate another bundle;
-- select another text format;
-- set arbitrary aliases;
+- choose another text format;
+- accept arbitrary aliases or remote media URLs;
 - invoke an AI provider;
-- update an existing Article in v1.
-
-## #401 sequence
-
-After #576 is merged and CI is green:
-
-```text
-/agency-editorial inspect
--> choose an existing category returned by inspect
--> post the final #401 payload
--> /agency-editorial dry-run
--> verify hash/verdict
--> /agency-editorial apply
--> verify node/revision/FR+EN aliases
--> complete feature image + ALT if still required
--> Browser Validation desktop/mobile
--> verify canonical/hreflang/sitemap/console/network
--> close #401 only when its complete DoD is satisfied
-```
+- turn an emergency exception into a permanent switch.

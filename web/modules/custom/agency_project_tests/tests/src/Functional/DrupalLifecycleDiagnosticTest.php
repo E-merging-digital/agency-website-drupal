@@ -174,6 +174,7 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
     self::assertSame([
       '/fr/audit-drupal',
       '/fr/drupal-2027',
+      '/drupal-2027',
       '/fr/migration-drupal',
       '/fr/refonte-site-drupal',
       '/en/drupal-audit',
@@ -224,7 +225,7 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
     $this->submitForm([
       'website_url' => 'https://example.com',
       'name' => 'Diagnostic Consent',
-      'email' => 'contact@example.com',
+      'email' => 'not-an-email',
       'message' => 'Consent intentionally missing.',
     ], $this->submitLabel);
     $this->assertSession()->elementExists('css', '[role="alert"]');

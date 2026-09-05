@@ -1,0 +1,295 @@
+name: '#1015 Homepage Brand Candidate PREPROD'
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+      PREPROD_BASIC_AUTH_USER:
+        required: true
+      PREPROD_BASIC_AUTH_PASSWORD:
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: agency-homepage-brand-1015-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.issue.number == 1015
+          && github.event.issue.pull_request == null
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && (github.event.comment.body == '/agency-homepage-brand-1015 inspect'
+              || github.event.comment.body == '/agency-homepage-brand-1015 dry-run'
+              || github.event.comment.body == '/agency-homepage-brand-1015 apply') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      EXPECTED_OWNER: E-merging-digital
+      SOURCE_COMMENT_ID: '5555043804'
+      SOURCE_UPDATED_AT: '2026-09-05T21:55:15Z'
+      PROFILE_SHA256: 'bfbc8ac2d56af551509af254c797abe4437b6739b3a1d38ca369309717619da7'
+      PREPROD_URL: https://preprod.emergingdigital.be
+
+    steps:
+      - name: Authorize exact #1015 owner command
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.actor }}' = "$EXPECTED_OWNER"
+          issue_json="$(gh api "repos/$REPO/issues/1015")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          test "$(jq -r '.user.login' <<<"$issue_json")" = "$EXPECTED_OWNER"
+          mode='${{ github.event.comment.body }}'
+          mode="${mode##* }"
+          case "$mode" in inspect|dry-run|apply) ;; *) exit 1 ;; esac
+          echo "MODE=$mode" >> "$GITHUB_ENV"
+
+      - name: Reload authoritative main
+        shell: bash
+        run: |
+          set -euo pipefail
+          main="$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')"
+          [[ "$main" =~ ^[0-9a-f]{40}$ ]]
+          echo "TRUSTED_MAIN=$main" >> "$GITHUB_ENV"
+
+      - name: Require exact prior dry-run before apply
+        if: ${{ env.MODE == 'apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/$REPO/issues/1015/comments?per_page=100" > /tmp/homepage-1015-comments.json
+          COMMENTS_FILE=/tmp/homepage-1015-comments.json python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          heading = '### Agency Homepage Brand #1015 PREPROD dry-run PASS'
+          expected = {
+              'profile_sha256': os.environ['PROFILE_SHA256'],
+              'trusted_main': os.environ['TRUSTED_MAIN'],
+          }
+          patterns = {
+              'profile_sha256': re.compile(r'^profile_sha256=([0-9a-f]{64})$'),
+              'trusted_main': re.compile(r'^trusted_main=([0-9a-f]{40})$'),
+          }
+          pages = json.load(open(os.environ['COMMENTS_FILE'], encoding='utf-8'))
+          comments = []
+          for page in pages:
+              comments.extend(page if isinstance(page, list) else [page])
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'github-actions[bot]':
+                  continue
+              lines = (comment.get('body') or '').splitlines()
+              if not lines or lines[0] != heading or lines.count(heading) != 1:
+                  continue
+              fields = {}
+              for name, pattern in patterns.items():
+                  candidates = [line for line in lines[1:] if line.startswith(f'{name}=')]
+                  if len(candidates) != 1 or pattern.fullmatch(candidates[0]) is None:
+                      break
+                  fields[name] = pattern.fullmatch(candidates[0]).group(1)
+              if len(fields) == len(expected) and all(fields[name] == value for name, value in expected.items()):
+                  break
+          else:
+              raise SystemExit('Apply requires exact dry-run PASS for the same profile SHA and trusted main.')
+          PY
+
+      - name: Checkout exact live main execution source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TRUSTED_MAIN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: JIT revalidate main and Project Lead authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN"
+          test "$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')" = "$TRUSTED_MAIN"
+          test "$(gh api "repos/$REPO/issues/comments/$SOURCE_COMMENT_ID" --jq '.updated_at')" = "$SOURCE_UPDATED_AT"
+          test "$(gh api "repos/$REPO/issues/comments/$SOURCE_COMMENT_ID" --jq '.user.login')" = "$EXPECTED_OWNER"
+          test "$(gh api "repos/$REPO/issues/comments/$SOURCE_COMMENT_ID" --jq '.issue_url')" = "https://api.github.com/repos/$REPO/issues/1015"
+          grep -Fq "private const PROFILE_SHA256 = '$PROFILE_SHA256';" scripts/runner/homepage-brand-1015.php
+
+      - name: Materialize PREPROD SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/agency_preprod_ed25519
+          chmod 600 ~/.ssh/agency_preprod_ed25519
+          echo "PREPROD_SSH_KEY=$HOME/.ssh/agency_preprod_ed25519" >> "$GITHUB_ENV"
+
+      - name: Execute closed homepage Brand #1015 PREPROD profile
+        env:
+          HOMEPAGE_BRAND_1015_MODE: ${{ env.MODE }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-homepage-brand-1015.sh
+
+      - name: Setup existing Playwright browser capability
+        if: ${{ env.MODE == 'apply' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install Chromium for bounded homepage review
+        if: ${{ env.MODE == 'apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Review exact homepage candidate desktop and mobile
+        if: ${{ env.MODE == 'apply' }}
+        env:
+          HTTP_USERNAME: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          HTTP_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/homepage-brand-1015/screenshots
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          import { writeFile } from 'node:fs/promises';
+
+          const baseURL = process.env.PREPROD_URL;
+          const expected = {
+            h1: 'Créer, améliorer ou moderniser votre plateforme web',
+            subtitle: 'E-merging Digital accompagne les PME, ASBL et organisations qui lancent un nouveau projet, doivent faire évoluer une plateforme existante ou veulent moderniser un environnement devenu difficile à maintenir. Nous partons du besoin métier avant de choisir les technologies qui le servent.',
+            primary: 'Parler de mon projet',
+            secondary: 'Voir les expertises',
+            axes: [
+              ['CRÉER', 'Vous partez d’un nouveau besoin. Nous aidons à cadrer les usages, les parcours, les contenus et la base technique pour construire une plateforme utile, maintenable et capable d’évoluer.'],
+              ['AMÉLIORER', 'Votre plateforme fonctionne déjà, mais vous avez besoin de nouvelles fonctionnalités, de meilleures intégrations, de parcours plus clairs ou d’automatiser certains usages. Nous faisons évoluer l’existant sans repartir de zéro par réflexe.'],
+              ['MODERNISER', 'Votre site ou application repose sur un socle vieillissant, accumule de la dette technique ou devient trop coûteux à faire évoluer. Nous aidons à prioriser, fiabiliser et moderniser progressivement, jusqu’à la migration lorsque celle-ci est réellement justifiée.'],
+            ],
+          };
+          const projects = [
+            ['desktop', { width: 1440, height: 900, isMobile: false }],
+            ['mobile', { width: 390, height: 844, isMobile: true }],
+          ];
+          const evidence = [];
+
+          for (const [name, viewport] of projects) {
+            const browser = await chromium.launch();
+            const context = await browser.newContext({
+              viewport: { width: viewport.width, height: viewport.height },
+              isMobile: viewport.isMobile,
+              hasTouch: viewport.isMobile,
+              ignoreHTTPSErrors: true,
+              httpCredentials: { username: process.env.HTTP_USERNAME, password: process.env.HTTP_PASSWORD },
+            });
+            const page = await context.newPage();
+            const consoleErrors = [];
+            const pageErrors = [];
+            const httpErrors = [];
+            page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+            page.on('pageerror', error => pageErrors.push(error.message));
+            page.on('response', response => {
+              const url = new URL(response.url());
+              if (url.origin === new URL(baseURL).origin && response.status() >= 400) {
+                httpErrors.push({ status: response.status(), url: response.url() });
+              }
+            });
+
+            const response = await page.goto(new URL('/fr', baseURL).toString(), { waitUntil: 'domcontentloaded' });
+            if (!response || response.status() >= 400) throw new Error(`${name} homepage HTTP failure`);
+            const h1 = page.getByRole('heading', { level: 1, name: expected.h1, exact: true });
+            if (await h1.count() !== 1 || !await h1.isVisible()) throw new Error(`${name} H1 mismatch`);
+            const subtitle = page.getByText(expected.subtitle, { exact: true }).first();
+            if (!await subtitle.isVisible()) throw new Error(`${name} subtitle mismatch`);
+            const primary = page.getByRole('link', { name: expected.primary, exact: true }).first();
+            const secondary = page.getByRole('link', { name: expected.secondary, exact: true }).first();
+            if (!await primary.isVisible() || !await secondary.isVisible()) throw new Error(`${name} CTA visibility mismatch`);
+            const primaryHref = new URL(await primary.getAttribute('href'), baseURL).pathname;
+            const secondaryHref = new URL(await secondary.getAttribute('href'), baseURL).pathname;
+            if (primaryHref !== '/fr/contact' || secondaryHref !== '/fr/services') throw new Error(`${name} CTA target mismatch`);
+            for (const [heading, body] of expected.axes) {
+              if (!await page.getByRole('heading', { name: heading, exact: true }).first().isVisible()) throw new Error(`${name} axis heading mismatch: ${heading}`);
+              if (!await page.getByText(body, { exact: true }).first().isVisible()) throw new Error(`${name} axis body mismatch: ${heading}`);
+            }
+            const dom = await page.evaluate(() => ({
+              h1Count: document.querySelectorAll('h1').length,
+              lang: document.documentElement.lang,
+              overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+            }));
+            if (dom.h1Count !== 1 || dom.lang !== 'fr' || dom.overflow) throw new Error(`${name} DOM/accessibility baseline mismatch`);
+            const services = await page.request.get(new URL(secondaryHref, baseURL).toString());
+            if (services.status() >= 400) throw new Error(`${name} services route unavailable`);
+            await page.screenshot({ path: `artifacts/homepage-brand-1015/screenshots/homepage-${name}.png`, fullPage: true });
+            if (consoleErrors.length || pageErrors.length || httpErrors.length) {
+              throw new Error(`${name} material browser regression: ${JSON.stringify({ consoleErrors, pageErrors, httpErrors })}`);
+            }
+            evidence.push({ project: name, result: 'PASS', visual: 'PASS', accessibility_baseline: 'PASS', services_route: 'PASS' });
+            await browser.close();
+          }
+          await writeFile('artifacts/homepage-brand-1015/browser-review.json', JSON.stringify({ result: 'PASS', target: '/fr', desktop: 'PASS', mobile: 'PASS', projects: evidence }, null, 2) + '\n');
+          NODE
+
+      - name: Persist #1015 candidate receipt
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          verdict="$(jq -r '.verdict' artifacts/homepage-brand-1015/result.json)"
+          node_id="$(jq -r '.node.id' artifacts/homepage-brand-1015/result.json)"
+          revision_id="$(jq -r '.node.revision_id' artifacts/homepage-brand-1015/result.json)"
+          case "$MODE" in
+            inspect) heading='### Agency Homepage Brand #1015 PREPROD inspect PASS' ;;
+            dry-run) heading='### Agency Homepage Brand #1015 PREPROD dry-run PASS' ;;
+            apply) heading='### Agency Homepage Brand #1015 PREPROD apply PASS' ;;
+          esac
+          browser='NOT_YET'
+          [[ "$MODE" != apply ]] || browser="$(jq -r '.result' artifacts/homepage-brand-1015/browser-review.json)"
+          gh issue comment 1015 --repo "$REPO" --body "$heading
+
+          mode=$MODE
+          profile=homepage-brand-1015
+          profile_sha256=$PROFILE_SHA256
+          trusted_main=$TRUSTED_MAIN
+          verdict=$verdict
+          target=PREPROD
+          node_id=$node_id
+          revision_id=$revision_id
+          bundle=page
+          language=fr
+          front=/node/5
+          browser_review=$browser
+          content_sync=RELEASED_UNCHANGED
+          en=DEFER
+          prod_write=NONE"
+
+      - name: Upload non-sensitive #1015 evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: homepage-brand-1015-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/homepage-brand-1015/result.json
+            artifacts/homepage-brand-1015/browser-review.json
+            artifacts/homepage-brand-1015/screenshots
+          if-no-files-found: warn
+          retention-days: 30

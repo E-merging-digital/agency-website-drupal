@@ -316,8 +316,8 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
       'candidate_id' => 'agency-drupal-2027-landing-1012',
       'issue_number' => 1012,
       'source_issue' => 1010,
-      'source_comment_id' => 5545732650,
-      'source_updated_at' => '2026-09-04T19:52:38Z',
+      'source_comment_id' => 5553624200,
+      'source_updated_at' => '2026-09-05T17:43:14Z',
       'target' => 'PREPROD',
       'bundle' => 'page',
       'language' => 'fr',
@@ -327,8 +327,8 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
       'short_description' => 'Description approuvée.',
       'hero' => [
         'submessage' => 'Sous-message approuvé.',
-        'primary_cta' => 'Faire le point sur mon Drupal',
-        'secondary_cta' => 'Voir les points à vérifier',
+        'primary_cta' => 'Faire le point sur ma plateforme',
+        'secondary_cta' => 'Voir ce qu’il faut vérifier',
       ],
       'sections' => [
         'lifecycle' => $this->section('Pourquoi 2027 ?', '<p>Jalons.</p>'),

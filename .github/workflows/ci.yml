@@ -156,7 +156,13 @@ jobs:
           chmod -R 777 sites/simpletest
 
       - name: Run custom PHPUnit suite only (exclude unstable_ia and unstable_language_switcher)
-        run: vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia --exclude-group unstable_language_switcher web/modules/custom/agency_project_tests/tests
+        run: |
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            --exclude-group unstable_ia \
+            --exclude-group unstable_language_switcher \
+            --stop-on-failure \
+            web/modules/custom/agency_project_tests/tests \
+            > web/sites/simpletest/browser_output/phpunit-first-failure.txt 2>&1
 
       - name: Upload BrowserTestBase HTML output
         if: failure()

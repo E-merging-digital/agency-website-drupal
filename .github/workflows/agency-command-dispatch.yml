@@ -262,3 +262,25 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  drupal-2027-preprod-candidate:
+    name: Route #1012 Drupal 2027 PREPROD candidate
+    needs: classify
+    if: >-
+      ${{ github.event.issue.pull_request == null
+          && github.event.issue.number == 1012
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && (github.event.comment.body == '/agency-drupal-2027-candidate inspect'
+              || github.event.comment.body == '/agency-drupal-2027-candidate dry-run'
+              || github.event.comment.body == '/agency-drupal-2027-candidate apply') }}
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-drupal-2027-preprod-candidate.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+      PREPROD_BASIC_AUTH_USER: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+      PREPROD_BASIC_AUTH_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}

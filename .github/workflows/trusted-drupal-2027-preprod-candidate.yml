@@ -71,7 +71,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
       EXPECTED_OWNER: E-merging-digital
-      SOURCE_COMMENT_ID: '5545732650'
+      SOURCE_COMMENT_ID: '5553624200'
       SOURCE_ISSUE: '1010'
       PREPROD_URL: https://preprod.emergingdigital.be
     steps:
@@ -128,7 +128,7 @@ jobs:
               'candidate_id': 'agency-drupal-2027-landing-1012',
               'issue_number': 1012,
               'source_issue': 1010,
-              'source_comment_id': 5545732650,
+              'source_comment_id': 5553624200,
               'target': 'PREPROD',
               'bundle': 'page',
               'language': 'fr',
@@ -139,7 +139,7 @@ jobs:
               if payload.get(key) != value:
                   raise SystemExit(f'Fixed candidate field mismatch: {key}')
           source = json.load(open('artifacts/drupal-2027-preprod-candidate/source.json', encoding='utf-8'))
-          if source.get('id') != 5545732650 or source.get('user', {}).get('login') != os.environ['EXPECTED_OWNER']:
+          if source.get('id') != 5553624200 or source.get('user', {}).get('login') != os.environ['EXPECTED_OWNER']:
               raise SystemExit('Source comment identity mismatch.')
           if not source.get('issue_url', '').endswith('/issues/1010'):
               raise SystemExit('Source comment is not attached to #1010.')

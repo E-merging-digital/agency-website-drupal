@@ -68,8 +68,22 @@ remote_runtime_validate() {
 
 remote_runtime_validate
 
+set +e
 ssh "${ssh_common[@]}" "$remote_target" \
   "set -euo pipefail; cd /var/www/agency-preprod/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_HOMEPAGE_BRAND_1015_MODE='$MODE' AGENCY_HOMEPAGE_BRAND_1015_RESULT_PATH='$remote_result' AGENCY_HOMEPAGE_BRAND_1015_LIBRARY_PATH='$remote_profile' vendor/bin/drush php:script '$remote_runner'"
+drush_status=$?
+set -e
+
+if (( drush_status != 0 )); then
+  if ssh "${ssh_common[@]}" "$remote_target" "test -f '$remote_result'"; then
+    receipt_copy_status=0
+    scp "${ssh_common[@]}" "$remote_target:$remote_result" "$ARTIFACT_DIR/result.json" >/dev/null || receipt_copy_status=$?
+    if (( receipt_copy_status != 0 )); then
+      echo "Failed to retrieve structured remote result before propagating Drush exit status $drush_status." >&2
+    fi
+  fi
+  exit "$drush_status"
+fi
 
 if [[ "$MODE" == apply ]]; then
   ssh "${ssh_common[@]}" "$remote_target" \

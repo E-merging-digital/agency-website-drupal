@@ -101,7 +101,10 @@ final class EditorialHumanApprovalGateTest extends TestCase {
   }
 
   /**
+   * Builds one direct human approval comment fixture.
+   *
    * @return array<string, mixed>
+   *   The exact human approval comment fixture.
    */
   private function validHumanComment(): array {
     return [
@@ -127,8 +130,12 @@ final class EditorialHumanApprovalGateTest extends TestCase {
   }
 
   /**
+   * Executes the approval validator with bounded fixture input.
+   *
    * @param array<int, array<string, mixed>> $comments
+   *   GitHub issue comments to expose to the validator.
    * @param array<string, string> $overrides
+   *   Exact CLI argument overrides for one test scenario.
    */
   private function runGate(array $comments, array $overrides = []): int {
     $root = dirname(DRUPAL_ROOT);

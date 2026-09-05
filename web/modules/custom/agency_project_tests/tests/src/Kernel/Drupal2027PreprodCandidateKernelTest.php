@@ -35,6 +35,7 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     'field',
     'text',
     'filter',
+    'file',
     'node',
     'language',
     'path',

@@ -225,7 +225,7 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
     $this->submitForm([
       'website_url' => 'https://example.com',
       'name' => 'Diagnostic Consent',
-      'email' => 'not-an-email',
+      'email' => 'contact@example.com',
       'message' => 'Consent intentionally missing.',
     ], $this->submitLabel);
     $this->assertSession()->elementExists('css', '[role="alert"]');

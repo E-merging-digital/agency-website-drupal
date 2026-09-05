@@ -10,19 +10,19 @@ const contract = JSON.parse(
 );
 
 const h1 = 'Votre plateforme Drupal est-elle prête pour 2027 ?';
-const submessage = "Avant de parler migration ou refonte, faites le point sur l'existant. Nous vous aidons à identifier ce qui mérite réellement d'être vérifié — version, dépendances, code sur mesure, hébergement et tests — puis à choisir une trajectoire réaliste, sans urgence artificielle.";
-const primaryCta = 'Faire le point sur mon Drupal';
-const secondaryCta = 'Voir les points à vérifier';
+const submessage = 'Une plateforme Drupal peut fonctionner correctement aujourd’hui tout en nécessitant de préparer sa prochaine évolution. L’objectif est d’identifier ce qui mérite réellement d’être vérifié — version, dépendances, développements spécifiques, environnement et tests — avant de décider d’une mise à niveau, d’une migration ou d’une modernisation.';
+const primaryCta = 'Faire le point sur ma plateforme';
+const secondaryCta = 'Voir ce qu’il faut vérifier';
 const secondaryCtaTarget = '#points-a-verifier-socle';
 
 const orderedHeadings = [
   'Pourquoi 2027 ? Les jalons à connaître',
   'Dans quelles situations êtes-vous concerné ?',
   'Les points à vérifier',
-  "Pourquoi ce n'est pas juste `composer update`",
+  'Pourquoi ce n’est pas juste `composer update`',
   'Notre méthode en quatre étapes',
-  "Un premier diagnostic humain, pas une migration décidée d'avance",
-  'Si une analyse plus poussée est utile',
+  'Un premier diagnostic gratuit et humain, pas une migration décidée d’avance',
+  'Si un audit technique est réellement utile',
   'FAQ minimale',
 ];
 
@@ -102,11 +102,11 @@ test.describe('Drupal 2027 protected PREPROD landing review', () => {
     }
 
     for (const reassurance of [
-      'Diagnostic humain',
-      'pas de scanner automatique',
-      "pas de migration décidée d'avance",
-      'audit payant uniquement si une analyse plus poussée est utile',
-      "livrable d'audit exploitable indépendamment de la suite",
+      'Premier diagnostic gratuit',
+      'revue humaine et faible friction',
+      'pas de scanner automatique ni d’audit exhaustif',
+      'aucun accès au repository ou à la production requis par défaut',
+      'audit payant seulement si utile, sans migration automatique',
     ]) {
       await expect(page.getByText(reassurance, { exact: true })).toBeVisible();
     }

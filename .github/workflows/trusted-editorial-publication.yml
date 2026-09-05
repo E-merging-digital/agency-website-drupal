@@ -187,6 +187,83 @@ jobs:
               handle.write(f'payload_comment_id={payload_comment["id"]}\n')
           PY
 
+      - name: Resolve exact PREPROD review receipt
+        id: preprod
+        if: ${{ steps.request.outputs.mode == 'apply' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.payload_comment_id }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+        run: |
+          set -euo pipefail
+          comments_file="$RUNNER_TEMP/agency-editorial-prod-approval-comments.json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
+            > "$comments_file"
+          export COMMENTS_FILE="$comments_file"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          heading = '### Agency editorial PREPROD candidate apply PASS'
+          patterns = {
+              'candidate_revision': re.compile(r'^candidate_revision: `([1-9][0-9]*)`$'),
+              'payload_sha256': re.compile(r'^payload_sha256: `([0-9a-f]{64})`$'),
+              'target': re.compile(r'^target: `(PREPROD)`$'),
+              'fr_url': re.compile(r'^fr_url: `(https://preprod\.emergingdigital\.be/[^`\s]+)`$'),
+              'en_url': re.compile(r'^en_url: `(https://preprod\.emergingdigital\.be/[^`\s]+)`$'),
+              'prod_write': re.compile(r'^prod_write: `(NONE)`$'),
+          }
+          expected = {
+              'candidate_revision': os.environ['CANDIDATE_REVISION'],
+              'payload_sha256': os.environ['PAYLOAD_SHA256'],
+              'target': 'PREPROD',
+              'prod_write': 'NONE',
+          }
+          pages = json.load(open(os.environ['COMMENTS_FILE'], encoding='utf-8'))
+          comments = []
+          for page in pages:
+              if isinstance(page, list):
+                  comments.extend(page)
+              elif isinstance(page, dict):
+                  comments.append(page)
+
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'github-actions[bot]':
+                  continue
+              lines = (comment.get('body') or '').splitlines()
+              if not lines or lines[0] != heading or lines.count(heading) != 1:
+                  continue
+              fields = {}
+              invalid = False
+              for name, pattern in patterns.items():
+                  prefix = f'{name}:'
+                  candidates = [line for line in lines[1:] if line.startswith(prefix)]
+                  if len(candidates) != 1:
+                      invalid = True
+                      break
+                  match = pattern.fullmatch(candidates[0])
+                  if match is None:
+                      invalid = True
+                      break
+                  fields[name] = match.group(1)
+              if invalid:
+                  continue
+              if any(fields[name] != value for name, value in expected.items()):
+                  continue
+              with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+                  output.write(f'fr_url={fields["fr_url"]}\n')
+                  output.write(f'en_url={fields["en_url"]}\n')
+              raise SystemExit(0)
+
+          raise SystemExit(
+              'PROD apply requires an exact PREPROD candidate apply PASS for the same candidate revision and payload hash.'
+          )
+          PY
+
       - name: Checkout exact trusted main
         uses: actions/checkout@v6
         with:
@@ -203,8 +280,29 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
           test -f scripts/runner/run-editorial-publication.sh
           test -f scripts/runner/editorial-publication.php
+          test -f scripts/validation/editorial-human-approval.php
           bash -n scripts/runner/run-editorial-publication.sh
           php -l scripts/runner/editorial-publication.php
+          php -l scripts/validation/editorial-human-approval.php
+
+      - name: Require direct human approval for exact PREPROD candidate
+        if: ${{ steps.request.outputs.mode == 'apply' }}
+        shell: bash
+        env:
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.payload_comment_id }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+          PREPROD_FR_URL: ${{ steps.preprod.outputs.fr_url }}
+          PREPROD_EN_URL: ${{ steps.preprod.outputs.en_url }}
+        run: |
+          set -euo pipefail
+          php scripts/validation/editorial-human-approval.php \
+            --comments="$RUNNER_TEMP/agency-editorial-prod-approval-comments.json" \
+            --owner='E-merging-digital' \
+            --candidate-revision="$CANDIDATE_REVISION" \
+            --payload-sha256="$PAYLOAD_SHA256" \
+            --preprod-fr-url="$PREPROD_FR_URL" \
+            --preprod-en-url="$PREPROD_EN_URL" \
+            --language-mode='FR_EN'
 
       - name: Configure existing production SSH channel
         env:

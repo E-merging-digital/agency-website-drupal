@@ -51,7 +51,13 @@ test.describe('Drupal 2027 protected PREPROD landing review', () => {
     const servicesIllustration = page.locator(
       'img[src*="/images/services/services-page-hero.svg"]',
     );
-    await expect(servicesIllustration).toBeVisible();
+    await expect(servicesIllustration).toHaveCount(1);
+    if (testInfo.project.name === 'mobile') {
+      await expect(servicesIllustration).toBeHidden();
+    }
+    else {
+      await expect(servicesIllustration).toBeVisible();
+    }
     audit.checks.hero_services_variant = 'PASS';
 
     const primary = page.getByRole('link', { name: primaryCta, exact: true }).first();

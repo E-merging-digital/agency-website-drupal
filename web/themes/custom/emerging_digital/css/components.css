@@ -24,7 +24,7 @@ button,
   text-decoration: none;
   text-align: center;
   overflow-wrap: anywhere;
-  box-shadow: 0 8px 18px rgb(0 91 187 / 20%);
+  box-shadow: 0 8px 18px rgb(40 111 182 / 20%);
   transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease, background-color 160ms ease, border-color 160ms ease, color 160ms ease;
   cursor: pointer;
 }
@@ -43,7 +43,7 @@ button:focus-visible,
 .webform-submission-form .form-actions .button:focus-visible {
   filter: brightness(0.95);
   transform: translateY(-1px);
-  box-shadow: 0 12px 24px rgb(0 91 187 / 24%);
+  box-shadow: 0 12px 24px rgb(40 111 182 / 24%);
 }
 
 .button:focus-visible,
@@ -340,7 +340,7 @@ button:focus-visible,
   outline: 3px solid #1d4ed8;
   outline-offset: 2px;
   border-color: #1d4ed8;
-  box-shadow: 0 0 0 3px rgb(0 91 187 / 14%);
+  box-shadow: 0 0 0 3px rgb(40 111 182 / 14%);
 }
 
 :where(
@@ -1101,7 +1101,7 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
 }
 
 .ed-service-group--business {
-  border-top-color: #89c540;
+  border-top-color: var(--color-accent);
 }
 
 .ed-service-group--ai {
@@ -1165,7 +1165,7 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
 
 .ed-card:focus-within {
   border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
-  box-shadow: 0 0 0 3px rgb(0 91 187 / 14%), 0 10px 22px rgb(17 24 39 / 8%);
+  box-shadow: 0 0 0 3px rgb(40 111 182 / 14%), 0 10px 22px rgb(17 24 39 / 8%);
 }
 
 .ed-card h3 {
@@ -1266,7 +1266,7 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
   height: 0.2rem;
   margin-bottom: var(--space-2);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-primary) 74%, #89c540);
+  background: color-mix(in srgb, var(--color-primary) 74%, var(--color-accent));
 }
 
 .ed-trust-list {
@@ -1393,14 +1393,14 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
   border-color: #d5def8;
   background:
     linear-gradient(135deg, rgb(255 255 255 / 94%) 0%, rgb(246 249 255 / 96%) 100%),
-    linear-gradient(130deg, #005bbb 0%, #89c540 100%);
+    linear-gradient(130deg, var(--color-primary) 0%, var(--color-accent) 100%);
 }
 
 .ed-detail-page__hero--case-client {
   border-color: #d6e2d2;
   background:
     linear-gradient(135deg, rgb(255 255 255 / 96%) 0%, rgb(247 251 246 / 98%) 100%),
-    linear-gradient(130deg, #89c540 0%, #005bbb 100%);
+    linear-gradient(130deg, var(--color-accent) 0%, var(--color-primary) 100%);
 }
 
 .ed-detail-page__eyebrow {
@@ -1489,12 +1489,12 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
   background: var(--color-primary);
   color: var(--color-primary-contrast);
   text-decoration: none;
-  box-shadow: 0 8px 18px rgb(0 91 187 / 18%);
+  box-shadow: 0 8px 18px rgb(40 111 182 / 18%);
 }
 
 .ed-prose p:last-child strong a:hover,
 .ed-prose p:last-child strong a:focus-visible {
-  background: #004f9f;
+  background: color-mix(in srgb, var(--color-primary) 88%, #000);
   color: #fff;
 }
 
@@ -1569,7 +1569,7 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-primary) 74%, #89c540);
+  background: color-mix(in srgb, var(--color-primary) 74%, var(--color-accent));
 }
 
 .node__related {

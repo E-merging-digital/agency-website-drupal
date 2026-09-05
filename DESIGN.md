@@ -82,8 +82,9 @@ vérité de son rendu et de son API props/slots.
 
 ## 4. Baseline de tokens existante
 
-Les valeurs ci-dessous sont **l’état réel du thème au 18 août 2026**. Elles ne
-constituent pas une invitation à refondre la direction artistique sous #518.
+Les valeurs ci-dessous sont **l’état réel du thème après l’alignement Brand
+#1015**. Elles restent une évolution bornée du système existant et ne constituent
+pas une refonte de la direction artistique.
 
 ### Couleurs
 
@@ -94,8 +95,16 @@ constituent pas une invitation à refondre la direction artistique sous #518.
 | `--color-text` | `#111827` | texte principal |
 | `--color-muted` | `#4b5563` | texte secondaire |
 | `--color-border` | `#d1d5db` | bordures |
-| `--color-primary` | `#005bbb` | action/lien principal |
+| `--color-primary` | `#286FB6` | action/lien principal et bleu de marque |
 | `--color-primary-contrast` | `#ffffff` | contenu sur primaire |
+| `--color-accent` | `#77B72E` | accent, progression et décoration de marque |
+
+Le bleu primaire peut porter du texte blanc : la combinaison reste compatible
+avec l’objectif WCAG AA pour le texte normal. Le vert d’accent n’est pas un fond
+pour du texte blanc normal ; s’il porte du texte, utiliser une couleur sombre
+avec contraste suffisant. Les couleurs dédiées au focus, aux erreurs, aux
+avertissements, aux confirmations et aux autres statuts restent indépendantes de
+la palette Brand sauf décision d’accessibilité explicitement justifiée.
 
 Règle : toute nouvelle couleur sémantique récurrente doit devenir un token
 justifié. Ne pas multiplier des hex ad hoc dans de nouveaux composants.

@@ -16,8 +16,8 @@ use PHPUnit\Framework\TestCase;
 #[Group('drupal_2027_preprod_candidate')]
 final class Drupal2027PreprodCandidateWorkflowTest extends TestCase {
 
-  private const EXPECTED_REVISION = '5546486306';
-  private const EXPECTED_SHA = '6b4fa8adfb3624b9f95ae1cdb2c7e6468f5fa4eea34a23ad0ba35ba6a7ef2c7c';
+  private const EXPECTED_REVISION = '5553858896';
+  private const EXPECTED_SHA = '07fb10ab4a54371d877fbfc6b3f185eda41085ae3bd5080de2d695843c9d049e';
   private const EXPECTED_MAIN = '33098073ee75a91a487fc40c76f71b731015b1c8';
   private const RECEIPT_HEADING = '### Agency Drupal 2027 PREPROD candidate dry-run PASS';
 

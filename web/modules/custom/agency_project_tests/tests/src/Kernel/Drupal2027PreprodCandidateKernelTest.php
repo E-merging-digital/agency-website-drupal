@@ -327,8 +327,8 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
       'short_description' => 'Description approuvée.',
       'hero' => [
         'submessage' => 'Sous-message approuvé.',
-        'primary_cta' => 'Faire le point sur mon Drupal',
-        'secondary_cta' => 'Voir les points à vérifier',
+        'primary_cta' => 'Faire le point sur ma plateforme',
+        'secondary_cta' => 'Voir ce qu’il faut vérifier',
       ],
       'sections' => [
         'lifecycle' => $this->section('Pourquoi 2027 ?', '<p>Jalons.</p>'),

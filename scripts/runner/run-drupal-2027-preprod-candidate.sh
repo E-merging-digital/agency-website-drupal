@@ -61,7 +61,7 @@ ssh_common=(
   -o ConnectTimeout=15
 )
 remote_target="agency-preprod@$PREPROD_SERVER_HOST"
-remote_stem="/tmp/agency-drupal-2027-1012-${RUN_ID}-${RUN_ATTEMPT}"
+remote_stem="/tmp/agency-drupal-2027-1046-${RUN_ID}-${RUN_ATTEMPT}"
 remote_runner="${remote_stem}-runner.php"
 remote_candidate="${remote_stem}-candidate.php"
 remote_payload="${remote_stem}-payload.json"
@@ -97,7 +97,17 @@ fi
 remote_runtime_validate
 scp "${ssh_common[@]}" "$remote_target:$remote_result" "$ARTIFACT_DIR/result.json" >/dev/null
 jq -e \
-  '.status == "PASS" and .profile == "drupal-2027-landing" and .candidate_id == "agency-drupal-2027-landing-1012" and .target == "PREPROD" and .bundle == "page" and .language == "fr" and .alias == "/fr/drupal-2027" and .collision_policy == "FAIL_CLOSED" and .content_sync == "NONE" and .prod_write == "NONE"' \
+  '.status == "PASS"
+   and .profile == "drupal-2027-landing"
+   and .candidate_id == "agency-drupal-2027-landing-1046"
+   and .target == "PREPROD"
+   and .bundle == "page"
+   and .language_mode == "FR_EN"
+   and .aliases.fr == "/fr/drupal-2027"
+   and .aliases.en == "/en/drupal-2027"
+   and .collision_policy == "FAIL_CLOSED"
+   and .content_sync == "NONE"
+   and .prod_write == "NONE"' \
   "$ARTIFACT_DIR/result.json" >/dev/null
 
 current_release="$(ssh "${ssh_common[@]}" "$remote_target" \

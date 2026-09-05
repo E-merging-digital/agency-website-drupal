@@ -257,6 +257,10 @@ jobs:
           verdict="$(jq -r '.verdict' artifacts/homepage-brand-1015/result.json)"
           node_id="$(jq -r '.node.id' artifacts/homepage-brand-1015/result.json)"
           revision_id="$(jq -r '.node.revision_id' artifacts/homepage-brand-1015/result.json)"
+          content_sync="$(jq -r '.content_sync' artifacts/homepage-brand-1015/result.json)"
+          content_sync_before="$(jq -r '.content_sync_before' artifacts/homepage-brand-1015/result.json)"
+          content_sync_after="$(jq -r '.content_sync_after' artifacts/homepage-brand-1015/result.json)"
+          content_sync_reconciliation="$(jq -r '.content_sync_reconciliation' artifacts/homepage-brand-1015/result.json)"
           case "$MODE" in
             inspect) heading='### Agency Homepage Brand #1015 PREPROD inspect PASS' ;;
             dry-run) heading='### Agency Homepage Brand #1015 PREPROD dry-run PASS' ;;
@@ -278,7 +282,10 @@ jobs:
           language=fr
           front=/node/5
           browser_review=$browser
-          content_sync=RELEASED_UNCHANGED
+          content_sync=$content_sync
+          content_sync_before=$content_sync_before
+          content_sync_after=$content_sync_after
+          content_sync_reconciliation=$content_sync_reconciliation
           en=DEFER
           prod_write=NONE"
 

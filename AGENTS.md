@@ -120,6 +120,40 @@ CI_RED = ISOLATE_AND_FIX_ONLY_FIRST_MATERIAL_DOD_BLOCKER
 POSSIBLE_IMPROVEMENT_NOT_REQUIRED_BY_DOD = OUT_OF_SCOPE
 ```
 
+## 2.0.2 Publication editoriale : PREPROD -> validation humaine -> PROD
+
+Cette doctrine s'applique a toute nouvelle publication editoriale, marketing ou
+commerciale destinee au public, y compris les contenus editor-owned Drupal.
+
+```text
+PREPROD_RENDER_REQUIRED_BEFORE_PROD = REQUIRED
+HUMAN_APPROVAL_REQUIRED_BEFORE_PROD = REQUIRED
+AGENT_CANNOT_SELF_APPROVE_PUBLICATION = REQUIRED
+```
+
+- CI vert, merge, dry-run/apply PREPROD, Browser Validation, statut
+  `READY_FOR_PROD` ou decision Project Lead ne constituent jamais une validation
+  humaine du rendu.
+- Le Project Lead peut declarer un candidat techniquement pret pour revue ; il ne
+  peut pas inferer `HUMAN_RENDER_APPROVAL = YES`.
+- La validation PROD doit etre un commentaire humain direct, explicite et lie a
+  l'identite exacte du candidat revu : revision/identite immuable, hash du
+  contenu lorsque disponible et URL PREPROD FR/EN.
+- Les commentaires bot, GitHub App, agent ou de provenance ambigue sont rejetes
+  comme approbation humaine. Une approbation editee n'est pas reutilisee apres
+  changement de candidat : un nouveau commentaire humain est requis.
+- Un agent peut preparer, tester et materialiser PREPROD, ou declencher une
+  commande technique autorisee ; il ne peut jamais s'auto-approuver pour PROD.
+- Les nouvelles pages publiques commerciales, campagnes et pages marketing ou
+  editoriales editor-owned sont FR+EN par defaut. Une publication FR-only exige
+  une exception de langue explicitement approuvee par l'humain avant PROD.
+- La validation humaine porte sur le rendu reel, pas seulement sur la
+  fonctionnalite : les formulaires integres doivent reutiliser le design system
+  et rester visuellement coherents avec les formulaires de reference existants.
+- Les details operationnels autoritatifs sont dans
+  `docs/operations/editorial-candidate.md` et
+  `docs/operations/governed-editorial-publication.md`.
+
 ## 2.1 Doctrine Drupal AI
 
 - Pour toute tache touchant l'IA, la traduction IA ou une fonctionnalite IA du
@@ -259,6 +293,10 @@ POSSIBLE_IMPROVEMENT_NOT_REQUIRED_BY_DOD = OUT_OF_SCOPE
 
 - Le site est bilingue FR/EN.
 - Toute page geree par Content Sync doit declarer ses traductions FR et EN.
+- Toute nouvelle page publique commerciale, landing de campagne ou page
+  marketing/editoriale editor-owned doit etre FR+EN par defaut. Une publication
+  FR-only exige une exception de langue explicitement approuvee par l'humain
+  avant toute mutation PROD ; un agent ou le Project Lead ne peut pas l'inferer.
 - Les aliases publics attendus sont prefixes par Drupal selon la langue
   (`/fr/...`, `/en/...`) mais les aliases declares restent neutres dans le
   catalogue (`/contact`, `/drupal-agency-belgium`, etc.).

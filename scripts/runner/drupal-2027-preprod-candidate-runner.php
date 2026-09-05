@@ -68,8 +68,9 @@ catch (Throwable $exception) {
     'verdict' => 'FAIL_CLOSED',
     'mode' => $mode,
     'profile' => 'drupal-2027-landing',
-    'candidate_id' => 'agency-drupal-2027-landing-1012',
+    'candidate_id' => 'agency-drupal-2027-landing-1046',
     'target' => 'PREPROD',
+    'language_mode' => 'FR_EN',
     'prod_write' => 'NONE',
     'message' => $exception->getMessage(),
   ]);

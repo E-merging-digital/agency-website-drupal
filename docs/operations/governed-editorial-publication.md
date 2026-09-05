@@ -16,6 +16,10 @@ surface; after a successful apply, Drupal is the editorial source of truth.
 
 The initial route is deliberately limited to the `article` bundle.
 
+A technically ready candidate is not publication authority. PROD apply is
+fail-closed until the exact candidate has been rendered in PREPROD and directly
+approved by the human owner after reviewing that real rendering.
+
 ## Control surface
 
 On an OPEN repository issue created by `E-merging-digital`, the owner can post
@@ -27,15 +31,19 @@ exactly one of:
 /agency-editorial apply
 ```
 
-The workflow refuses every other comment. It also verifies that:
+The workflow refuses every other command. It also verifies that:
 
 - `GITHUB_ACTOR` is exactly `E-merging-digital`;
-- the comment author is the actor;
+- the command comment author is the actor;
 - the target is an OPEN issue, not a pull request;
 - the issue author is `E-merging-digital`;
 - the workflow revision is the current live `main` SHA.
 
 The trigger contains no shell, Drush command, server path or URL input.
+
+The command author and the publication approver are separate concepts. An agent
+may trigger a technical command under the owner account, but that command never
+counts as human render approval.
 
 ## Payload v1
 
@@ -146,15 +154,58 @@ Use inspect before preparing the final category/TID pair for an Article.
 
 The dry-run verdict is `READY` or `IDEMPOTENT`.
 
+A PROD dry-run is technical evidence only. It is never human publication
+approval.
+
+## Human render approval
+
+Before PROD apply, the same issue must already contain an exact PREPROD candidate
+`apply PASS` for the same `candidate_revision` and `payload_sha256`, including
+both FR and EN PREPROD URLs.
+
+The human owner must review those real PREPROD URLs and then create a new,
+unedited GitHub issue comment with exactly:
+
+```text
+<!-- agency-human-prod-approval:v1 -->
+intent=APPROVE_THIS_EXACT_PREPROD_CANDIDATE_FOR_PROD
+candidate_revision=<exact immutable payload comment id>
+payload_sha256=<exact canonical SHA-256>
+preprod_fr_url=<exact PREPROD FR URL>
+preprod_en_url=<exact PREPROD EN URL>
+language_mode=FR_EN
+```
+
+The shared validator `scripts/validation/editorial-human-approval.php` accepts
+only a direct human OWNER comment from `E-merging-digital` where:
+
+- `user.type == User`;
+- `author_association == OWNER`;
+- the REST comment record explicitly contains `performed_via_github_app`;
+- `performed_via_github_app == null`;
+- `created_at == updated_at` so an edited approval cannot be reused.
+
+Bot comments, GitHub-App-mediated comments, agent-authored comments, missing or
+ambiguous provenance and edited approvals are rejected. In particular, a
+comment created through the ChatGPT/Codex GitHub App cannot self-approve a PROD
+publication even when it appears under the owner login.
+
+A different candidate revision, payload hash or PREPROD URL requires a new human
+approval comment.
+
 ## Apply authorization
 
-`/agency-editorial apply` is refused unless the same issue already contains a
-`github-actions[bot]` dry-run PASS for:
+`/agency-editorial apply` is refused unless all of the following are true:
 
-- the exact current payload SHA-256; and
-- the exact current live `main` SHA.
+1. the same issue already contains a `github-actions[bot]` dry-run PASS for the
+   exact current payload SHA-256 and exact current live `main` SHA;
+2. the same issue contains an exact PREPROD candidate `apply PASS` for the same
+   candidate revision and payload hash, with FR+EN review URLs;
+3. the direct human approval comment above matches that exact PREPROD candidate.
 
-A change to the payload or trusted `main` therefore requires a new dry-run.
+A change to the payload or trusted `main` therefore requires a new dry-run. A
+change to the candidate revision/hash requires a new PREPROD review and a new
+human approval.
 
 The production runner also performs a fresh Drupal dry-run immediately before
 any backup or mutation.
@@ -254,7 +305,10 @@ This route cannot:
 - select another text format;
 - set arbitrary aliases;
 - invoke an AI provider;
-- update an existing Article in v1.
+- update an existing Article in v1;
+- infer human approval from CI, merge, PREPROD/browser PASS or Project Lead
+  readiness;
+- accept agent/App-authored comments as human publication approval.
 
 ## #401 sequence
 
@@ -264,6 +318,10 @@ After #576 is merged and CI is green:
 /agency-editorial inspect
 -> choose an existing category returned by inspect
 -> post the final #401 payload
+-> /agency-editorial-candidate dry-run
+-> /agency-editorial-candidate apply
+-> review the real PREPROD FR+EN pages
+-> human owner posts the exact direct approval comment
 -> /agency-editorial dry-run
 -> verify hash/verdict
 -> /agency-editorial apply

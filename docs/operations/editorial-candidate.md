@@ -48,6 +48,58 @@ PROD Drupal          = editorial source of truth only after later human-approved
 
 A PREPROD refresh may discard the rendered node without losing the candidate record.
 
+## Project-wide human publication invariant
+
+The PREPROD review model is a project invariant for new public editorial and
+commercial content, not an Article-V1 convenience:
+
+```text
+PREPROD_RENDER_REQUIRED_BEFORE_PROD = REQUIRED
+HUMAN_APPROVAL_REQUIRED_BEFORE_PROD = REQUIRED
+AGENT_CANNOT_SELF_APPROVE_PUBLICATION = REQUIRED
+```
+
+CI green, merge, PREPROD apply, browser validation, technical readiness or a
+Project Lead decision may establish technical readiness for review. None of them
+is human render approval.
+
+A PROD apply must bind a direct human approval to the exact candidate reviewed:
+
+```text
+candidate_revision
+payload_sha256
+PREPROD FR URL
+PREPROD EN URL, unless a direct human FR-only exception is explicitly approved
+explicit APPROVE_THIS_EXACT_PREPROD_CANDIDATE_FOR_PROD intent
+```
+
+The shared fail-closed parser is
+`scripts/validation/editorial-human-approval.php`. It accepts only an unedited
+OWNER comment from the expected GitHub user where the REST issue-comment record
+contains `performed_via_github_app` and that value is `null`. Bot users,
+GitHub-App-mediated comments, missing provenance, ambiguous provenance and edited
+approval comments are rejected. An agent may prepare a candidate or trigger a
+technical command, but it cannot manufacture the human approval comment.
+
+The exact bounded approval body is:
+
+```text
+<!-- agency-human-prod-approval:v1 -->
+intent=APPROVE_THIS_EXACT_PREPROD_CANDIDATE_FOR_PROD
+candidate_revision=<exact immutable comment id>
+payload_sha256=<exact canonical SHA-256>
+preprod_fr_url=<exact PREPROD FR URL>
+preprod_en_url=<exact PREPROD EN URL | NONE>
+language_mode=FR_EN | FR_ONLY_EXCEPTION_APPROVED
+```
+
+A changed candidate revision/hash invalidates the prior approval. An edited
+approval is not reused: a new direct human comment is required.
+
+New public commercial pages, campaign landings and editor-owned marketing pages
+are FR+EN by default. `FR_ONLY_EXCEPTION_APPROVED` is an explicit human language
+exception, never an inferred agent or Project Lead decision.
+
 ## Existing capability reuse
 
 The route reuses:
@@ -139,7 +191,7 @@ PROD_WRITE = NONE
 
 The payload/Article body is not uploaded as evidence. The durable source remains the owner-authored GitHub payload comment.
 
-PREPROD Basic Auth/noindex/protection remains unchanged. Rendering the Article in protected PREPROD never grants PROD publication authority.
+PREPROD Basic Auth/noindex/protection remains unchanged. Rendering the Article in protected PREPROD never grants PROD publication authority. The human owner must review the real PREPROD rendering and post the exact direct approval before a PROD apply can pass.
 
 ## Image boundary
 
@@ -162,13 +214,14 @@ PROD_WRITE = NONE
 MERGE = NOT_PERFORMED_BY_DELIVERY
 ```
 
-After Project Lead accepts and merges the implementation, the first real proof remains on #958: post the exact #576 Article payload, dry-run the candidate, apply the exact approved hash to PREPROD, validate FR/EN rendering with existing browser capability where available, and return the PREPROD URLs/hash for human review. PROD publication is a later separately authorized step.
+After Project Lead accepts and merges the implementation, the first real proof remains on #958: post the exact #576 Article payload, dry-run the candidate, apply the exact approved hash to PREPROD, validate FR/EN rendering with existing browser capability where available, and return the PREPROD URLs/hash for direct human review. PROD publication is a later separately authorized step and remains fail-closed until that exact human approval exists.
 
 Primary sources:
 
 - `.github/workflows/agency-command-dispatch.yml`
 - `.github/workflows/trusted-editorial-preprod-candidate.yml`
 - `.github/workflows/trusted-editorial-publication.yml`
+- `scripts/validation/editorial-human-approval.php`
 - `scripts/runner/editorial-publication.php`
 - `scripts/runner/editorial-preprod-candidate.php`
 - `scripts/runner/editorial-preprod-candidate-runner.php`

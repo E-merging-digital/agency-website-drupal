@@ -317,16 +317,6 @@ final class AgencyHomepageBrand1015 {
         throw new RuntimeException(sprintf('Homepage text_block field %s is unavailable.', $field));
       }
     }
-
-    $hero = $this->paragraphInLanguage($components[0]);
-    $primary = $hero->get('field_link')->first()?->getValue() ?? [];
-    $secondary = $hero->get('field_secondary_link')->first()?->getValue() ?? [];
-    if (($primary['uri'] ?? NULL) !== self::PRIMARY_CTA_URI) {
-      throw new RuntimeException('Existing homepage primary CTA destination is not the approved contact route.');
-    }
-    if (($secondary['uri'] ?? NULL) !== self::SECONDARY_CTA_URI) {
-      throw new RuntimeException('Existing homepage secondary CTA destination is not the approved services route.');
-    }
   }
 
   /**

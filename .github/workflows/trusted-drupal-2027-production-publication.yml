@@ -170,6 +170,91 @@ jobs:
               output.write(f'payload_sha256={digest}\n')
           PY
 
+      - name: Resolve exact PREPROD review receipt and human approval surface
+        id: preprod
+        if: ${{ steps.request.outputs.mode == 'apply' }}
+        shell: bash
+        env:
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.candidate_revision }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+        run: |
+          set -euo pipefail
+          preprod_comments="$RUNNER_TEMP/drupal-2027-preprod-receipts.json"
+          approval_comments="$RUNNER_TEMP/drupal-2027-human-approval-comments.json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/1012/comments?per_page=100" \
+            > "$preprod_comments"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/1010/comments?per_page=100" \
+            > "$approval_comments"
+          export PREPROD_COMMENTS_FILE="$preprod_comments"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          heading = '### Agency Drupal 2027 PREPROD candidate apply PASS'
+          patterns = {
+              'candidate_revision': re.compile(r'^candidate_revision=([1-9][0-9]*)$'),
+              'candidate_sha256': re.compile(r'^candidate_sha256=([0-9a-f]{64})$'),
+              'target': re.compile(r'^target=(PREPROD)$'),
+              'alias': re.compile(r'^alias=(/fr/drupal-2027)$'),
+              'browser_validation': re.compile(r'^browser_validation=(PASS)$'),
+              'prod_write': re.compile(r'^prod_write=(NONE)$'),
+          }
+          expected = {
+              'candidate_revision': os.environ['CANDIDATE_REVISION'],
+              'candidate_sha256': os.environ['PAYLOAD_SHA256'],
+              'target': 'PREPROD',
+              'alias': '/fr/drupal-2027',
+              'browser_validation': 'PASS',
+              'prod_write': 'NONE',
+          }
+          pages = json.load(open(os.environ['PREPROD_COMMENTS_FILE'], encoding='utf-8'))
+          comments = []
+          for page in pages:
+              if isinstance(page, list):
+                  comments.extend(page)
+              elif isinstance(page, dict):
+                  comments.append(page)
+
+          authorized = False
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'github-actions[bot]':
+                  continue
+              lines = (comment.get('body') or '').splitlines()
+              if not lines or lines[0] != heading or lines.count(heading) != 1:
+                  continue
+              fields = {}
+              invalid = False
+              for name, pattern in patterns.items():
+                  prefix = f'{name}='
+                  candidates = [line for line in lines[1:] if line.startswith(prefix)]
+                  if len(candidates) != 1:
+                      invalid = True
+                      break
+                  match = pattern.fullmatch(candidates[0])
+                  if match is None:
+                      invalid = True
+                      break
+                  fields[name] = match.group(1)
+              if invalid:
+                  continue
+              if all(fields[name] == value for name, value in expected.items()):
+                  authorized = True
+                  break
+
+          if not authorized:
+              raise SystemExit(
+                  'Drupal 2027 PROD apply requires the exact PREPROD apply PASS and browser review for the same candidate.'
+              )
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write('fr_url=https://preprod.emergingdigital.be/fr/drupal-2027\n')
+              output.write('en_url=NONE\n')
+              output.write('language_mode=FR_ONLY_EXCEPTION_APPROVED\n')
+          PY
+
       - name: Checkout exact live main execution source
         uses: actions/checkout@v6
         with:
@@ -187,9 +272,31 @@ jobs:
           test -f scripts/runner/drupal-2027-preprod-candidate.php
           test -f scripts/runner/drupal-2027-production-publication-runner.php
           test -f scripts/runner/run-drupal-2027-production-publication.sh
+          test -f scripts/validation/editorial-human-approval.php
           php -l scripts/runner/drupal-2027-preprod-candidate.php
           php -l scripts/runner/drupal-2027-production-publication-runner.php
           bash -n scripts/runner/run-drupal-2027-production-publication.sh
+          php -l scripts/validation/editorial-human-approval.php
+
+      - name: Require direct human approval for exact reviewed PREPROD candidate
+        if: ${{ steps.request.outputs.mode == 'apply' }}
+        shell: bash
+        env:
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.candidate_revision }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+          PREPROD_FR_URL: ${{ steps.preprod.outputs.fr_url }}
+          PREPROD_EN_URL: ${{ steps.preprod.outputs.en_url }}
+          LANGUAGE_MODE: ${{ steps.preprod.outputs.language_mode }}
+        run: |
+          set -euo pipefail
+          php scripts/validation/editorial-human-approval.php \
+            --comments="$RUNNER_TEMP/drupal-2027-human-approval-comments.json" \
+            --owner="$EXPECTED_OWNER" \
+            --candidate-revision="$CANDIDATE_REVISION" \
+            --payload-sha256="$PAYLOAD_SHA256" \
+            --preprod-fr-url="$PREPROD_FR_URL" \
+            --preprod-en-url="$PREPROD_EN_URL" \
+            --language-mode="$LANGUAGE_MODE"
 
       - name: Configure existing production SSH channel
         env:

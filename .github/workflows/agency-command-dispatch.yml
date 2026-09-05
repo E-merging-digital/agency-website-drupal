@@ -284,3 +284,22 @@ jobs:
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
       PREPROD_BASIC_AUTH_USER: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
       PREPROD_BASIC_AUTH_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+
+  drupal-2027-production-publication:
+    name: Route #1010 Drupal 2027 production publication
+    needs: classify
+    if: >-
+      ${{ github.event.issue.pull_request == null
+          && github.event.issue.number == 1010
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && (github.event.comment.body == '/agency-drupal-2027-prod dry-run'
+              || github.event.comment.body == '/agency-drupal-2027-prod apply') }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-drupal-2027-production-publication.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}

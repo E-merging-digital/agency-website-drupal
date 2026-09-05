@@ -93,7 +93,7 @@ fi
 remote_runtime_validate
 scp "${ssh_common[@]}" "$remote_target:$remote_result" "$ARTIFACT_DIR/result.json" >/dev/null
 
-jq -e \
+jq -e --arg mode "$MODE" \
   '.status == "PASS"
    and .profile == "homepage-brand-1015"
    and .issue_number == 1015
@@ -102,7 +102,27 @@ jq -e \
    and .language == "fr"
    and .front == "/node/5"
    and .node.id == 5
-   and .content_sync == "RELEASED_UNCHANGED"
+   and (.content_sync_before == "active" or .content_sync_before == "released")
+   and (
+     if $mode == "apply" then
+       .content_sync == "RELEASED"
+       and .content_sync_after == "released"
+       and (
+         (.content_sync_before == "active" and .content_sync_reconciliation == "APPLIED")
+         or (.content_sync_before == "released" and .content_sync_reconciliation == "NOT_REQUIRED")
+       )
+     else
+       .content_sync_after == "NOT_APPLICABLE"
+       and (
+         (.content_sync_before == "active"
+          and .content_sync == "ACTIVE_RECONCILIATION_REQUIRED"
+          and .content_sync_reconciliation == "REQUIRED")
+         or (.content_sync_before == "released"
+             and .content_sync == "RELEASED"
+             and .content_sync_reconciliation == "NOT_REQUIRED")
+       )
+     end
+   )
    and .prod_write == "NONE"' \
   "$ARTIFACT_DIR/result.json" >/dev/null
 

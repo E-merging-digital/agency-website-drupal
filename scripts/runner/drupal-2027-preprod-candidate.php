@@ -24,8 +24,8 @@ final class AgencyDrupal2027PreprodCandidate {
   private const CANDIDATE_ID = 'agency-drupal-2027-landing-1012';
   private const ISSUE_NUMBER = 1012;
   private const SOURCE_ISSUE = 1010;
-  private const SOURCE_COMMENT_ID = 5545732650;
-  private const SOURCE_UPDATED_AT = '2026-09-04T19:52:38Z';
+  private const SOURCE_COMMENT_ID = 5553624200;
+  private const SOURCE_UPDATED_AT = '2026-09-05T17:43:14Z';
   private const BUNDLE = 'page';
   private const LANGCODE = 'fr';
   private const PUBLIC_ALIAS = '/fr/drupal-2027';

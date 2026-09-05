@@ -4,8 +4,8 @@
   --ed-chatbot-panel: #ffffff;
   --ed-chatbot-soft: #f6f7fb;
   --ed-chatbot-border: #d1d5db;
-  --ed-chatbot-primary: #005bbb;
-  --ed-chatbot-accent: #89c540;
+  --ed-chatbot-primary: #286FB6;
+  --ed-chatbot-accent: #77B72E;
   --ed-chatbot-warm: #f5b84b;
 
   position: relative;
@@ -301,7 +301,7 @@
   border-color: transparent;
   background: var(--ed-chatbot-primary);
   color: #ffffff;
-  box-shadow: 0 10px 22px rgb(0 91 187 / 20%);
+  box-shadow: 0 10px 22px rgb(40 111 182 / 20%);
 }
 
 .ed-chatbot__cta--primary::after {
@@ -310,7 +310,7 @@
 
 .ed-chatbot__cta--primary:hover,
 .ed-chatbot__cta--primary:focus-visible {
-  background: #004f9f;
+  background: color-mix(in srgb, var(--ed-chatbot-primary) 88%, #000);
   color: #ffffff;
 }
 

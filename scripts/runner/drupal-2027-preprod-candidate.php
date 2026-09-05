@@ -394,7 +394,7 @@ final class AgencyDrupal2027PreprodCandidate {
       throw new RuntimeException('Drupal 2027 candidate collision does not resolve to a node.');
     }
     if ($mappedId === NULL && $node->getRevisionLogMessage() !== $this->revisionMessage($payloadSha)) {
-      throw new RuntimeException('Existing Drupal 2027 page is not bound to this exact candidate identity.');
+      throw new RuntimeException('Drupal 2027 candidate collision: existing page is not bound to this exact candidate identity.');
     }
 
     $this->assertNodeMatchesPayload($node, $payload, $payloadSha);

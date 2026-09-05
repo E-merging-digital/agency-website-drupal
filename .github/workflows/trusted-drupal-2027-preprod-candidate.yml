@@ -247,6 +247,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN"
           test "$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')" = "$TRUSTED_MAIN"
           test "$(gh api "repos/$REPO/issues/comments/$SOURCE_COMMENT_ID" --jq '.updated_at')" = "$SOURCE_UPDATED_AT"
+          mkdir -p artifacts/drupal-2027-preprod-candidate
           body="$(gh api "repos/$REPO/issues/comments/$CANDIDATE_REVISION" --jq '.body')"
           BODY="$body" EXPECTED_SHA="$CANDIDATE_SHA256" python3 - <<'PY'
           import hashlib, json, os

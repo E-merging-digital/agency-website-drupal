@@ -102,70 +102,94 @@ final class AgencyHomepageBrand1015 {
    */
   public function apply(): array {
     $plan = $this->plan('apply');
-    if ($plan['verdict'] === 'IDEMPOTENT') {
-      return $plan;
-    }
-    if ($plan['verdict'] !== 'UPDATE_READY') {
+    if (!in_array($plan['verdict'], ['IDEMPOTENT', 'UPDATE_READY'], TRUE)) {
       throw new RuntimeException('Homepage Brand #1015 candidate is not update-ready.');
     }
 
-    $node = $this->loadNode();
-    $before = $this->snapshot($node);
-    $fr = $this->frTranslation($node);
-    $components = $this->components($fr);
-
-    $hero = $this->paragraphInLanguage($components[0]);
-    $axes = $this->paragraphInLanguage($components[1]);
-
+    $contentNeedsUpdate = $plan['verdict'] === 'UPDATE_READY';
     $transaction = $this->database->startTransaction();
     $author = $this->loadAuthor();
     $this->accountSwitcher->switchTo($author);
 
     try {
-      $hero->set('field_heading', self::HERO_H1);
-      $hero->set('field_text', $this->formatted(self::HERO_SUBTITLE));
-      $hero->set('field_link', [
-        'uri' => self::PRIMARY_CTA_URI,
-        'title' => self::PRIMARY_CTA_LABEL,
-      ]);
-      $hero->set('field_secondary_link', [
-        'uri' => self::SECONDARY_CTA_URI,
-        'title' => self::SECONDARY_CTA_LABEL,
-      ]);
-      $hero->setNewRevision(TRUE);
-      $this->assertEntityValid($hero, 'homepage hero');
-      $hero->save();
+      $node = $this->loadNode();
+      $before = $this->snapshot($node);
+      $contentSyncBefore = $this->assertRuntimeIdentity($node, $before);
+      if ($contentSyncBefore !== ($plan['content_sync_before'] ?? NULL)) {
+        throw new RuntimeException('Homepage Content Sync lifecycle changed between plan and apply.');
+      }
 
-      $axes->set('field_heading', 'CRÉER / AMÉLIORER / MODERNISER');
-      $axes->set('field_text', $this->formatted($this->axesHtml()));
-      $axes->setNewRevision(TRUE);
-      $this->assertEntityValid($axes, 'homepage axes');
-      $axes->save();
+      $contentSyncReconciliation = 'NOT_REQUIRED';
+      if ($contentSyncBefore === ContentSyncMappingRecord::STATUS_ACTIVE) {
+        $mappingBefore = $this->mapping();
+        $mappingAfter = $this->mappingRepository->markReleased(self::CONTENT_ID);
+        $this->assertReleasedMappingTransition($mappingBefore, $mappingAfter);
+        $contentSyncReconciliation = 'APPLIED';
+      }
 
-      $references = $fr->get('field_home_components')->getValue();
-      $references[0] = [
-        'target_id' => (int) $hero->id(),
-        'target_revision_id' => (int) $hero->getRevisionId(),
-      ];
-      $references[1] = [
-        'target_id' => (int) $axes->id(),
-        'target_revision_id' => (int) $axes->getRevisionId(),
-      ];
-      $fr->set('field_home_components', $references);
+      if ($contentNeedsUpdate) {
+        $fr = $this->frTranslation($node);
+        $components = $this->components($fr);
+        $hero = $this->paragraphInLanguage($components[0]);
+        $axes = $this->paragraphInLanguage($components[1]);
 
-      $node->setNewRevision(TRUE);
-      $node->setRevisionUserId(self::AUTHOR_UID);
-      $node->setRevisionLogMessage($this->revisionMessage());
-      $this->assertEntityValid($node, 'homepage node');
-      $node->save();
+        $hero->set('field_heading', self::HERO_H1);
+        $hero->set('field_text', $this->formatted(self::HERO_SUBTITLE));
+        $hero->set('field_link', [
+          'uri' => self::PRIMARY_CTA_URI,
+          'title' => self::PRIMARY_CTA_LABEL,
+        ]);
+        $hero->set('field_secondary_link', [
+          'uri' => self::SECONDARY_CTA_URI,
+          'title' => self::SECONDARY_CTA_LABEL,
+        ]);
+        $hero->setNewRevision(TRUE);
+        $this->assertEntityValid($hero, 'homepage hero');
+        $hero->save();
+
+        $axes->set('field_heading', 'CRÉER / AMÉLIORER / MODERNISER');
+        $axes->set('field_text', $this->formatted($this->axesHtml()));
+        $axes->setNewRevision(TRUE);
+        $this->assertEntityValid($axes, 'homepage axes');
+        $axes->save();
+
+        $references = $fr->get('field_home_components')->getValue();
+        $references[0] = [
+          'target_id' => (int) $hero->id(),
+          'target_revision_id' => (int) $hero->getRevisionId(),
+        ];
+        $references[1] = [
+          'target_id' => (int) $axes->id(),
+          'target_revision_id' => (int) $axes->getRevisionId(),
+        ];
+        $fr->set('field_home_components', $references);
+
+        $node->setNewRevision(TRUE);
+        $node->setRevisionUserId(self::AUTHOR_UID);
+        $node->setRevisionLogMessage($this->revisionMessage());
+        $this->assertEntityValid($node, 'homepage node');
+        $node->save();
+      }
 
       $this->entityTypeManager->getStorage('node')->resetCache([self::TARGET_NODE_ID]);
       $verified = $this->loadNode();
       $after = $this->snapshot($verified);
-      $this->assertConverged($verified, $before, $after);
+      $this->assertConverged($verified, $before, $after, $contentSyncBefore);
       unset($transaction);
 
-      return $this->result('APPLIED', 'apply', $verified, $after);
+      $verdict = $contentNeedsUpdate || $contentSyncReconciliation === 'APPLIED'
+        ? 'APPLIED'
+        : 'IDEMPOTENT';
+
+      return $this->result(
+        $verdict,
+        'apply',
+        $verified,
+        $after,
+        $contentSyncBefore,
+        ContentSyncMappingRecord::STATUS_RELEASED,
+        $contentSyncReconciliation,
+      );
     }
     catch (Throwable $exception) {
       $transaction->rollBack();
@@ -186,14 +210,25 @@ final class AgencyHomepageBrand1015 {
     $this->assertProfileHash();
     $node = $this->loadNode();
     $snapshot = $this->snapshot($node);
-    $this->assertImmutableRuntimeIdentity($node, $snapshot);
+    $contentSyncBefore = $this->assertRuntimeIdentity($node, $snapshot);
     $this->assertExpectedStructure($node);
 
     $verdict = $this->matchesRequestedContent($node)
       ? 'IDEMPOTENT'
       : ($mode === 'inspect' ? 'INSPECTED' : 'UPDATE_READY');
+    $contentSyncReconciliation = $contentSyncBefore === ContentSyncMappingRecord::STATUS_ACTIVE
+      ? 'REQUIRED'
+      : 'NOT_REQUIRED';
 
-    return $this->result($verdict, $mode, $node, $snapshot);
+    return $this->result(
+      $verdict,
+      $mode,
+      $node,
+      $snapshot,
+      $contentSyncBefore,
+      'NOT_APPLICABLE',
+      $contentSyncReconciliation,
+    );
   }
 
   private function loadNode(): NodeInterface {
@@ -297,23 +332,52 @@ final class AgencyHomepageBrand1015 {
   /**
    * @param array<string, mixed> $snapshot
    *   Pre-write immutable identity snapshot.
+   *
+   * @return string
+   *   Current exact mapping lifecycle.
    */
-  private function assertImmutableRuntimeIdentity(NodeInterface $node, array $snapshot): void {
+  private function assertRuntimeIdentity(NodeInterface $node, array $snapshot): string {
     if (($snapshot['front'] ?? NULL) !== '/node/5') {
       throw new RuntimeException('system.site:page.front is not /node/5.');
     }
 
-    $mapping = $this->mapping();
-    if ($mapping->status() !== ContentSyncMappingRecord::STATUS_RELEASED
-      || $mapping->entityType() !== 'node'
-      || $mapping->entityId() !== self::TARGET_NODE_ID
-      || $mapping->entityUuid() !== $node->uuid()) {
-      throw new RuntimeException('Homepage Content Sync mapping is not RELEASED and bound to node 5.');
+    $mapping = $snapshot['content_sync'] ?? NULL;
+    if (!is_array($mapping)) {
+      throw new RuntimeException('Homepage Content Sync mapping snapshot is invalid.');
     }
 
-    if (($snapshot['content_sync']['status'] ?? NULL) !== ContentSyncMappingRecord::STATUS_RELEASED) {
-      throw new RuntimeException('Homepage RELEASED ownership snapshot is invalid.');
+    if (($mapping['entity_type'] ?? NULL) !== 'node') {
+      throw new RuntimeException(sprintf(
+        'Homepage Content Sync mapping identity mismatch: entity_type expected node, got %s.',
+        var_export($mapping['entity_type'] ?? NULL, TRUE),
+      ));
     }
+    if (($mapping['entity_id'] ?? NULL) !== self::TARGET_NODE_ID) {
+      throw new RuntimeException(sprintf(
+        'Homepage Content Sync mapping identity mismatch: entity_id expected 5, got %s.',
+        var_export($mapping['entity_id'] ?? NULL, TRUE),
+      ));
+    }
+    if (($mapping['entity_uuid'] ?? NULL) !== $node->uuid()) {
+      throw new RuntimeException(sprintf(
+        'Homepage Content Sync mapping identity mismatch: entity_uuid expected %s, got %s.',
+        $node->uuid(),
+        var_export($mapping['entity_uuid'] ?? NULL, TRUE),
+      ));
+    }
+
+    $status = (string) ($mapping['status'] ?? '');
+    if (!in_array($status, [
+      ContentSyncMappingRecord::STATUS_ACTIVE,
+      ContentSyncMappingRecord::STATUS_RELEASED,
+    ], TRUE)) {
+      throw new RuntimeException(sprintf(
+        'Homepage Content Sync mapping lifecycle mismatch: status expected active or released, got %s.',
+        var_export($mapping['status'] ?? NULL, TRUE),
+      ));
+    }
+
+    return $status;
   }
 
   private function mapping(): ContentSyncMappingRecord {
@@ -348,16 +412,27 @@ final class AgencyHomepageBrand1015 {
    * @param array<string, mixed> $after
    *   Immutable post-write snapshot.
    */
-  private function assertConverged(NodeInterface $node, array $before, array $after): void {
+  private function assertConverged(
+    NodeInterface $node,
+    array $before,
+    array $after,
+    string $contentSyncBefore,
+  ): void {
     if (!$this->matchesRequestedContent($node)) {
       throw new RuntimeException('Homepage Brand #9 values did not converge after apply.');
     }
 
-    foreach (['node_id', 'node_uuid', 'front', 'aliases', 'menu', 'content_sync'] as $key) {
+    foreach (['node_id', 'node_uuid', 'front', 'aliases', 'menu'] as $key) {
       if (($before[$key] ?? NULL) !== ($after[$key] ?? NULL)) {
         throw new RuntimeException(sprintf('Homepage immutable %s changed during apply.', $key));
       }
     }
+
+    $this->assertContentSyncConverged(
+      $before['content_sync'] ?? [],
+      $after['content_sync'] ?? [],
+      $contentSyncBefore,
+    );
 
     $beforeComponents = $before['components'] ?? [];
     $afterComponents = $after['components'] ?? [];
@@ -375,6 +450,91 @@ final class AgencyHomepageBrand1015 {
     }
   }
 
+  private function assertReleasedMappingTransition(
+    ContentSyncMappingRecord $before,
+    ContentSyncMappingRecord $after,
+  ): void {
+    $beforeRow = $this->mappingRow($before);
+    $afterRow = $this->mappingRow($after);
+    $this->assertPreservedMappingData($beforeRow, $afterRow);
+
+    if ($before->status() !== ContentSyncMappingRecord::STATUS_ACTIVE) {
+      throw new RuntimeException('Homepage Content Sync reconciliation requires an active mapping.');
+    }
+    if ($after->status() !== ContentSyncMappingRecord::STATUS_RELEASED) {
+      throw new RuntimeException('Homepage Content Sync reconciliation did not produce released status.');
+    }
+    if ($after->lastAction() !== 'released') {
+      throw new RuntimeException('Homepage Content Sync reconciliation did not record released last_action.');
+    }
+  }
+
+  /**
+   * @param array<string, mixed> $before
+   *   Pre-apply mapping row.
+   * @param array<string, mixed> $after
+   *   Post-apply mapping row.
+   */
+  private function assertContentSyncConverged(
+    array $before,
+    array $after,
+    string $contentSyncBefore,
+  ): void {
+    if (($before['status'] ?? NULL) !== $contentSyncBefore) {
+      throw new RuntimeException('Homepage Content Sync pre-apply lifecycle snapshot changed unexpectedly.');
+    }
+
+    if ($contentSyncBefore === ContentSyncMappingRecord::STATUS_RELEASED) {
+      if ($before !== $after) {
+        throw new RuntimeException('Homepage released Content Sync mapping changed during apply.');
+      }
+      return;
+    }
+
+    $this->assertPreservedMappingData($before, $after);
+    if (($after['status'] ?? NULL) !== ContentSyncMappingRecord::STATUS_RELEASED) {
+      throw new RuntimeException('Homepage Content Sync mapping was not released during apply.');
+    }
+    if (($after['last_action'] ?? NULL) !== 'released') {
+      throw new RuntimeException('Homepage Content Sync mapping last_action is not released after apply.');
+    }
+  }
+
+  /**
+   * @param array<string, mixed> $before
+   *   Mapping row before lifecycle reconciliation.
+   * @param array<string, mixed> $after
+   *   Mapping row after lifecycle reconciliation.
+   */
+  private function assertPreservedMappingData(array $before, array $after): void {
+    foreach ([
+      'content_id',
+      'entity_type',
+      'entity_id',
+      'entity_uuid',
+      'langcode',
+      'catalog_hash',
+      'last_synced',
+      'created',
+      'id',
+    ] as $key) {
+      if (($before[$key] ?? NULL) !== ($after[$key] ?? NULL)) {
+        throw new RuntimeException(sprintf(
+          'Homepage Content Sync mapping immutable field %s changed during reconciliation.',
+          $key,
+        ));
+      }
+    }
+  }
+
+  /**
+   * @return array<string, int|string|null>
+   *   Exact persistent mapping row including its internal id.
+   */
+  private function mappingRow(ContentSyncMappingRecord $mapping): array {
+    return $mapping->toDatabaseRow() + ['id' => $mapping->id()];
+  }
+
   /**
    * @return array<string, mixed>
    *   Immutable/runtime state required by #1015.
@@ -383,6 +543,7 @@ final class AgencyHomepageBrand1015 {
     $fr = $this->frTranslation($node);
     $components = $this->components($fr);
     $mapping = $this->mapping();
+    $mappingRow = $this->mappingRow($mapping);
 
     return [
       'node_id' => (int) $node->id(),
@@ -392,7 +553,7 @@ final class AgencyHomepageBrand1015 {
       'front' => (string) \Drupal::config('system.site')->get('page.front'),
       'aliases' => $this->aliasSnapshot(),
       'menu' => $this->menuSnapshot(),
-      'content_sync' => $mapping->toDatabaseRow(),
+      'content_sync' => $mappingRow,
       'components' => array_map(
         static fn (ParagraphInterface $paragraph): array => [
           'id' => (int) $paragraph->id(),
@@ -563,7 +724,21 @@ final class AgencyHomepageBrand1015 {
    * @return array<string, mixed>
    *   Non-sensitive execution result.
    */
-  private function result(string $verdict, string $mode, NodeInterface $node, array $snapshot): array {
+  private function result(
+    string $verdict,
+    string $mode,
+    NodeInterface $node,
+    array $snapshot,
+    string $contentSyncBefore,
+    string $contentSyncAfter,
+    string $contentSyncReconciliation,
+  ): array {
+    $contentSync = $contentSyncAfter === ContentSyncMappingRecord::STATUS_RELEASED
+      ? 'RELEASED'
+      : ($contentSyncBefore === ContentSyncMappingRecord::STATUS_ACTIVE
+        ? 'ACTIVE_RECONCILIATION_REQUIRED'
+        : 'RELEASED');
+
     return [
       'status' => 'PASS',
       'verdict' => $verdict,
@@ -575,7 +750,10 @@ final class AgencyHomepageBrand1015 {
       'bundle' => self::BUNDLE,
       'language' => self::LANGCODE,
       'front' => $snapshot['front'],
-      'content_sync' => 'RELEASED_UNCHANGED',
+      'content_sync' => $contentSync,
+      'content_sync_before' => $contentSyncBefore,
+      'content_sync_after' => $contentSyncAfter,
+      'content_sync_reconciliation' => $contentSyncReconciliation,
       'content_sync_mapping' => $snapshot['content_sync'],
       'aliases' => $snapshot['aliases'],
       'menu_unchanged_contract' => 'REQUIRED',

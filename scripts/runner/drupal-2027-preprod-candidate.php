@@ -235,7 +235,12 @@ final class AgencyDrupal2027PreprodCandidate {
       'aliases' => self::PUBLIC_ALIASES,
     ];
     foreach ($fixed as $key => $value) {
-      if (($payload[$key] ?? NULL) !== $value) {
+      $actual = $payload[$key] ?? NULL;
+      if (is_array($actual) && is_array($value)) {
+        ksort($actual);
+        ksort($value);
+      }
+      if ($actual !== $value) {
         throw new InvalidArgumentException(sprintf('Drupal 2027 #1046 payload field %s is fixed.', $key));
       }
     }

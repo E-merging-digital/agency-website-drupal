@@ -86,8 +86,25 @@ remote_runtime_validate() {
 
 remote_runtime_validate
 
+set +e
 ssh "${ssh_common[@]}" "$remote_target" \
   "set -euo pipefail; cd /var/www/agency-preprod/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_DRUPAL_2027_MODE='$MODE' AGENCY_DRUPAL_2027_PAYLOAD_SHA='$PAYLOAD_SHA256' AGENCY_DRUPAL_2027_PAYLOAD_PATH='$remote_payload' AGENCY_DRUPAL_2027_RESULT_PATH='$remote_result' AGENCY_DRUPAL_2027_LIBRARY_PATH='$remote_candidate' vendor/bin/drush php:script '$remote_runner'"
+route_status=$?
+set -e
+
+if (( route_status != 0 )); then
+  if ssh "${ssh_common[@]}" "$remote_target" "test -f '$remote_result'"; then
+    set +e
+    scp "${ssh_common[@]}" "$remote_target:$remote_result" "$ARTIFACT_DIR/result.json" >/dev/null
+    copy_status=$?
+    set -e
+    if (( copy_status == 0 )); then
+      jq -r '.message // "Drupal 2027 PREPROD runner failed without a bounded message."' \
+        "$ARTIFACT_DIR/result.json" >&2
+    fi
+  fi
+  exit "$route_status"
+fi
 
 if [[ "$MODE" == apply ]]; then
   ssh "${ssh_common[@]}" "$remote_target" \

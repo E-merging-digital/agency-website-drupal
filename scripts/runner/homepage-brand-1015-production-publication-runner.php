@@ -70,9 +70,12 @@ try {
       var_export($mapping->entityUuid(), TRUE),
     ));
   }
-  if ($mapping->status() !== ContentSyncMappingRecord::STATUS_RELEASED) {
+  if (!in_array($mapping->status(), [
+    ContentSyncMappingRecord::STATUS_ACTIVE,
+    ContentSyncMappingRecord::STATUS_RELEASED,
+  ], TRUE)) {
     throw new RuntimeException(sprintf(
-      'PROD homepage mapping lifecycle mismatch: status expected released, got %s.',
+      'PROD homepage mapping lifecycle mismatch: status expected active or released, got %s.',
       var_export($mapping->status(), TRUE),
     ));
   }
@@ -91,18 +94,44 @@ try {
     || ($result['node']['uuid'] ?? NULL) !== $node->uuid()
     || ($result['bundle'] ?? NULL) !== 'page'
     || ($result['language'] ?? NULL) !== 'fr'
-    || ($result['front'] ?? NULL) !== '/node/5'
-    || ($result['content_sync'] ?? NULL) !== 'RELEASED'
-    || ($result['content_sync_before'] ?? NULL) !== ContentSyncMappingRecord::STATUS_RELEASED
-    || ($result['content_sync_reconciliation'] ?? NULL) !== 'NOT_REQUIRED') {
-    throw new RuntimeException('Homepage Brand #1015 PROD engine result violates the closed production contract.');
+    || ($result['front'] ?? NULL) !== '/node/5') {
+    throw new RuntimeException('Homepage Brand #1015 PROD engine result violates the closed production identity contract.');
   }
 
-  if ($mode === 'dry-run' && ($result['content_sync_after'] ?? NULL) !== 'NOT_APPLICABLE') {
-    throw new RuntimeException('Homepage Brand #1015 PROD dry-run unexpectedly changed Content Sync lifecycle.');
+  $contentSyncBefore = $result['content_sync_before'] ?? NULL;
+  if (!in_array($contentSyncBefore, [
+    ContentSyncMappingRecord::STATUS_ACTIVE,
+    ContentSyncMappingRecord::STATUS_RELEASED,
+  ], TRUE)) {
+    throw new RuntimeException('Homepage Brand #1015 PROD engine returned an unsupported pre-write Content Sync lifecycle.');
   }
-  if ($mode === 'apply' && ($result['content_sync_after'] ?? NULL) !== ContentSyncMappingRecord::STATUS_RELEASED) {
-    throw new RuntimeException('Homepage Brand #1015 PROD apply did not preserve released Content Sync lifecycle.');
+
+  if ($mode === 'dry-run') {
+    if (($result['content_sync_after'] ?? NULL) !== 'NOT_APPLICABLE') {
+      throw new RuntimeException('Homepage Brand #1015 PROD dry-run unexpectedly changed Content Sync lifecycle.');
+    }
+    if ($contentSyncBefore === ContentSyncMappingRecord::STATUS_ACTIVE) {
+      if (($result['content_sync'] ?? NULL) !== 'ACTIVE_RECONCILIATION_REQUIRED'
+        || ($result['content_sync_reconciliation'] ?? NULL) !== 'REQUIRED') {
+        throw new RuntimeException('Homepage Brand #1015 PROD dry-run did not preserve the active reconciliation contract.');
+      }
+    }
+    elseif (($result['content_sync'] ?? NULL) !== 'RELEASED'
+      || ($result['content_sync_reconciliation'] ?? NULL) !== 'NOT_REQUIRED') {
+      throw new RuntimeException('Homepage Brand #1015 PROD dry-run did not preserve the released lifecycle contract.');
+    }
+  }
+  else {
+    if (($result['content_sync'] ?? NULL) !== 'RELEASED'
+      || ($result['content_sync_after'] ?? NULL) !== ContentSyncMappingRecord::STATUS_RELEASED) {
+      throw new RuntimeException('Homepage Brand #1015 PROD apply did not converge Content Sync to released.');
+    }
+    $expectedReconciliation = $contentSyncBefore === ContentSyncMappingRecord::STATUS_ACTIVE
+      ? 'APPLIED'
+      : 'NOT_REQUIRED';
+    if (($result['content_sync_reconciliation'] ?? NULL) !== $expectedReconciliation) {
+      throw new RuntimeException('Homepage Brand #1015 PROD apply lifecycle reconciliation receipt is inconsistent.');
+    }
   }
 
   $result['target'] = 'PROD';

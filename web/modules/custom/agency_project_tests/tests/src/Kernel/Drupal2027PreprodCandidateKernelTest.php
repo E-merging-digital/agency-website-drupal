@@ -272,7 +272,7 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
       'source_issue' => 1010,
       'source_candidate_revision' => 5553858896,
       'source_candidate_sha256' =>
-        '07fb10ab4a54371d877fbfc6b3f185eda41085ae3bd5080de2d695843c9d049e',
+      '07fb10ab4a54371d877fbfc6b3f185eda41085ae3bd5080de2d695843c9d049e',
       'target' => 'PREPROD',
       'bundle' => 'page',
       'language_mode' => 'FR_EN',
@@ -317,7 +317,7 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
         'checks' => [
           'heading' => $prefix . ' checks',
           'body_html' => '<h3 id="points-a-verifier-socle">'
-            . $prefix . ' foundation</h3>',
+          . $prefix . ' foundation</h3>',
         ],
         'composer_callout' => $section($prefix . ' composer', 'Composer'),
         'method' => $section($prefix . ' method', 'Method'),

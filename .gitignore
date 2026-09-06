@@ -64,5 +64,8 @@ composer.phar
 .ddev/.webimageBuild*
 .ddev/.ddev-webserver*
 
+# --- ForgePilot local runtime ---
+/.forgepilot/
+
 # --- Logs ---
 *.log

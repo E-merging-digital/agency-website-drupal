@@ -42,7 +42,7 @@ final class Drupal2027PreprodCandidateWorkflowTest extends TestCase {
     self::assertStringContainsString("private const EXPECTED_PAYLOAD_SHA256 = '" . self::SHA . "';", $materializer);
     self::assertStringContainsString('agency-drupal-2027-landing-1046', $shell);
     self::assertStringContainsString('route_status=$?', $shell);
-    self::assertStringContainsString("test -f '$remote_result'", $shell);
+    self::assertStringContainsString("test -f '\$remote_result'", $shell);
     self::assertStringContainsString('exit "$route_status"', $shell);
     self::assertStringContainsString('"target_en": "/en/drupal-2027"', $contract);
     self::assertStringContainsString("lang: 'fr'", $spec);

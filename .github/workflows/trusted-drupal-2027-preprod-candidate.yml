@@ -10,7 +10,6 @@ on:
       - 'tests/browser/contracts/drupal-2027-preprod.json'
       - 'tests/browser/drupal-2027-preprod.spec.mjs'
       - 'web/themes/custom/emerging_digital/templates/block/block--emerging-digital-drupal-lifecycle-diagnostic.html.twig'
-      - 'config/sync/block.block.emerging_digital_drupal_lifecycle_diagnostic.yml'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/Drupal2027PreprodCandidateWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Kernel/Drupal2027PreprodCandidateKernelTest.php'
   workflow_call:
@@ -47,8 +46,7 @@ jobs:
           php -l scripts/runner/drupal-2027-preprod-candidate-runner.php
           bash -n scripts/runner/run-drupal-2027-preprod-candidate.sh
           node --check tests/browser/drupal-2027-preprod.spec.mjs
-          jq -e '.id == "drupal-2027-preprod" and .target == "/fr/drupal-2027" and .target_en == "/en/drupal-2027"' \
-            tests/browser/contracts/drupal-2027-preprod.json >/dev/null
+          jq -e '.id == "drupal-2027-preprod" and .target == "/fr/drupal-2027" and .target_en == "/en/drupal-2027"' tests/browser/contracts/drupal-2027-preprod.json >/dev/null
           grep -Fq "private const CANDIDATE_ID = 'agency-drupal-2027-landing-1046';" scripts/runner/drupal-2027-preprod-candidate.php
           grep -Fq "private const EXPECTED_PAYLOAD_SHA256 = 'ac96465c5717f78af76e368d8598399cbe997ed63d7cc753d575337c9321af83';" scripts/runner/drupal-2027-preprod-candidate.php
           grep -Fq "private const TRANSLATION_LANGCODE = 'en';" scripts/runner/drupal-2027-preprod-candidate.php
@@ -105,15 +103,11 @@ jobs:
           import hashlib, json, os, pathlib
           comment = json.load(open('artifacts/drupal-2027-preprod-candidate/candidate.json', encoding='utf-8'))
           marker = '<!-- agency-drupal-2027-payload:v2 -->\n'
-          if comment.get('id') != int(os.environ['CANDIDATE_COMMENT_ID']):
-              raise SystemExit('Candidate comment identity mismatch.')
-          if comment.get('user', {}).get('login') != os.environ['EXPECTED_OWNER']:
-              raise SystemExit('Candidate is not owner-authored.')
-          if not comment.get('issue_url', '').endswith('/issues/1046'):
-              raise SystemExit('Candidate is not attached to #1046.')
+          if comment.get('id') != int(os.environ['CANDIDATE_COMMENT_ID']): raise SystemExit('Candidate comment identity mismatch.')
+          if comment.get('user', {}).get('login') != os.environ['EXPECTED_OWNER']: raise SystemExit('Candidate is not owner-authored.')
+          if not comment.get('issue_url', '').endswith('/issues/1046'): raise SystemExit('Candidate is not attached to #1046.')
           body = comment.get('body') or ''
-          if not body.startswith(marker):
-              raise SystemExit('Candidate marker mismatch.')
+          if not body.startswith(marker): raise SystemExit('Candidate marker mismatch.')
           payload = json.loads(body[len(marker):])
           fixed = {
               'schema_version': 2,
@@ -130,12 +124,10 @@ jobs:
               'published': True,
           }
           for key, value in fixed.items():
-              if payload.get(key) != value:
-                  raise SystemExit(f'Frozen candidate field mismatch: {key}')
+              if payload.get(key) != value: raise SystemExit(f'Frozen candidate field mismatch: {key}')
           canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n'
           digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
-          if digest != os.environ['CANDIDATE_SHA256']:
-              raise SystemExit('Frozen #1046 candidate SHA-256 mismatch.')
+          if digest != os.environ['CANDIDATE_SHA256']: raise SystemExit('Frozen #1046 candidate SHA-256 mismatch.')
           pathlib.Path('artifacts/drupal-2027-preprod-candidate/payload.json').write_text(canonical, encoding='utf-8')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
               out.write(f'candidate_revision={comment["id"]}\n')
@@ -156,11 +148,7 @@ jobs:
           # BEGIN DRUPAL_2027_RECEIPT_PARSER
           import json, os, re
           heading = '### Agency Drupal 2027 PREPROD candidate dry-run PASS'
-          expected = {
-              'candidate_revision': os.environ['CANDIDATE_REVISION'],
-              'candidate_sha256': os.environ['PAYLOAD_SHA256'],
-              'trusted_main': os.environ['TRUSTED_MAIN'],
-          }
+          expected = {'candidate_revision': os.environ['CANDIDATE_REVISION'], 'candidate_sha256': os.environ['PAYLOAD_SHA256'], 'trusted_main': os.environ['TRUSTED_MAIN']}
           patterns = {
               'candidate_revision': re.compile(r'^candidate_revision=([1-9][0-9]*)$'),
               'candidate_sha256': re.compile(r'^candidate_sha256=([0-9a-f]{64})$'),
@@ -169,21 +157,17 @@ jobs:
           pages = json.load(open(os.environ['COMMENTS_FILE'], encoding='utf-8'))
           comments = [item for page in pages for item in (page if isinstance(page, list) else [page])]
           for comment in comments:
-              if comment.get('user', {}).get('login') != 'github-actions[bot]':
-                  continue
+              if comment.get('user', {}).get('login') != 'github-actions[bot]': continue
               lines = (comment.get('body') or '').splitlines()
-              if not lines or lines[0] != heading or lines.count(heading) != 1:
-                  continue
-              fields = {}
-              valid = True
+              if not lines or lines[0] != heading or lines.count(heading) != 1: continue
+              fields, valid = {}, True
               for name, pattern in patterns.items():
                   candidates = [line for line in lines[1:] if line.startswith(f'{name}=')]
                   if len(candidates) != 1 or pattern.fullmatch(candidates[0]) is None:
                       valid = False
                       break
                   fields[name] = pattern.fullmatch(candidates[0]).group(1)
-              if valid and fields == expected:
-                  raise SystemExit(0)
+              if valid and fields == expected: raise SystemExit(0)
           raise SystemExit('PREPROD apply requires the exact #1046 dry-run PASS for the same candidate and main.')
           # END DRUPAL_2027_RECEIPT_PARSER
           PY
@@ -203,17 +187,16 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN"
           test "$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')" = "$TRUSTED_MAIN"
+          mkdir -p artifacts/drupal-2027-preprod-candidate
           body="$(gh api "repos/$REPO/issues/comments/$CANDIDATE_COMMENT_ID" --jq '.body')"
           BODY="$body" python3 - <<'PY'
           import hashlib, json, os
           marker = '<!-- agency-drupal-2027-payload:v2 -->\n'
           body = os.environ['BODY']
-          if not body.startswith(marker):
-              raise SystemExit('Candidate marker changed.')
+          if not body.startswith(marker): raise SystemExit('Candidate marker changed.')
           payload = json.loads(body[len(marker):])
           canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n'
-          if hashlib.sha256(canonical.encode()).hexdigest() != os.environ['EXPECTED_SHA']:
-              raise SystemExit('Candidate changed after authorization.')
+          if hashlib.sha256(canonical.encode()).hexdigest() != os.environ['EXPECTED_SHA']: raise SystemExit('Candidate changed after authorization.')
           open('artifacts/drupal-2027-preprod-candidate/payload.json', 'w', encoding='utf-8').write(canonical)
           PY
 
@@ -270,9 +253,7 @@ jobs:
         run: |
           set -euo pipefail
           verdict="$(jq -r '.verdict' artifacts/drupal-2027-preprod-candidate/result.json)"
-          if [[ "$MODE" == dry-run ]]; then heading='### Agency Drupal 2027 PREPROD candidate dry-run PASS';
-          elif [[ "$MODE" == apply ]]; then heading='### Agency Drupal 2027 PREPROD candidate apply PASS';
-          else heading='### Agency Drupal 2027 PREPROD candidate inspect PASS'; fi
+          if [[ "$MODE" == dry-run ]]; then heading='### Agency Drupal 2027 PREPROD candidate dry-run PASS'; elif [[ "$MODE" == apply ]]; then heading='### Agency Drupal 2027 PREPROD candidate apply PASS'; else heading='### Agency Drupal 2027 PREPROD candidate inspect PASS'; fi
           browser='NOT_YET'
           if [[ "$MODE" == apply ]]; then browser="$(jq -r '.result' artifacts/browser-validation/result.json)"; fi
           body="$heading

@@ -17,27 +17,27 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
   /**
    * Temporary project root used by the fixed-path registry reader.
    */
-  private string $root;
+  private string $fixtureRoot;
 
   /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
     parent::setUp();
-    $this->root = sys_get_temp_dir() . '/agency-operations-' . bin2hex(random_bytes(6));
-    mkdir($this->root . '/web', 0777, TRUE);
-    mkdir($this->root . '/docs/operations', 0777, TRUE);
+    $this->fixtureRoot = sys_get_temp_dir() . '/agency-operations-' . bin2hex(random_bytes(6));
+    mkdir($this->fixtureRoot . '/web', 0777, TRUE);
+    mkdir($this->fixtureRoot . '/docs/operations', 0777, TRUE);
   }
 
   /**
    * {@inheritdoc}
    */
   protected function tearDown(): void {
-    @unlink($this->root . '/docs/operations/execution-capabilities.md');
-    @rmdir($this->root . '/docs/operations');
-    @rmdir($this->root . '/docs');
-    @rmdir($this->root . '/web');
-    @rmdir($this->root);
+    @unlink($this->fixtureRoot . '/docs/operations/execution-capabilities.md');
+    @rmdir($this->fixtureRoot . '/docs/operations');
+    @rmdir($this->fixtureRoot . '/docs');
+    @rmdir($this->fixtureRoot . '/web');
+    @rmdir($this->fixtureRoot);
     parent::tearDown();
   }
 
@@ -46,7 +46,7 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
    */
   public function testExistingRegistryIsParsedAndGrouped(): void {
     file_put_contents(
-      $this->root . '/docs/operations/execution-capabilities.md',
+      $this->fixtureRoot . '/docs/operations/execution-capabilities.md',
       "# Registry\n\n## 3. Current operational capability index\n\n"
       . "| Capability | Owner | Status | Current execution surface | Mutation/data boundary |\n"
       . "| --- | --- | --- | --- | --- |\n"
@@ -57,7 +57,7 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
       . "\n## 4. Next section\n",
     );
 
-    $result = (new CapabilityRegistryReader($this->root . '/web'))->read();
+    $result = (new CapabilityRegistryReader($this->fixtureRoot . '/web'))->read();
 
     self::assertTrue($result['available']);
     self::assertCount(1, $result['groups']['CODE_CONFIG']);

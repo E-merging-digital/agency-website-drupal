@@ -19,7 +19,7 @@ final class OperationsController extends ControllerBase {
   public function __construct(
     private readonly CapabilityRegistryReader $capabilityRegistry,
     private readonly EditorialLanguageReadinessInterface $languageReadiness,
-    private readonly ModuleHandlerInterface $moduleHandler,
+    private readonly ModuleHandlerInterface $agencyModuleHandler,
   ) {}
 
   /**
@@ -228,22 +228,22 @@ final class OperationsController extends ControllerBase {
       '#rows' => [
         [
           'Content Translation',
-          $this->moduleHandler->moduleExists('content_translation') ? 'ENABLED' : 'DISABLED',
+          $this->agencyModuleHandler->moduleExists('content_translation') ? 'ENABLED' : 'DISABLED',
           'REUSE NOW',
         ],
         [
           'Content Moderation',
-          $this->moduleHandler->moduleExists('content_moderation') ? 'ENABLED' : 'DISABLED',
+          $this->agencyModuleHandler->moduleExists('content_moderation') ? 'ENABLED' : 'DISABLED',
           'REUSE_LATER — do not duplicate candidate authority',
         ],
         [
           'Workflows',
-          $this->moduleHandler->moduleExists('workflows') ? 'ENABLED' : 'DISABLED',
+          $this->agencyModuleHandler->moduleExists('workflows') ? 'ENABLED' : 'DISABLED',
           'REUSE_LATER with Content Moderation if a material UX need is proven',
         ],
         [
           'Workspaces',
-          $this->moduleHandler->moduleExists('workspaces') ? 'ENABLED' : 'DISABLED',
+          $this->agencyModuleHandler->moduleExists('workspaces') ? 'ENABLED' : 'DISABLED',
           'REUSE_LATER — same-environment grouping only, never environment transport',
         ],
         [

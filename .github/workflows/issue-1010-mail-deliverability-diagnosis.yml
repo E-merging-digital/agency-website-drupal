@@ -1,0 +1,203 @@
+name: "#1010 mail deliverability diagnosis"
+
+on:
+  push:
+    branches:
+      - ops/1010-terminal-prod-verification
+    paths:
+      - .github/workflows/issue-1010-mail-deliverability-diagnosis.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Diagnose PROD SMTP path without resubmitting Webform
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      EXPECTED_MAIN: 754136965eef88441904108356686adae8a901f9
+    steps:
+      - name: Checkout exact production source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_MAIN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Inspect public inbound MX
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v dig >/dev/null 2>&1; then
+            echo "MX_BEGIN"
+            dig +short MX emergingdigital.be | sort
+            echo "MX_END"
+          else
+            echo "MX_UNAVAILABLE"
+          fi
+
+      - name: Configure production SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Inspect effective runtime and bounded historical mail evidence
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/agency-1010-mail-diagnose.php <<'PHP'
+          <?php
+          $dsn = \Drupal::config('system.mail')->get('mailer_dsn') ?: [];
+          $webform = \Drupal::entityTypeManager()->getStorage('webform')->load('drupal_lifecycle_diagnostic');
+          $handler = \Drupal::config('webform.webform.drupal_lifecycle_diagnostic')->get('handlers.email_notification');
+          $submission = \Drupal::entityTypeManager()->getStorage('webform_submission')->load(87);
+          if (!$webform || !$submission) {
+            throw new \RuntimeException('Expected Webform or SID 87 is missing.');
+          }
+          $db = \Drupal::database();
+          $rows = [];
+          if ($db->schema()->tableExists('watchdog')) {
+            $q = $db->select('watchdog', 'w');
+            $q->fields('w', ['wid', 'type', 'severity', 'timestamp', 'message']);
+            $q->condition('timestamp', 1788694695, '>=');
+            $q->condition('timestamp', 1788695295, '<=');
+            $or = $q->orConditionGroup()
+              ->condition('type', ['mail', 'symfony_mailer', 'php'], 'IN')
+              ->condition('message', '%mail%', 'LIKE')
+              ->condition('message', '%smtp%', 'LIKE')
+              ->condition('message', '%proton%', 'LIKE')
+              ->condition('message', '%example.com%', 'LIKE');
+            $q->condition($or);
+            $q->orderBy('wid', 'ASC');
+            $q->range(0, 50);
+            foreach ($q->execute() as $row) {
+              $message = (string) $row->message;
+              $message = preg_replace('/(smtp[s]?:\\/\\/[^:\\s]+:)[^@\\s]+@/i', '$1***@', $message);
+              $rows[] = [
+                'wid' => (int) $row->wid,
+                'type' => (string) $row->type,
+                'severity' => (int) $row->severity,
+                'timestamp' => gmdate('c', (int) $row->timestamp),
+                'message' => mb_substr($message, 0, 500),
+              ];
+            }
+          }
+          $result = [
+            'smtp_scheme' => $dsn['scheme'] ?? NULL,
+            'smtp_host' => $dsn['host'] ?? NULL,
+            'smtp_port' => isset($dsn['port']) ? (int) $dsn['port'] : NULL,
+            'smtp_user' => $dsn['user'] ?? getenv('EMERGING_DIGITAL_SMTP_USER') ?: NULL,
+            'smtp_from' => getenv('EMERGING_DIGITAL_SMTP_FROM') ?: ($handler['settings']['from_mail'] ?? NULL),
+            'smtp_password_set' => !empty($dsn['password']) || (getenv('EMERGING_DIGITAL_SMTP_PASSWORD') !== false && getenv('EMERGING_DIGITAL_SMTP_PASSWORD') !== ''),
+            'recipient' => $handler['settings']['to_mail'] ?? NULL,
+            'site_mail' => \Drupal::config('system.site')->get('mail'),
+            'sid' => (int) $submission->id(),
+            'sid_created' => gmdate('c', (int) $submission->getCreatedTime()),
+            'watchdog_evidence' => $rows,
+          ];
+          print json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
+          PHP
+          scp -q /tmp/agency-1010-mail-diagnose.php "$SERVER_USER@$SERVER_HOST:/tmp/agency-1010-mail-diagnose.php"
+          ssh "$SERVER_USER@$SERVER_HOST" 'set -euo pipefail; cd /var/www/agency/current; if [[ -r /etc/emergingdigital.env ]]; then set -a; source /etc/emergingdigital.env; set +a; fi; vendor/bin/drush php:script /tmp/agency-1010-mail-diagnose.php; rm -f /tmp/agency-1010-mail-diagnose.php' > /tmp/agency-1010-mail-diagnose.json
+          jq -e '
+            .smtp_scheme == "smtp" and
+            .smtp_host == "smtp.protonmail.ch" and
+            .smtp_port == 587 and
+            .smtp_user == "jonathan@emergingdigital.be" and
+            .smtp_from == "jonathan@emergingdigital.be" and
+            .smtp_password_set == true and
+            .recipient == "contact@emergingdigital.be" and
+            .sid == 87
+          ' /tmp/agency-1010-mail-diagnose.json >/dev/null
+          jq . /tmp/agency-1010-mail-diagnose.json
+
+      - name: Probe Proton SMTP envelope acceptance without DATA
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/agency-1010-smtp-envelope.php <<'PHP'
+          <?php
+          function smtp_read($fp): array {
+            $lines = [];
+            while (($line = fgets($fp, 4096)) !== false) {
+              $line = rtrim($line, "\r\n");
+              $lines[] = $line;
+              if (strlen($line) < 4 || $line[3] !== '-') {
+                break;
+              }
+            }
+            $last = end($lines) ?: '';
+            return ['code' => (int) substr($last, 0, 3), 'lines' => $lines];
+          }
+          function smtp_cmd($fp, string $command, ?array $ok = NULL): array {
+            fwrite($fp, $command . "\r\n");
+            $response = smtp_read($fp);
+            if ($ok !== NULL && !in_array($response['code'], $ok, TRUE)) {
+              throw new RuntimeException('SMTP command failed with code ' . $response['code']);
+            }
+            return $response;
+          }
+          $host = getenv('EMERGING_DIGITAL_SMTP_HOST') ?: 'smtp.protonmail.ch';
+          $port = (int) (getenv('EMERGING_DIGITAL_SMTP_PORT') ?: 587);
+          $user = getenv('EMERGING_DIGITAL_SMTP_USER');
+          $password = getenv('EMERGING_DIGITAL_SMTP_PASSWORD');
+          $from = getenv('EMERGING_DIGITAL_SMTP_FROM') ?: $user;
+          if (!$user || !$password || !$from) throw new RuntimeException('SMTP identity incomplete.');
+          $fp = stream_socket_client("tcp://{$host}:{$port}", $errno, $errstr, 15, STREAM_CLIENT_CONNECT);
+          if (!$fp) throw new RuntimeException('SMTP connect failed: ' . $errno);
+          stream_set_timeout($fp, 15);
+          $greeting = smtp_read($fp);
+          $ehlo1 = smtp_cmd($fp, 'EHLO emergingdigital.be', [250]);
+          $starttls = smtp_cmd($fp, 'STARTTLS', [220]);
+          if (!stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+            throw new RuntimeException('STARTTLS negotiation failed.');
+          }
+          $ehlo2 = smtp_cmd($fp, 'EHLO emergingdigital.be', [250]);
+          $auth1 = smtp_cmd($fp, 'AUTH LOGIN', [334]);
+          fwrite($fp, base64_encode($user) . "\r\n");
+          $auth2 = smtp_read($fp);
+          if ($auth2['code'] !== 334) throw new RuntimeException('SMTP username rejected with code ' . $auth2['code']);
+          fwrite($fp, base64_encode($password) . "\r\n");
+          $auth3 = smtp_read($fp);
+          if ($auth3['code'] !== 235) throw new RuntimeException('SMTP authentication rejected with code ' . $auth3['code']);
+          $mail = smtp_cmd($fp, 'MAIL FROM:<' . $from . '>', [250]);
+          $rcpt = smtp_cmd($fp, 'RCPT TO:<contact@emergingdigital.be>', [250, 251]);
+          $rset = smtp_cmd($fp, 'RSET', [250]);
+          smtp_cmd($fp, 'QUIT', [221]);
+          fclose($fp);
+          print json_encode([
+            'greeting_code' => $greeting['code'],
+            'starttls_code' => $starttls['code'],
+            'auth_code' => $auth3['code'],
+            'mail_from_code' => $mail['code'],
+            'mail_from_response' => end($mail['lines']),
+            'rcpt_to_code' => $rcpt['code'],
+            'rcpt_to_response' => end($rcpt['lines']),
+            'rset_code' => $rset['code'],
+            'data_sent' => false,
+          ], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
+          PHP
+          scp -q /tmp/agency-1010-smtp-envelope.php "$SERVER_USER@$SERVER_HOST:/tmp/agency-1010-smtp-envelope.php"
+          ssh "$SERVER_USER@$SERVER_HOST" 'set -euo pipefail; if [[ -r /etc/emergingdigital.env ]]; then set -a; source /etc/emergingdigital.env; set +a; fi; cd /var/www/agency/current; vendor/bin/drush php:script /tmp/agency-1010-smtp-envelope.php; rm -f /tmp/agency-1010-smtp-envelope.php' > /tmp/agency-1010-smtp-envelope.json
+          jq -e '.auth_code == 235 and .mail_from_code == 250 and (.rcpt_to_code == 250 or .rcpt_to_code == 251) and .data_sent == false' /tmp/agency-1010-smtp-envelope.json >/dev/null
+          jq . /tmp/agency-1010-smtp-envelope.json

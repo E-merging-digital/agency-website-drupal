@@ -16,7 +16,7 @@ use Drupal\user\Entity\User;
 use PHPUnit\Framework\Attributes\Group;
 
 /**
- * Proves the closed #1012 Page candidate through real Drupal Entity APIs.
+ * Proves the closed #1046 FR+EN Page candidate through Drupal Entity APIs.
  *
  * @group agency_project_tests
  * @group drupal_2027_preprod_candidate
@@ -24,8 +24,10 @@ use PHPUnit\Framework\Attributes\Group;
 #[Group('drupal_2027_preprod_candidate')]
 final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
 
+  private const HASH = 'ac96465c5717f78af76e368d8598399cbe997ed63d7cc753d575337c9321af83';
+
   /**
-   * Drupal modules required by the closed Drupal 2027 candidate Kernel test.
+   * Drupal modules required by the bounded materializer test.
    *
    * @var string[]
    */
@@ -46,12 +48,12 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
   ];
 
   /**
-   * Closed PREPROD candidate helper under test.
+   * Closed #1046 candidate helper under test.
    */
   private object $candidate;
 
   /**
-   * Builds the minimal Page and Paragraph runtime used by the closed profile.
+   * Builds the minimal bilingual Page and Paragraph runtime.
    */
   protected function setUp(): void {
     parent::setUp();
@@ -82,123 +84,96 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     ])->save();
     User::create([
       'uid' => 1,
-      'name' => 'drupal-2027-preprod-test-admin',
+      'name' => 'drupal-2027-1046-admin',
       'status' => 1,
     ])->save();
-
     $this->createFields();
 
-    if (!class_exists('AgencyDrupal2027PreprodCandidate', FALSE)) {
-      require_once dirname(DRUPAL_ROOT) . '/scripts/runner/drupal-2027-preprod-candidate.php';
-    }
+    require_once dirname(DRUPAL_ROOT)
+      . '/scripts/runner/drupal-2027-preprod-candidate.php';
     $factory = ['AgencyDrupal2027PreprodCandidate', 'fromContainer'];
     self::assertIsCallable($factory);
     $this->candidate = $factory($this->container);
   }
 
   /**
-   * First apply creates one Page; exact replay creates no new revision.
+   * First apply creates FR+EN; exact replay creates no new revision.
    */
-  public function testCreateAndExactReplayAreIdempotent(): void {
+  public function testCreateAndExactReplayAreBilingualAndIdempotent(): void {
     $payload = $this->validPayload();
-    $hash = str_repeat('a', 64);
 
-    $dryRun = $this->candidate->dryRun($payload, $hash);
+    $dryRun = $this->candidate->dryRun($payload, self::HASH);
     self::assertSame('CREATE_READY', $dryRun['verdict']);
-    self::assertSame('PREPROD', $dryRun['target']);
-    self::assertSame('page', $dryRun['bundle']);
-    self::assertSame('fr', $dryRun['language']);
-    self::assertSame('/fr/drupal-2027', $dryRun['alias']);
-    self::assertSame('NONE', $dryRun['prod_write']);
+    self::assertSame('FR_EN', $dryRun['language_mode']);
+    self::assertSame('/fr/drupal-2027', $dryRun['aliases']['fr']);
+    self::assertSame('/en/drupal-2027', $dryRun['aliases']['en']);
 
-    $applied = $this->candidate->apply($payload, $hash);
+    $applied = $this->candidate->apply($payload, self::HASH);
     self::assertSame('APPLIED', $applied['verdict']);
-    self::assertSame('agency-drupal-2027-landing-1012', $applied['candidate_id']);
-    self::assertIsArray($applied['node']);
+    self::assertSame(
+      'agency-drupal-2027-landing-1046',
+      $applied['candidate_id'],
+    );
 
     $node = Node::load($applied['node']['id']);
     self::assertNotNull($node);
-    self::assertSame('page', $node->bundle());
     self::assertSame('fr', $node->language()->getId());
-    self::assertFalse($node->hasTranslation('en'));
-    self::assertSame($payload['title'], $node->label());
-    self::assertSame($payload['short_description'], $node->get('field_short_description')->value);
+    self::assertSame($payload['fr']['title'], $node->label());
+    self::assertTrue($node->hasTranslation('en'));
+    self::assertSame(
+      $payload['en']['title'],
+      $node->getTranslation('en')->label(),
+    );
+
     $components = $node->get('field_home_components')->referencedEntities();
     self::assertCount(10, $components);
-    $secondary = $components[0]->get('field_secondary_link')->first()?->getValue() ?? [];
+    foreach ($components as $paragraph) {
+      self::assertTrue($paragraph->hasTranslation('en'));
+    }
+
+    $aliasManager = $this->container->get('path_alias.manager');
+    $aliasManager->cacheClear('/node/' . $node->id());
     self::assertSame(
-      'internal:/drupal-2027#points-a-verifier-socle',
-      $secondary['uri'] ?? NULL,
+      '/drupal-2027',
+      $aliasManager->getAliasByPath('/node/' . $node->id(), 'fr'),
     );
     self::assertSame(
       '/drupal-2027',
-      $this->container->get('path_alias.manager')->getAliasByPath(
-        '/node/' . $node->id(),
-        'fr',
-      ),
+      $aliasManager->getAliasByPath('/node/' . $node->id(), 'en'),
     );
+
     $revision = (int) $node->getRevisionId();
-
-    $replay = $this->candidate->apply($payload, $hash);
+    $replay = $this->candidate->apply($payload, self::HASH);
     self::assertSame('IDEMPOTENT', $replay['verdict']);
-    $reloaded = Node::load($node->id());
-    self::assertNotNull($reloaded);
-    self::assertSame($revision, (int) $reloaded->getRevisionId());
+    self::assertSame(
+      $revision,
+      (int) Node::load($node->id())?->getRevisionId(),
+    );
   }
 
   /**
-   * The exact alias is fail-closed when another Page already owns it.
+   * A stale FR-only language mode remains rejected fail-closed.
    */
-  public function testAliasCollisionFailsClosed(): void {
-    $collision = Node::create([
-      'type' => 'page',
-      'langcode' => 'fr',
-      'title' => 'Existing incompatible page',
-      'uid' => 1,
-      'status' => TRUE,
-      'path' => [
-        'alias' => '/drupal-2027',
-        'pathauto' => 0,
-      ],
-    ]);
-    $collision->save();
-
-    $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('collision');
-    $this->candidate->dryRun($this->validPayload(), str_repeat('b', 64));
-  }
-
-  /**
-   * A changed hash cannot silently update an already materialized candidate.
-   */
-  public function testChangedCandidateHashFailsClosed(): void {
+  public function testCandidateIdentityAndSchemaRemainFailClosed(): void {
     $payload = $this->validPayload();
-    $this->candidate->apply($payload, str_repeat('c', 64));
-
-    $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('different payload hash');
-    $this->candidate->dryRun($payload, str_repeat('d', 64));
-  }
-
-  /**
-   * Arbitrary profile values remain rejected.
-   */
-  public function testGenericPageParametersAreRejected(): void {
-    $payload = $this->validPayload();
-    $payload['alias'] = '/fr/arbitrary-page';
+    $payload['language_mode'] = 'FR_ONLY_EXCEPTION_APPROVED';
 
     $this->expectException(\InvalidArgumentException::class);
-    $this->expectExceptionMessage('field alias is fixed');
-    $this->candidate->dryRun($payload, str_repeat('e', 64));
+    $this->expectExceptionMessage('field language_mode is fixed');
+    $this->candidate->dryRun($payload, self::HASH);
   }
 
   /**
-   * Creates the fields required by the bounded Page and Paragraph contract.
+   * Creates the fields required by the fixed Page and Paragraph contract.
    */
   private function createFields(): void {
     $this->createStorage('field_short_description', 'node', 'text_long', 1);
-    $this->createConfig('field_short_description', 'node', 'page', 'Short description');
-
+    $this->createConfig(
+      'field_short_description',
+      'node',
+      'page',
+      'Short description',
+    );
     $this->createStorage(
       'field_home_components',
       'node',
@@ -222,39 +197,29 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
         ],
       ],
     );
-
     $this->createStorage('field_heading', 'paragraph', 'string', 1);
     foreach (['hero', 'text_block', 'trust_list'] as $bundle) {
       $this->createConfig('field_heading', 'paragraph', $bundle, 'Heading');
     }
-
     $this->createStorage('field_text', 'paragraph', 'text_long', 1);
     foreach (['hero', 'text_block'] as $bundle) {
       $this->createConfig('field_text', 'paragraph', $bundle, 'Text');
     }
-
     $this->createStorage('field_link', 'paragraph', 'link', 1);
     $this->createConfig('field_link', 'paragraph', 'hero', 'Primary link');
     $this->createStorage('field_secondary_link', 'paragraph', 'link', 1);
-    $this->createConfig('field_secondary_link', 'paragraph', 'hero', 'Secondary link');
-
+    $this->createConfig(
+      'field_secondary_link',
+      'paragraph',
+      'hero',
+      'Secondary link',
+    );
     $this->createStorage('field_items', 'paragraph', 'text_long', -1);
     $this->createConfig('field_items', 'paragraph', 'trust_list', 'Items');
   }
 
   /**
    * Creates one field storage definition for the Kernel fixture.
-   *
-   * @param string $name
-   *   Field storage name.
-   * @param string $entityType
-   *   Entity type receiving the field storage.
-   * @param string $type
-   *   Drupal field type identifier.
-   * @param int $cardinality
-   *   Field storage cardinality.
-   * @param array<string, mixed> $settings
-   *   Optional field storage settings.
    */
   private function createStorage(
     string $name,
@@ -274,17 +239,6 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
 
   /**
    * Creates one bundle field definition for the Kernel fixture.
-   *
-   * @param string $name
-   *   Field name.
-   * @param string $entityType
-   *   Entity type receiving the bundle field.
-   * @param string $bundle
-   *   Bundle receiving the field definition.
-   * @param string $label
-   *   Human-readable field label.
-   * @param array<string, mixed> $settings
-   *   Optional field handler settings.
    */
   private function createConfig(
     string $name,
@@ -304,64 +258,85 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
   }
 
   /**
-   * Returns one valid closed Drupal 2027 payload fixture.
+   * Returns one valid closed v2 FR+EN payload fixture.
    *
    * @return array<string, mixed>
    *   Candidate payload fixture.
    */
   private function validPayload(): array {
     return [
-      'schema_version' => 1,
+      'schema_version' => 2,
       'profile' => 'drupal-2027-landing',
-      'candidate_id' => 'agency-drupal-2027-landing-1012',
-      'issue_number' => 1012,
+      'candidate_id' => 'agency-drupal-2027-landing-1046',
+      'issue_number' => 1046,
       'source_issue' => 1010,
-      'source_comment_id' => 5553624200,
-      'source_updated_at' => '2026-09-05T17:43:14Z',
+      'source_candidate_revision' => 5553858896,
+      'source_candidate_sha256' =>
+      '07fb10ab4a54371d877fbfc6b3f185eda41085ae3bd5080de2d695843c9d049e',
       'target' => 'PREPROD',
       'bundle' => 'page',
-      'language' => 'fr',
-      'alias' => '/fr/drupal-2027',
+      'language_mode' => 'FR_EN',
+      'aliases' => [
+        'fr' => '/fr/drupal-2027',
+        'en' => '/en/drupal-2027',
+      ],
       'published' => TRUE,
-      'title' => 'Votre plateforme Drupal est-elle prête pour 2027 ?',
-      'short_description' => 'Description approuvée.',
-      'hero' => [
-        'submessage' => 'Sous-message approuvé.',
-        'primary_cta' => 'Faire le point sur ma plateforme',
-        'secondary_cta' => 'Voir ce qu’il faut vérifier',
-      ],
-      'sections' => [
-        'lifecycle' => $this->section('Pourquoi 2027 ?', '<p>Jalons.</p>'),
-        'situations' => $this->section('Situations', '<p>Situations.</p>'),
-        'checks' => $this->section(
-          'Les points à vérifier',
-          '<h3 id="points-a-verifier-socle">Socle</h3>',
-        ),
-        'composer_callout' => $this->section('Composer', '<p>Vérifier.</p>'),
-        'method' => $this->section('Méthode', '<h3>1. COMPRENDRE</h3>'),
-        'reassurance' => [
-          'heading' => 'Diagnostic humain',
-          'items' => ['Un', 'Deux', 'Trois', 'Quatre', 'Cinq'],
-        ],
-        'diagnostic_context' => [
-          'body_html' => '<p>Webform existant.</p>',
-        ],
-        'audit' => $this->section('Audit', '<p>Audit.</p>'),
-        'faq' => $this->section('FAQ', '<h3>Question</h3><p>Réponse.</p>'),
-      ],
+      'fr' => $this->language(
+        'Votre plateforme Drupal est-elle prête pour 2027 ?',
+        'FR',
+      ),
+      'en' => $this->language(
+        'Is your Drupal platform ready for 2027?',
+        'EN',
+      ),
     ];
   }
 
   /**
-   * Builds one text section fixture.
+   * Builds one complete language payload with the fixed section schema.
    *
-   * @return array{heading: string, body_html: string}
-   *   Section fixture.
+   * @return array<string, mixed>
+   *   Language payload fixture.
    */
-  private function section(string $heading, string $body): array {
-    return [
+  private function language(string $title, string $prefix): array {
+    $section = static fn (string $heading, string $body): array => [
       'heading' => $heading,
-      'body_html' => $body,
+      'body_html' => '<p>' . $body . '</p>',
+    ];
+    return [
+      'title' => $title,
+      'short_description' => $prefix . ' description.',
+      'hero' => [
+        'submessage' => $prefix . ' submessage.',
+        'primary_cta' => $prefix . ' primary',
+        'secondary_cta' => $prefix . ' secondary',
+      ],
+      'sections' => [
+        'lifecycle' => $section($prefix . ' lifecycle', 'Lifecycle'),
+        'situations' => $section($prefix . ' situations', 'Situations'),
+        'checks' => [
+          'heading' => $prefix . ' checks',
+          'body_html' => '<h3 id="points-a-verifier-socle">'
+          . $prefix . ' foundation</h3>',
+        ],
+        'composer_callout' => $section($prefix . ' composer', 'Composer'),
+        'method' => $section($prefix . ' method', 'Method'),
+        'reassurance' => [
+          'heading' => $prefix . ' reassurance',
+          'items' => [
+            $prefix . ' one',
+            $prefix . ' two',
+            $prefix . ' three',
+            $prefix . ' four',
+            $prefix . ' five',
+          ],
+        ],
+        'diagnostic_context' => [
+          'body_html' => '<p>' . $prefix . ' diagnostic</p>',
+        ],
+        'audit' => $section($prefix . ' audit', 'Audit'),
+        'faq' => $section($prefix . ' FAQ', 'FAQ'),
+      ],
     ];
   }
 

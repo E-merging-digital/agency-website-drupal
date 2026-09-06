@@ -81,7 +81,17 @@ fi
 
 scp "$remote_target:$remote_result" "$ARTIFACT_DIR/result.json" >/dev/null
 jq -e \
-  '.status == "PASS" and .profile == "drupal-2027-landing" and .candidate_id == "agency-drupal-2027-landing-1012" and .payload_sha256 == "07fb10ab4a54371d877fbfc6b3f185eda41085ae3bd5080de2d695843c9d049e" and .target == "PROD" and .bundle == "page" and .language == "fr" and .alias == "/fr/drupal-2027" and .collision_policy == "FAIL_CLOSED" and .content_sync == "NONE"' \
+  '.status == "PASS"
+   and .profile == "drupal-2027-landing"
+   and .candidate_id == "agency-drupal-2027-landing-1046"
+   and .payload_sha256 == "ac96465c5717f78af76e368d8598399cbe997ed63d7cc753d575337c9321af83"
+   and .target == "PROD"
+   and .bundle == "page"
+   and .language_mode == "FR_EN"
+   and .aliases.fr == "/fr/drupal-2027"
+   and .aliases.en == "/en/drupal-2027"
+   and .collision_policy == "FAIL_CLOSED"
+   and .content_sync == "NONE"' \
   "$ARTIFACT_DIR/result.json" >/dev/null
 
 if [[ "$MODE" == 'apply' ]]; then

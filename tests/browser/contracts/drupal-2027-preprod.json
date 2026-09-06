@@ -1,14 +1,14 @@
 {
   "id": "drupal-2027-preprod",
   "target": "/fr/drupal-2027",
+  "target_en": "/en/drupal-2027",
   "actor": "anonymous-behind-preprod-basic-auth",
   "expected": [
-    "La landing Drupal 2027 protégée répond sans erreur HTTP.",
-    "Le H1, le sous-message, les CTA et les sections approuvées sont visibles.",
-    "L’illustration hero services et le Webform #1007 sont réellement rendus.",
+    "Les landings Drupal 2027 FR et EN protégées répondent sans erreur HTTP.",
+    "Le H1, le sous-message, les CTA et toutes les sections sont présents dans chaque langue.",
+    "Le Webform #1007 est rendu dans le langage visuel existant du formulaire Contact.",
     "Le rendu desktop et mobile ne présente pas de débordement horizontal évident.",
-    "La navigation clavier, la hiérarchie de titres et le focus ont une baseline exploitable.",
-    "PREPROD conserve son noindex et n’émet pas de hreflang EN inexistant.",
+    "PREPROD conserve son noindex et les hreflang FR/EN sont présents.",
     "La console et le réseau same-origin restent sains."
   ],
   "checks": [
@@ -18,6 +18,7 @@
     "primary_cta",
     "secondary_cta",
     "webform_1007",
+    "webform_contact_visual_language",
     "accessibility_baseline",
     "canonical",
     "hreflang",

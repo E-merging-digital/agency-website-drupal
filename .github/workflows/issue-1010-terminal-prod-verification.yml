@@ -1,0 +1,300 @@
+name: "#1010 terminal PROD verification"
+
+on:
+  push:
+    branches:
+      - ops/1010-terminal-prod-verification
+    paths:
+      - .github/workflows/issue-1010-terminal-prod-verification.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-1010-terminal-prod-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify PROD parity, runtime mail and one real Webform submission
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      EXPECTED_MAIN: 754136965eef88441904108356686adae8a901f9
+      PROD_BASE_URL: https://emergingdigital.be
+      PREPROD_BASE_URL: https://preprod.emergingdigital.be
+      TEST_WEBSITE_URL: https://example.com
+      TEST_ORGANIZATION: E-MERGING DIGITAL — TEST INTERNE
+      TEST_NAME: Test interne Agency
+      TEST_EMAIL: jonathan@emergingdigital.be
+      TEST_MESSAGE: TEST INTERNE — validation notification Webform Drupal 2027 — ne pas traiter.
+      EXPECTED_SUBJECT: Drupal diagnostic request — https://example.com
+    steps:
+      - name: Checkout exact approved production source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_MAIN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Configure production SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Verify deployed theme shell and effective production mail configuration
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/agency-1010-runtime.php <<'PHP'
+          <?php
+          $webform_id = 'drupal_lifecycle_diagnostic';
+          $marker = 'TEST INTERNE — validation notification Webform Drupal 2027 — ne pas traiter.';
+          $webform = \Drupal::entityTypeManager()->getStorage('webform')->load($webform_id);
+          if (!$webform) {
+            throw new \RuntimeException('Webform drupal_lifecycle_diagnostic is missing.');
+          }
+          $webform_config = \Drupal::config('webform.webform.' . $webform_id);
+          $handler = $webform_config->get('handlers.email_notification');
+          $dsn = \Drupal::config('system.mail')->get('mailer_dsn') ?: [];
+          $db = \Drupal::database();
+          $count_query = $db->select('webform_submission_data', 'd');
+          $count_query->condition('webform_id', $webform_id);
+          $count_query->condition('name', 'message');
+          $count_query->condition('value', $marker);
+          $count_query->addExpression('COUNT(*)');
+          $existing = (int) $count_query->execute()->fetchField();
+          $watchdog_max_wid = 0;
+          if ($db->schema()->tableExists('watchdog')) {
+            $watchdog_max_wid = (int) ($db->select('watchdog', 'w')->addExpression('MAX(wid)')->execute()->fetchField() ?: 0);
+          }
+          $result = [
+            'webform_engine' => \Drupal::moduleHandler()->moduleExists('webform') ? 'Drupal Webform' : 'MISSING',
+            'webform_id' => $webform->id(),
+            'handler_id' => $handler['handler_id'] ?? NULL,
+            'handler_plugin' => $handler['id'] ?? NULL,
+            'handler_status' => (bool) ($handler['status'] ?? FALSE),
+            'handler_states' => $handler['settings']['states'] ?? [],
+            'to_mail' => $handler['settings']['to_mail'] ?? NULL,
+            'from_mail' => $handler['settings']['from_mail'] ?? NULL,
+            'sender_mail' => $handler['settings']['sender_mail'] ?? NULL,
+            'return_path' => $handler['settings']['return_path'] ?? NULL,
+            'subject_template' => $handler['settings']['subject'] ?? NULL,
+            'smtp_scheme' => $dsn['scheme'] ?? NULL,
+            'smtp_host' => $dsn['host'] ?? NULL,
+            'smtp_port' => isset($dsn['port']) ? (int) $dsn['port'] : NULL,
+            'smtp_password_set' => !empty($dsn['password']),
+            'existing_test_submission_count' => $existing,
+            'watchdog_max_wid' => $watchdog_max_wid,
+          ];
+          print json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+          PHP
+          scp -q /tmp/agency-1010-runtime.php "$SERVER_USER@$SERVER_HOST:/tmp/agency-1010-runtime.php"
+          ssh "$SERVER_USER@$SERVER_HOST" 'set -euo pipefail; cd /var/www/agency/current; test -f web/themes/custom/emerging_digital/templates/block/block--emerging-digital-drupal-lifecycle-diagnostic.html.twig; grep -Fq "ed-section__content--contact-form" web/themes/custom/emerging_digital/templates/block/block--emerging-digital-drupal-lifecycle-diagnostic.html.twig; vendor/bin/drush php:script /tmp/agency-1010-runtime.php; rm -f /tmp/agency-1010-runtime.php' > /tmp/agency-1010-runtime.json
+          jq -e '
+            .webform_engine == "Drupal Webform" and
+            .webform_id == "drupal_lifecycle_diagnostic" and
+            .handler_id == "email_notification" and
+            .handler_plugin == "email" and
+            .handler_status == true and
+            .handler_states == ["completed"] and
+            .to_mail == "contact@emergingdigital.be" and
+            .from_mail == "jonathan@emergingdigital.be" and
+            .sender_mail == "jonathan@emergingdigital.be" and
+            .return_path == "jonathan@emergingdigital.be" and
+            .subject_template == "Drupal diagnostic request — [webform_submission:values:website_url:raw]" and
+            .smtp_scheme == "smtp" and
+            .smtp_host == "smtp.protonmail.ch" and
+            .smtp_port == 587 and
+            .smtp_password_set == true and
+            .existing_test_submission_count == 0
+          ' /tmp/agency-1010-runtime.json >/dev/null
+          jq '{webform_engine,webform_id,handler_id,handler_plugin,handler_status,handler_states,to_mail,from_mail,sender_mail,return_path,subject_template,smtp_scheme,smtp_host,smtp_port,smtp_password_set,existing_test_submission_count,watchdog_max_wid}' /tmp/agency-1010-runtime.json
+
+      - name: Verify material PREPROD/PROD contact-shell parity in FR and EN
+        env:
+          PREPROD_BASIC_AUTH_USER: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          PREPROD_BASIC_AUTH_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/agency-1010-pages
+          curl -fsSL --retry 2 --retry-delay 1 "$PROD_BASE_URL/fr/drupal-2027" > /tmp/agency-1010-pages/prod-fr.html
+          curl -fsSL --retry 2 --retry-delay 1 "$PROD_BASE_URL/en/drupal-2027" > /tmp/agency-1010-pages/prod-en.html
+          curl -fsSL --retry 2 --retry-delay 1 -u "$PREPROD_BASIC_AUTH_USER:$PREPROD_BASIC_AUTH_PASSWORD" "$PREPROD_BASE_URL/fr/drupal-2027" > /tmp/agency-1010-pages/preprod-fr.html
+          curl -fsSL --retry 2 --retry-delay 1 -u "$PREPROD_BASIC_AUTH_USER:$PREPROD_BASIC_AUTH_PASSWORD" "$PREPROD_BASE_URL/en/drupal-2027" > /tmp/agency-1010-pages/preprod-en.html
+          for file in /tmp/agency-1010-pages/*.html; do
+            grep -Fq 'ed-section__content--contact-form' "$file"
+            grep -Eq 'drupal-lifecycle-diagnostic|drupal_lifecycle_diagnostic' "$file"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path('/tmp/agency-1010-pages')
+          def signature(name):
+              html = (root / name).read_text(encoding='utf-8')
+              return {
+                  'contact_shell_count': html.count('ed-section__content--contact-form'),
+                  'webform_marker_count': len(re.findall(r'drupal[-_]lifecycle[-_]diagnostic', html, re.I)),
+                  'contact_form_class': 'ed-section__content--contact-form' in html,
+              }
+          pairs = [('fr','prod-fr.html','preprod-fr.html'), ('en','prod-en.html','preprod-en.html')]
+          for lang, prod, preprod in pairs:
+              p = signature(prod)
+              q = signature(preprod)
+              if not p['contact_form_class'] or not q['contact_form_class']:
+                  raise SystemExit(f'{lang}: contact shell missing')
+              if p['contact_shell_count'] != q['contact_shell_count']:
+                  raise SystemExit(f'{lang}: material contact-shell count differs: PROD={p} PREPROD={q}')
+              if p['webform_marker_count'] < 1 or q['webform_marker_count'] < 1:
+                  raise SystemExit(f'{lang}: Webform marker missing')
+              print(f'{lang.upper()}_CONTACT_SHELL=PASS PROD={p} PREPROD={q}')
+          print('PREPROD_PROD_VISUAL_PARITY=PASS')
+          PY
+
+      - name: Install browser runtime for the single real production submission
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Perform exactly one real production Drupal lifecycle diagnostic submission
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/agency-1010-submit.mjs <<'JS'
+          import { chromium } from '@playwright/test';
+          import fs from 'node:fs';
+          const result = { submission_attempted: false, confirmation: false, url: null };
+          const browser = await chromium.launch({ headless: true });
+          try {
+            const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+            await page.goto(process.env.PROD_BASE_URL + '/fr/drupal-2027', { waitUntil: 'networkidle', timeout: 30000 });
+            const shell = page.locator('.ed-section__content--contact-form').first();
+            if (await shell.count() !== 1) throw new Error('Production contact shell is not uniquely rendered.');
+            const form = page.locator('form').filter({ has: page.locator('input[name="website_url"]') }).first();
+            if (await form.count() !== 1) throw new Error('Drupal lifecycle diagnostic form not found.');
+            await form.locator('input[name="website_url"]').fill(process.env.TEST_WEBSITE_URL);
+            await form.locator('input[name="organization"]').fill(process.env.TEST_ORGANIZATION);
+            await form.locator('input[name="name"]').fill(process.env.TEST_NAME);
+            await form.locator('input[name="email"]').fill(process.env.TEST_EMAIL);
+            await form.locator('textarea[name="message"]').fill(process.env.TEST_MESSAGE);
+            await form.locator('input[name="rgpd_consent"]').check();
+            result.submission_attempted = true;
+            const submit = form.locator('input[type="submit"], button[type="submit"]').first();
+            await submit.click();
+            try {
+              await page.locator('.contact-confirmation').waitFor({ state: 'visible', timeout: 30000 });
+              result.confirmation = true;
+            } catch {
+              result.confirmation = false;
+            }
+            result.url = page.url();
+          } finally {
+            await browser.close();
+            fs.writeFileSync('/tmp/agency-1010-browser-result.json', JSON.stringify(result));
+          }
+          console.log(JSON.stringify(result));
+          JS
+          node /tmp/agency-1010-submit.mjs
+          jq -e '.submission_attempted == true' /tmp/agency-1010-browser-result.json >/dev/null
+
+      - name: Prove persisted submission and mail transport outcome without checking inbox
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          WATCHDOG_START_WID="$(jq -r '.watchdog_max_wid' /tmp/agency-1010-runtime.json)"
+          test "$WATCHDOG_START_WID" -ge 0
+          cat > /tmp/agency-1010-post.php <<PHP
+          <?php
+          \$webform_id = 'drupal_lifecycle_diagnostic';
+          \$marker = 'TEST INTERNE — validation notification Webform Drupal 2027 — ne pas traiter.';
+          \$db = \\Drupal::database();
+          \$q = \$db->select('webform_submission_data', 'd');
+          \$q->join('webform_submission', 's', 's.sid = d.sid');
+          \$q->fields('s', ['sid', 'created']);
+          \$q->condition('d.webform_id', \$webform_id);
+          \$q->condition('d.name', 'message');
+          \$q->condition('d.value', \$marker);
+          \$q->orderBy('s.sid', 'DESC');
+          \$rows = \$q->execute()->fetchAllAssoc('sid');
+          if (count(\$rows) !== 1) {
+            throw new \\RuntimeException('Expected exactly one bounded test submission, got ' . count(\$rows));
+          }
+          \$row = reset(\$rows);
+          \$submission = \\Drupal::entityTypeManager()->getStorage('webform_submission')->load(\$row->sid);
+          if (!\$submission) {
+            throw new \\RuntimeException('Bounded test submission could not be loaded.');
+          }
+          \$data = \$submission->getData();
+          \$expected = [
+            'website_url' => 'https://example.com',
+            'organization' => 'E-MERGING DIGITAL — TEST INTERNE',
+            'name' => 'Test interne Agency',
+            'email' => 'jonathan@emergingdigital.be',
+            'message' => \$marker,
+          ];
+          foreach (\$expected as \$key => \$value) {
+            if ((\$data[\$key] ?? NULL) !== \$value) {
+              throw new \\RuntimeException('Unexpected persisted synthetic test value for ' . \$key);
+            }
+          }
+          if (empty(\$data['rgpd_consent'])) {
+            throw new \\RuntimeException('Synthetic test consent was not persisted.');
+          }
+          \$mail_errors = 0;
+          if (\$db->schema()->tableExists('watchdog')) {
+            \$error_query = \$db->select('watchdog', 'w');
+            \$error_query->condition('wid', ${WATCHDOG_START_WID}, '>');
+            \$error_query->condition('type', 'mail');
+            \$error_query->condition('severity', [0, 1, 2, 3], 'IN');
+            \$error_query->addExpression('COUNT(*)');
+            \$mail_errors = (int) \$error_query->execute()->fetchField();
+          }
+          \$handler = \\Drupal::config('webform.webform.' . \$webform_id)->get('handlers.email_notification');
+          \$subject = str_replace('[webform_submission:values:website_url:raw]', \$data['website_url'], \$handler['settings']['subject'] ?? '');
+          \$result = [
+            'sid' => (int) \$row->sid,
+            'created_epoch' => (int) \$row->created,
+            'created_iso_utc' => gmdate('c', (int) \$row->created),
+            'subject' => \$subject,
+            'mail_error_count_since_precheck' => \$mail_errors,
+            'handler_active_for_completed' => (bool) (\$handler['status'] ?? FALSE) && in_array('completed', \$handler['settings']['states'] ?? [], TRUE),
+          ];
+          print json_encode(\$result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+          PHP
+          scp -q /tmp/agency-1010-post.php "$SERVER_USER@$SERVER_HOST:/tmp/agency-1010-post.php"
+          ssh "$SERVER_USER@$SERVER_HOST" 'set -euo pipefail; cd /var/www/agency/current; vendor/bin/drush php:script /tmp/agency-1010-post.php; rm -f /tmp/agency-1010-post.php' > /tmp/agency-1010-post.json
+          jq -e --arg subject "$EXPECTED_SUBJECT" '
+            .subject == $subject and
+            .handler_active_for_completed == true and
+            .mail_error_count_since_precheck == 0 and
+            (.sid > 0) and
+            (.created_epoch > 0)
+          ' /tmp/agency-1010-post.json >/dev/null
+          jq . /tmp/agency-1010-post.json
+          jq -e '.confirmation == true' /tmp/agency-1010-browser-result.json >/dev/null
+          echo "WEBFORM_SUBMISSION=SUCCESS"
+          echo "HANDLER_EXECUTION=SUCCESS"
+          echo "MAIL_TRANSPORT=SUCCESS"
+          echo "EMAIL_RECEIVED=PROJECT_LEAD_TO_VERIFY"

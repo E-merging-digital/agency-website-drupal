@@ -29,6 +29,19 @@ final class EditorialHumanApprovalGateTest extends TestCase {
   }
 
   /**
+   * One Markdown copy/paste blank line after the marker is accepted.
+   */
+  public function testSingleBlankLineAfterMarkerIsAccepted(): void {
+    $comment = $this->validHumanComment();
+    $comment['body'] = str_replace(
+      '<!-- agency-human-prod-approval:v1 -->' . "\n",
+      '<!-- agency-human-prod-approval:v1 -->' . "\n\n",
+      (string) $comment['body'],
+    );
+    self::assertSame(0, $this->runGate([$comment]));
+  }
+
+  /**
    * GitHub App-mediated owner comments are not human approvals.
    */
   public function testGithubAppMediatedApprovalIsRejected(): void {

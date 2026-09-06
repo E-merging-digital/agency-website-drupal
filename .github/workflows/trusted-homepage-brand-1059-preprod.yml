@@ -49,7 +49,9 @@ jobs:
 
   candidate:
     if: >-
-      ${{ github.event_name == 'workflow_dispatch' && github.actor == 'E-merging-digital' }}
+      ${{ github.event_name == 'workflow_dispatch'
+          && github.actor == 'E-merging-digital'
+          && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -77,6 +79,7 @@ jobs:
           set -euo pipefail
           main="$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')"
           [[ "$main" =~ ^[0-9a-f]{40}$ ]]
+          test '${{ github.sha }}' = "$main"
           echo "TRUSTED_MAIN=$main" >> "$GITHUB_ENV"
 
       - name: Require exact runtime inspection before dry-run

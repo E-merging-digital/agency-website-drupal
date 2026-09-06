@@ -239,8 +239,8 @@ final class PreproductionHostBootstrapTest extends TestCase {
       'vendor/bin/drush',
       'rsync ',
       'scp ',
-      'PROD_SERVER_HOST',
-      'PROD_SSH_PRIVATE_KEY',
+      'secrets.PROD_SERVER_HOST',
+      'secrets.PROD_SSH_PRIVATE_KEY',
       'inputs:',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $workflow);

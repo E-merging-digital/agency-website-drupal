@@ -1,0 +1,8 @@
+services:
+  agency_operations.language_readiness:
+    class: Drupal\agency_operations\Service\EditorialLanguageReadiness
+    arguments: ['@language_manager']
+
+  agency_operations.capability_registry:
+    class: Drupal\agency_operations\Service\CapabilityRegistryReader
+    arguments: ['%app.root%']

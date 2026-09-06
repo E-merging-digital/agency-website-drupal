@@ -222,7 +222,39 @@ def main() -> int:
             'DDEV push prohibition missing')
     require('db_push_command' not in provider and 'files_push_command' not in provider,
             'DDEV provider exposes upstream push')
-    require('#872' in doc and '`DESIGN_ONLY`' in doc, 'editorial future/current boundary missing')
+
+    editorial_current = (
+        'EDITORIAL_CANDIDATE_V1 = SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN',
+        '#959 = CLOSED / COMPLETED',
+        '#872 = CLOSED / COMPLETED',
+        'PREPROD_MATERIALIZATION = PROVEN',
+        'FR_EN_RENDER = MATERIALIZED',
+        'HUMAN_EXACT_APPROVAL = PROVEN',
+        'ARTICLE_PROD_PROMOTION = PROVEN',
+        'IMAGE_PROD_PROMOTION = PROVEN',
+        'PREPROD_DB_TO_PROD_COPY = NONE',
+    )
+    for text, label in ((doc, 'canonical lifecycle'), (registry, 'capability registry')):
+        for current in editorial_current:
+            require(
+                current in text,
+                f'editorial current-state fact missing from {label}: {current}',
+            )
+
+    editorial_current_docs = '\n'.join((doc, registry))
+    for stale_editorial in (
+        '#872 Editorial Candidate remains `DESIGN_ONLY`',
+        '| Editorial Candidate | `DESIGN_ONLY` | Not implemented. |',
+        '#872 remains future / `DESIGN_ONLY`',
+        'first real #958 proof pending',
+        'REAL_PREPROD_#958 = PENDING',
+        'Until the first post-merge #958 execution proves FR/EN rendering in real PREPROD',
+        '### Current editorial compatibility note',
+    ):
+        require(
+            stale_editorial not in editorial_current_docs,
+            f'stale editorial current-state wording remains: {stale_editorial}',
+        )
 
     for text, label in ((doc, 'canonical'), (registry, 'registry')):
         require('#873_BLOCKED_BY_816 = NO' in text,
@@ -288,6 +320,10 @@ def main() -> int:
     print('DDEV_PUSH=NONE')
     print('DEVELOPMENT_SEED_BLOCKED_BY_816=NO')
     print('DEVELOPMENT_SEED_REAL_SERVICE=STILL_PENDING')
+    print('EDITORIAL_CANDIDATE_V1=REAL_EXECUTION_PROVEN')
+    print('EDITORIAL_CANDIDATE_959=CLOSED_COMPLETED')
+    print('EDITORIAL_CANDIDATE_872=CLOSED_COMPLETED')
+    print('STALE_EDITORIAL_STATUS_REGRESSION=PASS')
     print('DOC_CONTRACT=SUCCESS')
     return 0
 

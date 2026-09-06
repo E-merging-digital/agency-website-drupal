@@ -1,0 +1,4 @@
+access agency operations:
+  title: 'Access Agency Operations'
+  description: 'View the read-only Agency operations control plane and readiness information.'
+  restrict access: true

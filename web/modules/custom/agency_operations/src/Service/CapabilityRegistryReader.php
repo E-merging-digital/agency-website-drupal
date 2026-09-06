@@ -98,7 +98,7 @@ final class CapabilityRegistryReader {
   }
 
   /**
-   * Classifies one existing capability into the four cockpit presentation groups.
+   * Classifies one capability into the four cockpit presentation groups.
    */
   private function groupForCapability(string $capability): string {
     $normalized = strtolower($capability);

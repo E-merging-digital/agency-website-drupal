@@ -95,18 +95,22 @@ final class OperationsController extends ControllerBase {
       '#url' => Url::fromRoute('agency_operations.editorial'),
     ];
 
+    if ($registry['available']) {
+      $registryMarkup = $this->t(
+        'Derived read-only from @path. The cockpit does not persist a second execution registry.',
+        ['@path' => $registry['path']],
+      );
+    }
+    else {
+      $registryMarkup = $this->t(
+        'Registry @path is not readable. Capability presentation fails closed.',
+        ['@path' => $registry['path']],
+      );
+    }
     $build['registry_status'] = [
       '#type' => 'item',
       '#title' => $this->t('Capability registry'),
-      '#markup' => $registry['available']
-        ? $this->t(
-          'Derived read-only from @path. The cockpit does not persist a second execution registry.',
-          ['@path' => $registry['path']],
-        )
-        : $this->t(
-          'Registry @path is not readable. Capability presentation fails closed.',
-          ['@path' => $registry['path']],
-        ),
+      '#markup' => $registryMarkup,
     ];
 
     foreach ($registry['groups'] as $group => $capabilities) {

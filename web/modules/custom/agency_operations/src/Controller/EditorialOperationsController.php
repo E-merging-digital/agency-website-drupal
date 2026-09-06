@@ -29,7 +29,7 @@ final class EditorialOperationsController extends ControllerBase {
    */
   public function overview(): array {
     // V1 deliberately has no privileged candidate ingestion channel.
-    // Missing candidate state therefore remains fail-closed rather than guessed.
+    // Missing candidate state intentionally fails closed rather than being guessed.
     $readiness = $this->languageReadiness->evaluate([]);
     $rows = [];
     foreach ($readiness['languages'] as $state) {

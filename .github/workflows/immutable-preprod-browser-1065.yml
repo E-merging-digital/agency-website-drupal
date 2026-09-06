@@ -62,6 +62,25 @@ jobs:
           test "$(jq -r '.head_repository.full_name' "$run_json")" = "$REPO"
           test "$(jq -r '.run_attempt' "$run_json")" = '1'
 
+      - name: Checkout exact deployed candidate Browser sources
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_CANDIDATE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify bounded existing Browser contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CANDIDATE_SHA"
+          test -f scripts/run-browser-validation.mjs
+          test -f playwright.config.mjs
+          test -f "$CONTRACT_PATH"
+          jq -e '.id == "homepage-brand-1059-preprod" and .target == "/fr" and .target_en == "/en"' "$CONTRACT_PATH" >/dev/null
+          grep -Fq "'homepage-brand-1059-preprod.json': '**/homepage-brand-1059-preprod.spec.mjs'" playwright.config.mjs
+          grep -Fq 'Unsupported BROWSER_VALIDATION_CONTRACT' playwright.config.mjs
+
       - name: Download exact PREPROD deployment evidence
         uses: actions/download-artifact@v5
         with:
@@ -126,25 +145,6 @@ jobs:
           echo "release_path=$release_path" >> "$GITHUB_OUTPUT"
           echo "artifact_sha=$artifact_sha" >> "$GITHUB_OUTPUT"
           echo "composer_sha=$composer_sha" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout exact deployed candidate Browser sources
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ env.EXPECTED_CANDIDATE_SHA }}
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Verify bounded existing Browser contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_CANDIDATE_SHA"
-          test -f scripts/run-browser-validation.mjs
-          test -f playwright.config.mjs
-          test -f "$CONTRACT_PATH"
-          jq -e '.id == "homepage-brand-1059-preprod" and .target == "/fr" and .target_en == "/en"' "$CONTRACT_PATH" >/dev/null
-          grep -Fq "'homepage-brand-1059-preprod.json': '**/homepage-brand-1059-preprod.spec.mjs'" playwright.config.mjs
-          grep -Fq 'Unsupported BROWSER_VALIDATION_CONTRACT' playwright.config.mjs
 
       - name: Materialize PREPROD SSH identity after evidence match
         env:

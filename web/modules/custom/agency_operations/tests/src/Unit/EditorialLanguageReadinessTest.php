@@ -17,6 +17,9 @@ use Drupal\Tests\UnitTestCase;
  */
 final class EditorialLanguageReadinessTest extends UnitTestCase {
 
+  /**
+   * Proves that required languages come only from current Drupal configuration.
+   */
   public function testConfiguredLanguagesAreDiscoveredDynamically(): void {
     $service = $this->serviceFor(['aa', 'bb']);
     self::assertSame(['aa', 'bb'], array_keys($service->getRequiredLanguages()));
@@ -25,6 +28,9 @@ final class EditorialLanguageReadinessTest extends UnitTestCase {
     self::assertSame(['aa', 'bb', 'cc'], array_keys($service->getRequiredLanguages()));
   }
 
+  /**
+   * Proves that one missing required language blocks overall readiness.
+   */
   public function testEveryRequiredLanguageMustBeReady(): void {
     $service = $this->serviceFor(['aa', 'bb', 'cc']);
     $ready = $this->readyState();
@@ -43,6 +49,9 @@ final class EditorialLanguageReadinessTest extends UnitTestCase {
     self::assertFalse($result['languages']['cc']['ready']);
   }
 
+  /**
+   * Proves that a newly configured language is required without a code change.
+   */
   public function testNewConfiguredLanguageNeedsNoCodeChangeButBlocksUntilReady(): void {
     $twoLanguageService = $this->serviceFor(['aa', 'bb']);
     $states = [
@@ -59,7 +68,13 @@ final class EditorialLanguageReadinessTest extends UnitTestCase {
   }
 
   /**
+   * Creates a readiness service backed by arbitrary configurable languages.
+   *
    * @param string[] $codes
+   *   Arbitrary configurable language codes used by the mocked manager.
+   *
+   * @return \Drupal\agency_operations\Service\EditorialLanguageReadiness
+   *   A readiness service using the mocked current-language configuration.
    */
   private function serviceFor(array $codes): EditorialLanguageReadiness {
     $languages = [];
@@ -80,7 +95,10 @@ final class EditorialLanguageReadinessTest extends UnitTestCase {
   }
 
   /**
+   * Returns a fully ready per-language candidate state.
+   *
    * @return array<string, mixed>
+   *   State accepted as ready by the publication-language contract.
    */
   private function readyState(): array {
     return [

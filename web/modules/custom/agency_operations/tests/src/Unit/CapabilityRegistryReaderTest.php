@@ -14,8 +14,14 @@ use Drupal\Tests\UnitTestCase;
  */
 final class CapabilityRegistryReaderTest extends UnitTestCase {
 
+  /**
+   * Temporary project root used by the fixed-path registry reader.
+   */
   private string $root;
 
+  /**
+   * {@inheritdoc}
+   */
   protected function setUp(): void {
     parent::setUp();
     $this->root = sys_get_temp_dir() . '/agency-operations-' . bin2hex(random_bytes(6));
@@ -23,6 +29,9 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
     mkdir($this->root . '/docs/operations', 0777, TRUE);
   }
 
+  /**
+   * {@inheritdoc}
+   */
   protected function tearDown(): void {
     @unlink($this->root . '/docs/operations/execution-capabilities.md');
     @rmdir($this->root . '/docs/operations');
@@ -32,6 +41,9 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
     parent::tearDown();
   }
 
+  /**
+   * Proves the existing Markdown registry is parsed into the four UI groups.
+   */
   public function testExistingRegistryIsParsedAndGrouped(): void {
     file_put_contents(
       $this->root . '/docs/operations/execution-capabilities.md',

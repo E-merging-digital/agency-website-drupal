@@ -16,12 +16,21 @@ use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 #[RunTestsInSeparateProcesses]
 final class AgencyOperationsAccessTest extends BrowserTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = [
     'agency_operations',
   ];
 
+  /**
+   * {@inheritdoc}
+   */
   protected $defaultTheme = 'stark';
 
+  /**
+   * Proves the cockpit is permission-protected and exposes only read-only data.
+   */
   public function testPermissionProtectsReadOnlyCockpit(): void {
     $this->drupalGet('/admin/agency/operations');
     $this->assertSession()->statusCodeEquals(403);
@@ -37,13 +46,18 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('EDITORIAL');
     $this->assertSession()->pageTextContains('DEVELOPMENT_DATA');
     $this->assertSession()->pageTextContains('REAL_REFRESH_TRIGGER = NO');
-    $this->assertSession()->pageTextContains('No PROD or PREPROD operation can be triggered from this page.');
+    $this->assertSession()->pageTextContains(
+      'No PROD or PREPROD operation can be triggered from this page.',
+    );
 
     $this->drupalGet('/admin/agency/operations/editorial');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('overall: BLOCKED');
   }
 
+  /**
+   * Proves the V1 route contract accepts no POST execution request.
+   */
   public function testPostIsRejectedBecauseNoExecutionRouteExists(): void {
     $account = $this->drupalCreateUser(['access agency operations']);
     $this->drupalLogin($account);

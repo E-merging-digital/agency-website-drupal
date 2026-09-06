@@ -28,7 +28,7 @@ final class EditorialOperationsController extends ControllerBase {
    * Shows the language matrix without importing private candidate payloads.
    */
   public function overview(): array {
-    // V1 deliberately has no privileged GitHub/candidate ingestion channel.
+    // V1 deliberately has no privileged candidate ingestion channel.
     // Missing candidate state therefore remains fail-closed rather than guessed.
     $readiness = $this->languageReadiness->evaluate([]);
     $rows = [];
@@ -49,11 +49,16 @@ final class EditorialOperationsController extends ControllerBase {
       'boundary' => [
         '#type' => 'item',
         '#title' => $this->t('Candidate boundary'),
-        '#markup' => $this->t('The durable candidate remains on its existing governed control surface. V1 does not copy private candidate payloads or add GitHub credentials to Drupal. With no candidate metadata loaded, readiness intentionally fails closed.'),
+        '#markup' => $this->t(
+          'The durable candidate remains on its existing governed control surface. V1 does not copy private candidate payloads or add GitHub credentials to Drupal. With no candidate metadata loaded, readiness intentionally fails closed.',
+        ),
       ],
       'matrix' => [
         '#type' => 'table',
-        '#caption' => $this->t('Language matrix — overall: @state', ['@state' => $readiness['overall']]),
+        '#caption' => $this->t(
+          'Language matrix — overall: @state',
+          ['@state' => $readiness['overall']],
+        ),
         '#header' => [
           $this->t('Code'),
           $this->t('Language'),
@@ -65,12 +70,16 @@ final class EditorialOperationsController extends ControllerBase {
           $this->t('Readiness'),
         ],
         '#rows' => $rows,
-        '#empty' => $this->t('No configurable site language was discovered. Publication readiness remains blocked.'),
+        '#empty' => $this->t(
+          'No configurable site language was discovered. Publication readiness remains blocked.',
+        ),
       ],
       'contract' => [
         '#type' => 'item',
         '#title' => $this->t('Publication contract'),
-        '#markup' => $this->t('PUBLIC_CONTENT_READY only when every currently configurable site language is READY. Adding another configured language automatically adds another required matrix row; no code change is required.'),
+        '#markup' => $this->t(
+          'PUBLIC_CONTENT_READY only when every currently configurable site language is READY. Adding another configured language automatically adds another required matrix row; no code change is required.',
+        ),
       ],
     ];
   }

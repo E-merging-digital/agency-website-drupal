@@ -44,7 +44,9 @@ final class OperationsController extends ControllerBase {
     $build['boundary'] = [
       '#type' => 'item',
       '#title' => $this->t('Control-plane boundary'),
-      '#markup' => $this->t('V1 is read-only and preparation-first. Existing workflows and runners remain the execution data plane. No PROD or PREPROD operation can be triggered from this page.'),
+      '#markup' => $this->t(
+        'V1 is read-only and preparation-first. Existing workflows and runners remain the execution data plane. No PROD or PREPROD operation can be triggered from this page.',
+      ),
     ];
 
     $build['environments'] = [
@@ -56,9 +58,21 @@ final class OperationsController extends ControllerBase {
         $this->t('V1 state'),
       ],
       '#rows' => [
-        ['LOCAL / DDEV', $this->t('Development and isolated testing'), $this->t('Read-only status; pull-only Development Seed contract')],
-        ['PREPROD', $this->t('Production-like review and independent sanitized data target'), $this->t('Read-only / preparation; no mutation')],
-        ['PROD', $this->t('Live service and editorial data authority'), $this->t('Read-only semantics only; no access or mutation')],
+        [
+          'LOCAL / DDEV',
+          $this->t('Development and isolated testing'),
+          $this->t('Read-only status; pull-only Development Seed contract'),
+        ],
+        [
+          'PREPROD',
+          $this->t('Production-like review and independent sanitized data target'),
+          $this->t('Read-only / preparation; no mutation'),
+        ],
+        [
+          'PROD',
+          $this->t('Live service and editorial data authority'),
+          $this->t('Read-only semantics only; no access or mutation'),
+        ],
       ],
     ];
 
@@ -71,7 +85,9 @@ final class OperationsController extends ControllerBase {
         array_values($requiredLanguages),
         array_keys($requiredLanguages),
       ),
-      '#empty' => $this->t('No configurable site language was discovered. Publication readiness fails closed.'),
+      '#empty' => $this->t(
+        'No configurable site language was discovered. Publication readiness fails closed.',
+      ),
     ];
     $build['editorial_link'] = [
       '#type' => 'link',
@@ -83,8 +99,14 @@ final class OperationsController extends ControllerBase {
       '#type' => 'item',
       '#title' => $this->t('Capability registry'),
       '#markup' => $registry['available']
-        ? $this->t('Derived read-only from @path. The cockpit does not persist a second execution registry.', ['@path' => $registry['path']])
-        : $this->t('Registry @path is not readable. Capability presentation fails closed.', ['@path' => $registry['path']]),
+        ? $this->t(
+          'Derived read-only from @path. The cockpit does not persist a second execution registry.',
+          ['@path' => $registry['path']],
+        )
+        : $this->t(
+          'Registry @path is not readable. Capability presentation fails closed.',
+          ['@path' => $registry['path']],
+        ),
     ];
 
     foreach ($registry['groups'] as $group => $capabilities) {
@@ -111,7 +133,9 @@ final class OperationsController extends ControllerBase {
           $this->t('Human / V1 boundary'),
         ],
         '#rows' => $rows,
-        '#empty' => $this->t('No capability from the authoritative registry is currently classified in this group.'),
+        '#empty' => $this->t(
+          'No capability from the authoritative registry is currently classified in this group.',
+        ),
       ];
     }
 
@@ -138,10 +162,14 @@ final class OperationsController extends ControllerBase {
       'content' => [
         '#theme' => 'item_list',
         '#items' => [
-          $this->t('Candidate authority remains the existing governed candidate record; the cockpit does not copy private payloads.'),
+          $this->t(
+            'Candidate authority remains the existing governed candidate record; the cockpit does not copy private payloads.',
+          ),
           $this->t('All configurable site languages are required by default.'),
           $this->t('A missing required language blocks publication readiness.'),
-          $this->t('PREPROD render and human approval remain external governed receipts.'),
+          $this->t(
+            'PREPROD render and human approval remain external governed receipts.',
+          ),
         ],
       ],
     ];
@@ -169,7 +197,7 @@ final class OperationsController extends ControllerBase {
       'content' => [
         '#theme' => 'item_list',
         '#items' => [
-          'Git/main → build → exact artifact → PREPROD → validation → human approval where required → SAME ARTIFACT → PROD',
+          'Git/main → build → exact artifact → PREPROD → validation → SAME ARTIFACT → PROD',
           'ARBITRARY SHA = NO',
           'ARBITRARY WORKFLOW = NO',
           'V1 = READ_ONLY / STATUS',
@@ -180,19 +208,45 @@ final class OperationsController extends ControllerBase {
     $build['history'] = [
       '#type' => 'item',
       '#title' => $this->t('History / evidence'),
-      '#markup' => $this->t('READ_ONLY_AGGREGATION: existing workflow evidence and receipts remain authoritative. V1 creates no receipt table, entity, credential store or second source of truth.'),
+      '#markup' => $this->t(
+        'READ_ONLY_AGGREGATION: existing workflow evidence and receipts remain authoritative. V1 creates no receipt table, entity, credential store or second source of truth.',
+      ),
     ];
 
     $build['native_audit'] = [
       '#type' => 'table',
       '#caption' => $this->t('Drupal-native adoption audit'),
-      '#header' => [$this->t('Primitive'), $this->t('Current status'), $this->t('V1 verdict')],
+      '#header' => [
+        $this->t('Primitive'),
+        $this->t('Current status'),
+        $this->t('V1 verdict'),
+      ],
       '#rows' => [
-        ['Content Translation', $this->moduleHandler->moduleExists('content_translation') ? 'ENABLED' : 'DISABLED', 'REUSE NOW'],
-        ['Content Moderation', $this->moduleHandler->moduleExists('content_moderation') ? 'ENABLED' : 'DISABLED', 'REUSE_LATER — potential editorial state UX; do not duplicate candidate authority'],
-        ['Workflows', $this->moduleHandler->moduleExists('workflows') ? 'ENABLED' : 'DISABLED', 'REUSE_LATER with Content Moderation if a material UX need is proven'],
-        ['Workspaces', $this->moduleHandler->moduleExists('workspaces') ? 'ENABLED' : 'DISABLED', 'REUSE_LATER — possible same-environment change grouping, never PREPROD→PROD transport'],
-        ['CHANGE_SET', 'NO CUSTOM ENTITY', 'REUSE_EXISTING — candidate identity + revisions + references; revisit only on a proven gap'],
+        [
+          'Content Translation',
+          $this->moduleHandler->moduleExists('content_translation') ? 'ENABLED' : 'DISABLED',
+          'REUSE NOW',
+        ],
+        [
+          'Content Moderation',
+          $this->moduleHandler->moduleExists('content_moderation') ? 'ENABLED' : 'DISABLED',
+          'REUSE_LATER — do not duplicate candidate authority',
+        ],
+        [
+          'Workflows',
+          $this->moduleHandler->moduleExists('workflows') ? 'ENABLED' : 'DISABLED',
+          'REUSE_LATER with Content Moderation if a material UX need is proven',
+        ],
+        [
+          'Workspaces',
+          $this->moduleHandler->moduleExists('workspaces') ? 'ENABLED' : 'DISABLED',
+          'REUSE_LATER — same-environment grouping only, never environment transport',
+        ],
+        [
+          'CHANGE_SET',
+          'NO CUSTOM ENTITY',
+          'REUSE_EXISTING — candidate identity + revisions + references',
+        ],
       ],
     ];
 

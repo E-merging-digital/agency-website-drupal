@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Drupal\agency_operations\Service;
 
 /**
- * Read-only adapter over the existing authoritative Markdown capability registry.
+ * Read-only adapter over the existing authoritative capability Markdown.
  */
 final class CapabilityRegistryReader {
 
@@ -64,7 +64,11 @@ final class CapabilityRegistryReader {
       }
 
       $cells = array_map('trim', explode('|', trim($trimmed, '|')));
-      if (count($cells) < 5 || $cells[0] === 'Capability' || preg_match('/^-+$/', str_replace(' ', '', $cells[0]))) {
+      if (
+        count($cells) < 5
+        || $cells[0] === 'Capability'
+        || preg_match('/^-+$/', str_replace(' ', '', $cells[0]))
+      ) {
         continue;
       }
 
@@ -86,10 +90,16 @@ final class CapabilityRegistryReader {
     ];
   }
 
+  /**
+   * Removes Markdown code delimiters from one presentation cell.
+   */
   private function cleanCell(string $value): string {
     return trim(str_replace('`', '', $value));
   }
 
+  /**
+   * Classifies one existing capability into the four cockpit presentation groups.
+   */
   private function groupForCapability(string $capability): string {
     $normalized = strtolower($capability);
 

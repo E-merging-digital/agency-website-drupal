@@ -26,6 +26,11 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
 
   private const HASH = 'ac96465c5717f78af76e368d8598399cbe997ed63d7cc753d575337c9321af83';
 
+  /**
+   * Drupal modules required by the bounded materializer test.
+   *
+   * @var string[]
+   */
   protected static $modules = [
     'system',
     'user',
@@ -42,8 +47,14 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     'paragraphs',
   ];
 
+  /**
+   * Closed #1046 candidate helper under test.
+   */
   private object $candidate;
 
+  /**
+   * Builds the minimal bilingual Page and Paragraph runtime.
+   */
   protected function setUp(): void {
     parent::setUp();
 
@@ -55,20 +66,39 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     $this->installConfig(['system', 'filter']);
 
     ConfigurableLanguage::createFromLangcode('fr')->save();
-    NodeType::create(['type' => 'page', 'name' => 'Page', 'new_revision' => TRUE])->save();
+    NodeType::create([
+      'type' => 'page',
+      'name' => 'Page',
+      'new_revision' => TRUE,
+    ])->save();
     foreach (['hero', 'text_block', 'trust_list'] as $bundle) {
-      ParagraphsType::create(['id' => $bundle, 'label' => $bundle])->save();
+      ParagraphsType::create([
+        'id' => $bundle,
+        'label' => $bundle,
+      ])->save();
     }
-    FilterFormat::create(['format' => 'basic_html', 'name' => 'Basic HTML', 'filters' => []])->save();
-    User::create(['uid' => 1, 'name' => 'drupal-2027-1046-admin', 'status' => 1])->save();
+    FilterFormat::create([
+      'format' => 'basic_html',
+      'name' => 'Basic HTML',
+      'filters' => [],
+    ])->save();
+    User::create([
+      'uid' => 1,
+      'name' => 'drupal-2027-1046-admin',
+      'status' => 1,
+    ])->save();
     $this->createFields();
 
-    require_once dirname(DRUPAL_ROOT) . '/scripts/runner/drupal-2027-preprod-candidate.php';
+    require_once dirname(DRUPAL_ROOT)
+      . '/scripts/runner/drupal-2027-preprod-candidate.php';
     $factory = ['AgencyDrupal2027PreprodCandidate', 'fromContainer'];
     self::assertIsCallable($factory);
     $this->candidate = $factory($this->container);
   }
 
+  /**
+   * First apply creates FR+EN; exact replay creates no new revision.
+   */
   public function testCreateAndExactReplayAreBilingualAndIdempotent(): void {
     $payload = $this->validPayload();
 
@@ -80,14 +110,20 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
 
     $applied = $this->candidate->apply($payload, self::HASH);
     self::assertSame('APPLIED', $applied['verdict']);
-    self::assertSame('agency-drupal-2027-landing-1046', $applied['candidate_id']);
+    self::assertSame(
+      'agency-drupal-2027-landing-1046',
+      $applied['candidate_id'],
+    );
 
     $node = Node::load($applied['node']['id']);
     self::assertNotNull($node);
     self::assertSame('fr', $node->language()->getId());
     self::assertSame($payload['fr']['title'], $node->label());
     self::assertTrue($node->hasTranslation('en'));
-    self::assertSame($payload['en']['title'], $node->getTranslation('en')->label());
+    self::assertSame(
+      $payload['en']['title'],
+      $node->getTranslation('en')->label(),
+    );
 
     $components = $node->get('field_home_components')->referencedEntities();
     self::assertCount(10, $components);
@@ -97,15 +133,27 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
 
     $aliasManager = $this->container->get('path_alias.manager');
     $aliasManager->cacheClear('/node/' . $node->id());
-    self::assertSame('/drupal-2027', $aliasManager->getAliasByPath('/node/' . $node->id(), 'fr'));
-    self::assertSame('/drupal-2027', $aliasManager->getAliasByPath('/node/' . $node->id(), 'en'));
+    self::assertSame(
+      '/drupal-2027',
+      $aliasManager->getAliasByPath('/node/' . $node->id(), 'fr'),
+    );
+    self::assertSame(
+      '/drupal-2027',
+      $aliasManager->getAliasByPath('/node/' . $node->id(), 'en'),
+    );
 
     $revision = (int) $node->getRevisionId();
     $replay = $this->candidate->apply($payload, self::HASH);
     self::assertSame('IDEMPOTENT', $replay['verdict']);
-    self::assertSame($revision, (int) Node::load($node->id())?->getRevisionId());
+    self::assertSame(
+      $revision,
+      (int) Node::load($node->id())?->getRevisionId(),
+    );
   }
 
+  /**
+   * A stale FR-only language mode remains rejected fail-closed.
+   */
   public function testCandidateIdentityAndSchemaRemainFailClosed(): void {
     $payload = $this->validPayload();
     $payload['language_mode'] = 'FR_ONLY_EXCEPTION_APPROVED';
@@ -115,14 +163,40 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     $this->candidate->dryRun($payload, self::HASH);
   }
 
+  /**
+   * Creates the fields required by the fixed Page and Paragraph contract.
+   */
   private function createFields(): void {
     $this->createStorage('field_short_description', 'node', 'text_long', 1);
-    $this->createConfig('field_short_description', 'node', 'page', 'Short description');
-    $this->createStorage('field_home_components', 'node', 'entity_reference_revisions', -1, ['target_type' => 'paragraph']);
-    $this->createConfig('field_home_components', 'node', 'page', 'Components', [
-      'handler' => 'default:paragraph',
-      'handler_settings' => ['target_bundles' => ['hero' => 'hero', 'text_block' => 'text_block', 'trust_list' => 'trust_list']],
-    ]);
+    $this->createConfig(
+      'field_short_description',
+      'node',
+      'page',
+      'Short description',
+    );
+    $this->createStorage(
+      'field_home_components',
+      'node',
+      'entity_reference_revisions',
+      -1,
+      ['target_type' => 'paragraph'],
+    );
+    $this->createConfig(
+      'field_home_components',
+      'node',
+      'page',
+      'Components',
+      [
+        'handler' => 'default:paragraph',
+        'handler_settings' => [
+          'target_bundles' => [
+            'hero' => 'hero',
+            'text_block' => 'text_block',
+            'trust_list' => 'trust_list',
+          ],
+        ],
+      ],
+    );
     $this->createStorage('field_heading', 'paragraph', 'string', 1);
     foreach (['hero', 'text_block', 'trust_list'] as $bundle) {
       $this->createConfig('field_heading', 'paragraph', $bundle, 'Heading');
@@ -134,12 +208,26 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     $this->createStorage('field_link', 'paragraph', 'link', 1);
     $this->createConfig('field_link', 'paragraph', 'hero', 'Primary link');
     $this->createStorage('field_secondary_link', 'paragraph', 'link', 1);
-    $this->createConfig('field_secondary_link', 'paragraph', 'hero', 'Secondary link');
+    $this->createConfig(
+      'field_secondary_link',
+      'paragraph',
+      'hero',
+      'Secondary link',
+    );
     $this->createStorage('field_items', 'paragraph', 'text_long', -1);
     $this->createConfig('field_items', 'paragraph', 'trust_list', 'Items');
   }
 
-  private function createStorage(string $name, string $entityType, string $type, int $cardinality, array $settings = []): void {
+  /**
+   * Creates one field storage definition for the Kernel fixture.
+   */
+  private function createStorage(
+    string $name,
+    string $entityType,
+    string $type,
+    int $cardinality,
+    array $settings = [],
+  ): void {
     FieldStorageConfig::create([
       'field_name' => $name,
       'entity_type' => $entityType,
@@ -149,7 +237,16 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     ])->save();
   }
 
-  private function createConfig(string $name, string $entityType, string $bundle, string $label, array $settings = []): void {
+  /**
+   * Creates one bundle field definition for the Kernel fixture.
+   */
+  private function createConfig(
+    string $name,
+    string $entityType,
+    string $bundle,
+    string $label,
+    array $settings = [],
+  ): void {
     FieldConfig::create([
       'field_name' => $name,
       'entity_type' => $entityType,
@@ -160,6 +257,12 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
     ])->save();
   }
 
+  /**
+   * Returns one valid closed v2 FR+EN payload fixture.
+   *
+   * @return array<string, mixed>
+   *   Candidate payload fixture.
+   */
   private function validPayload(): array {
     return [
       'schema_version' => 2,
@@ -168,19 +271,38 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
       'issue_number' => 1046,
       'source_issue' => 1010,
       'source_candidate_revision' => 5553858896,
-      'source_candidate_sha256' => '07fb10ab4a54371d877fbfc6b3f185eda41085ae3bd5080de2d695843c9d049e',
+      'source_candidate_sha256' =>
+        '07fb10ab4a54371d877fbfc6b3f185eda41085ae3bd5080de2d695843c9d049e',
       'target' => 'PREPROD',
       'bundle' => 'page',
       'language_mode' => 'FR_EN',
-      'aliases' => ['fr' => '/fr/drupal-2027', 'en' => '/en/drupal-2027'],
+      'aliases' => [
+        'fr' => '/fr/drupal-2027',
+        'en' => '/en/drupal-2027',
+      ],
       'published' => TRUE,
-      'fr' => $this->language('Votre plateforme Drupal est-elle prête pour 2027 ?', 'FR'),
-      'en' => $this->language('Is your Drupal platform ready for 2027?', 'EN'),
+      'fr' => $this->language(
+        'Votre plateforme Drupal est-elle prête pour 2027 ?',
+        'FR',
+      ),
+      'en' => $this->language(
+        'Is your Drupal platform ready for 2027?',
+        'EN',
+      ),
     ];
   }
 
+  /**
+   * Builds one complete language payload with the fixed section schema.
+   *
+   * @return array<string, mixed>
+   *   Language payload fixture.
+   */
   private function language(string $title, string $prefix): array {
-    $section = static fn (string $heading, string $body): array => ['heading' => $heading, 'body_html' => '<p>' . $body . '</p>'];
+    $section = static fn (string $heading, string $body): array => [
+      'heading' => $heading,
+      'body_html' => '<p>' . $body . '</p>',
+    ];
     return [
       'title' => $title,
       'short_description' => $prefix . ' description.',
@@ -192,14 +314,26 @@ final class Drupal2027PreprodCandidateKernelTest extends KernelTestBase {
       'sections' => [
         'lifecycle' => $section($prefix . ' lifecycle', 'Lifecycle'),
         'situations' => $section($prefix . ' situations', 'Situations'),
-        'checks' => ['heading' => $prefix . ' checks', 'body_html' => '<h3 id="points-a-verifier-socle">' . $prefix . ' foundation</h3>'],
+        'checks' => [
+          'heading' => $prefix . ' checks',
+          'body_html' => '<h3 id="points-a-verifier-socle">'
+            . $prefix . ' foundation</h3>',
+        ],
         'composer_callout' => $section($prefix . ' composer', 'Composer'),
         'method' => $section($prefix . ' method', 'Method'),
         'reassurance' => [
           'heading' => $prefix . ' reassurance',
-          'items' => [$prefix . ' one', $prefix . ' two', $prefix . ' three', $prefix . ' four', $prefix . ' five'],
+          'items' => [
+            $prefix . ' one',
+            $prefix . ' two',
+            $prefix . ' three',
+            $prefix . ' four',
+            $prefix . ' five',
+          ],
         ],
-        'diagnostic_context' => ['body_html' => '<p>' . $prefix . ' diagnostic</p>'],
+        'diagnostic_context' => [
+          'body_html' => '<p>' . $prefix . ' diagnostic</p>',
+        ],
         'audit' => $section($prefix . ' audit', 'Audit'),
         'faq' => $section($prefix . ' FAQ', 'FAQ'),
       ],

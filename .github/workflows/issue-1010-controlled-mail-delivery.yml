@@ -1,0 +1,130 @@
+name: "#1010 controlled PROD mail delivery"
+
+on:
+  push:
+    branches:
+      - ops/1010-terminal-prod-verification
+    paths:
+      - .github/workflows/issue-1010-controlled-mail-delivery.yml
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    name: Send exactly one bounded direct Symfony SMTP verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      EXPECTED_MAIN: 754136965eef88441904108356686adae8a901f9
+      TEST_SUBJECT: "Agency mail delivery verification — #1010"
+    steps:
+      - name: Checkout exact production source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_MAIN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Configure production SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Fail closed against duplicate controlled send
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh "$SERVER_USER@$SERVER_HOST" 'test ! -e /tmp/agency-1010-controlled-mail-attempted'
+
+      - name: Send exactly one controlled message through PROD Symfony SMTP transport
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/agency-1010-controlled-mail.php <<'PHP'
+          <?php
+          use Symfony\Component\Mailer\Transport;
+          use Symfony\Component\Mime\Address;
+          use Symfony\Component\Mime\Email;
+
+          $config = \Drupal::config('system.mail')->get('mailer_dsn') ?: [];
+          $host = $config['host'] ?? getenv('EMERGING_DIGITAL_SMTP_HOST') ?: 'smtp.protonmail.ch';
+          $port = (int) ($config['port'] ?? getenv('EMERGING_DIGITAL_SMTP_PORT') ?: 587);
+          $scheme = $config['scheme'] ?? 'smtp';
+          $user = $config['user'] ?? getenv('EMERGING_DIGITAL_SMTP_USER') ?: NULL;
+          $password = $config['password'] ?? getenv('EMERGING_DIGITAL_SMTP_PASSWORD') ?: NULL;
+          $from = getenv('EMERGING_DIGITAL_SMTP_FROM') ?: $user;
+          if ($scheme !== 'smtp' || $host !== 'smtp.protonmail.ch' || $port !== 587 || !$user || !$password || !$from) {
+            throw new RuntimeException('Effective production SMTP identity is not the approved Proton transport.');
+          }
+
+          $dsn = sprintf(
+            'smtp://%s:%s@%s:%d?auto_tls=true&require_tls=true',
+            rawurlencode($user),
+            rawurlencode($password),
+            $host,
+            $port,
+          );
+          $transport = Transport::fromDsn($dsn);
+          $email = (new Email())
+            ->from(new Address($from, 'E-MERGING DIGITAL'))
+            ->sender($from)
+            ->returnPath($from)
+            ->to('contact@emergingdigital.be')
+            ->subject('Agency mail delivery verification — #1010')
+            ->text("TEST INTERNE — vérification bornée de délivrabilité #1010.\nAucune donnée prospect. Ne pas traiter.\n");
+
+          $sent = $transport->send($email);
+          $debug = $sent ? (string) $sent->getDebug() : '';
+          $lines = preg_split('/\R/', $debug) ?: [];
+          $responses = [];
+          foreach ($lines as $line) {
+            $line = trim($line);
+            if (preg_match('/^(?:<\s*)?([245][0-9]{2})\s+(.+)$/', $line, $m)) {
+              $responses[] = $m[1] . ' ' . preg_replace('/[A-Za-z0-9+\/=]{24,}/', '***', $m[2]);
+            }
+          }
+          $final = $responses ? end($responses) : NULL;
+          print json_encode([
+            'transport' => $scheme . '://' . $host . ':' . $port,
+            'smtp_user' => $user,
+            'smtp_from' => $from,
+            'recipient' => 'contact@emergingdigital.be',
+            'subject' => 'Agency mail delivery verification — #1010',
+            'sent_message_returned' => $sent !== NULL,
+            'smtp_responses' => array_slice($responses, -8),
+            'smtp_final_response' => $final,
+            'sent_at_utc' => gmdate('c'),
+          ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
+          PHP
+          scp -q /tmp/agency-1010-controlled-mail.php "$SERVER_USER@$SERVER_HOST:/tmp/agency-1010-controlled-mail.php"
+          ssh "$SERVER_USER@$SERVER_HOST" 'set -euo pipefail; : > /tmp/agency-1010-controlled-mail-attempted; if [[ -r /etc/emergingdigital.env ]]; then set -a; source /etc/emergingdigital.env; set +a; fi; cd /var/www/agency/current; vendor/bin/drush php:script /tmp/agency-1010-controlled-mail.php; rm -f /tmp/agency-1010-controlled-mail.php' > /tmp/agency-1010-controlled-mail.json
+          jq -e '
+            .transport == "smtp://smtp.protonmail.ch:587" and
+            .smtp_user == "jonathan@emergingdigital.be" and
+            .smtp_from == "jonathan@emergingdigital.be" and
+            .recipient == "contact@emergingdigital.be" and
+            .subject == "Agency mail delivery verification — #1010" and
+            .sent_message_returned == true and
+            (.sent_at_utc | length > 0)
+          ' /tmp/agency-1010-controlled-mail.json >/dev/null
+          jq . /tmp/agency-1010-controlled-mail.json

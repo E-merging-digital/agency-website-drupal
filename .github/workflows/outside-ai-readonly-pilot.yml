@@ -1,0 +1,179 @@
+name: "#390 Outside AI read-only hosted DDEV pilot"
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Auditable request identifier
+        required: true
+        type: string
+      head_sha:
+        description: Exact live main SHA to execute
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate exact live-main pilot request
+    runs-on: ubuntu-24.04
+    outputs:
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+    steps:
+      - name: Validate actor, request and merged source
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          REQUESTED_HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_ACTOR" != "E-merging-digital" ]]; then
+            echo "Refusing Outside AI pilot dispatch actor: $GITHUB_ACTOR" >&2
+            exit 1
+          fi
+
+          if [[ ! "$REQUEST_ID" =~ ^[A-Za-z0-9._-]{8,80}$ ]]; then
+            echo "Invalid request_id." >&2
+            exit 1
+          fi
+
+          if [[ ! "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "head_sha must be an exact lowercase 40-character SHA." >&2
+            exit 1
+          fi
+
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "The Outside AI pilot must execute from merged main workflow source." >&2
+            exit 1
+          fi
+
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$REQUESTED_HEAD_SHA" != "$live_main" ]]; then
+            echo "Requested SHA is not the live main SHA." >&2
+            exit 1
+          fi
+
+          echo "head_sha=$REQUESTED_HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+  hosted-ddev-pilot:
+    name: Execute fixed Outside AI harness in hosted DDEV
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact checkout and fixed harness
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.validate-request.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -f .ddev/config.yaml
+          test -f composer.json
+          test -f composer.lock
+          test -f scripts/outside-ai/run-readonly-mcp-pilot.sh
+          git diff --check
+
+      - name: Setup DDEV without autostart
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Isolate run-scoped DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-outside-ai-390.yaml <<EOF
+          name: agency-outside-ai-390-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-outside-ai-390-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Bootstrap Drupal from repository-owned state
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cr
+
+          tracked_status="$(git status --porcelain --untracked-files=no)"
+          if [[ -n "$tracked_status" ]]; then
+            printf '%s\n' "$tracked_status" >&2
+            echo "Tracked worktree must be clean before the Outside AI pilot." >&2
+            exit 1
+          fi
+
+      - name: Execute fixed #390 harness once
+        id: harness
+        shell: bash
+        run: |
+          set -uo pipefail
+          artifact='artifacts/outside-ai-readonly-pilot'
+          mkdir -p "$artifact"
+
+          set +e
+          bash scripts/outside-ai/run-readonly-mcp-pilot.sh \
+            > >(tee "$artifact/harness-output.log") \
+            2> >(tee -a "$artifact/harness-output.log" >&2)
+          harness_exit_code=$?
+          set -e
+
+          printf '%s\n' "$harness_exit_code" > "$artifact/harness-exit-code.txt"
+          git status --porcelain --untracked-files=no \
+            > "$artifact/post-harness-git-status.txt"
+          echo "HARNESS_EXIT_CODE=$harness_exit_code"
+          echo "exit_code=$harness_exit_code" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bounded runtime evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-outside-ai-readonly-pilot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/outside-ai-readonly-pilot
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Delete disposable DDEV project and workflow-owned files
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          cleanup_failed=0
+
+          ddev delete --omit-snapshot --yes || cleanup_failed=1
+          rm -f .ddev/config.gate-outside-ai-390.yaml
+          rm -rf artifacts/outside-ai-readonly-pilot
+          rmdir artifacts 2>/dev/null || true
+
+          git diff --check || cleanup_failed=1
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            cleanup_failed=1
+          fi
+
+          exit "$cleanup_failed"
+
+      - name: Preserve real harness exit code
+        if: ${{ always() && steps.harness.outputs.exit_code != '' }}
+        shell: bash
+        env:
+          HARNESS_EXIT_CODE: ${{ steps.harness.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          exit "$HARNESS_EXIT_CODE"

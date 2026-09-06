@@ -342,3 +342,59 @@ Current concise handoff facts:
 - `.ddev/providers/agency.yaml`
 
 Primary current-state rule: live implementation/execution evidence wins over historical prose.
+
+## 17. Agency Operations Cockpit V1 control-plane contract (#1063)
+
+`/admin/agency/operations` is a Drupal-admin **control-plane facade** over the existing governed capabilities. It does not become an execution engine and it does not supersede `docs/operations/execution-capabilities.md`, GitHub workflows, runners, receipts or environment-owned authority.
+
+```text
+DRUPAL ADMIN UI = CONTROL PLANE / READ-ONLY + PREPARATION
+EXISTING WORKFLOWS + RUNNERS = EXECUTION DATA PLANE
+PROD_ACCESS = NONE
+PROD_WRITE = NONE
+PREPROD_WRITE = NONE
+ARBITRARY_GITHUB_DISPATCH = NONE
+SECRETS_IN_DRUPAL = NONE
+NEW_EXECUTION_ENGINE = NONE
+```
+
+The cockpit consumes the existing Markdown capability registry read-only from the deployed repository. It does not persist a second capability registry or receipt store. Capability status shown in the UI remains repository-derived and any execution-time availability/authority still requires the ordinary live reload.
+
+### Dynamic language contract
+
+The publication-language contract is data-driven from Drupal's configured languages through the `language_manager` service and `LanguageManagerInterface::getLanguages(LanguageInterface::STATE_CONFIGURABLE)`.
+
+```text
+CONTENT_REQUIRED_LANGUAGES = ALL CURRENTLY CONFIGURABLE SITE LANGUAGES
+HARDCODED_LANGUAGE_LIST = NONE
+ALL_AVAILABLE_LANGUAGES_REQUIRED = YES
+MISSING_REQUIRED_LANGUAGE = BLOCKS_READINESS
+```
+
+Today the repository config resolves to `fr` + `en`. Those codes are current data, not application constants. Enabling another configurable public/content language must automatically add another required row without a code change.
+
+Candidate readiness remains fail-closed. For every required language the presentation contract exposes translation existence/state, PREPROD render state, validation state and approval state where applicable. The cockpit does not import private candidate payloads or add privileged GitHub credentials to Drupal merely to populate the matrix.
+
+### Drupal-native adoption audit
+
+Current repository configuration has Content Translation enabled. Content Moderation, Workflows and Workspaces are not enabled by #1063 and V1 does not enable them automatically.
+
+```text
+CONTENT_TRANSLATION = REUSE_NOW
+CONTENT_MODERATION = REUSE_LATER
+WORKFLOWS = REUSE_LATER
+WORKSPACES = REUSE_LATER
+WORKSPACE != PREPROD_TO_PROD_TRANSPORT
+```
+
+Content Moderation may later add useful Drupal-native editorial state UX only if it can do so without duplicating the existing Editorial Candidate/human-approval authority. Workspaces may later help group coherent changes inside one Drupal environment, but cannot replace the governed PREPROD-to-PROD transport because PREPROD and PROD remain separate databases.
+
+`CHANGE_SET` V1 therefore reuses existing candidate identity, revisions and entity references. No new Change Set entity is introduced; a custom entity is reconsidered only after a material gap is proven.
+
+### Current editorial compatibility note
+
+Earlier sections retain the literal `#872` / `DESIGN_ONLY` wording required by the pre-existing lifecycle validation contract. That literal is historical validation vocabulary, not authority for current live status. Live #872 and its #959 implementation lineage must be reloaded before any operational conclusion; live GitHub/repository state wins over that compatibility token.
+
+### History / evidence
+
+V1 uses `READ_ONLY_AGGREGATION`: existing workflow evidence, request IDs, candidate/release identities and receipts remain in their current authoritative stores. No Drupal table/entity is introduced for history in this tranche.

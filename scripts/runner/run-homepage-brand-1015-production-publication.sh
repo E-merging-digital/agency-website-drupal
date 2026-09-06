@@ -87,12 +87,15 @@ jq -e --arg mode "$MODE" \
    and .language == "fr"
    and .front == "/node/5"
    and .node.id == 5
-   and .content_sync == "RELEASED"
-   and .content_sync_before == "released"
-   and .content_sync_reconciliation == "NOT_REQUIRED"
+   and (.content_sync_before == "active" or .content_sync_before == "released")
    and (
      if $mode == "apply" then
-       .content_sync_after == "released"
+       .content_sync == "RELEASED"
+       and .content_sync_after == "released"
+       and (
+         (.content_sync_before == "active" and .content_sync_reconciliation == "APPLIED")
+         or (.content_sync_before == "released" and .content_sync_reconciliation == "NOT_REQUIRED")
+       )
        and (.verdict == "APPLIED" or .verdict == "IDEMPOTENT")
        and (
          (.verdict == "APPLIED" and .prod_write == "MATERIALIZED")
@@ -100,6 +103,14 @@ jq -e --arg mode "$MODE" \
        )
      else
        .content_sync_after == "NOT_APPLICABLE"
+       and (
+         (.content_sync_before == "active"
+          and .content_sync == "ACTIVE_RECONCILIATION_REQUIRED"
+          and .content_sync_reconciliation == "REQUIRED")
+         or (.content_sync_before == "released"
+             and .content_sync == "RELEASED"
+             and .content_sync_reconciliation == "NOT_REQUIRED")
+       )
        and (.verdict == "UPDATE_READY" or .verdict == "IDEMPOTENT")
        and .prod_write == "NONE"
      end

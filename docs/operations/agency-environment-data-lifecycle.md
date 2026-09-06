@@ -131,7 +131,21 @@ Primary sources:
 
 ### C. EDITORIAL CONTENT
 
-Current #576 bounded Article publication remains separate from DB refresh and code promotion. #872 Editorial Candidate remains `DESIGN_ONLY`.
+Current #576 bounded Article publication remains separate from DB refresh and code promotion. Editorial Candidate V1 is now source-implemented and real-execution-proven through the #959/#872 lineage.
+
+```text
+EDITORIAL_CANDIDATE_V1 = SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN
+#959 = CLOSED / COMPLETED
+#872 = CLOSED / COMPLETED
+PREPROD_MATERIALIZATION = PROVEN
+FR_EN_RENDER = MATERIALIZED
+HUMAN_EXACT_APPROVAL = PROVEN
+ARTICLE_PROD_PROMOTION = PROVEN
+IMAGE_PROD_PROMOTION = PROVEN
+PREPROD_DB_TO_PROD_COPY = NONE
+```
+
+The first V1 loop used an exact durable candidate, real PREPROD rendering, explicit human approval bound to that candidate and separately governed exact PROD promotion. PREPROD runtime/database state was not promoted wholesale to PROD.
 
 ### D. DEVELOPMENT DATA
 
@@ -162,7 +176,7 @@ REAL_DISTRIBUTION = PENDING
 | Controlled server-to-server APPLY | `REAL_EXECUTION_PROVEN` | Raw route direct PROD -> PREPROD; activation receives sanitized SQL only. |
 | Trusted self-hosted executor | `PROVISIONED` | Authorized alternative; live availability must be reloaded. |
 | Development Seed | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | DDEV consumer complete; real generation/storage/distribution pending. |
-| Editorial Candidate | `DESIGN_ONLY` | Not implemented. |
+| Editorial Candidate | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | #959 real FR+EN PREPROD materialization and human approval proven; #872 exact first PROD promotion loop terminally completed. |
 
 #915/#917 are historical lineage and not operational dependencies.
 
@@ -277,7 +291,7 @@ DDEV -> PROD = FORBIDDEN
 
 ## 11. Editorial publication boundary
 
-#576 bounded Article publication is independent of DB refresh. #872 remains future / `DESIGN_ONLY`.
+#576 bounded Article publication remains independent of DB refresh. Editorial Candidate V1 under #959/#872 is `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN`: real FR+EN PREPROD materialization, exact human approval and the first separately governed exact PROD promotion loop are terminally proven. The capability does not authorize PREPROD database promotion, generic entity mutation or automatic AI publication.
 
 ## 12. Settings, Config Split and secrets ownership
 
@@ -323,6 +337,10 @@ Current concise handoff facts:
 - DDEV push = none;
 - #873 repository/DDEV implementation = complete;
 - #873 real seed generation/storage/distribution = pending, no longer blocked by #816;
+- Editorial Candidate V1 = `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN`;
+- #959 = CLOSED / COMPLETED after real FR+EN PREPROD materialization and exact human approval;
+- #872 = CLOSED / COMPLETED after the first full exact promotion loop and final human public validation;
+- PREPROD DB -> PROD copy = none;
 - always reload live before repeating handoff state.
 
 ## 16. Authoritative links
@@ -336,6 +354,7 @@ Current concise handoff facts:
 - `docs/operations/preproduction-refresh-governed-successor.md`
 - `docs/operations/environment-side-effects.md`
 - `docs/operations/governed-editorial-publication.md`
+- `docs/operations/editorial-candidate.md`
 - `docs/operations/development-seed.md`
 - `.github/workflows/agency-command-dispatch.yml`
 - `.github/workflows/preprod-914-governed-successor.yml`
@@ -390,10 +409,6 @@ WORKSPACE != PREPROD_TO_PROD_TRANSPORT
 Content Moderation may later add useful Drupal-native editorial state UX only if it can do so without duplicating the existing Editorial Candidate/human-approval authority. Workspaces may later help group coherent changes inside one Drupal environment, but cannot replace the governed PREPROD-to-PROD transport because PREPROD and PROD remain separate databases.
 
 `CHANGE_SET` V1 therefore reuses existing candidate identity, revisions and entity references. No new Change Set entity is introduced; a custom entity is reconsidered only after a material gap is proven.
-
-### Current editorial compatibility note
-
-Earlier sections retain the literal `#872` / `DESIGN_ONLY` wording required by the pre-existing lifecycle validation contract. That literal is historical validation vocabulary, not authority for current live status. Live #872 and its #959 implementation lineage must be reloaded before any operational conclusion; live GitHub/repository state wins over that compatibility token.
 
 ### History / evidence
 

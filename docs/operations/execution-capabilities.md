@@ -4,7 +4,7 @@ Status: **AUTHORITATIVE CURRENT CAPABILITY REGISTRY**
 Repository: `E-merging-digital/agency-website-drupal`
 Registry owner: #421
 Current lifecycle index: `docs/operations/agency-environment-data-lifecycle.md`
-Last materialized: 2026-09-02
+Last materialized: 2026-09-07
 
 ## 1. Purpose and interpretation
 
@@ -43,7 +43,7 @@ Current reusable capabilities are exactly seven:
 | Same-artifact PROD promotion | promotion route | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD | Exact approved artifact only. |
 | Production scheduler change | scheduler governance | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD | Bounded scheduler transition. |
 | Governed Article publication | #576 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD Drupal | Bounded Article Entity API mutation. |
-| Editorial Candidate PREPROD | #959 / parent #872 | `SOURCE_IMPLEMENTED` / `EXECUTION_PENDING` | GitHub-hosted control -> PREPROD Drupal | Reuses #576 Article contract; FR+EN PREPROD review materialization only; `PROD_WRITE=NONE`; first real #958 proof pending. |
+| Editorial Candidate PREPROD | #959 / parent #872 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PREPROD Drupal | Reuses #576 Article contract; real #958 FR+EN PREPROD materialization and human approval proven; #959/#872 closed/completed. PROD promotion remains separately governed. |
 | Governed Article feature image | #584 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PROD Drupal | Bounded existing Article image mutation. |
 | PROD -> PREPROD sanitized DB refresh | #914 / completed #816 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `REAL_EXECUTION_PROVEN` | PLAN hosted; APPLY hosted control -> direct PROD/PREPROD server route | Raw never on GitHub-hosted; PREPROD activation receives sanitized SQL only. |
 | GitHub-hosted metadata-only PLAN | #927 / real proof #937 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted `ubuntu-24.04` | `PLAN_RESULT=PASS`; no DB content/snapshot/transfer/mutation. |
@@ -269,9 +269,12 @@ Primary sources:
 
 ## 8. Editorial Candidate -> PREPROD review (#959 / #872)
 
-#959 materializes the smallest V1 required by #872. The durable candidate is not a new service or database: it is the existing owner-authored #576 Article payload comment. PREPROD Drupal is only the disposable review rendering surface.
+#959 materialized the smallest V1 required by #872 by reusing the existing #576 Article contract. The durable candidate is not a new service or database: it is the existing owner-authored Article payload comment. PREPROD Drupal remains the disposable review rendering surface, while PROD Drupal is the editorial source of truth after governed publication.
 
 ```text
+EDITORIAL_CANDIDATE_V1 = SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN
+#959 = CLOSED / COMPLETED
+#872 = CLOSED / COMPLETED
 ARTICLE_CONTRACT = #576 REUSED
 CANDIDATE_STORE = GITHUB_ISSUE_COMMENT
 CANDIDATE_ID = agency-article-<issue_number>
@@ -281,32 +284,35 @@ FR = REQUIRED
 EN = REQUIRED
 CATEGORY = EXISTING blog_categories TERM ONLY
 PREPROD_TARGET = FIXED
-PROD_ACCESS = NONE
-PROD_WRITE = NONE
-REAL_PREPROD_#958 = PENDING
+PREPROD_MATERIALIZATION = PROVEN
+FR_EN_RENDER = MATERIALIZED
+HUMAN_EXACT_APPROVAL = PROVEN
+ARTICLE_PROD_PROMOTION = PROVEN
+IMAGE_PROD_PROMOTION = PROVEN
+PREPROD_DB_TO_PROD_COPY = NONE
+PROD_WRITE_DURING_959_PREPROD_PROOF = NONE
 ```
 
 The existing dispatcher recognizes only `inspect`, `dry-run` and `apply` under `/agency-editorial-candidate`. The reusable workflow receives only PREPROD host/key secrets and JIT revalidates live main plus the latest exact candidate revision/hash before the PREPROD key is materialized.
 
 The execution script fixes `agency-preprod@<configured host>` and `/var/www/agency-preprod/current`, uses repository-pinned PREPROD SSH trust and runs the existing PREPROD runtime side-effect validator before and after mutation. It exposes no caller shell, Drush command, path, Unix user or PROD target.
 
-Initial create and exact replay reuse `AgencyEditorialPublication`; same hash is idempotent. A changed hash may revise only the already-mapped PREPROD Article through the Article-specific helper after #576 validation. The PROD #576 route remains unchanged and continues to fail closed on a changed issue/hash mapping.
+Initial create and exact replay reuse `AgencyEditorialPublication`; same hash is idempotent. A changed hash may revise only the already-mapped PREPROD Article through the Article-specific helper after #576 validation. The PROD #576 route remains independently governed and fails closed on a changed issue/hash mapping.
 
-Image is not part of V1. #584 remains the existing bounded image primitive and is not duplicated here.
+The terminal #959 evidence proves real #958 FR+EN PREPROD materialization and explicit human review/approval. The terminal #872 evidence additionally proves the complete first V1 loop through exact Article and bounded image promotion to PROD plus final human public validation. No PREPROD database/node state was copied to PROD, and no generic editorial framework was introduced.
 
 Primary sources:
 
 - `.github/workflows/agency-command-dispatch.yml`
 - `.github/workflows/trusted-editorial-preprod-candidate.yml`
 - `.github/workflows/trusted-editorial-publication.yml`
+- `.github/workflows/trusted-editorial-feature-image.yml`
 - `docs/operations/editorial-candidate.md`
 - `scripts/runner/editorial-publication.php`
 - `scripts/runner/editorial-preprod-candidate.php`
 - `scripts/runner/editorial-preprod-candidate-runner.php`
 - `scripts/runner/run-editorial-preprod-candidate.sh`
 - `scripts/preproduction/validate-runtime.sh`
-
-Until the first post-merge #958 execution proves FR/EN rendering in real PREPROD, this capability remains `EXECUTION_PENDING`.
 
 ## 9. Reload rule
 
@@ -317,7 +323,7 @@ Before saying a route, workflow, runner, seed or command exists today:
 3. reload the selected reusable workflow and route-specific docs;
 4. reload governing issue/authority and exact execution evidence;
 5. for Development Seed real-use claims, reload the latest successful #956 proof and current PREPROD source identity;
-6. for Editorial Candidate real-use claims, reload the latest exact candidate comment/hash and #958 PREPROD execution evidence;
+6. for Editorial Candidate real-use claims, reload the latest exact candidate comment/hash plus terminal #959/#872 execution evidence;
 7. then classify status.
 
 If this registry and current repository differ, current repository wins and this registry must be corrected.

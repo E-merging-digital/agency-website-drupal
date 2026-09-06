@@ -143,7 +143,17 @@ foreach ($comments as $comment) {
   }
 
   $body = $comment['body'] ?? null;
-  if (!is_string($body) || rtrim($body, "\r\n") !== $expectedBody) {
+  if (!is_string($body)) {
+    continue;
+  }
+  $normalizedBody = rtrim($body, "\r\n");
+  $normalizedBody = preg_replace(
+    '/\A(<!-- agency-human-prod-approval:v1 -->)\r?\n\r?\n/',
+    "$1\n",
+    $normalizedBody,
+    1,
+  );
+  if (!is_string($normalizedBody) || $normalizedBody !== $expectedBody) {
     continue;
   }
 

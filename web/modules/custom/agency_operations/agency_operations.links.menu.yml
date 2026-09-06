@@ -1,0 +1,6 @@
+agency_operations.overview:
+  title: 'Agency Operations'
+  description: 'Read-only operational readiness and capability overview.'
+  route_name: agency_operations.overview
+  parent: system.admin_config
+  weight: 100

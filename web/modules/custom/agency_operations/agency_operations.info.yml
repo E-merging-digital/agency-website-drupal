@@ -1,0 +1,7 @@
+name: Agency Operations
+type: module
+description: 'Read-only Drupal admin control plane for existing governed Agency operations.'
+package: Agency
+core_version_requirement: ^11
+dependencies:
+  - drupal:language

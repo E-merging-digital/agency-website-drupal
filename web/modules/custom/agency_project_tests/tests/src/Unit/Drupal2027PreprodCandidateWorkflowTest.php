@@ -19,6 +19,9 @@ final class Drupal2027PreprodCandidateWorkflowTest extends TestCase {
   private const REVISION = '5555544679';
   private const SHA = 'ac96465c5717f78af76e368d8598399cbe997ed63d7cc753d575337c9321af83';
 
+  /**
+   * The PREPROD route stays bound to the exact frozen FR+EN candidate.
+   */
   public function testPreprodRouteIsBoundToExactFrEnCandidate(): void {
     $workflow = $this->source('.github/workflows/trusted-drupal-2027-preprod-candidate.yml');
     $materializer = $this->source('scripts/runner/drupal-2027-preprod-candidate.php');
@@ -44,6 +47,9 @@ final class Drupal2027PreprodCandidateWorkflowTest extends TestCase {
     self::assertStringContainsString('ed-section__content--contact-form', $spec);
   }
 
+  /**
+   * The future PROD route retains #1043 and uses FR_EN, never FR-only.
+   */
   public function testFutureProdRoutePreservesHumanGateAndFrEnBinding(): void {
     $workflow = $this->source('.github/workflows/trusted-drupal-2027-production-publication.yml');
     $shell = $this->source('scripts/runner/run-drupal-2027-production-publication.sh');
@@ -60,6 +66,9 @@ final class Drupal2027PreprodCandidateWorkflowTest extends TestCase {
     self::assertStringContainsString('.aliases.en == "/en/drupal-2027"', $shell);
   }
 
+  /**
+   * The diagnostic block reuses the existing Contact shell and CSS contract.
+   */
   public function testDiagnosticReusesExistingContactShellWithoutNewCss(): void {
     $template = $this->source('web/themes/custom/emerging_digital/templates/block/block--emerging-digital-drupal-lifecycle-diagnostic.html.twig');
     $css = $this->source('web/themes/custom/emerging_digital/css/components.css');
@@ -68,6 +77,9 @@ final class Drupal2027PreprodCandidateWorkflowTest extends TestCase {
     self::assertStringContainsString('.ed-section__content--contact-form form', $css);
   }
 
+  /**
+   * Reads one repository source file.
+   */
   private function source(string $path): string {
     $content = file_get_contents(dirname(DRUPAL_ROOT) . '/' . $path);
     self::assertIsString($content, $path);

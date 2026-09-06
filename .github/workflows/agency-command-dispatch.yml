@@ -264,11 +264,11 @@ jobs:
       SERVER_USER: ${{ secrets.SERVER_USER }}
 
   drupal-2027-preprod-candidate:
-    name: Route #1012 Drupal 2027 PREPROD candidate
+    name: Route #1046 Drupal 2027 PREPROD candidate
     needs: classify
     if: >-
       ${{ github.event.issue.pull_request == null
-          && github.event.issue.number == 1012
+          && github.event.issue.number == 1046
           && github.event.comment.author_association == 'OWNER'
           && github.event.comment.user.login == 'E-merging-digital'
           && (github.event.comment.body == '/agency-drupal-2027-candidate inspect'

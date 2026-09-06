@@ -58,9 +58,11 @@ DB_SNAPSHOT_CREATED=0
 CLEANUP_DONE=0
 
 cleanup() {
-  local exit_code=$?
+  local pilot_exit_code=$?
+  local cleanup_failed=0
+
   if [[ "${CLEANUP_DONE}" -eq 1 ]]; then
-    exit "${exit_code}"
+    exit "${pilot_exit_code}"
   fi
   CLEANUP_DONE=1
   trap - EXIT
@@ -68,25 +70,41 @@ cleanup() {
   set +e
 
   if [[ "${DB_SNAPSHOT_CREATED}" -eq 1 ]]; then
-    ddev snapshot restore "${SNAPSHOT_NAME}" >/dev/null 2>&1
+    if ! ddev snapshot restore "${SNAPSHOT_NAME}" >/dev/null 2>&1; then
+      cleanup_failed=1
+    fi
   fi
 
-  cp "${TMP_DIR}/composer.json" composer.json
-  cp "${TMP_DIR}/composer.lock" composer.lock
-  ddev composer install --no-interaction >/dev/null 2>&1
+  if ! cp "${TMP_DIR}/composer.json" composer.json; then
+    cleanup_failed=1
+  fi
+  if ! cp "${TMP_DIR}/composer.lock" composer.lock; then
+    cleanup_failed=1
+  fi
+  if ! ddev composer install --no-interaction >/dev/null 2>&1; then
+    cleanup_failed=1
+  fi
 
   if [[ "${DB_SNAPSHOT_CREATED}" -eq 1 ]]; then
-    ddev snapshot --cleanup --name "${SNAPSHOT_NAME}" -y >/dev/null 2>&1
+    ddev snapshot --cleanup --name "${SNAPSHOT_NAME}" -y >/dev/null 2>&1 || true
   fi
 
   rm -rf "${TMP_DIR}"
 
-  if [[ "${exit_code}" -eq 0 ]]; then
+  echo "PILOT_EXIT_CODE=${pilot_exit_code}"
+  if [[ "${cleanup_failed}" -ne 0 ]]; then
+    echo "CLEANUP_STATUS=FAIL"
+    echo "CLEANUP=FAIL"
+    exit 1
+  fi
+
+  echo "CLEANUP_STATUS=PASS"
+  if [[ "${pilot_exit_code}" -eq 0 ]]; then
     echo "CLEANUP=PASS"
   else
     echo "CLEANUP=PASS_AFTER_FAILURE"
   fi
-  exit "${exit_code}"
+  exit "${pilot_exit_code}"
 }
 trap cleanup EXIT
 

@@ -32,7 +32,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
    * Proves the single Project Lead #1094 migration receipt is accepted.
    */
   public function testBackfillReceiptParsesWithTwoPublicGetRequests(): void {
-    $history = [];
+    $history = new \ArrayObject();
     $reader = $this->reader([
       $this->jsonResponse([$this->authorityIssue()]),
       $this->jsonResponse([
@@ -60,7 +60,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
    * Proves future workflow receipts require matching public run metadata.
    */
   public function testWorkflowReceiptRequiresSuccessfulMatchingRun(): void {
-    $history = [];
+    $history = new \ArrayObject();
     $receipt = $this->receipt(['receipt_source' => 'WORKFLOW']);
     $reader = $this->reader([
       $this->jsonResponse([$this->authorityIssue()]),
@@ -83,7 +83,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
    * Proves malformed receipt text never infers a successful PLAN.
    */
   public function testMalformedReceiptFailsClosed(): void {
-    $history = [];
+    $history = new \ArrayObject();
     $reader = $this->reader([
       $this->jsonResponse([$this->authorityIssue()]),
       $this->jsonResponse([
@@ -107,7 +107,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
     string $field,
     mixed $value,
   ): void {
-    $history = [];
+    $history = new \ArrayObject();
     $reader = $this->reader([
       $this->jsonResponse([$this->authorityIssue()]),
       $this->jsonResponse([
@@ -147,7 +147,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
    * Proves app-created authority issues are not trusted as human authority.
    */
   public function testAppMediatedAuthorityIssueFailsClosed(): void {
-    $history = [];
+    $history = new \ArrayObject();
     $issue = $this->authorityIssue();
     $issue['performed_via_github_app'] = ['slug' => 'some-app'];
     $reader = $this->reader([
@@ -162,7 +162,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
    * Proves a timeout degrades evidence without throwing into the Cockpit page.
    */
   public function testGitHubTimeoutReturnsEvidenceUnavailable(): void {
-    $history = [];
+    $history = new \ArrayObject();
     $reader = $this->reader([
       new ConnectException(
         'timeout',
@@ -179,7 +179,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
    * Proves a workflow receipt cannot borrow unrelated run metadata.
    */
   public function testWorkflowRunMismatchFailsClosed(): void {
-    $history = [];
+    $history = new \ArrayObject();
     $run = $this->workflowRun();
     $run['head_sha'] = str_repeat('a', 40);
     $reader = $this->reader([
@@ -201,7 +201,10 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
   /**
    * Builds a reader backed by a deterministic Guzzle queue and history.
    */
-  private function reader(array $queue, array &$history): CockpitPlanReceiptReader {
+  private function reader(
+    array $queue,
+    \ArrayObject $history,
+  ): CockpitPlanReceiptReader {
     $handler = HandlerStack::create(new MockHandler($queue));
     $handler->push(Middleware::history($history));
 
@@ -300,7 +303,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
   /**
    * Proves every request is an unauthenticated GET to the fixed public host.
    */
-  private function assertReadOnlyFixedGitHubRequests(array $history): void {
+  private function assertReadOnlyFixedGitHubRequests(\ArrayObject $history): void {
     self::assertLessThanOrEqual(3, count($history));
     foreach ($history as $transaction) {
       $request = $transaction['request'];

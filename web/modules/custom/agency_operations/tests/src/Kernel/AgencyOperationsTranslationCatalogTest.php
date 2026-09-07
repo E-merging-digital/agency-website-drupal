@@ -9,7 +9,8 @@ use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\locale\Gettext;
 
 /**
- * Proves the durable French interface translation catalog through Drupal Locale.
+ * Proves the durable French interface translation catalog through Drupal
+ * Locale.
  *
  * @group agency_operations
  */
@@ -41,9 +42,9 @@ final class AgencyOperationsTranslationCatalogTest extends KernelTestBase {
    * Imports the real PO catalog and resolves translations through Drupal.
    */
   public function testFrenchStatusCatalogIsRealDrupalTranslation(): void {
+    $moduleRoot = dirname(__DIR__, 3);
     $catalog = (object) [
-      'uri' => dirname(__DIR__, 3)
-        . '/translations/agency_operations.fr.po',
+      'uri' => $moduleRoot . '/translations/agency_operations.fr.po',
       'langcode' => 'fr',
     ];
     Gettext::fileToDatabase($catalog, []);

@@ -11,6 +11,13 @@ final class CapabilityRegistryReader {
 
   public const REGISTRY_RELATIVE_PATH = 'docs/operations/execution-capabilities.md';
 
+  public const STATUS_OPERATIONAL = 'operational';
+  public const STATUS_READY = 'ready';
+  public const STATUS_PREPARING = 'preparing';
+  public const STATUS_BLOCKED = 'blocked';
+  public const STATUS_UNAVAILABLE = 'unavailable';
+  public const STATUS_HUMAN_ACTION_REQUIRED = 'human_action_required';
+
   private const GROUPS = [
     'CODE_CONFIG',
     'DATA_REFRESH',
@@ -85,7 +92,7 @@ final class CapabilityRegistryReader {
         'name' => $capability,
         'owner' => $this->cleanCell($cells[1]),
         'status' => $status,
-        'human_status' => $this->humanStatus($status),
+        'human_status_key' => $this->humanStatusKey($status),
         'surface' => $this->cleanCell($cells[3]),
         'scope' => $this->cleanCell($cells[4]),
       ];
@@ -100,38 +107,38 @@ final class CapabilityRegistryReader {
   }
 
   /**
-   * Derives a deliberately small human vocabulary from technical truth.
+   * Derives a stable semantic status key from exact technical truth.
    */
-  private function humanStatus(string $status): string {
+  private function humanStatusKey(string $status): string {
     $normalized = strtoupper($status);
 
     if (str_contains($normalized, 'HUMAN_RECOVERY_REQUIRED')) {
-      return 'Action humaine requise';
+      return self::STATUS_HUMAN_ACTION_REQUIRED;
     }
     if (str_contains($normalized, 'BLOCKED')) {
-      return 'Bloqué';
+      return self::STATUS_BLOCKED;
     }
     if (str_contains($normalized, 'REAL_EXECUTION_PROVEN')) {
-      return 'Opérationnel';
+      return self::STATUS_OPERATIONAL;
     }
     if (
       str_contains($normalized, 'EXECUTION_PENDING')
       || str_contains($normalized, 'DESIGN_ONLY')
     ) {
-      return 'En préparation';
+      return self::STATUS_PREPARING;
     }
     if (
       str_contains($normalized, 'EXECUTABLE')
       || str_contains($normalized, 'PROVISIONED')
       || str_contains($normalized, 'SOURCE_IMPLEMENTED')
     ) {
-      return 'Prêt';
+      return self::STATUS_READY;
     }
     if (str_contains($normalized, 'SYNTHETICALLY_PROVEN')) {
-      return 'En préparation';
+      return self::STATUS_PREPARING;
     }
 
-    return 'Indisponible';
+    return self::STATUS_UNAVAILABLE;
   }
 
   /**

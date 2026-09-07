@@ -42,11 +42,13 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
   }
 
   /**
-   * Proves grouping, freshness and human status mapping stay registry-derived.
+   * Proves grouping, freshness and semantic mapping stay registry-derived.
    */
   public function testExistingRegistryIsParsedAndGrouped(): void {
+    $registryPath = $this->fixtureRoot
+      . '/docs/operations/execution-capabilities.md';
     file_put_contents(
-      $this->fixtureRoot . '/docs/operations/execution-capabilities.md',
+      $registryPath,
       "# Registry\nLast materialized: 2026-09-07\n\n## 3. Current operational capability index\n\n"
       . "| Capability | Owner | Status | Current execution surface | Mutation/data boundary |\n"
       . "| --- | --- | --- | --- | --- |\n"
@@ -65,10 +67,54 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
     self::assertCount(1, $result['groups']['DATA_REFRESH']);
     self::assertCount(1, $result['groups']['EDITORIAL']);
     self::assertCount(1, $result['groups']['DEVELOPMENT_DATA']);
-    self::assertSame('Opérationnel', $result['groups']['CODE_CONFIG'][0]['human_status']);
-    self::assertSame('En préparation', $result['groups']['EDITORIAL'][0]['human_status']);
-    self::assertSame('Indisponible', $result['groups']['DEVELOPMENT_DATA'][0]['human_status']);
+    self::assertSame(
+      CapabilityRegistryReader::STATUS_OPERATIONAL,
+      $result['groups']['CODE_CONFIG'][0]['human_status_key'],
+    );
+    self::assertSame(
+      CapabilityRegistryReader::STATUS_PREPARING,
+      $result['groups']['EDITORIAL'][0]['human_status_key'],
+    );
+    self::assertSame(
+      CapabilityRegistryReader::STATUS_UNAVAILABLE,
+      $result['groups']['DEVELOPMENT_DATA'][0]['human_status_key'],
+    );
     self::assertSame('UNRECOGNIZED_STATE', $result['groups']['DEVELOPMENT_DATA'][0]['status']);
+  }
+
+  /**
+   * Proves the semantic vocabulary is stable and unknown truth fails closed.
+   */
+  public function testSemanticStatusVocabularyAndPrecedence(): void {
+    file_put_contents(
+      $this->fixtureRoot . '/docs/operations/execution-capabilities.md',
+      "# Registry\nLast materialized: 2026-09-07\n\n## 3. Current operational capability index\n\n"
+      . "| Capability | Owner | Status | Current execution surface | Mutation/data boundary |\n"
+      . "| --- | --- | --- | --- | --- |\n"
+      . "| Human recovery | owner | `HUMAN_RECOVERY_REQUIRED` | none | none |\n"
+      . "| Blocked capability | owner | `BLOCKED` | none | none |\n"
+      . "| Real capability | owner | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | none | none |\n"
+      . "| Pending capability | owner | `SOURCE_IMPLEMENTED` / `EXECUTION_PENDING` | none | none |\n"
+      . "| Provisioned capability | owner | `PROVISIONED` | none | none |\n"
+      . "| Synthetic capability | owner | `SYNTHETICALLY_PROVEN` | none | none |\n"
+      . "| Unknown capability | owner | `SOMETHING_NEW` | none | none |\n"
+      . "\n## 4. Next section\n",
+    );
+
+    $result = (new CapabilityRegistryReader($this->fixtureRoot . '/web'))->read();
+    $capabilities = $result['groups']['CODE_CONFIG'];
+    $statuses = [];
+    foreach ($capabilities as $capability) {
+      $statuses[$capability['name']] = $capability['human_status_key'];
+    }
+
+    self::assertSame(CapabilityRegistryReader::STATUS_HUMAN_ACTION_REQUIRED, $statuses['Human recovery']);
+    self::assertSame(CapabilityRegistryReader::STATUS_BLOCKED, $statuses['Blocked capability']);
+    self::assertSame(CapabilityRegistryReader::STATUS_OPERATIONAL, $statuses['Real capability']);
+    self::assertSame(CapabilityRegistryReader::STATUS_PREPARING, $statuses['Pending capability']);
+    self::assertSame(CapabilityRegistryReader::STATUS_READY, $statuses['Provisioned capability']);
+    self::assertSame(CapabilityRegistryReader::STATUS_PREPARING, $statuses['Synthetic capability']);
+    self::assertSame(CapabilityRegistryReader::STATUS_UNAVAILABLE, $statuses['Unknown capability']);
   }
 
 }

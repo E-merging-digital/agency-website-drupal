@@ -29,7 +29,7 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
   protected $defaultTheme = 'stark';
 
   /**
-   * Proves V2 remains protected and presents manual governed handoff only.
+   * Proves V3 is human-first while preserving read-only technical truth.
    */
   public function testPermissionProtectsReadOnlyCockpit(): void {
     $this->drupalGet('/admin/agency/operations');
@@ -41,17 +41,27 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
     $this->drupalGet('/admin/agency/operations');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('Agency Operations');
-    $this->assertSession()->pageTextContains('CODE_CONFIG');
-    $this->assertSession()->pageTextContains('DATA_REFRESH');
-    $this->assertSession()->pageTextContains('EDITORIAL');
-    $this->assertSession()->pageTextContains('DEVELOPMENT_DATA');
-    $this->assertSession()->pageTextContains('Environments — authoritative metadata only');
-    $this->assertSession()->pageTextContains('Technical status');
-    $this->assertSession()->pageTextContains('Refresh PREPROD');
-    $this->assertSession()->pageTextContains('Manual GitHub authorization is required');
-    $this->assertSession()->pageTextContains('Not available from this cockpit.');
+    $this->assertSession()->pageTextContains('Daily operational overview');
+    $this->assertSession()->pageTextContains('Current runtime');
+    $this->assertSession()->pageTextContains('Environments');
+    $this->assertSession()->pageTextContains('PROD');
+    $this->assertSession()->pageTextContains('PREPROD');
+    $this->assertSession()->pageTextContains('DEVELOPMENT');
+    $this->assertSession()->pageTextContains('Content');
+    $this->assertSession()->pageTextContains('PREPROD data');
+    $this->assertSession()->pageTextContains('Development data');
+    $this->assertSession()->pageTextContains('Recent evidence');
+    $this->assertSession()->pageTextContains('Operational');
+    $this->assertSession()->pageTextNotContains('Opérationnel');
+    $this->assertSession()->pageTextContains('PLAN is preparation and analysis only');
+    $this->assertSession()->pageTextContains('APPLY is not available from this cockpit');
+    $this->assertSession()->pageTextContains('Technical details');
+    $this->assertSession()->elementNotExists('css', 'details[open]');
+    $this->assertSession()->elementTextContains('css', 'details', 'CODE_CONFIG');
+    $this->assertSession()->elementTextContains('css', 'details', 'Technical status');
+    $this->assertSession()->elementTextContains('css', 'details', 'SOURCE_IMPLEMENTED');
+    $this->assertSession()->elementTextContains('css', 'details', 'Manual GitHub authorization is required');
     $this->assertSession()->pageTextContains('View the governed PLAN procedure');
-    $this->assertSession()->pageTextContains('History / evidence');
     $this->assertSession()->elementNotExists('css', 'input[type="submit"]');
 
     $this->drupalGet('/admin/agency/operations/editorial');

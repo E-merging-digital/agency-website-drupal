@@ -1,0 +1,28 @@
+# French translation of Agency Operations.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: agency_operations\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Operational"
+msgstr "Opérationnel"
+
+msgid "Ready"
+msgstr "Prêt"
+
+msgid "Preparing"
+msgstr "En préparation"
+
+msgid "Blocked"
+msgstr "Bloqué"
+
+msgid "Unavailable"
+msgstr "Indisponible"
+
+msgid "Human action required"
+msgstr "Action humaine requise"

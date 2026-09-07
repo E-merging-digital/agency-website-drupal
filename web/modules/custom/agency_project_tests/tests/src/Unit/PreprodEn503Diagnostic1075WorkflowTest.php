@@ -242,7 +242,7 @@ final class PreprodEn503Diagnostic1075WorkflowTest extends TestCase {
     }
 
     self::assertStringContainsString('"result": "FAILURE"', $runner);
-    self::assertStringContainsString('"failure_stage":', $runner);
+    self::assertStringContainsString('\"failure_stage\":', $runner);
     self::assertStringContainsString('"root_cause": "NOT_YET_PROVEN"', $runner);
     self::assertStringContainsString('"preprod_write": "NONE"', $runner);
     self::assertStringContainsString('"prod_access": "NONE"', $runner);

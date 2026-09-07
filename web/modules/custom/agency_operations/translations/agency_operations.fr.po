@@ -29,3 +29,66 @@ msgstr "Action humaine requise"
 
 msgid "Prepare PREPROD PLAN"
 msgstr "Préparer le PLAN PREPROD"
+
+msgid "Last PREPROD PLAN"
+msgstr "Dernier PLAN PREPROD"
+
+msgid "Passed"
+msgstr "Réussi"
+
+msgid "Evidence unavailable"
+msgstr "Preuve indisponible"
+
+msgid "Open evidence"
+msgstr "Ouvrir la preuve"
+
+msgid "PLAN result is not inferred. APPLY remains not authorized."
+msgstr "Le résultat du PLAN n’est pas déduit. APPLY reste non autorisé."
+
+msgid "Authority: #@authority; Completed: @completed; Evaluated main: @main; Observed PROD release: @prod; Mutation: None; APPLY: Not authorized."
+msgstr "Autorité : #@authority ; terminé : @completed ; main évalué : @main ; release PROD observée : @prod ; mutation : aucune ; APPLY : non autorisé."
+
+msgid "Last PREPROD PLAN receipt"
+msgstr "Dernier receipt PLAN PREPROD"
+
+msgid "This receipt is evidence only. It is never authority and cannot authorize PLAN or APPLY."
+msgstr "Ce receipt est uniquement une preuve. Il ne constitue jamais une autorité et ne peut autoriser ni PLAN ni APPLY."
+
+msgid "Field"
+msgstr "Champ"
+
+msgid "Value"
+msgstr "Valeur"
+
+msgid "Receipt source"
+msgstr "Source du receipt"
+
+msgid "Authority issue"
+msgstr "Issue d’autorité"
+
+msgid "Request"
+msgstr "Requête"
+
+msgid "Evaluated main"
+msgstr "Main évalué"
+
+msgid "Observed PROD release"
+msgstr "Release PROD observée"
+
+msgid "Completed"
+msgstr "Terminé"
+
+msgid "Mutation"
+msgstr "Mutation"
+
+msgid "None"
+msgstr "Aucune"
+
+msgid "Not authorized"
+msgstr "Non autorisé"
+
+msgid "Dispatch run"
+msgstr "Run de dispatch"
+
+msgid "Source"
+msgstr "Source"

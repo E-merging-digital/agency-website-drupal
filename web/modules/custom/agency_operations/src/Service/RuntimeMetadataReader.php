@@ -28,7 +28,7 @@ final class RuntimeMetadataReader {
    *   source: string,
    *   authority: string,
    *   freshness: string
-   * }
+   *   }
    *   Safe presentation metadata.
    */
   public function read(): array {

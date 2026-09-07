@@ -110,9 +110,9 @@ final class PreprodEn503Diagnostic1075WorkflowTest extends TestCase {
     self::assertIsInt($identity);
     self::assertLessThan($identity, $jit);
 
-    self::assertStringNotContainsString('PROD_SSH_PRIVATE_KEY', $source);
-    self::assertStringNotContainsString('PROD_SERVER_HOST', $source);
-    self::assertStringNotContainsString('SERVER_USER', $source);
+    self::assertStringNotContainsString('${{ secrets.SSH_PRIVATE_KEY }}', $source);
+    self::assertStringNotContainsString('${{ secrets.SERVER_HOST }}', $source);
+    self::assertStringNotContainsString('${{ secrets.SERVER_USER }}', $source);
     self::assertStringNotContainsString('agency-command-dispatch', $source);
   }
 

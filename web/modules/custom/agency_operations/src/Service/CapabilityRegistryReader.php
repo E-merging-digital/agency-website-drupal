@@ -25,7 +25,7 @@ final class CapabilityRegistryReader {
   /**
    * Reads the existing registry without persisting a second source of truth.
    *
-   * @return array{available: bool, path: string, groups: array<string, array<int, array<string, string>>>}
+   * @return array{available: bool, path: string, last_materialized: ?string, groups: array<string, array<int, array<string, string>>>}
    *   Parsed presentation model.
    */
   public function read(): array {
@@ -36,6 +36,7 @@ final class CapabilityRegistryReader {
       return [
         'available' => FALSE,
         'path' => self::REGISTRY_RELATIVE_PATH,
+        'last_materialized' => NULL,
         'groups' => $groups,
       ];
     }
@@ -45,13 +46,18 @@ final class CapabilityRegistryReader {
       return [
         'available' => FALSE,
         'path' => self::REGISTRY_RELATIVE_PATH,
+        'last_materialized' => NULL,
         'groups' => $groups,
       ];
     }
 
+    $lastMaterialized = NULL;
     $inIndex = FALSE;
     foreach (preg_split('/\R/', $contents) ?: [] as $line) {
       $trimmed = trim($line);
+      if (str_starts_with($trimmed, 'Last materialized:')) {
+        $lastMaterialized = trim(substr($trimmed, strlen('Last materialized:')));
+      }
       if ($trimmed === '## 3. Current operational capability index') {
         $inIndex = TRUE;
         continue;
@@ -73,11 +79,13 @@ final class CapabilityRegistryReader {
       }
 
       $capability = $this->cleanCell($cells[0]);
+      $status = $this->cleanCell($cells[2]);
       $group = $this->groupForCapability($capability);
       $groups[$group][] = [
         'name' => $capability,
         'owner' => $this->cleanCell($cells[1]),
-        'status' => $this->cleanCell($cells[2]),
+        'status' => $status,
+        'human_status' => $this->humanStatus($status),
         'surface' => $this->cleanCell($cells[3]),
         'scope' => $this->cleanCell($cells[4]),
       ];
@@ -86,8 +94,42 @@ final class CapabilityRegistryReader {
     return [
       'available' => TRUE,
       'path' => self::REGISTRY_RELATIVE_PATH,
+      'last_materialized' => $lastMaterialized,
       'groups' => $groups,
     ];
+  }
+
+  /**
+   * Derives a deliberately small human vocabulary from technical truth.
+   */
+  private function humanStatus(string $status): string {
+    $normalized = strtoupper($status);
+
+    if (str_contains($normalized, 'HUMAN_RECOVERY_REQUIRED')) {
+      return 'Action humaine requise';
+    }
+    if (str_contains($normalized, 'BLOCKED')) {
+      return 'Bloqué';
+    }
+    if (str_contains($normalized, 'REAL_EXECUTION_PROVEN')) {
+      return 'Opérationnel';
+    }
+    if (
+      str_contains($normalized, 'EXECUTABLE')
+      || str_contains($normalized, 'PROVISIONED')
+      || str_contains($normalized, 'SOURCE_IMPLEMENTED')
+    ) {
+      return 'Prêt';
+    }
+    if (
+      str_contains($normalized, 'EXECUTION_PENDING')
+      || str_contains($normalized, 'SYNTHETICALLY_PROVEN')
+      || str_contains($normalized, 'DESIGN_ONLY')
+    ) {
+      return 'En préparation';
+    }
+
+    return 'Indisponible';
   }
 
   /**

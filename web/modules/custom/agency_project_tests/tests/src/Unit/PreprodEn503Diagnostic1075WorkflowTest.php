@@ -202,6 +202,20 @@ final class PreprodEn503Diagnostic1075WorkflowTest extends TestCase {
     ] as $classification) {
       self::assertStringContainsString($classification, $runner);
     }
+
+    self::assertStringNotContainsString("classification='E'", $runner);
+    self::assertStringNotContainsString("classification='B'", $runner);
+    self::assertStringNotContainsString('log_en > 0', $runner);
+    self::assertStringNotContainsString('log_routing > 0', $runner);
+    self::assertStringNotContainsString('log_language > 0', $runner);
+    self::assertStringContainsString(
+      'recent_drupal_log_signal: $runtime.recent_drupal_log_signal',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'en_homepage_translation: $runtime.en_homepage_translation',
+      $runner,
+    );
   }
 
   /**

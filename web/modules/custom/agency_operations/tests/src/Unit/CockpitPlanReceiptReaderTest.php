@@ -36,7 +36,11 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
     $reader = $this->reader([
       $this->jsonResponse([$this->authorityIssue()]),
       $this->jsonResponse([
-        $this->receiptComment($this->receipt(), 'E-merging-digital', 5575909815),
+        $this->receiptComment(
+          $this->receipt(),
+          'E-merging-digital',
+          5575909815,
+        ),
       ]),
     ], $history);
 
@@ -82,11 +86,13 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
     $history = [];
     $reader = $this->reader([
       $this->jsonResponse([$this->authorityIssue()]),
-      $this->jsonResponse([[
-        'id' => 5575909815,
-        'user' => ['login' => 'E-merging-digital'],
-        'body' => 'AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT={malformed}',
-      ]]),
+      $this->jsonResponse([
+        [
+          'id' => 5575909815,
+          'user' => ['login' => 'E-merging-digital'],
+          'body' => 'AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT={malformed}',
+        ],
+      ]),
     ], $history);
 
     $this->assertUnavailable($reader->read());
@@ -257,8 +263,8 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
       'id' => $commentId,
       'user' => ['login' => $author],
       'body' => 'Evidence only.' . "\n\n"
-        . 'AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT='
-        . json_encode($receipt, JSON_THROW_ON_ERROR),
+      . 'AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT='
+      . json_encode($receipt, JSON_THROW_ON_ERROR),
     ];
   }
 
@@ -310,7 +316,7 @@ final class CockpitPlanReceiptReaderTest extends UnitTestCase {
   }
 
   /**
-   * Asserts the fail-closed result never infers PLAN success or APPLY authority.
+   * Proves unavailable evidence never infers PLAN success or APPLY authority.
    */
   private function assertUnavailable(array $result): void {
     self::assertFalse($result['available']);

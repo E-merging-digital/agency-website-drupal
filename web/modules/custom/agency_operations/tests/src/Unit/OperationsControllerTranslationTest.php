@@ -8,7 +8,6 @@ use Drupal\agency_operations\Controller\OperationsController;
 use Drupal\agency_operations\Service\CapabilityRegistryReader;
 use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\Tests\UnitTestCase;
-use ReflectionClass;
 
 /**
  * Proves semantic cockpit statuses are translated in the presentation layer.
@@ -21,7 +20,7 @@ final class OperationsControllerTranslationTest extends UnitTestCase {
    * Proves English source labels and a French UI translation stay semantic.
    */
   public function testHumanStatusLabelsFollowUiTranslation(): void {
-    $controller = (new ReflectionClass(OperationsController::class))
+    $controller = (new \ReflectionClass(OperationsController::class))
       ->newInstanceWithoutConstructor();
     $translator = $this->createMock(TranslationInterface::class);
     $translator->method('translate')
@@ -37,7 +36,7 @@ final class OperationsControllerTranslationTest extends UnitTestCase {
       });
     $controller->setStringTranslation($translator);
 
-    $method = (new ReflectionClass(OperationsController::class))
+    $method = (new \ReflectionClass(OperationsController::class))
       ->getMethod('humanStatusLabel');
     $method->setAccessible(TRUE);
 
@@ -59,7 +58,10 @@ final class OperationsControllerTranslationTest extends UnitTestCase {
     );
     self::assertSame(
       'Action humaine requise',
-      $method->invoke($controller, CapabilityRegistryReader::STATUS_HUMAN_ACTION_REQUIRED),
+      $method->invoke(
+        $controller,
+        CapabilityRegistryReader::STATUS_HUMAN_ACTION_REQUIRED,
+      ),
     );
     self::assertSame(
       'Indisponible',

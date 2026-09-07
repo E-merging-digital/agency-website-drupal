@@ -45,8 +45,10 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
    * Proves grouping, freshness and semantic status mapping stay registry-derived.
    */
   public function testExistingRegistryIsParsedAndGrouped(): void {
+    $registryPath = $this->fixtureRoot
+      . '/docs/operations/execution-capabilities.md';
     file_put_contents(
-      $this->fixtureRoot . '/docs/operations/execution-capabilities.md',
+      $registryPath,
       "# Registry\nLast materialized: 2026-09-07\n\n## 3. Current operational capability index\n\n"
       . "| Capability | Owner | Status | Current execution surface | Mutation/data boundary |\n"
       . "| --- | --- | --- | --- | --- |\n"

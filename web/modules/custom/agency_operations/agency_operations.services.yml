@@ -6,3 +6,7 @@ services:
   agency_operations.capability_registry:
     class: Drupal\agency_operations\Service\CapabilityRegistryReader
     arguments: ['%app.root%']
+
+  agency_operations.runtime_metadata:
+    class: Drupal\agency_operations\Service\RuntimeMetadataReader
+    arguments: ['%app.root%', '@request_stack']

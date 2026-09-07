@@ -42,7 +42,7 @@ final class CapabilityRegistryReaderTest extends UnitTestCase {
   }
 
   /**
-   * Proves grouping, freshness and semantic status mapping stay registry-derived.
+   * Proves grouping, freshness and semantic mapping stay registry-derived.
    */
   public function testExistingRegistryIsParsedAndGrouped(): void {
     $registryPath = $this->fixtureRoot

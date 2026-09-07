@@ -638,29 +638,25 @@ final class OperationsController extends ControllerBase {
       [
         'label' => (string) $this->t('Code deployment'),
         'authority' => 'release / promotion workflows',
-        'runs' => self::REPOSITORY_URL
-          . '/actions/workflows/promote-production.yml',
+        'runs' => self::REPOSITORY_URL . '/actions/workflows/promote-production.yml',
         'authority_url' => self::REPOSITORY_URL . '/issues/870',
       ],
       [
         'label' => (string) $this->t('PREPROD refresh'),
         'authority' => '#914 / completed #816',
-        'runs' => self::REPOSITORY_URL
-          . '/actions/workflows/preprod-914-governed-successor.yml',
+        'runs' => self::REPOSITORY_URL . '/actions/workflows/preprod-914-governed-successor.yml',
         'authority_url' => self::REPOSITORY_URL . '/issues/914',
       ],
       [
         'label' => (string) $this->t('Editorial candidate / promotion'),
         'authority' => '#959 / #872',
-        'runs' => self::REPOSITORY_URL
-          . '/actions/workflows/trusted-editorial-preprod-candidate.yml',
+        'runs' => self::REPOSITORY_URL . '/actions/workflows/trusted-editorial-preprod-candidate.yml',
         'authority_url' => self::REPOSITORY_URL . '/issues/872',
       ],
       [
         'label' => (string) $this->t('Development Seed'),
         'authority' => '#873 / #956',
-        'runs' => self::REPOSITORY_URL
-          . '/actions/workflows/development-seed-publish.yml',
+        'runs' => self::REPOSITORY_URL . '/actions/workflows/development-seed-publish.yml',
         'authority_url' => self::REPOSITORY_URL . '/issues/873',
       ],
     ];

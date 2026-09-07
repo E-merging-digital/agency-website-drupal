@@ -74,10 +74,14 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_EVENT_NAME" = pull_request
-          ! grep -Eq 'runs-on:.*self-hosted' \
-            .github/workflows/cockpit-plan-authority-validation.yml
-          ! grep -Eq 'secrets\.[A-Za-z_]' \
-            .github/workflows/cockpit-plan-authority-validation.yml
+          if grep -Eq 'runs-on:.*self-hosted' \
+            .github/workflows/cockpit-plan-authority-validation.yml; then
+            exit 1
+          fi
+          if grep -Eq 'secrets\.[A-Za-z_]' \
+            .github/workflows/cockpit-plan-authority-validation.yml; then
+            exit 1
+          fi
           printf '%s\n' \
             'REAL_AUTHORITY_ISSUE=NONE' \
             'REAL_PLAN=NONE' \

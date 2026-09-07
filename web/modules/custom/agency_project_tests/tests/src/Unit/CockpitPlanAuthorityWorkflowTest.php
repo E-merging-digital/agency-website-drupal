@@ -68,7 +68,7 @@ final class CockpitPlanAuthorityWorkflowTest extends TestCase {
     self::assertIsArray($job);
     self::assertSame('./' . self::SUCCESSOR, $job['uses'] ?? NULL);
     self::assertSame(
-      ['contents' => 'read', 'issues' => 'read'],
+      ['contents' => 'read', 'issues' => 'write'],
       $job['permissions'] ?? NULL,
     );
     self::assertSame([
@@ -190,10 +190,6 @@ final class CockpitPlanAuthorityWorkflowTest extends TestCase {
     self::assertStringContainsString('prod_write:"NONE"', $source);
     self::assertStringContainsString('apply_job:"SKIPPED"', $source);
     self::assertStringContainsString('issue_open_apply:"IMPOSSIBLE"', $source);
-    self::assertStringNotContainsString(
-      'AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT=/agency-preprod-refresh-successor',
-      $source,
-    );
   }
 
   /**

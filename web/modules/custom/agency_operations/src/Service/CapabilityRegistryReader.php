@@ -115,17 +115,19 @@ final class CapabilityRegistryReader {
       return 'Opérationnel';
     }
     if (
+      str_contains($normalized, 'EXECUTION_PENDING')
+      || str_contains($normalized, 'DESIGN_ONLY')
+    ) {
+      return 'En préparation';
+    }
+    if (
       str_contains($normalized, 'EXECUTABLE')
       || str_contains($normalized, 'PROVISIONED')
       || str_contains($normalized, 'SOURCE_IMPLEMENTED')
     ) {
       return 'Prêt';
     }
-    if (
-      str_contains($normalized, 'EXECUTION_PENDING')
-      || str_contains($normalized, 'SYNTHETICALLY_PROVEN')
-      || str_contains($normalized, 'DESIGN_ONLY')
-    ) {
+    if (str_contains($normalized, 'SYNTHETICALLY_PROVEN')) {
       return 'En préparation';
     }
 

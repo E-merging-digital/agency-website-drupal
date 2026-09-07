@@ -20,6 +20,10 @@ final class OperationsController extends ControllerBase {
 
   private const REPOSITORY_URL = 'https://github.com/E-merging-digital/agency-website-drupal';
 
+  private const COCKPIT_PLAN_ISSUE_TITLE = '[Ops][PLAN] Prepare PREPROD refresh PLAN';
+
+  private const COCKPIT_PLAN_AUTHORITY_MARKER = 'AGENCY_PREPROD_COCKPIT_PLAN_AUTHORITY={"authorized_actor":"E-merging-digital","implementation_issue":914,"mode":"PLAN","parent_issue":816,"profile_id":"agency-preprod-refresh-simple-v1","run_attempt":1,"schema_version":1}';
+
   public function __construct(
     private readonly CapabilityRegistryReader $capabilityRegistry,
     private readonly EditorialLanguageReadinessInterface $languageReadiness,
@@ -154,6 +158,7 @@ final class OperationsController extends ControllerBase {
       ],
     ];
 
+    $planAuthorityUrl = $this->cockpitPlanAuthorityUrl();
     $build['preprod_data_summary'] = [
       '#type' => 'table',
       '#caption' => $this->t('PREPROD data'),
@@ -167,13 +172,10 @@ final class OperationsController extends ControllerBase {
         [
           $this->t('Refresh PREPROD'),
           $this->humanStatusLabel($refresh['human_status_key'] ?? NULL),
-          $this->t('Refresh is available under explicit authorization. PLAN is preparation and analysis only. APPLY is not available from this cockpit.'),
+          $this->t('PLAN is preparation and analysis only. Opening the GitHub draft does not authorize or execute anything; authority exists only after you review and submit the new issue in GitHub. APPLY is not available from this cockpit.'),
           Link::fromTextAndUrl(
-            $this->t('View the governed PLAN procedure'),
-            Url::fromUri(
-              self::REPOSITORY_URL
-              . '/blob/main/docs/operations/preproduction-refresh-governed-successor.md',
-            ),
+            $this->t('Prepare PREPROD PLAN'),
+            $planAuthorityUrl,
           )->toString(),
         ],
       ],
@@ -226,7 +228,7 @@ final class OperationsController extends ControllerBase {
       '#type' => 'item',
       '#title' => $this->t('Control-plane boundary'),
       '#markup' => $this->t(
-        'This cockpit remains a read-only control-plane facade. Existing governed workflows and runners remain the execution plane. PREPROD PLAN requires separate manual GitHub authority; this cockpit does not request PLAN, APPLY or any PROD/PREPROD mutation.',
+        'This cockpit remains a read-only control-plane facade. Existing governed workflows and runners remain the execution plane. The PREPROD PLAN action only opens a prefilled GitHub new-issue page; Drupal does not create the issue, post a trigger or dispatch a workflow.',
       ),
     ];
     $build['technical_details']['environments'] = [
@@ -353,7 +355,7 @@ final class OperationsController extends ControllerBase {
         '#type' => 'item',
         '#title' => $this->t('Authorization'),
         '#markup' => $this->t(
-          'Manual GitHub authorization is required through the existing governed #914 authority contract. This page does not create an authority issue, post a trigger or dispatch a workflow.',
+          'Human authority remains in the GitHub UI. The cockpit only prepares a fixed PLAN-only issue draft; you must review it and click Submit new issue in GitHub before any PLAN can be authorized.',
         ),
       ],
       'procedure' => [
@@ -580,6 +582,38 @@ final class OperationsController extends ControllerBase {
     }
 
     return NULL;
+  }
+
+  /**
+   * Builds the fixed GitHub new-issue draft for human PLAN authority.
+   */
+  private function cockpitPlanAuthorityUrl(): Url {
+    $body = implode("\n", [
+      'Parent: #816',
+      '',
+      '## Cockpit PREPROD PLAN authority',
+      '',
+      'This issue authorizes one PLAN against the live main resolved when the issue is opened.',
+      '',
+      'PLAN = analysis / preparation only',
+      'NO DATA MUTATION',
+      'APPLY = NOT AUTHORIZED',
+      '',
+      self::COCKPIT_PLAN_AUTHORITY_MARKER,
+      '',
+    ]);
+
+    return Url::fromUri(self::REPOSITORY_URL . '/issues/new', [
+      'query' => [
+        'title' => self::COCKPIT_PLAN_ISSUE_TITLE,
+        'body' => $body,
+        'labels' => 'Task,P1,status:in-progress',
+      ],
+      'attributes' => [
+        'target' => '_blank',
+        'rel' => 'noopener noreferrer',
+      ],
+    ]);
   }
 
   /**

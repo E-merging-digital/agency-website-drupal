@@ -1,0 +1,239 @@
+name: '#1065 Immutable PREPROD Browser Validation'
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: read
+
+concurrency:
+  group: agency-preproduction-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate exact active PREPROD candidate with existing Browser contract
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+          && github.actor == 'E-merging-digital'
+          && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      EXPECTED_OWNER: E-merging-digital
+      EXPECTED_CANDIDATE_SHA: 0b25e70d37fd08ff00fb058ed31e191f73d84923
+      EXPECTED_DEPLOY_RUN: '34066196313'
+      CONTRACT_PATH: tests/browser/contracts/homepage-brand-1059-preprod.json
+      PREPROD_URL: https://preprod.emergingdigital.be
+
+    steps:
+      - name: Authorize fixed #1065 immutable validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.event_name }}' = 'workflow_dispatch'
+          test '${{ github.actor }}' = "$EXPECTED_OWNER"
+          test '${{ github.ref }}' = 'refs/heads/main'
+          [[ "$EXPECTED_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_DEPLOY_RUN" =~ ^[0-9]+$ ]]
+          test "$CONTRACT_PATH" = 'tests/browser/contracts/homepage-brand-1059-preprod.json'
+
+          issue_json="$RUNNER_TEMP/issue-1065.json"
+          gh api "repos/$REPO/issues/1065" > "$issue_json"
+          test "$(jq -r '.state' "$issue_json")" = 'open'
+          test "$(jq -r '.user.login' "$issue_json")" = "$EXPECTED_OWNER"
+          test "$(jq -r 'has("pull_request")' "$issue_json")" = 'false'
+
+      - name: Verify exact successful PREPROD deployment run
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_json="$RUNNER_TEMP/preprod-run.json"
+          gh api "repos/$REPO/actions/runs/$EXPECTED_DEPLOY_RUN" > "$run_json"
+          test "$(jq -r '.path' "$run_json")" = '.github/workflows/deploy-preproduction.yml'
+          test "$(jq -r '.event' "$run_json")" = 'workflow_run'
+          test "$(jq -r '.status' "$run_json")" = 'completed'
+          test "$(jq -r '.conclusion' "$run_json")" = 'success'
+          test "$(jq -r '.head_sha' "$run_json")" = "$EXPECTED_CANDIDATE_SHA"
+          test "$(jq -r '.head_repository.full_name' "$run_json")" = "$REPO"
+          test "$(jq -r '.run_attempt' "$run_json")" = '1'
+
+      - name: Checkout exact deployed candidate Browser sources
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.EXPECTED_CANDIDATE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify bounded existing Browser contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_CANDIDATE_SHA"
+          test -f scripts/run-browser-validation.mjs
+          test -f playwright.config.mjs
+          test -f "$CONTRACT_PATH"
+          jq -e '.id == "homepage-brand-1059-preprod" and .target == "/fr" and .target_en == "/en"' "$CONTRACT_PATH" >/dev/null
+          grep -Fq "'homepage-brand-1059-preprod.json': '**/homepage-brand-1059-preprod.spec.mjs'" playwright.config.mjs
+          grep -Fq 'Unsupported BROWSER_VALIDATION_CONTRACT' playwright.config.mjs
+
+      - name: Download exact PREPROD deployment evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: agency-preproduction-evidence-${{ env.EXPECTED_CANDIDATE_SHA }}-${{ env.EXPECTED_DEPLOY_RUN }}
+          path: artifacts/preproduction-proof
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ env.EXPECTED_DEPLOY_RUN }}
+
+      - name: Bind deployment evidence to exact immutable candidate
+        id: evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof='artifacts/preproduction-proof'
+          mapfile -t deploy_results < <(find "$proof" -type f -path '*/preproduction-deploy/result.env' -print)
+          mapfile -t deploy_evidence_files < <(find "$proof" -type f -path '*/preproduction-deploy/deployment-evidence.env' -print)
+          test "${#deploy_results[@]}" -eq 1
+          test "${#deploy_evidence_files[@]}" -eq 1
+          deploy_result="${deploy_results[0]}"
+          deploy_evidence="${deploy_evidence_files[0]}"
+
+          grep -Fxq "expected_sha=$EXPECTED_CANDIDATE_SHA" "$deploy_result"
+          grep -Fxq 'outcome=SUCCESS' "$deploy_result"
+          grep -Fxq 'exit_code=0' "$deploy_result"
+          grep -Fxq "candidate_sha=$EXPECTED_CANDIDATE_SHA" "$deploy_evidence"
+          grep -Fxq 'governed_content=PASS' "$deploy_evidence"
+
+          artifact_sha="$(sed -n 's/^artifact_sha256=//p' "$deploy_evidence" | head -n 1)"
+          composer_sha="$(sed -n 's/^composer_lock_sha256=//p' "$deploy_evidence" | head -n 1)"
+          source_branch="$(sed -n 's/^source_branch=//p' "$deploy_evidence" | head -n 1)"
+          release_path="$(sed -n 's/^release_path=//p' "$deploy_evidence" | head -n 1)"
+          artifact_archive="$(sed -n 's/^artifact_archive=//p' "$deploy_evidence" | head -n 1)"
+          deployed_at="$(sed -n 's/^deployed_at=//p' "$deploy_evidence" | head -n 1)"
+          expected_prefix="${EXPECTED_CANDIDATE_SHA:0:12}"
+
+          [[ "$artifact_sha" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$composer_sha" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$source_branch" == release/* ]]
+          [[ "$(basename "$release_path")" =~ ^[0-9]{14}-[0-9a-f]{12}$ ]]
+          [[ "$release_path" == "/var/www/agency-preprod/releases/$(basename "$release_path")" ]]
+          [[ "$release_path" == *-"$expected_prefix" ]]
+          test "$artifact_archive" = "/var/www/agency-preprod/shared/artifacts/$EXPECTED_CANDIDATE_SHA/$artifact_sha"
+          [[ "$deployed_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+          grep -Fxq "expected_artifact_sha256=$artifact_sha" "$deploy_result"
+
+          identity='artifacts/immutable-preprod-browser-1065/identity.env'
+          mkdir -p "$(dirname "$identity")"
+          {
+            printf 'expected_candidate_sha=%s\n' "$EXPECTED_CANDIDATE_SHA"
+            printf 'expected_deploy_run=%s\n' "$EXPECTED_DEPLOY_RUN"
+            printf 'artifact_sha256=%s\n' "$artifact_sha"
+            printf 'composer_lock_sha256=%s\n' "$composer_sha"
+            printf 'source_branch=%s\n' "$source_branch"
+            printf 'release_path=%s\n' "$release_path"
+            printf 'deployed_at=%s\n' "$deployed_at"
+            printf 'deploy_evidence=MATCH\n'
+            printf 'content_mutation=NONE\n'
+            printf 'deployment=NONE\n'
+            printf 'prod=NONE\n'
+          } > "$identity"
+
+          echo "release_path=$release_path" >> "$GITHUB_OUTPUT"
+          echo "artifact_sha=$artifact_sha" >> "$GITHUB_OUTPUT"
+          echo "composer_sha=$composer_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Materialize PREPROD SSH identity after evidence match
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fxq 'deploy_evidence=MATCH' artifacts/immutable-preprod-browser-1065/identity.env
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          [[ "$PREPROD_SERVER_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/agency_preprod_ed25519
+          chmod 600 ~/.ssh/agency_preprod_ed25519
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+          echo "PREPROD_SSH_KEY=$HOME/.ssh/agency_preprod_ed25519" >> "$GITHUB_ENV"
+
+      - name: Prove exact active PREPROD release read-only
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          EXPECTED_RELEASE_PATH: ${{ steps.evidence.outputs.release_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_RELEASE_PATH"
+          [[ "$EXPECTED_RELEASE_PATH" == /var/www/agency-preprod/releases/* ]]
+          ssh_common=(
+            -i "$PREPROD_SSH_KEY"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          remote_target="agency-preprod@$PREPROD_SERVER_HOST"
+          active_release="$(ssh "${ssh_common[@]}" "$remote_target" \
+            "set -euo pipefail; test -L /var/www/agency-preprod/current; test -d '$EXPECTED_RELEASE_PATH'; readlink -f /var/www/agency-preprod/current")"
+          test "$active_release" = "$EXPECTED_RELEASE_PATH"
+          printf 'active_release=%s\n' "$active_release" >> artifacts/immutable-preprod-browser-1065/identity.env
+          printf 'active_release_binding=MATCH\n' >> artifacts/immutable-preprod-browser-1065/identity.env
+
+      - name: Setup Node for existing Browser Validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Run existing #1059 Browser contract against proven active PREPROD
+        env:
+          BROWSER_VALIDATION_BASE_URL: ${{ env.PREPROD_URL }}
+          BROWSER_VALIDATION_CONTRACT: ${{ env.CONTRACT_PATH }}
+          BROWSER_VALIDATION_HTTP_USERNAME: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          BROWSER_VALIDATION_HTTP_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fxq 'deploy_evidence=MATCH' artifacts/immutable-preprod-browser-1065/identity.env
+          grep -Fxq 'active_release_binding=MATCH' artifacts/immutable-preprod-browser-1065/identity.env
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run browser:validate
+          jq -e '.contract == "homepage-brand-1059-preprod"
+            and .result == "PASS"
+            and .functional == "PASS"
+            and .dom == "PASS"
+            and .visual_desktop == "PASS"
+            and .visual_mobile == "PASS"
+            and .console_errors == 0
+            and .page_errors == 0
+            and .unexpected_http_4xx == 0
+            and .http_5xx == 0
+            and .failed_requests == 0' artifacts/browser-validation/result.json >/dev/null
+          printf 'contract_binding=MATCH\n' >> artifacts/immutable-preprod-browser-1065/identity.env
+          printf 'browser_validation=PASS\n' >> artifacts/immutable-preprod-browser-1065/identity.env
+
+      - name: Upload immutable PREPROD Browser evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: immutable-preprod-browser-1065-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/immutable-preprod-browser-1065
+            artifacts/preproduction-proof
+            artifacts/browser-validation
+          if-no-files-found: warn
+          retention-days: 30

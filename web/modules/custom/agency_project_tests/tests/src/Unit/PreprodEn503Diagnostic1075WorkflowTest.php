@@ -123,7 +123,7 @@ final class PreprodEn503Diagnostic1075WorkflowTest extends TestCase {
     $runner = $this->source(self::RUNNER);
 
     self::assertStringContainsString(
-      '/var/www/agency-preprod/releases/20260906233627-0cfc408a0be1',
+      '/var/www/agency-preprod/releases/20260907172731-d07994a2c54b',
       $runner,
     );
     self::assertStringContainsString(

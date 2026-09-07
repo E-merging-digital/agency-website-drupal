@@ -135,6 +135,7 @@ final class PreproductionHostBootstrapTest extends TestCase {
     foreach ([
       'workflow_run:',
       'Build Agency release candidate',
+      'group: agency-preproduction-deploy',
       "startsWith(github.event.workflow_run.head_branch, 'release/')",
       'agency-release-candidate-${{ github.event.workflow_run.head_sha }}',
       'for endpoint in live ready',
@@ -212,6 +213,7 @@ final class PreproductionHostBootstrapTest extends TestCase {
       'EXPECTED_CANDIDATE_SHA: 0b25e70d37fd08ff00fb058ed31e191f73d84923',
       "EXPECTED_DEPLOY_RUN: '34066196313'",
       'CONTRACT_PATH: tests/browser/contracts/homepage-brand-1059-preprod.json',
+      'group: agency-preproduction-deploy',
       '.github/workflows/deploy-preproduction.yml',
       'agency-preproduction-evidence-${{ env.EXPECTED_CANDIDATE_SHA }}-${{ env.EXPECTED_DEPLOY_RUN }}',
       'candidate_sha=$EXPECTED_CANDIDATE_SHA',

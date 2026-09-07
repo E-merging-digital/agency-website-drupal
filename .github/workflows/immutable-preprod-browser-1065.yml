@@ -2,6 +2,15 @@ name: '#1065 Immutable PREPROD Browser Validation'
 
 on:
   workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: 'Exact 40-character lowercase hexadecimal candidate SHA'
+        required: true
+        type: string
+      deploy_run:
+        description: 'Exact numeric Deploy PREPRODUCTION workflow run ID'
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -25,8 +34,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
       EXPECTED_OWNER: E-merging-digital
-      EXPECTED_CANDIDATE_SHA: 0b25e70d37fd08ff00fb058ed31e191f73d84923
-      EXPECTED_DEPLOY_RUN: '34066196313'
+      EXPECTED_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      EXPECTED_DEPLOY_RUN: ${{ inputs.deploy_run }}
       CONTRACT_PATH: tests/browser/contracts/homepage-brand-1059-preprod.json
       PREPROD_URL: https://preprod.emergingdigital.be
 

@@ -4,11 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\agency_operations\Service;
 
-use DateTimeImmutable;
 use GuzzleHttp\ClientInterface;
-use JsonException;
-use RuntimeException;
-use Throwable;
 
 /**
  * Reads trusted Cockpit PLAN receipts from the public GitHub REST API.
@@ -16,6 +12,8 @@ use Throwable;
 final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterface {
 
   private const API_BASE = 'https://api.github.com/repos/E-merging-digital/agency-website-drupal';
+
+  private const WEB_BASE = 'https://github.com/E-merging-digital/agency-website-drupal';
 
   private const REPOSITORY = 'E-merging-digital/agency-website-drupal';
 
@@ -57,6 +55,9 @@ final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterfac
     'completed_at',
   ];
 
+  /**
+   * Number of public GitHub requests used by the current read.
+   */
   private int $requestCount = 0;
 
   public function __construct(
@@ -120,13 +121,15 @@ final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterfac
         'jit_main_revalidation' => $receipt['jit_main_revalidation'],
         'mutation' => 'NONE',
         'apply' => 'NOT_AUTHORIZED',
-        'authority_url' => 'https://github.com/' . self::REPOSITORY
-          . '/issues/' . $receipt['authority_issue'],
-        'run_url' => 'https://github.com/' . self::REPOSITORY
-          . '/actions/runs/' . $receipt['dispatch_run'],
+        'authority_url' => $this->webUrl(
+          '/issues/' . $receipt['authority_issue'],
+        ),
+        'run_url' => $this->webUrl(
+          '/actions/runs/' . $receipt['dispatch_run'],
+        ),
       ];
     }
-    catch (Throwable) {
+    catch (\Throwable) {
       return $this->unavailable();
     }
   }
@@ -208,7 +211,7 @@ final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterfac
         JSON_THROW_ON_ERROR,
       );
     }
-    catch (JsonException) {
+    catch (\JsonException) {
       return NULL;
     }
 
@@ -301,12 +304,12 @@ final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterfac
       || ($parts['scheme'] ?? NULL) !== 'https'
       || ($parts['host'] ?? NULL) !== 'api.github.com'
       || !str_starts_with($url, self::API_BASE . '/')) {
-      throw new RuntimeException('Unexpected GitHub endpoint.');
+      throw new \RuntimeException('Unexpected GitHub endpoint.');
     }
 
     $this->requestCount++;
     if ($this->requestCount > self::MAX_REQUESTS) {
-      throw new RuntimeException('GitHub request budget exceeded.');
+      throw new \RuntimeException('GitHub request budget exceeded.');
     }
 
     $response = $this->httpClient->request('GET', $url, [
@@ -322,7 +325,7 @@ final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterfac
       ],
     ]);
     if ($response->getStatusCode() !== 200) {
-      throw new RuntimeException('GitHub evidence is unavailable.');
+      throw new \RuntimeException('GitHub evidence is unavailable.');
     }
 
     try {
@@ -333,12 +336,12 @@ final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterfac
         JSON_THROW_ON_ERROR,
       );
     }
-    catch (JsonException $exception) {
-      throw new RuntimeException('Invalid GitHub JSON.', 0, $exception);
+    catch (\JsonException $exception) {
+      throw new \RuntimeException('Invalid GitHub JSON.', 0, $exception);
     }
 
     if (!is_array($decoded)) {
-      throw new RuntimeException('Unexpected GitHub response shape.');
+      throw new \RuntimeException('Unexpected GitHub response shape.');
     }
 
     return $decoded;
@@ -360,8 +363,15 @@ final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterfac
       return FALSE;
     }
 
-    $date = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s\Z', $value);
+    $date = \DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s\Z', $value);
     return $date !== FALSE && $date->format('Y-m-d\TH:i:s\Z') === $value;
+  }
+
+  /**
+   * Builds one fixed repository web URL.
+   */
+  private function webUrl(string $path): string {
+    return self::WEB_BASE . $path;
   }
 
   /**
@@ -374,9 +384,10 @@ final class CockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterfac
       'plan_result' => 'NOT_INFERRED',
       'apply' => 'NOT_AUTHORIZED',
       'mutation' => 'NOT_INFERRED',
-      'authority_url' => 'https://github.com/' . self::REPOSITORY . '/issues',
-      'run_url' => 'https://github.com/' . self::REPOSITORY
-        . '/actions/workflows/preprod-914-governed-successor.yml',
+      'authority_url' => $this->webUrl('/issues'),
+      'run_url' => $this->webUrl(
+        '/actions/workflows/preprod-914-governed-successor.yml',
+      ),
     ];
   }
 

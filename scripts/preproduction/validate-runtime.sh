@@ -59,6 +59,35 @@ if ($guard->allowsExternalCalls()) {
 }
 '
 
+status_report_titles=''
+if ! status_report_titles="$(
+  "$DRUSH" --quiet core:requirements --severity=2 --field=title 2>/dev/null
+)"; then
+  printf 'DRUPAL_STATUS_REPORT=FAIL\n'
+  printf 'DRUPAL_STATUS_ERROR_COUNT=UNKNOWN\n'
+  fail "Drupal Status Report could not be evaluated."
+fi
+
+drupal_status_error_count="$(
+  printf '%s\n' "$status_report_titles" |
+    awk 'NF { count++ } END { print count + 0 }'
+)"
+
+if (( drupal_status_error_count > 0 )); then
+  printf 'DRUPAL_STATUS_REPORT=FAIL\n'
+  printf 'DRUPAL_STATUS_ERROR_COUNT=%s\n' "$drupal_status_error_count"
+  error_index=0
+  while IFS= read -r title; do
+    [[ "$title" =~ [^[:space:]] ]] || continue
+    error_index=$((error_index + 1))
+    (( error_index <= 10 )) || break
+    bounded_title="$(printf '%s' "$title" | tr '\r\t' '  ' | cut -c1-160)"
+    printf 'DRUPAL_STATUS_ERROR_%02d=%s\n' "$error_index" "$bounded_title"
+  done <<< "$status_report_titles"
+  fail "Drupal Status Report contains error-severity requirements."
+fi
+unset status_report_titles
+
 sendmail_path="$(php8.4 -r 'echo (string) ini_get("sendmail_path");')"
 [[ "$sendmail_path" == "/bin/true" ]] || fail "PHP CLI sendmail_path is not /bin/true."
 
@@ -86,6 +115,8 @@ printf 'linkchecker_base_path=PREPROD\n'
 printf 'openai_key=ABSENT\n'
 printf 'external_ai_egress=BLOCKED\n'
 printf 'normal_openai_egress=ZERO_BY_POLICY\n'
+printf 'DRUPAL_STATUS_REPORT=PASS\n'
+printf 'DRUPAL_STATUS_ERROR_COUNT=0\n'
 printf 'cpu_count=%s\n' "$cpu_count"
 printf 'mem_total_bytes=%s\n' "$mem_total_bytes"
 printf 'mem_available_bytes=%s\n' "$mem_available_bytes"

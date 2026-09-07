@@ -207,11 +207,23 @@ final class PreproductionHostBootstrapTest extends TestCase {
     self::assertFileExists($path);
 
     $workflow = (string) file_get_contents($path);
-    self::assertIsArray(DrupalYaml::decode($workflow));
+    $decoded = DrupalYaml::decode($workflow);
+    self::assertIsArray($decoded);
+
+    $inputs = $decoded['on']['workflow_dispatch']['inputs'] ?? NULL;
+    self::assertIsArray($inputs);
+    self::assertSame(['candidate_sha', 'deploy_run'], array_keys($inputs));
+    foreach (['candidate_sha', 'deploy_run'] as $input) {
+      self::assertTrue($inputs[$input]['required'] ?? FALSE);
+      self::assertSame('string', $inputs[$input]['type'] ?? NULL);
+      self::assertArrayNotHasKey('default', $inputs[$input]);
+    }
 
     foreach ([
-      'EXPECTED_CANDIDATE_SHA: 0b25e70d37fd08ff00fb058ed31e191f73d84923',
-      "EXPECTED_DEPLOY_RUN: '34066196313'",
+      'EXPECTED_CANDIDATE_SHA: ${{ inputs.candidate_sha }}',
+      'EXPECTED_DEPLOY_RUN: ${{ inputs.deploy_run }}',
+      '[[ "$EXPECTED_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]',
+      '[[ "$EXPECTED_DEPLOY_RUN" =~ ^[0-9]+$ ]]',
       'CONTRACT_PATH: tests/browser/contracts/homepage-brand-1059-preprod.json',
       'group: agency-preproduction-deploy',
       '.github/workflows/deploy-preproduction.yml',
@@ -243,7 +255,8 @@ final class PreproductionHostBootstrapTest extends TestCase {
       'scp ',
       'secrets.PROD_SERVER_HOST',
       'secrets.PROD_SSH_PRIVATE_KEY',
-      'inputs:',
+      'EXPECTED_CANDIDATE_SHA: 0b25e70d37fd08ff00fb058ed31e191f73d84923',
+      "EXPECTED_DEPLOY_RUN: '34066196313'",
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $workflow);
     }

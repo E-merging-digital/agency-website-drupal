@@ -46,9 +46,18 @@ final class OperationsController extends ControllerBase {
     $registry = $this->capabilityRegistry->read();
     $runtime = $this->runtimeMetadata->read();
     $requiredLanguages = $this->languageReadiness->getRequiredLanguages();
-    $refresh = $this->findCapability($registry, 'PROD -> PREPROD sanitized DB refresh');
-    $editorial = $this->findCapability($registry, 'Editorial Candidate PREPROD');
-    $developmentSeed = $this->findCapability($registry, 'Development Seed publisher/distribution');
+    $refresh = $this->findCapability(
+      $registry,
+      'PROD -> PREPROD sanitized DB refresh',
+    );
+    $editorial = $this->findCapability(
+      $registry,
+      'Editorial Candidate PREPROD',
+    );
+    $developmentSeed = $this->findCapability(
+      $registry,
+      'Development Seed publisher/distribution',
+    );
 
     $build = [];
     $build['overview'] = [
@@ -59,22 +68,26 @@ final class OperationsController extends ControllerBase {
       ),
     ];
 
+    if ($runtime['release_available']) {
+      $runtimeMarkup = $this->t(
+        '@environment — release @release (freshness: @freshness).',
+        [
+          '@environment' => $runtime['environment'],
+          '@release' => $runtime['release_identity'],
+          '@freshness' => $runtime['freshness'],
+        ],
+      );
+    }
+    else {
+      $runtimeMarkup = $this->t(
+        '@environment — the current runtime does not expose a release identity from its local release path.',
+        ['@environment' => $runtime['environment']],
+      );
+    }
     $build['runtime'] = [
       '#type' => 'item',
       '#title' => $this->t('Current runtime'),
-      '#markup' => $runtime['release_available']
-        ? $this->t(
-          '@environment — release @release (freshness: @freshness).',
-          [
-            '@environment' => $runtime['environment'],
-            '@release' => $runtime['release_identity'],
-            '@freshness' => $runtime['freshness'],
-          ],
-        )
-        : $this->t(
-          '@environment — the current runtime does not expose a release identity from its local release path.',
-          ['@environment' => $runtime['environment']],
-        ),
+      '#markup' => $runtimeMarkup,
     ];
 
     $build['environments'] = [
@@ -96,6 +109,20 @@ final class OperationsController extends ControllerBase {
         '@code' => $code,
       ]);
     }
+    $languageStatus = $requiredLanguages === []
+      ? CapabilityRegistryReader::STATUS_BLOCKED
+      : CapabilityRegistryReader::STATUS_READY;
+    if ($languageNames === []) {
+      $languageSummary = $this->t(
+        'No configurable site language is available; publication readiness fails closed.',
+      );
+    }
+    else {
+      $languageSummary = $this->t(
+        '@languages are required for publication readiness.',
+        ['@languages' => implode(', ', array_map('strval', $languageNames))],
+      );
+    }
     $build['content_summary'] = [
       '#type' => 'table',
       '#caption' => $this->t('Content'),
@@ -108,17 +135,8 @@ final class OperationsController extends ControllerBase {
       '#rows' => [
         [
           $this->t('Content languages'),
-          $this->humanStatusLabel(
-            $requiredLanguages === []
-              ? CapabilityRegistryReader::STATUS_BLOCKED
-              : CapabilityRegistryReader::STATUS_READY,
-          ),
-          $languageNames === []
-            ? $this->t('No configurable site language is available; publication readiness fails closed.')
-            : $this->t(
-              '@languages are required for publication readiness.',
-              ['@languages' => implode(', ', array_map('strval', $languageNames))],
-            ),
+          $this->humanStatusLabel($languageStatus),
+          $languageSummary,
           Link::fromTextAndUrl(
             $this->t('Open editorial language readiness'),
             Url::fromRoute('agency_operations.editorial'),
@@ -152,7 +170,10 @@ final class OperationsController extends ControllerBase {
           $this->t('Refresh is available under explicit authorization. PLAN is preparation and analysis only. APPLY is not available from this cockpit.'),
           Link::fromTextAndUrl(
             $this->t('View the governed PLAN procedure'),
-            Url::fromUri(self::REPOSITORY_URL . '/blob/main/docs/operations/preproduction-refresh-governed-successor.md'),
+            Url::fromUri(
+              self::REPOSITORY_URL
+              . '/blob/main/docs/operations/preproduction-refresh-governed-successor.md',
+            ),
           )->toString(),
         ],
       ],
@@ -170,11 +191,16 @@ final class OperationsController extends ControllerBase {
       '#rows' => [
         [
           $this->t('Development Seed'),
-          $this->humanStatusLabel($developmentSeed['human_status_key'] ?? NULL),
+          $this->humanStatusLabel(
+            $developmentSeed['human_status_key'] ?? NULL,
+          ),
           $this->t('Development data remains pull-only from a sanitized PREPROD source. This cockpit does not generate or push a seed.'),
           Link::fromTextAndUrl(
             $this->t('Open Development Seed runs'),
-            Url::fromUri(self::REPOSITORY_URL . '/actions/workflows/development-seed-publish.yml'),
+            Url::fromUri(
+              self::REPOSITORY_URL
+              . '/actions/workflows/development-seed-publish.yml',
+            ),
           )->toString(),
         ],
       ],
@@ -225,7 +251,11 @@ final class OperationsController extends ControllerBase {
     $build['technical_details']['languages'] = [
       '#type' => 'table',
       '#caption' => $this->t('Required public content languages'),
-      '#header' => [$this->t('Code'), $this->t('Language'), $this->t('Required')],
+      '#header' => [
+        $this->t('Code'),
+        $this->t('Language'),
+        $this->t('Required'),
+      ],
       '#rows' => array_map(
         fn (string $name, string $code): array => [
           $code,
@@ -298,7 +328,9 @@ final class OperationsController extends ControllerBase {
       'status' => [
         '#type' => 'item',
         '#title' => $this->t('Status'),
-        '#markup' => $this->humanStatusLabel($refresh['human_status_key'] ?? NULL),
+        '#markup' => $this->humanStatusLabel(
+          $refresh['human_status_key'] ?? NULL,
+        ),
       ],
       'technical_status' => [
         '#type' => 'item',
@@ -308,7 +340,9 @@ final class OperationsController extends ControllerBase {
       'plan' => [
         '#type' => 'item',
         '#title' => 'PLAN',
-        '#markup' => $this->t('Metadata/readiness analysis only; no PROD data transfer and no PREPROD database mutation.'),
+        '#markup' => $this->t(
+          'Metadata/readiness analysis only; no PROD data transfer and no PREPROD database mutation.',
+        ),
       ],
       'apply' => [
         '#type' => 'item',
@@ -318,19 +352,33 @@ final class OperationsController extends ControllerBase {
       'authority' => [
         '#type' => 'item',
         '#title' => $this->t('Authorization'),
-        '#markup' => $this->t('Manual GitHub authorization is required through the existing governed #914 authority contract. This page does not create an authority issue, post a trigger or dispatch a workflow.'),
+        '#markup' => $this->t(
+          'Manual GitHub authorization is required through the existing governed #914 authority contract. This page does not create an authority issue, post a trigger or dispatch a workflow.',
+        ),
       ],
       'procedure' => [
         '#type' => 'link',
         '#title' => $this->t('View the governed PLAN procedure'),
-        '#url' => Url::fromUri(self::REPOSITORY_URL . '/blob/main/docs/operations/preproduction-refresh-governed-successor.md'),
-        '#attributes' => ['target' => '_blank', 'rel' => 'noopener noreferrer'],
+        '#url' => Url::fromUri(
+          self::REPOSITORY_URL
+          . '/blob/main/docs/operations/preproduction-refresh-governed-successor.md',
+        ),
+        '#attributes' => [
+          'target' => '_blank',
+          'rel' => 'noopener noreferrer',
+        ],
       ],
       'evidence' => [
         '#type' => 'link',
         '#title' => $this->t('View authoritative refresh runs'),
-        '#url' => Url::fromUri(self::REPOSITORY_URL . '/actions/workflows/preprod-914-governed-successor.yml'),
-        '#attributes' => ['target' => '_blank', 'rel' => 'noopener noreferrer'],
+        '#url' => Url::fromUri(
+          self::REPOSITORY_URL
+          . '/actions/workflows/preprod-914-governed-successor.yml',
+        ),
+        '#attributes' => [
+          'target' => '_blank',
+          'rel' => 'noopener noreferrer',
+        ],
       ],
     ];
 
@@ -378,7 +426,9 @@ final class OperationsController extends ControllerBase {
     ];
     $build['technical_details']['history_boundary'] = [
       '#type' => 'item',
-      '#markup' => $this->t('Evidence remains in GitHub workflows, issues and existing receipts. V3 creates no history table, entity or second receipt store.'),
+      '#markup' => $this->t(
+        'Evidence remains in GitHub workflows, issues and existing receipts. V3 creates no history table, entity or second receipt store.',
+      ),
     ];
 
     $build['technical_details']['native_audit'] = [
@@ -392,22 +442,30 @@ final class OperationsController extends ControllerBase {
       '#rows' => [
         [
           'Content Translation',
-          $this->agencyModuleHandler->moduleExists('content_translation') ? 'ENABLED' : 'DISABLED',
+          $this->agencyModuleHandler->moduleExists('content_translation')
+            ? 'ENABLED'
+            : 'DISABLED',
           'REUSE NOW',
         ],
         [
           'Content Moderation',
-          $this->agencyModuleHandler->moduleExists('content_moderation') ? 'ENABLED' : 'DISABLED',
+          $this->agencyModuleHandler->moduleExists('content_moderation')
+            ? 'ENABLED'
+            : 'DISABLED',
           'REUSE_LATER — do not duplicate candidate authority',
         ],
         [
           'Workflows',
-          $this->agencyModuleHandler->moduleExists('workflows') ? 'ENABLED' : 'DISABLED',
+          $this->agencyModuleHandler->moduleExists('workflows')
+            ? 'ENABLED'
+            : 'DISABLED',
           'REUSE_LATER with Content Moderation if a material UX need is proven',
         ],
         [
           'Workspaces',
-          $this->agencyModuleHandler->moduleExists('workspaces') ? 'ENABLED' : 'DISABLED',
+          $this->agencyModuleHandler->moduleExists('workspaces')
+            ? 'ENABLED'
+            : 'DISABLED',
           'REUSE_LATER — same-environment grouping only, never environment transport',
         ],
         [
@@ -502,7 +560,9 @@ final class OperationsController extends ControllerBase {
       CapabilityRegistryReader::STATUS_READY => $this->t('Ready'),
       CapabilityRegistryReader::STATUS_PREPARING => $this->t('Preparing'),
       CapabilityRegistryReader::STATUS_BLOCKED => $this->t('Blocked'),
-      CapabilityRegistryReader::STATUS_HUMAN_ACTION_REQUIRED => $this->t('Human action required'),
+      CapabilityRegistryReader::STATUS_HUMAN_ACTION_REQUIRED => $this->t(
+        'Human action required',
+      ),
       default => $this->t('Unavailable'),
     };
   }
@@ -529,7 +589,7 @@ final class OperationsController extends ControllerBase {
     $rows = [];
     foreach ($this->evidenceDefinitions() as $definition) {
       $rows[] = [
-        $this->t($definition['label']),
+        $definition['label'],
         Link::fromTextAndUrl(
           $this->t('Open recent evidence'),
           Url::fromUri($definition['runs']),
@@ -551,7 +611,7 @@ final class OperationsController extends ControllerBase {
     $rows = [];
     foreach ($this->evidenceDefinitions() as $definition) {
       $rows[] = [
-        $this->t($definition['label']),
+        $definition['label'],
         $definition['authority'],
         Link::fromTextAndUrl(
           $this->t('Open runs'),
@@ -576,27 +636,31 @@ final class OperationsController extends ControllerBase {
   private function evidenceDefinitions(): array {
     return [
       [
-        'label' => 'Code deployment',
+        'label' => (string) $this->t('Code deployment'),
         'authority' => 'release / promotion workflows',
-        'runs' => self::REPOSITORY_URL . '/actions/workflows/promote-production.yml',
+        'runs' => self::REPOSITORY_URL
+          . '/actions/workflows/promote-production.yml',
         'authority_url' => self::REPOSITORY_URL . '/issues/870',
       ],
       [
-        'label' => 'PREPROD refresh',
+        'label' => (string) $this->t('PREPROD refresh'),
         'authority' => '#914 / completed #816',
-        'runs' => self::REPOSITORY_URL . '/actions/workflows/preprod-914-governed-successor.yml',
+        'runs' => self::REPOSITORY_URL
+          . '/actions/workflows/preprod-914-governed-successor.yml',
         'authority_url' => self::REPOSITORY_URL . '/issues/914',
       ],
       [
-        'label' => 'Editorial candidate / promotion',
+        'label' => (string) $this->t('Editorial candidate / promotion'),
         'authority' => '#959 / #872',
-        'runs' => self::REPOSITORY_URL . '/actions/workflows/trusted-editorial-preprod-candidate.yml',
+        'runs' => self::REPOSITORY_URL
+          . '/actions/workflows/trusted-editorial-preprod-candidate.yml',
         'authority_url' => self::REPOSITORY_URL . '/issues/872',
       ],
       [
-        'label' => 'Development Seed',
+        'label' => (string) $this->t('Development Seed'),
         'authority' => '#873 / #956',
-        'runs' => self::REPOSITORY_URL . '/actions/workflows/development-seed-publish.yml',
+        'runs' => self::REPOSITORY_URL
+          . '/actions/workflows/development-seed-publish.yml',
         'authority_url' => self::REPOSITORY_URL . '/issues/873',
       ],
     ];

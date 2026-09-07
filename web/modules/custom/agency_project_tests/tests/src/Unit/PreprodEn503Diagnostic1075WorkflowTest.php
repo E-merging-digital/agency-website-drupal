@@ -219,6 +219,36 @@ final class PreprodEn503Diagnostic1075WorkflowTest extends TestCase {
   }
 
   /**
+   * Proves early failure receipt stays bounded and stage-specific.
+   */
+  public function testRunnerPersistsBoundedFailureReceipt(): void {
+    $runner = $this->source(self::RUNNER);
+
+    self::assertStringContainsString('trap on_exit EXIT', $runner);
+    self::assertStringContainsString('write_failure_receipt() {', $runner);
+    foreach ([
+      'INPUT_VALIDATION',
+      'ARTIFACT_PREPARATION',
+      'PREPROD_TRUST',
+      'RUNTIME_IDENTITY',
+      'EXTERNAL_HTTP_FR',
+      'EXTERNAL_HTTP_EN',
+      'LOCAL_HTTP',
+      'DRUPAL_STATE',
+      'DIAGNOSTIC_EVALUATION',
+      'RESULT_RECEIPT',
+    ] as $stage) {
+      self::assertStringContainsString("failure_stage='$stage'", $runner);
+    }
+
+    self::assertStringContainsString('"result": "FAILURE"', $runner);
+    self::assertStringContainsString('\"failure_stage\":', $runner);
+    self::assertStringContainsString('"root_cause": "NOT_YET_PROVEN"', $runner);
+    self::assertStringContainsString('"preprod_write": "NONE"', $runner);
+    self::assertStringContainsString('"prod_access": "NONE"', $runner);
+  }
+
+  /**
    * Proves the repository-owned diagnostic has no mutation capability.
    */
   public function testRunnerContainsNoRuntimeMutationSurface(): void {

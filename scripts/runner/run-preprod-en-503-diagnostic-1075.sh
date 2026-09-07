@@ -15,6 +15,36 @@ LOG_WINDOW_END='2026-09-07T14:32:55Z'
 PREPROD_TRUST_PROVISION='scripts/preproduction-ssh-trust/manage-known-host.sh'
 PREPROD_TRUST_VERIFY='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 
+failure_stage='INPUT_VALIDATION'
+
+write_failure_receipt() {
+  local failure_result="$ARTIFACT_DIR/result.json"
+  mkdir -p "$ARTIFACT_DIR" 2>/dev/null || return 0
+  printf '%s\n' \
+    '{' \
+    '  "schema_version": 1,' \
+    '  "target": "PREPROD",' \
+    '  "issue": 1075,' \
+    '  "result": "FAILURE",' \
+    "  \"failure_stage\": \"$failure_stage\"," \
+    '  "root_cause": "NOT_YET_PROVEN",' \
+    '  "preprod_write": "NONE",' \
+    '  "prod_access": "NONE"' \
+    '}' > "$failure_result"
+}
+
+on_exit() {
+  local exit_code="$?"
+  trap - EXIT
+  if [[ "$exit_code" -ne 0 ]]; then
+    set +e
+    write_failure_receipt
+  fi
+  exit "$exit_code"
+}
+
+trap on_exit EXIT
+
 [[ -n "$PREPROD_SERVER_HOST" ]]
 [[ "$PREPROD_SERVER_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
 [[ -f "$PREPROD_SSH_KEY" ]]
@@ -23,8 +53,10 @@ PREPROD_TRUST_VERIFY='scripts/preproduction-staging-import/verify-preprod-pinned
 [[ -f "$PREPROD_TRUST_PROVISION" ]]
 [[ -f "$PREPROD_TRUST_VERIFY" ]]
 
+failure_stage='ARTIFACT_PREPARATION'
 mkdir -p "$ARTIFACT_DIR"
 
+failure_stage='PREPROD_TRUST'
 PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
   bash "$PREPROD_TRUST_PROVISION" PROVISION >/dev/null
 PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
@@ -41,6 +73,7 @@ ssh_common=(
 )
 remote_target="agency-preprod@$PREPROD_SERVER_HOST"
 
+failure_stage='RUNTIME_IDENTITY'
 runtime_identity="$(
   ssh "${ssh_common[@]}" "$remote_target" 'bash -s' <<'REMOTE_RUNTIME'
 set -euo pipefail
@@ -216,9 +249,12 @@ PY
   rm -f -- "$body" "$headers" "$meta"
 }
 
+failure_stage='EXTERNAL_HTTP_FR'
 external_fr_json="$(probe_external external_fr '/fr')"
+failure_stage='EXTERNAL_HTTP_EN'
 external_en_json="$(probe_external external_en '/en')"
 
+failure_stage='LOCAL_HTTP'
 local_http_raw="$(
   {
     printf 'BASIC_USER=%q\n' "$PREPROD_BASIC_AUTH_USER"
@@ -280,6 +316,7 @@ local_probe_json() {
 local_fr_json="$(local_probe_json local_fr)"
 local_en_json="$(local_probe_json local_en)"
 
+failure_stage='DRUPAL_STATE'
 runtime_probe_php="$(cat <<'PHP'
 $start = strtotime('2026-09-07T14:32:45Z');
 $end = strtotime('2026-09-07T14:32:55Z');
@@ -374,6 +411,7 @@ jq -e '
   and (.en_homepage_translation | type == "boolean")
 ' <<<"$runtime_probe_json" >/dev/null
 
+failure_stage='DIAGNOSTIC_EVALUATION'
 external_fr_status="$(jq -r '.status' <<<"$external_fr_json")"
 external_en_status="$(jq -r '.status' <<<"$external_en_json")"
 local_fr_status="$(jq -r '.status' <<<"$local_fr_json")"
@@ -411,6 +449,7 @@ if [[ "$classification" == 'G' && "$external_en_status" == '503' ]]; then
   cache_evidence='RESPONSE_HEADERS_ONLY'
 fi
 
+failure_stage='RESULT_RECEIPT'
 result="$ARTIFACT_DIR/result.json"
 jq -n \
   --arg expected_release "$EXPECTED_RELEASE_PATH" \

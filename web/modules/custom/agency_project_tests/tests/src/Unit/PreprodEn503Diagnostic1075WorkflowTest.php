@@ -28,6 +28,11 @@ final class PreprodEn503Diagnostic1075WorkflowTest extends TestCase {
     self::assertSame(['workflow_dispatch'], array_keys($workflow['on'] ?? []));
     $inputs = $workflow['on']['workflow_dispatch']['inputs'] ?? [];
     self::assertSame(['request_id', 'head_sha'], array_keys($inputs));
+    self::assertSame(
+      'agency-preproduction-deploy',
+      $workflow['concurrency']['group'] ?? NULL,
+    );
+    self::assertFalse($workflow['concurrency']['cancel-in-progress'] ?? TRUE);
 
     self::assertStringContainsString(
       "github.event_name == 'workflow_dispatch'",

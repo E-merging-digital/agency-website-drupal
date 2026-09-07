@@ -156,7 +156,8 @@ final class Issue972EditorialFeatureImageProdRouteTest extends TestCase {
 
     self::assertStringContainsString('github.event.issue.pull_request == null', $workflow);
     self::assertStringContainsString("is_pr = os.environ['IS_PULL_REQUEST'].lower() == 'true'", $dispatcher);
-    self::assertStringContainsString('if not is_pr:', $dispatcher);
+    self::assertStringContainsString("if not is_pr and event_name == 'issue_comment':", $dispatcher);
+    self::assertStringContainsString("elif not is_pr and event_name == 'issues' and event_action == 'opened':", $dispatcher);
     self::assertStringContainsString('editorial-feature-image-profiles.json', $workflow);
     self::assertStringContainsString('run-editorial-feature-image.sh', $workflow);
     self::assertStringContainsString('editorial-feature-image.php', $workflow);

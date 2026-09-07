@@ -40,25 +40,172 @@ final class OperationsController extends ControllerBase {
   }
 
   /**
-   * Builds the V2 control-plane facade without delegating execution authority.
+   * Builds the V3 human-first control-plane facade.
    */
   public function overview(): array {
     $registry = $this->capabilityRegistry->read();
     $runtime = $this->runtimeMetadata->read();
     $requiredLanguages = $this->languageReadiness->getRequiredLanguages();
+    $refresh = $this->findCapability($registry, 'PROD -> PREPROD sanitized DB refresh');
+    $editorial = $this->findCapability($registry, 'Editorial Candidate PREPROD');
+    $developmentSeed = $this->findCapability($registry, 'Development Seed publisher/distribution');
 
     $build = [];
-    $build['boundary'] = [
+    $build['overview'] = [
       '#type' => 'item',
-      '#title' => $this->t('Control-plane boundary'),
+      '#title' => $this->t('Daily operational overview'),
       '#markup' => $this->t(
-        'V2 remains a read-only control-plane facade. Existing governed workflows and runners remain the execution plane. PREPROD PLAN requires separate manual GitHub authority; this cockpit does not request PLAN, APPLY or any PROD/PREPROD mutation.',
+        'Human-readable status is shown first. Exact technical status, authority, execution surfaces and evidence remain available under Technical details.',
       ),
+    ];
+
+    $build['runtime'] = [
+      '#type' => 'item',
+      '#title' => $this->t('Current runtime'),
+      '#markup' => $runtime['release_available']
+        ? $this->t(
+          '@environment — release @release (freshness: @freshness).',
+          [
+            '@environment' => $runtime['environment'],
+            '@release' => $runtime['release_identity'],
+            '@freshness' => $runtime['freshness'],
+          ],
+        )
+        : $this->t(
+          '@environment — the current runtime does not expose a release identity from its local release path.',
+          ['@environment' => $runtime['environment']],
+        ),
     ];
 
     $build['environments'] = [
       '#type' => 'table',
-      '#caption' => $this->t('Environments — authoritative metadata only'),
+      '#caption' => $this->t('Environments'),
+      '#header' => [
+        $this->t('Environment'),
+        $this->t('Status'),
+        $this->t('Current release'),
+        $this->t('Freshness'),
+      ],
+      '#rows' => $this->environmentSummaryRows($registry, $runtime),
+    ];
+
+    $languageNames = [];
+    foreach ($requiredLanguages as $code => $name) {
+      $languageNames[] = $this->t('@name (@code)', [
+        '@name' => $name,
+        '@code' => $code,
+      ]);
+    }
+    $build['content_summary'] = [
+      '#type' => 'table',
+      '#caption' => $this->t('Content'),
+      '#header' => [
+        $this->t('Area'),
+        $this->t('Status'),
+        $this->t('Summary'),
+        $this->t('Next view'),
+      ],
+      '#rows' => [
+        [
+          $this->t('Content languages'),
+          $this->humanStatusLabel(
+            $requiredLanguages === []
+              ? CapabilityRegistryReader::STATUS_BLOCKED
+              : CapabilityRegistryReader::STATUS_READY,
+          ),
+          $languageNames === []
+            ? $this->t('No configurable site language is available; publication readiness fails closed.')
+            : $this->t(
+              '@languages are required for publication readiness.',
+              ['@languages' => implode(', ', array_map('strval', $languageNames))],
+            ),
+          Link::fromTextAndUrl(
+            $this->t('Open editorial language readiness'),
+            Url::fromRoute('agency_operations.editorial'),
+          )->toString(),
+        ],
+        [
+          $this->t('Editorial workflow'),
+          $this->humanStatusLabel($editorial['human_status_key'] ?? NULL),
+          $this->t('Any missing configured language blocks publication readiness. No publication control is exposed here.'),
+          Link::fromTextAndUrl(
+            $this->t('Review editorial readiness'),
+            Url::fromRoute('agency_operations.editorial'),
+          )->toString(),
+        ],
+      ],
+    ];
+
+    $build['preprod_data_summary'] = [
+      '#type' => 'table',
+      '#caption' => $this->t('PREPROD data'),
+      '#header' => [
+        $this->t('Operation'),
+        $this->t('Status'),
+        $this->t('Summary'),
+        $this->t('Next view'),
+      ],
+      '#rows' => [
+        [
+          $this->t('Refresh PREPROD'),
+          $this->humanStatusLabel($refresh['human_status_key'] ?? NULL),
+          $this->t('Refresh is available under explicit authorization. PLAN is preparation and analysis only. APPLY is not available from this cockpit.'),
+          Link::fromTextAndUrl(
+            $this->t('View the governed PLAN procedure'),
+            Url::fromUri(self::REPOSITORY_URL . '/blob/main/docs/operations/preproduction-refresh-governed-successor.md'),
+          )->toString(),
+        ],
+      ],
+    ];
+
+    $build['development_data_summary'] = [
+      '#type' => 'table',
+      '#caption' => $this->t('Development data'),
+      '#header' => [
+        $this->t('Operation'),
+        $this->t('Status'),
+        $this->t('Summary'),
+        $this->t('Evidence'),
+      ],
+      '#rows' => [
+        [
+          $this->t('Development Seed'),
+          $this->humanStatusLabel($developmentSeed['human_status_key'] ?? NULL),
+          $this->t('Development data remains pull-only from a sanitized PREPROD source. This cockpit does not generate or push a seed.'),
+          Link::fromTextAndUrl(
+            $this->t('Open Development Seed runs'),
+            Url::fromUri(self::REPOSITORY_URL . '/actions/workflows/development-seed-publish.yml'),
+          )->toString(),
+        ],
+      ],
+    ];
+
+    $build['recent_evidence'] = [
+      '#type' => 'table',
+      '#caption' => $this->t('Recent evidence'),
+      '#header' => [
+        $this->t('Area'),
+        $this->t('Recent runs / evidence'),
+        $this->t('Canonical authority'),
+      ],
+      '#rows' => $this->evidenceSummaryRows(),
+    ];
+
+    $build['technical_details'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Technical details'),
+      '#open' => FALSE,
+    ];
+    $build['technical_details']['boundary'] = [
+      '#type' => 'item',
+      '#title' => $this->t('Control-plane boundary'),
+      '#markup' => $this->t(
+        'This cockpit remains a read-only control-plane facade. Existing governed workflows and runners remain the execution plane. PREPROD PLAN requires separate manual GitHub authority; this cockpit does not request PLAN, APPLY or any PROD/PREPROD mutation.',
+      ),
+    ];
+    $build['technical_details']['environments'] = [
+      '#type' => 'table',
+      '#caption' => $this->t('Environment authority and metadata'),
       '#header' => [
         $this->t('Environment'),
         $this->t('Status'),
@@ -67,32 +214,30 @@ final class OperationsController extends ControllerBase {
         $this->t('Source / authority'),
         $this->t('Freshness'),
       ],
-      '#rows' => $this->environmentRows($registry, $runtime),
+      '#rows' => $this->environmentTechnicalRows($registry, $runtime),
     ];
-    $build['environment_boundary'] = [
+    $build['technical_details']['environment_boundary'] = [
       '#type' => 'item',
       '#markup' => $this->t(
         'A remote release or health value is not inferred when this Drupal runtime cannot authoritatively observe it. The release shown as current comes only from the environment serving this request.',
       ),
     ];
-
-    $build['languages'] = [
+    $build['technical_details']['languages'] = [
       '#type' => 'table',
       '#caption' => $this->t('Required public content languages'),
       '#header' => [$this->t('Code'), $this->t('Language'), $this->t('Required')],
       '#rows' => array_map(
-        static fn (string $name, string $code): array => [$code, $name, 'YES'],
+        fn (string $name, string $code): array => [
+          $code,
+          $name,
+          $this->t('Required'),
+        ],
         array_values($requiredLanguages),
         array_keys($requiredLanguages),
       ),
       '#empty' => $this->t(
         'No configurable site language was discovered. Publication readiness fails closed.',
       ),
-    ];
-    $build['editorial_link'] = [
-      '#type' => 'link',
-      '#title' => $this->t('Open editorial language readiness'),
-      '#url' => Url::fromRoute('agency_operations.editorial'),
     ];
 
     if ($registry['available']) {
@@ -110,7 +255,7 @@ final class OperationsController extends ControllerBase {
         ['@path' => $registry['path']],
       );
     }
-    $build['registry_status'] = [
+    $build['technical_details']['registry_status'] = [
       '#type' => 'item',
       '#title' => $this->t('Capability registry'),
       '#markup' => $registryMarkup,
@@ -122,13 +267,13 @@ final class OperationsController extends ControllerBase {
         $rows[] = [
           $capability['name'],
           $capability['owner'],
-          $capability['human_status'],
+          $this->humanStatusLabel($capability['human_status_key']),
           $capability['status'],
           $capability['surface'],
           $capability['scope'],
         ];
       }
-      $build['capability_' . strtolower($group)] = [
+      $build['technical_details']['capability_' . strtolower($group)] = [
         '#type' => 'table',
         '#caption' => $group,
         '#header' => [
@@ -146,15 +291,14 @@ final class OperationsController extends ControllerBase {
       ];
     }
 
-    $refresh = $this->findCapability($registry, 'PROD -> PREPROD sanitized DB refresh');
-    $build['preprod_refresh'] = [
+    $build['technical_details']['preprod_refresh'] = [
       '#type' => 'details',
-      '#title' => $this->t('Refresh PREPROD'),
-      '#open' => TRUE,
+      '#title' => $this->t('PREPROD refresh authority'),
+      '#open' => FALSE,
       'status' => [
         '#type' => 'item',
         '#title' => $this->t('Status'),
-        '#markup' => $refresh['human_status'] ?? $this->t('Indisponible'),
+        '#markup' => $this->humanStatusLabel($refresh['human_status_key'] ?? NULL),
       ],
       'technical_status' => [
         '#type' => 'item',
@@ -190,10 +334,10 @@ final class OperationsController extends ControllerBase {
       ],
     ];
 
-    $build['editorial'] = [
+    $build['technical_details']['editorial'] = [
       '#type' => 'details',
       '#title' => $this->t('Editorial operations'),
-      '#open' => TRUE,
+      '#open' => FALSE,
       'content' => [
         '#theme' => 'item_list',
         '#items' => [
@@ -205,7 +349,7 @@ final class OperationsController extends ControllerBase {
       ],
     ];
 
-    $build['development_seed'] = [
+    $build['technical_details']['development_seed'] = [
       '#type' => 'details',
       '#title' => $this->t('Development Seed'),
       '#open' => FALSE,
@@ -221,9 +365,9 @@ final class OperationsController extends ControllerBase {
       ],
     ];
 
-    $build['history'] = [
+    $build['technical_details']['history'] = [
       '#type' => 'table',
-      '#caption' => $this->t('History / evidence'),
+      '#caption' => $this->t('History / evidence authority'),
       '#header' => [
         $this->t('Area'),
         $this->t('Authority'),
@@ -232,18 +376,18 @@ final class OperationsController extends ControllerBase {
       ],
       '#rows' => $this->evidenceRows(),
     ];
-    $build['history_boundary'] = [
+    $build['technical_details']['history_boundary'] = [
       '#type' => 'item',
-      '#markup' => $this->t('Evidence remains in GitHub workflows, issues and existing receipts. V2 creates no history table, entity or second receipt store.'),
+      '#markup' => $this->t('Evidence remains in GitHub workflows, issues and existing receipts. V3 creates no history table, entity or second receipt store.'),
     ];
 
-    $build['native_audit'] = [
+    $build['technical_details']['native_audit'] = [
       '#type' => 'table',
       '#caption' => $this->t('Drupal-native adoption audit'),
       '#header' => [
         $this->t('Primitive'),
         $this->t('Current status'),
-        $this->t('V2 verdict'),
+        $this->t('V3 verdict'),
       ],
       '#rows' => [
         [
@@ -278,9 +422,41 @@ final class OperationsController extends ControllerBase {
   }
 
   /**
-   * Builds environment rows from repository truth plus the local runtime only.
+   * Builds the primary environment summary without exposing technical strings.
    */
-  private function environmentRows(array $registry, array $runtime): array {
+  private function environmentSummaryRows(array $registry, array $runtime): array {
+    $definitions = [
+      'PROD' => 'Same-artifact PROD promotion',
+      'PREPROD' => 'PROD -> PREPROD sanitized DB refresh',
+      'DEVELOPMENT' => 'Development Seed publisher/distribution',
+    ];
+    $rows = [];
+
+    foreach ($definitions as $environment => $capabilityName) {
+      $capability = $this->findCapability($registry, $capabilityName);
+      $isCurrentRuntime = $runtime['environment'] === $environment;
+      $release = $isCurrentRuntime && $runtime['release_available']
+        ? $runtime['release_identity']
+        : $this->t('Not exposed by this runtime');
+      $freshness = $isCurrentRuntime
+        ? $runtime['freshness']
+        : ($registry['last_materialized'] ?? $this->t('unknown'));
+
+      $rows[] = [
+        $environment,
+        $this->humanStatusLabel($capability['human_status_key'] ?? NULL),
+        $release,
+        $freshness,
+      ];
+    }
+
+    return $rows;
+  }
+
+  /**
+   * Builds exact environment authority rows for progressive disclosure.
+   */
+  private function environmentTechnicalRows(array $registry, array $runtime): array {
     $definitions = [
       'PROD' => 'Same-artifact PROD promotion',
       'PREPROD' => 'PROD -> PREPROD sanitized DB refresh',
@@ -306,7 +482,7 @@ final class OperationsController extends ControllerBase {
 
       $rows[] = [
         $environment,
-        $capability['human_status'] ?? $this->t('Indisponible'),
+        $this->humanStatusLabel($capability['human_status_key'] ?? NULL),
         $capability['status'] ?? 'UNKNOWN',
         $release,
         $source . ' / ' . $authority,
@@ -315,6 +491,20 @@ final class OperationsController extends ControllerBase {
     }
 
     return $rows;
+  }
+
+  /**
+   * Translates one semantic human status in the current admin UI language.
+   */
+  private function humanStatusLabel(?string $statusKey): string {
+    return (string) match ($statusKey) {
+      CapabilityRegistryReader::STATUS_OPERATIONAL => $this->t('Operational'),
+      CapabilityRegistryReader::STATUS_READY => $this->t('Ready'),
+      CapabilityRegistryReader::STATUS_PREPARING => $this->t('Preparing'),
+      CapabilityRegistryReader::STATUS_BLOCKED => $this->t('Blocked'),
+      CapabilityRegistryReader::STATUS_HUMAN_ACTION_REQUIRED => $this->t('Human action required'),
+      default => $this->t('Unavailable'),
+    };
   }
 
   /**
@@ -333,45 +523,83 @@ final class OperationsController extends ControllerBase {
   }
 
   /**
-   * Returns links to existing authoritative evidence surfaces only.
+   * Returns concise links to existing authoritative evidence surfaces only.
+   */
+  private function evidenceSummaryRows(): array {
+    $rows = [];
+    foreach ($this->evidenceDefinitions() as $definition) {
+      $rows[] = [
+        $this->t($definition['label']),
+        Link::fromTextAndUrl(
+          $this->t('Open recent evidence'),
+          Url::fromUri($definition['runs']),
+        )->toString(),
+        Link::fromTextAndUrl(
+          $this->t('Open canonical authority'),
+          Url::fromUri($definition['authority_url']),
+        )->toString(),
+      ];
+    }
+
+    return $rows;
+  }
+
+  /**
+   * Returns detailed links to existing authoritative evidence surfaces only.
    */
   private function evidenceRows(): array {
-    $rows = [
+    $rows = [];
+    foreach ($this->evidenceDefinitions() as $definition) {
+      $rows[] = [
+        $this->t($definition['label']),
+        $definition['authority'],
+        Link::fromTextAndUrl(
+          $this->t('Open runs'),
+          Url::fromUri($definition['runs']),
+        )->toString(),
+        Link::fromTextAndUrl(
+          $this->t('Open authority'),
+          Url::fromUri($definition['authority_url']),
+        )->toString(),
+      ];
+    }
+
+    return $rows;
+  }
+
+  /**
+   * Defines existing evidence navigation without copying remote state.
+   *
+   * @return array<int, array{label: string, authority: string, runs: string, authority_url: string}>
+   *   Existing GitHub surfaces.
+   */
+  private function evidenceDefinitions(): array {
+    return [
       [
-        'Code deployment',
-        'release / promotion workflows',
-        self::REPOSITORY_URL . '/actions/workflows/promote-production.yml',
-        self::REPOSITORY_URL . '/issues/870',
+        'label' => 'Code deployment',
+        'authority' => 'release / promotion workflows',
+        'runs' => self::REPOSITORY_URL . '/actions/workflows/promote-production.yml',
+        'authority_url' => self::REPOSITORY_URL . '/issues/870',
       ],
       [
-        'PREPROD refresh',
-        '#914 / completed #816',
-        self::REPOSITORY_URL . '/actions/workflows/preprod-914-governed-successor.yml',
-        self::REPOSITORY_URL . '/issues/914',
+        'label' => 'PREPROD refresh',
+        'authority' => '#914 / completed #816',
+        'runs' => self::REPOSITORY_URL . '/actions/workflows/preprod-914-governed-successor.yml',
+        'authority_url' => self::REPOSITORY_URL . '/issues/914',
       ],
       [
-        'Editorial candidate / promotion',
-        '#959 / #872',
-        self::REPOSITORY_URL . '/actions/workflows/trusted-editorial-preprod-candidate.yml',
-        self::REPOSITORY_URL . '/issues/872',
+        'label' => 'Editorial candidate / promotion',
+        'authority' => '#959 / #872',
+        'runs' => self::REPOSITORY_URL . '/actions/workflows/trusted-editorial-preprod-candidate.yml',
+        'authority_url' => self::REPOSITORY_URL . '/issues/872',
       ],
       [
-        'Development Seed',
-        '#873 / #956',
-        self::REPOSITORY_URL . '/actions/workflows/development-seed-publish.yml',
-        self::REPOSITORY_URL . '/issues/873',
+        'label' => 'Development Seed',
+        'authority' => '#873 / #956',
+        'runs' => self::REPOSITORY_URL . '/actions/workflows/development-seed-publish.yml',
+        'authority_url' => self::REPOSITORY_URL . '/issues/873',
       ],
     ];
-
-    return array_map(
-      static fn (array $row): array => [
-        $row[0],
-        $row[1],
-        Link::fromTextAndUrl('Open runs', Url::fromUri($row[2]))->toString(),
-        Link::fromTextAndUrl('Open authority', Url::fromUri($row[3]))->toString(),
-      ],
-      $rows,
-    );
   }
 
 }

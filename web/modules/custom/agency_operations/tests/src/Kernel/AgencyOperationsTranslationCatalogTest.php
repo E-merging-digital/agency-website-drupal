@@ -9,8 +9,7 @@ use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\locale\Gettext;
 
 /**
- * Proves the durable French interface translation catalog through Drupal
- * Locale.
+ * Proves the durable French Drupal interface translation catalog.
  *
  * @group agency_operations
  */

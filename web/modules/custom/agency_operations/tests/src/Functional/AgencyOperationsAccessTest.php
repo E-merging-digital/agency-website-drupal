@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_operations\Functional;
 
 use Behat\Mink\Driver\BrowserKitDriver;
+use Drupal\agency_operations\Service\CockpitPlanReceiptReaderInterface;
 use Drupal\Tests\BrowserTestBase;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
@@ -27,6 +28,17 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
    * {@inheritdoc}
    */
   protected $defaultTheme = 'stark';
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+    $this->container->set(
+      'agency_operations.cockpit_plan_receipt',
+      new StaticCockpitPlanReceiptReader(TRUE),
+    );
+  }
 
   /**
    * Proves V3 is human-first while preserving read-only technical truth.
@@ -55,6 +67,14 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
     $this->assertSession()->pageTextNotContains('Opérationnel');
     $this->assertSession()->pageTextContains('PLAN is preparation and analysis only');
     $this->assertSession()->pageTextContains('APPLY is not available from this cockpit');
+    $this->assertSession()->pageTextContains('Last PREPROD PLAN');
+    $this->assertSession()->pageTextContains('Passed');
+    $this->assertSession()->pageTextContains('Authority: #1094');
+    $this->assertSession()->pageTextContains('Evaluated main: bef02e9…');
+    $this->assertSession()->pageTextContains('Observed PROD release: 7541369…');
+    $this->assertSession()->pageTextContains('Mutation: None');
+    $this->assertSession()->pageTextContains('APPLY: Not authorized');
+    $this->assertSession()->pageTextContains('Open evidence');
     $this->assertSession()->pageTextContains('Technical details');
     $this->assertSession()->elementNotExists('css', 'details[open]');
     $this->assertSession()->elementTextContains('css', 'details', 'CODE_CONFIG');
@@ -64,6 +84,16 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
       'css',
       'details',
       'Human authority remains in the GitHub UI',
+    );
+    $this->assertSession()->elementTextContains(
+      'css',
+      'details',
+      'plan-1094-cockpit-v1-r1',
+    );
+    $this->assertSession()->elementTextContains(
+      'css',
+      'details',
+      'This receipt is evidence only',
     );
     $this->assertSession()->pageTextContains('View the governed PLAN procedure');
     $this->assertSession()->elementNotExists('css', 'input[type="submit"]');
@@ -96,6 +126,26 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
     $this->drupalGet('/admin/agency/operations/editorial');
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains('overall: BLOCKED');
+  }
+
+  /**
+   * Proves unavailable evidence cannot take down or overstate the Cockpit.
+   */
+  public function testUnavailablePlanEvidenceStillReturnsCockpit(): void {
+    $this->container->set(
+      'agency_operations.cockpit_plan_receipt',
+      new StaticCockpitPlanReceiptReader(FALSE),
+    );
+    $account = $this->drupalCreateUser(['access agency operations']);
+    $this->drupalLogin($account);
+
+    $this->drupalGet('/admin/agency/operations');
+
+    $this->assertSession()->statusCodeEquals(200);
+    $this->assertSession()->pageTextContains('Last PREPROD PLAN');
+    $this->assertSession()->pageTextContains('Evidence unavailable');
+    $this->assertSession()->pageTextContains('PLAN result is not inferred');
+    $this->assertSession()->pageTextContains('APPLY remains not authorized');
   }
 
   /**
@@ -132,6 +182,52 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
       'AGENCY_PREPROD_COCKPIT_PLAN_AUTHORITY={"authorized_actor":"E-merging-digital","implementation_issue":914,"mode":"PLAN","parent_issue":816,"profile_id":"agency-preprod-refresh-simple-v1","run_attempt":1,"schema_version":1}',
       '',
     ]);
+  }
+
+}
+
+/**
+ * Deterministic receipt reader used by functional Cockpit rendering tests.
+ */
+final class StaticCockpitPlanReceiptReader implements CockpitPlanReceiptReaderInterface {
+
+  public function __construct(
+    private readonly bool $available,
+  ) {}
+
+  /**
+   * {@inheritdoc}
+   */
+  public function read(): array {
+    if (!$this->available) {
+      return [
+        'available' => FALSE,
+        'status' => 'EVIDENCE_UNAVAILABLE',
+        'plan_result' => 'NOT_INFERRED',
+        'apply' => 'NOT_AUTHORIZED',
+        'mutation' => 'NOT_INFERRED',
+        'authority_url' => 'https://github.com/E-merging-digital/agency-website-drupal/issues',
+        'run_url' => 'https://github.com/E-merging-digital/agency-website-drupal/actions/workflows/preprod-914-governed-successor.yml',
+      ];
+    }
+
+    return [
+      'available' => TRUE,
+      'status' => 'PASSED',
+      'plan_result' => 'PASS',
+      'authority_issue' => 1094,
+      'request_id' => 'plan-1094-cockpit-v1-r1',
+      'main_sha' => 'bef02e9fa9dfe0b9cad8a1b3f4d39c10e79d1150',
+      'observed_prod_release_sha' => '754136965eef88441904108356686adae8a901f9',
+      'completed_at' => '2026-09-07T21:36:02Z',
+      'receipt_source' => 'PROJECT_LEAD_BACKFILL',
+      'dispatch_run' => 34163693959,
+      'jit_main_revalidation' => 'PASS',
+      'mutation' => 'NONE',
+      'apply' => 'NOT_AUTHORIZED',
+      'authority_url' => 'https://github.com/E-merging-digital/agency-website-drupal/issues/1094',
+      'run_url' => 'https://github.com/E-merging-digital/agency-website-drupal/actions/runs/34163693959',
+    ];
   }
 
 }

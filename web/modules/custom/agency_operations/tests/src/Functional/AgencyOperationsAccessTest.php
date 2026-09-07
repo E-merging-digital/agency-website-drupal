@@ -52,7 +52,7 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('Not available from this cockpit.');
     $this->assertSession()->pageTextContains('View the governed PLAN procedure');
     $this->assertSession()->pageTextContains('History / evidence');
-    $this->assertSession()->elementNotExists('input[type="submit"]');
+    $this->assertSession()->elementNotExists('css', 'input[type="submit"]');
 
     $this->drupalGet('/admin/agency/operations/editorial');
     $this->assertSession()->statusCodeEquals(200);

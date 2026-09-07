@@ -9,7 +9,7 @@ permissions:
   issues: read
 
 concurrency:
-  group: agency-immutable-preprod-browser-1065
+  group: agency-preproduction-deploy
   cancel-in-progress: false
 
 jobs:

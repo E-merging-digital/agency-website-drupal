@@ -40,11 +40,15 @@ final class OutsideAiComposerSecurityDiagnosticWorkflowTest extends TestCase {
       ),
     );
     self::assertArrayHasKey('inputs', $matches);
-    preg_match_all('/^      ([A-Za-z0-9_-]+):$/m', $matches['inputs'], $inputMatches);
+    preg_match_all(
+      '/^      ([A-Za-z0-9_-]+):$/m',
+      $matches['inputs'],
+      $inputMatches,
+    );
     self::assertSame(['request_id', 'head_sha'], $inputMatches[1]);
 
     self::assertStringContainsString(
-      "test \"$REQUEST_ID\" = 'outside-ai-390-composer-audit-20260907-01'",
+      'test "$REQUEST_ID" = \'outside-ai-390-composer-audit-20260907-01\'',
       $workflow,
     );
     self::assertStringContainsString(

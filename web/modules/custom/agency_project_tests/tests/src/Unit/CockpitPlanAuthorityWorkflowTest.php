@@ -124,6 +124,79 @@ final class CockpitPlanAuthorityWorkflowTest extends TestCase {
   }
 
   /**
+   * Proves receipt publication happens only after successful PLAN cleanup.
+   */
+  public function testPlanReceiptIsPostCleanupEvidenceOnly(): void {
+    $workflow = $this->parsed(self::SUCCESSOR);
+    $source = $this->source(self::SUCCESSOR);
+    $jobs = $workflow['jobs'] ?? [];
+    $plan = $jobs['plan'] ?? NULL;
+    $receipt = $jobs['publish-cockpit-plan-receipt'] ?? NULL;
+    $apply = $jobs['apply'] ?? NULL;
+
+    self::assertIsArray($plan);
+    self::assertIsArray($receipt);
+    self::assertIsArray($apply);
+    self::assertSame(
+      ['contents' => 'read', 'issues' => 'read'],
+      $plan['permissions'] ?? NULL,
+    );
+    self::assertSame(
+      ['contents' => 'read', 'issues' => 'write'],
+      $receipt['permissions'] ?? NULL,
+    );
+    self::assertSame(
+      ['contents' => 'read', 'issues' => 'read'],
+      $apply['permissions'] ?? NULL,
+    );
+    self::assertSame(
+      ['validate-authority', 'plan'],
+      $receipt['needs'] ?? NULL,
+    );
+    self::assertStringContainsString(
+      "github.event_name == 'issues'",
+      (string) ($receipt['if'] ?? ''),
+    );
+    self::assertStringContainsString(
+      "github.event.action == 'opened'",
+      (string) ($receipt['if'] ?? ''),
+    );
+    self::assertStringContainsString(
+      "needs.validate-authority.outputs.mode == 'PLAN'",
+      (string) ($receipt['if'] ?? ''),
+    );
+    self::assertStringContainsString(
+      "needs.plan.result == 'success'",
+      (string) ($receipt['if'] ?? ''),
+    );
+
+    $planSteps = $plan['steps'] ?? [];
+    self::assertIsArray($planSteps);
+    self::assertSame(
+      'Cleanup PLAN identities',
+      $planSteps[array_key_last($planSteps)]['name'] ?? NULL,
+    );
+
+    self::assertStringContainsString(
+      'AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT=',
+      $source,
+    );
+    self::assertStringContainsString('receipt_source:"WORKFLOW"', $source);
+    self::assertStringContainsString('plan_result:"PASS"', $source);
+    self::assertStringContainsString('prod_db_content_read:"NONE"', $source);
+    self::assertStringContainsString('prod_snapshot:"NOT_PERFORMED"', $source);
+    self::assertStringContainsString('prod_data_transfer:"NONE"', $source);
+    self::assertStringContainsString('preprod_db_mutation:"NONE"', $source);
+    self::assertStringContainsString('prod_write:"NONE"', $source);
+    self::assertStringContainsString('apply_job:"SKIPPED"', $source);
+    self::assertStringContainsString('issue_open_apply:"IMPOSSIBLE"', $source);
+    self::assertStringNotContainsString(
+      'AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT=/agency-preprod-refresh-successor',
+      $source,
+    );
+  }
+
+  /**
    * Proves Drupal only creates a fixed external GET draft link.
    */
   public function testCockpitContainsNoGitHubWriteCapability(): void {

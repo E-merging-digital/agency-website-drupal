@@ -100,6 +100,28 @@ final class EnvironmentSideEffectPolicyTest extends TestCase {
   }
 
   /**
+   * PREPROD runtime validation fails closed on Drupal Status Report errors.
+   */
+  public function testPreproductionStatusReportGateIsFailClosed(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $runtime = (string) file_get_contents(
+      $root . '/scripts/preproduction/validate-runtime.sh',
+    );
+
+    self::assertStringContainsString('core:requirements', $runtime);
+    self::assertStringContainsString('--severity=2', $runtime);
+    self::assertStringContainsString('--field=title', $runtime);
+    self::assertStringContainsString('DRUPAL_STATUS_REPORT=FAIL', $runtime);
+    self::assertStringContainsString('DRUPAL_STATUS_REPORT=PASS', $runtime);
+    self::assertStringContainsString('DRUPAL_STATUS_ERROR_COUNT=%s', $runtime);
+    self::assertStringContainsString('DRUPAL_STATUS_ERROR_COUNT=0', $runtime);
+    self::assertStringContainsString('drupal_status_error_count > 0', $runtime);
+    self::assertStringContainsString('DRUPAL_STATUS_ERROR_%02d=%s', $runtime);
+    self::assertStringNotContainsString('--field=description', $runtime);
+    self::assertStringNotContainsString('--fields=description', $runtime);
+  }
+
+  /**
    * The durable matrix remains versioned with the deployment contract.
    */
   public function testEnvironmentMatrixIsDocumented(): void {

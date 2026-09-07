@@ -378,11 +378,6 @@ external_fr_status="$(jq -r '.status' <<<"$external_fr_json")"
 external_en_status="$(jq -r '.status' <<<"$external_en_json")"
 local_fr_status="$(jq -r '.status' <<<"$local_fr_json")"
 local_en_status="$(jq -r '.status' <<<"$local_en_json")"
-en_translation="$(jq -r '.en_homepage_translation' <<<"$runtime_probe_json")"
-log_en="$(jq -r '.recent_drupal_log_signal.signals.en' <<<"$runtime_probe_json")"
-log_routing="$(jq -r '.recent_drupal_log_signal.signals.routing' <<<"$runtime_probe_json")"
-log_language="$(jq -r '.recent_drupal_log_signal.signals.language' <<<"$runtime_probe_json")"
-log_exception="$(jq -r '.recent_drupal_log_signal.signals.exception' <<<"$runtime_probe_json")"
 
 is_2xx_or_3xx() {
   [[ "$1" =~ ^[23][0-9][0-9]$ ]]
@@ -406,26 +401,10 @@ elif [[ "$external_en_status" == '503' ]] \
   classification='D'
   classification_label='WEB_TIER_OR_EDGE_EN_SPECIFIC_503'
   root_cause='PROVEN'
-elif [[ "$maintenance_mode" == '0' \
-  && "$external_en_status" == '503' \
-  && "$local_en_status" == '503' ]] \
-  && is_2xx_or_3xx "$external_fr_status" \
-  && is_2xx_or_3xx "$local_fr_status" \
-  && [[ "$en_translation" == 'false' ]] \
-  && (( log_en > 0 && (log_routing > 0 || log_language > 0) )); then
-  classification='E'
-  classification_label='HOMEPAGE_EN_TRANSLATION_OR_ROUTE_CAUSES_MAINTENANCE_RESPONSE'
-  root_cause='PROVEN'
-elif [[ "$maintenance_mode" == '0' \
-  && "$external_en_status" == '503' \
-  && "$local_en_status" == '503' ]] \
-  && is_2xx_or_3xx "$external_fr_status" \
-  && is_2xx_or_3xx "$local_fr_status" \
-  && (( log_en > 0 && (log_routing > 0 || log_language > 0 || log_exception > 0) )); then
-  classification='B'
-  classification_label='LANGUAGE_SPECIFIC_DRUPAL_RUNTIME_DEFECT'
-  root_cause='PROVEN'
 fi
+
+# The bounded watchdog counters and EN translation state remain observations only.
+# They are not causal evidence for automatic B/E PROVEN classification.
 
 cache_evidence='NOT_NEEDED'
 if [[ "$classification" == 'G' && "$external_en_status" == '503' ]]; then

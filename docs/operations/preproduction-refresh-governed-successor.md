@@ -8,17 +8,55 @@ Parent implementation program: #816 (**CLOSED / COMPLETED**).
 
 `EXTEND_EXISTING`.
 
-The refresh reuses existing Drupal/Drush/MariaDB/SSH and Agency primitives. No generic orchestration framework, transaction registry, recovery framework, new sanitization policy or new issue-comment listener is part of the current route. #915/#917 remain historical lineage only.
+The refresh reuses existing Drupal/Drush/MariaDB/SSH and Agency primitives. No generic orchestration framework, transaction registry, recovery framework, new sanitization policy or second dispatcher is part of the current route. #915/#917 remain historical lineage only.
 
 The current controlled server-to-server route is the proven APPLY path. The trusted self-hosted route remains an authorized alternative under the existing sanitization policy; live runner availability is dynamic and must be reloaded rather than frozen in this document.
 
 ## Authority
 
-#816 is closed and is not reopened for routine execution. Every real `PLAN` or `APPLY` still requires a fresh one-shot authority accepted by the current validator. #914 does not grant persistent execution authority. The current validator binds mode, request ID, live `main`, exact PROD release for APPLY, profile, actor and `run_attempt = 1`.
+#816 is closed and is not reopened for routine execution. Every real `PLAN` or `APPLY` still requires a fresh one-shot authority accepted by the current validator. #914 does not grant persistent execution authority.
+
+The historical comment route remains unchanged and binds mode, request ID, live `main`, exact PROD release for APPLY, profile, actor and `run_attempt = 1`.
+
+The Cockpit adds a second **authority shape**, not a second execution engine: an owner-created GitHub issue opened through the human GitHub UI may authorize one PLAN-only run. Drupal only links to GitHub's prefilled new-issue page. Drupal has no GitHub credential and never creates or submits the authority issue itself.
+
+```text
+Drupal Cockpit
+-> GET https://github.com/.../issues/new?title=...&body=...&labels=...
+-> human review in GitHub
+-> human Submit new issue
+-> issues/opened on the existing Agency dispatcher
+-> dedicated Cockpit PLAN-only validator
+-> existing #914 PLAN job
+-> existing run-plan.sh
+```
+
+The Cockpit authority issue must be owner-created, `OPEN`, under `Parent: #816`, carry `Task`, `P1` and `status:in-progress`, be on workflow run attempt 1, and retain its exact creation-time title/body. App-mediated authority is rejected (`performed_via_github_app` must be null), and an edited issue fails closed where GitHub exposes `created_at != updated_at`.
+
+The fixed canonical marker is:
+
+```text
+AGENCY_PREPROD_COCKPIT_PLAN_AUTHORITY={"authorized_actor":"E-merging-digital","implementation_issue":914,"mode":"PLAN","parent_issue":816,"profile_id":"agency-preprod-refresh-simple-v1","run_attempt":1,"schema_version":1}
+```
+
+The validator derives rather than accepts from the caller:
+
+```text
+authority_issue = github.event.issue.number
+request_id = plan-<authority_issue>-cockpit-v1-r1
+main_sha = live main resolved at initial validation
+prod_release_sha = AUTO
+mode = PLAN
+profile_id = agency-preprod-refresh-simple-v1
+```
+
+No Cockpit issue-open field may select mode, profile, workflow, ref, host, path, command, shell, SQL, Drush, PROD release or APPLY. The #914 APPLY job remains restricted to the historical `issue_comment` authority path.
 
 ```text
 PLAN != APPLY
 CONSUMED / NEVER REUSE
+ISSUE_OPEN_APPLY = IMPOSSIBLE
+GITHUB_CREDENTIAL_IN_DRUPAL = NONE
 DATA_ACTIVATION_AUTHORITY = DISABLED
 ```
 
@@ -26,7 +64,7 @@ GitHub stores authorization/audit metadata only; it stores no data-refresh trans
 
 ## Current PLAN
 
-PLAN runs on GitHub-hosted `ubuntu-24.04`. JIT revalidates live `main`, exact checkout, one-shot authority and `runner.environment == github-hosted` before SSH identities are materialized.
+PLAN runs on GitHub-hosted `ubuntu-24.04`. JIT revalidates live `main`, exact checkout, one-shot authority and `runner.environment == github-hosted` before SSH identities are materialized. For a Cockpit authority, the issue is refetched and revalidated again at this JIT gate; any issue edit or main drift fails closed before operational secrets.
 
 PLAN is metadata/readiness-only. It performs no:
 
@@ -209,7 +247,10 @@ Public files are out of scope for the current DB refresh. Stage File Proxy remai
 ## Non-negotiable invariants
 
 - PLAN = GitHub-hosted / real execution proven.
-- APPLY = `CONTROLLED_SERVER_TO_SERVER` / real execution proven.
+- Cockpit PLAN authority = human GitHub UI issue-open only; App/API-mediated authority rejected.
+- Cockpit Drupal = GET link only; GitHub write/credential none.
+- Cockpit issue-open APPLY = impossible.
+- APPLY = historical issue-comment authority only / `CONTROLLED_SERVER_TO_SERVER` / real execution proven.
 - Trusted self-hosted runner = authorized alternative.
 - Raw PROD on GitHub-hosted = none.
 - PROD write = none.

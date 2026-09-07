@@ -17,7 +17,7 @@ permissions:
   issues: read
 
 concurrency:
-  group: agency-preprod-en-503-diagnostic-1075
+  group: agency-preproduction-deploy
   cancel-in-progress: false
 
 jobs:

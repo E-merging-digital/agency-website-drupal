@@ -29,7 +29,7 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
   protected $defaultTheme = 'stark';
 
   /**
-   * Proves the cockpit is permission-protected and exposes only read-only data.
+   * Proves V2 remains protected and presents manual governed handoff only.
    */
   public function testPermissionProtectsReadOnlyCockpit(): void {
     $this->drupalGet('/admin/agency/operations');
@@ -45,10 +45,14 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
     $this->assertSession()->pageTextContains('DATA_REFRESH');
     $this->assertSession()->pageTextContains('EDITORIAL');
     $this->assertSession()->pageTextContains('DEVELOPMENT_DATA');
-    $this->assertSession()->pageTextContains('REAL_REFRESH_TRIGGER = NO');
-    $this->assertSession()->pageTextContains(
-      'No PROD or PREPROD operation can be triggered from this page.',
-    );
+    $this->assertSession()->pageTextContains('Environments — authoritative metadata only');
+    $this->assertSession()->pageTextContains('Technical status');
+    $this->assertSession()->pageTextContains('Refresh PREPROD');
+    $this->assertSession()->pageTextContains('Manual GitHub authorization is required');
+    $this->assertSession()->pageTextContains('Not available from this cockpit.');
+    $this->assertSession()->pageTextContains('View the governed PLAN procedure');
+    $this->assertSession()->pageTextContains('History / evidence');
+    $this->assertSession()->elementNotExists('css', 'input[type="submit"]');
 
     $this->drupalGet('/admin/agency/operations/editorial');
     $this->assertSession()->statusCodeEquals(200);
@@ -56,7 +60,7 @@ final class AgencyOperationsAccessTest extends BrowserTestBase {
   }
 
   /**
-   * Proves the V1 route contract accepts no POST execution request.
+   * Proves the cockpit route still rejects POST execution requests.
    */
   public function testPostIsRejectedBecauseNoExecutionRouteExists(): void {
     $account = $this->drupalCreateUser(['access agency operations']);

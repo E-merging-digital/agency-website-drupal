@@ -1,0 +1,93 @@
+name: Validate Cockpit human PLAN authority
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/preprod-914-governed-successor.yml'
+      - '.github/workflows/cockpit-plan-authority-validation.yml'
+      - 'scripts/preproduction-refresh/governed-successor/validate-cockpit-plan-authority.py'
+      - 'scripts/preproduction-refresh/governed-successor/test-cockpit-plan-authority.py'
+      - 'web/modules/custom/agency_operations/src/Controller/OperationsController.php'
+      - 'web/modules/custom/agency_operations/translations/agency_operations.fr.po'
+      - 'web/modules/custom/agency_operations/tests/src/Functional/AgencyOperationsAccessTest.php'
+      - 'web/modules/custom/agency_operations/tests/src/Kernel/AgencyOperationsTranslationCatalogTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/CockpitPlanAuthorityWorkflowTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Human issue-open PLAN-only contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate workflow syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.7 -color \
+            .github/workflows/agency-command-dispatch.yml \
+            .github/workflows/preprod-914-governed-successor.yml \
+            .github/workflows/cockpit-plan-authority-validation.yml
+
+      - name: Validate PLAN-only authority matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=scripts/preproduction-refresh/governed-successor
+          python3 -m py_compile \
+            "$base/validate-cockpit-plan-authority.py" \
+            "$base/test-cockpit-plan-authority.py"
+          python3 "$base/test-cockpit-plan-authority.py"
+
+      - name: Setup PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install exact locked dependencies
+        shell: bash
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Validate dispatcher regression and Cockpit boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          phpunit='vendor/bin/phpunit -c web/core/phpunit.xml.dist'
+          $phpunit web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          $phpunit web/modules/custom/agency_project_tests/tests/src/Unit/CockpitPlanAuthorityWorkflowTest.php
+          git diff --check HEAD^..HEAD
+
+      - name: Prove validation has no operational authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = pull_request
+          runner_label='self-hosted'
+          secret_prefix='secrets'
+          if grep -Eq "runs-on:.*${runner_label}" \
+            .github/workflows/cockpit-plan-authority-validation.yml; then
+            exit 1
+          fi
+          if grep -Eq "${secret_prefix}\.[A-Za-z_]" \
+            .github/workflows/cockpit-plan-authority-validation.yml; then
+            exit 1
+          fi
+          printf '%s\n' \
+            'REAL_AUTHORITY_ISSUE=NONE' \
+            'REAL_PLAN=NONE' \
+            'PREPROD_DATA_REFRESH=NONE' \
+            'PREPROD_WRITE=NONE' \
+            'PROD_WRITE=NONE' \
+            'APPLY=NONE'

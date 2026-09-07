@@ -26,7 +26,10 @@ concurrency:
 jobs:
   validate-authority:
     if: >-
-      ${{ github.event.issue.pull_request == null && startsWith(github.event.comment.body, '/agency-preprod-refresh-successor ') }}
+      ${{ github.event.issue.pull_request == null
+          && ((github.event_name == 'issue_comment'
+               && startsWith(github.event.comment.body, '/agency-preprod-refresh-successor '))
+              || (github.event_name == 'issues' && github.event.action == 'opened')) }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -66,15 +69,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          issue="$RUNNER_TEMP/issue.json"; comments="$RUNNER_TEMP/comments.json"
+          issue="$RUNNER_TEMP/issue.json"
+          comments="$RUNNER_TEMP/comments.json"
           trap 'rm -f -- "$issue" "$comments"' EXIT
           gh api "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER" > "$issue"
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments"
-          python3 scripts/preproduction-refresh/governed-successor/validate-execution-authority.py \
-            --issue-json "$issue" --comments-json "$comments" --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
-            --comment-body "$COMMENT_BODY" --comment-author "$COMMENT_AUTHOR" --github-actor "$GITHUB_ACTOR" \
-            --event-name "$GITHUB_EVENT_NAME" --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --live-main "$LIVE_MAIN" --github-output "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" \
+              > "$comments"
+            python3 scripts/preproduction-refresh/governed-successor/validate-execution-authority.py \
+              --issue-json "$issue" --comments-json "$comments" \
+              --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
+              --comment-body "$COMMENT_BODY" --comment-author "$COMMENT_AUTHOR" \
+              --github-actor "$GITHUB_ACTOR" --event-name "$GITHUB_EVENT_NAME" \
+              --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --live-main "$LIVE_MAIN" --github-output "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_EVENT_NAME" == issues ]]; then
+            python3 scripts/preproduction-refresh/governed-successor/validate-cockpit-plan-authority.py \
+              --issue-json "$issue" \
+              --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
+              --github-actor "$GITHUB_ACTOR" --event-name "$GITHUB_EVENT_NAME" \
+              --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --live-main "$LIVE_MAIN" --github-output "$GITHUB_OUTPUT"
+          else
+            exit 80
+          fi
 
   plan:
     needs: validate-authority
@@ -104,17 +123,37 @@ jobs:
           live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           test "$live" = "${{ needs.validate-authority.outputs.main_sha }}"
           test "$(git rev-parse HEAD)" = "$live"
-          issue="$RUNNER_TEMP/jit-issue.json"; comments="$RUNNER_TEMP/jit-comments.json"
+          issue="$RUNNER_TEMP/jit-issue.json"
+          comments="$RUNNER_TEMP/jit-comments.json"
           trap 'rm -f -- "$issue" "$comments"' EXIT
           gh api "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER" > "$issue"
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" > "$comments"
-          python3 scripts/preproduction-refresh/governed-successor/validate-execution-authority.py \
-            --issue-json "$issue" --comments-json "$comments" --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
-            --comment-body "$COMMENT_BODY" --comment-author "$COMMENT_AUTHOR" --github-actor "$GITHUB_ACTOR" \
-            --event-name "$GITHUB_EVENT_NAME" --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --live-main "$live" --checked-out-head "$live" --expected-mode PLAN \
-            --expected-request-id "${{ needs.validate-authority.outputs.request_id }}" \
-            --expected-main "$live" --expected-profile "${{ needs.validate-authority.outputs.operation_profile }}"
+          if [[ "$GITHUB_EVENT_NAME" == issue_comment ]]; then
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE_NUMBER/comments?per_page=100" \
+              > "$comments"
+            python3 scripts/preproduction-refresh/governed-successor/validate-execution-authority.py \
+              --issue-json "$issue" --comments-json "$comments" \
+              --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
+              --comment-body "$COMMENT_BODY" --comment-author "$COMMENT_AUTHOR" \
+              --github-actor "$GITHUB_ACTOR" --event-name "$GITHUB_EVENT_NAME" \
+              --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --live-main "$live" --checked-out-head "$live" --expected-mode PLAN \
+              --expected-request-id "${{ needs.validate-authority.outputs.request_id }}" \
+              --expected-main "$live" \
+              --expected-profile "${{ needs.validate-authority.outputs.operation_profile }}"
+          elif [[ "$GITHUB_EVENT_NAME" == issues ]]; then
+            python3 scripts/preproduction-refresh/governed-successor/validate-cockpit-plan-authority.py \
+              --issue-json "$issue" \
+              --authority-issue-number "$AUTHORITY_ISSUE_NUMBER" \
+              --github-actor "$GITHUB_ACTOR" --event-name "$GITHUB_EVENT_NAME" \
+              --event-action "$EVENT_ACTION" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --live-main "$live" --checked-out-head "$live" \
+              --expected-request-id "${{ needs.validate-authority.outputs.request_id }}" \
+              --expected-main "$live" \
+              --expected-profile "${{ needs.validate-authority.outputs.operation_profile }}"
+          else
+            exit 80
+          fi
       - name: Materialize transient PLAN identities after JIT
         env:
           PROD_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -145,7 +184,9 @@ jobs:
 
   apply:
     needs: validate-authority
-    if: ${{ needs.validate-authority.outputs.mode == 'APPLY' }}
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && needs.validate-authority.outputs.mode == 'APPLY' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:

@@ -26,3 +26,6 @@ msgstr "Indisponible"
 
 msgid "Human action required"
 msgstr "Action humaine requise"
+
+msgid "Prepare PREPROD PLAN"
+msgstr "Préparer le PLAN PREPROD"

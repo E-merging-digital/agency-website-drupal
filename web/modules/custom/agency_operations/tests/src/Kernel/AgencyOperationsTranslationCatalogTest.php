@@ -58,6 +58,7 @@ final class AgencyOperationsTranslationCatalogTest extends KernelTestBase {
       'Blocked' => 'Bloqué',
       'Unavailable' => 'Indisponible',
       'Human action required' => 'Action humaine requise',
+      'Prepare PREPROD PLAN' => 'Préparer le PLAN PREPROD',
     ];
 
     foreach ($expected as $source => $translation) {

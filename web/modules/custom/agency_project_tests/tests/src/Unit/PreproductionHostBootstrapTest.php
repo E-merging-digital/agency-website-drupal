@@ -135,6 +135,7 @@ final class PreproductionHostBootstrapTest extends TestCase {
     foreach ([
       'workflow_run:',
       'Build Agency release candidate',
+      'group: agency-preproduction-deploy',
       "startsWith(github.event.workflow_run.head_branch, 'release/')",
       'agency-release-candidate-${{ github.event.workflow_run.head_sha }}',
       'for endpoint in live ready',
@@ -195,6 +196,103 @@ final class PreproductionHostBootstrapTest extends TestCase {
       'await expect(drawerLink).toBeVisible()',
       $spec,
     );
+  }
+
+  /**
+   * Immutable Browser proof binds evidence and active release before secrets.
+   */
+  public function testImmutablePreproductionBrowserValidationIsFailClosed(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root . '/.github/workflows/immutable-preprod-browser-1065.yml';
+    self::assertFileExists($path);
+
+    $workflow = (string) file_get_contents($path);
+    $decoded = DrupalYaml::decode($workflow);
+    self::assertIsArray($decoded);
+
+    $inputs = $decoded['on']['workflow_dispatch']['inputs'] ?? NULL;
+    self::assertIsArray($inputs);
+    self::assertSame(['candidate_sha', 'deploy_run'], array_keys($inputs));
+    foreach (['candidate_sha', 'deploy_run'] as $input) {
+      self::assertTrue($inputs[$input]['required'] ?? FALSE);
+      self::assertSame('string', $inputs[$input]['type'] ?? NULL);
+      self::assertArrayNotHasKey('default', $inputs[$input]);
+    }
+
+    foreach ([
+      'EXPECTED_CANDIDATE_SHA: ${{ inputs.candidate_sha }}',
+      'EXPECTED_DEPLOY_RUN: ${{ inputs.deploy_run }}',
+      '[[ "$EXPECTED_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]',
+      '[[ "$EXPECTED_DEPLOY_RUN" =~ ^[0-9]+$ ]]',
+      'CONTRACT_PATH: tests/browser/contracts/homepage-brand-1059-preprod.json',
+      'group: agency-preproduction-deploy',
+      '.github/workflows/deploy-preproduction.yml',
+      'agency-preproduction-evidence-${{ env.EXPECTED_CANDIDATE_SHA }}-${{ env.EXPECTED_DEPLOY_RUN }}',
+      'candidate_sha=$EXPECTED_CANDIDATE_SHA',
+      'release_path=',
+      'deploy_evidence=MATCH',
+      'ref: ${{ env.EXPECTED_CANDIDATE_SHA }}',
+      'Unsupported BROWSER_VALIDATION_CONTRACT',
+      'readlink -f /var/www/agency-preprod/current',
+      'active_release_binding=MATCH',
+      'BROWSER_VALIDATION_CONTRACT: ${{ env.CONTRACT_PATH }}',
+      'npm run browser:validate',
+      'content_mutation=NONE',
+      'deployment=NONE',
+      'prod=NONE',
+    ] as $expected) {
+      self::assertStringContainsString($expected, $workflow);
+    }
+
+    foreach ([
+      'branches/main',
+      'TRUSTED_MAIN',
+      'homepage-brand-1059.php',
+      'run-homepage-brand-1059.sh',
+      'deploy-candidate.sh',
+      'vendor/bin/drush',
+      'rsync ',
+      'scp ',
+      'secrets.PROD_SERVER_HOST',
+      'secrets.PROD_SSH_PRIVATE_KEY',
+      'EXPECTED_CANDIDATE_SHA: 0b25e70d37fd08ff00fb058ed31e191f73d84923',
+      "EXPECTED_DEPLOY_RUN: '34066196313'",
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+    }
+
+    $evidencePosition = strpos(
+      $workflow,
+      'Bind deployment evidence to exact immutable candidate',
+    );
+    $sshPosition = strpos(
+      $workflow,
+      'Materialize PREPROD SSH identity after evidence match',
+    );
+    $activePosition = strpos(
+      $workflow,
+      'Prove exact active PREPROD release read-only',
+    );
+    $basicAuthPosition = strpos(
+      $workflow,
+      'BROWSER_VALIDATION_HTTP_USERNAME',
+    );
+    $browserPosition = strpos($workflow, 'npm run browser:validate');
+
+    foreach ([
+      $evidencePosition,
+      $sshPosition,
+      $activePosition,
+      $basicAuthPosition,
+      $browserPosition,
+    ] as $position) {
+      self::assertNotFalse($position);
+    }
+
+    self::assertTrue($evidencePosition < $sshPosition);
+    self::assertTrue($sshPosition < $activePosition);
+    self::assertTrue($activePosition < $basicAuthPosition);
+    self::assertTrue($basicAuthPosition < $browserPosition);
   }
 
 }

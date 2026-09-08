@@ -64,8 +64,12 @@ jobs:
 
           b=Path('scripts/preproduction-refresh/governed-successor')
           w=Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
+          dispatcher=Path('.github/workflows/agency-command-dispatch.yml').read_text()
           plan_job='  plan:\n'+w.split('\n  plan:\n',1)[1].split('\n  apply:\n',1)[0]
           apply_job='  apply:\n'+w.split('\n  apply:\n',1)[1]
+          legacy_call='  preprod-refresh:\n'+dispatcher.split('\n  preprod-refresh:\n',1)[1].split('\n  preprod-refresh-cockpit-plan:\n',1)[0]
+          cockpit_call='  preprod-refresh-cockpit-plan:\n'+dispatcher.split('\n  preprod-refresh-cockpit-plan:\n',1)[1].split('\n  publish-cockpit-plan-receipt:\n',1)[0]
+          receipt_job='  publish-cockpit-plan-receipt:\n'+dispatcher.split('\n  publish-cockpit-plan-receipt:\n',1)[1].split('\n  development-seed:\n',1)[0]
           plan=(b/'run-plan.sh').read_text()
           control=(b/'run-server-to-server-apply.sh').read_text()
           prep=(b/'remote-server-to-server-worker.py').read_text()
@@ -79,7 +83,18 @@ jobs:
           policy=json.loads(Path('scripts/preproduction-refresh/sanitization-policy.json').read_text())
 
           assert 'RECOVER_ABORT' not in w and 'RECOVER_CURRENT' not in w
+          assert 'publish-cockpit-plan-receipt:' not in w
           assert 'issues: write' not in w and 'issues:write' not in w
+          assert 'issues: write' not in plan_job and 'issues:write' not in plan_job
+          assert 'issues: write' not in apply_job and 'issues:write' not in apply_job
+          assert 'issues: read' in legacy_call or 'issues:read' in legacy_call
+          assert 'issues: write' not in legacy_call and 'issues:write' not in legacy_call
+          assert 'issues: read' in cockpit_call or 'issues:read' in cockpit_call
+          assert 'issues: write' not in cockpit_call and 'issues:write' not in cockpit_call
+          assert 'issues: write' in receipt_job or 'issues:write' in receipt_job
+          assert "needs['preprod-refresh-cockpit-plan'].result == 'success'" in receipt_job
+          assert "needs['preprod-refresh-cockpit-plan'].outputs.mode == 'PLAN'" in receipt_job
+          assert 'observed_prod_release_sha:' in w.split('\n    secrets:\n',1)[0]
           assert 'target_' not in validator and 'recovery_record' not in validator
           assert 'runs-on: ubuntu-24.04' in plan_job
           assert 'runs-on: ubuntu-24.04' in apply_job

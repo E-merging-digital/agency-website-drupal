@@ -42,7 +42,7 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
   }
 
   /**
-   * Payload data must stay data and apply must require an exact dry-run hash.
+   * Payload stays data; bot receipts stay evidence, never human apply authority.
    */
   public function testPayloadAndApplyContractFailClosed(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -58,8 +58,16 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
     self::assertStringContainsString("separators=(',', ':')", $workflow);
     self::assertStringContainsString('hashlib.sha256', $workflow);
     self::assertStringContainsString('github-actions[bot]', $workflow);
-    self::assertStringContainsString(
+    self::assertStringNotContainsString(
       'Apply requires a prior bot-authored dry-run PASS',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'Require exact PREPROD and human approval for apply',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'validate-editorial-promotion-approval.py',
       $workflow,
     );
     self::assertStringContainsString(

@@ -132,11 +132,18 @@ PREPROD must then contain both:
 
 ## Explicit human approval
 
-The normal route accepts exactly one owner-authored approval headed:
+The normal route accepts exactly one direct owner-authored approval headed:
 
 ```text
 ## PROJECT LEAD — HUMAN APPROVAL / exact #<issue> candidate approved for PROD promotion
 ```
+
+The approving comment must come from the direct GitHub user `E-merging-digital`
+with `user.type = User`, `author_association = OWNER`, and no GitHub App
+provenance (`performed_via_github_app = null` or absent). An owner-looking
+comment performed via a GitHub App is refused as human approval. Bot-produced
+PREPROD or dry-run receipts remain valid technical evidence but never replace
+this direct human approval.
 
 It must bind the exact current identities and PREPROD evidence:
 

@@ -4,6 +4,7 @@ module:
   admin_toolbar: 0
   agency_ai_translation: 0
   agency_health: 0
+  agency_operations: 0
   ai: 0
   ai_automators: 0
   ai_ckeditor: 0

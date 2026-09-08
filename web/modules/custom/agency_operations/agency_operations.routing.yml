@@ -1,0 +1,21 @@
+agency_operations.overview:
+  path: '/admin/agency/operations'
+  defaults:
+    _controller: '\Drupal\agency_operations\Controller\OperationsController::overview'
+    _title: 'Agency Operations'
+  requirements:
+    _permission: 'access agency operations'
+  methods: [GET]
+  options:
+    _admin_route: TRUE
+
+agency_operations.editorial:
+  path: '/admin/agency/operations/editorial'
+  defaults:
+    _controller: '\Drupal\agency_operations\Controller\EditorialOperationsController::overview'
+    _title: 'Agency editorial readiness'
+  requirements:
+    _permission: 'access agency operations'
+  methods: [GET]
+  options:
+    _admin_route: TRUE

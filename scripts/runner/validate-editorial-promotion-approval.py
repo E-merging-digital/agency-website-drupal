@@ -185,9 +185,12 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
 
     human_matches: list[tuple[dict[str, Any], dict[str, str], dict[str, str]]] = []
     for comment in comments:
-        if comment.get("user", {}).get("login") != OWNER:
+        user = comment.get("user", {})
+        if user.get("login") != OWNER or user.get("type") != "User":
             continue
         if comment.get("author_association") != "OWNER":
+            continue
+        if comment.get("performed_via_github_app") is not None:
             continue
         parsed = approval_fields(str(comment.get("body") or ""), args.issue_number)
         if parsed is None:
@@ -196,7 +199,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         human_matches.append((comment, fields, urls))
     if len(human_matches) != 1:
         raise ApprovalError(
-            f"Expected exactly one exact owner-authored Project Lead approval; found {len(human_matches)}."
+            f"Expected exactly one exact direct owner-authored Project Lead approval; found {len(human_matches)}."
         )
     approval, fields, urls = human_matches[0]
 

@@ -7,8 +7,8 @@
       <stop offset="1" stop-color="#dbeafe"/>
     </linearGradient>
     <linearGradient id="accent" x1="166" y1="172" x2="548" y2="568" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#89c540"/>
-      <stop offset="1" stop-color="#0f8bff"/>
+      <stop stop-color="#77B72E"/>
+      <stop offset="1" stop-color="#286FB6"/>
     </linearGradient>
   </defs>
   <rect x="98" y="82" width="524" height="556" rx="42" fill="url(#panel)" stroke="#b8c7dd" stroke-width="6"/>
@@ -17,8 +17,8 @@
   <rect x="428" y="474" width="126" height="126" rx="28" fill="#fff" stroke="#c6d4e6" stroke-width="6"/>
   <path d="M294 240c70 16 112 58 126 126M424 396c70 16 112 58 126 126" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="14"/>
   <path d="M204 214h54M204 252h36M334 370h54M334 408h36M464 526h54M464 564h36" fill="none" stroke="#1f3b57" stroke-linecap="round" stroke-width="12"/>
-  <circle cx="294" cy="240" r="18" fill="#89c540"/>
-  <circle cx="424" cy="396" r="18" fill="#0f8bff"/>
+  <circle cx="294" cy="240" r="18" fill="#77B72E"/>
+  <circle cx="424" cy="396" r="18" fill="#286FB6"/>
   <circle cx="554" cy="552" r="22" fill="url(#accent)"/>
   <path d="M544 546l8 8 20-24" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/>
   <path d="M146 576h72M520 130h68M134 332h64" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="12" opacity=".75"/>

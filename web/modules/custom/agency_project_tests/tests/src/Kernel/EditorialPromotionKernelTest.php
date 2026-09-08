@@ -41,6 +41,7 @@ final class EditorialPromotionKernelTest extends KernelTestBase {
     'content_translation',
     'file',
     'image',
+    'path_alias',
   ];
 
   /**
@@ -68,6 +69,7 @@ final class EditorialPromotionKernelTest extends KernelTestBase {
     $this->installEntitySchema('node');
     $this->installEntitySchema('taxonomy_term');
     $this->installEntitySchema('file');
+    $this->installEntitySchema('path_alias');
     $this->installSchema('node', ['node_access']);
     $this->installConfig(['system', 'filter']);
 

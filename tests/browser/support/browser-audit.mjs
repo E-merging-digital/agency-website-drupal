@@ -29,6 +29,21 @@ function isGoogleAnalyticsRequest(url) {
   }
 }
 
+function requestIdentityKey({ method, resourceType, url }) {
+  return `${method}\u0000${resourceType}\u0000${url}`;
+}
+
+function isPreprodBasicAuthContext(baseURL) {
+  try {
+    return new URL(baseURL).hostname === 'preprod.emergingdigital.be'
+      && Boolean(process.env.BROWSER_VALIDATION_HTTP_USERNAME)
+      && Boolean(process.env.BROWSER_VALIDATION_HTTP_PASSWORD);
+  }
+  catch {
+    return false;
+  }
+}
+
 export const test = base.extend({
   audit: async ({ page, baseURL }, use, testInfo) => {
     if (!baseURL) {
@@ -50,10 +65,15 @@ export const test = base.extend({
       unexpectedHttp4xx: [],
       http5xx: [],
       failedRequests: [],
+      reconciledRequestAborts: [],
       analyticsRequests: [],
       analyticsMeasurementRequests: [],
       screenshot: null,
     };
+
+    const preprodBasicAuthContext = isPreprodBasicAuthContext(baseURL);
+    const successfulHttp200RequestKeys = new Set();
+    const pendingAbortReconciliations = [];
 
     const onConsole = (message) => {
       const entry = {
@@ -104,6 +124,31 @@ export const test = base.extend({
         url: response.url(),
       };
 
+      if (response.status() === 200) {
+        const key = requestIdentityKey(entry);
+
+        if (preprodBasicAuthContext && successfulHttp200RequestKeys.has(key)) {
+          const pendingIndex = pendingAbortReconciliations.findIndex(
+            (pending) => pending.key === key,
+          );
+
+          if (pendingIndex !== -1) {
+            const [{ entry: failedEntry }] = pendingAbortReconciliations.splice(
+              pendingIndex,
+              1,
+            );
+            const failedIndex = audit.failedRequests.indexOf(failedEntry);
+
+            if (failedIndex !== -1) {
+              audit.failedRequests.splice(failedIndex, 1);
+              audit.reconciledRequestAborts.push(failedEntry);
+            }
+          }
+        }
+
+        successfulHttp200RequestKeys.add(key);
+      }
+
       if (response.status() >= 500) {
         audit.http5xx.push(entry);
       }
@@ -117,12 +162,25 @@ export const test = base.extend({
         return;
       }
 
-      audit.failedRequests.push({
+      const entry = {
         method: request.method(),
         resourceType: request.resourceType(),
         url: request.url(),
         errorText: request.failure()?.errorText ?? 'Unknown request failure',
-      });
+      };
+
+      audit.failedRequests.push(entry);
+
+      if (
+        preprodBasicAuthContext
+        && entry.errorText === 'net::ERR_ABORTED'
+      ) {
+        const key = requestIdentityKey(entry);
+
+        if (successfulHttp200RequestKeys.has(key)) {
+          pendingAbortReconciliations.push({ key, entry });
+        }
+      }
     };
 
     page.on('console', onConsole);
@@ -157,6 +215,7 @@ export const test = base.extend({
       unexpected_http_4xx: audit.unexpectedHttp4xx.length,
       http_5xx: audit.http5xx.length,
       failed_requests: audit.failedRequests.length,
+      reconciled_request_aborts: audit.reconciledRequestAborts.length,
       google_analytics_requests: audit.analyticsRequests.length,
       ga4_measurement_id_requests: audit.analyticsMeasurementRequests.length,
       details: {
@@ -166,6 +225,7 @@ export const test = base.extend({
         unexpected_http_4xx: audit.unexpectedHttp4xx,
         http_5xx: audit.http5xx,
         failed_requests: audit.failedRequests,
+        reconciled_request_aborts: audit.reconciledRequestAborts,
         google_analytics_requests: audit.analyticsRequests,
         ga4_measurement_id_requests: audit.analyticsMeasurementRequests,
       },

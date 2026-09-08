@@ -302,7 +302,7 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgb(0 91 187 / 16%);
+  box-shadow: 0 0 0 3px rgb(40 111 182 / 16%);
 }
 
 .page-header .main-navigation__item {

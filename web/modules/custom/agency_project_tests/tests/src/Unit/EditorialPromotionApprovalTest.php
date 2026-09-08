@@ -22,7 +22,7 @@ final class EditorialPromotionApprovalTest extends TestCase {
   private const MAIN_SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
   /**
-   * Exact PREPROD + image + human approval + fresh PROD dry-run is accepted.
+   * Exact PREPROD + image + direct human approval + fresh PROD dry-run is accepted.
    */
   public function testExactApprovedCandidateIsPromotable(): void {
     $fixture = $this->fixture();
@@ -36,7 +36,7 @@ final class EditorialPromotionApprovalTest extends TestCase {
   }
 
   /**
-   * Missing or stale authority components fail closed before PROD.
+   * Missing, stale or non-human authority components fail closed before PROD.
    */
   public function testGovernanceBypassesAreRefused(): void {
     $mutations = [
@@ -109,6 +109,15 @@ final class EditorialPromotionApprovalTest extends TestCase {
       },
       'human-looking non-owner approval' => static function (array &$fixture): void {
         $fixture['comments'][3]['author_association'] = 'MEMBER';
+      },
+      'owner approval performed via GitHub App' => static function (array &$fixture): void {
+        $fixture['comments'][3]['performed_via_github_app'] = [
+          'id' => 1144995,
+          'slug' => 'chatgpt-codex-connector',
+        ];
+      },
+      'owner-looking bot identity' => static function (array &$fixture): void {
+        $fixture['comments'][3]['user']['type'] = 'Bot';
       },
       'wrong approval heading' => static function (array &$fixture): void {
         $fixture['comments'][3]['body'] = str_replace(
@@ -204,8 +213,12 @@ final class EditorialPromotionApprovalTest extends TestCase {
       ])),
       [
         'id' => 140,
-        'user' => ['login' => 'E-merging-digital'],
+        'user' => [
+          'login' => 'E-merging-digital',
+          'type' => 'User',
+        ],
         'author_association' => 'OWNER',
+        'performed_via_github_app' => NULL,
         'body' => implode("\n", [
           '## PROJECT LEAD — HUMAN APPROVAL / exact #999 candidate approved for PROD promotion',
           '',

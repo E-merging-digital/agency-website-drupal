@@ -1,0 +1,349 @@
+name: '#1091 Homepage Brand #1059 production publication'
+
+on:
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  publication:
+    name: Publish exact Homepage Brand #1059 EN correction to PROD
+    if: >-
+      ${{ github.event.issue.pull_request == null
+          && github.event.issue.number == 1091
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && (github.event.comment.body == '/agency-homepage-brand-1059-prod dry-run'
+              || github.event.comment.body == '/agency-homepage-brand-1059-prod apply') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: agency-homepage-brand-prod-1059
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_OWNER: E-merging-digital
+      CONTROL_ISSUE: '1091'
+      CONTENT_ISSUE: '1059'
+      CONTROL_ISSUE_CREATED_AT: '2026-09-07T18:09:57Z'
+      PROFILE_SHA256: 'e7f6e184a31048b4fcea7f126b6e24e9aa23db46522cd2537f441fd2f3218390'
+      PREPROD_CANDIDATE_SHA: 'd07994a2c54b5e87bedf123b44a91d341c34fe49'
+      PREPROD_DEPLOY_RUN: '34147665186'
+      BROWSER_RUN: '34150107474'
+      BROWSER_ARTIFACT: '10029063144'
+      PREPROD_FR_URL: 'https://preprod.emergingdigital.be/fr'
+      PREPROD_EN_URL: 'https://preprod.emergingdigital.be/en'
+      LANGUAGE_MODE: 'FR_EN_APPROVED'
+      PROD_MUTATION: 'EN_ONLY'
+
+    steps:
+      - name: Authorize exact #1091 owner command and live main
+        id: request
+        shell: bash
+        env:
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == "$EXPECTED_OWNER" ]]
+          [[ "$COMMENT_AUTHOR" == "$EXPECTED_OWNER" ]]
+          case "$TRIGGER_COMMENT" in
+            '/agency-homepage-brand-1059-prod dry-run') mode='dry-run' ;;
+            '/agency-homepage-brand-1059-prod apply') mode='apply' ;;
+            *) echo 'Unsupported Homepage Brand #1059 production command.' >&2; exit 1 ;;
+          esac
+
+          control_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$CONTROL_ISSUE")"
+          content_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$CONTENT_ISSUE")"
+          jq -e \
+            --arg owner "$EXPECTED_OWNER" \
+            --arg created "$CONTROL_ISSUE_CREATED_AT" \
+            --arg candidate "$PREPROD_CANDIDATE_SHA" \
+            --arg browser "$BROWSER_RUN" \
+            '.number == 1091
+             and .state == "open"
+             and .user.login == $owner
+             and .created_at == $created
+             and (.labels | map(.name) | index("P1") != null)
+             and (.labels | map(.name) | index("status:in-progress") != null)
+             and (.body | contains("PREPROD_CANDIDATE_SHA = " + $candidate))
+             and (.body | contains("IMMUTABLE_BROWSER_RUN = " + $browser + " / SUCCESS / attempt 1"))' \
+            <<<"$control_json" >/dev/null
+          jq -e \
+            --arg owner "$EXPECTED_OWNER" \
+            '.number == 1059
+             and .state == "open"
+             and .user.login == $owner
+             and (.labels | map(.name) | index("status:in-progress") != null)' \
+            <<<"$content_json" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'Homepage Brand #1059 production route must execute on live main.' >&2
+            exit 1
+          }
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: JIT require exact direct human PREPROD render approval
+        id: approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          comments="$RUNNER_TEMP/homepage-1059-human-approval-comments.json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/$CONTROL_ISSUE/comments?per_page=100" > "$comments"
+
+          expected_body="$(printf '%s\n' \
+            '<!-- agency-human-homepage-1059-prod-approval:v1 -->' \
+            '' \
+            'intent=APPROVE_THIS_EXACT_PREPROD_CANDIDATE_FOR_PROD' \
+            'control_issue=1091' \
+            'content_issue=1059' \
+            "candidate_sha=$PREPROD_CANDIDATE_SHA" \
+            "deploy_run=$PREPROD_DEPLOY_RUN" \
+            "browser_run=$BROWSER_RUN" \
+            "browser_artifact=$BROWSER_ARTIFACT" \
+            "profile_sha256=$PROFILE_SHA256" \
+            "preprod_fr_url=$PREPROD_FR_URL" \
+            "preprod_en_url=$PREPROD_EN_URL" \
+            'human_render_fr=APPROVED' \
+            'human_render_en=APPROVED' \
+            "language_mode=$LANGUAGE_MODE" \
+            "prod_mutation=$PROD_MUTATION")"
+
+          matches="$(jq -c \
+            --arg owner "$EXPECTED_OWNER" \
+            --arg body "$expected_body" \
+            '[.. | objects
+              | select(.id? != null)
+              | select(.user.login == $owner)
+              | select(.user.type == "User")
+              | select(.author_association == "OWNER")
+              | select(has("performed_via_github_app") and .performed_via_github_app == null)
+              | select(.created_at == .updated_at)
+              | select(.issue_url == ("https://api.github.com/repos/" + env.GITHUB_REPOSITORY + "/issues/1091"))
+              | select(((.body // "") | rtrimstr("\n")) == $body)
+              | .id]' \
+            "$comments")"
+          [[ "$(jq 'length' <<<"$matches")" -eq 1 ]] || {
+            echo 'Exactly one direct human OWNER approval for the exact #1059 PREPROD candidate is required.' >&2
+            exit 1
+          }
+          approval_id="$(jq -r '.[0]' <<<"$matches")"
+          [[ "$approval_id" =~ ^[0-9]+$ ]]
+          echo "comment_id=$approval_id" >> "$GITHUB_OUTPUT"
+
+      - name: Require exact prior PROD dry-run before apply
+        if: ${{ steps.request.outputs.mode == 'apply' }}
+        shell: bash
+        env:
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          HUMAN_APPROVAL_COMMENT: ${{ steps.approval.outputs.comment_id }}
+        run: |
+          set -euo pipefail
+          comments="$RUNNER_TEMP/homepage-1059-prod-comments.json"
+          gh api --paginate --slurp \
+            "repos/$GITHUB_REPOSITORY/issues/$CONTROL_ISSUE/comments?per_page=100" > "$comments"
+          jq -e \
+            --arg heading '### Agency Homepage Brand #1059 PROD dry-run PASS' \
+            --arg authority_created "$CONTROL_ISSUE_CREATED_AT" \
+            --arg profile "$PROFILE_SHA256" \
+            --arg main "$TRUSTED_MAIN" \
+            --arg approval "$HUMAN_APPROVAL_COMMENT" \
+            --arg candidate "$PREPROD_CANDIDATE_SHA" \
+            --arg deploy "$PREPROD_DEPLOY_RUN" \
+            --arg browser "$BROWSER_RUN" \
+            --arg browser_artifact "$BROWSER_ARTIFACT" \
+            '[.. | objects
+              | select(.user.login == "github-actions[bot]")
+              | (.body // "") as $body
+              | select(
+                  ($body | startswith($heading + "\n"))
+                  and ($body | contains("\ncontrol_issue=1091\n"))
+                  and ($body | contains("\ncontent_issue=1059\n"))
+                  and ($body | contains("\ncontrol_issue_created_at=" + $authority_created + "\n"))
+                  and ($body | contains("\nprofile=homepage-brand-1059\n"))
+                  and ($body | contains("\nprofile_sha256=" + $profile + "\n"))
+                  and ($body | contains("\ntrusted_main=" + $main + "\n"))
+                  and ($body | contains("\nhuman_approval_comment=" + $approval + "\n"))
+                  and ($body | contains("\ncandidate_sha=" + $candidate + "\n"))
+                  and ($body | contains("\ndeploy_run=" + $deploy + "\n"))
+                  and ($body | contains("\nbrowser_run=" + $browser + "\n"))
+                  and ($body | contains("\nbrowser_artifact=" + $browser_artifact + "\n"))
+                  and ($body | contains("\ntarget=PROD\n"))
+                  and ($body | contains("\nnode_id=5\n"))
+                  and ($body | contains("\nlanguage=en\n"))
+                  and ($body | contains("\nprod_mutation=EN_ONLY\n"))
+                  and ($body | contains("\ncontent_sync_before=RELEASED\n"))
+                  and ($body | contains("\ncontent_sync_after=RELEASED\n"))
+                  and ($body | contains("\ncontent_sync_mutation=NONE\n"))
+                  and ($body | contains("\nprod_write=NONE\n"))
+                )
+            ] | length == 1' \
+            "$comments" >/dev/null || {
+              echo 'Homepage Brand #1059 PROD apply requires one exact dry-run PASS for the same authority, approval, candidate, Browser proof and live main.' >&2
+              exit 1
+            }
+
+      - name: Checkout exact live main execution source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify fixed #1059 production publication implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          test -f scripts/runner/homepage-brand-1059.php
+          test -f scripts/runner/run-homepage-brand-1059-production-publication.sh
+          php -l scripts/runner/homepage-brand-1059.php
+          bash -n scripts/runner/run-homepage-brand-1059-production-publication.sh
+          grep -Fq "private const PROFILE_SHA256 = '$PROFILE_SHA256';" scripts/runner/homepage-brand-1059.php
+          grep -Fq "private const LANGCODE = 'en';" scripts/runner/homepage-brand-1059.php
+
+      - name: Configure existing production SSH channel
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Execute exact Homepage Brand #1059 EN-only production publication route
+        id: route
+        shell: bash
+        env:
+          HOMEPAGE_BRAND_1059_PROD_MODE: ${{ steps.request.outputs.mode }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/homepage-brand-1059-production-publication
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-homepage-brand-1059-production-publication.sh
+
+      - name: Upload bounded #1059 production publication evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: homepage-brand-1059-production-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/homepage-brand-1059-production-publication
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Persist bounded #1059 production result
+        if: ${{ always() && steps.request.outcome == 'success' && steps.approval.outcome == 'success' }}
+        shell: bash
+        env:
+          MODE: ${{ steps.request.outputs.mode }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          HUMAN_APPROVAL_COMMENT: ${{ steps.approval.outputs.comment_id }}
+          ROUTE_OUTCOME: ${{ steps.route.outcome }}
+        run: |
+          set -euo pipefail
+          result_file='artifacts/homepage-brand-1059-production-publication/result.json'
+          if [[ "$ROUTE_OUTCOME" != 'success' ]]; then
+            message='No structured production result was preserved.'
+            [[ ! -f "$result_file" ]] || message="$(jq -r '.message // "Homepage Brand #1059 production route failed."' "$result_file")"
+            printf -v body '%s\n' \
+              "### Agency Homepage Brand #1059 PROD $MODE FAILURE" \
+              "" \
+              "control_issue=1091" \
+              "content_issue=1059" \
+              "control_issue_created_at=$CONTROL_ISSUE_CREATED_AT" \
+              "profile_sha256=$PROFILE_SHA256" \
+              "trusted_main=$TRUSTED_MAIN" \
+              "human_approval_comment=$HUMAN_APPROVAL_COMMENT" \
+              "candidate_sha=$PREPROD_CANDIDATE_SHA" \
+              "deploy_run=$PREPROD_DEPLOY_RUN" \
+              "browser_run=$BROWSER_RUN" \
+              "browser_artifact=$BROWSER_ARTIFACT" \
+              "target=PROD" \
+              "language=en" \
+              "prod_write=NONE" \
+              "message=$message"
+            gh issue comment "$CONTROL_ISSUE" --repo "$GITHUB_REPOSITORY" --body "$body"
+            exit 0
+          fi
+
+          test -f "$result_file"
+          verdict="$(jq -r '.verdict' "$result_file")"
+          node_id="$(jq -r '.node.id' "$result_file")"
+          revision_id="$(jq -r '.node.revision_id' "$result_file")"
+          content_sync_before="$(jq -r '.content_sync_before' "$result_file")"
+          content_sync_after="$(jq -r '.content_sync_after' "$result_file")"
+          content_sync_mutation="$(jq -r '.content_sync_mutation' "$result_file")"
+          fr_database_snapshot="$(jq -r '.fr_database_snapshot' "$result_file")"
+          en_profile="$(jq -r '.en_profile' "$result_file")"
+          prod_write="$(jq -r '.prod_write' "$result_file")"
+          backup_file="$(jq -r '.backup_file' "$result_file")"
+          backup_verified="$(jq -r '.backup_verified' "$result_file")"
+          cache_rebuilt="$(jq -r '.cache_rebuilt' "$result_file")"
+          public_fr_status="$(jq -r '.public_verification.fr.status' "$result_file")"
+          public_en_status="$(jq -r '.public_verification.en.status' "$result_file")"
+          public_fr_h1="$(jq -r '.public_verification.fr.h1' "$result_file")"
+          public_en_h1="$(jq -r '.public_verification.en.h1' "$result_file")"
+          [[ "$MODE" == 'dry-run' ]] \
+            && heading='### Agency Homepage Brand #1059 PROD dry-run PASS' \
+            || heading='### Agency Homepage Brand #1059 PROD apply PASS'
+          printf -v body '%s\n' \
+            "$heading" \
+            "" \
+            "mode=$MODE" \
+            "control_issue=1091" \
+            "content_issue=1059" \
+            "control_issue_created_at=$CONTROL_ISSUE_CREATED_AT" \
+            "profile=homepage-brand-1059" \
+            "profile_sha256=$PROFILE_SHA256" \
+            "trusted_main=$TRUSTED_MAIN" \
+            "human_approval_comment=$HUMAN_APPROVAL_COMMENT" \
+            "candidate_sha=$PREPROD_CANDIDATE_SHA" \
+            "deploy_run=$PREPROD_DEPLOY_RUN" \
+            "browser_run=$BROWSER_RUN" \
+            "browser_artifact=$BROWSER_ARTIFACT" \
+            "target=PROD" \
+            "node_id=$node_id" \
+            "revision_id=$revision_id" \
+            "bundle=page" \
+            "language=en" \
+            "language_mode=$LANGUAGE_MODE" \
+            "prod_mutation=$PROD_MUTATION" \
+            "fr_database_snapshot=$fr_database_snapshot" \
+            "en_profile=$en_profile" \
+            "content_sync_before=$content_sync_before" \
+            "content_sync_after=$content_sync_after" \
+            "content_sync_mutation=$content_sync_mutation" \
+            "public_fr_status=$public_fr_status" \
+            "public_en_status=$public_en_status" \
+            "public_fr_h1=$public_fr_h1" \
+            "public_en_h1=$public_en_h1" \
+            "backup_file=$backup_file" \
+            "backup_verified=$backup_verified" \
+            "cache_rebuilt=$cache_rebuilt" \
+            "verdict=$verdict" \
+            "prod_write=$prod_write"
+          gh issue comment "$CONTROL_ISSUE" --repo "$GITHUB_REPOSITORY" --body "$body"

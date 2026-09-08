@@ -1,0 +1,16 @@
+services:
+  agency_operations.language_readiness:
+    class: Drupal\agency_operations\Service\EditorialLanguageReadiness
+    arguments: ['@language_manager']
+
+  agency_operations.capability_registry:
+    class: Drupal\agency_operations\Service\CapabilityRegistryReader
+    arguments: ['%app.root%']
+
+  agency_operations.runtime_metadata:
+    class: Drupal\agency_operations\Service\RuntimeMetadataReader
+    arguments: ['%app.root%', '@request_stack']
+
+  agency_operations.cockpit_plan_receipt:
+    class: Drupal\agency_operations\Service\CockpitPlanReceiptReader
+    arguments: ['@http_client']

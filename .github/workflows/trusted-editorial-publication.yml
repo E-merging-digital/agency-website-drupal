@@ -388,7 +388,7 @@ jobs:
           en_alias: \`${en_alias}\`
           artifact: \`${artifact}\`
 
-          Apply is PREPROD-first, exact-candidate, human-approved and image-complete. This route remains Article-only and accepts no arbitrary shell, Drush, path, bundle, field or Content Sync input.
+          Apply is PREPROD-first, exact-candidate, direct-human-approved and image-complete. This route remains Article-only and accepts no arbitrary shell, Drush, path, bundle, field or Content Sync input.
           EOF_BODY
           )"
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

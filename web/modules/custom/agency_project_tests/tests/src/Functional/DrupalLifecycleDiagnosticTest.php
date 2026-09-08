@@ -174,6 +174,7 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
     self::assertSame([
       '/fr/audit-drupal',
       '/fr/drupal-2027',
+      '/drupal-2027',
       '/fr/migration-drupal',
       '/fr/refonte-site-drupal',
       '/en/drupal-audit',

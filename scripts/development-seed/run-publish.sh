@@ -49,6 +49,7 @@ temp_abs="$(realpath -m "$RUNNER_TEMP")"
 case "$temp_abs/" in "$workspace_abs/"*) echo 'RUNNER_TEMP must remain outside the repository workspace.' >&2; exit 80;; esac
 
 raw="$temp_abs/$REQUEST_ID.raw-preprod.sql"
+sanitize_diagnostic="$temp_abs/$REQUEST_ID.sql-sanitize.diagnostic"
 known_hosts="$temp_abs/$REQUEST_ID.known_hosts"
 reader_key="$temp_abs/$REQUEST_ID.reader"
 generation="$temp_abs/$REQUEST_ID-generation"
@@ -93,6 +94,29 @@ reader_action() {
     < "$READER_KEY_SCRIPT"
 }
 
+classify_sanitize_failure() {
+  local diagnostic_path="$1"
+  local exit_code="$2"
+  local failure_class='UNCLASSIFIED'
+
+  if LC_ALL=C grep -Eiq -- '(command .* is not defined|there are no commands defined|option .* does not exist|unknown option|too many arguments|not enough arguments)' "$diagnostic_path"; then
+    failure_class='COMMAND'
+  elif LC_ALL=C grep -Eiq -- '(bootstrap failed|could not bootstrap|unable to bootstrap|failed to bootstrap|drupal bootstrap)' "$diagnostic_path"; then
+    failure_class='BOOTSTRAP'
+  elif LC_ALL=C grep -Eiq -- '(SQLSTATE\[(42S02|42S22)\]|base table or view not found|unknown column|no such table|table .* doesn.?t exist)' "$diagnostic_path"; then
+    failure_class='SCHEMA'
+  elif LC_ALL=C grep -Eiq -- '(SQLSTATE\[|PDOException|DatabaseException|QueryException|deadlock|lock wait timeout|server has gone away|connection refused|fatal error|uncaught .*exception|allowed memory size)' "$diagnostic_path"; then
+    failure_class='RUNTIME'
+  fi
+
+  if [[ ! "$exit_code" =~ ^[1-9][0-9]*$ ]]; then
+    exit_code=255
+  fi
+  printf 'SANITIZE_FAILURE=YES\n' >&2
+  printf 'SANITIZE_FAILURE_CLASS=%s\n' "$failure_class" >&2
+  printf 'SANITIZE_FAILURE_EXIT=%s\n' "$exit_code" >&2
+}
+
 delete_ddev_worktree() {
   local path="$1"
   if [[ -d "$path" ]]; then
@@ -126,8 +150,8 @@ cleanup() {
     ssh_agent_started=0
   fi
   rm -rf -- "$proof_cache"
-  rm -f -- "$raw" "$known_hosts" "$reader_key" "$reader_key.pub"
-  [[ ! -e "$raw" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" && ! -e "$proof_cache" ]] || final=98
+  rm -f -- "$raw" "$sanitize_diagnostic" "$known_hosts" "$reader_key" "$reader_key.pub"
+  [[ ! -e "$raw" && ! -e "$sanitize_diagnostic" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" && ! -e "$proof_cache" ]] || final=98
   if [[ "$original" -ne 0 ]]; then final="$original"; fi
   exit "$final"
 }
@@ -171,15 +195,35 @@ rm -f -- "$raw"
 [[ ! -e "$raw" ]]
 
 seed_password="$(openssl rand -hex 32)"
-(
+(umask 077; set -o noclobber; : > "$sanitize_diagnostic")
+[[ -f "$sanitize_diagnostic" && ! -L "$sanitize_diagnostic" ]]
+[[ "$(stat -c '%a' "$sanitize_diagnostic")" == 600 ]]
+if (
   cd "$generation"
   ddev drush sql:sanitize -y \
     --sanitize-email='user+%uid@example.invalid' \
-    --sanitize-password="$seed_password" >/dev/null
+    --sanitize-password="$seed_password"
+) > "$sanitize_diagnostic" 2>&1; then
+  rm -f -- "$sanitize_diagnostic"
+  [[ ! -e "$sanitize_diagnostic" ]]
+else
+  sanitize_exit=$?
+  classify_sanitize_failure "$sanitize_diagnostic" "$sanitize_exit"
+  if ! rm -f -- "$sanitize_diagnostic" || [[ -e "$sanitize_diagnostic" ]]; then
+    printf 'SANITIZE_DIAGNOSTIC_CLEANUP=FAIL\n' >&2
+    unset seed_password
+    exit 98
+  fi
+  unset seed_password
+  exit "$sanitize_exit"
+fi
+unset seed_password
+
+(
+  cd "$generation"
   ddev drush --quiet php:script scripts/preproduction-refresh/governed-successor/agency-sanitize.php >/dev/null
   ddev drush --quiet php:script scripts/development-seed/agency-development-sanitize.php >/dev/null
 )
-unset seed_password
 
 # Snapshot only after every existing sanitization/assertion has passed.
 build_dir="$generation/.ddev/.seed-build"
@@ -280,8 +324,8 @@ storage_action CLEANUP NONE NONE >/dev/null
 
 ssh-agent -k >/dev/null
 ssh_agent_started=0
-rm -f -- "$raw" "$known_hosts" "$reader_key" "$reader_key.pub"
-[[ ! -e "$raw" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]]
+rm -f -- "$raw" "$sanitize_diagnostic" "$known_hosts" "$reader_key" "$reader_key.pub"
+[[ ! -e "$raw" && ! -e "$sanitize_diagnostic" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]]
 
 mkdir -p "$evidence_dir"
 cat > "$evidence.tmp" <<EOF_EVIDENCE

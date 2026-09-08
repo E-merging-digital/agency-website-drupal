@@ -72,6 +72,68 @@ final class DevelopmentSeedContractTest extends TestCase {
   }
 
   /**
+   * Proves #1121 sanitize failures stay bounded and privacy-safe.
+   */
+  public function testPublisherSanitizeFailureDiagnosticContract(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $publisher = file_get_contents($root . '/scripts/development-seed/run-publish.sh');
+    $workflow = file_get_contents($root . '/.github/workflows/development-seed-publish.yml');
+    self::assertIsString($publisher);
+    self::assertIsString($workflow);
+
+    self::assertStringContainsString(
+      'sanitize_diagnostic="$temp_abs/$REQUEST_ID.sql-sanitize.diagnostic"',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      '(umask 077; set -o noclobber; : > "$sanitize_diagnostic")',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      '[[ "$(stat -c \'%a\' "$sanitize_diagnostic")" == 600 ]]',
+      $publisher,
+    );
+    self::assertSame(1, substr_count($publisher, 'ddev drush sql:sanitize -y'));
+    self::assertSame(1, substr_count($publisher, "--sanitize-email='user+%uid@example.invalid'"));
+    self::assertSame(1, substr_count($publisher, '--sanitize-password="$seed_password"'));
+    self::assertStringContainsString(') > "$sanitize_diagnostic" 2>&1; then', $publisher);
+    self::assertSame(4, substr_count($publisher, 'LC_ALL=C grep -Eiq --'));
+    foreach (['UNCLASSIFIED', 'COMMAND', 'BOOTSTRAP', 'SCHEMA', 'RUNTIME'] as $class) {
+      self::assertStringContainsString("failure_class='$class'", $publisher);
+    }
+    foreach (['SANITIZE_FAILURE=YES', 'SANITIZE_FAILURE_CLASS=%s', 'SANITIZE_FAILURE_EXIT=%s'] as $key) {
+      self::assertStringContainsString($key, $publisher);
+    }
+    self::assertStringContainsString(
+      'rm -f -- "$raw" "$sanitize_diagnostic" "$known_hosts"',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      '[[ ! -e "$raw" && ! -e "$sanitize_diagnostic"',
+      $publisher,
+    );
+    foreach (['cat', 'head', 'tail', 'tee', 'cp', 'scp'] as $forbidden) {
+      self::assertStringNotContainsString($forbidden . ' "$sanitize_diagnostic"', $publisher);
+    }
+    self::assertStringNotContainsString('sql-sanitize.diagnostic', $workflow);
+    self::assertStringNotContainsString('sanitize_diagnostic', $workflow);
+    $sqlSanitize = strpos($publisher, 'ddev drush sql:sanitize -y');
+    $agencySanitize = strpos(
+      $publisher,
+      'ddev drush --quiet php:script scripts/preproduction-refresh/governed-successor/agency-sanitize.php',
+    );
+    $developmentSanitize = strpos(
+      $publisher,
+      'ddev drush --quiet php:script scripts/development-seed/agency-development-sanitize.php',
+    );
+    self::assertIsInt($sqlSanitize);
+    self::assertIsInt($agencySanitize);
+    self::assertIsInt($developmentSanitize);
+    self::assertTrue($sqlSanitize < $agencySanitize);
+    self::assertTrue($agencySanitize < $developmentSanitize);
+  }
+
+  /**
    * Executes the data-free #873/#1108 proof under canonical PHPUnit CI.
    */
   public function testSyntheticDevelopmentSeedContract(): void {

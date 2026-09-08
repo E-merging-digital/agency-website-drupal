@@ -65,11 +65,14 @@ $checkoutRef = isset($options['checkout-ref']) && is_string($options['checkout-r
 if ($checkoutRef !== 'HEAD' && !preg_match('/^[0-9a-f]{40}$/', strtolower($checkoutRef))) {
   fail('checkout-ref must be HEAD or a 40-hex commit SHA.');
 }
-if (!is_dir($repository . '/.git')) {
-  fail('Repository is not a Git checkout.');
+if (!is_dir($repository . '/.git') && !is_file($repository . '/.git')) {
+  fail('Repository is not a Git checkout or worktree.');
 }
 if (!is_readable($metadataPath) || !is_readable($databasePath)) {
-  fail('Seed metadata or database is not readable.');
+  fail('Seed metadata or database snapshot is not readable.');
+}
+if (basename($databasePath) !== 'database-mariadb_11.8.zst') {
+  fail('Seed snapshot filename is incompatible with mariadb:11.8.');
 }
 
 $raw = file_get_contents($metadataPath);
@@ -114,8 +117,9 @@ if (!is_array($policy) || ($policy['id'] ?? null) !== 'agency-development-seed-v
 $compatibility = $metadata['compatibility'];
 if (!is_array($compatibility)
   || ($compatibility['strategy'] ?? null) !== 'SAME_OR_SEED_ANCESTOR'
-  || ($compatibility['ddev_minimum_version'] ?? null) !== '1.25.3'
+  || ($compatibility['ddev_minimum_version'] ?? null) !== '1.25.4'
   || ($compatibility['database'] ?? null) !== 'mariadb:11.8'
+  || ($compatibility['snapshot_filename'] ?? null) !== 'database-mariadb_11.8.zst'
   || ($compatibility['drush'] ?? null) !== '13.7.6') {
   fail('Unsupported seed compatibility metadata.');
 }
@@ -123,10 +127,10 @@ if (!is_array($compatibility)
 $size = filesize($databasePath);
 $hash = hash_file('sha256', $databasePath);
 if (!is_int($size) || $size !== $metadata['database_byte_size']) {
-  fail('Database byte size mismatch.');
+  fail('Database snapshot byte size mismatch.');
 }
 if (!is_string($hash) || !is_string($metadata['database_sha256']) || !hash_equals(strtolower($metadata['database_sha256']), $hash)) {
-  fail('Database SHA-256 mismatch.');
+  fail('Database snapshot SHA-256 mismatch.');
 }
 
 [$code, $stdout] = run_process(['git', 'rev-parse', '--verify', $checkoutRef . '^{commit}'], $repository);
@@ -150,5 +154,6 @@ if ($sourceRelease !== $checkoutSha) {
 
 fwrite(STDOUT, "SEED_METADATA=PASS\n");
 fwrite(STDOUT, "SEED_HASH=PASS\n");
+fwrite(STDOUT, "SEED_DATABASE_COMPATIBILITY=mariadb:11.8\n");
 fwrite(STDOUT, "SEED_COMPATIBILITY={$compatibilityVerdict}\n");
 fwrite(STDOUT, "SEED_ID={$metadata['seed_id']}\n");

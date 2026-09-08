@@ -11,7 +11,6 @@ on:
     paths:
       - ".github/workflows/development-seed-publish.yml"
       - ".github/workflows/agency-command-dispatch.yml"
-      - ".ddev/providers/agency.yaml"
       - ".ddev/config.development-seed.yaml"
       - "scripts/development-seed/**"
       - "docs/operations/development-seed.md"
@@ -48,6 +47,7 @@ jobs:
             scripts/development-seed/remote-storage.sh \
             scripts/development-seed/remote-read-only-scp.sh \
             scripts/development-seed/remote-reader-key.sh \
+            scripts/development-seed/use-native-seed.sh \
             scripts/development-seed/run-publish.sh; do
             bash -n "$script"
           done
@@ -174,7 +174,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/agency-956-preprod.key"
 
       - id: publish
-        name: Generate, publish and prove through existing DDEV provider
+        name: Generate, publish and prove native DDEV snapshot
         env:
           REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
           REPOSITORY_SHA: ${{ needs.validate-authority.outputs.main_sha }}
@@ -202,16 +202,16 @@ jobs:
           heading='### Agency Development Seed publish FAILED'
           seed_id='n/a'
           database_sha='n/a'
-          ddev_pull='NOT_PROVEN'
+          ddev_native_seed='NOT_PROVEN'
           cleanup='NOT_PROVEN'
           if [[ "$ROUTE_OUTCOME" == success && -s "$result" ]]; then
             seed_id="$(grep -m1 '^seed_id=' "$result" | cut -d= -f2-)"
             database_sha="$(grep -m1 '^database_sha256=' "$result" | cut -d= -f2-)"
-            ddev_pull="$(grep -m1 '^ddev_pull_agency=' "$result" | cut -d= -f2-)"
+            ddev_native_seed="$(grep -m1 '^ddev_native_seed=' "$result" | cut -d= -f2-)"
             cleanup="$(grep -m1 '^temporary_generation_material=' "$result" | cut -d= -f2-)"
             [[ "$seed_id" =~ ^agency-development-seed-v1-seed-956-[A-Za-z0-9._-]{8,40}-r1$ ]]
             [[ "$database_sha" =~ ^[0-9a-f]{64}$ ]]
-            [[ "$ddev_pull" == REAL_SUCCESS && "$cleanup" == ABSENT ]]
+            [[ "$ddev_native_seed" == REAL_SUCCESS && "$cleanup" == ABSENT ]]
             heading='### Agency Development Seed publish PASS'
           fi
           body="$(cat <<EOF_BODY
@@ -223,7 +223,7 @@ jobs:
           source_preprod_release: \`${SOURCE_RELEASE}\`
           seed_id: \`${seed_id}\`
           database_sha256: \`${database_sha}\`
-          ddev_pull_agency: \`${ddev_pull}\`
+          ddev_native_seed: \`${ddev_native_seed}\`
           temporary_generation_material: \`${cleanup}\`
           run_id: \`${GITHUB_RUN_ID}\`
           route_outcome: \`${ROUTE_OUTCOME}\`

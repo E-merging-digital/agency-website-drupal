@@ -1,7 +1,7 @@
 # Agency Development Seed
 
-Status: **SOURCE_IMPLEMENTED / SYNTHETICALLY_PROVEN / REAL PROOF PENDING**  
-Owner: #873; native DDEV simplification: #1108; first real publisher/proof tranche: #956.  
+Status: **SOURCE_IMPLEMENTED / SYNTHETICALLY_PROVEN / REAL PROOF PENDING**
+Owner: #873; native DDEV simplification: #1108; first real publisher/proof tranche: #956.
 Architecture: `EXTEND_EXISTING / SIMPLIFY` under `docs/decisions/ADR-003-use-existing-first.md`.
 
 This runbook covers the Development Seed flow for local Agency DDEV only. It does not replace code/config deployment, PROD → PREPROD refresh or editorial publication.

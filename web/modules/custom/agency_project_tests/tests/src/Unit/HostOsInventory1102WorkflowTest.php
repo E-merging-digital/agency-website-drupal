@@ -72,9 +72,11 @@ final class HostOsInventory1102WorkflowTest extends TestCase {
   public function testWorkflowUsesTrustedSurfacesAndPinnedSsh(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
+    $on = $workflow['on'] ?? [];
 
-    self::assertArrayHasKey('workflow_call', $workflow['on'] ?? []);
-    self::assertArrayNotHasKey('workflow_dispatch', $workflow['on'] ?? []);
+    self::assertIsArray($on);
+    self::assertArrayHasKey('workflow_call', $on);
+    self::assertArrayNotHasKey('workflow_dispatch', $on);
 
     $jobs = $workflow['jobs'] ?? [];
     foreach ([

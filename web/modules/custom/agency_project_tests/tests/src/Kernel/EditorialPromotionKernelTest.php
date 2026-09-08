@@ -71,6 +71,7 @@ final class EditorialPromotionKernelTest extends KernelTestBase {
     $this->installEntitySchema('file');
     $this->installEntitySchema('path_alias');
     $this->installSchema('node', ['node_access']);
+    $this->installSchema('file', ['file_usage']);
     $this->installConfig(['system', 'filter']);
 
     foreach (['fr', 'en'] as $langcode) {

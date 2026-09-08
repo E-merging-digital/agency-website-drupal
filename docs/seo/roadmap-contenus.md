@@ -1,129 +1,107 @@
-# Roadmap contenus SEO
+# Roadmap contenus SEO et acquisition
 
-Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/286
-
-Ticket : 110 - Audit SEO strategique et repositionnement commercial
-
-Date : 2026-05-20
+Issue de rebaseline : #1115  
+Parent : #4 — Contenu, acquisition & market positioning  
+Roadmap initiale : #286 — Ticket 110  
+Rebaseline : 2026-09-08
 
 ## Objectif
 
-Cette roadmap transforme la strategie SEO en tickets exploitables par Codex. Les
-tickets futurs devront rester scopes : une intention, un contenu, des aliases
-FR/EN, du maillage interne et des validations Content Sync.
+Cette roadmap décrit la file de travail commerciale et éditoriale réellement
+utile après les livraisons réalisées depuis mai 2026.
 
-Contraintes permanentes :
+Elle ne doit pas servir à recréer des contenus déjà livrés ni à réintroduire les
+anciens mécanismes Content Sync pour les contenus ordinaires.
 
-- ne pas modifier les menus sauf ticket explicite ;
-- ne pas modifier `system.site:page.front` ;
-- ne pas modifier Twig ;
-- ne pas modifier le chatbot ;
-- ne pas modifier les workflows GitHub Actions ;
-- ne pas modifier `scripts/deploy-production.sh` ;
-- ne pas recycler de `legacy_uuid`, mapping ou identifiant metier existant ;
-- produire FR et EN pour tout contenu public gere par Content Sync.
+```text
+PRIMARY_GOAL = QUALIFIED_LEADS_AND_REVENUE
+AGENCY_POSITIONING = SOLUTIONS_NUMERIQUES + INGENIERIE_WEB
+DRUPAL = EXPERT_ACQUISITION_VERTICAL
+WALLONIE_BRUXELLES = P1
+LUXEMBOURG = LATER_P2
+FRANCE_TARGETED = LATER_P3
+USE_EXISTING_FIRST = REQUIRED
+MINIMUM_NECESSARY = REQUIRED
+```
 
-## Phase 1 - Portes d'entree business
+## Modèle éditorial actuel
 
-Objectif : capter les prospects qui cherchent une agence web, une creation, une
-refonte ou un audit sans parler de Drupal.
+`AGENTS.md` est autoritatif.
 
-### Ticket 1 - Page "Agence web Belgique"
+Les contenus ordinaires historiquement pilotés par Content Sync ont été libérés
+et sont désormais editor-owned dans Drupal. Pour une nouvelle page commerciale,
+un article ou une mise à jour éditoriale ordinaire :
 
-Alias :
+```text
+NEW_ORDINARY_CONTENT_IN_CONTENT_SYNC = NO_BY_DEFAULT
+EDITOR_OWNED_DRUPAL = DEFAULT
+FR_EN = DEFAULT_FOR_PUBLIC_COMMERCIAL_CONTENT
+PREPROD_RENDER_REQUIRED_BEFORE_PROD = REQUIRED
+HUMAN_APPROVAL_REQUIRED_BEFORE_PROD = REQUIRED
+AGENT_SELF_APPROVAL = FORBIDDEN
+```
 
-- FR : `/agence-web-belgique`
-- EN : `/web-agency-belgium`
+Toute nouvelle admission dans Governed Content exige un besoin séparé et
+explicitement justifié. Les anciens exemples basés sur `catalog.yml`, payloads
+Content Sync et `emerging:content-sync` ne sont plus le modèle par défaut.
 
-Objectif :
+## Livraisons déjà réalisées
 
-- Presenter E-merging Digital comme agence web senior, pas seulement Drupal.
-- Relier creation, refonte, audit, developpement sur mesure, IA et Drupal.
+Ne pas recréer ces tranches.
 
-Type recommande : `service`, sauf decision de hub compose en `page`.
+| Capacité / contenu | État | Référence |
+| --- | --- | --- |
+| Audit SEO stratégique et positionnement | DELIVERED | #286 |
+| Homepage repositionnée business / IA / expertise | DELIVERED | #288 |
+| Agence web Belgique FR/EN | DELIVERED | #290 |
+| Agence web Liège FR/EN | DELIVERED | #290 |
+| Création site web professionnel FR/EN | DELIVERED | #290 |
+| Refonte site internet FR/EN | DELIVERED | #290 |
+| Site web PME FR/EN | DELIVERED | #290 |
+| IA pour PME FR/EN | DELIVERED | #290 |
+| Page Services : hiérarchie / CTA | DELIVERED | #291 |
+| Cas clients : repositionnement business | DELIVERED | #293 |
+| Drupal Lifecycle Diagnostic MVP | DELIVERED | #1007 |
+| Landing Drupal 2027 + parcours diagnostic | DELIVERED | #1010 |
+| Master email Drupal 2027 FR/EN | DELIVERED | Brand #30/#31 |
+| Master HTML email brandé accessible | DELIVERED | Brand #32/#33 |
+| Première activation commerciale Wallonie / Bruxelles | HUMAN_GATE | #1009 |
 
-Liens internes :
+## Travail actif indépendant du gate humain #1009
 
-- `/creation-site-web-professionnel`
-- `/refonte-site-internet`
-- `/developpement-web-sur-mesure`
-- `/agence-drupal-belgique`
-- `/contact`
+#1009 attend une première interaction réelle IFAPME, puis EVS, puis le parcours
+Innoviris event-led. Ce gate ne bloque pas le travail SEO, éditorial ou de preuve
+commerciale qui ne nécessite aucun contact prospect.
 
-DoD contenu :
+```text
+#1009_NEXT_OWNER = JONATHAN
+#1009_NEXT_GATE = FIRST_REAL_HUMAN_INTERACTION_RESULT
+AGENT_SEND = NO
+ROADMAP_WORK_CAN_CONTINUE = YES
+```
 
-- Message clair "agence web senior".
-- Pas de promesse agence 360.
-- Section "quand Drupal est pertinent".
-- Section "quand un developpement PHP/Symfony/Laravel est plus adapte".
-- CTA vers contact.
+## P1 — prochaines tranches commerciales
 
-### Ticket 2 - Page "Creation site web professionnel"
+### 1. Audit site web FR/EN
 
-Alias :
-
-- FR : `/creation-site-web-professionnel`
-- EN : `/professional-website-creation`
-
-Objectif :
-
-- Capter "creation site web", "site professionnel", "site PME".
-- Expliquer la methode avant de parler technologie.
-
-Liens internes :
-
-- `/creation-site-drupal`
-- `/site-web-pme`
-- `/site-web-asbl`
-- `/accessibilite-seo-optimisation`
-- `/contact`
-
-DoD contenu :
-
-- Angle : site durable, maintenable, visible.
-- Inclure architecture de contenu, SEO technique, accessibilite, performance.
-- Ne pas vendre Drupal comme reponse automatique.
-
-### Ticket 3 - Page "Refonte site internet"
-
-Alias :
-
-- FR : `/refonte-site-internet`
-- EN : `/website-redesign`
-
-Objectif :
-
-- Capter les besoins de modernisation et de perte de performance/SEO.
-- Relier a la refonte Drupal existante lorsque Drupal est le socle.
-
-Liens internes :
-
-- `/refonte-site-drupal`
-- `/audit-site-web`
-- `/audit-drupal`
-- `/migration-drupal`
-- `/contact`
-
-DoD contenu :
-
-- Checklist des signaux de refonte.
-- Section risques SEO et redirections.
-- Section contenus et gouvernance.
-- CTA audit/refonte.
-
-### Ticket 4 - Page "Audit site web"
-
-Alias :
+Alias cibles :
 
 - FR : `/audit-site-web`
 - EN : `/website-audit`
 
-Objectif :
+Rôle : créer une porte d’entrée généraliste avant le choix technologique et
+orienter vers Drupal, refonte, performance, accessibilité, SEO ou IA selon le
+besoin réel.
 
-- Creer une offre diagnostic generaliste qui peut orienter vers Drupal, SEO,
-  performance, accessibilite ou IA.
+Le contenu doit distinguer clairement :
 
-Liens internes :
+- diagnostic initial ;
+- audit généraliste ;
+- audit Drupal approfondi ;
+- backlog priorisé ;
+- décision de poursuivre ou non un chantier.
+
+Liens prioritaires :
 
 - `/audit-drupal`
 - `/accessibilite-seo-optimisation`
@@ -131,425 +109,192 @@ Liens internes :
 - `/ia-pour-pme`
 - `/contact`
 
-DoD contenu :
+### 2. Preuve Engineering / Infrastructure publique et sûre
 
-- Livrables d'audit clairs.
-- Backlog priorise.
-- Differencier audit site web et audit Drupal.
+Transformer des pratiques déjà réelles en preuve commerciale compréhensible :
 
-## Phase 2 - Pages par public
+- PREPROD avant PROD ;
+- tests et CI ;
+- rollback / sauvegarde ;
+- validation humaine ;
+- déploiements contrôlés ;
+- anonymisation / protection des données lorsque pertinent.
 
-Objectif : qualifier les leads et parler les contraintes reelles.
+Interdits : secrets, hostnames privés non nécessaires, chemins exploitables,
+credentials, détails de sécurité actionnables ou données client.
 
-### Ticket 5 - Page "Site web PME"
+Objectif commercial : rassurer un décideur sur la maîtrise du risque, pas
+publier un manuel d’exploitation.
 
-Alias :
+### 3. Pages par public
 
-- FR : `/site-web-pme`
-- EN : `/sme-website`
-
-Angle :
-
-- Visibilite, conversion, maintenance, budget, priorisation.
-
-Liens :
-
-- `/creation-site-web-professionnel`
-- `/refonte-site-internet`
-- `/ia-pour-pme`
-- `/maintenance-drupal`
-- `/contact`
-
-### Ticket 6 - Page "Site web ASBL"
-
-Alias :
+#### Site web ASBL
 
 - FR : `/site-web-asbl`
 - EN : `/non-profit-website`
 
-Angle :
+Angle : accessibilité, équipe éditoriale réduite, formulaires, événements,
+clarté, maintenance et budget.
 
-- Accessibilite, equipe reduite, publication, formulaires, dons, evenements,
-  clarte editoriale.
-
-Liens :
-
-- `/accessibilite-seo-optimisation`
-- `/creation-site-drupal`
-- `/ia-drupal`
-- `/contact`
-
-### Ticket 7 - Page "Site web institutionnel"
-
-Alias :
+#### Site web institutionnel
 
 - FR : `/site-web-institutionnel`
 - EN : `/institutional-website`
 
-Angle :
+Angle : gouvernance, multilingue, accessibilité, sécurité, validation,
+continuité et durée de vie.
 
-- Gouvernance, multilingue, securite, accessibilite, validation, duree de vie.
+## P2 — élargir la preuve d’expertise au-delà de Drupal
 
-Liens :
+### Cluster développement web / PHP
 
-- `/audit-drupal`
-- `/refonte-site-drupal`
-- `/maintenance-drupal`
-- `/accessibilite-seo-optimisation`
-- `/contact`
+Ordre recommandé :
 
-## Phase 3 - Cluster PHP / Symfony / Laravel
+1. `/developpement-web-sur-mesure` / `/custom-web-development`
+2. `/developpement-php-sur-mesure` / `/custom-php-development`
+3. `/developpement-symfony` / `/symfony-development`
+4. `/developpement-laravel` / `/laravel-development`
+5. guide Drupal / Symfony / Laravel : comment choisir ?
 
-Objectif : prouver que l'agence sait arbitrer au-dela de Drupal.
+Principes :
 
-### Ticket 8 - Page "Developpement web sur mesure"
+- partir du besoin métier ;
+- montrer les critères d’arbitrage ;
+- ne pas transformer une compétence mobilisable en fausse offre massive ;
+- conserver Drupal comme expertise forte, pas comme réponse automatique.
 
-Alias :
+### Cluster IA encadrée
 
-- FR : `/developpement-web-sur-mesure`
-- EN : `/custom-web-development`
+Ordre recommandé :
 
-Angle :
+1. `/automatisation-ia` / `/ai-automation`
+2. `/chatbot-ia` / `/ai-chatbot`
+3. guide IA + SEO / GEO / LLM SEO
 
-- Besoins applicatifs, integrations, API, workflows metier, interfaces internes.
+Principes :
 
-Liens :
+- diagnostic avant automatisation ;
+- validation humaine ;
+- RGPD / confidentialité ;
+- pas de ROI garanti ;
+- pas de discours gadget ;
+- distinguer automatisation, assistant et chatbot.
 
-- `/developpement-php-sur-mesure`
-- `/developpement-symfony`
-- `/developpement-laravel`
-- `/agence-drupal-belgique`
-- `/contact`
+## P3 — articles et preuves longue traîne
 
-### Ticket 9 - Page "Developpement PHP sur mesure"
+Backlog utile restant, à revalider avant chaque ticket :
 
-Alias :
+1. Drupal ou WordPress pour une PME/ASBL : comment choisir ?
+2. Drupal, Symfony ou Laravel : quelle base pour votre projet web ?
+3. IA pour PME : cas utiles et limites à respecter
+4. SEO technique avant refonte : les points à vérifier
+5. Site web ASBL accessible : priorités avant design
+6. Comment préparer un audit site web exploitable
+7. LLM SEO / GEO : ce qui est utile pour un site Drupal
 
-- FR : `/developpement-php-sur-mesure`
-- EN : `/custom-php-development`
-
-Angle :
-
-- PHP senior, code maintenable, securite, tests, integrations, dette technique.
-
-DoD contenu :
-
-- Mentionner Drupal/Symfony/Laravel comme ecosysteme PHP.
-- Expliquer les criteres de choix.
-- Eviter de lister des technos sans cas d'usage.
-
-### Ticket 10 - Page "Developpement Symfony"
-
-Alias :
-
-- FR : `/developpement-symfony`
-- EN : `/symfony-development`
-
-Angle :
-
-- Applications structurees, API, logique metier, composants robustes.
-
-Liens :
-
-- `/developpement-php-sur-mesure`
-- `/developpement-web-sur-mesure`
-- `/agence-drupal-belgique`
-
-### Ticket 11 - Page "Developpement Laravel"
-
-Alias :
-
-- FR : `/developpement-laravel`
-- EN : `/laravel-development`
-
-Angle :
-
-- Applications metier, back-office, MVP evolutif, API, integrations.
-
-Note :
-
-- Rester credible : ne pas promettre une "agence Laravel" si les preuves
-  publiques ne sont pas encore la. Positionner Laravel comme expertise PHP
-  mobilisable selon besoin.
-
-### Ticket 12 - Guide "Drupal, Symfony ou Laravel : comment choisir ?"
-
-Format : article ou page guide.
-
-Objectif :
-
-- Capter les recherches comparatives.
-- Montrer un arbitrage honnete.
-
-Structure :
-
-- tableau cas d'usage ;
-- quand Drupal ;
-- quand Symfony ;
-- quand Laravel ;
-- quand combiner CMS et application ;
-- CTA audit technique.
-
-## Phase 4 - Cluster IA encadree
-
-Objectif : capter l'intention IA sans deplacer le site vers un discours gadget.
-
-### Ticket 13 - Page "IA pour PME"
-
-Alias :
-
-- FR : `/ia-pour-pme`
-- EN : `/ai-for-smes`
-
-Angle :
-
-- Cas utiles : contenu, support, qualification, synthese, reporting,
-  automatisations simples.
-
-DoD contenu :
-
-- Toujours parler diagnostic avant automatisation.
-- Inclure limites, RGPD, validation humaine.
-- Lier vers `/ia-drupal`, `/ia-integree`, `/contact`.
-
-### Ticket 14 - Page "Automatisation IA"
-
-Alias :
-
-- FR : `/automatisation-ia`
-- EN : `/ai-automation`
-
-Angle :
-
-- Automatiser les taches repetitives sans casser les processus existants.
-
-DoD contenu :
-
-- Exemples concrets mais prudents.
-- Ne pas promettre de ROI garanti.
-- Distinguer automatisation, assistant IA et chatbot.
-
-### Ticket 15 - Page ou guide "Chatbot IA encadre"
-
-Alias :
-
-- FR : `/chatbot-ia`
-- EN : `/ai-chatbot`
-
-Important :
-
-- Ne pas modifier le chatbot existant dans ce ticket futur sauf demande
-  explicite.
-- La page doit parler cadrage, securite, fallback, limites et qualification des
-  demandes.
-
-### Ticket 16 - Guide "IA et SEO : usages utiles, limites et validation"
-
-Format : article.
-
-Objectif :
-
-- Relier IA, contenus, maillage interne, meta descriptions et GEO/LLM SEO.
-
-Liens :
-
-- `/accessibilite-seo-optimisation`
-- `/ia-drupal`
-- `/ia-pour-pme`
-- `/audit-site-web`
-
-## Phase 5 - Renforcement du socle existant
-
-Objectif : connecter les pages deja publiees aux nouveaux hubs.
-
-### Ticket 17 - Mise a jour des liens de `agence-drupal-belgique`
-
-Objectif :
-
-- Ajouter des liens vers agence web, PHP sur mesure et developpement web sur
-  mesure une fois ces pages creees.
-
-Contraintes :
-
-- Ne pas changer l'alias.
-- Ne pas changer le role de blueprint Drupal.
-- Garder 2 a 4 liens internes utiles.
-
-### Ticket 18 - Mise a jour du hub `/services`
-
-Objectif :
-
-- Integrer les nouvelles pages business si elles deviennent des services
-  prioritaires.
-
-Contraintes :
-
-- Utiliser les `promotions` Content Sync.
-- Ne pas modifier les menus.
-- Ne pas ecraser les cartes existantes hors besoin.
-
-### Ticket 19 - Mise a jour de `/ia-drupal`
-
-Objectif :
-
-- Relier le hub IA Drupal aux pages IA generalistes.
-
-Contraintes :
-
-- Ne pas modifier le chatbot.
-- Garder la promesse "IA utile et encadree".
-
-### Ticket 20 - Mise a jour de la homepage
-
-Objectif :
-
-- Seulement si la priorite commerciale est confirmee : ajuster la phrase
-  d'ouverture pour inclure "agence web senior" tout en gardant Drupal/PHP/IA.
-
-Contraintes :
-
-- Ne pas modifier `system.site:page.front`.
-- Passer par Content Sync.
-- Ne pas modifier Twig.
-- Smoke test front obligatoire dans le ticket d'implementation.
-
-## Phase 6 - Articles et preuves
-
-Objectif : soutenir les pages commerciales par des contenus citables et utiles.
-
-Articles prioritaires :
-
-1. "Drupal ou WordPress pour une PME/ASBL : comment choisir ?"
-2. "Checklist avant une refonte de site internet"
-3. "Drupal, Symfony ou Laravel : quelle base pour votre projet web ?"
-4. "IA pour PME : 7 cas utiles et 5 limites a respecter"
-5. "SEO technique avant refonte : les points a verifier"
-6. "Site web ASBL accessible : priorites avant design"
-7. "Comment preparer un audit site web exploitable"
-8. "LLM SEO / GEO : ce qui est utile pour un site Drupal"
+La checklist avant refonte possède déjà son chantier éditorial #401 ; ne pas
+créer un doublon sans recharger son état live.
 
 Chaque article doit :
 
-- repondre a une intention informationnelle ;
-- contenir un tableau ou une checklist ;
-- lier vers une page transactionnelle ;
-- eviter le remplissage marketing ;
-- etre bilingue si gere par Content Sync.
+- répondre à une intention réelle ;
+- contenir une checklist, un tableau ou un cadre de décision utile ;
+- lier vers une page transactionnelle pertinente ;
+- éviter le remplissage marketing ;
+- rester factuel et ne jamais inventer client, résultat ou métrique ;
+- suivre le workflow PREPROD -> revue humaine -> PROD.
 
-## Template de ticket futur
+## WordPress — frontière commerciale
 
-Chaque ticket contenu devrait inclure :
+WordPress reste autorisé pour :
 
-```md
-Objectif :
-- Creer ou mettre a jour [page] pour cibler [intention].
+- audit ;
+- reprise d’existant ;
+- optimisation ;
+- maintenance ;
+- migration ;
+- montée en maturité technique.
 
-Fichiers concernes :
-- web/modules/custom/emerging_digital_content/content_sync/catalog.yml
-- web/modules/custom/emerging_digital_content/content_sync/node/[id].yml
-
-Contraintes :
-- FR/EN obligatoires.
-- Alias FR/EN explicites.
-- Pas de menu.
-- Pas de Twig.
-- Pas de workflow.
-- Pas de deploy.
-- Pas de chatbot.
-- Pas de system.site:page.front.
-
-Maillage :
-- Lien vers [page 1].
-- Lien vers [page 2].
-- Lien vers [contact].
-
-Validations :
-- ddev drush emerging:content-sync:validate
-- ddev drush emerging:content-sync [id] --dry-run
-- ddev drush emerging:content-sync [id]
-- git diff --check
+```text
+WORDPRESS_GENERALIST_CREATION_OFFER = NO
+LOW_COST_POSITIONING = NO
 ```
 
-## Priorisation synthetique
+Les futurs contenus WordPress doivent ramener vers le besoin, l’audit et les
+options d’architecture plutôt que vers une guerre de CMS.
 
-| Priorite | Tickets | Pourquoi |
-| --- | --- | --- |
-| P1 | 1 a 4 | Ouvrir l'acquisition hors Drupal |
-| P1 | 5 a 7 | Qualifier PME/ASBL/institutions |
-| P2 | 8 a 12 | Prouver l'expertise PHP et l'arbitrage technique |
-| P2 | 13 a 16 | Occuper IA/GEO sans surpromesse |
-| P3 | 17 a 20 | Relier le nouveau cocon aux pages existantes |
-| P3 | Articles | Construire l'autorite longue traine |
+## Mesure de conversion
 
-## Priorites issues du ticket 110
+Réutiliser GA4 / Google Tag existant. Ne pas créer une seconde stack analytics.
 
-### Priorite haute
+Priorité après premiers signaux commerciaux : mesurer uniquement les étapes
+métier réellement utiles, sans PII :
 
-Ces tickets doivent ouvrir l'acquisition hors Drupal tout en gardant une preuve
-technique forte :
+```text
+LANDING_ENGAGEMENT
+DIAGNOSTIC_REQUEST
+QUALIFIED_CONVERSATION
+AUDIT_CONVERSATION
+PAID_AUDIT
+QUALIFIED_OPPORTUNITY
+```
 
-- repositionnement homepage ;
-- creation site web professionnel ;
-- refonte site internet ;
-- agence web Belgique ;
-- site web PME ;
-- IA pour PME.
+Ne pas inventer d’attribution lorsque le signal n’est pas prouvé.
 
-### Priorite moyenne
+## Expansion géographique
 
-Ces contenus renforcent le positionnement "PHP, IA et architectures durables" :
+Seulement après apprentissage Wallonie / Bruxelles :
 
-- developpement Symfony ;
-- developpement Laravel ;
-- audit WordPress ;
-- migration WordPress vers Drupal ;
-- maintenance site web ;
-- automatisation IA.
+```text
+P2_GEOGRAPHY = LUXEMBOURG
+P3_GEOGRAPHY = FRANCE_TARGETED
+FRANCE_FIRST = GRAND_EST + HAUTS_DE_FRANCE + ILE_DE_FRANCE_EVALUATION
+MULTI_COUNTRY_SIMULTANEOUS = NO
+```
 
-### Priorite expertise
+## Template de futur ticket contenu
 
-Ces contenus consolident l'autorite existante et doivent etre relies aux futures
-pages business :
+Un futur ticket doit au minimum définir :
 
-- audit Drupal ;
-- maintenance Drupal ;
-- accessibilite ;
-- performance Drupal ;
-- architecture SEO.
+```text
+INTENTION =
+AUDIENCE =
+FR_ALIAS =
+EN_ALIAS =
+COMMERCIAL_ROLE =
+INTERNAL_LINKS =
+FACTUAL_SOURCES =
+EDITORIAL_OWNER = DRUPAL
+PREPROD_RENDER = REQUIRED
+HUMAN_APPROVAL = REQUIRED
+PROD_PUBLICATION = SEPARATE_GOVERNED_STEP
+```
 
-## Tickets WordPress autorises
+Contraintes par défaut :
 
-Les tickets WordPress doivent rester des tickets de reprise, audit,
-optimisation, maintenance ou migration. Ils ne doivent pas creer d'offre de
-creation WordPress generaliste.
+- pas de menu sauf besoin explicite ;
+- pas de changement `system.site:page.front` ;
+- pas de Twig, workflow ou backend sans besoin matériel ;
+- pas de réadmission Content Sync par habitude ;
+- FR/EN par défaut ;
+- maillage localisé ;
+- responsive et accessibilité ;
+- aucune donnée ou preuve inventée.
 
-Tickets possibles :
+## Ordre Project Lead actuel
 
-1. Guide "WordPress ou Drupal pour une PME/ASBL : comment choisir ?"
-2. Article "Quand migrer un site WordPress vers Drupal ?"
-3. Section dans `/audit-site-web` sur lenteur, securite, plugins et dette
-   technique WordPress.
-4. Checklist "reprendre un site WordPress existant sans casser le SEO".
+```text
+ACTIVE = #1009 / HUMAN_GATE
+NEXT_1 = AUDIT_SITE_WEB_FR_EN
+NEXT_2 = ENGINEERING_INFRASTRUCTURE_PROOF_PUBLIC_SAFE
+NEXT_3 = SITE_WEB_ASBL_AND_INSTITUTIONNEL
+NEXT_4 = CUSTOM_WEB_PHP_SYMFONY_LARAVEL
+NEXT_5 = AI_AUTOMATION_CHATBOT_GEO
+NEXT_6 = ARTICLES_LONG_TAIL
+LATER = CONVERSION_MEASUREMENT_REFINEMENT
+LATER = LUXEMBOURG
+LATER = FRANCE_TARGETED
+```
 
-Contraintes communes :
-
-- ne pas promettre de creation WordPress ;
-- toujours ramener vers audit, optimisation, migration ou maturite technique ;
-- lier vers `/audit-site-web`, `/migration-drupal`, `/refonte-site-internet` et
-  `/contact` lorsque ces pages existent ;
-- garder le ton senior et decisionnel.
-
-## Definition de termine pour cette roadmap
-
-Cette roadmap sera exploitable si les prochains tickets peuvent reprendre :
-
-- un alias ;
-- une intention ;
-- un public ;
-- un type de contenu recommande ;
-- les liens internes ;
-- les contraintes techniques ;
-- les validations attendues.
-
-Elle ne remplace pas la redaction des pages. Elle sert a produire des tickets
-plus petits, plus propres et plus faciles a verifier.
+La priorité peut évoluer avec les premiers retours commerciaux réels de #1009.
+Un signal de marché réel prime sur l’ordre théorique de cette roadmap.

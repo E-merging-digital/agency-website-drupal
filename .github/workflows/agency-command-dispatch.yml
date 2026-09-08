@@ -197,7 +197,7 @@ jobs:
     if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH_COCKPIT_PLAN' }}
     permissions:
       contents: read
-      issues: write
+      issues: read
     uses: ./.github/workflows/preprod-914-governed-successor.yml
     secrets:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -206,6 +206,54 @@ jobs:
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  publish-cockpit-plan-receipt:
+    name: Publish Cockpit PREPROD PLAN receipt
+    needs:
+      - classify
+      - preprod-refresh-cockpit-plan
+    if: >-
+      ${{ github.event_name == 'issues'
+          && github.event.action == 'opened'
+          && needs.classify.outputs.route == 'PREPROD_REFRESH_COCKPIT_PLAN'
+          && needs['preprod-refresh-cockpit-plan'].result == 'success'
+          && needs['preprod-refresh-cockpit-plan'].outputs.mode == 'PLAN' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Publish canonical evidence-only PLAN receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHORITY_ISSUE: ${{ needs['preprod-refresh-cockpit-plan'].outputs.authority_issue }}
+          REQUEST_ID: ${{ needs['preprod-refresh-cockpit-plan'].outputs.request_id }}
+          MAIN_SHA: ${{ needs['preprod-refresh-cockpit-plan'].outputs.main_sha }}
+          PROFILE_ID: ${{ needs['preprod-refresh-cockpit-plan'].outputs.operation_profile }}
+          OBSERVED_PROD_RELEASE_SHA: ${{ needs['preprod-refresh-cockpit-plan'].outputs.observed_prod_release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$AUTHORITY_ISSUE" =~ ^[0-9]+$ ]]
+          [[ "$REQUEST_ID" == "plan-${AUTHORITY_ISSUE}-cockpit-v1-r1" ]]
+          [[ "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$OBSERVED_PROD_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$PROFILE_ID" = 'agency-preprod-refresh-simple-v1'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          completed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          receipt="$(jq -cn \
+            --argjson authority_issue "$AUTHORITY_ISSUE" \
+            --argjson dispatch_run "$GITHUB_RUN_ID" \
+            --argjson run_attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg request_id "$REQUEST_ID" \
+            --arg profile_id "$PROFILE_ID" \
+            --arg main_sha "$MAIN_SHA" \
+            --arg observed_prod_release_sha "$OBSERVED_PROD_RELEASE_SHA" \
+            --arg completed_at "$completed_at" \
+            '{schema_version:1,receipt_source:"WORKFLOW",authority_issue:$authority_issue,dispatch_run:$dispatch_run,run_attempt:$run_attempt,request_id:$request_id,mode:"PLAN",profile_id:$profile_id,main_sha:$main_sha,jit_main_revalidation:"PASS",plan_result:"PASS",observed_prod_release_sha:$observed_prod_release_sha,prod_db_content_read:"NONE",prod_snapshot:"NOT_PERFORMED",prod_data_transfer:"NONE",preprod_db_mutation:"NONE",prod_write:"NONE",data_activation_authority:"DISABLED",apply_job:"SKIPPED",issue_open_apply:"IMPOSSIBLE",completed_at:$completed_at}')"
+          body="AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT=$receipt"
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE/comments" \
+            -f body="$body" >/dev/null
 
   development-seed:
     name: Route Development Seed publication

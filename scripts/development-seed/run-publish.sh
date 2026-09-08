@@ -30,13 +30,14 @@ READER_KEY_SCRIPT='scripts/development-seed/remote-reader-key.sh'
 PREPROD_TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 PINNED_KEY='scripts/preproduction-ssh-trust/preprod-ed25519.pub'
 SEED_ID="agency-development-seed-v1-$REQUEST_ID"
+SNAPSHOT_NAME='database-mariadb_11.8.zst'
 REMOTE_ROOT='/var/www/agency-preprod/shared/development-seeds'
 REMOTE_INCOMING="$REMOTE_ROOT/.incoming/$REQUEST_ID"
 
 for path in "$SOURCE_SCRIPT" "$STORAGE_SCRIPT" "$READER_SCRIPT" "$READER_KEY_SCRIPT" "$PREPROD_TRUST" "$PINNED_KEY"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
-for command_name in ddev git gzip jq openssl scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
+for command_name in ddev git jq openssl php scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
   command -v "$command_name" >/dev/null 2>&1
 done
 
@@ -49,6 +50,7 @@ known_hosts="$temp_abs/$REQUEST_ID.known_hosts"
 reader_key="$temp_abs/$REQUEST_ID.reader"
 generation="$temp_abs/$REQUEST_ID-generation"
 proof="$temp_abs/$REQUEST_ID-proof"
+proof_cache="$temp_abs/$REQUEST_ID-proof-cache"
 evidence_dir="$workspace_abs/artifacts/development-seed"
 evidence="$evidence_dir/result.env"
 reader_installed=0
@@ -120,8 +122,9 @@ cleanup() {
     ssh-agent -k >/dev/null 2>&1 || final=98
     ssh_agent_started=0
   fi
+  rm -rf -- "$proof_cache"
   rm -f -- "$raw" "$known_hosts" "$reader_key" "$reader_key.pub"
-  [[ ! -e "$raw" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]] || final=98
+  [[ ! -e "$raw" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" && ! -e "$proof_cache" ]] || final=98
   if [[ "$original" -ne 0 ]]; then final="$original"; fi
   exit "$final"
 }
@@ -149,8 +152,9 @@ if LC_ALL=C grep -Eiq '^[[:space:]]*(USE[[:space:]]|CREATE[[:space:]]+(DATABASE|
   exit 81
 fi
 
-# Isolated generation uses a temporary DDEV worktree. PREPROD live Drupal never
-# points to this database and all destructive sanitization occurs here.
+# The source SQL stream remains the existing read-only PREPROD acquisition
+# boundary. It is imported once into an isolated DDEV DB; no post-sanitization
+# logical SQL export is created or distributed.
 git worktree add --detach "$generation" "$REPOSITORY_SHA" >/dev/null
 generation_added=1
 generation_name="agency-seed-956-${GITHUB_RUN_ID}"
@@ -174,25 +178,25 @@ seed_password="$(openssl rand -hex 32)"
 )
 unset seed_password
 
+# Snapshot only after every existing sanitization/assertion has passed.
 build_dir="$generation/.ddev/.seed-build"
-database="$build_dir/database.sql.gz"
+database="$build_dir/$SNAPSHOT_NAME"
 metadata="$build_dir/seed.json"
 mkdir -p "$build_dir"
 chmod 700 "$build_dir"
 (
-  set -o pipefail
   cd "$generation"
-  ddev drush sql:dump --no-interaction \
-    --extra-dump='--single-transaction --quick --skip-lock-tables --no-tablespaces' 2>/dev/null \
-    | gzip -9 > "$database"
+  ddev snapshot --name="$SEED_ID" -y >/dev/null
 )
+generated_snapshot="$generation/.ddev/db_snapshots/${SEED_ID}-mariadb_11.8.zst"
+[[ -s "$generated_snapshot" ]]
+mv -- "$generated_snapshot" "$database"
 chmod 600 "$database"
-[[ -s "$database" ]]
 created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 (
   cd "$generation"
   ddev exec php scripts/development-seed/build-seed-metadata.php \
-    --database=/var/www/html/.ddev/.seed-build/database.sql.gz \
+    --database="/var/www/html/.ddev/.seed-build/$SNAPSHOT_NAME" \
     --seed-id="$SEED_ID" \
     --created-at="$created_at" \
     --source-refresh="$SOURCE_PREPROD_REFRESH_ID" \
@@ -200,7 +204,7 @@ created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     --output=/var/www/html/.ddev/.seed-build/seed.json >/dev/null
   ddev exec php scripts/development-seed/verify-seed.php \
     --metadata=/var/www/html/.ddev/.seed-build/seed.json \
-    --database=/var/www/html/.ddev/.seed-build/database.sql.gz \
+    --database="/var/www/html/.ddev/.seed-build/$SNAPSHOT_NAME" \
     --repository=/var/www/html \
     --checkout-ref=HEAD >/dev/null
 )
@@ -209,23 +213,23 @@ database_sha="$(sha256sum "$database" | awk '{print $1}')"
 reader_sha="$(sha256sum "$READER_SCRIPT" | awk '{print $1}')"
 [[ "$database_sha" =~ ^[0-9a-f]{64}$ && "$reader_sha" =~ ^[0-9a-f]{64}$ ]]
 [[ "$(jq -r '.database_sha256' "$metadata")" == "$database_sha" ]]
+[[ "$(jq -r '.compatibility.ddev_minimum_version' "$metadata")" == '1.25.4' ]]
+[[ "$(jq -r '.compatibility.database' "$metadata")" == 'mariadb:11.8' ]]
+[[ "$(jq -r '.compatibility.snapshot_filename' "$metadata")" == "$SNAPSHOT_NAME" ]]
 [[ "$(jq -r '.seed_id' "$metadata")" == "$SEED_ID" ]]
 [[ "$(jq -r '.source_preprod_refresh_identity' "$metadata")" == "$SOURCE_PREPROD_REFRESH_ID" ]]
 [[ "$(jq -r '.source_preprod_application_release_sha' "$metadata")" == "$SOURCE_PREPROD_RELEASE_SHA" ]]
 
-# Publish only the fully sanitized/verified database and metadata. No raw PREPROD
-# copy and no database artifact ever enters GitHub-hosted infrastructure.
+# Publish only the fully sanitized/verified native snapshot and metadata.
 storage_action PREPARE NONE NONE >/dev/null
 incoming_may_exist=1
-"${scp_args[@]}" -q -- "$database" "$remote_target:$REMOTE_INCOMING/database.sql.gz"
+"${scp_args[@]}" -q -- "$database" "$remote_target:$REMOTE_INCOMING/$SNAPSHOT_NAME"
 "${scp_args[@]}" -q -- "$metadata" "$remote_target:$REMOTE_INCOMING/seed.json"
 "${scp_args[@]}" -q -- "$READER_SCRIPT" "$remote_target:$REMOTE_INCOMING/read-only-scp.sh"
 storage_action COMMIT "$database_sha" "$reader_sha" >/dev/null
 incoming_may_exist=0
 storage_action VERIFY "$database_sha" "$reader_sha" >/dev/null
 
-# Destroy the isolated generation DB and its local files before proving the
-# distribution path. Only the immutable sanitized seed remains published.
 delete_ddev_worktree "$generation"
 generation_added=0
 [[ ! -e "$generation" ]]
@@ -238,26 +242,22 @@ reader_action INSTALL "$reader_blob" "$reader_sha" >/dev/null
 reader_installed=1
 reader_action VERIFY "$reader_blob" "$reader_sha" >/dev/null
 
-# Real proof consumes the exact same DDEV-native provider and rollback contract
-# delivered by #873; no custom download/import engine is introduced.
+# The later #956 proof consumes the same immutable external snapshot through the
+# local-first wrapper and DDEV's native seed primitive. Delivery #1108 does not
+# execute this runtime path before merge.
 git worktree add --detach "$proof" "$REPOSITORY_SHA" >/dev/null
 proof_added=1
 proof_name="agency-seed-proof-956-${GITHUB_RUN_ID}"
 sed -i "1s/^name:.*/name: $proof_name/" "$proof/.ddev/config.yaml"
-cat > "$proof/.ddev/config.local.yaml" <<EOF_LOCAL
-web_environment:
-  - AGENCY_SEED_SSH_TARGET=agency-preprod@$PREPROD_SSH_HOST
-EOF_LOCAL
-chmod 600 "$proof/.ddev/config.local.yaml"
 
 eval "$(ssh-agent -s)" >/dev/null
 ssh_agent_started=1
 ssh-add "$reader_key" >/dev/null
 (
   cd "$proof"
-  ddev auth ssh >/dev/null
-  ddev start >/dev/null
-  ddev pull agency -y >/dev/null
+  AGENCY_SEED_SSH_TARGET="agency-preprod@$PREPROD_SSH_HOST" \
+  AGENCY_SEED_CACHE_DIR="$proof_cache" \
+    bash scripts/development-seed/use-native-seed.sh fresh >/dev/null
   ddev drush status --field=bootstrap 2>/dev/null | grep -q Successful
 )
 state="$proof/.ddev/.state-agency-seed.json"
@@ -271,9 +271,10 @@ reader_installed=0
 delete_ddev_worktree "$proof"
 proof_added=0
 [[ ! -e "$proof" ]]
+rm -rf -- "$proof_cache"
+[[ ! -e "$proof_cache" ]]
 storage_action CLEANUP NONE NONE >/dev/null
 
-# Terminal local cleanup is part of success, not best-effort housekeeping.
 ssh-agent -k >/dev/null
 ssh_agent_started=0
 rm -f -- "$raw" "$known_hosts" "$reader_key" "$reader_key.pub"
@@ -293,10 +294,11 @@ preprod_runtime_db_write=NONE
 prod_access=NONE
 raw_preprod_on_github_hosted=NONE
 development_sanitization=PASS
+ddev_native_snapshot=PASS
 seed_storage=PUBLISHED
 current_pointer=VERIFIED
 read_only_distribution=PROVEN
-ddev_pull_agency=REAL_SUCCESS
+ddev_native_seed=REAL_SUCCESS
 local_side_effect_assertions=PASS
 temporary_generation_material=ABSENT
 temporary_reader_identity=ABSENT
@@ -317,9 +319,10 @@ printf '%s\n' \
   'PROD_ACCESS=NONE' \
   'RAW_PREPROD_ON_GITHUB_HOSTED=NONE' \
   'DEVELOPMENT_SANITIZATION=PASS' \
+  'DDEV_NATIVE_SNAPSHOT=PASS' \
   'SEED_STORAGE=PUBLISHED' \
   'CURRENT_POINTER=VERIFIED' \
   'READ_ONLY_DISTRIBUTION=PROVEN' \
-  'DDEV_PULL_AGENCY=REAL_SUCCESS' \
+  'DDEV_NATIVE_SEED=REAL_SUCCESS' \
   'LOCAL_SIDE_EFFECT_ASSERTIONS=PASS' \
   'TEMPORARY_GENERATION_MATERIAL=ABSENT'

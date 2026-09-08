@@ -112,8 +112,8 @@ case "$MODE" in
     ddev start --seed-snapshot="$final_snapshot"
     ;;
   reset)
-    # Intentionally no -y and no --omit-snapshot: human reset remains explicit,
-    # confirmed, and protected by DDEV's default pre-reset safety snapshot.
+    # Human reset remains explicit and DDEV's default pre-reset safety snapshot
+    # remains enabled.
     ddev start --reset-database --seed-snapshot="$final_snapshot"
     ;;
 esac

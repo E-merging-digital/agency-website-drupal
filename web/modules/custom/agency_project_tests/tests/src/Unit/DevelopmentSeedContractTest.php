@@ -36,6 +36,24 @@ final class DevelopmentSeedContractTest extends TestCase {
       $publisher,
     );
     self::assertStringContainsString(
+      'ssh_args=(ssh -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -o ConnectTimeout=15)',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      'scp_args=(scp -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -o ConnectTimeout=15)',
+      $publisher,
+    );
+    self::assertSame(
+      3,
+      substr_count($publisher, '"${ssh_args[@]}" "$remote_target"'),
+      'Every SSH action must invoke the command vector that starts with ssh.',
+    );
+    self::assertSame(
+      3,
+      substr_count($publisher, '"${scp_args[@]}" -q --'),
+      'Every SCP publication must invoke the command vector that starts with scp.',
+    );
+    self::assertStringContainsString(
       'ddev drush --quiet php:script scripts/preproduction-refresh/governed-successor/agency-sanitize.php',
       $publisher,
     );

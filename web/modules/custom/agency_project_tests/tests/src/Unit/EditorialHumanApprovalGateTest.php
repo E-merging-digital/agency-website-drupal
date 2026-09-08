@@ -86,7 +86,7 @@ final class EditorialHumanApprovalGateTest extends TestCase {
   }
 
   /**
-   * Both current editorial PROD routes must invoke the shared gate.
+   * Current editorial PROD routes must invoke a direct-human gate.
    */
   public function testProductionRoutesWireTheHumanGate(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -96,16 +96,21 @@ final class EditorialHumanApprovalGateTest extends TestCase {
     $drupal2027 = (string) file_get_contents(
       $root . '/.github/workflows/trusted-drupal-2027-production-publication.yml',
     );
+    $validator = (string) file_get_contents(
+      $root . '/scripts/runner/validate-editorial-promotion-approval.py',
+    );
 
-    foreach ([$generic, $drupal2027] as $workflow) {
-      self::assertStringContainsString(
-        'scripts/validation/editorial-human-approval.php',
-        $workflow,
-      );
-    }
+    self::assertStringContainsString(
+      'validate-editorial-promotion-approval.py',
+      $generic,
+    );
+    self::assertStringContainsString(
+      'scripts/validation/editorial-human-approval.php',
+      $drupal2027,
+    );
     self::assertStringContainsString(
       '### Agency editorial PREPROD candidate apply PASS',
-      $generic,
+      $validator,
     );
     self::assertStringContainsString(
       '### Agency Drupal 2027 PREPROD candidate apply PASS',

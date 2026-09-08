@@ -58,6 +58,9 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
     $workflow = (string) file_get_contents(
       $root . '/.github/workflows/trusted-editorial-publication.yml',
     );
+    $validator = (string) file_get_contents(
+      $root . '/scripts/runner/validate-editorial-promotion-approval.py',
+    );
 
     self::assertStringContainsString(
       '<!-- agency-editorial-payload:v1 -->',
@@ -66,7 +69,15 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
     self::assertStringContainsString("sort_keys=True", $workflow);
     self::assertStringContainsString("separators=(',', ':')", $workflow);
     self::assertStringContainsString('hashlib.sha256', $workflow);
-    self::assertStringContainsString('github-actions[bot]', $workflow);
+    self::assertStringContainsString('BOT = "github-actions[bot]"', $validator);
+    self::assertStringContainsString(
+      'comment.get("user", {}).get("login") != BOT',
+      $validator,
+    );
+    self::assertStringContainsString(
+      'comment.get("performed_via_github_app") is not None',
+      $validator,
+    );
     self::assertStringNotContainsString(
       'Apply requires a prior bot-authored dry-run PASS',
       $workflow,

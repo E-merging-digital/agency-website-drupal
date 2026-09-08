@@ -96,6 +96,9 @@ final class EditorialHumanApprovalGateTest extends TestCase {
     $drupal2027 = (string) file_get_contents(
       $root . '/.github/workflows/trusted-drupal-2027-production-publication.yml',
     );
+    $validator = (string) file_get_contents(
+      $root . '/scripts/runner/validate-editorial-promotion-approval.py',
+    );
 
     self::assertStringContainsString(
       'validate-editorial-promotion-approval.py',
@@ -107,7 +110,7 @@ final class EditorialHumanApprovalGateTest extends TestCase {
     );
     self::assertStringContainsString(
       '### Agency editorial PREPROD candidate apply PASS',
-      $generic,
+      $validator,
     );
     self::assertStringContainsString(
       '### Agency Drupal 2027 PREPROD candidate apply PASS',

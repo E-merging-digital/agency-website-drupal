@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\agency_operations\Controller;
 
 use Drupal\agency_operations\Service\CapabilityRegistryReader;
+use Drupal\agency_operations\Service\CockpitPlanReceiptReaderInterface;
 use Drupal\agency_operations\Service\EditorialLanguageReadinessInterface;
 use Drupal\agency_operations\Service\RuntimeMetadataReader;
 use Drupal\Core\Controller\ControllerBase;
@@ -29,6 +30,7 @@ final class OperationsController extends ControllerBase {
     private readonly EditorialLanguageReadinessInterface $languageReadiness,
     private readonly ModuleHandlerInterface $agencyModuleHandler,
     private readonly RuntimeMetadataReader $runtimeMetadata,
+    private readonly CockpitPlanReceiptReaderInterface $planReceiptReader,
   ) {}
 
   /**
@@ -40,6 +42,7 @@ final class OperationsController extends ControllerBase {
       $container->get('agency_operations.language_readiness'),
       $container->get('module_handler'),
       $container->get('agency_operations.runtime_metadata'),
+      $container->get('agency_operations.cockpit_plan_receipt'),
     );
   }
 
@@ -49,6 +52,7 @@ final class OperationsController extends ControllerBase {
   public function overview(): array {
     $registry = $this->capabilityRegistry->read();
     $runtime = $this->runtimeMetadata->read();
+    $lastPlan = $this->planReceiptReader->read();
     $requiredLanguages = $this->languageReadiness->getRequiredLanguages();
     $refresh = $this->findCapability(
       $registry,
@@ -176,6 +180,15 @@ final class OperationsController extends ControllerBase {
           Link::fromTextAndUrl(
             $this->t('Prepare PREPROD PLAN'),
             $planAuthorityUrl,
+          )->toString(),
+        ],
+        [
+          $this->t('Last PREPROD PLAN'),
+          $this->lastPlanStatusLabel($lastPlan),
+          $this->lastPlanSummary($lastPlan),
+          Link::fromTextAndUrl(
+            $this->t('Open evidence'),
+            Url::fromUri((string) $lastPlan['run_url']),
           )->toString(),
         ],
       ],
@@ -384,6 +397,26 @@ final class OperationsController extends ControllerBase {
       ],
     ];
 
+    $build['technical_details']['last_plan_receipt'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Last PREPROD PLAN receipt'),
+      '#open' => FALSE,
+      'boundary' => [
+        '#type' => 'item',
+        '#markup' => $this->t(
+          'This receipt is evidence only. It is never authority and cannot authorize PLAN or APPLY.',
+        ),
+      ],
+      'receipt' => [
+        '#type' => 'table',
+        '#header' => [
+          $this->t('Field'),
+          $this->t('Value'),
+        ],
+        '#rows' => $this->lastPlanTechnicalRows($lastPlan),
+      ],
+    ];
+
     $build['technical_details']['editorial'] = [
       '#type' => 'details',
       '#title' => $this->t('Editorial operations'),
@@ -567,6 +600,101 @@ final class OperationsController extends ControllerBase {
       ),
       default => $this->t('Unavailable'),
     };
+  }
+
+  /**
+   * Returns the fail-closed human status of the latest PLAN evidence.
+   */
+  private function lastPlanStatusLabel(array $lastPlan): string {
+    return !empty($lastPlan['available'])
+      ? (string) $this->t('Passed')
+      : (string) $this->t('Evidence unavailable');
+  }
+
+  /**
+   * Returns the compact human-first latest PLAN summary.
+   */
+  private function lastPlanSummary(array $lastPlan): string {
+    if (empty($lastPlan['available'])) {
+      return (string) $this->t(
+        'PLAN result is not inferred. APPLY remains not authorized.',
+      );
+    }
+
+    return (string) $this->t(
+      'Authority: #@authority; Completed: @completed; Evaluated main: @main; Observed PROD release: @prod; Mutation: None; APPLY: Not authorized.',
+      [
+        '@authority' => (string) $lastPlan['authority_issue'],
+        '@completed' => $this->formatCompletedAt(
+          (string) $lastPlan['completed_at'],
+        ),
+        '@main' => $this->shortSha((string) $lastPlan['main_sha']),
+        '@prod' => $this->shortSha(
+          (string) $lastPlan['observed_prod_release_sha'],
+        ),
+      ],
+    );
+  }
+
+  /**
+   * Returns progressive-disclosure receipt fields without raw JSON.
+   */
+  private function lastPlanTechnicalRows(array $lastPlan): array {
+    if (empty($lastPlan['available'])) {
+      return [
+        [$this->t('Status'), $this->t('Evidence unavailable')],
+        ['PLAN_RESULT', 'NOT_INFERRED'],
+        ['APPLY', $this->t('Not authorized')],
+        [
+          $this->t('Source'),
+          'api.github.com / E-merging-digital/agency-website-drupal / public read-only',
+        ],
+      ];
+    }
+
+    return [
+      [$this->t('Status'), $this->t('Passed')],
+      [$this->t('Receipt source'), (string) $lastPlan['receipt_source']],
+      [
+        $this->t('Authority issue'),
+        Link::fromTextAndUrl(
+          '#' . (string) $lastPlan['authority_issue'],
+          Url::fromUri((string) $lastPlan['authority_url']),
+        )->toString(),
+      ],
+      [$this->t('Request'), (string) $lastPlan['request_id']],
+      [$this->t('Evaluated main'), (string) $lastPlan['main_sha']],
+      [
+        $this->t('Observed PROD release'),
+        (string) $lastPlan['observed_prod_release_sha'],
+      ],
+      [$this->t('Completed'), (string) $lastPlan['completed_at']],
+      ['PLAN_RESULT', (string) $lastPlan['plan_result']],
+      ['JIT_MAIN_REVALIDATION', (string) $lastPlan['jit_main_revalidation']],
+      [$this->t('Mutation'), $this->t('None')],
+      ['APPLY', $this->t('Not authorized')],
+      [
+        $this->t('Dispatch run'),
+        Link::fromTextAndUrl(
+          (string) $lastPlan['dispatch_run'],
+          Url::fromUri((string) $lastPlan['run_url']),
+        )->toString(),
+      ],
+    ];
+  }
+
+  /**
+   * Formats the trusted canonical UTC receipt timestamp for the primary view.
+   */
+  private function formatCompletedAt(string $timestamp): string {
+    return str_replace('T', ' ', substr($timestamp, 0, 16)) . ' UTC';
+  }
+
+  /**
+   * Shortens a validated full SHA for the primary view only.
+   */
+  private function shortSha(string $sha): string {
+    return substr($sha, 0, 7) . '…';
   }
 
   /**

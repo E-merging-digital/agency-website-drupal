@@ -102,6 +102,8 @@ jobs:
     permissions:
       contents: read
       issues: read
+    outputs:
+      observed_prod_release_sha: ${{ steps.plan_result.outputs.observed_prod_release_sha }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -164,7 +166,8 @@ jobs:
           printf '%s\n' "$PROD_KEY" > "$RUNNER_TEMP/agency-914-plan-prod.key"
           printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-914-plan-preprod.key"
           chmod 600 "$RUNNER_TEMP"/agency-914-plan-*.key
-      - name: Execute mutation-free PLAN
+      - id: plan_result
+        name: Execute mutation-free PLAN
         env:
           AUTHORITY_ISSUE: ${{ needs.validate-authority.outputs.authority_issue }}
           REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
@@ -177,10 +180,80 @@ jobs:
           PROD_SSH_KEY: ${{ runner.temp }}/agency-914-plan-prod.key
           PREPROD_SSH_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
           PREPROD_SSH_KEY: ${{ runner.temp }}/agency-914-plan-preprod.key
-        run: bash scripts/preproduction-refresh/governed-successor/run-plan.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          result_file="$RUNNER_TEMP/agency-914-plan-result.env"
+          trap 'rm -f -- "$result_file"' EXIT
+          bash scripts/preproduction-refresh/governed-successor/run-plan.sh \
+            | tee "$result_file"
+          for required in \
+            'PLAN_RESULT=PASS' \
+            'PROD_DB_CONTENT_READ=NONE' \
+            'PROD_SNAPSHOT=NOT_PERFORMED' \
+            'PROD_DATA_TRANSFER=NONE' \
+            'PREPROD_DB_MUTATION=NONE' \
+            'PROD_WRITE=NONE' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED'; do
+            test "$(grep -Fxc "$required" "$result_file")" = '1'
+          done
+          observed_prod_release_sha="$(
+            sed -n 's/^OBSERVED_PROD_RELEASE_SHA=//p' "$result_file"
+          )"
+          [[ "$observed_prod_release_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$(grep -c '^OBSERVED_PROD_RELEASE_SHA=' "$result_file")" = '1'
+          echo "observed_prod_release_sha=$observed_prod_release_sha" \
+            >> "$GITHUB_OUTPUT"
       - if: ${{ always() }}
         name: Cleanup PLAN identities
         run: rm -f -- "$RUNNER_TEMP"/agency-914-plan-*.key
+
+  publish-cockpit-plan-receipt:
+    needs:
+      - validate-authority
+      - plan
+    if: >-
+      ${{ github.event_name == 'issues'
+          && github.event.action == 'opened'
+          && needs.validate-authority.outputs.mode == 'PLAN'
+          && needs.plan.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish canonical evidence-only PLAN receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHORITY_ISSUE: ${{ needs.validate-authority.outputs.authority_issue }}
+          REQUEST_ID: ${{ needs.validate-authority.outputs.request_id }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PROFILE_ID: ${{ needs.validate-authority.outputs.operation_profile }}
+          OBSERVED_PROD_RELEASE_SHA: ${{ needs.plan.outputs.observed_prod_release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$AUTHORITY_ISSUE" =~ ^[0-9]+$ ]]
+          [[ "$REQUEST_ID" == "plan-${AUTHORITY_ISSUE}-cockpit-v1-r1" ]]
+          [[ "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$OBSERVED_PROD_RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$PROFILE_ID" = 'agency-preprod-refresh-simple-v1'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          completed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          receipt="$(jq -cn \
+            --argjson authority_issue "$AUTHORITY_ISSUE" \
+            --argjson dispatch_run "$GITHUB_RUN_ID" \
+            --argjson run_attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg request_id "$REQUEST_ID" \
+            --arg profile_id "$PROFILE_ID" \
+            --arg main_sha "$MAIN_SHA" \
+            --arg observed_prod_release_sha "$OBSERVED_PROD_RELEASE_SHA" \
+            --arg completed_at "$completed_at" \
+            '{schema_version:1,receipt_source:"WORKFLOW",authority_issue:$authority_issue,dispatch_run:$dispatch_run,run_attempt:$run_attempt,request_id:$request_id,mode:"PLAN",profile_id:$profile_id,main_sha:$main_sha,jit_main_revalidation:"PASS",plan_result:"PASS",observed_prod_release_sha:$observed_prod_release_sha,prod_db_content_read:"NONE",prod_snapshot:"NOT_PERFORMED",prod_data_transfer:"NONE",preprod_db_mutation:"NONE",prod_write:"NONE",data_activation_authority:"DISABLED",apply_job:"SKIPPED",issue_open_apply:"IMPOSSIBLE",completed_at:$completed_at}')"
+          body="AGENCY_PREPROD_COCKPIT_PLAN_RECEIPT=$receipt"
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/$AUTHORITY_ISSUE/comments" \
+            -f body="$body" >/dev/null
 
   apply:
     needs: validate-authority

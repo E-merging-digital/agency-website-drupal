@@ -197,7 +197,7 @@ jobs:
     if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH_COCKPIT_PLAN' }}
     permissions:
       contents: read
-      issues: read
+      issues: write
     uses: ./.github/workflows/preprod-914-governed-successor.yml
     secrets:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}

@@ -64,7 +64,8 @@ jobs:
 
           b=Path('scripts/preproduction-refresh/governed-successor')
           w=Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
-          plan_job='  plan:\n'+w.split('\n  plan:\n',1)[1].split('\n  apply:\n',1)[0]
+          plan_job='  plan:\n'+w.split('\n  plan:\n',1)[1].split('\n  publish-cockpit-plan-receipt:\n',1)[0]
+          receipt_job='  publish-cockpit-plan-receipt:\n'+w.split('\n  publish-cockpit-plan-receipt:\n',1)[1].split('\n  apply:\n',1)[0]
           apply_job='  apply:\n'+w.split('\n  apply:\n',1)[1]
           plan=(b/'run-plan.sh').read_text()
           control=(b/'run-server-to-server-apply.sh').read_text()
@@ -79,7 +80,10 @@ jobs:
           policy=json.loads(Path('scripts/preproduction-refresh/sanitization-policy.json').read_text())
 
           assert 'RECOVER_ABORT' not in w and 'RECOVER_CURRENT' not in w
-          assert 'issues: write' not in w and 'issues:write' not in w
+          assert 'issues: write' not in plan_job and 'issues:write' not in plan_job
+          assert 'issues: write' in receipt_job or 'issues:write' in receipt_job
+          assert 'issues: write' not in apply_job and 'issues:write' not in apply_job
+          assert "needs.plan.result == 'success'" in receipt_job
           assert 'target_' not in validator and 'recovery_record' not in validator
           assert 'runs-on: ubuntu-24.04' in plan_job
           assert 'runs-on: ubuntu-24.04' in apply_job

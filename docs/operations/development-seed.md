@@ -71,7 +71,7 @@ CURRENT SANITIZED PREPROD runtime DB
 → updb / cim / cr / local convergence / side-effect assertions
 ```
 
-There is no post-sanitization `sql:dump | gzip` distribution stage and no `ddev pull agency` consumer path. The initial logical stream remains necessary only to copy the already-sanitized PREPROD source into the isolated generation DDEV database; it is deleted immediately after that import.
+There is no post-sanitization `sql:dump | gzip` distribution stage; the former provider-based SQL pull consumer path is removed. The initial logical stream remains necessary only to copy the already-sanitized PREPROD source into the isolated generation DDEV database; it is deleted immediately after that import.
 
 ## How to create a sanitized seed
 
@@ -210,7 +210,7 @@ Its database action is exactly:
 ddev start --reset-database --seed-snapshot=<verified-local-path>/database-mariadb_11.8.zst
 ```
 
-The helper intentionally does **not** pass `-y`/`--skip-confirmation` and does **not** pass `--omit-snapshot`. Therefore reset remains explicit and DDEV's normal safety snapshot of the database being replaced is preserved.
+The helper intentionally does **not** bypass reset confirmation or DDEV's default pre-reset safety snapshot. Therefore reset remains explicit and the database being replaced is backed up by DDEV before reset.
 
 ```text
 IMPLICIT_RESET = NONE
@@ -300,6 +300,6 @@ TEMPORARY_GENERATION_MATERIAL = ABSENT
 - `scripts/development-seed/post-pull.sh`
 - `scripts/development-seed/local-converge.php`
 
-`.ddev/providers/agency.yaml` is intentionally removed: retaining it would preserve the obsolete SQL-import distribution path alongside native DDEV snapshots.
+`.ddev/providers/agency.yaml` is intentionally removed because retaining it would preserve the obsolete SQL-import distribution path alongside native DDEV snapshots.
 
 No command in this document grants execution authority. Reload live main, #956 and current source identities before any real publication.

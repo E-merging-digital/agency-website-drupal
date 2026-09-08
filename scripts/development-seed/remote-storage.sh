@@ -19,6 +19,7 @@ SEED_ID="agency-development-seed-v1-$REQUEST_ID"
 TARGET="$IMMUTABLE/$SEED_ID"
 CURRENT="$ROOT/current"
 READER="$ROOT/read-only-scp.sh"
+SNAPSHOT_NAME='database-mariadb_11.8.zst'
 
 fail() {
   printf 'Development Seed storage rejected: %s\n' "$1" >&2
@@ -64,12 +65,12 @@ case "$ACTION" in
 
   COMMIT)
     ensure_root
-    [[ "$EXPECTED_DATABASE_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'invalid expected database digest'
+    [[ "$EXPECTED_DATABASE_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'invalid expected snapshot digest'
     [[ "$EXPECTED_READER_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'invalid expected reader command digest'
     safe_dir "$INCOMING"
     [[ ! -e "$TARGET" && ! -L "$TARGET" ]] || fail 'immutable seed identity already exists'
 
-    database="$INCOMING/database.sql.gz"
+    database="$INCOMING/$SNAPSHOT_NAME"
     metadata="$INCOMING/seed.json"
     reader_candidate="$INCOMING/read-only-scp.sh"
     for path in "$database" "$metadata" "$reader_candidate"; do
@@ -78,16 +79,15 @@ case "$ACTION" in
     [[ -s "$database" && -s "$metadata" && -s "$reader_candidate" ]] || fail 'incoming payload is empty'
     actual_database_sha="$(sha256sum "$database" | awk '{print $1}')"
     actual_reader_sha="$(sha256sum "$reader_candidate" | awk '{print $1}')"
-    [[ "$actual_database_sha" == "$EXPECTED_DATABASE_SHA" ]] || fail 'database digest mismatch before publication'
+    [[ "$actual_database_sha" == "$EXPECTED_DATABASE_SHA" ]] || fail 'snapshot digest mismatch before publication'
     [[ "$actual_reader_sha" == "$EXPECTED_READER_SHA" ]] || fail 'reader command digest mismatch before publication'
     jq -e \
       --arg seed "$SEED_ID" \
       --arg digest "$EXPECTED_DATABASE_SHA" \
-      '.schema_version == 1 and .seed_id == $seed and .database_sha256 == $digest and (.source_preprod_refresh_identity | type == "string") and (.source_preprod_application_release_sha | test("^[0-9a-f]{40}$")) and .sanitization_policy.id == "agency-development-seed-v1"' \
+      --arg snapshot "$SNAPSHOT_NAME" \
+      '.schema_version == 1 and .seed_id == $seed and .database_sha256 == $digest and .compatibility.ddev_minimum_version == "1.25.4" and .compatibility.database == "mariadb:11.8" and .compatibility.snapshot_filename == $snapshot and (.source_preprod_refresh_identity | type == "string") and (.source_preprod_application_release_sha | test("^[0-9a-f]{40}$")) and .sanitization_policy.id == "agency-development-seed-v1"' \
       "$metadata" >/dev/null || fail 'seed metadata contract failed before publication'
 
-    # Install the fixed reader command separately; immutable seed directories
-    # contain only the distributable database and metadata payload.
     reader_tmp="$ROOT/.read-only-scp.$REQUEST_ID.tmp"
     cp -- "$reader_candidate" "$reader_tmp"
     chmod 500 "$reader_tmp"
@@ -98,9 +98,9 @@ case "$ACTION" in
     mv -- "$INCOMING" "$TARGET"
     chmod 500 "$TARGET"
     [[ -d "$TARGET" && ! -L "$TARGET" ]] || fail 'immutable seed move failed'
-    [[ -f "$TARGET/database.sql.gz" && -f "$TARGET/seed.json" ]] || fail 'immutable seed payload is incomplete'
+    [[ -f "$TARGET/$SNAPSHOT_NAME" && -f "$TARGET/seed.json" ]] || fail 'immutable seed payload is incomplete'
     [[ "$(find "$TARGET" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 2 ]] || fail 'immutable seed payload contains unexpected files'
-    [[ "$(sha256sum "$TARGET/database.sql.gz" | awk '{print $1}')" == "$EXPECTED_DATABASE_SHA" ]] || fail 'published database digest mismatch'
+    [[ "$(sha256sum "$TARGET/$SNAPSHOT_NAME" | awk '{print $1}')" == "$EXPECTED_DATABASE_SHA" ]] || fail 'published snapshot digest mismatch'
 
     mv -f -- "$reader_tmp" "$READER"
     chmod 500 "$READER"
@@ -117,6 +117,7 @@ case "$ACTION" in
     printf '%s\n' \
       "seed_id=$SEED_ID" \
       "database_sha256=$EXPECTED_DATABASE_SHA" \
+      'ddev_native_snapshot=PASS' \
       'seed_storage=PUBLISHED' \
       'immutable_seed=PASS' \
       'current_pointer=VERIFIED' \
@@ -125,14 +126,14 @@ case "$ACTION" in
 
   VERIFY)
     ensure_root
-    [[ "$EXPECTED_DATABASE_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'invalid expected database digest'
+    [[ "$EXPECTED_DATABASE_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'invalid expected snapshot digest'
     [[ "$EXPECTED_READER_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'invalid expected reader command digest'
     [[ -L "$CURRENT" && "$(readlink -f "$CURRENT")" == "$TARGET" ]] || fail 'current pointer does not address expected immutable seed'
     [[ -d "$TARGET" && ! -L "$TARGET" ]] || fail 'expected immutable seed is unavailable'
-    [[ -f "$TARGET/database.sql.gz" && ! -L "$TARGET/database.sql.gz" ]] || fail 'published database is unavailable'
+    [[ -f "$TARGET/$SNAPSHOT_NAME" && ! -L "$TARGET/$SNAPSHOT_NAME" ]] || fail 'published snapshot is unavailable'
     [[ -f "$TARGET/seed.json" && ! -L "$TARGET/seed.json" ]] || fail 'published metadata is unavailable'
     [[ "$(find "$TARGET" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 2 ]] || fail 'immutable seed contains unexpected files'
-    [[ "$(sha256sum "$TARGET/database.sql.gz" | awk '{print $1}')" == "$EXPECTED_DATABASE_SHA" ]] || fail 'published database digest changed'
+    [[ "$(sha256sum "$TARGET/$SNAPSHOT_NAME" | awk '{print $1}')" == "$EXPECTED_DATABASE_SHA" ]] || fail 'published snapshot digest changed'
     [[ -f "$READER" && ! -L "$READER" && "$(sha256sum "$READER" | awk '{print $1}')" == "$EXPECTED_READER_SHA" ]] || fail 'reader command identity changed'
     [[ ! -e "$INCOMING" && ! -L "$INCOMING" ]] || fail 'temporary storage material remains'
     printf '%s\n' \

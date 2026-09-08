@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * Build non-sensitive immutable Development Seed metadata for an already
- * sanitized database artifact. This script does not read PROD/PREPROD itself.
+ * sanitized DDEV database snapshot. This script does not read PROD/PREPROD.
  */
 
 function fail(string $message): never {
@@ -35,7 +35,10 @@ $sourceRelease = strtolower($options['source-release']);
 $output = $options['output'];
 
 if (!is_file($database) || !is_readable($database)) {
-  fail('Database artifact is not readable.');
+  fail('Database snapshot artifact is not readable.');
+}
+if (basename($database) !== 'database-mariadb_11.8.zst') {
+  fail('Development Seed snapshot must preserve the mariadb:11.8 DDEV filename suffix.');
 }
 if (!preg_match('/^agency-development-seed-v1-[A-Za-z0-9._-]+$/', $seedId)) {
   fail('Invalid seed_id.');
@@ -61,7 +64,7 @@ if (!is_array($policy) || ($policy['policy_id'] ?? null) !== 'agency-development
 $size = filesize($database);
 $hash = hash_file('sha256', $database);
 if (!is_int($size) || !is_string($hash) || !preg_match('/^[0-9a-f]{64}$/', $hash)) {
-  fail('Unable to calculate database identity.');
+  fail('Unable to calculate database snapshot identity.');
 }
 
 $metadata = [
@@ -78,8 +81,9 @@ $metadata = [
   'database_sha256' => $hash,
   'compatibility' => [
     'strategy' => 'SAME_OR_SEED_ANCESTOR',
-    'ddev_minimum_version' => '1.25.3',
+    'ddev_minimum_version' => '1.25.4',
     'database' => 'mariadb:11.8',
+    'snapshot_filename' => 'database-mariadb_11.8.zst',
     'drush' => '13.7.6',
   ],
 ];

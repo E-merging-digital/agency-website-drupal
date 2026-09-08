@@ -7,12 +7,12 @@ namespace Drupal\Tests\agency_project_tests\Unit;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Covers the pull-only Development Seed source/static/synthetic contract.
+ * Covers the Development Seed source/static/synthetic contract.
  */
 final class DevelopmentSeedContractTest extends TestCase {
 
   /**
-   * Executes the data-free #873 proof under canonical PHPUnit CI.
+   * Executes the data-free #873/#1108 proof under canonical PHPUnit CI.
    */
   public function testSyntheticDevelopmentSeedContract(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -38,10 +38,18 @@ final class DevelopmentSeedContractTest extends TestCase {
     foreach ([
       'EXISTING_CAPABILITY_AUDIT=COMPLETE',
       'SYNTHETIC_SEED_PROOF=PASS',
+      'POST_SANITIZATION_SQL_ROUNDTRIP=REMOVED',
+      'DDEV_NATIVE_SEED_SNAPSHOT=USED',
+      'DDEV_NATIVE_EXPLICIT_RESET=USED',
+      'EXTERNAL_SANITIZED_SNAPSHOT=DEFAULT',
+      'SANITIZATION_BEFORE_SNAPSHOT=REQUIRED',
+      'SEED_SHA256=VERIFIED',
+      'DATABASE_COMPATIBILITY=mariadb:11.8/FAIL_CLOSED',
+      'IMPLICIT_RESET=NONE',
+      'RESET_DEFAULT_BACKUP=PRESERVED',
       'CORRUPT_HASH=FAIL_CLOSED',
       'UNSUPPORTED_DOWNGRADE=FAIL_CLOSED',
       'SIDE_EFFECT_ASSERTIONS=PASS',
-      'PULL_ONLY_CONTRACT=PASS',
       'REAL_PROD_ACCESS=NONE',
       'REAL_PREPROD_DATA_READ=NONE',
       'REAL_SEED_GENERATION=NONE',

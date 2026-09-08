@@ -34,7 +34,7 @@ fi
 
 case "$path" in
   "$CURRENT/seed.json") fixed="$resolved/seed.json" ;;
-  "$CURRENT/database.sql.gz") fixed="$resolved/database.sql.gz" ;;
+  "$CURRENT/database-mariadb_11.8.zst") fixed="$resolved/database-mariadb_11.8.zst" ;;
   *) fail ;;
 esac
 [[ -f "$fixed" && ! -L "$fixed" && -r "$fixed" ]] || fail

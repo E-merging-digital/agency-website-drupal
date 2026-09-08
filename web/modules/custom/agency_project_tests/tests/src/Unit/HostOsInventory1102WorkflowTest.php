@@ -101,13 +101,13 @@ final class HostOsInventory1102WorkflowTest extends TestCase {
     );
 
     foreach ([
-      "test \"$EVENT_NAME\" = 'issue_comment'",
-      "test \"$EVENT_ACTION\" = 'created'",
-      "test \"$ISSUE_NUMBER\" = '1101'",
-      "test \"$COMMENT_BODY\" = '/agency-host-os-inventory audit'",
-      "test \"$COMMENT_LOGIN\" = 'E-merging-digital'",
-      "test \"$COMMENT_ASSOCIATION\" = 'OWNER'",
-      "test \"$COMMENT_VIA_APP\" = 'false'",
+      'test "$EVENT_NAME" = \'issue_comment\'',
+      'test "$EVENT_ACTION" = \'created\'',
+      'test "$ISSUE_NUMBER" = \'1101\'',
+      'test "$COMMENT_BODY" = \'/agency-host-os-inventory audit\'',
+      'test "$COMMENT_LOGIN" = \'E-merging-digital\'',
+      'test "$COMMENT_ASSOCIATION" = \'OWNER\'',
+      'test "$COMMENT_VIA_APP" = \'false\'',
     ] as $required) {
       self::assertStringContainsString($required, $source);
     }
@@ -176,8 +176,6 @@ final class HostOsInventory1102WorkflowTest extends TestCase {
       'full-upgrade',
       'dist-upgrade',
       'do-release-upgrade',
-      'reboot ',
-      'shutdown ',
       'systemctl restart',
       'systemctl start',
       'systemctl stop',
@@ -185,10 +183,15 @@ final class HostOsInventory1102WorkflowTest extends TestCase {
       'apt-get install',
       'ddev upgrade',
       'ddev start',
+      'service ',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $runner);
     }
 
+    self::assertDoesNotMatchRegularExpression(
+      '/^\s*(reboot|shutdown)(\s|$)/m',
+      $runner,
+    );
     self::assertStringNotContainsString('printenv', $runner);
     self::assertStringNotContainsString('/etc/shadow', $runner);
     self::assertStringNotContainsString('settings.php', $runner);

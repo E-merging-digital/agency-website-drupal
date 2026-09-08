@@ -12,6 +12,48 @@ use PHPUnit\Framework\TestCase;
 final class DevelopmentSeedContractTest extends TestCase {
 
   /**
+   * Proves #1111 host toolchain preconditions remain minimal and explicit.
+   */
+  public function testPublisherHostToolchainContract(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $publisher = file_get_contents($root . '/scripts/development-seed/run-publish.sh');
+    self::assertIsString($publisher);
+
+    self::assertStringContainsString(
+      'for command_name in ddev git jq openssl scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do',
+      $publisher,
+    );
+    self::assertStringNotContainsString(
+      'for command_name in ddev git jq openssl php scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      'MISSING_REQUIRED_COMMAND=%s',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      'if ! command -v "$command_name" >/dev/null 2>&1; then',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      'ddev drush --quiet php:script scripts/preproduction-refresh/governed-successor/agency-sanitize.php',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      'ddev drush --quiet php:script scripts/development-seed/agency-development-sanitize.php',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      'ddev exec php scripts/development-seed/build-seed-metadata.php',
+      $publisher,
+    );
+    self::assertStringContainsString(
+      'ddev exec php scripts/development-seed/verify-seed.php',
+      $publisher,
+    );
+  }
+
+  /**
    * Executes the data-free #873/#1108 proof under canonical PHPUnit CI.
    */
   public function testSyntheticDevelopmentSeedContract(): void {

@@ -404,3 +404,27 @@ jobs:
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
       PREPROD_BASIC_AUTH_USER: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
       PREPROD_BASIC_AUTH_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+
+  host-os-inventory:
+    name: Route #1101 governed host OS inventory
+    needs: classify
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.action == 'created'
+          && github.event.issue.pull_request == null
+          && github.event.issue.number == 1101
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.performed_via_github_app == null
+          && github.event.comment.body == '/agency-host-os-inventory audit' }}
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: ./.github/workflows/host-os-inventory.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}

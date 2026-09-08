@@ -51,7 +51,7 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
   }
 
   /**
-   * Payload stays data; bot receipts stay evidence, never human apply authority.
+   * Payload stays data; bot receipts are evidence, never human apply authority.
    */
   public function testPayloadAndApplyContractFailClosed(): void {
     $root = dirname(DRUPAL_ROOT);

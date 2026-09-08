@@ -27,9 +27,18 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
     $workflow = (string) file_get_contents($path);
     self::assertStringContainsString('workflow_call:', $workflow);
     self::assertStringNotContainsString('issue_comment:', $workflow);
-    self::assertStringContainsString("github.event.comment.body == '/agency-editorial inspect'", $workflow);
-    self::assertStringContainsString("github.event.comment.body == '/agency-editorial dry-run'", $workflow);
-    self::assertStringContainsString("github.event.comment.body == '/agency-editorial apply'", $workflow);
+    self::assertStringContainsString(
+      "github.event.comment.body == '/agency-editorial inspect'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      "github.event.comment.body == '/agency-editorial dry-run'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      "github.event.comment.body == '/agency-editorial apply'",
+      $workflow,
+    );
     self::assertStringContainsString("GITHUB_ACTOR\" == 'E-merging-digital'", $workflow);
     self::assertStringContainsString("'.user.login'", $workflow);
     self::assertStringContainsString('currently on live main', $workflow);

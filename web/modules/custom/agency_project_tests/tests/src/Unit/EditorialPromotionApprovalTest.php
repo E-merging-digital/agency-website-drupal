@@ -22,7 +22,8 @@ final class EditorialPromotionApprovalTest extends TestCase {
   private const MAIN_SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
   /**
-   * Exact PREPROD + image + direct human approval + fresh PROD dry-run is accepted.
+   * Exact PREPROD + image + direct human approval + fresh PROD dry-run is
+   * accepted.
    */
   public function testExactApprovedCandidateIsPromotable(): void {
     $fixture = $this->fixture();

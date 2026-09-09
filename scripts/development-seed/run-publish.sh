@@ -94,10 +94,40 @@ reader_action() {
     < "$READER_KEY_SCRIPT"
 }
 
+classify_sanitize_component() {
+  local diagnostic_path="$1"
+  local failure_class="$2"
+  local failure_component='UNKNOWN'
+
+  case "$failure_class" in
+    COMMAND|BOOTSTRAP)
+      failure_component='COMMAND_OR_BOOTSTRAP'
+      ;;
+    *)
+      if LC_ALL=C grep -Fqi -- 'WebformSanitizeSubmissionsCommands' "$diagnostic_path"; then
+        failure_component='WEBFORM_SUBMISSIONS'
+      elif LC_ALL=C grep -Fqi -- 'SanitizeCommentsCommands' "$diagnostic_path"; then
+        failure_component='COMMENTS'
+      elif LC_ALL=C grep -Fqi -- 'SanitizeSessionsCommands' "$diagnostic_path"; then
+        failure_component='SESSIONS'
+      elif LC_ALL=C grep -Fqi -- 'SanitizeUserTableCommands' "$diagnostic_path"; then
+        failure_component='USER_TABLE'
+      elif LC_ALL=C grep -Fqi -- 'SanitizeUserFieldsCommands' "$diagnostic_path"; then
+        failure_component='USER_FIELDS'
+      elif LC_ALL=C grep -Fqi -e 'Drupal\Core\Database\' -e '/core/lib/Drupal/Core/Database/' "$diagnostic_path"; then
+        failure_component='DRUPAL_DATABASE'
+      fi
+      ;;
+  esac
+
+  printf '%s\n' "$failure_component"
+}
+
 classify_sanitize_failure() {
   local diagnostic_path="$1"
   local exit_code="$2"
   local failure_class='UNCLASSIFIED'
+  local failure_component='UNKNOWN'
 
   if LC_ALL=C grep -Eiq -- '(command .* is not defined|there are no commands defined|option .* does not exist|unknown option|too many arguments|not enough arguments)' "$diagnostic_path"; then
     failure_class='COMMAND'
@@ -109,11 +139,18 @@ classify_sanitize_failure() {
     failure_class='RUNTIME'
   fi
 
+  failure_component="$(classify_sanitize_component "$diagnostic_path" "$failure_class")"
+  case "$failure_component" in
+    WEBFORM_SUBMISSIONS|COMMENTS|SESSIONS|USER_TABLE|USER_FIELDS|DRUPAL_DATABASE|COMMAND_OR_BOOTSTRAP|UNKNOWN) ;;
+    *) failure_component='UNKNOWN' ;;
+  esac
+
   if [[ ! "$exit_code" =~ ^[1-9][0-9]*$ ]]; then
     exit_code=255
   fi
   printf 'SANITIZE_FAILURE=YES\n' >&2
   printf 'SANITIZE_FAILURE_CLASS=%s\n' "$failure_class" >&2
+  printf 'SANITIZE_FAILURE_COMPONENT=%s\n' "$failure_component" >&2
   printf 'SANITIZE_FAILURE_EXIT=%s\n' "$exit_code" >&2
 }
 
@@ -200,7 +237,7 @@ seed_password="$(openssl rand -hex 32)"
 [[ "$(stat -c '%a' "$sanitize_diagnostic")" == 600 ]]
 if (
   cd "$generation"
-  ddev drush sql:sanitize -y \
+  ddev drush -vvv sql:sanitize -y \
     --sanitize-email='user+%uid@example.invalid' \
     --sanitize-password="$seed_password"
 ) > "$sanitize_diagnostic" 2>&1; then

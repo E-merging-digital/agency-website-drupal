@@ -9,13 +9,20 @@ EDITORIAL_OWNER_AFTER_MATERIALIZATION = DRUPAL
 CONTENT_SYNC = FORBIDDEN
 PREPROD_DURING_DELIVERY = NONE
 PROD = NONE
-FR_ROUTE = /fr/audit-site-web
-EN_ROUTE = /en/website-audit
+LANGUAGE_NEGOTIATION = path_prefix
+FR_PUBLIC_ROUTE = /fr/audit-site-web
+FR_STORED_ALIAS = /audit-site-web
+EN_PUBLIC_ROUTE = /en/website-audit
+EN_STORED_ALIAS = /website-audit
 ```
 
 Ce fichier versionne uniquement le candidat de livraison nécessaire à la revue Project Lead.
 Il ne constitue ni un catalogue de contenu, ni une nouvelle source runtime, ni une route
 de publication. Après matérialisation autorisée, Drupal reste la source éditoriale.
+
+Les routes publiques incluent le préfixe de langue géré par la négociation Drupal.
+Les aliases stockés dans Drupal n'incluent jamais ce préfixe : la langue est portée
+séparément par l'entité `path_alias`.
 
 ## Capacité existante retenue
 
@@ -28,7 +35,7 @@ Le candidat réutilise le bundle `service` existant :
 - CTA de qualification existant vers `/fr/contact` ou `/en/contact`, avec type `audit`
   déduit du titre ;
 - traduction Drupal FR/EN ;
-- aliases localisés explicites ci-dessous ;
+- routes publiques localisées et aliases Drupal stockés explicitement ci-dessous ;
 - métadonnées, canonical, hreflang et sitemap via les capacités Drupal déjà en place.
 
 Aucun nouveau Paragraph, SDC, Webform, content type, scanner, analytics ou composant
@@ -40,7 +47,8 @@ n'est requis pour ce candidat.
 
 ```text
 langcode = fr
-alias = /fr/audit-site-web
+public_route = /fr/audit-site-web
+stored_alias = /audit-site-web
 title = Audit de site web : clarifier les priorités avant d’investir
 ```
 
@@ -103,7 +111,8 @@ GENERAL_WEBSITE_AUDIT = SCOPED / PAID WHEN JUSTIFIED
 
 ```text
 langcode = en
-alias = /en/website-audit
+public_route = /en/website-audit
+stored_alias = /website-audit
 title = Website audit: clarify priorities before you invest
 ```
 

@@ -57,7 +57,10 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
       self::assertStringContainsString($needle, $source);
     }
     self::assertStringContainsString('candidate_revision', $source);
-    self::assertStringContainsString('same payload hash, candidate revision and live main', $source);
+    self::assertStringContainsString(
+      'same payload hash, candidate revision and live main',
+      $source,
+    );
   }
 
   /**
@@ -65,8 +68,10 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
    */
   public function testServiceSourceIsBoundedToMergedIssueCandidate(): void {
     $workflow = $this->source(self::WORKFLOW);
-    $parser = dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-service-candidate-source.py';
-    $candidate = dirname(DRUPAL_ROOT) . '/docs/seo/audit-site-web-candidate-1117.md';
+    $parser = dirname(DRUPAL_ROOT)
+      . '/scripts/runner/editorial-service-candidate-source.py';
+    $candidate = dirname(DRUPAL_ROOT)
+      . '/docs/seo/audit-site-web-candidate-1117.md';
     self::assertFileExists($parser);
     self::assertFileExists($candidate);
 
@@ -80,6 +85,17 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
       'merged Git main file',
     ] as $needle) {
       self::assertStringContainsString($needle, $workflow);
+    }
+
+    $candidateSource = (string) file_get_contents($candidate);
+    foreach ([
+      'LANGUAGE_NEGOTIATION = path_prefix',
+      'FR_PUBLIC_ROUTE = /fr/audit-site-web',
+      'FR_STORED_ALIAS = /audit-site-web',
+      'EN_PUBLIC_ROUTE = /en/website-audit',
+      'EN_STORED_ALIAS = /website-audit',
+    ] as $needle) {
+      self::assertStringContainsString($needle, $candidateSource);
     }
 
     $output = tempnam(sys_get_temp_dir(), 'agency-service-candidate-');
@@ -97,12 +113,26 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertSame(0, $exit, implode("\n", $lines));
     self::assertCount(1, $lines);
     self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $lines[0]);
-    $payload = json_decode((string) file_get_contents($output), TRUE, 32, JSON_THROW_ON_ERROR);
+    $payload = json_decode(
+      (string) file_get_contents($output),
+      TRUE,
+      32,
+      JSON_THROW_ON_ERROR,
+    );
     @unlink($output);
+    self::assertSame(2, $payload['schema_version']);
     self::assertSame('service', $payload['bundle']);
     self::assertSame(1117, $payload['issue_number']);
-    self::assertSame('/fr/audit-site-web', $payload['aliases']['fr']);
-    self::assertSame('/en/website-audit', $payload['aliases']['en']);
+    self::assertSame(
+      '/fr/audit-site-web',
+      $payload['public_routes']['fr'],
+    );
+    self::assertSame(
+      '/en/website-audit',
+      $payload['public_routes']['en'],
+    );
+    self::assertSame('/audit-site-web', $payload['stored_aliases']['fr']);
+    self::assertSame('/website-audit', $payload['stored_aliases']['en']);
     self::assertSame(
       ['detailed_description_html', 'short_description', 'title'],
       array_keys($payload['fr']),
@@ -135,8 +165,24 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     $main = '65a067691431d130bbc083423e94fa0769318612';
     $receipt = $this->realDryRunReceipt();
 
-    self::assertTrue($this->receiptAuthorizes('github-actions[bot]', $receipt, $revision, $hash, $main));
-    self::assertFalse($this->receiptAuthorizes('E-merging-digital', $receipt, $revision, $hash, $main));
+    self::assertTrue(
+      $this->receiptAuthorizes(
+        'github-actions[bot]',
+        $receipt,
+        $revision,
+        $hash,
+        $main,
+      ),
+    );
+    self::assertFalse(
+      $this->receiptAuthorizes(
+        'E-merging-digital',
+        $receipt,
+        $revision,
+        $hash,
+        $main,
+      ),
+    );
     self::assertFalse($this->receiptAuthorizes(
       'github-actions[bot]',
       str_replace('dry-run PASS', 'dry-run FAIL', $receipt),
@@ -168,21 +214,45 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
 
     $missing = preg_replace('/^trusted_main: .*\R?/m', '', $receipt, 1);
     self::assertIsString($missing);
-    self::assertFalse($this->receiptAuthorizes('github-actions[bot]', $missing, $revision, $hash, $main));
+    self::assertFalse(
+      $this->receiptAuthorizes(
+        'github-actions[bot]',
+        $missing,
+        $revision,
+        $hash,
+        $main,
+      ),
+    );
 
     $duplicate = str_replace(
       "payload_sha256: `$hash`",
       "payload_sha256: `$hash`\npayload_sha256: `$hash`",
       $receipt,
     );
-    self::assertFalse($this->receiptAuthorizes('github-actions[bot]', $duplicate, $revision, $hash, $main));
+    self::assertFalse(
+      $this->receiptAuthorizes(
+        'github-actions[bot]',
+        $duplicate,
+        $revision,
+        $hash,
+        $main,
+      ),
+    );
 
     $malformed = str_replace(
       "candidate_revision: `$revision`",
       'candidate_revision: `not-a-number`',
       $receipt,
     );
-    self::assertFalse($this->receiptAuthorizes('github-actions[bot]', $malformed, $revision, $hash, $main));
+    self::assertFalse(
+      $this->receiptAuthorizes(
+        'github-actions[bot]',
+        $malformed,
+        $revision,
+        $hash,
+        $main,
+      ),
+    );
 
     $serviceRevision = str_repeat('c', 40);
     $serviceReceipt = str_replace(
@@ -205,7 +275,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
   public function testPreprodRouteHasNoProductionExecutionInput(): void {
     $workflow = $this->source(self::WORKFLOW);
     $runner = $this->source('scripts/runner/run-editorial-preprod-candidate.sh');
-    $service = $this->source('scripts/runner/editorial-service-preprod-candidate.php');
+    $service = $this->source(
+      'scripts/runner/editorial-service-preprod-candidate.php',
+    );
     $combined = $workflow . "\n" . $runner . "\n" . $service;
 
     self::assertStringContainsString('PREPROD_SSH_PRIVATE_KEY', $workflow);
@@ -216,7 +288,10 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringContainsString('agency-preprod@', $runner);
     self::assertStringContainsString('/var/www/agency-preprod/current', $runner);
     self::assertStringContainsString('verify-preprod-pinned-trust.sh', $runner);
-    self::assertStringContainsString('scripts/preproduction/validate-runtime.sh', $runner);
+    self::assertStringContainsString(
+      'scripts/preproduction/validate-runtime.sh',
+      $runner,
+    );
     self::assertStringNotContainsString('/var/www/agency/current', $runner);
     self::assertStringNotContainsString('deploy-production.sh', $combined);
     self::assertStringNotContainsString('drush cim', $combined);
@@ -230,10 +305,19 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
    */
   public function testOnlyMetadataEvidenceIsUploaded(): void {
     $source = $this->source(self::WORKFLOW);
-    self::assertStringContainsString('path: artifacts/editorial-preprod-candidate/result.json', $source);
+    self::assertStringContainsString(
+      'path: artifacts/editorial-preprod-candidate/result.json',
+      $source,
+    );
     self::assertStringContainsString('prod_write: \`NONE\`', $source);
-    self::assertStringContainsString('GITHUB_ISSUE_COMMENT', $this->source('scripts/runner/editorial-preprod-candidate.php'));
-    self::assertStringContainsString('GIT_MAIN_FILE', $this->source('scripts/runner/editorial-service-preprod-candidate.php'));
+    self::assertStringContainsString(
+      'GITHUB_ISSUE_COMMENT',
+      $this->source('scripts/runner/editorial-preprod-candidate.php'),
+    );
+    self::assertStringContainsString(
+      'GIT_MAIN_FILE',
+      $this->source('scripts/runner/editorial-service-preprod-candidate.php'),
+    );
     self::assertStringNotContainsString(
       'agency-editorial-payload.json\n          if-no-files-found',
       $source,
@@ -267,18 +351,38 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     }
     $output = [];
     $exit = 0;
-    exec('python3 -m py_compile ' . escapeshellarg($parser) . ' 2>&1', $output, $exit);
+    exec(
+      'python3 -m py_compile ' . escapeshellarg($parser) . ' 2>&1',
+      $output,
+      $exit,
+    );
     self::assertSame(0, $exit, implode("\n", $output));
 
     $articleSource = (string) file_get_contents($article);
-    self::assertStringContainsString("private const BUNDLE = 'article'", $articleSource);
+    self::assertStringContainsString(
+      "private const BUNDLE = 'article'",
+      $articleSource,
+    );
     self::assertStringContainsString('AgencyEditorialPublication', $articleSource);
     self::assertStringNotContainsString('bundleName', $articleSource);
 
     $serviceSource = (string) file_get_contents($service);
-    self::assertStringContainsString("private const BUNDLE = 'service'", $serviceSource);
-    self::assertStringContainsString('Only bundle=service is allowed', $serviceSource);
-    self::assertStringContainsString("['field_short_description', 'field_detailed_description', 'path']", $serviceSource);
+    self::assertStringContainsString(
+      "private const BUNDLE = 'service'",
+      $serviceSource,
+    );
+    self::assertStringContainsString(
+      'Only bundle=service is allowed',
+      $serviceSource,
+    );
+    self::assertStringContainsString(
+      "['field_short_description', 'field_detailed_description', 'path']",
+      $serviceSource,
+    );
+    self::assertStringContainsString("'public_routes'", $serviceSource);
+    self::assertStringContainsString("'stored_aliases'", $serviceSource);
+    self::assertStringContainsString('ALIAS_REPAIR_READY', $serviceSource);
+    self::assertStringNotContainsString("payload['aliases']", $serviceSource);
     self::assertStringNotContainsString('bundleName', $serviceSource);
     self::assertStringNotContainsString("payload['entity_type']", $serviceSource);
     self::assertStringNotContainsString("'entity_type' =>", $serviceSource);
@@ -317,7 +421,8 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     }
 
     $lines = preg_split('/\R/u', $body) ?: [];
-    if (($lines[0] ?? '') !== '### Agency editorial PREPROD candidate dry-run PASS') {
+    if (($lines[0] ?? '')
+      !== '### Agency editorial PREPROD candidate dry-run PASS') {
       return FALSE;
     }
 
@@ -384,7 +489,9 @@ RECEIPT;
    *   File source.
    */
   private function source(string $relative): string {
-    return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relative);
+    return (string) file_get_contents(
+      dirname(DRUPAL_ROOT) . '/' . $relative,
+    );
   }
 
 }

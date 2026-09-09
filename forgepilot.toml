@@ -1,0 +1,30 @@
+[project]
+repository = "E-merging-digital/agency-website-drupal"
+default_branch = "main"
+
+[workflow]
+autonomy = "manual"
+
+[workflow.actions]
+prepare_branch = "gated"
+launch_agent = "gated"
+resume_agent = "gated"
+deterministic_validation = "allowed"
+external_review = "gated"
+correction_after_review = "gated"
+commit_changes = "gated"
+push_branch = "gated"
+create_draft_pr = "gated"
+mark_pr_ready = "gated"
+merge_pr = "blocked"
+close_issue = "blocked"
+cleanup_branch = "gated"
+sync_default_branch = "gated"
+approve_pr = "blocked"
+next_task_selection = "allowed"
+next_task_launch = "gated"
+batch_sequence_launch = "blocked"
+scheduled_wait_or_resume = "blocked"
+provider_switch = "gated"
+model_change = "gated"
+session_reuse = "gated"

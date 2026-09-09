@@ -123,6 +123,7 @@ final class DevelopmentSeedContractTest extends TestCase {
     self::assertStringNotContainsString('sql-sanitize.diagnostic', $workflow);
     self::assertStringNotContainsString('sanitize_diagnostic', $workflow);
     self::assertStringContainsString('SANITIZE_DIAGNOSTIC_CLEANUP=FAIL', $publisher);
+    self::assertStringContainsString('sanitize plugin is using a deprecated API', $publisher);
 
     $componentStart = strpos($publisher, 'classify_sanitize_component() {');
     $componentEnd = strpos(
@@ -137,13 +138,42 @@ final class DevelopmentSeedContractTest extends TestCase {
       $componentStart,
       $componentEnd - $componentStart + 2,
     );
+    $deprecatedNotice = static fn(string $handler): string =>
+      "[notice] The {$handler} sanitize plugin is using a deprecated API.";
+    $coreSanitize = 'Drush\\Commands\\sql\\sanitize\\';
+    $deprecatedNotices = implode("\n", [
+      $deprecatedNotice('Drupal\\webform\\Commands\\WebformSanitizeSubmissionsCommands::messages'),
+      $deprecatedNotice($coreSanitize . 'SanitizeCommentsCommands::messages'),
+      $deprecatedNotice($coreSanitize . 'SanitizeSessionsCommands::messages'),
+      $deprecatedNotice($coreSanitize . 'SanitizeUserTableCommands::messages'),
+      $deprecatedNotice($coreSanitize . 'SanitizeUserFieldsCommands::messages'),
+    ]);
+    $trace = static fn(string $frame): string =>
+      "Exception trace:\n  {$frame} at /synthetic/trace.php:42";
     $fixtures = [
-      ['WebformSanitizeSubmissionsCommands::sanitize', 'UNCLASSIFIED', 'WEBFORM_SUBMISSIONS'],
-      ['SanitizeCommentsCommands::sanitize', 'UNCLASSIFIED', 'COMMENTS'],
-      ['SanitizeSessionsCommands::sanitize', 'UNCLASSIFIED', 'SESSIONS'],
-      ['SanitizeUserTableCommands::sanitize', 'UNCLASSIFIED', 'USER_TABLE'],
-      ['SanitizeUserFieldsCommands::sanitize', 'UNCLASSIFIED', 'USER_FIELDS'],
-      ['Drupal\\Core\\Database\\DatabaseExceptionWrapper', 'RUNTIME', 'DRUPAL_DATABASE'],
+      [
+        $trace('Drupal\\webform\\Commands\\WebformSanitizeSubmissionsCommands->sanitize()'),
+        'UNCLASSIFIED',
+        'WEBFORM_SUBMISSIONS',
+      ],
+      [$trace($coreSanitize . 'SanitizeCommentsCommands->sanitize()'), 'UNCLASSIFIED', 'COMMENTS'],
+      [$trace($coreSanitize . 'SanitizeSessionsCommands->sanitize()'), 'UNCLASSIFIED', 'SESSIONS'],
+      [$trace($coreSanitize . 'SanitizeUserTableCommands->sanitize()'), 'UNCLASSIFIED', 'USER_TABLE'],
+      [$trace($coreSanitize . 'SanitizeUserFieldsCommands->sanitize()'), 'UNCLASSIFIED', 'USER_FIELDS'],
+      [$trace('Drupal\\Core\\Database\\Connection->query()'), 'RUNTIME', 'DRUPAL_DATABASE'],
+      [
+        $deprecatedNotices . "\nException trace:\n  "
+          . 'Drupal\\Core\\Database\\Connection->query() at /synthetic/database.php:42'
+          . "\n  " . $coreSanitize . 'SanitizeUserFieldsCommands->sanitize() at /synthetic/trace.php:84',
+        'UNCLASSIFIED',
+        'USER_FIELDS',
+      ],
+      [
+        $deprecatedNotices . "\nRuntimeException: synthetic-only\nException trace:\n  "
+          . 'Consolidation\\AnnotatedCommand\\CommandProcessor->process() at /synthetic/trace.php:42',
+        'RUNTIME',
+        'UNKNOWN',
+      ],
       ['opaque user@example.test secret=synthetic-only', 'UNCLASSIFIED', 'UNKNOWN'],
       ['command bootstrap sentinel', 'COMMAND', 'COMMAND_OR_BOOTSTRAP'],
     ];

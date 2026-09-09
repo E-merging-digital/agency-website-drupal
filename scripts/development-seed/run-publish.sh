@@ -97,30 +97,47 @@ reader_action() {
 classify_sanitize_component() {
   local diagnostic_path="$1"
   local failure_class="$2"
-  local failure_component='UNKNOWN'
+  local line=''
+  local database_frame=0
+  local in_exception_trace=0
 
   case "$failure_class" in
     COMMAND|BOOTSTRAP)
-      failure_component='COMMAND_OR_BOOTSTRAP'
-      ;;
-    *)
-      if LC_ALL=C grep -Fqi -- 'WebformSanitizeSubmissionsCommands' "$diagnostic_path"; then
-        failure_component='WEBFORM_SUBMISSIONS'
-      elif LC_ALL=C grep -Fqi -- 'SanitizeCommentsCommands' "$diagnostic_path"; then
-        failure_component='COMMENTS'
-      elif LC_ALL=C grep -Fqi -- 'SanitizeSessionsCommands' "$diagnostic_path"; then
-        failure_component='SESSIONS'
-      elif LC_ALL=C grep -Fqi -- 'SanitizeUserTableCommands' "$diagnostic_path"; then
-        failure_component='USER_TABLE'
-      elif LC_ALL=C grep -Fqi -- 'SanitizeUserFieldsCommands' "$diagnostic_path"; then
-        failure_component='USER_FIELDS'
-      elif LC_ALL=C grep -Fqi -e 'Drupal\Core\Database\' -e '/core/lib/Drupal/Core/Database/' "$diagnostic_path"; then
-        failure_component='DRUPAL_DATABASE'
-      fi
+      printf 'COMMAND_OR_BOOTSTRAP\n'
+      return
       ;;
   esac
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == *'sanitize plugin is using a deprecated API'* ]]; then
+      continue
+    fi
+    if [[ "$line" == *'Exception trace:'* ]]; then
+      in_exception_trace=1
+      continue
+    fi
+    (( in_exception_trace == 1 )) || continue
 
-  printf '%s\n' "$failure_component"
+    case "$line" in
+      *'Drupal\webform\Commands\WebformSanitizeSubmissionsCommands->sanitize('*|*'Drupal\webform\Commands\WebformSanitizeSubmissionsCommands::sanitize('*)
+        printf 'WEBFORM_SUBMISSIONS\n'; return ;;
+      *'Drush\Commands\sql\sanitize\SanitizeCommentsCommands->sanitize('*|*'Drush\Commands\sql\sanitize\SanitizeCommentsCommands::sanitize('*)
+        printf 'COMMENTS\n'; return ;;
+      *'Drush\Commands\sql\sanitize\SanitizeSessionsCommands->sanitize('*|*'Drush\Commands\sql\sanitize\SanitizeSessionsCommands::sanitize('*)
+        printf 'SESSIONS\n'; return ;;
+      *'Drush\Commands\sql\sanitize\SanitizeUserTableCommands->sanitize('*|*'Drush\Commands\sql\sanitize\SanitizeUserTableCommands::sanitize('*)
+        printf 'USER_TABLE\n'; return ;;
+      *'Drush\Commands\sql\sanitize\SanitizeUserFieldsCommands->sanitize('*|*'Drush\Commands\sql\sanitize\SanitizeUserFieldsCommands::sanitize('*)
+        printf 'USER_FIELDS\n'; return ;;
+      *'Drupal\Core\Database\'*)
+        database_frame=1 ;;
+    esac
+  done < "$diagnostic_path"
+
+  if (( database_frame == 1 )); then
+    printf 'DRUPAL_DATABASE\n'
+  else
+    printf 'UNKNOWN\n'
+  fi
 }
 
 classify_sanitize_failure() {

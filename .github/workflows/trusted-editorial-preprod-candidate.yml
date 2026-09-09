@@ -125,10 +125,12 @@ jobs:
           issue_reason="$(jq -r '.state_reason // ""' <<<"$issue_json")"
           main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
-          echo "issue_state=$issue_state" >> "$GITHUB_OUTPUT"
-          echo "issue_reason=$issue_reason" >> "$GITHUB_OUTPUT"
+          {
+            echo "mode=$mode"
+            echo "main_sha=$main_sha"
+            echo "issue_state=$issue_state"
+            echo "issue_reason=$issue_reason"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact trusted main
         uses: actions/checkout@v6
@@ -326,11 +328,13 @@ jobs:
           PY
           fi
 
-          echo "candidate_kind=$candidate_kind" >> "$GITHUB_OUTPUT"
-          echo "candidate_id=$candidate_id" >> "$GITHUB_OUTPUT"
-          echo "candidate_source=$candidate_source" >> "$GITHUB_OUTPUT"
-          echo "candidate_revision=$candidate_revision" >> "$GITHUB_OUTPUT"
-          echo "payload_sha256=$payload_sha256" >> "$GITHUB_OUTPUT"
+          {
+            echo "candidate_kind=$candidate_kind"
+            echo "candidate_id=$candidate_id"
+            echo "candidate_source=$candidate_source"
+            echo "candidate_revision=$candidate_revision"
+            echo "payload_sha256=$payload_sha256"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Verify immutable PREPROD implementation
         shell: bash

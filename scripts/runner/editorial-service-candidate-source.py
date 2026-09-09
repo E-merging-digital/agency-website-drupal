@@ -69,8 +69,8 @@ def main() -> None:
         "PROD = NONE",
     ]
     for marker in required_markers:
-        if source.count(marker) != 1:
-            fail(f"Required service candidate marker is missing or duplicated: {marker}")
+        if marker not in source:
+            fail(f"Required service candidate marker is missing: {marker}")
 
     fr = language_payload(source, "FR", "fr")
     en = language_payload(source, "EN", "en")

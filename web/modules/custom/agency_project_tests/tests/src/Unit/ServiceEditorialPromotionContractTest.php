@@ -131,7 +131,8 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
   }
 
   /**
-   * Service uses the exact Git candidate, routes and a bounded Entity API writer.
+   * Service uses the exact Git candidate, routes and a bounded Entity API
+   * writer.
    */
   public function testServiceCandidateIdentityAndWriterAreBounded(): void {
     $root = dirname(DRUPAL_ROOT);

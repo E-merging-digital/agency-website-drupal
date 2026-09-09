@@ -3,6 +3,7 @@ set -Eeuo pipefail
 umask 077
 
 MODE="${EDITORIAL_MODE:-}"
+CANDIDATE_KIND="${EDITORIAL_CANDIDATE_KIND:-article}"
 ISSUE_NUMBER="${ISSUE_NUMBER:-}"
 PAYLOAD_SHA256="${PAYLOAD_SHA256:-}"
 PAYLOAD_FILE="${PAYLOAD_FILE:-}"
@@ -15,6 +16,10 @@ RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT:-1}"
 case "$MODE" in
   inspect|dry-run|apply) ;;
   *) echo "Unsupported EDITORIAL_MODE: $MODE" >&2; exit 1 ;;
+esac
+case "$CANDIDATE_KIND" in
+  article|service) ;;
+  *) echo "Unsupported EDITORIAL_CANDIDATE_KIND: $CANDIDATE_KIND" >&2; exit 1 ;;
 esac
 [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
   echo 'ISSUE_NUMBER must be a positive integer.' >&2
@@ -45,15 +50,17 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PUBLICATION_LIBRARY="$SCRIPT_DIR/editorial-publication.php"
 CANDIDATE_LIBRARY="$SCRIPT_DIR/editorial-preprod-candidate.php"
+SERVICE_CANDIDATE_LIBRARY="$SCRIPT_DIR/editorial-service-preprod-candidate.php"
 PHP_RUNNER="$SCRIPT_DIR/editorial-preprod-candidate-runner.php"
 PREPROD_TRUST_PROVISION='scripts/preproduction-ssh-trust/manage-known-host.sh'
 PREPROD_TRUST_VERIFY='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 
-for file in "$PUBLICATION_LIBRARY" "$CANDIDATE_LIBRARY" "$PHP_RUNNER"; do
+for file in "$PUBLICATION_LIBRARY" "$CANDIDATE_LIBRARY" "$SERVICE_CANDIDATE_LIBRARY" "$PHP_RUNNER"; do
   [[ -f "$file" ]]
 done
 php -l "$PUBLICATION_LIBRARY" >/dev/null
 php -l "$CANDIDATE_LIBRARY" >/dev/null
+php -l "$SERVICE_CANDIDATE_LIBRARY" >/dev/null
 php -l "$PHP_RUNNER" >/dev/null
 mkdir -p "$ARTIFACT_DIR"
 
@@ -75,13 +82,14 @@ remote_stem="/tmp/agency-editorial-preprod-${ISSUE_NUMBER}-${RUN_ID}-${RUN_ATTEM
 remote_runner="${remote_stem}-runner.php"
 remote_publication="${remote_stem}-publication.php"
 remote_candidate="${remote_stem}-candidate.php"
+remote_service_candidate="${remote_stem}-service-candidate.php"
 remote_payload="${remote_stem}-payload.json"
 remote_result="${remote_stem}-result.json"
 
 cleanup_remote() {
   set +e
   ssh "${ssh_common[@]}" "$remote_target" \
-    "rm -f '$remote_runner' '$remote_publication' '$remote_candidate' '$remote_payload' '$remote_result'" \
+    "rm -f '$remote_runner' '$remote_publication' '$remote_candidate' '$remote_service_candidate' '$remote_payload' '$remote_result'" \
     >/dev/null 2>&1
 }
 trap cleanup_remote EXIT
@@ -89,6 +97,7 @@ trap cleanup_remote EXIT
 scp "${ssh_common[@]}" "$PHP_RUNNER" "$remote_target:$remote_runner" >/dev/null
 scp "${ssh_common[@]}" "$PUBLICATION_LIBRARY" "$remote_target:$remote_publication" >/dev/null
 scp "${ssh_common[@]}" "$CANDIDATE_LIBRARY" "$remote_target:$remote_candidate" >/dev/null
+scp "${ssh_common[@]}" "$SERVICE_CANDIDATE_LIBRARY" "$remote_target:$remote_service_candidate" >/dev/null
 if [[ "$MODE" != inspect ]]; then
   scp "${ssh_common[@]}" "$PAYLOAD_FILE" "$remote_target:$remote_payload" >/dev/null
 fi
@@ -108,7 +117,7 @@ if [[ "$MODE" != inspect ]]; then
 fi
 
 ssh "${ssh_common[@]}" "$remote_target" \
-  "set -euo pipefail; cd /var/www/agency-preprod/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_EDITORIAL_MODE='$MODE' AGENCY_EDITORIAL_ISSUE='$ISSUE_NUMBER' AGENCY_EDITORIAL_PAYLOAD_SHA='$payload_sha' AGENCY_EDITORIAL_PAYLOAD_PATH='$payload_path' AGENCY_EDITORIAL_RESULT_PATH='$remote_result' AGENCY_EDITORIAL_LIBRARY_PATH='$remote_publication' AGENCY_EDITORIAL_CANDIDATE_LIBRARY_PATH='$remote_candidate' vendor/bin/drush php:script '$remote_runner'"
+  "set -euo pipefail; cd /var/www/agency-preprod/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_EDITORIAL_MODE='$MODE' AGENCY_EDITORIAL_CANDIDATE_KIND='$CANDIDATE_KIND' AGENCY_EDITORIAL_ISSUE='$ISSUE_NUMBER' AGENCY_EDITORIAL_PAYLOAD_SHA='$payload_sha' AGENCY_EDITORIAL_PAYLOAD_PATH='$payload_path' AGENCY_EDITORIAL_RESULT_PATH='$remote_result' AGENCY_EDITORIAL_LIBRARY_PATH='$remote_publication' AGENCY_EDITORIAL_CANDIDATE_LIBRARY_PATH='$remote_candidate' AGENCY_EDITORIAL_SERVICE_CANDIDATE_LIBRARY_PATH='$remote_service_candidate' vendor/bin/drush php:script '$remote_runner'"
 
 if [[ "$MODE" == apply ]]; then
   ssh "${ssh_common[@]}" "$remote_target" \
@@ -117,7 +126,8 @@ fi
 
 remote_runtime_validate
 scp "${ssh_common[@]}" "$remote_target:$remote_result" "$ARTIFACT_DIR/result.json" >/dev/null
-jq -e '.status == "PASS" and .target == "PREPROD" and .prod_write == "NONE"' \
+jq -e --arg kind "$CANDIDATE_KIND" \
+  '.status == "PASS" and .target == "PREPROD" and .prod_write == "NONE" and .candidate_kind == $kind' \
   "$ARTIFACT_DIR/result.json" >/dev/null
 
 current_release="$(ssh "${ssh_common[@]}" "$remote_target" \

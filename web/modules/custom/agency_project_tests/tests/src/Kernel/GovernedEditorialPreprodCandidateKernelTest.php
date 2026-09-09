@@ -17,7 +17,7 @@ use Drupal\user\Entity\User;
 use PHPUnit\Framework\Attributes\Group;
 
 /**
- * Proves the Article-only PREPROD candidate extension around #576.
+ * Proves the bounded Article and Service PREPROD candidate extensions.
  *
  * @group agency_project_tests
  * @group governed_editorial_preprod_candidate
@@ -26,7 +26,7 @@ use PHPUnit\Framework\Attributes\Group;
 final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
 
   /**
-   * Drupal modules required by the bounded Article candidate Kernel tests.
+   * Drupal modules required by the bounded candidate Kernel tests.
    *
    * @var string[]
    */
@@ -45,9 +45,14 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
   ];
 
   /**
-   * PREPROD candidate helper under test.
+   * Article candidate under test.
    */
   private object $candidate;
+
+  /**
+   * Service candidate under test.
+   */
+  private object $serviceCandidate;
 
   /**
    * Existing Blog category fixture identifier.
@@ -55,7 +60,7 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
   private int $categoryTid;
 
   /**
-   * Builds the minimal Drupal Article runtime reused by #576 and #959.
+   * Builds the minimal Drupal Article + Service runtime.
    */
   protected function setUp(): void {
     parent::setUp();
@@ -78,6 +83,11 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       'name' => 'Article',
       'new_revision' => TRUE,
     ])->save();
+    NodeType::create([
+      'type' => 'service',
+      'name' => 'Service',
+      'new_revision' => TRUE,
+    ])->save();
     Vocabulary::create([
       'vid' => 'blog_categories',
       'name' => 'Blog categories',
@@ -94,9 +104,10 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     ])->save();
 
     $this->createArticleFields();
-    $this->container
-      ->get('content_translation.manager')
-      ->setEnabled('node', 'article', TRUE);
+    $this->createServiceFields();
+    $translationManager = $this->container->get('content_translation.manager');
+    $translationManager->setEnabled('node', 'article', TRUE);
+    $translationManager->setEnabled('node', 'service', TRUE);
 
     $category = Term::create([
       'vid' => 'blog_categories',
@@ -111,22 +122,34 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       if (!defined('AGENCY_EDITORIAL_LIBRARY_ONLY')) {
         define('AGENCY_EDITORIAL_LIBRARY_ONLY', TRUE);
       }
-      require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-publication.php';
+      require_once dirname(DRUPAL_ROOT)
+        . '/scripts/runner/editorial-publication.php';
     }
     if (!class_exists('AgencyEditorialPreprodCandidate', FALSE)) {
-      require_once dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-preprod-candidate.php';
+      require_once dirname(DRUPAL_ROOT)
+        . '/scripts/runner/editorial-preprod-candidate.php';
     }
-    $factory = ['AgencyEditorialPreprodCandidate', 'fromContainer'];
-    if (!is_callable($factory)) {
+    if (!class_exists('AgencyEditorialServicePreprodCandidate', FALSE)) {
+      require_once dirname(DRUPAL_ROOT)
+        . '/scripts/runner/editorial-service-preprod-candidate.php';
+    }
+
+    $articleFactory = ['AgencyEditorialPreprodCandidate', 'fromContainer'];
+    $serviceFactory = [
+      'AgencyEditorialServicePreprodCandidate',
+      'fromContainer',
+    ];
+    if (!is_callable($articleFactory) || !is_callable($serviceFactory)) {
       throw new \RuntimeException(
         'PREPROD editorial candidate helper factory did not load.',
       );
     }
-    $this->candidate = $factory($this->container);
+    $this->candidate = $articleFactory($this->container);
+    $this->serviceCandidate = $serviceFactory($this->container);
   }
 
   /**
-   * First create reuses #576 and exact replay creates no extra revision.
+   * First Article create reuses #576 and exact replay creates no revision.
    */
   public function testCreateAndExactReplayAreIdempotent(): void {
     $payload = $this->validPayload();
@@ -153,7 +176,7 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
   }
 
   /**
-   * Changed payload updates the same PREPROD node with a new revision.
+   * Changed Article payload updates the same PREPROD node with a new revision.
    */
   public function testChangedPayloadUpdatesSameCandidateWithNewRevision(): void {
     $first = $this->validPayload();
@@ -171,13 +194,19 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
 
     $dryRun = $this->candidate->dryRun($changed, 958, $changedHash);
     self::assertSame('UPDATE_READY', $dryRun['verdict']);
-    self::assertSame($firstHash, $dryRun['previous_payload_sha256']);
+    self::assertSame(
+      $firstHash,
+      $dryRun['previous_payload_sha256'],
+    );
     self::assertSame($nodeId, $dryRun['node']['id']);
 
     $updated = $this->candidate->apply($changed, 958, $changedHash);
     self::assertSame('UPDATED', $updated['verdict']);
     self::assertSame($nodeId, $updated['node']['id']);
-    self::assertSame($firstHash, $updated['previous_payload_sha256']);
+    self::assertSame(
+      $firstHash,
+      $updated['previous_payload_sha256'],
+    );
     self::assertGreaterThan(
       $firstRevision,
       (int) $updated['node']['revision_id'],
@@ -190,7 +219,9 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       'Drupal 10: prepare for Drupal 11',
       $node->getTranslation('en')->label(),
     );
-    $mapping = $this->container->get('state')->get('agency_editorial.issue.958');
+    $mapping = $this->container
+      ->get('state')
+      ->get('agency_editorial.issue.958');
     self::assertSame($nodeId, $mapping['node_id']);
     self::assertSame($changedHash, $mapping['payload_sha256']);
   }
@@ -202,7 +233,11 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     $wrongBundle = $this->validPayload();
     $wrongBundle['bundle'] = 'page';
     try {
-      $this->candidate->dryRun($wrongBundle, 958, str_repeat('d', 64));
+      $this->candidate->dryRun(
+        $wrongBundle,
+        958,
+        str_repeat('d', 64),
+      );
       self::fail('A non-Article bundle was accepted.');
     }
     catch (\InvalidArgumentException $exception) {
@@ -234,6 +269,100 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       'Selected Blog category does not exist in PREPROD.',
     );
     $this->candidate->dryRun($changed, 958, str_repeat('1', 64));
+  }
+
+  /**
+   * Service V1 creates exactly one FR+EN Service with explicit aliases.
+   */
+  public function testServiceCandidateCreatesFrEnAndReplayIsIdempotent(): void {
+    $payload = $this->validServicePayload();
+    $hash = str_repeat('2', 64);
+
+    $dryRun = $this->serviceCandidate->dryRun($payload, 1117, $hash);
+    self::assertSame('CREATE_READY', $dryRun['verdict']);
+    self::assertSame('agency-service-1117', $dryRun['candidate_id']);
+    self::assertSame('GIT_MAIN_FILE', $dryRun['candidate_store']);
+    self::assertSame('NONE', $dryRun['prod_write']);
+
+    $applied = $this->serviceCandidate->apply($payload, 1117, $hash);
+    self::assertSame('APPLIED', $applied['verdict']);
+    $node = Node::load($applied['node']['id']);
+    self::assertNotNull($node);
+    self::assertSame('service', $node->bundle());
+    self::assertSame('Audit de site web', $node->label());
+    self::assertTrue($node->hasTranslation('en'));
+    self::assertSame(
+      'Website audit',
+      $node->getTranslation('en')->label(),
+    );
+    $revision = (int) $node->getRevisionId();
+
+    $aliases = $this->container
+      ->get('entity_type.manager')
+      ->getStorage('path_alias')
+      ->loadByProperties(['path' => '/node/' . $node->id()]);
+    $actual = [];
+    foreach ($aliases as $alias) {
+      $actual[$alias->language()->getId()] = $alias->getAlias();
+    }
+    self::assertSame('/fr/audit-site-web', $actual['fr'] ?? NULL);
+    self::assertSame('/en/website-audit', $actual['en'] ?? NULL);
+
+    $replay = $this->serviceCandidate->apply($payload, 1117, $hash);
+    self::assertSame('IDEMPOTENT', $replay['verdict']);
+    $reloaded = Node::load($node->id());
+    self::assertNotNull($reloaded);
+    self::assertSame($revision, (int) $reloaded->getRevisionId());
+  }
+
+  /**
+   * Service V1 rejects non-service bundles, missing fields and aliases.
+   */
+  public function testServiceCandidateContractIsClosedAndRequiresFrEn(): void {
+    $wrongBundle = $this->validServicePayload();
+    $wrongBundle['bundle'] = 'page';
+    $this->assertServiceRejected($wrongBundle, 'Only bundle=service');
+
+    $missingEnglish = $this->validServicePayload();
+    unset($missingEnglish['en']);
+    $this->assertServiceRejected(
+      $missingEnglish,
+      'closed V1 schema',
+    );
+
+    $missingField = $this->validServicePayload();
+    unset($missingField['fr']['detailed_description_html']);
+    $this->assertServiceRejected(
+      $missingField,
+      'fields must be exactly',
+    );
+
+    $missingAlias = $this->validServicePayload();
+    unset($missingAlias['aliases']['en']);
+    $this->assertServiceRejected(
+      $missingAlias,
+      'aliases must contain exactly FR and EN',
+    );
+  }
+
+  /**
+   * Service V1 fails closed rather than mutating a different candidate hash.
+   */
+  public function testServiceCandidateDifferentHashFailsClosed(): void {
+    $payload = $this->validServicePayload();
+    $this->serviceCandidate->apply(
+      $payload,
+      1117,
+      str_repeat('3', 64),
+    );
+
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('different payload hash');
+    $this->serviceCandidate->dryRun(
+      $payload,
+      1117,
+      str_repeat('4', 64),
+    );
   }
 
   /**
@@ -282,9 +411,37 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       'settings' => [
         'handler' => 'default:taxonomy_term',
         'handler_settings' => [
-          'target_bundles' => ['blog_categories' => 'blog_categories'],
+          'target_bundles' => [
+            'blog_categories' => 'blog_categories',
+          ],
         ],
       ],
+    ])->save();
+  }
+
+  /**
+   * Creates the Service fields required by #1120.
+   */
+  private function createServiceFields(): void {
+    FieldConfig::create([
+      'field_name' => 'field_short_description',
+      'entity_type' => 'node',
+      'bundle' => 'service',
+      'label' => 'Short description',
+      'translatable' => TRUE,
+    ])->save();
+    FieldStorageConfig::create([
+      'field_name' => 'field_detailed_description',
+      'entity_type' => 'node',
+      'type' => 'text_long',
+      'cardinality' => 1,
+    ])->save();
+    FieldConfig::create([
+      'field_name' => 'field_detailed_description',
+      'entity_type' => 'node',
+      'bundle' => 'service',
+      'label' => 'Detailed description',
+      'translatable' => TRUE,
     ])->save();
   }
 
@@ -312,6 +469,55 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
         'body_html' => '<h2>Prepare</h2><p>Audit before upgrading.</p>',
       ],
     ];
+  }
+
+  /**
+   * Returns one valid FR/EN Service payload fixture.
+   */
+  private function validServicePayload(): array {
+    return [
+      'schema_version' => 1,
+      'issue_number' => 1117,
+      'bundle' => 'service',
+      'published' => TRUE,
+      'aliases' => [
+        'fr' => '/fr/audit-site-web',
+        'en' => '/en/website-audit',
+      ],
+      'fr' => [
+        'title' => 'Audit de site web',
+        'short_description' => 'Clarifier les priorités.',
+        'detailed_description_html' => '<h2>Décider</h2><p>Auditer avant d’investir.</p>',
+      ],
+      'en' => [
+        'title' => 'Website audit',
+        'short_description' => 'Clarify priorities.',
+        'detailed_description_html' => '<h2>Decide</h2><p>Audit before investing.</p>',
+      ],
+    ];
+  }
+
+  /**
+   * Asserts a malformed Service payload fails before any write.
+   */
+  private function assertServiceRejected(
+    array $payload,
+    string $message,
+  ): void {
+    try {
+      $this->serviceCandidate->dryRun(
+        $payload,
+        1117,
+        str_repeat('5', 64),
+      );
+      self::fail('Invalid Service candidate payload was accepted.');
+    }
+    catch (\InvalidArgumentException $exception) {
+      self::assertStringContainsString(
+        $message,
+        $exception->getMessage(),
+      );
+    }
   }
 
 }

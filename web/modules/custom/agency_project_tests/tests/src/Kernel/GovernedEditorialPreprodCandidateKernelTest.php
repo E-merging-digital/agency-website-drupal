@@ -272,7 +272,7 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
   }
 
   /**
-   * Service V1 creates exactly one FR+EN Service with explicit aliases.
+   * Service V2 creates exactly one FR+EN Service with Drupal stored aliases.
    */
   public function testServiceCandidateCreatesFrEnAndReplayIsIdempotent(): void {
     $payload = $this->validServicePayload();
@@ -286,6 +286,14 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
 
     $applied = $this->serviceCandidate->apply($payload, 1117, $hash);
     self::assertSame('APPLIED', $applied['verdict']);
+    self::assertSame(
+      $payload['public_routes'],
+      $applied['node']['public_routes'],
+    );
+    self::assertSame(
+      $payload['stored_aliases'],
+      $applied['node']['stored_aliases'],
+    );
     $node = Node::load($applied['node']['id']);
     self::assertNotNull($node);
     self::assertSame('service', $node->bundle());
@@ -297,16 +305,11 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     );
     $revision = (int) $node->getRevisionId();
 
-    $aliases = $this->container
-      ->get('entity_type.manager')
-      ->getStorage('path_alias')
-      ->loadByProperties(['path' => '/node/' . $node->id()]);
-    $actual = [];
-    foreach ($aliases as $alias) {
-      $actual[$alias->language()->getId()] = $alias->getAlias();
-    }
-    self::assertSame('/fr/audit-site-web', $actual['fr'] ?? NULL);
-    self::assertSame('/en/website-audit', $actual['en'] ?? NULL);
+    $actual = $this->serviceAliases((int) $node->id());
+    self::assertSame('/audit-site-web', $actual['fr'] ?? NULL);
+    self::assertSame('/website-audit', $actual['en'] ?? NULL);
+    self::assertNotContains('/fr/audit-site-web', $actual);
+    self::assertNotContains('/en/website-audit', $actual);
 
     $replay = $this->serviceCandidate->apply($payload, 1117, $hash);
     self::assertSame('IDEMPOTENT', $replay['verdict']);
@@ -316,7 +319,110 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
   }
 
   /**
-   * Service V1 rejects non-service bundles, missing fields and aliases.
+   * Repairs the #1117 legacy prefixed aliases without replacing its node.
+   */
+  public function testServiceCandidateRepairsLegacyAliasesOnly(): void {
+    $payload = $this->validServicePayload();
+    $legacyHash = str_repeat('6', 64);
+    $fixedHash = str_repeat('7', 64);
+
+    $node = Node::create([
+      'type' => 'service',
+      'langcode' => 'fr',
+      'uid' => 1,
+      'status' => TRUE,
+      'title' => $payload['fr']['title'],
+      'field_short_description' => [[
+        'value' => $payload['fr']['short_description'],
+        'format' => 'basic_html',
+      ]],
+      'field_detailed_description' => [[
+        'value' => $payload['fr']['detailed_description_html'],
+        'format' => 'basic_html',
+      ]],
+      'path' => [
+        'alias' => $payload['public_routes']['fr'],
+        'pathauto' => 0,
+      ],
+    ]);
+    $node->addTranslation('en', [
+      'title' => $payload['en']['title'],
+      'status' => TRUE,
+      'field_short_description' => [[
+        'value' => $payload['en']['short_description'],
+        'format' => 'basic_html',
+      ]],
+      'field_detailed_description' => [[
+        'value' => $payload['en']['detailed_description_html'],
+        'format' => 'basic_html',
+      ]],
+      'path' => [
+        'alias' => $payload['public_routes']['en'],
+        'pathauto' => 0,
+      ],
+    ]);
+    $node->setNewRevision(TRUE);
+    $node->save();
+
+    $nodeId = (int) $node->id();
+    $revisionId = (int) $node->getRevisionId();
+    $contentBefore = $this->serviceContent($node);
+    $this->container->get('state')->set(
+      'agency_editorial.service.issue.1117',
+      [
+        'node_id' => $nodeId,
+        'payload_sha256' => $legacyHash,
+      ],
+    );
+
+    self::assertSame(
+      $payload['public_routes'],
+      $this->serviceAliases($nodeId),
+    );
+
+    $dryRun = $this->serviceCandidate->dryRun(
+      $payload,
+      1117,
+      $fixedHash,
+    );
+    self::assertSame('ALIAS_REPAIR_READY', $dryRun['verdict']);
+    self::assertSame($nodeId, $dryRun['node']['id']);
+    self::assertSame($revisionId, $dryRun['node']['revision_id']);
+
+    $repaired = $this->serviceCandidate->apply(
+      $payload,
+      1117,
+      $fixedHash,
+    );
+    self::assertSame('REPAIRED', $repaired['verdict']);
+    self::assertSame($nodeId, $repaired['node']['id']);
+    self::assertSame($revisionId, $repaired['node']['revision_id']);
+
+    $reloaded = Node::load($nodeId);
+    self::assertNotNull($reloaded);
+    self::assertSame($contentBefore, $this->serviceContent($reloaded));
+    self::assertSame(
+      $payload['stored_aliases'],
+      $this->serviceAliases($nodeId),
+    );
+    self::assertNotContains(
+      $payload['public_routes']['fr'],
+      $this->serviceAliases($nodeId),
+    );
+    self::assertNotContains(
+      $payload['public_routes']['en'],
+      $this->serviceAliases($nodeId),
+    );
+
+    $mapping = $this->container
+      ->get('state')
+      ->get('agency_editorial.service.issue.1117');
+    self::assertSame($nodeId, $mapping['node_id']);
+    self::assertSame($fixedHash, $mapping['payload_sha256']);
+  }
+
+  /**
+   * Service V2 rejects non-service bundles, missing fields and route aliases.
    */
   public function testServiceCandidateContractIsClosedAndRequiresFrEn(): void {
     $wrongBundle = $this->validServicePayload();
@@ -327,7 +433,7 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     unset($missingEnglish['en']);
     $this->assertServiceRejected(
       $missingEnglish,
-      'closed V1 schema',
+      'closed V2 schema',
     );
 
     $missingField = $this->validServicePayload();
@@ -338,15 +444,22 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     );
 
     $missingAlias = $this->validServicePayload();
-    unset($missingAlias['aliases']['en']);
+    unset($missingAlias['stored_aliases']['en']);
     $this->assertServiceRejected(
       $missingAlias,
-      'aliases must contain exactly FR and EN',
+      'stored_aliases must contain exactly FR and EN',
+    );
+
+    $doublePrefix = $this->validServicePayload();
+    $doublePrefix['stored_aliases']['fr'] = '/fr/audit-site-web';
+    $this->assertServiceRejected(
+      $doublePrefix,
+      'stored alias must omit the Drupal language prefix',
     );
   }
 
   /**
-   * Service V1 fails closed rather than mutating a different candidate hash.
+   * Service V2 fails closed rather than mutating a different candidate hash.
    */
   public function testServiceCandidateDifferentHashFailsClosed(): void {
     $payload = $this->validServicePayload();
@@ -476,13 +589,17 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
    */
   private function validServicePayload(): array {
     return [
-      'schema_version' => 1,
+      'schema_version' => 2,
       'issue_number' => 1117,
       'bundle' => 'service',
       'published' => TRUE,
-      'aliases' => [
+      'public_routes' => [
         'fr' => '/fr/audit-site-web',
         'en' => '/en/website-audit',
+      ],
+      'stored_aliases' => [
+        'fr' => '/audit-site-web',
+        'en' => '/website-audit',
       ],
       'fr' => [
         'title' => 'Audit de site web',
@@ -493,6 +610,50 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
         'title' => 'Website audit',
         'short_description' => 'Clarify priorities.',
         'detailed_description_html' => '<h2>Decide</h2><p>Audit before investing.</p>',
+      ],
+    ];
+  }
+
+  /**
+   * Returns one Service's aliases keyed by language.
+   *
+   * @return string[]
+   *   Alias by langcode.
+   */
+  private function serviceAliases(int $nodeId): array {
+    $aliases = $this->container
+      ->get('entity_type.manager')
+      ->getStorage('path_alias')
+      ->loadByProperties(['path' => '/node/' . $nodeId]);
+    $actual = [];
+    foreach ($aliases as $alias) {
+      $actual[$alias->language()->getId()] = $alias->getAlias();
+    }
+    ksort($actual);
+    return $actual;
+  }
+
+  /**
+   * Returns the commercial Service fields to prove an alias-only repair.
+   */
+  private function serviceContent(Node $node): array {
+    $en = $node->getTranslation('en');
+    return [
+      'fr' => [
+        'title' => $node->label(),
+        'short_description' => (string) $node
+          ->get('field_short_description')->value,
+        'detailed_description_html' => (string) $node
+          ->get('field_detailed_description')->value,
+        'published' => $node->isPublished(),
+      ],
+      'en' => [
+        'title' => $en->label(),
+        'short_description' => (string) $en
+          ->get('field_short_description')->value,
+        'detailed_description_html' => (string) $en
+          ->get('field_detailed_description')->value,
+        'published' => $en->isPublished(),
       ],
     ];
   }

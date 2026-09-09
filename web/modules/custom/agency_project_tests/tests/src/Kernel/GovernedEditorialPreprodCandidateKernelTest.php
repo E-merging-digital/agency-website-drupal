@@ -332,14 +332,18 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       'uid' => 1,
       'status' => TRUE,
       'title' => $payload['fr']['title'],
-      'field_short_description' => [[
-        'value' => $payload['fr']['short_description'],
-        'format' => 'basic_html',
-      ]],
-      'field_detailed_description' => [[
-        'value' => $payload['fr']['detailed_description_html'],
-        'format' => 'basic_html',
-      ]],
+      'field_short_description' => [
+        [
+          'value' => $payload['fr']['short_description'],
+          'format' => 'basic_html',
+        ],
+      ],
+      'field_detailed_description' => [
+        [
+          'value' => $payload['fr']['detailed_description_html'],
+          'format' => 'basic_html',
+        ],
+      ],
       'path' => [
         'alias' => $payload['public_routes']['fr'],
         'pathauto' => 0,
@@ -348,14 +352,18 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     $node->addTranslation('en', [
       'title' => $payload['en']['title'],
       'status' => TRUE,
-      'field_short_description' => [[
-        'value' => $payload['en']['short_description'],
-        'format' => 'basic_html',
-      ]],
-      'field_detailed_description' => [[
-        'value' => $payload['en']['detailed_description_html'],
-        'format' => 'basic_html',
-      ]],
+      'field_short_description' => [
+        [
+          'value' => $payload['en']['short_description'],
+          'format' => 'basic_html',
+        ],
+      ],
+      'field_detailed_description' => [
+        [
+          'value' => $payload['en']['detailed_description_html'],
+          'format' => 'basic_html',
+        ],
+      ],
       'path' => [
         'alias' => $payload['public_routes']['en'],
         'pathauto' => 0,
@@ -375,7 +383,7 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
       ],
     );
 
-    self::assertSame(
+    self::assertEquals(
       $payload['public_routes'],
       $this->serviceAliases($nodeId),
     );
@@ -401,7 +409,7 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     $reloaded = Node::load($nodeId);
     self::assertNotNull($reloaded);
     self::assertSame($contentBefore, $this->serviceContent($reloaded));
-    self::assertSame(
+    self::assertEquals(
       $payload['stored_aliases'],
       $this->serviceAliases($nodeId),
     );

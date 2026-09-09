@@ -17,6 +17,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
 
   private const WORKFLOW = '.github/workflows/trusted-editorial-preprod-candidate.yml';
 
+  /**
+   * Proves the workflow remains reusable behind the dispatcher.
+   */
   public function testWorkflowIsReusableAndNeverOwnsIssueCommentListener(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root . '/' . self::WORKFLOW;
@@ -35,6 +38,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringNotContainsString('workflow_dispatch:', $source);
   }
 
+  /**
+   * Proves the existing #576 Article payload contract remains exact.
+   */
   public function testExisting576PayloadContractIsReusedExactly(): void {
     $source = $this->source(self::WORKFLOW);
     foreach ([
@@ -54,6 +60,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringContainsString('same payload hash, candidate revision and live main', $source);
   }
 
+  /**
+   * Proves the Service source stays bound to the merged issue candidate.
+   */
   public function testServiceSourceIsBoundedToMergedIssueCandidate(): void {
     $workflow = $this->source(self::WORKFLOW);
     $parser = dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-service-candidate-source.py';
@@ -68,7 +77,7 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
       'candidate_id="agency-service-${ISSUE_NUMBER}"',
       'git rev-parse "HEAD:${candidate_source}"',
       'editorial-service-candidate-source.py',
-      'GIT main file',
+      'merged Git main file',
     ] as $needle) {
       self::assertStringContainsString($needle, $workflow);
     }
@@ -104,6 +113,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     );
   }
 
+  /**
+   * Proves dry-run receipt authorization stays exact and fail-closed.
+   */
   public function testDryRunReceiptAuthorizationMatchesRealOutputAndFailsClosed(): void {
     $source = $this->source(self::WORKFLOW);
     foreach ([
@@ -187,6 +199,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     ));
   }
 
+  /**
+   * Proves the PREPROD route has no production execution inputs.
+   */
   public function testPreprodRouteHasNoProductionExecutionInput(): void {
     $workflow = $this->source(self::WORKFLOW);
     $runner = $this->source('scripts/runner/run-editorial-preprod-candidate.sh');
@@ -210,6 +225,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringNotContainsString('emerging:content-sync', $combined);
   }
 
+  /**
+   * Proves only metadata evidence is uploaded by the workflow.
+   */
   public function testOnlyMetadataEvidenceIsUploaded(): void {
     $source = $this->source(self::WORKFLOW);
     self::assertStringContainsString('path: artifacts/editorial-preprod-candidate/result.json', $source);
@@ -222,6 +240,9 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     );
   }
 
+  /**
+   * Proves runner syntax and helpers stay closed to Article or Service.
+   */
   public function testRunnerSyntaxAndHelpersStayClosedToArticleOrService(): void {
     $root = dirname(DRUPAL_ROOT);
     $shell = $root . '/scripts/runner/run-editorial-preprod-candidate.sh';
@@ -267,6 +288,23 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringNotContainsString('page|service', $shellSource);
   }
 
+  /**
+   * Mirrors the workflow receipt authorization contract.
+   *
+   * @param string $author
+   *   Comment author.
+   * @param string $body
+   *   Comment body.
+   * @param string $expectedRevision
+   *   Expected candidate revision.
+   * @param string $expectedHash
+   *   Expected payload hash.
+   * @param string $expectedMain
+   *   Expected trusted main SHA.
+   *
+   * @return bool
+   *   TRUE when the receipt authorizes the exact candidate.
+   */
   private function receiptAuthorizes(
     string $author,
     string $body,
@@ -311,6 +349,12 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
       && hash_equals($expectedMain, $fields['trusted_main']);
   }
 
+  /**
+   * Returns one canonical dry-run receipt fixture.
+   *
+   * @return string
+   *   Dry-run receipt.
+   */
   private function realDryRunReceipt(): string {
     return <<<'RECEIPT'
 ### Agency editorial PREPROD candidate dry-run PASS
@@ -330,6 +374,15 @@ prod_write: `NONE`
 RECEIPT;
   }
 
+  /**
+   * Returns repository source text for a relative path.
+   *
+   * @param string $relative
+   *   Relative repository path.
+   *
+   * @return string
+   *   File source.
+   */
   private function source(string $relative): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relative);
   }

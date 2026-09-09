@@ -140,6 +140,47 @@ classify_sanitize_component() {
   fi
 }
 
+classify_sanitize_metadata() {
+  local diagnostic_path="$1"
+  local trace_present='NO'
+  local abnormal_termination='NO'
+  local drupal_error_signal='NO'
+  local comments_completed='NO'
+  local sessions_completed='NO'
+  local user_table_completed='NO'
+  local user_fields_activity='NO'
+
+  if LC_ALL=C grep -Fq -- 'Exception trace:' "$diagnostic_path"; then
+    trace_present='YES'
+  fi
+  if LC_ALL=C grep -Fq -- 'Drush command terminated abnormally.' "$diagnostic_path"; then
+    abnormal_termination='YES'
+  fi
+  if LC_ALL=C grep -Eq -- '(^|[[:space:]])\[error\][[:space:]]' "$diagnostic_path"; then
+    drupal_error_signal='YES'
+  fi
+  if LC_ALL=C grep -Fq -- 'Comment display names and emails removed.' "$diagnostic_path"; then
+    comments_completed='YES'
+  fi
+  if LC_ALL=C grep -Fq -- 'Sessions table truncated.' "$diagnostic_path"; then
+    sessions_completed='YES'
+  fi
+  if LC_ALL=C grep -Fq -- 'User passwords sanitized.' "$diagnostic_path" \
+    && LC_ALL=C grep -Fq -- 'User emails sanitized.' "$diagnostic_path"; then
+    user_table_completed='YES'
+  fi
+  if LC_ALL=C grep -Eq -- '(^|[[:space:]])[A-Za-z0-9_]+ table sanitized\.[[:space:]]*$' "$diagnostic_path"; then
+    user_fields_activity='YES'
+  fi
+  printf 'SANITIZE_TRACE_PRESENT=%s\n' "$trace_present"
+  printf 'SANITIZE_ABNORMAL_TERMINATION=%s\n' "$abnormal_termination"
+  printf 'SANITIZE_DRUPAL_ERROR_SIGNAL=%s\n' "$drupal_error_signal"
+  printf 'SANITIZE_CORE_COMMENTS_COMPLETED=%s\n' "$comments_completed"
+  printf 'SANITIZE_CORE_SESSIONS_COMPLETED=%s\n' "$sessions_completed"
+  printf 'SANITIZE_CORE_USER_TABLE_COMPLETED=%s\n' "$user_table_completed"
+  printf 'SANITIZE_CORE_USER_FIELDS_ACTIVITY=%s\n' "$user_fields_activity"
+}
+
 classify_sanitize_failure() {
   local diagnostic_path="$1"
   local exit_code="$2"
@@ -169,6 +210,7 @@ classify_sanitize_failure() {
   printf 'SANITIZE_FAILURE_CLASS=%s\n' "$failure_class" >&2
   printf 'SANITIZE_FAILURE_COMPONENT=%s\n' "$failure_component" >&2
   printf 'SANITIZE_FAILURE_EXIT=%s\n' "$exit_code" >&2
+  classify_sanitize_metadata "$diagnostic_path" >&2
 }
 
 delete_ddev_worktree() {

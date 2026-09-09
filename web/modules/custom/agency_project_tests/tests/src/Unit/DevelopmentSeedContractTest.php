@@ -128,7 +128,7 @@ final class DevelopmentSeedContractTest extends TestCase {
     $componentStart = strpos($publisher, 'classify_sanitize_component() {');
     $componentEnd = strpos(
       $publisher,
-      "\n}\n\nclassify_sanitize_failure() {",
+      "\n}\n\nclassify_sanitize_metadata() {",
       $componentStart,
     );
     self::assertIsInt($componentStart);
@@ -201,6 +201,95 @@ final class DevelopmentSeedContractTest extends TestCase {
       self::assertSame($expectedComponent . "\n", $stdout);
       self::assertSame('', $stderr);
       self::assertStringNotContainsString($rawDiagnostic, $stdout);
+    }
+
+    foreach ([
+      'SANITIZE_TRACE_PRESENT',
+      'SANITIZE_ABNORMAL_TERMINATION',
+      'SANITIZE_DRUPAL_ERROR_SIGNAL',
+      'SANITIZE_CORE_COMMENTS_COMPLETED',
+      'SANITIZE_CORE_SESSIONS_COMPLETED',
+      'SANITIZE_CORE_USER_TABLE_COMPLETED',
+      'SANITIZE_CORE_USER_FIELDS_ACTIVITY',
+    ] as $metadataKey) {
+      self::assertStringContainsString("printf '{$metadataKey}=%s\\n'", $publisher);
+    }
+
+    $metadataStart = strpos($publisher, 'classify_sanitize_metadata() {');
+    $metadataEnd = strpos(
+      $publisher,
+      "\n}\n\nclassify_sanitize_failure() {",
+      $metadataStart,
+    );
+    self::assertIsInt($metadataStart);
+    self::assertIsInt($metadataEnd);
+    $metadataFunction = substr(
+      $publisher,
+      $metadataStart,
+      $metadataEnd - $metadataStart + 2,
+    );
+    $metadataKeys = [
+      'SANITIZE_TRACE_PRESENT',
+      'SANITIZE_ABNORMAL_TERMINATION',
+      'SANITIZE_DRUPAL_ERROR_SIGNAL',
+      'SANITIZE_CORE_COMMENTS_COMPLETED',
+      'SANITIZE_CORE_SESSIONS_COMPLETED',
+      'SANITIZE_CORE_USER_TABLE_COMPLETED',
+      'SANITIZE_CORE_USER_FIELDS_ACTIVITY',
+    ];
+    $metadataFixtures = [
+      ["Exception trace:\n  Opaque\\Synthetic->frame()", ['SANITIZE_TRACE_PRESENT']],
+      ['Drush command terminated abnormally.', ['SANITIZE_ABNORMAL_TERMINATION']],
+      [
+        '[error] user@example.test secret=synthetic-only',
+        ['SANITIZE_DRUPAL_ERROR_SIGNAL'],
+      ],
+      [
+        'Comment display names and emails removed.',
+        ['SANITIZE_CORE_COMMENTS_COMPLETED'],
+      ],
+      ['Sessions table truncated.', ['SANITIZE_CORE_SESSIONS_COMPLETED']],
+      [
+        "User passwords sanitized.\nUser emails sanitized.",
+        ['SANITIZE_CORE_USER_TABLE_COMPLETED'],
+      ],
+      [
+        '[success] user__private_phone table sanitized.',
+        ['SANITIZE_CORE_USER_FIELDS_ACTIVITY'],
+      ],
+      ['opaque user@example.test secret=synthetic-only', []],
+    ];
+    foreach ($metadataFixtures as [$rawDiagnostic, $expectedYes]) {
+      $diagnostic = tempnam(sys_get_temp_dir(), 'sanitize-metadata-');
+      self::assertIsString($diagnostic);
+      self::assertNotFalse(file_put_contents($diagnostic, $rawDiagnostic));
+      chmod($diagnostic, 0600);
+      $script = $metadataFunction . "\nclassify_sanitize_metadata \"\$1\"\n";
+      $process = proc_open(
+        ['bash', '-c', $script, 'metadata-test', $diagnostic],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root,
+      );
+      self::assertIsResource($process);
+      fclose($pipes[0]);
+      $stdout = stream_get_contents($pipes[1]);
+      $stderr = stream_get_contents($pipes[2]);
+      fclose($pipes[1]);
+      fclose($pipes[2]);
+      $exitCode = proc_close($process);
+      unlink($diagnostic);
+      self::assertSame(0, $exitCode, (string) $stderr);
+      self::assertSame('', $stderr);
+      $expected = '';
+      foreach ($metadataKeys as $metadataKey) {
+        $expected .= $metadataKey . '='
+          . (in_array($metadataKey, $expectedYes, TRUE) ? 'YES' : 'NO') . "\n";
+      }
+      self::assertSame($expected, $stdout);
+      foreach (['user@example.test', 'secret=synthetic-only', 'user__private_phone'] as $rawFragment) {
+        self::assertStringNotContainsString($rawFragment, $stdout);
+      }
     }
 
     $sqlSanitize = strpos($publisher, 'ddev drush -vvv sql:sanitize -y');

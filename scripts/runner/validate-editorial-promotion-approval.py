@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate exact PREPROD-first evidence before Article PROD promotion."""
+"""Validate exact PREPROD-first evidence before governed PROD promotion."""
 
 from __future__ import annotations
 
@@ -14,6 +14,10 @@ from typing import Any
 OWNER = "E-merging-digital"
 BOT = "github-actions[bot]"
 PREPROD_PREFIX = "https://preprod.emergingdigital.be/"
+SERVICE_ISSUE = 1117
+SERVICE_CANDIDATE_ID = "agency-service-1117"
+SERVICE_FR_URL = "https://preprod.emergingdigital.be/fr/audit-site-web"
+SERVICE_EN_URL = "https://preprod.emergingdigital.be/en/website-audit"
 
 
 class ApprovalError(RuntimeError):
@@ -156,15 +160,38 @@ def matching_bot_receipt(
     return matches[0]
 
 
-def validate(args: argparse.Namespace) -> dict[str, Any]:
-    if not re.fullmatch(r"[0-9a-f]{64}", args.payload_sha256):
-        raise ApprovalError("payload_sha256 must be lowercase SHA-256.")
-    if not re.fullmatch(r"[0-9a-f]{40}", args.trusted_main):
-        raise ApprovalError("trusted_main must be lowercase Git SHA-1.")
-    if args.issue_number <= 0 or args.candidate_revision <= 0:
-        raise ApprovalError("Issue number and candidate revision must be positive integers.")
+def direct_owner_approval(
+    comments: list[dict[str, Any]],
+    issue_number: int,
+) -> tuple[dict[str, Any], dict[str, str], dict[str, str]]:
+    human_matches: list[tuple[dict[str, Any], dict[str, str], dict[str, str]]] = []
+    for comment in comments:
+        user = comment.get("user", {})
+        if user.get("login") != OWNER or user.get("type") != "User":
+            continue
+        if comment.get("author_association") != "OWNER":
+            continue
+        if comment.get("performed_via_github_app") is not None:
+            continue
+        parsed = approval_fields(str(comment.get("body") or ""), issue_number)
+        if parsed is None:
+            continue
+        fields, urls = parsed
+        human_matches.append((comment, fields, urls))
+    if len(human_matches) != 1:
+        raise ApprovalError(
+            f"Expected exactly one exact direct owner-authored Project Lead approval; found {len(human_matches)}."
+        )
+    return human_matches[0]
 
-    comments = load_comments(args.comments_b64)
+
+def validate_article(args: argparse.Namespace, comments: list[dict[str, Any]]) -> dict[str, Any]:
+    if not re.fullmatch(r"[1-9][0-9]*", args.candidate_revision):
+        raise ApprovalError("Article candidate revision must be a positive comment id.")
+    candidate_revision = int(args.candidate_revision)
+    if args.profile_registry is None or args.asset_path is None:
+        raise ApprovalError("Article promotion requires image profile and asset inputs.")
+
     profile, profile_sha, asset_sha = canonical_profile(
         args.profile_registry,
         args.issue_number,
@@ -182,30 +209,11 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
             "route_outcome": "success",
         },
     )
-
-    human_matches: list[tuple[dict[str, Any], dict[str, str], dict[str, str]]] = []
-    for comment in comments:
-        user = comment.get("user", {})
-        if user.get("login") != OWNER or user.get("type") != "User":
-            continue
-        if comment.get("author_association") != "OWNER":
-            continue
-        if comment.get("performed_via_github_app") is not None:
-            continue
-        parsed = approval_fields(str(comment.get("body") or ""), args.issue_number)
-        if parsed is None:
-            continue
-        fields, urls = parsed
-        human_matches.append((comment, fields, urls))
-    if len(human_matches) != 1:
-        raise ApprovalError(
-            f"Expected exactly one exact direct owner-authored Project Lead approval; found {len(human_matches)}."
-        )
-    approval, fields, urls = human_matches[0]
+    approval, fields, urls = direct_owner_approval(comments, args.issue_number)
 
     exact_values = {
         "CANDIDATE_ID": candidate_id,
-        "CANDIDATE_REVISION": str(args.candidate_revision),
+        "CANDIDATE_REVISION": str(candidate_revision),
         "ARTICLE_PAYLOAD_SHA256": args.payload_sha256,
         "IMAGE_PROFILE_SHA256": profile_sha,
         "IMAGE_ASSET_SHA256": asset_sha,
@@ -252,7 +260,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         {
             "target": "PREPROD",
             "candidate_id": candidate_id,
-            "candidate_revision": str(args.candidate_revision),
+            "candidate_revision": str(candidate_revision),
             "payload_sha256": args.payload_sha256,
             "trusted_main": args.trusted_main,
             "run_id": article_run,
@@ -294,7 +302,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
 
     approval_id = int(approval.get("id") or 0)
     evidence_ids = [
-        args.candidate_revision,
+        candidate_revision,
         int(preprod_article.get("id") or 0),
         int(preprod_image.get("id") or 0),
         int(preprod_image_post.get("id") or 0),
@@ -309,7 +317,7 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
         "status": "PASS",
         "verdict": "AUTHORIZED",
         "candidate_id": candidate_id,
-        "candidate_revision": args.candidate_revision,
+        "candidate_revision": candidate_revision,
         "payload_sha256": args.payload_sha256,
         "trusted_main": args.trusted_main,
         "approval_comment_id": approval_id,
@@ -324,15 +332,106 @@ def validate(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def validate_service(args: argparse.Namespace, comments: list[dict[str, Any]]) -> dict[str, Any]:
+    if args.issue_number != SERVICE_ISSUE:
+        raise ApprovalError("Service PROD V1 supports only issue #1117.")
+    if not re.fullmatch(r"[0-9a-f]{40}", args.candidate_revision):
+        raise ApprovalError("Service candidate revision must be an exact Git blob SHA.")
+
+    prod_dry_run = matching_bot_receipt(
+        comments,
+        "### Agency editorial dry-run PASS",
+        {
+            "candidate_kind": "service",
+            "candidate_id": SERVICE_CANDIDATE_ID,
+            "candidate_revision": args.candidate_revision,
+            "payload_sha256": args.payload_sha256,
+            "trusted_main": args.trusted_main,
+            "route_outcome": "success",
+        },
+    )
+    preprod_apply = matching_bot_receipt(
+        comments,
+        "### Agency editorial PREPROD candidate apply PASS",
+        {
+            "target": "PREPROD",
+            "candidate_id": SERVICE_CANDIDATE_ID,
+            "candidate_revision": args.candidate_revision,
+            "payload_sha256": args.payload_sha256,
+            "trusted_main": args.trusted_main,
+            "node_id": "41",
+            "revision_id": "48",
+            "prod_write": "NONE",
+        },
+    )
+    approval, fields, _urls = direct_owner_approval(comments, args.issue_number)
+
+    exact_values = {
+        "CANDIDATE_ID": SERVICE_CANDIDATE_ID,
+        "CANDIDATE_REVISION": args.candidate_revision,
+        "PAYLOAD_SHA256": args.payload_sha256,
+        "TRUSTED_MAIN": args.trusted_main,
+        "PREPROD_NODE_ID": "41",
+        "PREPROD_REVISION_ID": "48",
+        "FR_PREPROD_URL": SERVICE_FR_URL,
+        "EN_PREPROD_URL": SERVICE_EN_URL,
+        "HUMAN_REVIEW": "PASS",
+        "CONTENT": "APPROVED",
+        "EXACT_CANDIDATE_PROMOTION_TO_PROD": "AUTHORIZED",
+        "CONTENT_CHANGE_AFTER_APPROVAL": "INVALIDATES_APPROVAL",
+    }
+    for key, expected in exact_values.items():
+        if fields.get(key) != expected:
+            raise ApprovalError(f"Human approval field {key} does not match the exact Service candidate.")
+
+    approval_id = int(approval.get("id") or 0)
+    preprod_evidence_id = int(preprod_apply.get("id") or 0)
+    if approval_id <= preprod_evidence_id:
+        raise ApprovalError("Project Lead approval is stale or predates exact PREPROD evidence.")
+    prod_dry_run_id = int(prod_dry_run.get("id") or 0)
+    if prod_dry_run_id <= approval_id:
+        raise ApprovalError("Fresh PROD dry-run must occur after exact human approval.")
+
+    return {
+        "status": "PASS",
+        "verdict": "AUTHORIZED",
+        "candidate_id": SERVICE_CANDIDATE_ID,
+        "candidate_revision": args.candidate_revision,
+        "payload_sha256": args.payload_sha256,
+        "trusted_main": args.trusted_main,
+        "approval_comment_id": approval_id,
+        "preprod_node_id": 41,
+        "preprod_revision_id": 48,
+        "fr_url": SERVICE_FR_URL,
+        "en_url": SERVICE_EN_URL,
+        "image_waiver": "NOT_REQUIRED",
+    }
+
+
+def validate(args: argparse.Namespace) -> dict[str, Any]:
+    if not re.fullmatch(r"[0-9a-f]{64}", args.payload_sha256):
+        raise ApprovalError("payload_sha256 must be lowercase SHA-256.")
+    if not re.fullmatch(r"[0-9a-f]{40}", args.trusted_main):
+        raise ApprovalError("trusted_main must be lowercase Git SHA-1.")
+    if args.issue_number <= 0:
+        raise ApprovalError("Issue number must be positive.")
+
+    comments = load_comments(args.comments_b64)
+    if args.candidate_kind == "service":
+        return validate_service(args, comments)
+    return validate_article(args, comments)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--comments-b64", type=Path, required=True)
     parser.add_argument("--issue-number", type=int, required=True)
-    parser.add_argument("--candidate-revision", type=int, required=True)
+    parser.add_argument("--candidate-kind", choices=("article", "service"), default="article")
+    parser.add_argument("--candidate-revision", required=True)
     parser.add_argument("--payload-sha256", required=True)
     parser.add_argument("--trusted-main", required=True)
-    parser.add_argument("--profile-registry", type=Path, required=True)
-    parser.add_argument("--asset-path", type=Path, required=True)
+    parser.add_argument("--profile-registry", type=Path)
+    parser.add_argument("--asset-path", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 

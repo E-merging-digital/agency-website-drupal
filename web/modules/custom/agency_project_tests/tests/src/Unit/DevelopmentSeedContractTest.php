@@ -163,14 +163,14 @@ final class DevelopmentSeedContractTest extends TestCase {
       [$trace('Drupal\\Core\\Database\\Connection->query()'), 'RUNTIME', 'DRUPAL_DATABASE'],
       [
         $deprecatedNotices . "\nException trace:\n  "
-          . 'Drupal\\Core\\Database\\Connection->query() at /synthetic/database.php:42'
-          . "\n  " . $coreSanitize . 'SanitizeUserFieldsCommands->sanitize() at /synthetic/trace.php:84',
+        . 'Drupal\\Core\\Database\\Connection->query() at /synthetic/database.php:42'
+        . "\n  " . $coreSanitize . 'SanitizeUserFieldsCommands->sanitize() at /synthetic/trace.php:84',
         'UNCLASSIFIED',
         'USER_FIELDS',
       ],
       [
         $deprecatedNotices . "\nRuntimeException: synthetic-only\nException trace:\n  "
-          . 'Consolidation\\AnnotatedCommand\\CommandProcessor->process() at /synthetic/trace.php:42',
+        . 'Consolidation\\AnnotatedCommand\\CommandProcessor->process() at /synthetic/trace.php:42',
         'RUNTIME',
         'UNKNOWN',
       ],

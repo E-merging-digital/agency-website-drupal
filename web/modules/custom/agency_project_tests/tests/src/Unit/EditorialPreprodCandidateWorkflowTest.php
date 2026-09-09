@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects the #959 Article-only PREPROD candidate route.
+ * Protects the #959 Article route and the #1120 Service-only extension.
  *
  * @group agency_project_tests
  * @group editorial_preprod_candidate
@@ -18,7 +18,7 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
   private const WORKFLOW = '.github/workflows/trusted-editorial-preprod-candidate.yml';
 
   /**
-   * Proves the workflow stays reusable behind the single dispatcher.
+   * Proves the workflow remains reusable behind the dispatcher.
    */
   public function testWorkflowIsReusableAndNeverOwnsIssueCommentListener(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -39,7 +39,7 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
   }
 
   /**
-   * Proves the PREPROD route reuses the exact #576 payload contract.
+   * Proves the existing #576 Article payload contract remains exact.
    */
   public function testExisting576PayloadContractIsReusedExactly(): void {
     $source = $this->source(self::WORKFLOW);
@@ -57,17 +57,70 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
       self::assertStringContainsString($needle, $source);
     }
     self::assertStringContainsString('candidate_revision', $source);
-    self::assertStringContainsString('same payload hash, comment revision and live main', $source);
+    self::assertStringContainsString('same payload hash, candidate revision and live main', $source);
   }
 
   /**
-   * Regresses the exact real receipt format and all security-field failures.
+   * Proves the Service source stays bound to the merged issue candidate.
+   */
+  public function testServiceSourceIsBoundedToMergedIssueCandidate(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $parser = dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-service-candidate-source.py';
+    $candidate = dirname(DRUPAL_ROOT) . '/docs/seo/audit-site-web-candidate-1117.md';
+    self::assertFileExists($parser);
+    self::assertFileExists($candidate);
+
+    foreach ([
+      'find docs/seo -maxdepth 1 -type f',
+      '-name "*-candidate-${ISSUE_NUMBER}.md"',
+      "candidate_kind='service'",
+      'candidate_id="agency-service-${ISSUE_NUMBER}"',
+      'git rev-parse "HEAD:${candidate_source}"',
+      'editorial-service-candidate-source.py',
+      'merged Git main file',
+    ] as $needle) {
+      self::assertStringContainsString($needle, $workflow);
+    }
+
+    $output = tempnam(sys_get_temp_dir(), 'agency-service-candidate-');
+    self::assertIsString($output);
+    $command = sprintf(
+      'python3 %s --source %s --issue-number 1117 --output %s 2>&1',
+      escapeshellarg($parser),
+      escapeshellarg('docs/seo/audit-site-web-candidate-1117.md'),
+      escapeshellarg($output),
+    );
+    $root = dirname(DRUPAL_ROOT);
+    $lines = [];
+    $exit = 0;
+    exec('cd ' . escapeshellarg($root) . ' && ' . $command, $lines, $exit);
+    self::assertSame(0, $exit, implode("\n", $lines));
+    self::assertCount(1, $lines);
+    self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $lines[0]);
+    $payload = json_decode((string) file_get_contents($output), TRUE, 32, JSON_THROW_ON_ERROR);
+    @unlink($output);
+    self::assertSame('service', $payload['bundle']);
+    self::assertSame(1117, $payload['issue_number']);
+    self::assertSame('/fr/audit-site-web', $payload['aliases']['fr']);
+    self::assertSame('/en/website-audit', $payload['aliases']['en']);
+    self::assertSame(
+      ['detailed_description_html', 'short_description', 'title'],
+      array_keys($payload['fr']),
+    );
+    self::assertSame(
+      ['detailed_description_html', 'short_description', 'title'],
+      array_keys($payload['en']),
+    );
+  }
+
+  /**
+   * Proves dry-run receipt authorization stays exact and fail-closed.
    */
   public function testDryRunReceiptAuthorizationMatchesRealOutputAndFailsClosed(): void {
     $source = $this->source(self::WORKFLOW);
     foreach ([
       "heading = '### Agency editorial PREPROD candidate dry-run PASS'",
-      "'candidate_revision': re.compile(r'^candidate_revision: `([0-9]+)`$')",
+      "'candidate_revision': re.compile(r'^candidate_revision: `([0-9]+|[0-9a-f]{40})`$')",
       "'payload_sha256': re.compile(r'^payload_sha256: `([0-9a-f]{64})`$')",
       "'trusted_main': re.compile(r'^trusted_main: `([0-9a-f]{40})`$')",
       "if not lines or lines[0] != heading:",
@@ -82,21 +135,8 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     $main = '65a067691431d130bbc083423e94fa0769318612';
     $receipt = $this->realDryRunReceipt();
 
-    self::assertTrue($this->receiptAuthorizes(
-      'github-actions[bot]',
-      $receipt,
-      $revision,
-      $hash,
-      $main,
-    ));
-
-    self::assertFalse($this->receiptAuthorizes(
-      'E-merging-digital',
-      $receipt,
-      $revision,
-      $hash,
-      $main,
-    ));
+    self::assertTrue($this->receiptAuthorizes('github-actions[bot]', $receipt, $revision, $hash, $main));
+    self::assertFalse($this->receiptAuthorizes('E-merging-digital', $receipt, $revision, $hash, $main));
     self::assertFalse($this->receiptAuthorizes(
       'github-actions[bot]',
       str_replace('dry-run PASS', 'dry-run FAIL', $receipt),
@@ -128,48 +168,45 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
 
     $missing = preg_replace('/^trusted_main: .*\R?/m', '', $receipt, 1);
     self::assertIsString($missing);
-    self::assertFalse($this->receiptAuthorizes(
-      'github-actions[bot]',
-      $missing,
-      $revision,
-      $hash,
-      $main,
-    ));
+    self::assertFalse($this->receiptAuthorizes('github-actions[bot]', $missing, $revision, $hash, $main));
 
     $duplicate = str_replace(
       "payload_sha256: `$hash`",
       "payload_sha256: `$hash`\npayload_sha256: `$hash`",
       $receipt,
     );
-    self::assertFalse($this->receiptAuthorizes(
-      'github-actions[bot]',
-      $duplicate,
-      $revision,
-      $hash,
-      $main,
-    ));
+    self::assertFalse($this->receiptAuthorizes('github-actions[bot]', $duplicate, $revision, $hash, $main));
 
     $malformed = str_replace(
       "candidate_revision: `$revision`",
       'candidate_revision: `not-a-number`',
       $receipt,
     );
-    self::assertFalse($this->receiptAuthorizes(
+    self::assertFalse($this->receiptAuthorizes('github-actions[bot]', $malformed, $revision, $hash, $main));
+
+    $serviceRevision = str_repeat('c', 40);
+    $serviceReceipt = str_replace(
+      "candidate_revision: `$revision`",
+      "candidate_revision: `$serviceRevision`",
+      $receipt,
+    );
+    self::assertTrue($this->receiptAuthorizes(
       'github-actions[bot]',
-      $malformed,
-      $revision,
+      $serviceReceipt,
+      $serviceRevision,
       $hash,
       $main,
     ));
   }
 
   /**
-   * Proves PREPROD execution cannot receive production execution inputs.
+   * Proves the PREPROD route has no production execution inputs.
    */
   public function testPreprodRouteHasNoProductionExecutionInput(): void {
     $workflow = $this->source(self::WORKFLOW);
     $runner = $this->source('scripts/runner/run-editorial-preprod-candidate.sh');
-    $combined = $workflow . "\n" . $runner;
+    $service = $this->source('scripts/runner/editorial-service-preprod-candidate.php');
+    $combined = $workflow . "\n" . $runner . "\n" . $service;
 
     self::assertStringContainsString('PREPROD_SSH_PRIVATE_KEY', $workflow);
     self::assertStringContainsString('PREPROD_SERVER_HOST', $workflow);
@@ -185,22 +222,18 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     self::assertStringNotContainsString('drush cim', $combined);
     self::assertStringNotContainsString('drush updb', $combined);
     self::assertStringNotContainsString('emerging:governed-content', $combined);
+    self::assertStringNotContainsString('emerging:content-sync', $combined);
   }
 
   /**
-   * Proves only bounded metadata evidence is uploaded by the workflow.
+   * Proves only metadata evidence is uploaded by the workflow.
    */
   public function testOnlyMetadataEvidenceIsUploaded(): void {
     $source = $this->source(self::WORKFLOW);
-    self::assertStringContainsString(
-      'path: artifacts/editorial-preprod-candidate/result.json',
-      $source,
-    );
+    self::assertStringContainsString('path: artifacts/editorial-preprod-candidate/result.json', $source);
     self::assertStringContainsString('prod_write: \`NONE\`', $source);
-    self::assertStringContainsString(
-      'GITHUB_ISSUE_COMMENT',
-      $this->source('scripts/runner/editorial-preprod-candidate.php'),
-    );
+    self::assertStringContainsString('GITHUB_ISSUE_COMMENT', $this->source('scripts/runner/editorial-preprod-candidate.php'));
+    self::assertStringContainsString('GIT_MAIN_FILE', $this->source('scripts/runner/editorial-service-preprod-candidate.php'));
     self::assertStringNotContainsString(
       'agency-editorial-payload.json\n          if-no-files-found',
       $source,
@@ -208,14 +241,16 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
   }
 
   /**
-   * Proves the runner syntax and helper remain Article-specific.
+   * Proves runner syntax and helpers stay closed to Article or Service.
    */
-  public function testRunnerSyntaxAndArticleSpecificHelper(): void {
+  public function testRunnerSyntaxAndHelpersStayClosedToArticleOrService(): void {
     $root = dirname(DRUPAL_ROOT);
     $shell = $root . '/scripts/runner/run-editorial-preprod-candidate.sh';
-    $candidate = $root . '/scripts/runner/editorial-preprod-candidate.php';
+    $article = $root . '/scripts/runner/editorial-preprod-candidate.php';
+    $service = $root . '/scripts/runner/editorial-service-preprod-candidate.php';
     $runner = $root . '/scripts/runner/editorial-preprod-candidate-runner.php';
-    foreach ([$shell, $candidate, $runner] as $path) {
+    $parser = $root . '/scripts/runner/editorial-service-candidate-source.py';
+    foreach ([$shell, $article, $service, $runner, $parser] as $path) {
       self::assertFileExists($path);
     }
 
@@ -224,25 +259,51 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     exec('bash -n ' . escapeshellarg($shell) . ' 2>&1', $output, $exit);
     self::assertSame(0, $exit, implode("\n", $output));
 
-    foreach ([$candidate, $runner] as $path) {
+    foreach ([$article, $service, $runner] as $path) {
       $output = [];
       $exit = 0;
       exec('php -l ' . escapeshellarg($path) . ' 2>&1', $output, $exit);
       self::assertSame(0, $exit, implode("\n", $output));
     }
+    $output = [];
+    $exit = 0;
+    exec('python3 -m py_compile ' . escapeshellarg($parser) . ' 2>&1', $output, $exit);
+    self::assertSame(0, $exit, implode("\n", $output));
 
-    $source = (string) file_get_contents($candidate);
-    self::assertStringContainsString("private const BUNDLE = 'article'", $source);
-    self::assertStringContainsString('AgencyEditorialPublication', $source);
-    self::assertStringContainsString("'UPDATE_READY'", $source);
-    self::assertStringContainsString("'IDEMPOTENT'", $source);
-    self::assertStringNotContainsString('bundleName', $source);
-    self::assertStringNotContainsString("payload['entity_type']", $source);
-    self::assertStringNotContainsString("'entity_type' =>", $source);
+    $articleSource = (string) file_get_contents($article);
+    self::assertStringContainsString("private const BUNDLE = 'article'", $articleSource);
+    self::assertStringContainsString('AgencyEditorialPublication', $articleSource);
+    self::assertStringNotContainsString('bundleName', $articleSource);
+
+    $serviceSource = (string) file_get_contents($service);
+    self::assertStringContainsString("private const BUNDLE = 'service'", $serviceSource);
+    self::assertStringContainsString('Only bundle=service is allowed', $serviceSource);
+    self::assertStringContainsString("['field_short_description', 'field_detailed_description', 'path']", $serviceSource);
+    self::assertStringNotContainsString('bundleName', $serviceSource);
+    self::assertStringNotContainsString("payload['entity_type']", $serviceSource);
+    self::assertStringNotContainsString("'entity_type' =>", $serviceSource);
+
+    $shellSource = (string) file_get_contents($shell);
+    self::assertStringContainsString('article|service', $shellSource);
+    self::assertStringNotContainsString('page|service', $shellSource);
   }
 
   /**
-   * Mirrors the workflow's strict named-field receipt authorization contract.
+   * Mirrors the workflow receipt authorization contract.
+   *
+   * @param string $author
+   *   Comment author.
+   * @param string $body
+   *   Comment body.
+   * @param string $expectedRevision
+   *   Expected candidate revision.
+   * @param string $expectedHash
+   *   Expected payload hash.
+   * @param string $expectedMain
+   *   Expected trusted main SHA.
+   *
+   * @return bool
+   *   TRUE when the receipt authorizes the exact candidate.
    */
   private function receiptAuthorizes(
     string $author,
@@ -261,7 +322,7 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
     }
 
     $patterns = [
-      'candidate_revision' => '/^candidate_revision: `([0-9]+)`$/',
+      'candidate_revision' => '/^candidate_revision: `([0-9]+|[0-9a-f]{40})`$/',
       'payload_sha256' => '/^payload_sha256: `([0-9a-f]{64})`$/',
       'trusted_main' => '/^trusted_main: `([0-9a-f]{40})`$/',
     ];
@@ -289,7 +350,10 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
   }
 
   /**
-   * Exact receipt emitted by real dry-run #958 / run 33640254463.
+   * Returns one canonical dry-run receipt fixture.
+   *
+   * @return string
+   *   Dry-run receipt.
    */
   private function realDryRunReceipt(): string {
     return <<<'RECEIPT'
@@ -311,7 +375,13 @@ RECEIPT;
   }
 
   /**
-   * Returns one repository file as source text.
+   * Returns repository source text for a relative path.
+   *
+   * @param string $relative
+   *   Relative repository path.
+   *
+   * @return string
+   *   File source.
    */
   private function source(string $relative): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relative);

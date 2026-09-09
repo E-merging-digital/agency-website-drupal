@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   editorial-publication:
-    name: Governed Article publication
+    name: Governed Article or Service publication
     if: >-
       ${{
         github.event.issue.pull_request == null &&
@@ -57,9 +57,23 @@ jobs:
           esac
 
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
-          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
           [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
           [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+          issue_state="$(jq -r '.state' <<<"$issue_json")"
+          issue_reason="$(jq -r '.state_reason // ""' <<<"$issue_json")"
+          if [[ "$ISSUE_NUMBER" == '1117' ]]; then
+            candidate_kind='service'
+            [[ "$issue_state" == 'closed' && "$issue_reason" == 'completed' ]] || {
+              echo 'Service PROD V1 requires #1117 to remain closed/completed.' >&2
+              exit 1
+            }
+          else
+            candidate_kind='article'
+            [[ "$issue_state" == 'open' ]] || {
+              echo 'Article editorial issues must remain open.' >&2
+              exit 1
+            }
+          fi
 
           main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
@@ -68,24 +82,54 @@ jobs:
             exit 1
           }
 
-          echo "mode=$mode" >> "$GITHUB_OUTPUT"
-          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "mode=$mode"
+            echo "main_sha=$main_sha"
+            echo "candidate_kind=$candidate_kind"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Extract and canonicalize bounded editorial payload
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Resolve exact Article or Service candidate
         id: payload
-        if: ${{ steps.request.outputs.mode != 'inspect' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.request.outputs.mode }}
+          CANDIDATE_KIND: ${{ steps.request.outputs.candidate_kind }}
         run: |
           set -euo pipefail
 
-          gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
-            --jq '.[] | @base64' > /tmp/agency-editorial-comments.b64
+          if [[ "$CANDIDATE_KIND" == 'service' ]]; then
+            [[ "$ISSUE_NUMBER" == '1117' ]]
+            candidate_source='docs/seo/audit-site-web-candidate-1117.md'
+            test -f "$candidate_source"
+            payload_sha256="$(python3 scripts/runner/editorial-service-candidate-source.py \
+              --source "$candidate_source" \
+              --issue-number "$ISSUE_NUMBER" \
+              --output /tmp/agency-editorial-payload.json)"
+            [[ "$payload_sha256" =~ ^[0-9a-f]{64}$ ]]
+            candidate_revision="$(git rev-parse "HEAD:${candidate_source}")"
+            [[ "$candidate_revision" =~ ^[0-9a-f]{40}$ ]]
+            candidate_id='agency-service-1117'
+          elif [[ "$MODE" == 'inspect' ]]; then
+            candidate_source='GITHUB_ISSUE_COMMENT'
+            payload_sha256='n/a'
+            candidate_revision='n/a'
+            candidate_id="agency-article-${ISSUE_NUMBER}"
+          else
+            candidate_source='GITHUB_ISSUE_COMMENT'
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
+              --jq '.[] | @base64' > /tmp/agency-editorial-comments.b64
 
-          python3 - <<'PY'
+            python3 - <<'PY'
           import base64
           import hashlib
           import json
@@ -145,15 +189,19 @@ jobs:
 
           with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
               handle.write(f'payload_sha256={digest}\n')
-              handle.write(f'payload_comment_id={payload_comment["id"]}\n')
+              handle.write(f'candidate_revision={payload_comment["id"]}\n')
+              handle.write(f'candidate_id=agency-article-{issue_number}\n')
+              handle.write('candidate_source=GITHUB_ISSUE_COMMENT\n')
           PY
+            exit 0
+          fi
 
-      - name: Checkout exact trusted main
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ steps.request.outputs.main_sha }}
-          fetch-depth: 1
-          persist-credentials: false
+          {
+            echo "payload_sha256=$payload_sha256"
+            echo "candidate_revision=$candidate_revision"
+            echo "candidate_id=$candidate_id"
+            echo "candidate_source=$candidate_source"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Verify immutable implementation
         shell: bash
@@ -170,16 +218,24 @@ jobs:
             scripts/runner/editorial-promotion-runtime.php \
             scripts/runner/editorial-feature-image.php \
             scripts/runner/validate-editorial-promotion-approval.py \
-            scripts/runner/editorial-feature-image-profiles.json; do
+            scripts/runner/editorial-feature-image-profiles.json \
+            scripts/runner/editorial-service-candidate-source.py \
+            scripts/runner/run-editorial-service-publication.sh \
+            scripts/runner/editorial-service-publication.php \
+            scripts/runner/editorial-service-publication-runtime.php; do
             test -f "$required"
           done
           bash -n scripts/runner/run-editorial-publication.sh
           bash -n scripts/runner/run-editorial-promotion.sh
+          bash -n scripts/runner/run-editorial-service-publication.sh
           php -l scripts/runner/editorial-publication.php
           php -l scripts/runner/editorial-promotion.php
           php -l scripts/runner/editorial-promotion-runtime.php
           php -l scripts/runner/editorial-feature-image.php
+          php -l scripts/runner/editorial-service-publication.php
+          php -l scripts/runner/editorial-service-publication-runtime.php
           python3 -m py_compile scripts/runner/validate-editorial-promotion-approval.py
+          python3 -m py_compile scripts/runner/editorial-service-candidate-source.py
 
       - name: Require exact PREPROD and human approval for apply
         id: promotion
@@ -188,9 +244,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CANDIDATE_KIND: ${{ steps.request.outputs.candidate_kind }}
+          CANDIDATE_ID: ${{ steps.payload.outputs.candidate_id }}
+          CANDIDATE_SOURCE: ${{ steps.payload.outputs.candidate_source }}
           TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
           PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
-          CANDIDATE_REVISION: ${{ steps.payload.outputs.payload_comment_id }}
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.candidate_revision }}
         run: |
           set -euo pipefail
 
@@ -199,12 +258,30 @@ jobs:
             echo 'Live main changed after workflow start; approval is stale.' >&2
             exit 1
           }
+          [[ "$(git rev-parse HEAD)" == "$fresh_main" ]]
 
           gh api --paginate \
             "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
             --jq '.[] | @base64' > /tmp/agency-editorial-live-comments.b64
 
-          python3 - <<'PY'
+          if [[ "$CANDIDATE_KIND" == 'service' ]]; then
+            [[ "$CANDIDATE_SOURCE" == 'docs/seo/audit-site-web-candidate-1117.md' ]]
+            revision="$(git rev-parse "HEAD:${CANDIDATE_SOURCE}")"
+            [[ "$revision" == "$CANDIDATE_REVISION" ]] || {
+              echo 'Candidate revision changed after workflow start.' >&2
+              exit 1
+            }
+            digest="$(python3 scripts/runner/editorial-service-candidate-source.py \
+              --source "$CANDIDATE_SOURCE" \
+              --issue-number "$ISSUE_NUMBER" \
+              --output /tmp/agency-editorial-jit-payload.json)"
+            [[ "$digest" == "$PAYLOAD_SHA256" ]] || {
+              echo 'Candidate payload changed after workflow start.' >&2
+              exit 1
+            }
+            cmp /tmp/agency-editorial-payload.json /tmp/agency-editorial-jit-payload.json
+          else
+            python3 - <<'PY'
           import base64
           import hashlib
           import json
@@ -238,9 +315,29 @@ jobs:
           if digest != os.environ['PAYLOAD_SHA256']:
               raise SystemExit('Candidate payload changed after workflow start.')
           PY
+          fi
 
-          profile_registry='scripts/runner/editorial-feature-image-profiles.json'
-          asset_path="$(python3 - "$profile_registry" "$ISSUE_NUMBER" "$PAYLOAD_SHA256" <<'PY_PROFILE'
+          approval_json='/tmp/agency-editorial-promotion-approval.json'
+          if [[ "$CANDIDATE_KIND" == 'service' ]]; then
+            python3 scripts/runner/validate-editorial-promotion-approval.py \
+              --candidate-kind service \
+              --comments-b64 /tmp/agency-editorial-live-comments.b64 \
+              --issue-number "$ISSUE_NUMBER" \
+              --candidate-revision "$CANDIDATE_REVISION" \
+              --payload-sha256 "$PAYLOAD_SHA256" \
+              --trusted-main "$TRUSTED_MAIN" \
+              --output "$approval_json"
+            jq -e '.status == "PASS" and .verdict == "AUTHORIZED" and .image_waiver == "NOT_REQUIRED"' \
+              "$approval_json" >/dev/null
+            {
+              echo 'profile_sha256=n/a'
+              echo 'asset_sha256=n/a'
+              echo 'asset_path=n/a'
+              echo "approval_comment_id=$(jq -r '.approval_comment_id' "$approval_json")"
+            } >> "$GITHUB_OUTPUT"
+          else
+            profile_registry='scripts/runner/editorial-feature-image-profiles.json'
+            asset_path="$(python3 - "$profile_registry" "$ISSUE_NUMBER" "$PAYLOAD_SHA256" <<'PY_PROFILE'
           import json
           import sys
           from pathlib import Path
@@ -256,32 +353,33 @@ jobs:
               raise SystemExit('Image profile asset path is invalid.')
           print(asset['path'])
           PY_PROFILE
-          )"
-          generator="scripts/runner/generate-editorial-feature-image-${ISSUE_NUMBER}.py"
-          test -f "$generator"
-          mkdir -p "$(dirname "$asset_path")"
-          python3 "$generator" --output "$asset_path"
-          test -s "$asset_path"
+            )"
+            generator="scripts/runner/generate-editorial-feature-image-${ISSUE_NUMBER}.py"
+            test -f "$generator"
+            mkdir -p "$(dirname "$asset_path")"
+            python3 "$generator" --output "$asset_path"
+            test -s "$asset_path"
 
-          approval_json='/tmp/agency-editorial-promotion-approval.json'
-          python3 scripts/runner/validate-editorial-promotion-approval.py \
-            --comments-b64 /tmp/agency-editorial-live-comments.b64 \
-            --issue-number "$ISSUE_NUMBER" \
-            --candidate-revision "$CANDIDATE_REVISION" \
-            --payload-sha256 "$PAYLOAD_SHA256" \
-            --trusted-main "$TRUSTED_MAIN" \
-            --profile-registry "$profile_registry" \
-            --asset-path "$asset_path" \
-            --output "$approval_json"
+            python3 scripts/runner/validate-editorial-promotion-approval.py \
+              --candidate-kind article \
+              --comments-b64 /tmp/agency-editorial-live-comments.b64 \
+              --issue-number "$ISSUE_NUMBER" \
+              --candidate-revision "$CANDIDATE_REVISION" \
+              --payload-sha256 "$PAYLOAD_SHA256" \
+              --trusted-main "$TRUSTED_MAIN" \
+              --profile-registry "$profile_registry" \
+              --asset-path "$asset_path" \
+              --output "$approval_json"
 
-          jq -e '.status == "PASS" and .verdict == "AUTHORIZED" and .image_waiver == "UNSUPPORTED"' \
-            "$approval_json" >/dev/null
-          {
-            echo "profile_sha256=$(jq -r '.profile_sha256' "$approval_json")"
-            echo "asset_sha256=$(jq -r '.asset_sha256' "$approval_json")"
-            echo "asset_path=$(jq -r '.asset_path' "$approval_json")"
-            echo "approval_comment_id=$(jq -r '.approval_comment_id' "$approval_json")"
-          } >> "$GITHUB_OUTPUT"
+            jq -e '.status == "PASS" and .verdict == "AUTHORIZED" and .image_waiver == "UNSUPPORTED"' \
+              "$approval_json" >/dev/null
+            {
+              echo "profile_sha256=$(jq -r '.profile_sha256' "$approval_json")"
+              echo "asset_sha256=$(jq -r '.asset_sha256' "$approval_json")"
+              echo "asset_path=$(jq -r '.asset_path' "$approval_json")"
+              echo "approval_comment_id=$(jq -r '.approval_comment_id' "$approval_json")"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Configure existing production SSH channel
         env:
@@ -303,6 +401,7 @@ jobs:
         shell: bash
         env:
           EDITORIAL_MODE: ${{ steps.request.outputs.mode }}
+          CANDIDATE_KIND: ${{ steps.request.outputs.candidate_kind }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
           PAYLOAD_FILE: /tmp/agency-editorial-payload.json
@@ -315,7 +414,9 @@ jobs:
           ARTIFACT_DIR: ${{ github.workspace }}/artifacts/editorial-publication
         run: |
           set -euo pipefail
-          if [[ "$EDITORIAL_MODE" == 'apply' ]]; then
+          if [[ "$CANDIDATE_KIND" == 'service' ]]; then
+            bash scripts/runner/run-editorial-service-publication.sh
+          elif [[ "$EDITORIAL_MODE" == 'apply' ]]; then
             bash scripts/runner/run-editorial-promotion.sh
           else
             bash scripts/runner/run-editorial-publication.sh
@@ -337,6 +438,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MODE: ${{ steps.request.outputs.mode }}
+          CANDIDATE_KIND: ${{ steps.request.outputs.candidate_kind }}
+          CANDIDATE_ID: ${{ steps.payload.outputs.candidate_id }}
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.candidate_revision }}
           TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
           PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
           APPROVAL_COMMENT_ID: ${{ steps.promotion.outputs.approval_comment_id }}
@@ -351,14 +455,18 @@ jobs:
           revision_id='n/a'
           fr_alias='n/a'
           en_alias='n/a'
+          fr_public_route='n/a'
+          en_public_route='n/a'
           visual_completeness='n/a'
           if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
             status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
             verdict="$(jq -r '.verdict // "UNKNOWN"' "$result_file")"
             node_id="$(jq -r '.node.id // "n/a"' "$result_file")"
             revision_id="$(jq -r '.node.revision_id // "n/a"' "$result_file")"
-            fr_alias="$(jq -r '.node.aliases.fr // "n/a"' "$result_file")"
-            en_alias="$(jq -r '.node.aliases.en // "n/a"' "$result_file")"
+            fr_alias="$(jq -r '.node.stored_aliases.fr // .node.aliases.fr // "n/a"' "$result_file")"
+            en_alias="$(jq -r '.node.stored_aliases.en // .node.aliases.en // "n/a"' "$result_file")"
+            fr_public_route="$(jq -r '.node.public_routes.fr // "n/a"' "$result_file")"
+            en_public_route="$(jq -r '.node.public_routes.en // "n/a"' "$result_file")"
             visual_completeness="$(jq -r '.visual_completeness // "n/a"' "$result_file")"
           fi
 
@@ -375,6 +483,9 @@ jobs:
           body="$(cat <<EOF_BODY
           ${heading}
 
+          candidate_kind: \`${CANDIDATE_KIND:-n/a}\`
+          candidate_id: \`${CANDIDATE_ID:-n/a}\`
+          candidate_revision: \`${CANDIDATE_REVISION:-n/a}\`
           payload_sha256: \`${PAYLOAD_SHA256:-n/a}\`
           trusted_main: \`${TRUSTED_MAIN:-n/a}\`
           approval_comment_id: \`${APPROVAL_COMMENT_ID:-n/a}\`
@@ -386,9 +497,11 @@ jobs:
           revision_id: \`${revision_id}\`
           fr_alias: \`${fr_alias}\`
           en_alias: \`${en_alias}\`
+          fr_public_route: \`${fr_public_route}\`
+          en_public_route: \`${en_public_route}\`
           artifact: \`${artifact}\`
 
-          Apply is PREPROD-first, exact-candidate, direct-human-approved and image-complete. This route remains Article-only and accepts no arbitrary shell, Drush, path, bundle, field or Content Sync input.
+          Apply remains PREPROD-first, exact-candidate and direct-human-approved. Article keeps its mandatory image contract; Service #1117 uses only its explicit Entity API + route/alias contract. No arbitrary shell, Drush, path, bundle, field, Content Sync or PREPROD database copy is accepted.
           EOF_BODY
           )"
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

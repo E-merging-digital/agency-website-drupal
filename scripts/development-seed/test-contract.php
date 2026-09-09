@@ -106,7 +106,7 @@ assert_true(!str_contains($source, '/var/www/agency/'), 'Development Seed source
 // Publisher keeps the source import but eliminates the post-sanitization SQL round-trip.
 foreach ([
   'ddev import-db --file="$raw"',
-  'ddev drush sql:sanitize -y',
+  'ddev drush -vvv sql:sanitize -y',
   'scripts/preproduction-refresh/governed-successor/agency-sanitize.php',
   'scripts/development-seed/agency-development-sanitize.php',
   'ddev snapshot --name="$SEED_ID" -y',

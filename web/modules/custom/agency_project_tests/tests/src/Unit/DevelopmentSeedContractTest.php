@@ -93,7 +93,7 @@ final class DevelopmentSeedContractTest extends TestCase {
       '[[ "$(stat -c \'%a\' "$sanitize_diagnostic")" == 600 ]]',
       $publisher,
     );
-    self::assertSame(1, substr_count($publisher, 'ddev drush sql:sanitize -y'));
+    self::assertSame(1, substr_count($publisher, 'ddev drush -vvv sql:sanitize -y'));
     self::assertSame(1, substr_count($publisher, "--sanitize-email='user+%uid@example.invalid'"));
     self::assertSame(1, substr_count($publisher, '--sanitize-password="$seed_password"'));
     self::assertStringContainsString(') > "$sanitize_diagnostic" 2>&1; then', $publisher);
@@ -101,7 +101,12 @@ final class DevelopmentSeedContractTest extends TestCase {
     foreach (['UNCLASSIFIED', 'COMMAND', 'BOOTSTRAP', 'SCHEMA', 'RUNTIME'] as $class) {
       self::assertStringContainsString("failure_class='$class'", $publisher);
     }
-    foreach (['SANITIZE_FAILURE=YES', 'SANITIZE_FAILURE_CLASS=%s', 'SANITIZE_FAILURE_EXIT=%s'] as $key) {
+    foreach ([
+      'SANITIZE_FAILURE=YES',
+      'SANITIZE_FAILURE_CLASS=%s',
+      'SANITIZE_FAILURE_COMPONENT=%s',
+      'SANITIZE_FAILURE_EXIT=%s',
+    ] as $key) {
       self::assertStringContainsString($key, $publisher);
     }
     self::assertStringContainsString(
@@ -117,7 +122,88 @@ final class DevelopmentSeedContractTest extends TestCase {
     }
     self::assertStringNotContainsString('sql-sanitize.diagnostic', $workflow);
     self::assertStringNotContainsString('sanitize_diagnostic', $workflow);
-    $sqlSanitize = strpos($publisher, 'ddev drush sql:sanitize -y');
+    self::assertStringContainsString('SANITIZE_DIAGNOSTIC_CLEANUP=FAIL', $publisher);
+    self::assertStringContainsString('sanitize plugin is using a deprecated API', $publisher);
+
+    $componentStart = strpos($publisher, 'classify_sanitize_component() {');
+    $componentEnd = strpos(
+      $publisher,
+      "\n}\n\nclassify_sanitize_failure() {",
+      $componentStart,
+    );
+    self::assertIsInt($componentStart);
+    self::assertIsInt($componentEnd);
+    $componentFunction = substr(
+      $publisher,
+      $componentStart,
+      $componentEnd - $componentStart + 2,
+    );
+    $deprecatedNotice = static fn(string $handler): string =>
+      "[notice] The {$handler} sanitize plugin is using a deprecated API.";
+    $coreSanitize = 'Drush\\Commands\\sql\\sanitize\\';
+    $deprecatedNotices = implode("\n", [
+      $deprecatedNotice('Drupal\\webform\\Commands\\WebformSanitizeSubmissionsCommands::messages'),
+      $deprecatedNotice($coreSanitize . 'SanitizeCommentsCommands::messages'),
+      $deprecatedNotice($coreSanitize . 'SanitizeSessionsCommands::messages'),
+      $deprecatedNotice($coreSanitize . 'SanitizeUserTableCommands::messages'),
+      $deprecatedNotice($coreSanitize . 'SanitizeUserFieldsCommands::messages'),
+    ]);
+    $trace = static fn(string $frame): string =>
+      "Exception trace:\n  {$frame} at /synthetic/trace.php:42";
+    $fixtures = [
+      [
+        $trace('Drupal\\webform\\Commands\\WebformSanitizeSubmissionsCommands->sanitize()'),
+        'UNCLASSIFIED',
+        'WEBFORM_SUBMISSIONS',
+      ],
+      [$trace($coreSanitize . 'SanitizeCommentsCommands->sanitize()'), 'UNCLASSIFIED', 'COMMENTS'],
+      [$trace($coreSanitize . 'SanitizeSessionsCommands->sanitize()'), 'UNCLASSIFIED', 'SESSIONS'],
+      [$trace($coreSanitize . 'SanitizeUserTableCommands->sanitize()'), 'UNCLASSIFIED', 'USER_TABLE'],
+      [$trace($coreSanitize . 'SanitizeUserFieldsCommands->sanitize()'), 'UNCLASSIFIED', 'USER_FIELDS'],
+      [$trace('Drupal\\Core\\Database\\Connection->query()'), 'RUNTIME', 'DRUPAL_DATABASE'],
+      [
+        $deprecatedNotices . "\nException trace:\n  "
+        . 'Drupal\\Core\\Database\\Connection->query() at /synthetic/database.php:42'
+        . "\n  " . $coreSanitize . 'SanitizeUserFieldsCommands->sanitize() at /synthetic/trace.php:84',
+        'UNCLASSIFIED',
+        'USER_FIELDS',
+      ],
+      [
+        $deprecatedNotices . "\nRuntimeException: synthetic-only\nException trace:\n  "
+        . 'Consolidation\\AnnotatedCommand\\CommandProcessor->process() at /synthetic/trace.php:42',
+        'RUNTIME',
+        'UNKNOWN',
+      ],
+      ['opaque user@example.test secret=synthetic-only', 'UNCLASSIFIED', 'UNKNOWN'],
+      ['command bootstrap sentinel', 'COMMAND', 'COMMAND_OR_BOOTSTRAP'],
+    ];
+    foreach ($fixtures as [$rawDiagnostic, $failureClass, $expectedComponent]) {
+      $diagnostic = tempnam(sys_get_temp_dir(), 'sanitize-component-');
+      self::assertIsString($diagnostic);
+      self::assertNotFalse(file_put_contents($diagnostic, $rawDiagnostic));
+      chmod($diagnostic, 0600);
+      $script = $componentFunction . "\nclassify_sanitize_component \"\$1\" \"\$2\"\n";
+      $process = proc_open(
+        ['bash', '-c', $script, 'component-test', $diagnostic, $failureClass],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root,
+      );
+      self::assertIsResource($process);
+      fclose($pipes[0]);
+      $stdout = stream_get_contents($pipes[1]);
+      $stderr = stream_get_contents($pipes[2]);
+      fclose($pipes[1]);
+      fclose($pipes[2]);
+      $exitCode = proc_close($process);
+      unlink($diagnostic);
+      self::assertSame(0, $exitCode, (string) $stderr);
+      self::assertSame($expectedComponent . "\n", $stdout);
+      self::assertSame('', $stderr);
+      self::assertStringNotContainsString($rawDiagnostic, $stdout);
+    }
+
+    $sqlSanitize = strpos($publisher, 'ddev drush -vvv sql:sanitize -y');
     $agencySanitize = strpos(
       $publisher,
       'ddev drush --quiet php:script scripts/preproduction-refresh/governed-successor/agency-sanitize.php',

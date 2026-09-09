@@ -72,6 +72,44 @@ final class DevelopmentSeedContractTest extends TestCase {
   }
 
   /**
+   * Proves #1131 materializes Composer inside the fresh DDEV worktree.
+   */
+  public function testPublisherGenerationComposerMaterializationContract(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $publisher = file_get_contents($root . '/scripts/development-seed/run-publish.sh');
+    self::assertIsString($publisher);
+
+    self::assertSame(1, substr_count($publisher, 'ddev composer install --no-interaction --no-progress --prefer-dist'));
+    self::assertStringNotContainsString('ddev composer update', $publisher);
+    self::assertStringContainsString(
+      '[[ -f "$generation/composer.lock" && ! -L "$generation/composer.lock" ]]',
+      $publisher,
+    );
+
+    $worktree = strpos($publisher, 'git worktree add --detach "$generation" "$REPOSITORY_SHA"');
+    $lock = strpos(
+      $publisher,
+      '[[ -f "$generation/composer.lock" && ! -L "$generation/composer.lock" ]]',
+      $worktree,
+    );
+    $start = strpos($publisher, 'ddev start -y >/dev/null', $lock);
+    $composer = strpos($publisher, 'ddev composer install --no-interaction --no-progress --prefer-dist', $start);
+    $import = strpos($publisher, 'ddev import-db --file="$raw" >/dev/null', $composer);
+    $sanitize = strpos($publisher, 'ddev drush -vvv sql:sanitize -y', $import);
+    self::assertIsInt($worktree);
+    self::assertIsInt($lock);
+    self::assertIsInt($start);
+    self::assertIsInt($composer);
+    self::assertIsInt($import);
+    self::assertIsInt($sanitize);
+    self::assertTrue($worktree < $lock);
+    self::assertTrue($lock < $start);
+    self::assertTrue($start < $composer);
+    self::assertTrue($composer < $import);
+    self::assertTrue($composer < $sanitize);
+  }
+
+  /**
    * Proves #1121 sanitize failures stay bounded and privacy-safe.
    */
   public function testPublisherSanitizeFailureDiagnosticContract(): void {

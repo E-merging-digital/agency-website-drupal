@@ -282,9 +282,11 @@ git worktree add --detach "$generation" "$REPOSITORY_SHA" >/dev/null
 generation_added=1
 generation_name="agency-seed-956-${GITHUB_RUN_ID}"
 sed -i "1s/^name:.*/name: $generation_name/" "$generation/.ddev/config.yaml"
+[[ -f "$generation/composer.lock" && ! -L "$generation/composer.lock" ]]
 (
   cd "$generation"
-  ddev start >/dev/null
+  ddev start -y >/dev/null
+  ddev composer install --no-interaction --no-progress --prefer-dist >/dev/null
   ddev import-db --file="$raw" >/dev/null
 )
 rm -f -- "$raw"

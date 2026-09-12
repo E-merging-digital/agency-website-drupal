@@ -87,7 +87,7 @@ foreach (['sessions', 'webform_submission', 'webform_submission_data', 'flood', 
   }
 }
 if ($schema->tableExists('users_field_data')) {
-  $nameFailed = (int) $db->query("SELECT COUNT(*) FROM {users_field_data} WHERE uid > 0 AND name NOT REGEXP '^preprod-user-[0-9]+$'")->fetchField() !== 0;
+  $nameFailed = (int) $db->query("SELECT COUNT(*) FROM {users_field_data} WHERE uid > 0 AND name <> CONCAT('preprod-user-', uid)")->fetchField() !== 0;
   $mailFailed = (int) $db->query("SELECT COUNT(*) FROM {users_field_data} WHERE uid > 0 AND mail NOT LIKE '%@example.invalid'")->fetchField() !== 0;
   $component = $classifyUserSanitizationAssertion($nameFailed, $mailFailed);
   if ($component !== NULL) {

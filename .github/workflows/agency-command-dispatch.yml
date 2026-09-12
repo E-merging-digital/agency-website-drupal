@@ -16,6 +16,7 @@ env:
       {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image ","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply","/agency-editorial-image-prod inspect","/agency-editorial-image-prod dry-run","/agency-editorial-image-prod apply"]},
       {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor ","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"},
       {"route":"DEVELOPMENT_SEED","prefix":"/agency-development-seed ","regex_template":"^/agency-development-seed publish seed-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [A-Za-z0-9._:-]{8,80} [0-9a-f]{40}$"},
+      {"route":"DEVELOPMENT_SEED_CLEANUP_PROOF","prefix":"/agency-development-seed-cleanup-proof ","regex":"^/agency-development-seed-cleanup-proof run=[1-9][0-9]* request=seed-956-[A-Za-z0-9._-]{8,40}-r1 main=[0-9a-f]{40}$"},
       {"route":"PREPROD_REFRESH_940_DIAGNOSTIC","prefix":"/agency-preprod-refresh-940-diagnostic ","exact":["/agency-preprod-refresh-940-diagnostic diagnose"]},
       {"route":"PREPROD_REFRESH_940_RECOVERY","prefix":"/agency-preprod-refresh-940-recovery ","exact":["/agency-preprod-refresh-940-recovery plan","/agency-preprod-refresh-940-recovery cleanup"]},
       {"route":"PREPROD_REFRESH_948_DETAIL","prefix":"/agency-preprod-refresh-948-detail ","exact":["/agency-preprod-refresh-948-detail diagnose"]},
@@ -62,6 +63,7 @@ jobs:
           routes = json.loads(os.environ['ROUTES_JSON'])
           incident_issue = {
               'DEVELOPMENT_SEED': '956',
+              'DEVELOPMENT_SEED_CLEANUP_PROOF': '956',
               'PREPROD_REFRESH_940_DIAGNOSTIC': '941',
               'PREPROD_REFRESH_940_RECOVERY': '943',
               'PREPROD_REFRESH_948_DETAIL': '949',
@@ -194,24 +196,6 @@ jobs:
   preprod-refresh-cockpit-plan:
     name: Route Cockpit human GitHub PREPROD PLAN
     needs: classify
-    if: ${{ needs.classify.outputs.route == 'PREPROD_REFRESH_COCKPIT_PLAN' }}
-    permissions:
-      contents: read
-      issues: read
-    uses: ./.github/workflows/preprod-914-governed-successor.yml
-    secrets:
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
-      PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
-      SERVER_HOST: ${{ secrets.SERVER_HOST }}
-      SERVER_USER: ${{ secrets.SERVER_USER }}
-      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
-
-  publish-cockpit-plan-receipt:
-    name: Publish Cockpit PREPROD PLAN receipt
-    needs:
-      - classify
-      - preprod-refresh-cockpit-plan
     if: >-
       ${{ github.event_name == 'issues'
           && github.event.action == 'opened'
@@ -266,6 +250,15 @@ jobs:
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  development-seed-cleanup-proof:
+    name: Route Development Seed cleanup absence proof
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'DEVELOPMENT_SEED_CLEANUP_PROOF' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/development-seed-cleanup-proof.yml
 
   preprod-refresh-940-diagnostic:
     name: Route #940 read-only PREPROD refresh diagnostic

@@ -212,12 +212,13 @@ eval($source);
 $result = $classifyUserSanitizationAssertion($nameFailed, $mailFailed);
 fwrite(STDOUT, $result === NULL ? "PASS\n" : $result . "\n");
 PHP;
-    foreach ([
-      [TRUE, FALSE, "USER_NAME\n"],
-      [FALSE, TRUE, "USER_MAIL\n"],
-      [TRUE, TRUE, "USER_NAME_AND_MAIL\n"],
-      [FALSE, FALSE, "PASS\n"],
-    ] as [$nameFailed, $mailFailed, $expected]) {
+    $classifierFixtures = [
+      'USER_NAME' => [TRUE, FALSE],
+      'USER_MAIL' => [FALSE, TRUE],
+      'USER_NAME_AND_MAIL' => [TRUE, TRUE],
+      'PASS' => [FALSE, FALSE],
+    ];
+    foreach ($classifierFixtures as $expectedComponent => [$nameFailed, $mailFailed]) {
       $process = proc_open(
         [
           PHP_BINARY,
@@ -238,7 +239,7 @@ PHP;
       fclose($pipes[1]);
       fclose($pipes[2]);
       self::assertSame(0, proc_close($process), (string) $stderr);
-      self::assertSame($expected, $stdout);
+      self::assertSame($expectedComponent . "\n", $stdout);
       self::assertSame('', $stderr);
     }
     foreach (['uid', 'username', 'email address', 'SELECT COUNT', 'fetchField'] as $forbidden) {
@@ -563,7 +564,7 @@ PHP;
       'SEED_SHA256=VERIFIED',
       'DATABASE_COMPATIBILITY=mariadb:11.8/FAIL_CLOSED',
       'IMPLICIT_RESET=NONE',
-      'RESET_DEFAULT_BACKUP=PRESERVED',
+      'RESET_DEFAULT_BACKUP_PRESERVED',
       'CORRUPT_HASH=FAIL_CLOSED',
       'UNSUPPORTED_DOWNGRADE=FAIL_CLOSED',
       'SIDE_EFFECT_ASSERTIONS=PASS',

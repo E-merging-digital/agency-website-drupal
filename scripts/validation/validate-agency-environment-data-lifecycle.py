@@ -18,7 +18,9 @@ PROFILE = ROOT / 'scripts/preproduction-refresh/governed-successor/profile.json'
 CONTROL = ROOT / 'scripts/preproduction-refresh/governed-successor/run-server-to-server-apply.sh'
 PREP = ROOT / 'scripts/preproduction-refresh/governed-successor/remote-server-to-server-worker.py'
 ACTIVATION = ROOT / 'scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh'
-PROVIDER = ROOT / '.ddev/providers/agency.yaml'
+NATIVE_DDEV_CONFIG = ROOT / '.ddev/config.development-seed.yaml'
+NATIVE_SEED_HELPER = ROOT / 'scripts/development-seed/use-native-seed.sh'
+OBSOLETE_PROVIDER = ROOT / '.ddev/providers/agency.yaml'
 
 ACTIVE_REUSABLE_WORKFLOWS = (
     '.github/workflows/promote-production.yml',
@@ -62,7 +64,7 @@ def job_runs_on(workflow: str, job: str, expected: str) -> bool:
 def main() -> int:
     required_paths = (
         DOC, REGISTRY, REFRESH, SUCCESSOR, DISPATCHER, WORKFLOW, POLICY, PROFILE,
-        CONTROL, PREP, ACTIVATION, PROVIDER,
+        CONTROL, PREP, ACTIVATION, NATIVE_DDEV_CONFIG, NATIVE_SEED_HELPER,
     )
     for path in required_paths:
         require(path.is_file(), f'required current path missing: {path.relative_to(ROOT)}')
@@ -76,7 +78,8 @@ def main() -> int:
     control = CONTROL.read_text(encoding='utf-8')
     prep = PREP.read_text(encoding='utf-8')
     activation = ACTIVATION.read_text(encoding='utf-8')
-    provider = PROVIDER.read_text(encoding='utf-8')
+    native_ddev_config = NATIVE_DDEV_CONFIG.read_text(encoding='utf-8')
+    native_seed_helper = NATIVE_SEED_HELPER.read_text(encoding='utf-8')
     policy = json.loads(POLICY.read_text(encoding='utf-8'))
     profile = json.loads(PROFILE.read_text(encoding='utf-8'))
     current_docs = '\n'.join((doc, registry, refresh, successor))
@@ -220,8 +223,28 @@ def main() -> int:
 
     require('DDEV_PUSH = NONE' in doc and 'DDEV_PUSH = NONE' in registry,
             'DDEV push prohibition missing')
-    require('db_push_command' not in provider and 'files_push_command' not in provider,
-            'DDEV provider exposes upstream push')
+    require(not OBSOLETE_PROVIDER.exists(), 'obsolete DDEV provider was reintroduced')
+    require(
+        re.search(
+            r'(?m)^ddev_version_constraint:\s*["\']>=1\.25\.4["\']\s*$',
+            native_ddev_config,
+        ) is not None,
+        'Development Seed DDEV >=1.25.4 compatibility declaration missing',
+    )
+    ddev_start_lines = [
+        line.strip()
+        for line in native_seed_helper.splitlines()
+        if line.strip().startswith('ddev start')
+    ]
+    require(
+        ddev_start_lines == [
+            'ddev start --seed-snapshot="$final_snapshot"',
+            'ddev start --reset-database --seed-snapshot="$final_snapshot"',
+        ],
+        'Development Seed helper gained implicit or alternate DDEV start semantics',
+    )
+    require('ddev push' not in native_seed_helper.lower(),
+            'Development Seed helper exposes DDEV push')
 
     editorial_current = (
         'EDITORIAL_CANDIDATE_V1 = SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN',
@@ -317,6 +340,11 @@ def main() -> int:
     print('RAW_STAGING_CLEANUP=PROVEN_BEFORE_ACTIVATION')
     print('PROD_IDENTITY_STAGE_CLEANUP=PROVEN_BEFORE_ACTIVATION')
     print('EXISTING_REMOTE_APPLY_WORKER=REUSED')
+    print('CURRENT_NATIVE_DDEV_CONFIG=REQUIRED')
+    print('OBSOLETE_DDEV_PROVIDER=ABSENT')
+    print('DDEV_NATIVE_SEED_CONTRACT=PASS')
+    print('DDEV_NATIVE_RESET_CONTRACT=PASS')
+    print('IMPLICIT_RESET=NONE')
     print('DDEV_PUSH=NONE')
     print('DEVELOPMENT_SEED_BLOCKED_BY_816=NO')
     print('DEVELOPMENT_SEED_REAL_SERVICE=STILL_PENDING')

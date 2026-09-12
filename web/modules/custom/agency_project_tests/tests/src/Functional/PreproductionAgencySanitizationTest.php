@@ -33,6 +33,9 @@ final class PreproductionAgencySanitizationTest extends BrowserTestBase {
    */
   public function testExactUsernameSanitizationContract(): void {
     $db = \Drupal::database();
+    if ($db->databaseType() !== 'mysql') {
+      $this->markTestSkipped('This integration proof requires the MySQL/MariaDB driver used by the governed sanitizer.');
+    }
     $first = User::create([
       'name' => 'synthetic-unsanitized-user',
       'mail' => 'synthetic-first@example.invalid',

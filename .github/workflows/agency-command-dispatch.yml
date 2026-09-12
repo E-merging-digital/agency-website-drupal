@@ -15,8 +15,7 @@ env:
       {"route":"EDITORIAL_PREPROD_CANDIDATE","prefix":"/agency-editorial-candidate ","exact":["/agency-editorial-candidate inspect","/agency-editorial-candidate dry-run","/agency-editorial-candidate apply"]},
       {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image ","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply","/agency-editorial-image-prod inspect","/agency-editorial-image-prod dry-run","/agency-editorial-image-prod apply"]},
       {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor ","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"},
-      {"route":"DEVELOPMENT_SEED","prefix":"/agency-development-seed ","regex_template":"^/agency-development-seed publish seed-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [A-Za-z0-9._:-]{8,80} [0-9a-f]{40}$"},
-      {"route":"DEVELOPMENT_SEED_CLEANUP_PROOF","prefix":"/agency-development-seed-cleanup-proof ","regex":"^/agency-development-seed-cleanup-proof run=[1-9][0-9]* request=seed-956-[A-Za-z0-9._-]{8,40}-r1 main=[0-9a-f]{40}$"},
+      {"route":"DEVELOPMENT_SEED","prefix":"/agency-development-seed ","regex_template":"^/agency-development-seed publish seed-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [A-Za-z0-9._:-]{8,80} [0-9a-f]{40}$","cleanup_route":"DEVELOPMENT_SEED_CLEANUP_PROOF","cleanup_prefix":"/agency-development-seed-cleanup-proof ","cleanup_regex":"^/agency-development-seed-cleanup-proof run=[1-9][0-9]* request=seed-956-[A-Za-z0-9._-]{8,40}-r1 main=[0-9a-f]{40}$"},
       {"route":"PREPROD_REFRESH_940_DIAGNOSTIC","prefix":"/agency-preprod-refresh-940-diagnostic ","exact":["/agency-preprod-refresh-940-diagnostic diagnose"]},
       {"route":"PREPROD_REFRESH_940_RECOVERY","prefix":"/agency-preprod-refresh-940-recovery ","exact":["/agency-preprod-refresh-940-recovery plan","/agency-preprod-refresh-940-recovery cleanup"]},
       {"route":"PREPROD_REFRESH_948_DETAIL","prefix":"/agency-preprod-refresh-948-detail ","exact":["/agency-preprod-refresh-948-detail diagnose"]},
@@ -92,6 +91,12 @@ jobs:
                       matched = matched or re.fullmatch(template.replace('{issue}', re.escape(issue)), body) is not None
                   if matched:
                       matches.append(spec['route'])
+                  cleanup_route = spec.get('cleanup_route')
+                  cleanup_pattern = spec.get('cleanup_regex')
+                  if spec['route'] == 'DEVELOPMENT_SEED' and cleanup_route is not None and cleanup_pattern is not None:
+                      cleanup_required_issue = incident_issue.get(cleanup_route)
+                      if issue == cleanup_required_issue and re.fullmatch(cleanup_pattern, body) is not None:
+                          matches.append(cleanup_route)
               route = matches[0] if len(matches) == 1 else 'NONE'
           elif not is_pr and event_name == 'issues' and event_action == 'opened':
               marker = (

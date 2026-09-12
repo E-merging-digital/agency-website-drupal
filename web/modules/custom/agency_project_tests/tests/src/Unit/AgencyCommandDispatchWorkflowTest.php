@@ -25,7 +25,6 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'EDITORIAL_FEATURE_IMAGE' => '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
     'DEVELOPMENT_SEED' => '.github/workflows/development-seed-publish.yml',
-    'DEVELOPMENT_SEED_CLEANUP_PROOF' => '.github/workflows/development-seed-cleanup-proof.yml',
     'PREPROD_REFRESH_940_DIAGNOSTIC' => '.github/workflows/preprod-refresh-940-diagnostic.yml',
     'PREPROD_REFRESH_940_RECOVERY' => '.github/workflows/preprod-refresh-940-recovery.yml',
     'PREPROD_REFRESH_948_DETAIL' => '.github/workflows/preprod-refresh-948-detail-diagnostic.yml',
@@ -75,7 +74,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(15, $routes);
+    self::assertCount(14, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -83,6 +82,14 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
 
     $prefixes = array_column($routes, 'prefix');
     self::assertCount(count($prefixes), array_unique($prefixes));
+    $developmentSeed = $routes[array_search('DEVELOPMENT_SEED', $routeNames, TRUE)] ?? NULL;
+    self::assertIsArray($developmentSeed);
+    self::assertSame('DEVELOPMENT_SEED_CLEANUP_PROOF', $developmentSeed['cleanup_route'] ?? NULL);
+    self::assertSame('/agency-development-seed-cleanup-proof ', $developmentSeed['cleanup_prefix'] ?? NULL);
+    self::assertSame(
+      '^/agency-development-seed-cleanup-proof run=[1-9][0-9]* request=seed-956-[A-Za-z0-9._-]{8,40}-r1 main=[0-9a-f]{40}$',
+      $developmentSeed['cleanup_regex'] ?? NULL,
+    );
     foreach ($prefixes as $index => $prefix) {
       foreach ($prefixes as $otherIndex => $otherPrefix) {
         if ($index === $otherIndex) {
@@ -426,7 +433,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     foreach ($jobMap as $jobId => [$route, $permissions, $secretNames]) {
       $job = $jobs[$jobId] ?? NULL;
       self::assertIsArray($job, $jobId);
-      self::assertSame('./' . self::REUSABLES[$route], $job['uses'] ?? NULL);
+      $expectedReusable = $route === 'DEVELOPMENT_SEED_CLEANUP_PROOF'
+        ? './.github/workflows/development-seed-cleanup-proof.yml'
+        : './' . self::REUSABLES[$route];
+      self::assertSame($expectedReusable, $job['uses'] ?? NULL);
       self::assertSame($permissions, $job['permissions'] ?? NULL);
       self::assertSame($secretNames, array_keys($job['secrets'] ?? []));
       self::assertStringContainsString(
@@ -435,7 +445,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       );
     }
 
-    foreach (self::REUSABLES as $path) {
+    foreach ([...array_values(self::REUSABLES), '.github/workflows/development-seed-cleanup-proof.yml'] as $path) {
       $workflow = $this->parsed($path);
       $on = $workflow['on'] ?? NULL;
       self::assertIsArray($on, $path);
@@ -480,6 +490,15 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       }
       if ($matched) {
         $matches[] = $routeName;
+      }
+      $cleanupRoute = $route['cleanup_route'] ?? NULL;
+      $cleanupPattern = $route['cleanup_regex'] ?? NULL;
+      if ($routeName === 'DEVELOPMENT_SEED' && is_string($cleanupRoute) && is_string($cleanupPattern)) {
+        $cleanupIssue = self::INCIDENT_ISSUES[$cleanupRoute] ?? NULL;
+        $regex = '~' . str_replace('~', '\\~', $cleanupPattern) . '~D';
+        if ($issue === $cleanupIssue && preg_match($regex, $body) === 1) {
+          $matches[] = $cleanupRoute;
+        }
       }
     }
     return count($matches) === 1 ? $matches[0] : 'NONE';

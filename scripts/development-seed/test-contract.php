@@ -94,7 +94,7 @@ assert_true(str_contains($workflow, 'runs-on: [self-hosted, linux, x64, agency, 
 assert_true(!str_contains($workflow, 'actions/upload-artifact'), 'Development Seed workflow may not upload a database artifact.');
 assert_true(str_contains($workflow, 'JIT revalidate authority before PREPROD secret materialization'), 'JIT-before-secret boundary is missing.');
 
-assert_true(str_contains($dispatcher, '"route":"DEVELOPMENT_SEED_CLEANUP_PROOF"'), 'Cleanup-proof route is missing.');
+assert_true(str_contains($dispatcher, '"cleanup_route":"DEVELOPMENT_SEED_CLEANUP_PROOF"'), 'Cleanup-proof route is missing.');
 assert_true(str_contains($dispatcher, "'DEVELOPMENT_SEED_CLEANUP_PROOF': '956'"), 'Cleanup-proof route is not bounded to #956.');
 assert_true(str_contains($dispatcher, 'uses: ./.github/workflows/development-seed-cleanup-proof.yml'), 'Cleanup-proof reusable workflow is not routed.');
 $cleanupJobStart = strpos($dispatcher, "  development-seed-cleanup-proof:\n");

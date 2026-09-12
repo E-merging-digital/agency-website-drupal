@@ -110,7 +110,7 @@ final class DevelopmentSeedContractTest extends TestCase {
   }
 
   /**
-   * Proves #1121 sanitize failures stay bounded and privacy-safe.
+   * Proves #1121/#1138 sanitize diagnostics stay bounded and privacy-safe.
    */
   public function testPublisherSanitizeFailureDiagnosticContract(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -162,6 +162,189 @@ final class DevelopmentSeedContractTest extends TestCase {
     self::assertStringNotContainsString('sanitize_diagnostic', $workflow);
     self::assertStringContainsString('SANITIZE_DIAGNOSTIC_CLEANUP=FAIL', $publisher);
     self::assertStringContainsString('sanitize plugin is using a deprecated API', $publisher);
+
+    $agencySanitizer = file_get_contents(
+      $root . '/scripts/preproduction-refresh/governed-successor/agency-sanitize.php',
+    );
+    self::assertIsString($agencySanitizer);
+    self::assertStringContainsString(
+      "name NOT REGEXP '^preprod-user-[0-9]+$'",
+      $agencySanitizer,
+    );
+    self::assertStringContainsString(
+      "mail NOT LIKE '%@example.invalid'",
+      $agencySanitizer,
+    );
+    self::assertStringNotContainsString(
+      "name NOT REGEXP '^preprod-user-[0-9]+$' OR mail NOT LIKE '%@example.invalid'",
+      $agencySanitizer,
+    );
+    self::assertStringContainsString(
+      'USER_SANITIZATION_ASSERTION_COMPONENT = {$component}',
+      $agencySanitizer,
+    );
+    self::assertStringNotContainsString(
+      'Drush/Agency user sanitization assertion failed.',
+      $agencySanitizer,
+    );
+    self::assertStringContainsString(
+      "->expression('name', \"CONCAT('preprod-user-', uid)\")",
+      $agencySanitizer,
+    );
+
+    $classifierStart = strpos(
+      $agencySanitizer,
+      '$classifyUserSanitizationAssertion = static function',
+    );
+    $classifierEnd = strpos($agencySanitizer, "\n};", $classifierStart);
+    self::assertIsInt($classifierStart);
+    self::assertIsInt($classifierEnd);
+    $classifierSource = substr(
+      $agencySanitizer,
+      $classifierStart,
+      $classifierEnd - $classifierStart + 3,
+    );
+    $classifierRunner = <<<'PHP'
+$source = $argv[1];
+$nameFailed = $argv[2] === '1';
+$mailFailed = $argv[3] === '1';
+eval($source);
+$result = $classifyUserSanitizationAssertion($nameFailed, $mailFailed);
+fwrite(STDOUT, $result === NULL ? "PASS\n" : $result . "\n");
+PHP;
+    $classifierFixtures = [
+      'USER_NAME' => [TRUE, FALSE],
+      'USER_MAIL' => [FALSE, TRUE],
+      'USER_NAME_AND_MAIL' => [TRUE, TRUE],
+      'PASS' => [FALSE, FALSE],
+    ];
+    foreach ($classifierFixtures as $expectedComponent => [$nameFailed, $mailFailed]) {
+      $process = proc_open(
+        [
+          PHP_BINARY,
+          '-r',
+          $classifierRunner,
+          $classifierSource,
+          $nameFailed ? '1' : '0',
+          $mailFailed ? '1' : '0',
+        ],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root,
+      );
+      self::assertIsResource($process);
+      fclose($pipes[0]);
+      $stdout = stream_get_contents($pipes[1]);
+      $stderr = stream_get_contents($pipes[2]);
+      fclose($pipes[1]);
+      fclose($pipes[2]);
+      self::assertSame(0, proc_close($process), (string) $stderr);
+      self::assertSame($expectedComponent . "\n", $stdout);
+      self::assertSame('', $stderr);
+    }
+    foreach (['uid', 'username', 'email address', 'SELECT COUNT', 'fetchField'] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $classifierSource);
+    }
+
+    $markerStart = strpos($publisher, 'drush_user_email_sanitizer_completed() {');
+    $markerEnd = strpos(
+      $publisher,
+      "\n}\n\ndelete_sanitize_diagnostic() {",
+      $markerStart,
+    );
+    self::assertIsInt($markerStart);
+    self::assertIsInt($markerEnd);
+    $markerFunction = substr($publisher, $markerStart, $markerEnd - $markerStart + 2);
+    self::assertStringContainsString(
+      "grep -Fxq -- 'User emails sanitized.'",
+      $markerFunction,
+    );
+    foreach ([
+      ["User emails sanitized.\n", "YES\n"],
+      ["User email sanitized.\n", "NO\n"],
+      ["prefix User emails sanitized. suffix\n", "NO\n"],
+      ["opaque user@example.test secret=synthetic-only\n", "NO\n"],
+    ] as [$rawDiagnostic, $expectedMarker]) {
+      $diagnostic = tempnam(sys_get_temp_dir(), 'sanitize-user-marker-');
+      self::assertIsString($diagnostic);
+      self::assertNotFalse(file_put_contents($diagnostic, $rawDiagnostic));
+      chmod($diagnostic, 0600);
+      $script = $markerFunction . "\ndrush_user_email_sanitizer_completed \"\$1\"\n";
+      $process = proc_open(
+        ['bash', '-c', $script, 'marker-test', $diagnostic],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root,
+      );
+      self::assertIsResource($process);
+      fclose($pipes[0]);
+      $stdout = stream_get_contents($pipes[1]);
+      $stderr = stream_get_contents($pipes[2]);
+      fclose($pipes[1]);
+      fclose($pipes[2]);
+      $exitCode = proc_close($process);
+      unlink($diagnostic);
+      self::assertSame(0, $exitCode, (string) $stderr);
+      self::assertSame($expectedMarker, $stdout);
+      self::assertSame('', $stderr);
+      self::assertStringNotContainsString('user@example.test', $stdout);
+      self::assertStringNotContainsString('secret=synthetic-only', $stdout);
+    }
+    self::assertStringContainsString(
+      "printf 'DRUSH_USER_EMAIL_SANITIZER_COMPLETED = %s\\n'",
+      $publisher,
+    );
+
+    $cleanupStart = strpos($publisher, 'delete_sanitize_diagnostic() {');
+    $cleanupEnd = strpos(
+      $publisher,
+      "\n}\n\nclassify_sanitize_failure() {",
+      $cleanupStart,
+    );
+    self::assertIsInt($cleanupStart);
+    self::assertIsInt($cleanupEnd);
+    $cleanupFunction = substr($publisher, $cleanupStart, $cleanupEnd - $cleanupStart + 2);
+    self::assertSame(2, substr_count($publisher, 'delete_sanitize_diagnostic "$sanitize_diagnostic"'));
+
+    $cleanupFile = tempnam(sys_get_temp_dir(), 'sanitize-cleanup-success-');
+    self::assertIsString($cleanupFile);
+    chmod($cleanupFile, 0600);
+    $cleanupScript = $cleanupFunction . "\ndelete_sanitize_diagnostic \"\$1\"\n";
+    $process = proc_open(
+      ['bash', '-c', $cleanupScript, 'cleanup-success', $cleanupFile],
+      [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+      $pipes,
+      $root,
+    );
+    self::assertIsResource($process);
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    self::assertSame(0, proc_close($process), (string) $stderr);
+    self::assertSame('', $stdout);
+    self::assertSame('', $stderr);
+    self::assertFileDoesNotExist($cleanupFile);
+
+    $failureScript = "rm() { return 1; }\n" . $cleanupFunction
+      . "\ndelete_sanitize_diagnostic \"\$1\"\n";
+    $failurePath = sys_get_temp_dir() . '/sanitize-cleanup-synthetic';
+    $process = proc_open(
+      ['bash', '-c', $failureScript, 'cleanup-failure', $failurePath],
+      [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+      $pipes,
+      $root,
+    );
+    self::assertIsResource($process);
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    self::assertSame(98, proc_close($process));
+    self::assertSame('', $stdout);
+    self::assertSame("SANITIZE_DIAGNOSTIC_CLEANUP=FAIL\n", $stderr);
 
     $componentStart = strpos($publisher, 'classify_sanitize_component() {');
     $componentEnd = strpos(

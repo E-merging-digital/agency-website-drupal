@@ -17,6 +17,19 @@ if (PHP_SAPI !== 'cli') {
 $db = \Drupal::database();
 $schema = $db->schema();
 
+$classifyUserSanitizationAssertion = static function (bool $nameFailed, bool $mailFailed): ?string {
+  if ($nameFailed && $mailFailed) {
+    return 'USER_NAME_AND_MAIL';
+  }
+  if ($nameFailed) {
+    return 'USER_NAME';
+  }
+  if ($mailFailed) {
+    return 'USER_MAIL';
+  }
+  return NULL;
+};
+
 $truncate = static function (string $table) use ($db, $schema): void {
   if ($schema->tableExists($table)) {
     $db->truncate($table)->execute();
@@ -74,9 +87,11 @@ foreach (['sessions', 'webform_submission', 'webform_submission_data', 'flood', 
   }
 }
 if ($schema->tableExists('users_field_data')) {
-  $bad = (int) $db->query("SELECT COUNT(*) FROM {users_field_data} WHERE uid > 0 AND (name NOT REGEXP '^preprod-user-[0-9]+$' OR mail NOT LIKE '%@example.invalid')")->fetchField();
-  if ($bad !== 0) {
-    throw new RuntimeException('Drush/Agency user sanitization assertion failed.');
+  $nameFailed = (int) $db->query("SELECT COUNT(*) FROM {users_field_data} WHERE uid > 0 AND name NOT REGEXP '^preprod-user-[0-9]+$'")->fetchField() !== 0;
+  $mailFailed = (int) $db->query("SELECT COUNT(*) FROM {users_field_data} WHERE uid > 0 AND mail NOT LIKE '%@example.invalid'")->fetchField() !== 0;
+  $component = $classifyUserSanitizationAssertion($nameFailed, $mailFailed);
+  if ($component !== NULL) {
+    throw new RuntimeException("USER_SANITIZATION_ASSERTION_COMPONENT = {$component}");
   }
 }
 if ($schema->tableExists('config')) {

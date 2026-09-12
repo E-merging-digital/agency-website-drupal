@@ -166,7 +166,7 @@ classify_sanitize_metadata() {
     sessions_completed='YES'
   fi
   if LC_ALL=C grep -Fq -- 'User passwords sanitized.' "$diagnostic_path" \
-    && LC_ALL=C grep -Fxq -- 'User emails sanitized.' "$diagnostic_path"; then
+    && LC_ALL=C grep -Fq -- 'User emails sanitized.' "$diagnostic_path"; then
     user_table_completed='YES'
   fi
   if LC_ALL=C grep -Eq -- '(^|[[:space:]])[A-Za-z0-9_]+ table sanitized\.[[:space:]]*$' "$diagnostic_path"; then

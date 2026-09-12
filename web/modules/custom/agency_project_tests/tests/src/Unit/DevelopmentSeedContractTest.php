@@ -168,7 +168,11 @@ final class DevelopmentSeedContractTest extends TestCase {
     );
     self::assertIsString($agencySanitizer);
     self::assertStringContainsString(
-      "name NOT REGEXP '^preprod-user-[0-9]+$'",
+      "name <> CONCAT('preprod-user-', uid)",
+      $agencySanitizer,
+    );
+    self::assertStringNotContainsString(
+      'name NOT REGEXP',
       $agencySanitizer,
     );
     self::assertStringContainsString(
@@ -176,7 +180,7 @@ final class DevelopmentSeedContractTest extends TestCase {
       $agencySanitizer,
     );
     self::assertStringNotContainsString(
-      "name NOT REGEXP '^preprod-user-[0-9]+$' OR mail NOT LIKE '%@example.invalid'",
+      "name <> CONCAT('preprod-user-', uid) OR mail NOT LIKE '%@example.invalid'",
       $agencySanitizer,
     );
     self::assertStringContainsString(
@@ -256,14 +260,17 @@ PHP;
     self::assertIsInt($markerEnd);
     $markerFunction = substr($publisher, $markerStart, $markerEnd - $markerStart + 2);
     self::assertStringContainsString(
-      "grep -Fxq -- 'User emails sanitized.'",
+      "grep -Eq -- '^[[:space:]]*(\\[success\\][[:space:]]+)?User emails sanitized\\.([[:space:]]+\\[[^][]+\\])?[[:space:]]*$'",
       $markerFunction,
     );
     foreach ([
       ["User emails sanitized.\n", "YES\n"],
+      [" [success] User emails sanitized. [synthetic timing/memory]\n", "YES\n"],
+      ["[success] Something else happened.\n", "NO\n"],
+      ["User emails sanitized incorrectly.\n", "NO\n"],
       ["User email sanitized.\n", "NO\n"],
-      ["prefix User emails sanitized. suffix\n", "NO\n"],
       ["opaque user@example.test secret=synthetic-only\n", "NO\n"],
+      ["marker absent\n", "NO\n"],
     ] as [$rawDiagnostic, $expectedMarker]) {
       $diagnostic = tempnam(sys_get_temp_dir(), 'sanitize-user-marker-');
       self::assertIsString($diagnostic);

@@ -183,7 +183,7 @@ classify_sanitize_metadata() {
 
 drush_user_email_sanitizer_completed() {
   local diagnostic_path="$1"
-  if LC_ALL=C grep -Fxq -- 'User emails sanitized.' "$diagnostic_path"; then
+  if LC_ALL=C grep -Eq -- '^[[:space:]]*(\[success\][[:space:]]+)?User emails sanitized\.([[:space:]]+\[[^][]+\])?[[:space:]]*$' "$diagnostic_path"; then
     printf 'YES\n'
   else
     printf 'NO\n'

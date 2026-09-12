@@ -166,7 +166,7 @@ classify_sanitize_metadata() {
     sessions_completed='YES'
   fi
   if LC_ALL=C grep -Fq -- 'User passwords sanitized.' "$diagnostic_path" \
-    && LC_ALL=C grep -Fq -- 'User emails sanitized.' "$diagnostic_path"; then
+    && LC_ALL=C grep -Fxq -- 'User emails sanitized.' "$diagnostic_path"; then
     user_table_completed='YES'
   fi
   if LC_ALL=C grep -Eq -- '(^|[[:space:]])[A-Za-z0-9_]+ table sanitized\.[[:space:]]*$' "$diagnostic_path"; then
@@ -179,6 +179,23 @@ classify_sanitize_metadata() {
   printf 'SANITIZE_CORE_SESSIONS_COMPLETED=%s\n' "$sessions_completed"
   printf 'SANITIZE_CORE_USER_TABLE_COMPLETED=%s\n' "$user_table_completed"
   printf 'SANITIZE_CORE_USER_FIELDS_ACTIVITY=%s\n' "$user_fields_activity"
+}
+
+drush_user_email_sanitizer_completed() {
+  local diagnostic_path="$1"
+  if LC_ALL=C grep -Fxq -- 'User emails sanitized.' "$diagnostic_path"; then
+    printf 'YES\n'
+  else
+    printf 'NO\n'
+  fi
+}
+
+delete_sanitize_diagnostic() {
+  local diagnostic_path="$1"
+  if ! rm -f -- "$diagnostic_path" || [[ -e "$diagnostic_path" ]]; then
+    printf 'SANITIZE_DIAGNOSTIC_CLEANUP=FAIL\n' >&2
+    return 98
+  fi
 }
 
 classify_sanitize_failure() {
@@ -302,13 +319,17 @@ if (
     --sanitize-email='user+%uid@example.invalid' \
     --sanitize-password="$seed_password"
 ) > "$sanitize_diagnostic" 2>&1; then
-  rm -f -- "$sanitize_diagnostic"
-  [[ ! -e "$sanitize_diagnostic" ]]
+  drush_user_email_completed="$(drush_user_email_sanitizer_completed "$sanitize_diagnostic")"
+  printf 'DRUSH_USER_EMAIL_SANITIZER_COMPLETED = %s\n' "$drush_user_email_completed"
+  if ! delete_sanitize_diagnostic "$sanitize_diagnostic"; then
+    unset seed_password drush_user_email_completed
+    exit 98
+  fi
+  unset drush_user_email_completed
 else
   sanitize_exit=$?
   classify_sanitize_failure "$sanitize_diagnostic" "$sanitize_exit"
-  if ! rm -f -- "$sanitize_diagnostic" || [[ -e "$sanitize_diagnostic" ]]; then
-    printf 'SANITIZE_DIAGNOSTIC_CLEANUP=FAIL\n' >&2
+  if ! delete_sanitize_diagnostic "$sanitize_diagnostic"; then
     unset seed_password
     exit 98
   fi

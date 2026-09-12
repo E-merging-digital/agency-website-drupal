@@ -44,12 +44,14 @@ $localConverge = file_get_contents(__DIR__ . '/local-converge.php');
 $docs = file_get_contents($root . '/docs/operations/development-seed.md');
 $dispatcher = file_get_contents($root . '/.github/workflows/agency-command-dispatch.yml');
 $workflow = file_get_contents($root . '/.github/workflows/development-seed-publish.yml');
+$cleanupWorkflow = file_get_contents($root . '/.github/workflows/development-seed-cleanup-proof.yml');
+$cleanupProof = file_get_contents(__DIR__ . '/prove-cleanup-absence.sh');
 $publisher = file_get_contents(__DIR__ . '/run-publish.sh');
 $source = file_get_contents(__DIR__ . '/remote-readonly-preprod-source.sh');
 $storage = file_get_contents(__DIR__ . '/remote-storage.sh');
 $reader = file_get_contents(__DIR__ . '/remote-read-only-scp.sh');
 $readerKey = file_get_contents(__DIR__ . '/remote-reader-key.sh');
-foreach ([$ddevConfig, $consumer, $policyRaw, $devSanitizer, $localConverge, $docs, $dispatcher, $workflow, $publisher, $source, $storage, $reader, $readerKey] as $content) {
+foreach ([$ddevConfig, $consumer, $policyRaw, $devSanitizer, $localConverge, $docs, $dispatcher, $workflow, $cleanupWorkflow, $cleanupProof, $publisher, $source, $storage, $reader, $readerKey] as $content) {
   assert_true(is_string($content), 'Required Development Seed contract file is unreadable.');
 }
 assert_true(!is_file($root . '/.ddev/providers/agency.yaml'), 'Legacy SQL ddev pull provider must be removed.');
@@ -91,6 +93,54 @@ assert_true(str_contains($dispatcher, 'uses: ./.github/workflows/development-see
 assert_true(str_contains($workflow, 'runs-on: [self-hosted, linux, x64, agency, ddev]'), 'Real seed bytes are not confined to the trusted DDEV runner.');
 assert_true(!str_contains($workflow, 'actions/upload-artifact'), 'Development Seed workflow may not upload a database artifact.');
 assert_true(str_contains($workflow, 'JIT revalidate authority before PREPROD secret materialization'), 'JIT-before-secret boundary is missing.');
+
+assert_true(str_contains($dispatcher, '"route":"DEVELOPMENT_SEED_CLEANUP_PROOF"'), 'Cleanup-proof route is missing.');
+assert_true(str_contains($dispatcher, "'DEVELOPMENT_SEED_CLEANUP_PROOF': '956'"), 'Cleanup-proof route is not bounded to #956.');
+assert_true(str_contains($dispatcher, 'uses: ./.github/workflows/development-seed-cleanup-proof.yml'), 'Cleanup-proof reusable workflow is not routed.');
+$cleanupJobStart = strpos($dispatcher, "  development-seed-cleanup-proof:\n");
+$cleanupJobEnd = strpos($dispatcher, "\n  preprod-refresh-940-diagnostic:\n", $cleanupJobStart);
+assert_true(is_int($cleanupJobStart) && is_int($cleanupJobEnd), 'Cleanup-proof dispatcher job boundary is missing.');
+$cleanupDispatcherJob = substr($dispatcher, $cleanupJobStart, $cleanupJobEnd - $cleanupJobStart);
+assert_true(!str_contains($cleanupDispatcherJob, 'secrets:'), 'Cleanup-proof dispatcher route must not map secrets.');
+assert_true(str_contains($cleanupWorkflow, 'workflow_call:'), 'Cleanup-proof workflow is not reusable from the dispatcher.');
+assert_true(!str_contains($cleanupWorkflow, 'issue_comment:'), 'Cleanup-proof workflow added a second top-level issue_comment listener.');
+assert_true(str_contains($cleanupWorkflow, 'runs-on: [self-hosted, linux, x64, agency, ddev]'), 'Cleanup proof is not confined to the trusted Agency/DDEV runner.');
+assert_true(str_contains($cleanupWorkflow, "[[ \"\$RUNNER_ENVIRONMENT\" == 'self-hosted' ]]"), 'Cleanup proof does not verify self-hosted execution.');
+assert_true(str_contains($cleanupWorkflow, "[[ \"\$hostname_value\" == 'preflight-runner-01' ]]"), 'Cleanup proof does not bind the proven trusted hostname.');
+assert_true(str_contains($cleanupWorkflow, "[[ \"\$RUNNER_TEMP\" == '/opt/actions-runner-agency/_work/_temp' ]]"), 'Cleanup proof does not bind the Agency runner temp root.');
+assert_true(str_contains($cleanupWorkflow, 'stale cleanup-proof main'), 'Cleanup proof does not reject stale main authority.');
+assert_true(str_contains($cleanupWorkflow, 'request=(seed-956-[A-Za-z0-9._-]{8,40}-r1)'), 'Cleanup-proof request syntax is not bounded.');
+assert_true(str_contains($cleanupWorkflow, 'run=([1-9][0-9]*)'), 'Cleanup-proof run id syntax is not bounded.');
+assert_true(!str_contains($cleanupWorkflow, 'secrets:'), 'Cleanup-proof workflow must declare no secrets.');
+foreach (['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST', 'SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER'] as $secret) {
+  assert_true(!str_contains($cleanupWorkflow, $secret), "Cleanup-proof workflow references forbidden secret surface: {$secret}");
+}
+assert_true(str_contains($cleanupWorkflow, '### Agency Development Seed cleanup absence proof'), 'Bounded cleanup-proof receipt is missing.');
+assert_true(str_contains($cleanupWorkflow, 'CLEANUP_GATE=${GATE}'), 'Cleanup-proof receipt does not publish the derived gate.');
+assert_true(str_contains($cleanupProof, 'ddev list -j'), 'Cleanup proof does not check DDEV project inventory.');
+assert_true(str_contains($cleanupProof, 'docker ps -aq --filter "label=com.ddev.site-name=$failed_ddev_project"'), 'Cleanup proof does not exactly filter DDEV containers.');
+assert_true(str_contains($cleanupProof, 'docker volume ls -q --filter "label=com.docker.compose.project=ddev-$failed_ddev_project"'), 'Cleanup proof does not exactly filter DDEV volumes.');
+foreach ([
+  '$runner_temp/$failed_request.raw-preprod.sql',
+  '$runner_temp/$failed_request.sql-sanitize.diagnostic',
+  '$runner_temp/$failed_request.known_hosts',
+  '$runner_temp/$failed_request-generation',
+  '$runner_temp/$failed_request-proof',
+  '$runner_temp/$failed_request.reader',
+  '$runner_temp/$failed_request.reader.pub',
+  '$runner_temp/$failed_request-proof-cache',
+] as $pathContract) {
+  assert_true(str_contains($cleanupProof, $pathContract), "Cleanup-proof request path is missing: {$pathContract}");
+}
+foreach (['rm -', 'unlink ', 'ddev stop', 'ddev delete', 'docker rm', 'docker stop', 'docker kill', 'docker volume rm', 'docker compose down', 'git worktree remove', 'chmod ', 'chown ', 'sudo ', 'ssh ', 'scp '] as $forbidden) {
+  assert_true(!str_contains($cleanupProof, $forbidden), "Cleanup proof contains forbidden mutation/network primitive: {$forbidden}");
+}
+foreach (['cat ', 'head ', 'tail ', 'less ', 'strings ', 'xxd ', 'hexdump ', 'grep '] as $forbiddenRead) {
+  assert_true(!str_contains($cleanupProof, $forbiddenRead), "Cleanup proof contains forbidden content-read primitive: {$forbiddenRead}");
+}
+assert_true(str_contains($cleanupProof, 'CONTENT_READ=NONE'), 'Cleanup proof does not emit CONTENT_READ=NONE.');
+assert_true(str_contains($cleanupProof, 'DELETE=NONE'), 'Cleanup proof does not emit DELETE=NONE.');
+assert_true(str_contains($cleanupProof, "cleanup_gate='NOT_PROVEN'"), 'Cleanup proof does not fail closed.');
 
 // Source remains fixed read-only PREPROD and is unchanged by #1108.
 assert_true(str_contains($source, "PROJECT_ROOT='/var/www/agency-preprod'"), 'Fixed PREPROD source root is missing.');
@@ -152,6 +202,124 @@ assert_true(!str_contains($docs, 'ddev pull agency'), 'Legacy SQL developer UX r
 $tmp = sys_get_temp_dir() . '/agency-seed-1108-' . bin2hex(random_bytes(6));
 assert_true(mkdir($tmp, 0700, true), 'Unable to create synthetic proof directory.');
 try {
+  $cleanupFakeBin = $tmp . '/cleanup-bin';
+  $cleanupRunnerTemp = $tmp . '/runner-temp';
+  assert_true(mkdir($cleanupFakeBin, 0700), 'Unable to create cleanup-proof fake bin.');
+  assert_true(mkdir($cleanupRunnerTemp, 0700), 'Unable to create cleanup-proof runner temp.');
+  $cleanupProject = 'agency-seed-956-34696289170';
+  $cleanupRequest = 'seed-956-syntheticproof-r1';
+  $fakeDdev = <<<'BASH'
+#!/usr/bin/env bash
+set -u
+[[ "${1:-}" == 'list' && "${2:-}" == '-j' ]] || exit 8
+[[ "${FAKE_DDEV_MODE:-ABSENT}" != 'CHECK_FAILED' ]] || exit 9
+if [[ "${FAKE_DDEV_MODE:-ABSENT}" == 'PRESENT' ]]; then
+  printf '{"level":"info","msg":"","raw":[{"name":"%s"}],"time":""}\n' "${FAKE_PROJECT:?}"
+else
+  printf '{"level":"info","msg":"","raw":[],"time":""}\n'
+fi
+BASH;
+  $fakeDocker = <<<'BASH'
+#!/usr/bin/env bash
+set -u
+case "${1:-}" in
+  ps)
+    [[ "${FAKE_CONTAINER_MODE:-ABSENT}" != 'CHECK_FAILED' ]] || exit 9
+    if [[ "${FAKE_CONTAINER_MODE:-ABSENT}" == 'PRESENT' ]]; then
+      printf 'synthetic-container-id\n'
+    fi
+    exit 0
+    ;;
+  volume)
+    [[ "${2:-}" == 'ls' ]] || exit 8
+    [[ "${FAKE_VOLUME_MODE:-ABSENT}" != 'CHECK_FAILED' ]] || exit 9
+    if [[ "${FAKE_VOLUME_MODE:-ABSENT}" == 'PRESENT' ]]; then
+      printf 'synthetic-volume\n'
+    fi
+    exit 0
+    ;;
+  *) exit 8 ;;
+esac
+BASH;
+  file_put_contents($cleanupFakeBin . '/ddev', $fakeDdev);
+  file_put_contents($cleanupFakeBin . '/docker', $fakeDocker);
+  chmod($cleanupFakeBin . '/ddev', 0700);
+  chmod($cleanupFakeBin . '/docker', 0700);
+  $runCleanupFixture = static function (
+    string $request,
+    string $ddevMode,
+    string $containerMode,
+    string $volumeMode,
+  ) use ($cleanupFakeBin, $cleanupRunnerTemp, $cleanupProject, $root): array {
+    $command = sprintf(
+      'export PATH=%s:"$PATH" RUNNER_TEMP=%s FAKE_PROJECT=%s FAKE_DDEV_MODE=%s FAKE_CONTAINER_MODE=%s FAKE_VOLUME_MODE=%s; exec bash %s 34696289170 %s',
+      escapeshellarg($cleanupFakeBin),
+      escapeshellarg($cleanupRunnerTemp),
+      escapeshellarg($cleanupProject),
+      escapeshellarg($ddevMode),
+      escapeshellarg($containerMode),
+      escapeshellarg($volumeMode),
+      escapeshellarg($root . '/scripts/development-seed/prove-cleanup-absence.sh'),
+      escapeshellarg($request),
+    );
+    return run_command(['bash', '-c', $command], $root);
+  };
+
+  [$code, $cleanupOut, $cleanupErr] = $runCleanupFixture($cleanupRequest, 'ABSENT', 'ABSENT', 'ABSENT');
+  assert_true($code === 0 && $cleanupErr === '', 'Synthetic cleanup-proof absent fixture failed.');
+  foreach ([
+    'FAILED_REQUEST_RAW_MATERIAL=ABSENT',
+    'FAILED_REQUEST_SANITIZE_DIAGNOSTIC=ABSENT',
+    'FAILED_REQUEST_KNOWN_HOSTS=ABSENT',
+    'FAILED_REQUEST_GENERATION_WORKTREE=ABSENT',
+    'FAILED_REQUEST_PROOF_WORKTREE=ABSENT',
+    'FAILED_REQUEST_READER_KEY=ABSENT',
+    'FAILED_REQUEST_READER_PUBLIC_KEY=ABSENT',
+    'FAILED_REQUEST_PROOF_CACHE=ABSENT',
+    'DDEV_LIST_PROJECT=ABSENT',
+    'DOCKER_CONTAINER_PROJECT=ABSENT',
+    'DOCKER_VOLUME_PROJECT=ABSENT',
+    'FAILED_DDEV_PROJECT=ABSENT',
+    'CONTENT_READ=NONE',
+    'DELETE=NONE',
+    'PREPROD_ACCESS=NONE',
+    'PROD_ACCESS=NONE',
+    'CLEANUP_GATE=PASS',
+  ] as $marker) {
+    assert_true(str_contains($cleanupOut, $marker), "Synthetic cleanup-proof PASS marker missing: {$marker}");
+  }
+
+  $sensitiveSentinel = 'sensitive-user@example.invalid';
+  file_put_contents($cleanupRunnerTemp . '/' . $cleanupRequest . '.raw-preprod.sql', $sensitiveSentinel);
+  [$code, $cleanupOut] = $runCleanupFixture($cleanupRequest, 'ABSENT', 'ABSENT', 'ABSENT');
+  assert_true($code === 0, 'Synthetic cleanup-proof PRESENT fixture failed to execute.');
+  assert_true(str_contains($cleanupOut, 'FAILED_REQUEST_RAW_MATERIAL=PRESENT'), 'Present request material was not detected.');
+  assert_true(str_contains($cleanupOut, 'CLEANUP_GATE=NOT_PROVEN'), 'Present request material did not fail closed.');
+  assert_true(!str_contains($cleanupOut, $sensitiveSentinel), 'Cleanup proof exposed target file contents.');
+  unlink($cleanupRunnerTemp . '/' . $cleanupRequest . '.raw-preprod.sql');
+
+  [$code, $cleanupOut] = $runCleanupFixture($cleanupRequest, 'PRESENT', 'ABSENT', 'ABSENT');
+  assert_true($code === 0 && str_contains($cleanupOut, 'DDEV_LIST_PROJECT=PRESENT'), 'Present DDEV project was not detected.');
+  assert_true(str_contains($cleanupOut, 'FAILED_DDEV_PROJECT=PRESENT') && str_contains($cleanupOut, 'CLEANUP_GATE=NOT_PROVEN'), 'Present DDEV project did not fail closed.');
+
+  [$code, $cleanupOut] = $runCleanupFixture($cleanupRequest, 'CHECK_FAILED', 'CHECK_FAILED', 'CHECK_FAILED');
+  assert_true($code === 0, 'Synthetic cleanup-proof failure fixture did not complete safely.');
+  assert_true(str_contains($cleanupOut, 'DDEV_LIST_PROJECT=CHECK_FAILED'), 'DDEV check failure was not preserved.');
+  assert_true(str_contains($cleanupOut, 'DOCKER_CONTAINER_PROJECT=CHECK_FAILED'), 'Docker container check failure was not preserved.');
+  assert_true(str_contains($cleanupOut, 'DOCKER_VOLUME_PROJECT=CHECK_FAILED'), 'Docker volume check failure was not preserved.');
+  assert_true(str_contains($cleanupOut, 'FAILED_DDEV_PROJECT=CHECK_FAILED') && str_contains($cleanupOut, 'CLEANUP_GATE=NOT_PROVEN'), 'Runtime check failure did not fail closed.');
+
+  [$code, $cleanupOut] = $runCleanupFixture('seed-956-../escape-r1', 'ABSENT', 'ABSENT', 'ABSENT');
+  assert_true($code !== 0 && $cleanupOut === '', 'Path-traversal cleanup request was accepted.');
+
+  [$code] = run_command([
+    'bash',
+    $root . '/scripts/development-seed/prove-cleanup-absence.sh',
+    '0',
+    $cleanupRequest,
+  ], $root);
+  assert_true($code !== 0, 'Non-positive cleanup run id was accepted.');
+
   [$code] = run_command(['git', 'init', '-q'], $tmp);
   assert_true($code === 0, 'Unable to initialize synthetic Git repository.');
   foreach ([['user.email', 'seed-test@example.invalid'], ['user.name', 'Seed Test']] as [$key, $value]) {
@@ -297,6 +465,8 @@ finally {
 }
 
 fwrite(STDOUT, "EXISTING_CAPABILITY_AUDIT=COMPLETE\n");
+fwrite(STDOUT, "CLEANUP_PROOF_CONTRACT=PASS\n");
+fwrite(STDOUT, "SYNTHETIC_CLEANUP_PROOF=PASS\n");
 fwrite(STDOUT, "SYNTHETIC_SEED_PROOF=PASS\n");
 fwrite(STDOUT, "PUBLISHER_STATIC_PROOF=PASS\n");
 fwrite(STDOUT, "SOURCE_IDENTITY_JIT=FAIL_CLOSED\n");

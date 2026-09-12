@@ -25,6 +25,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'EDITORIAL_FEATURE_IMAGE' => '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
     'DEVELOPMENT_SEED' => '.github/workflows/development-seed-publish.yml',
+    'DEVELOPMENT_SEED_CLEANUP_PROOF' => '.github/workflows/development-seed-cleanup-proof.yml',
     'PREPROD_REFRESH_940_DIAGNOSTIC' => '.github/workflows/preprod-refresh-940-diagnostic.yml',
     'PREPROD_REFRESH_940_RECOVERY' => '.github/workflows/preprod-refresh-940-recovery.yml',
     'PREPROD_REFRESH_948_DETAIL' => '.github/workflows/preprod-refresh-948-detail-diagnostic.yml',
@@ -36,6 +37,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
 
   private const INCIDENT_ISSUES = [
     'DEVELOPMENT_SEED' => 956,
+    'DEVELOPMENT_SEED_CLEANUP_PROOF' => 956,
     'PREPROD_REFRESH_940_DIAGNOSTIC' => 941,
     'PREPROD_REFRESH_940_RECOVERY' => 943,
     'PREPROD_REFRESH_948_DETAIL' => 949,
@@ -73,7 +75,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(14, $routes);
+    self::assertCount(15, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -123,6 +125,12 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         . "apply-953-current-r1 {$sha40}",
         956,
         'DEVELOPMENT_SEED',
+      ],
+      [
+        "/agency-development-seed-cleanup-proof run=34696289170 "
+        . "request=seed-956-abcdefgh-r1 main={$sha40}",
+        956,
+        'DEVELOPMENT_SEED_CLEANUP_PROOF',
       ],
       [
         '/agency-preprod-refresh-940-diagnostic diagnose',
@@ -190,6 +198,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         . "apply-953-current-r1 {$sha40}",
         955,
       ],
+      [
+        "/agency-development-seed-cleanup-proof run=34696289170 "
+        . "request=seed-956-abcdefgh-r1 main={$sha40}",
+        955,
+      ],
+      [
+        "/agency-development-seed-cleanup-proof run=34696289170 "
+        . "request=seed-956-abcdefgh-r1 main={$sha40}",
+        957,
+      ],
       ['/agency-preprod-refresh-940-diagnostic diagnose', 940],
       ['/agency-preprod-refresh-940-recovery plan', 941],
       ['/agency-preprod-refresh-940-recovery cleanup', 940],
@@ -219,6 +237,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-editorial inspect now',
       '/agency-editorial-candidate apply now',
       '/agency-development-seed publish seed-956-bad-r1 ' . $sha40 . ' bad ' . $sha40,
+      '/agency-development-seed-cleanup-proof run=0 request=seed-956-abcdefgh-r1 main=' . $sha40,
+      '/agency-development-seed-cleanup-proof run=34696289170 request=seed-956-../escape-r1 main=' . $sha40,
+      '/agency-development-seed-cleanup-proof run=34696289170 request=seed-956-short-r1 main=' . $sha40,
+      '/agency-development-seed-cleanup-proof run=34696289170 request=seed-956-abcdefgh-r1 main=BAD',
       '/agency-preprod-refresh-940-recovery plan now',
       '/agency-preprod-refresh-948-detail diagnose now',
       '/agency-preprod-blog-image-diagnostic diagnose now',
@@ -252,6 +274,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString("'DEVELOPMENT_SEED': '956'", $source);
+    self::assertStringContainsString(
+      "'DEVELOPMENT_SEED_CLEANUP_PROOF': '956'",
+      $source,
+    );
     self::assertStringContainsString(
       "'PREPROD_REFRESH_940_DIAGNOSTIC': '941'",
       $source,
@@ -354,6 +380,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'DEVELOPMENT_SEED',
         ['contents' => 'read', 'issues' => 'write'],
         $seedSecrets,
+      ],
+      'development-seed-cleanup-proof' => [
+        'DEVELOPMENT_SEED_CLEANUP_PROOF',
+        ['contents' => 'read', 'issues' => 'write'],
+        [],
       ],
       'preprod-refresh-940-diagnostic' => [
         'PREPROD_REFRESH_940_DIAGNOSTIC',

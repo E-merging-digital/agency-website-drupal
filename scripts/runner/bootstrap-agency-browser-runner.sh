@@ -21,7 +21,7 @@ RUNNER_DIR="/opt/actions-runner-agency"
 RUNNER_NAME="${AGENCY_RUNNER_NAME:-agency-browser-runner-01}"
 RUNNER_LABELS="agency,ddev,browser"
 
-for command in apt-get curl tar sha256sum docker ddev runuser openssl getent; do
+for command in apt-get apt-cache curl tar sha256sum docker ddev runuser openssl getent; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Missing prerequisite on host: $command" >&2
     exit 1
@@ -124,7 +124,14 @@ playwright_packages=(
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y --no-install-recommends php-cli "${playwright_packages[@]}"
+apt-get install -y --no-install-recommends software-properties-common "${playwright_packages[@]}"
+
+if ! apt-cache show php8.4-cli >/dev/null 2>&1; then
+  echo "Add maintained PHP PPA for Ubuntu Noble."
+  add-apt-repository -y ppa:ondrej/php
+  apt-get update
+fi
+apt-get install -y --no-install-recommends php8.4-cli
 
 if [[ -e "$RUNNER_DIR/.runner" ]]; then
   echo "Agency runner already appears configured at $RUNNER_DIR; refusing replacement." >&2
@@ -175,8 +182,9 @@ runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" bash -lc '
   id
   docker info --format "ServerVersion={{.ServerVersion}} Driver={{.Driver}}"
   ddev version
-  command -v php
-  php --version
+  command -v php8.4
+  php8.4 --version
+  php8.4 -r "exit(PHP_MAJOR_VERSION === 8 && PHP_MINOR_VERSION === 4 ? 0 : 1);"
 '
 
 echo
@@ -184,5 +192,5 @@ printf 'Agency runner provisioned: %s\n' "$RUNNER_NAME"
 printf 'Labels: self-hosted, linux, x64, %s\n' "$RUNNER_LABELS"
 printf 'Repository: %s\n' "$REPOSITORY_URL"
 printf 'Node is provisioned per job by actions/setup-node@v6; no host Node install is required.\n'
-printf 'Host PHP CLI is provisioned from Ubuntu php-cli for Development Seed verification.\n'
+printf 'Host PHP CLI 8.4 is provisioned explicitly for Development Seed verification.\n'
 printf 'Existing Preflight runner was not modified.\n'

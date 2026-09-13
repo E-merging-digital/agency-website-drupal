@@ -1,7 +1,7 @@
 # Agency Development Seed
 
-Status: **SOURCE_IMPLEMENTED / SYNTHETICALLY_PROVEN / REAL PROOF PENDING**
-Owner: #873; native DDEV simplification: #1108; first real publisher/proof tranche: #956.
+Status: **SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN**
+Owner: #873; native DDEV simplification: #1108; terminal real proof: completed #956.
 Architecture: `EXTEND_EXISTING / SIMPLIFY` under `docs/decisions/ADR-003-use-existing-first.md`.
 
 This runbook covers the Development Seed flow for local Agency DDEV only. It does not replace code/config deployment, PROD → PREPROD refresh or editorial publication.
@@ -14,15 +14,23 @@ PROD_TO_PREPROD_REFRESH = REAL_EXECUTION_PROVEN
 PREPROD = CURRENT SANITIZED SOURCE AVAILABLE
 
 #1108_REPOSITORY_WORK = NATIVE DDEV SNAPSHOT / LOCAL-FIRST
-#956_REAL_SEED_PROOF = PENDING
+#956 = CLOSED / COMPLETED
+DEVELOPMENT_SEED = SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN
 
 PRIMARY_CONSUMER = JONATHAN_LOCAL_DDEV
 SECONDARY_CONSUMERS = LOCAL_WORKTREES / LOCAL_AGENTS
+REAL_SEED_GENERATION = PROVEN
+REAL_STORAGE = PROVEN
+CURRENT_POINTER = VERIFIED
+READ_ONLY_DISTRIBUTION = PROVEN
+REAL_FRESH_DDEV_CONSUMPTION = PROVEN
+LOCAL_SIDE_EFFECT_ASSERTIONS = PASS
+TEMPORARY_GENERATION_MATERIAL = ABSENT
 DDEV_MINIMUM = 1.25.4
 DATABASE = mariadb:11.8
 ```
 
-Repository/static proof is not real seed publication. Until an explicitly authorized post-merge #956 execution succeeds, `REAL_SEED_GENERATION`, `REAL_STORAGE`, `REAL_DISTRIBUTION` and `REAL_LOCAL_CONSUMPTION` remain `PENDING`.
+Repository/static proof alone is not real seed publication. The completed #956 execution terminally proved generation, immutable storage, the verified current pointer, restricted read-only distribution and fresh native DDEV consumption.
 
 ## Security boundary
 
@@ -66,9 +74,12 @@ CURRENT SANITIZED PREPROD runtime DB
 → fixed external immutable seed storage
 → restricted read-only SCP identity
 → verified local cache outside Git
-→ fresh local: ddev start --seed-snapshot=<verified-local-path>
-→ existing local reset: ddev start --reset-database --seed-snapshot=<verified-local-path>
-→ updb / cim / cr / local convergence / side-effect assertions
+→ fresh local: ddev start --seed-snapshot=<verified-local-path>/database-mariadb_11.8.zst
+→ explicit reset: ddev start --reset-database --seed-snapshot=<verified-local-path>/database-mariadb_11.8.zst
+→ exact Composer dependencies from composer.lock
+→ ddev composer install --no-interaction --no-progress --prefer-dist
+→ ddev exec bash scripts/development-seed/post-pull.sh
+→ local convergence / side-effect assertions
 ```
 
 There is no post-sanitization `sql:dump | gzip` distribution stage; the former provider-based SQL pull consumer path is removed. The initial logical stream remains necessary only to copy the already-sanitized PREPROD source into the isolated generation DDEV database; it is deleted immediately after that import.
@@ -178,7 +189,7 @@ Prerequisites on the local host:
 - the dedicated restricted reader identity available to the local SSH client;
 - `AGENCY_SEED_SSH_TARGET=agency-preprod@<approved-host>`.
 
-The canonical local helper performs download, pinned-host verification, SHA-256/metadata/compatibility verification and then invokes DDEV's native primitive.
+The canonical local helper performs download, pinned-host verification, SHA-256/metadata/compatibility verification, DDEV's native seed/reset primitive, exact Composer dependency materialization from `composer.lock`, then the existing post-pull convergence surface.
 
 Fresh local database volume:
 
@@ -194,6 +205,19 @@ ddev start --seed-snapshot=<verified-local-path>/database-mariadb_11.8.zst
 ```
 
 `--seed-snapshot` is explicit and command-scoped. The repository does not use DDEV's reserved implicit `seed` snapshot, so ordinary `ddev start` never silently resets or reseeds an existing database.
+
+After the native start, the helper requires the exact repository lockfile and runs:
+
+```bash
+ddev composer install --no-interaction --no-progress --prefer-dist
+ddev exec bash scripts/development-seed/post-pull.sh
+```
+
+```text
+NATIVE_START < CONSUMER_COMPOSER_INSTALL < POST_PULL
+COMPOSER_LOCK = EXACT
+COMPOSER_UPDATE = NONE
+```
 
 ## How to reset to the known baseline
 
@@ -219,7 +243,7 @@ RESET_DEFAULT_BACKUP = PRESERVED
 
 ## Local convergence and side-effect assertions
 
-After native seed/reset succeeds, the existing `scripts/development-seed/post-pull.sh` convergence surface is reused directly; its historical filename is retained to avoid unnecessary churn. It runs:
+After native seed/reset and exact Composer dependency materialization succeed, the existing `scripts/development-seed/post-pull.sh` convergence surface is reused directly; its historical filename is retained to avoid unnecessary churn. It runs:
 
 ```text
 drush updb -y
@@ -248,24 +272,12 @@ A worktree or local agent may point `AGENCY_SEED_CACHE_DIR` to the same verified
 
 The authoritative path remains the explicit verified local snapshot path.
 
-## Phase A vs first real proof
+## Repository proof vs terminal real proof
 
-Repository implementation and synthetic/static validation do **not** constitute real operation.
-
-During #1108 Delivery:
+Repository implementation and synthetic/static validation do **not** constitute real operation. The separately authorized #956 execution is now terminal and established:
 
 ```text
-REAL_PREPROD_ACCESS = NONE
-REAL_PREPROD_DB_READ = NONE
-REAL_SEED_GENERATION = NONE
-REAL_SEED_PUBLICATION = NONE
-REAL_LOCAL_CONSUMPTION = NONE
-PROD_ACCESS = NONE
-```
-
-The later separately authorized #956 proof must establish all of:
-
-```text
+#956 = CLOSED / COMPLETED
 SOURCE_PREPROD_REFRESH_ID = CURRENT / PROVEN
 SOURCE_PREPROD_RELEASE_SHA = CURRENT / PROVEN
 PREPROD_RUNTIME_DB_WRITE = NONE
@@ -276,10 +288,15 @@ DATABASE_SHA256 = VERIFIED
 SEED_STORAGE = PUBLISHED
 CURRENT_POINTER = VERIFIED
 READ_ONLY_DISTRIBUTION = PROVEN
-DDEV_NATIVE_SEED = REAL SUCCESS
+DDEV_NATIVE_SEED = REAL_SUCCESS
+CONSUMER_COMPOSER_INSTALL = PASS
+POST_PULL_CONVERGENCE = PASS
 LOCAL_SIDE_EFFECT_ASSERTIONS = PASS
 TEMPORARY_GENERATION_MATERIAL = ABSENT
+PROD_ACCESS = NONE
 ```
+
+The proof establishes the current capability state; historical request IDs and run IDs remain evidence only and are not operating instructions.
 
 ## Authoritative files
 
@@ -300,6 +317,5 @@ TEMPORARY_GENERATION_MATERIAL = ABSENT
 - `scripts/development-seed/post-pull.sh`
 - `scripts/development-seed/local-converge.php`
 
-`.ddev/providers/agency.yaml` is intentionally removed because retaining it would preserve the obsolete SQL-import distribution path alongside native DDEV snapshots.
 
 No command in this document grants execution authority. Reload live main, #956 and current source identities before any real publication.

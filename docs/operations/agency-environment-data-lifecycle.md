@@ -149,18 +149,39 @@ The first V1 loop used an exact durable candidate, real PREPROD rendering, expli
 
 ### D. DEVELOPMENT DATA
 
-#873 provides the repository/DDEV pull-only Development Seed consumer contract. The #816 source-data blocker is removed, but the real Development Seed service is not yet provisioned or proven.
+#873 provides the Development Seed capability and completed #956 supplies its first terminal real proof. The #816 source-data blocker is removed and the current consumer is the native DDEV helper.
 
 ```text
 #873_BLOCKED_BY_816 = NO
 REPOSITORY_DDEV_IMPLEMENTATION = COMPLETE
 SYNTHETIC_PROOF = COMPLETE
-DDEV_PROVIDER = .ddev/providers/agency.yaml
-LOCAL_UX = ddev pull agency
+DEVELOPMENT_SEED = SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN
+#956 = CLOSED / COMPLETED
+SOURCE = CURRENT SANITIZED PREPROD / READ ONLY
+CURRENT_CONSUMER = scripts/development-seed/use-native-seed.sh
+CURRENT_SEED_ARTIFACT = database-mariadb_11.8.zst
+REAL_PREPROD_SEED_GENERATION = PROVEN
+REAL_STORAGE_PROVISIONING = PROVEN
+REAL_DISTRIBUTION = PROVEN
+REAL_FRESH_DDEV_CONSUMPTION = PROVEN
+DDEV_NATIVE_SEED = REAL_SUCCESS
 DDEV_PUSH = NONE
-REAL_PREPROD_SEED_GENERATION = PENDING
-REAL_STORAGE_PROVISIONING = PENDING
-REAL_DISTRIBUTION = PENDING
+```
+
+Current flow:
+
+```text
+CURRENT SANITIZED PREPROD
+-> bounded read-only acquisition
+-> isolated stricter development sanitization
+-> immutable native MariaDB 11.8 snapshot
+-> seed metadata + SHA-256
+-> controlled read-only distribution
+-> verified local cache outside Git
+-> DDEV native seed start
+-> exact Composer dependency materialization
+-> local Drupal convergence
+-> side-effect assertions
 ```
 
 ## 5. Current capability/status matrix
@@ -175,7 +196,7 @@ REAL_DISTRIBUTION = PENDING
 | GitHub-hosted metadata-only PLAN | `REAL_EXECUTION_PROVEN` | Metadata/readiness only; no raw data or mutation. |
 | Controlled server-to-server APPLY | `REAL_EXECUTION_PROVEN` | Raw route direct PROD -> PREPROD; activation receives sanitized SQL only. |
 | Trusted self-hosted executor | `PROVISIONED` | Authorized alternative; live availability must be reloaded. |
-| Development Seed | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | DDEV consumer complete; real generation/storage/distribution pending. |
+| Development Seed | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | Native MariaDB 11.8 seed generation, storage, read-only distribution and fresh DDEV consumption proven by completed #956. |
 | Editorial Candidate | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | #959 real FR+EN PREPROD materialization and human approval proven; #872 exact first PROD promotion loop terminally completed. |
 
 #915/#917 are historical lineage and not operational dependencies.
@@ -277,17 +298,39 @@ For DDEV, rollback remains DDEV's native snapshot mechanism.
 
 ## 10. Development Seed / DDEV
 
-Developers do not need PROD credentials. The repository consumer is complete and pull-only:
+Developers and agents do not need PROD credentials. The current route is pull-only and uses the repository helper over the verified immutable native snapshot:
 
 ```text
-DDEV_PROVIDER = .ddev/providers/agency.yaml
-LOCAL_UX = ddev pull agency
+CURRENT_CONSUMER = scripts/development-seed/use-native-seed.sh
+CURRENT_SEED_ARTIFACT = database-mariadb_11.8.zst
+DDEV_NATIVE_FRESH = ddev start --seed-snapshot
+DDEV_NATIVE_RESET = ddev start --reset-database --seed-snapshot
+COMPOSER_LOCK = EXACT
+COMPOSER_UPDATE = NONE
 DDEV_PUSH = NONE
 DDEV -> PREPROD = FORBIDDEN
 DDEV -> PROD = FORBIDDEN
 ```
 
-#816 no longer blocks #873. A real seed source, controlled storage and distribution still need their own real proof before `ddev pull agency` can consume a live service.
+Fresh consumption is:
+
+```text
+bash scripts/development-seed/use-native-seed.sh fresh
+-> ddev start --seed-snapshot=<verified-local-path>/database-mariadb_11.8.zst
+-> ddev composer install --no-interaction --no-progress --prefer-dist
+-> ddev exec bash scripts/development-seed/post-pull.sh
+```
+
+Reset remains an explicit human command and preserves DDEV's default backup behavior:
+
+```text
+bash scripts/development-seed/use-native-seed.sh reset
+-> ddev start --reset-database --seed-snapshot=<verified-local-path>/database-mariadb_11.8.zst
+IMPLICIT_RESET = NONE
+RESET_DEFAULT_BACKUP = PRESERVED
+```
+
+#816 no longer blocks #873. Completed #956 proves the real source, storage, restricted distribution and fresh local consumption path.
 
 ## 11. Editorial publication boundary
 
@@ -335,8 +378,8 @@ Current concise handoff facts:
 - PROD write = none;
 - sanitized-only activation = pass;
 - DDEV push = none;
-- #873 repository/DDEV implementation = complete;
-- #873 real seed generation/storage/distribution = pending, no longer blocked by #816;
+- #873 Development Seed implementation = complete and no longer blocked by #816;
+- completed #956 proves real generation, immutable storage, read-only distribution and fresh native DDEV consumption;
 - Editorial Candidate V1 = `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN`;
 - #959 = CLOSED / COMPLETED after real FR+EN PREPROD materialization and exact human approval;
 - #872 = CLOSED / COMPLETED after the first full exact promotion loop and final human public validation;
@@ -358,7 +401,7 @@ Current concise handoff facts:
 - `docs/operations/development-seed.md`
 - `.github/workflows/agency-command-dispatch.yml`
 - `.github/workflows/preprod-914-governed-successor.yml`
-- `.ddev/providers/agency.yaml`
+- `scripts/development-seed/use-native-seed.sh`
 
 Primary current-state rule: live implementation/execution evidence wins over historical prose.
 

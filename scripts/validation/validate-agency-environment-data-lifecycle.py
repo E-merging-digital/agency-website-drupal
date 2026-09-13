@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DOC = ROOT / 'docs/operations/agency-environment-data-lifecycle.md'
 REGISTRY = ROOT / 'docs/operations/execution-capabilities.md'
+DEVELOPMENT_SEED = ROOT / 'docs/operations/development-seed.md'
 REFRESH = ROOT / 'docs/operations/preproduction-data-refresh.md'
 SUCCESSOR = ROOT / 'docs/operations/preproduction-refresh-governed-successor.md'
 DISPATCHER = ROOT / '.github/workflows/agency-command-dispatch.yml'
@@ -18,7 +19,9 @@ PROFILE = ROOT / 'scripts/preproduction-refresh/governed-successor/profile.json'
 CONTROL = ROOT / 'scripts/preproduction-refresh/governed-successor/run-server-to-server-apply.sh'
 PREP = ROOT / 'scripts/preproduction-refresh/governed-successor/remote-server-to-server-worker.py'
 ACTIVATION = ROOT / 'scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh'
-PROVIDER = ROOT / '.ddev/providers/agency.yaml'
+NATIVE_DDEV_CONFIG = ROOT / '.ddev/config.development-seed.yaml'
+NATIVE_SEED_HELPER = ROOT / 'scripts/development-seed/use-native-seed.sh'
+OBSOLETE_PROVIDER = ROOT / '.ddev/providers/agency.yaml'
 
 ACTIVE_REUSABLE_WORKFLOWS = (
     '.github/workflows/promote-production.yml',
@@ -62,13 +65,14 @@ def job_runs_on(workflow: str, job: str, expected: str) -> bool:
 def main() -> int:
     required_paths = (
         DOC, REGISTRY, REFRESH, SUCCESSOR, DISPATCHER, WORKFLOW, POLICY, PROFILE,
-        CONTROL, PREP, ACTIVATION, PROVIDER,
+        CONTROL, PREP, ACTIVATION, NATIVE_DDEV_CONFIG, NATIVE_SEED_HELPER, DEVELOPMENT_SEED,
     )
     for path in required_paths:
         require(path.is_file(), f'required current path missing: {path.relative_to(ROOT)}')
 
     doc = DOC.read_text(encoding='utf-8')
     registry = REGISTRY.read_text(encoding='utf-8')
+    development_seed = DEVELOPMENT_SEED.read_text(encoding='utf-8')
     refresh = REFRESH.read_text(encoding='utf-8')
     successor = SUCCESSOR.read_text(encoding='utf-8')
     dispatcher = DISPATCHER.read_text(encoding='utf-8')
@@ -76,10 +80,12 @@ def main() -> int:
     control = CONTROL.read_text(encoding='utf-8')
     prep = PREP.read_text(encoding='utf-8')
     activation = ACTIVATION.read_text(encoding='utf-8')
-    provider = PROVIDER.read_text(encoding='utf-8')
+    native_ddev_config = NATIVE_DDEV_CONFIG.read_text(encoding='utf-8')
+    native_seed_helper = NATIVE_SEED_HELPER.read_text(encoding='utf-8')
     policy = json.loads(POLICY.read_text(encoding='utf-8'))
     profile = json.loads(PROFILE.read_text(encoding='utf-8'))
     current_docs = '\n'.join((doc, registry, refresh, successor))
+    development_seed_docs = '\n'.join((doc, registry, development_seed))
 
     for prefix in REQUIRED_HEADINGS:
         require(prefix in doc, f'missing canonical heading prefix: {prefix}')
@@ -220,8 +226,28 @@ def main() -> int:
 
     require('DDEV_PUSH = NONE' in doc and 'DDEV_PUSH = NONE' in registry,
             'DDEV push prohibition missing')
-    require('db_push_command' not in provider and 'files_push_command' not in provider,
-            'DDEV provider exposes upstream push')
+    require(not OBSOLETE_PROVIDER.exists(), 'obsolete DDEV provider was reintroduced')
+    require(
+        re.search(
+            r'(?m)^ddev_version_constraint:\s*["\']>=1\.25\.4["\']\s*$',
+            native_ddev_config,
+        ) is not None,
+        'Development Seed DDEV >=1.25.4 compatibility declaration missing',
+    )
+    ddev_start_lines = [
+        line.strip()
+        for line in native_seed_helper.splitlines()
+        if line.strip().startswith('ddev start')
+    ]
+    require(
+        ddev_start_lines == [
+            'ddev start --seed-snapshot="$final_snapshot"',
+            'ddev start --reset-database --seed-snapshot="$final_snapshot"',
+        ],
+        'Development Seed helper gained implicit or alternate DDEV start semantics',
+    )
+    require('ddev push' not in native_seed_helper.lower(),
+            'Development Seed helper exposes DDEV push')
 
     editorial_current = (
         'EDITORIAL_CANDIDATE_V1 = SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN',
@@ -263,14 +289,49 @@ def main() -> int:
                 f'#873 repository implementation status missing from {label}')
         require('SYNTHETIC_PROOF = COMPLETE' in text,
                 f'#873 synthetic proof status missing from {label}')
-        require('REAL_PREPROD_SEED_GENERATION = PENDING' in text,
-                f'#873 real seed generation pending state missing from {label}')
-        require('REAL_STORAGE_PROVISIONING = PENDING' in text,
-                f'#873 real storage pending state missing from {label}')
-    require('REAL_DISTRIBUTION = PENDING' in doc,
-            '#873 real distribution pending state missing from canonical doc')
-    require('REAL_SEED_DISTRIBUTION = PENDING' in registry or 'REAL_DISTRIBUTION = PENDING' in registry,
-            '#873 real distribution pending state missing from registry')
+        require('REAL_PREPROD_SEED_GENERATION = PROVEN' in text,
+                f'#873 real seed generation proof missing from {label}')
+        require('REAL_STORAGE_PROVISIONING = PROVEN' in text,
+                f'#873 real storage proof missing from {label}')
+        require('REAL_FRESH_DDEV_CONSUMPTION = PROVEN' in text,
+                f'#873 fresh DDEV consumption proof missing from {label}')
+        require('DDEV_NATIVE_SEED = REAL_SUCCESS' in text,
+                f'#873 native DDEV real-success state missing from {label}')
+    require('REAL_DISTRIBUTION = PROVEN' in doc,
+            '#873 real distribution proof missing from canonical doc')
+    require('REAL_SEED_DISTRIBUTION = PROVEN' in registry,
+            '#873 real seed distribution proof missing from registry')
+    for required in (
+        'Status: **SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN**',
+        '#956 = CLOSED / COMPLETED',
+        'REAL_SEED_GENERATION = PROVEN',
+        'REAL_STORAGE = PROVEN',
+        'CURRENT_POINTER = VERIFIED',
+        'READ_ONLY_DISTRIBUTION = PROVEN',
+        'REAL_FRESH_DDEV_CONSUMPTION = PROVEN',
+        'DDEV_NATIVE_SEED = REAL_SUCCESS',
+        'ddev composer install --no-interaction --no-progress --prefer-dist',
+        'ddev exec bash scripts/development-seed/post-pull.sh',
+    ):
+        require(required in development_seed,
+                f'Development Seed terminal truth missing from runbook: {required}')
+    for stale_seed in (
+        'ddev pull agency',
+        'DDEV_PROVIDER = .ddev/providers/agency.yaml',
+        'database.sql.gz',
+        'REAL PROOF PENDING',
+        '#956_REAL_SEED_PROOF = PENDING',
+        'REAL_PREPROD_SEED_GENERATION = PENDING',
+        'REAL_STORAGE_PROVISIONING = PENDING',
+        'REAL_DISTRIBUTION = PENDING',
+        'REAL_SEED_DISTRIBUTION = PENDING',
+    ):
+        require(stale_seed not in development_seed_docs,
+                f'stale Development Seed current-state wording remains: {stale_seed}')
+    require(not re.search(r'(?m)^\| Development Seed .*EXECUTION_PENDING', development_seed_docs),
+            'Development Seed capability regressed to EXECUTION_PENDING')
+    require('.ddev/providers/agency.yaml' not in doc and '.ddev/providers/agency.yaml' not in registry,
+            'obsolete Development Seed provider documented as current')
 
     for stale in (
         'Owner: #871 while #816 real end-to-end execution remains pending.',
@@ -317,9 +378,14 @@ def main() -> int:
     print('RAW_STAGING_CLEANUP=PROVEN_BEFORE_ACTIVATION')
     print('PROD_IDENTITY_STAGE_CLEANUP=PROVEN_BEFORE_ACTIVATION')
     print('EXISTING_REMOTE_APPLY_WORKER=REUSED')
+    print('CURRENT_NATIVE_DDEV_CONFIG=REQUIRED')
+    print('OBSOLETE_DDEV_PROVIDER=ABSENT')
+    print('DDEV_NATIVE_SEED_CONTRACT=PASS')
+    print('DDEV_NATIVE_RESET_CONTRACT=PASS')
+    print('IMPLICIT_RESET=NONE')
     print('DDEV_PUSH=NONE')
     print('DEVELOPMENT_SEED_BLOCKED_BY_816=NO')
-    print('DEVELOPMENT_SEED_REAL_SERVICE=STILL_PENDING')
+    print('DEVELOPMENT_SEED_REAL_SERVICE=REAL_EXECUTION_PROVEN')
     print('EDITORIAL_CANDIDATE_V1=REAL_EXECUTION_PROVEN')
     print('EDITORIAL_CANDIDATE_959=CLOSED_COMPLETED')
     print('EDITORIAL_CANDIDATE_872=CLOSED_COMPLETED')

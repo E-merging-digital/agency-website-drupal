@@ -37,7 +37,7 @@ REMOTE_INCOMING="$REMOTE_ROOT/.incoming/$REQUEST_ID"
 for path in "$SOURCE_SCRIPT" "$STORAGE_SCRIPT" "$READER_SCRIPT" "$READER_KEY_SCRIPT" "$PREPROD_TRUST" "$PINNED_KEY"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
-for command_name in ddev git jq openssl scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
+for command_name in ddev git jq openssl php8.4 scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     printf 'MISSING_REQUIRED_COMMAND=%s\n' "$command_name" >&2
     exit 82
@@ -181,6 +181,23 @@ classify_sanitize_metadata() {
   printf 'SANITIZE_CORE_USER_FIELDS_ACTIVITY=%s\n' "$user_fields_activity"
 }
 
+drush_user_email_sanitizer_completed() {
+  local diagnostic_path="$1"
+  if LC_ALL=C grep -Eq -- '^[[:space:]]*(\[success\][[:space:]]+)?User emails sanitized\.([[:space:]]+\[[^][]+\])?[[:space:]]*$' "$diagnostic_path"; then
+    printf 'YES\n'
+  else
+    printf 'NO\n'
+  fi
+}
+
+delete_sanitize_diagnostic() {
+  local diagnostic_path="$1"
+  if ! rm -f -- "$diagnostic_path" || [[ -e "$diagnostic_path" ]]; then
+    printf 'SANITIZE_DIAGNOSTIC_CLEANUP=FAIL\n' >&2
+    return 98
+  fi
+}
+
 classify_sanitize_failure() {
   local diagnostic_path="$1"
   local exit_code="$2"
@@ -302,13 +319,17 @@ if (
     --sanitize-email='user+%uid@example.invalid' \
     --sanitize-password="$seed_password"
 ) > "$sanitize_diagnostic" 2>&1; then
-  rm -f -- "$sanitize_diagnostic"
-  [[ ! -e "$sanitize_diagnostic" ]]
+  drush_user_email_completed="$(drush_user_email_sanitizer_completed "$sanitize_diagnostic")"
+  printf 'DRUSH_USER_EMAIL_SANITIZER_COMPLETED = %s\n' "$drush_user_email_completed"
+  if ! delete_sanitize_diagnostic "$sanitize_diagnostic"; then
+    unset seed_password drush_user_email_completed
+    exit 98
+  fi
+  unset drush_user_email_completed
 else
   sanitize_exit=$?
   classify_sanitize_failure "$sanitize_diagnostic" "$sanitize_exit"
-  if ! rm -f -- "$sanitize_diagnostic" || [[ -e "$sanitize_diagnostic" ]]; then
-    printf 'SANITIZE_DIAGNOSTIC_CLEANUP=FAIL\n' >&2
+  if ! delete_sanitize_diagnostic "$sanitize_diagnostic"; then
     unset seed_password
     exit 98
   fi
@@ -347,12 +368,12 @@ created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     --source-refresh="$SOURCE_PREPROD_REFRESH_ID" \
     --source-release="$SOURCE_PREPROD_RELEASE_SHA" \
     --output=/var/www/html/.ddev/.seed-build/seed.json >/dev/null
-  ddev exec php scripts/development-seed/verify-seed.php \
-    --metadata=/var/www/html/.ddev/.seed-build/seed.json \
-    --database="/var/www/html/.ddev/.seed-build/$SNAPSHOT_NAME" \
-    --repository=/var/www/html \
-    --checkout-ref=HEAD >/dev/null
 )
+php8.4 "$generation/scripts/development-seed/verify-seed.php" \
+  --metadata="$metadata" \
+  --database="$database" \
+  --repository="$generation" \
+  --checkout-ref="$REPOSITORY_SHA" >/dev/null
 chmod 600 "$metadata"
 database_sha="$(sha256sum "$database" | awk '{print $1}')"
 reader_sha="$(sha256sum "$READER_SCRIPT" | awk '{print $1}')"

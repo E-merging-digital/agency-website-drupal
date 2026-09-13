@@ -20,11 +20,7 @@ final class DevelopmentSeedContractTest extends TestCase {
     self::assertIsString($publisher);
 
     self::assertStringContainsString(
-      'for command_name in ddev git jq openssl scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do',
-      $publisher,
-    );
-    self::assertStringNotContainsString(
-      'for command_name in ddev git jq openssl php scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do',
+      'for command_name in ddev git jq openssl php8.4 scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do',
       $publisher,
     );
     self::assertStringContainsString(
@@ -65,52 +61,90 @@ final class DevelopmentSeedContractTest extends TestCase {
       'ddev exec php scripts/development-seed/build-seed-metadata.php',
       $publisher,
     );
-    self::assertStringContainsString(
+    self::assertStringNotContainsString(
       'ddev exec php scripts/development-seed/verify-seed.php',
       $publisher,
     );
+    self::assertStringContainsString(
+      'php8.4 "$generation/scripts/development-seed/verify-seed.php"',
+      $publisher,
+    );
+    self::assertStringNotContainsString(
+      'php "$generation/scripts/development-seed/verify-seed.php"',
+      $publisher,
+    );
+    self::assertStringContainsString('--repository="$generation"', $publisher);
+    self::assertStringContainsString('--checkout-ref="$REPOSITORY_SHA"', $publisher);
   }
 
   /**
-   * Proves #1131 materializes Composer inside the fresh DDEV worktree.
+   * Proves exact Composer dependencies for generation and fresh consumers.
    */
-  public function testPublisherGenerationComposerMaterializationContract(): void {
+  public function testDevelopmentSeedComposerMaterializationContract(): void {
     $root = dirname(DRUPAL_ROOT);
     $publisher = file_get_contents($root . '/scripts/development-seed/run-publish.sh');
+    $consumer = file_get_contents($root . '/scripts/development-seed/use-native-seed.sh');
     self::assertIsString($publisher);
+    self::assertIsString($consumer);
 
-    self::assertSame(1, substr_count($publisher, 'ddev composer install --no-interaction --no-progress --prefer-dist'));
+    $composerInstall = 'ddev composer install --no-interaction --no-progress --prefer-dist';
+    self::assertSame(1, substr_count($publisher, $composerInstall));
+    self::assertSame(1, substr_count($consumer, $composerInstall));
     self::assertStringNotContainsString('ddev composer update', $publisher);
+    self::assertStringNotContainsString('ddev composer update', $consumer);
     self::assertStringContainsString(
       '[[ -f "$generation/composer.lock" && ! -L "$generation/composer.lock" ]]',
       $publisher,
     );
+    self::assertStringContainsString(
+      '[[ -f "$repo/composer.lock" && ! -L "$repo/composer.lock" ]]',
+      $consumer,
+    );
 
     $worktree = strpos($publisher, 'git worktree add --detach "$generation" "$REPOSITORY_SHA"');
-    $lock = strpos(
+    $generationLock = strpos(
       $publisher,
       '[[ -f "$generation/composer.lock" && ! -L "$generation/composer.lock" ]]',
       $worktree,
     );
-    $start = strpos($publisher, 'ddev start -y >/dev/null', $lock);
-    $composer = strpos($publisher, 'ddev composer install --no-interaction --no-progress --prefer-dist', $start);
-    $import = strpos($publisher, 'ddev import-db --file="$raw" >/dev/null', $composer);
+    $generationStart = strpos($publisher, 'ddev start -y >/dev/null', $generationLock);
+    $generationComposer = strpos($publisher, $composerInstall, $generationStart);
+    $import = strpos($publisher, 'ddev import-db --file="$raw" >/dev/null', $generationComposer);
     $sanitize = strpos($publisher, 'ddev drush -vvv sql:sanitize -y', $import);
     self::assertIsInt($worktree);
-    self::assertIsInt($lock);
-    self::assertIsInt($start);
-    self::assertIsInt($composer);
+    self::assertIsInt($generationLock);
+    self::assertIsInt($generationStart);
+    self::assertIsInt($generationComposer);
     self::assertIsInt($import);
     self::assertIsInt($sanitize);
-    self::assertTrue($worktree < $lock);
-    self::assertTrue($lock < $start);
-    self::assertTrue($start < $composer);
-    self::assertTrue($composer < $import);
-    self::assertTrue($composer < $sanitize);
+    self::assertTrue($worktree < $generationLock);
+    self::assertTrue($generationLock < $generationStart);
+    self::assertTrue($generationStart < $generationComposer);
+    self::assertTrue($generationComposer < $import);
+    self::assertTrue($generationComposer < $sanitize);
+
+    $consumerLock = strpos(
+      $consumer,
+      '[[ -f "$repo/composer.lock" && ! -L "$repo/composer.lock" ]]',
+    );
+    $freshStart = strpos($consumer, 'ddev start --seed-snapshot="$final_snapshot"', $consumerLock);
+    $resetStart = strpos($consumer, 'ddev start --reset-database --seed-snapshot="$final_snapshot"', $consumerLock);
+    $consumerComposer = strpos($consumer, $composerInstall, $resetStart);
+    $postPull = strpos($consumer, 'ddev exec bash scripts/development-seed/post-pull.sh', $consumerComposer);
+    self::assertIsInt($consumerLock);
+    self::assertIsInt($freshStart);
+    self::assertIsInt($resetStart);
+    self::assertIsInt($consumerComposer);
+    self::assertIsInt($postPull);
+    self::assertTrue($consumerLock < $freshStart);
+    self::assertTrue($consumerLock < $resetStart);
+    self::assertTrue($freshStart < $consumerComposer);
+    self::assertTrue($resetStart < $consumerComposer);
+    self::assertTrue($consumerComposer < $postPull);
   }
 
   /**
-   * Proves #1121 sanitize failures stay bounded and privacy-safe.
+   * Proves #1121/#1138 sanitize diagnostics stay bounded and privacy-safe.
    */
   public function testPublisherSanitizeFailureDiagnosticContract(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -162,6 +196,196 @@ final class DevelopmentSeedContractTest extends TestCase {
     self::assertStringNotContainsString('sanitize_diagnostic', $workflow);
     self::assertStringContainsString('SANITIZE_DIAGNOSTIC_CLEANUP=FAIL', $publisher);
     self::assertStringContainsString('sanitize plugin is using a deprecated API', $publisher);
+
+    $agencySanitizer = file_get_contents(
+      $root . '/scripts/preproduction-refresh/governed-successor/agency-sanitize.php',
+    );
+    self::assertIsString($agencySanitizer);
+    self::assertStringContainsString(
+      "name <> CONCAT('preprod-user-', uid)",
+      $agencySanitizer,
+    );
+    self::assertStringNotContainsString(
+      'name NOT REGEXP',
+      $agencySanitizer,
+    );
+    self::assertStringContainsString(
+      "mail NOT LIKE '%@example.invalid'",
+      $agencySanitizer,
+    );
+    self::assertStringNotContainsString(
+      "name <> CONCAT('preprod-user-', uid) OR mail NOT LIKE '%@example.invalid'",
+      $agencySanitizer,
+    );
+    self::assertStringContainsString(
+      'USER_SANITIZATION_ASSERTION_COMPONENT = {$component}',
+      $agencySanitizer,
+    );
+    self::assertStringNotContainsString(
+      'Drush/Agency user sanitization assertion failed.',
+      $agencySanitizer,
+    );
+    self::assertStringContainsString(
+      "->expression('name', \"CONCAT('preprod-user-', uid)\")",
+      $agencySanitizer,
+    );
+
+    $classifierStart = strpos(
+      $agencySanitizer,
+      '$classifyUserSanitizationAssertion = static function',
+    );
+    $classifierEnd = strpos($agencySanitizer, "\n};", $classifierStart);
+    self::assertIsInt($classifierStart);
+    self::assertIsInt($classifierEnd);
+    $classifierSource = substr(
+      $agencySanitizer,
+      $classifierStart,
+      $classifierEnd - $classifierStart + 3,
+    );
+    $classifierRunner = <<<'PHP'
+$source = $argv[1];
+$nameFailed = $argv[2] === '1';
+$mailFailed = $argv[3] === '1';
+eval($source);
+$result = $classifyUserSanitizationAssertion($nameFailed, $mailFailed);
+fwrite(STDOUT, $result === NULL ? "PASS\n" : $result . "\n");
+PHP;
+    $classifierFixtures = [
+      'USER_NAME' => [TRUE, FALSE],
+      'USER_MAIL' => [FALSE, TRUE],
+      'USER_NAME_AND_MAIL' => [TRUE, TRUE],
+      'PASS' => [FALSE, FALSE],
+    ];
+    foreach ($classifierFixtures as $expectedComponent => [$nameFailed, $mailFailed]) {
+      $process = proc_open(
+        [
+          PHP_BINARY,
+          '-r',
+          $classifierRunner,
+          $classifierSource,
+          $nameFailed ? '1' : '0',
+          $mailFailed ? '1' : '0',
+        ],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root,
+      );
+      self::assertIsResource($process);
+      fclose($pipes[0]);
+      $stdout = stream_get_contents($pipes[1]);
+      $stderr = stream_get_contents($pipes[2]);
+      fclose($pipes[1]);
+      fclose($pipes[2]);
+      self::assertSame(0, proc_close($process), (string) $stderr);
+      self::assertSame($expectedComponent . "\n", $stdout);
+      self::assertSame('', $stderr);
+    }
+    foreach (['uid', 'username', 'email address', 'SELECT COUNT', 'fetchField'] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $classifierSource);
+    }
+
+    $markerStart = strpos($publisher, 'drush_user_email_sanitizer_completed() {');
+    $markerEnd = strpos(
+      $publisher,
+      "\n}\n\ndelete_sanitize_diagnostic() {",
+      $markerStart,
+    );
+    self::assertIsInt($markerStart);
+    self::assertIsInt($markerEnd);
+    $markerFunction = substr($publisher, $markerStart, $markerEnd - $markerStart + 2);
+    self::assertStringContainsString(
+      "grep -Eq -- '^[[:space:]]*(\\[success\\][[:space:]]+)?User emails sanitized\\.([[:space:]]+\\[[^][]+\\])?[[:space:]]*$'",
+      $markerFunction,
+    );
+    foreach ([
+      ["User emails sanitized.\n", "YES\n"],
+      [" [success] User emails sanitized. [synthetic timing/memory]\n", "YES\n"],
+      ["[success] Something else happened.\n", "NO\n"],
+      ["User emails sanitized incorrectly.\n", "NO\n"],
+      ["User email sanitized.\n", "NO\n"],
+      ["opaque user@example.test secret=synthetic-only\n", "NO\n"],
+      ["marker absent\n", "NO\n"],
+    ] as [$rawDiagnostic, $expectedMarker]) {
+      $diagnostic = tempnam(sys_get_temp_dir(), 'sanitize-user-marker-');
+      self::assertIsString($diagnostic);
+      self::assertNotFalse(file_put_contents($diagnostic, $rawDiagnostic));
+      chmod($diagnostic, 0600);
+      $script = $markerFunction . "\ndrush_user_email_sanitizer_completed \"\$1\"\n";
+      $process = proc_open(
+        ['bash', '-c', $script, 'marker-test', $diagnostic],
+        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root,
+      );
+      self::assertIsResource($process);
+      fclose($pipes[0]);
+      $stdout = stream_get_contents($pipes[1]);
+      $stderr = stream_get_contents($pipes[2]);
+      fclose($pipes[1]);
+      fclose($pipes[2]);
+      $exitCode = proc_close($process);
+      unlink($diagnostic);
+      self::assertSame(0, $exitCode, (string) $stderr);
+      self::assertSame($expectedMarker, $stdout);
+      self::assertSame('', $stderr);
+      self::assertStringNotContainsString('user@example.test', $stdout);
+      self::assertStringNotContainsString('secret=synthetic-only', $stdout);
+    }
+    self::assertStringContainsString(
+      "printf 'DRUSH_USER_EMAIL_SANITIZER_COMPLETED = %s\\n'",
+      $publisher,
+    );
+
+    $cleanupStart = strpos($publisher, 'delete_sanitize_diagnostic() {');
+    $cleanupEnd = strpos(
+      $publisher,
+      "\n}\n\nclassify_sanitize_failure() {",
+      $cleanupStart,
+    );
+    self::assertIsInt($cleanupStart);
+    self::assertIsInt($cleanupEnd);
+    $cleanupFunction = substr($publisher, $cleanupStart, $cleanupEnd - $cleanupStart + 2);
+    self::assertSame(2, substr_count($publisher, 'delete_sanitize_diagnostic "$sanitize_diagnostic"'));
+
+    $cleanupFile = tempnam(sys_get_temp_dir(), 'sanitize-cleanup-success-');
+    self::assertIsString($cleanupFile);
+    chmod($cleanupFile, 0600);
+    $cleanupScript = $cleanupFunction . "\ndelete_sanitize_diagnostic \"\$1\"\n";
+    $process = proc_open(
+      ['bash', '-c', $cleanupScript, 'cleanup-success', $cleanupFile],
+      [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+      $pipes,
+      $root,
+    );
+    self::assertIsResource($process);
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    self::assertSame(0, proc_close($process), (string) $stderr);
+    self::assertSame('', $stdout);
+    self::assertSame('', $stderr);
+    self::assertFileDoesNotExist($cleanupFile);
+
+    $failureScript = "rm() { return 1; }\n" . $cleanupFunction
+      . "\ndelete_sanitize_diagnostic \"\$1\"\n";
+    $failurePath = sys_get_temp_dir() . '/sanitize-cleanup-synthetic';
+    $process = proc_open(
+      ['bash', '-c', $failureScript, 'cleanup-failure', $failurePath],
+      [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+      $pipes,
+      $root,
+    );
+    self::assertIsResource($process);
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    self::assertSame(98, proc_close($process));
+    self::assertSame('', $stdout);
+    self::assertSame("SANITIZE_DIAGNOSTIC_CLEANUP=FAIL\n", $stderr);
 
     $componentStart = strpos($publisher, 'classify_sanitize_component() {');
     $componentEnd = strpos(

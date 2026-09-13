@@ -1,0 +1,318 @@
+name: "#956 Development Seed cleanup absence proof"
+
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - ".github/workflows/development-seed-cleanup-proof.yml"
+      - ".github/workflows/agency-command-dispatch.yml"
+      - "scripts/development-seed/prove-cleanup-absence.sh"
+      - "scripts/development-seed/test-contract.php"
+      - "web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-development-seed-cleanup-proof-${{ github.event.issue.number || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  static-validation:
+    name: "#956 static cleanup-proof contract"
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate read-only cleanup-proof surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/development-seed/prove-cleanup-absence.sh
+          php scripts/development-seed/test-contract.php
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+  validate-authority:
+    name: Validate bounded #956 cleanup-proof authority
+    if: ${{ github.event_name == 'issue_comment' && github.event.issue.number == 956 && github.event.issue.pull_request == null }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      target_run: ${{ steps.authority.outputs.target_run }}
+      target_request: ${{ steps.authority.outputs.target_request }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+    steps:
+      - id: authority
+        name: Validate owner command against exact live main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          EVENT_ACTION: ${{ github.event.action }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$EVENT_ACTION" = 'created'
+          test "$COMMENT_AUTHOR" = 'E-merging-digital'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/956" --jq '.state')" = 'open'
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/956" --jq 'any(.labels[]; .name == "status:in-progress")')" = 'true'
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live" =~ ^[0-9a-f]{40}$ ]]
+          COMMENT_BODY="$COMMENT_BODY" LIVE_MAIN="$live" python3 - <<'PY'
+          import os
+          import re
+
+          pattern = re.compile(
+              r'^/agency-development-seed-cleanup-proof '
+              r'run=([1-9][0-9]*) '
+              r'request=(seed-956-[A-Za-z0-9._-]{8,40}-r1) '
+              r'main=([0-9a-f]{40})$'
+          )
+          match = pattern.fullmatch(os.environ['COMMENT_BODY'])
+          if match is None:
+              raise SystemExit('invalid cleanup-proof command')
+          target_run, target_request, command_main = match.groups()
+          live_main = os.environ['LIVE_MAIN']
+          if command_main != live_main:
+              raise SystemExit('stale cleanup-proof main')
+          output = os.environ['GITHUB_OUTPUT']
+          with open(output, 'a', encoding='utf-8') as stream:
+              stream.write(f'target_run={target_run}\n')
+              stream.write(f'target_request={target_request}\n')
+              stream.write(f'main_sha={command_main}\n')
+          PY
+
+  proof:
+    name: Prove request-scoped cleanup absence on trusted Agency runner
+    needs: validate-authority
+    if: ${{ needs.validate-authority.result == 'success' }}
+    runs-on: [self-hosted, linux, x64, agency, ddev]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      hostname: ${{ steps.proof.outputs.HOSTNAME }}
+      raw_material: ${{ steps.proof.outputs.FAILED_REQUEST_RAW_MATERIAL }}
+      sanitize_diagnostic: ${{ steps.proof.outputs.FAILED_REQUEST_SANITIZE_DIAGNOSTIC }}
+      known_hosts: ${{ steps.proof.outputs.FAILED_REQUEST_KNOWN_HOSTS }}
+      generation_worktree: ${{ steps.proof.outputs.FAILED_REQUEST_GENERATION_WORKTREE }}
+      proof_worktree: ${{ steps.proof.outputs.FAILED_REQUEST_PROOF_WORKTREE }}
+      reader_key: ${{ steps.proof.outputs.FAILED_REQUEST_READER_KEY }}
+      reader_public_key: ${{ steps.proof.outputs.FAILED_REQUEST_READER_PUBLIC_KEY }}
+      proof_cache: ${{ steps.proof.outputs.FAILED_REQUEST_PROOF_CACHE }}
+      ddev_list_project: ${{ steps.proof.outputs.DDEV_LIST_PROJECT }}
+      docker_container_project: ${{ steps.proof.outputs.DOCKER_CONTAINER_PROJECT }}
+      docker_volume_project: ${{ steps.proof.outputs.DOCKER_VOLUME_PROJECT }}
+      failed_ddev_project: ${{ steps.proof.outputs.FAILED_DDEV_PROJECT }}
+      content_read: ${{ steps.proof.outputs.CONTENT_READ }}
+      delete: ${{ steps.proof.outputs.DELETE }}
+      preprod_access: ${{ steps.proof.outputs.PREPROD_ACCESS }}
+      prod_access: ${{ steps.proof.outputs.PROD_ACCESS }}
+      cleanup_gate: ${{ steps.proof.outputs.CLEANUP_GATE }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - id: proof
+        name: Run metadata-only absence proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_RUN: ${{ needs.validate-authority.outputs.target_run }}
+          TARGET_REQUEST: ${{ needs.validate-authority.outputs.target_request }}
+          TARGET_MAIN: ${{ needs.validate-authority.outputs.main_sha }}
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        shell: bash
+        run: |
+          set -u -o pipefail
+          emit_not_proven() {
+            printf '%s\n' \
+              'FAILED_REQUEST_RAW_MATERIAL=CHECK_FAILED' \
+              'FAILED_REQUEST_SANITIZE_DIAGNOSTIC=CHECK_FAILED' \
+              'FAILED_REQUEST_KNOWN_HOSTS=CHECK_FAILED' \
+              'FAILED_REQUEST_GENERATION_WORKTREE=CHECK_FAILED' \
+              'FAILED_REQUEST_PROOF_WORKTREE=CHECK_FAILED' \
+              'FAILED_REQUEST_READER_KEY=CHECK_FAILED' \
+              'FAILED_REQUEST_READER_PUBLIC_KEY=CHECK_FAILED' \
+              'FAILED_REQUEST_PROOF_CACHE=CHECK_FAILED' \
+              'DDEV_LIST_PROJECT=CHECK_FAILED' \
+              'DOCKER_CONTAINER_PROJECT=CHECK_FAILED' \
+              'DOCKER_VOLUME_PROJECT=CHECK_FAILED' \
+              'FAILED_DDEV_PROJECT=CHECK_FAILED' \
+              'CONTENT_READ=NONE' \
+              'DELETE=NONE' \
+              'PREPROD_ACCESS=NONE' \
+              'PROD_ACCESS=NONE' \
+              'CLEANUP_GATE=NOT_PROVEN'
+          }
+
+          hostname_value="$(hostname 2>/dev/null || true)"
+          whoami_value="$(whoami 2>/dev/null || true)"
+          identity_ok='YES'
+          [[ "$RUNNER_ENVIRONMENT" == 'self-hosted' ]] || identity_ok='NO'
+          [[ "$hostname_value" == 'preflight-runner-01' ]] || identity_ok='NO'
+          [[ "$whoami_value" =~ ^[A-Za-z0-9._-]+$ ]] || identity_ok='NO'
+          [[ "$RUNNER_TEMP" == '/opt/actions-runner-agency/_work/_temp' ]] || identity_ok='NO'
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha' 2>/dev/null || true)"
+          [[ "$live" == "$TARGET_MAIN" ]] || identity_ok='NO'
+          [[ "$(git rev-parse HEAD 2>/dev/null || true)" == "$TARGET_MAIN" ]] || identity_ok='NO'
+
+          if [[ "$hostname_value" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
+            printf 'HOSTNAME=%s\n' "$hostname_value" >> "$GITHUB_OUTPUT"
+          else
+            printf 'HOSTNAME=CHECK_FAILED\n' >> "$GITHUB_OUTPUT"
+            identity_ok='NO'
+          fi
+
+          if [[ "$identity_ok" == 'YES' ]]; then
+            proof_output="$(bash scripts/development-seed/prove-cleanup-absence.sh "$TARGET_RUN" "$TARGET_REQUEST" 2>/dev/null)"
+            helper_status=$?
+            if [[ $helper_status -eq 0 ]] && [[ -n "$proof_output" ]]; then
+              while IFS= read -r line; do
+                [[ "$line" =~ ^(FAILED_REQUEST_RAW_MATERIAL|FAILED_REQUEST_SANITIZE_DIAGNOSTIC|FAILED_REQUEST_KNOWN_HOSTS|FAILED_REQUEST_GENERATION_WORKTREE|FAILED_REQUEST_PROOF_WORKTREE|FAILED_REQUEST_READER_KEY|FAILED_REQUEST_READER_PUBLIC_KEY|FAILED_REQUEST_PROOF_CACHE|DDEV_LIST_PROJECT|DOCKER_CONTAINER_PROJECT|DOCKER_VOLUME_PROJECT|FAILED_DDEV_PROJECT)=(ABSENT|PRESENT|CHECK_FAILED)$|^(CONTENT_READ|DELETE|PREPROD_ACCESS|PROD_ACCESS)=NONE$|^CLEANUP_GATE=(PASS|NOT_PROVEN)$ ]] || {
+                  proof_output=''
+                  break
+                }
+              done <<< "$proof_output"
+            else
+              proof_output=''
+            fi
+            if [[ -n "$proof_output" ]]; then
+              printf '%s\n' "$proof_output" >> "$GITHUB_OUTPUT"
+            else
+              emit_not_proven >> "$GITHUB_OUTPUT"
+            fi
+          else
+            emit_not_proven >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Emit bounded proof markers
+        env:
+          HOSTNAME_VALUE: ${{ steps.proof.outputs.HOSTNAME }}
+          RAW: ${{ steps.proof.outputs.FAILED_REQUEST_RAW_MATERIAL }}
+          SANITIZE_DIAGNOSTIC: ${{ steps.proof.outputs.FAILED_REQUEST_SANITIZE_DIAGNOSTIC }}
+          KNOWN_HOSTS: ${{ steps.proof.outputs.FAILED_REQUEST_KNOWN_HOSTS }}
+          GENERATION_WORKTREE: ${{ steps.proof.outputs.FAILED_REQUEST_GENERATION_WORKTREE }}
+          PROOF_WORKTREE: ${{ steps.proof.outputs.FAILED_REQUEST_PROOF_WORKTREE }}
+          READER_KEY: ${{ steps.proof.outputs.FAILED_REQUEST_READER_KEY }}
+          READER_PUBLIC_KEY: ${{ steps.proof.outputs.FAILED_REQUEST_READER_PUBLIC_KEY }}
+          PROOF_CACHE: ${{ steps.proof.outputs.FAILED_REQUEST_PROOF_CACHE }}
+          DDEV_LIST: ${{ steps.proof.outputs.DDEV_LIST_PROJECT }}
+          DOCKER_CONTAINER: ${{ steps.proof.outputs.DOCKER_CONTAINER_PROJECT }}
+          DOCKER_VOLUME: ${{ steps.proof.outputs.DOCKER_VOLUME_PROJECT }}
+          DDEV_PROJECT: ${{ steps.proof.outputs.FAILED_DDEV_PROJECT }}
+          GATE: ${{ steps.proof.outputs.CLEANUP_GATE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'HOSTNAME=%s\n' "$HOSTNAME_VALUE"
+          printf 'FAILED_REQUEST_RAW_MATERIAL=%s\n' "$RAW"
+          printf 'FAILED_REQUEST_SANITIZE_DIAGNOSTIC=%s\n' "$SANITIZE_DIAGNOSTIC"
+          printf 'FAILED_REQUEST_KNOWN_HOSTS=%s\n' "$KNOWN_HOSTS"
+          printf 'FAILED_REQUEST_GENERATION_WORKTREE=%s\n' "$GENERATION_WORKTREE"
+          printf 'FAILED_REQUEST_PROOF_WORKTREE=%s\n' "$PROOF_WORKTREE"
+          printf 'FAILED_REQUEST_READER_KEY=%s\n' "$READER_KEY"
+          printf 'FAILED_REQUEST_READER_PUBLIC_KEY=%s\n' "$READER_PUBLIC_KEY"
+          printf 'FAILED_REQUEST_PROOF_CACHE=%s\n' "$PROOF_CACHE"
+          printf 'DDEV_LIST_PROJECT=%s\n' "$DDEV_LIST"
+          printf 'DOCKER_CONTAINER_PROJECT=%s\n' "$DOCKER_CONTAINER"
+          printf 'DOCKER_VOLUME_PROJECT=%s\n' "$DOCKER_VOLUME"
+          printf 'FAILED_DDEV_PROJECT=%s\n' "$DDEV_PROJECT"
+          printf 'CONTENT_READ=NONE\nDELETE=NONE\nPREPROD_ACCESS=NONE\nPROD_ACCESS=NONE\n'
+          printf 'CLEANUP_GATE=%s\n' "$GATE"
+
+      - name: Enforce fail-closed cleanup gate
+        env:
+          CLEANUP_GATE: ${{ steps.proof.outputs.CLEANUP_GATE }}
+        shell: bash
+        run: test "$CLEANUP_GATE" = 'PASS'
+
+  receipt:
+    name: Publish bounded #956 cleanup-proof receipt
+    needs: [validate-authority, proof]
+    if: ${{ always() && needs.validate-authority.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Publish metadata-only receipt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_RUN: ${{ needs.validate-authority.outputs.target_run }}
+          TARGET_REQUEST: ${{ needs.validate-authority.outputs.target_request }}
+          TRUSTED_MAIN: ${{ needs.validate-authority.outputs.main_sha }}
+          HOSTNAME_VALUE: ${{ needs.proof.outputs.hostname }}
+          RAW: ${{ needs.proof.outputs.raw_material }}
+          SANITIZE_DIAGNOSTIC: ${{ needs.proof.outputs.sanitize_diagnostic }}
+          KNOWN_HOSTS: ${{ needs.proof.outputs.known_hosts }}
+          GENERATION_WORKTREE: ${{ needs.proof.outputs.generation_worktree }}
+          PROOF_WORKTREE: ${{ needs.proof.outputs.proof_worktree }}
+          READER_KEY: ${{ needs.proof.outputs.reader_key }}
+          READER_PUBLIC_KEY: ${{ needs.proof.outputs.reader_public_key }}
+          PROOF_CACHE: ${{ needs.proof.outputs.proof_cache }}
+          DDEV_LIST: ${{ needs.proof.outputs.ddev_list_project }}
+          DOCKER_CONTAINER: ${{ needs.proof.outputs.docker_container_project }}
+          DOCKER_VOLUME: ${{ needs.proof.outputs.docker_volume_project }}
+          DDEV_PROJECT: ${{ needs.proof.outputs.failed_ddev_project }}
+          CONTENT_READ_VALUE: ${{ needs.proof.outputs.content_read }}
+          DELETE_VALUE: ${{ needs.proof.outputs.delete }}
+          PREPROD_ACCESS_VALUE: ${{ needs.proof.outputs.preprod_access }}
+          PROD_ACCESS_VALUE: ${{ needs.proof.outputs.prod_access }}
+          GATE: ${{ needs.proof.outputs.cleanup_gate }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_RUN" =~ ^[1-9][0-9]*$ ]]
+          [[ "$TARGET_REQUEST" =~ ^seed-956-[A-Za-z0-9._-]{8,40}-r1$ ]]
+          [[ "$TRUSTED_MAIN" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HOSTNAME_VALUE" =~ ^([A-Za-z0-9._-]{1,64}|CHECK_FAILED)$ ]]
+          for value in "$RAW" "$SANITIZE_DIAGNOSTIC" "$KNOWN_HOSTS" "$GENERATION_WORKTREE" "$PROOF_WORKTREE" "$READER_KEY" "$READER_PUBLIC_KEY" "$PROOF_CACHE" "$DDEV_LIST" "$DOCKER_CONTAINER" "$DOCKER_VOLUME" "$DDEV_PROJECT"; do
+            [[ "$value" =~ ^(ABSENT|PRESENT|CHECK_FAILED)$ ]]
+          done
+          test "$CONTENT_READ_VALUE" = 'NONE'
+          test "$DELETE_VALUE" = 'NONE'
+          test "$PREPROD_ACCESS_VALUE" = 'NONE'
+          test "$PROD_ACCESS_VALUE" = 'NONE'
+          [[ "$GATE" =~ ^(PASS|NOT_PROVEN)$ ]]
+          body="$(cat <<EOF_BODY
+          ### Agency Development Seed cleanup absence proof
+
+          target_run: \`${TARGET_RUN}\`
+          target_request: \`${TARGET_REQUEST}\`
+          trusted_main: \`${TRUSTED_MAIN}\`
+          hostname: \`${HOSTNAME_VALUE}\`
+
+          FAILED_REQUEST_RAW_MATERIAL=${RAW}
+          FAILED_REQUEST_SANITIZE_DIAGNOSTIC=${SANITIZE_DIAGNOSTIC}
+          FAILED_REQUEST_KNOWN_HOSTS=${KNOWN_HOSTS}
+          FAILED_REQUEST_GENERATION_WORKTREE=${GENERATION_WORKTREE}
+          FAILED_REQUEST_PROOF_WORKTREE=${PROOF_WORKTREE}
+          FAILED_REQUEST_READER_KEY=${READER_KEY}
+          FAILED_REQUEST_READER_PUBLIC_KEY=${READER_PUBLIC_KEY}
+          FAILED_REQUEST_PROOF_CACHE=${PROOF_CACHE}
+          DDEV_LIST_PROJECT=${DDEV_LIST}
+          DOCKER_CONTAINER_PROJECT=${DOCKER_CONTAINER}
+          DOCKER_VOLUME_PROJECT=${DOCKER_VOLUME}
+          FAILED_DDEV_PROJECT=${DDEV_PROJECT}
+
+          CONTENT_READ=${CONTENT_READ_VALUE}
+          DELETE=${DELETE_VALUE}
+          PREPROD_ACCESS=${PREPROD_ACCESS_VALUE}
+          PROD_ACCESS=${PROD_ACCESS_VALUE}
+
+          CLEANUP_GATE=${GATE}
+          EOF_BODY
+          )"
+          gh issue comment 956 --repo "$GITHUB_REPOSITORY" --body "$body"

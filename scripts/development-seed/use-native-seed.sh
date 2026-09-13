@@ -107,6 +107,11 @@ mkdir -p "$repo/.ddev/.downloads"
 cp -- "$final_metadata" "$repo/.ddev/.downloads/agency-seed.json"
 chmod 600 "$repo/.ddev/.downloads/agency-seed.json"
 
+[[ -f "$repo/composer.lock" && ! -L "$repo/composer.lock" ]] || {
+  echo 'Development Seed consumer requires the exact repository composer.lock.' >&2
+  exit 2
+}
+
 case "$MODE" in
   fresh)
     ddev start --seed-snapshot="$final_snapshot"
@@ -118,6 +123,7 @@ case "$MODE" in
     ;;
 esac
 
+ddev composer install --no-interaction --no-progress --prefer-dist >/dev/null
 ddev exec bash scripts/development-seed/post-pull.sh
 
 printf '%s\n' \

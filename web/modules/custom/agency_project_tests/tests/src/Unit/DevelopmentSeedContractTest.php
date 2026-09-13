@@ -78,41 +78,69 @@ final class DevelopmentSeedContractTest extends TestCase {
   }
 
   /**
-   * Proves #1131 materializes Composer inside the fresh DDEV worktree.
+   * Proves generation and fresh consumer materialize exact Composer dependencies.
    */
-  public function testPublisherGenerationComposerMaterializationContract(): void {
+  public function testDevelopmentSeedComposerMaterializationContract(): void {
     $root = dirname(DRUPAL_ROOT);
     $publisher = file_get_contents($root . '/scripts/development-seed/run-publish.sh');
+    $consumer = file_get_contents($root . '/scripts/development-seed/use-native-seed.sh');
     self::assertIsString($publisher);
+    self::assertIsString($consumer);
 
-    self::assertSame(1, substr_count($publisher, 'ddev composer install --no-interaction --no-progress --prefer-dist'));
+    $composerInstall = 'ddev composer install --no-interaction --no-progress --prefer-dist';
+    self::assertSame(1, substr_count($publisher, $composerInstall));
+    self::assertSame(1, substr_count($consumer, $composerInstall));
     self::assertStringNotContainsString('ddev composer update', $publisher);
+    self::assertStringNotContainsString('ddev composer update', $consumer);
     self::assertStringContainsString(
       '[[ -f "$generation/composer.lock" && ! -L "$generation/composer.lock" ]]',
       $publisher,
     );
+    self::assertStringContainsString(
+      '[[ -f "$repo/composer.lock" && ! -L "$repo/composer.lock" ]]',
+      $consumer,
+    );
 
     $worktree = strpos($publisher, 'git worktree add --detach "$generation" "$REPOSITORY_SHA"');
-    $lock = strpos(
+    $generationLock = strpos(
       $publisher,
       '[[ -f "$generation/composer.lock" && ! -L "$generation/composer.lock" ]]',
       $worktree,
     );
-    $start = strpos($publisher, 'ddev start -y >/dev/null', $lock);
-    $composer = strpos($publisher, 'ddev composer install --no-interaction --no-progress --prefer-dist', $start);
-    $import = strpos($publisher, 'ddev import-db --file="$raw" >/dev/null', $composer);
+    $generationStart = strpos($publisher, 'ddev start -y >/dev/null', $generationLock);
+    $generationComposer = strpos($publisher, $composerInstall, $generationStart);
+    $import = strpos($publisher, 'ddev import-db --file="$raw" >/dev/null', $generationComposer);
     $sanitize = strpos($publisher, 'ddev drush -vvv sql:sanitize -y', $import);
     self::assertIsInt($worktree);
-    self::assertIsInt($lock);
-    self::assertIsInt($start);
-    self::assertIsInt($composer);
+    self::assertIsInt($generationLock);
+    self::assertIsInt($generationStart);
+    self::assertIsInt($generationComposer);
     self::assertIsInt($import);
     self::assertIsInt($sanitize);
-    self::assertTrue($worktree < $lock);
-    self::assertTrue($lock < $start);
-    self::assertTrue($start < $composer);
-    self::assertTrue($composer < $import);
-    self::assertTrue($composer < $sanitize);
+    self::assertTrue($worktree < $generationLock);
+    self::assertTrue($generationLock < $generationStart);
+    self::assertTrue($generationStart < $generationComposer);
+    self::assertTrue($generationComposer < $import);
+    self::assertTrue($generationComposer < $sanitize);
+
+    $consumerLock = strpos(
+      $consumer,
+      '[[ -f "$repo/composer.lock" && ! -L "$repo/composer.lock" ]]',
+    );
+    $freshStart = strpos($consumer, 'ddev start --seed-snapshot="$final_snapshot"', $consumerLock);
+    $resetStart = strpos($consumer, 'ddev start --reset-database --seed-snapshot="$final_snapshot"', $consumerLock);
+    $consumerComposer = strpos($consumer, $composerInstall, $resetStart);
+    $postPull = strpos($consumer, 'ddev exec bash scripts/development-seed/post-pull.sh', $consumerComposer);
+    self::assertIsInt($consumerLock);
+    self::assertIsInt($freshStart);
+    self::assertIsInt($resetStart);
+    self::assertIsInt($consumerComposer);
+    self::assertIsInt($postPull);
+    self::assertTrue($consumerLock < $freshStart);
+    self::assertTrue($consumerLock < $resetStart);
+    self::assertTrue($freshStart < $consumerComposer);
+    self::assertTrue($resetStart < $consumerComposer);
+    self::assertTrue($consumerComposer < $postPull);
   }
 
   /**

@@ -20,10 +20,6 @@ final class DevelopmentSeedContractTest extends TestCase {
     self::assertIsString($publisher);
 
     self::assertStringContainsString(
-      'for command_name in ddev git jq openssl scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do',
-      $publisher,
-    );
-    self::assertStringNotContainsString(
       'for command_name in ddev git jq openssl php scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do',
       $publisher,
     );
@@ -65,10 +61,16 @@ final class DevelopmentSeedContractTest extends TestCase {
       'ddev exec php scripts/development-seed/build-seed-metadata.php',
       $publisher,
     );
-    self::assertStringContainsString(
+    self::assertStringNotContainsString(
       'ddev exec php scripts/development-seed/verify-seed.php',
       $publisher,
     );
+    self::assertStringContainsString(
+      'php "$generation/scripts/development-seed/verify-seed.php"',
+      $publisher,
+    );
+    self::assertStringContainsString('--repository="$generation"', $publisher);
+    self::assertStringContainsString('--checkout-ref="$REPOSITORY_SHA"', $publisher);
   }
 
   /**

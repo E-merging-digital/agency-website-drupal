@@ -176,6 +176,11 @@ assert_true(is_int($sanitizePosition) && is_int($snapshotPosition) && $sanitizeP
 assert_true(str_contains($publisher, "--sanitize-email='user+%uid@example.invalid'"), 'Drush email sanitization must satisfy the existing #914 assertion.');
 assert_true(str_contains($publisher, '--sanitize-password="$seed_password"'), 'Drush passwords must be invalidated with non-persisted random material.');
 assert_true(str_contains($publisher, 'RUNNER_ENVIRONMENT" == self-hosted'), 'Publisher must fail closed off the trusted self-hosted runner.');
+assert_true(preg_match('/for command_name in [^;]*\bphp\b/', $publisher) === 1, 'Host-side PHP is not required for seed verification.');
+assert_true(str_contains($publisher, 'php "$generation/scripts/development-seed/verify-seed.php"'), 'Publisher does not verify the seed from the host-side generation worktree.');
+assert_true(str_contains($publisher, '--repository="$generation"'), 'Publisher verifier does not target the generation linked worktree.');
+assert_true(str_contains($publisher, '--checkout-ref="$REPOSITORY_SHA"'), 'Publisher verifier does not bind to the exact repository SHA.');
+assert_true(!str_contains($publisher, 'ddev exec php scripts/development-seed/verify-seed.php'), 'Publisher still verifies the linked worktree from inside DDEV.');
 assert_true(!str_contains($publisher, 'SOURCE_PROD'), 'Publisher must not expose a PROD source path.');
 assert_true(!str_contains($publisher, 'SSH_PRIVATE_KEY'), 'Publisher must not consume the PROD SSH secret.');
 
@@ -200,6 +205,7 @@ assert_true(str_contains($docs, 'RAW_SNAPSHOT != SANITIZED_SEED'), 'Raw-vs-sanit
 assert_true(!str_contains($docs, 'ddev pull agency'), 'Legacy SQL developer UX remains documented.');
 
 $tmp = sys_get_temp_dir() . '/agency-seed-1108-' . bin2hex(random_bytes(6));
+$linkedWorktree = $tmp . '-linked';
 assert_true(mkdir($tmp, 0700, true), 'Unable to create synthetic proof directory.');
 try {
   $cleanupFakeBin = $tmp . '/cleanup-bin';
@@ -371,6 +377,17 @@ BASH;
   ], $root);
   assert_true($code === 0 && str_contains($stdout, 'SEED_HASH=PASS') && str_contains($stdout, 'SEED_DATABASE_COMPATIBILITY=mariadb:11.8') && str_contains($stdout, 'SEED_COMPATIBILITY=SEED_OLDER_THAN_CHECKOUT'), 'Supported native seed compatibility proof failed.');
 
+  [$code] = run_command(['git', 'worktree', 'add', '--detach', $linkedWorktree, $checkoutSha], $tmp);
+  assert_true($code === 0 && is_dir($linkedWorktree), 'Unable to create synthetic linked generation worktree.');
+  [$code, $stdout] = run_command([
+    PHP_BINARY, $verifier,
+    '--metadata=' . $metadata,
+    '--database=' . $database,
+    '--repository=' . $linkedWorktree,
+    '--checkout-ref=' . $checkoutSha,
+  ], $root);
+  assert_true($code === 0 && str_contains($stdout, 'SEED_HASH=PASS') && str_contains($stdout, 'SEED_COMPATIBILITY=SEED_OLDER_THAN_CHECKOUT'), 'Host-side linked worktree seed verification failed.');
+
   $corruptDir = $tmp . '/corrupt';
   assert_true(mkdir($corruptDir, 0700), 'Unable to create corrupt snapshot directory.');
   $corrupt = $corruptDir . '/database-mariadb_11.8.zst';
@@ -384,6 +401,16 @@ BASH;
     '--checkout-ref=' . $checkoutSha,
   ], $root);
   assert_true($code !== 0, 'Corrupted native snapshot hash was accepted.');
+
+  $unknownCheckout = str_repeat('f', 40);
+  [$code, , $stderr] = run_command([
+    PHP_BINARY, $verifier,
+    '--metadata=' . $metadata,
+    '--database=' . $database,
+    '--repository=' . $tmp,
+    '--checkout-ref=' . $unknownCheckout,
+  ], $root);
+  assert_true($code !== 0 && str_contains($stderr, 'Unable to resolve checkout commit.'), 'Unknown checkout did not fail closed.');
 
   $newerMetadata = $tmp . '/newer-seed.json';
   [$code] = run_command([
@@ -453,6 +480,9 @@ BASH;
   assert_true($code === 0 && str_contains($fixtureOut, 'SYNTHETIC_FIXTURE_PROOF=PASS'), 'Existing #816 synthetic sanitization regression failed.');
 }
 finally {
+  if (is_dir($linkedWorktree)) {
+    run_command(['git', 'worktree', 'remove', '--force', $linkedWorktree], $tmp);
+  }
   $iterator = new RecursiveIteratorIterator(
     new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS),
     RecursiveIteratorIterator::CHILD_FIRST,
@@ -468,6 +498,7 @@ fwrite(STDOUT, "EXISTING_CAPABILITY_AUDIT=COMPLETE\n");
 fwrite(STDOUT, "CLEANUP_PROOF_CONTRACT=PASS\n");
 fwrite(STDOUT, "SYNTHETIC_CLEANUP_PROOF=PASS\n");
 fwrite(STDOUT, "SYNTHETIC_SEED_PROOF=PASS\n");
+fwrite(STDOUT, "LINKED_WORKTREE_HOST_VERIFY=PASS\n");
 fwrite(STDOUT, "PUBLISHER_STATIC_PROOF=PASS\n");
 fwrite(STDOUT, "SOURCE_IDENTITY_JIT=FAIL_CLOSED\n");
 fwrite(STDOUT, "READER_IDENTITY=RESTRICTED_READ_ONLY\n");
@@ -482,6 +513,7 @@ fwrite(STDOUT, "DATABASE_COMPATIBILITY=mariadb:11.8/FAIL_CLOSED\n");
 fwrite(STDOUT, "IMPLICIT_RESET=NONE\n");
 fwrite(STDOUT, "RESET_DEFAULT_BACKUP=PRESERVED\n");
 fwrite(STDOUT, "CORRUPT_HASH=FAIL_CLOSED\n");
+fwrite(STDOUT, "UNKNOWN_CHECKOUT=FAIL_CLOSED\n");
 fwrite(STDOUT, "UNSUPPORTED_DOWNGRADE=FAIL_CLOSED\n");
 fwrite(STDOUT, "REQUEST_REUSE=FAIL_CLOSED\n");
 fwrite(STDOUT, "RERUN=FAIL_CLOSED\n");

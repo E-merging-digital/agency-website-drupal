@@ -124,7 +124,7 @@ playwright_packages=(
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y --no-install-recommends "${playwright_packages[@]}"
+apt-get install -y --no-install-recommends php-cli "${playwright_packages[@]}"
 
 if [[ -e "$RUNNER_DIR/.runner" ]]; then
   echo "Agency runner already appears configured at $RUNNER_DIR; refusing replacement." >&2
@@ -175,6 +175,8 @@ runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" bash -lc '
   id
   docker info --format "ServerVersion={{.ServerVersion}} Driver={{.Driver}}"
   ddev version
+  command -v php
+  php --version
 '
 
 echo
@@ -182,4 +184,5 @@ printf 'Agency runner provisioned: %s\n' "$RUNNER_NAME"
 printf 'Labels: self-hosted, linux, x64, %s\n' "$RUNNER_LABELS"
 printf 'Repository: %s\n' "$REPOSITORY_URL"
 printf 'Node is provisioned per job by actions/setup-node@v6; no host Node install is required.\n'
+printf 'Host PHP CLI is provisioned from Ubuntu php-cli for Development Seed verification.\n'
 printf 'Existing Preflight runner was not modified.\n'

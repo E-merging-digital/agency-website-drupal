@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\Core\Entity\EntityFieldManagerInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Language\LanguageManagerInterface;
+use Drupal\Core\Session\AccountSwitcherInterface;
+use Drupal\Core\State\StateInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
@@ -138,11 +143,11 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
       . '/scripts/runner/editorial-service-publication.php';
     require_once $publisher;
     $service = new \AgencyEditorialServicePublication(
-      $this->createMock(\Drupal\Core\Entity\EntityTypeManagerInterface::class),
-      $this->createMock(\Drupal\Core\Entity\EntityFieldManagerInterface::class),
-      $this->createMock(\Drupal\Core\Language\LanguageManagerInterface::class),
-      $this->createMock(\Drupal\Core\State\StateInterface::class),
-      $this->createMock(\Drupal\Core\Session\AccountSwitcherInterface::class),
+      $this->createMock(EntityTypeManagerInterface::class),
+      $this->createMock(EntityFieldManagerInterface::class),
+      $this->createMock(LanguageManagerInterface::class),
+      $this->createMock(StateInterface::class),
+      $this->createMock(AccountSwitcherInterface::class),
     );
 
     $canonical = $this->servicePayload();

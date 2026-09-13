@@ -78,7 +78,8 @@ final class DevelopmentSeedContractTest extends TestCase {
   }
 
   /**
-   * Proves generation and fresh consumer materialize exact Composer dependencies.
+   * Proves generation and fresh consumer materialize exact Composer
+   * dependencies.
    */
   public function testDevelopmentSeedComposerMaterializationContract(): void {
     $root = dirname(DRUPAL_ROOT);

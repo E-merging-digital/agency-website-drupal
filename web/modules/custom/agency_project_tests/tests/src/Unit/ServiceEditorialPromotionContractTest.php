@@ -11,7 +11,6 @@ use Drupal\Core\Session\AccountSwitcherInterface;
 use Drupal\Core\State\StateInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -143,7 +142,7 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
     $publisher = dirname(DRUPAL_ROOT)
       . '/scripts/runner/editorial-service-publication.php';
     require_once $publisher;
-    $reflection = new ReflectionClass('AgencyEditorialServicePublication');
+    $reflection = new \ReflectionClass('AgencyEditorialServicePublication');
     $service = $reflection->newInstance(
       $this->createMock(EntityTypeManagerInterface::class),
       $this->createMock(EntityFieldManagerInterface::class),

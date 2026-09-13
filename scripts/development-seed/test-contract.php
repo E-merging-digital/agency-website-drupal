@@ -205,6 +205,7 @@ assert_true(str_contains($docs, 'RAW_SNAPSHOT != SANITIZED_SEED'), 'Raw-vs-sanit
 assert_true(!str_contains($docs, 'ddev pull agency'), 'Legacy SQL developer UX remains documented.');
 
 $tmp = sys_get_temp_dir() . '/agency-seed-1108-' . bin2hex(random_bytes(6));
+$linkedWorktree = $tmp . '-linked';
 assert_true(mkdir($tmp, 0700, true), 'Unable to create synthetic proof directory.');
 try {
   $cleanupFakeBin = $tmp . '/cleanup-bin';
@@ -376,6 +377,17 @@ BASH;
   ], $root);
   assert_true($code === 0 && str_contains($stdout, 'SEED_HASH=PASS') && str_contains($stdout, 'SEED_DATABASE_COMPATIBILITY=mariadb:11.8') && str_contains($stdout, 'SEED_COMPATIBILITY=SEED_OLDER_THAN_CHECKOUT'), 'Supported native seed compatibility proof failed.');
 
+  [$code] = run_command(['git', 'worktree', 'add', '--detach', $linkedWorktree, $checkoutSha], $tmp);
+  assert_true($code === 0 && is_dir($linkedWorktree), 'Unable to create synthetic linked generation worktree.');
+  [$code, $stdout] = run_command([
+    PHP_BINARY, $verifier,
+    '--metadata=' . $metadata,
+    '--database=' . $database,
+    '--repository=' . $linkedWorktree,
+    '--checkout-ref=' . $checkoutSha,
+  ], $root);
+  assert_true($code === 0 && str_contains($stdout, 'SEED_HASH=PASS') && str_contains($stdout, 'SEED_COMPATIBILITY=SEED_OLDER_THAN_CHECKOUT'), 'Host-side linked worktree seed verification failed.');
+
   $corruptDir = $tmp . '/corrupt';
   assert_true(mkdir($corruptDir, 0700), 'Unable to create corrupt snapshot directory.');
   $corrupt = $corruptDir . '/database-mariadb_11.8.zst';
@@ -468,6 +480,9 @@ BASH;
   assert_true($code === 0 && str_contains($fixtureOut, 'SYNTHETIC_FIXTURE_PROOF=PASS'), 'Existing #816 synthetic sanitization regression failed.');
 }
 finally {
+  if (is_dir($linkedWorktree)) {
+    run_command(['git', 'worktree', 'remove', '--force', $linkedWorktree], $tmp);
+  }
   $iterator = new RecursiveIteratorIterator(
     new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS),
     RecursiveIteratorIterator::CHILD_FIRST,
@@ -483,6 +498,7 @@ fwrite(STDOUT, "EXISTING_CAPABILITY_AUDIT=COMPLETE\n");
 fwrite(STDOUT, "CLEANUP_PROOF_CONTRACT=PASS\n");
 fwrite(STDOUT, "SYNTHETIC_CLEANUP_PROOF=PASS\n");
 fwrite(STDOUT, "SYNTHETIC_SEED_PROOF=PASS\n");
+fwrite(STDOUT, "LINKED_WORKTREE_HOST_VERIFY=PASS\n");
 fwrite(STDOUT, "PUBLISHER_STATIC_PROOF=PASS\n");
 fwrite(STDOUT, "SOURCE_IDENTITY_JIT=FAIL_CLOSED\n");
 fwrite(STDOUT, "READER_IDENTITY=RESTRICTED_READ_ONLY\n");

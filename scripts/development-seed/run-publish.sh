@@ -37,7 +37,7 @@ REMOTE_INCOMING="$REMOTE_ROOT/.incoming/$REQUEST_ID"
 for path in "$SOURCE_SCRIPT" "$STORAGE_SCRIPT" "$READER_SCRIPT" "$READER_KEY_SCRIPT" "$PREPROD_TRUST" "$PINNED_KEY"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
-for command_name in ddev git jq openssl php scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
+for command_name in ddev git jq openssl php8.4 scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     printf 'MISSING_REQUIRED_COMMAND=%s\n' "$command_name" >&2
     exit 82
@@ -369,7 +369,7 @@ created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     --source-release="$SOURCE_PREPROD_RELEASE_SHA" \
     --output=/var/www/html/.ddev/.seed-build/seed.json >/dev/null
 )
-php "$generation/scripts/development-seed/verify-seed.php" \
+php8.4 "$generation/scripts/development-seed/verify-seed.php" \
   --metadata="$metadata" \
   --database="$database" \
   --repository="$generation" \

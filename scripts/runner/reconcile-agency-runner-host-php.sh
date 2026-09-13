@@ -17,7 +17,7 @@ if [[ "${ID:-}" != "ubuntu" || "${VERSION_ID:-}" != "24.04" ]]; then
   exit 1
 fi
 
-for command_name in apt-get dpkg-query getent grep runuser; do
+for command_name in apt-get apt-cache dpkg-query getent grep runuser; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Missing prerequisite on host: $command_name" >&2
     exit 1
@@ -39,30 +39,38 @@ if [[ ! -f "$VERIFY_SEED_SCRIPT" ]]; then
   exit 1
 fi
 
-if ! dpkg-query -W -f='${Status}\n' php-cli 2>/dev/null | grep -qx 'install ok installed'; then
+if ! dpkg-query -W -f='${Status}\n' php8.4-cli 2>/dev/null | grep -qx 'install ok installed'; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y --no-install-recommends php-cli
+  if ! apt-cache show php8.4-cli >/dev/null 2>&1; then
+    apt-get install -y --no-install-recommends software-properties-common
+    add-apt-repository -y ppa:ondrej/php
+    apt-get update
+  fi
+  apt-get install -y --no-install-recommends php8.4-cli
 fi
 
-if ! command -v php >/dev/null 2>&1; then
-  echo "Host php command is unavailable after php-cli reconciliation." >&2
+if ! command -v php8.4 >/dev/null 2>&1; then
+  echo "Host php8.4 command is unavailable after php8.4-cli reconciliation." >&2
   exit 1
 fi
 
-php --version >/dev/null
-php -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);'
-php -l "$VERIFY_SEED_SCRIPT" >/dev/null
+php8.4 --version >/dev/null
+php8.4 -r 'exit(PHP_MAJOR_VERSION === 8 && PHP_MINOR_VERSION === 4 ? 0 : 1);'
+php8.4 -l "$VERIFY_SEED_SCRIPT" >/dev/null
 
-runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" php --version >/dev/null
-runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" php -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);'
-runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" php -l "$VERIFY_SEED_SCRIPT" >/dev/null
+runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" php8.4 --version >/dev/null
+runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" php8.4 -r 'exit(PHP_MAJOR_VERSION === 8 && PHP_MINOR_VERSION === 4 ? 0 : 1);'
+runuser -u "$RUNNER_USER" -- env HOME="$RUNNER_HOME" php8.4 -l "$VERIFY_SEED_SCRIPT" >/dev/null
 
-printf 'HOST_PHP_COMMAND=PRESENT\n'
-printf 'HOST_PHP_VERSION=%s\n' "$(php -r 'echo PHP_VERSION;')"
-printf 'PHP_VERSION_COMPATIBLE_WITH_VERIFY_SEED=PASS\n'
-printf 'AGENCY_RUNNER_PHP_COMMAND=PRESENT\n'
+printf 'HOST_PHP84_COMMAND=PRESENT\n'
+printf 'HOST_PHP_MAJOR_MINOR=%s\n' "$(php8.4 -r 'echo PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;')"
+printf 'HOST_PHP84_VERSION=%s\n' "$(php8.4 -r 'echo PHP_VERSION;')"
+printf 'PHP84_VERSION_CONTRACT=PASS\n'
+printf 'AGENCY_RUNNER_PHP84_COMMAND=PRESENT\n'
+printf 'AGENCY_RUNNER_PHP_MAJOR_MINOR=8.4\n'
 printf 'AGENCY_RUNNER_VERIFY_SEED_SYNTAX=PASS\n'
+printf 'GENERIC_PHP_ALTERNATIVE_MUTATION=NONE\n'
 printf 'RUNNER_REREGISTRATION=NONE\n'
 printf 'RUNNER_REPLACEMENT=NONE\n'
 printf 'DDEV_MUTATION=NONE\n'

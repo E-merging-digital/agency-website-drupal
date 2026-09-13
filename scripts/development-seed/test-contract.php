@@ -176,8 +176,8 @@ assert_true(is_int($sanitizePosition) && is_int($snapshotPosition) && $sanitizeP
 assert_true(str_contains($publisher, "--sanitize-email='user+%uid@example.invalid'"), 'Drush email sanitization must satisfy the existing #914 assertion.');
 assert_true(str_contains($publisher, '--sanitize-password="$seed_password"'), 'Drush passwords must be invalidated with non-persisted random material.');
 assert_true(str_contains($publisher, 'RUNNER_ENVIRONMENT" == self-hosted'), 'Publisher must fail closed off the trusted self-hosted runner.');
-assert_true(preg_match('/for command_name in [^;]*\bphp\b/', $publisher) === 1, 'Host-side PHP is not required for seed verification.');
-assert_true(str_contains($publisher, 'php "$generation/scripts/development-seed/verify-seed.php"'), 'Publisher does not verify the seed from the host-side generation worktree.');
+assert_true(preg_match('/for command_name in [^;]*\bphp8\.4\b/', $publisher) === 1, 'Host-side PHP 8.4 is not required for seed verification.');
+assert_true(str_contains($publisher, 'php8.4 "$generation/scripts/development-seed/verify-seed.php"'), 'Publisher does not verify the seed with explicit host-side PHP 8.4.');
 assert_true(str_contains($publisher, '--repository="$generation"'), 'Publisher verifier does not target the generation linked worktree.');
 assert_true(str_contains($publisher, '--checkout-ref="$REPOSITORY_SHA"'), 'Publisher verifier does not bind to the exact repository SHA.');
 assert_true(!str_contains($publisher, 'ddev exec php scripts/development-seed/verify-seed.php'), 'Publisher still verifies the linked worktree from inside DDEV.');

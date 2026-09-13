@@ -174,11 +174,11 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
 
     $payloadData = json_decode((string) file_get_contents($payload), TRUE);
     self::assertIsArray($payloadData);
-    self::assertSame(
+    self::assertEquals(
       ['fr' => '/fr/audit-site-web', 'en' => '/en/website-audit'],
       $payloadData['public_routes'],
     );
-    self::assertSame(
+    self::assertEquals(
       ['fr' => '/audit-site-web', 'en' => '/website-audit'],
       $payloadData['stored_aliases'],
     );

@@ -131,6 +131,93 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
   }
 
   /**
+   * Runtime route maps are exact while insertion order is insignificant.
+   */
+  public function testRuntimeRouteMapsAreExactButOrderIndependent(): void {
+    $publisher = dirname(DRUPAL_ROOT)
+      . '/scripts/runner/editorial-service-publication.php';
+    require_once $publisher;
+    $service = new \AgencyEditorialServicePublication(
+      $this->createMock(\Drupal\Core\Entity\EntityTypeManagerInterface::class),
+      $this->createMock(\Drupal\Core\Entity\EntityFieldManagerInterface::class),
+      $this->createMock(\Drupal\Core\Language\LanguageManagerInterface::class),
+      $this->createMock(\Drupal\Core\State\StateInterface::class),
+      $this->createMock(\Drupal\Core\Session\AccountSwitcherInterface::class),
+    );
+
+    $canonical = $this->servicePayload();
+    $service->validatePayload($canonical, self::ISSUE, self::PAYLOAD_SHA);
+
+    $declared = $canonical;
+    $declared['public_routes'] = [
+      'fr' => '/fr/audit-site-web',
+      'en' => '/en/website-audit',
+    ];
+    $declared['stored_aliases'] = [
+      'fr' => '/audit-site-web',
+      'en' => '/website-audit',
+    ];
+    $service->validatePayload($declared, self::ISSUE, self::PAYLOAD_SHA);
+
+    $invalid = [];
+    $wrongRoute = $canonical;
+    $wrongRoute['public_routes']['en'] = '/en/wrong';
+    $invalid['wrong route value'] = $wrongRoute;
+    $wrongAlias = $canonical;
+    $wrongAlias['stored_aliases']['en'] = '/wrong';
+    $invalid['wrong alias value'] = $wrongAlias;
+    $missing = $canonical;
+    unset($missing['public_routes']['fr']);
+    $invalid['missing key'] = $missing;
+    $extra = $canonical;
+    $extra['stored_aliases']['de'] = '/website-audit-de';
+    $invalid['extra key'] = $extra;
+    $wrongType = $canonical;
+    $wrongType['public_routes']['en'] = 123;
+    $invalid['wrong value type'] = $wrongType;
+
+    foreach ($invalid as $name => $payload) {
+      try {
+        $service->validatePayload($payload, self::ISSUE, self::PAYLOAD_SHA);
+        self::fail($name . ' must fail closed.');
+      }
+      catch (\InvalidArgumentException) {
+        self::assertTrue(TRUE);
+      }
+    }
+  }
+
+  /**
+   * Builds the exact closed #1117 payload with canonical en,fr map order.
+   */
+  private function servicePayload(): array {
+    return [
+      'bundle' => 'service',
+      'en' => [
+        'detailed_description_html' => '<p>EN detailed</p>',
+        'short_description' => 'EN short',
+        'title' => 'EN title',
+      ],
+      'fr' => [
+        'detailed_description_html' => '<p>FR detailed</p>',
+        'short_description' => 'FR short',
+        'title' => 'FR title',
+      ],
+      'issue_number' => self::ISSUE,
+      'public_routes' => [
+        'en' => '/en/website-audit',
+        'fr' => '/fr/audit-site-web',
+      ],
+      'published' => TRUE,
+      'schema_version' => 2,
+      'stored_aliases' => [
+        'en' => '/website-audit',
+        'fr' => '/audit-site-web',
+      ],
+    ];
+  }
+
+  /**
    * Tests exact Git Service candidate, routes, and bounded Entity API writer.
    */
   public function testServiceCandidateIdentityAndWriterAreBounded(): void {

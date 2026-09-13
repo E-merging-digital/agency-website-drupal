@@ -274,12 +274,18 @@ final class AgencyEditorialServicePublication {
         'Service PROD requires the exact published #1117 Service payload.',
       );
     }
-    if (($payload['public_routes'] ?? NULL) !== self::PUBLIC_ROUTES) {
+    if (!$this->exactAssociativeMapMatches(
+      $payload['public_routes'] ?? NULL,
+      self::PUBLIC_ROUTES,
+    )) {
       throw new InvalidArgumentException(
         'Service public routes do not match the exact #1117 contract.',
       );
     }
-    if (($payload['stored_aliases'] ?? NULL) !== self::STORED_ALIASES) {
+    if (!$this->exactAssociativeMapMatches(
+      $payload['stored_aliases'] ?? NULL,
+      self::STORED_ALIASES,
+    )) {
       throw new InvalidArgumentException(
         'Service stored aliases do not match the exact #1117 contract.',
       );
@@ -543,6 +549,20 @@ final class AgencyEditorialServicePublication {
         'Service PROD V1 supports only issue #1117.',
       );
     }
+  }
+
+  /**
+   * Compares exact associative maps without depending on insertion order.
+   */
+  private function exactAssociativeMapMatches(mixed $actual, array $expected): bool {
+    if (!is_array($actual)) {
+      return FALSE;
+    }
+    $normalizedActual = $actual;
+    $normalizedExpected = $expected;
+    ksort($normalizedActual);
+    ksort($normalizedExpected);
+    return $normalizedActual === $normalizedExpected;
   }
 
   /**

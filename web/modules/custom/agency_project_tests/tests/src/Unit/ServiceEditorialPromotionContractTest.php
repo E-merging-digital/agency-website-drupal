@@ -11,6 +11,7 @@ use Drupal\Core\Session\AccountSwitcherInterface;
 use Drupal\Core\State\StateInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -142,16 +143,18 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
     $publisher = dirname(DRUPAL_ROOT)
       . '/scripts/runner/editorial-service-publication.php';
     require_once $publisher;
-    $service = new \AgencyEditorialServicePublication(
+    $reflection = new ReflectionClass('AgencyEditorialServicePublication');
+    $service = $reflection->newInstance(
       $this->createMock(EntityTypeManagerInterface::class),
       $this->createMock(EntityFieldManagerInterface::class),
       $this->createMock(LanguageManagerInterface::class),
       $this->createMock(StateInterface::class),
       $this->createMock(AccountSwitcherInterface::class),
     );
+    $validatePayload = $reflection->getMethod('validatePayload');
 
     $canonical = $this->servicePayload();
-    $service->validatePayload($canonical, self::ISSUE, self::PAYLOAD_SHA);
+    $validatePayload->invoke($service, $canonical, self::ISSUE, self::PAYLOAD_SHA);
 
     $declared = $canonical;
     $declared['public_routes'] = [
@@ -162,7 +165,12 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
       'fr' => '/audit-site-web',
       'en' => '/website-audit',
     ];
-    $service->validatePayload($declared, self::ISSUE, self::PAYLOAD_SHA);
+    $validatePayload->invoke(
+      $service,
+      $declared,
+      self::ISSUE,
+      self::PAYLOAD_SHA,
+    );
 
     $invalid = [];
     $wrongRoute = $canonical;
@@ -183,7 +191,12 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
 
     foreach ($invalid as $name => $payload) {
       try {
-        $service->validatePayload($payload, self::ISSUE, self::PAYLOAD_SHA);
+        $validatePayload->invoke(
+          $service,
+          $payload,
+          self::ISSUE,
+          self::PAYLOAD_SHA,
+        );
         self::fail($name . ' must fail closed.');
       }
       catch (\InvalidArgumentException) {

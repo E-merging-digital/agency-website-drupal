@@ -65,6 +65,16 @@ assert_true(str_contains($consumer, 'verify-seed.php'), 'Seed verification is no
 assert_true(str_contains($consumer, 'database-mariadb_11.8.zst'), 'Native MariaDB 11.8 snapshot filename is missing.');
 assert_true(str_contains($consumer, 'ddev start --seed-snapshot="$final_snapshot"'), 'Fresh native seed command is missing.');
 assert_true(str_contains($consumer, 'ddev start --reset-database --seed-snapshot="$final_snapshot"'), 'Explicit native reset command is missing.');
+assert_true(str_contains($consumer, '[[ -f "$repo/composer.lock" && ! -L "$repo/composer.lock" ]]'), 'Consumer does not require the exact repository composer.lock.');
+assert_true(str_contains($consumer, 'ddev composer install --no-interaction --no-progress --prefer-dist'), 'Consumer does not materialize exact Composer dependencies.');
+assert_true(!str_contains($consumer, 'ddev composer update'), 'Consumer must never run composer update.');
+$freshStart = strpos($consumer, 'ddev start --seed-snapshot="$final_snapshot"');
+$resetStart = strpos($consumer, 'ddev start --reset-database --seed-snapshot="$final_snapshot"');
+$consumerComposer = strpos($consumer, 'ddev composer install --no-interaction --no-progress --prefer-dist');
+$postPull = strpos($consumer, 'ddev exec bash scripts/development-seed/post-pull.sh');
+assert_true(is_int($freshStart) && is_int($resetStart) && is_int($consumerComposer) && is_int($postPull), 'Consumer native convergence ordering markers are incomplete.');
+assert_true($freshStart < $consumerComposer && $resetStart < $consumerComposer, 'Composer must be materialized after native seed/reset start.');
+assert_true($consumerComposer < $postPull, 'Composer must be materialized before post-pull convergence.');
 assert_true(!str_contains($consumer, '--omit-snapshot'), 'DDEV default pre-reset safety snapshot may not be bypassed.');
 assert_true(!preg_match('/ddev start --reset-database[^\n]*(?: -y|--skip-confirmation)/', $consumer), 'Human reset confirmation may not be bypassed.');
 assert_true(!str_contains($consumer, 'ddev pull'), 'Legacy SQL pull must not survive native seed consumption.');

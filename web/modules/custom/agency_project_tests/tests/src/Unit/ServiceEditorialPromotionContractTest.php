@@ -142,11 +142,12 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
     $publisher = dirname(DRUPAL_ROOT)
       . '/scripts/runner/editorial-service-publication.php';
     require_once $publisher;
-    $runtimeClass = 'AgencyEditorialServicePublication';
-    if (!class_exists($runtimeClass)) {
+    if (!class_exists(\AgencyEditorialServicePublication::class)) {
       self::fail('Service publication runtime class must be loadable.');
     }
-    $reflection = new \ReflectionClass($runtimeClass);
+    $reflection = new \ReflectionClass(
+      \AgencyEditorialServicePublication::class,
+    );
     $service = $reflection->newInstance(
       $this->createMock(EntityTypeManagerInterface::class),
       $this->createMock(EntityFieldManagerInterface::class),

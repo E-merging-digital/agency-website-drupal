@@ -135,7 +135,8 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
    */
   public function testServiceCandidateIdentityAndWriterAreBounded(): void {
     $root = dirname(DRUPAL_ROOT);
-    $source = $root . '/docs/seo/audit-site-web-candidate-1117.md';
+    $sourceRelative = 'docs/seo/audit-site-web-candidate-1117.md';
+    $source = $root . '/' . $sourceRelative;
     $parser = $root . '/scripts/runner/editorial-service-candidate-source.py';
     $runner = $root . '/scripts/runner/run-editorial-service-publication.sh';
     $publisher = $root . '/scripts/runner/editorial-service-publication.php';
@@ -150,8 +151,9 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
     $output = [];
     $exitCode = 0;
     exec(implode(' ', [
+      'cd', escapeshellarg($root), '&&',
       'python3', escapeshellarg($parser),
-      '--source', escapeshellarg($source),
+      '--source', escapeshellarg($sourceRelative),
       '--issue-number', (string) self::ISSUE,
       '--output', escapeshellarg($payload),
       '2>&1',

@@ -1,0 +1,95 @@
+name: Agency runner health watchdog
+
+on:
+  workflow_run:
+    workflows:
+      - Agency runner health probe
+    types:
+      - completed
+  schedule:
+    - cron: '27,57 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  watchdog:
+    name: Require recent successful Agency probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Check probe freshness and conclusion
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          API_URL: ${{ github.api_url }}
+          MAX_AGE_MINUTES: '90'
+          PROBE_WORKFLOW: agency-runner-health-probe.yml
+        run: |
+          set -euo pipefail
+
+          response="$(
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "$API_URL/repos/$REPOSITORY/actions/workflows/$PROBE_WORKFLOW/runs?branch=main&status=completed&per_page=10"
+          )"
+
+          RESPONSE="$response" python3 - <<'PY'
+          import datetime as dt
+          import json
+          import os
+
+          payload = json.loads(os.environ["RESPONSE"])
+          runs = payload.get("workflow_runs", [])
+          if not runs:
+              print("::error::no completed Agency runner health probe exists on main")
+              raise SystemExit(1)
+
+          latest = runs[0]
+          conclusion = latest.get("conclusion")
+          if conclusion != "success":
+              print(
+                  "::error::latest completed Agency runner health probe "
+                  f"conclusion is {conclusion!r}"
+              )
+              raise SystemExit(1)
+
+          stamp = latest.get("updated_at") or latest.get("created_at")
+          if not stamp:
+              print("::error::latest successful probe has no timestamp")
+              raise SystemExit(1)
+
+          completed_at = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+          now = dt.datetime.now(dt.timezone.utc)
+          age_minutes = (now - completed_at).total_seconds() / 60
+          max_age = int(os.environ["MAX_AGE_MINUTES"])
+          if age_minutes > max_age:
+              print(
+                  "::error::latest successful Agency runner health probe is stale: "
+                  f"{age_minutes:.1f} minutes old (limit {max_age})"
+              )
+              raise SystemExit(1)
+
+          run_id = latest.get("id")
+          html_url = latest.get("html_url", "")
+          print(
+              f"Agency runner health probe fresh: run={run_id} "
+              f"age={age_minutes:.1f}m conclusion=success"
+          )
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a", encoding="utf-8") as handle:
+                  handle.write("## Agency runner health watchdog\n\n")
+                  handle.write(f"- latest successful probe: {run_id}\n")
+                  handle.write(f"- age: {age_minutes:.1f} minutes\n")
+                  handle.write(f"- freshness limit: {max_age} minutes\n")
+                  if html_url:
+                      handle.write(f"- run: {html_url}\n")
+          PY

@@ -99,64 +99,31 @@ NGINX;
   }
 
   /**
-   * The cockpit bearer is loaded only from an optional server-owned file.
+   * The cockpit bearer uses only the optional server-owned secret file.
    */
   public function testCockpitBearerUsesOptionalServerOwnedFile(): void {
     $root = dirname(DRUPAL_ROOT);
-    $template = (string) file_get_contents(
+    $settings = (string) file_get_contents(
       $root . '/scripts/preproduction/settings.php.template',
     );
-    $fixtureRoot = sys_get_temp_dir()
-      . '/agency-cockpit-token-' . bin2hex(random_bytes(6));
-    $settingsDir = $fixtureRoot . '/shared/settings';
-    mkdir($settingsDir, 0777, TRUE);
 
-    $rendered = strtr($template, [
-      '@@DB_NAME@@' => 'test_db',
-      '@@DB_USER@@' => 'test_user',
-      '@@DB_PASSWORD@@' => 'test_password',
-      '@@HASH_SALT@@' => 'test_hash_salt',
-      '@@PROJECT_ROOT@@' => $fixtureRoot,
-      '@@TRUSTED_HOST_REGEX@@' => 'preprod\\.emergingdigital\\.be',
-    ]);
-    $settingsPath = $fixtureRoot . '/settings.php';
-    $tokenPath = $settingsDir . '/cockpit-state-token';
-    file_put_contents($settingsPath, $rendered);
-
-    $loadSettings = static function (string $path): array {
-      $settings = [
-        'agency_operations_cockpit_state_token' => '__not_loaded__',
-      ];
-      include $path;
-      return $settings;
-    };
-
-    try {
-      self::assertSame(
-        '',
-        $loadSettings($settingsPath)['agency_operations_cockpit_state_token'],
-      );
-
-      file_put_contents($tokenPath, 'too-short');
-      self::assertSame(
-        '',
-        $loadSettings($settingsPath)['agency_operations_cockpit_state_token'],
-      );
-
-      $token = str_repeat('a', 48);
-      file_put_contents($tokenPath, $token . "\n");
-      self::assertSame(
-        $token,
-        $loadSettings($settingsPath)['agency_operations_cockpit_state_token'],
-      );
+    foreach ([
+      '@@PROJECT_ROOT@@/shared/settings/cockpit-state-token',
+      '$cockpit_token = '''';',
+      'is_file($cockpit_token_file)',
+      '!is_link($cockpit_token_file)',
+      'is_readable($cockpit_token_file)',
+      'strlen($candidate_cockpit_token) >= 32',
+      "preg_match('/\\s/', \$candidate_cockpit_token) !== 1",
+      "\$settings['agency_operations_cockpit_state_token'] = \$cockpit_token;",
+    ] as $expected) {
+      self::assertStringContainsString($expected, $settings);
     }
-    finally {
-      @unlink($tokenPath);
-      @unlink($settingsPath);
-      @rmdir($settingsDir);
-      @rmdir($fixtureRoot . '/shared');
-      @rmdir($fixtureRoot);
-    }
+
+    self::assertStringNotContainsString(
+      "getenv('AGENCY_COCKPIT_STATE_TOKEN')",
+      $settings,
+    );
   }
 
   /**

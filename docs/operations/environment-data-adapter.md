@@ -5,9 +5,9 @@ Architecture: E-merging-digital/infrastructure#41 / ADR-0005
 
 ## Purpose
 
-`agency_operations.environment_data_state` is the read-only Agency adapter state provider for the centralized environment-data cockpit.
+`agency_operations.environment_data_state` is the read-only Agency adapter state provider for the broader **Agency Operations Control Plane**. Environment data is the first operational domain; this provider is the first real Drupal/project adapter feeding that shared project-oriented model.
 
-It does not expose an HTTP transport yet and it does not authorize or execute a database transfer. It provides the stable non-sensitive state shape that the future central cockpit can consume.
+It does not expose an HTTP transport yet and it does not authorize or execute a database transfer. It provides the stable non-sensitive state shape that the future central cockpit can consume alongside monitoring, backup/recovery and deployment evidence.
 
 ## Sources of truth
 

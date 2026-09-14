@@ -207,6 +207,108 @@ final class HomepageBrand1059ProductionPublicationWorkflowTest extends TestCase 
   }
 
   /**
+   * Proves failure receipts preserve only valid structured prod_write evidence.
+   */
+  public function testFailureReceiptProdWriteEvidenceIsFailClosed(): void {
+    $final = [
+      'status' => 'PASS',
+      'profile' => 'homepage-brand-1059',
+      'profile_sha256' => self::SHA,
+      'issue_number' => 1059,
+      'bundle' => 'page',
+      'language' => 'en',
+      'node' => ['id' => 5],
+      'source_profile_target' => 'PREPROD',
+      'target' => 'PROD',
+    ];
+
+    self::assertSame(
+      'MATERIALIZED',
+      $this->resolveFailureProdWrite('apply', array_merge($final, [
+        'verdict' => 'APPLIED',
+        'prod_access' => 'BOUNDED_WRITE',
+        'prod_write' => 'MATERIALIZED',
+      ])),
+    );
+    self::assertSame(
+      'NONE',
+      $this->resolveFailureProdWrite('apply', array_merge($final, [
+        'verdict' => 'IDEMPOTENT',
+        'prod_access' => 'BOUNDED_WRITE',
+        'prod_write' => 'NONE',
+      ])),
+    );
+    self::assertSame(
+      'NONE',
+      $this->resolveFailureProdWrite('dry-run', array_merge($final, [
+        'verdict' => 'UPDATE_READY',
+        'prod_access' => 'READ_ONLY',
+        'prod_write' => 'NONE',
+      ])),
+    );
+    self::assertSame(
+      'UNKNOWN',
+      $this->resolveFailureProdWrite('apply', array_merge($final, [
+        'verdict' => 'APPLIED',
+        'prod_access' => 'BOUNDED_WRITE',
+        'prod_write' => 'NONE',
+      ])),
+    );
+
+    $preAugmentation = array_merge($final, [
+      'target' => 'PREPROD',
+      'verdict' => 'IDEMPOTENT',
+      'prod_access' => 'BOUNDED_WRITE',
+      'prod_write' => 'NONE',
+    ]);
+    self::assertSame(
+      'UNKNOWN',
+      $this->resolveFailureProdWrite('apply', $preAugmentation),
+    );
+    self::assertSame(
+      'UNKNOWN',
+      $this->resolveFailureProdWrite('apply', array_merge($final, [
+        'verdict' => 'IDEMPOTENT',
+        'prod_access' => 'READ_ONLY',
+        'prod_write' => 'NONE',
+      ])),
+    );
+    self::assertSame('UNKNOWN', $this->resolveFailureProdWrite('apply', NULL));
+    self::assertSame(
+      'UNKNOWN',
+      $this->resolveFailureProdWrite('apply', '{invalid json'),
+    );
+    self::assertSame(
+      'UNKNOWN',
+      $this->resolveFailureProdWrite('apply', array_merge($final, [
+        'verdict' => 'APPLIED',
+        'prod_access' => 'BOUNDED_WRITE',
+        'prod_write' => 'UNKNOWN',
+      ])),
+    );
+  }
+
+  /**
+   * Proves the failure receipt no longer infers NONE from workflow failure.
+   */
+  public function testFailureReceiptUsesStructuredProdWriteResolver(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $failureStart = strpos($workflow, 'if [[ "$ROUTE_OUTCOME" != \'success\' ]]');
+    $failureEnd = strpos($workflow, '          test -f "$result_file"', $failureStart ?: 0);
+    self::assertIsInt($failureStart);
+    self::assertIsInt($failureEnd);
+    $failureBlock = substr($workflow, $failureStart, $failureEnd - $failureStart);
+
+    self::assertStringContainsString(
+      'prod_write="$(resolve_failure_prod_write "$result_file" "$MODE")"',
+      $failureBlock,
+    );
+    self::assertStringContainsString('"prod_write=$prod_write"', $failureBlock);
+    self::assertStringNotContainsString('"prod_write=NONE"', $failureBlock);
+    self::assertStringContainsString("local value='UNKNOWN'", $workflow);
+  }
+
+  /**
    * Proves exact dispatcher integration and preservation of the #1015 route.
    */
   public function testDispatcherCommandsAreExactAndOld1015RouteRemains(): void {
@@ -248,6 +350,53 @@ final class HomepageBrand1059ProductionPublicationWorkflowTest extends TestCase 
     $status = 1;
     exec('bash -n ' . escapeshellarg($path) . ' 2>&1', $output, $status);
     self::assertSame(0, $status, implode("\n", $output));
+  }
+
+  /**
+   * Executes the workflow's actual prod_write resolver against one fixture.
+   */
+  private function resolveFailureProdWrite(string $mode, array|string|null $fixture): string {
+    $workflow = $this->source(self::WORKFLOW);
+    $start = strpos($workflow, '          resolve_failure_prod_write() {');
+    $end = strpos($workflow, "\n          }\n\n          if [[", $start ?: 0);
+    self::assertIsInt($start);
+    self::assertIsInt($end);
+    $function = substr($workflow, $start, $end - $start + strlen("\n          }"));
+    $function = preg_replace('/^ {10}/m', '', $function);
+    self::assertIsString($function);
+
+    $file = tempnam(sys_get_temp_dir(), 'agency-1098-');
+    self::assertNotFalse($file);
+    if ($fixture !== NULL) {
+      file_put_contents(
+        $file,
+        is_array($fixture)
+          ? json_encode($fixture, JSON_THROW_ON_ERROR)
+          : $fixture,
+      );
+    }
+    else {
+      unlink($file);
+    }
+
+    $script = "set -euo pipefail\n"
+      . "PROFILE_SHA256='" . self::SHA . "'\n"
+      . "MODE=" . escapeshellarg($mode) . "\n"
+      . $function . "\n"
+      . 'resolve_failure_prod_write "$1" "$MODE"';
+    $command = sprintf(
+      'bash -c %s bash %s 2>&1',
+      escapeshellarg($script),
+      escapeshellarg($file),
+    );
+    $output = [];
+    $status = 1;
+    exec($command, $output, $status);
+    if (file_exists($file)) {
+      unlink($file);
+    }
+    self::assertSame(0, $status, implode("\n", $output));
+    return trim(implode("\n", $output));
   }
 
   /**

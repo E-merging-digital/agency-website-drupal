@@ -70,6 +70,35 @@ final class PreproductionHostBootstrapTest extends TestCase {
   }
 
   /**
+   * Cockpit state bypasses only the outer PREPROD Basic Auth layer.
+   */
+  public function testCockpitStateRouteUsesExactNginxBearerPassThrough(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $nginx = (string) file_get_contents(
+      $root . '/scripts/preproduction/nginx-agency-preprod.conf.template',
+    );
+
+    $expected = <<<'NGINX'
+    location = /api/agency-operations/v1/environment-data-state {
+        auth_basic off;
+        include fastcgi_params;
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+        fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_pass unix:@@PHP_SOCKET@@;
+    }
+NGINX;
+
+    self::assertStringContainsString($expected, $nginx);
+    self::assertStringContainsString('auth_basic "Agency PREPROD";', $nginx);
+    self::assertStringNotContainsString(
+      'location /api/agency-operations/',
+      $nginx,
+    );
+  }
+
+  /**
    * PREPROD consumes an immutable candidate instead of rebuilding it.
    */
   public function testCandidateDeployDoesNotRebuildApplication(): void {

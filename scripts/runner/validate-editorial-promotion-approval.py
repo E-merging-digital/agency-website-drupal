@@ -143,10 +143,14 @@ def matching_bot_receipt(
     comments: list[dict[str, Any]],
     heading: str,
     expected: dict[str, str],
+    after_comment_id: int | None = None,
 ) -> dict[str, Any]:
     matches: list[dict[str, Any]] = []
     for comment in comments:
         if comment.get("user", {}).get("login") != BOT:
+            continue
+        comment_id = int(comment.get("id") or 0)
+        if after_comment_id is not None and comment_id <= after_comment_id:
             continue
         fields = backtick_fields(str(comment.get("body") or ""), heading)
         if fields is None:
@@ -154,8 +158,9 @@ def matching_bot_receipt(
         if all(fields.get(key) == value for key, value in expected.items()):
             matches.append(comment)
     if len(matches) != 1:
+        causal = " after the exact approval" if after_comment_id is not None else ""
         raise ApprovalError(
-            f"Expected exactly one bot receipt '{heading}' for the exact candidate; found {len(matches)}."
+            f"Expected exactly one bot receipt '{heading}' for the exact candidate{causal}; found {len(matches)}."
         )
     return matches[0]
 
@@ -183,6 +188,34 @@ def direct_owner_approval(
             f"Expected exactly one exact direct owner-authored Project Lead approval; found {len(human_matches)}."
         )
     return human_matches[0]
+
+
+def exact_service_owner_approval(
+    comments: list[dict[str, Any]],
+    issue_number: int,
+    expected: dict[str, str],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    matches: list[tuple[dict[str, Any], dict[str, str]]] = []
+    for comment in comments:
+        user = comment.get("user", {})
+        if user.get("login") != OWNER or user.get("type") != "User":
+            continue
+        if comment.get("author_association") != "OWNER":
+            continue
+        if comment.get("performed_via_github_app") is not None:
+            continue
+        parsed = approval_fields(str(comment.get("body") or ""), issue_number)
+        if parsed is None:
+            continue
+        fields, _urls = parsed
+        if all(fields.get(key) == value for key, value in expected.items()):
+            matches.append((comment, fields))
+    if len(matches) != 1:
+        raise ApprovalError(
+            "Expected exactly one direct owner-authored Project Lead approval "
+            f"for the current exact Service candidate/main; found {len(matches)}."
+        )
+    return matches[0]
 
 
 def validate_article(args: argparse.Namespace, comments: list[dict[str, Any]]) -> dict[str, Any]:
@@ -338,18 +371,6 @@ def validate_service(args: argparse.Namespace, comments: list[dict[str, Any]]) -
     if not re.fullmatch(r"[0-9a-f]{40}", args.candidate_revision):
         raise ApprovalError("Service candidate revision must be an exact Git blob SHA.")
 
-    prod_dry_run = matching_bot_receipt(
-        comments,
-        "### Agency editorial dry-run PASS",
-        {
-            "candidate_kind": "service",
-            "candidate_id": SERVICE_CANDIDATE_ID,
-            "candidate_revision": args.candidate_revision,
-            "payload_sha256": args.payload_sha256,
-            "trusted_main": args.trusted_main,
-            "route_outcome": "success",
-        },
-    )
     preprod_apply = matching_bot_receipt(
         comments,
         "### Agency editorial PREPROD candidate apply PASS",
@@ -364,7 +385,6 @@ def validate_service(args: argparse.Namespace, comments: list[dict[str, Any]]) -
             "prod_write": "NONE",
         },
     )
-    approval, fields, _urls = direct_owner_approval(comments, args.issue_number)
 
     exact_values = {
         "CANDIDATE_ID": SERVICE_CANDIDATE_ID,
@@ -380,17 +400,31 @@ def validate_service(args: argparse.Namespace, comments: list[dict[str, Any]]) -
         "EXACT_CANDIDATE_PROMOTION_TO_PROD": "AUTHORIZED",
         "CONTENT_CHANGE_AFTER_APPROVAL": "INVALIDATES_APPROVAL",
     }
-    for key, expected in exact_values.items():
-        if fields.get(key) != expected:
-            raise ApprovalError(f"Human approval field {key} does not match the exact Service candidate.")
+    approval, fields = exact_service_owner_approval(
+        comments,
+        args.issue_number,
+        exact_values,
+    )
 
     approval_id = int(approval.get("id") or 0)
     preprod_evidence_id = int(preprod_apply.get("id") or 0)
     if approval_id <= preprod_evidence_id:
         raise ApprovalError("Project Lead approval is stale or predates exact PREPROD evidence.")
+
+    prod_dry_run = matching_bot_receipt(
+        comments,
+        "### Agency editorial dry-run PASS",
+        {
+            "candidate_kind": "service",
+            "candidate_id": SERVICE_CANDIDATE_ID,
+            "candidate_revision": args.candidate_revision,
+            "payload_sha256": args.payload_sha256,
+            "trusted_main": args.trusted_main,
+            "route_outcome": "success",
+        },
+        after_comment_id=approval_id,
+    )
     prod_dry_run_id = int(prod_dry_run.get("id") or 0)
-    if prod_dry_run_id <= approval_id:
-        raise ApprovalError("Fresh PROD dry-run must occur after exact human approval.")
 
     return {
         "status": "PASS",
@@ -400,6 +434,7 @@ def validate_service(args: argparse.Namespace, comments: list[dict[str, Any]]) -
         "payload_sha256": args.payload_sha256,
         "trusted_main": args.trusted_main,
         "approval_comment_id": approval_id,
+        "prod_dry_run_comment_id": prod_dry_run_id,
         "preprod_node_id": 41,
         "preprod_revision_id": 48,
         "fr_url": SERVICE_FR_URL,

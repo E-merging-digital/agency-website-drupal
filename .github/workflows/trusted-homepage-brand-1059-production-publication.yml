@@ -266,9 +266,36 @@ jobs:
         run: |
           set -euo pipefail
           result_file='artifacts/homepage-brand-1059-production-publication/result.json'
+
+          resolve_failure_prod_write() {
+            local source="$1"
+            local value='UNKNOWN'
+            if [[ -s "$source" ]] && jq -e --arg profile_sha "$PROFILE_SHA256" '
+              type == "object"
+              and .status == "PASS"
+              and .profile == "homepage-brand-1059"
+              and .profile_sha256 == $profile_sha
+              and .issue_number == 1059
+              and .bundle == "page"
+              and .language == "en"
+              and .node.id == 5
+              and (
+                (.prod_write == "MATERIALIZED"
+                  and .prod_access == "BOUNDED_WRITE"
+                  and .verdict == "APPLIED")
+                or .prod_write == "NONE"
+              )' "$source" >/dev/null 2>&1; then
+              value="$(jq -r '.prod_write' "$source")"
+            fi
+            printf '%s\n' "$value"
+          }
+
           if [[ "$ROUTE_OUTCOME" != 'success' ]]; then
-            message='No structured production result was preserved.'
-            [[ ! -f "$result_file" ]] || message="$(jq -r '.message // "Homepage Brand #1059 production route failed."' "$result_file")"
+            prod_write="$(resolve_failure_prod_write "$result_file")"
+            message='No valid structured production result was preserved.'
+            if [[ "$prod_write" != 'UNKNOWN' ]]; then
+              message="$(jq -r '.message // "Homepage Brand #1059 production route failed."' "$result_file")"
+            fi
             printf -v body '%s\n' \
               "### Agency Homepage Brand #1059 PROD $MODE FAILURE" \
               "" \
@@ -284,7 +311,7 @@ jobs:
               "browser_artifact=$BROWSER_ARTIFACT" \
               "target=PROD" \
               "language=en" \
-              "prod_write=NONE" \
+              "prod_write=$prod_write" \
               "message=$message"
             gh issue comment "$CONTROL_ISSUE" --repo "$GITHUB_REPOSITORY" --body "$body"
             exit 0

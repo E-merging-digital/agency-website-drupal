@@ -492,3 +492,45 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  preprod-os-maintenance-1182-plan:
+    name: Route #1182 governed PREPROD OS maintenance PLAN
+    needs: classify
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.action == 'created'
+          && github.event.issue.pull_request == null
+          && github.event.issue.number == 1182
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.performed_via_github_app == null
+          && github.event.comment.body == '/agency-preprod-os-maintenance-1182 plan' }}
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: ./.github/workflows/preprod-os-maintenance-1182.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-os-maintenance-1182-apply:
+    name: Route #1182 governed PREPROD OS maintenance APPLY
+    needs: classify
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.action == 'created'
+          && github.event.issue.pull_request == null
+          && github.event.issue.number == 1182
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.performed_via_github_app == null
+          && startsWith(github.event.comment.body, '/agency-preprod-os-maintenance-1182 apply ') }}
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: ./.github/workflows/preprod-os-maintenance-1182.yml
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}

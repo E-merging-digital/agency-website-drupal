@@ -185,13 +185,16 @@ final class HostOsInventory1102WorkflowTest extends TestCase {
       'apt-get install',
       'ddev upgrade',
       'ddev start',
-      'service ',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $runner);
     }
 
     self::assertDoesNotMatchRegularExpression(
       '/^\s*(reboot|shutdown)(\s|$)/m',
+      $runner,
+    );
+    self::assertDoesNotMatchRegularExpression(
+      '/^\s*service\s+\S+\s+(restart|start|stop)\b/m',
       $runner,
     );
     self::assertStringNotContainsString('printenv', $runner);

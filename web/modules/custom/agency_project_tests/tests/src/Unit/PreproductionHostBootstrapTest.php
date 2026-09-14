@@ -124,9 +124,7 @@ NGINX;
     file_put_contents($settingsPath, $rendered);
 
     $loadSettings = static function (string $path): array {
-      $databases = [];
       $settings = [];
-      $config = [];
       include $path;
       return $settings;
     };

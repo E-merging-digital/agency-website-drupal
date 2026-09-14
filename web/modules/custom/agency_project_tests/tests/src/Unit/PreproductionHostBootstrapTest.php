@@ -109,7 +109,7 @@ NGINX;
 
     foreach ([
       '@@PROJECT_ROOT@@/shared/settings/cockpit-state-token',
-      '$cockpit_token = '''';',
+      "\$cockpit_token = '';",
       'is_file($cockpit_token_file)',
       '!is_link($cockpit_token_file)',
       'is_readable($cockpit_token_file)',

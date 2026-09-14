@@ -1,0 +1,92 @@
+name: Agency runner health probe
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '12,42 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: agency-runner-health-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe Agency runner health
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+    timeout-minutes: 5
+
+    steps:
+      - name: Validate bounded runner health
+        shell: bash
+        env:
+          EXPECTED_RUNNER_NAME: agency-browser-runner-01
+          EXPECTED_HOSTNAME: preflight-runner-01
+          EXPECTED_USER: agency-runner
+          DISK_WARNING_PCT: '85'
+          DISK_CRITICAL_PCT: '92'
+          MEMORY_WARNING_AVAILABLE_PCT: '10'
+          MEMORY_CRITICAL_AVAILABLE_PCT: '5'
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "::error::$*"
+            exit 1
+          }
+          warn() {
+            echo "::warning::$*"
+          }
+
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER_NAME" ]] || fail "unexpected runner name: ${RUNNER_NAME:-missing}"
+          [[ "$(hostname)" == "$EXPECTED_HOSTNAME" ]] || fail "unexpected hostname: $(hostname)"
+          [[ "$(id -un)" == "$EXPECTED_USER" ]] || fail "unexpected execution identity: $(id -un)"
+
+          disk_used_pct="$(df -P / | awk 'NR == 2 {gsub("%", "", $5); print $5}')"
+          [[ "$disk_used_pct" =~ ^[0-9]+$ ]] || fail "unable to read root filesystem usage"
+          if (( disk_used_pct >= DISK_CRITICAL_PCT )); then
+            fail "root filesystem is critical: ${disk_used_pct}% used"
+          elif (( disk_used_pct >= DISK_WARNING_PCT )); then
+            warn "root filesystem warning: ${disk_used_pct}% used"
+          fi
+
+          read -r mem_total_kib mem_available_kib < <(
+            awk '/^MemTotal:/ {total=$2} /^MemAvailable:/ {available=$2} END {print total, available}' /proc/meminfo
+          )
+          [[ "${mem_total_kib:-}" =~ ^[0-9]+$ && "${mem_available_kib:-}" =~ ^[0-9]+$ ]] || fail "unable to read memory availability"
+          memory_available_pct=$((100 * mem_available_kib / mem_total_kib))
+          if (( memory_available_pct <= MEMORY_CRITICAL_AVAILABLE_PCT )); then
+            fail "available memory is critical: ${memory_available_pct}%"
+          elif (( memory_available_pct <= MEMORY_WARNING_AVAILABLE_PCT )); then
+            warn "available memory warning: ${memory_available_pct}%"
+          fi
+
+          command -v docker >/dev/null || fail "docker CLI missing"
+          command -v ddev >/dev/null || fail "DDEV CLI missing"
+          docker_root="$(docker info --format '{{.DockerRootDir}}')"
+          docker_driver="$(docker info --format '{{.Driver}}')"
+          [[ -n "$docker_root" && -n "$docker_driver" ]] || fail "Docker daemon health unavailable"
+          ddev version >/dev/null
+
+          {
+            echo "## Agency runner health"
+            echo
+            echo "- runner: $RUNNER_NAME"
+            echo "- host: $(hostname)"
+            echo "- identity: $(id -un)"
+            echo "- root filesystem: ${disk_used_pct}% used"
+            echo "- memory available: ${memory_available_pct}%"
+            echo "- Docker root: $docker_root"
+            echo "- Docker driver: $docker_driver"
+            echo "- known Docker privilege transition: tracked separately by infrastructure #11"
+          } >> "$GITHUB_STEP_SUMMARY"

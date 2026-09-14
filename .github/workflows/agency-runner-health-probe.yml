@@ -76,6 +76,9 @@ jobs:
           docker_root="$(docker info --format '{{.DockerRootDir}}')"
           docker_driver="$(docker info --format '{{.Driver}}')"
           [[ -n "$docker_root" && -n "$docker_driver" ]] || fail "Docker daemon health unavailable"
+          docker_storage="$(docker system df --format '{{.Type}}|{{.TotalCount}}|{{.Active}}|{{.Size}}|{{.Reclaimable}}')"
+          [[ -n "$docker_storage" ]] || fail "Docker storage accounting unavailable"
+          printf 'Docker storage summary:\n%s\n' "$docker_storage"
           ddev version >/dev/null
 
           {
@@ -88,5 +91,14 @@ jobs:
             echo "- memory available: ${memory_available_pct}%"
             echo "- Docker root: $docker_root"
             echo "- Docker driver: $docker_driver"
+            echo
+            echo "### Docker storage (read-only)"
+            echo
+            echo "| Type | Total | Active | Size | Reclaimable |"
+            echo "| --- | ---: | ---: | ---: | ---: |"
+            while IFS='|' read -r type total active size reclaimable; do
+              echo "| $type | $total | $active | $size | $reclaimable |"
+            done <<< "$docker_storage"
+            echo
             echo "- known Docker privilege transition: tracked separately by infrastructure #11"
           } >> "$GITHUB_STEP_SUMMARY"

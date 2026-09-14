@@ -53,7 +53,7 @@ final class EnvironmentDataStateProvider {
       'capabilities' => $this->capabilityProjection($registry),
     ];
 
-    if (($runtime['environment'] ?? NULL) !== 'PREPROD') {
+    if ($runtime['environment'] !== 'PREPROD') {
       return $state;
     }
 
@@ -75,7 +75,7 @@ final class EnvironmentDataStateProvider {
   private function environmentProjection(array $runtime): array {
     $environments = [];
     foreach (['PROD', 'PREPROD', 'DEVELOPMENT'] as $environment) {
-      $observed = ($runtime['environment'] ?? NULL) === $environment;
+      $observed = $runtime['environment'] === $environment;
       $environments[$environment] = [
         'availability' => $observed ? 'observed' : 'not_observed_by_current_runtime',
         'release_identity' => $observed && !empty($runtime['release_available'])

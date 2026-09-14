@@ -269,8 +269,11 @@ jobs:
 
           resolve_failure_prod_write() {
             local source="$1"
+            local mode="$2"
             local value='UNKNOWN'
-            if [[ -s "$source" ]] && jq -e --arg profile_sha "$PROFILE_SHA256" '
+            if [[ -s "$source" ]] && jq -e \
+              --arg profile_sha "$PROFILE_SHA256" \
+              --arg mode "$mode" '
               type == "object"
               and .status == "PASS"
               and .profile == "homepage-brand-1059"
@@ -279,11 +282,22 @@ jobs:
               and .bundle == "page"
               and .language == "en"
               and .node.id == 5
+              and .source_profile_target == "PREPROD"
+              and .target == "PROD"
               and (
-                (.prod_write == "MATERIALIZED"
-                  and .prod_access == "BOUNDED_WRITE"
-                  and .verdict == "APPLIED")
-                or .prod_write == "NONE"
+                if $mode == "apply" then
+                  .prod_access == "BOUNDED_WRITE"
+                  and (
+                    (.verdict == "APPLIED" and .prod_write == "MATERIALIZED")
+                    or (.verdict == "IDEMPOTENT" and .prod_write == "NONE")
+                  )
+                elif $mode == "dry-run" then
+                  .prod_access == "READ_ONLY"
+                  and .prod_write == "NONE"
+                  and (.verdict == "UPDATE_READY" or .verdict == "IDEMPOTENT")
+                else
+                  false
+                end
               )' "$source" >/dev/null 2>&1; then
               value="$(jq -r '.prod_write' "$source")"
             fi
@@ -291,7 +305,7 @@ jobs:
           }
 
           if [[ "$ROUTE_OUTCOME" != 'success' ]]; then
-            prod_write="$(resolve_failure_prod_write "$result_file")"
+            prod_write="$(resolve_failure_prod_write "$result_file" "$MODE")"
             message='No valid structured production result was preserved.'
             if [[ "$prod_write" != 'UNKNOWN' ]]; then
               message="$(jq -r '.message // "Homepage Brand #1059 production route failed."' "$result_file")"

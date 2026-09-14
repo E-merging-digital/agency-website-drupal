@@ -93,6 +93,7 @@ final class AgencyEditorialServicePublication {
       'verdict' => 'READY',
       'mode' => 'inspect',
       'target' => 'PROD',
+      'candidate_kind' => 'service',
       'issue_number' => $issueNumber,
       'candidate_id' => self::CANDIDATE_ID,
       'candidate_store' => 'GIT_MAIN_FILE',

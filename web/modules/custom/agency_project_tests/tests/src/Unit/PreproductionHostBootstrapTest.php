@@ -99,6 +99,34 @@ NGINX;
   }
 
   /**
+   * The cockpit bearer uses only the optional server-owned secret file.
+   */
+  public function testCockpitBearerUsesOptionalServerOwnedFile(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $settings = (string) file_get_contents(
+      $root . '/scripts/preproduction/settings.php.template',
+    );
+
+    foreach ([
+      '@@PROJECT_ROOT@@/shared/settings/cockpit-state-token',
+      "\$cockpit_token = '';",
+      'is_file($cockpit_token_file)',
+      '!is_link($cockpit_token_file)',
+      'is_readable($cockpit_token_file)',
+      'strlen($candidate_cockpit_token) >= 32',
+      "preg_match('/\\s/', \$candidate_cockpit_token) !== 1",
+      "\$settings['agency_operations_cockpit_state_token'] = \$cockpit_token;",
+    ] as $expected) {
+      self::assertStringContainsString($expected, $settings);
+    }
+
+    self::assertStringNotContainsString(
+      "getenv('AGENCY_COCKPIT_STATE_TOKEN')",
+      $settings,
+    );
+  }
+
+  /**
    * PREPROD consumes an immutable candidate instead of rebuilding it.
    */
   public function testCandidateDeployDoesNotRebuildApplication(): void {

@@ -18,10 +18,19 @@ use Symfony\Component\HttpFoundation\RequestStack;
  */
 final class EnvironmentDataStateProviderTest extends UnitTestCase {
 
+  /**
+   * Temporary PREPROD project root.
+   */
   private string $fixtureRoot;
 
+  /**
+   * Temporary deployed Drupal app root.
+   */
   private string $appRoot;
 
+  /**
+   * Current immutable Development Seed metadata path.
+   */
   private string $seedMetadataPath;
 
   /**

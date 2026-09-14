@@ -124,7 +124,9 @@ NGINX;
     file_put_contents($settingsPath, $rendered);
 
     $loadSettings = static function (string $path): array {
-      $settings = [];
+      $settings = [
+        'agency_operations_cockpit_state_token' => '__not_loaded__',
+      ];
       include $path;
       return $settings;
     };

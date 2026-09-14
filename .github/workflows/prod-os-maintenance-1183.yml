@@ -1,0 +1,436 @@
+name: '#1183 governed PROD OS maintenance'
+
+on:
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+concurrency:
+  group: agency-prod-os-maintenance-1183
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate exact #1183 PLAN/APPLY authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+    outputs:
+      mode: ${{ steps.authority.outputs.mode }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      plan_id: ${{ steps.authority.outputs.plan_id }}
+      plan_run: ${{ steps.authority.outputs.plan_run }}
+      plan_digest: ${{ steps.authority.outputs.plan_digest }}
+      snapshot_ref: ${{ steps.authority.outputs.snapshot_ref }}
+      window_ref: ${{ steps.authority.outputs.window_ref }}
+    steps:
+      - id: authority
+        name: JIT validate direct owner command and live main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1183'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1183")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          jq -e '[.labels[].name] | index("P1") != null' <<<"$issue_json" >/dev/null
+          jq -e '[.labels[].name] | index("status:in-progress") != null' <<<"$issue_json" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$WORKFLOW_SHA" = "$main_sha"
+
+          mode=''
+          plan_run=''
+          plan_digest=''
+          snapshot_ref=''
+          window_ref=''
+          if [[ "$COMMENT_BODY" == '/agency-prod-os-maintenance-1183 plan' ]]; then
+            mode='PLAN'
+          elif [[ "$COMMENT_BODY" =~ ^/agency-prod-os-maintenance-1183\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})\ snapshot_ref=([A-Za-z0-9._:@/-]{8,160})\ window_ref=([A-Za-z0-9._:@/+:-]{8,160})$ ]]; then
+            mode='APPLY'
+            plan_run="${BASH_REMATCH[1]}"
+            plan_digest="${BASH_REMATCH[2]}"
+            snapshot_ref="${BASH_REMATCH[3]}"
+            window_ref="${BASH_REMATCH[4]}"
+          else
+            printf '%s\n' 'Unsupported #1183 command syntax.' >&2
+            exit 64
+          fi
+
+          plan_id="plan-1183-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "mode=$mode"
+            echo "main_sha=$main_sha"
+            echo "plan_id=$plan_id"
+            echo "plan_run=$plan_run"
+            echo "plan_digest=$plan_digest"
+            echo "snapshot_ref=$snapshot_ref"
+            echo "window_ref=$window_ref"
+          } >> "$GITHUB_OUTPUT"
+
+  plan:
+    name: Build fresh bounded PROD maintenance PLAN
+    if: ${{ needs.validate-authority.outputs.mode == 'PLAN' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize pinned PROD identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1183-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1183-prod.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - id: plan_result
+        name: Run read-only PLAN on PROD
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/prod-os-maintenance-1183
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1183-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID' '$SERVER_USER'" \
+            < scripts/production-maintenance-1183/remote-plan.sh \
+            > artifacts/prod-os-maintenance-1183/plan.json
+          jq -e \
+            --arg main "$MAIN_SHA" \
+            --arg plan_id "$PLAN_ID" '
+            .STATUS == "PASS"
+            and .ISSUE == 1183
+            and .TARGET == "PROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_ID == $plan_id
+            and .MAX_ALLOWED_PACKET == "67108864"
+            and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
+            and .SAFETY_GATE == "PASS"' \
+            artifacts/prod-os-maintenance-1183/plan.json >/dev/null
+          echo "digest=$(jq -r '.PLAN_DIGEST' artifacts/prod-os-maintenance-1183/plan.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable PLAN evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-os-maintenance-1183-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/prod-os-maintenance-1183/plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded PLAN summary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+          PLAN_DIGEST: ${{ steps.plan_result.outputs.digest }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF_BODY
+          #1183 PROD OS maintenance PLAN completed.
+
+          \`MODE=PLAN\`
+          \`RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}\`
+          \`PLAN_ID=${PLAN_ID}\`
+          \`PLAN_DIGEST=${PLAN_DIGEST}\`
+          \`TARGET=PROD\`
+          \`REAL_PROD_PACKAGE_MUTATION=NONE\`
+          \`REAL_PROD_REBOOT=NONE\`
+
+          APPLY remains separately authorized after Project Lead review, a real provider snapshot and an approved maintenance window.
+          EOF_BODY
+          )"
+          gh issue comment 1183 --body "$body"
+
+      - name: Remove transient PROD key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1183-prod.key"
+
+  apply:
+    name: Apply exact approved PROD maintenance plan
+    if: ${{ needs.validate-authority.outputs.mode == 'APPLY' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Load and validate immutable approved PLAN
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/prod-os-maintenance-1183/approved
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN")"
+          test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'
+          test "$(jq -r '.event' <<<"$run_json")" = 'issue_comment'
+          test "$(jq -r '.head_sha' <<<"$run_json")" = "$MAIN_SHA"
+          mapfile -t artifacts < <(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN/artifacts" \
+              --jq ".artifacts[] | select(.expired == false) | select(.name | startswith(\"prod-os-maintenance-1183-plan-${PLAN_RUN}-\")) | .name"
+          )
+          test "${#artifacts[@]}" -eq 1
+          gh run download "$PLAN_RUN" --name "${artifacts[0]}" \
+            --dir artifacts/prod-os-maintenance-1183/approved
+          plan='artifacts/prod-os-maintenance-1183/approved/plan.json'
+          test -s "$plan"
+          jq -e \
+            --arg main "$MAIN_SHA" \
+            --arg digest "$PLAN_DIGEST" '
+            .STATUS == "PASS"
+            and .ISSUE == 1183
+            and .TARGET == "PROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_DIGEST == $digest
+            and .VERSION_ID == "24.04"
+            and .PHP_BRANCH == "8.4"
+            and .MARIADB_BRANCH == "11.8"
+            and .MAX_ALLOWED_PACKET == "67108864"
+            and .SAFETY_GATE == "PASS"' "$plan" >/dev/null
+
+      - name: Materialize pinned PROD identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1183-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1183-prod.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Execute exact stale-checked APPLY and reconcile reboot
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+          SNAPSHOT_REF: ${{ needs.validate-authority.outputs.snapshot_ref }}
+          WINDOW_REF: ${{ needs.validate-authority.outputs.window_ref }}
+        run: |
+          set -euo pipefail
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1183-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          scp_args=(
+            -q
+            -i "$RUNNER_TEMP/agency-1183-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          remote_dir=".agency-1183-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          plan='artifacts/prod-os-maintenance-1183/approved/plan.json'
+          mkdir -p artifacts/prod-os-maintenance-1183/apply
+
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "umask 077; rm -rf -- '$remote_dir'; install -d -m 700 '$remote_dir'"
+          scp "${scp_args[@]}" \
+            scripts/production-maintenance-1183/remote-plan.sh \
+            scripts/production-maintenance-1183/remote-apply.sh \
+            scripts/production-maintenance-1183/remote-post-reboot.sh \
+            "$plan" \
+            "$SERVER_USER@$SERVER_HOST:$remote_dir/"
+
+          set +e
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "chmod 700 '$remote_dir/remote-plan.sh' '$remote_dir/remote-apply.sh' '$remote_dir/remote-post-reboot.sh'; '$remote_dir/remote-apply.sh' '$remote_dir/plan.json' '$PLAN_DIGEST' '$SNAPSHOT_REF' '$WINDOW_REF' '$SERVER_USER'" \
+            > artifacts/prod-os-maintenance-1183/apply/pre-reboot.json \
+            2> artifacts/prod-os-maintenance-1183/apply/pre-reboot.stderr
+          apply_rc=$?
+          set -e
+
+          pre='artifacts/prod-os-maintenance-1183/apply/pre-reboot.json'
+          test -s "$pre"
+          jq -e \
+            --arg main "$MAIN_SHA" \
+            --arg digest "$PLAN_DIGEST" \
+            --arg snapshot "$SNAPSHOT_REF" \
+            --arg window "$WINDOW_REF" '
+            .STATUS == "PASS"
+            and .ISSUE == 1183
+            and .TARGET == "PROD"
+            and .MODE == "APPLY"
+            and .MAIN_SHA == $main
+            and .PLAN_DIGEST == $digest
+            and .STALE_PLAN == "PASS"
+            and .PROVIDER_SNAPSHOT_REF == $snapshot
+            and .PROVIDER_SNAPSHOT_AUTOMATED_VERIFICATION == "UNAVAILABLE"
+            and .MAINTENANCE_WINDOW_REF == $window
+            and .MAINTENANCE_WINDOW_APPROVAL == "PROJECT_LEAD_EXTERNAL"
+            and .BACKUPS_BEFORE_PACKAGE_APPLY == "PASS"
+            and .MAINTENANCE_MODE_ENTERED == "YES"
+            and .PACKAGE_APPLY_SUCCESS == "YES"
+            and .SECOND_EXACT_APT_SIMULATION == "PASS"
+            and .KEEP_PREVIOUS_KERNEL == "YES"
+            and .DRUPAL_DEPLOY == "NONE"
+            and .DRUPAL_CONFIG_IMPORT == "NONE"
+            and .SNAPSHOT_RESTORE == "NONE"' "$pre" >/dev/null
+
+          reboot_initiated="$(jq -r '.REBOOT_INITIATED' "$pre")"
+          if [[ "$reboot_initiated" == 'YES' ]]; then
+            [[ "$apply_rc" -eq 0 || "$apply_rc" -eq 255 ]]
+            saw_down=0
+            for _ in $(seq 1 30); do
+              if ! ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" true >/dev/null 2>&1; then
+                saw_down=1
+                break
+              fi
+              sleep 2
+            done
+            test "$saw_down" -eq 1
+            reachable=0
+            for _ in $(seq 1 60); do
+              if ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" true >/dev/null 2>&1; then
+                reachable=1
+                break
+              fi
+              sleep 5
+            done
+            test "$reachable" -eq 1
+          else
+            test "$apply_rc" -eq 0
+          fi
+
+          start_epoch="$(jq -r '.START_EPOCH' "$pre")"
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "'$remote_dir/remote-post-reboot.sh' '$remote_dir/plan.json' '$SERVER_USER' '$start_epoch'" \
+            > artifacts/prod-os-maintenance-1183/apply/result.json
+
+          result='artifacts/prod-os-maintenance-1183/apply/result.json'
+          jq -e '
+            .STATUS == "PASS"
+            and .ISSUE == 1183
+            and .TARGET == "PROD"
+            and .MODE == "APPLY"
+            and .POST_REBOOT_VALIDATION == "PASS"
+            and .REBOOT_RECONCILIATION == "PASS"
+            and .MAINTENANCE_MODE == "OFF"
+            and .KEEP_PREVIOUS_KERNEL == "YES"
+            and .MAX_ALLOWED_PACKET == "67108864"
+            and .PUBLIC_HOME == "PASS"
+            and .CONTACT_FORM_SURFACE == "PASS"
+            and .RECENT_NGINX_PHP_ERRORS == "NONE_MATERIAL"
+            and .CONFIG_AUTO_CORRECTION == "NONE"
+            and .VERSION_LOG_REQUIRED == "YES"
+            and .SNAPSHOT_RESTORE == "NONE"' "$result" >/dev/null
+
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" "rm -rf -- '$remote_dir'" >/dev/null
+
+      - name: Upload bounded APPLY evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-os-maintenance-1183-apply-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/prod-os-maintenance-1183
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish bounded APPLY summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/prod-os-maintenance-1183/apply/result.json'
+          new_updates="$(jq -c '.NEW_UPDATES_AFTER_PLAN' "$result")"
+          security="$(jq -r '.SECURITY_UPDATES_TOTAL' "$result")"
+          body="$(cat <<EOF_BODY
+          #1183 PROD OS maintenance APPLY completed.
+
+          \`STATUS=PASS\`
+          \`RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}\`
+          \`KERNEL_RUNNING=$(jq -r '.KERNEL_RUNNING' "$result")\`
+          \`REBOOT_REQUIRED=$(jq -r '.REBOOT_REQUIRED' "$result")\`
+          \`SECURITY_UPDATES_TOTAL=${security}\`
+          \`NEW_UPDATES_AFTER_PLAN=${new_updates}\`
+          \`POST_REBOOT_VALIDATION=PASS\`
+          \`MAINTENANCE_MODE=OFF\`
+          \`VERSION_LOG_REQUIRED=YES\`
+          EOF_BODY
+          )"
+          gh issue comment 1183 --body "$body"
+
+      - name: Remove transient PROD key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1183-prod.key"

@@ -83,6 +83,8 @@ final class CockpitStateController implements ContainerInjectionInterface {
    *
    * @param array<string, mixed> $payload
    *   JSON-safe response payload.
+   * @param int $status
+   *   HTTP response status code.
    */
   private function jsonResponse(array $payload, int $status): JsonResponse {
     $response = new JsonResponse($payload, $status);

@@ -1,0 +1,406 @@
+name: Governed host OS inventory
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+concurrency:
+  group: agency-host-os-inventory
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate exact #1101 human audit authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+    steps:
+      - id: authority
+        name: JIT validate exact command and live main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1101'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_BODY" = '/agency-host-os-inventory audit'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1101")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          test "$(jq -r 'has("pull_request")' <<<"$issue_json")" = 'false'
+          jq -e '[.labels[].name] | index("P1") != null' <<<"$issue_json" >/dev/null
+          jq -e '[.labels[].name] | index("status:in-progress") != null' <<<"$issue_json" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$WORKFLOW_SHA" = "$main_sha"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+  runner-inventory:
+    name: Inventory trusted Agency runner host read-only
+    needs: validate-authority
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact live main inventory source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact trusted runner identity
+        shell: bash
+        env:
+          EXPECTED_MAIN: ${{ needs.validate-authority.outputs.main_sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN"
+          test "$RUNNER_NAME_VALUE" = 'agency-browser-runner-01'
+          test "$(hostname)" = 'preflight-runner-01'
+          test "$(whoami)" = 'agency-runner'
+
+      - name: Run bounded local host inventory
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/host-os-inventory
+          set +e
+          bash scripts/runner/run-host-os-inventory.sh runner \
+            > artifacts/host-os-inventory/runner.json
+          probe_rc=$?
+          set -e
+          python3 -m json.tool artifacts/host-os-inventory/runner.json >/dev/null
+          exit "$probe_rc"
+
+      - name: Ensure runner receipt exists
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/host-os-inventory
+          if [[ ! -s artifacts/host-os-inventory/runner.json ]]; then
+            printf '%s\n' '{"status":"FAIL","SURFACE":"runner","failure_stage":"WORKFLOW_OR_PROBE"}' \
+              > artifacts/host-os-inventory/runner.json
+          fi
+
+      - name: Upload runner inventory
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-os-inventory-runner-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/host-os-inventory/runner.json
+          if-no-files-found: error
+          retention-days: 14
+
+  preprod-inventory:
+    name: Inventory PREPROD host read-only
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact live main inventory source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize pinned PREPROD SSH identity and trust
+        shell: bash
+        env:
+          PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_SSH_PRIVATE_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$PREPROD_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/preprod-inventory.key"
+          chmod 600 "$RUNNER_TEMP/preprod-inventory.key"
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Run bounded PREPROD inventory over pinned SSH
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/host-os-inventory
+          ssh_args=(
+            -i "$RUNNER_TEMP/preprod-inventory.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          set +e
+          ssh "${ssh_args[@]}" "agency-preprod@$PREPROD_SERVER_HOST" 'bash -s -- preprod' \
+            < scripts/runner/run-host-os-inventory.sh \
+            > artifacts/host-os-inventory/preprod.json \
+            2> "$RUNNER_TEMP/preprod-inventory.stderr"
+          probe_rc=$?
+          set -e
+          if [[ ! -s artifacts/host-os-inventory/preprod.json ]]; then
+            printf '%s\n' '{"status":"FAIL","SURFACE":"preprod","failure_stage":"SSH_OR_REMOTE_PROBE"}' \
+              > artifacts/host-os-inventory/preprod.json
+          fi
+          python3 -m json.tool artifacts/host-os-inventory/preprod.json >/dev/null
+          exit "$probe_rc"
+
+      - name: Ensure PREPROD receipt exists
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/host-os-inventory
+          if [[ ! -s artifacts/host-os-inventory/preprod.json ]]; then
+            printf '%s\n' '{"status":"FAIL","SURFACE":"preprod","failure_stage":"WORKFLOW_OR_TRUST"}' \
+              > artifacts/host-os-inventory/preprod.json
+          fi
+          rm -f "$RUNNER_TEMP/preprod-inventory.key" "$RUNNER_TEMP/preprod-inventory.stderr"
+
+      - name: Upload PREPROD inventory
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-os-inventory-preprod-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/host-os-inventory/preprod.json
+          if-no-files-found: error
+          retention-days: 14
+
+  prod-inventory:
+    name: Inventory PROD host read-only
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact live main inventory source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize pinned PROD SSH identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/prod-inventory.key"
+          chmod 600 "$RUNNER_TEMP/prod-inventory.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Run bounded PROD inventory over pinned SSH
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/host-os-inventory
+          ssh_args=(
+            -i "$RUNNER_TEMP/prod-inventory.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          set +e
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" 'bash -s -- prod' \
+            < scripts/runner/run-host-os-inventory.sh \
+            > artifacts/host-os-inventory/prod.json \
+            2> "$RUNNER_TEMP/prod-inventory.stderr"
+          probe_rc=$?
+          set -e
+          if [[ ! -s artifacts/host-os-inventory/prod.json ]]; then
+            printf '%s\n' '{"status":"FAIL","SURFACE":"prod","failure_stage":"SSH_OR_REMOTE_PROBE"}' \
+              > artifacts/host-os-inventory/prod.json
+          fi
+          python3 -m json.tool artifacts/host-os-inventory/prod.json >/dev/null
+          exit "$probe_rc"
+
+      - name: Ensure PROD receipt exists
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/host-os-inventory
+          if [[ ! -s artifacts/host-os-inventory/prod.json ]]; then
+            printf '%s\n' '{"status":"FAIL","SURFACE":"prod","failure_stage":"WORKFLOW_OR_TRUST"}' \
+              > artifacts/host-os-inventory/prod.json
+          fi
+          rm -f "$RUNNER_TEMP/prod-inventory.key" "$RUNNER_TEMP/prod-inventory.stderr"
+
+      - name: Upload PROD inventory
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-os-inventory-prod-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/host-os-inventory/prod.json
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Aggregate bounded host inventory evidence
+    if: ${{ always() && needs.validate-authority.result == 'success' }}
+    needs:
+      - validate-authority
+      - runner-inventory
+      - preprod-inventory
+      - prod-inventory
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Download surface receipts
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          pattern: host-os-inventory-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/host-os-inventory
+          merge-multiple: true
+
+      - id: result
+        name: Build single bounded result.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/host-os-inventory
+          for surface in runner preprod prod; do
+            path="artifacts/host-os-inventory/${surface}.json"
+            if [[ ! -s "$path" ]]; then
+              printf '{"status":"FAIL","SURFACE":"%s","failure_stage":"MISSING_RECEIPT"}\n' \
+                "$surface" > "$path"
+            fi
+            jq -e . "$path" >/dev/null
+          done
+
+          runner_status="$(jq -r '.status' artifacts/host-os-inventory/runner.json)"
+          preprod_status="$(jq -r '.status' artifacts/host-os-inventory/preprod.json)"
+          prod_status="$(jq -r '.status' artifacts/host-os-inventory/prod.json)"
+          overall='FAIL'
+          if [[ "$runner_status" == 'PASS' && "$preprod_status" == 'PASS' && "$prod_status" == 'PASS' ]]; then
+            overall='PASS'
+          elif [[ "$runner_status" == 'PASS' || "$preprod_status" == 'PASS' || "$prod_status" == 'PASS' ]]; then
+            overall='PARTIAL'
+          fi
+
+          jq -n \
+            --arg status "$overall" \
+            --arg runner_status "$runner_status" \
+            --arg preprod_status "$preprod_status" \
+            --arg prod_status "$prod_status" \
+            --slurpfile runner artifacts/host-os-inventory/runner.json \
+            --slurpfile preprod artifacts/host-os-inventory/preprod.json \
+            --slurpfile prod artifacts/host-os-inventory/prod.json \
+            '{
+              schema_version: 1,
+              status: $status,
+              surface_status: {
+                runner: $runner_status,
+                preprod: $preprod_status,
+                prod: $prod_status
+              },
+              runner: $runner[0],
+              preprod: $preprod[0],
+              prod: $prod[0]
+            }' > artifacts/host-os-inventory/result.json
+
+          echo "overall=$overall" >> "$GITHUB_OUTPUT"
+          echo "runner=$runner_status" >> "$GITHUB_OUTPUT"
+          echo "preprod=$preprod_status" >> "$GITHUB_OUTPUT"
+          echo "prod=$prod_status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload single machine-readable inventory artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-os-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/host-os-inventory/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded #1101 inventory summary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OVERALL: ${{ steps.result.outputs.overall }}
+          RUNNER_STATUS: ${{ steps.result.outputs.runner }}
+          PREPROD_STATUS: ${{ steps.result.outputs.preprod }}
+          PROD_STATUS: ${{ steps.result.outputs.prod }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          Host OS inventory run ${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT} completed.
+
+          \`STATUS=${OVERALL}\`
+          \`RUNNER=${RUNNER_STATUS}\`
+          \`PREPROD=${PREPROD_STATUS}\`
+          \`PROD=${PROD_STATUS}\`
+
+          Bounded machine-readable evidence: \`host-os-inventory-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`.
+          EOF
+          )"
+          gh issue comment 1101 --body "$body"
+
+      - name: Require all three surfaces complete
+        shell: bash
+        env:
+          OVERALL: ${{ steps.result.outputs.overall }}
+        run: |
+          set -euo pipefail
+          test "$OVERALL" = 'PASS'

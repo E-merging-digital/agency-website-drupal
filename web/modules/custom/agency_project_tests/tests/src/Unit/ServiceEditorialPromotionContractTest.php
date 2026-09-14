@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use Drupal\Core\Entity\EntityFieldManagerInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
+use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Session\AccountSwitcherInterface;
 use Drupal\Core\State\StateInterface;
+use Drupal\user\UserInterface;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
@@ -210,6 +215,88 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
   }
 
   /**
+   * Runtime inspect returns the exact fail-closed Service receipt shape.
+   */
+  public function testRuntimeInspectReceiptMatchesWrapperContract(): void {
+    $publisher = dirname(DRUPAL_ROOT)
+      . '/scripts/runner/editorial-service-publication.php';
+    require_once $publisher;
+    if (!class_exists(\AgencyEditorialServicePublication::class)) {
+      self::fail('Service publication runtime class must be loadable.');
+    }
+
+    $nodeTypeStorage = $this->createMock(EntityStorageInterface::class);
+    $nodeTypeStorage->method('load')
+      ->with('service')
+      ->willReturn($this->createMock(EntityInterface::class));
+
+    $formatStorage = $this->createMock(EntityStorageInterface::class);
+    $formatStorage->method('load')
+      ->with('basic_html')
+      ->willReturn($this->createMock(EntityInterface::class));
+
+    $author = $this->createMock(UserInterface::class);
+    $author->method('isActive')->willReturn(TRUE);
+    $userStorage = $this->createMock(EntityStorageInterface::class);
+    $userStorage->method('load')->with(1)->willReturn($author);
+
+    $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+    $entityTypeManager->method('getStorage')->willReturnMap([
+      ['node_type', $nodeTypeStorage],
+      ['filter_format', $formatStorage],
+      ['user', $userStorage],
+    ]);
+
+    $fieldDefinition = $this->createMock(FieldDefinitionInterface::class);
+    $entityFieldManager = $this->createMock(EntityFieldManagerInterface::class);
+    $entityFieldManager->method('getFieldDefinitions')
+      ->with('node', 'service')
+      ->willReturn([
+        'field_short_description' => $fieldDefinition,
+        'field_detailed_description' => $fieldDefinition,
+        'path' => $fieldDefinition,
+      ]);
+
+    $languageManager = $this->createMock(LanguageManagerInterface::class);
+    $languageManager->method('getLanguage')->willReturnMap([
+      ['fr', $this->createMock(LanguageInterface::class)],
+      ['en', $this->createMock(LanguageInterface::class)],
+    ]);
+
+    $state = $this->createMock(StateInterface::class);
+    $state->expects(self::once())
+      ->method('get')
+      ->with('agency_editorial.service.issue.1117')
+      ->willReturn(NULL);
+
+    $reflection = new \ReflectionClass(
+      \AgencyEditorialServicePublication::class,
+    );
+    $service = $reflection->newInstance(
+      $entityTypeManager,
+      $entityFieldManager,
+      $languageManager,
+      $state,
+      $this->createMock(AccountSwitcherInterface::class),
+    );
+    $result = $reflection->getMethod('inspect')->invoke($service, self::ISSUE);
+    self::assertIsArray($result);
+
+    self::assertSame('PASS', $result['status'] ?? NULL);
+    self::assertSame('READY', $result['verdict'] ?? NULL);
+    self::assertSame('inspect', $result['mode'] ?? NULL);
+    self::assertSame('PROD', $result['target'] ?? NULL);
+    self::assertSame('service', $result['candidate_kind'] ?? NULL);
+    self::assertSame(self::ISSUE, $result['issue_number'] ?? NULL);
+    self::assertSame('agency-service-1117', $result['candidate_id'] ?? NULL);
+    self::assertSame('GIT_MAIN_FILE', $result['candidate_store'] ?? NULL);
+    self::assertSame(['mapping' => NULL], $result['runtime'] ?? NULL);
+    self::assertSame('NONE', $result['prod_write'] ?? NULL);
+    self::assertSame('NONE', $result['content_sync'] ?? NULL);
+    self::assertSame('NONE', $result['db_copy'] ?? NULL);
+  }
+
+  /**
    * Builds the exact closed #1117 payload with canonical en,fr map order.
    */
   private function servicePayload(): array {
@@ -300,6 +387,10 @@ final class ServiceEditorialPromotionContractTest extends TestCase {
     self::assertStringContainsString("'pathauto' => 0", $publisherText);
     self::assertStringContainsString("'content_sync' => 'NONE'", $publisherText);
     self::assertStringContainsString("'db_copy' => 'NONE'", $publisherText);
+    self::assertStringContainsString(
+      '.candidate_kind == "service"',
+      $runnerText,
+    );
     self::assertStringContainsString("'service_image_profile_required' => 'NO'", $publisherText);
     self::assertStringNotContainsString('field_feature_image', $publisherText . $runnerText);
     self::assertStringNotContainsString('editorial-feature-image', $publisherText . $runnerText);

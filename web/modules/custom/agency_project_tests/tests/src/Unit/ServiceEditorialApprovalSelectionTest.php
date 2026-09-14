@@ -19,8 +19,12 @@ final class ServiceEditorialApprovalSelectionTest extends TestCase {
   private const ISSUE = 1117;
   private const REVISION = 'b4583c78ff6cfa083461d3394667887383135187';
   private const PAYLOAD_SHA = 'f8a8dcb23f46086ec6e0b7b3c6b8f26cd53fc7335c5239b97391f3ec1826804a';
-  private const MAIN_SHA = '1b2166e9a111eb54650827033ad4306a0940482a';
-  private const OLD_MAIN_SHA = 'b8717d68778abb043f6cae3de4da289a00563720';
+  private const MAIN_SHA = 'af463fb3b378640dc13674a2ec4d8529d603b1ab';
+  private const OLD_MAIN_SHA = '1b2166e9a111eb54650827033ad4306a0940482a';
+  private const STALE_APPROVAL_ID = 5664680160;
+  private const CURRENT_PREPROD_RECEIPT_ID = 5665275522;
+  private const CURRENT_APPROVAL_ID = 5665300000;
+  private const CURRENT_PROD_DRY_RUN_ID = 5665400000;
 
   /**
    * Historical pre-approval proof is ignored and the causal post proof wins.
@@ -37,6 +41,39 @@ final class ServiceEditorialApprovalSelectionTest extends TestCase {
     self::assertSame('AUTHORIZED', $result['verdict'] ?? NULL);
     self::assertSame(200, $result['approval_comment_id'] ?? NULL);
     self::assertSame(300, $result['prod_dry_run_comment_id'] ?? NULL);
+  }
+
+  /**
+   * A stale same-main approval before current PREPROD evidence is ignored.
+   */
+  public function testStaleSameMainApprovalBeforePreprodSelectsCurrentApproval(): void {
+    [$exitCode, $result] = $this->runValidator([
+      $this->approvalComment(self::STALE_APPROVAL_ID),
+      $this->preprodReceipt(self::CURRENT_PREPROD_RECEIPT_ID),
+      $this->approvalComment(self::CURRENT_APPROVAL_ID),
+      $this->dryRunReceipt(self::CURRENT_PROD_DRY_RUN_ID),
+    ]);
+
+    self::assertLessThan(self::CURRENT_PREPROD_RECEIPT_ID, self::STALE_APPROVAL_ID);
+    self::assertLessThan(self::CURRENT_APPROVAL_ID, self::CURRENT_PREPROD_RECEIPT_ID);
+    self::assertLessThan(self::CURRENT_PROD_DRY_RUN_ID, self::CURRENT_APPROVAL_ID);
+    self::assertSame(0, $exitCode);
+    self::assertSame('AUTHORIZED', $result['verdict'] ?? NULL);
+    self::assertSame(self::CURRENT_APPROVAL_ID, $result['approval_comment_id'] ?? NULL);
+    self::assertSame(self::CURRENT_PROD_DRY_RUN_ID, $result['prod_dry_run_comment_id'] ?? NULL);
+  }
+
+  /**
+   * A same-main approval before current PREPROD evidence is insufficient.
+   */
+  public function testOnlyStaleSameMainApprovalBeforePreprodIsRefused(): void {
+    [$exitCode] = $this->runValidator([
+      $this->approvalComment(self::STALE_APPROVAL_ID),
+      $this->preprodReceipt(self::CURRENT_PREPROD_RECEIPT_ID),
+      $this->dryRunReceipt(self::CURRENT_PROD_DRY_RUN_ID),
+    ]);
+
+    self::assertSame(1, $exitCode);
   }
 
   /**
@@ -108,6 +145,46 @@ final class ServiceEditorialApprovalSelectionTest extends TestCase {
     $approval['body'] = str_replace(
       self::REVISION,
       str_repeat('b', 40),
+      (string) $approval['body'],
+    );
+
+    [$exitCode] = $this->runValidator([
+      $this->preprodReceipt(100),
+      $approval,
+      $this->dryRunReceipt(300),
+    ]);
+
+    self::assertSame(1, $exitCode);
+  }
+
+  /**
+   * Wrong candidate id remains fail-closed.
+   */
+  public function testWrongCandidateApprovalIsRefused(): void {
+    $approval = $this->approvalComment(200);
+    $approval['body'] = str_replace(
+      'CANDIDATE_ID = agency-service-1117',
+      'CANDIDATE_ID = agency-service-9999',
+      (string) $approval['body'],
+    );
+
+    [$exitCode] = $this->runValidator([
+      $this->preprodReceipt(100),
+      $approval,
+      $this->dryRunReceipt(300),
+    ]);
+
+    self::assertSame(1, $exitCode);
+  }
+
+  /**
+   * Wrong payload hash remains fail-closed.
+   */
+  public function testWrongPayloadApprovalIsRefused(): void {
+    $approval = $this->approvalComment(200);
+    $approval['body'] = str_replace(
+      self::PAYLOAD_SHA,
+      str_repeat('a', 64),
       (string) $approval['body'],
     );
 

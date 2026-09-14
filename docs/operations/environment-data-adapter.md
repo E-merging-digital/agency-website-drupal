@@ -1,6 +1,6 @@
 # Agency environment-data adapter state
 
-Issues: #1163, #1167  
+Issues: #1163, #1167, #1174, #1175
 Architecture: E-merging-digital/infrastructure#41 / #43 / ADR-0005 / ADR-0006
 
 ## Purpose
@@ -79,13 +79,20 @@ The route returns the existing normalized provider projection only when:
 2. the presented credential matches using constant-time comparison;
 3. the current Drupal runtime is PREPROD.
 
-The secret value is never stored in exported Drupal configuration or this repository. PREPROD `settings.php` should map an environment-owned secret into:
+The secret value is never stored in exported Drupal configuration or this repository. Its server-owned runtime materialization is tracked separately in #1175 because PREPROD PHP-FPM uses `clear_env = yes`; documentation must not imply that an inherited process environment is already available to Drupal.
 
-```php
-$settings['agency_operations_cockpit_state_token'] = getenv('AGENCY_COCKPIT_STATE_TOKEN') ?: '';
+Do not commit the credential value or paste it into tickets/logs. Until #1175 is implemented and deliberately provisioned, missing runtime credential state must continue to return `503 transport_unavailable`.
+
+PREPROD Nginx keeps site-wide Basic Auth for browser-facing routes. The cockpit machine route is an exact-path exception to that outer layer only:
+
+```text
+location = /api/agency-operations/v1/environment-data-state
+outer Nginx Basic Auth = off for this exact path
+Authorization bearer = forwarded to Drupal
+Drupal bearer validation = mandatory
 ```
 
-Do not commit the environment variable value or paste it into tickets/logs.
+This exact exception is required because HTTP Basic and Bearer both use the `Authorization` request header. It does not make the route unauthenticated: the existing Drupal controller remains the authentication boundary and denies missing/invalid bearer credentials.
 
 Responses are `Cache-Control: no-store, private`. Missing/weak configuration fails with `503`; invalid credentials with `401`; an authenticated non-PREPROD runtime responds `404`.
 
@@ -112,6 +119,6 @@ Semantic personal-data sanitization remains owned by the existing Agency Drupal/
 
 ## Deployment status
 
-Source implementation and CI proof do not equal live PREPROD transport proof. #1167 must not be considered operational until the route and credential are deliberately configured/deployed on PREPROD and an authenticated read is proven without exposing the secret.
+Source implementation and CI proof do not equal live PREPROD transport proof. #1174 changes the source Nginx template only; it does not mutate the currently running PREPROD vhost. Live convergence requires separately authorized server work: back up the active vhost, apply only the exact-path rule, run `nginx -t`, reload Nginx, and prove that missing/invalid bearer remains denied.
 
-Infrastructure #43 remains fail-closed until that live proof exists.
+#1175 separately owns bearer materialization on the PREPROD and cockpit runtime surfaces. Infrastructure #43 remains fail-closed until both live configuration steps exist and an authenticated cockpit request succeeds without exposing the credential.

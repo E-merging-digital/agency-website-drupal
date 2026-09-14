@@ -194,6 +194,7 @@ def exact_service_owner_approval(
     comments: list[dict[str, Any]],
     issue_number: int,
     expected: dict[str, str],
+    after_comment_id: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     matches: list[tuple[dict[str, Any], dict[str, str]]] = []
     for comment in comments:
@@ -204,6 +205,9 @@ def exact_service_owner_approval(
             continue
         if comment.get("performed_via_github_app") is not None:
             continue
+        comment_id = int(comment.get("id") or 0)
+        if after_comment_id is not None and comment_id <= after_comment_id:
+            continue
         parsed = approval_fields(str(comment.get("body") or ""), issue_number)
         if parsed is None:
             continue
@@ -211,9 +215,10 @@ def exact_service_owner_approval(
         if all(fields.get(key) == value for key, value in expected.items()):
             matches.append((comment, fields))
     if len(matches) != 1:
+        causal = " after the exact PREPROD evidence" if after_comment_id is not None else ""
         raise ApprovalError(
             "Expected exactly one direct owner-authored Project Lead approval "
-            f"for the current exact Service candidate/main; found {len(matches)}."
+            f"for the current exact Service candidate/main{causal}; found {len(matches)}."
         )
     return matches[0]
 
@@ -400,14 +405,15 @@ def validate_service(args: argparse.Namespace, comments: list[dict[str, Any]]) -
         "EXACT_CANDIDATE_PROMOTION_TO_PROD": "AUTHORIZED",
         "CONTENT_CHANGE_AFTER_APPROVAL": "INVALIDATES_APPROVAL",
     }
+    preprod_evidence_id = int(preprod_apply.get("id") or 0)
     approval, fields = exact_service_owner_approval(
         comments,
         args.issue_number,
         exact_values,
+        after_comment_id=preprod_evidence_id,
     )
 
     approval_id = int(approval.get("id") or 0)
-    preprod_evidence_id = int(preprod_apply.get("id") or 0)
     if approval_id <= preprod_evidence_id:
         raise ApprovalError("Project Lead approval is stale or predates exact PREPROD evidence.")
 

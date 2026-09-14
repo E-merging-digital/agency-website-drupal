@@ -180,7 +180,7 @@ if not all(checks.values()):
     failed_checks = sorted(name for name, value in checks.items() if not value)
     raise SystemExit('PLAN safety gate failed: ' + ','.join(failed_checks))
 
-identity = {
+receipt = {
     'schema_version': 1,
     'STATUS': 'PASS',
     'ISSUE': int(os.environ['ISSUE']),
@@ -212,7 +212,42 @@ identity = {
     'DISK_AVAILABLE_KB': int(os.environ['DISK_AVAILABLE_KB']),
     'SAFETY_GATE': 'PASS',
 }
-canonical = json.dumps(identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
-identity['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
-print(json.dumps(identity, sort_keys=True, separators=(',', ':')))
+# Keep volatile observations in the receipt and safety gate, but bind stale-plan
+# identity only to mutation-relevant state. Healthy free-space fluctuations must
+# not invalidate an otherwise identical approved operation set.
+mutation_identity_keys = (
+    'schema_version',
+    'STATUS',
+    'ISSUE',
+    'TARGET',
+    'MODE',
+    'MAIN_SHA',
+    'PLAN_ID',
+    'OS_PRETTY_NAME',
+    'VERSION_ID',
+    'KERNEL_RUNNING',
+    'KERNEL_INSTALLED_LATEST',
+    'REBOOT_REQUIRED',
+    'UPGRADABLE_TOTAL',
+    'SECURITY_UPDATES_TOTAL',
+    'UPGRADABLE_PACKAGES',
+    'APT_UPGRADE_SIMULATION',
+    'PACKAGE_REMOVALS',
+    'PACKAGE_ADDITIONS',
+    'PACKAGE_UPGRADES',
+    'HELD_PACKAGES',
+    'PHP_BRANCH',
+    'MARIADB_BRANCH',
+    'FAILED_SYSTEMD_UNITS',
+    'NGINX_SERVICE',
+    'PHP_FPM_SERVICE',
+    'MARIADB_SERVICE',
+    'DRUPAL_HEALTH',
+    'PUBLIC_HEALTH',
+    'SAFETY_GATE',
+)
+mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
+canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
+receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
+print(json.dumps(receipt, sort_keys=True, separators=(',', ':')))
 PY

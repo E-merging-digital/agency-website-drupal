@@ -30,14 +30,18 @@ READER_KEY_SCRIPT='scripts/development-seed/remote-reader-key.sh'
 PREPROD_TRUST='scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh'
 PINNED_KEY='scripts/preproduction-ssh-trust/preprod-ed25519.pub'
 SEED_ID="agency-development-seed-v1-$REQUEST_ID"
+SNAPSHOT_NAME='database-mariadb_11.8.zst'
 REMOTE_ROOT='/var/www/agency-preprod/shared/development-seeds'
 REMOTE_INCOMING="$REMOTE_ROOT/.incoming/$REQUEST_ID"
 
 for path in "$SOURCE_SCRIPT" "$STORAGE_SCRIPT" "$READER_SCRIPT" "$READER_KEY_SCRIPT" "$PREPROD_TRUST" "$PINNED_KEY"; do
   [[ -f "$path" && ! -L "$path" ]]
 done
-for command_name in ddev git gzip jq openssl scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
-  command -v "$command_name" >/dev/null 2>&1
+for command_name in ddev git jq openssl php8.4 scp sha256sum ssh ssh-add ssh-agent ssh-keygen; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    printf 'MISSING_REQUIRED_COMMAND=%s\n' "$command_name" >&2
+    exit 82
+  fi
 done
 
 workspace_abs="$(realpath -m "$GITHUB_WORKSPACE")"
@@ -45,10 +49,12 @@ temp_abs="$(realpath -m "$RUNNER_TEMP")"
 case "$temp_abs/" in "$workspace_abs/"*) echo 'RUNNER_TEMP must remain outside the repository workspace.' >&2; exit 80;; esac
 
 raw="$temp_abs/$REQUEST_ID.raw-preprod.sql"
+sanitize_diagnostic="$temp_abs/$REQUEST_ID.sql-sanitize.diagnostic"
 known_hosts="$temp_abs/$REQUEST_ID.known_hosts"
 reader_key="$temp_abs/$REQUEST_ID.reader"
 generation="$temp_abs/$REQUEST_ID-generation"
 proof="$temp_abs/$REQUEST_ID-proof"
+proof_cache="$temp_abs/$REQUEST_ID-proof-cache"
 evidence_dir="$workspace_abs/artifacts/development-seed"
 evidence="$evidence_dir/result.env"
 reader_installed=0
@@ -65,8 +71,8 @@ printf '%s %s %s\n' "$PREPROD_SSH_HOST" "$pinned_type" "$pinned_blob" > "$known_
 chmod 600 "$known_hosts"
 PREPROD_SERVER_HOST="$PREPROD_SSH_HOST" PREPROD_KNOWN_HOSTS_FILE="$known_hosts" bash "$PREPROD_TRUST" >/dev/null
 
-ssh_args=(-i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -o ConnectTimeout=15)
-scp_args=(-i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -o ConnectTimeout=15)
+ssh_args=(ssh -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -o ConnectTimeout=15)
+scp_args=(scp -i "$PREPROD_SSH_KEY" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" -o ConnectTimeout=15)
 remote_target="agency-preprod@$PREPROD_SSH_HOST"
 
 source_action() {
@@ -86,6 +92,142 @@ reader_action() {
   "${ssh_args[@]}" "$remote_target" \
     "bash -s -- '$action' '$REQUEST_ID' '$blob' '$expected_reader_sha'" \
     < "$READER_KEY_SCRIPT"
+}
+
+classify_sanitize_component() {
+  local diagnostic_path="$1"
+  local failure_class="$2"
+  local line=''
+  local database_frame=0
+  local in_exception_trace=0
+
+  case "$failure_class" in
+    COMMAND|BOOTSTRAP)
+      printf 'COMMAND_OR_BOOTSTRAP\n'
+      return
+      ;;
+  esac
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == *'sanitize plugin is using a deprecated API'* ]]; then
+      continue
+    fi
+    if [[ "$line" == *'Exception trace:'* ]]; then
+      in_exception_trace=1
+      continue
+    fi
+    (( in_exception_trace == 1 )) || continue
+
+    case "$line" in
+      *'Drupal\webform\Commands\WebformSanitizeSubmissionsCommands->sanitize('*|*'Drupal\webform\Commands\WebformSanitizeSubmissionsCommands::sanitize('*)
+        printf 'WEBFORM_SUBMISSIONS\n'; return ;;
+      *'Drush\Commands\sql\sanitize\SanitizeCommentsCommands->sanitize('*|*'Drush\Commands\sql\sanitize\SanitizeCommentsCommands::sanitize('*)
+        printf 'COMMENTS\n'; return ;;
+      *'Drush\Commands\sql\sanitize\SanitizeSessionsCommands->sanitize('*|*'Drush\Commands\sql\sanitize\SanitizeSessionsCommands::sanitize('*)
+        printf 'SESSIONS\n'; return ;;
+      *'Drush\Commands\sql\sanitize\SanitizeUserTableCommands->sanitize('*|*'Drush\Commands\sql\sanitize\SanitizeUserTableCommands::sanitize('*)
+        printf 'USER_TABLE\n'; return ;;
+      *'Drush\Commands\sql\sanitize\SanitizeUserFieldsCommands->sanitize('*|*'Drush\Commands\sql\sanitize\SanitizeUserFieldsCommands::sanitize('*)
+        printf 'USER_FIELDS\n'; return ;;
+      *'Drupal\Core\Database\'*)
+        database_frame=1 ;;
+    esac
+  done < "$diagnostic_path"
+
+  if (( database_frame == 1 )); then
+    printf 'DRUPAL_DATABASE\n'
+  else
+    printf 'UNKNOWN\n'
+  fi
+}
+
+classify_sanitize_metadata() {
+  local diagnostic_path="$1"
+  local trace_present='NO'
+  local abnormal_termination='NO'
+  local drupal_error_signal='NO'
+  local comments_completed='NO'
+  local sessions_completed='NO'
+  local user_table_completed='NO'
+  local user_fields_activity='NO'
+
+  if LC_ALL=C grep -Fq -- 'Exception trace:' "$diagnostic_path"; then
+    trace_present='YES'
+  fi
+  if LC_ALL=C grep -Fq -- 'Drush command terminated abnormally.' "$diagnostic_path"; then
+    abnormal_termination='YES'
+  fi
+  if LC_ALL=C grep -Eq -- '(^|[[:space:]])\[error\][[:space:]]' "$diagnostic_path"; then
+    drupal_error_signal='YES'
+  fi
+  if LC_ALL=C grep -Fq -- 'Comment display names and emails removed.' "$diagnostic_path"; then
+    comments_completed='YES'
+  fi
+  if LC_ALL=C grep -Fq -- 'Sessions table truncated.' "$diagnostic_path"; then
+    sessions_completed='YES'
+  fi
+  if LC_ALL=C grep -Fq -- 'User passwords sanitized.' "$diagnostic_path" \
+    && LC_ALL=C grep -Fq -- 'User emails sanitized.' "$diagnostic_path"; then
+    user_table_completed='YES'
+  fi
+  if LC_ALL=C grep -Eq -- '(^|[[:space:]])[A-Za-z0-9_]+ table sanitized\.[[:space:]]*$' "$diagnostic_path"; then
+    user_fields_activity='YES'
+  fi
+  printf 'SANITIZE_TRACE_PRESENT=%s\n' "$trace_present"
+  printf 'SANITIZE_ABNORMAL_TERMINATION=%s\n' "$abnormal_termination"
+  printf 'SANITIZE_DRUPAL_ERROR_SIGNAL=%s\n' "$drupal_error_signal"
+  printf 'SANITIZE_CORE_COMMENTS_COMPLETED=%s\n' "$comments_completed"
+  printf 'SANITIZE_CORE_SESSIONS_COMPLETED=%s\n' "$sessions_completed"
+  printf 'SANITIZE_CORE_USER_TABLE_COMPLETED=%s\n' "$user_table_completed"
+  printf 'SANITIZE_CORE_USER_FIELDS_ACTIVITY=%s\n' "$user_fields_activity"
+}
+
+drush_user_email_sanitizer_completed() {
+  local diagnostic_path="$1"
+  if LC_ALL=C grep -Eq -- '^[[:space:]]*(\[success\][[:space:]]+)?User emails sanitized\.([[:space:]]+\[[^][]+\])?[[:space:]]*$' "$diagnostic_path"; then
+    printf 'YES\n'
+  else
+    printf 'NO\n'
+  fi
+}
+
+delete_sanitize_diagnostic() {
+  local diagnostic_path="$1"
+  if ! rm -f -- "$diagnostic_path" || [[ -e "$diagnostic_path" ]]; then
+    printf 'SANITIZE_DIAGNOSTIC_CLEANUP=FAIL\n' >&2
+    return 98
+  fi
+}
+
+classify_sanitize_failure() {
+  local diagnostic_path="$1"
+  local exit_code="$2"
+  local failure_class='UNCLASSIFIED'
+  local failure_component='UNKNOWN'
+
+  if LC_ALL=C grep -Eiq -- '(command .* is not defined|there are no commands defined|option .* does not exist|unknown option|too many arguments|not enough arguments)' "$diagnostic_path"; then
+    failure_class='COMMAND'
+  elif LC_ALL=C grep -Eiq -- '(bootstrap failed|could not bootstrap|unable to bootstrap|failed to bootstrap|drupal bootstrap)' "$diagnostic_path"; then
+    failure_class='BOOTSTRAP'
+  elif LC_ALL=C grep -Eiq -- '(SQLSTATE\[(42S02|42S22)\]|base table or view not found|unknown column|no such table|table .* doesn.?t exist)' "$diagnostic_path"; then
+    failure_class='SCHEMA'
+  elif LC_ALL=C grep -Eiq -- '(SQLSTATE\[|PDOException|DatabaseException|QueryException|deadlock|lock wait timeout|server has gone away|connection refused|fatal error|uncaught .*exception|allowed memory size)' "$diagnostic_path"; then
+    failure_class='RUNTIME'
+  fi
+
+  failure_component="$(classify_sanitize_component "$diagnostic_path" "$failure_class")"
+  case "$failure_component" in
+    WEBFORM_SUBMISSIONS|COMMENTS|SESSIONS|USER_TABLE|USER_FIELDS|DRUPAL_DATABASE|COMMAND_OR_BOOTSTRAP|UNKNOWN) ;;
+    *) failure_component='UNKNOWN' ;;
+  esac
+
+  if [[ ! "$exit_code" =~ ^[1-9][0-9]*$ ]]; then
+    exit_code=255
+  fi
+  printf 'SANITIZE_FAILURE=YES\n' >&2
+  printf 'SANITIZE_FAILURE_CLASS=%s\n' "$failure_class" >&2
+  printf 'SANITIZE_FAILURE_COMPONENT=%s\n' "$failure_component" >&2
+  printf 'SANITIZE_FAILURE_EXIT=%s\n' "$exit_code" >&2
+  classify_sanitize_metadata "$diagnostic_path" >&2
 }
 
 delete_ddev_worktree() {
@@ -120,8 +262,9 @@ cleanup() {
     ssh-agent -k >/dev/null 2>&1 || final=98
     ssh_agent_started=0
   fi
-  rm -f -- "$raw" "$known_hosts" "$reader_key" "$reader_key.pub"
-  [[ ! -e "$raw" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]] || final=98
+  rm -rf -- "$proof_cache"
+  rm -f -- "$raw" "$sanitize_diagnostic" "$known_hosts" "$reader_key" "$reader_key.pub"
+  [[ ! -e "$raw" && ! -e "$sanitize_diagnostic" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" && ! -e "$proof_cache" ]] || final=98
   if [[ "$original" -ne 0 ]]; then final="$original"; fi
   exit "$final"
 }
@@ -149,83 +292,110 @@ if LC_ALL=C grep -Eiq '^[[:space:]]*(USE[[:space:]]|CREATE[[:space:]]+(DATABASE|
   exit 81
 fi
 
-# Isolated generation uses a temporary DDEV worktree. PREPROD live Drupal never
-# points to this database and all destructive sanitization occurs here.
+# The source SQL stream remains the existing read-only PREPROD acquisition
+# boundary. It is imported once into an isolated DDEV DB; no post-sanitization
+# logical SQL export is created or distributed.
 git worktree add --detach "$generation" "$REPOSITORY_SHA" >/dev/null
 generation_added=1
 generation_name="agency-seed-956-${GITHUB_RUN_ID}"
 sed -i "1s/^name:.*/name: $generation_name/" "$generation/.ddev/config.yaml"
+[[ -f "$generation/composer.lock" && ! -L "$generation/composer.lock" ]]
 (
   cd "$generation"
-  ddev start >/dev/null
+  ddev start -y >/dev/null
+  ddev composer install --no-interaction --no-progress --prefer-dist >/dev/null
   ddev import-db --file="$raw" >/dev/null
 )
 rm -f -- "$raw"
 [[ ! -e "$raw" ]]
 
 seed_password="$(openssl rand -hex 32)"
+(umask 077; set -o noclobber; : > "$sanitize_diagnostic")
+[[ -f "$sanitize_diagnostic" && ! -L "$sanitize_diagnostic" ]]
+[[ "$(stat -c '%a' "$sanitize_diagnostic")" == 600 ]]
+if (
+  cd "$generation"
+  ddev drush -vvv sql:sanitize -y \
+    --sanitize-email='user+%uid@example.invalid' \
+    --sanitize-password="$seed_password"
+) > "$sanitize_diagnostic" 2>&1; then
+  drush_user_email_completed="$(drush_user_email_sanitizer_completed "$sanitize_diagnostic")"
+  printf 'DRUSH_USER_EMAIL_SANITIZER_COMPLETED = %s\n' "$drush_user_email_completed"
+  if ! delete_sanitize_diagnostic "$sanitize_diagnostic"; then
+    unset seed_password drush_user_email_completed
+    exit 98
+  fi
+  unset drush_user_email_completed
+else
+  sanitize_exit=$?
+  classify_sanitize_failure "$sanitize_diagnostic" "$sanitize_exit"
+  if ! delete_sanitize_diagnostic "$sanitize_diagnostic"; then
+    unset seed_password
+    exit 98
+  fi
+  unset seed_password
+  exit "$sanitize_exit"
+fi
+unset seed_password
+
 (
   cd "$generation"
-  ddev drush sql:sanitize -y \
-    --sanitize-email='user+%uid@example.invalid' \
-    --sanitize-password="$seed_password" >/dev/null
   ddev drush --quiet php:script scripts/preproduction-refresh/governed-successor/agency-sanitize.php >/dev/null
   ddev drush --quiet php:script scripts/development-seed/agency-development-sanitize.php >/dev/null
 )
-unset seed_password
 
+# Snapshot only after every existing sanitization/assertion has passed.
 build_dir="$generation/.ddev/.seed-build"
-database="$build_dir/database.sql.gz"
+database="$build_dir/$SNAPSHOT_NAME"
 metadata="$build_dir/seed.json"
 mkdir -p "$build_dir"
 chmod 700 "$build_dir"
 (
-  set -o pipefail
   cd "$generation"
-  ddev drush sql:dump --no-interaction \
-    --extra-dump='--single-transaction --quick --skip-lock-tables --no-tablespaces' 2>/dev/null \
-    | gzip -9 > "$database"
+  ddev snapshot --name="$SEED_ID" -y >/dev/null
 )
+generated_snapshot="$generation/.ddev/db_snapshots/${SEED_ID}-mariadb_11.8.zst"
+[[ -s "$generated_snapshot" ]]
+mv -- "$generated_snapshot" "$database"
 chmod 600 "$database"
-[[ -s "$database" ]]
 created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 (
   cd "$generation"
   ddev exec php scripts/development-seed/build-seed-metadata.php \
-    --database=/var/www/html/.ddev/.seed-build/database.sql.gz \
+    --database="/var/www/html/.ddev/.seed-build/$SNAPSHOT_NAME" \
     --seed-id="$SEED_ID" \
     --created-at="$created_at" \
     --source-refresh="$SOURCE_PREPROD_REFRESH_ID" \
     --source-release="$SOURCE_PREPROD_RELEASE_SHA" \
     --output=/var/www/html/.ddev/.seed-build/seed.json >/dev/null
-  ddev exec php scripts/development-seed/verify-seed.php \
-    --metadata=/var/www/html/.ddev/.seed-build/seed.json \
-    --database=/var/www/html/.ddev/.seed-build/database.sql.gz \
-    --repository=/var/www/html \
-    --checkout-ref=HEAD >/dev/null
 )
+php8.4 "$generation/scripts/development-seed/verify-seed.php" \
+  --metadata="$metadata" \
+  --database="$database" \
+  --repository="$generation" \
+  --checkout-ref="$REPOSITORY_SHA" >/dev/null
 chmod 600 "$metadata"
 database_sha="$(sha256sum "$database" | awk '{print $1}')"
 reader_sha="$(sha256sum "$READER_SCRIPT" | awk '{print $1}')"
 [[ "$database_sha" =~ ^[0-9a-f]{64}$ && "$reader_sha" =~ ^[0-9a-f]{64}$ ]]
 [[ "$(jq -r '.database_sha256' "$metadata")" == "$database_sha" ]]
+[[ "$(jq -r '.compatibility.ddev_minimum_version' "$metadata")" == '1.25.4' ]]
+[[ "$(jq -r '.compatibility.database' "$metadata")" == 'mariadb:11.8' ]]
+[[ "$(jq -r '.compatibility.snapshot_filename' "$metadata")" == "$SNAPSHOT_NAME" ]]
 [[ "$(jq -r '.seed_id' "$metadata")" == "$SEED_ID" ]]
 [[ "$(jq -r '.source_preprod_refresh_identity' "$metadata")" == "$SOURCE_PREPROD_REFRESH_ID" ]]
 [[ "$(jq -r '.source_preprod_application_release_sha' "$metadata")" == "$SOURCE_PREPROD_RELEASE_SHA" ]]
 
-# Publish only the fully sanitized/verified database and metadata. No raw PREPROD
-# copy and no database artifact ever enters GitHub-hosted infrastructure.
+# Publish only the fully sanitized/verified native snapshot and metadata.
 storage_action PREPARE NONE NONE >/dev/null
 incoming_may_exist=1
-"${scp_args[@]}" -q -- "$database" "$remote_target:$REMOTE_INCOMING/database.sql.gz"
+"${scp_args[@]}" -q -- "$database" "$remote_target:$REMOTE_INCOMING/$SNAPSHOT_NAME"
 "${scp_args[@]}" -q -- "$metadata" "$remote_target:$REMOTE_INCOMING/seed.json"
 "${scp_args[@]}" -q -- "$READER_SCRIPT" "$remote_target:$REMOTE_INCOMING/read-only-scp.sh"
 storage_action COMMIT "$database_sha" "$reader_sha" >/dev/null
 incoming_may_exist=0
 storage_action VERIFY "$database_sha" "$reader_sha" >/dev/null
 
-# Destroy the isolated generation DB and its local files before proving the
-# distribution path. Only the immutable sanitized seed remains published.
 delete_ddev_worktree "$generation"
 generation_added=0
 [[ ! -e "$generation" ]]
@@ -238,26 +408,22 @@ reader_action INSTALL "$reader_blob" "$reader_sha" >/dev/null
 reader_installed=1
 reader_action VERIFY "$reader_blob" "$reader_sha" >/dev/null
 
-# Real proof consumes the exact same DDEV-native provider and rollback contract
-# delivered by #873; no custom download/import engine is introduced.
+# The later #956 proof consumes the same immutable external snapshot through the
+# local-first wrapper and DDEV's native seed primitive. Delivery #1108 does not
+# execute this runtime path before merge.
 git worktree add --detach "$proof" "$REPOSITORY_SHA" >/dev/null
 proof_added=1
 proof_name="agency-seed-proof-956-${GITHUB_RUN_ID}"
 sed -i "1s/^name:.*/name: $proof_name/" "$proof/.ddev/config.yaml"
-cat > "$proof/.ddev/config.local.yaml" <<EOF_LOCAL
-web_environment:
-  - AGENCY_SEED_SSH_TARGET=agency-preprod@$PREPROD_SSH_HOST
-EOF_LOCAL
-chmod 600 "$proof/.ddev/config.local.yaml"
 
 eval "$(ssh-agent -s)" >/dev/null
 ssh_agent_started=1
 ssh-add "$reader_key" >/dev/null
 (
   cd "$proof"
-  ddev auth ssh >/dev/null
-  ddev start >/dev/null
-  ddev pull agency -y >/dev/null
+  AGENCY_SEED_SSH_TARGET="agency-preprod@$PREPROD_SSH_HOST" \
+  AGENCY_SEED_CACHE_DIR="$proof_cache" \
+    bash scripts/development-seed/use-native-seed.sh fresh >/dev/null
   ddev drush status --field=bootstrap 2>/dev/null | grep -q Successful
 )
 state="$proof/.ddev/.state-agency-seed.json"
@@ -271,13 +437,14 @@ reader_installed=0
 delete_ddev_worktree "$proof"
 proof_added=0
 [[ ! -e "$proof" ]]
+rm -rf -- "$proof_cache"
+[[ ! -e "$proof_cache" ]]
 storage_action CLEANUP NONE NONE >/dev/null
 
-# Terminal local cleanup is part of success, not best-effort housekeeping.
 ssh-agent -k >/dev/null
 ssh_agent_started=0
-rm -f -- "$raw" "$known_hosts" "$reader_key" "$reader_key.pub"
-[[ ! -e "$raw" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]]
+rm -f -- "$raw" "$sanitize_diagnostic" "$known_hosts" "$reader_key" "$reader_key.pub"
+[[ ! -e "$raw" && ! -e "$sanitize_diagnostic" && ! -e "$known_hosts" && ! -e "$reader_key" && ! -e "$reader_key.pub" ]]
 
 mkdir -p "$evidence_dir"
 cat > "$evidence.tmp" <<EOF_EVIDENCE
@@ -293,10 +460,11 @@ preprod_runtime_db_write=NONE
 prod_access=NONE
 raw_preprod_on_github_hosted=NONE
 development_sanitization=PASS
+ddev_native_snapshot=PASS
 seed_storage=PUBLISHED
 current_pointer=VERIFIED
 read_only_distribution=PROVEN
-ddev_pull_agency=REAL_SUCCESS
+ddev_native_seed=REAL_SUCCESS
 local_side_effect_assertions=PASS
 temporary_generation_material=ABSENT
 temporary_reader_identity=ABSENT
@@ -317,9 +485,10 @@ printf '%s\n' \
   'PROD_ACCESS=NONE' \
   'RAW_PREPROD_ON_GITHUB_HOSTED=NONE' \
   'DEVELOPMENT_SANITIZATION=PASS' \
+  'DDEV_NATIVE_SNAPSHOT=PASS' \
   'SEED_STORAGE=PUBLISHED' \
   'CURRENT_POINTER=VERIFIED' \
   'READ_ONLY_DISTRIBUTION=PROVEN' \
-  'DDEV_PULL_AGENCY=REAL_SUCCESS' \
+  'DDEV_NATIVE_SEED=REAL_SUCCESS' \
   'LOCAL_SIDE_EFFECT_ASSERTIONS=PASS' \
   'TEMPORARY_GENERATION_MATERIAL=ABSENT'

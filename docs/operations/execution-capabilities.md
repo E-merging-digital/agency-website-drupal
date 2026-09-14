@@ -4,7 +4,7 @@ Status: **AUTHORITATIVE CURRENT CAPABILITY REGISTRY**
 Repository: `E-merging-digital/agency-website-drupal`
 Registry owner: #421
 Current lifecycle index: `docs/operations/agency-environment-data-lifecycle.md`
-Last materialized: 2026-09-07
+Last materialized: 2026-09-13
 
 ## 1. Purpose and interpretation
 
@@ -49,8 +49,8 @@ Current reusable capabilities are exactly seven:
 | GitHub-hosted metadata-only PLAN | #927 / real proof #937 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted `ubuntu-24.04` | `PLAN_RESULT=PASS`; no DB content/snapshot/transfer/mutation. |
 | Controlled server-to-server APPLY | #914 / terminal proof #953 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted control -> PREPROD worker -> direct read-only PROD stream | `COMMITTED`; raw PROD route direct to isolated PREPROD staging; sanitized-only activation. |
 | Trusted self-hosted Agency executor | runner capability | `PROVISIONED` | `self-hosted`, `linux`, `x64`, `agency`, `ddev`, `browser` | Authorized trusted DDEV/raw-data surface; availability is a live fact. |
-| Development Seed DDEV consumer | #873 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` | Local/trusted DDEV consumer | Pull-only; native snapshot/import/convergence; no push. |
-| Development Seed publisher/distribution | #956 | `SOURCE_IMPLEMENTED` / `SYNTHETICALLY_PROVEN` / `EXECUTION_PENDING` | GitHub-hosted authority validation -> trusted self-hosted Agency/DDEV -> PREPROD read-only source + fixed seed storage | No PROD; no PREPROD runtime DB write; raw PREPROD never GitHub-hosted; real proof still pending. |
+| Development Seed DDEV consumer | #873 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | Local/trusted DDEV consumer | Pull-only native snapshot seed/reset, exact Composer install and convergence; no push. |
+| Development Seed publisher/distribution | completed #956 | `SOURCE_IMPLEMENTED` / `REAL_EXECUTION_PROVEN` | GitHub-hosted authority validation -> trusted self-hosted Agency/DDEV -> PREPROD read-only source + fixed immutable seed storage | No PROD; no PREPROD runtime DB write; raw PREPROD never GitHub-hosted; real publication/distribution/fresh consumption proven. |
 
 ## 4. Self-hosted Agency executor
 
@@ -72,14 +72,16 @@ APPLY raw route    = CONTROLLED_SERVER_TO_SERVER / PROD -> PREPROD DIRECT
 self-hosted runner = AUTHORIZED ALTERNATIVE
 ```
 
-Current #956 implementation split, pending first real proof:
+Current completed #956 execution split:
 
 ```text
 authority validation = GitHub-hosted ubuntu-24.04 / metadata only
 seed generation       = self-hosted, linux, x64, agency, ddev
 source                 = CURRENT SANITIZED PREPROD / READ ONLY
-storage                = /var/www/agency-preprod/shared/development-seeds
-consumer               = ddev pull agency
+storage                = fixed immutable project storage
+distribution           = restricted read-only SCP
+consumer               = scripts/development-seed/use-native-seed.sh
+database primitive     = DDEV native snapshot seed/reset
 raw PREPROD on hosted  = NONE
 ```
 
@@ -195,69 +197,65 @@ Primary sources:
 - `scripts/preproduction-refresh/governed-successor/remote-server-to-server-worker.py`
 - `scripts/preproduction-refresh/governed-successor/remote-apply-worker.sh`
 
-## 7. Development Seed -> DDEV pull-only (#873 / #956)
+## 7. Development Seed native DDEV (#873 / completed #956)
 
-#816 is terminal and no longer blocks Development Seed work. The repository/DDEV consumer from #873 remains complete and #956 adds the smallest publisher/storage/reader route needed for a first real proof.
+#816 is terminal and no longer blocks Development Seed work. #873 owns the capability and completed #956 terminally proves the publisher/storage/reader route plus fresh native DDEV consumption.
 
 ```text
 #873_BLOCKED_BY_816 = NO
 REPOSITORY_DDEV_IMPLEMENTATION = COMPLETE
 SYNTHETIC_PROOF = COMPLETE
-DDEV_PROVIDER = .ddev/providers/agency.yaml
-LOCAL_UX = ddev pull agency
+DEVELOPMENT_SEED = SOURCE_IMPLEMENTED / REAL_EXECUTION_PROVEN
+#956 = CLOSED / COMPLETED
 PULL_ONLY = YES
 PUBLISHER_SOURCE_IMPLEMENTED = YES
 FIXED_STORAGE_CONTRACT_IMPLEMENTED = YES
 RESTRICTED_READER_CONTRACT_IMPLEMENTED = YES
-REAL_PREPROD_SEED_GENERATION = PENDING
-REAL_STORAGE_PROVISIONING = PENDING
-REAL_SEED_DISTRIBUTION = PENDING
-REAL_DDEV_PULL = PENDING
+REAL_PREPROD_SEED_GENERATION = PROVEN
+REAL_STORAGE_PROVISIONING = PROVEN
+REAL_SEED_DISTRIBUTION = PROVEN
+REAL_FRESH_DDEV_CONSUMPTION = PROVEN
+DDEV_NATIVE_SEED = REAL_SUCCESS
 DDEV_PUSH = NONE
 ```
 
 ### Publisher route
 
-`.github/workflows/development-seed-publish.yml` is called only by the existing dispatcher for the exact #956 command. GitHub-hosted performs owner/live-main authority validation only. The real data path is restricted to the trusted self-hosted DDEV runner.
+`.github/workflows/development-seed-publish.yml` is called only by the existing dispatcher after separate authority. GitHub-hosted performs owner/live-main metadata validation only; the real data path is restricted to the trusted self-hosted Agency/DDEV runner.
 
-The publisher JIT proves the current #914 `COMMITTED / SANITIZED_DATABASE_ACTIVE_AND_VALIDATED` source refresh and current PREPROD release before a fixed read-only Drush dump. No PROD secret/path is part of the route and the PREPROD runtime DB is never a mutation target.
-
-The isolated generation path reuses:
-
-```text
-DDEV native database import
--> Drush sql:sanitize
--> existing #914 agency-sanitize.php
--> existing Development Seed sanitizer/assertions
--> database.sql.gz + seed.json
--> existing metadata/SHA verifier
-```
+The publisher JIT proves the current sanitized PREPROD source identity before a fixed read-only acquisition. The isolated generation path reuses DDEV import, Drush sanitization, the existing Agency sanitizer and Development Seed sanitizer/assertions, then creates the native MariaDB 11.8 snapshot `database-mariadb_11.8.zst` plus `seed.json` and SHA-256 verification. PROD access is absent and PREPROD runtime DB write remains none.
 
 ### Storage and reader
 
-Fixed server-owned storage is:
+Verified native snapshots are published to fixed immutable project storage outside Git. The `current` pointer changes only after verification. Distribution uses restricted read-only SCP; the temporary restricted reader contract is real-proven. Long-lived human reader onboarding remains a bounded operator step, not a credential-registration system.
 
 ```text
-/var/www/agency-preprod/shared/development-seeds/
-  immutable/<seed-id>/{database.sql.gz,seed.json}
-  current -> immutable/<seed-id>
+TEMPORARY_RESTRICTED_READER_CONTRACT = REAL_PROVEN
+MULTI_CONSUMER_MODEL = SUPPORTED
+LONG_LIVED_HUMAN_READER_ONBOARDING = BOUNDED OPERATOR STEP
+DATABASE_IN_GITHUB_ARTIFACT = NONE
+RAW_PREPROD_ON_GITHUB_HOSTED = NONE
 ```
-
-`current` switches only after verification. An ephemeral proof reader key is installed on the existing `agency-preprod` account with `restrict` plus a forced SCP read command. It can read only the two files under `current`, has no upload/general-shell/PTY/forwarding path, and is removed terminally. Long-lived human reader keys remain a small separate onboarding operation, not a registration service.
 
 ### DDEV consumer
 
-The provider uses repository-pinned PREPROD host trust, fixed remote storage and standard OpenSSH legacy SCP read mode required by the forced command. It has no caller-controlled remote directory and no push stanza. `ddev pull agency` preserves DDEV snapshot/import/restore and post-pull Drupal convergence.
+The current consumer is `scripts/development-seed/use-native-seed.sh`. Fresh and reset both verify the cached native snapshot outside Git, invoke the explicit DDEV native seed primitive, materialize exact dependencies from `composer.lock`, then run post-pull convergence.
 
-Until the first post-merge #956 execution proves publication and a real `ddev pull agency`, this capability remains `EXECUTION_PENDING`; source implementation is not real execution evidence.
+```text
+fresh: ddev start --seed-snapshot=<verified-local-path>/database-mariadb_11.8.zst
+reset: ddev start --reset-database --seed-snapshot=<verified-local-path>/database-mariadb_11.8.zst
+then:  ddev composer install --no-interaction --no-progress --prefer-dist
+then:  ddev exec bash scripts/development-seed/post-pull.sh
+COMPOSER_UPDATE = NONE
+```
 
 Primary sources:
 
 - `.github/workflows/agency-command-dispatch.yml`
 - `.github/workflows/development-seed-publish.yml`
-- `.ddev/providers/agency.yaml`
 - `.ddev/config.development-seed.yaml`
 - `docs/operations/development-seed.md`
+- `scripts/development-seed/use-native-seed.sh`
 - `scripts/development-seed/validate-publish-authority.py`
 - `scripts/development-seed/remote-readonly-preprod-source.sh`
 - `scripts/development-seed/run-publish.sh`

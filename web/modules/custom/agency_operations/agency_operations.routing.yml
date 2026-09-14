@@ -19,3 +19,14 @@ agency_operations.editorial:
   methods: [GET]
   options:
     _admin_route: TRUE
+
+agency_operations.cockpit_state:
+  path: '/api/agency-operations/v1/environment-data-state'
+  defaults:
+    _controller: '\Drupal\agency_operations\Controller\CockpitStateController::state'
+  requirements:
+    # Machine authentication and the PREPROD-only gate are enforced in the controller.
+    _access: 'TRUE'
+  methods: [GET]
+  options:
+    no_cache: TRUE

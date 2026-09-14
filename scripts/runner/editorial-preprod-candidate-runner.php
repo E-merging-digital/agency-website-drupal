@@ -11,6 +11,8 @@ $payloadPath = getenv('AGENCY_EDITORIAL_PAYLOAD_PATH') ?: '';
 $resultPath = getenv('AGENCY_EDITORIAL_RESULT_PATH') ?: '';
 $publicationLibraryPath = getenv('AGENCY_EDITORIAL_LIBRARY_PATH') ?: '';
 $candidateLibraryPath = getenv('AGENCY_EDITORIAL_CANDIDATE_LIBRARY_PATH') ?: '';
+$serviceCandidateLibraryPath = getenv('AGENCY_EDITORIAL_SERVICE_CANDIDATE_LIBRARY_PATH') ?: '';
+$candidateKind = getenv('AGENCY_EDITORIAL_CANDIDATE_KIND') ?: 'article';
 
 $writeResult = static function (array $result) use ($resultPath): void {
   if ($resultPath === '') {
@@ -33,7 +35,10 @@ try {
   if (!in_array($mode, ['inspect', 'dry-run', 'apply'], TRUE)) {
     throw new InvalidArgumentException('Unsupported AGENCY_EDITORIAL_MODE.');
   }
-  foreach ([$publicationLibraryPath, $candidateLibraryPath] as $libraryPath) {
+  if (!in_array($candidateKind, ['article', 'service'], TRUE)) {
+    throw new InvalidArgumentException('Unsupported editorial PREPROD candidate kind.');
+  }
+  foreach ([$publicationLibraryPath, $candidateLibraryPath, $serviceCandidateLibraryPath] as $libraryPath) {
     if ($libraryPath === '' || !is_file($libraryPath)) {
       throw new RuntimeException('Trusted editorial candidate library is missing.');
     }
@@ -44,69 +49,103 @@ try {
   }
   require_once $publicationLibraryPath;
   require_once $candidateLibraryPath;
+  require_once $serviceCandidateLibraryPath;
 
-  $candidate = AgencyEditorialPreprodCandidate::fromContainer(\Drupal::getContainer());
-  $finalizer = EditorialPathautoFinalizer::fromContainer(\Drupal::getContainer());
-
-  if ($mode === 'inspect') {
-    $result = $candidate->inspect($issueNumber);
-    if (is_array($result['runtime']['mapping'] ?? NULL)) {
-      $aliasResult = $finalizer->inspect(
-        $issueNumber,
-        (string) $result['runtime']['mapping']['payload_sha256'],
+  if ($candidateKind === 'service') {
+    $candidate = AgencyEditorialServicePreprodCandidate::fromContainer(\Drupal::getContainer());
+    if ($mode === 'inspect') {
+      $result = $candidate->inspect($issueNumber);
+    }
+    else {
+      if (!preg_match('/^[0-9a-f]{64}$/', $payloadSha)) {
+        throw new InvalidArgumentException('AGENCY_EDITORIAL_PAYLOAD_SHA must be SHA-256.');
+      }
+      if ($payloadPath === '' || !is_file($payloadPath)) {
+        throw new InvalidArgumentException('Editorial payload file is missing.');
+      }
+      $actualHash = hash_file('sha256', $payloadPath);
+      if (!is_string($actualHash) || !hash_equals($payloadSha, $actualHash)) {
+        throw new RuntimeException('Editorial payload hash mismatch on PREPROD.');
+      }
+      $payload = json_decode(
+        (string) file_get_contents($payloadPath),
+        TRUE,
+        32,
+        JSON_THROW_ON_ERROR,
       );
-      $result['runtime']['alias_finalization'] = [
-        'verdict' => $aliasResult['verdict'],
-        'aliases_to_repair' => $aliasResult['aliases_to_repair'],
-        'node' => $aliasResult['node'],
-      ];
+      if (!is_array($payload)) {
+        throw new InvalidArgumentException('Editorial payload must decode to an object.');
+      }
+      $result = $mode === 'dry-run'
+        ? $candidate->dryRun($payload, $issueNumber, $payloadSha)
+        : $candidate->apply($payload, $issueNumber, $payloadSha);
     }
   }
   else {
-    if (!preg_match('/^[0-9a-f]{64}$/', $payloadSha)) {
-      throw new InvalidArgumentException('AGENCY_EDITORIAL_PAYLOAD_SHA must be SHA-256.');
-    }
-    if ($payloadPath === '' || !is_file($payloadPath)) {
-      throw new InvalidArgumentException('Editorial payload file is missing.');
-    }
-    $actualHash = hash_file('sha256', $payloadPath);
-    if (!is_string($actualHash) || !hash_equals($payloadSha, $actualHash)) {
-      throw new RuntimeException('Editorial payload hash mismatch on PREPROD.');
-    }
-    $payload = json_decode(
-      (string) file_get_contents($payloadPath),
-      TRUE,
-      32,
-      JSON_THROW_ON_ERROR,
-    );
-    if (!is_array($payload)) {
-      throw new InvalidArgumentException('Editorial payload must decode to an object.');
-    }
+    $candidate = AgencyEditorialPreprodCandidate::fromContainer(\Drupal::getContainer());
+    $finalizer = EditorialPathautoFinalizer::fromContainer(\Drupal::getContainer());
 
-    if ($mode === 'dry-run') {
-      $result = $candidate->dryRun($payload, $issueNumber, $payloadSha);
-      if (($result['verdict'] ?? NULL) === 'IDEMPOTENT') {
-        $aliasResult = $finalizer->inspect($issueNumber, $payloadSha);
-        if ($aliasResult['verdict'] === 'REPAIR_REQUIRED') {
-          $result['verdict'] = 'REPAIR_REQUIRED';
+    if ($mode === 'inspect') {
+      $result = $candidate->inspect($issueNumber);
+      if (is_array($result['runtime']['mapping'] ?? NULL)) {
+        $aliasResult = $finalizer->inspect(
+          $issueNumber,
+          (string) $result['runtime']['mapping']['payload_sha256'],
+        );
+        $result['runtime']['alias_finalization'] = [
+          'verdict' => $aliasResult['verdict'],
+          'aliases_to_repair' => $aliasResult['aliases_to_repair'],
+          'node' => $aliasResult['node'],
+        ];
+      }
+    }
+    else {
+      if (!preg_match('/^[0-9a-f]{64}$/', $payloadSha)) {
+        throw new InvalidArgumentException('AGENCY_EDITORIAL_PAYLOAD_SHA must be SHA-256.');
+      }
+      if ($payloadPath === '' || !is_file($payloadPath)) {
+        throw new InvalidArgumentException('Editorial payload file is missing.');
+      }
+      $actualHash = hash_file('sha256', $payloadPath);
+      if (!is_string($actualHash) || !hash_equals($payloadSha, $actualHash)) {
+        throw new RuntimeException('Editorial payload hash mismatch on PREPROD.');
+      }
+      $payload = json_decode(
+        (string) file_get_contents($payloadPath),
+        TRUE,
+        32,
+        JSON_THROW_ON_ERROR,
+      );
+      if (!is_array($payload)) {
+        throw new InvalidArgumentException('Editorial payload must decode to an object.');
+      }
+
+      if ($mode === 'dry-run') {
+        $result = $candidate->dryRun($payload, $issueNumber, $payloadSha);
+        if (($result['verdict'] ?? NULL) === 'IDEMPOTENT') {
+          $aliasResult = $finalizer->inspect($issueNumber, $payloadSha);
+          if ($aliasResult['verdict'] === 'REPAIR_REQUIRED') {
+            $result['verdict'] = 'REPAIR_REQUIRED';
+          }
+          $result['alias_finalization'] = $aliasResult['verdict'];
+          $result['aliases_to_repair'] = $aliasResult['aliases_to_repair'];
+          $result['node'] = $aliasResult['node'];
+        }
+      }
+      else {
+        $result = $candidate->apply($payload, $issueNumber, $payloadSha);
+        $aliasResult = $finalizer->apply($issueNumber, $payloadSha);
+        if (($result['verdict'] ?? NULL) === 'IDEMPOTENT' && $aliasResult['verdict'] === 'REPAIRED') {
+          $result['verdict'] = 'REPAIRED';
         }
         $result['alias_finalization'] = $aliasResult['verdict'];
         $result['aliases_to_repair'] = $aliasResult['aliases_to_repair'];
         $result['node'] = $aliasResult['node'];
       }
     }
-    else {
-      $result = $candidate->apply($payload, $issueNumber, $payloadSha);
-      $aliasResult = $finalizer->apply($issueNumber, $payloadSha);
-      if (($result['verdict'] ?? NULL) === 'IDEMPOTENT' && $aliasResult['verdict'] === 'REPAIRED') {
-        $result['verdict'] = 'REPAIRED';
-      }
-      $result['alias_finalization'] = $aliasResult['verdict'];
-      $result['aliases_to_repair'] = $aliasResult['aliases_to_repair'];
-      $result['node'] = $aliasResult['node'];
-    }
   }
 
+  $result['candidate_kind'] = $candidateKind;
   $result['target'] = 'PREPROD';
   $result['prod_write'] = 'NONE';
   $writeResult($result);
@@ -116,6 +155,7 @@ catch (Throwable $exception) {
     'status' => 'FAIL',
     'verdict' => 'FAIL_CLOSED',
     'mode' => $mode,
+    'candidate_kind' => $candidateKind,
     'target' => 'PREPROD',
     'prod_write' => 'NONE',
     'issue_number' => ctype_digit($issueRaw) ? (int) $issueRaw : NULL,

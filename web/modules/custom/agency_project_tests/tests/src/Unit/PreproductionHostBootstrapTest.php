@@ -99,6 +99,67 @@ NGINX;
   }
 
   /**
+   * The cockpit bearer is loaded only from an optional server-owned file.
+   */
+  public function testCockpitBearerUsesOptionalServerOwnedFile(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $template = (string) file_get_contents(
+      $root . '/scripts/preproduction/settings.php.template',
+    );
+    $fixtureRoot = sys_get_temp_dir()
+      . '/agency-cockpit-token-' . bin2hex(random_bytes(6));
+    $settingsDir = $fixtureRoot . '/shared/settings';
+    mkdir($settingsDir, 0777, TRUE);
+
+    $rendered = strtr($template, [
+      '@@DB_NAME@@' => 'test_db',
+      '@@DB_USER@@' => 'test_user',
+      '@@DB_PASSWORD@@' => 'test_password',
+      '@@HASH_SALT@@' => 'test_hash_salt',
+      '@@PROJECT_ROOT@@' => $fixtureRoot,
+      '@@TRUSTED_HOST_REGEX@@' => 'preprod\\.emergingdigital\\.be',
+    ]);
+    $settingsPath = $fixtureRoot . '/settings.php';
+    $tokenPath = $settingsDir . '/cockpit-state-token';
+    file_put_contents($settingsPath, $rendered);
+
+    $loadSettings = static function (string $path): array {
+      $databases = [];
+      $settings = [];
+      $config = [];
+      include $path;
+      return $settings;
+    };
+
+    try {
+      self::assertSame(
+        '',
+        $loadSettings($settingsPath)['agency_operations_cockpit_state_token'],
+      );
+
+      file_put_contents($tokenPath, 'too-short');
+      self::assertSame(
+        '',
+        $loadSettings($settingsPath)['agency_operations_cockpit_state_token'],
+      );
+
+      $token = str_repeat('a', 48);
+      file_put_contents($tokenPath, $token . "\n");
+      self::assertSame(
+        $token,
+        $loadSettings($settingsPath)['agency_operations_cockpit_state_token'],
+      );
+    }
+    finally {
+      @unlink($tokenPath);
+      @unlink($settingsPath);
+      @rmdir($settingsDir);
+      @rmdir($fixtureRoot . '/shared');
+      @rmdir($fixtureRoot);
+    }
+  }
+
+  /**
    * PREPROD consumes an immutable candidate instead of rebuilding it.
    */
   public function testCandidateDeployDoesNotRebuildApplication(): void {

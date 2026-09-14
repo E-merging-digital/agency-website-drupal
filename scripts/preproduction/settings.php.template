@@ -22,6 +22,23 @@ $settings['trusted_host_patterns'] = [
 $settings['update_free_access'] = FALSE;
 $settings['rebuild_access'] = FALSE;
 
+// Optional cockpit bearer comes only from server-owned shared settings.
+$cockpit_token_file = '@@PROJECT_ROOT@@/shared/settings/cockpit-state-token';
+$cockpit_token = '';
+if (is_file($cockpit_token_file)
+  && !is_link($cockpit_token_file)
+  && is_readable($cockpit_token_file)) {
+  $candidate_cockpit_token = trim(
+    (string) file_get_contents($cockpit_token_file),
+  );
+  if (strlen($candidate_cockpit_token) >= 32
+    && preg_match('/\s/', $candidate_cockpit_token) !== 1) {
+    $cockpit_token = $candidate_cockpit_token;
+  }
+}
+$settings['agency_operations_cockpit_state_token'] = $cockpit_token;
+unset($candidate_cockpit_token, $cockpit_token, $cockpit_token_file);
+
 // PREPROD is fail-safe: never inherit production-only configuration.
 $config['config_split.config_split.production']['status'] = FALSE;
 $config['config_split.config_split.preproduction']['status'] = TRUE;

@@ -64,7 +64,7 @@ final class ServiceEditorialApprovalSelectionTest extends TestCase {
   }
 
   /**
-   * A same-main approval that predates current PREPROD evidence is insufficient.
+   * A same-main approval before current PREPROD evidence is insufficient.
    */
   public function testOnlyStaleSameMainApprovalBeforePreprodIsRefused(): void {
     [$exitCode] = $this->runValidator([

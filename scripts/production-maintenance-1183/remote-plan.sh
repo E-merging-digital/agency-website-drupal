@@ -154,7 +154,7 @@ public_health='FAIL'
 # BEGIN #1190 PUBLIC HOME PROBE
 probe_public_home() {
   local body="$1"
-  local meta code final_url parsed h1 brand_marker html_marker body_marker
+  local meta code final_url parsed brand_marker html_marker body_marker main_marker
   PUBLIC_HOME='FAIL'
   PUBLIC_HOME_HTTP_CODE='UNKNOWN'
   PUBLIC_HOME_EFFECTIVE_PATH='UNKNOWN'
@@ -175,11 +175,10 @@ import sys
 class HomepageParser(HTMLParser):
     def __init__(self):
         super().__init__()
-        self.in_h1 = False
-        self.h1_parts = []
         self.brand = False
         self.html = False
         self.body = False
+        self.main = False
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         attributes = dict(attrs)
@@ -187,26 +186,19 @@ class HomepageParser(HTMLParser):
             self.html = True
         elif tag == 'body':
             self.body = True
-        elif tag == 'h1':
-            self.in_h1 = True
-        elif tag == 'img' and '/images/branding/emerging-digital-mark.svg' in attributes.get('src', ''):
+        if tag == 'main' or attributes.get('role', '').strip().lower() == 'main':
+            self.main = True
+        if tag == 'img' and '/images/branding/emerging-digital-mark.svg' in attributes.get('src', ''):
             self.brand = True
-    def handle_endtag(self, tag):
-        if tag.lower() == 'h1':
-            self.in_h1 = False
-    def handle_data(self, data):
-        if self.in_h1:
-            self.h1_parts.append(data)
 
 parser = HomepageParser()
 with open(sys.argv[1], 'r', encoding='utf-8', errors='replace') as handle:
     parser.feed(handle.read())
-h1 = ' '.join(' '.join(parser.h1_parts).split())
-print(f"{h1}\t{'YES' if parser.brand else 'NO'}\t{'YES' if parser.html else 'NO'}\t{'YES' if parser.body else 'NO'}")
+print(f"{'YES' if parser.brand else 'NO'}\t{'YES' if parser.html else 'NO'}\t{'YES' if parser.body else 'NO'}\t{'YES' if parser.main else 'NO'}")
 PY_HOME
 )"
-  IFS=$'\t' read -r h1 brand_marker html_marker body_marker <<<"$parsed"
-  if [[ -n "$h1" && "$brand_marker" == 'YES' && "$html_marker" == 'YES' && "$body_marker" == 'YES' ]]; then
+  IFS=$'\t' read -r brand_marker html_marker body_marker main_marker <<<"$parsed"
+  if [[ "$brand_marker" == 'YES' && "$html_marker" == 'YES' && "$body_marker" == 'YES' && "$main_marker" == 'YES' ]]; then
     PUBLIC_HOME='PASS'
   fi
 }

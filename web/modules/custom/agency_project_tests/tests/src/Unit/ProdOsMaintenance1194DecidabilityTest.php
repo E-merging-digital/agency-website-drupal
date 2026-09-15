@@ -116,14 +116,23 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
    * Homepage stays strict while allowing marketing copy to evolve.
    */
   public function testPublicHomeUsesStableStructureAndBrandIdentity(): void {
-    $body = '<html><body><img src="/themes/custom/emerging_digital/images/branding/emerging-digital-mark.svg" alt="E-merging Digital"><h1>Nouvelle proposition de valeur</h1></body></html>';
+    $body = '<html><body><main role="main"><img src="/themes/custom/emerging_digital/images/branding/emerging-digital-mark.svg" alt="E-merging Digital"><p>Nouvelle proposition de valeur</p></main></body></html>';
     self::assertSame(['PASS', '200', '/fr'], $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', $body));
+    self::assertSame(['PASS', '200', '/fr/'], $this->runPublicHomeProbe('200|https://emergingdigital.be/fr/', $body));
+    $roleMainBody = '<html><body><div role="main"><img src="/themes/custom/emerging_digital/images/branding/emerging-digital-mark.svg" alt="E-merging Digital">Role-main surface</div></body></html>';
+    self::assertSame(['PASS', '200', '/fr'], $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', $roleMainBody));
     self::assertSame(['FAIL', '200', 'UNKNOWN'], $this->runPublicHomeProbe('200|https://example.invalid/fr', $body));
     self::assertSame(['FAIL', '503', '/fr'], $this->runPublicHomeProbe('503|https://emergingdigital.be/fr', $body));
-    self::assertSame(['FAIL', '200', '/fr'], $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', '<html><body><h1>Other site</h1></body></html>'));
+    self::assertSame(['FAIL', '200', '/fr'], $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', '<html><body><img src="/themes/custom/emerging_digital/images/branding/emerging-digital-mark.svg"></body></html>'));
+    self::assertSame(['FAIL', '200', '/fr'], $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', '<html><body><main>Generic page</main></body></html>'));
+    self::assertSame(['FAIL', '200', '/fr'], $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', '<html><body>Generic unrelated page</body></html>'));
+
+    $changedCopy = str_replace('Nouvelle proposition de valeur', 'Copie marketing totalement différente', $body);
+    self::assertSame(['PASS', '200', '/fr'], $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', $changedCopy));
 
     $source = $this->source(self::PLAN);
     self::assertStringNotContainsString('Créer, améliorer ou moderniser votre plateforme web', $source);
+    self::assertStringNotContainsString('in_h1', $source);
     self::assertStringContainsString('/images/branding/emerging-digital-mark.svg', $source);
   }
 

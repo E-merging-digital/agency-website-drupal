@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\agency_project_tests_tests\Unit;
+namespace Drupal\Tests\agency_project_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 

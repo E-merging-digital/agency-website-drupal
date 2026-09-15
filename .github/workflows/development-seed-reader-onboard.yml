@@ -1,0 +1,92 @@
+name: Development Seed reader onboarding
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: INSTALL, VERIFY or REMOVE
+        required: true
+        type: choice
+        options:
+          - VERIFY
+          - INSTALL
+          - REMOVE
+      label:
+        description: Stable bounded reader label
+        required: true
+        type: string
+      public_key:
+        description: OpenSSH ed25519 public key (public material only)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-development-seed-reader-onboarding
+  cancel-in-progress: false
+
+jobs:
+  onboard:
+    if: ${{ github.actor == 'E-merging-digital' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate public inputs before secret materialization
+        env:
+          ACTION: ${{ inputs.action }}
+          LABEL: ${{ inputs.label }}
+          PUBLIC_KEY: ${{ inputs.public_key }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$ACTION" =~ ^(INSTALL|REMOVE|VERIFY)$ ]]
+          [[ "$LABEL" =~ ^[A-Za-z0-9._-]{3,40}$ ]]
+          read -r key_type key_blob key_comment extra <<<"$PUBLIC_KEY"
+          [[ "$key_type" == ssh-ed25519 ]]
+          [[ "$key_blob" =~ ^[A-Za-z0-9+/=]{32,}$ ]]
+          [[ -z "${extra:-}" ]]
+          echo "PUBLIC_KEY_FINGERPRINT=$(printf '%s\n' "$PUBLIC_KEY" | ssh-keygen -lf - | awk '{print $2}')" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Materialize PREPROD deploy identity after validation
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_KEY"
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/preprod.key"
+          chmod 600 "$RUNNER_TEMP/preprod.key"
+
+      - name: Apply bounded reader operation
+        env:
+          ACTION: ${{ inputs.action }}
+          LABEL: ${{ inputs.label }}
+          PUBLIC_KEY: ${{ inputs.public_key }}
+          PREPROD_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_HOST"
+          read -r key_type key_blob key_comment extra <<<"$PUBLIC_KEY"
+          [[ "$key_type" == ssh-ed25519 && -n "$key_blob" && -z "${extra:-}" ]]
+          read -r host_key_type host_key_blob _ < scripts/preproduction-ssh-trust/preprod-ed25519.pub
+          known_hosts="$RUNNER_TEMP/known_hosts"
+          printf '%s %s %s\n' "$PREPROD_HOST" "$host_key_type" "$host_key_blob" > "$known_hosts"
+          chmod 600 "$known_hosts"
+          expected_reader_sha="$(sha256sum scripts/development-seed/remote-read-only-scp.sh | awk '{print $1}')"
+          ssh_args=(-i "$RUNNER_TEMP/preprod.key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts")
+          ssh "${ssh_args[@]}" "agency-preprod@$PREPROD_HOST" \
+            "bash -s -- '$ACTION' '$LABEL' '$key_blob' '$expected_reader_sha'" \
+            < scripts/development-seed/remote-long-lived-reader.sh
+
+      - name: Cleanup PREPROD identity
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/preprod.key" "$RUNNER_TEMP/known_hosts"

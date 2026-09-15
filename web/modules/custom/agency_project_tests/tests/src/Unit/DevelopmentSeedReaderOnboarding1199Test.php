@@ -32,7 +32,7 @@ final class DevelopmentSeedReaderOnboarding1199Test extends TestCase {
     self::assertStringContainsString('PREPROD_SSH_PRIVATE_KEY', $workflow);
     self::assertStringContainsString('StrictHostKeyChecking=yes', $workflow);
     self::assertStringNotContainsString('actions/upload-artifact', $workflow);
-    self::assertStringNotContainsString('PROD_', $workflow);
+    self::assertStringNotContainsString('secrets.PROD_', $workflow);
   }
 
 }

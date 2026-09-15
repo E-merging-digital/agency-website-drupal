@@ -301,6 +301,10 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
         $directory . '/upgrade-sim.raw',
         "Inst nginx [1.24.0-2ubuntu7.17] ({$candidate} Ubuntu:24.04/noble-updates [amd64])\n",
       );
+      file_put_contents(
+        $directory . '/upgrade-sim-phased.raw',
+        "Inst nginx [1.24.0-2ubuntu7.17] ({$candidate} Ubuntu:24.04/noble-updates [amd64])\n",
+      );
       file_put_contents($directory . '/held.raw', '');
       file_put_contents($directory . '/failed.raw', '');
       $script = $directory . '/plan.py';
@@ -328,9 +332,15 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
         'MAINTENANCE_MODE' => '0',
         'CONFIG_STATUS' => 'DIFFERENT',
         'MAX_ALLOWED_PACKET' => '67108864',
+        'MAX_ALLOWED_PACKET_SOURCE' => 'DRUPAL_DB_API',
         'PUBLIC_HOME' => 'PASS',
+        'PUBLIC_HOME_HTTP_CODE' => '200',
+        'PUBLIC_HOME_EFFECTIVE_PATH' => '/fr',
         'CONTACT_FORM_SURFACE' => 'PASS',
+        'RECENT_ERROR_READ_CAPABILITY' => 'PASS',
         'RECENT_NGINX_PHP_ERRORS' => 'NONE_MATERIAL',
+        'NGINX_RECENT_ERROR_COUNT' => '0',
+        'PHP_FPM_RECENT_ERROR_COUNT' => '0',
         'DISK_AVAILABLE_KB' => (string) $diskAvailableKb,
       ], $overrides);
       $assignments = [];

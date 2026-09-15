@@ -9,6 +9,7 @@ TARGET_KERNEL='6.8.0-139-generic'
 CURRENT_ROOT='/var/www/agency/current'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLAN_SCRIPT="$SCRIPT_DIR/remote-plan.sh"
+RUNTIME_ERROR_HELPER='/usr/local/sbin/agency-prod-runtime-error-counts'
 
 [[ "$(id -u)" -ne 0 ]]
 [[ "$(id -un)" == "$EXPECTED_USER" ]]
@@ -50,12 +51,19 @@ max_packet="$(cd "$CURRENT_ROOT" && vendor/bin/drush sql:query 'SELECT @@global.
 [[ "$max_packet" == '67108864' ]]
 maintenance_before="$(cd "$CURRENT_ROOT" && vendor/bin/drush state:get system.maintenance_mode | tail -n 1 | tr -d '[:space:]')"
 [[ "$maintenance_before" == '1' ]]
-php_errors="$(sudo -n journalctl -u php8.4-fpm --since "@$START_EPOCH" -p err..alert --no-pager --output=cat 2>/dev/null || printf '__READ_FAILED__')"
-nginx_errors="$(sudo -n journalctl -u nginx --since "@$START_EPOCH" -p err..alert --no-pager --output=cat 2>/dev/null || printf '__READ_FAILED__')"
-[[ "$php_errors" != *'__READ_FAILED__'* && "$nginx_errors" != *'__READ_FAILED__'* ]]
-[[ -z "${php_errors//[[:space:]]/}" ]]
-[[ -z "${nginx_errors//[[:space:]]/}" ]]
-unset php_errors nginx_errors
+# BEGIN #1197 GOVERNED RUNTIME ERROR OBSERVATION
+runtime_error_output="$(sudo -n -- "$RUNTIME_ERROR_HELPER" 2>/dev/null)"
+mapfile -t runtime_error_lines <<<"$runtime_error_output"
+[[ "${#runtime_error_lines[@]}" -eq 3 ]]
+[[ "${runtime_error_lines[0]}" == 'STATUS=PASS' ]]
+[[ "${runtime_error_lines[1]}" =~ ^NGINX_RECENT_ERROR_COUNT=([0-9]+)$ ]]
+nginx_recent_error_count="${BASH_REMATCH[1]}"
+[[ "${runtime_error_lines[2]}" =~ ^PHP_FPM_RECENT_ERROR_COUNT=([0-9]+)$ ]]
+php_fpm_recent_error_count="${BASH_REMATCH[1]}"
+[[ "$nginx_recent_error_count" -eq 0 ]]
+[[ "$php_fpm_recent_error_count" -eq 0 ]]
+unset runtime_error_output runtime_error_lines nginx_recent_error_count php_fpm_recent_error_count
+# END #1197 GOVERNED RUNTIME ERROR OBSERVATION
 
 # Reopen Drupal only after system/database checks pass.
 (cd "$CURRENT_ROOT" && vendor/bin/drush state:set system.maintenance_mode 0 --input-format=integer >/dev/null)

@@ -14,6 +14,7 @@ use PHPUnit\Framework\TestCase;
 final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
 
   private const PLAN = 'scripts/production-maintenance-1183/remote-plan.sh';
+  private const ERROR_HELPER = 'scripts/production-maintenance-1183/runtime-error-counts/agency-prod-runtime-error-counts';
   private const WORKFLOW = '.github/workflows/prod-os-maintenance-1183.yml';
   private const MARKETING_COPY = 'Agence web senior pour sites professionnels, IA et PHP durable';
 
@@ -245,15 +246,18 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
    */
   public function testRecentServiceEvidenceIsCountOnly(): void {
     $plan = $this->source(self::PLAN);
-    self::assertStringContainsString('--output=json', $plan);
-    self::assertStringContainsString("awk 'NF {count++} END {print count + 0}'", $plan);
-    self::assertStringContainsString('NGINX_RECENT_ERROR_COUNT', $plan);
-    self::assertStringContainsString('PHP_FPM_RECENT_ERROR_COUNT', $plan);
-    self::assertStringNotContainsString('--output=cat', $plan);
+    $helper = $this->source(self::ERROR_HELPER);
+    self::assertStringContainsString("RUNTIME_ERROR_HELPER='/usr/local/sbin/agency-prod-runtime-error-counts'", $plan);
+    self::assertStringContainsString('sudo -n -- "$RUNTIME_ERROR_HELPER"', $plan);
+    self::assertStringContainsString('--output=json', $helper);
+    self::assertStringContainsString("awk 'NF {count++} END {print count + 0}'", $helper);
+    self::assertStringContainsString('NGINX_RECENT_ERROR_COUNT', $plan . $helper);
+    self::assertStringContainsString('PHP_FPM_RECENT_ERROR_COUNT', $plan . $helper);
+    self::assertStringNotContainsString('--output=cat', $plan . $helper);
     self::assertStringNotContainsString('php_errors=', $plan);
     self::assertStringNotContainsString('nginx_errors=', $plan);
-    self::assertStringNotContainsString('NGINX_RECENT_ERROR_LINES', $plan);
-    self::assertStringNotContainsString('PHP_FPM_RECENT_ERROR_LINES', $plan);
+    self::assertStringNotContainsString('NGINX_RECENT_ERROR_LINES', $plan . $helper);
+    self::assertStringNotContainsString('PHP_FPM_RECENT_ERROR_LINES', $plan . $helper);
   }
 
   /**

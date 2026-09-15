@@ -11,6 +11,7 @@ MODE='PLAN'
 TARGET_KERNEL='6.8.0-139-generic'
 PROD_URL='https://emergingdigital.be'
 DRUPAL_ROOT='/var/www/agency/current'
+RUNTIME_ERROR_HELPER='/usr/local/sbin/agency-prod-runtime-error-counts'
 
 [[ "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
 [[ "$PLAN_ID" =~ ^plan-1183-[A-Za-z0-9._-]{8,80}$ ]]
@@ -107,37 +108,30 @@ recent_errors='UNKNOWN'
 recent_error_read_capability='FAIL'
 nginx_recent_error_count='UNKNOWN'
 php_fpm_recent_error_count='UNKNOWN'
-count_recent_errors_with() {
-  local mode="$1"
-  local unit="$2"
-  local count
-  local -a command=(journalctl -u "$unit" --since '30 minutes ago' -p err..alert --no-pager --output=json)
-  [[ "$mode" != 'SUDO' ]] || command=(sudo -n "${command[@]}")
-  if count="$("${command[@]}" 2>/dev/null | awk 'NF {count++} END {print count + 0}')"; then
-    [[ "$count" =~ ^[0-9]+$ ]] && printf '%s' "$count" || printf 'UNKNOWN'
-  else
-    printf 'UNKNOWN'
+# BEGIN #1197 GOVERNED RUNTIME ERROR OBSERVATION
+runtime_error_output=''
+if runtime_error_output="$(sudo -n -- "$RUNTIME_ERROR_HELPER" 2>/dev/null)"; then
+  mapfile -t runtime_error_lines <<<"$runtime_error_output"
+  nginx_candidate=''
+  php_fpm_candidate=''
+  if [[ "${#runtime_error_lines[@]}" -eq 3 && "${runtime_error_lines[0]}" == 'STATUS=PASS' ]]; then
+    if [[ "${runtime_error_lines[1]}" =~ ^NGINX_RECENT_ERROR_COUNT=([0-9]+)$ ]]; then
+      nginx_candidate="${BASH_REMATCH[1]}"
+    fi
+    if [[ "${runtime_error_lines[2]}" =~ ^PHP_FPM_RECENT_ERROR_COUNT=([0-9]+)$ ]]; then
+      php_fpm_candidate="${BASH_REMATCH[1]}"
+    fi
   fi
-}
-
-journal_mode=''
-case " $(id -nG) " in
-  *' adm '*|*' systemd-journal '*) journal_mode='DIRECT' ;;
-esac
-if [[ -n "$journal_mode" ]]; then
-  php_fpm_recent_error_count="$(count_recent_errors_with DIRECT php8.4-fpm)"
-  nginx_recent_error_count="$(count_recent_errors_with DIRECT nginx)"
+  if [[ "$nginx_candidate" =~ ^[0-9]+$ && "$php_fpm_candidate" =~ ^[0-9]+$ ]]; then
+    nginx_recent_error_count="$nginx_candidate"
+    php_fpm_recent_error_count="$php_fpm_candidate"
+    recent_error_read_capability='PASS'
+    recent_errors='NONE_MATERIAL'
+    (( nginx_recent_error_count == 0 && php_fpm_recent_error_count == 0 )) || recent_errors='PRESENT_MATERIAL'
+  fi
 fi
-if [[ ! "$php_fpm_recent_error_count" =~ ^[0-9]+$ || ! "$nginx_recent_error_count" =~ ^[0-9]+$ ]]; then
-  php_fpm_recent_error_count="$(count_recent_errors_with SUDO php8.4-fpm)"
-  nginx_recent_error_count="$(count_recent_errors_with SUDO nginx)"
-fi
-if [[ "$php_fpm_recent_error_count" =~ ^[0-9]+$ && "$nginx_recent_error_count" =~ ^[0-9]+$ ]]; then
-  recent_error_read_capability='PASS'
-  recent_errors='NONE_MATERIAL'
-  (( php_fpm_recent_error_count == 0 && nginx_recent_error_count == 0 )) || recent_errors='PRESENT_MATERIAL'
-fi
-unset journal_mode
+unset runtime_error_output runtime_error_lines nginx_candidate php_fpm_candidate
+# END #1197 GOVERNED RUNTIME ERROR OBSERVATION
 
 public_live='FAIL'
 public_ready='FAIL'

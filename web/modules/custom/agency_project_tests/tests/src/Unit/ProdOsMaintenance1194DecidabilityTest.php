@@ -15,6 +15,7 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
 
   private const PLAN = 'scripts/production-maintenance-1183/remote-plan.sh';
   private const APPLY = 'scripts/production-maintenance-1183/remote-apply.sh';
+  private const ERROR_HELPER = 'scripts/production-maintenance-1183/runtime-error-counts/agency-prod-runtime-error-counts';
   private const WORKFLOW = '.github/workflows/prod-os-maintenance-1183.yml';
 
   /**
@@ -199,11 +200,17 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
    */
   public function testRecentErrorSourceNeverPublishesRawLogs(): void {
     $source = $this->source(self::PLAN);
-    self::assertStringContainsString('--output=json', $source);
-    self::assertStringContainsString("awk 'NF {count++} END {print count + 0}'", $source);
+    $helper = $this->source(self::ERROR_HELPER);
+    self::assertStringContainsString("RUNTIME_ERROR_HELPER='/usr/local/sbin/agency-prod-runtime-error-counts'", $source);
+    self::assertStringContainsString('sudo -n -- "$RUNTIME_ERROR_HELPER"', $source);
+    self::assertStringNotContainsString('sudo -n journalctl', $source);
+    self::assertStringContainsString('--output=json', $helper);
+    self::assertStringContainsString("awk 'NF {count++} END {print count + 0}'", $helper);
+    self::assertStringContainsString('count_fixed_unit nginx', $helper);
+    self::assertStringContainsString('count_fixed_unit php8.4-fpm', $helper);
     self::assertStringContainsString("recent_error_read_capability='FAIL'", $source);
-    self::assertStringNotContainsString('--output=cat', $source);
-    self::assertStringNotContainsString('RECENT_ERROR_LINES', $source);
+    self::assertStringNotContainsString('--output=cat', $source . $helper);
+    self::assertStringNotContainsString('RECENT_ERROR_LINES', $source . $helper);
   }
 
   /**

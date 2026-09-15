@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "issue": 1197,
+  "decision": "EXTEND_EXISTING",
+  "purpose": "bounded PROD Nginx/PHP-FPM recent error counts",
+  "helper": {
+    "source": "scripts/production-maintenance-1183/runtime-error-counts/agency-prod-runtime-error-counts",
+    "destination": "/usr/local/sbin/agency-prod-runtime-error-counts",
+    "owner": "root",
+    "group": "root",
+    "mode": "0755",
+    "arguments": "NONE",
+    "sources": ["nginx", "php8.4-fpm"],
+    "window": "30 minutes",
+    "severity": "err..alert",
+    "raw_log_output": "FORBIDDEN"
+  },
+  "sudoers": {
+    "template": "scripts/production-maintenance-1183/runtime-error-counts/agency-prod-runtime-error-counts.sudoers.template",
+    "destination": "/etc/sudoers.d/agency-prod-runtime-error-counts",
+    "identity_source": "SERVER_USER",
+    "owner": "root",
+    "group": "root",
+    "mode": "0440",
+    "nopasswd_scope": "FIXED_HELPER_ONLY",
+    "no_setenv": true,
+    "nopasswd_all": "FORBIDDEN",
+    "generic_privilege": "NONE",
+    "visudo_cf": "REQUIRED"
+  },
+  "provisioning": {
+    "real_host_install_required": true,
+    "real_host_install_executed": false,
+    "prod_root_provisioning_route": "NONE_FOUND",
+    "missing_real_apply_route": "NO_GOVERNED_PROD_ROOT_PROVISIONING_TRANSPORT_FOR_ROOT_OWNED_HELPER_AND_SUDOERS"
+  }
+}

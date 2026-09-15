@@ -15,7 +15,7 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
 
   private const PLAN = 'scripts/production-maintenance-1183/remote-plan.sh';
   private const WORKFLOW = '.github/workflows/prod-os-maintenance-1183.yml';
-  private const EXPECTED_H1 = 'Créer, améliorer ou moderniser votre plateforme web';
+  private const MARKETING_H1 = 'Agence web senior pour sites professionnels, IA et PHP durable';
 
   /**
    * Root redirect-follow must terminate on the expected FR homepage surface.
@@ -24,27 +24,28 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
     $source = $this->source(self::PLAN);
     self::assertStringContainsString('--location --max-redirs 3', $source);
     self::assertStringContainsString('"$PROD_URL/"', $source);
-    self::assertStringContainsString(self::EXPECTED_H1, $source);
+    self::assertStringContainsString('/images/branding/emerging-digital-mark.svg', $source);
+    self::assertStringNotContainsString('Créer, améliorer ou moderniser votre plateforme web', $source);
 
     self::assertSame(
       ['PASS', '200', '/fr'],
-      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', self::EXPECTED_H1),
+      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', self::MARKETING_H1),
     );
     self::assertSame(
       ['PASS', '200', '/fr/'],
-      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr/', self::EXPECTED_H1),
+      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr/', self::MARKETING_H1),
     );
     self::assertSame(
       ['FAIL', '200', 'UNKNOWN'],
-      $this->runPublicHomeProbe('200|https://example.invalid/fr', self::EXPECTED_H1),
+      $this->runPublicHomeProbe('200|https://example.invalid/fr', self::MARKETING_H1),
     );
     self::assertSame(
       ['FAIL', '503', '/fr'],
-      $this->runPublicHomeProbe('503|https://emergingdigital.be/fr', self::EXPECTED_H1),
+      $this->runPublicHomeProbe('503|https://emergingdigital.be/fr', self::MARKETING_H1),
     );
     self::assertSame(
-      ['FAIL', '200', '/fr'],
-      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', 'Unexpected homepage'),
+      ['PASS', '200', '/fr'],
+      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', 'Changed campaign copy'),
     );
   }
 
@@ -125,7 +126,7 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
     self::assertSame('PASS', $receipt['APT_UPGRADE_SIMULATION']);
     self::assertSame([], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
     self::assertSame([], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
-    self::assertNotContains('apt_upgrade_simulation_exact_set', $receipt['FAILED_CHECKS']);
+    self::assertNotContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
   }
 
   /**
@@ -144,7 +145,7 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
     self::assertSame('FAIL', $receipt['APT_UPGRADE_SIMULATION']);
     self::assertSame(['krb5-locales'], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
     self::assertSame([], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
-    self::assertContains('apt_upgrade_simulation_exact_set', $receipt['FAILED_CHECKS']);
+    self::assertContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
     self::assertNull($receipt['PLAN_DIGEST']);
     self::assertSame('YES', $receipt['CANNOT_BE_APPROVED']);
     self::assertSame('NONE', $receipt['REAL_PROD_MUTATION']);
@@ -168,7 +169,7 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
     self::assertSame('FAIL', $receipt['APT_UPGRADE_SIMULATION']);
     self::assertSame([], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
     self::assertSame(['curl'], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
-    self::assertContains('apt_upgrade_simulation_exact_set', $receipt['FAILED_CHECKS']);
+    self::assertContains('apt_unexpected_empty', $receipt['FAILED_CHECKS']);
     self::assertNull($receipt['PLAN_DIGEST']);
     self::assertStringNotContainsString('Ubuntu:24.04', json_encode([
       $receipt['APT_SIMULATION_MISSING_UPGRADABLE'],
@@ -186,7 +187,7 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
       "Listing...\nnginx/noble-updates 1.24.0-2ubuntu7.18 amd64 [upgradable from: 1.24.0-2ubuntu7.17]\nlibnetplan1/noble-updates 1.1.2-2~ubuntu24.04.2 amd64 [upgradable from: 1.1.2-2~ubuntu24.04.1]\n",
     );
     $receipt = $this->decodeReceipt($result['stdout']);
-    self::assertContains('apt_upgrade_simulation_exact_set', $receipt['FAILED_CHECKS']);
+    self::assertContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
     self::assertContains('max_allowed_packet_64m', $receipt['FAILED_CHECKS']);
     self::assertSame(['libnetplan1'], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
     self::assertSame('16777216', $receipt['MAX_ALLOWED_PACKET']);
@@ -269,6 +270,7 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
     array $overrides = [],
     ?string $upgradableRaw = NULL,
     ?string $upgradeSimulationRaw = NULL,
+    ?string $phasedSimulationRaw = NULL,
   ): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
@@ -285,6 +287,10 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
       file_put_contents(
         $directory . '/upgrade-sim.raw',
         $upgradeSimulationRaw ?? "Inst nginx [1.24.0-2ubuntu7.17] (1.24.0-2ubuntu7.18 Ubuntu:24.04/noble-updates [amd64])\n",
+      );
+      file_put_contents(
+        $directory . '/upgrade-sim-phased.raw',
+        $phasedSimulationRaw ?? $upgradeSimulationRaw ?? "Inst nginx [1.24.0-2ubuntu7.17] (1.24.0-2ubuntu7.18 Ubuntu:24.04/noble-updates [amd64])\n",
       );
       file_put_contents($directory . '/held.raw', '');
       file_put_contents($directory . '/failed.raw', '');
@@ -315,10 +321,12 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
         'MAINTENANCE_MODE' => '0',
         'CONFIG_STATUS' => 'DIFFERENT',
         'MAX_ALLOWED_PACKET' => '67108864',
+        'MAX_ALLOWED_PACKET_SOURCE' => 'DRUPAL_DB_API',
         'PUBLIC_HOME' => 'PASS',
         'PUBLIC_HOME_HTTP_CODE' => '200',
         'PUBLIC_HOME_EFFECTIVE_PATH' => '/fr',
         'CONTACT_FORM_SURFACE' => 'PASS',
+        'RECENT_ERROR_READ_CAPABILITY' => 'PASS',
         'RECENT_NGINX_PHP_ERRORS' => 'NONE_MATERIAL',
         'NGINX_RECENT_ERROR_COUNT' => '0',
         'PHP_FPM_RECENT_ERROR_COUNT' => '0',
@@ -372,7 +380,7 @@ while (( $# > 0 )); do
     *) shift ;;
   esac
 done
-printf '<html><body><h1>%s</h1></body></html>' "$FAKE_H1" > "$output"
+printf '<html><body><img src="/themes/custom/emerging_digital/images/branding/emerging-digital-mark.svg" alt="E-merging Digital"><h1>%s</h1></body></html>' "$FAKE_H1" > "$output"
 printf '%s' "$FAKE_META"
 SH
       );

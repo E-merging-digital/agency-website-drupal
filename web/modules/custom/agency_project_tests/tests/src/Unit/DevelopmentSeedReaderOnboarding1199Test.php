@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Drupal\Tests\agency_project_tests\Unit;
+namespace Drupal\Tests\agency_project_tests_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 
@@ -28,7 +28,9 @@ final class DevelopmentSeedReaderOnboarding1199Test extends TestCase {
     self::assertStringContainsString('reader_general_shell=NONE', $script);
     self::assertStringContainsString('reader_port_forwarding=NONE', $script);
     self::assertStringContainsString('reader_pty=NONE', $script);
+    self::assertStringContainsString("github.event_name == 'workflow_dispatch'", $workflow);
     self::assertStringContainsString("github.actor == 'E-merging-digital'", $workflow);
+    self::assertStringContainsString("github.ref == 'refs/heads/main'", $workflow);
     self::assertStringContainsString('PREPROD_SSH_PRIVATE_KEY', $workflow);
     self::assertStringContainsString('StrictHostKeyChecking=yes', $workflow);
     self::assertStringNotContainsString('actions/upload-artifact', $workflow);

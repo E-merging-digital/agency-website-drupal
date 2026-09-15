@@ -6,8 +6,14 @@ namespace Drupal\Tests\agency_project_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Covers the bounded long-lived Development Seed reader onboarding contract.
+ */
 final class DevelopmentSeedReaderOnboarding1199Test extends TestCase {
 
+  /**
+   * Ensures onboarding cannot broaden the proven read-only reader boundary.
+   */
   public function testReaderOnboardingRemainsBounded(): void {
     $root = dirname(__DIR__, 6);
     $script = file_get_contents($root . '/scripts/development-seed/remote-long-lived-reader.sh');

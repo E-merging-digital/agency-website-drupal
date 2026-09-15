@@ -32,20 +32,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          response="$(
-            curl --fail --silent --show-error \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H 'Accept: application/vnd.github+json' \
-              -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "$API_URL/repos/$REPOSITORY/actions/workflows/$PROBE_WORKFLOW/runs?branch=main&status=completed&per_page=10"
-          )"
+          response_file="$RUNNER_TEMP/agency-runner-health-probe-runs.json"
+          trap 'rm -f -- "$response_file"' EXIT
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            --output "$response_file" \
+            "$API_URL/repos/$REPOSITORY/actions/workflows/$PROBE_WORKFLOW/runs?branch=main&status=completed&per_page=10"
 
-          RESPONSE="$response" python3 - <<'PY'
+          python3 - "$response_file" <<'PY'
           import datetime as dt
           import json
           import os
+          import sys
 
-          payload = json.loads(os.environ["RESPONSE"])
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
           runs = payload.get("workflow_runs", [])
           if not runs:
               print("::error::no completed Agency runner health probe exists on main")

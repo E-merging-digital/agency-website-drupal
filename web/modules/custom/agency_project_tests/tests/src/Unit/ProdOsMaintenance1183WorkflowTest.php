@@ -243,7 +243,7 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
     self::assertStringContainsString('mutation_identity_keys = (', $source);
     $identity = strstr($source, 'mutation_identity_keys = (');
     self::assertIsString($identity);
-    $identity = strstr($identity, ")\nmutation_identity =", TRUE);
+    $identity = strstr($identity, ")\nreceipt['PLAN_DIGEST']", TRUE);
     self::assertIsString($identity);
     self::assertStringNotContainsString("'DISK_AVAILABLE_KB'", $identity);
     foreach ([

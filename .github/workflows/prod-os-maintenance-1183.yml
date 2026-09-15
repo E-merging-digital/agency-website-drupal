@@ -144,26 +144,52 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
             -o ConnectTimeout=15
           )
+          set +e
           ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
             "bash -s -- '$MAIN_SHA' '$PLAN_ID' '$SERVER_USER'" \
             < scripts/production-maintenance-1183/remote-plan.sh \
             > artifacts/prod-os-maintenance-1183/plan.json
-          jq -e \
-            --arg main "$MAIN_SHA" \
-            --arg plan_id "$PLAN_ID" '
-            .STATUS == "PASS"
-            and .ISSUE == 1183
-            and .TARGET == "PROD"
-            and .MODE == "PLAN"
-            and .MAIN_SHA == $main
-            and .PLAN_ID == $plan_id
-            and .MAX_ALLOWED_PACKET == "67108864"
-            and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
-            and .SAFETY_GATE == "PASS"' \
-            artifacts/prod-os-maintenance-1183/plan.json >/dev/null
-          echo "digest=$(jq -r '.PLAN_DIGEST' artifacts/prod-os-maintenance-1183/plan.json)" >> "$GITHUB_OUTPUT"
+          plan_rc=$?
+          set -e
+          plan='artifacts/prod-os-maintenance-1183/plan.json'
+          test -s "$plan"
+          if [[ "$plan_rc" -eq 0 ]]; then
+            jq -e \
+              --arg main "$MAIN_SHA" \
+              --arg plan_id "$PLAN_ID" '
+              .STATUS == "PASS"
+              and .ISSUE == 1183
+              and .TARGET == "PROD"
+              and .MODE == "PLAN"
+              and .MAIN_SHA == $main
+              and .PLAN_ID == $plan_id
+              and .MAX_ALLOWED_PACKET == "67108864"
+              and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
+              and .SAFETY_GATE == "PASS"' "$plan" >/dev/null
+            echo "digest=$(jq -r '.PLAN_DIGEST' "$plan")" >> "$GITHUB_OUTPUT"
+          else
+            jq -e \
+              --arg main "$MAIN_SHA" \
+              --arg plan_id "$PLAN_ID" '
+              .STATUS == "FAIL"
+              and .ISSUE == 1183
+              and .TARGET == "PROD"
+              and .MODE == "PLAN"
+              and .MAIN_SHA == $main
+              and .PLAN_ID == $plan_id
+              and .SAFETY_GATE == "FAIL"
+              and (.FAILED_CHECKS | type == "array" and length > 0)
+              and .PLAN_DIGEST == null
+              and .CANNOT_BE_APPROVED == "YES"
+              and .REAL_PROD_MUTATION == "NONE"
+              and ((.MAX_ALLOWED_PACKET | type) == "string")
+              and (((.NGINX_RECENT_ERROR_COUNT | type) == "number") or .NGINX_RECENT_ERROR_COUNT == "UNKNOWN")
+              and (((.PHP_FPM_RECENT_ERROR_COUNT | type) == "number") or .PHP_FPM_RECENT_ERROR_COUNT == "UNKNOWN")' "$plan" >/dev/null
+            exit "$plan_rc"
+          fi
 
       - name: Upload immutable PLAN evidence
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: prod-os-maintenance-1183-plan-${{ github.run_id }}-${{ github.run_attempt }}

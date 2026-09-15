@@ -29,7 +29,10 @@ concurrency:
 
 jobs:
   onboard:
-    if: ${{ github.actor == 'E-merging-digital' }}
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+          && github.actor == 'E-merging-digital'
+          && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

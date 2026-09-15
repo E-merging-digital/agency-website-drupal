@@ -15,7 +15,7 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
 
   private const PLAN = 'scripts/production-maintenance-1183/remote-plan.sh';
   private const WORKFLOW = '.github/workflows/prod-os-maintenance-1183.yml';
-  private const MARKETING_H1 = 'Agence web senior pour sites professionnels, IA et PHP durable';
+  private const MARKETING_COPY = 'Agence web senior pour sites professionnels, IA et PHP durable';
 
   /**
    * Root redirect-follow must terminate on the expected FR homepage surface.
@@ -25,23 +25,26 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
     self::assertStringContainsString('--location --max-redirs 3', $source);
     self::assertStringContainsString('"$PROD_URL/"', $source);
     self::assertStringContainsString('/images/branding/emerging-digital-mark.svg', $source);
+    self::assertStringContainsString("tag == 'main'", $source);
+    self::assertStringContainsString("attributes.get('role', '').strip().lower() == 'main'", $source);
+    self::assertStringNotContainsString('in_h1', $source);
     self::assertStringNotContainsString('Créer, améliorer ou moderniser votre plateforme web', $source);
 
     self::assertSame(
       ['PASS', '200', '/fr'],
-      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', self::MARKETING_H1),
+      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr', self::MARKETING_COPY),
     );
     self::assertSame(
       ['PASS', '200', '/fr/'],
-      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr/', self::MARKETING_H1),
+      $this->runPublicHomeProbe('200|https://emergingdigital.be/fr/', self::MARKETING_COPY),
     );
     self::assertSame(
       ['FAIL', '200', 'UNKNOWN'],
-      $this->runPublicHomeProbe('200|https://example.invalid/fr', self::MARKETING_H1),
+      $this->runPublicHomeProbe('200|https://example.invalid/fr', self::MARKETING_COPY),
     );
     self::assertSame(
       ['FAIL', '503', '/fr'],
-      $this->runPublicHomeProbe('503|https://emergingdigital.be/fr', self::MARKETING_H1),
+      $this->runPublicHomeProbe('503|https://emergingdigital.be/fr', self::MARKETING_COPY),
     );
     self::assertSame(
       ['PASS', '200', '/fr'],
@@ -360,7 +363,7 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
   /**
    * Runs only the bounded public-home probe with a fake local curl binary.
    */
-  private function runPublicHomeProbe(string $meta, string $h1): array {
+  private function runPublicHomeProbe(string $meta, string $marketingCopy): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
       1,
@@ -380,7 +383,7 @@ while (( $# > 0 )); do
     *) shift ;;
   esac
 done
-printf '<html><body><img src="/themes/custom/emerging_digital/images/branding/emerging-digital-mark.svg" alt="E-merging Digital"><h1>%s</h1></body></html>' "$FAKE_H1" > "$output"
+printf '<html><body><main role="main"><img src="/themes/custom/emerging_digital/images/branding/emerging-digital-mark.svg" alt="E-merging Digital"><p>%s</p></main></body></html>' "$FAKE_MARKETING_COPY" > "$output"
 printf '%s' "$FAKE_META"
 SH
       );
@@ -396,7 +399,7 @@ SH
       chmod($runner, 0700);
       $command = 'env PATH=' . escapeshellarg($directory . ':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')
         . ' FAKE_META=' . escapeshellarg($meta)
-        . ' FAKE_H1=' . escapeshellarg($h1)
+        . ' FAKE_MARKETING_COPY=' . escapeshellarg($marketingCopy)
         . ' bash ' . escapeshellarg($runner) . ' 2>&1';
       $output = [];
       $status = 1;

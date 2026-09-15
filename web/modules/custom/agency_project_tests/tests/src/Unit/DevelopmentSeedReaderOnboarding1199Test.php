@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\Tests\agency_project_tests\Unit;
+
+use PHPUnit\Framework\TestCase;
+
+final class DevelopmentSeedReaderOnboarding1199Test extends TestCase {
+
+  public function testReaderOnboardingRemainsBounded(): void {
+    $root = dirname(__DIR__, 6);
+    $script = file_get_contents($root . '/scripts/development-seed/remote-long-lived-reader.sh');
+    $workflow = file_get_contents($root . '/.github/workflows/development-seed-reader-onboard.yml');
+
+    self::assertIsString($script);
+    self::assertIsString($workflow);
+    self::assertStringContainsString("[[ \"$(id -un)\" == 'agency-preprod' ]]", $script);
+    self::assertStringContainsString('read-only-scp.sh', $script);
+    self::assertStringContainsString('restrict,command=', $script);
+    self::assertStringContainsString('reader_seed_write=NONE', $script);
+    self::assertStringContainsString('reader_general_shell=NONE', $script);
+    self::assertStringContainsString('reader_port_forwarding=NONE', $script);
+    self::assertStringContainsString('reader_pty=NONE', $script);
+    self::assertStringContainsString("github.actor == 'E-merging-digital'", $workflow);
+    self::assertStringContainsString('PREPROD_SSH_PRIVATE_KEY', $workflow);
+    self::assertStringContainsString('StrictHostKeyChecking=yes', $workflow);
+    self::assertStringNotContainsString('actions/upload-artifact', $workflow);
+    self::assertStringNotContainsString('PROD_', $workflow);
+  }
+
+}

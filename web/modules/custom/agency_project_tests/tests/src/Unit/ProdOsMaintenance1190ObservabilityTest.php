@@ -118,6 +118,82 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
   }
 
   /**
+   * Exact APT set preserves the successful PLAN contract.
+   */
+  public function testAptExactSetPreservesPassSemantics(): void {
+    $receipt = $this->evaluatePlan(13696200);
+    self::assertSame('PASS', $receipt['APT_UPGRADE_SIMULATION']);
+    self::assertSame([], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
+    self::assertSame([], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
+    self::assertNotContains('apt_upgrade_simulation_exact_set', $receipt['FAILED_CHECKS']);
+  }
+
+  /**
+   * Missing upgradable packages become bounded fail evidence.
+   */
+  public function testAptMissingSetProducesBoundedFailReceipt(): void {
+    $result = $this->executePlan(
+      13696200,
+      [],
+      "Listing...\nnginx/noble-updates 1.24.0-2ubuntu7.18 amd64 [upgradable from: 1.24.0-2ubuntu7.17]\nkrb5-locales/noble-updates 1.20.1-6ubuntu2.6 all [upgradable from: 1.20.1-6ubuntu2.5]\n",
+    );
+    self::assertNotSame(0, $result['status']);
+    $receipt = $this->decodeReceipt($result['stdout']);
+    self::assertSame('FAIL', $receipt['STATUS']);
+    self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+    self::assertSame('FAIL', $receipt['APT_UPGRADE_SIMULATION']);
+    self::assertSame(['krb5-locales'], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
+    self::assertSame([], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
+    self::assertContains('apt_upgrade_simulation_exact_set', $receipt['FAILED_CHECKS']);
+    self::assertNull($receipt['PLAN_DIGEST']);
+    self::assertSame('YES', $receipt['CANNOT_BE_APPROVED']);
+    self::assertSame('NONE', $receipt['REAL_PROD_MUTATION']);
+    self::assertSame('67108864', $receipt['MAX_ALLOWED_PACKET']);
+    self::assertSame(200, $receipt['PUBLIC_HOME_HTTP_CODE']);
+    self::assertSame('/fr', $receipt['PUBLIC_HOME_EFFECTIVE_PATH']);
+    self::assertSame(0, $receipt['NGINX_RECENT_ERROR_COUNT']);
+    self::assertSame(0, $receipt['PHP_FPM_RECENT_ERROR_COUNT']);
+    self::assertSame('NONE_MATERIAL', $receipt['RECENT_NGINX_PHP_ERRORS']);
+  }
+
+  /**
+   * Unexpected simulated upgrades are exposed as package names only.
+   */
+  public function testAptUnexpectedSetProducesBoundedFailReceipt(): void {
+    $simulation = "Inst nginx [1.24.0-2ubuntu7.17] (1.24.0-2ubuntu7.18 Ubuntu:24.04/noble-updates [amd64])\n"
+      . "Inst curl [8.5.0-2ubuntu10.5] (8.5.0-2ubuntu10.6 Ubuntu:24.04/noble-updates [amd64])\n";
+    $result = $this->executePlan(13696200, [], NULL, $simulation);
+    self::assertNotSame(0, $result['status']);
+    $receipt = $this->decodeReceipt($result['stdout']);
+    self::assertSame('FAIL', $receipt['APT_UPGRADE_SIMULATION']);
+    self::assertSame([], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
+    self::assertSame(['curl'], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
+    self::assertContains('apt_upgrade_simulation_exact_set', $receipt['FAILED_CHECKS']);
+    self::assertNull($receipt['PLAN_DIGEST']);
+    self::assertStringNotContainsString('Ubuntu:24.04', json_encode([
+      $receipt['APT_SIMULATION_MISSING_UPGRADABLE'],
+      $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES'],
+    ], JSON_THROW_ON_ERROR));
+  }
+
+  /**
+   * APT mismatch is additive with independent safety failures.
+   */
+  public function testAptMismatchCoexistsWithOtherSafetyFailures(): void {
+    $result = $this->executePlan(
+      13696200,
+      ['MAX_ALLOWED_PACKET' => '16777216'],
+      "Listing...\nnginx/noble-updates 1.24.0-2ubuntu7.18 amd64 [upgradable from: 1.24.0-2ubuntu7.17]\nlibnetplan1/noble-updates 1.1.2-2~ubuntu24.04.2 amd64 [upgradable from: 1.1.2-2~ubuntu24.04.1]\n",
+    );
+    $receipt = $this->decodeReceipt($result['stdout']);
+    self::assertContains('apt_upgrade_simulation_exact_set', $receipt['FAILED_CHECKS']);
+    self::assertContains('max_allowed_packet_64m', $receipt['FAILED_CHECKS']);
+    self::assertSame(['libnetplan1'], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
+    self::assertSame('16777216', $receipt['MAX_ALLOWED_PACKET']);
+    self::assertNull($receipt['PLAN_DIGEST']);
+  }
+
+  /**
    * PASS digest keeps #1187 semantics for healthy free-disk drift.
    */
   public function testPassDigestRemainsStableAcrossHealthyDiskDrift(): void {
@@ -188,7 +264,12 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
   /**
    * Executes only the embedded deterministic Python evaluator.
    */
-  private function executePlan(int $diskAvailableKb, array $overrides = []): array {
+  private function executePlan(
+    int $diskAvailableKb,
+    array $overrides = [],
+    ?string $upgradableRaw = NULL,
+    ?string $upgradeSimulationRaw = NULL,
+  ): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
       1,
@@ -199,11 +280,11 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
     try {
       file_put_contents(
         $directory . '/upgradable.raw',
-        "Listing...\nnginx/noble-updates 1.24.0-2ubuntu7.18 amd64 [upgradable from: 1.24.0-2ubuntu7.17]\n",
+        $upgradableRaw ?? "Listing...\nnginx/noble-updates 1.24.0-2ubuntu7.18 amd64 [upgradable from: 1.24.0-2ubuntu7.17]\n",
       );
       file_put_contents(
         $directory . '/upgrade-sim.raw',
-        "Inst nginx [1.24.0-2ubuntu7.17] (1.24.0-2ubuntu7.18 Ubuntu:24.04/noble-updates [amd64])\n",
+        $upgradeSimulationRaw ?? "Inst nginx [1.24.0-2ubuntu7.17] (1.24.0-2ubuntu7.18 Ubuntu:24.04/noble-updates [amd64])\n",
       );
       file_put_contents($directory . '/held.raw', '');
       file_put_contents($directory . '/failed.raw', '');

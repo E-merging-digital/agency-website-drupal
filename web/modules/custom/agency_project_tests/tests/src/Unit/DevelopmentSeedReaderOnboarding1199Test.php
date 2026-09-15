@@ -15,7 +15,7 @@ final class DevelopmentSeedReaderOnboarding1199Test extends TestCase {
    * Ensures onboarding cannot broaden the proven read-only reader boundary.
    */
   public function testReaderOnboardingRemainsBounded(): void {
-    $root = dirname(__DIR__, 6);
+    $root = dirname(__DIR__, 7);
     $script = file_get_contents($root . '/scripts/development-seed/remote-long-lived-reader.sh');
     $workflow = file_get_contents($root . '/.github/workflows/development-seed-reader-onboard.yml');
 

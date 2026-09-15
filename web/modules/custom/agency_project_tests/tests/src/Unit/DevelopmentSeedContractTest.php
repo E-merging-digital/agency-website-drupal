@@ -144,6 +144,43 @@ final class DevelopmentSeedContractTest extends TestCase {
   }
 
   /**
+   * Proves rootless DDEV can read the seed only during native restore.
+   */
+  public function testDevelopmentSeedRootlessSnapshotPermissionLifecycleContract(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $consumer = file_get_contents($root . '/scripts/development-seed/use-native-seed.sh');
+    self::assertIsString($consumer);
+
+    self::assertStringContainsString('chmod 711 "$final_dir"', $consumer);
+    self::assertStringContainsString('chmod 644 "$final_snapshot"', $consumer);
+    self::assertStringContainsString('chmod 700 "$final_dir"', $consumer);
+    self::assertStringContainsString('chmod 600 "$final_snapshot"', $consumer);
+    self::assertStringContainsString('seed_cache_permissions_relaxed=1', $consumer);
+    self::assertStringContainsString('if ! restore_seed_cache_permissions; then', $consumer);
+    self::assertStringContainsString(
+      "Unable to restore private Development Seed cache permissions.",
+      $consumer,
+    );
+
+    $relax = strpos($consumer, 'chmod 711 "$final_dir"');
+    $freshStart = strpos($consumer, 'ddev start --seed-snapshot="$final_snapshot"', $relax);
+    $resetStart = strpos($consumer, 'ddev start --reset-database --seed-snapshot="$final_snapshot"', $relax);
+    $restore = strpos(
+      $consumer,
+      "restore_seed_cache_permissions || {",
+      $resetStart,
+    );
+    self::assertIsInt($relax);
+    self::assertIsInt($freshStart);
+    self::assertIsInt($resetStart);
+    self::assertIsInt($restore);
+    self::assertTrue($relax < $freshStart);
+    self::assertTrue($relax < $resetStart);
+    self::assertTrue($freshStart < $restore);
+    self::assertTrue($resetStart < $restore);
+  }
+
+  /**
    * Proves #1121/#1138 sanitize diagnostics stay bounded and privacy-safe.
    */
   public function testPublisherSanitizeFailureDiagnosticContract(): void {

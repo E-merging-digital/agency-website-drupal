@@ -52,8 +52,22 @@ pinned="$repo/scripts/preproduction-ssh-trust/preprod-ed25519.pub"
 [[ -f "$pinned" && ! -L "$pinned" ]]
 
 incoming="$(mktemp -d "$cache_abs/.incoming.XXXXXX")"
+seed_cache_permissions_relaxed=0
+final_dir=''
+final_snapshot=''
+restore_seed_cache_permissions() {
+  [[ "$seed_cache_permissions_relaxed" == 1 ]] || return 0
+  local restore_failed=0
+  chmod 700 "$final_dir" || restore_failed=1
+  chmod 600 "$final_snapshot" || restore_failed=1
+  seed_cache_permissions_relaxed=0
+  return "$restore_failed"
+}
 cleanup() {
   local code=$?
+  if ! restore_seed_cache_permissions; then
+    code=2
+  fi
   if [[ -n "${incoming:-}" && -d "$incoming" ]]; then
     rm -rf -- "$incoming"
   fi
@@ -112,6 +126,13 @@ chmod 600 "$repo/.ddev/.downloads/agency-seed.json"
   exit 2
 }
 
+# Rootless DDEV bind-mounts the cache as root:root while MariaDB runs as an
+# unprivileged container uid. Relax only the immutable snapshot read boundary
+# for the native seed phase, then restore private at-rest permissions.
+chmod 711 "$final_dir"
+seed_cache_permissions_relaxed=1
+chmod 644 "$final_snapshot"
+
 case "$MODE" in
   fresh)
     ddev start --seed-snapshot="$final_snapshot"
@@ -122,6 +143,11 @@ case "$MODE" in
     ddev start --reset-database --seed-snapshot="$final_snapshot"
     ;;
 esac
+
+restore_seed_cache_permissions || {
+  echo 'Unable to restore private Development Seed cache permissions.' >&2
+  exit 2
+}
 
 ddev composer install --no-interaction --no-progress --prefer-dist >/dev/null
 ddev exec bash scripts/development-seed/post-pull.sh

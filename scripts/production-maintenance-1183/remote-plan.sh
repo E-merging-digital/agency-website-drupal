@@ -72,24 +72,43 @@ config_status='UNOBSERVABLE'
 max_allowed_packet='UNKNOWN'
 if [[ -x "$DRUPAL_ROOT/vendor/bin/drush" ]] && (cd "$DRUPAL_ROOT" && vendor/bin/drush status >/dev/null 2>&1); then
   drupal_health='PASS'
-  maintenance_mode="$(cd "$DRUPAL_ROOT" && vendor/bin/drush state:get system.maintenance_mode 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+  if maintenance_raw="$(cd "$DRUPAL_ROOT" && vendor/bin/drush state:get system.maintenance_mode 2>/dev/null | tail -n 1 | tr -d '[:space:]')"; then
+    [[ "$maintenance_raw" =~ ^[01]$ ]] && maintenance_mode="$maintenance_raw"
+  fi
+  unset maintenance_raw
   config_json="$work_root/config-status.json"
   if (cd "$DRUPAL_ROOT" && vendor/bin/drush config:status --format=json >"$config_json" 2>/dev/null) && jq -e 'type == "array" or type == "object"' "$config_json" >/dev/null 2>&1; then
     config_count="$(jq 'length' "$config_json")"
     config_status='DIFFERENT'
     [[ "$config_count" -eq 0 ]] && config_status='CLEAN'
   fi
-  max_allowed_packet="$(cd "$DRUPAL_ROOT" && vendor/bin/drush sql:query 'SELECT @@global.max_allowed_packet;' 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+  if max_packet_raw="$(cd "$DRUPAL_ROOT" && vendor/bin/drush sql:query 'SELECT @@global.max_allowed_packet;' 2>/dev/null | tail -n 1 | tr -d '[:space:]')"; then
+    if [[ "$max_packet_raw" =~ ^[0-9]+$ ]]; then
+      max_allowed_packet="$max_packet_raw"
+    fi
+  fi
+  unset max_packet_raw
 fi
 
 recent_errors='UNKNOWN'
-php_errors="$(sudo -n journalctl -u php8.4-fpm --since '30 minutes ago' -p err..alert --no-pager --output=cat 2>/dev/null || printf '__READ_FAILED__')"
-nginx_errors="$(sudo -n journalctl -u nginx --since '30 minutes ago' -p err..alert --no-pager --output=cat 2>/dev/null || printf '__READ_FAILED__')"
-if [[ "$php_errors" != *'__READ_FAILED__'* && "$nginx_errors" != *'__READ_FAILED__'* ]]; then
+nginx_recent_error_count='UNKNOWN'
+php_fpm_recent_error_count='UNKNOWN'
+count_recent_errors() {
+  local unit="$1"
+  local count
+  if count="$(sudo -n journalctl -u "$unit" --since '30 minutes ago' -p err..alert --no-pager --output=json 2>/dev/null \
+    | awk 'NF {count++} END {print count + 0}')"; then
+    [[ "$count" =~ ^[0-9]+$ ]] && printf '%s' "$count" || printf 'UNKNOWN'
+  else
+    printf 'UNKNOWN'
+  fi
+}
+php_fpm_recent_error_count="$(count_recent_errors php8.4-fpm)"
+nginx_recent_error_count="$(count_recent_errors nginx)"
+if [[ "$php_fpm_recent_error_count" =~ ^[0-9]+$ && "$nginx_recent_error_count" =~ ^[0-9]+$ ]]; then
   recent_errors='NONE_MATERIAL'
-  [[ -z "${php_errors//[[:space:]]/}" && -z "${nginx_errors//[[:space:]]/}" ]] || recent_errors='PRESENT_MATERIAL'
+  (( php_fpm_recent_error_count == 0 && nginx_recent_error_count == 0 )) || recent_errors='PRESENT_MATERIAL'
 fi
-unset php_errors nginx_errors
 
 public_live='FAIL'
 public_ready='FAIL'
@@ -103,9 +122,60 @@ done
 public_health='FAIL'
 [[ "$public_live" == 'PASS' && "$public_ready" == 'PASS' ]] && public_health='PASS'
 
-public_home='FAIL'
-home_code="$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' "$PROD_URL/" || true)"
-[[ "$home_code" == '200' ]] && public_home='PASS'
+# BEGIN #1190 PUBLIC HOME PROBE
+probe_public_home() {
+  local body="$1"
+  local meta code final_url h1
+  PUBLIC_HOME='FAIL'
+  PUBLIC_HOME_HTTP_CODE='UNKNOWN'
+  PUBLIC_HOME_EFFECTIVE_PATH='UNKNOWN'
+  meta="$(curl --silent --show-error --location --max-redirs 3 --connect-timeout 8 --max-time 15 \
+    --output "$body" --write-out '%{http_code}|%{url_effective}' "$PROD_URL/" 2>/dev/null || true)"
+  IFS='|' read -r code final_url <<<"$meta"
+  [[ "$code" =~ ^[0-9]{3}$ ]] && PUBLIC_HOME_HTTP_CODE="$code"
+  case "$final_url" in
+    "$PROD_URL/fr") PUBLIC_HOME_EFFECTIVE_PATH='/fr' ;;
+    "$PROD_URL/fr/") PUBLIC_HOME_EFFECTIVE_PATH='/fr/' ;;
+    *) return 0 ;;
+  esac
+  [[ "$code" == '200' ]] || return 0
+  h1="$(python3 - "$body" <<'PY_HOME'
+from html.parser import HTMLParser
+import sys
+
+class H1Parser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.in_h1 = False
+        self.done = False
+        self.parts = []
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() == 'h1' and not self.done:
+            self.in_h1 = True
+    def handle_endtag(self, tag):
+        if tag.lower() == 'h1' and self.in_h1:
+            self.in_h1 = False
+            self.done = True
+    def handle_data(self, data):
+        if self.in_h1:
+            self.parts.append(data)
+
+parser = H1Parser()
+with open(sys.argv[1], 'r', encoding='utf-8', errors='replace') as handle:
+    parser.feed(handle.read())
+print(' '.join(' '.join(parser.parts).split()))
+PY_HOME
+)"
+  if [[ "$h1" == 'Créer, améliorer ou moderniser votre plateforme web' ]]; then
+    PUBLIC_HOME='PASS'
+  fi
+}
+# END #1190 PUBLIC HOME PROBE
+
+probe_public_home "$work_root/home.html"
+public_home="$PUBLIC_HOME"
+public_home_http_code="$PUBLIC_HOME_HTTP_CODE"
+public_home_effective_path="$PUBLIC_HOME_EFFECTIVE_PATH"
 contact_form_surface='FAIL'
 contact_code="$(curl --silent --show-error --max-time 10 --output "$work_root/contact.html" --write-out '%{http_code}' "$PROD_URL/fr/contact" || true)"
 if [[ "$contact_code" == '200' ]] && grep -Eqi '<form|webform|contact' "$work_root/contact.html"; then
@@ -122,7 +192,9 @@ export PHP_BRANCH="$php_branch" MARIADB_BRANCH="$mariadb_branch"
 export NGINX_SERVICE="$nginx_service" PHP_FPM_SERVICE="$php_service" MARIADB_SERVICE="$mariadb_service"
 export DRUPAL_HEALTH="$drupal_health" PUBLIC_HEALTH="$public_health"
 export MAINTENANCE_MODE="$maintenance_mode" CONFIG_STATUS="$config_status" MAX_ALLOWED_PACKET="$max_allowed_packet"
-export PUBLIC_HOME="$public_home" CONTACT_FORM_SURFACE="$contact_form_surface" RECENT_NGINX_PHP_ERRORS="$recent_errors"
+export PUBLIC_HOME="$public_home" PUBLIC_HOME_HTTP_CODE="$public_home_http_code" PUBLIC_HOME_EFFECTIVE_PATH="$public_home_effective_path"
+export CONTACT_FORM_SURFACE="$contact_form_surface" RECENT_NGINX_PHP_ERRORS="$recent_errors"
+export NGINX_RECENT_ERROR_COUNT="$nginx_recent_error_count" PHP_FPM_RECENT_ERROR_COUNT="$php_fpm_recent_error_count"
 export DISK_AVAILABLE_KB="$disk_available_kb" WORK_ROOT="$work_root"
 
 python3 - <<'PY'
@@ -217,13 +289,13 @@ for item in upgrades:
     if name.startswith('mariadb-') and '11.8' not in item['to']:
         checks[f'mariadb_candidate_branch:{name}'] = False
 
-if not all(checks.values()):
-    failed_checks = sorted(name for name, value in checks.items() if not value)
-    raise SystemExit('PLAN safety gate failed: ' + ','.join(failed_checks))
+failed_checks = sorted(name for name, value in checks.items() if not value)
+safety_gate = 'FAIL' if failed_checks else 'PASS'
+status = 'FAIL' if failed_checks else 'PASS'
 
 receipt = {
     'schema_version': 1,
-    'STATUS': 'PASS',
+    'STATUS': status,
     'ISSUE': int(os.environ['ISSUE']),
     'TARGET': os.environ['TARGET'],
     'MODE': os.environ['MODE'],
@@ -253,12 +325,19 @@ receipt = {
     'MAINTENANCE_MODE': os.environ['MAINTENANCE_MODE'],
     'CONFIG_STATUS': os.environ['CONFIG_STATUS'],
     'CONFIG_AUTO_CORRECTION': 'NONE',
-    'MAX_ALLOWED_PACKET': os.environ['MAX_ALLOWED_PACKET'],
+    'MAX_ALLOWED_PACKET': os.environ['MAX_ALLOWED_PACKET'] if os.environ['MAX_ALLOWED_PACKET'].isdigit() else 'UNKNOWN',
     'PUBLIC_HOME': os.environ['PUBLIC_HOME'],
+    'PUBLIC_HOME_HTTP_CODE': int(os.environ['PUBLIC_HOME_HTTP_CODE']) if os.environ.get('PUBLIC_HOME_HTTP_CODE', '').isdigit() else 'UNKNOWN',
+    'PUBLIC_HOME_EFFECTIVE_PATH': os.environ.get('PUBLIC_HOME_EFFECTIVE_PATH', 'UNKNOWN'),
     'CONTACT_FORM_SURFACE': os.environ['CONTACT_FORM_SURFACE'],
     'RECENT_NGINX_PHP_ERRORS': os.environ['RECENT_NGINX_PHP_ERRORS'],
+    'NGINX_RECENT_ERROR_COUNT': int(os.environ['NGINX_RECENT_ERROR_COUNT']) if os.environ.get('NGINX_RECENT_ERROR_COUNT', '').isdigit() else 'UNKNOWN',
+    'PHP_FPM_RECENT_ERROR_COUNT': int(os.environ['PHP_FPM_RECENT_ERROR_COUNT']) if os.environ.get('PHP_FPM_RECENT_ERROR_COUNT', '').isdigit() else 'UNKNOWN',
     'DISK_AVAILABLE_KB': int(os.environ['DISK_AVAILABLE_KB']),
-    'SAFETY_GATE': 'PASS',
+    'SAFETY_GATE': safety_gate,
+    'FAILED_CHECKS': failed_checks,
+    'CANNOT_BE_APPROVED': 'YES' if failed_checks else 'NO',
+    'REAL_PROD_MUTATION': 'NONE',
 }
 # Keep volatile observations in the receipt and safety gate, but bind stale-plan
 # identity only to mutation-relevant state. Healthy free-space fluctuations must
@@ -301,8 +380,13 @@ mutation_identity_keys = (
     'RECENT_NGINX_PHP_ERRORS',
     'SAFETY_GATE',
 )
-mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
-canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
-receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
+receipt['PLAN_DIGEST'] = None
+if not failed_checks:
+    mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
+    canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
 print(json.dumps(receipt, sort_keys=True, separators=(',', ':')))
+if failed_checks:
+    print('PLAN safety gate failed: ' + ','.join(failed_checks), file=sys.stderr)
+    raise SystemExit(2)
 PY

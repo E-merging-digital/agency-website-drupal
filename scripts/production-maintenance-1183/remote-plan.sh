@@ -253,12 +253,12 @@ failed = sorted(read_lines('failed.raw'))
 
 upgradable_names = {item['name'] for item in upgradable}
 upgrade_names = {item['name'] for item in upgrades}
-if upgradable_names != upgrade_names:
-    missing = sorted(upgradable_names - upgrade_names)
-    unexpected = sorted(upgrade_names - upgradable_names)
-    raise SystemExit(f'APT simulation does not exactly cover upgradable set; missing={missing}, unexpected={unexpected}')
+missing = sorted(upgradable_names - upgrade_names)[:50]
+unexpected = sorted(upgrade_names - upgradable_names)[:50]
+apt_upgrade_simulation_exact_set = not missing and not unexpected
 
 checks = {
+    'apt_upgrade_simulation_exact_set': apt_upgrade_simulation_exact_set,
     'ubuntu_24_04': os.environ['VERSION_ID'] == '24.04',
     'target_kernel_installed_latest': os.environ['KERNEL_INSTALLED_LATEST'] == os.environ['TARGET_KERNEL'],
     'php_branch_8_4': os.environ['PHP_BRANCH'] == '8.4',
@@ -309,7 +309,9 @@ receipt = {
     'UPGRADABLE_TOTAL': len(upgradable),
     'SECURITY_UPDATES_TOTAL': sum(1 for item in upgradable if item['security']),
     'UPGRADABLE_PACKAGES': upgradable,
-    'APT_UPGRADE_SIMULATION': 'PASS',
+    'APT_UPGRADE_SIMULATION': 'PASS' if apt_upgrade_simulation_exact_set else 'FAIL',
+    'APT_SIMULATION_MISSING_UPGRADABLE': missing,
+    'APT_SIMULATION_UNEXPECTED_UPGRADES': unexpected,
     'PACKAGE_REMOVALS': removals,
     'PACKAGE_ADDITIONS': additions,
     'PACKAGE_UPGRADES': upgrades,

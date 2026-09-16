@@ -27,7 +27,7 @@ final class PreproductionCockpitBearerRuntimeTest extends TestCase {
       '!is_link($agency_cockpit_token_file)',
       'is_file($agency_cockpit_token_file)',
       'is_readable($agency_cockpit_token_file)',
-      "agency_operations_cockpit_state_token'] = $agency_cockpit_token",
+      "agency_operations_cockpit_state_token'] = \$agency_cockpit_token",
     ] as $expected) {
       self::assertStringContainsString($expected, $settings);
     }

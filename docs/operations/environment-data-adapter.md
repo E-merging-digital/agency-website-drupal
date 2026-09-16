@@ -79,9 +79,15 @@ The route returns the existing normalized provider projection only when:
 2. the presented credential matches using constant-time comparison;
 3. the current Drupal runtime is PREPROD.
 
-The secret value is never stored in exported Drupal configuration or this repository. Its server-owned runtime materialization is tracked separately in #1175 because PREPROD PHP-FPM uses `clear_env = yes`; documentation must not imply that an inherited process environment is already available to Drupal.
+The secret value is never stored in exported Drupal configuration or this repository. PREPROD reads it from the existing server-owned shared settings area:
 
-Do not commit the credential value or paste it into tickets/logs. Until #1175 is implemented and deliberately provisioned, missing runtime credential state must continue to return `503 transport_unavailable`.
+```text
+/var/www/agency-preprod/shared/settings/cockpit-state-token
+```
+
+The file is optional until deliberately provisioned. It must be a regular, non-symlink file containing one credential of at least 32 characters with no whitespace. Missing, unreadable, symlinked or invalid content resolves to an empty Drupal setting, so the controller returns `503 transport_unavailable`.
+
+This deliberately avoids PHP-FPM environment inheritance; `clear_env = yes` remains unchanged. Do not commit the credential value or paste it into tickets/logs. The cockpit-side copy remains runtime configuration under Infrastructure #43 as `AGENCY_STATE_TOKEN`; provisioning the two matching values is a separate live operation.
 
 PREPROD Nginx keeps site-wide Basic Auth for browser-facing routes. The cockpit machine route is an exact-path exception to that outer layer only:
 
@@ -121,4 +127,4 @@ Semantic personal-data sanitization remains owned by the existing Agency Drupal/
 
 Source implementation and CI proof do not equal live PREPROD transport proof. #1174 changes the source Nginx template only; it does not mutate the currently running PREPROD vhost. Live convergence requires separately authorized server work: back up the active vhost, apply only the exact-path rule, run `nginx -t`, reload Nginx, and prove that missing/invalid bearer remains denied.
 
-#1175 separately owns bearer materialization on the PREPROD and cockpit runtime surfaces. Infrastructure #43 remains fail-closed until both live configuration steps exist and an authenticated cockpit request succeeds without exposing the credential.
+#1175 provides the source/runtime contract for the PREPROD bearer without provisioning a value. Infrastructure #43 remains fail-closed until the exact Nginx rule is converged live, the same bearer is provisioned into the PREPROD secret file and cockpit `AGENCY_STATE_TOKEN`, and an authenticated cockpit request succeeds without exposing the credential.

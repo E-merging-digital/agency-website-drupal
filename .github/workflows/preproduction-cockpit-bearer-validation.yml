@@ -51,10 +51,14 @@ jobs:
             scripts/preproduction/settings.php.template > "$rendered"
 
           printf '%s\n' "$dummy" | sudo bash scripts/preproduction/provision-cockpit-state-token.sh
-          test "$(stat -c '%U:%G:%a' /etc/agency-preprod/cockpit-state-token)" = 'root:www-data:640'
+          if stat /etc/agency-preprod/cockpit-state-token >/dev/null 2>&1; then
+            echo 'Ordinary runner unexpectedly traversed the server-owned token directory.' >&2
+            exit 1
+          fi
+          test "$(sudo stat -c '%U:%G:%a' /etc/agency-preprod/cockpit-state-token)" = 'root:www-data:640'
           sudo grep -Fqx "$dummy" /etc/agency-preprod/cockpit-state-token
 
-          DUMMY_TOKEN="$dummy" php -r '
+          sudo -u www-data env DUMMY_TOKEN="$dummy" php -r '
             $databases = $settings = $config = [];
             define("DRUPAL_ROOT", "/tmp/web");
             include $argv[1];
@@ -62,7 +66,7 @@ jobs:
           ' "$rendered"
 
           sudo rm -f /etc/agency-preprod/cockpit-state-token
-          php -r '
+          sudo -u www-data php -r '
             $databases = $settings = $config = [];
             define("DRUPAL_ROOT", "/tmp/web");
             include $argv[1];
@@ -71,7 +75,7 @@ jobs:
 
           printf '%s\n' "$dummy" > /tmp/cockpit-state-token-target
           sudo ln -s /tmp/cockpit-state-token-target /etc/agency-preprod/cockpit-state-token
-          php -r '
+          sudo -u www-data php -r '
             $databases = $settings = $config = [];
             define("DRUPAL_ROOT", "/tmp/web");
             include $argv[1];

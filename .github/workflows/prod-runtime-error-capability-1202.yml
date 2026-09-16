@@ -1,0 +1,458 @@
+name: '#1202 governed PROD runtime-error capability'
+
+on:
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+concurrency:
+  group: agency-prod-runtime-error-capability-1202
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate exact #1202 PLAN/APPLY authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+    outputs:
+      mode: ${{ steps.authority.outputs.mode }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      plan_id: ${{ steps.authority.outputs.plan_id }}
+      plan_run: ${{ steps.authority.outputs.plan_run }}
+      plan_digest: ${{ steps.authority.outputs.plan_digest }}
+    steps:
+      - id: authority
+        name: JIT validate direct human owner command and live main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_USER_TYPE: ${{ github.event.comment.user.type }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1202'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_USER_TYPE" = 'User'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1202")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          jq -e '[.labels[].name] | index("P1") != null' <<<"$issue_json" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$WORKFLOW_SHA" = "$main_sha"
+
+          mode=''
+          plan_run=''
+          plan_digest=''
+          if [[ "$COMMENT_BODY" == '/agency-prod-runtime-error-capability-1202 plan' ]]; then
+            mode='PLAN'
+          elif [[ "$COMMENT_BODY" =~ ^/agency-prod-runtime-error-capability-1202\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})$ ]]; then
+            mode='APPLY'
+            plan_run="${BASH_REMATCH[1]}"
+            plan_digest="${BASH_REMATCH[2]}"
+          else
+            printf '%s\n' 'Unsupported #1202 command syntax.' >&2
+            exit 64
+          fi
+
+          plan_id="plan-1202-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "mode=$mode"
+            echo "main_sha=$main_sha"
+            echo "plan_id=$plan_id"
+            echo "plan_run=$plan_run"
+            echo "plan_digest=$plan_digest"
+          } >> "$GITHUB_OUTPUT"
+
+  plan:
+    name: Build fresh bounded #1202 PROD provisioning PLAN
+    if: ${{ needs.validate-authority.outputs.mode == 'PLAN' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - id: bindings
+        name: Compute exact helper and rendered sudoers bindings
+        shell: bash
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          base='scripts/production-maintenance-1183/runtime-error-counts'
+          helper="$base/agency-prod-runtime-error-counts"
+          rendered="$RUNNER_TEMP/agency-prod-runtime-error-counts.sudoers"
+          bash "$base/render-sudoers.sh" "$SERVER_USER" > "$rendered"
+          helper_hash="$(sha256sum "$helper" | awk '{print $1}')"
+          sudoers_hash="$(sha256sum "$rendered" | awk '{print $1}')"
+          echo "helper_hash=$helper_hash" >> "$GITHUB_OUTPUT"
+          echo "sudoers_hash=$sudoers_hash" >> "$GITHUB_OUTPUT"
+      - name: Materialize pinned PROD identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1202-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1202-prod.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+      - id: plan_result
+        name: Run read-only #1202 PLAN on PROD
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+          HELPER_SOURCE_SHA256: ${{ steps.bindings.outputs.helper_hash }}
+          RENDERED_SUDOERS_SHA256: ${{ steps.bindings.outputs.sudoers_hash }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/prod-runtime-error-capability-1202
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1202-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          set +e
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID' '$SERVER_USER' '$HELPER_SOURCE_SHA256' '$RENDERED_SUDOERS_SHA256'" \
+            < scripts/production-maintenance-1183/runtime-error-counts/remote-provision-plan.sh \
+            > artifacts/prod-runtime-error-capability-1202/plan.json
+          plan_rc=$?
+          set -e
+          plan='artifacts/prod-runtime-error-capability-1202/plan.json'
+          test -s "$plan"
+          if [[ "$plan_rc" -eq 0 ]]; then
+            jq -e --arg main "$MAIN_SHA" --arg plan_id "$PLAN_ID" '
+              .STATUS == "PASS"
+              and .ISSUE == 1202
+              and .TARGET == "PROD"
+              and .MODE == "PLAN"
+              and .MAIN_SHA == $main
+              and .PLAN_ID == $plan_id
+              and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
+              and .RAW_SUDO_POLICY_EXPOSURE == "NONE"
+              and .REAL_PROD_MUTATION == "NONE"' "$plan" >/dev/null
+            echo "digest=$(jq -r '.PLAN_DIGEST' "$plan")" >> "$GITHUB_OUTPUT"
+          else
+            jq -e --arg main "$MAIN_SHA" --arg plan_id "$PLAN_ID" '
+              .STATUS == "FAIL"
+              and .ISSUE == 1202
+              and .TARGET == "PROD"
+              and .MODE == "PLAN"
+              and .MAIN_SHA == $main
+              and .PLAN_ID == $plan_id
+              and .INSTALL_DECISION == "BLOCKED"
+              and .PLAN_DIGEST == null
+              and .CANNOT_BE_APPROVED == "YES"
+              and .RAW_SUDO_POLICY_EXPOSURE == "NONE"
+              and .REAL_PROD_MUTATION == "NONE"' "$plan" >/dev/null
+            exit "$plan_rc"
+          fi
+
+      - name: Upload immutable PLAN evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-runtime-error-capability-1202-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/prod-runtime-error-capability-1202/plan.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish bounded PLAN summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+          PLAN_DIGEST: ${{ steps.plan_result.outputs.digest }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF_BODY
+          #1202 PROD runtime-error capability PLAN completed.
+
+          \`MODE=PLAN\`
+          \`RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}\`
+          \`PLAN_ID=${PLAN_ID}\`
+          \`PLAN_DIGEST=${PLAN_DIGEST}\`
+          \`TARGET=PROD\`
+          \`REAL_PROD_MUTATION=NONE\`
+
+          APPLY remains separately authorized by a fresh direct OWNER comment.
+          EOF_BODY
+          )"
+          gh issue comment 1202 --body "$body"
+
+      - name: Remove transient PROD key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1202-prod.key"
+
+  apply:
+    name: Apply exact approved #1202 capability plan
+    if: ${{ needs.validate-authority.outputs.mode == 'APPLY' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Load and validate immutable successful PLAN
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/prod-runtime-error-capability-1202/approved
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN")"
+          test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'
+          test "$(jq -r '.event' <<<"$run_json")" = 'issue_comment'
+          test "$(jq -r '.head_sha' <<<"$run_json")" = "$MAIN_SHA"
+          test "$(jq -r '.run_attempt' <<<"$run_json")" = '1'
+          artifact_name="prod-runtime-error-capability-1202-plan-${PLAN_RUN}-1"
+          mapfile -t artifacts < <(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN/artifacts" \
+              --jq ".artifacts[] | select(.expired == false) | select(.name == \"$artifact_name\") | .name"
+          )
+          test "${#artifacts[@]}" -eq 1
+          gh run download "$PLAN_RUN" --name "$artifact_name" \
+            --dir artifacts/prod-runtime-error-capability-1202/approved
+          plan='artifacts/prod-runtime-error-capability-1202/approved/plan.json'
+          test -s "$plan"
+          jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" --arg run "$PLAN_RUN" '
+            .STATUS == "PASS"
+            and .ISSUE == 1202
+            and .TARGET == "PROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_ID == ("plan-1202-" + $run + "-1")
+            and .PLAN_DIGEST == $digest
+            and (.HELPER_SOURCE_SHA256 | test("^[0-9a-f]{64}$"))
+            and (.RENDERED_SUDOERS_SHA256 | test("^[0-9a-f]{64}$"))
+            and .RAW_SUDO_POLICY_EXPOSURE == "NONE"
+            and .CANNOT_BE_APPROVED == "NO"' "$plan" >/dev/null
+
+      - name: Consume approved PLAN exactly once before PROD access
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          marker="AGENCY_1202_PLAN_CONSUMED plan_run=$PLAN_RUN plan_digest=$PLAN_DIGEST"
+          if gh api --paginate "repos/$GITHUB_REPOSITORY/issues/1202/comments" \
+            --jq '.[].body' | grep -Fx -- "$marker" >/dev/null; then
+            printf '%s\n' 'Approved #1202 PLAN run is already consumed.' >&2
+            exit 65
+          fi
+          gh issue comment 1202 --body "$marker" >/dev/null
+
+      - name: Revalidate exact repository bindings before PROD access
+        shell: bash
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+        run: |
+          set -euo pipefail
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          base='scripts/production-maintenance-1183/runtime-error-counts'
+          plan='artifacts/prod-runtime-error-capability-1202/approved/plan.json'
+          rendered="$RUNNER_TEMP/agency-prod-runtime-error-counts.sudoers"
+          bash "$base/render-sudoers.sh" "$SERVER_USER" > "$rendered"
+          helper_hash="$(sha256sum "$base/agency-prod-runtime-error-counts" | awk '{print $1}')"
+          sudoers_hash="$(sha256sum "$rendered" | awk '{print $1}')"
+          user_hash="$(printf '%s' "$SERVER_USER" | sha256sum | awk '{print $1}')"
+          jq -e --arg helper "$helper_hash" --arg sudoers "$sudoers_hash" --arg user "$user_hash" '
+            .HELPER_SOURCE_SHA256 == $helper
+            and .RENDERED_SUDOERS_SHA256 == $sudoers
+            and .SERVER_USER_SHA256 == $user' "$plan" >/dev/null
+      - name: Materialize pinned PROD identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1202-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1202-prod.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Execute exact stale-checked #1202 APPLY
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1202-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          scp_args=(
+            -q
+            -i "$RUNNER_TEMP/agency-1202-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          base='scripts/production-maintenance-1183/runtime-error-counts'
+          remote_stage='.agency-1202-runtime-error-capability-stage'
+          approved='artifacts/prod-runtime-error-capability-1202/approved/plan.json'
+          result_dir='artifacts/prod-runtime-error-capability-1202/apply'
+          rendered="$RUNNER_TEMP/agency-prod-runtime-error-counts.sudoers"
+          mkdir -p "$result_dir"
+
+          cleanup_remote() {
+            ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+              "rm -rf -- '$remote_stage'" >/dev/null 2>&1 || true
+          }
+          trap cleanup_remote EXIT
+
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "umask 077; rm -rf -- '$remote_stage'; install -d -m 700 '$remote_stage'" \
+            >/dev/null 2>&1
+          scp "${scp_args[@]}" \
+            "$base/agency-prod-runtime-error-counts" \
+            "$rendered" \
+            "$base/validate-provision-plan.py" \
+            "$approved" \
+            "$SERVER_USER@$SERVER_HOST:$remote_stage/" >/dev/null 2>&1
+
+          set +e
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "bash -s -- '$PLAN_DIGEST' '$SERVER_USER'" \
+            < "$base/remote-provision-apply.sh" \
+            > "$result_dir/result.json" 2>/dev/null
+          apply_rc=$?
+          set -e
+
+          result="$result_dir/result.json"
+          test -s "$result"
+          if [[ "$apply_rc" -eq 0 ]]; then
+            jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" '
+              .STATUS == "PASS"
+              and .ISSUE == 1202
+              and .TARGET == "PROD"
+              and .MODE == "APPLY"
+              and .MAIN_SHA == $main
+              and .PLAN_DIGEST == $digest
+              and .STALE_PLAN == "PASS"
+              and .CAPABILITY_READY == "YES"
+              and .RAW_LOG_EXPOSURE == "NONE"
+              and .RAW_SUDO_POLICY_EXPOSURE == "NONE"
+              and .UNRELATED_PROD_MUTATION == "NONE"' "$result" >/dev/null
+          else
+            jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" '
+              .STATUS == "FAIL"
+              and .ISSUE == 1202
+              and .TARGET == "PROD"
+              and .MODE == "APPLY"
+              and .MAIN_SHA == $main
+              and .PLAN_DIGEST == $digest
+              and .CAPABILITY_READY == "NO"
+              and .RAW_LOG_EXPOSURE == "NONE"
+              and .RAW_SUDO_POLICY_EXPOSURE == "NONE"
+              and .UNRELATED_PROD_MUTATION == "NONE"' "$result" >/dev/null
+            exit "$apply_rc"
+          fi
+
+      - name: Upload bounded APPLY evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-runtime-error-capability-1202-apply-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/prod-runtime-error-capability-1202/apply/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded APPLY summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/prod-runtime-error-capability-1202/apply/result.json'
+          body="$(cat <<EOF_BODY
+          #1202 PROD runtime-error capability APPLY completed.
+
+          \`STATUS=$(jq -r '.STATUS' "$result")\`
+          \`RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}\`
+          \`CAPABILITY_READY=$(jq -r '.CAPABILITY_READY' "$result")\`
+          \`HELPER_INSTALL=$(jq -r '.HELPER_INSTALL' "$result")\`
+          \`SUDOERS_INSTALL=$(jq -r '.SUDOERS_INSTALL' "$result")\`
+          \`POST_INSTALL_HELPER_PROOF=$(jq -r '.POST_INSTALL_HELPER_PROOF' "$result")\`
+          \`REAL_PROD_MUTATION=BOUNDED_1202_ONLY\`
+          EOF_BODY
+          )"
+          gh issue comment 1202 --body "$body"
+
+      - name: Remove transient PROD key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1202-prod.key"

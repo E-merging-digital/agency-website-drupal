@@ -250,8 +250,12 @@ SH,
       'LISTPW_ANY_FALSE_POSITIVE' => 'POLICY_FORMAT_UNSUPPORTED',
       'UNSUPPORTED_FORMAT' => 'POLICY_FORMAT_UNSUPPORTED',
       'ADVERSARIAL_POLICY' => 'POLICY_FORMAT_UNSUPPORTED',
-      'CACHED_CREDENTIAL_FALSE_POSITIVE' => 'EXIT_UNSUPPORTED',
-      'UNSUPPORTED_EXIT' => 'EXIT_UNSUPPORTED',
+      'CACHED_CREDENTIAL_FALSE_POSITIVE' => 'EXIT_ONE_POLICY_EXACT',
+      'UNSUPPORTED_EXIT' => 'EXIT_OTHER_POLICY_EXACT',
+      'EXIT_ONE_EMPTY' => 'EXIT_ONE_POLICY_EMPTY',
+      'EXIT_ONE_NONEXACT' => 'EXIT_ONE_POLICY_OTHER',
+      'EXIT_OTHER_EMPTY' => 'EXIT_OTHER_POLICY_EMPTY',
+      'EXIT_OTHER_NONEXACT' => 'EXIT_OTHER_POLICY_OTHER',
       'SETENV' => 'OPTION_UNSUPPORTED',
       'NO_ENV_RESET' => 'OPTION_UNSUPPORTED',
       'UNKNOWN_OPTION' => 'OPTION_UNSUPPORTED',
@@ -357,6 +361,10 @@ SH,
         'RAW_STDERR_PRIVATE' => [$rule, 'private stderr', 0, 'UNKNOWN'],
         'EMPTY_POLICY' => ['', '', 0, 'UNKNOWN'],
         'UNSUPPORTED_EXIT' => [$rule, '', 2, 'UNKNOWN'],
+        'EXIT_ONE_EMPTY' => ['', '', 1, 'UNKNOWN'],
+        'EXIT_ONE_NONEXACT' => [str_replace('!authenticate', '!authenticate, future_option', $rule), '', 1, 'UNKNOWN'],
+        'EXIT_OTHER_EMPTY' => [" \t\n", '', 2, 'UNKNOWN'],
+        'EXIT_OTHER_NONEXACT' => [str_replace('!authenticate', '!authenticate, future_option', $rule), '', 2, 'UNKNOWN'],
         'MISSING_AUTH' => [str_replace('!authenticate', 'env_reset', $rule), '', 0, 'UNKNOWN'],
         'ADVERSARIAL_POLICY' => [
           "AVAILABLE NONE\nWHY_UNKNOWN_HELPER_INSTALL=NONE\nprivate-user private-host /private/source /unrelated/command",
@@ -428,13 +436,23 @@ SH);
     ]));
     ksort($identity);
     self::assertSame(hash('sha256', json_encode($identity, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)), $plan['PLAN_DIGEST']);
+    $validReasons = [
+      'NONE', 'POLICY_EMPTY',
+      'EXIT_ONE_POLICY_EMPTY', 'EXIT_ONE_POLICY_EXACT', 'EXIT_ONE_POLICY_OTHER',
+      'EXIT_OTHER_POLICY_EMPTY', 'EXIT_OTHER_POLICY_EXACT', 'EXIT_OTHER_POLICY_OTHER',
+    ];
     foreach (['HELPER_INSTALL', 'SUDOERS_INSTALL', 'VISUDO_VALIDATION'] as $suffix) {
       $key = 'WHY_UNKNOWN_' . $suffix;
       self::assertSame('NONE', $plan[$key]);
       foreach (['AVAILABLE', 'UNAVAILABLE', 'UNKNOWN'] as $privilege) {
-        foreach (['NONE', 'POLICY_EMPTY', '', "private-user private-host /private/source /unrelated/command\nNONE"] as $reason) {
+        $invalidReasons = [
+          'EXIT_UNSUPPORTED',
+          '',
+          "private-user private-host /private/source /unrelated/command\nNONE",
+        ];
+        foreach (array_merge($validReasons, $invalidReasons) as $reason) {
           $result = $this->plan(['PRIVILEGED_' . $suffix => $privilege, $key => $reason]);
-          $valid = in_array($reason, ['NONE', 'POLICY_EMPTY'], TRUE) && (($reason === 'NONE') === ($privilege !== 'UNKNOWN'));
+          $valid = in_array($reason, $validReasons, TRUE) && (($reason === 'NONE') === ($privilege !== 'UNKNOWN'));
           self::assertSame($valid ? ($privilege === 'AVAILABLE' ? 0 : 1) : 70, $result['status']);
           self::assertSame('', $result['error']);
           if (!$valid) {

@@ -13,11 +13,16 @@ STAGE_HELPER="$STAGE_DIR/agency-prod-runtime-error-counts"
 STAGE_SUDOERS="$STAGE_DIR/agency-prod-runtime-error-counts.sudoers"
 
 probe_exact_sudo() {
+  local result
+  result="$(probe_exact_sudo_with_reason "$@")"
+  printf '%s' "${result%% *}"
+}
+probe_exact_sudo_with_reason() {
   # Listing success alone proves neither NOPASSWD nor exact authorization.
   # Accept only one fully understood long-format entry; keep policy private.
   local policy stderr_file result rc=0
   if ! stderr_file="$(umask 077; mktemp 2>/dev/null)"; then
-    printf '%s' 'UNKNOWN'
+    printf '%s' 'UNKNOWN INTERNAL_TEMPFILE_ERROR'
     return
   fi
   policy="$(LC_ALL=C sudo -k -n -ll -- "$@" 2>"$stderr_file")" || rc=$?
@@ -66,14 +71,50 @@ elif rc == 1 and not policy.strip() and safe_args:
               + r" as root on " + identity + r"\.)\n?")
     if re.fullmatch(denial, error):
         state = "UNAVAILABLE"
-print(state, end="")
-' "$rc" "$stderr_file" "$@" 2>/dev/null)" || result='UNKNOWN'
+# Diagnostics describe only UNKNOWN; the #1208 decision above is unchanged.
+reason = "NONE"
+if state == "UNKNOWN":
+    if "sudo: a password is required" in error:
+        reason = "STDERR_PASSWORD_REQUIRED"
+    elif error:
+        reason = "STDERR_PRESENT"
+    elif rc != 0:
+        reason = "EXIT_UNSUPPORTED"
+    elif not policy.strip():
+        reason = "POLICY_EMPTY"
+    elif len(re.findall(r"(?m)^\s*Sudoers entry:", policy)) > 1:
+        reason = "MULTIPLE_ENTRIES"
+    elif not re.search(r"(?m)^[ \t]*Matched:", policy):
+        reason = ("MATCHED_MISSING" if re.search(
+            r"(?m)^\s*Sudoers entry:", policy) else "POLICY_FORMAT_UNSUPPORTED")
+    elif re.search(r"(?m)^[ \t]+RunAs(?:Users|Groups): (?!root$)", policy):
+        reason = "RUNAS_MISMATCH"
+    elif match is None:
+        reason = "POLICY_FORMAT_UNSUPPORTED"
+    elif match[2] != expected or match[3] != expected or not safe_args:
+        reason = "COMMAND_MISMATCH"
+    elif len(auth) != 1 or any(options.count(tag) > 1 for tag in auth):
+        reason = "AUTH_AMBIGUOUS"
+    elif not safe_options or len(options) != len({
+            option.split("=", 1)[0] for option in options}):
+        reason = "OPTION_UNSUPPORTED"
+    else:
+        reason = "POLICY_FORMAT_UNSUPPORTED"
+print(state, reason, end="")
+' "$rc" "$stderr_file" "$@" 2>/dev/null)" || result='UNKNOWN INTERNAL_PARSER_ERROR'
   if ! rm -f -- "$stderr_file" 2>/dev/null; then
-    result='UNKNOWN'
+    result='UNKNOWN INTERNAL_TEMPFILE_ERROR'
   fi
   case "$result" in
-    AVAILABLE|UNAVAILABLE|UNKNOWN) printf '%s' "$result" ;;
-    *) printf '%s' 'UNKNOWN' ;;
+    'AVAILABLE NONE'|'UNAVAILABLE NONE'|\
+    'UNKNOWN INTERNAL_TEMPFILE_ERROR'|'UNKNOWN INTERNAL_PARSER_ERROR'|\
+    'UNKNOWN STDERR_PASSWORD_REQUIRED'|'UNKNOWN STDERR_PRESENT'|\
+    'UNKNOWN EXIT_UNSUPPORTED'|'UNKNOWN POLICY_EMPTY'|\
+    'UNKNOWN MULTIPLE_ENTRIES'|'UNKNOWN MATCHED_MISSING'|\
+    'UNKNOWN RUNAS_MISMATCH'|'UNKNOWN COMMAND_MISMATCH'|\
+    'UNKNOWN AUTH_AMBIGUOUS'|'UNKNOWN OPTION_UNSUPPORTED'|\
+    'UNKNOWN POLICY_FORMAT_UNSUPPORTED') printf '%s' "$result" ;;
+    *) printf '%s' 'UNKNOWN INTERNAL_PARSER_ERROR' ;;
   esac
 }
 fixed_sudoers_hash() {
@@ -151,14 +192,14 @@ RENDERED_SUDOERS_SHA256="${5:-}"
 SERVER_USER_SHA256="$(printf '%s' "$SERVER_USER" | sha256sum | awk '{print $1}')"
 HELPER_STATE="$(classify_target "$HELPER_DEST" "$HELPER_SOURCE_SHA256" 'root:root:755')"
 SUDOERS_STATE="$(classify_target "$SUDOERS_DEST" "$RENDERED_SUDOERS_SHA256" 'root:root:440')"
-PRIVILEGED_HELPER_INSTALL="$(probe_exact_sudo \
+read -r PRIVILEGED_HELPER_INSTALL WHY_UNKNOWN_HELPER_INSTALL <<< "$(probe_exact_sudo_with_reason \
   /usr/bin/install -o root -g root -m 0755 -- \
   "$STAGE_HELPER" "$HELPER_DEST")"
-PRIVILEGED_SUDOERS_INSTALL="$(probe_exact_sudo \
+read -r PRIVILEGED_SUDOERS_INSTALL WHY_UNKNOWN_SUDOERS_INSTALL <<< "$(probe_exact_sudo_with_reason \
   /usr/bin/install -o root -g root -m 0440 -- \
   "$STAGE_SUDOERS" "$SUDOERS_DEST")"
 
-PRIVILEGED_VISUDO_VALIDATION="$(probe_exact_sudo \
+read -r PRIVILEGED_VISUDO_VALIDATION WHY_UNKNOWN_VISUDO_VALIDATION <<< "$(probe_exact_sudo_with_reason \
   /usr/sbin/visudo -cf "$STAGE_SUDOERS")"
 
 export MAIN_SHA PLAN_ID SERVER_USER_SHA256
@@ -166,6 +207,7 @@ export HELPER_SOURCE_SHA256 RENDERED_SUDOERS_SHA256
 export HELPER_STATE SUDOERS_STATE
 export PRIVILEGED_HELPER_INSTALL PRIVILEGED_SUDOERS_INSTALL
 export PRIVILEGED_VISUDO_VALIDATION
+export WHY_UNKNOWN_HELPER_INSTALL WHY_UNKNOWN_SUDOERS_INSTALL WHY_UNKNOWN_VISUDO_VALIDATION
 python3 - <<'PY'
 import hashlib
 import json
@@ -197,6 +239,21 @@ privileges = {
 valid_privileges = {'AVAILABLE', 'UNAVAILABLE', 'UNKNOWN'}
 if any(value not in valid_privileges for value in privileges.values()):
     raise SystemExit(70)
+
+valid_reasons = {
+    'NONE', 'INTERNAL_TEMPFILE_ERROR', 'INTERNAL_PARSER_ERROR',
+    'STDERR_PASSWORD_REQUIRED', 'STDERR_PRESENT', 'EXIT_UNSUPPORTED',
+    'POLICY_EMPTY', 'MULTIPLE_ENTRIES', 'MATCHED_MISSING', 'RUNAS_MISMATCH',
+    'COMMAND_MISMATCH', 'AUTH_AMBIGUOUS', 'OPTION_UNSUPPORTED',
+    'POLICY_FORMAT_UNSUPPORTED',
+}
+reasons = {}
+for key, privilege in privileges.items():
+    reason_key = key.replace('PRIVILEGED_', 'WHY_UNKNOWN_', 1)
+    reason = os.environ.get(reason_key)
+    if reason not in valid_reasons or (reason == 'NONE') != (privilege != 'UNKNOWN'):
+        raise SystemExit(70)
+    reasons[reason_key] = reason
 
 status = 'FAIL'
 install_decision = 'BLOCKED'
@@ -237,6 +294,7 @@ if status == 'PASS':
 
 receipt = dict(identity)
 receipt.update({
+    **reasons,
     'STATUS': status,
     'RAW_SUDO_POLICY_EXPOSURE': 'NONE',
     'NONCONFORMANT_OVERWRITE': 'FORBIDDEN',

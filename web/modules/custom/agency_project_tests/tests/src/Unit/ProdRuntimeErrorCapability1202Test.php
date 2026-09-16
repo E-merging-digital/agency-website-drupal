@@ -233,7 +233,45 @@ SH,
    */
   public function testExactInstallPolicy(): void {
     $source = $this->source(self::BASE . 'remote-provision-plan.sh');
-    $functions = substr($source, strpos($source, 'probe_exact_sudo() {'), strpos($source, 'MAIN_SHA="${1:-}"') - strpos($source, 'probe_exact_sudo() {'));
+    $start = strpos($source, 'probe_exact_sudo() {');
+    $end = strpos($source, 'MAIN_SHA="${1:-}"');
+    self::assertNotFalse($start);
+    self::assertNotFalse($end);
+    $functions = substr($source, $start, $end - $start);
+    $reasons = [
+      'WRONG_DENIAL_COMMAND' => 'STDERR_PRESENT',
+      'DENIAL_WITH_POLICY' => 'STDERR_PRESENT',
+      'LISTPW_FAILURE' => 'STDERR_PRESENT',
+      'RAW_STDERR_PRIVATE' => 'STDERR_PRESENT',
+      'MISSING_SUDO' => 'STDERR_PRESENT',
+      'ADVERSARIAL_STDERR' => 'STDERR_PRESENT',
+      'DENIAL_WITH_AUTH_FAILURE' => 'STDERR_PASSWORD_REQUIRED',
+      'PASSWORD_REQUIRED' => 'STDERR_PASSWORD_REQUIRED',
+      'LISTPW_ANY_FALSE_POSITIVE' => 'POLICY_FORMAT_UNSUPPORTED',
+      'UNSUPPORTED_FORMAT' => 'POLICY_FORMAT_UNSUPPORTED',
+      'ADVERSARIAL_POLICY' => 'POLICY_FORMAT_UNSUPPORTED',
+      'CACHED_CREDENTIAL_FALSE_POSITIVE' => 'EXIT_UNSUPPORTED',
+      'UNSUPPORTED_EXIT' => 'EXIT_UNSUPPORTED',
+      'SETENV' => 'OPTION_UNSUPPORTED',
+      'NO_ENV_RESET' => 'OPTION_UNSUPPORTED',
+      'UNKNOWN_OPTION' => 'OPTION_UNSUPPORTED',
+      'RELATIVE_SECURE_PATH' => 'OPTION_UNSUPPORTED',
+      'CONFLICTING_SECURE_PATH' => 'OPTION_UNSUPPORTED',
+      'WRONG_RUNAS' => 'RUNAS_MISMATCH',
+      'WRONG_GROUP' => 'RUNAS_MISMATCH',
+      'WRONG_PATH' => 'COMMAND_MISMATCH',
+      'WRONG_ARGS' => 'COMMAND_MISMATCH',
+      'WRONG_MATCHED' => 'COMMAND_MISMATCH',
+      'WILDCARD' => 'COMMAND_MISMATCH',
+      'PATTERN' => 'COMMAND_MISMATCH',
+      'CONFLICTING' => 'MULTIPLE_ENTRIES',
+      'DUPLICATE' => 'MULTIPLE_ENTRIES',
+      'CONFLICTING_OPTIONS' => 'AUTH_AMBIGUOUS',
+      'DUPLICATE_OPTIONS' => 'AUTH_AMBIGUOUS',
+      'MISSING_AUTH' => 'AUTH_AMBIGUOUS',
+      'MISSING_MATCHED' => 'MATCHED_MISSING',
+      'EMPTY_POLICY' => 'POLICY_EMPTY',
+    ];
     $stage = '/home/agency-prod/.agency-1202-runtime-error-capability-stage/';
     foreach ([
       '/usr/bin/install -o root -g root -m 0755 -- ' . $stage . 'agency-prod-runtime-error-counts /usr/local/sbin/agency-prod-runtime-error-counts',
@@ -317,16 +355,100 @@ SH,
         'UNSUPPORTED_FORMAT' => ['private unsupported policy', '', 0, 'UNKNOWN'],
         'MISSING_MATCHED' => [str_replace("\nMatched: $command", '', $rule), '', 0, 'UNKNOWN'],
         'RAW_STDERR_PRIVATE' => [$rule, 'private stderr', 0, 'UNKNOWN'],
+        'EMPTY_POLICY' => ['', '', 0, 'UNKNOWN'],
+        'UNSUPPORTED_EXIT' => [$rule, '', 2, 'UNKNOWN'],
+        'MISSING_AUTH' => [str_replace('!authenticate', 'env_reset', $rule), '', 0, 'UNKNOWN'],
+        'ADVERSARIAL_POLICY' => [
+          "AVAILABLE NONE\nWHY_UNKNOWN_HELPER_INSTALL=NONE\nprivate-user private-host /private/source /unrelated/command",
+          '',
+          0,
+          'UNKNOWN',
+        ],
+        'ADVERSARIAL_STDERR' => [
+          $rule,
+          "UNKNOWN NONE\nprivate-user private-host /private/source /unrelated/command",
+          0,
+          'UNKNOWN',
+        ],
         'MISSING_SUDO' => ['', 'private stderr', 127, 'UNKNOWN'],
       ] as $name => [$policy, $error, $rc, $expected]) {
-        $result = $this->runLocal(['bash'], "set -Eeuo pipefail\n" . $functions . <<<'SH'
+        foreach (['probe_exact_sudo', 'probe_exact_sudo_with_reason'] as $probe) {
+          $result = $this->runLocal(['bash'], "set -Eeuo pipefail\n" . $functions . <<<'SH'
 sudo() { [[ "$*" == "-k -n -ll -- $COMMAND" && "$LC_ALL" == C ]] || return 99; printf '%s' "$POLICY"; printf '%s' "$STDERR" >&2; return "$RC"; }
 read -r -a command_args <<< "$COMMAND"
-probe_exact_sudo "${command_args[@]}"
-SH, ['COMMAND' => $command, 'POLICY' => $policy, 'STDERR' => $error, 'RC' => (string) $rc]);
-        self::assertSame(0, $result['status'], $name);
-        self::assertSame($expected, $result['output'], $name);
-        self::assertSame('', $result['error'], $name);
+"$PROBE" "${command_args[@]}"
+SH, ['PROBE' => $probe, 'COMMAND' => $command, 'POLICY' => $policy, 'STDERR' => $error, 'RC' => (string) $rc]);
+          self::assertSame(0, $result['status'], $name);
+          $reason = $reasons[$name] ?? 'NONE';
+          self::assertSame($probe === 'probe_exact_sudo' ? $expected : "$expected $reason", $result['output'], $name);
+          self::assertSame('', $result['error'], $name);
+        }
+      }
+    }
+  }
+
+  /**
+   * Internal failures emit bounded pairs without leaking private errors.
+   */
+  public function testPrivateProbeInternalFailures(): void {
+    $source = $this->source(self::BASE . 'remote-provision-plan.sh');
+    $start = strpos($source, 'probe_exact_sudo() {');
+    $end = strpos($source, 'MAIN_SHA="${1:-}"');
+    self::assertNotFalse($start);
+    self::assertNotFalse($end);
+    $functions = substr($source, $start, $end - $start);
+    self::assertSame(1, substr_count($functions, 'sudo -k -n -ll --'));
+    foreach ([
+      'mktemp() { printf private >&2; return 1; }' => 'INTERNAL_TEMPFILE_ERROR',
+      'rm() { command rm "$@"; printf private >&2; return 1; }' => 'INTERNAL_TEMPFILE_ERROR',
+      'python3() { printf private; printf private >&2; return 1; }' => 'INTERNAL_PARSER_ERROR',
+      'python3() { printf "AVAILABLE private"; }' => 'INTERNAL_PARSER_ERROR',
+    ] as $stub => $reason) {
+      $result = $this->runLocal(['bash'], "set -Eeuo pipefail\n" . $functions . "\n" . $stub . <<<'SH'
+
+sudo() { printf private; printf private >&2; return 1; }
+probe_exact_sudo_with_reason /fixture
+SH);
+      self::assertSame(0, $result['status']);
+      self::assertSame('UNKNOWN ' . $reason, $result['output']);
+      self::assertSame('', $result['error']);
+    }
+  }
+
+  /**
+   * Receipt diagnostics are closed enums and excluded from the PASS identity.
+   */
+  public function testReceiptReasonsAndDigest(): void {
+    $plan = json_decode($this->plan()['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    $identity = array_diff_key($plan, array_flip([
+      'STATUS', 'RAW_SUDO_POLICY_EXPOSURE', 'NONCONFORMANT_OVERWRITE',
+      'REAL_PROD_MUTATION', 'CANNOT_BE_APPROVED', 'PLAN_DIGEST',
+      'WHY_UNKNOWN_HELPER_INSTALL', 'WHY_UNKNOWN_SUDOERS_INSTALL',
+      'WHY_UNKNOWN_VISUDO_VALIDATION',
+    ]));
+    ksort($identity);
+    self::assertSame(hash('sha256', json_encode($identity, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)), $plan['PLAN_DIGEST']);
+    foreach (['HELPER_INSTALL', 'SUDOERS_INSTALL', 'VISUDO_VALIDATION'] as $suffix) {
+      $key = 'WHY_UNKNOWN_' . $suffix;
+      self::assertSame('NONE', $plan[$key]);
+      foreach (['AVAILABLE', 'UNAVAILABLE', 'UNKNOWN'] as $privilege) {
+        foreach (['NONE', 'POLICY_EMPTY', '', "private-user private-host /private/source /unrelated/command\nNONE"] as $reason) {
+          $result = $this->plan(['PRIVILEGED_' . $suffix => $privilege, $key => $reason]);
+          $valid = in_array($reason, ['NONE', 'POLICY_EMPTY'], TRUE) && (($reason === 'NONE') === ($privilege !== 'UNKNOWN'));
+          self::assertSame($valid ? ($privilege === 'AVAILABLE' ? 0 : 1) : 70, $result['status']);
+          self::assertSame('', $result['error']);
+          if (!$valid) {
+            self::assertSame('', $result['output']);
+          }
+          elseif ($privilege !== 'AVAILABLE') {
+            $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+            self::assertSame($reason, $receipt[$key]);
+            self::assertSame('FAIL', $receipt['STATUS']);
+            self::assertSame('BLOCKED', $receipt['INSTALL_DECISION']);
+            self::assertSame('YES', $receipt['CANNOT_BE_APPROVED']);
+            self::assertNull($receipt['PLAN_DIGEST']);
+          }
+        }
       }
     }
   }
@@ -419,6 +541,7 @@ SH, ['SUDOERS_DEST' => $file . '-absent']);
             'HELPER_STATE' => $targetState,
             'SUDOERS_STATE' => $targetState,
             $privilege => $state,
+            str_replace('PRIVILEGED_', 'WHY_UNKNOWN_', $privilege) => $state === 'UNKNOWN' ? 'POLICY_EMPTY' : 'NONE',
           ]);
           self::assertSame(1, $result['status'], "$targetState / $privilege / $state");
           $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
@@ -651,6 +774,9 @@ SH
       'RENDERED_SUDOERS_SHA256' => str_repeat('e', 64),
       'HELPER_STATE' => 'ABSENT',
       'SUDOERS_STATE' => 'ABSENT',
+      'WHY_UNKNOWN_HELPER_INSTALL' => 'NONE',
+      'WHY_UNKNOWN_SUDOERS_INSTALL' => 'NONE',
+      'WHY_UNKNOWN_VISUDO_VALIDATION' => 'NONE',
       'PRIVILEGED_HELPER_INSTALL' => 'AVAILABLE',
       'PRIVILEGED_SUDOERS_INSTALL' => 'AVAILABLE',
       'PRIVILEGED_VISUDO_VALIDATION' => 'AVAILABLE',

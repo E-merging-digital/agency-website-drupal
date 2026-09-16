@@ -27,8 +27,14 @@ trap cleanup EXIT
 [[ "$#" -eq 0 ]] || fail "Pass the bearer through stdin/prompt, never as an argument."
 getent group "$TOKEN_GROUP" >/dev/null 2>&1 || fail "Required group $TOKEN_GROUP is missing."
 
-install -d -m 750 -o root -g "$TOKEN_GROUP" "$TOKEN_DIR"
-[[ ! -L "$TOKEN_DIR" ]] || fail "Token directory must not be a symlink."
+if [[ -e "$TOKEN_DIR" || -L "$TOKEN_DIR" ]]; then
+  [[ -d "$TOKEN_DIR" && ! -L "$TOKEN_DIR" ]] || \
+    fail "Token directory must be a real directory, not a symlink."
+  chown root:"$TOKEN_GROUP" "$TOKEN_DIR"
+  chmod 750 "$TOKEN_DIR"
+else
+  install -d -m 750 -o root -g "$TOKEN_GROUP" "$TOKEN_DIR"
+fi
 [[ ! -L "$TOKEN_FILE" ]] || fail "Token file must not be a symlink."
 
 if [[ -t 0 ]]; then

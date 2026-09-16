@@ -22,6 +22,20 @@ $settings['trusted_host_patterns'] = [
 $settings['update_free_access'] = FALSE;
 $settings['rebuild_access'] = FALSE;
 
+// The cockpit bearer is runtime-only server state. PREPROD deliberately does
+// not inherit process environment because PHP-FPM uses clear_env = yes.
+$agency_cockpit_token_file = '/etc/agency-preprod/cockpit-state-token';
+if (!is_link($agency_cockpit_token_file)
+  && is_file($agency_cockpit_token_file)
+  && is_readable($agency_cockpit_token_file)) {
+  $agency_cockpit_token = trim((string) file_get_contents($agency_cockpit_token_file));
+  if ($agency_cockpit_token !== '') {
+    $settings['agency_operations_cockpit_state_token'] = $agency_cockpit_token;
+  }
+  unset($agency_cockpit_token);
+}
+unset($agency_cockpit_token_file);
+
 // PREPROD is fail-safe: never inherit production-only configuration.
 $config['config_split.config_split.production']['status'] = FALSE;
 $config['config_split.config_split.preproduction']['status'] = TRUE;

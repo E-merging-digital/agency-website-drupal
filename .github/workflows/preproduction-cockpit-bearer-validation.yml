@@ -1,0 +1,84 @@
+name: Validate PREPROD cockpit bearer runtime
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preproduction-cockpit-bearer-validation.yml'
+      - 'docs/operations/environment-data-adapter.md'
+      - 'scripts/preproduction/provision-cockpit-state-token.sh'
+      - 'scripts/preproduction/settings.php.template'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionCockpitBearerRuntimeTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-preproduction-cockpit-bearer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Validate syntax and static boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/preproduction/provision-cockpit-state-token.sh
+          php -l scripts/preproduction/settings.php.template
+          grep -Fq '/etc/agency-preprod/cockpit-state-token' scripts/preproduction/settings.php.template
+          grep -Fq '!is_link($agency_cockpit_token_file)' scripts/preproduction/settings.php.template
+          grep -Fq "agency_operations_cockpit_state_token'] = $agency_cockpit_token" scripts/preproduction/settings.php.template
+          ! grep -Fq 'getenv(' scripts/preproduction/settings.php.template
+          ! grep -Fq 'openssl rand' scripts/preproduction/provision-cockpit-state-token.sh
+          grep -Fq 'clear_env = yes' scripts/preproduction/bootstrap-host.sh
+
+      - name: Prove optional server-owned bearer behavior with synthetic credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          dummy='0123456789abcdef0123456789abcdef'
+          rendered=/tmp/agency-preprod-settings.php
+
+          sed \
+            -e 's|@@DB_NAME@@|agency_preprod|g' \
+            -e 's|@@DB_USER@@|agency_preprod|g' \
+            -e 's|@@DB_PASSWORD@@|synthetic-db-password|g' \
+            -e 's|@@HASH_SALT@@|synthetic-hash-salt|g' \
+            -e 's|@@PROJECT_ROOT@@|/var/www/agency-preprod|g' \
+            -e 's|@@TRUSTED_HOST_REGEX@@|preprod\\.emergingdigital\\.be|g' \
+            scripts/preproduction/settings.php.template > "$rendered"
+
+          printf '%s\n' "$dummy" | sudo bash scripts/preproduction/provision-cockpit-state-token.sh
+          test "$(stat -c '%U:%G:%a' /etc/agency-preprod/cockpit-state-token)" = 'root:www-data:640'
+          sudo grep -Fqx "$dummy" /etc/agency-preprod/cockpit-state-token
+
+          DUMMY_TOKEN="$dummy" php -r '
+            $databases = $settings = $config = [];
+            define("DRUPAL_ROOT", "/tmp/web");
+            include $argv[1];
+            exit(($settings["agency_operations_cockpit_state_token"] ?? "") === getenv("DUMMY_TOKEN") ? 0 : 1);
+          ' "$rendered"
+
+          sudo rm -f /etc/agency-preprod/cockpit-state-token
+          php -r '
+            $databases = $settings = $config = [];
+            define("DRUPAL_ROOT", "/tmp/web");
+            include $argv[1];
+            exit(array_key_exists("agency_operations_cockpit_state_token", $settings) ? 1 : 0);
+          ' "$rendered"
+
+          printf '%s\n' "$dummy" > /tmp/cockpit-state-token-target
+          sudo ln -s /tmp/cockpit-state-token-target /etc/agency-preprod/cockpit-state-token
+          php -r '
+            $databases = $settings = $config = [];
+            define("DRUPAL_ROOT", "/tmp/web");
+            include $argv[1];
+            exit(array_key_exists("agency_operations_cockpit_state_token", $settings) ? 1 : 0);
+          ' "$rendered"
+
+          if printf '%s\n' "$dummy" | sudo bash scripts/preproduction/provision-cockpit-state-token.sh unexpected; then
+            echo 'Provisioning helper accepted a secret-bearing argument path.' >&2
+            exit 1
+          fi

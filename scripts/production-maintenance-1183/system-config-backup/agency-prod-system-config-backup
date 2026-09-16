@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+PATH='/usr/sbin:/usr/bin:/sbin:/bin'
+LC_ALL=C
+export PATH LC_ALL
+# Ambient archiver options must not alter the fixed sources or destination.
+unset TAR_OPTIONS GZIP
+# Never emit tool diagnostics or configuration content.
+exec 2>/dev/null
+BACKUP_ROOT='/var/www/agency/shared/backups'
+temp_dir=''
+cleanup() {
+  local rc=$?
+  trap - EXIT
+  [[ -z "$temp_dir" ]] || /usr/bin/rm -rf -- "$temp_dir"
+  if (( rc != 0 )); then printf 'STATUS=FAIL\n'; fi
+  exit "$rc"
+}
+trap cleanup EXIT
+if (( $# != 0 )); then exit 64; fi
+[[ "$EUID" -eq 0 ]]
+# Reject symlink ancestors as well as the fixed directory entries themselves.
+for directory in /var /var/www /var/www/agency /var/www/agency/shared "$BACKUP_ROOT" /etc /etc/php /etc/nginx /etc/php/8.4 /etc/mysql; do
+  [[ -d "$directory" && ! -L "$directory" ]]
+done
+cd -- "$BACKUP_ROOT"
+# Relative operations stay attached to the checked directory.
+timestamp="$(/usr/bin/date -u +%Y%m%dT%H%M%SZ)"
+[[ "$timestamp" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]
+archive="pre-os-maintenance-1183-$timestamp-system-config.tar.gz"
+[[ ! -e "$archive" && ! -L "$archive" ]]
+temp_dir="$(/usr/bin/mktemp -d .system-config-backup.XXXXXXXXXX)"
+# tar preserves internal configuration symlinks; it must never dereference them.
+/usr/bin/tar -C / -czf "$temp_dir/archive" -- etc/nginx etc/php/8.4 etc/mysql
+/usr/bin/chown root:root -- "$temp_dir/archive"
+/usr/bin/chmod 0600 -- "$temp_dir/archive"
+[[ -f "$temp_dir/archive" && ! -L "$temp_dir/archive" ]]
+size="$(/usr/bin/stat -c '%s' -- "$temp_dir/archive")"
+[[ "$size" =~ ^[1-9][0-9]{0,18}$ ]]
+hash="$(/usr/bin/sha256sum -- "$temp_dir/archive")"
+hash="${hash%% *}"
+[[ "$hash" =~ ^[0-9a-f]{64}$ ]]
+# Hard-link creation is atomic and fails if any destination entry already exists.
+/usr/bin/ln -T -- "$temp_dir/archive" "$archive"
+printf 'STATUS=PASS\nSYSTEM_CONFIG_BACKUP=%s/%s\nSYSTEM_CONFIG_BACKUP_SHA256=%s\nSYSTEM_CONFIG_BACKUP_SIZE=%s\n' "$BACKUP_ROOT" "$archive" "$hash" "$size"

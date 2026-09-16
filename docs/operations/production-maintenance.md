@@ -163,15 +163,45 @@ sudo test -s "/var/www/agency/shared/backups/pre-maintenance-$TIMESTAMP.sql.gz"
 
 ### Sauvegarde des configurations système concernées
 
-Adapter la liste au périmètre réel :
+La sauvegarde #1183 utilise uniquement le helper sans argument :
 
 ```bash
-sudo tar -C / -czf \
-  "/var/www/agency/shared/backups/system-config-$TIMESTAMP.tar.gz" \
-  etc/php/8.4 \
-  etc/nginx \
-  etc/mysql
+sudo -n -- /usr/local/sbin/agency-prod-system-config-backup
 ```
+
+Les sources sont fixes (`etc/nginx`, `etc/php/8.4`, `etc/mysql`), sous `/`.
+Le helper refuse les sources racines ou répertoires parents symboliques et conserve
+les liens internes sans les suivre. Il crée dans `/var/www/agency/shared/backups`
+une archive `pre-os-maintenance-1183-<UTC>-system-config.tar.gz`, root:root 0600,
+via un temporaire privé puis un lien atomique sans écrasement. Son reçu contient
+uniquement statut, chemin borné, SHA-256 et taille ; les erreurs ne publient aucun
+contenu de configuration.
+
+Le bootstrap administrateur est séparé de PLAN/APPLY : les fichiers de
+`scripts/production-maintenance-1183/system-config-backup/` sont destinés à une
+installation revue du helper root:root 0755 et du sudoers root:root 0440. Rendre
+la règle avec `render-sudoers.sh <SERVER_USER>`, la valider avec `visudo -cf`, puis
+vérifier l'installation avec `verify-installed-root.sh <SERVER_USER>`. La règle
+n'autorise que ce helper avec `NOPASSWD: NOSETENV:` ; aucun privilège générique
+sur tar, shell ou installation n'est ajouté. Ce correctif dépôt n'installe rien.
+
+PLAN vérifie les commandes exactes via `sudo -k -n -ll -- <arguments>` sans les
+exécuter. Chaque privilège requis doit être `AVAILABLE` ; `UNAVAILABLE` et
+`UNKNOWN` bloquent. Sans paquet sélectionné, les trois audits APT sont
+`UNKNOWN / NOT_REQUIRED`. Les classifications entrent dans le digest, les motifs
+fermés restent des observations. Aucune policy sudo brute n'est publiée.
+APPLY rejette les anciens PLANs sans ces champs, revalide le digest et vérifie le
+reçu du helper et les métadonnées de l'archive sans sudo. Les deux sauvegardes
+précèdent le mode maintenance et APT. L'autorité PLAN/APPLY demeure inchangée :
+l'APPLY consommé `35147468119` n'est jamais une autorité réutilisable ; une nouvelle
+intervention exige le PLAN et l'approbation dédiés du workflow existant.
+
+`EXISTING_CAPABILITY_AUDIT` (#1215) : Drupal core/Drush couvrent le dump DB,
+mais pas l'accès aux configurations système root ; DDEV est hors périmètre PROD
+et aucun module contrib n'est nécessaire. Les primitives système tar, mktemp,
+ln, stat, sha256sum et sudo couvrent l'archivage et l'audit. Les conventions Agency
+#1197 et le parseur privé #1202 sont réutilisés : `EXTEND EXISTING`, sans moteur
+générique ni nouvelle route de provisioning.
 
 Ne jamais ajouter ces archives dans Git.
 

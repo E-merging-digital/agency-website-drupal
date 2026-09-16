@@ -119,7 +119,7 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
       'MAINTENANCE_WINDOW_REF',
       'MAINTENANCE_WINDOW_APPROVAL',
       'vendor/bin/drush sql:dump --gzip',
-      'etc/nginx etc/php/8.4 etc/mysql',
+      'sudo -n -- "$SYSTEM_CONFIG_BACKUP_HELPER"',
       'apt-get --simulate install --only-upgrade',
       'apt-get install -y --only-upgrade',
       'Exact apply simulation drift',
@@ -129,11 +129,11 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
       self::assertStringContainsString($required, $workflow . "\n" . $apply);
     }
     $dbBackup = strpos($apply, 'vendor/bin/drush sql:dump --gzip');
-    $configBackup = strpos($apply, 'sudo -n tar -C / -czf');
+    $configBackup = strpos($apply, 'sudo -n -- "$SYSTEM_CONFIG_BACKUP_HELPER"');
     $maintenanceOn = strpos($apply, 'state:set system.maintenance_mode 1');
-    $aptUpdate = strpos($apply, 'sudo -n apt-get update');
-    $exactSimulation = strpos($apply, 'sudo -n apt-get --simulate install --only-upgrade');
-    $packageApply = strpos($apply, 'sudo -n apt-get install -y --only-upgrade');
+    $aptUpdate = strpos($apply, 'sudo -n -- /usr/bin/apt-get update');
+    $exactSimulation = strpos($apply, 'sudo -n -- /usr/bin/apt-get --simulate install --only-upgrade');
+    $packageApply = strpos($apply, 'sudo -n -- /usr/bin/apt-get install -y --only-upgrade');
     foreach ([$dbBackup, $configBackup, $maintenanceOn, $aptUpdate, $exactSimulation, $packageApply] as $position) {
       self::assertNotFalse($position);
     }
@@ -309,7 +309,16 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
       file_put_contents($directory . '/failed.raw', '');
       $script = $directory . '/plan.py';
       file_put_contents($script, $matches[1] . "\n");
+      file_put_contents($directory . '/sudo', <<<'SH'
+#!/usr/bin/env bash
+[[ "$1 $2 $3 $4" == '-k -n -ll --' ]] || exit 99
+shift 4
+printf 'Sudoers entry:\n    RunAsUsers: root\n    Options: !authenticate, !setenv\n    Commands:\n        %s\n    Matched: %s\n' "$*" "$*"
+SH
+      );
+      chmod($directory . '/sudo', 0700);
       $environment = array_replace([
+        'PATH' => $directory . ':/usr/bin:/bin',
         'WORK_ROOT' => $directory,
         'MAIN_SHA' => str_repeat('a', 40),
         'PLAN_ID' => 'plan-1183-deterministic-fixture-r1',

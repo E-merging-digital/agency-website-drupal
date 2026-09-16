@@ -38,11 +38,11 @@ previous_kernel="$(jq -r '.KERNEL_RUNNING' "$APPROVED_PLAN")"
 [[ -d "/lib/modules/$previous_kernel" ]]
 [[ ! -f /var/run/reboot-required ]]
 
-sudo -n nginx -t >/dev/null 2>&1
-sudo -n php-fpm8.4 -t >/dev/null 2>&1
-sudo -n systemctl is-active --quiet nginx
-sudo -n systemctl is-active --quiet php8.4-fpm
-sudo -n systemctl is-active --quiet mariadb
+sudo -n -- /usr/sbin/nginx -t >/dev/null 2>&1
+sudo -n -- /usr/sbin/php-fpm8.4 -t >/dev/null 2>&1
+sudo -n -- /usr/bin/systemctl is-active --quiet nginx
+sudo -n -- /usr/bin/systemctl is-active --quiet php8.4-fpm
+sudo -n -- /usr/bin/systemctl is-active --quiet mariadb
 failed_units="$(systemctl --failed --no-legend --plain 2>/dev/null | awk 'NF {print $1}' | head -n 40)"
 [[ -z "$failed_units" ]]
 

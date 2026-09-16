@@ -79,9 +79,22 @@ The route returns the existing normalized provider projection only when:
 2. the presented credential matches using constant-time comparison;
 3. the current Drupal runtime is PREPROD.
 
-The secret value is never stored in exported Drupal configuration or this repository. Its server-owned runtime materialization is tracked separately in #1175 because PREPROD PHP-FPM uses `clear_env = yes`; documentation must not imply that an inherited process environment is already available to Drupal.
+The secret value is never stored in exported Drupal configuration or this repository. PREPROD PHP-FPM uses `clear_env = yes`, so the Drupal side deliberately does not depend on inherited process environment.
 
-Do not commit the credential value or paste it into tickets/logs. Until #1175 is implemented and deliberately provisioned, missing runtime credential state must continue to return `503 transport_unavailable`.
+Issue #1175 materializes the source/configuration path through a server-owned file:
+
+```text
+/etc/agency-preprod/cockpit-state-token
+owner = root
+reader group = www-data
+mode = 0640
+```
+
+`scripts/preproduction/settings.php.template` reads that exact file only when it is a regular readable non-symlink. If it is absent, unreadable, empty or weaker than the controller contract, the route remains fail-closed with `503 transport_unavailable`.
+
+Provisioning is an explicit host operation through `scripts/preproduction/provision-cockpit-state-token.sh`. The helper accepts the bearer only through an interactive hidden prompt or stdin, never as a command-line argument, does not generate a secret, does not print the value, and atomically converges the root-owned file. Ordinary PREPROD deployments do not require the bearer to exist.
+
+The cockpit side remains a separate runtime secret boundary. Infrastructure config supplies the same credential through `AGENCY_STATE_TOKEN`; the value must not be copied into Git, tickets, logs or artifacts.
 
 PREPROD Nginx keeps site-wide Basic Auth for browser-facing routes. The cockpit machine route is an exact-path exception to that outer layer only:
 
@@ -119,6 +132,6 @@ Semantic personal-data sanitization remains owned by the existing Agency Drupal/
 
 ## Deployment status
 
-Source implementation and CI proof do not equal live PREPROD transport proof. #1174 changes the source Nginx template only; it does not mutate the currently running PREPROD vhost. Live convergence requires separately authorized server work: back up the active vhost, apply only the exact-path rule, run `nginx -t`, reload Nginx, and prove that missing/invalid bearer remains denied.
+Source implementation and CI proof do not equal live PREPROD transport proof. #1174 changes the source Nginx template only; it does not by itself prove the currently running PREPROD vhost. Live convergence must preserve the exact-path bearer pass-through and prove that missing/invalid bearer remains denied.
 
-#1175 separately owns bearer materialization on the PREPROD and cockpit runtime surfaces. Infrastructure #43 remains fail-closed until both live configuration steps exist and an authenticated cockpit request succeeds without exposing the credential.
+#1175 owns the Drupal-side runtime materialization path described above. Live credential provisioning remains a separate human-authorized operation: provision one matching credential on PREPROD and the Infrastructure cockpit runtime without exposing its value, then execute one authenticated read-only request. Infrastructure #43 remains fail-closed until that live proof succeeds.

@@ -17,6 +17,9 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
 
   private const PLAN = 'scripts/preproduction-cockpit-transport-1218/remote-plan.sh';
 
+  /**
+   * Proves the workflow remains PLAN-only, pinned and owner-bound.
+   */
   public function testWorkflowIsPlanOnlyPinnedAndOwnerBound(): void {
     $workflow = $this->source(self::WORKFLOW);
 
@@ -54,6 +57,9 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
     }
   }
 
+  /**
+   * Proves the remote PLAN observes PREPROD without mutation authority.
+   */
   public function testRemotePlanObservesWithoutMutatingPreprod(): void {
     $plan = $this->source(self::PLAN);
 
@@ -92,6 +98,9 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
     }
   }
 
+  /**
+   * Reads a repository source file used by the contract tests.
+   */
   private function source(string $relativePath): string {
     $root = dirname(DRUPAL_ROOT);
     $source = file_get_contents($root . '/' . $relativePath);

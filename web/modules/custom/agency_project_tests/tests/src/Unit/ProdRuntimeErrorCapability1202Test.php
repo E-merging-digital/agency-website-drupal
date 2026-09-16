@@ -20,16 +20,24 @@ final class ProdRuntimeErrorCapability1202Test extends TestCase {
   private const COMMAND = '/agency-prod-runtime-error-capability-1202 ';
 
   /**
-   * Exact syntax is classified locally; both adjacent routes gate authority.
+   * Issue #1202 bypasses the historical route matrix using bounded outer gates.
    */
   public function testDispatcher(): void {
     $dispatcher = Yaml::parseFile(dirname(DRUPAL_ROOT) . '/.github/workflows/agency-command-dispatch.yml');
+    $routes = json_decode($dispatcher['env']['AGENCY_COMMAND_ROUTES'], TRUE, 512, JSON_THROW_ON_ERROR);
+    self::assertCount(14, $routes);
+    foreach ($routes as $route) {
+      self::assertStringNotContainsString('1202', $route['route']);
+      self::assertStringNotContainsString('/agency-prod-runtime-error-capability-1202 ', $route['prefix']);
+    }
+
     $jobs = $dispatcher['jobs'];
     $keys = array_keys($jobs);
     self::assertSame(
       array_search('prod-runtime-error-capability-1202-plan', $keys, TRUE) + 1,
       array_search('prod-runtime-error-capability-1202-apply', $keys, TRUE),
     );
+
     foreach (['plan', 'apply'] as $mode) {
       $job = $jobs['prod-runtime-error-capability-1202-' . $mode];
       self::assertSame('./' . self::WORKFLOW, $job['uses']);
@@ -47,34 +55,34 @@ final class ProdRuntimeErrorCapability1202Test extends TestCase {
         "github.event.comment.author_association == 'OWNER'",
         "github.event.comment.user.login == 'E-merging-digital'",
         'github.event.comment.performed_via_github_app == null',
-        "needs.classify.outputs.route == 'PROD_RUNTIME_ERROR_CAPABILITY_1202_" . strtoupper($mode) . "'",
       ] as $gate) {
         self::assertStringContainsString($gate, $job['if']);
       }
+      self::assertStringNotContainsString('needs.classify.outputs.route', $job['if']);
     }
+
+    self::assertStringContainsString(
+      "github.event.comment.body == '/agency-prod-runtime-error-capability-1202 plan'",
+      $jobs['prod-runtime-error-capability-1202-plan']['if'],
+    );
+    self::assertStringNotContainsString(
+      'startsWith(',
+      $jobs['prod-runtime-error-capability-1202-plan']['if'],
+    );
+    self::assertStringContainsString(
+      "startsWith(github.event.comment.body, '/agency-prod-runtime-error-capability-1202 apply ')",
+      $jobs['prod-runtime-error-capability-1202-apply']['if'],
+    );
+
     $script = $jobs['classify']['steps'][0]['run'];
-    $digest = str_repeat('a', 64);
-    $valid = self::COMMAND . 'apply plan_run=123 plan_digest=' . $digest;
-    $cases = [
-      [self::COMMAND . 'plan', [], 'PLAN'],
-      [$valid, [], 'APPLY'],
-      [$valid, ['ISSUE_NUMBER' => '1183'], 'NONE'],
-      [$valid, ['IS_PULL_REQUEST' => 'true'], 'NONE'],
-      [$valid, ['EVENT_NAME' => 'workflow_dispatch'], 'NONE'],
-    ];
+    self::assertStringNotContainsString('PROD_RUNTIME_ERROR_CAPABILITY_1202', $script);
+    self::assertStringNotContainsString('/agency-prod-runtime-error-capability-1202 ', $script);
+
     foreach ([
-      $valid . "\n", ' ' . $valid, $valid . ' extra', self::COMMAND . 'plan ',
-      str_replace('=123 ', '=0 ', $valid),
-      str_replace('=123 ', '=01 ', $valid),
-      str_replace('=123 ', '=-1 ', $valid),
-      str_replace($digest, strtoupper($digest), $valid),
-      str_replace($digest, substr($digest, 1), $valid),
-      str_replace(' plan_run=123 plan_digest=' . $digest, ' plan_digest=' . $digest . ' plan_run=123', $valid),
-    ] as $invalid) {
-      $cases[] = [$invalid, [], 'NONE'];
-    }
-    foreach ($cases as [$body, $overrides, $expected]) {
-      $result = $this->runLocal(['bash'], $script, array_replace([
+      self::COMMAND . 'plan',
+      self::COMMAND . 'apply plan_run=123 plan_digest=' . str_repeat('a', 64),
+    ] as $body) {
+      $result = $this->runLocal(['bash'], $script, [
         'EVENT_NAME' => 'issue_comment',
         'EVENT_ACTION' => 'created',
         'COMMENT_BODY' => $body,
@@ -84,9 +92,9 @@ final class ProdRuntimeErrorCapability1202Test extends TestCase {
         'IS_PULL_REQUEST' => 'false',
         'ROUTES_JSON' => $dispatcher['env']['AGENCY_COMMAND_ROUTES'],
         'GITHUB_OUTPUT' => '/dev/null',
-      ], $overrides));
+      ]);
       self::assertSame(0, $result['status'], $result['error']);
-      self::assertSame('ROUTE=' . ($expected === 'NONE' ? 'NONE' : 'PROD_RUNTIME_ERROR_CAPABILITY_1202_' . $expected), trim($result['output']));
+      self::assertSame('ROUTE=NONE', trim($result['output']));
     }
   }
 

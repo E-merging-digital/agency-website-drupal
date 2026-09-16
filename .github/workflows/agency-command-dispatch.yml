@@ -9,8 +9,6 @@ on:
 env:
   AGENCY_COMMAND_ROUTES: >-
     [
-      {"route":"PROD_RUNTIME_ERROR_CAPABILITY_1202_PLAN","prefix":"/agency-prod-runtime-error-capability-1202 ","exact":["/agency-prod-runtime-error-capability-1202 plan"]},
-      {"route":"PROD_RUNTIME_ERROR_CAPABILITY_1202_APPLY","prefix":"/agency-prod-runtime-error-capability-1202 ","regex":"^/agency-prod-runtime-error-capability-1202 apply plan_run=[1-9][0-9]* plan_digest=[0-9a-f]{64}$"},
       {"route":"PRODUCTION_PROMOTE","prefix":"/agency-production-promote ","regex":"^/agency-production-promote go sha=[0-9a-f]{40} artifact=[0-9a-f]{64} composer=[0-9a-f]{64} build=[0-9]+ preprod=[0-9]+$"},
       {"route":"PRODUCTION_SCHEDULER","prefix":"/agency-production-scheduler ","regex":"^/agency-production-scheduler (action=CREATE release=[0-9a-f]{40} expected=ABSENT|action=UPDATE release=[0-9a-f]{40} expected=MANAGED_DRIFT|action=REMOVE release=[0-9a-f]{40} expected=CONTROLLED)$"},
       {"route":"EDITORIAL_PUBLICATION","prefix":"/agency-editorial ","exact":["/agency-editorial inspect","/agency-editorial dry-run","/agency-editorial apply"]},
@@ -63,8 +61,6 @@ jobs:
           is_pr = os.environ['IS_PULL_REQUEST'].lower() == 'true'
           routes = json.loads(os.environ['ROUTES_JSON'])
           incident_issue = {
-              'PROD_RUNTIME_ERROR_CAPABILITY_1202_PLAN': '1202',
-              'PROD_RUNTIME_ERROR_CAPABILITY_1202_APPLY': '1202',
               'DEVELOPMENT_SEED': '956',
               'DEVELOPMENT_SEED_CLEANUP_PROOF': '956',
               'PREPROD_REFRESH_940_DIAGNOSTIC': '941',
@@ -594,7 +590,7 @@ jobs:
           && github.event.comment.author_association == 'OWNER'
           && github.event.comment.user.login == 'E-merging-digital'
           && github.event.comment.performed_via_github_app == null
-          && needs.classify.outputs.route == 'PROD_RUNTIME_ERROR_CAPABILITY_1202_PLAN' }}
+          && github.event.comment.body == '/agency-prod-runtime-error-capability-1202 plan' }}
     permissions:
       actions: read
       contents: read
@@ -616,7 +612,7 @@ jobs:
           && github.event.comment.author_association == 'OWNER'
           && github.event.comment.user.login == 'E-merging-digital'
           && github.event.comment.performed_via_github_app == null
-          && needs.classify.outputs.route == 'PROD_RUNTIME_ERROR_CAPABILITY_1202_APPLY' }}
+          && startsWith(github.event.comment.body, '/agency-prod-runtime-error-capability-1202 apply ') }}
     permissions:
       actions: read
       contents: read

@@ -26,7 +26,7 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       "test \"\$COMMENT_LOGIN\" = 'E-merging-digital'",
       "test \"\$COMMENT_ASSOCIATION\" = 'OWNER'",
       "test \"\$COMMENT_BODY\" = '/agency-cockpit-transport-1218 plan'",
-      "chatgpt-codex-connector",
+      'chatgpt-codex-connector',
       'test "$WORKFLOW_SHA" = "$main_sha"',
       'secrets.PREPROD_SSH_PRIVATE_KEY',
       'secrets.PREPROD_SERVER_HOST',
@@ -59,7 +59,7 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
 
     foreach ([
       "ENDPOINT='https://preprod.emergingdigital.be/api/agency-operations/v1/environment-data-state'",
-      "SETTINGS_FILE=\"$PROJECT_ROOT/shared/settings/settings.php\"",
+      'SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"',
       "NGINX_SITE='/etc/nginx/sites-available/agency-preprod'",
       "TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'",
       'settings_reader=',

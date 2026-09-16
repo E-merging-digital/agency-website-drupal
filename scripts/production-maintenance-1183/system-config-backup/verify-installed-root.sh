@@ -13,7 +13,6 @@ SUDOERS_PATH='/etc/sudoers.d/agency-prod-system-config-backup'
 [[ -f "$SUDOERS_PATH" && ! -L "$SUDOERS_PATH" ]]
 [[ "$(stat -c '%U:%G:%a' "$HELPER_PATH")" == 'root:root:755' ]]
 [[ "$(stat -c '%U:%G:%a' "$SUDOERS_PATH")" == 'root:root:440' ]]
-[[ ! -w "$HELPER_PATH" || "$(id -u)" -eq 0 ]]
 
 mapfile -t sudoers_lines < "$SUDOERS_PATH"
 [[ "${#sudoers_lines[@]}" -eq 1 ]]
@@ -25,7 +24,6 @@ printf '%s\n' \
   'HELPER_OWNER=root' \
   'HELPER_GROUP=root' \
   'HELPER_MODE=0755' \
-  'HELPER_NON_ROOT_WRITABLE=NO' \
   'SUDOERS_OWNER=root' \
   'SUDOERS_GROUP=root' \
   'SUDOERS_MODE=0440' \

@@ -4,43 +4,147 @@ umask 077
 PATH='/usr/sbin:/usr/bin:/sbin:/bin'
 LC_ALL=C
 export PATH LC_ALL
-# Ambient archiver options must not alter the fixed sources or destination.
 unset TAR_OPTIONS GZIP
-# Never emit tool diagnostics or configuration content.
 exec 2>/dev/null
-BACKUP_ROOT='/var/www/agency/shared/backups'
-temp_dir=''
-cleanup() {
-  local rc=$?
-  trap - EXIT
-  [[ -z "$temp_dir" ]] || /usr/bin/rm -rf -- "$temp_dir"
-  if (( rc != 0 )); then printf 'STATUS=FAIL\n'; fi
-  exit "$rc"
+
+fail() {
+  printf 'STATUS=FAIL\n'
+  exit 1
 }
-trap cleanup EXIT
-if (( $# != 0 )); then exit 64; fi
-[[ "$EUID" -eq 0 ]]
-# Reject symlink ancestors as well as the fixed directory entries themselves.
-for directory in /var /var/www /var/www/agency /var/www/agency/shared "$BACKUP_ROOT" /etc /etc/php /etc/nginx /etc/php/8.4 /etc/mysql; do
-  [[ -d "$directory" && ! -L "$directory" ]]
+
+if (( $# != 0 )); then
+  fail
+fi
+[[ "$EUID" -eq 0 ]] || fail
+
+for directory in /var /var/www /var/www/agency /var/www/agency/shared /var/www/agency/shared/backups /etc /etc/php /etc/nginx /etc/php/8.4 /etc/mysql; do
+  [[ -d "$directory" && ! -L "$directory" ]] || fail
 done
-cd -- "$BACKUP_ROOT"
-# Relative operations stay attached to the checked directory.
+
 timestamp="$(/usr/bin/date -u +%Y%m%dT%H%M%SZ)"
-[[ "$timestamp" =~ ^[0-9]{8}T[0-9]{6}Z$ ]]
-archive="pre-os-maintenance-1183-$timestamp-system-config.tar.gz"
-[[ ! -e "$archive" && ! -L "$archive" ]]
-temp_dir="$(/usr/bin/mktemp -d .system-config-backup.XXXXXXXXXX)"
-# tar preserves internal configuration symlinks; it must never dereference them.
-/usr/bin/tar -C / -czf "$temp_dir/archive" -- etc/nginx etc/php/8.4 etc/mysql
-/usr/bin/chown root:root -- "$temp_dir/archive"
-/usr/bin/chmod 0600 -- "$temp_dir/archive"
-[[ -f "$temp_dir/archive" && ! -L "$temp_dir/archive" ]]
-size="$(/usr/bin/stat -c '%s' -- "$temp_dir/archive")"
-[[ "$size" =~ ^[1-9][0-9]{0,18}$ ]]
-hash="$(/usr/bin/sha256sum -- "$temp_dir/archive")"
-hash="${hash%% *}"
-[[ "$hash" =~ ^[0-9a-f]{64}$ ]]
-# Hard-link creation is atomic and fails if any destination entry already exists.
-/usr/bin/ln -T -- "$temp_dir/archive" "$archive"
-printf 'STATUS=PASS\nSYSTEM_CONFIG_BACKUP=%s/%s\nSYSTEM_CONFIG_BACKUP_SHA256=%s\nSYSTEM_CONFIG_BACKUP_SIZE=%s\n' "$BACKUP_ROOT" "$archive" "$hash" "$size"
+[[ "$timestamp" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || fail
+
+exec /usr/bin/python3 - "$timestamp" <<'PY'
+import hashlib
+import os
+import stat
+import subprocess
+import sys
+
+BACKUP_ROOT = '/var/www/agency/shared/backups'
+SOURCE_ROOT = '/'
+SOURCES = ('etc/nginx', 'etc/php/8.4', 'etc/mysql')
+TAR = '/usr/bin/tar'
+EXPECTED_UID = 0
+EXPECTED_GID = 0
+TIMESTAMP = sys.argv[1]
+ARCHIVE = f'pre-os-maintenance-1183-{TIMESTAMP}-system-config.tar.gz'
+DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+FILE_FLAGS = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+
+dir_fd = None
+archive_fd = None
+
+
+def same_inode(left, right):
+    return (left.st_dev, left.st_ino) == (right.st_dev, right.st_ino)
+
+
+def pinned_root_matches_path():
+    current = os.stat(BACKUP_ROOT, follow_symlinks=False)
+    pinned = os.fstat(dir_fd)
+    return stat.S_ISDIR(current.st_mode) and same_inode(current, pinned)
+
+
+def final_entry_matches_fd():
+    current = os.stat(ARCHIVE, dir_fd=dir_fd, follow_symlinks=False)
+    opened = os.fstat(archive_fd)
+    return stat.S_ISREG(current.st_mode) and same_inode(current, opened)
+
+
+def cleanup_created_entry():
+    if dir_fd is None or archive_fd is None:
+        return
+    try:
+        current = os.stat(ARCHIVE, dir_fd=dir_fd, follow_symlinks=False)
+        opened = os.fstat(archive_fd)
+        if same_inode(current, opened):
+            os.unlink(ARCHIVE, dir_fd=dir_fd)
+    except OSError:
+        pass
+
+
+def fail():
+    cleanup_created_entry()
+    print('STATUS=FAIL')
+    raise SystemExit(1)
+
+
+try:
+    dir_fd = os.open(BACKUP_ROOT, DIR_FLAGS)
+    if not pinned_root_matches_path():
+        fail()
+    archive_fd = os.open(ARCHIVE, FILE_FLAGS, 0o600, dir_fd=dir_fd)
+    os.fchmod(archive_fd, 0o600)
+    opened = os.fstat(archive_fd)
+    if not stat.S_ISREG(opened.st_mode):
+        fail()
+    if opened.st_uid != EXPECTED_UID or opened.st_gid != EXPECTED_GID:
+        fail()
+    if stat.S_IMODE(opened.st_mode) != 0o600:
+        fail()
+    environment = {
+        'PATH': '/usr/sbin:/usr/bin:/sbin:/bin',
+        'LC_ALL': 'C',
+    }
+    result = subprocess.run(
+        [TAR, '-C', SOURCE_ROOT, '-czf', '-', '--', *SOURCES],
+        stdout=archive_fd,
+        stderr=subprocess.DEVNULL,
+        env=environment,
+        close_fds=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        fail()
+    os.fsync(archive_fd)
+
+    opened = os.fstat(archive_fd)
+    size = opened.st_size
+    if size <= 0 or size > 9999999999999999999:
+        fail()
+    os.lseek(archive_fd, 0, os.SEEK_SET)
+    digest = hashlib.sha256()
+    while True:
+        chunk = os.read(archive_fd, 1024 * 1024)
+        if not chunk:
+            break
+        digest.update(chunk)
+    archive_hash = digest.hexdigest()
+
+    if not pinned_root_matches_path() or not final_entry_matches_fd():
+        fail()
+    final_entry = os.stat(ARCHIVE, dir_fd=dir_fd, follow_symlinks=False)
+    if final_entry.st_uid != EXPECTED_UID or final_entry.st_gid != EXPECTED_GID:
+        fail()
+    if stat.S_IMODE(final_entry.st_mode) != 0o600:
+        fail()
+
+    print('STATUS=PASS')
+    print(f'SYSTEM_CONFIG_BACKUP={BACKUP_ROOT}/{ARCHIVE}')
+    print(f'SYSTEM_CONFIG_BACKUP_SHA256={archive_hash}')
+    print(f'SYSTEM_CONFIG_BACKUP_SIZE={size}')
+except (OSError, ValueError, subprocess.SubprocessError):
+    fail()
+finally:
+    if archive_fd is not None:
+        try:
+            os.close(archive_fd)
+        except OSError:
+            pass
+    if dir_fd is not None:
+        try:
+            os.close(dir_fd)
+        except OSError:
+            pass
+PY

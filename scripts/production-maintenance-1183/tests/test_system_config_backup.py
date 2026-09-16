@@ -16,6 +16,7 @@ BASE = Path(__file__).resolve().parents[1]
 HELPER = (BASE / 'system-config-backup/agency-prod-system-config-backup').read_text()
 PLAN = (BASE / 'remote-plan.sh').read_text()
 APPLY = (BASE / 'remote-apply.sh').read_text()
+VERIFY = (BASE / 'system-config-backup/verify-installed-root.sh').read_text()
 EVALUATOR = PLAN.split("python3 - <<'PY'\n")[1].rsplit('\nPY', 1)[0]
 FUNCTION = EVALUATOR[EVALUATOR.index('def probe_exact_sudo('):EVALUATOR.index('upgradable = []')]
 COMMANDS = {
@@ -51,12 +52,14 @@ class BackupTest(unittest.TestCase):
             (directory / 'config').write_text('PRIVATE_CONFIGURATION_SENTINEL')
         # Only the disposable copy is redirected to fixture directories/tools.
         script = HELPER.replace('/var', str(self.root) + '/var').replace('/etc', str(self.root) + '/etc')
-        script = script.replace('/usr/bin/tar -C / ', f'/usr/bin/tar -C {self.root} ')
-        script = script.replace('[[ "$EUID" -eq 0 ]]', 'true')
-        script = script.replace('/usr/bin/chown root:root', '/usr/bin/true')
+        script = script.replace("SOURCE_ROOT = '/'", f"SOURCE_ROOT = {str(self.root)!r}")
+        script = script.replace('EXPECTED_UID = 0', f'EXPECTED_UID = {os.getuid()}')
+        script = script.replace('EXPECTED_GID = 0', f'EXPECTED_GID = {os.getgid()}')
+        script = script.replace('[[ "$EUID" -eq 0 ]] || fail', 'true')
         script = script.replace('/usr/bin/date -u +%Y%m%dT%H%M%SZ', 'printf 20260916T120000Z')
         self.helper = self.root / 'helper'
         self.helper.write_text(script)
+        self.archive = self.backups / 'pre-os-maintenance-1183-20260916T120000Z-system-config.tar.gz'
 
     def run_helper(self, *args):
         return subprocess.run(['bash', str(self.helper), *args], capture_output=True, text=True)
@@ -70,7 +73,7 @@ class BackupTest(unittest.TestCase):
         lines = result.stdout.splitlines()
         self.assertEqual(len(lines), 4)
         self.assertEqual(lines[0], 'STATUS=PASS')
-        archive = self.backups / 'pre-os-maintenance-1183-20260916T120000Z-system-config.tar.gz'
+        archive = self.archive
         self.assertEqual(lines[1], 'SYSTEM_CONFIG_BACKUP=' + str(archive))
         self.assertEqual(lines[2], 'SYSTEM_CONFIG_BACKUP_SHA256=' + hashlib.sha256(archive.read_bytes()).hexdigest())
         self.assertEqual(lines[3], 'SYSTEM_CONFIG_BACKUP_SIZE=' + str(archive.stat().st_size))
@@ -107,6 +110,43 @@ class BackupTest(unittest.TestCase):
             target.unlink()
             saved.rename(target)
 
+    def test_preexisting_final_file_and_symlink_fail_closed(self):
+        self.archive.write_bytes(b'PREEXISTING')
+        before = self.archive.read_bytes()
+        self.assert_failed(self.run_helper())
+        self.assertEqual(self.archive.read_bytes(), before)
+        self.archive.unlink()
+        redirect = self.backups / 'redirect-target'
+        redirect.write_bytes(b'REDIRECT-SENTINEL')
+        self.archive.symlink_to(redirect)
+        self.assert_failed(self.run_helper())
+        self.assertTrue(self.archive.is_symlink())
+        self.assertEqual(redirect.read_bytes(), b'REDIRECT-SENTINEL')
+
+    def test_caller_path_replacement_cannot_redirect_root_write(self):
+        redirect = self.backups / 'redirect-target'
+        moved = self.backups / 'attacker-moved-open-inode'
+        redirect.write_bytes(b'REDIRECT-SENTINEL')
+        fake_tar = self.root / 'fake-tar'
+        fake_tar.write_text(
+            '#!/usr/bin/env python3\n'
+            'import os\n'
+            f'archive={str(self.archive)!r}\n'
+            f'moved={str(moved)!r}\n'
+            f'redirect={str(redirect)!r}\n'
+            'os.rename(archive, moved)\n'
+            'os.symlink(redirect, archive)\n'
+            "os.write(1, b'ARCHIVE-BYTES-TO-OPEN-FD')\n"
+        )
+        fake_tar.chmod(0o700)
+        race_helper = self.root / 'race-helper'
+        race_helper.write_text(self.helper.read_text().replace("TAR = '/usr/bin/tar'", f"TAR = {str(fake_tar)!r}"))
+        result = subprocess.run(['bash', str(race_helper)], capture_output=True, text=True)
+        self.assert_failed(result)
+        self.assertEqual(redirect.read_bytes(), b'REDIRECT-SENTINEL')
+        self.assertEqual(moved.read_bytes(), b'ARCHIVE-BYTES-TO-OPEN-FD')
+        self.assertTrue(self.archive.is_symlink())
+
     def test_apply_receipt_parser_rejects_malformed_and_symlink_archives(self):
         archive = self.backups / 'pre-os-maintenance-1183-20260916T120000Z-system-config.tar.gz'
         archive.write_bytes(b'archive')
@@ -132,8 +172,16 @@ class BackupTest(unittest.TestCase):
         self.assertNotEqual(run(good).returncode, 0)
 
     def test_production_contract_and_sudoers(self):
-        for text in ['set -Eeuo pipefail', 'umask 077', "PATH='/usr/sbin:/usr/bin:/sbin:/bin'", 'LC_ALL=C', "BACKUP_ROOT='/var/www/agency/shared/backups'", 'etc/nginx etc/php/8.4 etc/mysql', '/usr/bin/chown root:root', '/usr/bin/chmod 0600', '/usr/bin/ln -T']:
+        for text in [
+            'set -Eeuo pipefail', 'umask 077', "PATH='/usr/sbin:/usr/bin:/sbin:/bin'",
+            'LC_ALL=C', "BACKUP_ROOT = '/var/www/agency/shared/backups'",
+            "SOURCES = ('etc/nginx', 'etc/php/8.4', 'etc/mysql')",
+            'dir_fd=dir_fd', 'os.O_EXCL', 'os.O_NOFOLLOW', 'stdout=archive_fd', 'os.fsync',
+        ]:
             self.assertIn(text, HELPER)
+        self.assertNotIn('mktemp', HELPER)
+        self.assertNotIn('HELPER_NON_ROOT_WRITABLE', VERIFY)
+        self.assertNotIn('! -w "$HELPER_PATH"', VERIFY)
         directory = BASE / 'system-config-backup'
         expected = '__SERVER_USER__ ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-system-config-backup\n'
         self.assertEqual((directory / 'agency-prod-system-config-backup.sudoers.template').read_text(), expected)

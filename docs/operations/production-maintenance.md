@@ -172,10 +172,12 @@ sudo -n -- /usr/local/sbin/agency-prod-system-config-backup
 Les sources sont fixes (`etc/nginx`, `etc/php/8.4`, `etc/mysql`), sous `/`.
 Le helper refuse les sources racines ou répertoires parents symboliques et conserve
 les liens internes sans les suivre. Il crée dans `/var/www/agency/shared/backups`
-une archive `pre-os-maintenance-1183-<UTC>-system-config.tar.gz`, root:root 0600,
-via un temporaire privé puis un lien atomique sans écrasement. Son reçu contient
-uniquement statut, chemin borné, SHA-256 et taille ; les erreurs ne publient aucun
-contenu de configuration.
+une archive `pre-os-maintenance-1183-<UTC>-system-config.tar.gz`, root:root 0600.
+Le helper épingle le répertoire de backup par descripteur, crée le nom final
+relativement à ce descripteur avec `O_EXCL|O_NOFOLLOW`, puis fait écrire `tar`
+dans ce fichier déjà ouvert. Un remplacement concurrent du pathname ne peut donc
+pas rediriger l'écriture privilégiée. Son reçu contient uniquement statut, chemin
+borné, SHA-256 et taille ; les erreurs ne publient aucun contenu de configuration.
 
 Le bootstrap administrateur est séparé de PLAN/APPLY : les fichiers de
 `scripts/production-maintenance-1183/system-config-backup/` sont destinés à une
@@ -198,8 +200,9 @@ intervention exige le PLAN et l'approbation dédiés du workflow existant.
 
 `EXISTING_CAPABILITY_AUDIT` (#1215) : Drupal core/Drush couvrent le dump DB,
 mais pas l'accès aux configurations système root ; DDEV est hors périmètre PROD
-et aucun module contrib n'est nécessaire. Les primitives système tar, mktemp,
-ln, stat, sha256sum et sudo couvrent l'archivage et l'audit. Les conventions Agency
+et aucun module contrib n'est nécessaire. Le helper borné utilise Python `os.open`
+pour épingler le répertoire et le fichier, puis `tar` pour les sources fixes ; les
+conventions Agency
 #1197 et le parseur privé #1202 sont réutilisés : `EXTEND EXISTING`, sans moteur
 générique ni nouvelle route de provisioning.
 

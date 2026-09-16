@@ -234,33 +234,101 @@ SH,
   public function testExactInstallPolicy(): void {
     $source = $this->source(self::BASE . 'remote-provision-plan.sh');
     $functions = substr($source, strpos($source, 'probe_exact_sudo() {'), strpos($source, 'MAIN_SHA="${1:-}"') - strpos($source, 'probe_exact_sudo() {'));
-    $rule = "Sudoers entry:\n    RunAsUsers: root\n    Options: !authenticate\n    Commands:\n        /usr/bin/install fixture";
+    $stage = '/home/agency-prod/.agency-1202-runtime-error-capability-stage/';
     foreach ([
-      'EXACT_NOPASSWD' => [$rule, 0, 'AVAILABLE'],
-      'EXACT_PASSWD' => [str_replace('!authenticate', 'authenticate', $rule), 0, 'UNKNOWN'],
-      'LISTPW_ANY_FALSE_POSITIVE' => ['/usr/bin/install fixture', 0, 'UNKNOWN'],
-      'CACHED_CREDENTIAL_FALSE_POSITIVE' => [$rule, 1, 'UNKNOWN'],
-      'CONFLICTING' => [$rule . "\n" . str_replace('!authenticate', 'authenticate', $rule), 0, 'UNKNOWN'],
-      'AMBIGUOUS' => [$rule . "\n" . $rule, 0, 'UNKNOWN'],
-      'WRONG_ARGS' => [$rule . ' extra', 0, 'UNKNOWN'],
-      'WILDCARD' => [str_replace('fixture', '*', $rule), 0, 'UNKNOWN'],
-      'UNAVAILABLE' => ['', 127, 'UNKNOWN'],
-    ] as $name => [$policy, $rc, $expected]) {
-      $result = $this->runLocal(['bash'], "set -Eeuo pipefail\n" . $functions . <<<'SH'
-sudo() { [[ "$*" == '-k -n -ll -- /usr/bin/install fixture' ]] || return 99; printf '%s' "$POLICY"; printf private >&2; return "$RC"; }
-probe_exact_sudo /usr/bin/install fixture
-SH, ['POLICY' => $policy, 'RC' => (string) $rc]);
-      self::assertSame(0, $result['status'], $name);
-      self::assertSame($expected, $result['output'], $name);
-      self::assertSame('', $result['error'], $name);
+      '/usr/bin/install -o root -g root -m 0755 -- ' . $stage . 'agency-prod-runtime-error-counts /usr/local/sbin/agency-prod-runtime-error-counts',
+      '/usr/bin/install -o root -g root -m 0440 -- ' . $stage . 'agency-prod-runtime-error-counts.sudoers /etc/sudoers.d/agency-prod-runtime-error-counts',
+      '/usr/sbin/visudo -cf ' . $stage . 'agency-prod-runtime-error-counts.sudoers',
+    ] as $command) {
+      $rule = "Sudoers entry: /etc/sudoers.d/private-policy\n    RunAsUsers: root\n    Options: !authenticate\n    Commands:\n        $command\nMatched: $command";
+      $denial = "sudo: Sorry, user agency-prod is not allowed to execute '$command' as root on production.\n";
+      foreach ([
+        'EXACT_NOPASSWD' => [$rule, '', 0, 'AVAILABLE'],
+        'HARMLESS_DEFAULTS' => [
+          str_replace(
+            '!authenticate',
+            'env_reset, mail_badpass, secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin, use_pty, !authenticate',
+            $rule,
+          ),
+          '',
+          0,
+          'AVAILABLE',
+        ],
+        'NOSETENV' => [str_replace('!authenticate', '!authenticate, !setenv', $rule), '', 0, 'AVAILABLE'],
+        'RESTRICTIVE_LOGGING' => [
+          str_replace('!authenticate', '!authenticate, noexec, log_input, log_output', $rule),
+          '',
+          0,
+          'AVAILABLE',
+        ],
+        'SOURCELESS' => [str_replace(': /etc/sudoers.d/private-policy', ':', $rule), '', 0, 'AVAILABLE'],
+        'ROOT_GROUP' => [
+          str_replace('RunAsUsers: root', "RunAsUsers: root\n    RunAsGroups: root", $rule),
+          '',
+          0,
+          'AVAILABLE',
+        ],
+        'EXACT_PASSWD' => [str_replace('!authenticate', 'authenticate', $rule), '', 0, 'UNAVAILABLE'],
+        'EXACT_DENIAL' => ['', $denial, 1, 'UNAVAILABLE'],
+        'LIST_DENIAL' => [
+          '',
+          "User agency-prod is not allowed to run '$command' as root on production.\n",
+          1,
+          'UNAVAILABLE',
+        ],
+        'WRONG_DENIAL_COMMAND' => ['', str_replace($command, '/usr/bin/other', $denial), 1, 'UNKNOWN'],
+        'DENIAL_WITH_POLICY' => [$rule, $denial, 1, 'UNKNOWN'],
+        'DENIAL_WITH_AUTH_FAILURE' => ['', $denial . "sudo: a password is required\n", 1, 'UNKNOWN'],
+        'LISTPW_ANY_FALSE_POSITIVE' => [$command, '', 0, 'UNKNOWN'],
+        'CACHED_CREDENTIAL_FALSE_POSITIVE' => [$rule, '', 1, 'UNKNOWN'],
+        'PASSWORD_REQUIRED' => ['', "sudo: a password is required\n", 1, 'UNKNOWN'],
+        'LISTPW_FAILURE' => ['', "Sorry, user agency-prod may not run sudo on production.\n", 1, 'UNKNOWN'],
+        'SETENV' => [str_replace('!authenticate', '!authenticate, setenv', $rule), '', 0, 'UNKNOWN'],
+        'NO_ENV_RESET' => [str_replace('!authenticate', '!authenticate, !env_reset', $rule), '', 0, 'UNKNOWN'],
+        'UNKNOWN_OPTION' => [str_replace('!authenticate', '!authenticate, future_option', $rule), '', 0, 'UNKNOWN'],
+        'RELATIVE_SECURE_PATH' => [
+          str_replace('!authenticate', '!authenticate, secure_path=/bin:relative', $rule),
+          '',
+          0,
+          'UNKNOWN',
+        ],
+        'CONFLICTING_SECURE_PATH' => [
+          str_replace('!authenticate', '!authenticate, secure_path=/bin, secure_path=/usr/bin', $rule),
+          '',
+          0,
+          'UNKNOWN',
+        ],
+        'WRONG_RUNAS' => [str_replace('RunAsUsers: root', 'RunAsUsers: ALL', $rule), '', 0, 'UNKNOWN'],
+        'WRONG_GROUP' => [
+          str_replace('RunAsUsers: root', "RunAsUsers: root\n    RunAsGroups: ALL", $rule),
+          '',
+          0,
+          'UNKNOWN',
+        ],
+        'WRONG_PATH' => [str_replace('/usr/', '/opt/', $rule), '', 0, 'UNKNOWN'],
+        'WRONG_ARGS' => [str_replace($command, $command . ' extra', $rule), '', 0, 'UNKNOWN'],
+        'WRONG_MATCHED' => [str_replace('Matched: ' . $command, 'Matched: /usr/bin/other', $rule), '', 0, 'UNKNOWN'],
+        'WILDCARD' => [str_replace($command, '/usr/bin/*', $rule), '', 0, 'UNKNOWN'],
+        'PATTERN' => [str_replace($command, '^/usr/bin/.*$', $rule), '', 0, 'UNKNOWN'],
+        'CONFLICTING' => [$rule . "\n" . str_replace('!authenticate', 'authenticate', $rule), '', 0, 'UNKNOWN'],
+        'DUPLICATE' => [$rule . "\n" . $rule, '', 0, 'UNKNOWN'],
+        'CONFLICTING_OPTIONS' => [str_replace('!authenticate', '!authenticate, authenticate', $rule), '', 0, 'UNKNOWN'],
+        'DUPLICATE_OPTIONS' => [str_replace('!authenticate', '!authenticate, !authenticate', $rule), '', 0, 'UNKNOWN'],
+        'UNSUPPORTED_FORMAT' => ['private unsupported policy', '', 0, 'UNKNOWN'],
+        'MISSING_MATCHED' => [str_replace("\nMatched: $command", '', $rule), '', 0, 'UNKNOWN'],
+        'RAW_STDERR_PRIVATE' => [$rule, 'private stderr', 0, 'UNKNOWN'],
+        'MISSING_SUDO' => ['', 'private stderr', 127, 'UNKNOWN'],
+      ] as $name => [$policy, $error, $rc, $expected]) {
+        $result = $this->runLocal(['bash'], "set -Eeuo pipefail\n" . $functions . <<<'SH'
+sudo() { [[ "$*" == "-k -n -ll -- $COMMAND" && "$LC_ALL" == C ]] || return 99; printf '%s' "$POLICY"; printf '%s' "$STDERR" >&2; return "$RC"; }
+read -r -a command_args <<< "$COMMAND"
+probe_exact_sudo "${command_args[@]}"
+SH, ['COMMAND' => $command, 'POLICY' => $policy, 'STDERR' => $error, 'RC' => (string) $rc]);
+        self::assertSame(0, $result['status'], $name);
+        self::assertSame($expected, $result['output'], $name);
+        self::assertSame('', $result['error'], $name);
+      }
     }
-    $visudoRule = "Sudoers entry:\n    RunAsUsers: root\n    Options: !authenticate\n    Commands:\n        /usr/sbin/visudo -cf fixture";
-    $result = $this->runLocal(['bash'], "set -Eeuo pipefail\n" . $functions . <<<'SH'
-sudo() { [[ "$*" == '-k -n -ll -- /usr/sbin/visudo -cf fixture' ]] || return 99; printf '%s' "$POLICY"; printf private >&2; return 0; }
-probe_exact_sudo /usr/sbin/visudo -cf fixture
-SH, ['POLICY' => $visudoRule]);
-    self::assertSame('AVAILABLE', $result['output']);
-    self::assertSame('', $result['error']);
   }
 
   /**
@@ -423,7 +491,7 @@ SH, ['SUDOERS_DEST' => $file . '-absent']);
         self::assertStringNotContainsString($forbidden, $source);
       }
     }
-    self::assertStringContainsString('sudo -k -n -ll -- "$@" 2>/dev/null', $plan);
+    self::assertStringContainsString('sudo -k -n -ll -- "$@" 2>"$stderr_file"', $plan);
     foreach ([
       '[[ "$actual_helper_hash" == "$HELPER_SOURCE_SHA256" ]]',
       '[[ "$actual_sudoers_hash" == "$RENDERED_SUDOERS_SHA256" ]]',

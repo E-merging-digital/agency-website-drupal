@@ -15,30 +15,66 @@ STAGE_SUDOERS="$STAGE_DIR/agency-prod-runtime-error-counts.sudoers"
 probe_exact_sudo() {
   # Listing success alone proves neither NOPASSWD nor exact authorization.
   # Accept only one fully understood long-format entry; keep policy private.
-  local policy
-  if ! policy="$(sudo -k -n -ll -- "$@" 2>/dev/null)"; then
+  local policy stderr_file result rc=0
+  if ! stderr_file="$(umask 077; mktemp 2>/dev/null)"; then
     printf '%s' 'UNKNOWN'
     return
   fi
-  printf '%s' "$policy" | python3 -c '
+  policy="$(LC_ALL=C sudo -k -n -ll -- "$@" 2>"$stderr_file")" || rc=$?
+  result="$(printf '%s' "$policy" | python3 -c '
 import re
 import sys
 
 policy = sys.stdin.read()
-expected = " ".join(sys.argv[1:])
-pattern = (r"\s*Sudoers entry:\n[ \t]+RunAsUsers: root\n"
+rc = int(sys.argv[1])
+with open(sys.argv[2], encoding="utf-8") as stream:
+    error = stream.read()
+args = sys.argv[3:]
+expected = " ".join(args)
+pattern = (r"\s*Sudoers entry:(?: /[^\s]+)?\n[ \t]+RunAsUsers: root\n"
            r"(?:[ \t]+RunAsGroups: root\n)?"
            r"[ \t]+Options: ([^\n]+)\n"
-           r"[ \t]+Commands:\n[ \t]+([^\n]+)\s*")
+           r"[ \t]+Commands:\n[ \t]+([^\n]+)\n"
+           r"[ \t]*Matched: ([^\n]+)\s*")
 match = re.fullmatch(pattern, policy)
-options = match[1].split(", ") if match else []
-allowed = {"!authenticate", "!setenv"}
-exact = (match is not None and match[2] == expected
-         and len(options) == len(set(options))
-         and "!authenticate" in options and set(options) <= allowed
-         and all(re.fullmatch(r"[A-Za-z0-9_./=-]+", arg) for arg in sys.argv[1:]))
-print("AVAILABLE" if exact else "UNKNOWN", end="")
-' "$@" 2>/dev/null
+options = [option.strip() for option in match[1].split(",")] if match else []
+# Only understood defaults/tags: unknown options can change authorization.
+allowed = {"!authenticate", "authenticate", "!setenv", "env_reset",
+           "mail_badpass", "use_pty", "log_input", "log_output",
+           "noexec", "!sudoedit_follow", "sudoedit_checkdir"}
+auth = set(options) & {"authenticate", "!authenticate"}
+safe_options = all(option in allowed or re.fullmatch(
+    r"secure_path=/[A-Za-z0-9_./-]*(?::/[A-Za-z0-9_./-]*)*", option)
+    for option in options)
+safe_args = bool(args) and all(re.fullmatch(r"[A-Za-z0-9_./=-]+", arg) for arg in args)
+exact = (match is not None and match[2] == expected and match[3] == expected
+         and len(options) == len({option.split("=", 1)[0] for option in options})
+         and len(auth) == 1
+         and safe_options and safe_args)
+state = "UNKNOWN"
+if rc == 0 and not error and exact:
+    state = "AVAILABLE" if "!authenticate" in auth else "UNAVAILABLE"
+elif rc == 1 and not policy.strip() and safe_args:
+    # Require a complete C-locale command denial, never a listing/auth failure.
+    quote = chr(39)
+    command = re.escape(quote + expected + quote)
+    identity = r"[A-Za-z0-9_.-]+"
+    denial = (r"(?:sudo: )?(?:Sorry, user " + identity
+              + r" is not allowed to execute " + command
+              + r" as root on " + identity + r"\.|User " + identity
+              + r" is not allowed to run " + command
+              + r" as root on " + identity + r"\.)\n?")
+    if re.fullmatch(denial, error):
+        state = "UNAVAILABLE"
+print(state, end="")
+' "$rc" "$stderr_file" "$@" 2>/dev/null)" || result='UNKNOWN'
+  if ! rm -f -- "$stderr_file" 2>/dev/null; then
+    result='UNKNOWN'
+  fi
+  case "$result" in
+    AVAILABLE|UNAVAILABLE|UNKNOWN) printf '%s' "$result" ;;
+    *) printf '%s' 'UNKNOWN' ;;
+  esac
 }
 fixed_sudoers_hash() {
   # Optional pre-existing read capability only; never provision this privilege.

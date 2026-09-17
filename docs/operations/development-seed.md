@@ -246,22 +246,28 @@ RESET_DEFAULT_BACKUP = PRESERVED
 After native seed/reset and exact Composer dependency materialization succeed, the existing `scripts/development-seed/post-pull.sh` convergence surface is reused directly; its historical filename is retained to avoid unnecessary churn. It runs:
 
 ```text
+ASSERT_IMPORTED_RUNTIME_EMPTY
 drush updb -y
 drush cim -y
 drush cr
-drush php:script scripts/development-seed/local-converge.php
+FINALIZE local safety + local admin
 drush cr
 Drupal bootstrap assertion
+CLEAR_LOCAL_RUNTIME
+ASSERT_FINAL_RUNTIME_EMPTY
 ```
 
-`local-converge.php` continues to require:
+`local-converge.php` now uses explicit phases. It first proves that the imported seed has no sensitive runtime rows **before** `updb/cim/cr` can create local logs or queue/session-like state. After convergence and local safety checks, only those bounded local runtime tables are cleared, then the final state is asserted empty again.
+
+It continues to require:
 
 - production Config Split OFF;
 - PREPROD Config Split OFF;
 - analytics OFF;
 - provider/AI egress OFF;
 - secret-free local mail baseline;
-- sensitive runtime state empty;
+- imported sensitive runtime state empty before convergence;
+- final sensitive runtime state empty after local-only cleanup;
 - local-only `agency-local-admin` created only after seed consumption.
 
 No local admin is transported inside the seed.

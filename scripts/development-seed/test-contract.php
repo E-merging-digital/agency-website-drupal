@@ -41,6 +41,7 @@ $consumer = file_get_contents(__DIR__ . '/use-native-seed.sh');
 $policyRaw = file_get_contents(__DIR__ . '/sanitization-policy.json');
 $devSanitizer = file_get_contents(__DIR__ . '/agency-development-sanitize.php');
 $localConverge = file_get_contents(__DIR__ . '/local-converge.php');
+$postPullConverge = file_get_contents(__DIR__ . '/post-pull.sh');
 $docs = file_get_contents($root . '/docs/operations/development-seed.md');
 $dispatcher = file_get_contents($root . '/.github/workflows/agency-command-dispatch.yml');
 $workflow = file_get_contents($root . '/.github/workflows/development-seed-publish.yml');
@@ -51,7 +52,7 @@ $source = file_get_contents(__DIR__ . '/remote-readonly-preprod-source.sh');
 $storage = file_get_contents(__DIR__ . '/remote-storage.sh');
 $reader = file_get_contents(__DIR__ . '/remote-read-only-scp.sh');
 $readerKey = file_get_contents(__DIR__ . '/remote-reader-key.sh');
-foreach ([$ddevConfig, $consumer, $policyRaw, $devSanitizer, $localConverge, $docs, $dispatcher, $workflow, $cleanupWorkflow, $cleanupProof, $publisher, $source, $storage, $reader, $readerKey] as $content) {
+foreach ([$ddevConfig, $consumer, $policyRaw, $devSanitizer, $localConverge, $postPullConverge, $docs, $dispatcher, $workflow, $cleanupWorkflow, $cleanupProof, $publisher, $source, $storage, $reader, $readerKey] as $content) {
   assert_true(is_string($content), 'Required Development Seed contract file is unreadable.');
 }
 assert_true(!is_file($root . '/.ddev/providers/agency.yaml'), 'Legacy SQL ddev pull provider must be removed.');
@@ -94,6 +95,24 @@ assert_true(str_contains($devSanitizer, "condition('collection', 'state')"), 'Ru
 assert_true(str_contains($localConverge, 'config_split.config_split.preproduction'), 'Local PREPROD split assertion is missing.');
 assert_true(str_contains($localConverge, 'mailer_dsn'), 'Local mail safety assertion is missing.');
 assert_true(str_contains($localConverge, 'agency_external_ai_egress_enabled'), 'Local provider egress assertion is missing.');
+assert_true(str_contains($localConverge, 'ASSERT_IMPORTED_RUNTIME_EMPTY'), 'Imported runtime preassert phase is missing.');
+assert_true(str_contains($localConverge, 'CLEAR_LOCAL_RUNTIME'), 'Local runtime cleanup phase is missing.');
+assert_true(str_contains($localConverge, 'ASSERT_FINAL_RUNTIME_EMPTY'), 'Final runtime assertion phase is missing.');
+assert_true(str_contains($localConverge, '$db->truncate($table)->execute();'), 'Local runtime cleanup does not clear bounded runtime tables.');
+$importAssert = strpos($postPullConverge, 'AGENCY_DEVELOPMENT_SEED_PHASE=ASSERT_IMPORTED_RUNTIME_EMPTY');
+$updbPosition = strpos($postPullConverge, 'drush updb -y');
+$finalizePosition = strpos($postPullConverge, 'AGENCY_DEVELOPMENT_SEED_PHASE=FINALIZE');
+$clearRuntimePosition = strpos($postPullConverge, 'AGENCY_DEVELOPMENT_SEED_PHASE=CLEAR_LOCAL_RUNTIME');
+$finalAssertPosition = strpos($postPullConverge, 'AGENCY_DEVELOPMENT_SEED_PHASE=ASSERT_FINAL_RUNTIME_EMPTY');
+assert_true(
+  is_int($importAssert) && is_int($updbPosition) && is_int($finalizePosition)
+  && is_int($clearRuntimePosition) && is_int($finalAssertPosition),
+  'Development Seed convergence phase markers are incomplete.',
+);
+assert_true($importAssert < $updbPosition, 'Imported runtime state must be asserted before Drupal convergence.');
+assert_true($updbPosition < $finalizePosition, 'Local finalize phase must follow Drupal updates.');
+assert_true($finalizePosition < $clearRuntimePosition, 'Local runtime cleanup must follow convergence.');
+assert_true($clearRuntimePosition < $finalAssertPosition, 'Final runtime assertion must follow local runtime cleanup.');
 
 // #956 still extends the single dispatcher and no other global listener.
 assert_true(substr_count($dispatcher, "  issue_comment:\n") === 1, 'Dispatcher must remain the single issue_comment listener.');

@@ -15,6 +15,45 @@ if (PHP_SAPI !== 'cli') {
 if (getenv('IS_DDEV_PROJECT') !== 'true') {
   throw new RuntimeException('Development Seed convergence is DDEV-only.');
 }
+
+$phase = getenv('AGENCY_DEVELOPMENT_SEED_PHASE');
+$allowedPhases = [
+  'ASSERT_IMPORTED_RUNTIME_EMPTY',
+  'FINALIZE',
+  'CLEAR_LOCAL_RUNTIME',
+  'ASSERT_FINAL_RUNTIME_EMPTY',
+];
+if (!is_string($phase) || !in_array($phase, $allowedPhases, TRUE)) {
+  throw new RuntimeException('Explicit Development Seed convergence phase is required.');
+}
+
+$db = \Drupal::database();
+$schema = $db->schema();
+$runtimeTables = [
+  'sessions',
+  'webform_submission',
+  'webform_submission_data',
+  'flood',
+  'watchdog',
+  'queue',
+];
+$assertRuntimeEmpty = static function (string $label) use ($db, $schema, $runtimeTables): void {
+  foreach ($runtimeTables as $table) {
+    if ($schema->tableExists($table)) {
+      $count = (int) $db->select($table, 't')->countQuery()->execute()->fetchField();
+      if ($count !== 0) {
+        throw new RuntimeException("{$label}: {$table}");
+      }
+    }
+  }
+};
+
+if ($phase === 'ASSERT_IMPORTED_RUNTIME_EMPTY') {
+  $assertRuntimeEmpty('Unsafe imported runtime state survived locally');
+  fwrite(STDOUT, "IMPORTED_RUNTIME_STATE=PASS\n");
+  return;
+}
+
 if (Settings::get('agency_external_ai_egress_enabled', FALSE) !== FALSE) {
   throw new RuntimeException('External AI/provider egress must remain disabled locally.');
 }
@@ -36,15 +75,20 @@ if (!is_array($mail)
   throw new RuntimeException('Local mail transport is not the secret-free DDEV/native baseline.');
 }
 
-$db = \Drupal::database();
-$schema = $db->schema();
-foreach (['sessions', 'webform_submission', 'webform_submission_data', 'flood', 'watchdog', 'queue'] as $table) {
-  if ($schema->tableExists($table)) {
-    $count = (int) $db->select($table, 't')->countQuery()->execute()->fetchField();
-    if ($count !== 0) {
-      throw new RuntimeException("Unsafe imported runtime state survived locally: {$table}");
+if ($phase === 'CLEAR_LOCAL_RUNTIME') {
+  foreach ($runtimeTables as $table) {
+    if ($schema->tableExists($table)) {
+      $db->truncate($table)->execute();
     }
   }
+  fwrite(STDOUT, "LOCAL_RUNTIME_RESET=PASS\n");
+  return;
+}
+
+if ($phase === 'ASSERT_FINAL_RUNTIME_EMPTY') {
+  $assertRuntimeEmpty('Unsafe final local runtime state survived convergence');
+  fwrite(STDOUT, "FINAL_RUNTIME_STATE=PASS\n");
+  return;
 }
 
 $storage = \Drupal::entityTypeManager()->getStorage('user');

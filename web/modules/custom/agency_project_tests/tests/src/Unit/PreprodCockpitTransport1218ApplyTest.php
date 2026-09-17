@@ -71,7 +71,8 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
   }
 
   /**
-   * Proves root APPLY is stale-checked, minimal, rollback-capable and secret-safe.
+   * Proves root APPLY is stale-checked, minimal, rollback-capable and
+   * secret-safe.
    */
   public function testRemoteApplyConvergesOnlyApprovedTransportSurfaces(): void {
     $apply = $this->source(self::APPLY);

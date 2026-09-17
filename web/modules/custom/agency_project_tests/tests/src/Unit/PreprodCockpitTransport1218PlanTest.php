@@ -80,6 +80,9 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
     }
   }
 
+  /**
+   * Proves the remote PLAN observes PREPROD without mutation authority.
+   */
   public function testRemotePlanObservesWithoutMutatingPreprod(): void {
     $plan = $this->source(self::PLAN);
 

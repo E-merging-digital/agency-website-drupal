@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "issue": 1215,
+  "decision": "EXTEND_EXISTING",
+  "purpose": "bounded fixed-source system configuration backup before #1183 maintenance",
+  "helper": {
+    "source": "scripts/production-maintenance-1183/system-config-backup/agency-prod-system-config-backup",
+    "destination": "/usr/local/sbin/agency-prod-system-config-backup",
+    "owner": "root",
+    "group": "root",
+    "mode": "0755",
+    "arguments": "NONE",
+    "sources": [
+      "etc/nginx",
+      "etc/php/8.4",
+      "etc/mysql"
+    ],
+    "backup_root": "/var/www/agency/shared/backups",
+    "archive_owner_group_mode": "root:root:0600",
+    "raw_config_output": "FORBIDDEN"
+  },
+  "sudoers": {
+    "template": "scripts/production-maintenance-1183/system-config-backup/agency-prod-system-config-backup.sudoers.template",
+    "destination": "/etc/sudoers.d/agency-prod-system-config-backup",
+    "identity_source": "SERVER_USER",
+    "owner": "root",
+    "group": "root",
+    "mode": "0440",
+    "nopasswd_scope": "FIXED_HELPER_ONLY",
+    "no_setenv": true,
+    "nopasswd_all": "FORBIDDEN",
+    "generic_privilege": "NONE",
+    "visudo_cf": "REQUIRED"
+  },
+  "provisioning": {
+    "real_host_install_required": true,
+    "real_host_install_executed": false,
+    "boundary": "SEPARATE_ADMIN_BOOTSTRAP"
+  }
+}

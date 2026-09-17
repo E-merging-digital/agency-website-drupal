@@ -242,6 +242,85 @@ def read_lines(name):
         return []
     return [line.rstrip('\n') for line in path.read_text(encoding='utf-8', errors='replace').splitlines() if line.strip()]
 
+# Exact private sudo listing only; never execute the command being audited.
+# Parser follows runtime-error-counts/remote-provision-plan.sh (#1208/#1211).
+def probe_exact_sudo(args):
+    expected = " ".join(args)
+    try:
+        result = subprocess.run(['sudo', '-k', '-n', '-ll', '--', *args],
+                                capture_output=True, text=True, timeout=15,
+                                env={**os.environ, 'LC_ALL': 'C'})
+        policy, error, rc = result.stdout, result.stderr, result.returncode
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 'UNKNOWN', 'INTERNAL_PARSER_ERROR'
+    pattern = (r"\s*Sudoers entry:(?: /[^\s]+)?\n[ \t]+RunAsUsers: root\n"
+               r"(?:[ \t]+RunAsGroups: root\n)?"
+               r"[ \t]+Options: ([^\n]+)\n"
+               r"[ \t]+Commands:\n[ \t]+([^\n]+)\n"
+               r"[ \t]*Matched: ([^\n]+)\s*")
+    match = re.fullmatch(pattern, policy)
+    options = [option.strip() for option in match[1].split(",")] if match else []
+    # Only understood defaults/tags: unknown options can change authorization.
+    allowed = {"!authenticate", "authenticate", "!setenv", "env_reset",
+               "mail_badpass", "use_pty", "log_input", "log_output",
+               "noexec", "!sudoedit_follow", "sudoedit_checkdir"}
+    auth = set(options) & {"authenticate", "!authenticate"}
+    safe_options = all(option in allowed or re.fullmatch(
+        r"secure_path=/[A-Za-z0-9_./-]*(?::/[A-Za-z0-9_./-]*)*", option)
+        for option in options)
+    safe_args = bool(args) and all(re.fullmatch(r"[A-Za-z0-9_./=:+~\-]+", arg) for arg in args)
+    exact = (match is not None and match[2] == expected and match[3] == expected
+             and len(options) == len({option.split("=", 1)[0] for option in options})
+             and len(auth) == 1
+             and safe_options and safe_args)
+    state = "UNKNOWN"
+    if rc == 0 and not error and exact:
+        state = "AVAILABLE" if "!authenticate" in auth else "UNAVAILABLE"
+    elif rc == 1 and not policy.strip() and safe_args:
+        # Require a complete C-locale command denial, never a listing/auth failure.
+        quote = chr(39)
+        command = re.escape(quote + expected + quote)
+        identity = r"[A-Za-z0-9_.-]+"
+        denial = (r"(?:sudo: )?(?:Sorry, user " + identity
+                  + r" is not allowed to execute " + command
+                  + r" as root on " + identity + r"\.|User " + identity
+                  + r" is not allowed to run " + command
+                  + r" as root on " + identity + r"\.)\n?")
+        if re.fullmatch(denial, error):
+            state = "UNAVAILABLE"
+    # Diagnostics describe only UNKNOWN; the #1208 decision above is unchanged.
+    reason = "NONE"
+    if state == "UNKNOWN":
+        if "sudo: a password is required" in error:
+            reason = "STDERR_PASSWORD_REQUIRED"
+        elif error:
+            reason = "STDERR_PRESENT"
+        elif rc != 0:
+            exit_kind = "ONE" if rc == 1 else "OTHER"
+            policy_kind = "EMPTY" if not policy.strip() else "EXACT" if exact else "OTHER"
+            reason = "EXIT_" + exit_kind + "_POLICY_" + policy_kind
+        elif not policy.strip():
+            reason = "POLICY_EMPTY"
+        elif len(re.findall(r"(?m)^\s*Sudoers entry:", policy)) > 1:
+            reason = "MULTIPLE_ENTRIES"
+        elif not re.search(r"(?m)^[ \t]*Matched:", policy):
+            reason = ("MATCHED_MISSING" if re.search(
+                r"(?m)^\s*Sudoers entry:", policy) else "POLICY_FORMAT_UNSUPPORTED")
+        elif re.search(r"(?m)^[ \t]+RunAs(?:Users|Groups): (?!root$)", policy):
+            reason = "RUNAS_MISMATCH"
+        elif match is None:
+            reason = "POLICY_FORMAT_UNSUPPORTED"
+        elif match[2] != expected or match[3] != expected or not safe_args:
+            reason = "COMMAND_MISMATCH"
+        elif len(auth) != 1 or any(options.count(tag) > 1 for tag in auth):
+            reason = "AUTH_AMBIGUOUS"
+        elif not safe_options or len(options) != len({
+                option.split("=", 1)[0] for option in options}):
+            reason = "OPTION_UNSUPPORTED"
+        else:
+            reason = "POLICY_FORMAT_UNSUPPORTED"
+    return state, reason
+
 upgradable = []
 for line in read_lines('upgradable.raw'):
     if line.startswith('Listing'):
@@ -346,11 +425,47 @@ for item in upgrades:
     if name.startswith('mariadb-') and '11.8' not in item['to']:
         checks[f'mariadb_candidate_branch:{name}'] = False
 
+# BEGIN #1215 EXACT PRIVILEGE AUDIT
+package_args = sorted(f"{item['name']}={item['to']}" for item in upgrades)
+package_args_valid = all(re.fullmatch(r'[A-Za-z0-9.+:-]+=[A-Za-z0-9.+:~_-]+', arg)
+                         for arg in package_args)
+commands = {
+    'SYSTEM_CONFIG_BACKUP': ['/usr/local/sbin/agency-prod-system-config-backup'],
+    'APT_UPDATE': ['/usr/bin/apt-get', 'update'],
+    'APT_SIMULATE': ['/usr/bin/apt-get', '--simulate', 'install', '--only-upgrade', *package_args],
+    'APT_INSTALL': ['/usr/bin/apt-get', 'install', '-y', '--only-upgrade', *package_args],
+    'NGINX_TEST': ['/usr/sbin/nginx', '-t'],
+    'PHP_FPM_TEST': ['/usr/sbin/php-fpm8.4', '-t'],
+    'NGINX_ACTIVE': ['/usr/bin/systemctl', 'is-active', '--quiet', 'nginx'],
+    'PHP_FPM_ACTIVE': ['/usr/bin/systemctl', 'is-active', '--quiet', 'php8.4-fpm'],
+    'MARIADB_ACTIVE': ['/usr/bin/systemctl', 'is-active', '--quiet', 'mariadb'],
+    'REBOOT': ['/usr/bin/systemctl', 'reboot'],
+    'RUNTIME_ERROR_HELPER': ['/usr/local/sbin/agency-prod-runtime-error-counts'],
+}
+privileges = {}
+privilege_reasons = {}
+for name, args in commands.items():
+    if name.startswith('APT_') and not package_args:
+        state, reason = 'UNKNOWN', 'NOT_REQUIRED'
+    elif name.startswith('APT_') and not package_args_valid:
+        state, reason = 'UNKNOWN', 'COMMAND_MISMATCH'
+    else:
+        state, reason = probe_exact_sudo(args)
+    privileges['PRIVILEGED_' + name] = state
+    privilege_reasons['WHY_UNKNOWN_' + name] = reason
+    checks['privileged_' + name.lower()] = (
+        state == 'AVAILABLE' or (name.startswith('APT_') and not package_args))
+checks['package_args_valid'] = package_args_valid
+# END #1215 EXACT PRIVILEGE AUDIT
+
 failed_checks = sorted(name for name, value in checks.items() if not value)
 safety_gate = 'FAIL' if failed_checks else 'PASS'
 status = 'FAIL' if failed_checks else 'PASS'
 
 receipt = {
+    **privileges,
+    **privilege_reasons,
+    'RAW_SUDO_POLICY_EXPOSURE': 'NONE',
     'schema_version': 1,
     'STATUS': status,
     'ISSUE': int(os.environ['ISSUE']),
@@ -456,6 +571,7 @@ mutation_identity_keys = (
 receipt['PLAN_DIGEST'] = None
 if not failed_checks:
     mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
+    mutation_identity.update(privileges)
     canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
     receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
 print(json.dumps(receipt, sort_keys=True, separators=(',', ':')))

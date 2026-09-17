@@ -303,7 +303,16 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
       file_put_contents($script, $matches[1] . "\n");
       $stdout = $directory . '/stdout.json';
       $stderr = $directory . '/stderr.txt';
+      file_put_contents($directory . '/sudo', <<<'SH'
+#!/usr/bin/env bash
+[[ "$1 $2 $3 $4" == '-k -n -ll --' ]] || exit 99
+shift 4
+printf 'Sudoers entry:\n    RunAsUsers: root\n    Options: !authenticate, !setenv\n    Commands:\n        %s\n    Matched: %s\n' "$*" "$*"
+SH
+      );
+      chmod($directory . '/sudo', 0700);
       $environment = array_replace([
+        'PATH' => $directory . ':/usr/bin:/bin',
         'WORK_ROOT' => $directory,
         'MAIN_SHA' => str_repeat('a', 40),
         'PLAN_ID' => 'plan-1183-decidability-fixture-r1',

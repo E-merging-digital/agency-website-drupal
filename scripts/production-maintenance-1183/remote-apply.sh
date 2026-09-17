@@ -12,6 +12,7 @@ PROJECT_ROOT='/var/www/agency'
 CURRENT_ROOT="$PROJECT_ROOT/current"
 BACKUP_DIR="$PROJECT_ROOT/shared/backups"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYSTEM_CONFIG_BACKUP_HELPER='/usr/local/sbin/agency-prod-system-config-backup'
 PLAN_SCRIPT="$SCRIPT_DIR/remote-plan.sh"
 
 [[ "$(id -u)" -ne 0 ]]
@@ -55,6 +56,17 @@ jq -e \
   and .PUBLIC_HOME == "PASS"
   and .CONTACT_FORM_SURFACE == "PASS"
   and .RECENT_NGINX_PHP_ERRORS == "NONE_MATERIAL"
+  and .PRIVILEGED_SYSTEM_CONFIG_BACKUP == "AVAILABLE"
+  and .PRIVILEGED_NGINX_TEST == "AVAILABLE"
+  and .PRIVILEGED_PHP_FPM_TEST == "AVAILABLE"
+  and .PRIVILEGED_NGINX_ACTIVE == "AVAILABLE"
+  and .PRIVILEGED_PHP_FPM_ACTIVE == "AVAILABLE"
+  and .PRIVILEGED_MARIADB_ACTIVE == "AVAILABLE"
+  and .PRIVILEGED_REBOOT == "AVAILABLE"
+  and .PRIVILEGED_RUNTIME_ERROR_HELPER == "AVAILABLE"
+  and (.PACKAGE_UPGRADES | type == "array")
+  and ((.PACKAGE_UPGRADES | length) == 0 or
+       (.PRIVILEGED_APT_UPDATE == "AVAILABLE" and .PRIVILEGED_APT_SIMULATE == "AVAILABLE" and .PRIVILEGED_APT_INSTALL == "AVAILABLE"))
   and .SAFETY_GATE == "PASS"' "$APPROVED_PLAN" >/dev/null
 
 main_sha="$(jq -r '.MAIN_SHA' "$APPROVED_PLAN")"
@@ -75,13 +87,28 @@ start_epoch="$(date +%s)"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_stem="$BACKUP_DIR/pre-os-maintenance-1183-$timestamp.sql"
 db_backup="$backup_stem.gz"
-config_backup="$BACKUP_DIR/pre-os-maintenance-1183-$timestamp-system-config.tar.gz"
 receipt_file="$BACKUP_DIR/pre-os-maintenance-1183-$timestamp-pre-reboot.json"
 # Backups are mandatory and precede every package mutation.
 (cd "$CURRENT_ROOT" && vendor/bin/drush sql:dump --gzip --result-file="$backup_stem" >/dev/null)
 [[ -s "$db_backup" ]]
-sudo -n tar -C / -czf "$config_backup" etc/nginx etc/php/8.4 etc/mysql
-sudo -n test -s "$config_backup"
+# BEGIN #1215 BACKUP RECEIPT
+# Keep helper diagnostics private; accept exactly four canonical lines.
+sudo -n -- "$SYSTEM_CONFIG_BACKUP_HELPER" >"$work_root/config-backup.receipt" 2>/dev/null
+[[ "$(stat -c '%s' -- "$work_root/config-backup.receipt")" -le 512 ]]
+mapfile -t backup_lines <"$work_root/config-backup.receipt"
+[[ "${#backup_lines[@]}" -eq 4 && "${backup_lines[0]}" == 'STATUS=PASS' ]]
+[[ "${backup_lines[1]}" =~ ^SYSTEM_CONFIG_BACKUP=(/var/www/agency/shared/backups/pre-os-maintenance-1183-[0-9]{8}T[0-9]{6}Z-system-config\.tar\.gz)$ ]]
+config_backup="${BASH_REMATCH[1]}"
+[[ "${backup_lines[2]}" =~ ^SYSTEM_CONFIG_BACKUP_SHA256=([0-9a-f]{64})$ ]]
+config_backup_sha256="${BASH_REMATCH[1]}"
+[[ "${backup_lines[3]}" =~ ^SYSTEM_CONFIG_BACKUP_SIZE=([1-9][0-9]{0,18})$ ]]
+config_backup_size="${BASH_REMATCH[1]}"
+# Reject missing newline, NUL bytes and any noncanonical serialization.
+printf '%s\n' "${backup_lines[@]}" | cmp -s -- "$work_root/config-backup.receipt" -
+[[ -f "$config_backup" && ! -L "$config_backup" ]]
+[[ "$(stat -c '%s:%u:%g:%a' -- "$config_backup" 2>/dev/null)" == "$config_backup_size:0:0:600" ]]
+unset backup_lines
+# END #1215 BACKUP RECEIPT
 
 previous_kernel="$(uname -r)"
 [[ -d "/lib/modules/$previous_kernel" ]]
@@ -93,14 +120,14 @@ previous_kernel="$(uname -r)"
 maintenance_now="$(cd "$CURRENT_ROOT" && vendor/bin/drush state:get system.maintenance_mode | tail -n 1 | tr -d '[:space:]')"
 [[ "$maintenance_now" == '1' ]]
 
-mapfile -t package_args < <(jq -r '.PACKAGE_UPGRADES[] | "\(.name)=\(.to)"' "$APPROVED_PLAN")
+mapfile -t package_args < <(jq -r '.PACKAGE_UPGRADES | sort_by(.name + "=" + .to)[] | "\(.name)=\(.to)"' "$APPROVED_PLAN")
 for package_arg in "${package_args[@]}"; do
   [[ "$package_arg" =~ ^[A-Za-z0-9.+:-]+=[A-Za-z0-9.+:~_-]+$ ]]
 done
 
 if (( ${#package_args[@]} > 0 )); then
-  sudo -n apt-get update >"$work_root/apt-update.log" 2>&1
-  sudo -n apt-get --simulate install --only-upgrade "${package_args[@]}" >"$work_root/exact-sim.raw" 2>&1
+  sudo -n -- /usr/bin/apt-get update >"$work_root/apt-update.log" 2>&1
+  sudo -n -- /usr/bin/apt-get --simulate install --only-upgrade "${package_args[@]}" >"$work_root/exact-sim.raw" 2>&1
   python3 - "$APPROVED_PLAN" "$work_root/exact-sim.raw" <<'PY'
 import json
 import re
@@ -124,13 +151,13 @@ if sorted(actual) != expected:
     raise SystemExit(f'Exact apply simulation drift: expected={expected!r} actual={sorted(actual)!r}')
 PY
 
-  sudo -n apt-get install -y --only-upgrade "${package_args[@]}" >"$work_root/apt-apply.log" 2>&1
+  sudo -n -- /usr/bin/apt-get install -y --only-upgrade "${package_args[@]}" >"$work_root/apt-apply.log" 2>&1
 fi
-sudo -n nginx -t >/dev/null 2>&1
-sudo -n php-fpm8.4 -t >/dev/null 2>&1
-sudo -n systemctl is-active --quiet nginx
-sudo -n systemctl is-active --quiet php8.4-fpm
-sudo -n systemctl is-active --quiet mariadb
+sudo -n -- /usr/sbin/nginx -t >/dev/null 2>&1
+sudo -n -- /usr/sbin/php-fpm8.4 -t >/dev/null 2>&1
+sudo -n -- /usr/bin/systemctl is-active --quiet nginx
+sudo -n -- /usr/bin/systemctl is-active --quiet php8.4-fpm
+sudo -n -- /usr/bin/systemctl is-active --quiet mariadb
 [[ -d "/lib/modules/$previous_kernel" ]]
 [[ -d "/lib/modules/$TARGET_KERNEL" ]]
 
@@ -150,6 +177,8 @@ jq -n \
   --arg window_ref "$WINDOW_REF" \
   --arg db_backup "$db_backup" \
   --arg config_backup "$config_backup" \
+  --arg config_backup_sha256 "$config_backup_sha256" \
+  --arg config_backup_size "$config_backup_size" \
   --arg previous_kernel "$previous_kernel" \
   --arg target_kernel "$TARGET_KERNEL" \
   --arg reboot_initiated "$reboot_needed" \
@@ -170,6 +199,8 @@ jq -n \
     MAINTENANCE_WINDOW_APPROVAL:"PROJECT_LEAD_EXTERNAL",
     DATABASE_BACKUP:$db_backup,
     SYSTEM_CONFIG_BACKUP:$config_backup,
+    SYSTEM_CONFIG_BACKUP_SHA256:$config_backup_sha256,
+    SYSTEM_CONFIG_BACKUP_SIZE:($config_backup_size|tonumber),
     BACKUPS_BEFORE_PACKAGE_APPLY:"PASS",
     MAINTENANCE_MODE_ENTERED:"YES",
     PACKAGE_APPLY_SUCCESS:"YES",
@@ -187,5 +218,5 @@ cat "$receipt_file"
 sync
 
 if [[ "$reboot_needed" == 'YES' ]]; then
-  sudo -n systemctl reboot
+  sudo -n -- /usr/bin/systemctl reboot
 fi

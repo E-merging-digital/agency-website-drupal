@@ -9,7 +9,9 @@ CURRENT_LINK="$PROJECT_ROOT/current"
 SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"
 NGINX_SITE='/etc/nginx/sites-available/agency-preprod'
 TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'
-ENDPOINT='https://preprod.emergingdigital.be/api/agency-operations/v1/environment-data-state'
+HOSTNAME='preprod.emergingdigital.be'
+PATH_ONLY='/api/agency-operations/v1/environment-data-state'
+ENDPOINT="https://$HOSTNAME$PATH_ONLY"
 
 fail() {
   printf '[cockpit-transport-plan] ERROR: %s\n' "$1" >&2
@@ -96,22 +98,23 @@ fi
 
 probe_http() {
   local label="$1"
-  shift
-  local body headers rc status content_type kind
+  local endpoint="$2"
+  shift 2
+  local body headers rc status content_type kind www_auth
   body="$(mktemp)"
   headers="$(mktemp)"
   set +e
   status="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
     --output "$body" --dump-header "$headers" --write-out '%{http_code}' \
-    "$@" "$ENDPOINT")"
+    "$@" "$endpoint")"
   rc="$?"
   set -e
   content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
+  www_auth="$(awk 'BEGIN{IGNORECASE=1} /^www-authenticate:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
   kind="$(python3 - "$body" <<'PY'
 import json
 import sys
 from pathlib import Path
-
 raw = Path(sys.argv[1]).read_bytes()[:65536]
 if not raw:
     print('EMPTY')
@@ -131,10 +134,13 @@ PY
   printf '%s_STATUS=%s\n' "$label" "$status"
   printf '%s_CONTENT_TYPE=%s\n' "$label" "$content_type"
   printf '%s_KIND=%s\n' "$label" "$kind"
+  printf '%s_WWW_AUTH=%s\n' "$label" "$www_auth"
 }
 
-mapfile -t no_auth < <(probe_http NO_AUTH)
-mapfile -t fake_bearer < <(probe_http FAKE_BEARER -H 'Authorization: Bearer invalid-cockpit-token-1218')
+mapfile -t no_auth < <(probe_http NO_AUTH "$ENDPOINT")
+mapfile -t fake_bearer < <(probe_http FAKE_BEARER "$ENDPOINT" -H 'Authorization: Bearer invalid-cockpit-token-1218')
+mapfile -t local_http < <(probe_http LOCAL_HTTP "http://127.0.0.1$PATH_ONLY" -H "Host: $HOSTNAME")
+mapfile -t local_https < <(probe_http LOCAL_HTTPS "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1")
 
 read_probe() {
   local prefix="$1"
@@ -143,14 +149,72 @@ read_probe() {
   printf '%s\n' "$@" | sed -n "s/^${prefix}_${key}=//p" | tail -n 1
 }
 
-no_auth_rc="$(read_probe NO_AUTH RC "${no_auth[@]}")"
-no_auth_status="$(read_probe NO_AUTH STATUS "${no_auth[@]}")"
-no_auth_content_type="$(read_probe NO_AUTH CONTENT_TYPE "${no_auth[@]}")"
-no_auth_kind="$(read_probe NO_AUTH KIND "${no_auth[@]}")"
-fake_rc="$(read_probe FAKE_BEARER RC "${fake_bearer[@]}")"
-fake_status="$(read_probe FAKE_BEARER STATUS "${fake_bearer[@]}")"
-fake_content_type="$(read_probe FAKE_BEARER CONTENT_TYPE "${fake_bearer[@]}")"
-fake_kind="$(read_probe FAKE_BEARER KIND "${fake_bearer[@]}")"
+probe_json() {
+  local prefix="$1"
+  shift
+  local rc status content_type kind www_auth
+  rc="$(read_probe "$prefix" RC "$@")"
+  status="$(read_probe "$prefix" STATUS "$@")"
+  content_type="$(read_probe "$prefix" CONTENT_TYPE "$@")"
+  kind="$(read_probe "$prefix" KIND "$@")"
+  www_auth="$(read_probe "$prefix" WWW_AUTH "$@")"
+  jq -cn \
+    --argjson rc "$rc" \
+    --arg status "$status" \
+    --arg content_type "$content_type" \
+    --arg body_kind "$kind" \
+    --arg www_authenticate "$www_auth" \
+    '{curl_rc:$rc,status:$status,content_type:$content_type,body_kind:$body_kind,www_authenticate:$www_authenticate}'
+}
+
+no_auth_json="$(probe_json NO_AUTH "${no_auth[@]}")"
+fake_json="$(probe_json FAKE_BEARER "${fake_bearer[@]}")"
+local_http_json="$(probe_json LOCAL_HTTP "${local_http[@]}")"
+local_https_json="$(probe_json LOCAL_HTTPS "${local_https[@]}")"
+
+nginx_topology="$(python3 - "$HOSTNAME" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+hostname = sys.argv[1]
+roots = [Path('/etc/nginx/sites-enabled'), Path('/etc/nginx/sites-available'), Path('/etc/nginx/conf.d')]
+items = []
+seen = set()
+for root in roots:
+    if not root.is_dir():
+        continue
+    for entry in sorted(root.iterdir(), key=lambda p: str(p)):
+        try:
+            target = entry.resolve(strict=True)
+        except (OSError, RuntimeError):
+            continue
+        key = (str(entry), str(target))
+        if key in seen or not target.is_file():
+            continue
+        seen.add(key)
+        try:
+            text = target.read_text(encoding='utf-8')
+        except (OSError, UnicodeError):
+            continue
+        if hostname not in text and 'Agency PREPROD' not in text:
+            continue
+        directives = []
+        for line in text.splitlines():
+            stripped = line.strip()
+            if re.match(r'^(listen|server_name|auth_basic|proxy_pass|fastcgi_pass|include)\b', stripped):
+                directives.append(stripped[:300])
+        items.append({
+            'path': str(entry),
+            'target': str(target),
+            'is_symlink': entry.is_symlink(),
+            'directives': directives,
+        })
+print(json.dumps(items, separators=(',', ':'), sort_keys=True))
+PY
+)"
+jq -e 'type == "array"' <<<"$nginx_topology" >/dev/null
 
 state="$(jq -n \
   --arg current_release "$current_release" \
@@ -170,41 +234,33 @@ state="$(jq -n \
   --argjson token_size "$TOKEN_SIZE" \
   --argjson token_mtime "$TOKEN_MTIME" \
   --argjson token_ctime "$TOKEN_CTIME" \
-  --argjson no_auth_rc "$no_auth_rc" \
-  --arg no_auth_status "$no_auth_status" \
-  --arg no_auth_content_type "$no_auth_content_type" \
-  --arg no_auth_kind "$no_auth_kind" \
-  --argjson fake_rc "$fake_rc" \
-  --arg fake_status "$fake_status" \
-  --arg fake_content_type "$fake_content_type" \
-  --arg fake_kind "$fake_kind" \
+  --argjson no_auth "$no_auth_json" \
+  --argjson fake_bearer "$fake_json" \
+  --argjson local_http "$local_http_json" \
+  --argjson local_https "$local_https_json" \
+  --argjson nginx_topology "$nginx_topology" \
   '{
     current_release: $current_release,
     current_target: $current_target,
-    settings: {
-      sha256: $settings_sha256,
-      cockpit_token_reader: $settings_reader
-    },
+    settings: {sha256:$settings_sha256,cockpit_token_reader:$settings_reader},
     nginx: {
-      sha256: $nginx_sha256,
-      machine_location_count: $nginx_location_count,
-      auth_basic_off: $nginx_auth_basic_off,
-      authorization_forwarded: $nginx_authorization_forwarded,
-      script_filename_contract: $nginx_script_filename,
-      fastcgi_pass_present: $nginx_fastcgi_pass
+      sha256:$nginx_sha256,
+      machine_location_count:$nginx_location_count,
+      auth_basic_off:$nginx_auth_basic_off,
+      authorization_forwarded:$nginx_authorization_forwarded,
+      script_filename_contract:$nginx_script_filename,
+      fastcgi_pass_present:$nginx_fastcgi_pass,
+      topology:$nginx_topology
     },
     token_file: {
-      state: $token_state,
-      owner: $token_owner,
-      group: $token_group,
-      mode: $token_mode,
-      size: $token_size,
-      mtime_epoch: $token_mtime,
-      ctime_epoch: $token_ctime
+      state:$token_state,owner:$token_owner,group:$token_group,mode:$token_mode,
+      size:$token_size,mtime_epoch:$token_mtime,ctime_epoch:$token_ctime
     },
     http: {
-      no_auth: {curl_rc: $no_auth_rc, status: $no_auth_status, content_type: $no_auth_content_type, body_kind: $no_auth_kind},
-      fake_bearer: {curl_rc: $fake_rc, status: $fake_status, content_type: $fake_content_type, body_kind: $fake_kind}
+      no_auth:$no_auth,
+      fake_bearer:$fake_bearer,
+      local_http:$local_http,
+      local_https:$local_https
     }
   }')"
 
@@ -217,15 +273,7 @@ jq -n \
   --arg plan_digest "$plan_digest" \
   --argjson state "$state" \
   '{
-    STATUS: "PASS",
-    ISSUE: 1218,
-    TARGET: "PREPROD",
-    MODE: "PLAN",
-    MAIN_SHA: $main_sha,
-    PLAN_ID: $plan_id,
-    PLAN_DIGEST: $plan_digest,
-    STATE: $state,
-    PREPROD_MUTATION: "NONE",
-    PROD_ACCESS: "NONE",
-    SECRET_CONTENT_EXPOSED: false
+    STATUS:"PASS",ISSUE:1218,TARGET:"PREPROD",MODE:"PLAN",
+    MAIN_SHA:$main_sha,PLAN_ID:$plan_id,PLAN_DIGEST:$plan_digest,STATE:$state,
+    PREPROD_MUTATION:"NONE",PROD_ACCESS:"NONE",SECRET_CONTENT_EXPOSED:false
   }'

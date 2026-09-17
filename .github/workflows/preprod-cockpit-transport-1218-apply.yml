@@ -1,0 +1,250 @@
+name: '#1218 PREPROD cockpit transport APPLY'
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+
+concurrency:
+  group: agency-preprod-cockpit-transport-1218-apply
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate exact #1218 APPLY authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      plan_run: ${{ steps.authority.outputs.plan_run }}
+      plan_digest: ${{ steps.authority.outputs.plan_digest }}
+    steps:
+      - id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1218'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1218")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+
+          if [[ ! "$COMMENT_BODY" =~ ^/agency-cockpit-transport-1218\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})\ main_sha=([0-9a-f]{40})$ ]]; then
+            echo 'Unsupported #1218 APPLY syntax.' >&2
+            exit 64
+          fi
+          plan_run="${BASH_REMATCH[1]}"
+          plan_digest="${BASH_REMATCH[2]}"
+          requested_main="${BASH_REMATCH[3]}"
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$WORKFLOW_SHA" = "$main_sha"
+          test "$requested_main" = "$main_sha"
+          {
+            echo "main_sha=$main_sha"
+            echo "plan_run=$plan_run"
+            echo "plan_digest=$plan_digest"
+          } >> "$GITHUB_OUTPUT"
+
+  apply:
+    name: Apply exact approved PREPROD cockpit transport plan
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Load and validate immutable approved PLAN
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/preprod-cockpit-transport-1218/approved
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN")"
+          test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'
+          test "$(jq -r '.event' <<<"$run_json")" = 'issue_comment'
+          test "$(jq -r '.head_sha' <<<"$run_json")" = "$MAIN_SHA"
+          mapfile -t artifacts < <(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN/artifacts" \
+              --jq ".artifacts[] | select(.expired == false) | select(.name | startswith(\"preprod-cockpit-transport-1218-plan-${PLAN_RUN}-\")) | .name"
+          )
+          test "${#artifacts[@]}" -eq 1
+          gh run download "$PLAN_RUN" --name "${artifacts[0]}" \
+            --dir artifacts/preprod-cockpit-transport-1218/approved
+          plan='artifacts/preprod-cockpit-transport-1218/approved/plan.json'
+          test -s "$plan"
+          jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" '
+            .STATUS == "PASS"
+            and .ISSUE == 1218
+            and .TARGET == "PREPROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_DIGEST == $digest
+            and .PREPROD_MUTATION == "NONE"
+            and .PROD_ACCESS == "NONE"
+            and .SECRET_CONTENT_EXPOSED == false
+          ' "$plan" >/dev/null
+
+      - name: Materialize pinned PREPROD root identity and trust
+        shell: bash
+        env:
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_ROOT_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-1218-root.key"
+          chmod 600 "$RUNNER_TEMP/agency-1218-root.key"
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Execute stale-checked bounded APPLY
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          root_ssh=(
+            ssh
+            -i "$RUNNER_TEMP/agency-1218-root.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          root_scp=(
+            scp -q
+            -i "$RUNNER_TEMP/agency-1218-root.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          remote_dir="/root/agency-1218-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          plan='artifacts/preprod-cockpit-transport-1218/approved/plan.json'
+          mkdir -p artifacts/preprod-cockpit-transport-1218/apply
+
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" \
+            "umask 077; rm -rf -- '$remote_dir'; install -d -m 700 '$remote_dir'"
+          "${root_scp[@]}" \
+            scripts/preproduction-cockpit-transport-1218/remote-plan.sh \
+            scripts/preproduction-cockpit-transport-1218/remote-apply-root.sh \
+            scripts/preproduction/nginx-agency-preprod.conf.template \
+            scripts/preproduction/settings.php.template \
+            scripts/preproduction/provision-cockpit-state-token.sh \
+            "$plan" \
+            "root@$PREPROD_SERVER_HOST:$remote_dir/"
+
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" \
+            "chmod 700 '$remote_dir/remote-plan.sh' '$remote_dir/remote-apply-root.sh' '$remote_dir/provision-cockpit-state-token.sh'; '$remote_dir/remote-apply-root.sh' '$remote_dir/plan.json' '$PLAN_DIGEST' '$MAIN_SHA' '$remote_dir/remote-plan.sh' '$remote_dir/nginx-agency-preprod.conf.template' '$remote_dir/settings.php.template' '$remote_dir/provision-cockpit-state-token.sh'" \
+            > artifacts/preprod-cockpit-transport-1218/apply/result.json
+
+          result='artifacts/preprod-cockpit-transport-1218/apply/result.json'
+          jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" '
+            .STATUS == "PASS"
+            and .ISSUE == 1218
+            and .TARGET == "PREPROD"
+            and .MODE == "APPLY"
+            and .MAIN_SHA == $main
+            and .PLAN_DIGEST == $digest
+            and .STALE_PLAN == "PASS"
+            and .NGINX_CONVERGED == true
+            and .SETTINGS_READER_CONVERGED == true
+            and .TOKEN_PERMISSIONS_DURING_PROOF == "root:www-data:640"
+            and .HTTP.no_auth == "401|JSON"
+            and .HTTP.fake_bearer == "401|JSON"
+            and .HTTP.real_bearer == "200|JSON"
+            and (.HTTP.post_cleanup_no_auth == "503|JSON" or .HTTP.post_cleanup_no_auth == "401|JSON")
+            and .TOKEN_CLEANUP == "PASS"
+            and .TOKEN_PERSISTED == false
+            and .PROD_ACCESS == "NONE"
+            and .DB_MUTATION == "NONE"
+            and .SECRET_CONTENT_EXPOSED == false
+            and .ROLLBACK_REQUIRED == false
+          ' "$result" >/dev/null
+
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" "rm -rf -- '$remote_dir'"
+
+      - name: Upload non-secret APPLY receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprod-cockpit-transport-1218-apply-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/preprod-cockpit-transport-1218/apply/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded APPLY summary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          result='artifacts/preprod-cockpit-transport-1218/apply/result.json'
+          body="$(cat <<EOF_BODY
+          #1218 PREPROD cockpit transport APPLY completed.
+
+          \`MODE=APPLY\`
+          \`RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}\`
+          \`MAIN_SHA=${MAIN_SHA}\`
+          \`PLAN_DIGEST=${PLAN_DIGEST}\`
+          \`STALE_PLAN=$(jq -r '.STALE_PLAN' "$result")\`
+          \`NGINX_CONVERGED=$(jq -r '.NGINX_CONVERGED' "$result")\`
+          \`SETTINGS_READER_CONVERGED=$(jq -r '.SETTINGS_READER_CONVERGED' "$result")\`
+          \`NO_AUTH=$(jq -r '.HTTP.no_auth' "$result")\`
+          \`FAKE_BEARER=$(jq -r '.HTTP.fake_bearer' "$result")\`
+          \`REAL_BEARER=$(jq -r '.HTTP.real_bearer' "$result")\`
+          \`TOKEN_CLEANUP=$(jq -r '.TOKEN_CLEANUP' "$result")\`
+          \`TOKEN_PERSISTED=$(jq -r '.TOKEN_PERSISTED' "$result")\`
+          \`PROD_ACCESS=NONE\`
+          \`DB_MUTATION=NONE\`
+          \`SECRET_CONTENT_EXPOSED=false\`
+
+          The transport source is converged and the ephemeral bearer proof is complete. Durable Infrastructure cockpit client wiring remains a separate proof before #1218/#43 can close.
+          EOF_BODY
+          )"
+          gh issue comment 1218 --body "$body"
+
+      - name: Remove transient root key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1218-root.key"

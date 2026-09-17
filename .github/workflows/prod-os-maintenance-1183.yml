@@ -365,6 +365,44 @@ jobs:
 
           pre='artifacts/prod-os-maintenance-1183/apply/pre-reboot.json'
           test -s "$pre"
+          pre_status="$(jq -er '.STATUS' "$pre")"
+          if [[ "$pre_status" == 'FAIL' ]]; then
+            jq -e \
+              --arg main "$MAIN_SHA" \
+              --arg digest "$PLAN_DIGEST" \
+              --arg snapshot "$SNAPSHOT_REF" \
+              --arg window "$WINDOW_REF" '
+              .schema_version == 1
+              and .STATUS == "FAIL"
+              and .ISSUE == 1183
+              and .TARGET == "PROD"
+              and .MODE == "APPLY"
+              and .MAIN_SHA == $main
+              and .PLAN_DIGEST == $digest
+              and .STALE_PLAN == "PASS"
+              and .PROVIDER_SNAPSHOT_REF == $snapshot
+              and .MAINTENANCE_WINDOW_REF == $window
+              and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+              and .FAILURE_PHASE == "PRE_REBOOT"
+              and (.FAILURE_STAGE | type == "string" and length > 0)
+              and .REBOOT_HELPER_INVOKED == "NO"
+              and .REBOOT_BOUNDARY_CROSSED == "NO"
+              and .PACKAGE_APPLY == "NONE"
+              and .REAL_PACKAGE_MUTATION == "NONE"
+              and .BACKUPS_PRESERVED == "YES"
+              and .MAINTENANCE_RECOVERY_ATTEMPTED == "YES"
+              and (.MAINTENANCE_RECOVERY_RESULT == "PASS" or .MAINTENANCE_RECOVERY_RESULT == "FAIL")
+              and (.MAINTENANCE_MODE_FINAL == "OFF" or .MAINTENANCE_MODE_FINAL == "UNKNOWN")
+              and (.ORIGINAL_EXIT_STATUS | type == "number" and . > 0)
+              and .SNAPSHOT_RESTORE == "NONE"' "$pre" >/dev/null
+            test "$apply_rc" -ne 0
+            printf 'Remote APPLY failed before reboot at stage %s; recovery=%s; maintenance_final=%s\n' \
+              "$(jq -r '.FAILURE_STAGE' "$pre")" \
+              "$(jq -r '.MAINTENANCE_RECOVERY_RESULT' "$pre")" \
+              "$(jq -r '.MAINTENANCE_MODE_FINAL' "$pre")" >&2
+            exit 1
+          fi
+          test "$pre_status" = 'PASS'
           jq -e \
             --arg main "$MAIN_SHA" \
             --arg digest "$PLAN_DIGEST" \

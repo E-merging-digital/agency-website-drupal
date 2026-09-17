@@ -150,13 +150,15 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
   }
 
   /**
-   * Maintenance mode is restored only through the post-reboot success path.
+   * Maintenance mode is restored on pre-reboot failure or post-reboot success.
    */
   public function testMaintenanceLifecycleAndPostRebootGate(): void {
     $apply = $this->source(self::APPLY);
     $post = $this->source(self::POST);
     self::assertStringContainsString('state:set system.maintenance_mode 1', $apply);
     self::assertStringContainsString('[[ "$maintenance_now" == \'1\' ]]', $apply);
+    self::assertStringContainsString('handle_pre_reboot_failure', $apply);
+    self::assertStringContainsString('state:set system.maintenance_mode 0', $apply);
     self::assertStringContainsString('state:set system.maintenance_mode 0', $post);
     self::assertStringContainsString('[[ "$maintenance_after" == \'0\' ]]', $post);
     foreach ([
@@ -458,6 +460,19 @@ SH
       }
       @rmdir($directory);
     }
+  }
+
+  /**
+   * The local harness proves bounded pre-reboot recovery semantics.
+   */
+  public function testPreRebootFailureRecoveryHarness(): void {
+    $script = dirname(DRUPAL_ROOT)
+      . '/scripts/production-maintenance-1183/tests/test_pre_reboot_recovery.py';
+    self::assertFileExists($script);
+    $output = [];
+    $status = 1;
+    exec('python3 ' . escapeshellarg($script) . ' 2>&1', $output, $status);
+    self::assertSame(0, $status, implode("\n", $output));
   }
 
   /**

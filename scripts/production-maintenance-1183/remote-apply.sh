@@ -87,6 +87,110 @@ work_root="$(mktemp -d)"
 cleanup() { rm -rf -- "$work_root"; }
 trap cleanup EXIT
 
+maintenance_entered='NO'
+reboot_boundary_crossed='NO'
+current_stage='PRE_MAINTENANCE'
+
+# BEGIN #1228 PRE-REBOOT FAILURE RECOVERY
+drush_current() {
+  (cd "$CURRENT_ROOT" && vendor/bin/drush "$@")
+}
+
+emit_pre_reboot_failure_receipt() {
+  local output="$receipt_file.failure.tmp"
+  jq -n \
+    --arg main_sha "$main_sha" \
+    --arg plan_id "$plan_id" \
+    --arg plan_digest "$EXPECTED_DIGEST" \
+    --arg snapshot_ref "$SNAPSHOT_REF" \
+    --arg window_ref "$WINDOW_REF" \
+    --arg db_backup "$db_backup" \
+    --arg config_backup "$config_backup" \
+    --arg config_backup_sha256 "$config_backup_sha256" \
+    --arg config_backup_size "$config_backup_size" \
+    --arg failure_stage "$original_failure_stage" \
+    --arg original_exit_status "$original_exit_status" \
+    --arg recovery_attempted "$maintenance_recovery_attempted" \
+    --arg recovery_result "$maintenance_recovery_result" \
+    --arg maintenance_final "$maintenance_mode_final" '
+    {
+      schema_version:1,
+      STATUS:"FAIL",
+      ISSUE:1183,
+      TARGET:"PROD",
+      MODE:"APPLY",
+      MAINTENANCE_ACTION:"REBOOT_ONLY",
+      MAIN_SHA:$main_sha,
+      PLAN_ID:$plan_id,
+      PLAN_DIGEST:$plan_digest,
+      STALE_PLAN:"PASS",
+      PROVIDER_SNAPSHOT_REF:$snapshot_ref,
+      PROVIDER_SNAPSHOT_AUTOMATED_VERIFICATION:"UNAVAILABLE",
+      MAINTENANCE_WINDOW_REF:$window_ref,
+      MAINTENANCE_WINDOW_APPROVAL:"PROJECT_LEAD_EXTERNAL",
+      FAILURE_PHASE:"PRE_REBOOT",
+      FAILURE_STAGE:$failure_stage,
+      REBOOT_HELPER_INVOKED:"NO",
+      REBOOT_BOUNDARY_CROSSED:"NO",
+      PACKAGE_APPLY:"NONE",
+      PACKAGE_APPLY_SUCCESS:"NOT_REQUIRED",
+      SECOND_EXACT_APT_SIMULATION:"NOT_REQUIRED",
+      REAL_PACKAGE_MUTATION:"NONE",
+      DATABASE_BACKUP:$db_backup,
+      SYSTEM_CONFIG_BACKUP:$config_backup,
+      SYSTEM_CONFIG_BACKUP_SHA256:$config_backup_sha256,
+      SYSTEM_CONFIG_BACKUP_SIZE:($config_backup_size|tonumber),
+      BACKUPS_PRESERVED:"YES",
+      MAINTENANCE_RECOVERY_ATTEMPTED:$recovery_attempted,
+      MAINTENANCE_RECOVERY_RESULT:$recovery_result,
+      MAINTENANCE_MODE_FINAL:$maintenance_final,
+      ORIGINAL_EXIT_STATUS:($original_exit_status|tonumber),
+      DRUPAL_DEPLOY:"NONE",
+      DRUPAL_CONFIG_IMPORT:"NONE",
+      SNAPSHOT_RESTORE:"NONE"
+    }' >"$output"
+  mv -- "$output" "$receipt_file"
+  cat "$receipt_file"
+}
+
+handle_pre_reboot_failure() {
+  original_exit_status="$1"
+  original_failure_stage="$current_stage"
+  trap - ERR
+  set +e
+
+  maintenance_recovery_attempted='NO'
+  maintenance_recovery_result='NOT_REQUIRED'
+  maintenance_mode_final='UNKNOWN'
+
+  if [[ "$maintenance_entered" == 'YES' && "$reboot_boundary_crossed" == 'NO' ]]; then
+    maintenance_recovery_attempted='YES'
+    drush_current state:set system.maintenance_mode 0 --input-format=integer >/dev/null 2>&1
+    recovery_state_rc=$?
+    drush_current cr >/dev/null 2>&1
+    recovery_cr_rc=$?
+    recovered_maintenance="$(drush_current state:get system.maintenance_mode 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+    recovery_verify_rc=$?
+    if [[ "$recovery_verify_rc" -eq 0 && "$recovered_maintenance" == '0' ]]; then
+      maintenance_mode_final='OFF'
+    fi
+    if [[ "$recovery_state_rc" -eq 0 && "$recovery_cr_rc" -eq 0 && "$maintenance_mode_final" == 'OFF' ]]; then
+      maintenance_recovery_result='PASS'
+    else
+      maintenance_recovery_result='FAIL'
+    fi
+  fi
+
+  emit_pre_reboot_failure_receipt
+  receipt_rc=$?
+  if [[ "$receipt_rc" -ne 0 ]]; then
+    printf 'PRE_REBOOT_FAILURE_RECEIPT_WRITE_FAILED stage=%s original_status=%s\n' \
+      "$original_failure_stage" "$original_exit_status" >&2
+  fi
+  exit "$original_exit_status"
+}
+# END #1228 PRE-REBOOT FAILURE RECOVERY
+
 # Revalidate the approved reboot-only identity before any backup or maintenance mutation.
 set +e
 "$PLAN_SCRIPT" "$main_sha" "$plan_id" "$EXPECTED_USER" PLAN >"$work_root/current-plan.json"
@@ -141,21 +245,45 @@ previous_kernel="$(uname -r)"
 /usr/bin/systemctl is-active --quiet mariadb
 
 # Enter Drupal maintenance mode only after both rollback backups exist.
-(cd "$CURRENT_ROOT" && vendor/bin/drush state:set system.maintenance_mode 1 --input-format=integer >/dev/null)
-(cd "$CURRENT_ROOT" && vendor/bin/drush cr >/dev/null)
-maintenance_now="$(cd "$CURRENT_ROOT" && vendor/bin/drush state:get system.maintenance_mode | tail -n 1 | tr -d '[:space:]')"
+current_stage='MAINTENANCE_MODE_ENABLE'
+drush_current state:set system.maintenance_mode 1 --input-format=integer >/dev/null
+maintenance_entered='YES'
+trap 'handle_pre_reboot_failure "$?"' ERR
+
+current_stage='CACHE_REBUILD_AFTER_MAINTENANCE_ON'
+drush_current cr >/dev/null
+current_stage='MAINTENANCE_MODE_VERIFY_ON'
+# Do not inherit ERR into command substitution: the parent trap owns recovery.
+set +E
+maintenance_now="$(drush_current state:get system.maintenance_mode | tail -n 1 | tr -d '[:space:]')"
+set -E
 [[ "$maintenance_now" == '1' ]]
 
 # REBOOT_ONLY intentionally executes no apt command and no privileged config test.
+current_stage='NGINX_ACTIVE_CHECK'
 /usr/bin/systemctl is-active --quiet nginx
+current_stage='PHP_FPM_ACTIVE_CHECK'
 /usr/bin/systemctl is-active --quiet php8.4-fpm
+current_stage='MARIADB_ACTIVE_CHECK'
 /usr/bin/systemctl is-active --quiet mariadb
-max_packet="$(cd "$CURRENT_ROOT" && vendor/bin/drush sql:query 'SELECT @@global.max_allowed_packet;' 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+current_stage='MAX_ALLOWED_PACKET_CHECK'
+# Do not inherit ERR into command substitution: the parent trap owns recovery.
+set +E
+max_packet="$(drush_current sql:query 'SELECT @@global.max_allowed_packet;' 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+set -E
 [[ "$max_packet" == '67108864' ]]
-[[ "$(uname -r)" != "$TARGET_KERNEL" ]]
+current_stage='RUNNING_KERNEL_INVARIANT'
+# Keep command-substitution failure owned by the parent ERR trap.
+set +E
+running_kernel="$(uname -r)"
+set -E
+[[ "$running_kernel" != "$TARGET_KERNEL" ]]
+current_stage='TARGET_KERNEL_INVARIANT'
 [[ -d "/lib/modules/$TARGET_KERNEL" ]]
+current_stage='REBOOT_REQUIRED_INVARIANT'
 [[ -f /var/run/reboot-required ]]
 
+current_stage='PRE_REBOOT_RECEIPT'
 jq -n \
   --arg main_sha "$main_sha" \
   --arg plan_id "$plan_id" \
@@ -210,5 +338,9 @@ jq -n \
 cat "$receipt_file"
 sync
 
-# The only privileged reboot action is the fixed-purpose no-argument helper.
+# Crossing this boundary means a real reboot may already have started. Never run
+# pre-reboot maintenance cleanup after the fixed-purpose helper is invoked.
+current_stage='REBOOT_HELPER_INVOCATION'
+reboot_boundary_crossed='YES'
+trap - ERR
 sudo -n -- "$REBOOT_HELPER" >/dev/null 2>&1

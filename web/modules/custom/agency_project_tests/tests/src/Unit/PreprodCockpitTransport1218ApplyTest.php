@@ -53,6 +53,7 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       'remote-apply-root.sh',
       'STALE_PLAN == "PASS"',
       'TOKEN_PERSISTED == false',
+      'PROD_ACCESS == "NONE"',
       'SECRET_CONTENT_EXPOSED == false',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
@@ -61,8 +62,9 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
     foreach ([
       'workflow_dispatch:',
       'PREPROD_SSH_PRIVATE_KEY',
-      'SERVER_HOST',
-      'PROD_ACCESS',
+      'secrets.SSH_PRIVATE_KEY',
+      'secrets.SERVER_HOST',
+      'secrets.SERVER_USER',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $workflow);
     }

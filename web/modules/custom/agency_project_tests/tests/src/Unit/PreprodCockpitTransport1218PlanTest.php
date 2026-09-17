@@ -13,6 +13,8 @@ use PHPUnit\Framework\TestCase;
  */
 final class PreprodCockpitTransport1218PlanTest extends TestCase {
 
+  private const DISPATCHER = '.github/workflows/agency-command-dispatch.yml';
+
   private const WORKFLOW = '.github/workflows/preprod-cockpit-transport-1218.yml';
 
   private const PLAN = 'scripts/preproduction-cockpit-transport-1218/remote-plan.sh';
@@ -21,15 +23,34 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
    * Proves the workflow remains PLAN-only, pinned and owner-bound.
    */
   public function testWorkflowIsPlanOnlyPinnedAndOwnerBound(): void {
+    $dispatcher = $this->source(self::DISPATCHER);
     $workflow = $this->source(self::WORKFLOW);
 
     foreach ([
-      'issue_comment:',
-      "github.event.issue.number == 1218",
+      "github.event_name == 'issue_comment'",
+      "github.event.action == 'created'",
+      'github.event.issue.pull_request == null',
+      'github.event.issue.number == 1218',
+      "github.event.comment.author_association == 'OWNER'",
+      "github.event.comment.user.login == 'E-merging-digital'",
+      'github.event.comment.performed_via_github_app == null',
+      "github.event.comment.body == '/agency-cockpit-transport-1218 plan'",
+      'uses: ./.github/workflows/preprod-cockpit-transport-1218.yml',
+      'PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}',
+      'PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}',
+    ] as $required) {
+      self::assertStringContainsString($required, $dispatcher);
+    }
+
+    foreach ([
+      'workflow_call:',
+      "test \"\$EVENT_NAME\" = 'issue_comment'",
+      "test \"\$EVENT_ACTION\" = 'created'",
+      "test \"\$ISSUE_NUMBER\" = '1218'",
       "test \"\$COMMENT_LOGIN\" = 'E-merging-digital'",
       "test \"\$COMMENT_ASSOCIATION\" = 'OWNER'",
+      "test \"\$COMMENT_VIA_APP\" = 'false'",
       "test \"\$COMMENT_BODY\" = '/agency-cockpit-transport-1218 plan'",
-      'chatgpt-codex-connector',
       'test "$WORKFLOW_SHA" = "$main_sha"',
       'secrets.PREPROD_SSH_PRIVATE_KEY',
       'secrets.PREPROD_SERVER_HOST',
@@ -45,6 +66,7 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
     }
 
     foreach ([
+      'issue_comment:',
       'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
       'root@$PREPROD_SERVER_HOST',
       'sudo ',
@@ -52,14 +74,12 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       ' rsync ',
       'workflow_dispatch:',
       '/agency-cockpit-transport-1218 apply',
+      'chatgpt-codex-connector',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $workflow);
     }
   }
 
-  /**
-   * Proves the remote PLAN observes PREPROD without mutation authority.
-   */
   public function testRemotePlanObservesWithoutMutatingPreprod(): void {
     $plan = $this->source(self::PLAN);
 

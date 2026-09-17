@@ -1,8 +1,12 @@
 name: '#1218 PREPROD cockpit transport convergence'
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
 
 concurrency:
   group: agency-preprod-cockpit-transport-1218
@@ -11,7 +15,6 @@ concurrency:
 jobs:
   validate-authority:
     name: Validate exact #1218 PLAN authority
-    if: ${{ github.event.issue.number == 1218 && github.event.issue.pull_request == null }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -31,6 +34,7 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_LOGIN: ${{ github.event.comment.user.login }}
           COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
           WORKFLOW_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -39,13 +43,8 @@ jobs:
           test "$ISSUE_NUMBER" = '1218'
           test "$COMMENT_LOGIN" = 'E-merging-digital'
           test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
           test "$COMMENT_BODY" = '/agency-cockpit-transport-1218 plan'
-
-          app_slug="$(jq -r '.comment.performed_via_github_app.slug // ""' "$GITHUB_EVENT_PATH")"
-          if [[ -n "$app_slug" && "$app_slug" != 'chatgpt-codex-connector' ]]; then
-            echo 'PLAN comment came through an unapproved GitHub App.' >&2
-            exit 64
-          fi
 
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1218")"
           test "$(jq -r '.state' <<<"$issue_json")" = 'open'

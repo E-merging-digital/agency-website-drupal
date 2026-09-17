@@ -18,7 +18,6 @@ ENDPOINT='https://preprod.emergingdigital.be/api/agency-operations/v1/environmen
 BACKUP_DIR="$(mktemp -d /root/agency-1218-apply.XXXXXX)"
 MUTATION_STARTED='NO'
 COMMITTED='NO'
-TOKEN_CREATED='NO'
 
 fail() {
   printf '[cockpit-transport-apply] ERROR: %s\n' "$1" >&2
@@ -96,10 +95,21 @@ if len(source_matches) != 1:
     raise SystemExit('approved Nginx template does not contain exactly one machine-route block')
 if pattern.search(live):
     raise SystemExit('live Nginx unexpectedly already contains the machine-route block')
+
+socket_paths = set(re.findall(r'(?m)^\s*fastcgi_pass\s+unix:([^;]+);\s*$', live))
+if len(socket_paths) != 1:
+    raise SystemExit('live Nginx must expose exactly one unique PHP-FPM unix socket')
+php_socket = next(iter(socket_paths))
+if not php_socket.startswith('/'):
+    raise SystemExit('live PHP-FPM socket path is unexpected')
+
 marker = re.search(r'(?m)^\s*location\s+/\s*\{', live)
 if marker is None:
     raise SystemExit('live Nginx insertion marker is missing')
-block = source_matches[0].strip('\n') + '\n\n'
+block = source_matches[0].replace('@@PHP_SOCKET@@', php_socket)
+if '@@' in block:
+    raise SystemExit('approved machine-route block still contains an unresolved placeholder')
+block = block.strip('\n') + '\n\n'
 live_path.write_text(live[:marker.start()] + block + live[marker.start():], encoding='utf-8')
 PY
 
@@ -143,7 +153,6 @@ nginx -t >/dev/null
 bearer="$(openssl rand -hex 32)"
 [[ ${#bearer} -ge 32 ]] || fail 'Generated bearer is unexpectedly short.'
 printf '%s\n' "$bearer" | "$TOKEN_PROVISIONER" >/dev/null
-TOKEN_CREATED='YES'
 [[ "$(stat -c '%U:%G:%a' "$TOKEN_FILE")" == 'root:www-data:640' ]] || fail 'Runtime token ownership/mode mismatch.'
 
 systemctl reload nginx
@@ -183,7 +192,6 @@ real_bearer="$(probe REAL_BEARER -H "Authorization: Bearer $bearer")"
 
 unset bearer
 rm -f -- "$TOKEN_FILE"
-TOKEN_CREATED='NO'
 cleanup_probe="$(probe CLEANUP_NO_AUTH)"
 [[ "$cleanup_probe" == '503|JSON' || "$cleanup_probe" == '401|JSON' ]] || fail "Post-cleanup fail-closed contract mismatch: $cleanup_probe"
 

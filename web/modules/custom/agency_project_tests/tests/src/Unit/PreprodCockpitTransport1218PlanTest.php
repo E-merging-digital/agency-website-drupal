@@ -87,7 +87,9 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
     $plan = $this->source(self::PLAN);
 
     foreach ([
-      "ENDPOINT='https://preprod.emergingdigital.be/api/agency-operations/v1/environment-data-state'",
+      "HOSTNAME='preprod.emergingdigital.be'",
+      "PATH_ONLY='/api/agency-operations/v1/environment-data-state'",
+      'ENDPOINT="https://$HOSTNAME$PATH_ONLY"',
       'SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"',
       "NGINX_SITE='/etc/nginx/sites-available/agency-preprod'",
       "TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'",
@@ -97,9 +99,9 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       'authorization_forwarded',
       'invalid-cockpit-token-1218',
       'PLAN_DIGEST',
-      'PREPROD_MUTATION: "NONE"',
-      'PROD_ACCESS: "NONE"',
-      'SECRET_CONTENT_EXPOSED: false',
+      'PREPROD_MUTATION:"NONE"',
+      'PROD_ACCESS:"NONE"',
+      'SECRET_CONTENT_EXPOSED:false',
     ] as $required) {
       self::assertStringContainsString($required, $plan);
     }

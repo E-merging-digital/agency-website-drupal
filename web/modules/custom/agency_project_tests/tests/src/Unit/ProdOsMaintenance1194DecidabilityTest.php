@@ -24,7 +24,9 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
   public function testExactNormalPolicySetPasses(): void {
     $receipt = $this->evaluatePlan();
     self::assertSame('PASS', $receipt['APT_POLICY_CLASSIFICATION']);
-    self::assertSame($receipt['PACKAGE_UPGRADES'], $receipt['APT_NORMAL_SELECTED_UPGRADES']);
+    self::assertSame([], $receipt['PACKAGE_UPGRADES']);
+    self::assertNotEmpty($receipt['APT_NORMAL_SELECTED_UPGRADES']);
+    self::assertSame('REBOOT_ONLY', $receipt['MAINTENANCE_ACTION']);
     self::assertSame([], $receipt['APT_PHASED_DEFERRED_PACKAGES']);
     self::assertSame([], $receipt['APT_UNCLASSIFIED_MISSING_UPGRADABLE']);
     self::assertSame([], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
@@ -55,35 +57,28 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
   public function testApplyNeverForcesPhasedUpdates(): void {
     $apply = $this->source(self::APPLY);
     self::assertStringNotContainsString('Always-Include-Phased-Updates', $apply);
-    self::assertStringContainsString('PACKAGE_UPGRADES', $apply);
+    self::assertStringNotContainsString('/usr/bin/apt-get', $apply);
+    self::assertStringContainsString('PACKAGE_APPLY:"NONE"', $apply);
   }
 
   /**
-   * Missing packages not proven phased remain blocking.
+   * Non-security APT classification drift remains observational in reboot-only.
    */
-  public function testUnclassifiedMissingRemainsFailClosed(): void {
+  public function testNonSecurityAptClassificationDriftIsObservationOnly(): void {
     $upgradable = $this->defaultUpgradable()
       . "libnetplan1/noble-updates 1.1.2-2~ubuntu24.04.2 amd64 [upgradable from: 1.1.2-2~ubuntu24.04.1]\n";
-    $result = $this->executePlan([], $upgradable, $this->defaultSimulation(), $this->defaultSimulation());
-    $receipt = $this->failReceipt($result);
-
+    $receipt = $this->evaluatePlan([], $upgradable, $this->defaultSimulation(), $this->defaultSimulation());
     self::assertSame('FAIL', $receipt['APT_POLICY_CLASSIFICATION']);
     self::assertSame(['libnetplan1'], $receipt['APT_UNCLASSIFIED_MISSING_UPGRADABLE']);
-    self::assertContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
-    self::assertNull($receipt['PLAN_DIGEST']);
-  }
+    self::assertSame('PASS', $receipt['SAFETY_GATE']);
+    self::assertNotContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
 
-  /**
-   * Unexpected normal-policy upgrades remain blocking.
-   */
-  public function testUnexpectedNormalUpgradeRemainsFailClosed(): void {
     $normal = $this->defaultSimulation()
       . "Inst curl [8.5.0-2ubuntu10.5] (8.5.0-2ubuntu10.6 Ubuntu:24.04/noble-updates [amd64])\n";
-    $result = $this->executePlan([], NULL, $normal, $normal);
-    $receipt = $this->failReceipt($result);
-
+    $receipt = $this->evaluatePlan([], NULL, $normal, $normal);
     self::assertSame(['curl'], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
-    self::assertContains('apt_unexpected_empty', $receipt['FAILED_CHECKS']);
+    self::assertSame('PASS', $receipt['SAFETY_GATE']);
+    self::assertNotContains('apt_unexpected_empty', $receipt['FAILED_CHECKS']);
   }
 
   /**
@@ -98,7 +93,8 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
     $receipt = $this->failReceipt($result);
 
     self::assertSame(['libssl3t64'], $receipt['APT_PHASED_DEFERRED_SECURITY']);
-    self::assertContains('apt_phased_deferred_security_empty', $receipt['FAILED_CHECKS']);
+    self::assertContains('security_updates_zero', $receipt['FAILED_CHECKS']);
+    self::assertNotContains('apt_phased_deferred_security_empty', $receipt['FAILED_CHECKS']);
     self::assertSame('FAIL', $receipt['APT_POLICY_CLASSIFICATION']);
   }
 
@@ -228,7 +224,7 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
       'PHP_FPM_RECENT_ERROR_COUNT' => 'UNKNOWN',
     ], $upgradable, $this->defaultSimulation(), $this->defaultSimulation());
     $receipt = $this->failReceipt($result);
-    foreach (['apt_policy_classification', 'max_allowed_packet_64m', 'recent_error_read_capability'] as $check) {
+    foreach (['max_allowed_packet_64m', 'recent_error_read_capability'] as $check) {
       self::assertContains($check, $receipt['FAILED_CHECKS']);
     }
     self::assertNull($receipt['PLAN_DIGEST']);
@@ -239,6 +235,77 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
     self::assertStringContainsString('if: ${{ always() }}', $workflow);
     self::assertStringContainsString('.STATUS == "PASS"', $workflow);
     self::assertStringContainsString('.SAFETY_GATE == "PASS"', $workflow);
+  }
+
+  /**
+   * Reboot-only eligibility fails closed on each material host gate.
+   */
+  public function testRebootOnlyEligibilityMatrixFailsClosed(): void {
+    foreach ([
+      [['KERNEL_RUNNING' => '6.8.0-139-generic'], 'target_kernel_not_running'],
+      [['KERNEL_INSTALLED_LATEST' => '6.8.0-138-generic'], 'target_kernel_installed_latest'],
+      [['REBOOT_REQUIRED' => 'NO'], 'reboot_required_yes'],
+    ] as [$overrides, $expectedCheck]) {
+      $receipt = $this->failReceipt($this->executePlan($overrides));
+      self::assertContains($expectedCheck, $receipt['FAILED_CHECKS']);
+      self::assertSame('NO', $receipt['REBOOT_ONLY_ELIGIBLE']);
+    }
+
+    $addition = $this->defaultSimulation()
+      . "Inst new-package (1.0 Ubuntu:24.04/noble-updates [amd64])\n";
+    $receipt = $this->failReceipt($this->executePlan([], NULL, $addition, $addition));
+    self::assertContains('no_package_additions', $receipt['FAILED_CHECKS']);
+
+    $removal = $this->defaultSimulation() . "Remv obsolete-package 1.0\n";
+    $receipt = $this->failReceipt($this->executePlan([], NULL, $removal, $removal));
+    self::assertContains('no_package_removals', $receipt['FAILED_CHECKS']);
+
+    $receipt = $this->failReceipt($this->executePlan([], NULL, NULL, NULL, 13696200, "linux-generic\n"));
+    self::assertContains('no_held_packages', $receipt['FAILED_CHECKS']);
+
+    $receipt = $this->failReceipt($this->executePlan([], NULL, NULL, NULL, 13696200, '', "broken.service\n"));
+    self::assertContains('no_failed_units', $receipt['FAILED_CHECKS']);
+  }
+
+  /**
+   * Only three exact sudo capabilities are required for reboot-only.
+   */
+  public function testRebootOnlyPrivilegeContractIsMinimal(): void {
+    $receipt = $this->evaluatePlan();
+    self::assertSame('YES', $receipt['REBOOT_ONLY_ELIGIBLE']);
+    self::assertSame([], $receipt['PACKAGE_UPGRADES_SELECTED_FOR_APPLY']);
+    self::assertSame('NONE', $receipt['REAL_PACKAGE_MUTATION']);
+    foreach (['SYSTEM_CONFIG_BACKUP', 'RUNTIME_ERROR_HELPER', 'REBOOT_HELPER'] as $name) {
+      self::assertSame('AVAILABLE', $receipt['PRIVILEGED_' . $name]);
+      self::assertSame('NONE', $receipt['WHY_UNKNOWN_' . $name]);
+    }
+    foreach ([
+      'APT_UPDATE', 'APT_SIMULATE', 'APT_INSTALL',
+      'NGINX_TEST', 'PHP_FPM_TEST',
+      'NGINX_ACTIVE', 'PHP_FPM_ACTIVE', 'MARIADB_ACTIVE', 'REBOOT',
+    ] as $name) {
+      self::assertSame('UNKNOWN', $receipt['PRIVILEGED_' . $name]);
+      self::assertSame('NOT_REQUIRED', $receipt['WHY_UNKNOWN_' . $name]);
+    }
+    self::assertSame('NONE', $receipt['RAW_SUDO_POLICY_EXPOSURE']);
+  }
+
+  /**
+   * Post-reboot observation accepts the target kernel but cannot be approved.
+   */
+  public function testPostRebootContextIsObservationOnly(): void {
+    $result = $this->executePlan([
+      'PLAN_CONTEXT' => 'POST_REBOOT',
+      'KERNEL_RUNNING' => '6.8.0-139-generic',
+      'REBOOT_REQUIRED' => 'NO',
+    ]);
+    self::assertSame(0, $result['status'], $result['stderr']);
+    $receipt = $this->decodeReceipt($result['stdout']);
+    self::assertSame('PASS', $receipt['STATUS']);
+    self::assertSame('POST_REBOOT', $receipt['PLAN_CONTEXT']);
+    self::assertSame('NO', $receipt['REBOOT_ONLY_ELIGIBLE']);
+    self::assertSame('YES', $receipt['CANNOT_BE_APPROVED']);
+    self::assertNull($receipt['PLAN_DIGEST']);
   }
 
   /**
@@ -260,8 +327,10 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
     ?string $normalSimulation = NULL,
     ?string $phasedSimulation = NULL,
     int $diskAvailableKb = 13696200,
+    string $heldRaw = '',
+    string $failedRaw = '',
   ): array {
-    $result = $this->executePlan($overrides, $upgradableRaw, $normalSimulation, $phasedSimulation, $diskAvailableKb);
+    $result = $this->executePlan($overrides, $upgradableRaw, $normalSimulation, $phasedSimulation, $diskAvailableKb, $heldRaw, $failedRaw);
     self::assertSame(0, $result['status'], $result['stderr']);
     return $this->decodeReceipt($result['stdout']);
   }
@@ -287,6 +356,8 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
     ?string $normalSimulation = NULL,
     ?string $phasedSimulation = NULL,
     int $diskAvailableKb = 13696200,
+    string $heldRaw = '',
+    string $failedRaw = '',
   ): array {
     $source = $this->source(self::PLAN);
     self::assertSame(1, preg_match("/python3 - <<'PY'\\n(.*?)\\nPY\\n/s", $source, $matches));
@@ -297,8 +368,8 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
       file_put_contents($directory . '/upgradable.raw', $upgradableRaw ?? $this->defaultUpgradable());
       file_put_contents($directory . '/upgrade-sim.raw', $normalSimulation);
       file_put_contents($directory . '/upgrade-sim-phased.raw', $phasedSimulation ?? $normalSimulation);
-      file_put_contents($directory . '/held.raw', '');
-      file_put_contents($directory . '/failed.raw', '');
+      file_put_contents($directory . '/held.raw', $heldRaw);
+      file_put_contents($directory . '/failed.raw', $failedRaw);
       $script = $directory . '/plan.py';
       file_put_contents($script, $matches[1] . "\n");
       $stdout = $directory . '/stdout.json';
@@ -319,6 +390,7 @@ SH
         'ISSUE' => '1183',
         'TARGET' => 'PROD',
         'MODE' => 'PLAN',
+        'PLAN_CONTEXT' => 'PLAN',
         'TARGET_KERNEL' => '6.8.0-139-generic',
         'OS_PRETTY_NAME' => 'Ubuntu 24.04.5 LTS',
         'VERSION_ID' => '24.04',

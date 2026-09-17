@@ -115,44 +115,38 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
       'snapshot_ref=',
       'window_ref=',
       'PROVIDER_SNAPSHOT_REF',
-      'PROVIDER_SNAPSHOT_AUTOMATED_VERIFICATION',
       'MAINTENANCE_WINDOW_REF',
-      'MAINTENANCE_WINDOW_APPROVAL',
       'vendor/bin/drush sql:dump --gzip',
       'sudo -n -- "$SYSTEM_CONFIG_BACKUP_HELPER"',
-      'apt-get --simulate install --only-upgrade',
-      'apt-get install -y --only-upgrade',
-      'Exact apply simulation drift',
+      'sudo -n -- "$REBOOT_HELPER"',
+      'MAINTENANCE_ACTION:"REBOOT_ONLY"',
+      'PACKAGE_APPLY:"NONE"',
+      'PACKAGE_APPLY_SUCCESS:"NOT_REQUIRED"',
+      'SECOND_EXACT_APT_SIMULATION:"NOT_REQUIRED"',
+      'BACKUPS_BEFORE_REBOOT:"PASS"',
       'KEEP_PREVIOUS_KERNEL',
-      'MAX_ALLOWED_PACKET',
     ] as $required) {
       self::assertStringContainsString($required, $workflow . "\n" . $apply);
+    }
+    foreach ([
+      'sudo -n -- /usr/bin/apt-get',
+      'sudo -n -- /usr/sbin/nginx -t',
+      'sudo -n -- /usr/sbin/php-fpm8.4 -t',
+      'sudo -n -- /usr/bin/systemctl is-active',
+      'sudo -n -- /usr/bin/systemctl reboot',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $apply);
     }
     $dbBackup = strpos($apply, 'vendor/bin/drush sql:dump --gzip');
     $configBackup = strpos($apply, 'sudo -n -- "$SYSTEM_CONFIG_BACKUP_HELPER"');
     $maintenanceOn = strpos($apply, 'state:set system.maintenance_mode 1');
-    $aptUpdate = strpos($apply, 'sudo -n -- /usr/bin/apt-get update');
-    $exactSimulation = strpos($apply, 'sudo -n -- /usr/bin/apt-get --simulate install --only-upgrade');
-    $packageApply = strpos($apply, 'sudo -n -- /usr/bin/apt-get install -y --only-upgrade');
-    foreach ([$dbBackup, $configBackup, $maintenanceOn, $aptUpdate, $exactSimulation, $packageApply] as $position) {
+    $reboot = strpos($apply, 'sudo -n -- "$REBOOT_HELPER"');
+    foreach ([$dbBackup, $configBackup, $maintenanceOn, $reboot] as $position) {
       self::assertNotFalse($position);
     }
-    self::assertLessThan($aptUpdate, $dbBackup);
-    self::assertLessThan($aptUpdate, $configBackup);
-    self::assertLessThan($aptUpdate, $maintenanceOn);
-    self::assertLessThan($packageApply, $exactSimulation);
-
-    foreach ([
-      'do-release-upgrade',
-      'full-upgrade',
-      'dist-upgrade',
-      'autoremove',
-      'drush cim',
-      'drush updb',
-      'snapshot restore',
-    ] as $forbidden) {
-      self::assertStringNotContainsString($forbidden, $apply);
-    }
+    self::assertLessThan($maintenanceOn, $dbBackup);
+    self::assertLessThan($maintenanceOn, $configBackup);
+    self::assertLessThan($reboot, $maintenanceOn);
   }
 
   /**
@@ -166,7 +160,7 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
     self::assertStringContainsString('state:set system.maintenance_mode 0', $post);
     self::assertStringContainsString('[[ "$maintenance_after" == \'0\' ]]', $post);
     foreach ([
-      "VERSION_ID:-}",
+      'version_id="$(awk -F=',
       "$(uname -r)",
       'MAX_ALLOWED_PACKET',
       'systemctl is-active --quiet nginx',
@@ -187,6 +181,97 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
   }
 
   /**
+   * Post-reboot update accounting compares observed sets only.
+   */
+  public function testPostRebootUpdateAccountingUsesObservedSets(): void {
+    $post = $this->source(self::POST);
+    self::assertSame(
+      1,
+      preg_match('/python3 - "\$APPROVED_PLAN" "\$post_plan" <<\'PY\'\n(.*?)\nPY\n/s', $post, $matches),
+    );
+    $directory = sys_get_temp_dir() . '/agency-1183-post-' . bin2hex(random_bytes(6));
+    self::assertTrue(mkdir($directory, 0700, TRUE));
+    try {
+      $approved = [
+        'MAIN_SHA' => str_repeat('a', 40),
+        'PLAN_ID' => 'plan-1183-accounting-r1',
+        'PLAN_DIGEST' => str_repeat('b', 64),
+        'UPGRADABLE_PACKAGES' => [
+          ['name' => 'existing-a'],
+          ['name' => 'existing-b'],
+        ],
+      ];
+      $postReceipt = [
+        'UPGRADABLE_PACKAGES' => [
+          ['name' => 'existing-a'],
+          ['name' => 'existing-b'],
+          ['name' => 'new-c'],
+        ],
+        'KERNEL_RUNNING' => '6.8.0-139-generic',
+        'KERNEL_INSTALLED_LATEST' => '6.8.0-139-generic',
+        'REBOOT_REQUIRED' => 'NO',
+        'SECURITY_UPDATES_TOTAL' => 0,
+        'FAILED_SYSTEMD_UNITS' => [],
+        'NGINX_SERVICE' => 'ACTIVE',
+        'PHP_FPM_SERVICE' => 'ACTIVE',
+        'MARIADB_SERVICE' => 'ACTIVE',
+        'DRUPAL_HEALTH' => 'PASS',
+        'PUBLIC_HEALTH' => 'PASS',
+        'CONFIG_STATUS' => 'DIFFERENT',
+        'MAX_ALLOWED_PACKET' => '67108864',
+        'PUBLIC_HOME' => 'PASS',
+        'CONTACT_FORM_SURFACE' => 'PASS',
+        'RECENT_NGINX_PHP_ERRORS' => 'NONE_MATERIAL',
+      ];
+      $approvedPath = $directory . '/approved.json';
+      $postPath = $directory . '/post.json';
+      $script = $directory . '/accounting.py';
+      file_put_contents($approvedPath, json_encode($approved, JSON_THROW_ON_ERROR));
+      file_put_contents($postPath, json_encode($postReceipt, JSON_THROW_ON_ERROR));
+      file_put_contents($script, $matches[1] . "\n");
+      $output = [];
+      $status = 1;
+      exec(
+        'python3 ' . escapeshellarg($script) . ' '
+        . escapeshellarg($approvedPath) . ' ' . escapeshellarg($postPath),
+        $output,
+        $status,
+      );
+      self::assertSame(0, $status, implode("\n", $output));
+      $result = json_decode(implode("\n", $output), TRUE, 32, JSON_THROW_ON_ERROR);
+      self::assertSame(['new-c'], $result['NEW_UPDATES_AFTER_PLAN']);
+      self::assertSame('NONE', $result['PACKAGE_APPLY']);
+      self::assertSame('NOT_REQUIRED', $result['PACKAGE_APPLY_SUCCESS']);
+      self::assertSame('NOT_REQUIRED', $result['SECOND_EXACT_APT_SIMULATION']);
+      self::assertSame('NONE', $result['REAL_PACKAGE_MUTATION']);
+    }
+    finally {
+      foreach (glob($directory . '/*') ?: [] as $file) {
+        @unlink($file);
+      }
+      @rmdir($directory);
+    }
+  }
+
+  /**
+   * Consumed PLAN/APPLY authorities cannot satisfy the fresh immutable gate.
+   */
+  public function testConsumedAuthoritiesCannotBeReused(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    foreach ([
+      'test "$(jq -r \'.conclusion\' <<<"$run_json")" = \'success\'',
+      'test "$(jq -r \'.event\' <<<"$run_json")" = \'issue_comment\'',
+      'test "$(jq -r \'.head_sha\' <<<"$run_json")" = "$MAIN_SHA"',
+      'and .MAIN_SHA == $main',
+      'and .PLAN_DIGEST == $digest',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+    self::assertStringNotContainsString('35213855672', $workflow);
+    self::assertStringNotContainsString('35147468119', $workflow);
+  }
+
+  /**
    * The stale-plan digest excludes healthy disk fluctuation but not real drift.
    */
   public function testStableDigestAndMaterialDrift(): void {
@@ -196,8 +281,8 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
     self::assertSame(13695000, $second['DISK_AVAILABLE_KB']);
     self::assertSame($first['PLAN_DIGEST'], $second['PLAN_DIGEST']);
 
-    $packageDrift = $this->evaluatePlan(13696200, '1.24.0-2ubuntu7.19');
-    self::assertNotSame($first['PLAN_DIGEST'], $packageDrift['PLAN_DIGEST']);
+    $normalUpdateDrift = $this->evaluatePlan(13696200, '1.24.0-2ubuntu7.19');
+    self::assertSame($first['PLAN_DIGEST'], $normalUpdateDrift['PLAN_DIGEST']);
 
     $kernelDrift = $this->evaluatePlan(
       13696200,
@@ -325,6 +410,7 @@ SH
         'ISSUE' => '1183',
         'TARGET' => 'PROD',
         'MODE' => 'PLAN',
+        'PLAN_CONTEXT' => 'PLAN',
         'TARGET_KERNEL' => '6.8.0-139-generic',
         'OS_PRETTY_NAME' => 'Ubuntu 24.04.5 LTS',
         'VERSION_ID' => '24.04',

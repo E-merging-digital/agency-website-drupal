@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "issue": 1221,
+  "decision": "EXTEND_EXISTING",
+  "purpose": "bounded reboot-only capability for #1183 after target kernel is installed",
+  "helper": {
+    "source": "scripts/production-maintenance-1183/reboot/agency-prod-os-maintenance-1183-reboot",
+    "destination": "/usr/local/sbin/agency-prod-os-maintenance-1183-reboot",
+    "owner": "root",
+    "group": "root",
+    "mode": "0755",
+    "arguments": "NONE",
+    "target_kernel": "6.8.0-139-generic",
+    "version_id": "24.04",
+    "reboot_required_marker": "/var/run/reboot-required",
+    "command": "/usr/bin/systemctl reboot",
+    "caller_environment": "CLEARED"
+  },
+  "sudoers": {
+    "template": "scripts/production-maintenance-1183/reboot/agency-prod-os-maintenance-1183-reboot.sudoers.template",
+    "destination": "/etc/sudoers.d/agency-prod-os-maintenance-1183-reboot",
+    "identity_source": "SERVER_USER",
+    "owner": "root",
+    "group": "root",
+    "mode": "0440",
+    "nopasswd_scope": "FIXED_HELPER_ONLY",
+    "no_setenv": true,
+    "nopasswd_all": "FORBIDDEN",
+    "generic_systemctl": "FORBIDDEN",
+    "visudo_cf": "REQUIRED"
+  },
+  "provisioning": {
+    "real_host_install_required": true,
+    "real_host_install_executed": false,
+    "boundary": "SEPARATE_ADMIN_BOOTSTRAP"
+  }
+}

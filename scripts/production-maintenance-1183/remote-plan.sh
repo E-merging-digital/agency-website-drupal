@@ -5,6 +5,7 @@ umask 077
 MAIN_SHA="${1:-}"
 PLAN_ID="${2:-}"
 EXPECTED_USER="${3:-}"
+PLAN_CONTEXT="${4:-PLAN}"
 ISSUE='1183'
 TARGET='PROD'
 MODE='PLAN'
@@ -12,10 +13,12 @@ TARGET_KERNEL='6.8.0-139-generic'
 PROD_URL='https://emergingdigital.be'
 DRUPAL_ROOT='/var/www/agency/current'
 RUNTIME_ERROR_HELPER='/usr/local/sbin/agency-prod-runtime-error-counts'
+REBOOT_HELPER='/usr/local/sbin/agency-prod-os-maintenance-1183-reboot'
 
 [[ "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
 [[ "$PLAN_ID" =~ ^plan-1183-[A-Za-z0-9._-]{8,80}$ ]]
 [[ "$EXPECTED_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+[[ "$PLAN_CONTEXT" == 'PLAN' || "$PLAN_CONTEXT" == 'POST_REBOOT' ]]
 [[ "$(id -un)" == "$EXPECTED_USER" ]]
 [[ "$(id -u)" -ne 0 ]]
 for command_name in python3 apt-get apt apt-mark systemctl dpkg-query curl jq sudo; do
@@ -211,7 +214,7 @@ fi
 disk_available_kb="$(df -Pk / | awk 'NR == 2 {print $4}')"
 [[ "$disk_available_kb" =~ ^[0-9]+$ ]]
 
-export MAIN_SHA PLAN_ID ISSUE TARGET MODE TARGET_KERNEL
+export MAIN_SHA PLAN_ID PLAN_CONTEXT ISSUE TARGET MODE TARGET_KERNEL
 export OS_PRETTY_NAME="$os_pretty_name" VERSION_ID="$version_id"
 export KERNEL_RUNNING="$kernel_running" KERNEL_INSTALLED_LATEST="$kernel_installed_latest" REBOOT_REQUIRED="$reboot_required"
 export PHP_BRANCH="$php_branch" MARIADB_BRANCH="$mariadb_branch"
@@ -235,6 +238,8 @@ import sys
 from pathlib import Path
 
 root = Path(os.environ['WORK_ROOT'])
+context = os.environ['PLAN_CONTEXT']
+
 
 def read_lines(name):
     path = root / name
@@ -242,8 +247,9 @@ def read_lines(name):
         return []
     return [line.rstrip('\n') for line in path.read_text(encoding='utf-8', errors='replace').splitlines() if line.strip()]
 
+
 # Exact private sudo listing only; never execute the command being audited.
-# Parser follows runtime-error-counts/remote-provision-plan.sh (#1208/#1211).
+# Parser follows runtime-error-counts/remote-provision-plan.sh (#1208/#1212).
 def probe_exact_sudo(args):
     expected = " ".join(args)
     try:
@@ -260,7 +266,6 @@ def probe_exact_sudo(args):
                r"[ \t]*Matched: ([^\n]+)\s*")
     match = re.fullmatch(pattern, policy)
     options = [option.strip() for option in match[1].split(",")] if match else []
-    # Only understood defaults/tags: unknown options can change authorization.
     allowed = {"!authenticate", "authenticate", "!setenv", "env_reset",
                "mail_badpass", "use_pty", "log_input", "log_output",
                "noexec", "!sudoedit_follow", "sudoedit_checkdir"}
@@ -271,13 +276,11 @@ def probe_exact_sudo(args):
     safe_args = bool(args) and all(re.fullmatch(r"[A-Za-z0-9_./=:+~\-]+", arg) for arg in args)
     exact = (match is not None and match[2] == expected and match[3] == expected
              and len(options) == len({option.split("=", 1)[0] for option in options})
-             and len(auth) == 1
-             and safe_options and safe_args)
+             and len(auth) == 1 and safe_options and safe_args)
     state = "UNKNOWN"
     if rc == 0 and not error and exact:
         state = "AVAILABLE" if "!authenticate" in auth else "UNAVAILABLE"
     elif rc == 1 and not policy.strip() and safe_args:
-        # Require a complete C-locale command denial, never a listing/auth failure.
         quote = chr(39)
         command = re.escape(quote + expected + quote)
         identity = r"[A-Za-z0-9_.-]+"
@@ -288,7 +291,6 @@ def probe_exact_sudo(args):
                   + r" as root on " + identity + r"\.)\n?")
         if re.fullmatch(denial, error):
             state = "UNAVAILABLE"
-    # Diagnostics describe only UNKNOWN; the #1208 decision above is unchanged.
     reason = "NONE"
     if state == "UNKNOWN":
         if "sudo: a password is required" in error:
@@ -321,14 +323,15 @@ def probe_exact_sudo(args):
             reason = "POLICY_FORMAT_UNSUPPORTED"
     return state, reason
 
+
 upgradable = []
 for line in read_lines('upgradable.raw'):
     if line.startswith('Listing'):
         continue
-    m = re.match(r'^([^/]+)/\S+\s+(\S+)\s+\S+\s+\[upgradable from: ([^\]]+)\]', line)
-    if not m:
+    match = re.match(r'^([^/]+)/\S+\s+(\S+)\s+\S+\s+\[upgradable from: ([^\]]+)\]', line)
+    if not match:
         raise SystemExit(f'Unparseable apt upgradable line: {line[:160]}')
-    name, candidate, installed = m.groups()
+    name, candidate, installed = match.groups()
     upgradable.append({
         'name': name,
         'from': installed,
@@ -336,16 +339,17 @@ for line in read_lines('upgradable.raw'):
         'security': 'security' in line.lower(),
     })
 
+
 def parse_simulation(name):
     parsed_upgrades = []
     parsed_additions = []
     parsed_removals = []
     for line in read_lines(name):
         if line.startswith('Inst '):
-            m = re.match(r'^Inst\s+(\S+)(?:\s+\[([^\]]+)\])?\s+\((\S+)', line)
-            if not m:
+            match = re.match(r'^Inst\s+(\S+)(?:\s+\[([^\]]+)\])?\s+\((\S+)', line)
+            if not match:
                 raise SystemExit(f'Unparseable apt simulation Inst line: {line[:160]}')
-            package, installed, candidate = m.groups()
+            package, installed, candidate = match.groups()
             item = {'name': package, 'from': installed or 'ABSENT', 'to': candidate}
             (parsed_upgrades if installed else parsed_additions).append(item)
         elif line.startswith('Remv '):
@@ -356,17 +360,20 @@ def parse_simulation(name):
     parsed_removals.sort(key=lambda item: item['name'])
     return parsed_upgrades, parsed_additions, parsed_removals
 
-upgrades, additions, removals = parse_simulation('upgrade-sim.raw')
+
+observed_normal_upgrades, additions, removals = parse_simulation('upgrade-sim.raw')
 phased_upgrades, _, _ = parse_simulation('upgrade-sim-phased.raw')
 upgradable.sort(key=lambda item: item['name'])
 held = sorted(read_lines('held.raw'))
 failed = sorted(read_lines('failed.raw'))
+security_total = sum(1 for item in upgradable if item['security'])
+selected_upgrades = []
 
 upgradable_by_name = {item['name']: item for item in upgradable}
-upgrade_names = {item['name'] for item in upgrades}
+normal_names = {item['name'] for item in observed_normal_upgrades}
 upgradable_names = set(upgradable_by_name)
-missing_all = sorted(upgradable_names - upgrade_names)
-unexpected_all = sorted(upgrade_names - upgradable_names)
+missing_all = sorted(upgradable_names - normal_names)
+unexpected_all = sorted(normal_names - upgradable_names)
 phased_by_name = {item['name']: item for item in phased_upgrades}
 phased_deferred_all = []
 phased_deferred_security_all = []
@@ -389,10 +396,6 @@ phased_deferred_security = phased_deferred_security_all[:50]
 unclassified_missing = unclassified_missing_all[:50]
 
 checks = {
-    'apt_policy_classification': apt_policy_classification,
-    'apt_unclassified_missing_empty': not unclassified_missing,
-    'apt_unexpected_empty': not unexpected,
-    'apt_phased_deferred_security_empty': not phased_deferred_security,
     'ubuntu_24_04': os.environ['VERSION_ID'] == '24.04',
     'target_kernel_installed_latest': os.environ['KERNEL_INSTALLED_LATEST'] == os.environ['TARGET_KERNEL'],
     'php_branch_8_4': os.environ['PHP_BRANCH'] == '8.4',
@@ -415,52 +418,43 @@ checks = {
     'recent_error_read_capability': os.environ['RECENT_ERROR_READ_CAPABILITY'] == 'PASS',
     'recent_nginx_php_errors': os.environ['RECENT_NGINX_PHP_ERRORS'] == 'NONE_MATERIAL',
     'disk_space_min_2gib': int(os.environ['DISK_AVAILABLE_KB']) >= 2 * 1024 * 1024,
+    'security_updates_zero': security_total == 0,
 }
+if context == 'PLAN':
+    checks['target_kernel_not_running'] = os.environ['KERNEL_RUNNING'] != os.environ['TARGET_KERNEL']
+    checks['reboot_required_yes'] = os.environ['REBOOT_REQUIRED'] == 'YES'
+else:
+    checks['target_kernel_running'] = os.environ['KERNEL_RUNNING'] == os.environ['TARGET_KERNEL']
+    checks['reboot_required_no'] = os.environ['REBOOT_REQUIRED'] == 'NO'
 
-# The operation set itself is the allowlist. Branch-changing package names are rejected.
-for item in upgrades:
-    name = item['name']
-    if re.match(r'^php[0-9]+\.[0-9]+(?:-|$)', name) and not name.startswith('php8.4'):
-        checks[f'php_package_branch:{name}'] = False
-    if name.startswith('mariadb-') and '11.8' not in item['to']:
-        checks[f'mariadb_candidate_branch:{name}'] = False
-
-# BEGIN #1215 EXACT PRIVILEGE AUDIT
-package_args = sorted(f"{item['name']}={item['to']}" for item in upgrades)
-package_args_valid = all(re.fullmatch(r'[A-Za-z0-9.+:-]+=[A-Za-z0-9.+:~_-]+', arg)
-                         for arg in package_args)
-commands = {
+# BEGIN #1221 REBOOT-ONLY PRIVILEGE AUDIT
+required_commands = {
     'SYSTEM_CONFIG_BACKUP': ['/usr/local/sbin/agency-prod-system-config-backup'],
-    'APT_UPDATE': ['/usr/bin/apt-get', 'update'],
-    'APT_SIMULATE': ['/usr/bin/apt-get', '--simulate', 'install', '--only-upgrade', *package_args],
-    'APT_INSTALL': ['/usr/bin/apt-get', 'install', '-y', '--only-upgrade', *package_args],
-    'NGINX_TEST': ['/usr/sbin/nginx', '-t'],
-    'PHP_FPM_TEST': ['/usr/sbin/php-fpm8.4', '-t'],
-    'NGINX_ACTIVE': ['/usr/bin/systemctl', 'is-active', '--quiet', 'nginx'],
-    'PHP_FPM_ACTIVE': ['/usr/bin/systemctl', 'is-active', '--quiet', 'php8.4-fpm'],
-    'MARIADB_ACTIVE': ['/usr/bin/systemctl', 'is-active', '--quiet', 'mariadb'],
-    'REBOOT': ['/usr/bin/systemctl', 'reboot'],
     'RUNTIME_ERROR_HELPER': ['/usr/local/sbin/agency-prod-runtime-error-counts'],
+    'REBOOT_HELPER': ['/usr/local/sbin/agency-prod-os-maintenance-1183-reboot'],
 }
+nonrequired_privileges = (
+    'APT_UPDATE', 'APT_SIMULATE', 'APT_INSTALL',
+    'NGINX_TEST', 'PHP_FPM_TEST',
+    'NGINX_ACTIVE', 'PHP_FPM_ACTIVE', 'MARIADB_ACTIVE',
+    'REBOOT',
+)
 privileges = {}
 privilege_reasons = {}
-for name, args in commands.items():
-    if name.startswith('APT_') and not package_args:
-        state, reason = 'UNKNOWN', 'NOT_REQUIRED'
-    elif name.startswith('APT_') and not package_args_valid:
-        state, reason = 'UNKNOWN', 'COMMAND_MISMATCH'
-    else:
-        state, reason = probe_exact_sudo(args)
+for name, args in required_commands.items():
+    state, reason = probe_exact_sudo(args)
     privileges['PRIVILEGED_' + name] = state
     privilege_reasons['WHY_UNKNOWN_' + name] = reason
-    checks['privileged_' + name.lower()] = (
-        state == 'AVAILABLE' or (name.startswith('APT_') and not package_args))
-checks['package_args_valid'] = package_args_valid
-# END #1215 EXACT PRIVILEGE AUDIT
+    checks['privileged_' + name.lower()] = state == 'AVAILABLE'
+for name in nonrequired_privileges:
+    privileges['PRIVILEGED_' + name] = 'UNKNOWN'
+    privilege_reasons['WHY_UNKNOWN_' + name] = 'NOT_REQUIRED'
+# END #1221 REBOOT-ONLY PRIVILEGE AUDIT
 
 failed_checks = sorted(name for name, value in checks.items() if not value)
 safety_gate = 'FAIL' if failed_checks else 'PASS'
 status = 'FAIL' if failed_checks else 'PASS'
+reboot_only_eligible = 'YES' if context == 'PLAN' and not failed_checks else 'NO'
 
 receipt = {
     **privileges,
@@ -471,17 +465,21 @@ receipt = {
     'ISSUE': int(os.environ['ISSUE']),
     'TARGET': os.environ['TARGET'],
     'MODE': os.environ['MODE'],
+    'PLAN_CONTEXT': context,
     'MAIN_SHA': os.environ['MAIN_SHA'],
     'PLAN_ID': os.environ['PLAN_ID'],
+    'MAINTENANCE_ACTION': 'REBOOT_ONLY',
+    'REBOOT_ONLY_ELIGIBLE': reboot_only_eligible,
+    'TARGET_KERNEL': os.environ['TARGET_KERNEL'],
     'OS_PRETTY_NAME': os.environ['OS_PRETTY_NAME'],
     'VERSION_ID': os.environ['VERSION_ID'],
     'KERNEL_RUNNING': os.environ['KERNEL_RUNNING'],
     'KERNEL_INSTALLED_LATEST': os.environ['KERNEL_INSTALLED_LATEST'],
     'REBOOT_REQUIRED': os.environ['REBOOT_REQUIRED'],
     'UPGRADABLE_TOTAL': len(upgradable),
-    'SECURITY_UPDATES_TOTAL': sum(1 for item in upgradable if item['security']),
+    'SECURITY_UPDATES_TOTAL': security_total,
     'UPGRADABLE_PACKAGES': upgradable,
-    'APT_NORMAL_SELECTED_UPGRADES': upgrades,
+    'APT_NORMAL_SELECTED_UPGRADES': observed_normal_upgrades,
     'APT_UPGRADE_SIMULATION': 'PASS' if apt_policy_classification else 'FAIL',
     'APT_SIMULATION_MISSING_UPGRADABLE': missing,
     'APT_PHASED_DEFERRED_PACKAGES': phased_deferred,
@@ -489,9 +487,14 @@ receipt = {
     'APT_UNCLASSIFIED_MISSING_UPGRADABLE': unclassified_missing,
     'APT_SIMULATION_UNEXPECTED_UPGRADES': unexpected,
     'APT_POLICY_CLASSIFICATION': 'PASS' if apt_policy_classification else 'FAIL',
+    'APT_UPDATE': 'NOT_REQUIRED',
+    'APT_SIMULATE': 'NOT_REQUIRED',
+    'APT_INSTALL': 'NOT_REQUIRED',
     'PACKAGE_REMOVALS': removals,
     'PACKAGE_ADDITIONS': additions,
-    'PACKAGE_UPGRADES': upgrades,
+    'PACKAGE_UPGRADES': selected_upgrades,
+    'PACKAGE_UPGRADES_SELECTED_FOR_APPLY': selected_upgrades,
+    'REAL_PACKAGE_MUTATION': 'NONE',
     'HELD_PACKAGES': held,
     'PHP_BRANCH': os.environ['PHP_BRANCH'],
     'MARIADB_BRANCH': os.environ['MARIADB_BRANCH'],
@@ -517,61 +520,32 @@ receipt = {
     'DISK_AVAILABLE_KB': int(os.environ['DISK_AVAILABLE_KB']),
     'SAFETY_GATE': safety_gate,
     'FAILED_CHECKS': failed_checks,
-    'CANNOT_BE_APPROVED': 'YES' if failed_checks else 'NO',
+    'CANNOT_BE_APPROVED': 'YES' if failed_checks or context != 'PLAN' else 'NO',
     'REAL_PROD_MUTATION': 'NONE',
 }
-# Keep volatile observations in the receipt and safety gate, but bind stale-plan
-# identity only to mutation-relevant state. Healthy free-space fluctuations must
-# not invalidate an otherwise identical approved operation set.
+
+# Reboot-only stale identity deliberately excludes benign pending normal/phased
+# update observations. Security state, the empty selected mutation set, kernels,
+# safety/health state, and required bounded capabilities remain digest-bound.
 mutation_identity_keys = (
-    'schema_version',
-    'STATUS',
-    'ISSUE',
-    'TARGET',
-    'MODE',
-    'MAIN_SHA',
-    'PLAN_ID',
-    'OS_PRETTY_NAME',
-    'VERSION_ID',
-    'KERNEL_RUNNING',
-    'KERNEL_INSTALLED_LATEST',
-    'REBOOT_REQUIRED',
-    'UPGRADABLE_TOTAL',
-    'SECURITY_UPDATES_TOTAL',
-    'UPGRADABLE_PACKAGES',
-    'APT_UPGRADE_SIMULATION',
-    'APT_NORMAL_SELECTED_UPGRADES',
-    'APT_PHASED_DEFERRED_PACKAGES',
-    'APT_PHASED_DEFERRED_SECURITY',
-    'APT_UNCLASSIFIED_MISSING_UPGRADABLE',
-    'APT_SIMULATION_UNEXPECTED_UPGRADES',
-    'APT_POLICY_CLASSIFICATION',
-    'PACKAGE_REMOVALS',
-    'PACKAGE_ADDITIONS',
-    'PACKAGE_UPGRADES',
-    'HELD_PACKAGES',
-    'PHP_BRANCH',
-    'MARIADB_BRANCH',
-    'FAILED_SYSTEMD_UNITS',
-    'NGINX_SERVICE',
-    'PHP_FPM_SERVICE',
-    'MARIADB_SERVICE',
-    'DRUPAL_HEALTH',
-    'PUBLIC_HEALTH',
-    'MAINTENANCE_MODE',
-    'CONFIG_STATUS',
-    'CONFIG_AUTO_CORRECTION',
-    'MAX_ALLOWED_PACKET',
-    'PUBLIC_HOME',
-    'CONTACT_FORM_SURFACE',
-    'RECENT_ERROR_READ_CAPABILITY',
-    'RECENT_NGINX_PHP_ERRORS',
-    'SAFETY_GATE',
+    'schema_version', 'STATUS', 'ISSUE', 'TARGET', 'MODE', 'PLAN_CONTEXT',
+    'MAIN_SHA', 'PLAN_ID', 'MAINTENANCE_ACTION', 'REBOOT_ONLY_ELIGIBLE',
+    'TARGET_KERNEL', 'OS_PRETTY_NAME', 'VERSION_ID', 'KERNEL_RUNNING',
+    'KERNEL_INSTALLED_LATEST', 'REBOOT_REQUIRED', 'SECURITY_UPDATES_TOTAL',
+    'PACKAGE_REMOVALS', 'PACKAGE_ADDITIONS', 'PACKAGE_UPGRADES',
+    'PACKAGE_UPGRADES_SELECTED_FOR_APPLY', 'REAL_PACKAGE_MUTATION',
+    'HELD_PACKAGES', 'PHP_BRANCH', 'MARIADB_BRANCH', 'FAILED_SYSTEMD_UNITS',
+    'NGINX_SERVICE', 'PHP_FPM_SERVICE', 'MARIADB_SERVICE', 'DRUPAL_HEALTH',
+    'PUBLIC_HEALTH', 'MAINTENANCE_MODE', 'CONFIG_STATUS', 'CONFIG_AUTO_CORRECTION',
+    'MAX_ALLOWED_PACKET', 'PUBLIC_HOME', 'CONTACT_FORM_SURFACE',
+    'RECENT_ERROR_READ_CAPABILITY', 'RECENT_NGINX_PHP_ERRORS', 'SAFETY_GATE',
 )
 receipt['PLAN_DIGEST'] = None
-if not failed_checks:
+if context == 'PLAN' and not failed_checks:
     mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
-    mutation_identity.update(privileges)
+    for key in ('PRIVILEGED_SYSTEM_CONFIG_BACKUP', 'PRIVILEGED_RUNTIME_ERROR_HELPER',
+                'PRIVILEGED_REBOOT_HELPER'):
+        mutation_identity[key] = receipt[key]
     canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
     receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
 print(json.dumps(receipt, sort_keys=True, separators=(',', ':')))

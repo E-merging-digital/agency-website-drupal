@@ -643,3 +643,24 @@ jobs:
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  preprod-cockpit-transport-1218-apply:
+    name: Route #1218 governed PREPROD cockpit transport APPLY
+    needs: classify
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.action == 'created'
+          && github.event.issue.pull_request == null
+          && github.event.issue.number == 1218
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.performed_via_github_app == null
+          && startsWith(github.event.comment.body, '/agency-cockpit-transport-1218 apply ') }}
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: ./.github/workflows/preprod-cockpit-transport-1218-apply.yml
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}

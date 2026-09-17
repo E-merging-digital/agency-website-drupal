@@ -161,8 +161,17 @@ jobs:
               and .ISSUE == 1183
               and .TARGET == "PROD"
               and .MODE == "PLAN"
+              and .PLAN_CONTEXT == "PLAN"
+              and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+              and .REBOOT_ONLY_ELIGIBLE == "YES"
               and .MAIN_SHA == $main
               and .PLAN_ID == $plan_id
+              and .SECURITY_UPDATES_TOTAL == 0
+              and .PACKAGE_UPGRADES == []
+              and .REAL_PACKAGE_MUTATION == "NONE"
+              and .PRIVILEGED_SYSTEM_CONFIG_BACKUP == "AVAILABLE"
+              and .PRIVILEGED_RUNTIME_ERROR_HELPER == "AVAILABLE"
+              and .PRIVILEGED_REBOOT_HELPER == "AVAILABLE"
               and .MAX_ALLOWED_PACKET == "67108864"
               and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
               and .SAFETY_GATE == "PASS"' "$plan" >/dev/null
@@ -175,6 +184,8 @@ jobs:
               and .ISSUE == 1183
               and .TARGET == "PROD"
               and .MODE == "PLAN"
+              and .PLAN_CONTEXT == "PLAN"
+              and .MAINTENANCE_ACTION == "REBOOT_ONLY"
               and .MAIN_SHA == $main
               and .PLAN_ID == $plan_id
               and .SAFETY_GATE == "FAIL"
@@ -273,9 +284,16 @@ jobs:
             and .ISSUE == 1183
             and .TARGET == "PROD"
             and .MODE == "PLAN"
+            and .PLAN_CONTEXT == "PLAN"
+            and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+            and .REBOOT_ONLY_ELIGIBLE == "YES"
             and .MAIN_SHA == $main
             and .PLAN_DIGEST == $digest
             and .VERSION_ID == "24.04"
+            and .SECURITY_UPDATES_TOTAL == 0
+            and .PACKAGE_UPGRADES == []
+            and .REAL_PACKAGE_MUTATION == "NONE"
+            and .PRIVILEGED_REBOOT_HELPER == "AVAILABLE"
             and .PHP_BRANCH == "8.4"
             and .MARIADB_BRANCH == "11.8"
             and .MAX_ALLOWED_PACKET == "67108864"
@@ -363,10 +381,15 @@ jobs:
             and .PROVIDER_SNAPSHOT_AUTOMATED_VERIFICATION == "UNAVAILABLE"
             and .MAINTENANCE_WINDOW_REF == $window
             and .MAINTENANCE_WINDOW_APPROVAL == "PROJECT_LEAD_EXTERNAL"
-            and .BACKUPS_BEFORE_PACKAGE_APPLY == "PASS"
+            and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+            and .BACKUPS_BEFORE_REBOOT == "PASS"
             and .MAINTENANCE_MODE_ENTERED == "YES"
-            and .PACKAGE_APPLY_SUCCESS == "YES"
-            and .SECOND_EXACT_APT_SIMULATION == "PASS"
+            and .PACKAGE_APPLY == "NONE"
+            and .PACKAGE_APPLY_SUCCESS == "NOT_REQUIRED"
+            and .SECOND_EXACT_APT_SIMULATION == "NOT_REQUIRED"
+            and .REAL_PACKAGE_MUTATION == "NONE"
+            and .UNPRIVILEGED_SERVICE_CHECKS == "PASS"
+            and .REBOOT_CAPABILITY == "FIXED_PURPOSE_HELPER"
             and .KEEP_PREVIOUS_KERNEL == "YES"
             and .DRUPAL_DEPLOY == "NONE"
             and .DRUPAL_CONFIG_IMPORT == "NONE"
@@ -408,6 +431,11 @@ jobs:
             and .ISSUE == 1183
             and .TARGET == "PROD"
             and .MODE == "APPLY"
+            and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+            and .PACKAGE_APPLY == "NONE"
+            and .PACKAGE_APPLY_SUCCESS == "NOT_REQUIRED"
+            and .REAL_PACKAGE_MUTATION == "NONE"
+            and .UNPRIVILEGED_SERVICE_CHECKS == "PASS"
             and .POST_REBOOT_VALIDATION == "PASS"
             and .REBOOT_RECONCILIATION == "PASS"
             and .MAINTENANCE_MODE == "OFF"

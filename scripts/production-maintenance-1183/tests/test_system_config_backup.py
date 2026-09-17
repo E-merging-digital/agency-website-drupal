@@ -1,4 +1,4 @@
-"""Deterministic #1215 tests: local fixtures only, never remote scripts/real sudo."""
+"""Deterministic #1215/#1221 tests: local fixtures only, never real sudo/PROD."""
 import contextlib
 import io
 import hashlib
@@ -31,6 +31,7 @@ COMMANDS = {
     'MARIADB_ACTIVE': ['/usr/bin/systemctl', 'is-active', '--quiet', 'mariadb'],
     'REBOOT': ['/usr/bin/systemctl', 'reboot'],
     'RUNTIME_ERROR_HELPER': ['/usr/local/sbin/agency-prod-runtime-error-counts'],
+    'REBOOT_HELPER': ['/usr/local/sbin/agency-prod-os-maintenance-1183-reboot'],
 }
 
 
@@ -216,29 +217,38 @@ class PrivilegeTest(unittest.TestCase):
                 self.assertEqual(run.call_args.args[0], ['sudo', '-k', '-n', '-ll', '--', *args])
                 self.assertTrue(run.call_args.kwargs['capture_output'])
 
-    def test_every_required_privilege_and_no_package_exception(self):
-        block = EVALUATOR.split('# BEGIN #1215 EXACT PRIVILEGE AUDIT\n')[1].split('# END #1215 EXACT PRIVILEGE AUDIT')[0]
-        for packages in [[], [{'name': 'nginx', 'to': '1.2:3~4+5-6'}]]:
-            for denied in COMMANDS:
-                for state in ['AVAILABLE', 'UNAVAILABLE', 'UNKNOWN']:
-                    calls = []
-                    def probe(args):
-                        calls.append(args)
-                        return (state, 'POLICY_EMPTY' if state == 'UNKNOWN' else 'NONE') if args == COMMANDS[denied] else ('AVAILABLE', 'NONE')
-                    namespace = {'upgrades': packages, 're': re, 'checks': {}, 'probe_exact_sudo': probe}
-                    exec(block, namespace)
-                    required = bool(packages) or not denied.startswith('APT_')
-                    self.assertEqual(all(namespace['checks'].values()), state == 'AVAILABLE' or not required, (denied, state, packages))
-                    if not packages:
-                        for name in ['APT_UPDATE', 'APT_SIMULATE', 'APT_INSTALL']:
-                            self.assertEqual(namespace['privileges']['PRIVILEGED_' + name], 'UNKNOWN')
-                            self.assertEqual(namespace['privilege_reasons']['WHY_UNKNOWN_' + name], 'NOT_REQUIRED')
-                        self.assertFalse(any(args[0] == '/usr/bin/apt-get' for args in calls))
-                    for name in COMMANDS:
-                        self.assertIn('.PRIVILEGED_' + name + ' == "AVAILABLE"', APPLY)
-        self.assertIn('mutation_identity.update(privileges)', EVALUATOR)
+    def test_reboot_only_required_privileges_are_minimal(self):
+        block = EVALUATOR.split('# BEGIN #1221 REBOOT-ONLY PRIVILEGE AUDIT\n')[1].split('# END #1221 REBOOT-ONLY PRIVILEGE AUDIT')[0]
+        required = {'SYSTEM_CONFIG_BACKUP', 'RUNTIME_ERROR_HELPER', 'REBOOT_HELPER'}
+        nonrequired = {
+            'APT_UPDATE', 'APT_SIMULATE', 'APT_INSTALL',
+            'NGINX_TEST', 'PHP_FPM_TEST',
+            'NGINX_ACTIVE', 'PHP_FPM_ACTIVE', 'MARIADB_ACTIVE', 'REBOOT',
+        }
+        for denied in required:
+            for state in ['AVAILABLE', 'UNAVAILABLE', 'UNKNOWN']:
+                calls = []
+                def probe(args):
+                    calls.append(args)
+                    return (state, 'POLICY_EMPTY' if state == 'UNKNOWN' else 'NONE') if args == COMMANDS[denied] else ('AVAILABLE', 'NONE')
+                namespace = {'checks': {}, 'probe_exact_sudo': probe}
+                exec(block, namespace)
+                self.assertEqual(all(namespace['checks'].values()), state == 'AVAILABLE', (denied, state))
+                self.assertEqual({tuple(args) for args in calls}, {tuple(COMMANDS[name]) for name in required})
+                for name in nonrequired:
+                    self.assertEqual(namespace['privileges']['PRIVILEGED_' + name], 'UNKNOWN')
+                    self.assertEqual(namespace['privilege_reasons']['WHY_UNKNOWN_' + name], 'NOT_REQUIRED')
+                self.assertFalse(any(args[0] == '/usr/bin/apt-get' for args in calls))
+                self.assertFalse(any(args[:2] == ['/usr/bin/systemctl', 'is-active'] for args in calls))
+                self.assertNotIn(['/usr/bin/systemctl', 'reboot'], calls)
+        for name in required:
+            self.assertIn('.PRIVILEGED_' + name + ' == "AVAILABLE"', APPLY)
+        for name in nonrequired:
+            self.assertNotIn('.PRIVILEGED_' + name + ' == "AVAILABLE"', APPLY)
         digest = EVALUATOR.split('mutation_identity_keys = (')[1]
-        self.assertNotIn('privilege_reasons', digest)
+        self.assertIn("'PRIVILEGED_REBOOT_HELPER'", digest)
+        self.assertIn("'PRIVILEGED_SYSTEM_CONFIG_BACKUP'", digest)
+        self.assertIn("'PRIVILEGED_RUNTIME_ERROR_HELPER'", digest)
         self.assertNotIn('WHY_UNKNOWN_', digest)
 
     def test_full_plan_fail_closed_and_digest(self):
@@ -272,7 +282,7 @@ class PrivilegeTest(unittest.TestCase):
             self.assertEqual(status, 0)
             self.assertEqual(receipt['STATUS'], 'PASS')
             self.assertRegex(receipt['PLAN_DIGEST'], r'^[0-9a-f]{64}$')
-            for name in COMMANDS:
+            for name in ['SYSTEM_CONFIG_BACKUP', 'RUNTIME_ERROR_HELPER', 'REBOOT_HELPER']:
                 for state in ['UNAVAILABLE', 'UNKNOWN']:
                     status, receipt = evaluate(name, state)
                     self.assertEqual(status, 2, (name, state))
@@ -281,21 +291,20 @@ class PrivilegeTest(unittest.TestCase):
                     self.assertIsNone(receipt['PLAN_DIGEST'])
                     self.assertIn('privileged_' + name.lower(), receipt['FAILED_CHECKS'])
                     self.assertEqual(receipt['PRIVILEGED_' + name], state)
-            for name in ['upgradable.raw', 'upgrade-sim.raw', 'upgrade-sim-phased.raw']:
-                (root / name).write_text('')
-            status, receipt = evaluate()
-            self.assertEqual(status, 0)
-            for name in ['APT_UPDATE', 'APT_SIMULATE', 'APT_INSTALL']:
+            for name in ['APT_UPDATE', 'APT_SIMULATE', 'APT_INSTALL', 'NGINX_TEST', 'PHP_FPM_TEST', 'NGINX_ACTIVE', 'PHP_FPM_ACTIVE', 'MARIADB_ACTIVE', 'REBOOT']:
+                self.assertEqual(receipt['PRIVILEGED_' + name], 'UNKNOWN')
                 self.assertEqual(receipt['WHY_UNKNOWN_' + name], 'NOT_REQUIRED')
 
     def test_backup_ordering_absolute_commands_and_consumed_authority(self):
-        positions = [APPLY.index(s) for s in ['vendor/bin/drush sql:dump', 'sudo -n -- "$SYSTEM_CONFIG_BACKUP_HELPER"', 'state:set system.maintenance_mode 1', 'sudo -n -- /usr/bin/apt-get update']]
+        positions = [APPLY.index(s) for s in ['vendor/bin/drush sql:dump', 'sudo -n -- "$SYSTEM_CONFIG_BACKUP_HELPER"', 'state:set system.maintenance_mode 1', 'sudo -n -- "$REBOOT_HELPER"']]
         self.assertEqual(positions, sorted(positions))
         for source in [APPLY, (BASE / 'remote-post-reboot.sh').read_text()]:
             self.assertNotRegex(source, r'sudo -n (?:tar|test|apt-get|nginx|php-fpm8.4|systemctl)\b')
         for file in BASE.rglob('*'):
             if file.is_file() and 'tests' not in file.parts:
-                self.assertNotIn('35147468119', file.read_text())
+                content = file.read_text()
+                self.assertNotIn('35147468119', content)
+                self.assertNotIn('35213855672', content)
         self.assertIn('SYSTEM_CONFIG_BACKUP_SHA256:$config_backup_sha256', APPLY)
         self.assertIn('SYSTEM_CONFIG_BACKUP_SIZE:($config_backup_size|tonumber)', APPLY)
 

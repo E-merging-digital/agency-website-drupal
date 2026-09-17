@@ -134,24 +134,24 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
   }
 
   /**
-   * Missing upgradable packages become bounded fail evidence.
+   * Missing normal updates remain bounded observation-only evidence.
    */
-  public function testAptMissingSetProducesBoundedFailReceipt(): void {
+  public function testAptMissingSetProducesBoundedObservation(): void {
     $result = $this->executePlan(
       13696200,
       [],
       "Listing...\nnginx/noble-updates 1.24.0-2ubuntu7.18 amd64 [upgradable from: 1.24.0-2ubuntu7.17]\nkrb5-locales/noble-updates 1.20.1-6ubuntu2.6 all [upgradable from: 1.20.1-6ubuntu2.5]\n",
     );
-    self::assertNotSame(0, $result['status']);
+    self::assertSame(0, $result['status'], $result['stderr']);
     $receipt = $this->decodeReceipt($result['stdout']);
-    self::assertSame('FAIL', $receipt['STATUS']);
-    self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+    self::assertSame('PASS', $receipt['STATUS']);
+    self::assertSame('PASS', $receipt['SAFETY_GATE']);
     self::assertSame('FAIL', $receipt['APT_UPGRADE_SIMULATION']);
     self::assertSame(['krb5-locales'], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
     self::assertSame([], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
-    self::assertContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
-    self::assertNull($receipt['PLAN_DIGEST']);
-    self::assertSame('YES', $receipt['CANNOT_BE_APPROVED']);
+    self::assertNotContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
+    self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $receipt['PLAN_DIGEST']);
+    self::assertSame('NO', $receipt['CANNOT_BE_APPROVED']);
     self::assertSame('NONE', $receipt['REAL_PROD_MUTATION']);
     self::assertSame('67108864', $receipt['MAX_ALLOWED_PACKET']);
     self::assertSame(200, $receipt['PUBLIC_HOME_HTTP_CODE']);
@@ -162,19 +162,20 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
   }
 
   /**
-   * Unexpected simulated upgrades are exposed as package names only.
+   * Unexpected normal-policy simulation drift remains observation-only.
    */
-  public function testAptUnexpectedSetProducesBoundedFailReceipt(): void {
+  public function testAptUnexpectedSetProducesBoundedObservation(): void {
     $simulation = "Inst nginx [1.24.0-2ubuntu7.17] (1.24.0-2ubuntu7.18 Ubuntu:24.04/noble-updates [amd64])\n"
       . "Inst curl [8.5.0-2ubuntu10.5] (8.5.0-2ubuntu10.6 Ubuntu:24.04/noble-updates [amd64])\n";
     $result = $this->executePlan(13696200, [], NULL, $simulation);
-    self::assertNotSame(0, $result['status']);
+    self::assertSame(0, $result['status'], $result['stderr']);
     $receipt = $this->decodeReceipt($result['stdout']);
     self::assertSame('FAIL', $receipt['APT_UPGRADE_SIMULATION']);
     self::assertSame([], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
     self::assertSame(['curl'], $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES']);
-    self::assertContains('apt_unexpected_empty', $receipt['FAILED_CHECKS']);
-    self::assertNull($receipt['PLAN_DIGEST']);
+    self::assertNotContains('apt_unexpected_empty', $receipt['FAILED_CHECKS']);
+    self::assertSame('PASS', $receipt['SAFETY_GATE']);
+    self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $receipt['PLAN_DIGEST']);
     self::assertStringNotContainsString('Ubuntu:24.04', json_encode([
       $receipt['APT_SIMULATION_MISSING_UPGRADABLE'],
       $receipt['APT_SIMULATION_UNEXPECTED_UPGRADES'],
@@ -182,16 +183,16 @@ final class ProdOsMaintenance1190ObservabilityTest extends TestCase {
   }
 
   /**
-   * APT mismatch is additive with independent safety failures.
+   * APT observation drift does not mask an independent safety failure.
    */
-  public function testAptMismatchCoexistsWithOtherSafetyFailures(): void {
+  public function testAptObservationCoexistsWithOtherSafetyFailures(): void {
     $result = $this->executePlan(
       13696200,
       ['MAX_ALLOWED_PACKET' => '16777216'],
       "Listing...\nnginx/noble-updates 1.24.0-2ubuntu7.18 amd64 [upgradable from: 1.24.0-2ubuntu7.17]\nlibnetplan1/noble-updates 1.1.2-2~ubuntu24.04.2 amd64 [upgradable from: 1.1.2-2~ubuntu24.04.1]\n",
     );
     $receipt = $this->decodeReceipt($result['stdout']);
-    self::assertContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
+    self::assertNotContains('apt_policy_classification', $receipt['FAILED_CHECKS']);
     self::assertContains('max_allowed_packet_64m', $receipt['FAILED_CHECKS']);
     self::assertSame(['libnetplan1'], $receipt['APT_SIMULATION_MISSING_UPGRADABLE']);
     self::assertSame('16777216', $receipt['MAX_ALLOWED_PACKET']);
@@ -321,6 +322,7 @@ SH
         'ISSUE' => '1183',
         'TARGET' => 'PROD',
         'MODE' => 'PLAN',
+        'PLAN_CONTEXT' => 'PLAN',
         'TARGET_KERNEL' => '6.8.0-139-generic',
         'OS_PRETTY_NAME' => 'Ubuntu 24.04.5 LTS',
         'VERSION_ID' => '24.04',

@@ -22,27 +22,35 @@ jq -e --arg kernel "$TARGET_KERNEL" '
   and .ISSUE == 1183
   and .TARGET == "PROD"
   and .MODE == "PLAN"
+  and .PLAN_CONTEXT == "PLAN"
+  and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+  and .REBOOT_ONLY_ELIGIBLE == "YES"
   and .VERSION_ID == "24.04"
+  and .TARGET_KERNEL == $kernel
   and .KERNEL_INSTALLED_LATEST == $kernel
+  and .KERNEL_RUNNING != $kernel
+  and .REBOOT_REQUIRED == "YES"
+  and .SECURITY_UPDATES_TOTAL == 0
+  and .PACKAGE_UPGRADES == []
+  and .REAL_PACKAGE_MUTATION == "NONE"
   and .PHP_BRANCH == "8.4"
   and .MARIADB_BRANCH == "11.8"
   and .MAX_ALLOWED_PACKET == "67108864"' "$APPROVED_PLAN" >/dev/null
-# Validate the host before reopening Drupal traffic.
-# shellcheck disable=SC1091
-source /etc/os-release
-[[ "${VERSION_ID:-}" == '24.04' ]]
+
+version_id="$(awk -F= '$1 == "VERSION_ID" {gsub(/^"|"$/, "", $2); print $2; exit}' /etc/os-release)"
+[[ "$version_id" == '24.04' ]]
 [[ "$(uname -r)" == "$TARGET_KERNEL" ]]
 [[ -d "/lib/modules/$TARGET_KERNEL" ]]
 previous_kernel="$(jq -r '.KERNEL_RUNNING' "$APPROVED_PLAN")"
 [[ "$previous_kernel" =~ ^[A-Za-z0-9._+-]+$ ]]
+[[ "$previous_kernel" != "$TARGET_KERNEL" ]]
 [[ -d "/lib/modules/$previous_kernel" ]]
 [[ ! -f /var/run/reboot-required ]]
 
-sudo -n -- /usr/sbin/nginx -t >/dev/null 2>&1
-sudo -n -- /usr/sbin/php-fpm8.4 -t >/dev/null 2>&1
-sudo -n -- /usr/bin/systemctl is-active --quiet nginx
-sudo -n -- /usr/bin/systemctl is-active --quiet php8.4-fpm
-sudo -n -- /usr/bin/systemctl is-active --quiet mariadb
+# Read-only service checks remain explicitly unprivileged.
+/usr/bin/systemctl is-active --quiet nginx
+/usr/bin/systemctl is-active --quiet php8.4-fpm
+/usr/bin/systemctl is-active --quiet mariadb
 failed_units="$(systemctl --failed --no-legend --plain 2>/dev/null | awk 'NF {print $1}' | head -n 40)"
 [[ -z "$failed_units" ]]
 
@@ -51,6 +59,7 @@ max_packet="$(cd "$CURRENT_ROOT" && vendor/bin/drush sql:query 'SELECT @@global.
 [[ "$max_packet" == '67108864' ]]
 maintenance_before="$(cd "$CURRENT_ROOT" && vendor/bin/drush state:get system.maintenance_mode | tail -n 1 | tr -d '[:space:]')"
 [[ "$maintenance_before" == '1' ]]
+
 # BEGIN #1197 GOVERNED RUNTIME ERROR OBSERVATION
 runtime_error_output="$(sudo -n -- "$RUNTIME_ERROR_HELPER" 2>/dev/null)"
 mapfile -t runtime_error_lines <<<"$runtime_error_output"
@@ -65,7 +74,7 @@ php_fpm_recent_error_count="${BASH_REMATCH[1]}"
 unset runtime_error_output runtime_error_lines nginx_recent_error_count php_fpm_recent_error_count
 # END #1197 GOVERNED RUNTIME ERROR OBSERVATION
 
-# Reopen Drupal only after system/database checks pass.
+# Reopen Drupal only after kernel, service, DB and runtime-error gates pass.
 (cd "$CURRENT_ROOT" && vendor/bin/drush state:set system.maintenance_mode 0 --input-format=integer >/dev/null)
 (cd "$CURRENT_ROOT" && vendor/bin/drush cr >/dev/null)
 maintenance_after="$(cd "$CURRENT_ROOT" && vendor/bin/drush state:get system.maintenance_mode | tail -n 1 | tr -d '[:space:]')"
@@ -76,14 +85,21 @@ plan_id="$(jq -r '.PLAN_ID' "$APPROVED_PLAN")"
 post_plan="$(mktemp)"
 cleanup() { rm -f -- "$post_plan"; }
 trap cleanup EXIT
-"$PLAN_SCRIPT" "$main_sha" "$plan_id" "$EXPECTED_USER" >"$post_plan"
+"$PLAN_SCRIPT" "$main_sha" "$plan_id" "$EXPECTED_USER" POST_REBOOT >"$post_plan"
 
 jq -e --arg kernel "$TARGET_KERNEL" '
   .STATUS == "PASS"
   and .TARGET == "PROD"
+  and .PLAN_CONTEXT == "POST_REBOOT"
+  and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+  and .REBOOT_ONLY_ELIGIBLE == "NO"
+  and .PLAN_DIGEST == null
   and .KERNEL_RUNNING == $kernel
   and .KERNEL_INSTALLED_LATEST == $kernel
   and .REBOOT_REQUIRED == "NO"
+  and .SECURITY_UPDATES_TOTAL == 0
+  and .PACKAGE_UPGRADES == []
+  and .REAL_PACKAGE_MUTATION == "NONE"
   and .MAINTENANCE_MODE == "0"
   and .MAX_ALLOWED_PACKET == "67108864"
   and .NGINX_SERVICE == "ACTIVE"
@@ -102,21 +118,23 @@ import sys
 from pathlib import Path
 approved = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
 post = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
-planned = {item['name'] for item in approved.get('PACKAGE_UPGRADES', [])}
-remaining = {item['name'] for item in post.get('UPGRADABLE_PACKAGES', [])}
-if planned & remaining:
-    raise SystemExit('Approved packages did not converge after APPLY')
-new_updates = sorted(remaining - planned)
+pre_observed = {item['name'] for item in approved.get('UPGRADABLE_PACKAGES', [])}
+post_observed = {item['name'] for item in post.get('UPGRADABLE_PACKAGES', [])}
+new_updates = sorted(post_observed - pre_observed)
 result = {
     'schema_version': 1,
     'STATUS': 'PASS',
     'ISSUE': 1183,
     'TARGET': 'PROD',
     'MODE': 'APPLY',
+    'MAINTENANCE_ACTION': 'REBOOT_ONLY',
     'MAIN_SHA': approved['MAIN_SHA'],
     'PLAN_ID': approved['PLAN_ID'],
     'PLAN_DIGEST': approved['PLAN_DIGEST'],
-    'PACKAGE_APPLY_SUCCESS': 'YES',
+    'PACKAGE_APPLY': 'NONE',
+    'PACKAGE_APPLY_SUCCESS': 'NOT_REQUIRED',
+    'SECOND_EXACT_APT_SIMULATION': 'NOT_REQUIRED',
+    'REAL_PACKAGE_MUTATION': 'NONE',
     'REBOOT_RECONCILIATION': 'PASS',
     'HOST_REACHABLE_AFTER_REBOOT': 'YES',
     'POST_REBOOT_VALIDATION': 'PASS',
@@ -124,12 +142,16 @@ result = {
     'KERNEL_INSTALLED_LATEST': post['KERNEL_INSTALLED_LATEST'],
     'REBOOT_REQUIRED': post['REBOOT_REQUIRED'],
     'SECURITY_UPDATES_TOTAL': post['SECURITY_UPDATES_TOTAL'],
+    'PRE_OBSERVED_UPGRADABLE_PACKAGES': approved.get('UPGRADABLE_PACKAGES', []),
+    'POST_OBSERVED_UPGRADABLE_PACKAGES': post.get('UPGRADABLE_PACKAGES', []),
     'NEW_UPDATES_AFTER_PLAN': new_updates,
     'FAILED_SYSTEMD_UNITS': post['FAILED_SYSTEMD_UNITS'],
     'NGINX_SERVICE': post['NGINX_SERVICE'],
     'PHP_FPM_SERVICE': post['PHP_FPM_SERVICE'],
     'MARIADB_SERVICE': post['MARIADB_SERVICE'],
+    'UNPRIVILEGED_SERVICE_CHECKS': 'PASS',
     'DRUPAL_HEALTH': post['DRUPAL_HEALTH'],
+    'PUBLIC_HEALTH': post['PUBLIC_HEALTH'],
     'CONFIG_STATUS': post['CONFIG_STATUS'],
     'CONFIG_AUTO_CORRECTION': 'NONE',
     'MAX_ALLOWED_PACKET': post['MAX_ALLOWED_PACKET'],

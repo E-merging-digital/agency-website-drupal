@@ -39,6 +39,9 @@ jobs:
     name: Collect read-only dependency state
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -101,7 +104,7 @@ jobs:
             --package-lock package-lock.json \
             --playwright-latest "$evidence/playwright-latest.json" \
             --config observability/dependency-maintenance.json \
-            --repository-sha "$GITHUB_SHA" \
+            --repository-sha "$SOURCE_SHA" \
             --output "$output" \
             > "$RUNNER_TEMP/agency-dependency-maintenance.stdout.json"
 

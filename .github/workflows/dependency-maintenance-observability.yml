@@ -85,6 +85,9 @@ jobs:
           printf 'SHOW_RC=%s\nOUTDATED_RC=%s\nAUDIT_RC=%s\nNPM_RC=%s\n' \
             "$show_rc" "$outdated_rc" "$audit_rc" "$npm_rc"
 
+          test "$show_rc" -eq 0
+          test "$outdated_rc" -eq 0
+          test "$npm_rc" -eq 0
           test -s "$evidence/composer-show.json"
           test -s "$evidence/composer-outdated.json"
           test -s "$evidence/composer-audit.json"
@@ -100,6 +103,7 @@ jobs:
             --show "$evidence/composer-show.json" \
             --outdated "$evidence/composer-outdated.json" \
             --audit "$evidence/composer-audit.json" \
+            --composer-lock composer.lock \
             --package-json package.json \
             --package-lock package-lock.json \
             --playwright-latest "$evidence/playwright-latest.json" \

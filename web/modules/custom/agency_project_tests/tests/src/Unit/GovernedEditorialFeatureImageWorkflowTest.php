@@ -246,7 +246,6 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       );
       self::assertSame(1200, imagesx($image));
       self::assertSame(630, imagesy($image));
-      imagedestroy($image);
     }
   }
 

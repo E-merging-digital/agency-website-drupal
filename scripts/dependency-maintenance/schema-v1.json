@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agency-dependency-maintenance-state-v1",
+  "title": "Agency dependency maintenance state",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project",
+    "repository",
+    "repository_sha",
+    "collected_at_utc",
+    "overall",
+    "execution_capability",
+    "components"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project": {"const": "agency-website"},
+    "repository": {"const": "E-merging-digital/agency-website-drupal"},
+    "repository_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "collected_at_utc": {"type": "string"},
+    "overall": {
+      "enum": [
+        "OK",
+        "UPDATE_AVAILABLE",
+        "SECURITY",
+        "BLOCKED",
+        "ABANDONED",
+        "EOL",
+        "UNKNOWN"
+      ]
+    },
+    "execution_capability": {"const": "read_only"},
+    "components": {"type": "array"}
+  }
+}

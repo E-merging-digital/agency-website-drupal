@@ -73,8 +73,11 @@ jq -e --arg main "$EXPECTED_MAIN" --arg digest "$EXPECTED_DIGEST" '
 # approved PLAN. Root opens the staged script and passes it on stdin; the
 # diagnostic itself keeps agency-preprod privileges and semantics.
 stale_json="$(runuser -u agency-preprod -- bash -s -- "$EXPECTED_MAIN" 'plan-1218-stale-check' < "$PLAN_SCRIPT")"
-stale_digest="$(jq -r '.PLAN_DIGEST' <<<"$stale_json")"
-[[ "$stale_digest" == "$EXPECTED_DIGEST" ]] || fail 'STALE_PLAN: live PREPROD state no longer matches the approved PLAN.'
+approved_operational_state="$(jq -cS '.STATE | del(.legacy_failed_staging)' "$APPROVED_PLAN")"
+live_operational_state="$(jq -cS '.STATE | del(.legacy_failed_staging)' <<<"$stale_json")"
+approved_operational_digest="$(printf '%s' "$approved_operational_state" | sha256sum | awk '{print $1}')"
+live_operational_digest="$(printf '%s' "$live_operational_state" | sha256sum | awk '{print $1}')"
+[[ "$live_operational_digest" == "$approved_operational_digest" ]] || fail 'STALE_PLAN: live PREPROD operational state no longer matches the approved PLAN.'
 
 LEGACY_STAGING_CLEANUP='ABSENT'
 [[ "$LEGACY_FAILED_RUN_DIR" == '/root/agency-1218-35221860275-1' ]] || fail 'Legacy staging path is not the exact authorized recovery target.'

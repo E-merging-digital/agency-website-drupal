@@ -146,6 +146,7 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       'live settings canonical cockpit token reader differs from approved template',
       'live settings contains duplicate cockpit token reader blocks',
       'live settings contains conflicting or partial cockpit token reader logic',
+      'live settings contains conflicting cockpit token reader logic outside the canonical block',
       'Canonical reader is already converged. Preserve it exactly and never',
       'restored_settings_sha',
       'restored_nginx_sha',

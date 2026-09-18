@@ -4,13 +4,22 @@ status: false
 dependencies:
   module:
     - emerging_digital_content
-active_version: 7d042542a8deddbf
+active_version: 4babd311195af089
 versioned_properties:
   active:
     settings:
       default_settings:
         id: emerging_digital_language_switcher
-        label: 'Language switcher'
+        label: 'Sélecteur de langue'
+        label_display: '0'
+        provider: emerging_digital_content
+    fallback_metadata:
+      slot_definitions: null
+  7d042542a8deddbf:
+    settings:
+      default_settings:
+        id: emerging_digital_language_switcher
+        label: 'Sélecteur de langue'
         label_display: '0'
         provider: emerging_digital_content
     fallback_metadata:

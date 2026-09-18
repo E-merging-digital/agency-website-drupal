@@ -11,6 +11,7 @@ SETTINGS_TEMPLATE="${6:-}"
 TOKEN_PROVISIONER="${7:-}"
 
 PROJECT_ROOT='/var/www/agency-preprod'
+CURRENT_LINK="$PROJECT_ROOT/current"
 SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"
 NGINX_SITE='/etc/nginx/sites-available/agency-preprod'
 TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'
@@ -29,17 +30,104 @@ fail() {
 
 rollback() {
   local rc="$?"
+  trap - EXIT
+
   if [[ "$rc" -ne 0 && "$MUTATION_STARTED" == 'YES' && "$COMMITTED" != 'YES' ]]; then
+    local token_remove_rc=0
+    local settings_restore_rc=0
+    local nginx_restore_rc=0
+    local nginx_test_rc=0
+    local nginx_reload_rc=0
+    local restored_settings_sha=''
+    local restored_nginx_sha=''
+    local restored_current_target=''
+    local restored_current_release=''
+    local token_absent='NO'
+    local rollback_status='PASS'
+
+    set +e
     rm -f -- "$TOKEN_FILE"
-    if [[ -f "$BACKUP_DIR/settings.php" ]]; then
+    token_remove_rc="$?"
+
+    if [[ -f "$BACKUP_DIR/settings.php" && ! -L "$BACKUP_DIR/settings.php" ]]; then
       cp -a -- "$BACKUP_DIR/settings.php" "$SETTINGS_FILE"
+      settings_restore_rc="$?"
+    else
+      settings_restore_rc=98
     fi
-    if [[ -f "$BACKUP_DIR/nginx.conf" ]]; then
+
+    if [[ -f "$BACKUP_DIR/nginx.conf" && ! -L "$BACKUP_DIR/nginx.conf" ]]; then
       cp -a -- "$BACKUP_DIR/nginx.conf" "$NGINX_SITE"
-      nginx -t >/dev/null 2>&1 || true
-      systemctl reload nginx >/dev/null 2>&1 || true
+      nginx_restore_rc="$?"
+    else
+      nginx_restore_rc=98
+    fi
+
+    restored_settings_sha="$(sha256sum "$SETTINGS_FILE" 2>/dev/null | awk '{print $1}')"
+    restored_nginx_sha="$(sha256sum "$NGINX_SITE" 2>/dev/null | awk '{print $1}')"
+    restored_current_target="$(readlink -f "$CURRENT_LINK" 2>/dev/null)"
+    restored_current_release="$(basename "$restored_current_target" 2>/dev/null)"
+
+    if [[ ! -e "$TOKEN_FILE" && ! -L "$TOKEN_FILE" ]]; then
+      token_absent='YES'
+    fi
+
+    nginx -t >/dev/null 2>&1
+    nginx_test_rc="$?"
+    if [[ "$nginx_test_rc" -eq 0 ]]; then
+      systemctl reload nginx >/dev/null 2>&1
+      nginx_reload_rc="$?"
+    else
+      nginx_reload_rc=99
+    fi
+    set -e
+
+    if [[ "$token_remove_rc" -ne 0
+      || "$settings_restore_rc" -ne 0
+      || "$nginx_restore_rc" -ne 0
+      || "$restored_settings_sha" != "$APPROVED_SETTINGS_SHA"
+      || "$restored_nginx_sha" != "$APPROVED_NGINX_SHA"
+      || "$restored_current_release" != "$APPROVED_CURRENT_RELEASE"
+      || "$token_absent" != 'YES'
+      || "$nginx_test_rc" -ne 0
+      || "$nginx_reload_rc" -ne 0 ]]; then
+      rollback_status='FAIL'
+    fi
+
+    if [[ "$rollback_status" == 'FAIL' ]]; then
+      jq -n \
+        --arg main_sha "$EXPECTED_MAIN" \
+        --arg plan_digest "$EXPECTED_DIGEST" \
+        --arg settings_sha_match "$([[ "$restored_settings_sha" == "$APPROVED_SETTINGS_SHA" ]] && printf YES || printf NO)" \
+        --arg nginx_sha_match "$([[ "$restored_nginx_sha" == "$APPROVED_NGINX_SHA" ]] && printf YES || printf NO)" \
+        --arg release_match "$([[ "$restored_current_release" == "$APPROVED_CURRENT_RELEASE" ]] && printf YES || printf NO)" \
+        --arg token_absent "$token_absent" \
+        --argjson token_remove_rc "$token_remove_rc" \
+        --argjson settings_restore_rc "$settings_restore_rc" \
+        --argjson nginx_restore_rc "$nginx_restore_rc" \
+        --argjson nginx_test_rc "$nginx_test_rc" \
+        --argjson nginx_reload_rc "$nginx_reload_rc" \
+        '{
+          STATUS:"ROLLBACK_FAILURE",ISSUE:1218,TARGET:"PREPROD",MODE:"APPLY",
+          MAIN_SHA:$main_sha,PLAN_DIGEST:$plan_digest,
+          RESTORE:{
+            settings_sha_match:$settings_sha_match,
+            nginx_sha_match:$nginx_sha_match,
+            current_release_match:$release_match,
+            token_absent:$token_absent,
+            token_remove_rc:$token_remove_rc,
+            settings_restore_rc:$settings_restore_rc,
+            nginx_restore_rc:$nginx_restore_rc,
+            nginx_test_rc:$nginx_test_rc,
+            nginx_reload_rc:$nginx_reload_rc
+          },
+          PROD_ACCESS:"NONE",DB_MUTATION:"NONE",SECRET_CONTENT_EXPOSED:false
+        }' >&2
+      rm -rf -- "$BACKUP_DIR"
+      exit 97
     fi
   fi
+
   rm -rf -- "$BACKUP_DIR"
   exit "$rc"
 }
@@ -68,6 +156,14 @@ jq -e --arg main "$EXPECTED_MAIN" --arg digest "$EXPECTED_DIGEST" '
   and .PROD_ACCESS == "NONE"
   and .SECRET_CONTENT_EXPOSED == false
 ' "$APPROVED_PLAN" >/dev/null
+
+APPROVED_CURRENT_RELEASE="$(jq -r '.STATE.current_release // empty' "$APPROVED_PLAN")"
+APPROVED_SETTINGS_SHA="$(jq -r '.STATE.settings.sha256 // empty' "$APPROVED_PLAN")"
+APPROVED_NGINX_SHA="$(jq -r '.STATE.nginx.sha256 // empty' "$APPROVED_PLAN")"
+[[ "$APPROVED_CURRENT_RELEASE" =~ ^[A-Za-z0-9._-]+$ ]] || fail 'Approved PLAN current release is invalid.'
+[[ "$APPROVED_SETTINGS_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'Approved PLAN settings SHA is invalid.'
+[[ "$APPROVED_NGINX_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'Approved PLAN Nginx SHA is invalid.'
+[[ -L "$CURRENT_LINK" ]] || fail 'PREPROD current release symlink is missing.'
 
 # Re-run the stale PLAN under the same unprivileged identity used by the
 # approved PLAN. Root opens the staged script and passes it on stdin; the
@@ -141,19 +237,39 @@ live_path = Path(sys.argv[1])
 source_path = Path(sys.argv[2])
 live = live_path.read_text(encoding='utf-8')
 source = source_path.read_text(encoding='utf-8')
-if '/etc/agency-preprod/cockpit-state-token' in live or 'agency_operations_cockpit_state_token' in live:
-    raise SystemExit('live settings unexpectedly already contains the cockpit token reader')
 pattern = re.compile(
     r'(?ms)^// The cockpit bearer is runtime-only server state\..*?^unset\(\$agency_cockpit_token_file\);\n'
 )
-match = pattern.search(source)
-if match is None:
-    raise SystemExit('approved settings template token-reader block is missing')
+source_matches = list(pattern.finditer(source))
+if len(source_matches) != 1:
+    raise SystemExit('approved settings template does not contain exactly one canonical cockpit token reader')
+
+source_block = source_matches[0].group(0)
+live_matches = list(pattern.finditer(live))
+has_token_path = '/etc/agency-preprod/cockpit-state-token' in live
+has_setting = 'agency_operations_cockpit_state_token' in live
+
+def normalize(block: str) -> str:
+    return '\n'.join(line.strip() for line in block.strip().splitlines())
+
+if len(live_matches) == 1:
+    if normalize(live_matches[0].group(0)) != normalize(source_block):
+        raise SystemExit('live settings canonical cockpit token reader differs from approved template')
+    # Canonical reader is already converged. Preserve it exactly and never
+    # duplicate the block.
+    raise SystemExit(0)
+
+if len(live_matches) > 1:
+    raise SystemExit('live settings contains duplicate cockpit token reader blocks')
+
+if has_token_path or has_setting:
+    raise SystemExit('live settings contains conflicting or partial cockpit token reader logic')
+
 marker = '// PREPROD is fail-safe: never inherit production-only configuration.'
 pos = live.find(marker)
 if pos < 0:
     raise SystemExit('live settings insertion marker is missing')
-block = match.group(0).rstrip('\n') + '\n\n'
+block = source_block.rstrip('\n') + '\n\n'
 live_path.write_text(live[:pos] + block + live[pos:], encoding='utf-8')
 PY
 

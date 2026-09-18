@@ -131,6 +131,9 @@ jobs:
               and (.STATE.nginx.sha256 | test("^[0-9a-f]{64}$"))
               and (.STATE.http.no_auth.status | test("^[0-9]{3}$"))
               and (.STATE.http.fake_bearer.status | test("^[0-9]{3}$"))
+              and .STATE.legacy_failed_staging.path == "/root/agency-1218-35221860275-1"
+              and (.STATE.legacy_failed_staging.presence | test("^(PRESENT|ABSENT|UNKNOWN)$"))
+              and (.STATE.legacy_failed_staging.access | test("^(OK|DENIED)$"))
             ' "$plan" >/dev/null
 
           echo "digest=$(jq -r '.PLAN_DIGEST' "$plan")" >> "$GITHUB_OUTPUT"
@@ -159,6 +162,11 @@ jobs:
           nginx_basic="$(jq -r '.STATE.nginx.auth_basic_off' "$plan")"
           auth_forward="$(jq -r '.STATE.nginx.authorization_forwarded' "$plan")"
           token_state="$(jq -r '.STATE.token_file.state' "$plan")"
+          legacy_presence="$(jq -r '.STATE.legacy_failed_staging.presence' "$plan")"
+          legacy_access="$(jq -r '.STATE.legacy_failed_staging.access' "$plan")"
+          legacy_type="$(jq -r '.STATE.legacy_failed_staging.type' "$plan")"
+          legacy_owner="$(jq -r '.STATE.legacy_failed_staging.owner' "$plan")"
+          legacy_mode="$(jq -r '.STATE.legacy_failed_staging.mode' "$plan")"
           no_auth="$(jq -r '.STATE.http.no_auth.status + "/" + .STATE.http.no_auth.body_kind' "$plan")"
           fake="$(jq -r '.STATE.http.fake_bearer.status + "/" + .STATE.http.fake_bearer.body_kind' "$plan")"
           body="$(cat <<EOF_BODY
@@ -175,6 +183,11 @@ jobs:
           \`NGINX_AUTH_BASIC_OFF=${nginx_basic}\`
           \`NGINX_AUTHORIZATION_FORWARDED=${auth_forward}\`
           \`TOKEN_FILE_STATE=${token_state}\`
+          \`LEGACY_FAILED_STAGE_PRESENCE=${legacy_presence}\`
+          \`LEGACY_FAILED_STAGE_ACCESS=${legacy_access}\`
+          \`LEGACY_FAILED_STAGE_TYPE=${legacy_type}\`
+          \`LEGACY_FAILED_STAGE_OWNER=${legacy_owner}\`
+          \`LEGACY_FAILED_STAGE_MODE=${legacy_mode}\`
           \`NO_AUTH=${no_auth}\`
           \`FAKE_BEARER=${fake}\`
           \`PREPROD_MUTATION=NONE\`

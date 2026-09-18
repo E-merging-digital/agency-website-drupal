@@ -36,6 +36,16 @@ class DependencyMaintenanceTests(unittest.TestCase):
             ]
         }
         audit = {"advisories": [], "abandoned": [], "filter": []}
+        composer_lock = {
+            "packages": [
+                {"name": "drupal/core-recommended", "version": "11.4.7"},
+                {"name": "symfony/http-foundation", "version": "7.3.0"}
+            ],
+            "packages-dev": [
+                {"name": "drupal/coder", "version": "8.3.31"},
+                {"name": "mglaman/phpstan-drupal", "version": "2.2.0"}
+            ]
+        }
         package_json = {"devDependencies": {"@playwright/test": "1.62.1"}}
         package_lock = {"packages": {"node_modules/@playwright/test": {"version": "1.62.1"}}}
         config = {
@@ -47,14 +57,15 @@ class DependencyMaintenanceTests(unittest.TestCase):
                 }
             },
         }
-        return show, outdated, audit, package_json, package_lock, config
+        return show, outdated, audit, composer_lock, package_json, package_lock, config
 
     def snapshot(self, **overrides):
-        show, outdated, audit, package_json, package_lock, config = self.base_inputs()
+        show, outdated, audit, composer_lock, package_json, package_lock, config = self.base_inputs()
         values = {
             "show_data": show,
             "outdated_data": outdated,
             "audit_data": audit,
+            "composer_lock": composer_lock,
             "package_json": package_json,
             "package_lock": package_lock,
             "playwright_latest_data": "1.63.0",
@@ -103,11 +114,24 @@ class DependencyMaintenanceTests(unittest.TestCase):
         self.assertEqual(item["update_class"], "SECURITY")
 
     def test_abandoned_package_is_eol(self):
-        show, _, _, _, _, _ = self.base_inputs()
+        show, _, _, _, _, _, _ = self.base_inputs()
         show["locked"][0]["abandoned"] = True
         item = self.by_name(self.snapshot(show_data=show), "drupal/core-recommended")
         self.assertEqual(item["health"], "EOL")
         self.assertEqual(item["update_class"], "EOL")
+
+    def test_transitive_security_advisory_is_not_hidden(self):
+        audit = {
+            "advisories": {
+                "symfony/http-foundation": [
+                    {"packageName": "symfony/http-foundation"}
+                ]
+            },
+            "abandoned": [],
+        }
+        item = self.by_name(self.snapshot(audit_data=audit), "symfony/http-foundation")
+        self.assertEqual(item["health"], "SECURITY_ACTION")
+        self.assertEqual(item["installed_version"], "7.3.0")
 
     def test_missing_audit_fails_closed(self):
         snapshot = self.snapshot(audit_data=None)

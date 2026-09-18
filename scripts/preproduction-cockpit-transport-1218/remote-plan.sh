@@ -9,6 +9,7 @@ CURRENT_LINK="$PROJECT_ROOT/current"
 SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"
 NGINX_SITE='/etc/nginx/sites-available/agency-preprod'
 TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'
+LEGACY_FAILED_RUN_DIR='/root/agency-1218-35221860275-1'
 HOSTNAME='preprod.emergingdigital.be'
 PATH_ONLY='/api/agency-operations/v1/environment-data-state'
 ENDPOINT="https://$HOSTNAME$PATH_ONLY"
@@ -94,6 +95,29 @@ elif [[ -e "$TOKEN_FILE" ]]; then
   TOKEN_SIZE="$(stat -c '%s' "$TOKEN_FILE")"
   TOKEN_MTIME="$(stat -c '%Y' "$TOKEN_FILE")"
   TOKEN_CTIME="$(stat -c '%Z' "$TOKEN_FILE")"
+fi
+
+# Observe only metadata for the exact failed APPLY staging path. The PLAN
+# identity deliberately receives no new root authority. If /root cannot be
+# traversed, report UNKNOWN/DENIED rather than guessing that the path is absent.
+LEGACY_STAGE_PRESENCE='UNKNOWN'
+LEGACY_STAGE_ACCESS='DENIED'
+LEGACY_STAGE_TYPE='UNKNOWN'
+LEGACY_STAGE_OWNER='UNKNOWN'
+LEGACY_STAGE_GROUP='UNKNOWN'
+LEGACY_STAGE_MODE='UNKNOWN'
+legacy_stat=''
+if legacy_stat="$(stat -c '%F|%U|%G|%a' -- "$LEGACY_FAILED_RUN_DIR" 2>/dev/null)"; then
+  LEGACY_STAGE_PRESENCE='PRESENT'
+  LEGACY_STAGE_ACCESS='OK'
+  IFS='|' read -r LEGACY_STAGE_TYPE LEGACY_STAGE_OWNER LEGACY_STAGE_GROUP LEGACY_STAGE_MODE <<<"$legacy_stat"
+elif [[ -x "$(dirname "$LEGACY_FAILED_RUN_DIR")" ]]; then
+  LEGACY_STAGE_PRESENCE='ABSENT'
+  LEGACY_STAGE_ACCESS='OK'
+  LEGACY_STAGE_TYPE='ABSENT'
+  LEGACY_STAGE_OWNER='ABSENT'
+  LEGACY_STAGE_GROUP='ABSENT'
+  LEGACY_STAGE_MODE='ABSENT'
 fi
 
 probe_http() {
@@ -234,6 +258,13 @@ state="$(jq -n \
   --argjson token_size "$TOKEN_SIZE" \
   --argjson token_mtime "$TOKEN_MTIME" \
   --argjson token_ctime "$TOKEN_CTIME" \
+  --arg legacy_stage_path "$LEGACY_FAILED_RUN_DIR" \
+  --arg legacy_stage_presence "$LEGACY_STAGE_PRESENCE" \
+  --arg legacy_stage_access "$LEGACY_STAGE_ACCESS" \
+  --arg legacy_stage_type "$LEGACY_STAGE_TYPE" \
+  --arg legacy_stage_owner "$LEGACY_STAGE_OWNER" \
+  --arg legacy_stage_group "$LEGACY_STAGE_GROUP" \
+  --arg legacy_stage_mode "$LEGACY_STAGE_MODE" \
   --argjson no_auth "$no_auth_json" \
   --argjson fake_bearer "$fake_json" \
   --argjson local_http "$local_http_json" \
@@ -255,6 +286,15 @@ state="$(jq -n \
     token_file: {
       state:$token_state,owner:$token_owner,group:$token_group,mode:$token_mode,
       size:$token_size,mtime_epoch:$token_mtime,ctime_epoch:$token_ctime
+    },
+    legacy_failed_staging: {
+      path:$legacy_stage_path,
+      presence:$legacy_stage_presence,
+      access:$legacy_stage_access,
+      type:$legacy_stage_type,
+      owner:$legacy_stage_owner,
+      group:$legacy_stage_group,
+      mode:$legacy_stage_mode
     },
     http: {
       no_auth:$no_auth,

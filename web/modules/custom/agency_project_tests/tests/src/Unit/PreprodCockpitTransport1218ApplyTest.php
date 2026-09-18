@@ -132,8 +132,9 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
   }
 
   /**
-   * Proves canonical settings convergence is idempotent and rollback failures
-   * cannot be masked as successful recovery.
+   * Proves idempotent settings convergence and explicit rollback failure.
+   *
+   * Rollback verification failures must never be masked as successful recovery.
    */
   public function testRemoteApplyPreservesCanonicalReaderAndVerifiesRollback(): void {
     $apply = $this->source(self::APPLY);

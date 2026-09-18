@@ -133,46 +133,46 @@ jobs:
             -o ConnectTimeout=15
           )
           legacy_json="$(timeout 20s ssh "${root_ssh_args[@]}" "root@$PREPROD_SERVER_HOST" '/usr/bin/python3 -I -' <<'PY'
-import grp
-import json
-import os
-import pwd
-import stat
-
-path = '/root/agency-1218-35221860275-1'
-try:
-    metadata = os.lstat(path)
-except FileNotFoundError:
-    result = {'path': path, 'presence': 'ABSENT', 'access': 'OK', 'type': 'ABSENT', 'owner': 'ABSENT', 'group': 'ABSENT', 'mode': 'ABSENT'}
-else:
-    if stat.S_ISLNK(metadata.st_mode):
-        kind = 'SYMLINK'
-    elif stat.S_ISDIR(metadata.st_mode):
-        kind = 'DIRECTORY'
-    elif stat.S_ISREG(metadata.st_mode):
-        kind = 'REGULAR'
-    else:
-        kind = 'OTHER'
-    try:
-        owner = pwd.getpwuid(metadata.st_uid).pw_name
-    except KeyError:
-        owner = str(metadata.st_uid)
-    try:
-        group = grp.getgrgid(metadata.st_gid).gr_name
-    except KeyError:
-        group = str(metadata.st_gid)
-    result = {
-        'path': path,
-        'presence': 'PRESENT',
-        'access': 'OK',
-        'type': kind,
-        'owner': owner,
-        'group': group,
-        'mode': format(stat.S_IMODE(metadata.st_mode), 'o'),
-    }
-print(json.dumps(result, separators=(',', ':'), sort_keys=True))
-PY
-)"
+          import grp
+          import json
+          import os
+          import pwd
+          import stat
+          
+          path = '/root/agency-1218-35221860275-1'
+          try:
+              metadata = os.lstat(path)
+          except FileNotFoundError:
+              result = {'path': path, 'presence': 'ABSENT', 'access': 'OK', 'type': 'ABSENT', 'owner': 'ABSENT', 'group': 'ABSENT', 'mode': 'ABSENT'}
+          else:
+              if stat.S_ISLNK(metadata.st_mode):
+                  kind = 'SYMLINK'
+              elif stat.S_ISDIR(metadata.st_mode):
+                  kind = 'DIRECTORY'
+              elif stat.S_ISREG(metadata.st_mode):
+                  kind = 'REGULAR'
+              else:
+                  kind = 'OTHER'
+              try:
+                  owner = pwd.getpwuid(metadata.st_uid).pw_name
+              except KeyError:
+                  owner = str(metadata.st_uid)
+              try:
+                  group = grp.getgrgid(metadata.st_gid).gr_name
+              except KeyError:
+                  group = str(metadata.st_gid)
+              result = {
+                  'path': path,
+                  'presence': 'PRESENT',
+                  'access': 'OK',
+                  'type': kind,
+                  'owner': owner,
+                  'group': group,
+                  'mode': format(stat.S_IMODE(metadata.st_mode), 'o'),
+              }
+          print(json.dumps(result, separators=(',', ':'), sort_keys=True))
+          PY
+          )"
           jq -e '
             .path == "/root/agency-1218-35221860275-1"
             and (.presence == "PRESENT" or .presence == "ABSENT")

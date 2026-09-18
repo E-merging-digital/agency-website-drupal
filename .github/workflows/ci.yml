@@ -101,13 +101,18 @@ jobs:
             exit 1
           fi
 
-      - name: Setup PHP 8.4
+      - name: Setup PHP 8.5
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           tools: composer:v2
           coverage: none
           extensions: sqlite3
+
+      - name: Attest real PHP 8.5 runtime and preserved Composer platform
+        run: |
+          php -r 'printf("PHP_VERSION=%s\n", PHP_VERSION); exit(PHP_VERSION_ID >= 80500 && PHP_VERSION_ID < 80600 ? 0 : 1);'
+          test "$(composer config platform.php)" = "8.3.0"
 
       - name: Get Composer cache directory
         id: composer-cache
@@ -124,8 +129,14 @@ jobs:
       - name: Validate composer.json
         run: composer validate --strict --no-check-all
 
-      - name: Install dependencies (with require-dev)
+      - name: Install dependencies from lock (with require-dev)
         run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Check real PHP 8.5 platform requirements
+        run: composer check-platform-reqs --no-interaction
+
+      - name: Audit locked dependencies
+        run: composer audit --locked --no-interaction
 
       - name: Test dependency maintenance observability
         run: php scripts/dependency-maintenance/tests/test.php
@@ -169,3 +180,9 @@ jobs:
           path: |
             web/sites/simpletest/browser_output
             sites/simpletest/browser_output
+
+      - name: Prove repository drift is zero
+        if: always()
+        run: |
+          git status --short
+          git diff --exit-code

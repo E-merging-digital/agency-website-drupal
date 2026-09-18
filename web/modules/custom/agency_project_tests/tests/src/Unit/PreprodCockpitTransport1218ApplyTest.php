@@ -132,6 +132,56 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
   }
 
   /**
+   * Proves idempotent settings convergence and explicit rollback failure.
+   *
+   * Rollback verification failures must never be masked as successful recovery.
+   */
+  public function testRemoteApplyPreservesCanonicalReaderAndVerifiesRollback(): void {
+    $apply = $this->source(self::APPLY);
+
+    foreach ([
+      'APPROVED_CURRENT_RELEASE="$(jq -r',
+      'APPROVED_SETTINGS_SHA="$(jq -r',
+      'APPROVED_NGINX_SHA="$(jq -r',
+      'live settings canonical cockpit token reader differs from approved template',
+      'live settings contains duplicate cockpit token reader blocks',
+      'live settings contains conflicting or partial cockpit token reader logic',
+      'live settings contains conflicting cockpit token reader logic outside the canonical block',
+      'Canonical reader is already converged. Preserve it exactly and never',
+      'restored_settings_sha',
+      'restored_nginx_sha',
+      'restored_current_release',
+      'token_absent',
+      'STATUS:"ROLLBACK_FAILURE"',
+      'current_release_match',
+      'settings_sha_match',
+      'nginx_sha_match',
+      'nginx_test_rc',
+      'nginx_reload_rc',
+      'exit 97',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+
+    foreach ([
+      'live settings unexpectedly already contains the cockpit token reader',
+      'nginx -t >/dev/null 2>&1 || true',
+      'systemctl reload nginx >/dev/null 2>&1 || true',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $apply);
+    }
+
+    self::assertSame(
+      1,
+      substr_count(
+        $apply,
+        "live_path.write_text(live[:pos] + block + live[pos:], encoding='utf-8')",
+      ),
+      'The token reader must have exactly one insertion path.',
+    );
+  }
+
+  /**
    * Reads a repository source file used by the contract tests.
    */
   private function source(string $relativePath): string {

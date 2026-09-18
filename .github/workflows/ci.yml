@@ -127,6 +127,9 @@ jobs:
       - name: Install dependencies (with require-dev)
         run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
 
+      - name: Test dependency maintenance observability
+        run: php scripts/dependency-maintenance/tests/test.php
+
       - name: Run quality scripts defined in composer.json
         run: |
           scripts="$(composer run-script --list)"

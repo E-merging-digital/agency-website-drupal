@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "project": "agency-website",
+  "deferred_updates": {
+    "drupal/coder": {
+      "when_latest_major_at_least": 9,
+      "reason": "Agency #1234: Coder 9 is blocked by the current drupal/core-dev 11.4.x dependency set; keep visible until that compatibility blocker changes."
+    }
+  }
+}

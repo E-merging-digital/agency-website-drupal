@@ -131,6 +131,7 @@ def build_snapshot(
     show_data: Any,
     outdated_data: Any,
     audit_data: Any,
+    composer_lock: Any,
     package_json: Any,
     package_lock: Any,
     playwright_latest_data: Any,
@@ -142,8 +143,10 @@ def build_snapshot(
     outdated_ok = isinstance(outdated_data, dict) and isinstance(outdated_data.get("locked"), list)
     audit_ok = isinstance(audit_data, dict) and "advisories" in audit_data and "abandoned" in audit_data
     npm_ok = isinstance(playwright_latest_data, str) and bool(playwright_latest_data.strip())
+    lock_ok = isinstance(composer_lock, dict) and isinstance(composer_lock.get("packages"), list)
 
     evidence = {
+        "composer_lock": "complete" if lock_ok else "unavailable",
         "composer_show_locked_direct": "complete" if show_ok else "unavailable",
         "composer_outdated_locked_direct": "complete" if outdated_ok else "unavailable",
         "composer_audit_locked": "complete" if audit_ok else "unavailable",
@@ -160,11 +163,23 @@ def build_snapshot(
     advisory_names = package_names_from_advisories(audit_data.get("advisories") if audit_ok else None)
     abandoned_names = package_names_from_abandoned(audit_data.get("abandoned") if audit_ok else None)
 
+    locked_versions: dict[str, str] = {}
+    if lock_ok:
+        for section in ("packages", "packages-dev"):
+            packages = composer_lock.get(section) or []
+            if not isinstance(packages, list):
+                continue
+            for package in packages:
+                if isinstance(package, dict) and package.get("name") and package.get("version"):
+                    locked_versions[str(package["name"])] = str(package["version"])
+
+    direct_names: set[str] = set()
     if show_ok:
         for package in sorted(show_data["locked"], key=lambda item: str(item.get("name", ""))):
             if not isinstance(package, dict) or not package.get("name"):
                 continue
             name = str(package["name"])
+            direct_names.add(name)
             installed = str(package.get("version") or "") or None
             outdated = outdated_by_name.get(name)
             available = str(outdated.get("latest") or "") if outdated else installed
@@ -231,6 +246,37 @@ def build_snapshot(
                 observed_at,
             )
         )
+
+
+    if audit_ok:
+        for name in sorted(advisory_names - direct_names):
+            components.append(
+                normalized(
+                    name,
+                    locked_versions.get(name),
+                    None,
+                    "SECURITY",
+                    "SECURITY_ACTION",
+                    "composer audit --locked + composer.lock",
+                    "Composer security advisory affects a locked transitive dependency",
+                    "open a bounded project maintenance task; do not auto-update",
+                    observed_at,
+                )
+            )
+        for name in sorted((abandoned_names - advisory_names) - direct_names):
+            components.append(
+                normalized(
+                    name,
+                    locked_versions.get(name),
+                    None,
+                    "EOL",
+                    "EOL",
+                    "composer audit --locked + composer.lock",
+                    "Composer reports a locked transitive dependency as abandoned/unsupported",
+                    "plan supported replacement/removal through the owning direct dependency",
+                    observed_at,
+                )
+            )
 
     installed_playwright = None
     declared_playwright = None
@@ -321,6 +367,7 @@ def main() -> int:
     parser.add_argument("--show", required=True)
     parser.add_argument("--outdated", required=True)
     parser.add_argument("--audit", required=True)
+    parser.add_argument("--composer-lock", default="composer.lock")
     parser.add_argument("--package-json", default="package.json")
     parser.add_argument("--package-lock", default="package-lock.json")
     parser.add_argument("--playwright-latest", required=True)
@@ -341,6 +388,7 @@ def main() -> int:
         read_json(Path(args.show)),
         read_json(Path(args.outdated)),
         read_json(Path(args.audit)),
+        read_json(Path(args.composer_lock)),
         read_json(Path(args.package_json)),
         read_json(Path(args.package_lock)),
         playwright_latest,

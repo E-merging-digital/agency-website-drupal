@@ -55,6 +55,12 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       'TOKEN_PERSISTED == false',
       'PROD_ACCESS == "NONE"',
       'SECRET_CONTENT_EXPOSED == false',
+      'if: ${{ always() }}',
+      'remote_dir="/root/agency-1218-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+      '.TRANSPORT_CLASSIFICATION == "CONVERGED"',
+      '.HTTP.local_https.no_auth.status == "401"',
+      '.HTTP.public_https.real_bearer.status == "200"',
+      "hashFiles('artifacts/preprod-cockpit-transport-1218/apply/result.json')",
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
@@ -90,6 +96,17 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       'TOKEN_PERSISTED: false',
       'DB_MUTATION: "NONE"',
       'SECRET_CONTENT_EXPOSED: false',
+      "LEGACY_FAILED_RUN_DIR='/root/agency-1218-35221860275-1'",
+      'runuser -u agency-preprod -- bash -s',
+      '[[ ! -L "$LEGACY_FAILED_RUN_DIR" ]]',
+      'rm -rf -- "$LEGACY_FAILED_RUN_DIR"',
+      '--resolve "$HOSTNAME:443:127.0.0.1"',
+      'TRANSPORT_CLASSIFICATION',
+      'LOCAL_HTTPS_BASIC_INTERCEPTION',
+      'PUBLIC_HTTPS_BASIC_INTERCEPTION',
+      'www_authenticate',
+      'local_https',
+      'public_https',
     ] as $required) {
       self::assertStringContainsString($required, $apply);
     }
@@ -104,6 +121,8 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       'printf "$bearer"',
       'cat "$TOKEN_FILE"',
       'sha256sum "$TOKEN_FILE"',
+      'rm -rf -- /root/agency-1218-*',
+      'find /root',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $apply);
     }

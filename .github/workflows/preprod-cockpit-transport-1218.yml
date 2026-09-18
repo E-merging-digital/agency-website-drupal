@@ -138,7 +138,7 @@ jobs:
           import os
           import pwd
           import stat
-          
+
           path = '/root/agency-1218-35221860275-1'
           try:
               metadata = os.lstat(path)

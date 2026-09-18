@@ -37,6 +37,7 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       "github.event.comment.body == '/agency-cockpit-transport-1218 plan'",
       'uses: ./.github/workflows/preprod-cockpit-transport-1218.yml',
       'PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}',
+      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}',
       'PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}',
     ] as $required) {
       self::assertStringContainsString($required, $dispatcher);
@@ -53,7 +54,14 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       "test \"\$COMMENT_BODY\" = '/agency-cockpit-transport-1218 plan'",
       'test "$WORKFLOW_SHA" = "$main_sha"',
       'secrets.PREPROD_SSH_PRIVATE_KEY',
+      'secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
       'secrets.PREPROD_SERVER_HOST',
+      'root@$PREPROD_SERVER_HOST',
+      "'/usr/bin/python3 -I -'",
+      'metadata = os.lstat(path)',
+      "path = '/root/agency-1218-35221860275-1'",
+      '.STATE.legacy_failed_staging = $legacy',
+      "jq -cS '.STATE'",
       'scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION',
       'StrictHostKeyChecking=yes',
       'agency-preprod@$PREPROD_SERVER_HOST',
@@ -61,14 +69,18 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       'PROD_ACCESS == "NONE"',
       'SECRET_CONTENT_EXPOSED == false',
       'actions/upload-artifact@v4',
+      '.STATE.legacy_failed_staging.path == "/root/agency-1218-35221860275-1"',
+      'LEGACY_FAILED_STAGE_PRESENCE',
+      'LEGACY_FAILED_STAGE_ACCESS',
+      'LEGACY_FAILED_STAGE_TYPE',
+      'LEGACY_FAILED_STAGE_OWNER',
+      'LEGACY_FAILED_STAGE_MODE',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
 
     foreach ([
       'issue_comment:',
-      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
-      'root@$PREPROD_SERVER_HOST',
       'sudo ',
       ' scp ',
       ' rsync ',
@@ -102,6 +114,13 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       'PREPROD_MUTATION:"NONE"',
       'PROD_ACCESS:"NONE"',
       'SECRET_CONTENT_EXPOSED:false',
+      "LEGACY_FAILED_RUN_DIR='/root/agency-1218-35221860275-1'",
+      'legacy_failed_staging',
+      'presence:$legacy_stage_presence',
+      'access:$legacy_stage_access',
+      'type:$legacy_stage_type',
+      'owner:$legacy_stage_owner',
+      'mode:$legacy_stage_mode',
     ] as $required) {
       self::assertStringContainsString($required, $plan);
     }

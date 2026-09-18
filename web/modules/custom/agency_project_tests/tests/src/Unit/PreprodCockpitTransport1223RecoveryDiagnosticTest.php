@@ -34,6 +34,15 @@ final class PreprodCockpitTransport1223RecoveryDiagnosticTest extends TestCase {
       'PREPROD_MUTATION:"NONE"',
       'PROD_ACCESS:"NONE"',
       'SECRET_CONTENT_EXPOSED:false',
+      "LEGACY_FAILED_RUN_DIR='/root/agency-1218-35221860275-1'",
+      "stat -c '%F|%U|%G|%a'",
+      "LEGACY_STAGE_PRESENCE='UNKNOWN'",
+      "LEGACY_STAGE_ACCESS='DENIED'",
+      'legacy_failed_staging',
+      'presence:$legacy_stage_presence',
+      'access:$legacy_stage_access',
+      'owner:$legacy_stage_owner',
+      'mode:$legacy_stage_mode',
     ] as $required) {
       self::assertStringContainsString($required, $plan);
     }
@@ -49,6 +58,9 @@ final class PreprodCockpitTransport1223RecoveryDiagnosticTest extends TestCase {
       'rm -f -- "$TOKEN_FILE"',
       'drush ',
       'mysql ',
+      'ls /root',
+      'find /root',
+      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $plan);
     }

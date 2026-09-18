@@ -5,6 +5,8 @@ on:
     secrets:
       PREPROD_SSH_PRIVATE_KEY:
         required: true
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY:
+        required: true
       PREPROD_SERVER_HOST:
         required: true
 
@@ -89,6 +91,16 @@ jobs:
           PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
             bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
 
+      - name: Materialize transient exact-path PREPROD root metadata identity
+        shell: bash
+        env:
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_ROOT_KEY"
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-1218-plan-root.key"
+          chmod 600 "$RUNNER_TEMP/agency-1218-plan-root.key"
+
       - id: plan
         name: Capture immutable read-only PLAN from PREPROD
         shell: bash
@@ -112,7 +124,71 @@ jobs:
             < scripts/preproduction-cockpit-transport-1218/remote-plan.sh \
             > artifacts/preprod-cockpit-transport-1218/plan.json
 
+          root_ssh_args=(
+            -i "$RUNNER_TEMP/agency-1218-plan-root.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          legacy_json="$(timeout 20s ssh "${root_ssh_args[@]}" "root@$PREPROD_SERVER_HOST" '/usr/bin/python3 -I -' <<'PY'
+          import grp
+          import json
+          import os
+          import pwd
+          import stat
+
+          path = '/root/agency-1218-35221860275-1'
+          try:
+              metadata = os.lstat(path)
+          except FileNotFoundError:
+              result = {'path': path, 'presence': 'ABSENT', 'access': 'OK', 'type': 'ABSENT', 'owner': 'ABSENT', 'group': 'ABSENT', 'mode': 'ABSENT'}
+          else:
+              if stat.S_ISLNK(metadata.st_mode):
+                  kind = 'SYMLINK'
+              elif stat.S_ISDIR(metadata.st_mode):
+                  kind = 'DIRECTORY'
+              elif stat.S_ISREG(metadata.st_mode):
+                  kind = 'REGULAR'
+              else:
+                  kind = 'OTHER'
+              try:
+                  owner = pwd.getpwuid(metadata.st_uid).pw_name
+              except KeyError:
+                  owner = str(metadata.st_uid)
+              try:
+                  group = grp.getgrgid(metadata.st_gid).gr_name
+              except KeyError:
+                  group = str(metadata.st_gid)
+              result = {
+                  'path': path,
+                  'presence': 'PRESENT',
+                  'access': 'OK',
+                  'type': kind,
+                  'owner': owner,
+                  'group': group,
+                  'mode': format(stat.S_IMODE(metadata.st_mode), 'o'),
+              }
+          print(json.dumps(result, separators=(',', ':'), sort_keys=True))
+          PY
+          )"
+          jq -e '
+            .path == "/root/agency-1218-35221860275-1"
+            and (.presence == "PRESENT" or .presence == "ABSENT")
+            and .access == "OK"
+            and (.type | test("^(ABSENT|DIRECTORY|REGULAR|SYMLINK|OTHER)$"))
+            and (.owner | type == "string")
+            and (.mode | type == "string")
+          ' <<<"$legacy_json" >/dev/null
+
           plan='artifacts/preprod-cockpit-transport-1218/plan.json'
+          merged_plan="$(mktemp)"
+          jq --argjson legacy "$legacy_json" '.STATE.legacy_failed_staging = $legacy' "$plan" > "$merged_plan"
+          canonical="$(jq -cS '.STATE' "$merged_plan")"
+          digest="$(printf '%s' "$canonical" | sha256sum | awk '{print $1}')"
+          jq --arg digest "$digest" '.PLAN_DIGEST = $digest' "$merged_plan" > "$plan"
+          rm -f -- "$merged_plan"
           jq -e \
             --arg main "$MAIN_SHA" \
             --arg plan_id "$PLAN_ID" '
@@ -131,6 +207,9 @@ jobs:
               and (.STATE.nginx.sha256 | test("^[0-9a-f]{64}$"))
               and (.STATE.http.no_auth.status | test("^[0-9]{3}$"))
               and (.STATE.http.fake_bearer.status | test("^[0-9]{3}$"))
+              and .STATE.legacy_failed_staging.path == "/root/agency-1218-35221860275-1"
+              and (.STATE.legacy_failed_staging.presence | test("^(PRESENT|ABSENT)$"))
+              and .STATE.legacy_failed_staging.access == "OK"
             ' "$plan" >/dev/null
 
           echo "digest=$(jq -r '.PLAN_DIGEST' "$plan")" >> "$GITHUB_OUTPUT"
@@ -159,6 +238,11 @@ jobs:
           nginx_basic="$(jq -r '.STATE.nginx.auth_basic_off' "$plan")"
           auth_forward="$(jq -r '.STATE.nginx.authorization_forwarded' "$plan")"
           token_state="$(jq -r '.STATE.token_file.state' "$plan")"
+          legacy_presence="$(jq -r '.STATE.legacy_failed_staging.presence' "$plan")"
+          legacy_access="$(jq -r '.STATE.legacy_failed_staging.access' "$plan")"
+          legacy_type="$(jq -r '.STATE.legacy_failed_staging.type' "$plan")"
+          legacy_owner="$(jq -r '.STATE.legacy_failed_staging.owner' "$plan")"
+          legacy_mode="$(jq -r '.STATE.legacy_failed_staging.mode' "$plan")"
           no_auth="$(jq -r '.STATE.http.no_auth.status + "/" + .STATE.http.no_auth.body_kind' "$plan")"
           fake="$(jq -r '.STATE.http.fake_bearer.status + "/" + .STATE.http.fake_bearer.body_kind' "$plan")"
           body="$(cat <<EOF_BODY
@@ -175,6 +259,11 @@ jobs:
           \`NGINX_AUTH_BASIC_OFF=${nginx_basic}\`
           \`NGINX_AUTHORIZATION_FORWARDED=${auth_forward}\`
           \`TOKEN_FILE_STATE=${token_state}\`
+          \`LEGACY_FAILED_STAGE_PRESENCE=${legacy_presence}\`
+          \`LEGACY_FAILED_STAGE_ACCESS=${legacy_access}\`
+          \`LEGACY_FAILED_STAGE_TYPE=${legacy_type}\`
+          \`LEGACY_FAILED_STAGE_OWNER=${legacy_owner}\`
+          \`LEGACY_FAILED_STAGE_MODE=${legacy_mode}\`
           \`NO_AUTH=${no_auth}\`
           \`FAKE_BEARER=${fake}\`
           \`PREPROD_MUTATION=NONE\`
@@ -185,7 +274,7 @@ jobs:
           )"
           gh issue comment 1218 --body "$body"
 
-      - name: Remove transient PLAN key
+      - name: Remove transient PLAN identities
         if: ${{ always() }}
         shell: bash
-        run: rm -f "$RUNNER_TEMP/agency-1218-plan.key"
+        run: rm -f "$RUNNER_TEMP/agency-1218-plan.key" "$RUNNER_TEMP/agency-1218-plan-root.key"

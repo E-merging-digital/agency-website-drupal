@@ -642,6 +642,7 @@ jobs:
     uses: ./.github/workflows/preprod-cockpit-transport-1218.yml
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   preprod-cockpit-transport-1218-apply:

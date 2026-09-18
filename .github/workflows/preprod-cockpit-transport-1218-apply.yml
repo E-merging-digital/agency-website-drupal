@@ -189,10 +189,28 @@ jobs:
             and .NGINX_CONVERGED == true
             and .SETTINGS_READER_CONVERGED == true
             and .TOKEN_PERMISSIONS_DURING_PROOF == "root:www-data:640"
-            and .HTTP.no_auth == "401|JSON"
-            and .HTTP.fake_bearer == "401|JSON"
-            and .HTTP.real_bearer == "200|JSON"
-            and (.HTTP.post_cleanup_no_auth == "503|JSON" or .HTTP.post_cleanup_no_auth == "401|JSON")
+            and .TRANSPORT_CLASSIFICATION == "CONVERGED"
+            and (.LEGACY_STAGING_CLEANUP == "REMOVED" or .LEGACY_STAGING_CLEANUP == "ABSENT")
+            and .HTTP.local_https.no_auth.status == "401"
+            and .HTTP.local_https.no_auth.body_kind == "JSON"
+            and .HTTP.local_https.fake_bearer.status == "401"
+            and .HTTP.local_https.fake_bearer.body_kind == "JSON"
+            and .HTTP.local_https.real_bearer.status == "200"
+            and .HTTP.local_https.real_bearer.body_kind == "JSON"
+            and .HTTP.public_https.no_auth.status == "401"
+            and .HTTP.public_https.no_auth.body_kind == "JSON"
+            and .HTTP.public_https.fake_bearer.status == "401"
+            and .HTTP.public_https.fake_bearer.body_kind == "JSON"
+            and .HTTP.public_https.real_bearer.status == "200"
+            and .HTTP.public_https.real_bearer.body_kind == "JSON"
+            and (
+              (.HTTP.local_https.post_cleanup_no_auth.status == "503" or .HTTP.local_https.post_cleanup_no_auth.status == "401")
+              and .HTTP.local_https.post_cleanup_no_auth.body_kind == "JSON"
+            )
+            and (
+              (.HTTP.public_https.post_cleanup_no_auth.status == "503" or .HTTP.public_https.post_cleanup_no_auth.status == "401")
+              and .HTTP.public_https.post_cleanup_no_auth.body_kind == "JSON"
+            )
             and .TOKEN_CLEANUP == "PASS"
             and .TOKEN_PERSISTED == false
             and .PROD_ACCESS == "NONE"
@@ -201,9 +219,53 @@ jobs:
             and .ROLLBACK_REQUIRED == false
           ' "$result" >/dev/null
 
-          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" "rm -rf -- '$remote_dir'"
+      - name: Cleanup exact transient root staging
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/agency-1218-root.key"
+          [[ -s "$key" ]] || {
+            echo 'Root key was not materialized; no remote staging cleanup is possible.'
+            exit 0
+          }
+          test -n "$PREPROD_SERVER_HOST"
+          remote_dir="/root/agency-1218-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ "$remote_dir" =~ ^/root/agency-1218-[1-9][0-9]*-[1-9][0-9]*$ ]] || {
+            echo 'Refusing unexpected remote staging path.' >&2
+            exit 64
+          }
+          root_ssh=(
+            ssh
+            -i "$key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" "bash -s -- '$remote_dir'" <<'REMOTE_CLEANUP'
+          set -euo pipefail
+          path="$1"
+          [[ "$path" =~ ^/root/agency-1218-[1-9][0-9]*-[1-9][0-9]*$ ]] || exit 64
+          [[ ! -L "$path" ]] || {
+            echo 'Refusing symlink staging cleanup target.' >&2
+            exit 65
+          }
+          if [[ -e "$path" ]]; then
+            [[ -d "$path" ]] || {
+              echo 'Refusing non-directory staging cleanup target.' >&2
+              exit 66
+            }
+            rm -rf -- "$path"
+          fi
+          [[ ! -e "$path" && ! -L "$path" ]]
+          REMOTE_CLEANUP
 
       - name: Upload non-secret APPLY receipt
+        if: ${{ always() && hashFiles('artifacts/preprod-cockpit-transport-1218/apply/result.json') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: preprod-cockpit-transport-1218-apply-${{ github.run_id }}-${{ github.run_attempt }}
@@ -230,9 +292,14 @@ jobs:
           \`STALE_PLAN=$(jq -r '.STALE_PLAN' "$result")\`
           \`NGINX_CONVERGED=$(jq -r '.NGINX_CONVERGED' "$result")\`
           \`SETTINGS_READER_CONVERGED=$(jq -r '.SETTINGS_READER_CONVERGED' "$result")\`
-          \`NO_AUTH=$(jq -r '.HTTP.no_auth' "$result")\`
-          \`FAKE_BEARER=$(jq -r '.HTTP.fake_bearer' "$result")\`
-          \`REAL_BEARER=$(jq -r '.HTTP.real_bearer' "$result")\`
+          \`TRANSPORT_CLASSIFICATION=$(jq -r '.TRANSPORT_CLASSIFICATION' "$result")\`
+          \`LEGACY_STAGING_CLEANUP=$(jq -r '.LEGACY_STAGING_CLEANUP' "$result")\`
+          \`LOCAL_NO_AUTH=$(jq -r '.HTTP.local_https.no_auth.status + "/" + .HTTP.local_https.no_auth.body_kind' "$result")\`
+          \`LOCAL_FAKE_BEARER=$(jq -r '.HTTP.local_https.fake_bearer.status + "/" + .HTTP.local_https.fake_bearer.body_kind' "$result")\`
+          \`LOCAL_REAL_BEARER=$(jq -r '.HTTP.local_https.real_bearer.status + "/" + .HTTP.local_https.real_bearer.body_kind' "$result")\`
+          \`PUBLIC_NO_AUTH=$(jq -r '.HTTP.public_https.no_auth.status + "/" + .HTTP.public_https.no_auth.body_kind' "$result")\`
+          \`PUBLIC_FAKE_BEARER=$(jq -r '.HTTP.public_https.fake_bearer.status + "/" + .HTTP.public_https.fake_bearer.body_kind' "$result")\`
+          \`PUBLIC_REAL_BEARER=$(jq -r '.HTTP.public_https.real_bearer.status + "/" + .HTTP.public_https.real_bearer.body_kind' "$result")\`
           \`TOKEN_CLEANUP=$(jq -r '.TOKEN_CLEANUP' "$result")\`
           \`TOKEN_PERSISTED=$(jq -r '.TOKEN_PERSISTED' "$result")\`
           \`PROD_ACCESS=NONE\`

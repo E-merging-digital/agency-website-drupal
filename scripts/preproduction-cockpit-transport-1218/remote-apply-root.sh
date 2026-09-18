@@ -14,7 +14,10 @@ PROJECT_ROOT='/var/www/agency-preprod'
 SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"
 NGINX_SITE='/etc/nginx/sites-available/agency-preprod'
 TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'
-ENDPOINT='https://preprod.emergingdigital.be/api/agency-operations/v1/environment-data-state'
+LEGACY_FAILED_RUN_DIR='/root/agency-1218-35221860275-1'
+HOSTNAME='preprod.emergingdigital.be'
+PATH_ONLY='/api/agency-operations/v1/environment-data-state'
+ENDPOINT="https://$HOSTNAME$PATH_ONLY"
 BACKUP_DIR="$(mktemp -d /root/agency-1218-apply.XXXXXX)"
 MUTATION_STARTED='NO'
 COMMITTED='NO'
@@ -50,7 +53,7 @@ for file in "$APPROVED_PLAN" "$PLAN_SCRIPT" "$NGINX_TEMPLATE" "$SETTINGS_TEMPLAT
 done
 [[ -f "$SETTINGS_FILE" && ! -L "$SETTINGS_FILE" ]] || fail 'Shared settings.php is missing or unsafe.'
 [[ -f "$NGINX_SITE" && ! -L "$NGINX_SITE" ]] || fail 'Nginx site is missing or unsafe.'
-for command in curl jq nginx openssl php python3 sha256sum systemctl; do
+for command in curl jq nginx openssl php python3 runuser sha256sum stat systemctl; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required."
 done
 
@@ -66,9 +69,22 @@ jq -e --arg main "$EXPECTED_MAIN" --arg digest "$EXPECTED_DIGEST" '
   and .SECRET_CONTENT_EXPOSED == false
 ' "$APPROVED_PLAN" >/dev/null
 
-stale_json="$($PLAN_SCRIPT "$EXPECTED_MAIN" 'plan-1218-stale-check')"
+# Re-run the stale PLAN under the same unprivileged identity used by the
+# approved PLAN. Root opens the staged script and passes it on stdin; the
+# diagnostic itself keeps agency-preprod privileges and semantics.
+stale_json="$(runuser -u agency-preprod -- bash -s -- "$EXPECTED_MAIN" 'plan-1218-stale-check' < "$PLAN_SCRIPT")"
 stale_digest="$(jq -r '.PLAN_DIGEST' <<<"$stale_json")"
 [[ "$stale_digest" == "$EXPECTED_DIGEST" ]] || fail 'STALE_PLAN: live PREPROD state no longer matches the approved PLAN.'
+
+LEGACY_STAGING_CLEANUP='ABSENT'
+[[ "$LEGACY_FAILED_RUN_DIR" == '/root/agency-1218-35221860275-1' ]] || fail 'Legacy staging path is not the exact authorized recovery target.'
+[[ ! -L "$LEGACY_FAILED_RUN_DIR" ]] || fail 'Legacy staging recovery target is a symlink.'
+if [[ -e "$LEGACY_FAILED_RUN_DIR" ]]; then
+  [[ -d "$LEGACY_FAILED_RUN_DIR" ]] || fail 'Legacy staging recovery target is not a directory.'
+  rm -rf -- "$LEGACY_FAILED_RUN_DIR"
+  [[ ! -e "$LEGACY_FAILED_RUN_DIR" && ! -L "$LEGACY_FAILED_RUN_DIR" ]] || fail 'Legacy staging recovery cleanup did not converge.'
+  LEGACY_STAGING_CLEANUP='REMOVED'
+fi
 
 cp -a -- "$SETTINGS_FILE" "$BACKUP_DIR/settings.php"
 cp -a -- "$NGINX_SITE" "$BACKUP_DIR/nginx.conf"
@@ -157,15 +173,17 @@ printf '%s\n' "$bearer" | "$TOKEN_PROVISIONER" >/dev/null
 
 systemctl reload nginx
 
-probe() {
-  local label="$1"
+probe_http() {
+  local endpoint="$1"
   shift
-  local body headers status kind
+  local body headers status kind content_type www_auth
   body="$(mktemp)"
   headers="$(mktemp)"
   status="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
     --output "$body" --dump-header "$headers" --write-out '%{http_code}' \
-    "$@" "$ENDPOINT")"
+    "$@" "$endpoint")"
+  content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
+  www_auth="$(awk 'BEGIN{IGNORECASE=1} /^www-authenticate:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
   kind="$(python3 - "$body" <<'PY'
 import json
 import sys
@@ -180,32 +198,111 @@ else:
 PY
 )"
   rm -f -- "$body" "$headers"
-  printf '%s|%s' "$status" "$kind"
+  jq -cn \
+    --arg status "$status" \
+    --arg body_kind "$kind" \
+    --arg content_type "$content_type" \
+    --arg www_authenticate "$www_auth" \
+    '{status:$status,body_kind:$body_kind,content_type:$content_type,www_authenticate:$www_authenticate}'
 }
 
-no_auth="$(probe NO_AUTH)"
-fake_bearer="$(probe FAKE_BEARER -H 'Authorization: Bearer invalid-cockpit-token-1218')"
-real_bearer="$(probe REAL_BEARER -H "Authorization: Bearer $bearer")"
-[[ "$no_auth" == '401|JSON' ]] || fail "No-auth contract mismatch: $no_auth"
-[[ "$fake_bearer" == '401|JSON' ]] || fail "Fake-bearer contract mismatch: $fake_bearer"
-[[ "$real_bearer" == '200|JSON' ]] || fail "Real-bearer contract mismatch: $real_bearer"
+probe_contract() {
+  jq -r '.status + "|" + .body_kind' <<<"$1"
+}
+
+is_basic_challenge() {
+  jq -e '(.www_authenticate | ascii_downcase | startswith("basic"))' <<<"$1" >/dev/null
+}
+
+local_no_auth="$(probe_http "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1")"
+local_fake_bearer="$(probe_http "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1" -H 'Authorization: Bearer invalid-cockpit-token-1218')"
+local_real_bearer="$(probe_http "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1" -H "Authorization: Bearer $bearer")"
+public_no_auth="$(probe_http "$ENDPOINT")"
+public_fake_bearer="$(probe_http "$ENDPOINT" -H 'Authorization: Bearer invalid-cockpit-token-1218')"
+public_real_bearer="$(probe_http "$ENDPOINT" -H "Authorization: Bearer $bearer")"
+
+local_ok='NO'
+public_ok='NO'
+if [[ "$(probe_contract "$local_no_auth")" == '401|JSON' \
+  && "$(probe_contract "$local_fake_bearer")" == '401|JSON' \
+  && "$(probe_contract "$local_real_bearer")" == '200|JSON' ]]; then
+  local_ok='YES'
+fi
+if [[ "$(probe_contract "$public_no_auth")" == '401|JSON' \
+  && "$(probe_contract "$public_fake_bearer")" == '401|JSON' \
+  && "$(probe_contract "$public_real_bearer")" == '200|JSON' ]]; then
+  public_ok='YES'
+fi
+
+TRANSPORT_CLASSIFICATION='CONTRACT_MISMATCH'
+if [[ "$local_ok" == 'YES' && "$public_ok" == 'YES' ]]; then
+  TRANSPORT_CLASSIFICATION='CONVERGED'
+elif is_basic_challenge "$local_no_auth" || is_basic_challenge "$local_fake_bearer" || is_basic_challenge "$local_real_bearer"; then
+  TRANSPORT_CLASSIFICATION='LOCAL_HTTPS_BASIC_INTERCEPTION'
+elif [[ "$local_ok" == 'YES' ]] && { is_basic_challenge "$public_no_auth" || is_basic_challenge "$public_fake_bearer" || is_basic_challenge "$public_real_bearer"; }; then
+  TRANSPORT_CLASSIFICATION='PUBLIC_HTTPS_BASIC_INTERCEPTION'
+elif [[ "$local_ok" != 'YES' ]]; then
+  TRANSPORT_CLASSIFICATION='LOCAL_HTTPS_CONTRACT_MISMATCH'
+else
+  TRANSPORT_CLASSIFICATION='PUBLIC_HTTPS_CONTRACT_MISMATCH'
+fi
+
+if [[ "$TRANSPORT_CLASSIFICATION" != 'CONVERGED' ]]; then
+  jq -n \
+    --arg main_sha "$EXPECTED_MAIN" \
+    --arg plan_digest "$EXPECTED_DIGEST" \
+    --arg classification "$TRANSPORT_CLASSIFICATION" \
+    --arg legacy_cleanup "$LEGACY_STAGING_CLEANUP" \
+    --argjson local_no_auth "$local_no_auth" \
+    --argjson local_fake_bearer "$local_fake_bearer" \
+    --argjson local_real_bearer "$local_real_bearer" \
+    --argjson public_no_auth "$public_no_auth" \
+    --argjson public_fake_bearer "$public_fake_bearer" \
+    --argjson public_real_bearer "$public_real_bearer" \
+    '{
+      STATUS:"FAIL",ISSUE:1218,TARGET:"PREPROD",MODE:"APPLY",
+      MAIN_SHA:$main_sha,PLAN_DIGEST:$plan_digest,STALE_PLAN:"PASS",
+      TRANSPORT_CLASSIFICATION:$classification,
+      LEGACY_STAGING_CLEANUP:$legacy_cleanup,
+      HTTP:{
+        local_https:{no_auth:$local_no_auth,fake_bearer:$local_fake_bearer,real_bearer:$local_real_bearer},
+        public_https:{no_auth:$public_no_auth,fake_bearer:$public_fake_bearer,real_bearer:$public_real_bearer}
+      },
+      PROD_ACCESS:"NONE",DB_MUTATION:"NONE",SECRET_CONTENT_EXPOSED:false,
+      ROLLBACK_REQUIRED:true
+    }'
+  fail "Cockpit transport contract mismatch: $TRANSPORT_CLASSIFICATION"
+fi
 
 unset bearer
 rm -f -- "$TOKEN_FILE"
-cleanup_probe="$(probe CLEANUP_NO_AUTH)"
-[[ "$cleanup_probe" == '503|JSON' || "$cleanup_probe" == '401|JSON' ]] || fail "Post-cleanup fail-closed contract mismatch: $cleanup_probe"
+local_cleanup="$(probe_http "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1")"
+public_cleanup="$(probe_http "$ENDPOINT")"
+local_cleanup_contract="$(probe_contract "$local_cleanup")"
+public_cleanup_contract="$(probe_contract "$public_cleanup")"
+[[ "$local_cleanup_contract" == '503|JSON' || "$local_cleanup_contract" == '401|JSON' ]] \
+  || fail "Local post-cleanup fail-closed contract mismatch: $local_cleanup_contract"
+[[ "$public_cleanup_contract" == '503|JSON' || "$public_cleanup_contract" == '401|JSON' ]] \
+  || fail "Public post-cleanup fail-closed contract mismatch: $public_cleanup_contract"
 
 COMMITTED='YES'
+
 
 jq -n \
   --arg main_sha "$EXPECTED_MAIN" \
   --arg plan_digest "$EXPECTED_DIGEST" \
   --arg nginx_sha "$nginx_candidate_sha" \
   --arg settings_sha "$settings_candidate_sha" \
-  --arg no_auth "$no_auth" \
-  --arg fake_bearer "$fake_bearer" \
-  --arg real_bearer "$real_bearer" \
-  --arg cleanup_probe "$cleanup_probe" \
+  --arg classification "$TRANSPORT_CLASSIFICATION" \
+  --arg legacy_cleanup "$LEGACY_STAGING_CLEANUP" \
+  --argjson local_no_auth "$local_no_auth" \
+  --argjson local_fake_bearer "$local_fake_bearer" \
+  --argjson local_real_bearer "$local_real_bearer" \
+  --argjson local_cleanup "$local_cleanup" \
+  --argjson public_no_auth "$public_no_auth" \
+  --argjson public_fake_bearer "$public_fake_bearer" \
+  --argjson public_real_bearer "$public_real_bearer" \
+  --argjson public_cleanup "$public_cleanup" \
   '{
     STATUS: "PASS",
     ISSUE: 1218,
@@ -219,11 +316,21 @@ jq -n \
     NGINX_SHA256: $nginx_sha,
     SETTINGS_SHA256: $settings_sha,
     TOKEN_PERMISSIONS_DURING_PROOF: "root:www-data:640",
+    TRANSPORT_CLASSIFICATION: $classification,
+    LEGACY_STAGING_CLEANUP: $legacy_cleanup,
     HTTP: {
-      no_auth: $no_auth,
-      fake_bearer: $fake_bearer,
-      real_bearer: $real_bearer,
-      post_cleanup_no_auth: $cleanup_probe
+      local_https: {
+        no_auth: $local_no_auth,
+        fake_bearer: $local_fake_bearer,
+        real_bearer: $local_real_bearer,
+        post_cleanup_no_auth: $local_cleanup
+      },
+      public_https: {
+        no_auth: $public_no_auth,
+        fake_bearer: $public_fake_bearer,
+        real_bearer: $public_real_bearer,
+        post_cleanup_no_auth: $public_cleanup
+      }
     },
     TOKEN_CLEANUP: "PASS",
     TOKEN_PERSISTED: false,

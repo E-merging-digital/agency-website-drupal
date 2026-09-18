@@ -253,8 +253,12 @@ def normalize(block: str) -> str:
     return '\n'.join(line.strip() for line in block.strip().splitlines())
 
 if len(live_matches) == 1:
-    if normalize(live_matches[0].group(0)) != normalize(source_block):
+    live_match = live_matches[0]
+    if normalize(live_match.group(0)) != normalize(source_block):
         raise SystemExit('live settings canonical cockpit token reader differs from approved template')
+    remainder = live[:live_match.start()] + live[live_match.end():]
+    if '/etc/agency-preprod/cockpit-state-token' in remainder or 'agency_operations_cockpit_state_token' in remainder:
+        raise SystemExit('live settings contains conflicting cockpit token reader logic outside the canonical block')
     # Canonical reader is already converged. Preserve it exactly and never
     # duplicate the block.
     raise SystemExit(0)

@@ -121,7 +121,11 @@ jobs:
             jq -r '
               .components[]
               | select(.health != "OK")
-              | "- (.component): (.installed_version // "UNKNOWN") → latest (.latest_available_version // "UNKNOWN") [(.health) / (.update_class)] — (.recommended_action)"
+              | "- " + .component
+                + ": " + (.installed_version // "UNKNOWN")
+                + " → latest " + (.latest_available_version // "UNKNOWN")
+                + " [" + .health + " / " + .update_class + "] — "
+                + .recommended_action
             ' "$snapshot"
           } >> "$GITHUB_STEP_SUMMARY"
 

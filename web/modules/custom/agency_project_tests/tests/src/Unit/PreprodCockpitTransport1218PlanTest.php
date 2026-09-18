@@ -61,6 +61,12 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       'PROD_ACCESS == "NONE"',
       'SECRET_CONTENT_EXPOSED == false',
       'actions/upload-artifact@v4',
+      '.STATE.legacy_failed_staging.path == "/root/agency-1218-35221860275-1"',
+      'LEGACY_FAILED_STAGE_PRESENCE',
+      'LEGACY_FAILED_STAGE_ACCESS',
+      'LEGACY_FAILED_STAGE_TYPE',
+      'LEGACY_FAILED_STAGE_OWNER',
+      'LEGACY_FAILED_STAGE_MODE',
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
@@ -102,6 +108,13 @@ final class PreprodCockpitTransport1218PlanTest extends TestCase {
       'PREPROD_MUTATION:"NONE"',
       'PROD_ACCESS:"NONE"',
       'SECRET_CONTENT_EXPOSED:false',
+      "LEGACY_FAILED_RUN_DIR='/root/agency-1218-35221860275-1'",
+      'legacy_failed_staging',
+      'presence:$legacy_stage_presence',
+      'access:$legacy_stage_access',
+      'type:$legacy_stage_type',
+      'owner:$legacy_stage_owner',
+      'mode:$legacy_stage_mode',
     ] as $required) {
       self::assertStringContainsString($required, $plan);
     }

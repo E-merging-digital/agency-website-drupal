@@ -1,0 +1,152 @@
+name: Dependency maintenance observability
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'composer.json'
+      - 'composer.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'observability/dependency-maintenance.json'
+      - 'scripts/observability/collect_dependency_maintenance.py'
+      - 'scripts/observability/test_collect_dependency_maintenance.py'
+      - '.github/workflows/dependency-maintenance-observability.yml'
+  pull_request:
+    paths:
+      - 'composer.json'
+      - 'composer.lock'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'observability/dependency-maintenance.json'
+      - 'scripts/observability/collect_dependency_maintenance.py'
+      - 'scripts/observability/test_collect_dependency_maintenance.py'
+      - '.github/workflows/dependency-maintenance-observability.yml'
+  schedule:
+    - cron: '23 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-maintenance-observability
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    name: Collect read-only dependency state
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP 8.4 and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate collector tests
+        run: |
+          python3 -m py_compile scripts/observability/collect_dependency_maintenance.py
+          python3 scripts/observability/test_collect_dependency_maintenance.py
+
+      - name: Collect Composer and npm evidence without installing
+        shell: bash
+        run: |
+          set -u
+          evidence="$RUNNER_TEMP/dependency-maintenance"
+          mkdir -p "$evidence"
+
+          composer show --locked --direct --format=json > "$evidence/composer-show.json"
+          show_rc=$?
+
+          composer outdated --locked --direct --format=json > "$evidence/composer-outdated.json"
+          outdated_rc=$?
+
+          composer audit --locked --format=json > "$evidence/composer-audit.json"
+          audit_rc=$?
+
+          npm view @playwright/test version --json > "$evidence/playwright-latest.json"
+          npm_rc=$?
+
+          printf 'SHOW_RC=%s\nOUTDATED_RC=%s\nAUDIT_RC=%s\nNPM_RC=%s\n' \
+            "$show_rc" "$outdated_rc" "$audit_rc" "$npm_rc"
+
+          test -s "$evidence/composer-show.json"
+          test -s "$evidence/composer-outdated.json"
+          test -s "$evidence/composer-audit.json"
+          test -s "$evidence/playwright-latest.json"
+
+      - name: Build normalized dependency snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/dependency-maintenance"
+          output="$RUNNER_TEMP/agency-dependency-maintenance.json"
+          python3 scripts/observability/collect_dependency_maintenance.py \
+            --show "$evidence/composer-show.json" \
+            --outdated "$evidence/composer-outdated.json" \
+            --audit "$evidence/composer-audit.json" \
+            --package-json package.json \
+            --package-lock package-lock.json \
+            --playwright-latest "$evidence/playwright-latest.json" \
+            --config observability/dependency-maintenance.json \
+            --repository-sha "$GITHUB_SHA" \
+            --output "$output" \
+            > "$RUNNER_TEMP/agency-dependency-maintenance.stdout.json"
+
+          python3 - "$output" <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          print("REPOSITORY_SHA=" + payload["repository_sha"])
+          print("COLLECTED=" + payload["collected_at_utc"])
+          print("OVERALL=" + payload["overall"])
+          print("EVIDENCE_STATUS=" + payload["evidence_status"])
+          for item in payload["components"]:
+              if item["health"] != "CURRENT":
+                  print(
+                      f"{item['component']}={item['health']} "
+                      f"{item['installed_version']}->{item['available_version']} "
+                      f"class={item['update_class']}"
+                  )
+          PY
+
+      - name: Enforce fail-closed security and evidence gate
+        shell: bash
+        run: |
+          python3 - "$RUNNER_TEMP/agency-dependency-maintenance.json" <<'PY'
+          import json
+          import sys
+
+          payload = json.load(open(sys.argv[1], encoding="utf-8"))
+          if payload.get("evidence_status") != "complete":
+              raise SystemExit("dependency evidence incomplete")
+          critical = [
+              item["component"]
+              for item in payload.get("components", [])
+              if item.get("health") in {"SECURITY_ACTION", "EOL"}
+          ]
+          if critical:
+              raise SystemExit("dependency action required: " + ", ".join(critical))
+          PY
+
+      - name: Upload normalized non-sensitive snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-dependency-maintenance
+          path: ${{ runner.temp }}/agency-dependency-maintenance.json
+          if-no-files-found: error
+          retention-days: 14

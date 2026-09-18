@@ -32,7 +32,7 @@ final class AiGuardrailsConfigTest extends TestCase {
     self::assertIsArray($settings);
     self::assertSame(20000, $settings['max_length'] ?? NULL);
     self::assertFalse($settings['use_tokens'] ?? TRUE);
-    self::assertFalse($settings['check_all_messages'] ?? TRUE);
+    self::assertFalse($settings['scan_all_user_messages'] ?? TRUE);
     self::assertNotSame('', $settings['violation_message'] ?? '');
   }
 

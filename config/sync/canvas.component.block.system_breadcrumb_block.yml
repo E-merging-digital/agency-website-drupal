@@ -4,13 +4,22 @@ status: false
 dependencies:
   module:
     - system
-active_version: 79606a374669a74d
+active_version: 86a25cdac9ce0ae8
 versioned_properties:
   active:
     settings:
       default_settings:
         id: system_breadcrumb_block
-        label: Breadcrumbs
+        label: "Fils d'ariane"
+        label_display: '0'
+        provider: system
+    fallback_metadata:
+      slot_definitions: null
+  79606a374669a74d:
+    settings:
+      default_settings:
+        id: system_breadcrumb_block
+        label: "Fils d'ariane"
         label_display: '0'
         provider: system
     fallback_metadata:

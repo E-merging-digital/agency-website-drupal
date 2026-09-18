@@ -4,13 +4,22 @@ status: false
 dependencies:
   module:
     - language
-active_version: 5151d970a060e714
+active_version: 27fc01e5b04dd712
 versioned_properties:
   active:
     settings:
       default_settings:
         id: 'language_block:language_content'
-        label: 'Language switcher (Content)'
+        label: 'Sélecteur de langue (Contenu)'
+        label_display: '0'
+        provider: language
+    fallback_metadata:
+      slot_definitions: null
+  5151d970a060e714:
+    settings:
+      default_settings:
+        id: 'language_block:language_content'
+        label: 'Sélecteur de langue (Contenu)'
         label_display: '0'
         provider: language
     fallback_metadata:

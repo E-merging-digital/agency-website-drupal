@@ -4,13 +4,22 @@ status: false
 dependencies:
   module:
     - system
-active_version: 792ab2487d86e2eb
+active_version: '3643243024517316'
 versioned_properties:
   active:
     settings:
       default_settings:
         id: system_clear_cache_block
-        label: 'Clear cache'
+        label: 'Vider le cache'
+        label_display: '0'
+        provider: system
+    fallback_metadata:
+      slot_definitions: null
+  792ab2487d86e2eb:
+    settings:
+      default_settings:
+        id: system_clear_cache_block
+        label: 'Vider le cache'
         label_display: '0'
         provider: system
     fallback_metadata:

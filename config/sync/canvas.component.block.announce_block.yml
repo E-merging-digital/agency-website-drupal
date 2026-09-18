@@ -4,13 +4,22 @@ status: false
 dependencies:
   module:
     - announcements_feed
-active_version: b81cd0ced337f0cc
+active_version: e409926e0a976ca9
 versioned_properties:
   active:
     settings:
       default_settings:
         id: announce_block
-        label: 'Announcements Feed'
+        label: "Flux d'annonces"
+        label_display: '0'
+        provider: announcements_feed
+    fallback_metadata:
+      slot_definitions: null
+  b81cd0ced337f0cc:
+    settings:
+      default_settings:
+        id: announce_block
+        label: "Flux d'annonces"
         label_display: '0'
         provider: announcements_feed
     fallback_metadata:

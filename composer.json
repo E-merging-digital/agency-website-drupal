@@ -87,7 +87,7 @@
         "drupal/coder": "^8.3",
         "drupal/core-dev": "^11.4",
         "mglaman/drupal-check": "1.5.0",
-        "mglaman/phpstan-drupal": "2.2.2",
+        "mglaman/phpstan-drupal": "^2.1",
         "phpstan/phpstan": "^2.2",
         "phpstan/phpstan-deprecation-rules": "^2.0"
     },

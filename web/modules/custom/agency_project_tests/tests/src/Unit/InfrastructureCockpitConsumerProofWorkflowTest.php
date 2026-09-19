@@ -168,14 +168,14 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     $live = substr($source, $liveStart);
 
     $trap = strpos($live, 'trap cleanup EXIT');
-    $arm = strpos($live, "'$remote_helper' ARM '$SESSION' '$lease_seconds'");
+    $arm = strpos($live, '\'$remote_helper\' ARM \'$SESSION\' \'$lease_seconds\'');
     $armed = strpos($live, "grep -Fxq 'EXPIRY_ARMED=PASS'");
     $generate = strpos($live, 'token="$(openssl rand -hex 32)"');
     $mask = strpos($live, 'echo "::add-mask::$token"');
     $provision = strpos($live, '"bash \'$remote_dir/provision-cockpit-state-token.sh\'"');
     $cipher = strpos($live, 'INFRA_CONSUMER_CIPHERTEXT=');
     $partial = strpos($live, 'PROJECT_LEAD_INFRA_PARTIAL=');
-    $cleanup = strpos($live, "'$remote_helper' CLEANUP '$SESSION'");
+    $cleanup = strpos($live, '\'$remote_helper\' CLEANUP \'$SESSION\'');
     $cleanupReceipt = strpos($live, 'AGENCY_CONSUMER_CLEANUP_RECEIPT=');
 
     foreach ([$trap, $arm, $armed, $generate, $mask, $provision, $cipher, $partial, $cleanup, $cleanupReceipt] as $position) {

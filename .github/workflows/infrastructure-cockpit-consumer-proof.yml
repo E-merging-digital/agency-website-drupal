@@ -264,10 +264,10 @@ jobs:
           scp -q "${ssh_opts[@]}" "$provisioner" "$remote:$remote_dir/provision-cockpit-state-token.sh"
           scp -q "${ssh_opts[@]}" "$lease_helper" "$remote:$remote_helper"
           local_sha="$(sha256sum "$provisioner" | awk '{print $1}')"
-          remote_sha="$(ssh "${ssh_opts[@]}" "$remote"             "sha256sum '$remote_dir/provision-cockpit-state-token.sh' | awk '{print \\$1}'")"
+          remote_sha="$(ssh "${ssh_opts[@]}" "$remote"             "sha256sum '$remote_dir/provision-cockpit-state-token.sh'" | awk '{print $1}')"
           test "$local_sha" = "$remote_sha"
           helper_sha="$(sha256sum "$lease_helper" | awk '{print $1}')"
-          remote_helper_sha="$(ssh "${ssh_opts[@]}" "$remote"             "chmod 700 '$remote_helper'; sha256sum '$remote_helper' | awk '{print \\$1}'")"
+          remote_helper_sha="$(ssh "${ssh_opts[@]}" "$remote"             "chmod 700 '$remote_helper'; sha256sum '$remote_helper'" | awk '{print $1}')"
           test "$helper_sha" = "$remote_helper_sha"
 
           lease_receipt="$(ssh "${ssh_opts[@]}" "$remote"             "'$remote_helper' ARM '$SESSION' '$lease_seconds'")"

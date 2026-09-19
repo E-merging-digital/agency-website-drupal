@@ -110,7 +110,7 @@ jobs:
                     .user.login == "E-merging-digital"
                     and .user.type == "User"
                     and .author_association == "OWNER"
-                    and .performed_via_github_app == null
+                    and .performed_via_github_app.slug == "chatgpt-codex-connector"
                   )
                 | .body
                 | select(startswith("PROJECT_LEAD_INFRA_SESSION="))
@@ -266,7 +266,7 @@ jobs:
                       .user.login == "E-merging-digital"
                       and .user.type == "User"
                       and .author_association == "OWNER"
-                      and .performed_via_github_app == null
+                      and .performed_via_github_app.slug == "chatgpt-codex-connector"
                     )
                   | .body
                   | select(startswith("PROJECT_LEAD_INFRA_PARTIAL="))

@@ -118,8 +118,7 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
   }
 
   /**
-   * Proves consumed sessions and duplicate human commands fail closed
-   * before secret materialization.
+   * Proves replay guards fail closed before secret materialization.
    */
   public function testReplayGuardsPrecedeSecretMaterialization(): void {
     $source = $this->source();

@@ -167,6 +167,7 @@ jobs:
           "${root_scp[@]}" \
             scripts/preproduction-cockpit-transport-1218/remote-plan.sh \
             scripts/preproduction-cockpit-transport-1218/remote-apply-root.sh \
+            scripts/preproduction-cockpit-transport-1218/nginx-effective-route-diagnostic.py \
             scripts/preproduction/nginx-agency-preprod.conf.template \
             scripts/preproduction/settings.php.template \
             scripts/preproduction/provision-cockpit-state-token.sh \
@@ -174,7 +175,7 @@ jobs:
             "root@$PREPROD_SERVER_HOST:$remote_dir/"
 
           "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" \
-            "chmod 700 '$remote_dir/remote-plan.sh' '$remote_dir/remote-apply-root.sh' '$remote_dir/provision-cockpit-state-token.sh'; '$remote_dir/remote-apply-root.sh' '$remote_dir/plan.json' '$PLAN_DIGEST' '$MAIN_SHA' '$remote_dir/remote-plan.sh' '$remote_dir/nginx-agency-preprod.conf.template' '$remote_dir/settings.php.template' '$remote_dir/provision-cockpit-state-token.sh'" \
+            "chmod 700 '$remote_dir/remote-plan.sh' '$remote_dir/remote-apply-root.sh' '$remote_dir/provision-cockpit-state-token.sh'; '$remote_dir/remote-apply-root.sh' '$remote_dir/plan.json' '$PLAN_DIGEST' '$MAIN_SHA' '$remote_dir/remote-plan.sh' '$remote_dir/nginx-agency-preprod.conf.template' '$remote_dir/settings.php.template' '$remote_dir/provision-cockpit-state-token.sh' '$remote_dir/nginx-effective-route-diagnostic.py'" \
             > artifacts/preprod-cockpit-transport-1218/apply/result.json
 
           result='artifacts/preprod-cockpit-transport-1218/apply/result.json'

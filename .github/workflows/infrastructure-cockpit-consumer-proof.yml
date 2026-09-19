@@ -13,6 +13,8 @@ on:
       - '.github/workflows/agency-command-dispatch.yml'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/InfrastructureCockpitConsumerProofWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreprodCockpitConsumerProof1260Test.php'
+      - 'scripts/preproduction-cockpit-consumer-proof-1260/remote-lease-root.sh'
 
 concurrency:
   group: agency-infrastructure-cockpit-consumer-proof-1261
@@ -182,7 +184,9 @@ jobs:
           work="$RUNNER_TEMP/agency-1261-$SESSION"
           mkdir -p "$work"
           remote_dir="/root/agency-1261-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          provisioned=0
+          remote_helper="$remote_dir/remote-lease-root.sh"
+          lease_seconds=600
+          lease_armed=0
           token=''
 
           ssh_opts=(
@@ -201,9 +205,9 @@ jobs:
             set +e
             token=''
             unset token
-            if [[ "$provisioned" -eq 1 ]]; then
-              if ssh "${ssh_opts[@]}" "$remote"                 "rm -f -- /etc/agency-preprod/cockpit-state-token; test ! -e /etc/agency-preprod/cockpit-state-token"                 >/dev/null 2>&1; then
-                provisioned=0
+            if [[ "$lease_armed" -eq 1 ]]; then
+              if ssh "${ssh_opts[@]}" "$remote" "'$remote_helper' CLEANUP '$SESSION'" >/dev/null 2>&1; then
+                lease_armed=0
               else
                 cleanup_failed=1
               fi
@@ -220,24 +224,40 @@ jobs:
 
           printf '%s' "$PUBLIC_B64" | base64 -d > "$work/public.pem"
           test "$(sha256sum "$work/public.pem" | awk '{print $1}')" = "$PUBLIC_SHA"
-          openssl pkey -pubin -in "$work/public.pem" -noout >/dev/null
+          openssl rsa -pubin -in "$work/public.pem" -text -noout > "$work/public-key.txt"
+          grep -Fxq 'Public-Key: (3072 bit)' "$work/public-key.txt"
+          rm -f -- "$work/public-key.txt"
 
           current_release="$(ssh "${ssh_opts[@]}" "$remote" "readlink -f /var/www/agency-preprod/current")"
           [[ "$current_release" == */releases/*-"${RELEASE_SHA:0:12}" ]]
           ssh "${ssh_opts[@]}" "$remote"             "test ! -e /etc/agency-preprod/cockpit-state-token && test ! -L /etc/agency-preprod/cockpit-state-token"
 
           provisioner='scripts/preproduction/provision-cockpit-state-token.sh'
+          lease_helper='scripts/preproduction-cockpit-consumer-proof-1260/remote-lease-root.sh'
           test -f "$provisioner"
           test ! -L "$provisioner"
+          test -f "$lease_helper"
+          test ! -L "$lease_helper"
           ssh "${ssh_opts[@]}" "$remote" "install -d -m 700 '$remote_dir'"
           scp -q "${ssh_opts[@]}" "$provisioner" "$remote:$remote_dir/provision-cockpit-state-token.sh"
+          scp -q "${ssh_opts[@]}" "$lease_helper" "$remote:$remote_helper"
           local_sha="$(sha256sum "$provisioner" | awk '{print $1}')"
           remote_sha="$(ssh "${ssh_opts[@]}" "$remote"             "sha256sum '$remote_dir/provision-cockpit-state-token.sh' | awk '{print \\$1}'")"
           test "$local_sha" = "$remote_sha"
+          helper_sha="$(sha256sum "$lease_helper" | awk '{print $1}')"
+          remote_helper_sha="$(ssh "${ssh_opts[@]}" "$remote"             "chmod 700 '$remote_helper'; sha256sum '$remote_helper' | awk '{print \\$1}'")"
+          test "$helper_sha" = "$remote_helper_sha"
+
+          lease_receipt="$(ssh "${ssh_opts[@]}" "$remote"             "'$remote_helper' ARM '$SESSION' '$lease_seconds'")"
+          grep -Fxq 'LEASE_MARKER_CONTRACT=root:root:600' <<<"$lease_receipt"
+          grep -Fxq 'LEASE_SECONDS=600' <<<"$lease_receipt"
+          grep -Fxq 'TRANSIENT_TIMER_STATE=ACTIVE' <<<"$lease_receipt"
+          grep -Fxq 'EXPIRY_ARMED=PASS' <<<"$lease_receipt"
+          lease_armed=1
 
           token="$(openssl rand -hex 32)"
           [[ "$token" =~ ^[0-9a-f]{64}$ ]]
-          provisioned=1
+          echo "::add-mask::$token"
           printf '%s\n' "$token" | ssh "${ssh_opts[@]}" "$remote"             "bash '$remote_dir/provision-cockpit-state-token.sh'" >/dev/null
           metadata="$(ssh "${ssh_opts[@]}" "$remote"             "test ! -L /etc/agency-preprod/cockpit-state-token && stat -c '%U:%G:%a' /etc/agency-preprod/cockpit-state-token")"
           test "$metadata" = 'root:www-data:640'
@@ -298,10 +318,15 @@ jobs:
           done
           test -n "$partial"
 
-          ssh "${ssh_opts[@]}" "$remote"             "rm -f -- /etc/agency-preprod/cockpit-state-token; test ! -e /etc/agency-preprod/cockpit-state-token"
-          provisioned=0
+          cleanup_result="$(ssh "${ssh_opts[@]}" "$remote" "'$remote_helper' CLEANUP '$SESSION'")"
+          grep -Fxq 'TOKEN_FILE_STATE=ABSENT' <<<"$cleanup_result"
+          grep -Fxq 'LEASE_MARKER_STATE=ABSENT' <<<"$cleanup_result"
+          grep -Fxq 'TRANSIENT_TIMER_STATE=INACTIVE' <<<"$cleanup_result"
+          grep -Fxq 'TRANSIENT_SERVICE_STATE=INACTIVE' <<<"$cleanup_result"
+          grep -Fxq 'OWNERSHIP_CLEANUP=PASS' <<<"$cleanup_result"
+          lease_armed=0
 
-          cleanup_receipt="$(jq -cn             --arg session "$SESSION"             --argjson agency_run "$GITHUB_RUN_ID"             --argjson infra_run "$INFRA_RUN"             --arg agency_main "$AGENCY_MAIN"             --arg infra_sha "$INFRA_SHA"             --arg release_sha "$RELEASE_SHA"             '{schema_version:1,session:$session,agency_run:$agency_run,infra_run:$infra_run,agency_main:$agency_main,infra_sha:$infra_sha,release_sha:$release_sha,token_cleanup:"PASS",token_persisted:false,secret_content_exposed:false,prod_access:"NONE",db_access:"NONE",status:"PASS"}')"
+          cleanup_receipt="$(jq -cn             --arg session "$SESSION"             --argjson agency_run "$GITHUB_RUN_ID"             --argjson infra_run "$INFRA_RUN"             --arg agency_main "$AGENCY_MAIN"             --arg infra_sha "$INFRA_SHA"             --arg release_sha "$RELEASE_SHA"             --argjson lease_seconds "$lease_seconds"             '{schema_version:1,session:$session,agency_run:$agency_run,infra_run:$infra_run,agency_main:$agency_main,infra_sha:$infra_sha,release_sha:$release_sha,lease_seconds:$lease_seconds,token_cleanup:"PASS",lease_marker_cleanup:"PASS",transient_timer:"INACTIVE",transient_service:"INACTIVE",token_persisted:false,secret_content_exposed:false,prod_access:"NONE",db_access:"NONE",status:"PASS"}')"
           gh issue comment 1261 --repo "$GITHUB_REPOSITORY"             --body "AGENCY_CONSUMER_CLEANUP_RECEIPT=$cleanup_receipt" >/dev/null
 
           echo 'AGENCY_CONSUMER_ENCRYPTED_BROKER=PASS'

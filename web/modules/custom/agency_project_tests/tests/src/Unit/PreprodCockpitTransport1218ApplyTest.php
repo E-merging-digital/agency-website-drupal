@@ -282,8 +282,11 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       self::assertStringContainsString($required, $apply);
     }
 
-    $reload = strpos($apply, 'systemctl reload nginx');
-    $active = strpos($apply, 'prove_post_reload_active_config');
+    $reload = strrpos($apply, 'systemctl reload nginx');
+    $active = strrpos(
+      $apply,
+      "prove_post_reload_active_config\nPOST_RELOAD_ACTIVE_CONFIG='PASS'",
+    );
     $firstProbe = strpos($apply, 'local_no_auth="$(probe_local_https)"');
 
     self::assertIsInt($reload);

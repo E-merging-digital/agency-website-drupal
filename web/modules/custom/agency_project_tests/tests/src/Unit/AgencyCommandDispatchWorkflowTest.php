@@ -197,7 +197,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
       [
-        "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40}",
+        "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40} "
+        . "session=0123456789abcdef pubkey={$sha64}",
         1261,
         'INFRA_COCKPIT_CONSUMER_PROOF',
       ],
@@ -239,8 +240,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-config-sync-prod-runtime diagnose', 980],
       ['/agency-config-sync-prod-runtime diagnose', 981],
       ['/agency-config-sync-prod-runtime diagnose', 983],
-      ["/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40}", 1260],
-      ["/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40}", 1262],
+      [
+        "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40} "
+        . "session=0123456789abcdef pubkey={$sha64}",
+        1260,
+      ],
+      [
+        "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40} "
+        . "session=0123456789abcdef pubkey={$sha64}",
+        1262,
+      ],
     ] as [$body, $wrongIssue]) {
       self::assertSame('NONE', $this->classify($routes, $body, $wrongIssue));
     }
@@ -266,9 +275,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-config-sync-runtime diagnose target=PROD',
       '/agency-config-sync-prod-runtime diagnose now',
       '/agency-config-sync-prod-runtime diagnose target=PREPROD',
-      '/agency-infra-cockpit-consumer prove main=BAD infra=' . $sha40 . ' release=' . $sha40,
-      '/agency-infra-cockpit-consumer prove main=' . $sha40 . ' infra=BAD release=' . $sha40,
-      '/agency-infra-cockpit-consumer prove main=' . $sha40 . ' infra=' . $sha40 . ' release=BAD',
+      '/agency-infra-cockpit-consumer prove main=BAD infra=' . $sha40
+      . ' release=' . $sha40 . ' session=0123456789abcdef pubkey=' . $sha64,
+      '/agency-infra-cockpit-consumer prove main=' . $sha40
+      . ' infra=BAD release=' . $sha40 . ' session=0123456789abcdef pubkey=' . $sha64,
+      '/agency-infra-cockpit-consumer prove main=' . $sha40
+      . ' infra=' . $sha40 . ' release=BAD session=0123456789abcdef pubkey=' . $sha64,
+      '/agency-infra-cockpit-consumer prove main=' . $sha40
+      . ' infra=' . $sha40 . ' release=' . $sha40 . ' session=BAD pubkey=' . $sha64,
+      '/agency-infra-cockpit-consumer prove main=' . $sha40
+      . ' infra=' . $sha40 . ' release=' . $sha40 . ' session=0123456789abcdef pubkey=BAD',
       '/agency-unknown apply',
     ];
     foreach ($invalid as $body) {

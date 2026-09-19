@@ -188,6 +188,7 @@ jobs:
             and .MAIN_SHA == $main
             and .PLAN_DIGEST == $digest
             and .STALE_PLAN == "PASS"
+            and .POST_RELOAD_ACTIVE_CONFIG == "PASS"
             and .NGINX_CONVERGED == true
             and .SETTINGS_READER_CONVERGED == true
             and .TOKEN_PERMISSIONS_DURING_PROOF == "root:www-data:640"
@@ -315,6 +316,7 @@ jobs:
           \`MAIN_SHA=${MAIN_SHA}\`
           \`PLAN_DIGEST=${PLAN_DIGEST}\`
           \`STALE_PLAN=$(jq -r '.STALE_PLAN' "$result")\`
+          \`POST_RELOAD_ACTIVE_CONFIG=$(jq -r '.POST_RELOAD_ACTIVE_CONFIG' "$result")\`
           \`NGINX_CONVERGED=$(jq -r '.NGINX_CONVERGED' "$result")\`
           \`SETTINGS_READER_CONVERGED=$(jq -r '.SETTINGS_READER_CONVERGED' "$result")\`
           \`TRANSPORT_CLASSIFICATION=$(jq -r '.TRANSPORT_CLASSIFICATION' "$result")\`

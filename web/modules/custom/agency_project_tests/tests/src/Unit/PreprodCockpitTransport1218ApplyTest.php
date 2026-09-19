@@ -57,6 +57,7 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       'SECRET_CONTENT_EXPOSED == false',
       'if: ${{ always() }}',
       'remote_dir="/root/agency-1218-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+      '.POST_RELOAD_ACTIVE_CONFIG == "PASS"',
       '.TRANSPORT_CLASSIFICATION == "CONVERGED"',
       '.HTTP.local_https.no_auth.status == "401"',
       '.HTTP.public_https.real_bearer.status == "200"',
@@ -85,6 +86,10 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
     foreach ([
       "SETTINGS_FILE=\"\$PROJECT_ROOT/shared/settings/settings.php\"",
       "NGINX_SITE='/etc/nginx/sites-available/agency-preprod'",
+      "NGINX_ENABLED_SITE='/etc/nginx/sites-enabled/agency-preprod'",
+      'prove_post_reload_active_config()',
+      "POST_RELOAD_ACTIVE_CONFIG='PASS'",
+      'POST_RELOAD_ACTIVE_CONFIG:$post_reload_active',
       "TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'",
       'STALE_PLAN',
       'nginx -t',
@@ -252,6 +257,42 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       substr_count($apply, '"$(probe_local_https'),
       'No-auth, fake, real and post-cleanup probes must all use the trusted wrapper.',
     );
+  }
+
+  /**
+   * Proves transport probes cannot run before post-reload active identity.
+   */
+  public function testPostReloadActiveConfigIsProvenBeforeTransportProbes(): void {
+    $apply = $this->source(self::APPLY);
+
+    foreach ([
+      'ps -C nginx -o args=',
+      'python3 "$NGINX_ACTIVE_IDENTITY" main-config',
+      'python3 "$NGINX_ACTIVE_IDENTITY" diagnose',
+      '.canonical_site.sha256 == $candidate',
+      '.enabled_site.sha256 == $candidate',
+      '.include_chain.status == "PROVEN"',
+      '.enabled_equals_loaded == true',
+      '.loaded_preprod_tls_match_count == 1',
+      '.duplicate_tls == "NONE"',
+      '.candidate.candidate_sha == $candidate',
+      '.machine_route_count == 1',
+      'POST_RELOAD_ACTIVE_CONFIG_UNPROVEN',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+
+    $reload = strpos($apply, 'systemctl reload nginx');
+    $active = strpos($apply, 'prove_post_reload_active_config');
+    $firstProbe = strpos($apply, 'local_no_auth="$(probe_local_https)"');
+
+    self::assertIsInt($reload);
+    self::assertIsInt($active);
+    self::assertIsInt($firstProbe);
+    self::assertLessThan($active, $reload);
+    self::assertLessThan($firstProbe, $active);
+
+    self::assertStringNotContainsString('sleep ', $apply);
   }
 
   /**

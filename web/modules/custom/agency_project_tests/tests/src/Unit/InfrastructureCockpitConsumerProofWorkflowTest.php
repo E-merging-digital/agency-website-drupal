@@ -106,6 +106,14 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
       'ref: ${{ steps.authority.outputs.release_sha }}',
       $source,
     );
+    self::assertStringContainsString(
+      'ref: ${{ steps.authority.outputs.main_sha }}',
+      $source,
+    );
+    self::assertStringContainsString(
+      'path: .agency-control',
+      $source,
+    );
   }
 
   /**

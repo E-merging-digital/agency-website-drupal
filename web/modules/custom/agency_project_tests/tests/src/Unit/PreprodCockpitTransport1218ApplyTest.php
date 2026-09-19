@@ -182,6 +182,122 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
   }
 
   /**
+   * Proves APPLY stale-check stages and passes every current PLAN input.
+   */
+  public function testApplyStaleCheckUsesCurrentPlanInputContract(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $apply = $this->source(self::APPLY);
+
+    foreach ([
+      'scripts/preproduction-cockpit-transport-1218/nginx-effective-route-diagnostic.py',
+      'scripts/preproduction-cockpit-transport-1218/nginx-active-config-identity.py',
+      'scripts/preproduction/nginx-agency-preprod.conf.template',
+      "'\$remote_dir/nginx-effective-route-diagnostic.py'",
+      "'\$remote_dir/nginx-active-config-identity.py'",
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    foreach ([
+      'NGINX_ACTIVE_IDENTITY="${9:-}"',
+      'nginx_diagnostic_b64="$(base64 -w0 "$NGINX_DIAGNOSTIC")"',
+      'nginx_template_b64="$(base64 -w0 "$NGINX_TEMPLATE")"',
+      'nginx_active_identity_b64="$(base64 -w0 "$NGINX_ACTIVE_IDENTITY")"',
+      '"$EXPECTED_MAIN" \'plan-1218-stale-check\'',
+      '"$nginx_diagnostic_b64" "$nginx_template_b64" "$nginx_active_identity_b64"',
+      "'.STATE | del(.legacy_failed_staging)'",
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+
+    self::assertStringNotContainsString(
+      'bash -s -- "$EXPECTED_MAIN" \'plan-1218-stale-check\' < "$PLAN_SCRIPT"',
+      $apply,
+    );
+  }
+
+  /**
+   * Proves all local APPLY probes use the trusted loopback contract.
+   */
+  public function testAllLocalHttpsProbesUseTrustedLoopbackReceipt(): void {
+    $apply = $this->source(self::APPLY);
+
+    foreach ([
+      'probe_local_https()',
+      "--noproxy '*' --resolve \"\$HOSTNAME:443:127.0.0.1\"",
+      '%{http_code}|%{remote_ip}',
+      "== '127.0.0.1'",
+      'LOCAL_PROBE_INVALID: HTTPS remote IP is not loopback.',
+      '.proxy_bypass = true',
+      'local_no_auth="$(probe_local_https)"',
+      'local_fake_bearer="$(probe_local_https -H',
+      'local_real_bearer="$(probe_local_https -H',
+      'local_cleanup="$(probe_local_https)"',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+
+    self::assertSame(
+      1,
+      substr_count($apply, "--noproxy '*'"),
+      'The shared local HTTPS wrapper must be the single no-proxy boundary.',
+    );
+    self::assertSame(
+      1,
+      substr_count($apply, '--resolve "$HOSTNAME:443:127.0.0.1"'),
+      'The shared local HTTPS wrapper must be the single loopback resolve boundary.',
+    );
+    self::assertSame(
+      4,
+      substr_count($apply, '"$(probe_local_https'),
+      'No-auth, fake, real and post-cleanup probes must all use the trusted wrapper.',
+    );
+  }
+
+  /**
+   * Proves receipts expose only bounded redirect/connection evidence.
+   */
+  public function testApplyProbeReceiptIsBoundedAndPublicPathRemainsSeparate(): void {
+    $apply = $this->source(self::APPLY);
+    $workflow = $this->source(self::WORKFLOW);
+
+    foreach ([
+      'location_header_kind:$redirect.location_header_kind',
+      'normalized_path:$redirect.normalized_path',
+      'redirect_origin:$redirect_origin',
+      'remote_ip:$remote_ip',
+      'proxy_bypass:false',
+      'python3 "$NGINX_DIAGNOSTIC" redirect',
+      'python3 "$NGINX_DIAGNOSTIC" origin',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+
+    foreach ([
+      '.proxy_bypass == true',
+      '.remote_ip == "127.0.0.1"',
+      'same-host|language-prefix|scheme|host-change|other|none',
+      'NGINX_REDIRECT|DRUPAL_REDIRECT|UNKNOWN',
+      '.normalized_path | contains("?")',
+      '.proxy_bypass == false',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    foreach ([
+      'public_no_auth="$(probe_http "$ENDPOINT")"',
+      'public_fake_bearer="$(probe_http "$ENDPOINT" -H',
+      'public_real_bearer="$(probe_http "$ENDPOINT" -H',
+      'public_cleanup="$(probe_http "$ENDPOINT")"',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+
+    self::assertStringNotContainsString('location_header:$location_header', $apply);
+    self::assertStringNotContainsString('Location: $location_header', $apply);
+  }
+
+  /**
    * Reads a repository source file used by the contract tests.
    */
   private function source(string $relativePath): string {

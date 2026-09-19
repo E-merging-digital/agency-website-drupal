@@ -168,6 +168,7 @@ jobs:
             scripts/preproduction-cockpit-transport-1218/remote-plan.sh \
             scripts/preproduction-cockpit-transport-1218/remote-apply-root.sh \
             scripts/preproduction-cockpit-transport-1218/nginx-effective-route-diagnostic.py \
+            scripts/preproduction-cockpit-transport-1218/nginx-active-config-identity.py \
             scripts/preproduction/nginx-agency-preprod.conf.template \
             scripts/preproduction/settings.php.template \
             scripts/preproduction/provision-cockpit-state-token.sh \
@@ -175,7 +176,7 @@ jobs:
             "root@$PREPROD_SERVER_HOST:$remote_dir/"
 
           "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" \
-            "chmod 700 '$remote_dir/remote-plan.sh' '$remote_dir/remote-apply-root.sh' '$remote_dir/provision-cockpit-state-token.sh'; '$remote_dir/remote-apply-root.sh' '$remote_dir/plan.json' '$PLAN_DIGEST' '$MAIN_SHA' '$remote_dir/remote-plan.sh' '$remote_dir/nginx-agency-preprod.conf.template' '$remote_dir/settings.php.template' '$remote_dir/provision-cockpit-state-token.sh' '$remote_dir/nginx-effective-route-diagnostic.py'" \
+            "chmod 700 '$remote_dir/remote-plan.sh' '$remote_dir/remote-apply-root.sh' '$remote_dir/provision-cockpit-state-token.sh'; '$remote_dir/remote-apply-root.sh' '$remote_dir/plan.json' '$PLAN_DIGEST' '$MAIN_SHA' '$remote_dir/remote-plan.sh' '$remote_dir/nginx-agency-preprod.conf.template' '$remote_dir/settings.php.template' '$remote_dir/provision-cockpit-state-token.sh' '$remote_dir/nginx-effective-route-diagnostic.py' '$remote_dir/nginx-active-config-identity.py'" \
             > artifacts/preprod-cockpit-transport-1218/apply/result.json
 
           result='artifacts/preprod-cockpit-transport-1218/apply/result.json'
@@ -211,6 +212,29 @@ jobs:
             and (
               (.HTTP.public_https.post_cleanup_no_auth.status == "503" or .HTTP.public_https.post_cleanup_no_auth.status == "401")
               and .HTTP.public_https.post_cleanup_no_auth.body_kind == "JSON"
+            )
+            and all([
+              .HTTP.local_https.no_auth,
+              .HTTP.local_https.fake_bearer,
+              .HTTP.local_https.real_bearer,
+              .HTTP.local_https.post_cleanup_no_auth
+            ][];
+              .proxy_bypass == true
+              and .remote_ip == "127.0.0.1"
+              and (.location_header_kind | test("^(same-host|language-prefix|scheme|host-change|other|none)$"))
+              and ((.normalized_path | contains("?")) | not)
+              and (.redirect_origin | test("^(NGINX_REDIRECT|DRUPAL_REDIRECT|UNKNOWN)$"))
+            )
+            and all([
+              .HTTP.public_https.no_auth,
+              .HTTP.public_https.fake_bearer,
+              .HTTP.public_https.real_bearer,
+              .HTTP.public_https.post_cleanup_no_auth
+            ][];
+              .proxy_bypass == false
+              and (.location_header_kind | test("^(same-host|language-prefix|scheme|host-change|other|none)$"))
+              and ((.normalized_path | contains("?")) | not)
+              and (.redirect_origin | test("^(NGINX_REDIRECT|DRUPAL_REDIRECT|UNKNOWN)$"))
             )
             and .TOKEN_CLEANUP == "PASS"
             and .TOKEN_PERSISTED == false

@@ -10,6 +10,7 @@ NGINX_TEMPLATE="${5:-}"
 SETTINGS_TEMPLATE="${6:-}"
 TOKEN_PROVISIONER="${7:-}"
 NGINX_DIAGNOSTIC="${8:-}"
+NGINX_ACTIVE_IDENTITY="${9:-}"
 
 PROJECT_ROOT='/var/www/agency-preprod'
 CURRENT_LINK="$PROJECT_ROOT/current"
@@ -137,12 +138,12 @@ trap rollback EXIT
 [[ "$(id -u)" -eq 0 ]] || fail 'Root authority is required.'
 [[ "$EXPECTED_DIGEST" =~ ^[0-9a-f]{64}$ ]] || fail 'Expected PLAN digest is invalid.'
 [[ "$EXPECTED_MAIN" =~ ^[0-9a-f]{40}$ ]] || fail 'Expected main SHA is invalid.'
-for file in "$APPROVED_PLAN" "$PLAN_SCRIPT" "$NGINX_TEMPLATE" "$SETTINGS_TEMPLATE" "$TOKEN_PROVISIONER" "$NGINX_DIAGNOSTIC"; do
+for file in "$APPROVED_PLAN" "$PLAN_SCRIPT" "$NGINX_TEMPLATE" "$SETTINGS_TEMPLATE" "$TOKEN_PROVISIONER" "$NGINX_DIAGNOSTIC" "$NGINX_ACTIVE_IDENTITY"; do
   [[ -f "$file" && ! -L "$file" ]] || fail "Required source is missing or unsafe: $file"
 done
 [[ -f "$SETTINGS_FILE" && ! -L "$SETTINGS_FILE" ]] || fail 'Shared settings.php is missing or unsafe.'
 [[ -f "$NGINX_SITE" && ! -L "$NGINX_SITE" ]] || fail 'Nginx site is missing or unsafe.'
-for command in curl jq nginx openssl php python3 runuser sha256sum stat systemctl; do
+for command in base64 curl jq nginx openssl php python3 runuser sha256sum stat systemctl; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required."
 done
 
@@ -166,10 +167,15 @@ APPROVED_NGINX_SHA="$(jq -r '.STATE.nginx.sha256 // empty' "$APPROVED_PLAN")"
 [[ "$APPROVED_NGINX_SHA" =~ ^[0-9a-f]{64}$ ]] || fail 'Approved PLAN Nginx SHA is invalid.'
 [[ -L "$CURRENT_LINK" ]] || fail 'PREPROD current release symlink is missing.'
 
-# Re-run the stale PLAN under the same unprivileged identity used by the
-# approved PLAN. Root opens the staged script and passes it on stdin; the
-# diagnostic itself keeps agency-preprod privileges and semantics.
-stale_json="$(runuser -u agency-preprod -- bash -s -- "$EXPECTED_MAIN" 'plan-1218-stale-check' < "$PLAN_SCRIPT")"
+# Re-run the stale PLAN under the same unprivileged identity and exact
+# repository diagnostic/template inputs used by the approved PLAN.
+nginx_diagnostic_b64="$(base64 -w0 "$NGINX_DIAGNOSTIC")"
+nginx_template_b64="$(base64 -w0 "$NGINX_TEMPLATE")"
+nginx_active_identity_b64="$(base64 -w0 "$NGINX_ACTIVE_IDENTITY")"
+stale_json="$(runuser -u agency-preprod -- bash -s -- \
+  "$EXPECTED_MAIN" 'plan-1218-stale-check' \
+  "$nginx_diagnostic_b64" "$nginx_template_b64" "$nginx_active_identity_b64" \
+  < "$PLAN_SCRIPT")"
 approved_operational_state="$(jq -cS '.STATE | del(.legacy_failed_staging)' "$APPROVED_PLAN")"
 live_operational_state="$(jq -cS '.STATE | del(.legacy_failed_staging)' <<<"$stale_json")"
 approved_operational_digest="$(printf '%s' "$approved_operational_state" | sha256sum | awk '{print $1}')"
@@ -271,14 +277,22 @@ systemctl reload nginx
 probe_http() {
   local endpoint="$1"
   shift
-  local body headers status kind content_type www_auth
+  local body headers status_remote rc status remote_ip kind content_type www_auth location_header redirect_json redirect_origin scheme
   body="$(mktemp)"
   headers="$(mktemp)"
-  status="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
-    --output "$body" --dump-header "$headers" --write-out '%{http_code}' \
+  set +e
+  status_remote="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
+    --output "$body" --dump-header "$headers" --write-out '%{http_code}|%{remote_ip}' \
     "$@" "$endpoint")"
+  rc="$?"
+  set -e
+  IFS='|' read -r status remote_ip <<<"$status_remote"
   content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
   www_auth="$(awk 'BEGIN{IGNORECASE=1} /^www-authenticate:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
+  location_header="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
+  scheme="${endpoint%%:*}"
+  redirect_json="$(python3 "$NGINX_DIAGNOSTIC" redirect "$status" "$location_header" "$HOSTNAME" "$scheme")"
+  redirect_origin="$(python3 "$NGINX_DIAGNOSTIC" origin "$NGINX_SITE" "$HOSTNAME" "$PATH_ONLY" "$status")"
   kind="$(python3 - "$body" <<'PY'
 import json
 import sys
@@ -294,11 +308,34 @@ PY
 )"
   rm -f -- "$body" "$headers"
   jq -cn \
+    --argjson curl_rc "$rc" \
     --arg status "$status" \
     --arg body_kind "$kind" \
     --arg content_type "$content_type" \
     --arg www_authenticate "$www_auth" \
-    '{status:$status,body_kind:$body_kind,content_type:$content_type,www_authenticate:$www_authenticate}'
+    --arg remote_ip "$remote_ip" \
+    --argjson redirect "$redirect_json" \
+    --arg redirect_origin "$redirect_origin" \
+    '{
+      curl_rc:$curl_rc,
+      status:$status,
+      body_kind:$body_kind,
+      content_type:$content_type,
+      www_authenticate:$www_authenticate,
+      remote_ip:$remote_ip,
+      proxy_bypass:false,
+      location_header_kind:$redirect.location_header_kind,
+      normalized_path:$redirect.normalized_path,
+      redirect_origin:$redirect_origin
+    }'
+}
+
+probe_local_https() {
+  local receipt
+  receipt="$(probe_http "$ENDPOINT" --noproxy '*' --resolve "$HOSTNAME:443:127.0.0.1" "$@")"
+  [[ "$(jq -r '.remote_ip' <<<"$receipt")" == '127.0.0.1' ]] \
+    || fail 'LOCAL_PROBE_INVALID: HTTPS remote IP is not loopback.'
+  jq -c '.proxy_bypass = true' <<<"$receipt"
 }
 
 probe_contract() {
@@ -309,9 +346,9 @@ is_basic_challenge() {
   jq -e '(.www_authenticate | ascii_downcase | startswith("basic"))' <<<"$1" >/dev/null
 }
 
-local_no_auth="$(probe_http "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1")"
-local_fake_bearer="$(probe_http "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1" -H 'Authorization: Bearer invalid-cockpit-token-1218')"
-local_real_bearer="$(probe_http "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1" -H "Authorization: Bearer $bearer")"
+local_no_auth="$(probe_local_https)"
+local_fake_bearer="$(probe_local_https -H 'Authorization: Bearer invalid-cockpit-token-1218')"
+local_real_bearer="$(probe_local_https -H "Authorization: Bearer $bearer")"
 public_no_auth="$(probe_http "$ENDPOINT")"
 public_fake_bearer="$(probe_http "$ENDPOINT" -H 'Authorization: Bearer invalid-cockpit-token-1218')"
 public_real_bearer="$(probe_http "$ENDPOINT" -H "Authorization: Bearer $bearer")"
@@ -371,7 +408,7 @@ fi
 
 unset bearer
 rm -f -- "$TOKEN_FILE"
-local_cleanup="$(probe_http "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1")"
+local_cleanup="$(probe_local_https)"
 public_cleanup="$(probe_http "$ENDPOINT")"
 local_cleanup_contract="$(probe_contract "$local_cleanup")"
 public_cleanup_contract="$(probe_contract "$public_cleanup")"

@@ -226,6 +226,14 @@ final class PreprodCockpitTransport1248NginxDiagnosticTest extends TestCase {
       ['status' => '301', 'location_header_kind' => 'host-change', 'normalized_path' => '/other'],
       $this->redirect('301', 'https://example.invalid/other?token=secret', 'https'),
     );
+    self::assertEquals(
+      ['status' => '302', 'location_header_kind' => 'same-host', 'normalized_path' => '/next'],
+      $this->redirect('302', '/next?token=secret', 'https'),
+    );
+    self::assertEquals(
+      ['status' => '200', 'location_header_kind' => 'none', 'normalized_path' => ''],
+      $this->redirect('200', 'https://preprod.emergingdigital.be/ignored?token=secret', 'https'),
+    );
   }
 
   /**

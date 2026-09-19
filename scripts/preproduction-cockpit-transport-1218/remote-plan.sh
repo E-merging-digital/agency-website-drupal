@@ -4,6 +4,8 @@ umask 077
 
 MAIN_SHA="${1:-}"
 PLAN_ID="${2:-}"
+NGINX_DIAGNOSTIC_B64="${3:-}"
+NGINX_TEMPLATE_B64="${4:-}"
 PROJECT_ROOT='/var/www/agency-preprod'
 CURRENT_LINK="$PROJECT_ROOT/current"
 SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"
@@ -21,10 +23,12 @@ fail() {
 
 [[ "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]] || fail 'MAIN_SHA is invalid.'
 [[ "$PLAN_ID" =~ ^plan-1218-[A-Za-z0-9._-]+$ ]] || fail 'PLAN_ID is invalid.'
+[[ "$NGINX_DIAGNOSTIC_B64" =~ ^[A-Za-z0-9+/=]+$ ]] || fail 'Nginx diagnostic encoding is invalid.'
+[[ "$NGINX_TEMPLATE_B64" =~ ^[A-Za-z0-9+/=]+$ ]] || fail 'Nginx template encoding is invalid.'
 [[ -L "$CURRENT_LINK" ]] || fail 'PREPROD current release symlink is missing.'
 [[ -f "$SETTINGS_FILE" && ! -L "$SETTINGS_FILE" ]] || fail 'Shared settings.php is missing or unsafe.'
 [[ -f "$NGINX_SITE" && ! -L "$NGINX_SITE" ]] || fail 'PREPROD Nginx site is missing or unsafe.'
-for command in curl jq python3 sha256sum stat; do
+for command in base64 curl jq python3 sha256sum stat; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required."
 done
 
@@ -40,39 +44,37 @@ if grep -Fq '/etc/agency-preprod/cockpit-state-token' "$SETTINGS_FILE" \
   settings_reader='YES'
 fi
 
-mapfile -t nginx_contract < <(python3 - "$NGINX_SITE" <<'PY'
-import re
-import sys
-from pathlib import Path
+nginx_diagnostic_script="$(mktemp)"
+nginx_template_file="$(mktemp)"
+cleanup_diagnostic() {
+  rm -f -- "$nginx_diagnostic_script" "$nginx_template_file"
+}
+trap cleanup_diagnostic EXIT
+printf '%s' "$NGINX_DIAGNOSTIC_B64" | base64 -d > "$nginx_diagnostic_script"
+printf '%s' "$NGINX_TEMPLATE_B64" | base64 -d > "$nginx_template_file"
+chmod 600 "$nginx_diagnostic_script" "$nginx_template_file"
+nginx_effective_route="$(python3 "$nginx_diagnostic_script" diagnose \
+  "$NGINX_SITE" "$nginx_template_file" "$HOSTNAME" "$PATH_ONLY")"
+jq -e '
+  .effective_preprod_tls_server_block != "ABSENT"
+  and .effective_preprod_tls_server_block != "AMBIGUOUS"
+  and .effective_preprod_http_server_block != "AMBIGUOUS"
+  and (.legacy_first_root_insertion_server_block | test("^(server-[0-9]+|ABSENT)$"))
+  and (.legacy_first_root_insertion_is_tls | type == "boolean")
+  and (.corrected_candidate_server_block | test("^server-[0-9]+$"))
+  and .corrected_candidate_is_tls == true
+  and (.server_blocks | type == "array")
+  and (.machine_location_contracts | type == "object")
+  and (.simulated_candidate_route_counts | type == "object")
+' <<<"$nginx_effective_route" >/dev/null || fail 'Structural Nginx diagnostic is invalid.'
 
-text = Path(sys.argv[1]).read_text(encoding='utf-8')
-pattern = re.compile(
-    r'location\s*=\s*/api/agency-operations/v1/environment-data-state\s*\{(?P<body>.*?)^\s*\}',
-    re.MULTILINE | re.DOTALL,
-)
-matches = list(pattern.finditer(text))
-print(len(matches))
-if len(matches) != 1:
-    for _ in range(4):
-        print('NO')
-    raise SystemExit(0)
-body = matches[0].group('body')
-checks = [
-    bool(re.search(r'(?m)^\s*auth_basic\s+off\s*;', body)),
-    bool(re.search(r'(?m)^\s*fastcgi_param\s+HTTP_AUTHORIZATION\s+\$http_authorization\s*;', body)),
-    bool(re.search(r'(?m)^\s*fastcgi_param\s+SCRIPT_FILENAME\s+\$realpath_root/index\.php\s*;', body)),
-    bool(re.search(r'(?m)^\s*fastcgi_pass\s+unix:', body)),
-]
-for value in checks:
-    print('YES' if value else 'NO')
-PY
-)
-[[ "${#nginx_contract[@]}" -eq 5 ]] || fail 'Unable to inspect Nginx machine route.'
-nginx_location_count="${nginx_contract[0]}"
-nginx_auth_basic_off="${nginx_contract[1]}"
-nginx_authorization_forwarded="${nginx_contract[2]}"
-nginx_script_filename="${nginx_contract[3]}"
-nginx_fastcgi_pass="${nginx_contract[4]}"
+nginx_tls_server_id="$(jq -r '.effective_preprod_tls_server_block' <<<"$nginx_effective_route")"
+nginx_location_count="$(jq '[.server_blocks[].exact_machine_route_count] | add // 0' <<<"$nginx_effective_route")"
+nginx_tls_contract="$(jq -c --arg id "$nginx_tls_server_id" '.machine_location_contracts[$id]' <<<"$nginx_effective_route")"
+nginx_auth_basic_off="$(jq -r 'if .auth_basic_off then "YES" else "NO" end' <<<"$nginx_tls_contract")"
+nginx_authorization_forwarded="$(jq -r 'if .http_authorization_forwarded then "YES" else "NO" end' <<<"$nginx_tls_contract")"
+nginx_script_filename="$(jq -r 'if .script_filename == "EXPECTED" then "YES" else "NO" end' <<<"$nginx_tls_contract")"
+nginx_fastcgi_pass="$(jq -r 'if .fastcgi_pass == "EXPECTED" then "YES" else "NO" end' <<<"$nginx_tls_contract")"
 
 TOKEN_STATE='ABSENT'
 TOKEN_OWNER='ABSENT'
@@ -124,7 +126,7 @@ probe_http() {
   local label="$1"
   local endpoint="$2"
   shift 2
-  local body headers rc status content_type kind www_auth
+  local body headers rc status content_type kind www_auth location_header redirect_json redirect_origin scheme
   body="$(mktemp)"
   headers="$(mktemp)"
   set +e
@@ -135,6 +137,10 @@ probe_http() {
   set -e
   content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
   www_auth="$(awk 'BEGIN{IGNORECASE=1} /^www-authenticate:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
+  location_header="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
+  scheme="${endpoint%%:*}"
+  redirect_json="$(python3 "$nginx_diagnostic_script" redirect "$status" "$location_header" "$HOSTNAME" "$scheme")"
+  redirect_origin="$(python3 "$nginx_diagnostic_script" origin "$NGINX_SITE" "$HOSTNAME" "$PATH_ONLY" "$status")"
   kind="$(python3 - "$body" <<'PY'
 import json
 import sys
@@ -159,6 +165,8 @@ PY
   printf '%s_CONTENT_TYPE=%s\n' "$label" "$content_type"
   printf '%s_KIND=%s\n' "$label" "$kind"
   printf '%s_WWW_AUTH=%s\n' "$label" "$www_auth"
+  printf '%s_REDIRECT=%s\n' "$label" "$redirect_json"
+  printf '%s_REDIRECT_ORIGIN=%s\n' "$label" "$redirect_origin"
 }
 
 mapfile -t no_auth < <(probe_http NO_AUTH "$ENDPOINT")
@@ -176,19 +184,23 @@ read_probe() {
 probe_json() {
   local prefix="$1"
   shift
-  local rc status content_type kind www_auth
+  local rc status content_type kind www_auth redirect redirect_origin
   rc="$(read_probe "$prefix" RC "$@")"
   status="$(read_probe "$prefix" STATUS "$@")"
   content_type="$(read_probe "$prefix" CONTENT_TYPE "$@")"
   kind="$(read_probe "$prefix" KIND "$@")"
   www_auth="$(read_probe "$prefix" WWW_AUTH "$@")"
+  redirect="$(read_probe "$prefix" REDIRECT "$@")"
+  redirect_origin="$(read_probe "$prefix" REDIRECT_ORIGIN "$@")"
   jq -cn \
     --argjson rc "$rc" \
     --arg status "$status" \
     --arg content_type "$content_type" \
     --arg body_kind "$kind" \
     --arg www_authenticate "$www_auth" \
-    '{curl_rc:$rc,status:$status,content_type:$content_type,body_kind:$body_kind,www_authenticate:$www_authenticate}'
+    --argjson redirect "$redirect" \
+    --arg redirect_origin "$redirect_origin" \
+    '{curl_rc:$rc,status:$status,content_type:$content_type,body_kind:$body_kind,www_authenticate:$www_authenticate,redirect:$redirect,redirect_origin:$redirect_origin}'
 }
 
 no_auth_json="$(probe_json NO_AUTH "${no_auth[@]}")"
@@ -196,48 +208,7 @@ fake_json="$(probe_json FAKE_BEARER "${fake_bearer[@]}")"
 local_http_json="$(probe_json LOCAL_HTTP "${local_http[@]}")"
 local_https_json="$(probe_json LOCAL_HTTPS "${local_https[@]}")"
 
-nginx_topology="$(python3 - "$HOSTNAME" <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-hostname = sys.argv[1]
-roots = [Path('/etc/nginx/sites-enabled'), Path('/etc/nginx/sites-available'), Path('/etc/nginx/conf.d')]
-items = []
-seen = set()
-for root in roots:
-    if not root.is_dir():
-        continue
-    for entry in sorted(root.iterdir(), key=lambda p: str(p)):
-        try:
-            target = entry.resolve(strict=True)
-        except (OSError, RuntimeError):
-            continue
-        key = (str(entry), str(target))
-        if key in seen or not target.is_file():
-            continue
-        seen.add(key)
-        try:
-            text = target.read_text(encoding='utf-8')
-        except (OSError, UnicodeError):
-            continue
-        if hostname not in text and 'Agency PREPROD' not in text:
-            continue
-        directives = []
-        for line in text.splitlines():
-            stripped = line.strip()
-            if re.match(r'^(listen|server_name|auth_basic|proxy_pass|fastcgi_pass|include)\b', stripped):
-                directives.append(stripped[:300])
-        items.append({
-            'path': str(entry),
-            'target': str(target),
-            'is_symlink': entry.is_symlink(),
-            'directives': directives,
-        })
-print(json.dumps(items, separators=(',', ':'), sort_keys=True))
-PY
-)"
+nginx_topology="$(jq -c '.server_blocks' <<<"$nginx_effective_route")"
 jq -e 'type == "array"' <<<"$nginx_topology" >/dev/null
 
 state="$(jq -n \
@@ -270,6 +241,7 @@ state="$(jq -n \
   --argjson local_http "$local_http_json" \
   --argjson local_https "$local_https_json" \
   --argjson nginx_topology "$nginx_topology" \
+  --argjson nginx_effective_route "$nginx_effective_route" \
   '{
     current_release: $current_release,
     current_target: $current_target,
@@ -281,7 +253,8 @@ state="$(jq -n \
       authorization_forwarded:$nginx_authorization_forwarded,
       script_filename_contract:$nginx_script_filename,
       fastcgi_pass_present:$nginx_fastcgi_pass,
-      topology:$nginx_topology
+      topology:$nginx_topology,
+      effective_route:$nginx_effective_route
     },
     token_file: {
       state:$token_state,owner:$token_owner,group:$token_group,mode:$token_mode,

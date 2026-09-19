@@ -9,6 +9,7 @@ PLAN_SCRIPT="${4:-}"
 NGINX_TEMPLATE="${5:-}"
 SETTINGS_TEMPLATE="${6:-}"
 TOKEN_PROVISIONER="${7:-}"
+NGINX_DIAGNOSTIC="${8:-}"
 
 PROJECT_ROOT='/var/www/agency-preprod'
 CURRENT_LINK="$PROJECT_ROOT/current"
@@ -136,7 +137,7 @@ trap rollback EXIT
 [[ "$(id -u)" -eq 0 ]] || fail 'Root authority is required.'
 [[ "$EXPECTED_DIGEST" =~ ^[0-9a-f]{64}$ ]] || fail 'Expected PLAN digest is invalid.'
 [[ "$EXPECTED_MAIN" =~ ^[0-9a-f]{40}$ ]] || fail 'Expected main SHA is invalid.'
-for file in "$APPROVED_PLAN" "$PLAN_SCRIPT" "$NGINX_TEMPLATE" "$SETTINGS_TEMPLATE" "$TOKEN_PROVISIONER"; do
+for file in "$APPROVED_PLAN" "$PLAN_SCRIPT" "$NGINX_TEMPLATE" "$SETTINGS_TEMPLATE" "$TOKEN_PROVISIONER" "$NGINX_DIAGNOSTIC"; do
   [[ -f "$file" && ! -L "$file" ]] || fail "Required source is missing or unsafe: $file"
 done
 [[ -f "$SETTINGS_FILE" && ! -L "$SETTINGS_FILE" ]] || fail 'Shared settings.php is missing or unsafe.'
@@ -193,41 +194,12 @@ nginx_tmp="$(mktemp "$(dirname "$NGINX_SITE")/.agency-preprod.1218.XXXXXX")"
 cp -a -- "$SETTINGS_FILE" "$settings_tmp"
 cp -a -- "$NGINX_SITE" "$nginx_tmp"
 
-python3 - "$nginx_tmp" "$NGINX_TEMPLATE" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-live_path = Path(sys.argv[1])
-source_path = Path(sys.argv[2])
-live = live_path.read_text(encoding='utf-8')
-source = source_path.read_text(encoding='utf-8')
-pattern = re.compile(
-    r'(?ms)^\s*location\s*=\s*/api/agency-operations/v1/environment-data-state\s*\{.*?^\s*\}\n?'
-)
-source_matches = pattern.findall(source)
-if len(source_matches) != 1:
-    raise SystemExit('approved Nginx template does not contain exactly one machine-route block')
-if pattern.search(live):
-    raise SystemExit('live Nginx unexpectedly already contains the machine-route block')
-
-socket_paths = set(re.findall(r'(?m)^\s*fastcgi_pass\s+unix:([^;]+);\s*$', live))
-if len(socket_paths) != 1:
-    raise SystemExit('live Nginx must expose exactly one unique PHP-FPM unix socket')
-php_socket = next(iter(socket_paths))
-if not php_socket.startswith('/'):
-    raise SystemExit('live PHP-FPM socket path is unexpected')
-
-marker = re.search(r'(?m)^\s*location\s+/\s*\{', live)
-if marker is None:
-    raise SystemExit('live Nginx insertion marker is missing')
-block = source_matches[0].replace('@@PHP_SOCKET@@', php_socket)
-if '@@' in block:
-    raise SystemExit('approved machine-route block still contains an unresolved placeholder')
-block = block.strip('\n') + '\n\n'
-live_path.write_text(live[:marker.start()] + block + live[marker.start():], encoding='utf-8')
-PY
-
+nginx_insert_result="$(python3 "$NGINX_DIAGNOSTIC" insert \
+  "$nginx_tmp" "$NGINX_TEMPLATE" "$HOSTNAME" "$PATH_ONLY")"
+jq -e '
+  .status == "INSERTED"
+  and (.server_block | test("^server-[0-9]+$"))
+' <<<"$nginx_insert_result" >/dev/null || fail 'Structural Nginx insertion did not converge.'
 python3 - "$settings_tmp" "$SETTINGS_TEMPLATE" <<'PY'
 import re
 import sys

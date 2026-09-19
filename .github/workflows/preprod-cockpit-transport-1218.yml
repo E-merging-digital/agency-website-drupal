@@ -119,8 +119,10 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
             -o ConnectTimeout=15
           )
+          nginx_diagnostic_b64="$(base64 -w0 scripts/preproduction-cockpit-transport-1218/nginx-effective-route-diagnostic.py)"
+          nginx_template_b64="$(base64 -w0 scripts/preproduction/nginx-agency-preprod.conf.template)"
           timeout 60s ssh "${ssh_args[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
-            "bash -s -- '$MAIN_SHA' '$PLAN_ID'" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID' '$nginx_diagnostic_b64' '$nginx_template_b64'" \
             < scripts/preproduction-cockpit-transport-1218/remote-plan.sh \
             > artifacts/preprod-cockpit-transport-1218/plan.json
 
@@ -205,6 +207,11 @@ jobs:
               and (.STATE.current_target | startswith("/var/www/agency-preprod/releases/"))
               and (.STATE.settings.sha256 | test("^[0-9a-f]{64}$"))
               and (.STATE.nginx.sha256 | test("^[0-9a-f]{64}$"))
+              and (.STATE.nginx.effective_route.server_blocks | type == "array")
+              and (.STATE.nginx.effective_route.effective_preprod_tls_server_block | test("^server-[0-9]+$"))
+              and (.STATE.nginx.effective_route.effective_preprod_http_server_block | test("^(server-[0-9]+|ABSENT)$"))
+              and (.STATE.nginx.effective_route.corrected_candidate_server_block | test("^server-[0-9]+$"))
+              and .STATE.nginx.effective_route.corrected_candidate_is_tls == true
               and (.STATE.http.no_auth.status | test("^[0-9]{3}$"))
               and (.STATE.http.fake_bearer.status | test("^[0-9]{3}$"))
               and .STATE.legacy_failed_staging.path == "/root/agency-1218-35221860275-1"
@@ -237,6 +244,15 @@ jobs:
           nginx_count="$(jq -r '.STATE.nginx.machine_location_count' "$plan")"
           nginx_basic="$(jq -r '.STATE.nginx.auth_basic_off' "$plan")"
           auth_forward="$(jq -r '.STATE.nginx.authorization_forwarded' "$plan")"
+          tls_block="$(jq -r '.STATE.nginx.effective_route.effective_preprod_tls_server_block' "$plan")"
+          http_block="$(jq -r '.STATE.nginx.effective_route.effective_preprod_http_server_block' "$plan")"
+          legacy_target="$(jq -r '.STATE.nginx.effective_route.legacy_first_root_insertion_server_block' "$plan")"
+          legacy_target_tls="$(jq -r '.STATE.nginx.effective_route.legacy_first_root_insertion_is_tls' "$plan")"
+          corrected_target="$(jq -r '.STATE.nginx.effective_route.corrected_candidate_server_block' "$plan")"
+          candidate_auth_off="$(jq -r '.STATE.nginx.effective_route.simulated_candidate_contract.auth_basic_off' "$plan")"
+          candidate_auth_forward="$(jq -r '.STATE.nginx.effective_route.simulated_candidate_contract.http_authorization_forwarded' "$plan")"
+          candidate_script="$(jq -r '.STATE.nginx.effective_route.simulated_candidate_contract.script_filename' "$plan")"
+          candidate_fastcgi="$(jq -r '.STATE.nginx.effective_route.simulated_candidate_contract.fastcgi_pass' "$plan")"
           token_state="$(jq -r '.STATE.token_file.state' "$plan")"
           legacy_presence="$(jq -r '.STATE.legacy_failed_staging.presence' "$plan")"
           legacy_access="$(jq -r '.STATE.legacy_failed_staging.access' "$plan")"
@@ -245,6 +261,12 @@ jobs:
           legacy_mode="$(jq -r '.STATE.legacy_failed_staging.mode' "$plan")"
           no_auth="$(jq -r '.STATE.http.no_auth.status + "/" + .STATE.http.no_auth.body_kind' "$plan")"
           fake="$(jq -r '.STATE.http.fake_bearer.status + "/" + .STATE.http.fake_bearer.body_kind' "$plan")"
+          public_redirect_kind="$(jq -r '.STATE.http.no_auth.redirect.location_header_kind' "$plan")"
+          public_redirect_path="$(jq -r '.STATE.http.no_auth.redirect.normalized_path' "$plan")"
+          public_redirect_origin="$(jq -r '.STATE.http.no_auth.redirect_origin' "$plan")"
+          local_redirect_kind="$(jq -r '.STATE.http.local_https.redirect.location_header_kind' "$plan")"
+          local_redirect_path="$(jq -r '.STATE.http.local_https.redirect.normalized_path' "$plan")"
+          local_redirect_origin="$(jq -r '.STATE.http.local_https.redirect_origin' "$plan")"
           body="$(cat <<EOF_BODY
           #1218 PREPROD cockpit transport PLAN completed.
 
@@ -258,6 +280,15 @@ jobs:
           \`NGINX_MACHINE_LOCATION_COUNT=${nginx_count}\`
           \`NGINX_AUTH_BASIC_OFF=${nginx_basic}\`
           \`NGINX_AUTHORIZATION_FORWARDED=${auth_forward}\`
+          \`EFFECTIVE_PREPROD_TLS_SERVER_BLOCK=${tls_block}\`
+          \`EFFECTIVE_PREPROD_HTTP_SERVER_BLOCK=${http_block}\`
+          \`LEGACY_FIRST_ROOT_INSERTION_SERVER_BLOCK=${legacy_target}\`
+          \`LEGACY_FIRST_ROOT_INSERTION_IS_TLS=${legacy_target_tls}\`
+          \`CORRECTED_CANDIDATE_SERVER_BLOCK=${corrected_target}\`
+          \`CANDIDATE_AUTH_BASIC_OFF=${candidate_auth_off}\`
+          \`CANDIDATE_HTTP_AUTHORIZATION_FORWARDED=${candidate_auth_forward}\`
+          \`CANDIDATE_SCRIPT_FILENAME=${candidate_script}\`
+          \`CANDIDATE_FASTCGI_PASS=${candidate_fastcgi}\`
           \`TOKEN_FILE_STATE=${token_state}\`
           \`LEGACY_FAILED_STAGE_PRESENCE=${legacy_presence}\`
           \`LEGACY_FAILED_STAGE_ACCESS=${legacy_access}\`
@@ -266,10 +297,16 @@ jobs:
           \`LEGACY_FAILED_STAGE_MODE=${legacy_mode}\`
           \`NO_AUTH=${no_auth}\`
           \`FAKE_BEARER=${fake}\`
+          \`PUBLIC_REDIRECT_KIND=${public_redirect_kind}\`
+          \`PUBLIC_REDIRECT_PATH=${public_redirect_path}\`
+          \`PUBLIC_REDIRECT_ORIGIN=${public_redirect_origin}\`
+          \`LOCAL_REDIRECT_KIND=${local_redirect_kind}\`
+          \`LOCAL_REDIRECT_PATH=${local_redirect_path}\`
+          \`LOCAL_REDIRECT_ORIGIN=${local_redirect_origin}\`
           \`PREPROD_MUTATION=NONE\`
           \`PROD_ACCESS=NONE\`
 
-          APPLY is not implemented or authorized by this PLAN tranche. Review the immutable artifact before the bounded APPLY tranche is added.
+          This PLAN is read-only evidence only. Any APPLY remains separately OWNER-authorized and must bind to this exact current main and PLAN digest.
           EOF_BODY
           )"
           gh issue comment 1218 --body "$body"

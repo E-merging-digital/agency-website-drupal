@@ -121,8 +121,9 @@ jobs:
           )
           nginx_diagnostic_b64="$(base64 -w0 scripts/preproduction-cockpit-transport-1218/nginx-effective-route-diagnostic.py)"
           nginx_template_b64="$(base64 -w0 scripts/preproduction/nginx-agency-preprod.conf.template)"
+          nginx_active_identity_b64="$(base64 -w0 scripts/preproduction-cockpit-transport-1218/nginx-active-config-identity.py)"
           timeout 60s ssh "${ssh_args[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
-            "bash -s -- '$MAIN_SHA' '$PLAN_ID' '$nginx_diagnostic_b64' '$nginx_template_b64'" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID' '$nginx_diagnostic_b64' '$nginx_template_b64' '$nginx_active_identity_b64'" \
             < scripts/preproduction-cockpit-transport-1218/remote-plan.sh \
             > artifacts/preprod-cockpit-transport-1218/plan.json
 
@@ -212,8 +213,18 @@ jobs:
               and (.STATE.nginx.effective_route.effective_preprod_http_server_block | test("^(server-[0-9]+|ABSENT)$"))
               and (.STATE.nginx.effective_route.corrected_candidate_server_block | test("^server-[0-9]+$"))
               and .STATE.nginx.effective_route.corrected_candidate_is_tls == true
+              and (.STATE.nginx.active_identity.status | test("^(PASS|FAIL_CLOSED|UNPROVEN|AMBIGUOUS|CANDIDATE_SOURCE_MISMATCH)$"))
+              and (.STATE.nginx.active_identity.canonical_site.sha256 | test("^[0-9a-f]{64}$"))
+              and .STATE.nginx.active_identity.enabled_site.path == "/etc/nginx/sites-enabled/agency-preprod"
+              and (.STATE.nginx.active_identity.loaded_preprod_tls_match_count | type == "number")
+              and (.STATE.nginx.active_identity.loaded_preprod_http_match_count | type == "number")
+              and (.STATE.nginx.active_identity.candidate.status | type == "string")
               and (.STATE.http.no_auth.status | test("^[0-9]{3}$"))
               and (.STATE.http.fake_bearer.status | test("^[0-9]{3}$"))
+              and .STATE.http.local_http.proxy_bypass == true
+              and .STATE.http.local_http.remote_ip == "127.0.0.1"
+              and .STATE.http.local_https.proxy_bypass == true
+              and .STATE.http.local_https.remote_ip == "127.0.0.1"
               and .STATE.legacy_failed_staging.path == "/root/agency-1218-35221860275-1"
               and (.STATE.legacy_failed_staging.presence | test("^(PRESENT|ABSENT)$"))
               and .STATE.legacy_failed_staging.access == "OK"
@@ -267,6 +278,28 @@ jobs:
           local_redirect_kind="$(jq -r '.STATE.http.local_https.redirect.location_header_kind' "$plan")"
           local_redirect_path="$(jq -r '.STATE.http.local_https.redirect.normalized_path' "$plan")"
           local_redirect_origin="$(jq -r '.STATE.http.local_https.redirect_origin' "$plan")"
+          active_status="$(jq -r '.STATE.nginx.active_identity.status' "$plan")"
+          canonical_type="$(jq -r '.STATE.nginx.active_identity.canonical_site.type' "$plan")"
+          canonical_symlink="$(jq -r '.STATE.nginx.active_identity.canonical_site.is_symlink' "$plan")"
+          canonical_resolved="$(jq -r '.STATE.nginx.active_identity.canonical_site.resolved_path' "$plan")"
+          canonical_sha="$(jq -r '.STATE.nginx.active_identity.canonical_site.sha256' "$plan")"
+          enabled_type="$(jq -r '.STATE.nginx.active_identity.enabled_site.type' "$plan")"
+          enabled_target="$(jq -r '.STATE.nginx.active_identity.enabled_site.resolved_path' "$plan")"
+          enabled_sha="$(jq -r '.STATE.nginx.active_identity.enabled_site.sha256' "$plan")"
+          canonical_enabled="$(jq -r '.STATE.nginx.active_identity.canonical_equals_enabled' "$plan")"
+          nginx_main_config="$(jq -r '.STATE.nginx.active_identity.nginx_main_config' "$plan")"
+          include_status="$(jq -r '.STATE.nginx.active_identity.include_chain.status' "$plan")"
+          sites_enabled_included="$(jq -r '.STATE.nginx.active_identity.include_chain.sites_enabled_included' "$plan")"
+          tls_match_count="$(jq -r '.STATE.nginx.active_identity.loaded_preprod_tls_match_count' "$plan")"
+          http_match_count="$(jq -r '.STATE.nginx.active_identity.loaded_preprod_http_match_count' "$plan")"
+          duplicate_tls="$(jq -r '.STATE.nginx.active_identity.duplicate_tls' "$plan")"
+          enabled_loaded="$(jq -r '.STATE.nginx.active_identity.enabled_equals_loaded' "$plan")"
+          local_http_ip="$(jq -r '.STATE.http.local_http.remote_ip' "$plan")"
+          local_https_ip="$(jq -r '.STATE.http.local_https.remote_ip' "$plan")"
+          candidate_source_sha="$(jq -r '.STATE.nginx.active_identity.candidate.source_sha' "$plan")"
+          candidate_sha="$(jq -r '.STATE.nginx.active_identity.candidate.candidate_sha' "$plan")"
+          candidate_target="$(jq -r '.STATE.nginx.active_identity.candidate.target_server' "$plan")"
+          candidate_target_tls="$(jq -r '.STATE.nginx.active_identity.candidate.target_tls' "$plan")"
           body="$(cat <<EOF_BODY
           #1218 PREPROD cockpit transport PLAN completed.
 
@@ -303,10 +336,33 @@ jobs:
           \`LOCAL_REDIRECT_KIND=${local_redirect_kind}\`
           \`LOCAL_REDIRECT_PATH=${local_redirect_path}\`
           \`LOCAL_REDIRECT_ORIGIN=${local_redirect_origin}\`
+          \`ACTIVE_NGINX_IDENTITY_STATUS=${active_status}\`
+          \`CANONICAL_SITE_TYPE=${canonical_type}\`
+          \`CANONICAL_SITE_SYMLINK=${canonical_symlink}\`
+          \`CANONICAL_SITE_RESOLVED=${canonical_resolved}\`
+          \`CANONICAL_SITE_SHA=${canonical_sha}\`
+          \`ENABLED_SITE_TYPE=${enabled_type}\`
+          \`ENABLED_SITE_TARGET=${enabled_target}\`
+          \`ENABLED_SITE_SHA=${enabled_sha}\`
+          \`CANONICAL_EQUALS_ENABLED=${canonical_enabled}\`
+          \`NGINX_MAIN_CONFIG=${nginx_main_config}\`
+          \`INCLUDE_CHAIN=${include_status}\`
+          \`SITES_ENABLED_INCLUDED=${sites_enabled_included}\`
+          \`LOADED_PREPROD_TLS_MATCH_COUNT=${tls_match_count}\`
+          \`LOADED_PREPROD_HTTP_MATCH_COUNT=${http_match_count}\`
+          \`DUPLICATE_TLS=${duplicate_tls}\`
+          \`ENABLED_EQUALS_LOADED=${enabled_loaded}\`
+          \`LOCAL_HTTP_REMOTE_IP=${local_http_ip}\`
+          \`LOCAL_HTTPS_REMOTE_IP=${local_https_ip}\`
+          \`LOCAL_PROBE_PROXY_BYPASS=YES\`
+          \`CANDIDATE_SOURCE_SHA=${candidate_source_sha}\`
+          \`CANDIDATE_SHA=${candidate_sha}\`
+          \`CANDIDATE_TARGET_SERVER=${candidate_target}\`
+          \`CANDIDATE_TARGET_TLS=${candidate_target_tls}\`
           \`PREPROD_MUTATION=NONE\`
           \`PROD_ACCESS=NONE\`
 
-          This PLAN is read-only evidence only. Any APPLY remains separately OWNER-authorized and must bind to this exact current main and PLAN digest.
+          This PLAN is read-only evidence only. It proves bounded active Nginx identity and loopback probe integrity. No APPLY is pre-authorized.
           EOF_BODY
           )"
           gh issue comment 1218 --body "$body"

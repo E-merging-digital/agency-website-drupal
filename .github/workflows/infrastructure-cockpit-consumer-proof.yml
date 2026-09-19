@@ -161,6 +161,20 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Verify split source identities before PREPROD secrets
+        shell: bash
+        env:
+          EXPECTED_RELEASE_SHA: ${{ steps.authority.outputs.release_sha }}
+          EXPECTED_MAIN_SHA: ${{ steps.authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_RELEASE_SHA"
+          test "$(git -C .agency-control rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"
+          test -f scripts/preproduction/provision-cockpit-state-token.sh
+          test ! -L scripts/preproduction/provision-cockpit-state-token.sh
+          test -f .agency-control/scripts/preproduction-cockpit-consumer-proof-1260/remote-lease-root.sh
+          test ! -L .agency-control/scripts/preproduction-cockpit-consumer-proof-1260/remote-lease-root.sh
+
       - name: Materialize existing PREPROD root identity and pinned trust
         shell: bash
         env:

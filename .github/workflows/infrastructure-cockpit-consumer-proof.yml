@@ -70,6 +70,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
           COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_ID: ${{ github.event.comment.id }}
           COMMENT_LOGIN: ${{ github.event.comment.user.login }}
           COMMENT_USER_TYPE: ${{ github.event.comment.user.type }}
           COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
@@ -105,6 +106,43 @@ jobs:
           test "$requested_release" = "$EXPECTED_RELEASE_SHA"
 
           comments="$(gh api "repos/$GITHUB_REPOSITORY/issues/1261/comments?per_page=100")"
+
+          command_ids="$(jq -rc             --arg body "$COMMENT_BODY" '
+              [
+                .[]
+                | select(
+                    .user.login == "E-merging-digital"
+                    and .user.type == "User"
+                    and .author_association == "OWNER"
+                    and .performed_via_github_app == null
+                    and .body == $body
+                  )
+                | .id
+              ]
+            ' <<<"$comments")"
+          test "$(jq 'length' <<<"$command_ids")" -eq 1
+          test "$(jq -r '.[0]' <<<"$command_ids")" = "$COMMENT_ID"
+
+          prior_execution_count="$(jq -r             --arg session "$requested_session" '
+              [
+                .[]
+                | .body
+                | (
+                    if startswith("INFRA_CONSUMER_CIPHERTEXT=") then
+                      sub("^INFRA_CONSUMER_CIPHERTEXT="; "")
+                    elif startswith("AGENCY_CONSUMER_CLEANUP_RECEIPT=") then
+                      sub("^AGENCY_CONSUMER_CLEANUP_RECEIPT="; "")
+                    else
+                      empty
+                    end
+                  )
+                | (try fromjson catch empty)
+                | select(.session == $session)
+              ]
+              | length
+            ' <<<"$comments")"
+          test "$prior_execution_count" -eq 0
+
           session_json="$(jq -rc             --arg session "$requested_session"             --arg infra "$requested_infra"             --arg main "$requested_main"             --arg release "$requested_release"             --arg pubkey "$requested_pubkey" '
               [
                 .[]
@@ -301,7 +339,7 @@ jobs:
           partial=''
           for attempt in $(seq 1 36); do
             comments="$(gh api "repos/$GITHUB_REPOSITORY/issues/1261/comments?per_page=100")"
-            partial="$(jq -rc               --arg session "$SESSION"               --arg infra "$INFRA_SHA"               --arg main "$AGENCY_MAIN"               --arg release "$RELEASE_SHA"               --arg pubkey "$PUBLIC_SHA"               --argjson infra_run "$INFRA_RUN" '
+            partial="$(jq -rc               --arg session "$SESSION"               --arg infra "$INFRA_SHA"               --arg main "$AGENCY_MAIN"               --arg release "$RELEASE_SHA"               --arg pubkey "$PUBLIC_SHA"               --argjson infra_run "$INFRA_RUN"               --argjson agency_run "$GITHUB_RUN_ID"               --arg cipher_sha "$cipher_sha" '
                 [
                   .[]
                   | select(
@@ -317,6 +355,8 @@ jobs:
                   | select(
                       .session == $session
                       and .infra_run == $infra_run
+                      and .agency_run == $agency_run
+                      and .cipher_sha256 == $cipher_sha
                       and .infra_sha == $infra
                       and .agency_main == $main
                       and .release_sha == $release

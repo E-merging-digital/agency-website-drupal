@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -149,6 +150,83 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     self::assertTrue($releaseCheckout < $controlCheckout);
     self::assertTrue($controlCheckout < $identity);
     self::assertTrue($identity < $secret);
+  }
+
+  /**
+   * Proves remote SHA extraction is local, equality-gated, and set -u safe.
+   */
+  public function testRemoteShaVerificationIsSetuSafe(): void {
+    $source = $this->source();
+    $lines = explode("\n", $source);
+    $remoteShaLine = NULL;
+    $remoteHelperShaLine = NULL;
+
+    foreach ($lines as $line) {
+      $trimmed = trim($line);
+      if (str_starts_with($trimmed, 'remote_sha=')) {
+        $remoteShaLine = $trimmed;
+      }
+      if (str_starts_with($trimmed, 'remote_helper_sha=')) {
+        $remoteHelperShaLine = $trimmed;
+      }
+    }
+
+    self::assertIsString($remoteShaLine);
+    self::assertIsString($remoteHelperShaLine);
+    self::assertStringContainsString(
+      "\"sha256sum '\$remote_dir/provision-cockpit-state-token.sh'\" | awk '{print \$1}'",
+      $remoteShaLine,
+    );
+    self::assertStringContainsString(
+      "\"chmod 700 '\$remote_helper'; sha256sum '\$remote_helper'\" | awk '{print \$1}'",
+      $remoteHelperShaLine,
+    );
+    self::assertStringNotContainsString('\\$1', $remoteShaLine);
+    self::assertStringNotContainsString('\\$1', $remoteHelperShaLine);
+    self::assertStringContainsString(
+      'test "$local_sha" = "$remote_sha"',
+      $source,
+    );
+    self::assertStringContainsString(
+      'test "$helper_sha" = "$remote_helper_sha"',
+      $source,
+    );
+
+    $shell = <<<'BASH'
+set -u
+ssh() {
+  case "$*" in
+    *provision-cockpit-state-token.sh*)
+      printf '%s  %s\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' 'provision-cockpit-state-token.sh'
+      ;;
+    *remote-lease-root.sh*)
+      printf '%s  %s\n' 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' 'remote-lease-root.sh'
+      ;;
+    *)
+      return 91
+      ;;
+  esac
+}
+ssh_opts=()
+remote='root@example.invalid'
+remote_dir='/root/stage'
+remote_helper='/root/stage/remote-lease-root.sh'
+local_sha='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+helper_sha='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+remote_sha="$(ssh "${ssh_opts[@]}" "$remote" "sha256sum '$remote_dir/provision-cockpit-state-token.sh'" | awk '{print $1}')"
+test "$local_sha" = "$remote_sha"
+remote_helper_sha="$(ssh "${ssh_opts[@]}" "$remote" "chmod 700 '$remote_helper'; sha256sum '$remote_helper'" | awk '{print $1}')"
+test "$helper_sha" = "$remote_helper_sha"
+BASH;
+
+    $process = new Process(['bash', '-uc', $shell]);
+    $process->run();
+
+    self::assertSame(
+      0,
+      $process->getExitCode(),
+      $process->getErrorOutput() . $process->getOutput(),
+    );
   }
 
   /**

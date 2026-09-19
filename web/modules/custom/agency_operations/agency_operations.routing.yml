@@ -24,6 +24,7 @@ agency_operations.cockpit_state:
   path: '/api/agency-operations/v1/environment-data-state'
   defaults:
     _controller: '\Drupal\agency_operations\Controller\CockpitStateController::state'
+    _disable_route_normalizer: TRUE
   requirements:
     # Machine authentication and the PREPROD-only gate are enforced in the controller.
     _access: 'TRUE'

@@ -32,6 +32,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => '.github/workflows/preprod-editorial-image-rehydrate-971.yml',
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => '.github/workflows/config-sync-runtime-diagnostic.yml',
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => '.github/workflows/prod-config-sync-runtime-diagnostic.yml',
+    'INFRA_COCKPIT_CONSUMER_PROOF' => '.github/workflows/infrastructure-cockpit-consumer-proof.yml',
   ];
 
   private const INCIDENT_ISSUES = [
@@ -44,6 +45,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995],
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995],
+    'INFRA_COCKPIT_CONSUMER_PROOF' => 1261,
   ];
 
   /**
@@ -74,7 +76,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(14, $routes);
+    self::assertCount(15, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -194,6 +196,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         995,
         'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
+      [
+        "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40}",
+        1261,
+        'INFRA_COCKPIT_CONSUMER_PROOF',
+      ],
     ];
     foreach ($known as [$body, $issue, $expected]) {
       self::assertSame($expected, $this->classify($routes, $body, $issue));
@@ -232,6 +239,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-config-sync-prod-runtime diagnose', 980],
       ['/agency-config-sync-prod-runtime diagnose', 981],
       ['/agency-config-sync-prod-runtime diagnose', 983],
+      ["/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40}", 1260],
+      ["/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40}", 1262],
     ] as [$body, $wrongIssue]) {
       self::assertSame('NONE', $this->classify($routes, $body, $wrongIssue));
     }
@@ -257,6 +266,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-config-sync-runtime diagnose target=PROD',
       '/agency-config-sync-prod-runtime diagnose now',
       '/agency-config-sync-prod-runtime diagnose target=PREPROD',
+      '/agency-infra-cockpit-consumer prove main=BAD infra=' . $sha40 . ' release=' . $sha40,
+      '/agency-infra-cockpit-consumer prove main=' . $sha40 . ' infra=BAD release=' . $sha40,
+      '/agency-infra-cockpit-consumer prove main=' . $sha40 . ' infra=' . $sha40 . ' release=BAD',
       '/agency-unknown apply',
     ];
     foreach ($invalid as $body) {
@@ -311,6 +323,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     );
     self::assertStringContainsString(
       "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995')",
+      $source,
+    );
+    self::assertStringContainsString(
+      "'INFRA_COCKPIT_CONSUMER_PROOF': '1261'",
       $source,
     );
     self::assertStringNotContainsString(
@@ -427,6 +443,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
         ['contents' => 'read', 'issues' => 'write'],
         $prodSecrets,
+      ],
+      'infrastructure-cockpit-consumer-proof' => [
+        'INFRA_COCKPIT_CONSUMER_PROOF',
+        ['contents' => 'read', 'issues' => 'write'],
+        $rootPreprodSecrets,
       ],
     ];
 

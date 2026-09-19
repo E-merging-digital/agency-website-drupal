@@ -117,6 +117,39 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
   }
 
   /**
+   * Proves split governance/release sources are verified before PREPROD secrets.
+   */
+  public function testSplitSourceIdentityIsVerifiedBeforeSecretMaterialization(): void {
+    $source = $this->source();
+
+    foreach ([
+      'Checkout exact deployed Agency application source',
+      'Checkout exact current Agency control source',
+      'path: .agency-control',
+      'Verify split source identities before PREPROD secrets',
+      'test "$(git rev-parse HEAD)" = "$EXPECTED_RELEASE_SHA"',
+      'test "$(git -C .agency-control rev-parse HEAD)" = "$EXPECTED_MAIN_SHA"',
+      'scripts/preproduction/provision-cockpit-state-token.sh',
+      '.agency-control/scripts/preproduction-cockpit-consumer-proof-1260/remote-lease-root.sh',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
+    $releaseCheckout = strpos($source, 'Checkout exact deployed Agency application source');
+    $controlCheckout = strpos($source, 'Checkout exact current Agency control source');
+    $identity = strpos($source, 'Verify split source identities before PREPROD secrets');
+    $secret = strpos($source, 'Materialize existing PREPROD root identity and pinned trust');
+
+    foreach ([$releaseCheckout, $controlCheckout, $identity, $secret] as $position) {
+      self::assertIsInt($position);
+    }
+
+    self::assertTrue($releaseCheckout < $controlCheckout);
+    self::assertTrue($controlCheckout < $identity);
+    self::assertTrue($identity < $secret);
+  }
+
+  /**
    * Proves root credentials stay local while only ciphertext is published.
    */
   public function testLiveRouteKeepsRootSecretLocalAndPublishesOnlyCiphertext(): void {

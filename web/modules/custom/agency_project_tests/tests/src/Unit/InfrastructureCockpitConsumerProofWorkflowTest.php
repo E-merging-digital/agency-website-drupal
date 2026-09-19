@@ -120,6 +120,11 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
       'scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION',
       'agency-1261-root.key',
       'chmod 600',
+      'remote-lease-root.sh',
+      'lease_seconds=600',
+      "grep -Fxq 'Public-Key: (3072 bit)'",
+      "EXPIRY_ARMED=PASS",
+      'echo "::add-mask::$token"',
       'printf \'%s\\n\' "$token" | ssh',
       'root:www-data:640',
       'openssl pkeyutl -encrypt',
@@ -147,32 +152,45 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     self::assertStringNotContainsString('SERVER_HOST: ${{ secrets.SERVER_HOST }}', $source);
     self::assertStringNotContainsString('SERVER_USER', $source);
     self::assertStringNotContainsString('PROD_SSH', $source);
+    self::assertStringNotContainsString(
+      'rm -f -- /etc/agency-preprod/cockpit-state-token',
+      $source,
+    );
   }
 
   /**
-   * Proves cleanup is armed before provisioning and receipt ordering is strict.
+   * Proves independent expiry is armed before bearer provisioning and cleanup.
    */
   public function testServerTokenCleanupIsArmedBeforeProvisioningAndReceiptIsRequired(): void {
     $source = $this->source();
+    $liveStart = strpos($source, 'Provision, encrypt, await private consumer proof, and cleanup');
+    self::assertIsInt($liveStart);
+    $live = substr($source, $liveStart);
 
-    $trap = strpos($source, 'trap cleanup EXIT');
-    $arm = strpos($source, 'provisioned=1');
-    $provision = strpos($source, '"bash \'$remote_dir/provision-cockpit-state-token.sh\'"');
-    $cipher = strpos($source, 'INFRA_CONSUMER_CIPHERTEXT=');
-    $partial = strpos($source, 'PROJECT_LEAD_INFRA_PARTIAL=');
-    $remove = strrpos($source, 'rm -f -- /etc/agency-preprod/cockpit-state-token');
-    $cleanupReceipt = strpos($source, 'AGENCY_CONSUMER_CLEANUP_RECEIPT=');
+    $trap = strpos($live, 'trap cleanup EXIT');
+    $arm = strpos($live, "'$remote_helper' ARM '$SESSION' '$lease_seconds'");
+    $armed = strpos($live, "grep -Fxq 'EXPIRY_ARMED=PASS'");
+    $generate = strpos($live, 'token="$(openssl rand -hex 32)"');
+    $mask = strpos($live, 'echo "::add-mask::$token"');
+    $provision = strpos($live, '"bash \'$remote_dir/provision-cockpit-state-token.sh\'"');
+    $cipher = strpos($live, 'INFRA_CONSUMER_CIPHERTEXT=');
+    $partial = strpos($live, 'PROJECT_LEAD_INFRA_PARTIAL=');
+    $cleanup = strpos($live, "'$remote_helper' CLEANUP '$SESSION'");
+    $cleanupReceipt = strpos($live, 'AGENCY_CONSUMER_CLEANUP_RECEIPT=');
 
-    foreach ([$trap, $arm, $provision, $cipher, $partial, $remove, $cleanupReceipt] as $position) {
+    foreach ([$trap, $arm, $armed, $generate, $mask, $provision, $cipher, $partial, $cleanup, $cleanupReceipt] as $position) {
       self::assertIsInt($position);
     }
 
-    self::assertLessThan($arm, $trap);
-    self::assertLessThan($provision, $arm);
-    self::assertLessThan($cipher, $provision);
-    self::assertLessThan($partial, $cipher);
-    self::assertLessThan($remove, $partial);
-    self::assertLessThan($cleanupReceipt, $remove);
+    self::assertTrue($trap < $arm);
+    self::assertTrue($arm < $armed);
+    self::assertTrue($armed < $generate);
+    self::assertTrue($generate < $mask);
+    self::assertTrue($mask < $provision);
+    self::assertTrue($provision < $cipher);
+    self::assertTrue($cipher < $partial);
+    self::assertTrue($partial < $cleanup);
+    self::assertTrue($cleanup < $cleanupReceipt);
   }
 
   /**

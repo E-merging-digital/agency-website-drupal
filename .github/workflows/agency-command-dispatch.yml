@@ -23,7 +23,7 @@ env:
       {"route":"PREPROD_EDITORIAL_IMAGE_REHYDRATE_971","prefix":"/agency-preprod-image-rehydrate ","exact":["/agency-preprod-image-rehydrate dry-run","/agency-preprod-image-rehydrate apply"]},
       {"route":"CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-runtime ","exact":["/agency-config-sync-runtime diagnose"]},
       {"route":"PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-prod-runtime ","exact":["/agency-config-sync-prod-runtime diagnose"]},
-      {"route":"INFRA_COCKPIT_CONSUMER_PROOF","prefix":"/agency-infra-cockpit-consumer ","regex":"^/agency-infra-cockpit-consumer prove main=[0-9a-f]{40} infra=[0-9a-f]{40} release=[0-9a-f]{40}$"}
+      {"route":"INFRA_COCKPIT_CONSUMER_PROOF","prefix":"/agency-infra-cockpit-consumer ","regex":"^/agency-infra-cockpit-consumer prove main=[0-9a-f]{40} infra=[0-9a-f]{40} release=[0-9a-f]{40} session=[0-9a-f]{16} pubkey=[0-9a-f]{64}$"}
     ]
 
 jobs:

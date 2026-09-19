@@ -99,6 +99,70 @@ final class PreprodCockpitTransport1250ActiveNginxIdentityTest extends TestCase 
   }
 
   /**
+   * Proves the real diagnostic loads exact extensionless staged source bytes.
+   */
+  public function testExtensionlessRouteHelperLoadsExactSourceBytes(): void {
+    $source = $this->repositoryPath(self::ROUTE);
+    $extensionless = tempnam(sys_get_temp_dir(), 'agency-1252-route-');
+    self::assertIsString($extensionless);
+    self::assertSame('', pathinfo($extensionless, PATHINFO_EXTENSION));
+
+    try {
+      $bytes = file_get_contents($source);
+      self::assertIsString($bytes);
+      self::assertSame(strlen($bytes), file_put_contents($extensionless, $bytes));
+      self::assertSame(hash_file('sha256', $source), hash_file('sha256', $extensionless));
+
+      $diagnostic = $this->diagnose($extensionless);
+      self::assertSame('PASS', $diagnostic['status']);
+      self::assertSame(1, $diagnostic['loaded_preprod_tls_match_count']);
+      self::assertSame(1, $diagnostic['loaded_preprod_http_match_count']);
+      self::assertSame('BOUND', $diagnostic['candidate']['status']);
+      self::assertTrue($diagnostic['candidate']['target_tls']);
+    }
+    finally {
+      @unlink($extensionless);
+    }
+  }
+
+  /**
+   * Proves a missing route helper fails closed before module loading.
+   */
+  public function testMissingRouteHelperFailsClosed(): void {
+    $missing = $this->root . '/missing-route-helper';
+    [$exitCode, $stdout, $stderr] = $this->runHelper(
+      $this->diagnosticArguments($missing),
+    );
+
+    self::assertSame(2, $exitCode);
+    self::assertSame('', $stdout);
+    self::assertStringContainsString(
+      '[nginx-active-identity] ERROR: route helper is missing',
+      $stderr,
+    );
+  }
+
+  /**
+   * Proves a route-helper symlink is rejected without resolving its target.
+   */
+  public function testSymlinkRouteHelperFailsClosed(): void {
+    $source = $this->repositoryPath(self::ROUTE);
+    $link = $this->root . '/route-helper-link';
+    self::assertTrue(symlink($source, $link));
+
+    [$exitCode, $stdout, $stderr] = $this->runHelper(
+      $this->diagnosticArguments($link),
+    );
+
+    self::assertSame(2, $exitCode);
+    self::assertSame('', $stdout);
+    self::assertStringContainsString(
+      '[nginx-active-identity] ERROR: route helper must not be a symlink',
+      $stderr,
+    );
+  }
+
+  /**
    * Proves a regular enabled copy with equal bytes is explicitly equivalent.
    */
   public function testEnabledRegularCopyWithEqualShaIsEquivalent(): void {
@@ -260,22 +324,36 @@ final class PreprodCockpitTransport1250ActiveNginxIdentityTest extends TestCase 
    * @return array<string, mixed>
    *   Bounded diagnostic.
    */
-  private function diagnose(): array {
-    [$exitCode, $stdout, $stderr] = $this->runHelper([
+  private function diagnose(?string $routeHelper = NULL): array {
+    [$exitCode, $stdout, $stderr] = $this->runHelper(
+      $this->diagnosticArguments(
+        $routeHelper ?? $this->repositoryPath(self::ROUTE),
+      ),
+    );
+    self::assertSame(0, $exitCode, $stderr);
+    $decoded = json_decode($stdout, TRUE, 512, JSON_THROW_ON_ERROR);
+    self::assertIsArray($decoded);
+    return $decoded;
+  }
+
+  /**
+   * Builds the real diagnostic argument shape for one route-helper path.
+   *
+   * @return list<string>
+   *   Diagnostic arguments.
+   */
+  private function diagnosticArguments(string $routeHelper): array {
+    return [
       'diagnose',
       $this->root,
       '/etc/nginx/nginx.conf',
       '/etc/nginx/sites-available/agency-preprod',
       '/etc/nginx/sites-enabled/agency-preprod',
-      $this->repositoryPath(self::ROUTE),
+      $routeHelper,
       $this->repositoryPath(self::TEMPLATE),
       self::HOSTNAME,
       self::MACHINE_PATH,
-    ]);
-    self::assertSame(0, $exitCode, $stderr);
-    $decoded = json_decode($stdout, TRUE, 512, JSON_THROW_ON_ERROR);
-    self::assertIsArray($decoded);
-    return $decoded;
+    ];
   }
 
   /**

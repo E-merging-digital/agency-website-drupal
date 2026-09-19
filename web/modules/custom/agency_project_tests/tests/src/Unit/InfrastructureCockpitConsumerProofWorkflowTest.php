@@ -21,6 +21,9 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
 
   private const DEPLOYED_AGENCY_SHA = 'a096d7acc682a355720e9102dd84d40780bae2f8';
 
+  /**
+   * Proves the PR path is secret-free and the live route stays reusable-only.
+   */
   public function testWorkflowHasSecretFreePullRequestCryptoSelftestAndReusableLiveRoute(): void {
     $workflow = $this->parsed();
     $source = $this->source();
@@ -66,6 +69,9 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     self::assertStringNotContainsString('GH_PAT', $source);
   }
 
+  /**
+   * Proves live execution requires exact human authority and broker metadata.
+   */
   public function testLiveRouteRequiresExactHumanAuthorityAndBrokerSession(): void {
     $source = $this->source();
 
@@ -102,6 +108,9 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     );
   }
 
+  /**
+   * Proves root credentials stay local while only ciphertext is published.
+   */
   public function testLiveRouteKeepsRootSecretLocalAndPublishesOnlyCiphertext(): void {
     $source = $this->source();
 
@@ -139,6 +148,9 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     self::assertStringNotContainsString('PROD_SSH', $source);
   }
 
+  /**
+   * Proves cleanup is armed before provisioning and receipt ordering is strict.
+   */
   public function testServerTokenCleanupIsArmedBeforeProvisioningAndReceiptIsRequired(): void {
     $source = $this->source();
 
@@ -162,12 +174,18 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     self::assertLessThan($cleanupReceipt, $remove);
   }
 
+  /**
+   * Parses the governed consumer-proof workflow.
+   */
   private function parsed(): array {
     $parsed = Yaml::parseFile(dirname(DRUPAL_ROOT) . '/' . self::WORKFLOW);
     self::assertIsArray($parsed);
     return $parsed;
   }
 
+  /**
+   * Reads the governed consumer-proof workflow source.
+   */
   private function source(): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . self::WORKFLOW);
   }

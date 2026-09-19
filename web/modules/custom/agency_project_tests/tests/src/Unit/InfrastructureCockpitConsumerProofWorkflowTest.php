@@ -175,7 +175,7 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     $provision = strpos($live, '"bash \'$remote_dir/provision-cockpit-state-token.sh\'"');
     $cipher = strpos($live, 'INFRA_CONSUMER_CIPHERTEXT=');
     $partial = strpos($live, 'PROJECT_LEAD_INFRA_PARTIAL=');
-    $cleanup = strpos($live, '\'$remote_helper\' CLEANUP \'$SESSION\'');
+    $cleanup = strrpos($live, '\'$remote_helper\' CLEANUP \'$SESSION\'');
     $cleanupReceipt = strpos($live, 'AGENCY_CONSUMER_CLEANUP_RECEIPT=');
 
     foreach ([$trap, $arm, $armed, $generate, $mask, $provision, $cipher, $partial, $cleanup, $cleanupReceipt] as $position) {

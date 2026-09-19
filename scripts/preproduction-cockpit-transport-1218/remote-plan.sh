@@ -6,10 +6,12 @@ MAIN_SHA="${1:-}"
 PLAN_ID="${2:-}"
 NGINX_DIAGNOSTIC_B64="${3:-}"
 NGINX_TEMPLATE_B64="${4:-}"
+NGINX_ACTIVE_IDENTITY_B64="${5:-}"
 PROJECT_ROOT='/var/www/agency-preprod'
 CURRENT_LINK="$PROJECT_ROOT/current"
 SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"
 NGINX_SITE='/etc/nginx/sites-available/agency-preprod'
+NGINX_ENABLED_SITE='/etc/nginx/sites-enabled/agency-preprod'
 TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'
 LEGACY_FAILED_RUN_DIR='/root/agency-1218-35221860275-1'
 HOSTNAME='preprod.emergingdigital.be'
@@ -25,10 +27,12 @@ fail() {
 [[ "$PLAN_ID" =~ ^plan-1218-[A-Za-z0-9._-]+$ ]] || fail 'PLAN_ID is invalid.'
 [[ "$NGINX_DIAGNOSTIC_B64" =~ ^[A-Za-z0-9+/=]+$ ]] || fail 'Nginx diagnostic encoding is invalid.'
 [[ "$NGINX_TEMPLATE_B64" =~ ^[A-Za-z0-9+/=]+$ ]] || fail 'Nginx template encoding is invalid.'
+[[ "$NGINX_ACTIVE_IDENTITY_B64" =~ ^[A-Za-z0-9+/=]+$ ]] || fail 'Nginx active identity encoding is invalid.'
 [[ -L "$CURRENT_LINK" ]] || fail 'PREPROD current release symlink is missing.'
 [[ -f "$SETTINGS_FILE" && ! -L "$SETTINGS_FILE" ]] || fail 'Shared settings.php is missing or unsafe.'
-[[ -f "$NGINX_SITE" && ! -L "$NGINX_SITE" ]] || fail 'PREPROD Nginx site is missing or unsafe.'
-for command in base64 curl jq python3 sha256sum stat; do
+[[ -e "$NGINX_SITE" || -L "$NGINX_SITE" ]] || fail 'PREPROD Nginx site is missing.'
+[[ -r "$NGINX_SITE" ]] || fail 'PREPROD Nginx site is unreadable.'
+for command in base64 curl jq nginx ps python3 sha256sum stat; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required."
 done
 
@@ -46,13 +50,15 @@ fi
 
 nginx_diagnostic_script="$(mktemp)"
 nginx_template_file="$(mktemp)"
+nginx_active_identity_script="$(mktemp)"
 cleanup_diagnostic() {
-  rm -f -- "$nginx_diagnostic_script" "$nginx_template_file"
+  rm -f -- "$nginx_diagnostic_script" "$nginx_template_file" "$nginx_active_identity_script"
 }
 trap cleanup_diagnostic EXIT
 printf '%s' "$NGINX_DIAGNOSTIC_B64" | base64 -d > "$nginx_diagnostic_script"
 printf '%s' "$NGINX_TEMPLATE_B64" | base64 -d > "$nginx_template_file"
-chmod 600 "$nginx_diagnostic_script" "$nginx_template_file"
+printf '%s' "$NGINX_ACTIVE_IDENTITY_B64" | base64 -d > "$nginx_active_identity_script"
+chmod 600 "$nginx_diagnostic_script" "$nginx_template_file" "$nginx_active_identity_script"
 nginx_effective_route="$(python3 "$nginx_diagnostic_script" diagnose \
   "$NGINX_SITE" "$nginx_template_file" "$HOSTNAME" "$PATH_ONLY")"
 jq -e '
@@ -75,6 +81,24 @@ nginx_auth_basic_off="$(jq -r 'if .auth_basic_off then "YES" else "NO" end' <<<"
 nginx_authorization_forwarded="$(jq -r 'if .http_authorization_forwarded then "YES" else "NO" end' <<<"$nginx_tls_contract")"
 nginx_script_filename="$(jq -r 'if .script_filename == "EXPECTED" then "YES" else "NO" end' <<<"$nginx_tls_contract")"
 nginx_fastcgi_pass="$(jq -r 'if .fastcgi_pass == "EXPECTED" then "YES" else "NO" end' <<<"$nginx_tls_contract")"
+
+mapfile -t nginx_master_lines < <(ps -C nginx -o args= 2>/dev/null | sed -n '/nginx: master process/p')
+[[ ${#nginx_master_lines[@]} -eq 1 ]] || fail 'Exactly one Nginx master process identity is required.'
+nginx_version="$(nginx -V 2>&1)" || fail 'nginx -V failed.'
+nginx_main_config="$(python3 "$nginx_active_identity_script" main-config "${nginx_master_lines[0]}" "$nginx_version")"
+nginx_active_identity="$(python3 "$nginx_active_identity_script" diagnose   / "$nginx_main_config" "$NGINX_SITE" "$NGINX_ENABLED_SITE"   "$nginx_diagnostic_script" "$nginx_template_file" "$HOSTNAME" "$PATH_ONLY")"
+jq -e '
+  (.status | test("^(PASS|FAIL_CLOSED|UNPROVEN|AMBIGUOUS|CANDIDATE_SOURCE_MISMATCH)$"))
+  and (.nginx_main_config | startswith("/etc/nginx/"))
+  and .canonical_site.path == "/etc/nginx/sites-available/agency-preprod"
+  and (.canonical_site.sha256 | test("^[0-9a-f]{64}$"))
+  and .enabled_site.path == "/etc/nginx/sites-enabled/agency-preprod"
+  and (.include_chain.status | test("^(PROVEN|UNPROVEN|NOT_LOADED)$"))
+  and (.loaded_preprod_tls_match_count | type == "number")
+  and (.loaded_preprod_http_match_count | type == "number")
+  and (.loaded_preprod_candidates | type == "array")
+  and (.candidate.status | type == "string")
+' <<<"$nginx_active_identity" >/dev/null || fail 'Active Nginx identity diagnostic is invalid.'
 
 TOKEN_STATE='ABSENT'
 TOKEN_OWNER='ABSENT'
@@ -126,14 +150,15 @@ probe_http() {
   local label="$1"
   local endpoint="$2"
   shift 2
-  local body headers rc status content_type kind www_auth location_header redirect_json redirect_origin scheme
+  local body headers rc status remote_ip status_remote content_type kind www_auth location_header redirect_json redirect_origin scheme
   body="$(mktemp)"
   headers="$(mktemp)"
   set +e
-  status="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
-    --output "$body" --dump-header "$headers" --write-out '%{http_code}' \
+  status_remote="$(curl --silent --show-error --connect-timeout 10 --max-time 20 \
+    --output "$body" --dump-header "$headers" --write-out '%{http_code}|%{remote_ip}' \
     "$@" "$endpoint")"
   rc="$?"
+  IFS='|' read -r status remote_ip <<<"$status_remote"
   set -e
   content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
   www_auth="$(awk 'BEGIN{IGNORECASE=1} /^www-authenticate:/ {sub(/^[^:]+:[[:space:]]*/, ""); sub(/\r$/, ""); value=$0} END{print value}' "$headers")"
@@ -162,6 +187,7 @@ PY
   rm -f "$body" "$headers"
   printf '%s_RC=%s\n' "$label" "$rc"
   printf '%s_STATUS=%s\n' "$label" "$status"
+  printf '%s_REMOTE_IP=%s\n' "$label" "$remote_ip"
   printf '%s_CONTENT_TYPE=%s\n' "$label" "$content_type"
   printf '%s_KIND=%s\n' "$label" "$kind"
   printf '%s_WWW_AUTH=%s\n' "$label" "$www_auth"
@@ -171,8 +197,8 @@ PY
 
 mapfile -t no_auth < <(probe_http NO_AUTH "$ENDPOINT")
 mapfile -t fake_bearer < <(probe_http FAKE_BEARER "$ENDPOINT" -H 'Authorization: Bearer invalid-cockpit-token-1218')
-mapfile -t local_http < <(probe_http LOCAL_HTTP "http://127.0.0.1$PATH_ONLY" -H "Host: $HOSTNAME")
-mapfile -t local_https < <(probe_http LOCAL_HTTPS "$ENDPOINT" --resolve "$HOSTNAME:443:127.0.0.1")
+mapfile -t local_http < <(probe_http LOCAL_HTTP "http://$HOSTNAME$PATH_ONLY" --noproxy '*' --resolve "$HOSTNAME:80:127.0.0.1")
+mapfile -t local_https < <(probe_http LOCAL_HTTPS "$ENDPOINT" --noproxy '*' --resolve "$HOSTNAME:443:127.0.0.1")
 
 read_probe() {
   local prefix="$1"
@@ -184,9 +210,10 @@ read_probe() {
 probe_json() {
   local prefix="$1"
   shift
-  local rc status content_type kind www_auth redirect redirect_origin
+  local rc status remote_ip content_type kind www_auth redirect redirect_origin
   rc="$(read_probe "$prefix" RC "$@")"
   status="$(read_probe "$prefix" STATUS "$@")"
+  remote_ip="$(read_probe "$prefix" REMOTE_IP "$@")"
   content_type="$(read_probe "$prefix" CONTENT_TYPE "$@")"
   kind="$(read_probe "$prefix" KIND "$@")"
   www_auth="$(read_probe "$prefix" WWW_AUTH "$@")"
@@ -195,18 +222,21 @@ probe_json() {
   jq -cn \
     --argjson rc "$rc" \
     --arg status "$status" \
+    --arg remote_ip "$remote_ip" \
     --arg content_type "$content_type" \
     --arg body_kind "$kind" \
     --arg www_authenticate "$www_auth" \
     --argjson redirect "$redirect" \
     --arg redirect_origin "$redirect_origin" \
-    '{curl_rc:$rc,status:$status,content_type:$content_type,body_kind:$body_kind,www_authenticate:$www_authenticate,redirect:$redirect,redirect_origin:$redirect_origin}'
+    '{curl_rc:$rc,status:$status,remote_ip:$remote_ip,content_type:$content_type,body_kind:$body_kind,www_authenticate:$www_authenticate,redirect:$redirect,redirect_origin:$redirect_origin}'
 }
 
 no_auth_json="$(probe_json NO_AUTH "${no_auth[@]}")"
 fake_json="$(probe_json FAKE_BEARER "${fake_bearer[@]}")"
-local_http_json="$(probe_json LOCAL_HTTP "${local_http[@]}")"
-local_https_json="$(probe_json LOCAL_HTTPS "${local_https[@]}")"
+local_http_json="$(probe_json LOCAL_HTTP "${local_http[@]}" | jq '. + {proxy_bypass:true}')"
+local_https_json="$(probe_json LOCAL_HTTPS "${local_https[@]}" | jq '. + {proxy_bypass:true}')"
+[[ "$(jq -r '.remote_ip' <<<"$local_http_json")" == '127.0.0.1' ]] || fail 'LOCAL_PROBE_INVALID: HTTP remote IP is not loopback.'
+[[ "$(jq -r '.remote_ip' <<<"$local_https_json")" == '127.0.0.1' ]] || fail 'LOCAL_PROBE_INVALID: HTTPS remote IP is not loopback.'
 
 nginx_topology="$(jq -c '.server_blocks' <<<"$nginx_effective_route")"
 jq -e 'type == "array"' <<<"$nginx_topology" >/dev/null
@@ -242,6 +272,7 @@ state="$(jq -n \
   --argjson local_https "$local_https_json" \
   --argjson nginx_topology "$nginx_topology" \
   --argjson nginx_effective_route "$nginx_effective_route" \
+  --argjson nginx_active_identity "$nginx_active_identity" \
   '{
     current_release: $current_release,
     current_target: $current_target,
@@ -254,7 +285,8 @@ state="$(jq -n \
       script_filename_contract:$nginx_script_filename,
       fastcgi_pass_present:$nginx_fastcgi_pass,
       topology:$nginx_topology,
-      effective_route:$nginx_effective_route
+      effective_route:$nginx_effective_route,
+      active_identity:$nginx_active_identity
     },
     token_file: {
       state:$token_state,owner:$token_owner,group:$token_group,mode:$token_mode,

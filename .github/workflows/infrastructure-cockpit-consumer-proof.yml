@@ -45,7 +45,7 @@ jobs:
           openssl pkeyutl -encrypt -pubin -inkey "$work/public.pem"             -in "$work/token.txt" -out "$work/cipher.bin"             -pkeyopt rsa_padding_mode:oaep             -pkeyopt rsa_oaep_md:sha256             -pkeyopt rsa_mgf1_md:sha256
           test "$(wc -c < "$work/cipher.bin")" -eq 384
           cipher_sha="$(sha256sum "$work/cipher.bin" | awk '{print $1}')"
-          test "$cipher_sha" =~ ^[0-9a-f]{64}$
+          [[ "$cipher_sha" =~ ^[0-9a-f]{64}$ ]]
           unset token
           echo 'AGENCY_ENCRYPTED_ENVELOPE_SELFTEST=PASS'
 
@@ -131,8 +131,8 @@ jobs:
 
           public_b64="$(jq -r '.public_key_b64' <<<"$session_json")"
           infra_run="$(jq -r '.infra_run' <<<"$session_json")"
-          test "$public_b64" =~ ^[A-Za-z0-9+/=]+$
-          test "$infra_run" =~ ^[1-9][0-9]*$
+          [[ "$public_b64" =~ ^[A-Za-z0-9+/=]+$ ]]
+          [[ "$infra_run" =~ ^[1-9][0-9]*$ ]]
 
           {
             echo "main_sha=$main_sha"
@@ -236,7 +236,7 @@ jobs:
           test "$local_sha" = "$remote_sha"
 
           token="$(openssl rand -hex 32)"
-          test "$token" =~ ^[0-9a-f]{64}$
+          [[ "$token" =~ ^[0-9a-f]{64}$ ]]
           provisioned=1
           printf '%s\n' "$token" | ssh "${ssh_opts[@]}" "$remote"             "bash '$remote_dir/provision-cockpit-state-token.sh'" >/dev/null
           metadata="$(ssh "${ssh_opts[@]}" "$remote"             "test ! -L /etc/agency-preprod/cockpit-state-token && stat -c '%U:%G:%a' /etc/agency-preprod/cockpit-state-token")"

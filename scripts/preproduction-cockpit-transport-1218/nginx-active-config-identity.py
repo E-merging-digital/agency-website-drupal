@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import glob
 import hashlib
+import importlib.machinery
 import importlib.util
 import json
 import os
@@ -244,12 +245,35 @@ def relevant_chain(main_config: str, enabled_site: str, parent: dict[str, tuple[
 
 
 def load_route_helper(path: str) -> Any:
-    spec = importlib.util.spec_from_file_location("agency_nginx_route_helper", path)
-    if spec is None or spec.loader is None:
+    source = Path(path)
+    try:
+        metadata = source.lstat()
+    except FileNotFoundError:
+        fail("route helper is missing")
+    except OSError:
+        fail("route helper metadata cannot be read")
+
+    if stat.S_ISLNK(metadata.st_mode):
+        fail("route helper must not be a symlink")
+    if not stat.S_ISREG(metadata.st_mode):
+        fail("route helper must be a regular file")
+    try:
+        with source.open("rb") as handle:
+            handle.read(1)
+    except OSError:
+        fail("route helper is unreadable")
+
+    module_name = "agency_nginx_route_helper"
+    loader = importlib.machinery.SourceFileLoader(module_name, str(source))
+    spec = importlib.util.spec_from_loader(module_name, loader)
+    if spec is None:
         fail("route helper cannot be loaded")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    try:
+        loader.exec_module(module)
+    except (ImportError, OSError, SyntaxError):
+        fail("route helper cannot be loaded")
     return module
 
 

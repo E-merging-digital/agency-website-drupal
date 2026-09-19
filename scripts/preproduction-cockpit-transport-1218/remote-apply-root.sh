@@ -16,6 +16,7 @@ PROJECT_ROOT='/var/www/agency-preprod'
 CURRENT_LINK="$PROJECT_ROOT/current"
 SETTINGS_FILE="$PROJECT_ROOT/shared/settings/settings.php"
 NGINX_SITE='/etc/nginx/sites-available/agency-preprod'
+NGINX_ENABLED_SITE='/etc/nginx/sites-enabled/agency-preprod'
 TOKEN_FILE='/etc/agency-preprod/cockpit-state-token'
 LEGACY_FAILED_RUN_DIR='/root/agency-1218-35221860275-1'
 HOSTNAME='preprod.emergingdigital.be'
@@ -24,6 +25,7 @@ ENDPOINT="https://$HOSTNAME$PATH_ONLY"
 BACKUP_DIR="$(mktemp -d /root/agency-1218-apply.XXXXXX)"
 MUTATION_STARTED='NO'
 COMMITTED='NO'
+POST_RELOAD_ACTIVE_CONFIG='UNPROVEN'
 
 fail() {
   printf '[cockpit-transport-apply] ERROR: %s\n' "$1" >&2
@@ -143,7 +145,7 @@ for file in "$APPROVED_PLAN" "$PLAN_SCRIPT" "$NGINX_TEMPLATE" "$SETTINGS_TEMPLAT
 done
 [[ -f "$SETTINGS_FILE" && ! -L "$SETTINGS_FILE" ]] || fail 'Shared settings.php is missing or unsafe.'
 [[ -f "$NGINX_SITE" && ! -L "$NGINX_SITE" ]] || fail 'Nginx site is missing or unsafe.'
-for command in base64 curl jq nginx openssl php python3 runuser sha256sum stat systemctl; do
+for command in base64 curl jq nginx openssl php ps python3 runuser sha256sum stat systemctl; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required."
 done
 
@@ -261,6 +263,45 @@ settings_candidate_sha="$(sha256sum "$settings_tmp" | awk '{print $1}')"
 [[ "$nginx_candidate_sha" =~ ^[0-9a-f]{64}$ ]] || fail 'Candidate Nginx SHA is invalid.'
 [[ "$settings_candidate_sha" =~ ^[0-9a-f]{64}$ ]] || fail 'Candidate settings SHA is invalid.'
 
+prove_post_reload_active_config() {
+  local nginx_version nginx_main_config active_identity
+  local -a nginx_master_lines=()
+
+  mapfile -t nginx_master_lines < <(
+    ps -C nginx -o args= 2>/dev/null | sed -n '/nginx: master process/p'
+  )
+  [[ ${#nginx_master_lines[@]} -eq 1 ]]     || fail 'POST_RELOAD_ACTIVE_CONFIG_UNPROVEN: exactly one Nginx master is required.'
+
+  nginx_version="$(nginx -V 2>&1)"     || fail 'POST_RELOAD_ACTIVE_CONFIG_UNPROVEN: nginx -V failed.'
+  nginx_main_config="$(python3 "$NGINX_ACTIVE_IDENTITY" main-config     "${nginx_master_lines[0]}" "$nginx_version")"
+  active_identity="$(python3 "$NGINX_ACTIVE_IDENTITY" diagnose     / "$nginx_main_config" "$NGINX_SITE" "$NGINX_ENABLED_SITE"     "$NGINX_DIAGNOSTIC" "$NGINX_TEMPLATE" "$HOSTNAME" "$PATH_ONLY")"
+
+  jq -e --arg candidate "$nginx_candidate_sha" '
+    .status == "PASS"
+    and .canonical_site.sha256 == $candidate
+    and .enabled_site.sha256 == $candidate
+    and .canonical_equals_enabled == true
+    and .include_chain.status == "PROVEN"
+    and .include_chain.sites_enabled_included == true
+    and .enabled_equals_loaded == true
+    and .loaded_preprod_tls_match_count == 1
+    and .duplicate_tls == "NONE"
+    and .candidate.status == "BOUND"
+    and .candidate.source_sha == $candidate
+    and .candidate.candidate_sha == $candidate
+    and .candidate.target_tls == true
+    and ([
+      .loaded_preprod_candidates[]
+      | select(
+          .source_sha256 == $candidate
+          and .listens_443 == true
+          and .tls_enabled == true
+          and .machine_route_count == 1
+        )
+    ] | length) == 1
+  ' <<<"$active_identity" >/dev/null     || fail 'POST_RELOAD_ACTIVE_CONFIG_UNPROVEN: candidate identity is not the unique loaded TLS machine route.'
+}
+
 MUTATION_STARTED='YES'
 mv -f -- "$settings_tmp" "$SETTINGS_FILE"
 mv -f -- "$nginx_tmp" "$NGINX_SITE"
@@ -273,6 +314,8 @@ printf '%s\n' "$bearer" | "$TOKEN_PROVISIONER" >/dev/null
 [[ "$(stat -c '%U:%G:%a' "$TOKEN_FILE")" == 'root:www-data:640' ]] || fail 'Runtime token ownership/mode mismatch.'
 
 systemctl reload nginx
+prove_post_reload_active_config
+POST_RELOAD_ACTIVE_CONFIG='PASS'
 
 probe_http() {
   local endpoint="$1"
@@ -384,6 +427,7 @@ if [[ "$TRANSPORT_CLASSIFICATION" != 'CONVERGED' ]]; then
     --arg main_sha "$EXPECTED_MAIN" \
     --arg plan_digest "$EXPECTED_DIGEST" \
     --arg classification "$TRANSPORT_CLASSIFICATION" \
+    --arg post_reload_active "$POST_RELOAD_ACTIVE_CONFIG" \
     --arg legacy_cleanup "$LEGACY_STAGING_CLEANUP" \
     --argjson local_no_auth "$local_no_auth" \
     --argjson local_fake_bearer "$local_fake_bearer" \
@@ -394,6 +438,7 @@ if [[ "$TRANSPORT_CLASSIFICATION" != 'CONVERGED' ]]; then
     '{
       STATUS:"FAIL",ISSUE:1218,TARGET:"PREPROD",MODE:"APPLY",
       MAIN_SHA:$main_sha,PLAN_DIGEST:$plan_digest,STALE_PLAN:"PASS",
+      POST_RELOAD_ACTIVE_CONFIG:$post_reload_active,
       TRANSPORT_CLASSIFICATION:$classification,
       LEGACY_STAGING_CLEANUP:$legacy_cleanup,
       HTTP:{
@@ -426,6 +471,7 @@ jq -n \
   --arg nginx_sha "$nginx_candidate_sha" \
   --arg settings_sha "$settings_candidate_sha" \
   --arg classification "$TRANSPORT_CLASSIFICATION" \
+  --arg post_reload_active "$POST_RELOAD_ACTIVE_CONFIG" \
   --arg legacy_cleanup "$LEGACY_STAGING_CLEANUP" \
   --argjson local_no_auth "$local_no_auth" \
   --argjson local_fake_bearer "$local_fake_bearer" \
@@ -443,6 +489,7 @@ jq -n \
     MAIN_SHA: $main_sha,
     PLAN_DIGEST: $plan_digest,
     STALE_PLAN: "PASS",
+    POST_RELOAD_ACTIVE_CONFIG: $post_reload_active,
     NGINX_CONVERGED: true,
     SETTINGS_READER_CONVERGED: true,
     NGINX_SHA256: $nginx_sha,

@@ -91,7 +91,7 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
       'requested_session',
       'requested_pubkey',
       'PROJECT_LEAD_INFRA_SESSION=',
-      'performed_via_github_app == null',
+      'performed_via_github_app.slug == "chatgpt-codex-connector"',
       'INFRA_BROKER_SHA: ' . self::INFRA_SHA,
       'DEPLOYED_AGENCY_SHA: ' . self::DEPLOYED_AGENCY_SHA,
     ] as $required) {
@@ -128,6 +128,7 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
       'rsa_mgf1_md:sha256',
       'INFRA_CONSUMER_CIPHERTEXT=',
       'PROJECT_LEAD_INFRA_PARTIAL=',
+      'chatgpt-codex-connector',
       'AGENCY_CONSUMER_CLEANUP_RECEIPT=',
       'token_cleanup:"PASS"',
       'token_persisted:false',

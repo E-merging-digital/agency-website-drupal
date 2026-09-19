@@ -94,6 +94,7 @@ final class PreprodCockpitConsumerProof1260Test extends TestCase {
 
     foreach ([
       'lease_seconds=600',
+      "lease_helper='.agency-control/scripts/preproduction-cockpit-consumer-proof-1260/remote-lease-root.sh'",
       '\'$remote_helper\' ARM \'$SESSION\' \'$lease_seconds\'',
       "grep -Fxq 'EXPIRY_ARMED=PASS'",
       'token="$(openssl rand -hex 32)"',

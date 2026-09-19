@@ -117,7 +117,8 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
   }
 
   /**
-   * Proves split governance/release sources are verified before PREPROD secrets.
+   * Proves split governance/release sources are verified before PREPROD
+   * secrets.
    */
   public function testSplitSourceIdentityIsVerifiedBeforeSecretMaterialization(): void {
     $source = $this->source();

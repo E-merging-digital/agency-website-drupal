@@ -18,7 +18,7 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
 
   private const WORKFLOW = '.github/workflows/infrastructure-cockpit-consumer-proof.yml';
 
-  private const INFRA_SHA = '65c7670d37e679efccc15aaa96595ea6aeb18c60';
+  private const INFRA_SHA = '69d8f924b42b2bfca654cd0f507fad750c009d3c';
 
   private const DEPLOYED_AGENCY_SHA = 'a096d7acc682a355720e9102dd84d40780bae2f8';
 

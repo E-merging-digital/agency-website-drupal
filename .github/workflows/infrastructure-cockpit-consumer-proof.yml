@@ -153,6 +153,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Checkout exact current Agency control source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.authority.outputs.main_sha }}
+          path: .agency-control
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Materialize existing PREPROD root identity and pinned trust
         shell: bash
         env:
@@ -233,7 +241,7 @@ jobs:
           ssh "${ssh_opts[@]}" "$remote"             "test ! -e /etc/agency-preprod/cockpit-state-token && test ! -L /etc/agency-preprod/cockpit-state-token"
 
           provisioner='scripts/preproduction/provision-cockpit-state-token.sh'
-          lease_helper='scripts/preproduction-cockpit-consumer-proof-1260/remote-lease-root.sh'
+          lease_helper='.agency-control/scripts/preproduction-cockpit-consumer-proof-1260/remote-lease-root.sh'
           test -f "$provisioner"
           test ! -L "$provisioner"
           test -f "$lease_helper"

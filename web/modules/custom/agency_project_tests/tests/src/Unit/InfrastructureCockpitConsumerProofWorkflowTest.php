@@ -159,7 +159,7 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
     $provision = strpos($source, '"bash \'$remote_dir/provision-cockpit-state-token.sh\'"');
     $cipher = strpos($source, 'INFRA_CONSUMER_CIPHERTEXT=');
     $partial = strpos($source, 'PROJECT_LEAD_INFRA_PARTIAL=');
-    $remove = strpos($source, 'rm -f -- /etc/agency-preprod/cockpit-state-token');
+    $remove = strrpos($source, 'rm -f -- /etc/agency-preprod/cockpit-state-token');
     $cleanupReceipt = strpos($source, 'AGENCY_CONSUMER_CLEANUP_RECEIPT=');
 
     foreach ([$trap, $arm, $provision, $cipher, $partial, $remove, $cleanupReceipt] as $position) {

@@ -61,8 +61,8 @@ final class PreprodCockpitConsumerProof1260Test extends TestCase {
       '--on-active="${lease_seconds}s"',
       '"$self_path" EXPIRE "$session"',
       'systemctl is-active --quiet "${unit}.timer"',
-      "if [[ \"$mode\" == 'EXPIRE' ]]",
-      "if [[ \"$mode\" == 'CLEANUP' ]]",
+      'if [[ "$mode" == \'EXPIRE\' ]]',
+      'if [[ "$mode" == \'CLEANUP\' ]]',
       'TOKEN_FILE_STATE=ABSENT',
       'LEASE_MARKER_STATE=ABSENT',
       'TRANSIENT_TIMER_STATE=INACTIVE',
@@ -94,7 +94,7 @@ final class PreprodCockpitConsumerProof1260Test extends TestCase {
 
     foreach ([
       'lease_seconds=600',
-      "'$remote_helper' ARM '$SESSION' '$lease_seconds'",
+      '\'$remote_helper\' ARM \'$SESSION\' \'$lease_seconds\'',
       "grep -Fxq 'EXPIRY_ARMED=PASS'",
       'token="$(openssl rand -hex 32)"',
       'echo "::add-mask::$token"',
@@ -103,7 +103,7 @@ final class PreprodCockpitConsumerProof1260Test extends TestCase {
       'rsa_padding_mode:oaep',
       'rsa_oaep_md:sha256',
       'rsa_mgf1_md:sha256',
-      "'$remote_helper' CLEANUP '$SESSION'",
+      '\'$remote_helper\' CLEANUP \'$SESSION\'',
       'lease_marker_cleanup:"PASS"',
       'transient_timer:"INACTIVE"',
       'transient_service:"INACTIVE"',
@@ -111,7 +111,7 @@ final class PreprodCockpitConsumerProof1260Test extends TestCase {
       self::assertStringContainsString($required, $live);
     }
 
-    $arm = strpos($live, "'$remote_helper' ARM '$SESSION' '$lease_seconds'");
+    $arm = strpos($live, '\'$remote_helper\' ARM \'$SESSION\' \'$lease_seconds\'');
     $generate = strpos($live, 'token="$(openssl rand -hex 32)"');
     $mask = strpos($live, 'echo "::add-mask::$token"');
     $provision = strpos($live, '"bash \'$remote_dir/provision-cockpit-state-token.sh\'"');

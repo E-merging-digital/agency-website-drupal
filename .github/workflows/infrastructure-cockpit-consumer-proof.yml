@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  INFRA_BROKER_SHA: 443ae49da4cd2358dfa7257127125a5d743a88fb
+  INFRA_BROKER_SHA: 65c7670d37e679efccc15aaa96595ea6aeb18c60
   DEPLOYED_AGENCY_SHA: a096d7acc682a355720e9102dd84d40780bae2f8
 
 jobs:

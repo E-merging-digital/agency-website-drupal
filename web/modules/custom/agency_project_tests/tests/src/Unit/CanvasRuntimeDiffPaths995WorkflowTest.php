@@ -31,7 +31,7 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
     $raw = $dispatcher['env']['AGENCY_COMMAND_ROUTES'] ?? NULL;
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
-    self::assertCount(14, $routes);
+    self::assertCount(15, $routes);
 
     $byName = array_column($routes, NULL, 'route');
     self::assertSame(

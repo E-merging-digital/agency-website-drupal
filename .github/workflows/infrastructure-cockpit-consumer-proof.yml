@@ -1,0 +1,312 @@
+name: '#1261 Infrastructure cockpit consumer proof'
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+  pull_request:
+    paths:
+      - '.github/workflows/infrastructure-cockpit-consumer-proof.yml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/InfrastructureCockpitConsumerProofWorkflowTest.php'
+
+concurrency:
+  group: agency-infrastructure-cockpit-consumer-proof-1261
+  cancel-in-progress: false
+
+env:
+  INFRA_BROKER_SHA: 65c7670d37e679efccc15aaa96595ea6aeb18c60
+  DEPLOYED_AGENCY_SHA: a096d7acc682a355720e9102dd84d40780bae2f8
+
+jobs:
+  encrypted-envelope-selftest:
+    name: Validate Agency encrypted envelope locally
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Prove RSA-OAEP encryption format without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          work="$RUNNER_TEMP/agency-1261-selftest"
+          mkdir -p "$work"
+          trap 'rm -rf -- "$work"' EXIT
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072             -out "$work/private.pem" >/dev/null 2>&1
+          openssl pkey -in "$work/private.pem" -pubout -out "$work/public.pem"
+          token="$(openssl rand -hex 32)"
+          printf '%s' "$token" > "$work/token.txt"
+          openssl pkeyutl -encrypt -pubin -inkey "$work/public.pem"             -in "$work/token.txt" -out "$work/cipher.bin"             -pkeyopt rsa_padding_mode:oaep             -pkeyopt rsa_oaep_md:sha256             -pkeyopt rsa_mgf1_md:sha256
+          test "$(wc -c < "$work/cipher.bin")" -eq 384
+          cipher_sha="$(sha256sum "$work/cipher.bin" | awk '{print $1}')"
+          [[ "$cipher_sha" =~ ^[0-9a-f]{64}$ ]]
+          unset token
+          echo 'AGENCY_ENCRYPTED_ENVELOPE_SELFTEST=PASS'
+
+  live:
+    name: Provision bearer and broker encrypted proof
+    if: ${{ github.event_name == 'issue_comment' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - id: authority
+        name: Validate exact direct-human #1261 authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_USER_TYPE: ${{ github.event.comment.user.type }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          EXPECTED_INFRA_SHA: ${{ env.INFRA_BROKER_SHA }}
+          EXPECTED_RELEASE_SHA: ${{ env.DEPLOYED_AGENCY_SHA }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1261'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_USER_TYPE" = 'User'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+
+          if [[ ! "$COMMENT_BODY" =~ ^/agency-infra-cockpit-consumer\ prove\ main=([0-9a-f]{40})\ infra=([0-9a-f]{40})\ release=([0-9a-f]{40})\ session=([0-9a-f]{16})\ pubkey=([0-9a-f]{64})$ ]]; then
+            echo 'Unsupported #1261 consumer-proof syntax.' >&2
+            exit 64
+          fi
+          requested_main="${BASH_REMATCH[1]}"
+          requested_infra="${BASH_REMATCH[2]}"
+          requested_release="${BASH_REMATCH[3]}"
+          requested_session="${BASH_REMATCH[4]}"
+          requested_pubkey="${BASH_REMATCH[5]}"
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$WORKFLOW_SHA" = "$main_sha"
+          test "$requested_main" = "$main_sha"
+          test "$requested_infra" = "$EXPECTED_INFRA_SHA"
+          test "$requested_release" = "$EXPECTED_RELEASE_SHA"
+
+          comments="$(gh api "repos/$GITHUB_REPOSITORY/issues/1261/comments?per_page=100")"
+          session_json="$(jq -rc             --arg session "$requested_session"             --arg infra "$requested_infra"             --arg main "$requested_main"             --arg release "$requested_release"             --arg pubkey "$requested_pubkey" '
+              [
+                .[]
+                | select(
+                    .user.login == "E-merging-digital"
+                    and .user.type == "User"
+                    and .author_association == "OWNER"
+                    and .performed_via_github_app.slug == "chatgpt-codex-connector"
+                  )
+                | .body
+                | select(startswith("PROJECT_LEAD_INFRA_SESSION="))
+                | sub("^PROJECT_LEAD_INFRA_SESSION="; "")
+                | (try fromjson catch empty)
+                | select(
+                    .session == $session
+                    and .infra_sha == $infra
+                    and .agency_main == $main
+                    and .release_sha == $release
+                    and .public_key_sha256 == $pubkey
+                    and .status == "READY"
+                  )
+              ]
+              | if length == 1 then .[0] else empty end
+            ' <<<"$comments")"
+          test -n "$session_json"
+
+          public_b64="$(jq -r '.public_key_b64' <<<"$session_json")"
+          infra_run="$(jq -r '.infra_run' <<<"$session_json")"
+          [[ "$public_b64" =~ ^[A-Za-z0-9+/=]+$ ]]
+          [[ "$infra_run" =~ ^[1-9][0-9]*$ ]]
+
+          {
+            echo "main_sha=$main_sha"
+            echo "infra_sha=$requested_infra"
+            echo "release_sha=$requested_release"
+            echo "session=$requested_session"
+            echo "public_sha=$requested_pubkey"
+            echo "public_b64=$public_b64"
+            echo "infra_run=$infra_run"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact deployed Agency application source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.authority.outputs.release_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize existing PREPROD root identity and pinned trust
+        shell: bash
+        env:
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_ROOT_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-1261-root.key"
+          chmod 600 "$RUNNER_TEMP/agency-1261-root.key"
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST"             bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Provision, encrypt, await private consumer proof, and cleanup
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          AGENCY_MAIN: ${{ steps.authority.outputs.main_sha }}
+          INFRA_SHA: ${{ steps.authority.outputs.infra_sha }}
+          RELEASE_SHA: ${{ steps.authority.outputs.release_sha }}
+          SESSION: ${{ steps.authority.outputs.session }}
+          PUBLIC_SHA: ${{ steps.authority.outputs.public_sha }}
+          PUBLIC_B64: ${{ steps.authority.outputs.public_b64 }}
+          INFRA_RUN: ${{ steps.authority.outputs.infra_run }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          work="$RUNNER_TEMP/agency-1261-$SESSION"
+          mkdir -p "$work"
+          remote_dir="/root/agency-1261-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          provisioned=0
+          token=''
+
+          ssh_opts=(
+            -i "$RUNNER_TEMP/agency-1261-root.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          remote="root@$PREPROD_SERVER_HOST"
+
+          cleanup() {
+            local rc=$?
+            local cleanup_failed=0
+            set +e
+            token=''
+            unset token
+            if [[ "$provisioned" -eq 1 ]]; then
+              if ssh "${ssh_opts[@]}" "$remote"                 "rm -f -- /etc/agency-preprod/cockpit-state-token; test ! -e /etc/agency-preprod/cockpit-state-token"                 >/dev/null 2>&1; then
+                provisioned=0
+              else
+                cleanup_failed=1
+              fi
+            fi
+            ssh "${ssh_opts[@]}" "$remote" "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || true
+            rm -rf -- "$work"
+            if [[ "$cleanup_failed" -eq 1 ]]; then
+              echo 'TOKEN_CLEANUP=FAIL' >&2
+              exit 97
+            fi
+            exit "$rc"
+          }
+          trap cleanup EXIT
+
+          printf '%s' "$PUBLIC_B64" | base64 -d > "$work/public.pem"
+          test "$(sha256sum "$work/public.pem" | awk '{print $1}')" = "$PUBLIC_SHA"
+          openssl pkey -pubin -in "$work/public.pem" -noout >/dev/null
+
+          current_release="$(ssh "${ssh_opts[@]}" "$remote" "readlink -f /var/www/agency-preprod/current")"
+          [[ "$current_release" == */releases/*-"${RELEASE_SHA:0:12}" ]]
+          ssh "${ssh_opts[@]}" "$remote"             "test ! -e /etc/agency-preprod/cockpit-state-token && test ! -L /etc/agency-preprod/cockpit-state-token"
+
+          provisioner='scripts/preproduction/provision-cockpit-state-token.sh'
+          test -f "$provisioner"
+          test ! -L "$provisioner"
+          ssh "${ssh_opts[@]}" "$remote" "install -d -m 700 '$remote_dir'"
+          scp -q "${ssh_opts[@]}" "$provisioner" "$remote:$remote_dir/provision-cockpit-state-token.sh"
+          local_sha="$(sha256sum "$provisioner" | awk '{print $1}')"
+          remote_sha="$(ssh "${ssh_opts[@]}" "$remote"             "sha256sum '$remote_dir/provision-cockpit-state-token.sh' | awk '{print \\$1}'")"
+          test "$local_sha" = "$remote_sha"
+
+          token="$(openssl rand -hex 32)"
+          [[ "$token" =~ ^[0-9a-f]{64}$ ]]
+          provisioned=1
+          printf '%s\n' "$token" | ssh "${ssh_opts[@]}" "$remote"             "bash '$remote_dir/provision-cockpit-state-token.sh'" >/dev/null
+          metadata="$(ssh "${ssh_opts[@]}" "$remote"             "test ! -L /etc/agency-preprod/cockpit-state-token && stat -c '%U:%G:%a' /etc/agency-preprod/cockpit-state-token")"
+          test "$metadata" = 'root:www-data:640'
+
+          printf '%s' "$token" > "$work/token.txt"
+          openssl pkeyutl -encrypt -pubin -inkey "$work/public.pem"             -in "$work/token.txt" -out "$work/cipher.bin"             -pkeyopt rsa_padding_mode:oaep             -pkeyopt rsa_oaep_md:sha256             -pkeyopt rsa_mgf1_md:sha256
+          rm -f -- "$work/token.txt"
+          token=''
+          unset token
+
+          test "$(wc -c < "$work/cipher.bin")" -eq 384
+          cipher_sha="$(sha256sum "$work/cipher.bin" | awk '{print $1}')"
+          cipher_b64="$(base64 -w0 "$work/cipher.bin")"
+          rm -f -- "$work/cipher.bin" "$work/public.pem"
+
+          envelope="$(jq -cn             --arg session "$SESSION"             --argjson agency_run "$GITHUB_RUN_ID"             --argjson infra_run "$INFRA_RUN"             --arg agency_main "$AGENCY_MAIN"             --arg infra_sha "$INFRA_SHA"             --arg release_sha "$RELEASE_SHA"             --arg public_key_sha256 "$PUBLIC_SHA"             --arg cipher_sha256 "$cipher_sha"             --arg cipher_b64 "$cipher_b64"             '{schema_version:1,session:$session,agency_run:$agency_run,infra_run:$infra_run,agency_main:$agency_main,infra_sha:$infra_sha,release_sha:$release_sha,public_key_sha256:$public_key_sha256,cipher_sha256:$cipher_sha256,cipher_b64:$cipher_b64,status:"READY"}')"
+          gh issue comment 1261 --repo "$GITHUB_REPOSITORY"             --body "INFRA_CONSUMER_CIPHERTEXT=$envelope" >/dev/null
+
+          partial=''
+          for attempt in $(seq 1 36); do
+            comments="$(gh api "repos/$GITHUB_REPOSITORY/issues/1261/comments?per_page=100")"
+            partial="$(jq -rc               --arg session "$SESSION"               --arg infra "$INFRA_SHA"               --arg main "$AGENCY_MAIN"               --arg release "$RELEASE_SHA"               --arg pubkey "$PUBLIC_SHA"               --argjson infra_run "$INFRA_RUN" '
+                [
+                  .[]
+                  | select(
+                      .user.login == "E-merging-digital"
+                      and .user.type == "User"
+                      and .author_association == "OWNER"
+                      and .performed_via_github_app.slug == "chatgpt-codex-connector"
+                    )
+                  | .body
+                  | select(startswith("PROJECT_LEAD_INFRA_PARTIAL="))
+                  | sub("^PROJECT_LEAD_INFRA_PARTIAL="; "")
+                  | (try fromjson catch empty)
+                  | select(
+                      .session == $session
+                      and .infra_run == $infra_run
+                      and .infra_sha == $infra
+                      and .agency_main == $main
+                      and .release_sha == $release
+                      and .public_key_sha256 == $pubkey
+                      and .status == "PASS"
+                      and .consumer == "App\\Operations\\AgencyStateLoader"
+                      and .remote_source == "agency_preprod_http_projection"
+                      and .cockpit_status == "available"
+                      and .render_http_status == 200
+                      and .render_remote_source_marker == true
+                      and .local_fallback == "NONE"
+                      and .secret_content_exposed == false
+                    )
+                ]
+                | if length == 1 then .[0] else empty end
+              ' <<<"$comments")"
+            if [[ -n "$partial" ]]; then
+              break
+            fi
+            sleep 15
+          done
+          test -n "$partial"
+
+          ssh "${ssh_opts[@]}" "$remote"             "rm -f -- /etc/agency-preprod/cockpit-state-token; test ! -e /etc/agency-preprod/cockpit-state-token"
+          provisioned=0
+
+          cleanup_receipt="$(jq -cn             --arg session "$SESSION"             --argjson agency_run "$GITHUB_RUN_ID"             --argjson infra_run "$INFRA_RUN"             --arg agency_main "$AGENCY_MAIN"             --arg infra_sha "$INFRA_SHA"             --arg release_sha "$RELEASE_SHA"             '{schema_version:1,session:$session,agency_run:$agency_run,infra_run:$infra_run,agency_main:$agency_main,infra_sha:$infra_sha,release_sha:$release_sha,token_cleanup:"PASS",token_persisted:false,secret_content_exposed:false,prod_access:"NONE",db_access:"NONE",status:"PASS"}')"
+          gh issue comment 1261 --repo "$GITHUB_REPOSITORY"             --body "AGENCY_CONSUMER_CLEANUP_RECEIPT=$cleanup_receipt" >/dev/null
+
+          echo 'AGENCY_CONSUMER_ENCRYPTED_BROKER=PASS'
+
+      - name: Remove ephemeral PREPROD root key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-1261-root.key"

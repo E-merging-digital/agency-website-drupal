@@ -25,7 +25,7 @@ final class ProdRuntimeErrorCapability1202Test extends TestCase {
   public function testDispatcher(): void {
     $dispatcher = Yaml::parseFile(dirname(DRUPAL_ROOT) . '/.github/workflows/agency-command-dispatch.yml');
     $routes = json_decode($dispatcher['env']['AGENCY_COMMAND_ROUTES'], TRUE, 512, JSON_THROW_ON_ERROR);
-    self::assertCount(14, $routes);
+    self::assertCount(15, $routes);
     foreach ($routes as $route) {
       self::assertStringNotContainsString('1202', $route['route']);
       self::assertStringNotContainsString('/agency-prod-runtime-error-capability-1202 ', $route['prefix']);

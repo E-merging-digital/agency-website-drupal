@@ -118,6 +118,126 @@ final class InfrastructureCockpitConsumerProofWorkflowTest extends TestCase {
   }
 
   /**
+   * Proves replay guards fail closed before secret materialization.
+   */
+  public function testReplayGuardsPrecedeSecretMaterialization(): void {
+    $source = $this->source();
+
+    foreach ([
+      'COMMENT_ID: ${{ github.event.comment.id }}',
+      '.performed_via_github_app == null',
+      '.body == $body',
+      'test "$(jq \'length\' <<<"$command_ids")" -eq 1',
+      'test "$(jq -r \'.[0]\' <<<"$command_ids")" = "$COMMENT_ID"',
+      'INFRA_CONSUMER_CIPHERTEXT=',
+      'AGENCY_CONSUMER_CLEANUP_RECEIPT=',
+      'prior_execution_count',
+      'test "$prior_execution_count" -eq 0',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
+    $comments = strpos($source, 'comments="$(gh api "repos/$GITHUB_REPOSITORY/issues/1261/comments?per_page=100")"');
+    $commandGuard = strpos($source, 'test "$(jq \'length\' <<<"$command_ids")" -eq 1');
+    $sessionGuard = strpos($source, 'test "$prior_execution_count" -eq 0');
+    $secret = strpos($source, 'Materialize existing PREPROD root identity and pinned trust');
+
+    foreach ([$comments, $commandGuard, $sessionGuard, $secret] as $position) {
+      self::assertIsInt($position);
+    }
+
+    self::assertTrue($comments < $commandGuard);
+    self::assertTrue($commandGuard < $sessionGuard);
+    self::assertTrue($sessionGuard < $secret);
+
+    $shell = <<<'BASH'
+set -euo pipefail
+
+command_body='/agency-infra-cockpit-consumer prove main=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa infra=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb release=cccccccccccccccccccccccccccccccccccccccc session=1111111111111111 pubkey=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
+first='[{"id":101,"user":{"login":"E-merging-digital","type":"User"},"author_association":"OWNER","performed_via_github_app":null,"body":"'"$command_body"'"}]'
+duplicate='[{"id":101,"user":{"login":"E-merging-digital","type":"User"},"author_association":"OWNER","performed_via_github_app":null,"body":"'"$command_body"'"},{"id":102,"user":{"login":"E-merging-digital","type":"User"},"author_association":"OWNER","performed_via_github_app":null,"body":"'"$command_body"'"}]'
+consumed='[{"id":103,"user":{"login":"E-merging-digital","type":"User"},"author_association":"OWNER","performed_via_github_app":null,"body":"'"$command_body"'"},{"id":201,"body":"INFRA_CONSUMER_CIPHERTEXT={\"session\":\"1111111111111111\"}"}]'
+
+command_count() {
+  jq -r --arg body "$command_body" '[.[] | select(.user.login == "E-merging-digital" and .user.type == "User" and .author_association == "OWNER" and .performed_via_github_app == null and .body == $body)] | length'
+}
+prior_count() {
+  jq -r --arg session '1111111111111111' '[
+    .[]
+    | .body
+    | (
+        if startswith("INFRA_CONSUMER_CIPHERTEXT=") then sub("^INFRA_CONSUMER_CIPHERTEXT="; "")
+        elif startswith("AGENCY_CONSUMER_CLEANUP_RECEIPT=") then sub("^AGENCY_CONSUMER_CLEANUP_RECEIPT="; "")
+        else empty
+        end
+      )
+    | (try fromjson catch empty)
+    | select(.session == $session)
+  ] | length'
+}
+
+test "$(printf '%s' "$first" | command_count)" -eq 1
+test "$(printf '%s' "$first" | prior_count)" -eq 0
+test "$(printf '%s' "$duplicate" | command_count)" -eq 2
+test "$(printf '%s' "$consumed" | prior_count)" -eq 1
+BASH;
+
+    $process = new Process(['bash', '-uc', $shell]);
+    $process->run();
+
+    self::assertSame(
+      0,
+      $process->getExitCode(),
+      $process->getErrorOutput() . $process->getOutput(),
+    );
+  }
+
+  /**
+   * Proves partial receipts bind the exact current Agency run and ciphertext.
+   */
+  public function testPartialReceiptBindsCurrentAgencyRunAndCipher(): void {
+    $source = $this->source();
+
+    foreach ([
+      '--argjson agency_run "$GITHUB_RUN_ID"',
+      '--arg cipher_sha "$cipher_sha"',
+      'and .agency_run == $agency_run',
+      'and .cipher_sha256 == $cipher_sha',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
+    $shell = <<<'BASH'
+set -euo pipefail
+comments='[
+  {"body":"PROJECT_LEAD_INFRA_PARTIAL={\"session\":\"1111111111111111\",\"infra_run\":10,\"agency_run\":20,\"cipher_sha256\":\"good\",\"status\":\"PASS\"}"},
+  {"body":"PROJECT_LEAD_INFRA_PARTIAL={\"session\":\"1111111111111111\",\"infra_run\":10,\"agency_run\":30,\"cipher_sha256\":\"stale\",\"status\":\"PASS\"}"},
+  {"body":"PROJECT_LEAD_INFRA_PARTIAL={\"session\":\"1111111111111111\",\"infra_run\":10,\"agency_run\":30,\"cipher_sha256\":\"good\",\"status\":\"PASS\"}"}
+]'
+matched="$(jq -rc --arg session '1111111111111111' --argjson infra_run 10 --argjson agency_run 30 --arg cipher_sha 'good' '[
+  .[]
+  | .body
+  | select(startswith("PROJECT_LEAD_INFRA_PARTIAL="))
+  | sub("^PROJECT_LEAD_INFRA_PARTIAL="; "")
+  | (try fromjson catch empty)
+  | select(.session == $session and .infra_run == $infra_run and .agency_run == $agency_run and .cipher_sha256 == $cipher_sha and .status == "PASS")
+] | if length == 1 then .[0] else empty end' <<<"$comments")"
+test -n "$matched"
+test "$(jq -r '.agency_run' <<<"$matched")" -eq 30
+test "$(jq -r '.cipher_sha256' <<<"$matched")" = 'good'
+BASH;
+
+    $process = new Process(['bash', '-uc', $shell]);
+    $process->run();
+
+    self::assertSame(
+      0,
+      $process->getExitCode(),
+      $process->getErrorOutput() . $process->getOutput(),
+    );
+  }
+
+  /**
    * Proves split source identity before PREPROD secrets.
    *
    * Governance main and deployed release must match their exact expected SHAs.

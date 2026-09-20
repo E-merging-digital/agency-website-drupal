@@ -251,7 +251,7 @@ final class ProductionPromotionSafetyTest extends TestCase {
    */
   public function testHelperPermissionInvariantIsIndependentOfUmask(): void {
     $path = tempnam(sys_get_temp_dir(), 'agency-promotion-permissions-');
-    if ($path === false) {
+    if ($path === FALSE) {
       self::fail('Unable to create temporary permission fixture.');
     }
 

@@ -26,10 +26,130 @@ BACKUP_DIR="$(mktemp -d /root/agency-1218-apply.XXXXXX)"
 MUTATION_STARTED='NO'
 COMMITTED='NO'
 POST_RELOAD_ACTIVE_CONFIG='UNPROVEN'
+POST_RELOAD_WORKER_GENERATION='UNPROVEN'
+PRE_RELOAD_WORKER_COUNT=0
+POST_RELOAD_WORKER_COUNT=0
+OLD_GENERATION_REMAINING=-1
+PRE_RELOAD_MASTER_IDENTITY=''
+PRE_RELOAD_WORKER_IDENTITIES=''
+WORKER_TURNOVER_MAX_ATTEMPTS=20
+WORKER_TURNOVER_POLL_SECONDS=1
+CAPTURED_NGINX_MASTER_IDENTITY=''
+CAPTURED_NGINX_WORKER_COUNT=0
+CAPTURED_NGINX_WORKER_IDENTITIES=''
+WORKER_TURNOVER_CURRENT_COUNT=0
+WORKER_TURNOVER_OLD_REMAINING=-1
 
 fail() {
   printf '[cockpit-transport-apply] ERROR: %s\n' "$1" >&2
   exit 1
+}
+
+read_process_start_token() {
+  local pid="$1"
+  local stat_line stat_tail start_token
+
+  [[ "$pid" =~ ^[1-9][0-9]{0,9}$ ]] || return 1
+  [[ -r "/proc/$pid/stat" ]] || return 1
+  IFS= read -r stat_line < "/proc/$pid/stat" || return 1
+  [[ "${stat_line%% *}" == "$pid" && "$stat_line" == *") "* ]] || return 1
+
+  stat_tail="${stat_line##*) }"
+  set -- $stat_tail
+  (( $# >= 20 )) || return 1
+  start_token="${20:-}"
+  [[ "$start_token" =~ ^[0-9]{1,20}$ ]] || return 1
+  printf '%s\n' "$start_token"
+}
+
+capture_nginx_worker_generation() {
+  local -a master_pids=()
+  local -a worker_pids=()
+  local master_pid master_start pid start_token identities=''
+
+  CAPTURED_NGINX_MASTER_IDENTITY=''
+  CAPTURED_NGINX_WORKER_COUNT=0
+  CAPTURED_NGINX_WORKER_IDENTITIES=''
+
+  mapfile -t master_pids < <(
+    ps -C nginx -o pid=,args= 2>/dev/null |
+      awk '$0 ~ /nginx: master process/ {print $1}'
+  )
+  [[ ${#master_pids[@]} -eq 1 ]] || return 1
+  master_pid="${master_pids[0]}"
+  master_start="$(read_process_start_token "$master_pid")" || return 1
+
+  mapfile -t worker_pids < <(
+    ps -C nginx -o pid=,ppid=,args= 2>/dev/null |
+      awk -v master="$master_pid" '$2 == master && $0 ~ /nginx: worker process/ {print $1}'
+  )
+  (( ${#worker_pids[@]} > 0 && ${#worker_pids[@]} <= 256 )) || return 1
+
+  for pid in "${worker_pids[@]}"; do
+    start_token="$(read_process_start_token "$pid")" || return 1
+    if [[ -n "$identities" ]]; then
+      identities+=$'\n'
+    fi
+    identities+="$pid:$start_token"
+  done
+
+  CAPTURED_NGINX_MASTER_IDENTITY="$master_pid:$master_start"
+  CAPTURED_NGINX_WORKER_COUNT="${#worker_pids[@]}"
+  CAPTURED_NGINX_WORKER_IDENTITIES="$identities"
+}
+
+count_old_generation_remaining() {
+  local old_generation="$1"
+  local current_generation="$2"
+  local old_identity current_identity
+  local remaining=0
+
+  while IFS= read -r old_identity; do
+    [[ "$old_identity" =~ ^[1-9][0-9]{0,9}:[0-9]{1,20}$ ]] || return 1
+    while IFS= read -r current_identity; do
+      [[ "$current_identity" =~ ^[1-9][0-9]{0,9}:[0-9]{1,20}$ ]] || return 1
+      if [[ "$current_identity" == "$old_identity" ]]; then
+        ((remaining += 1))
+        break
+      fi
+    done <<<"$current_generation"
+  done <<<"$old_generation"
+
+  printf '%d\n' "$remaining"
+}
+
+prove_nginx_worker_generation_turnover() {
+  local expected_master_identity="$1"
+  local old_generation="$2"
+  local attempt=1
+  local remaining
+
+  [[ "$expected_master_identity" =~ ^[1-9][0-9]{0,9}:[0-9]{1,20}$ ]] || return 1
+  [[ -n "$old_generation" ]] || return 1
+  WORKER_TURNOVER_CURRENT_COUNT=0
+  WORKER_TURNOVER_OLD_REMAINING=-1
+
+  while (( attempt <= WORKER_TURNOVER_MAX_ATTEMPTS )); do
+    capture_nginx_worker_generation || return 1
+    [[ "$CAPTURED_NGINX_MASTER_IDENTITY" == "$expected_master_identity" ]] || return 1
+    (( CAPTURED_NGINX_WORKER_COUNT > 0 )) || return 1
+
+    remaining="$(count_old_generation_remaining "$old_generation" "$CAPTURED_NGINX_WORKER_IDENTITIES")" || return 1
+    [[ "$remaining" =~ ^[0-9]{1,3}$ ]] || return 1
+
+    WORKER_TURNOVER_CURRENT_COUNT="$CAPTURED_NGINX_WORKER_COUNT"
+    WORKER_TURNOVER_OLD_REMAINING="$remaining"
+    if (( remaining == 0 )); then
+      return 0
+    fi
+
+    if (( attempt < WORKER_TURNOVER_MAX_ATTEMPTS )); then
+      sleep "$WORKER_TURNOVER_POLL_SECONDS"
+    fi
+    ((attempt += 1))
+  done
+
+  return 1
 }
 
 rollback() {
@@ -42,6 +162,13 @@ rollback() {
     local nginx_restore_rc=0
     local nginx_test_rc=0
     local nginx_reload_rc=0
+    local rollback_generation_capture_rc=1
+    local rollback_generation_turnover_rc=1
+    local rollback_pre_worker_count=0
+    local rollback_post_worker_count=0
+    local rollback_old_generation_remaining=-1
+    local rollback_master_identity=''
+    local rollback_worker_identities=''
     local restored_settings_sha=''
     local restored_nginx_sha=''
     local restored_current_target=''
@@ -50,6 +177,14 @@ rollback() {
     local rollback_status='PASS'
 
     set +e
+    capture_nginx_worker_generation
+    rollback_generation_capture_rc="$?"
+    if [[ "$rollback_generation_capture_rc" -eq 0 ]]; then
+      rollback_master_identity="$CAPTURED_NGINX_MASTER_IDENTITY"
+      rollback_worker_identities="$CAPTURED_NGINX_WORKER_IDENTITIES"
+      rollback_pre_worker_count="$CAPTURED_NGINX_WORKER_COUNT"
+    fi
+
     rm -f -- "$TOKEN_FILE"
     token_remove_rc="$?"
 
@@ -81,8 +216,19 @@ rollback() {
     if [[ "$nginx_test_rc" -eq 0 ]]; then
       systemctl reload nginx >/dev/null 2>&1
       nginx_reload_rc="$?"
+      if [[ "$nginx_reload_rc" -eq 0 && "$rollback_generation_capture_rc" -eq 0 ]]; then
+        prove_nginx_worker_generation_turnover "$rollback_master_identity" "$rollback_worker_identities"
+        rollback_generation_turnover_rc="$?"
+        if [[ "$rollback_generation_turnover_rc" -eq 0 ]]; then
+          rollback_post_worker_count="$WORKER_TURNOVER_CURRENT_COUNT"
+          rollback_old_generation_remaining="$WORKER_TURNOVER_OLD_REMAINING"
+        fi
+      else
+        rollback_generation_turnover_rc=99
+      fi
     else
       nginx_reload_rc=99
+      rollback_generation_turnover_rc=99
     fi
     set -e
 
@@ -94,7 +240,10 @@ rollback() {
       || "$restored_current_release" != "$APPROVED_CURRENT_RELEASE"
       || "$token_absent" != 'YES'
       || "$nginx_test_rc" -ne 0
-      || "$nginx_reload_rc" -ne 0 ]]; then
+      || "$nginx_reload_rc" -ne 0
+      || "$rollback_generation_capture_rc" -ne 0
+      || "$rollback_generation_turnover_rc" -ne 0
+      || "$rollback_old_generation_remaining" -ne 0 ]]; then
       rollback_status='FAIL'
     fi
 
@@ -111,6 +260,11 @@ rollback() {
         --argjson nginx_restore_rc "$nginx_restore_rc" \
         --argjson nginx_test_rc "$nginx_test_rc" \
         --argjson nginx_reload_rc "$nginx_reload_rc" \
+        --argjson worker_generation_capture_rc "$rollback_generation_capture_rc" \
+        --argjson worker_generation_turnover_rc "$rollback_generation_turnover_rc" \
+        --argjson pre_reload_worker_count "$rollback_pre_worker_count" \
+        --argjson post_reload_worker_count "$rollback_post_worker_count" \
+        --argjson old_generation_remaining "$rollback_old_generation_remaining" \
         '{
           STATUS:"ROLLBACK_FAILURE",ISSUE:1218,TARGET:"PREPROD",MODE:"APPLY",
           MAIN_SHA:$main_sha,PLAN_DIGEST:$plan_digest,
@@ -123,7 +277,12 @@ rollback() {
             settings_restore_rc:$settings_restore_rc,
             nginx_restore_rc:$nginx_restore_rc,
             nginx_test_rc:$nginx_test_rc,
-            nginx_reload_rc:$nginx_reload_rc
+            nginx_reload_rc:$nginx_reload_rc,
+            worker_generation_capture_rc:$worker_generation_capture_rc,
+            worker_generation_turnover_rc:$worker_generation_turnover_rc,
+            pre_reload_worker_count:$pre_reload_worker_count,
+            post_reload_worker_count:$post_reload_worker_count,
+            old_generation_remaining:$old_generation_remaining
           },
           PROD_ACCESS:"NONE",DB_MUTATION:"NONE",SECRET_CONTENT_EXPOSED:false
         }' >&2
@@ -145,7 +304,7 @@ for file in "$APPROVED_PLAN" "$PLAN_SCRIPT" "$NGINX_TEMPLATE" "$SETTINGS_TEMPLAT
 done
 [[ -f "$SETTINGS_FILE" && ! -L "$SETTINGS_FILE" ]] || fail 'Shared settings.php is missing or unsafe.'
 [[ -f "$NGINX_SITE" && ! -L "$NGINX_SITE" ]] || fail 'Nginx site is missing or unsafe.'
-for command in base64 curl jq nginx openssl php ps python3 runuser sha256sum stat systemctl; do
+for command in base64 curl jq nginx openssl php ps python3 runuser sha256sum sleep stat systemctl; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required."
 done
 
@@ -313,7 +472,19 @@ bearer="$(openssl rand -hex 32)"
 printf '%s\n' "$bearer" | "$TOKEN_PROVISIONER" >/dev/null
 [[ "$(stat -c '%U:%G:%a' "$TOKEN_FILE")" == 'root:www-data:640' ]] || fail 'Runtime token ownership/mode mismatch.'
 
+capture_nginx_worker_generation \
+  || fail 'PRE_RELOAD_WORKER_GENERATION_UNPROVEN: unable to capture one valid Nginx worker generation.'
+PRE_RELOAD_MASTER_IDENTITY="$CAPTURED_NGINX_MASTER_IDENTITY"
+PRE_RELOAD_WORKER_IDENTITIES="$CAPTURED_NGINX_WORKER_IDENTITIES"
+PRE_RELOAD_WORKER_COUNT="$CAPTURED_NGINX_WORKER_COUNT"
+
 systemctl reload nginx
+prove_nginx_worker_generation_turnover "$PRE_RELOAD_MASTER_IDENTITY" "$PRE_RELOAD_WORKER_IDENTITIES" \
+  || fail 'POST_RELOAD_WORKER_GENERATION_UNPROVEN: old Nginx worker generation did not drain within the bounded proof.'
+POST_RELOAD_WORKER_COUNT="$WORKER_TURNOVER_CURRENT_COUNT"
+OLD_GENERATION_REMAINING="$WORKER_TURNOVER_OLD_REMAINING"
+POST_RELOAD_WORKER_GENERATION='PASS'
+
 prove_post_reload_active_config
 POST_RELOAD_ACTIVE_CONFIG='PASS'
 
@@ -428,6 +599,10 @@ if [[ "$TRANSPORT_CLASSIFICATION" != 'CONVERGED' ]]; then
     --arg plan_digest "$EXPECTED_DIGEST" \
     --arg classification "$TRANSPORT_CLASSIFICATION" \
     --arg post_reload_active "$POST_RELOAD_ACTIVE_CONFIG" \
+    --arg post_reload_workers "$POST_RELOAD_WORKER_GENERATION" \
+    --argjson pre_reload_worker_count "$PRE_RELOAD_WORKER_COUNT" \
+    --argjson post_reload_worker_count "$POST_RELOAD_WORKER_COUNT" \
+    --argjson old_generation_remaining "$OLD_GENERATION_REMAINING" \
     --arg legacy_cleanup "$LEGACY_STAGING_CLEANUP" \
     --argjson local_no_auth "$local_no_auth" \
     --argjson local_fake_bearer "$local_fake_bearer" \
@@ -438,6 +613,10 @@ if [[ "$TRANSPORT_CLASSIFICATION" != 'CONVERGED' ]]; then
     '{
       STATUS:"FAIL",ISSUE:1218,TARGET:"PREPROD",MODE:"APPLY",
       MAIN_SHA:$main_sha,PLAN_DIGEST:$plan_digest,STALE_PLAN:"PASS",
+      POST_RELOAD_WORKER_GENERATION:$post_reload_workers,
+      PRE_RELOAD_WORKER_COUNT:$pre_reload_worker_count,
+      POST_RELOAD_WORKER_COUNT:$post_reload_worker_count,
+      OLD_GENERATION_REMAINING:$old_generation_remaining,
       POST_RELOAD_ACTIVE_CONFIG:$post_reload_active,
       TRANSPORT_CLASSIFICATION:$classification,
       LEGACY_STAGING_CLEANUP:$legacy_cleanup,
@@ -472,6 +651,10 @@ jq -n \
   --arg settings_sha "$settings_candidate_sha" \
   --arg classification "$TRANSPORT_CLASSIFICATION" \
   --arg post_reload_active "$POST_RELOAD_ACTIVE_CONFIG" \
+  --arg post_reload_workers "$POST_RELOAD_WORKER_GENERATION" \
+  --argjson pre_reload_worker_count "$PRE_RELOAD_WORKER_COUNT" \
+  --argjson post_reload_worker_count "$POST_RELOAD_WORKER_COUNT" \
+  --argjson old_generation_remaining "$OLD_GENERATION_REMAINING" \
   --arg legacy_cleanup "$LEGACY_STAGING_CLEANUP" \
   --argjson local_no_auth "$local_no_auth" \
   --argjson local_fake_bearer "$local_fake_bearer" \
@@ -489,6 +672,10 @@ jq -n \
     MAIN_SHA: $main_sha,
     PLAN_DIGEST: $plan_digest,
     STALE_PLAN: "PASS",
+    POST_RELOAD_WORKER_GENERATION: $post_reload_workers,
+    PRE_RELOAD_WORKER_COUNT: $pre_reload_worker_count,
+    POST_RELOAD_WORKER_COUNT: $post_reload_worker_count,
+    OLD_GENERATION_REMAINING: $old_generation_remaining,
     POST_RELOAD_ACTIVE_CONFIG: $post_reload_active,
     NGINX_CONVERGED: true,
     SETTINGS_READER_CONVERGED: true,

@@ -278,24 +278,138 @@ final class PreprodCockpitTransport1218ApplyTest extends TestCase {
       '.candidate.candidate_sha == $candidate',
       '.machine_route_count == 1',
       'POST_RELOAD_ACTIVE_CONFIG_UNPROVEN',
+      'PRE_RELOAD_WORKER_GENERATION_UNPROVEN',
+      'POST_RELOAD_WORKER_GENERATION_UNPROVEN',
+      "POST_RELOAD_WORKER_GENERATION='PASS'",
     ] as $required) {
       self::assertStringContainsString($required, $apply);
     }
 
+    $capture = strrpos(
+      $apply,
+      'capture_nginx_worker_generation \\',
+    );
     $reload = strrpos($apply, 'systemctl reload nginx');
+    $turnover = strrpos(
+      $apply,
+      'prove_nginx_worker_generation_turnover "$PRE_RELOAD_MASTER_IDENTITY"',
+    );
     $active = strrpos(
       $apply,
       "prove_post_reload_active_config\nPOST_RELOAD_ACTIVE_CONFIG='PASS'",
     );
     $firstProbe = strpos($apply, 'local_no_auth="$(probe_local_https)"');
 
+    self::assertIsInt($capture);
     self::assertIsInt($reload);
+    self::assertIsInt($turnover);
     self::assertIsInt($active);
     self::assertIsInt($firstProbe);
-    self::assertLessThan($active, $reload);
+    self::assertLessThan($reload, $capture);
+    self::assertLessThan($turnover, $reload);
+    self::assertLessThan($active, $turnover);
     self::assertLessThan($firstProbe, $active);
 
-    self::assertStringNotContainsString('sleep ', $apply);
+    self::assertStringContainsString('WORKER_TURNOVER_MAX_ATTEMPTS=20', $apply);
+    self::assertStringContainsString('WORKER_TURNOVER_POLL_SECONDS=1', $apply);
+    self::assertSame(
+      1,
+      substr_count($apply, 'sleep "$WORKER_TURNOVER_POLL_SECONDS"'),
+      'Sleep is allowed only as bounded worker-turnover polling cadence.',
+    );
+  }
+
+  /**
+   * Proves worker identity resists PID reuse and convergence fails closed.
+   */
+  public function testWorkerGenerationIdentityIsPidReuseSafeAndFailClosed(): void {
+    $apply = $this->source(self::APPLY);
+
+    foreach ([
+      'read_process_start_token()',
+      '"/proc/$pid/stat"',
+      'stat_tail="${stat_line##*) }"',
+      'start_token="${20:-}"',
+      '^[0-9]{1,20}$',
+      'identities+="$pid:$start_token"',
+      'CAPTURED_NGINX_MASTER_IDENTITY="$master_pid:$master_start"',
+      '[[ ${#master_pids[@]} -eq 1 ]] || return 1',
+      '(( ${#worker_pids[@]} > 0 && ${#worker_pids[@]} <= 256 )) || return 1',
+      '[[ "$current_identity" == "$old_identity" ]]',
+      'WORKER_TURNOVER_OLD_REMAINING="$remaining"',
+      'if (( remaining == 0 )); then',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+
+    $oldGeneration = ['411:1000', '412:1001'];
+    $pidReusedGeneration = ['411:2000', '413:1002'];
+    $persistedGeneration = ['411:1000', '413:1002'];
+
+    self::assertSame(
+      [],
+      array_values(array_intersect($oldGeneration, $pidReusedGeneration)),
+      'Same PID with a different start token is a different worker identity.',
+    );
+    self::assertSame(
+      ['411:1000'],
+      array_values(array_intersect($oldGeneration, $persistedGeneration)),
+      'Same PID and same start token remains part of the old generation.',
+    );
+
+    foreach ([
+      'POST_RELOAD_WORKER_GENERATION:$post_reload_workers',
+      'PRE_RELOAD_WORKER_COUNT:$pre_reload_worker_count',
+      'POST_RELOAD_WORKER_COUNT:$post_reload_worker_count',
+      'OLD_GENERATION_REMAINING:$old_generation_remaining',
+    ] as $aggregate) {
+      self::assertStringContainsString($aggregate, $apply);
+    }
+
+    self::assertStringNotContainsString(
+      'PRE_RELOAD_WORKER_IDENTITIES:$',
+      $apply,
+      'Raw worker identities must not enter the public receipt.',
+    );
+  }
+
+  /**
+   * Proves rollback drains the failed generation and preserves exit 97.
+   */
+  public function testRollbackRequiresWorkerGenerationTurnover(): void {
+    $apply = $this->source(self::APPLY);
+    $rollbackStart = strpos($apply, 'rollback() {');
+    $rollbackEnd = strpos($apply, 'trap rollback EXIT', $rollbackStart);
+
+    self::assertIsInt($rollbackStart);
+    self::assertIsInt($rollbackEnd);
+    $rollback = substr($apply, $rollbackStart, $rollbackEnd - $rollbackStart);
+
+    $capture = strpos($rollback, 'capture_nginx_worker_generation');
+    $restore = strpos($rollback, 'cp -a -- "$BACKUP_DIR/settings.php"');
+    $reload = strpos($rollback, 'systemctl reload nginx');
+    $turnover = strpos($rollback, 'prove_nginx_worker_generation_turnover');
+
+    self::assertIsInt($capture);
+    self::assertIsInt($restore);
+    self::assertIsInt($reload);
+    self::assertIsInt($turnover);
+    self::assertLessThan($restore, $capture);
+    self::assertLessThan($reload, $restore);
+    self::assertLessThan($turnover, $reload);
+
+    foreach ([
+      'rollback_generation_capture_rc',
+      'rollback_generation_turnover_rc',
+      'rollback_old_generation_remaining',
+      '|| "$rollback_generation_capture_rc" -ne 0',
+      '|| "$rollback_generation_turnover_rc" -ne 0',
+      '|| "$rollback_old_generation_remaining" -ne 0',
+      'STATUS:"ROLLBACK_FAILURE"',
+      'exit 97',
+    ] as $required) {
+      self::assertStringContainsString($required, $rollback);
+    }
   }
 
   /**

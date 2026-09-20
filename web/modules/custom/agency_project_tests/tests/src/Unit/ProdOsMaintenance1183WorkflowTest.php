@@ -18,6 +18,7 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
   private const WORKFLOW = '.github/workflows/prod-os-maintenance-1183.yml';
   private const PLAN = 'scripts/production-maintenance-1183/remote-plan.sh';
   private const APPLY = 'scripts/production-maintenance-1183/remote-apply.sh';
+  private const WINDOW_GATE = 'scripts/production-maintenance-1183/check-maintenance-window.py';
   private const POST = 'scripts/production-maintenance-1183/remote-post-reboot.sh';
 
   /**
@@ -147,6 +148,100 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
     self::assertLessThan($maintenanceOn, $dbBackup);
     self::assertLessThan($maintenanceOn, $configBackup);
     self::assertLessThan($reboot, $maintenanceOn);
+  }
+
+  /**
+   * The approved maintenance window is deterministic and half-open.
+   */
+  public function testMaintenanceWindowGateIsDeterministicAndHalfOpen(): void {
+    $script = dirname(DRUPAL_ROOT) . '/' . self::WINDOW_GATE;
+    self::assertFileExists($script);
+
+    $window = '2026-09-20T22:35+02:00/2026-09-20T23:35+02:00';
+    $start = (new \DateTimeImmutable('2026-09-20T22:35+02:00'))->getTimestamp();
+    $end = (new \DateTimeImmutable('2026-09-20T23:35+02:00'))->getTimestamp();
+    $cases = [
+      'before_start' => [$window, $start - 1, 1, 'TOO_EARLY'],
+      'exact_start' => [$window, $start, 0, 'PASS'],
+      'inside_window' => [$window, $start + 1, 0, 'PASS'],
+      'exact_end' => [$window, $end, 1, 'TOO_LATE'],
+      'after_end' => [$window, $end + 1, 1, 'TOO_LATE'],
+      'malformed_start' => ['not-a-time/2026-09-20T23:35+02:00', $start, 1, 'INVALID'],
+      'malformed_end' => ['2026-09-20T22:35+02:00/not-a-time', $start, 1, 'INVALID'],
+      'missing_offset' => ['2026-09-20T22:35/2026-09-20T23:35+02:00', $start, 1, 'INVALID'],
+      'invalid_date' => ['2026-02-30T22:35+02:00/2026-09-20T23:35+02:00', $start, 1, 'INVALID'],
+      'invalid_time' => ['2026-09-20T25:35+02:00/2026-09-20T26:35+02:00', $start, 1, 'INVALID'],
+      'start_equals_end' => ['2026-09-20T22:35+02:00/2026-09-20T22:35+02:00', $start, 1, 'INVALID'],
+      'start_after_end' => ['2026-09-20T23:35+02:00/2026-09-20T22:35+02:00', $start, 1, 'INVALID'],
+    ];
+
+    foreach ($cases as $label => [$candidate, $now, $expectedStatus, $expectedOutput]) {
+      $output = [];
+      $status = 99;
+      exec(
+        'python3 ' . escapeshellarg($script)
+        . ' ' . escapeshellarg($candidate)
+        . ' --now-epoch ' . escapeshellarg((string) $now)
+        . ' 2>&1',
+        $output,
+        $status,
+      );
+      self::assertSame($expectedStatus, $status, $label . ': ' . implode("\n", $output));
+      self::assertSame($expectedOutput, implode("\n", $output), $label);
+    }
+  }
+
+  /**
+   * The maintenance-window gate rejects before every real mutation boundary.
+   */
+  public function testMaintenanceWindowGatePrecedesMutationAndHasBoundedReceipt(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $apply = $this->source(self::APPLY);
+
+    self::assertStringContainsString(
+      'python3 "$WINDOW_GATE_HELPER" "$WINDOW_REF"',
+      $apply,
+    );
+    self::assertStringNotContainsString('--now-epoch', $apply);
+    self::assertStringContainsString(self::WINDOW_GATE, $workflow);
+
+    $gate = strpos($apply, 'python3 "$WINDOW_GATE_HELPER" "$WINDOW_REF"');
+    $stalePlan = strpos($apply, '"$PLAN_SCRIPT" "$main_sha"');
+    $dbBackup = strpos($apply, 'vendor/bin/drush sql:dump --gzip');
+    $configBackup = strpos($apply, 'sudo -n -- "$SYSTEM_CONFIG_BACKUP_HELPER"');
+    $maintenanceOn = strpos($apply, 'state:set system.maintenance_mode 1');
+    $reboot = strpos($apply, 'sudo -n -- "$REBOOT_HELPER"');
+    foreach ([$gate, $stalePlan, $dbBackup, $configBackup, $maintenanceOn, $reboot] as $position) {
+      self::assertNotFalse($position);
+    }
+    self::assertLessThan($stalePlan, $gate);
+    self::assertLessThan($dbBackup, $gate);
+    self::assertLessThan($configBackup, $gate);
+    self::assertLessThan($maintenanceOn, $gate);
+    self::assertLessThan($reboot, $gate);
+
+    foreach ([
+      'FAILURE_PHASE:"PRE_MUTATION"',
+      'FAILURE_STAGE:"MAINTENANCE_WINDOW_CHECK"',
+      'MAINTENANCE_WINDOW_CHECK:"FAIL"',
+      'MAINTENANCE_WINDOW_REASON:$reason',
+      'REAL_PACKAGE_MUTATION:"NONE"',
+      'REBOOT_HELPER_INVOKED:"NO"',
+      'REBOOT_BOUNDARY_CROSSED:"NO"',
+      'DRUPAL_MAINTENANCE_MODE_CHANGE:"NONE"',
+    ] as $evidence) {
+      self::assertStringContainsString($evidence, $apply);
+    }
+    foreach ([
+      '.FAILURE_PHASE == "PRE_MUTATION"',
+      '.FAILURE_STAGE == "MAINTENANCE_WINDOW_CHECK"',
+      '.MAINTENANCE_WINDOW_CHECK == "FAIL"',
+      '.MAINTENANCE_WINDOW_REASON == "TOO_EARLY"',
+      '.MAINTENANCE_WINDOW_REASON == "TOO_LATE"',
+      '.MAINTENANCE_WINDOW_REASON == "INVALID"',
+    ] as $contract) {
+      self::assertStringContainsString($contract, $workflow);
+    }
   }
 
   /**

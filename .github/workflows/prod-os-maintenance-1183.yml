@@ -350,6 +350,7 @@ jobs:
             "umask 077; rm -rf -- '$remote_dir'; install -d -m 700 '$remote_dir'"
           scp "${scp_args[@]}" \
             scripts/production-maintenance-1183/remote-plan.sh \
+            scripts/production-maintenance-1183/check-maintenance-window.py \
             scripts/production-maintenance-1183/remote-apply.sh \
             scripts/production-maintenance-1183/remote-post-reboot.sh \
             "$plan" \
@@ -367,6 +368,41 @@ jobs:
           test -s "$pre"
           pre_status="$(jq -er '.STATUS' "$pre")"
           if [[ "$pre_status" == 'FAIL' ]]; then
+            if jq -e \
+              --arg main "$MAIN_SHA" \
+              --arg digest "$PLAN_DIGEST" \
+              --arg snapshot "$SNAPSHOT_REF" \
+              --arg window "$WINDOW_REF" '
+              .schema_version == 1
+              and .STATUS == "FAIL"
+              and .ISSUE == 1183
+              and .TARGET == "PROD"
+              and .MODE == "APPLY"
+              and .MAIN_SHA == $main
+              and .PLAN_DIGEST == $digest
+              and .STALE_PLAN == "NOT_CHECKED"
+              and .PROVIDER_SNAPSHOT_REF == $snapshot
+              and .MAINTENANCE_WINDOW_REF == $window
+              and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+              and .FAILURE_PHASE == "PRE_MUTATION"
+              and .FAILURE_STAGE == "MAINTENANCE_WINDOW_CHECK"
+              and .MAINTENANCE_WINDOW_CHECK == "FAIL"
+              and (.MAINTENANCE_WINDOW_REASON == "TOO_EARLY"
+                or .MAINTENANCE_WINDOW_REASON == "TOO_LATE"
+                or .MAINTENANCE_WINDOW_REASON == "INVALID")
+              and .REBOOT_HELPER_INVOKED == "NO"
+              and .REBOOT_BOUNDARY_CROSSED == "NO"
+              and .PACKAGE_APPLY == "NONE"
+              and .REAL_PACKAGE_MUTATION == "NONE"
+              and .DATABASE_BACKUP == "NONE"
+              and .SYSTEM_CONFIG_BACKUP == "NONE"
+              and .DRUPAL_MAINTENANCE_MODE_CHANGE == "NONE"
+              and .SNAPSHOT_RESTORE == "NONE"' "$pre" >/dev/null; then
+              test "$apply_rc" -ne 0
+              printf 'Remote APPLY rejected before mutation by maintenance window: %s\n' \
+                "$(jq -r '.MAINTENANCE_WINDOW_REASON' "$pre")" >&2
+              exit 1
+            fi
             jq -e \
               --arg main "$MAIN_SHA" \
               --arg digest "$PLAN_DIGEST" \

@@ -31,7 +31,7 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
     self::assertIsArray($on);
     self::assertSame([['cron' => '12,42 * * * *']], $on['schedule'] ?? NULL);
     self::assertArrayHasKey('workflow_dispatch', $on);
-    self::assertSame([], $workflow['permissions'] ?? NULL);
+    self::assertSame(['contents' => 'read'], $workflow['permissions'] ?? NULL);
 
     $probe = $workflow['jobs']['probe'] ?? NULL;
     self::assertIsArray($probe);
@@ -176,8 +176,29 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
     }
 
     $steps = $workflow['jobs']['probe']['steps'] ?? [];
-    self::assertCount(2, $steps);
-    $upload = $steps[1] ?? NULL;
+    self::assertCount(4, $steps);
+
+    $checkout = $steps[0] ?? NULL;
+    self::assertIsArray($checkout);
+    self::assertSame('Checkout bounded publication helper', $checkout['name'] ?? NULL);
+    self::assertSame('actions/checkout@v5', $checkout['uses'] ?? NULL);
+    self::assertFalse($checkout['with']['clean'] ?? TRUE);
+    self::assertSame(1, $checkout['with']['fetch-depth'] ?? NULL);
+    self::assertFalse($checkout['with']['persist-credentials'] ?? TRUE);
+
+    $validate = $steps[1] ?? NULL;
+    self::assertIsArray($validate);
+    self::assertSame('Validate bounded runner health', $validate['name'] ?? NULL);
+
+    $publish = $steps[2] ?? NULL;
+    self::assertIsArray($publish);
+    self::assertSame('Publish bounded runner-local health handoff', $publish['name'] ?? NULL);
+    self::assertStringContainsString(
+      'publish-agency-runner-health-handoff.sh',
+      (string) ($publish['run'] ?? ''),
+    );
+
+    $upload = $steps[3] ?? NULL;
     self::assertIsArray($upload);
     self::assertSame('Upload normalized runner health receipt', $upload['name'] ?? NULL);
     self::assertSame('actions/upload-artifact@v4', $upload['uses'] ?? NULL);

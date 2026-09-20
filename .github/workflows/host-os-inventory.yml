@@ -395,7 +395,7 @@ jobs:
           Bounded machine-readable evidence: \`host-os-inventory-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\`.
           EOF
           )"
-          gh issue comment 1101 --body "$body"
+          gh issue comment 1101 --repo "$GITHUB_REPOSITORY" --body "$body"
 
       - name: Require all three surfaces complete
         shell: bash

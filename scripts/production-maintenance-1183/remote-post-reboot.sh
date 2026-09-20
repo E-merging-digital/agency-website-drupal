@@ -9,6 +9,7 @@ TARGET_KERNEL='6.8.0-139-generic'
 CURRENT_ROOT='/var/www/agency/current'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLAN_SCRIPT="$SCRIPT_DIR/remote-plan.sh"
+MAX_PACKET_OBSERVER="$SCRIPT_DIR/max-allowed-packet-observer.sh"
 RUNTIME_ERROR_HELPER='/usr/local/sbin/agency-prod-runtime-error-counts'
 
 [[ "$(id -u)" -ne 0 ]]
@@ -16,6 +17,9 @@ RUNTIME_ERROR_HELPER='/usr/local/sbin/agency-prod-runtime-error-counts'
 [[ "$START_EPOCH" =~ ^[1-9][0-9]{9,}$ ]]
 [[ -f "$APPROVED_PLAN" && ! -L "$APPROVED_PLAN" ]]
 [[ -x "$PLAN_SCRIPT" ]]
+[[ -f "$MAX_PACKET_OBSERVER" && ! -L "$MAX_PACKET_OBSERVER" ]]
+# shellcheck source=max-allowed-packet-observer.sh
+source "$MAX_PACKET_OBSERVER"
 
 jq -e --arg kernel "$TARGET_KERNEL" '
   .STATUS == "PASS"
@@ -35,7 +39,9 @@ jq -e --arg kernel "$TARGET_KERNEL" '
   and .REAL_PACKAGE_MUTATION == "NONE"
   and .PHP_BRANCH == "8.4"
   and .MARIADB_BRANCH == "11.8"
-  and .MAX_ALLOWED_PACKET == "67108864"' "$APPROVED_PLAN" >/dev/null
+  and .MAX_ALLOWED_PACKET == "67108864"
+  and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API"
+    or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB")' "$APPROVED_PLAN" >/dev/null
 
 version_id="$(awk -F= '$1 == "VERSION_ID" {gsub(/^"|"$/, "", $2); print $2; exit}' /etc/os-release)"
 [[ "$version_id" == '24.04' ]]
@@ -55,8 +61,20 @@ failed_units="$(systemctl --failed --no-legend --plain 2>/dev/null | awk 'NF {pr
 [[ -z "$failed_units" ]]
 
 (cd "$CURRENT_ROOT" && vendor/bin/drush status >/dev/null)
-max_packet="$(cd "$CURRENT_ROOT" && vendor/bin/drush sql:query 'SELECT @@global.max_allowed_packet;' 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
-[[ "$max_packet" == '67108864' ]]
+max_packet_observation="$(observe_max_allowed_packet "$CURRENT_ROOT")"
+mapfile -t max_packet_lines <<<"$max_packet_observation"
+[[ "${#max_packet_lines[@]}" -eq 2 ]]
+[[ "${max_packet_lines[0]}" =~ ^MAX_ALLOWED_PACKET=([0-9]+|UNKNOWN)$ ]]
+max_allowed_packet="${BASH_REMATCH[1]}"
+[[ "${max_packet_lines[1]}" =~ ^MAX_ALLOWED_PACKET_SOURCE=(DRUPAL_DB_API|SUDO_MARIADB|UNKNOWN)$ ]]
+max_allowed_packet_source="${BASH_REMATCH[1]}"
+if [[ "$max_allowed_packet" == 'UNKNOWN' ]]; then
+  [[ "$max_allowed_packet_source" == 'UNKNOWN' ]]
+else
+  [[ "$max_allowed_packet_source" != 'UNKNOWN' ]]
+fi
+[[ "$max_allowed_packet" == '67108864' ]]
+unset max_packet_observation max_packet_lines
 maintenance_before="$(cd "$CURRENT_ROOT" && vendor/bin/drush state:get system.maintenance_mode | tail -n 1 | tr -d '[:space:]')"
 [[ "$maintenance_before" == '1' ]]
 
@@ -102,6 +120,8 @@ jq -e --arg kernel "$TARGET_KERNEL" '
   and .REAL_PACKAGE_MUTATION == "NONE"
   and .MAINTENANCE_MODE == "0"
   and .MAX_ALLOWED_PACKET == "67108864"
+  and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API"
+    or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB")
   and .NGINX_SERVICE == "ACTIVE"
   and .PHP_FPM_SERVICE == "ACTIVE"
   and .MARIADB_SERVICE == "ACTIVE"
@@ -155,6 +175,7 @@ result = {
     'CONFIG_STATUS': post['CONFIG_STATUS'],
     'CONFIG_AUTO_CORRECTION': 'NONE',
     'MAX_ALLOWED_PACKET': post['MAX_ALLOWED_PACKET'],
+    'MAX_ALLOWED_PACKET_SOURCE': post['MAX_ALLOWED_PACKET_SOURCE'],
     'PUBLIC_HOME': post['PUBLIC_HOME'],
     'CONTACT_FORM_SURFACE': post['CONTACT_FORM_SURFACE'],
     'RECENT_NGINX_PHP_ERRORS': post['RECENT_NGINX_PHP_ERRORS'],

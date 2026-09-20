@@ -15,6 +15,8 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
 
   private const PLAN = 'scripts/production-maintenance-1183/remote-plan.sh';
   private const APPLY = 'scripts/production-maintenance-1183/remote-apply.sh';
+  private const MAX_PACKET_OBSERVER =
+    'scripts/production-maintenance-1183/max-allowed-packet-observer.sh';
   private const ERROR_HELPER = 'scripts/production-maintenance-1183/runtime-error-counts/agency-prod-runtime-error-counts';
   private const WORKFLOW = '.github/workflows/prod-os-maintenance-1183.yml';
 
@@ -156,13 +158,18 @@ final class ProdOsMaintenance1194DecidabilityTest extends TestCase {
    * Source contract prefers Drupal DB API and bounds the sudo fallback.
    */
   public function testMaxAllowedPacketReadPathsAreReadOnlyAndBounded(): void {
-    $source = $this->source(self::PLAN);
-    self::assertStringContainsString("vendor/bin/drush php:eval", $source);
-    self::assertStringContainsString('\\Drupal::database()->query', $source);
-    self::assertStringContainsString("max_allowed_packet_source='DRUPAL_DB_API'", $source);
-    self::assertStringContainsString("sudo -n mariadb -NBe 'SELECT @@global.max_allowed_packet;'", $source);
-    self::assertStringContainsString("max_allowed_packet_source='SUDO_MARIADB'", $source);
-    self::assertStringNotContainsString('/etc/sudoers', $source);
+    $plan = $this->source(self::PLAN);
+    $observer = $this->source(self::MAX_PACKET_OBSERVER);
+    self::assertStringContainsString('observe_max_allowed_packet', $plan);
+    self::assertStringContainsString("vendor/bin/drush php:eval", $observer);
+    self::assertStringContainsString('\\Drupal::database()->query', $observer);
+    self::assertStringContainsString("max_allowed_packet_source='DRUPAL_DB_API'", $observer);
+    self::assertStringContainsString(
+      "sudo -n mariadb -NBe \\",
+      $observer,
+    );
+    self::assertStringContainsString("max_allowed_packet_source='SUDO_MARIADB'", $observer);
+    self::assertStringNotContainsString('/etc/sudoers', $plan . $observer);
   }
 
   /**

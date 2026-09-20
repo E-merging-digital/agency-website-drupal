@@ -164,7 +164,7 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
-   * Issue #990 accepts the exact 100644 #983 helper before activation.
+   * Issue #990 accepts the non-executable #983 helper before activation.
    */
   public function testPromotionConvergesConfigSyncFromExactCandidateBeforeActivation(): void {
     $promotion = $this->script('scripts/production-promotion/promote-candidate.sh');
@@ -172,11 +172,7 @@ final class ProductionPromotionSafetyTest extends TestCase {
     $root = dirname(DRUPAL_ROOT);
     $helperPath = $root . '/scripts/production-settings/converge-config-sync-directory.sh';
 
-    self::assertFileExists($helperPath);
-    self::assertTrue(is_file($helperPath));
-    self::assertTrue(is_readable($helperPath));
-    self::assertFalse(is_executable($helperPath));
-    self::assertSame(0644, ((int) fileperms($helperPath)) & 0777);
+    $this->assertReadableNonExecutableFile($helperPath);
 
     foreach ([
       'SETTINGS_FILE="$SHARED_DIR/settings/settings.php"',
@@ -251,6 +247,34 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
+   * Helper permissions accept group write while rejecting execute bits.
+   */
+  public function testHelperPermissionInvariantIsIndependentOfUmask(): void {
+    $path = tempnam(sys_get_temp_dir(), 'agency-promotion-permissions-');
+    if ($path === false) {
+      self::fail('Unable to create temporary permission fixture.');
+    }
+
+    try {
+      self::assertTrue(chmod($path, 0664));
+      clearstatcache(TRUE, $path);
+      self::assertSame(0664, ((int) fileperms($path)) & 0777);
+      $this->assertReadableNonExecutableFile($path);
+
+      self::assertTrue(chmod($path, 0764));
+      clearstatcache(TRUE, $path);
+      self::assertNotSame(0, ((int) fileperms($path)) & 0111);
+      self::assertTrue(is_executable($path));
+    }
+    finally {
+      clearstatcache(TRUE, $path);
+      if (file_exists($path)) {
+        unlink($path);
+      }
+    }
+  }
+
+  /**
    * Detached worker shares the same server lock as the emergency lane.
    */
   public function testPromotionWorkerIsDetachedLockedAndIdentityBound(): void {
@@ -305,6 +329,17 @@ final class ProductionPromotionSafetyTest extends TestCase {
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
+  }
+
+  /**
+   * Asserts that a helper is readable and has no execute bits.
+   */
+  private function assertReadableNonExecutableFile(string $path): void {
+    self::assertFileExists($path);
+    self::assertTrue(is_file($path));
+    self::assertTrue(is_readable($path));
+    self::assertFalse(is_executable($path));
+    self::assertSame(0, ((int) fileperms($path)) & 0111);
   }
 
   /**

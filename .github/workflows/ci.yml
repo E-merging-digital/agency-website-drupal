@@ -27,6 +27,9 @@ jobs:
           bash -n scripts/runner/finalize-governed-content-transition-proof.sh
           bash -n scripts/runner/prove-governed-content-cli-facade.sh
           bash -n scripts/runner/run-ai-playwright-evaluation.sh
+          bash -n scripts/runner/publish-agency-runner-health-handoff.sh
+          bash -n scripts/runner/test-publish-agency-runner-health-handoff.sh
+          bash scripts/runner/test-publish-agency-runner-health-handoff.sh
 
           PROOF_PROFILE=case-studies-440 bash -c '
             set -euo pipefail

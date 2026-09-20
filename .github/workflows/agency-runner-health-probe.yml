@@ -8,7 +8,8 @@ on:
     - cron: '12,42 * * * *'
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: agency-runner-health-probe
@@ -27,6 +28,13 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      - name: Checkout bounded publication helper
+        uses: actions/checkout@v5
+        with:
+          clean: false
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Validate bounded runner health
         shell: bash
         env:
@@ -220,6 +228,12 @@ jobs:
             echo "- external health in receipt: unavailable / non-authoritative compatibility envelope"
             echo "- known Docker privilege transition: tracked separately by infrastructure #11"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish bounded runner-local health handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/runner/publish-agency-runner-health-handoff.sh "$RUNNER_TEMP/agency-runner-health-state/agency-runner-health.json"
 
       - name: Upload normalized runner health receipt
         uses: actions/upload-artifact@v4

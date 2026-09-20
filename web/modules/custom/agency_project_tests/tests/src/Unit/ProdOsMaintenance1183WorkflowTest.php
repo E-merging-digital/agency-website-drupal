@@ -151,8 +151,7 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
   }
 
   /**
-   * The approved maintenance window is deterministic, offset-aware and
- * half-open.
+   * The approved maintenance window is deterministic and half-open.
    */
   public function testMaintenanceWindowGateIsDeterministicAndHalfOpen(): void {
     $script = dirname(DRUPAL_ROOT) . '/' . self::WINDOW_GATE;

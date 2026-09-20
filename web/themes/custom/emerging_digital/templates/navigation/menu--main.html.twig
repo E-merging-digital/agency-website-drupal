@@ -25,7 +25,7 @@
       {% set link_attributes = item.url.getOption('attributes')|default({}) %}
       {% set link_classes = (link_attributes.class|default([]))|merge(['main-navigation__link']) %}
       <li{{ item.attributes.addClass(item_classes) }}>
-        {{ link(item.title, item.url, link_attributes|merge({'class': link_classes})) }}
+        {{ link(item.title, item.url, link_attributes|merge({class: link_classes})) }}
         {% if item.below %}
           {{ menus.menu_links(item.below, attributes, menu_level + 1) }}
         {% endif %}

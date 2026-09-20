@@ -1,8 +1,8 @@
 {{ include('emerging_digital:cta', {
-  attributes: attributes,
+  attributes,
   heading: paragraph.field_heading.value|default(''),
   heading_level: 'h2',
   intro: paragraph.field_text.value ? content.field_text : null,
   primary_action: content.field_link[0] is defined ? content.field_link : null,
   secondary_action: content.field_secondary_link[0] is defined ? content.field_secondary_link : null,
-}, with_context = false) }}
+}, with_context: false) }}

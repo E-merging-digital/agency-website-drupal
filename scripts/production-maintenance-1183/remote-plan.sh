@@ -15,6 +15,12 @@ DRUPAL_ROOT='/var/www/agency/current'
 RUNTIME_ERROR_HELPER='/usr/local/sbin/agency-prod-runtime-error-counts'
 REBOOT_HELPER='/usr/local/sbin/agency-prod-os-maintenance-1183-reboot'
 
+if ! declare -F observe_max_allowed_packet >/dev/null 2>&1; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=max-allowed-packet-observer.sh
+  source "$SCRIPT_DIR/max-allowed-packet-observer.sh"
+fi
+
 [[ "$MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
 [[ "$PLAN_ID" =~ ^plan-1183-[A-Za-z0-9._-]{8,80}$ ]]
 [[ "$EXPECTED_USER" =~ ^[A-Za-z0-9._-]+$ ]]
@@ -89,23 +95,26 @@ if [[ -x "$DRUPAL_ROOT/vendor/bin/drush" ]] && (cd "$DRUPAL_ROOT" && vendor/bin/
     config_status='DIFFERENT'
     [[ "$config_count" -eq 0 ]] && config_status='CLEAN'
   fi
-  if max_packet_raw="$(cd "$DRUPAL_ROOT" && vendor/bin/drush php:eval 'echo (string) \Drupal::database()->query("SELECT @@global.max_allowed_packet")->fetchField();' 2>/dev/null | tail -n 1 | tr -d '[:space:]')"; then
-    if [[ "$max_packet_raw" =~ ^[0-9]+$ ]]; then
-      max_allowed_packet="$max_packet_raw"
-      max_allowed_packet_source='DRUPAL_DB_API'
+fi
+
+max_packet_observation="$(observe_max_allowed_packet "$DRUPAL_ROOT")"
+mapfile -t max_packet_lines <<<"$max_packet_observation"
+if [[ "${#max_packet_lines[@]}" -eq 2 \
+  && "${max_packet_lines[0]}" =~ ^MAX_ALLOWED_PACKET=([0-9]+|UNKNOWN)$ ]]; then
+  observed_max_allowed_packet="${BASH_REMATCH[1]}"
+  if [[ "${max_packet_lines[1]}" =~ ^MAX_ALLOWED_PACKET_SOURCE=(DRUPAL_DB_API|SUDO_MARIADB|UNKNOWN)$ ]]; then
+    observed_max_allowed_packet_source="${BASH_REMATCH[1]}"
+    if [[ ( "$observed_max_allowed_packet" == 'UNKNOWN' \
+        && "$observed_max_allowed_packet_source" == 'UNKNOWN' ) \
+      || ( "$observed_max_allowed_packet" =~ ^[0-9]+$ \
+        && "$observed_max_allowed_packet_source" != 'UNKNOWN' ) ]]; then
+      max_allowed_packet="$observed_max_allowed_packet"
+      max_allowed_packet_source="$observed_max_allowed_packet_source"
     fi
   fi
-  unset max_packet_raw
 fi
-if [[ "$max_allowed_packet_source" == 'UNKNOWN' ]]; then
-  if max_packet_raw="$(sudo -n mariadb -NBe 'SELECT @@global.max_allowed_packet;' 2>/dev/null | tail -n 1 | tr -d '[:space:]')"; then
-    if [[ "$max_packet_raw" =~ ^[0-9]+$ ]]; then
-      max_allowed_packet="$max_packet_raw"
-      max_allowed_packet_source='SUDO_MARIADB'
-    fi
-  fi
-  unset max_packet_raw
-fi
+unset max_packet_observation max_packet_lines
+unset observed_max_allowed_packet observed_max_allowed_packet_source
 
 recent_errors='UNKNOWN'
 recent_error_read_capability='FAIL'

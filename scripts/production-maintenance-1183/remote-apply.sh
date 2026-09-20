@@ -16,6 +16,7 @@ SYSTEM_CONFIG_BACKUP_HELPER='/usr/local/sbin/agency-prod-system-config-backup'
 REBOOT_HELPER='/usr/local/sbin/agency-prod-os-maintenance-1183-reboot'
 PLAN_SCRIPT="$SCRIPT_DIR/remote-plan.sh"
 WINDOW_GATE_HELPER="$SCRIPT_DIR/check-maintenance-window.py"
+MAX_PACKET_OBSERVER="$SCRIPT_DIR/max-allowed-packet-observer.sh"
 
 [[ "$(id -u)" -ne 0 ]]
 [[ "$(id -un)" == "$EXPECTED_USER" ]]
@@ -25,6 +26,9 @@ WINDOW_GATE_HELPER="$SCRIPT_DIR/check-maintenance-window.py"
 [[ "$WINDOW_REF" =~ ^[A-Za-z0-9._:@/+:-]{8,160}$ ]]
 [[ -x "$PLAN_SCRIPT" ]]
 [[ -f "$WINDOW_GATE_HELPER" && ! -L "$WINDOW_GATE_HELPER" ]]
+[[ -f "$MAX_PACKET_OBSERVER" && ! -L "$MAX_PACKET_OBSERVER" ]]
+# shellcheck source=max-allowed-packet-observer.sh
+source "$MAX_PACKET_OBSERVER"
 for command_name in jq python3 sudo systemctl; do
   command -v "$command_name" >/dev/null
 done
@@ -58,6 +62,8 @@ jq -e \
   and .PHP_BRANCH == "8.4"
   and .MARIADB_BRANCH == "11.8"
   and .MAX_ALLOWED_PACKET == "67108864"
+  and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API"
+    or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB")
   and .NGINX_SERVICE == "ACTIVE"
   and .PHP_FPM_SERVICE == "ACTIVE"
   and .MARIADB_SERVICE == "ACTIVE"
@@ -146,6 +152,8 @@ trap cleanup EXIT
 maintenance_entered='NO'
 reboot_boundary_crossed='NO'
 current_stage='PRE_MAINTENANCE'
+max_allowed_packet='UNKNOWN'
+max_allowed_packet_source='UNKNOWN'
 
 # BEGIN #1228 PRE-REBOOT FAILURE RECOVERY
 drush_current() {
@@ -168,7 +176,9 @@ emit_pre_reboot_failure_receipt() {
     --arg original_exit_status "$original_exit_status" \
     --arg recovery_attempted "$maintenance_recovery_attempted" \
     --arg recovery_result "$maintenance_recovery_result" \
-    --arg maintenance_final "$maintenance_mode_final" '
+    --arg maintenance_final "$maintenance_mode_final" \
+    --arg max_allowed_packet "${max_allowed_packet:-UNKNOWN}" \
+    --arg max_allowed_packet_source "${max_allowed_packet_source:-UNKNOWN}" '
     {
       schema_version:1,
       STATUS:"FAIL",
@@ -200,6 +210,8 @@ emit_pre_reboot_failure_receipt() {
       MAINTENANCE_RECOVERY_ATTEMPTED:$recovery_attempted,
       MAINTENANCE_RECOVERY_RESULT:$recovery_result,
       MAINTENANCE_MODE_FINAL:$maintenance_final,
+      MAX_ALLOWED_PACKET:$max_allowed_packet,
+      MAX_ALLOWED_PACKET_SOURCE:$max_allowed_packet_source,
       ORIGINAL_EXIT_STATUS:($original_exit_status|tonumber),
       DRUPAL_DEPLOY:"NONE",
       DRUPAL_CONFIG_IMPORT:"NONE",
@@ -323,11 +335,23 @@ current_stage='PHP_FPM_ACTIVE_CHECK'
 current_stage='MARIADB_ACTIVE_CHECK'
 /usr/bin/systemctl is-active --quiet mariadb
 current_stage='MAX_ALLOWED_PACKET_CHECK'
-# Do not inherit ERR into command substitution: the parent trap owns recovery.
+# Keep command-substitution failure owned by the parent ERR trap.
 set +E
-max_packet="$(drush_current sql:query 'SELECT @@global.max_allowed_packet;' 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+max_packet_observation="$(observe_max_allowed_packet "$CURRENT_ROOT")"
 set -E
-[[ "$max_packet" == '67108864' ]]
+mapfile -t max_packet_lines <<<"$max_packet_observation"
+[[ "${#max_packet_lines[@]}" -eq 2 ]]
+[[ "${max_packet_lines[0]}" =~ ^MAX_ALLOWED_PACKET=([0-9]+|UNKNOWN)$ ]]
+max_allowed_packet="${BASH_REMATCH[1]}"
+[[ "${max_packet_lines[1]}" =~ ^MAX_ALLOWED_PACKET_SOURCE=(DRUPAL_DB_API|SUDO_MARIADB|UNKNOWN)$ ]]
+max_allowed_packet_source="${BASH_REMATCH[1]}"
+if [[ "$max_allowed_packet" == 'UNKNOWN' ]]; then
+  [[ "$max_allowed_packet_source" == 'UNKNOWN' ]]
+else
+  [[ "$max_allowed_packet_source" != 'UNKNOWN' ]]
+fi
+[[ "$max_allowed_packet" == '67108864' ]]
+unset max_packet_observation max_packet_lines
 current_stage='RUNNING_KERNEL_INVARIANT'
 # Keep command-substitution failure owned by the parent ERR trap.
 set +E

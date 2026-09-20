@@ -19,6 +19,8 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
   private const PLAN = 'scripts/production-maintenance-1183/remote-plan.sh';
   private const APPLY = 'scripts/production-maintenance-1183/remote-apply.sh';
   private const WINDOW_GATE = 'scripts/production-maintenance-1183/check-maintenance-window.py';
+  private const MAX_PACKET_OBSERVER =
+    'scripts/production-maintenance-1183/max-allowed-packet-observer.sh';
   private const POST = 'scripts/production-maintenance-1183/remote-post-reboot.sh';
 
   /**
@@ -245,6 +247,144 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
   }
 
   /**
+   * One bounded primitive observes max_allowed_packet in every #1183 phase.
+   */
+  public function testMaxAllowedPacketUsesCanonicalObserver(): void {
+    $observer = $this->source(self::MAX_PACKET_OBSERVER);
+    $plan = $this->source(self::PLAN);
+    $apply = $this->source(self::APPLY);
+    $post = $this->source(self::POST);
+    $workflow = $this->source(self::WORKFLOW);
+
+    foreach ([$plan, $apply, $post] as $consumer) {
+      self::assertStringContainsString('observe_max_allowed_packet', $consumer);
+    }
+    self::assertStringContainsString(self::MAX_PACKET_OBSERVER, $workflow);
+    self::assertStringContainsString('vendor/bin/drush php:eval', $observer);
+    self::assertStringContainsString('sudo -n mariadb -NBe', $observer);
+    self::assertStringContainsString('DRUPAL_DB_API', $observer);
+    self::assertStringContainsString('SUDO_MARIADB', $observer);
+    self::assertStringNotContainsString(
+      "drush sql:query 'SELECT @@global.max_allowed_packet;'",
+      $apply . "\n" . $post,
+    );
+    foreach ([$apply, $post] as $strictConsumer) {
+      self::assertStringContainsString(
+        '[[ "$max_allowed_packet" == \'67108864\' ]]',
+        $strictConsumer,
+      );
+    }
+    foreach ([
+      'MAX_ALLOWED_PACKET:$max_allowed_packet',
+      'MAX_ALLOWED_PACKET_SOURCE:$max_allowed_packet_source',
+    ] as $evidence) {
+      self::assertStringContainsString($evidence, $apply);
+    }
+    self::assertStringContainsString(
+      "'MAX_ALLOWED_PACKET_SOURCE': post['MAX_ALLOWED_PACKET_SOURCE']",
+      $post,
+    );
+  }
+
+  /**
+   * Canonical observation preserves wrong values and fails closed on unknown.
+   */
+  public function testMaxAllowedPacketObserverDeterministicContract(): void {
+    $observer = dirname(DRUPAL_ROOT) . '/' . self::MAX_PACKET_OBSERVER;
+    self::assertFileExists($observer);
+
+    $directory = sys_get_temp_dir()
+      . '/agency-1183-max-packet-' . bin2hex(random_bytes(6));
+    $drupalRoot = $directory . '/drupal';
+    self::assertTrue(mkdir($drupalRoot . '/vendor/bin', 0700, TRUE));
+    try {
+      file_put_contents($drupalRoot . '/vendor/bin/drush', <<<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  status)
+    exit "${FAKE_DRUSH_STATUS_RC:-0}"
+    ;;
+  php:eval)
+    rc="${FAKE_DRUSH_QUERY_RC:-0}"
+    [[ "$rc" -eq 0 ]] || exit "$rc"
+    printf '%s\n' "${FAKE_DRUSH_PACKET:-67108864}"
+    ;;
+  *)
+    exit 97
+    ;;
+esac
+SH
+      );
+      chmod($drupalRoot . '/vendor/bin/drush', 0700);
+      file_put_contents($directory . '/sudo', <<<'SH'
+#!/usr/bin/env bash
+[[ "${1:-}" == '-n' && "${2:-}" == 'mariadb' && "${3:-}" == '-NBe' ]] || exit 98
+[[ "${4:-}" == 'SELECT @@global.max_allowed_packet;' ]] || exit 98
+rc="${FAKE_SUDO_RC:-0}"
+[[ "$rc" -eq 0 ]] || exit "$rc"
+printf '%s\n' "${FAKE_SUDO_PACKET:-67108864}"
+SH
+      );
+      chmod($directory . '/sudo', 0700);
+
+      $cases = [
+        'canonical' => [
+          ['FAKE_DRUSH_PACKET' => '67108864', 'FAKE_SUDO_PACKET' => '16777216'],
+          ['67108864', 'DRUPAL_DB_API'],
+        ],
+        'wrong_numeric_no_fallback' => [
+          ['FAKE_DRUSH_PACKET' => '16777216', 'FAKE_SUDO_PACKET' => '67108864'],
+          ['16777216', 'DRUPAL_DB_API'],
+        ],
+        'bounded_fallback' => [
+          ['FAKE_DRUSH_QUERY_RC' => '1', 'FAKE_SUDO_PACKET' => '67108864'],
+          ['67108864', 'SUDO_MARIADB'],
+        ],
+        'unknown' => [
+          ['FAKE_DRUSH_QUERY_RC' => '1', 'FAKE_SUDO_RC' => '1'],
+          ['UNKNOWN', 'UNKNOWN'],
+        ],
+      ];
+
+      foreach ($cases as $label => [$environment, $expected]) {
+        $environment['PATH'] = $directory . ':/usr/bin:/bin';
+        $assignments = [];
+        foreach ($environment as $name => $value) {
+          $assignments[] = $name . '=' . escapeshellarg($value);
+        }
+        $command = 'env ' . implode(' ', $assignments)
+          . ' bash -c '
+          . escapeshellarg('source "$1"; observe_max_allowed_packet "$2"')
+          . ' _ ' . escapeshellarg($observer)
+          . ' ' . escapeshellarg($drupalRoot);
+        $output = [];
+        $status = 99;
+        exec($command . ' 2>&1', $output, $status);
+        self::assertSame(0, $status, $label . ': ' . implode("\n", $output));
+        self::assertCount(2, $output, $label);
+        self::assertSame(
+          'MAX_ALLOWED_PACKET=' . $expected[0],
+          $output[0],
+          $label,
+        );
+        self::assertSame(
+          'MAX_ALLOWED_PACKET_SOURCE=' . $expected[1],
+          $output[1],
+          $label,
+        );
+      }
+    }
+    finally {
+      @unlink($directory . '/sudo');
+      @unlink($drupalRoot . '/vendor/bin/drush');
+      @rmdir($drupalRoot . '/vendor/bin');
+      @rmdir($drupalRoot . '/vendor');
+      @rmdir($drupalRoot);
+      @rmdir($directory);
+    }
+  }
+
+  /**
    * Maintenance mode is restored on pre-reboot failure or post-reboot success.
    */
   public function testMaintenanceLifecycleAndPostRebootGate(): void {
@@ -316,6 +456,7 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
         'PUBLIC_HEALTH' => 'PASS',
         'CONFIG_STATUS' => 'DIFFERENT',
         'MAX_ALLOWED_PACKET' => '67108864',
+        'MAX_ALLOWED_PACKET_SOURCE' => 'DRUPAL_DB_API',
         'PUBLIC_HOME' => 'PASS',
         'CONTACT_FORM_SURFACE' => 'PASS',
         'RECENT_NGINX_PHP_ERRORS' => 'NONE_MATERIAL',
@@ -399,6 +540,10 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
       ['PHP_BRANCH' => '8.5'],
       ['MARIADB_BRANCH' => '12.0'],
       ['MAX_ALLOWED_PACKET' => '16777216'],
+      [
+        'MAX_ALLOWED_PACKET' => 'UNKNOWN',
+        'MAX_ALLOWED_PACKET_SOURCE' => 'UNKNOWN',
+      ],
       ['DRUPAL_HEALTH' => 'FAIL'],
       ['PUBLIC_HOME' => 'FAIL'],
       ['CONTACT_FORM_SURFACE' => 'FAIL'],

@@ -145,9 +145,11 @@ jobs:
             -o ConnectTimeout=15
           )
           set +e
-          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
-            "bash -s -- '$MAIN_SHA' '$PLAN_ID' '$SERVER_USER'" \
-            < scripts/production-maintenance-1183/remote-plan.sh \
+          cat \
+            scripts/production-maintenance-1183/max-allowed-packet-observer.sh \
+            scripts/production-maintenance-1183/remote-plan.sh \
+            | ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+              "bash -s -- '$MAIN_SHA' '$PLAN_ID' '$SERVER_USER'" \
             > artifacts/prod-os-maintenance-1183/plan.json
           plan_rc=$?
           set -e
@@ -173,6 +175,8 @@ jobs:
               and .PRIVILEGED_RUNTIME_ERROR_HELPER == "AVAILABLE"
               and .PRIVILEGED_REBOOT_HELPER == "AVAILABLE"
               and .MAX_ALLOWED_PACKET == "67108864"
+              and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API"
+                or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB")
               and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
               and .SAFETY_GATE == "PASS"' "$plan" >/dev/null
             echo "digest=$(jq -r '.PLAN_DIGEST' "$plan")" >> "$GITHUB_OUTPUT"
@@ -194,6 +198,9 @@ jobs:
               and .CANNOT_BE_APPROVED == "YES"
               and .REAL_PROD_MUTATION == "NONE"
               and ((.MAX_ALLOWED_PACKET | type) == "string")
+              and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API"
+                or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB"
+                or .MAX_ALLOWED_PACKET_SOURCE == "UNKNOWN")
               and (((.NGINX_RECENT_ERROR_COUNT | type) == "number") or .NGINX_RECENT_ERROR_COUNT == "UNKNOWN")
               and (((.PHP_FPM_RECENT_ERROR_COUNT | type) == "number") or .PHP_FPM_RECENT_ERROR_COUNT == "UNKNOWN")' "$plan" >/dev/null
             exit "$plan_rc"
@@ -297,6 +304,8 @@ jobs:
             and .PHP_BRANCH == "8.4"
             and .MARIADB_BRANCH == "11.8"
             and .MAX_ALLOWED_PACKET == "67108864"
+            and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API"
+              or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB")
             and .SAFETY_GATE == "PASS"' "$plan" >/dev/null
 
       - name: Materialize pinned PROD identity and trust
@@ -351,6 +360,7 @@ jobs:
           scp "${scp_args[@]}" \
             scripts/production-maintenance-1183/remote-plan.sh \
             scripts/production-maintenance-1183/check-maintenance-window.py \
+            scripts/production-maintenance-1183/max-allowed-packet-observer.sh \
             scripts/production-maintenance-1183/remote-apply.sh \
             scripts/production-maintenance-1183/remote-post-reboot.sh \
             "$plan" \
@@ -429,6 +439,15 @@ jobs:
               and .MAINTENANCE_RECOVERY_ATTEMPTED == "YES"
               and (.MAINTENANCE_RECOVERY_RESULT == "PASS" or .MAINTENANCE_RECOVERY_RESULT == "FAIL")
               and (.MAINTENANCE_MODE_FINAL == "OFF" or .MAINTENANCE_MODE_FINAL == "UNKNOWN")
+              and ((.MAX_ALLOWED_PACKET == "UNKNOWN")
+                or (.MAX_ALLOWED_PACKET | test("^[0-9]+$")))
+              and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API"
+                or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB"
+                or .MAX_ALLOWED_PACKET_SOURCE == "UNKNOWN")
+              and ((.MAX_ALLOWED_PACKET == "UNKNOWN"
+                  and .MAX_ALLOWED_PACKET_SOURCE == "UNKNOWN")
+                or ((.MAX_ALLOWED_PACKET | test("^[0-9]+$"))
+                  and .MAX_ALLOWED_PACKET_SOURCE != "UNKNOWN"))
               and (.ORIGINAL_EXIT_STATUS | type == "number" and . > 0)
               and .SNAPSHOT_RESTORE == "NONE"' "$pre" >/dev/null
             test "$apply_rc" -ne 0
@@ -515,6 +534,8 @@ jobs:
             and .MAINTENANCE_MODE == "OFF"
             and .KEEP_PREVIOUS_KERNEL == "YES"
             and .MAX_ALLOWED_PACKET == "67108864"
+            and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API"
+              or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB")
             and .PUBLIC_HOME == "PASS"
             and .CONTACT_FORM_SURFACE == "PASS"
             and .RECENT_NGINX_PHP_ERRORS == "NONE_MATERIAL"

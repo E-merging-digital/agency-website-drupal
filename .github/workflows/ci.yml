@@ -133,25 +133,12 @@ jobs:
       - name: Test dependency maintenance observability
         run: php scripts/dependency-maintenance/tests/test.php
 
-      - name: Run quality scripts defined in composer.json
+      - name: Run required canonical quality controls
         run: |
-          scripts="$(composer run-script --list)"
-
-          if echo "$scripts" | grep -qE '^\s*lint:phpcs\b'; then
-            composer lint:phpcs
-          fi
-
-          if echo "$scripts" | grep -qE '^\s*lint:phpstan\b'; then
-            composer lint:phpstan
-          fi
-
-          if echo "$scripts" | grep -qE '^\s*lint:drupal-check\b'; then
-            composer lint:drupal-check
-          fi
-
-          if echo "$scripts" | grep -qE '^\s*lint:twig\b'; then
-            composer lint:twig
-          fi
+          composer lint:phpcs
+          composer lint:phpstan
+          composer lint:drupal-check
+          composer lint:twig
 
       - name: Start local web server for BrowserTestBase
         run: php -S 127.0.0.1:8888 -t web >/tmp/php-server.log 2>&1 &

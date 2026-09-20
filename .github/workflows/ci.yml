@@ -149,6 +149,10 @@ jobs:
             composer lint:drupal-check
           fi
 
+          if echo "$scripts" | grep -qE '^\s*lint:twig\b'; then
+            composer lint:twig
+          fi
+
       - name: Start local web server for BrowserTestBase
         run: php -S 127.0.0.1:8888 -t web >/tmp/php-server.log 2>&1 &
 

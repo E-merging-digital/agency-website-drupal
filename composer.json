@@ -89,7 +89,8 @@
         "mglaman/drupal-check": "1.5.0",
         "mglaman/phpstan-drupal": "^2.1",
         "phpstan/phpstan": "^2.2",
-        "phpstan/phpstan-deprecation-rules": "^2.0"
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "vincentlanglet/twig-cs-fixer": "^4.0"
     },
     "conflict": {
         "drupal/drupal": "*"
@@ -181,10 +182,12 @@
         "lint:phpcs": "vendor/bin/phpcs --standard=phpcs.xml",
         "lint:phpstan": "vendor/bin/phpstan analyse -c phpstan.neon",
         "lint:drupal-check": "php -d error_reporting=8191 vendor/bin/drupal-check web/modules/custom web/themes/custom web/profiles/custom",
+        "lint:twig": "vendor/bin/twig-cs-fixer lint -c .twig-cs-fixer.php --no-cache web/themes/custom web/modules/custom web/profiles/custom",
         "ci": [
             "@lint:phpcs",
             "@lint:phpstan",
             "@lint:drupal-check",
+            "@lint:twig",
             "@test:content-sync-queue-bootstrap",
             "@test:homepage-smoke"
         ],

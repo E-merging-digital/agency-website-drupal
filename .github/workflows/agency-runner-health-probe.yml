@@ -33,6 +33,7 @@ jobs:
           EXPECTED_RUNNER_NAME: agency-browser-runner-01
           EXPECTED_HOSTNAME: preflight-runner-01
           EXPECTED_USER: agency-runner
+          EXPECTED_RUNNER_SERVICE: actions.runner.E-merging-digital-agency-website-drupal.agency-browser-runner-01.service
           DISK_WARNING_PCT: '85'
           DISK_CRITICAL_PCT: '92'
           MEMORY_WARNING_AVAILABLE_PCT: '10'
@@ -52,11 +53,24 @@ jobs:
           [[ "$(hostname)" == "$EXPECTED_HOSTNAME" ]] || fail "unexpected hostname: $(hostname)"
           [[ "$(id -un)" == "$EXPECTED_USER" ]] || fail "unexpected execution identity: $(id -un)"
 
+          command -v systemctl >/dev/null || fail "systemctl CLI missing"
+          service_id="$(systemctl show "$EXPECTED_RUNNER_SERVICE" --property=Id --value)"
+          service_state="$(systemctl show "$EXPECTED_RUNNER_SERVICE" --property=ActiveState --value)"
+          service_substate="$(systemctl show "$EXPECTED_RUNNER_SERVICE" --property=SubState --value)"
+          [[ "$service_id" == "$EXPECTED_RUNNER_SERVICE" ]] || fail "unexpected runner service identity: ${service_id:-missing}"
+          [[ "$service_state" =~ ^[a-z0-9_-]{1,64}$ ]] || fail "runner service state is unavailable or unbounded"
+          [[ "$service_substate" =~ ^[a-z0-9_-]{1,64}$ ]] || fail "runner service substate is unavailable or unbounded"
+          [[ "$service_state" == 'active' && "$service_substate" == 'running' ]] || fail "runner service is unhealthy: ${service_state}/${service_substate}"
+
+          runner_status='healthy'
+
           disk_used_pct="$(df -P / | awk 'NR == 2 {gsub("%", "", $5); print $5}')"
           [[ "$disk_used_pct" =~ ^[0-9]+$ ]] || fail "unable to read root filesystem usage"
+          (( disk_used_pct >= 0 && disk_used_pct <= 100 )) || fail "root filesystem usage is outside 0..100"
           if (( disk_used_pct >= DISK_CRITICAL_PCT )); then
             fail "root filesystem is critical: ${disk_used_pct}% used"
           elif (( disk_used_pct >= DISK_WARNING_PCT )); then
+            runner_status='warning'
             warn "root filesystem warning: ${disk_used_pct}% used"
           fi
 
@@ -64,15 +78,19 @@ jobs:
             awk '/^MemTotal:/ {total=$2} /^MemAvailable:/ {available=$2} END {print total, available}' /proc/meminfo
           )
           [[ "${mem_total_kib:-}" =~ ^[0-9]+$ && "${mem_available_kib:-}" =~ ^[0-9]+$ ]] || fail "unable to read memory availability"
+          (( mem_total_kib > 0 )) || fail "memory total is invalid"
           memory_available_pct=$((100 * mem_available_kib / mem_total_kib))
+          (( memory_available_pct >= 0 && memory_available_pct <= 100 )) || fail "memory availability is outside 0..100"
           if (( memory_available_pct <= MEMORY_CRITICAL_AVAILABLE_PCT )); then
             fail "available memory is critical: ${memory_available_pct}%"
           elif (( memory_available_pct <= MEMORY_WARNING_AVAILABLE_PCT )); then
+            runner_status='warning'
             warn "available memory warning: ${memory_available_pct}%"
           fi
 
           command -v docker >/dev/null || fail "docker CLI missing"
           command -v ddev >/dev/null || fail "DDEV CLI missing"
+          command -v jq >/dev/null || fail "jq CLI missing"
           docker_root="$(docker info --format '{{.DockerRootDir}}')"
           docker_driver="$(docker info --format '{{.Driver}}')"
           [[ -n "$docker_root" && -n "$docker_driver" ]] || fail "Docker daemon health unavailable"
@@ -81,12 +99,110 @@ jobs:
           printf 'Docker storage summary:\n%s\n' "$docker_storage"
           ddev version >/dev/null
 
+          receipt_dir="$RUNNER_TEMP/agency-runner-health-state"
+          receipt_file="$receipt_dir/agency-runner-health.json"
+          rm -rf -- "$receipt_dir"
+          install -d -m 700 "$receipt_dir"
+
+          stamp="$(date -u '+%Y%m%dT%H%M%SZ')"
+          [[ "$stamp" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || fail "unable to generate bounded UTC receipt timestamp"
+          observed_at="${stamp:0:4}-${stamp:4:2}-${stamp:6:2}T${stamp:9:2}:${stamp:11:2}:${stamp:13:2}Z"
+          receipt_id="agency-health-$stamp"
+
+          # Compatibility-only envelope. Infrastructure refreshes PROD /health/live
+          # and /health/ready directly when it consumes this runner receipt.
+          jq -n \
+            --arg receipt_id "$receipt_id" \
+            --arg observed_at "$observed_at" \
+            --arg runner_status "$runner_status" \
+            --arg runner_name "$RUNNER_NAME" \
+            --arg runner_host "$(hostname)" \
+            --arg service_state "$service_state" \
+            --arg service_substate "$service_substate" \
+            --argjson disk_used_pct "$disk_used_pct" \
+            --argjson memory_available_pct "$memory_available_pct" \
+            '{
+              schema_version: 1,
+              project_id: "agency-website",
+              receipt_id: $receipt_id,
+              observed_at: $observed_at,
+              external: {
+                source: "compatibility-placeholder-not-authoritative",
+                status: "unavailable",
+                live: {
+                  http_status: 0,
+                  body_status: "unavailable",
+                  duration_seconds: 0
+                },
+                ready: {
+                  http_status: 0,
+                  body_status: "unavailable",
+                  duration_seconds: 0
+                }
+              },
+              runner: {
+                source: "same-run-self-hosted-probe",
+                status: $runner_status,
+                name: $runner_name,
+                host: $runner_host,
+                service_state: $service_state,
+                service_substate: $service_substate,
+                disk_used_pct: $disk_used_pct,
+                memory_available_pct: $memory_available_pct
+              }
+            }' > "$receipt_file"
+          chmod 600 "$receipt_file"
+
+          [[ -f "$receipt_file" && ! -L "$receipt_file" && -s "$receipt_file" ]] || fail "runner health receipt is missing or unsafe"
+          receipt_bytes="$(wc -c < "$receipt_file")"
+          [[ "$receipt_bytes" =~ ^[0-9]+$ ]] || fail "unable to determine receipt size"
+          (( receipt_bytes <= 8192 )) || fail "runner health receipt exceeds bounded size"
+
+          jq -e \
+            --arg expected_receipt "$receipt_id" \
+            --arg expected_observed "$observed_at" \
+            --arg expected_status "$runner_status" \
+            --arg expected_state "$service_state" \
+            --arg expected_substate "$service_substate" \
+            '
+              .schema_version == 1
+              and .project_id == "agency-website"
+              and .receipt_id == $expected_receipt
+              and (.receipt_id | test("^agency-health-[0-9]{8}T[0-9]{6}Z$"))
+              and .observed_at == $expected_observed
+              and (.observed_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+              and .external.source == "compatibility-placeholder-not-authoritative"
+              and .external.status == "unavailable"
+              and .external.live == {http_status: 0, body_status: "unavailable", duration_seconds: 0}
+              and .external.ready == {http_status: 0, body_status: "unavailable", duration_seconds: 0}
+              and .runner.source == "same-run-self-hosted-probe"
+              and .runner.status == $expected_status
+              and (.runner.status == "healthy" or .runner.status == "warning")
+              and .runner.name == "agency-browser-runner-01"
+              and .runner.host == "preflight-runner-01"
+              and .runner.service_state == $expected_state
+              and .runner.service_substate == $expected_substate
+              and (.runner.disk_used_pct | type == "number")
+              and (.runner.disk_used_pct >= 0 and .runner.disk_used_pct <= 100)
+              and (.runner.memory_available_pct | type == "number")
+              and (.runner.memory_available_pct >= 0 and .runner.memory_available_pct <= 100)
+            ' "$receipt_file" >/dev/null || fail "runner health receipt contract validation failed"
+
+          if grep -Eiq \
+            '("?(token|secret|password|credential|private[_ -]?key|ssh[_ -]?key)"?[[:space:]]*:|github_pat_|gh[pousr]_[A-Za-z0-9]|-----BEGIN [A-Z ]*PRIVATE KEY-----)' \
+            "$receipt_file"; then
+            fail "runner health receipt failed secret scan"
+          fi
+
           {
             echo "## Agency runner health"
             echo
             echo "- runner: $RUNNER_NAME"
             echo "- host: $(hostname)"
             echo "- identity: $(id -un)"
+            echo "- runner service: $service_id"
+            echo "- service state: ${service_state}/${service_substate}"
+            echo "- runner status: $runner_status"
             echo "- root filesystem: ${disk_used_pct}% used"
             echo "- memory available: ${memory_available_pct}%"
             echo "- Docker root: $docker_root"
@@ -100,5 +216,14 @@ jobs:
               echo "| $type | $total | $active | $size | $reclaimable |"
             done <<< "$docker_storage"
             echo
+            echo "- normalized receipt artifact: agency-runner-health-state"
+            echo "- external health in receipt: unavailable / non-authoritative compatibility envelope"
             echo "- known Docker privilege transition: tracked separately by infrastructure #11"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload normalized runner health receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-runner-health-state
+          path: ${{ runner.temp }}/agency-runner-health-state/agency-runner-health.json
+          if-no-files-found: error

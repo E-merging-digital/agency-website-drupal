@@ -1,0 +1,24 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "Tracked SSH public-key blobs used by trust validation fixtures"
+  condition = "AND"
+  regexTarget = "line"
+  paths = [
+    '''^\.github/workflows/(?:preprod-ssh-trust-validation|prod-ssh-trust-validation|prod-known-hosts-repair|prod-known-hosts-hash-safe-repair|preprod-ssh-trust-provision|prod-pinned-trust-readonly-rebaseline-validation)\.yml$'''
+  ]
+  regexes = ['''key_blob''']
+
+  [[rules.allowlists]]
+  description = "Synthetic MariaDB credentials used only by capability-validation fixtures"
+  condition = "AND"
+  regexTarget = "line"
+  paths = [
+    '''^\.github/workflows/preprod-(?:874-activation|915-fixed-refresh)-capability-validation\.yml$''',
+    '''^scripts/preproduction-refresh/activation-capability/test-mariadb-state-identity\.py$'''
+  ]
+  regexes = ['''(?:MARIADB_ROOT_PASSWORD|AGENCY_874_TEST_DB_PASSWORD|MARIADB_PASSWORD)''']

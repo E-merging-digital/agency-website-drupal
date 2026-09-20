@@ -57,6 +57,54 @@ Une absence de familiarité avec un outil existant, l'absence de recherche, une 
 
 Si l'audit n'est pas fait, la tâche n'est pas prête pour une implémentation custom substantielle.
 
+## Gate DEPENDENCY_ADMISSION
+
+`USE EXISTING FIRST` reste le gate primaire. Une nouvelle dépendance substantielle
+n'est admissible qu'après preuve de nécessité et insuffisance raisonnable des
+building blocks déjà disponibles.
+
+Avant d'ajouter une dépendance Composer, npm ou autre substantielle, le ticket
+ou la PR doit établir proportionnellement :
+
+```text
+DEPENDENCY_ADMISSION
+NEED = besoin précis
+EXISTING_BUILDING_BLOCKS_INSUFFICIENT = YES + raison
+PACKAGE_EXISTS = VERIFIED
+CANONICAL_SOURCE = VERIFIED
+EXPECTED_VENDOR_AND_PACKAGE_IDENTITY = VERIFIED
+MAINTENANCE = ACCEPTABLE
+COMPATIBILITY = ACCEPTABLE
+SECURITY_ADVISORIES = REVIEWED
+TRANSITIVE_DEPENDENCIES = REVIEWED_AS_MATERIAL
+PERMISSIONS_CAPABILITIES = REVIEWED_AS_MATERIAL
+UPGRADE_REVERSIBILITY_COST = ACCEPTABLE
+DECISION = ADMIT | REJECT | DEFER
+```
+
+La provenance part de la source canonique pertinente et confirme que le
+vendor/package correspond bien au projet attendu. Un nom suggéré par une IA,
+un package qui se résout correctement ou sa simple présence sur
+Packagist/npm/Drupal.org ne suffisent pas à établir cette confiance.
+
+```text
+AI SUGGESTED PACKAGE NAME != PACKAGE IDENTITY PROVEN
+DEPENDENCY RESOLVES SUCCESSFULLY != DEPENDENCY APPROVED
+PRESENT ON PACKAGIST / NPM / DRUPAL.ORG != AUTOMATICALLY TRUSTED
+NEW DEPENDENCY => PROVEN NECESSITY FIRST
+```
+
+La revue reste proportionnée : une correction locale, un renommage de variable
+ou une petite modification sans nouvelle dépendance ne nécessite pas d'audit
+lourd. Pour une dépendance substantielle, seuls les facteurs matériels à la
+décision sont documentés : maintenance, compatibilité, avis de sécurité,
+transitives, permissions/capacités et coût d'upgrade ou de réversibilité.
+
+Ce gate complète `EXISTING_CAPABILITY_AUDIT` ; il ne crée pas de politique
+parallèle et ne remplace pas la hiérarchie : `USE PLATFORM BEFORE REBUILDING
+PLATFORM` -> `DISCOVER BEFORE MUTATE` -> `USE EXISTING FIRST` -> `COMPOSE BEFORE
+CREATE` -> `MINIMAL CUSTOM LAST`.
+
 ## Budget de simplicité
 
 Invariant :

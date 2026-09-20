@@ -47,6 +47,9 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - `USE EXISTING FIRST` ne signifie pas ajouter une dependance a chaque besoin :
   une primitive systeme simple et eprouvee peut etre preferable a un module
   contrib supplementaire.
+- Avant d'admettre une nouvelle dependance substantielle, appliquer le gate
+  `DEPENDENCY_ADMISSION` defini dans
+  `docs/decisions/ADR-003-use-existing-first.md`.
 - Toute issue/PR introduisant une surface custom substantielle doit rendre
   explicite son `EXISTING_CAPABILITY_AUDIT` : Drupal core, Drush/API, DDEV,
   contrib stable/security-covered, outils systeme et primitives Agency deja

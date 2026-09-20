@@ -265,8 +265,7 @@ final class ProductionPromotionSafetyTest extends TestCase {
       clearstatcache(TRUE, $path);
       self::assertNotSame(0, ((int) fileperms($path)) & 0111);
       self::assertTrue(is_executable($path));
-    }
-    finally {
+    } finally {
       clearstatcache(TRUE, $path);
       if (file_exists($path)) {
         unlink($path);

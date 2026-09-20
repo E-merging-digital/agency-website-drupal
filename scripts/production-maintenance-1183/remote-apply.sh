@@ -15,6 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYSTEM_CONFIG_BACKUP_HELPER='/usr/local/sbin/agency-prod-system-config-backup'
 REBOOT_HELPER='/usr/local/sbin/agency-prod-os-maintenance-1183-reboot'
 PLAN_SCRIPT="$SCRIPT_DIR/remote-plan.sh"
+WINDOW_GATE_HELPER="$SCRIPT_DIR/check-maintenance-window.py"
 
 [[ "$(id -u)" -ne 0 ]]
 [[ "$(id -un)" == "$EXPECTED_USER" ]]
@@ -23,6 +24,7 @@ PLAN_SCRIPT="$SCRIPT_DIR/remote-plan.sh"
 [[ "$SNAPSHOT_REF" =~ ^[A-Za-z0-9._:@/-]{8,160}$ ]]
 [[ "$WINDOW_REF" =~ ^[A-Za-z0-9._:@/+:-]{8,160}$ ]]
 [[ -x "$PLAN_SCRIPT" ]]
+[[ -f "$WINDOW_GATE_HELPER" && ! -L "$WINDOW_GATE_HELPER" ]]
 for command_name in jq python3 sudo systemctl; do
   command -v "$command_name" >/dev/null
 done
@@ -83,6 +85,60 @@ jq -e \
 
 main_sha="$(jq -r '.MAIN_SHA' "$APPROVED_PLAN")"
 plan_id="$(jq -r '.PLAN_ID' "$APPROVED_PLAN")"
+
+# Enforce the Project Lead maintenance window before stale-plan validation or
+# any backup, maintenance-mode change, package mutation, or reboot boundary.
+set +e
+window_check="$(python3 "$WINDOW_GATE_HELPER" "$WINDOW_REF" 2>/dev/null)"
+window_check_rc=$?
+set -e
+if [[ "$window_check_rc" -ne 0 || "$window_check" != 'PASS' ]]; then
+  case "$window_check" in
+    TOO_EARLY|TOO_LATE|INVALID)
+      window_reason="$window_check"
+      ;;
+    *)
+      window_reason='INVALID'
+      ;;
+  esac
+  jq -n \
+    --arg main_sha "$main_sha" \
+    --arg plan_id "$plan_id" \
+    --arg plan_digest "$EXPECTED_DIGEST" \
+    --arg snapshot_ref "$SNAPSHOT_REF" \
+    --arg window_ref "$WINDOW_REF" \
+    --arg reason "$window_reason" '
+    {
+      schema_version:1,
+      STATUS:"FAIL",
+      ISSUE:1183,
+      TARGET:"PROD",
+      MODE:"APPLY",
+      MAINTENANCE_ACTION:"REBOOT_ONLY",
+      MAIN_SHA:$main_sha,
+      PLAN_ID:$plan_id,
+      PLAN_DIGEST:$plan_digest,
+      STALE_PLAN:"NOT_CHECKED",
+      PROVIDER_SNAPSHOT_REF:$snapshot_ref,
+      PROVIDER_SNAPSHOT_AUTOMATED_VERIFICATION:"UNAVAILABLE",
+      MAINTENANCE_WINDOW_REF:$window_ref,
+      MAINTENANCE_WINDOW_APPROVAL:"PROJECT_LEAD_EXTERNAL",
+      MAINTENANCE_WINDOW_CHECK:"FAIL",
+      MAINTENANCE_WINDOW_REASON:$reason,
+      FAILURE_PHASE:"PRE_MUTATION",
+      FAILURE_STAGE:"MAINTENANCE_WINDOW_CHECK",
+      REBOOT_HELPER_INVOKED:"NO",
+      REBOOT_BOUNDARY_CROSSED:"NO",
+      PACKAGE_APPLY:"NONE",
+      REAL_PACKAGE_MUTATION:"NONE",
+      DATABASE_BACKUP:"NONE",
+      SYSTEM_CONFIG_BACKUP:"NONE",
+      DRUPAL_MAINTENANCE_MODE_CHANGE:"NONE",
+      SNAPSHOT_RESTORE:"NONE"
+    }'
+  exit 78
+fi
+
 work_root="$(mktemp -d)"
 cleanup() { rm -rf -- "$work_root"; }
 trap cleanup EXIT

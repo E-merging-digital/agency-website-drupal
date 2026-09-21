@@ -559,9 +559,52 @@ jobs:
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
 
+  prod-os-maintenance-1183-apply-claim:
+    name: Atomically claim #1183 one-shot PROD OS maintenance APPLY
+    needs: classify
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.action == 'created'
+          && github.event.issue.pull_request == null
+          && github.event.issue.number == 1183
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.performed_via_github_app == null
+          && startsWith(github.event.comment.body, '/agency-prod-os-maintenance-1183 apply ') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      issues: read
+    outputs:
+      authority_comment_id: ${{ steps.claim.outputs.authority_comment_id }}
+      claim_ref: ${{ steps.claim.outputs.claim_ref }}
+      claim_identity: ${{ steps.claim.outputs.claim_identity }}
+    steps:
+      - name: Checkout exact event main for one-shot claim helper
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - id: claim
+        name: Atomically consume matching Project Lead APPLY authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/production-maintenance-1183/claim-one-shot-apply.sh \
+            "$COMMENT_ID" "$COMMENT_BODY" "$WORKFLOW_SHA" \
+            >> "$GITHUB_OUTPUT"
+
   prod-os-maintenance-1183-apply:
     name: Route #1183 governed PROD OS maintenance APPLY
-    needs: classify
+    needs:
+      - classify
+      - prod-os-maintenance-1183-apply-claim
     if: >-
       ${{ github.event_name == 'issue_comment'
           && github.event.action == 'created'

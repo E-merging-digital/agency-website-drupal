@@ -305,6 +305,9 @@ case "$1" in
     exit "${FAKE_DRUSH_STATUS_RC:-0}"
     ;;
   php:eval)
+    expected='echo (string) \Drupal::database()->query('
+    expected+='"SELECT @@global.max_allowed_packet")->fetchField();'
+    [[ "${2:-}" == "$expected" ]] || exit 96
     rc="${FAKE_DRUSH_QUERY_RC:-0}"
     [[ "$rc" -eq 0 ]] || exit "$rc"
     printf '%s\n' "${FAKE_DRUSH_PACKET:-67108864}"

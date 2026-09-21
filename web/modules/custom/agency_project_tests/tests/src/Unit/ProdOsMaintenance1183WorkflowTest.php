@@ -22,6 +22,10 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
   private const MAX_PACKET_OBSERVER =
     'scripts/production-maintenance-1183/max-allowed-packet-observer.sh';
   private const POST = 'scripts/production-maintenance-1183/remote-post-reboot.sh';
+  private const APPLY_CLAIM =
+    'scripts/production-maintenance-1183/claim-one-shot-apply.sh';
+  private const APPLY_CLAIM_TEST =
+    'scripts/production-maintenance-1183/tests/test_one_shot_apply_claim.py';
 
   /**
    * Direct OWNER commands are issue-bound; app-authored commands are rejected.
@@ -30,8 +34,10 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
     $dispatcher = $this->parsed(self::DISPATCHER);
     $jobs = $dispatcher['jobs'] ?? [];
     $plan = $jobs['prod-os-maintenance-1183-plan'] ?? NULL;
+    $claim = $jobs['prod-os-maintenance-1183-apply-claim'] ?? NULL;
     $apply = $jobs['prod-os-maintenance-1183-apply'] ?? NULL;
     self::assertIsArray($plan);
+    self::assertIsArray($claim);
     self::assertIsArray($apply);
     foreach ([$plan, $apply] as $job) {
       self::assertSame('./' . self::WORKFLOW, $job['uses'] ?? NULL);
@@ -39,6 +45,22 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
         ['actions' => 'read', 'contents' => 'read', 'issues' => 'write'],
         $job['permissions'] ?? NULL,
       );
+      self::assertSame(
+        ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER'],
+        array_keys($job['secrets'] ?? []),
+      );
+    }
+    self::assertSame(
+      ['contents' => 'write', 'issues' => 'read'],
+      $claim['permissions'] ?? NULL,
+    );
+    self::assertArrayNotHasKey('secrets', $claim);
+    self::assertSame(
+      ['classify', 'prod-os-maintenance-1183-apply-claim'],
+      $apply['needs'] ?? NULL,
+    );
+    self::assertSame('classify', $plan['needs'] ?? NULL);
+    foreach ([$plan, $claim, $apply] as $job) {
       $condition = (string) ($job['if'] ?? '');
       foreach ([
         "github.event_name == 'issue_comment'",
@@ -51,20 +73,51 @@ final class ProdOsMaintenance1183WorkflowTest extends TestCase {
       ] as $required) {
         self::assertStringContainsString($required, $condition);
       }
-      self::assertSame(
-        ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER'],
-        array_keys($job['secrets'] ?? []),
-      );
     }
     self::assertStringContainsString(
       "body == '/agency-prod-os-maintenance-1183 plan'",
       (string) ($plan['if'] ?? ''),
     );
-    self::assertStringContainsString(
-      "startsWith(github.event.comment.body, '/agency-prod-os-maintenance-1183 apply ')",
-      (string) ($apply['if'] ?? ''),
-    );
+    foreach ([$claim, $apply] as $applyJob) {
+      self::assertStringContainsString(
+        "startsWith(github.event.comment.body, "
+        . "'/agency-prod-os-maintenance-1183 apply ')",
+        (string) ($applyJob['if'] ?? ''),
+      );
+    }
     self::assertNotSame($plan['if'] ?? NULL, $apply['if'] ?? NULL);
+  }
+
+  /**
+   * APPLY authority consumption is atomic and scoped to one authority.
+   */
+  public function testOneShotApplyClaimIsAtomicAndAuthorityScoped(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $helper = $root . '/' . self::APPLY_CLAIM;
+    $harness = $root . '/' . self::APPLY_CLAIM_TEST;
+    self::assertFileExists($helper);
+    self::assertFileExists($harness);
+
+    $output = [];
+    $status = 99;
+    exec(
+      'python3 ' . escapeshellarg($harness)
+      . ' ' . escapeshellarg($helper)
+      . ' 2>&1',
+      $output,
+      $status,
+    );
+    self::assertSame(0, $status, implode("\n", $output));
+    foreach ([
+      'FIRST_ELIGIBLE_APPLY=PASS',
+      'SEQUENTIAL_DUPLICATE=REJECTED',
+      'NEW_AUTHORITY_IDENTITY=PASS',
+      'CONCURRENT_DUPLICATE=ONE_WINNER_ONE_REJECTED',
+      'PLAN_MODE_NOT_CLAIMABLE=PASS',
+      'ONE_SHOT_APPLY_CLAIM_HARNESS=PASS',
+    ] as $evidence) {
+      self::assertContains($evidence, $output);
+    }
   }
 
   /**

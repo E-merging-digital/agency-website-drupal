@@ -9,7 +9,18 @@ workflow_sha="${3:-}"
 [[ "$workflow_sha" =~ ^[0-9a-f]{40}$ ]]
 [[ "${GITHUB_REPOSITORY:-}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
 
-if [[ ! "$comment_body" =~ ^/agency-prod-os-maintenance-1183\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})\ snapshot_ref=([A-Za-z0-9._:@/-]{8,160})\ window_ref=([A-Za-z0-9._:@/+:-]{8,160})$ ]]; then
+semantic_command="$comment_body"
+if [[ "$semantic_command" == *$'\r\n' ]]; then
+  semantic_command="${semantic_command%$'\r\n'}"
+elif [[ "$semantic_command" == *$'\n' ]]; then
+  semantic_command="${semantic_command%$'\n'}"
+fi
+if [[ "$semantic_command" == *$'\n'* || "$semantic_command" == *$'\r'* ]]; then
+  printf '%s\n' 'Unsupported #1183 APPLY command syntax.' >&2
+  exit 64
+fi
+
+if [[ ! "$semantic_command" =~ ^/agency-prod-os-maintenance-1183\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})\ snapshot_ref=([A-Za-z0-9._:@/-]{8,160})\ window_ref=([A-Za-z0-9._:@/+:-]{8,160})$ ]]; then
   printf '%s\n' 'Unsupported #1183 APPLY command syntax.' >&2
   exit 64
 fi
@@ -38,7 +49,7 @@ gh api --paginate --slurp \
 
 authority_json="$(
   jq -c \
-    --arg command "$comment_body" \
+    --arg command "$semantic_command" \
     --arg main "$main_sha" \
     --argjson command_id "$comment_id" '
       [

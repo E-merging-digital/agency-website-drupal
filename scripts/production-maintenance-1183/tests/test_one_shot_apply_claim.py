@@ -129,8 +129,44 @@ esac
     first = run_claim(env, 101)
     assert first.returncode == 0, first.stderr
     assert "authority_comment_id=100" in first.stdout
+    print("NO_EOL_COMMAND=PASS")
     print("FIRST_ELIGIBLE_APPLY=PASS")
 
+    write_comments(comments, [authority(100, 17), authority(110, 18)])
+    terminal_lf = run_claim(env, 111, COMMAND + "\n")
+    assert terminal_lf.returncode == 0, terminal_lf.stderr
+    assert "authority_comment_id=110" in terminal_lf.stdout
+    print("TERMINAL_LF_COMMAND=PASS")
+    print("LF_AUTHORITY_LOOKUP_NORMALIZED=PASS")
+
+    write_comments(
+        comments,
+        [authority(100, 17), authority(110, 18), authority(120, 19)],
+    )
+    terminal_crlf = run_claim(env, 121, COMMAND + "\r\n")
+    assert terminal_crlf.returncode == 0, terminal_crlf.stderr
+    assert "authority_comment_id=120" in terminal_crlf.stdout
+    print("TERMINAL_CRLF_COMMAND=PASS")
+    print("CRLF_AUTHORITY_LOOKUP_NORMALIZED=PASS")
+
+    invalid_commands = [
+        ("LEADING_SPACE", " " + COMMAND),
+        ("LEADING_TAB", "\t" + COMMAND),
+        ("TRAILING_SPACE", COMMAND + " "),
+        ("TRAILING_TAB", COMMAND + "\t"),
+        ("EMBEDDED_NEWLINE", COMMAND.replace(" plan_run=", "\nplan_run=", 1)),
+        ("EMBEDDED_CR", COMMAND.replace(" plan_run=", "\rplan_run=", 1)),
+        ("DOUBLE_TERMINAL_LF", COMMAND + "\n\n"),
+        ("DOUBLE_TERMINAL_CRLF", COMMAND + "\r\n\r\n"),
+        ("EXTRA_TOKEN", COMMAND + " extra=1"),
+        ("MALFORMED_TUPLE", COMMAND.replace("plan_run=123456", "plan_run=abc", 1)),
+    ]
+    for offset, (label, body) in enumerate(invalid_commands, start=130):
+        rejected = run_claim(env, offset, body)
+        assert rejected.returncode == 64, (label, rejected)
+        print(f"{label}=REJECTED")
+
+    write_comments(comments, [authority(100, 17)])
     duplicate = run_claim(env, 102)
     assert duplicate.returncode == 75, duplicate.stderr
     assert "APPLY_ONE_SHOT_CLAIM=REJECTED" in duplicate.stderr

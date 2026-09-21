@@ -9,7 +9,7 @@ observe_max_allowed_packet() {
     && (cd "$drupal_root" && vendor/bin/drush status >/dev/null 2>&1); then
     if max_packet_raw="$(cd "$drupal_root" \
       && vendor/bin/drush php:eval \
-        'echo (string) \\Drupal::database()->query("SELECT @@global.max_allowed_packet")->fetchField();' \
+        'echo (string) \Drupal::database()->query("SELECT @@global.max_allowed_packet")->fetchField();' \
         2>/dev/null | tail -n 1 | tr -d '[:space:]')"; then
       if [[ "$max_packet_raw" =~ ^[0-9]+$ ]]; then
         max_allowed_packet="$max_packet_raw"

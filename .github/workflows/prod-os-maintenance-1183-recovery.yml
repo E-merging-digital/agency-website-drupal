@@ -1,0 +1,343 @@
+name: '#1300 governed PROD post-reboot recovery'
+
+on:
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+concurrency:
+  group: agency-prod-os-maintenance-1183
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate exact #1300 post-reboot recovery authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      incident_run: ${{ steps.authority.outputs.incident_run }}
+      plan_run: ${{ steps.authority.outputs.plan_run }}
+      plan_digest: ${{ steps.authority.outputs.plan_digest }}
+    steps:
+      - id: authority
+        name: JIT validate direct OWNER recovery command and live main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1300'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+
+          recovery_issue="$(gh api "repos/$GITHUB_REPOSITORY/issues/1300")"
+          test "$(jq -r '.state' <<<"$recovery_issue")" = 'open'
+          jq -e '[.labels[].name] | index("P0") != null' <<<"$recovery_issue" >/dev/null
+          jq -e '[.labels[].name] | index("status:in-progress") != null' <<<"$recovery_issue" >/dev/null
+
+          parent_issue="$(gh api "repos/$GITHUB_REPOSITORY/issues/1183")"
+          test "$(jq -r '.state' <<<"$parent_issue")" = 'open'
+          jq -e '[.labels[].name] | index("P1") != null' <<<"$parent_issue" >/dev/null
+          jq -e '[.labels[].name] | index("status:blocked") != null' <<<"$parent_issue" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$WORKFLOW_SHA" = "$main_sha"
+
+          expected_digest='07a672088469959e01863450acd8b5078cd5efc2041dda5545e4bb986635744b'
+          if [[ ! "$COMMENT_BODY" =~ ^/agency-prod-os-maintenance-1183\ recover-post-reboot\ incident_run=(35602886717)\ plan_run=(35600328878)\ plan_digest=([0-9a-f]{64})$ ]]; then
+            printf '%s\n' 'Unsupported #1300 recovery command syntax.' >&2
+            exit 64
+          fi
+          incident_run="${BASH_REMATCH[1]}"
+          plan_run="${BASH_REMATCH[2]}"
+          plan_digest="${BASH_REMATCH[3]}"
+          test "$plan_digest" = "$expected_digest"
+
+          {
+            echo "main_sha=$main_sha"
+            echo "incident_run=$incident_run"
+            echo "plan_run=$plan_run"
+            echo "plan_digest=$plan_digest"
+          } >> "$GITHUB_OUTPUT"
+
+  recover:
+    name: Reconcile already-performed PROD reboot
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Load and validate immutable approved PLAN
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          test "$PLAN_RUN" = '35600328878'
+          test "$PLAN_DIGEST" = '07a672088469959e01863450acd8b5078cd5efc2041dda5545e4bb986635744b'
+          mkdir -p artifacts/prod-os-maintenance-1300/approved
+
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN")"
+          test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'
+          test "$(jq -r '.event' <<<"$run_json")" = 'issue_comment'
+          test "$(jq -r '.head_sha' <<<"$run_json")" = 'bd1d2b38469da3e42ad5e79bc820aad842b8d628'
+
+          mapfile -t artifacts < <(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN/artifacts" \
+              --jq ".artifacts[] | select(.expired == false) | select(.name | startswith(\"prod-os-maintenance-1183-plan-${PLAN_RUN}-\")) | .name"
+          )
+          test "${#artifacts[@]}" -eq 1
+          gh run download "$PLAN_RUN" --name "${artifacts[0]}" \
+            --dir artifacts/prod-os-maintenance-1300/approved
+
+          plan='artifacts/prod-os-maintenance-1300/approved/plan.json'
+          test -s "$plan"
+          jq -e --arg digest "$PLAN_DIGEST" '
+            .STATUS == "PASS"
+            and .ISSUE == 1183
+            and .TARGET == "PROD"
+            and .MODE == "PLAN"
+            and .PLAN_CONTEXT == "PLAN"
+            and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+            and .REBOOT_ONLY_ELIGIBLE == "YES"
+            and .PLAN_DIGEST == $digest
+            and .TARGET_KERNEL == "6.8.0-139-generic"
+            and .SECURITY_UPDATES_TOTAL == 0
+            and .PACKAGE_UPGRADES == []
+            and .REAL_PACKAGE_MUTATION == "NONE"
+            and .MAX_ALLOWED_PACKET == "67108864"
+            and .SAFETY_GATE == "PASS"' "$plan" >/dev/null
+
+      - name: Validate consumed failed APPLY incident artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INCIDENT_RUN: ${{ needs.validate-authority.outputs.incident_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          test "$INCIDENT_RUN" = '35602886717'
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$INCIDENT_RUN")"
+          test "$(jq -r '.run_attempt' <<<"$run_json")" = '1'
+          test "$(jq -r '.conclusion' <<<"$run_json")" = 'failure'
+          test "$(jq -r '.event' <<<"$run_json")" = 'issue_comment'
+          test "$(jq -r '.head_sha' <<<"$run_json")" = 'bd1d2b38469da3e42ad5e79bc820aad842b8d628'
+
+          artifact_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/10639950744")"
+          test "$(jq -r '.id' <<<"$artifact_json")" = '10639950744'
+          test "$(jq -r '.expired' <<<"$artifact_json")" = 'false'
+          test "$(jq -r '.workflow_run.id' <<<"$artifact_json")" = "$INCIDENT_RUN"
+          test "$(jq -r '.name' <<<"$artifact_json")" = 'prod-os-maintenance-1183-apply-35602886717-1'
+          test "$(jq -r '.digest' <<<"$artifact_json")" = 'sha256:b34390409fa699d39b064a6fd198cef14d264a48ae529477069469ae8dce6c18'
+
+          mkdir -p artifacts/prod-os-maintenance-1300/incident
+          gh run download "$INCIDENT_RUN" \
+            --name 'prod-os-maintenance-1183-apply-35602886717-1' \
+            --dir artifacts/prod-os-maintenance-1300/incident
+
+          mapfile -t pre_receipts < <(find artifacts/prod-os-maintenance-1300/incident -type f -name pre-reboot.json -print)
+          test "${#pre_receipts[@]}" -eq 1
+          pre="${pre_receipts[0]}"
+          test -s "$pre"
+          jq -e --arg digest "$PLAN_DIGEST" '
+            .STATUS == "PASS"
+            and .ISSUE == 1183
+            and .TARGET == "PROD"
+            and .MODE == "APPLY"
+            and .PLAN_DIGEST == $digest
+            and .MAINTENANCE_ACTION == "REBOOT_ONLY"
+            and .BACKUPS_BEFORE_REBOOT == "PASS"
+            and .MAINTENANCE_MODE_ENTERED == "YES"
+            and .PACKAGE_APPLY == "NONE"
+            and .REAL_PACKAGE_MUTATION == "NONE"
+            and .REBOOT_INITIATED == "YES"
+            and .REBOOT_CAPABILITY == "FIXED_PURPOSE_HELPER"
+            and .DRUPAL_DEPLOY == "NONE"
+            and .DRUPAL_CONFIG_IMPORT == "NONE"
+            and .SNAPSHOT_RESTORE == "NONE"' "$pre" >/dev/null
+
+      - name: Materialize pinned PROD identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1300-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1300-prod.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Require stable SSH before any recovery staging
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1300-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          bash scripts/production-maintenance-1183/stable-ssh-readiness.sh \
+            3 60 5 -- ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST"
+
+      - name: Execute bounded post-reboot recovery exactly once
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          INCIDENT_RUN: ${{ needs.validate-authority.outputs.incident_run }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1300-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          scp_args=(
+            -q
+            -i "$RUNNER_TEMP/agency-1300-prod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          remote_dir=".agency-1300-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          plan='artifacts/prod-os-maintenance-1300/approved/plan.json'
+          mkdir -p artifacts/prod-os-maintenance-1300/recovery
+
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "umask 077; rm -rf -- '$remote_dir'; install -d -m 700 '$remote_dir'"
+          scp "${scp_args[@]}" \
+            scripts/production-maintenance-1183/max-allowed-packet-observer.sh \
+            scripts/production-maintenance-1183/recovery-maintenance-reopen.sh \
+            scripts/production-maintenance-1183/remote-post-reboot-recovery.sh \
+            "$plan" \
+            "$SERVER_USER@$SERVER_HOST:$remote_dir/"
+
+          # Never retry this SSH command if transport status is ambiguous:
+          # remote-post-reboot-recovery.sh may have started and may have reopened Drupal.
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "chmod 700 '$remote_dir/recovery-maintenance-reopen.sh' '$remote_dir/remote-post-reboot-recovery.sh'; '$remote_dir/remote-post-reboot-recovery.sh' '$remote_dir/plan.json' '$SERVER_USER' '$INCIDENT_RUN' '$PLAN_RUN' '$PLAN_DIGEST'" \
+            > artifacts/prod-os-maintenance-1300/recovery/result.json
+
+          result='artifacts/prod-os-maintenance-1300/recovery/result.json'
+          jq -e --arg digest "$PLAN_DIGEST" '
+            .STATUS == "PASS"
+            and .ISSUE == 1183
+            and .TARGET == "PROD"
+            and .MODE == "POST_REBOOT_RECOVERY"
+            and .INCIDENT_RUN == 35602886717
+            and .PLAN_RUN == 35600328878
+            and .PLAN_DIGEST == $digest
+            and .VERSION_ID == "24.04"
+            and .KERNEL_RUNNING == "6.8.0-139-generic"
+            and .KERNEL_INSTALLED_LATEST == "6.8.0-139-generic"
+            and .REBOOT_REQUIRED == "NO"
+            and .POST_REBOOT_VALIDATION == "PASS"
+            and .REBOOT_RECONCILIATION == "PASS"
+            and (.MAINTENANCE_MODE_BEFORE == "0" or .MAINTENANCE_MODE_BEFORE == "1")
+            and (.MAINTENANCE_MODE_CHANGE == "NONE" or .MAINTENANCE_MODE_CHANGE == "1_TO_0")
+            and .MAINTENANCE_MODE == "OFF"
+            and .PUBLIC_HOME == "PASS"
+            and .CONTACT_FORM_SURFACE == "PASS"
+            and .MAX_ALLOWED_PACKET == "67108864"
+            and (.MAX_ALLOWED_PACKET_SOURCE == "DRUPAL_DB_API" or .MAX_ALLOWED_PACKET_SOURCE == "SUDO_MARIADB")
+            and .RECENT_NGINX_PHP_ERRORS == "NONE_MATERIAL"
+            and .PREVIOUS_KERNEL_RETAINED == "YES"
+            and .CONFIG_AUTO_CORRECTION == "NONE"
+            and .REAL_PACKAGE_MUTATION == "NONE"
+            and .APT == "NONE"
+            and .REBOOT_PERFORMED_BY_RECOVERY == "NO"
+            and .KEEP_PREVIOUS_KERNEL == "YES"
+            and .VERSION_LOG_REQUIRED == "YES"
+            and .SNAPSHOT_RESTORE == "NONE"' "$result" >/dev/null
+
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "rm -rf -- '$remote_dir'" >/dev/null
+
+      - name: Upload bounded recovery evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-os-maintenance-1300-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/prod-os-maintenance-1300
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded recovery summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/prod-os-maintenance-1300/recovery/result.json'
+          body="$(cat <<EOF_BODY
+          #1300 PROD post-reboot recovery completed.
+
+          \`STATUS=PASS\`
+          \`RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}\`
+          \`INCIDENT_RUN=$(jq -r '.INCIDENT_RUN' "$result")\`
+          \`KERNEL_RUNNING=$(jq -r '.KERNEL_RUNNING' "$result")\`
+          \`REBOOT_REQUIRED=NO\`
+          \`POST_REBOOT_VALIDATION=PASS\`
+          \`REBOOT_RECONCILIATION=PASS\`
+          \`MAINTENANCE_MODE=OFF\`
+          \`REAL_PACKAGE_MUTATION=NONE\`
+          \`REBOOT_PERFORMED_BY_RECOVERY=NO\`
+          EOF_BODY
+          )"
+          gh issue comment 1300 --body "$body"
+
+      - name: Remove transient PROD key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1300-prod.key"

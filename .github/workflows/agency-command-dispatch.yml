@@ -722,3 +722,71 @@ jobs:
     secrets:
       PREPROD_PROVISIONING_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  prod-os-maintenance-1300-recovery-claim:
+    name: Atomically claim #1300 one-shot PROD post-reboot recovery
+    needs: classify
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.action == 'created'
+          && github.event.issue.pull_request == null
+          && github.event.issue.number == 1300
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.performed_via_github_app == null
+          && startsWith(github.event.comment.body, '/agency-prod-os-maintenance-1183 recover-post-reboot ') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      issues: read
+    outputs:
+      authority_comment_id: ${{ steps.claim.outputs.authority_comment_id }}
+      claim_ref: ${{ steps.claim.outputs.claim_ref }}
+      claim_identity: ${{ steps.claim.outputs.claim_identity }}
+      incident_run: ${{ steps.claim.outputs.incident_run }}
+      plan_run: ${{ steps.claim.outputs.plan_run }}
+      plan_digest: ${{ steps.claim.outputs.plan_digest }}
+    steps:
+      - name: Checkout exact event main for recovery claim helper
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - id: claim
+        name: Atomically consume matching Project Lead recovery authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/production-maintenance-1183/claim-one-shot-recovery.sh \
+            "$COMMENT_ID" "$COMMENT_BODY" "$WORKFLOW_SHA" \
+            >> "$GITHUB_OUTPUT"
+
+  prod-os-maintenance-1300-recovery:
+    name: Route #1300 governed PROD post-reboot recovery
+    needs:
+      - classify
+      - prod-os-maintenance-1300-recovery-claim
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.action == 'created'
+          && github.event.issue.pull_request == null
+          && github.event.issue.number == 1300
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.performed_via_github_app == null
+          && startsWith(github.event.comment.body, '/agency-prod-os-maintenance-1183 recover-post-reboot ') }}
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    uses: ./.github/workflows/prod-os-maintenance-1183-recovery.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}

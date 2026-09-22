@@ -26,6 +26,8 @@ final class ProdOsMaintenance1300RecoveryTest extends TestCase {
     'scripts/production-maintenance-1183/tests/test_one_shot_recovery_claim.py';
   private const READINESS_TEST =
     'scripts/production-maintenance-1183/tests/test_stable_ssh_readiness.py';
+  private const MAINTENANCE_HELPER =
+    'scripts/production-maintenance-1183/recovery-maintenance-reopen.sh';
   private const MAINTENANCE_TEST =
     'scripts/production-maintenance-1183/tests/test_recovery_maintenance_reopen.py';
 
@@ -68,6 +70,8 @@ final class ProdOsMaintenance1300RecoveryTest extends TestCase {
       '.REAL_PACKAGE_MUTATION == "NONE"',
       '.APT == "NONE"',
       '.SNAPSHOT_RESTORE == "NONE"',
+      'failure.env',
+      "grep -E '^RECOVERY_FAILURE_(PHASE|REASON|EXIT)='",
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
@@ -142,12 +146,73 @@ final class ProdOsMaintenance1300RecoveryTest extends TestCase {
 
     $maintenance = $this->runCommand(['python3', self::MAINTENANCE_TEST]);
     foreach ([
-      'MAINTENANCE_1_TO_0=PASS',
-      'MAINTENANCE_0_NO_TOGGLE=PASS',
-      'MAINTENANCE_UNKNOWN_FAIL_CLOSED=PASS',
+      'CANONICAL_CURRENT_SYMLINK_SAFE_RELEASE=PASS',
+      'CURRENT_REGULAR_DIRECTORY=REJECTED',
+      'BROKEN_CURRENT_SYMLINK=REJECTED',
+      'ESCAPING_CURRENT_SYMLINK=REJECTED',
+      'MALFORMED_RELEASE_TARGET=REJECTED',
+      'MISSING_DRUSH=REJECTED',
+      'MAINTENANCE_1=EXACTLY_ONE_STATE_SET_AND_ONE_CR',
+      'MAINTENANCE_0=NO_MUTATION',
+      'MAINTENANCE_UNKNOWN=FAIL_CLOSED',
     ] as $required) {
       self::assertStringContainsString($required, $maintenance);
     }
+  }
+
+  /**
+   * Canonical current topology and phase evidence remain fail-closed.
+   */
+  public function testRecoveryCurrentSymlinkAndFailureEvidenceContract(): void {
+    $maintenance = $this->source(self::MAINTENANCE_HELPER);
+    foreach ([
+      'readlink -f -- "$current_root"',
+      'CURRENT_NOT_SYMLINK',
+      'CURRENT_TARGET_MISSING',
+      'CURRENT_TARGET_OUTSIDE_RELEASES',
+      'RELEASE_NAME_INVALID',
+      'DRUSH_NOT_EXECUTABLE',
+    ] as $required) {
+      self::assertStringContainsString($required, $maintenance);
+    }
+
+    $recovery = $this->source(self::RECOVERY);
+    foreach ([
+      'PLAN_VALIDATION', 'OS_KERNEL_VALIDATION', 'SERVICE_VALIDATION',
+      'DRUPAL_BOOTSTRAP', 'MAX_ALLOWED_PACKET', 'MAINTENANCE_STATE',
+      'RUNTIME_ERROR_VALIDATION', 'MAINTENANCE_REOPEN', 'PUBLIC_HEALTH',
+      'PUBLIC_HOME', 'CONTACT_FORM', 'TERMINAL_RECEIPT',
+      'RECOVERY_FAILURE_PHASE=%s',
+    ] as $required) {
+      self::assertStringContainsString($required, $recovery);
+    }
+
+    $workflow = $this->source(self::RECOVERY_WORKFLOW);
+    self::assertStringContainsString('failure.env', $workflow);
+    self::assertStringContainsString('RECOVERY_FAILURE_PHASE=TERMINAL_RECEIPT', $workflow);
+    self::assertStringContainsString('RECOVERY_STAGING_CLEANUP=FAILED_NON_MASKING', $workflow);
+    self::assertSame(
+      1,
+      substr_count($workflow, "'\$remote_dir/remote-post-reboot-recovery.sh' '\$remote_dir/plan.json'"),
+    );
+
+    $root = dirname(DRUPAL_ROOT);
+    $command = sprintf(
+      'bash %s %s %s 35602886717 35600328878 %s 2>&1',
+      escapeshellarg($root . '/' . self::RECOVERY),
+      escapeshellarg('/definitely/missing/agency-1304-plan.json'),
+      escapeshellarg('__agency_1304_invalid_user__'),
+      escapeshellarg('07a672088469959e01863450acd8b5078cd5efc2041dda5545e4bb986635744b'),
+    );
+    $output = [];
+    $status = 0;
+    exec($command, $output, $status);
+    self::assertNotSame(0, $status);
+    $failure = implode("\n", $output);
+    self::assertStringContainsString('RECOVERY_FAILURE_PHASE=PLAN_VALIDATION', $failure);
+    self::assertStringContainsString('RECOVERY_FAILURE_REASON=CHECK_FAILED', $failure);
+    self::assertStringNotContainsString('SSH_PRIVATE_KEY=', $failure);
+    self::assertStringNotContainsString('SERVER_HOST=', $failure);
   }
 
   /**

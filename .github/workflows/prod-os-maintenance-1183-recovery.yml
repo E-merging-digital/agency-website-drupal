@@ -264,12 +264,30 @@ jobs:
 
           # Never retry this SSH command if transport status is ambiguous:
           # remote-post-reboot-recovery.sh may have started and may have reopened Drupal.
+          result='artifacts/prod-os-maintenance-1300/recovery/result.json'
+          failure_evidence='artifacts/prod-os-maintenance-1300/recovery/failure.env'
+          raw_failure="$RUNNER_TEMP/agency-1300-recovery.stderr"
+          set +e
           ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
             "chmod 700 '$remote_dir/recovery-maintenance-reopen.sh' '$remote_dir/remote-post-reboot-recovery.sh'; '$remote_dir/remote-post-reboot-recovery.sh' '$remote_dir/plan.json' '$SERVER_USER' '$INCIDENT_RUN' '$PLAN_RUN' '$PLAN_DIGEST'" \
-            > artifacts/prod-os-maintenance-1300/recovery/result.json
+            > "$result" 2> "$raw_failure"
+          recovery_status=$?
+          set -e
 
-          result='artifacts/prod-os-maintenance-1300/recovery/result.json'
-          jq -e --arg digest "$PLAN_DIGEST" '
+          grep -E '^RECOVERY_FAILURE_(PHASE|REASON|EXIT)=' "$raw_failure" > "$failure_evidence" || true
+          rm -f "$raw_failure"
+          if [[ "$recovery_status" -ne 0 ]]; then
+            if [[ ! -s "$failure_evidence" ]]; then
+              {
+                printf 'RECOVERY_FAILURE_PHASE=REMOTE_INVOCATION\n'
+                printf 'RECOVERY_FAILURE_REASON=NO_STRUCTURED_REMOTE_EVIDENCE\n'
+                printf 'RECOVERY_FAILURE_EXIT=%s\n' "$recovery_status"
+              } > "$failure_evidence"
+            fi
+            exit "$recovery_status"
+          fi
+
+          if ! jq -e --arg digest "$PLAN_DIGEST" '
             .STATUS == "PASS"
             and .ISSUE == 1183
             and .TARGET == "PROD"
@@ -298,10 +316,26 @@ jobs:
             and .REBOOT_PERFORMED_BY_RECOVERY == "NO"
             and .KEEP_PREVIOUS_KERNEL == "YES"
             and .VERSION_LOG_REQUIRED == "YES"
-            and .SNAPSHOT_RESTORE == "NONE"' "$result" >/dev/null
+            and .SNAPSHOT_RESTORE == "NONE"' "$result" >/dev/null; then
+            {
+              printf 'RECOVERY_FAILURE_PHASE=TERMINAL_RECEIPT\n'
+              printf 'RECOVERY_FAILURE_REASON=CONTRACT_MISMATCH\n'
+              printf 'RECOVERY_FAILURE_EXIT=1\n'
+            } > "$failure_evidence"
+            exit 1
+          fi
+          rm -f "$failure_evidence"
 
+          # Cleanup occurs only after a proven successful remote return and receipt.
+          # Cleanup failure is diagnostic only and never masks recovery success.
+          cleanup_status=0
           ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
-            "rm -rf -- '$remote_dir'" >/dev/null
+            "rm -rf -- '$remote_dir'" >/dev/null 2>&1 || cleanup_status=$?
+          if [[ "$cleanup_status" -ne 0 ]]; then
+            printf 'RECOVERY_STAGING_CLEANUP=FAILED_NON_MASKING\n' >&2
+          else
+            printf 'RECOVERY_STAGING_CLEANUP=PASS\n'
+          fi
 
       - name: Upload bounded recovery evidence
         if: ${{ always() }}

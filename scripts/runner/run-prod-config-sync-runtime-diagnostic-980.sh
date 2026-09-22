@@ -9,8 +9,8 @@ SERVER_USER="${SERVER_USER:-}"
 PROD_SSH_KEY="${PROD_SSH_KEY:-}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/prod-config-sync-runtime-diagnostic}"
 
-[[ "$ISSUE_NUMBER" == '980' || "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' ]] || {
-  echo 'This diagnostic is bound to issue #980, #982 or #995.' >&2
+[[ "$ISSUE_NUMBER" == '980' || "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' || "$ISSUE_NUMBER" == '1301' ]] || {
+  echo 'This diagnostic is bound to issue #980, #982, #995 or #1301.' >&2
   exit 1
 }
 if [[ "$ISSUE_NUMBER" == '995' ]]; then
@@ -20,7 +20,7 @@ if [[ "$ISSUE_NUMBER" == '995' ]]; then
   }
 else
   [[ "$DIAGNOSTIC_PROFILE" == 'metadata' ]] || {
-    echo '#980/#982 require the metadata diagnostic profile.' >&2
+    echo '#980/#982/#1301 require the metadata diagnostic profile.' >&2
     exit 1
   }
 fi

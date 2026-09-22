@@ -397,6 +397,154 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
   }
 
   /**
+   * Publishes #1301 path evidence while preserving #982/#995 schemas.
+   */
+  public function testIssue1301PublishesBoundedPathEvidenceOnly(): void {
+    $workflow = $this->source(self::WORKFLOW);
+
+    self::assertStringContainsString(
+      "elif [[ \"\$ISSUE_NUMBER\" == '1301' ]]; then",
+      $workflow,
+    );
+
+    foreach ([
+      'TARGET: .target',
+      'CURRENT_RELEASE: .current_release',
+      'CURRENT_SYMLINK_TARGET: .current_symlink_target',
+      'DRUPAL_ROOT: .drupal_root',
+      'SETTINGS_SYMLINK_TARGET: .settings_symlink_target',
+      'SHARED_SETTINGS_SHA256: .shared_settings_sha256',
+      'EFFECTIVE_CONFIG_SYNC_DIRECTORY: .effective_config_sync_directory',
+      'RESOLVED_CONFIG_SYNC_PATH: .resolved_config_sync_path',
+      'RESOLVED_PATH_EXISTS: .resolved_path_exists',
+      'CONFIG_SYNC_ENTRY_COUNT: .config_sync_entry_count',
+      'DRUSH_BOOTSTRAP: .drush_bootstrap',
+      'DRUSH_CONFIG_STATUS: .drush_config_status',
+      'DRUPAL_STATUS_CONFIG_SYNC_WARNING: .drupal_status_config_sync_warning',
+      'PROD_ACCESS: .prod_access',
+      'PROD_MUTATION: .prod_mutation',
+      'PROD_WRITE: .prod_write',
+      'PREPROD_ACCESS: .preprod_access',
+      'PREPROD_WRITE: .preprod_write',
+      'runtime_config_metadata: .runtime_config_metadata',
+    ] as $mapping) {
+      self::assertStringContainsString($mapping, $workflow, $mapping);
+    }
+
+    foreach ([
+      '.TARGET == "PROD"',
+      'test("^[A-Za-z0-9._-]+$")',
+      '.CURRENT_SYMLINK_TARGET == ("/var/www/agency/releases/" + .CURRENT_RELEASE)',
+      '.DRUPAL_ROOT == (.CURRENT_SYMLINK_TARGET + "/web")',
+      '.SETTINGS_SYMLINK_TARGET == "/var/www/agency/shared/settings/settings.php"',
+      'test("^[0-9a-f]{64}$")',
+      '.EFFECTIVE_CONFIG_SYNC_DIRECTORY',
+      '. != "UNOBSERVABLE"',
+      '.RESOLVED_CONFIG_SYNC_PATH',
+      '.RESOLVED_PATH_EXISTS == "YES"',
+      '.CONFIG_SYNC_ENTRY_COUNT | type == "number" and . >= 0',
+      '.DRUSH_BOOTSTRAP == "SUCCESS"',
+      '.DRUSH_CONFIG_STATUS == "CLEAN"',
+      '.DRUPAL_STATUS_CONFIG_SYNC_WARNING',
+      '.PROD_ACCESS == "READ_ONLY"',
+      '.PROD_MUTATION == "NONE"',
+      '.PROD_WRITE == "NONE"',
+      '.PREPROD_ACCESS == "NONE"',
+      '.PREPROD_WRITE == "NONE"',
+      '.runtime_config_metadata.config_values_exposed == false',
+    ] as $contract) {
+      self::assertStringContainsString($contract, $workflow, $contract);
+    }
+
+    self::assertSame(
+      1,
+      substr_count($workflow, "jq '.runtime_config_metadata' \"\$result\" > \"\$public\""),
+      '#982 metadata-only publication must remain unique and unchanged.',
+    );
+    self::assertSame(
+      1,
+      substr_count($workflow, "jq '.runtime_canvas_paths' \"\$result\" > \"\$public\""),
+      '#995 canvas_paths publication must remain unique and unchanged.',
+    );
+  }
+
+  /**
+   * Publishes only approved #1301 evidence in the bot comment.
+   */
+  public function testIssue1301CommentEvidenceIsBounded(): void {
+    $workflow = $this->source(self::WORKFLOW);
+
+    self::assertStringContainsString(
+      '### Agency #1301 PROD config diagnostic PASS',
+      $workflow,
+    );
+    foreach ([
+      'TARGET=${target}',
+      'CURRENT_RELEASE=${current_release}',
+      'CURRENT_SYMLINK_TARGET=${current_target}',
+      'DRUPAL_ROOT=${drupal_root}',
+      'SETTINGS_SYMLINK_TARGET=${settings_target}',
+      'SHARED_SETTINGS_SHA256=${settings_sha}',
+      'EFFECTIVE_CONFIG_SYNC_DIRECTORY=${effective_sync}',
+      'RESOLVED_CONFIG_SYNC_PATH=${resolved_sync}',
+      'RESOLVED_PATH_EXISTS=${resolved_exists}',
+      'CONFIG_SYNC_ENTRY_COUNT=${entry_count}',
+      'DRUSH_BOOTSTRAP=${bootstrap}',
+      'DRUSH_CONFIG_STATUS=${config_status}',
+      'DRUPAL_STATUS_CONFIG_SYNC_WARNING=${config_warning}',
+      'CONFIG_VALUES_EXPOSED=NO',
+      'PROD_ACCESS=${prod_access}',
+      'PROD_MUTATION=${prod_mutation}',
+      'PROD_WRITE=${prod_write}',
+      'PREPROD_ACCESS=${preprod_access}',
+      'PREPROD_WRITE=${preprod_write}',
+    ] as $field) {
+      self::assertStringContainsString($field, $workflow, $field);
+    }
+
+    foreach ([
+      'settings.php contents',
+      'DATABASE_URL',
+      'DB_PASSWORD',
+      'SSH_PRIVATE_KEY=',
+      'SERVER_HOST=',
+      'SERVER_USER=',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow, $forbidden);
+    }
+  }
+
+  /**
+   * Keeps the existing remote diagnostic path single and read-only.
+   */
+  public function testIssue1308DoesNotAddRemoteExecutionOrMutationPrimitives(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $runner = $this->source(self::RUNNER);
+
+    self::assertSame(
+      1,
+      substr_count(
+        $workflow,
+        'run: bash scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh',
+      ),
+    );
+
+    foreach ([
+      'vendor/bin/drush cim',
+      'vendor/bin/drush cex',
+      'vendor/bin/drush cr',
+      'vendor/bin/drush updb',
+      'vendor/bin/drush deploy',
+      'vendor/bin/drush config:set',
+      'state:set',
+      'sql:query',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $runner, $forbidden);
+      self::assertStringNotContainsString($forbidden, $workflow, $forbidden);
+    }
+  }
+
+  /**
    * Builds one synthetic Project Lead authority comment.
    */
   private function authorityComment(

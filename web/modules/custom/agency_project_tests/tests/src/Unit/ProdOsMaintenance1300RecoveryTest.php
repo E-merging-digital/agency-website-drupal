@@ -218,7 +218,6 @@ final class ProdOsMaintenance1300RecoveryTest extends TestCase {
   /**
    * Executes a bounded repository-local command.
    */
-
   private function runCommand(array $arguments): string {
     $root = dirname(DRUPAL_ROOT);
     $command = [];

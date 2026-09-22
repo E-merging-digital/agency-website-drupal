@@ -9,7 +9,7 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects the reused #980 PROD primitive for #982/#995.
+ * Protects the reused #980 PROD primitive for #982/#995/#1301.
  *
  * @group agency_project_tests
  * @group prod_config_sync_runtime_diagnostic_980
@@ -30,9 +30,9 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     'docs/operations/production-health-diagnostic.md';
 
   /**
-   * Proves #982/#995 PROD binding and exact command.
+   * Proves #982/#995/#1301 PROD binding and exact command.
    */
-  public function testWorkflowIsBoundToIssues982And995AndExactCommand(): void {
+  public function testWorkflowIsBoundToIssues982And995And1301AndExactCommand(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
 
@@ -43,7 +43,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     self::assertArrayHasKey('pull_request', $on);
     self::assertArrayNotHasKey('issue_comment', $on);
     self::assertStringContainsString(
-      '(github.event.issue.number == 982 || github.event.issue.number == 995)',
+      '(github.event.issue.number == 982 || github.event.issue.number == 995 || github.event.issue.number == 1301)',
       $source,
     );
     self::assertStringContainsString(
@@ -51,7 +51,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      '[[ "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' ]]',
+      '[[ "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' || "$ISSUE_NUMBER" == \'1301\' ]]',
       $source,
     );
     self::assertStringContainsString(
@@ -61,6 +61,15 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     self::assertStringContainsString("== 'open'", $source);
     self::assertStringContainsString('5528251064', $source);
     self::assertStringContainsString('5529562346', $source);
+    self::assertStringContainsString('PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1301_R', $source);
+    self::assertStringContainsString('gh api --paginate --slurp', $source);
+    self::assertStringContainsString('.id < $command_id', $source);
+    self::assertStringContainsString('sort_by(.id)', $source);
+    self::assertStringContainsString('last // empty', $source);
+    self::assertStringContainsString('LIVE_MAIN =\\n', $source);
+    self::assertStringContainsString('AUTHORIZED HUMAN COMMAND =\\n', $source);
+    self::assertStringContainsString('.author_association == "OWNER"', $source);
+    self::assertStringContainsString('.performed_via_github_app == null', $source);
     self::assertStringContainsString('EVENT_DEFAULT_SHA', $source);
     self::assertStringContainsString(
       'JIT revalidate live main before PROD identity',
@@ -103,7 +112,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     $runner = $this->source(self::RUNNER);
 
     self::assertStringContainsString(
-      '[[ "$ISSUE_NUMBER" == \'980\' || "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' ]]',
+      '[[ "$ISSUE_NUMBER" == \'980\' || "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' || "$ISSUE_NUMBER" == \'1301\' ]]',
       $runner,
     );
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency'", $runner);
@@ -136,6 +145,94 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     self::assertStringNotContainsString('ssh-keyscan', $runner);
     self::assertStringNotContainsString('StrictHostKeyChecking=no', $runner);
     self::assertStringNotContainsString('accept-new', $runner);
+  }
+
+  /**
+   * Proves #1301 is metadata-only while historical #995 stays canvas-only.
+   */
+  public function testIssue1301MetadataProfileAndHistoricalProfiles(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $runner = $this->source(self::RUNNER);
+
+    self::assertStringContainsString(
+      'DIAGNOSTIC_PROFILE: ${{ github.event.issue.number == 995 && \'canvas_paths\' || \'metadata\' }}',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'if [[ "$ISSUE_NUMBER" == \'995\' ]]; then',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '#980/#982/#1301 require the metadata diagnostic profile.',
+      $runner,
+    );
+  }
+
+  /**
+   * Proves fresh #1301 authority selection and direct-owner provenance.
+   */
+  public function testIssue1301FreshAuthoritySelectionAndDirectOwnerProvenance(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $dispatcher = $this->source(self::DISPATCHER);
+
+    foreach ([
+      'PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1301_R',
+      '.id < $command_id',
+      '.user.login == "E-merging-digital"',
+      '.author_association == "OWNER"',
+      'contains("LIVE_MAIN =\\n" + $main)',
+      'contains("AUTHORIZED HUMAN COMMAND =\\n" + $command)',
+      'sort_by(.id)',
+      'last // empty',
+      '[[ "$authority_comment_id" -lt "$TRIGGER_COMMENT_ID" ]]',
+      '.performed_via_github_app == null',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow, $required);
+    }
+
+    self::assertStringContainsString(
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301')",
+      $dispatcher,
+    );
+    self::assertStringContainsString("issue == '1301'", $dispatcher);
+    self::assertStringContainsString(
+      "comment_author_association != 'OWNER'",
+      $dispatcher,
+    );
+    self::assertStringContainsString('or comment_from_app', $dispatcher);
+
+    self::assertStringContainsString("authority_comment='5528251064'", $workflow);
+    self::assertStringContainsString("authority_comment='5529562346'", $workflow);
+  }
+
+  /**
+   * Proves stale, wrong and out-of-order #1301 authorities are rejected.
+   */
+  public function testIssue1301AuthoritySelectionMatrix(): void {
+    $main = str_repeat('a', 40);
+    $otherMain = str_repeat('b', 40);
+    $command = '/agency-config-sync-prod-runtime diagnose';
+    $commandId = 500;
+
+    $comments = [
+      $this->authorityComment(100, $otherMain, $command),
+      $this->authorityComment(200, $main, '/wrong-command'),
+      $this->authorityComment(300, $main, $command, 'CONTRIBUTOR'),
+      $this->authorityComment(400, $main, $command),
+      $this->authorityComment(450, $main, $command),
+      $this->authorityComment(600, $main, $command),
+    ];
+
+    self::assertSame(
+      450,
+      $this->selectIssue1301Authority($comments, $commandId, $main, $command),
+    );
+    self::assertNull(
+      $this->selectIssue1301Authority($comments, 400, $main, $command),
+    );
+    self::assertNull(
+      $this->selectIssue1301Authority($comments, $commandId, $otherMain, '/absent'),
+    );
   }
 
   /**
@@ -297,6 +394,65 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
       '/agency-config-sync-prod-runtime diagnose',
       $dispatcher,
     );
+  }
+
+  /**
+   * Builds one synthetic Project Lead authority comment.
+   */
+  private function authorityComment(
+    int $id,
+    string $main,
+    string $command,
+    string $association = 'OWNER',
+  ): array {
+    return [
+      'id' => $id,
+      'user' => ['login' => 'E-merging-digital'],
+      'author_association' => $association,
+      'body' => "PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1301_R1\n"
+        . "LIVE_MAIN =\n{$main}\n"
+        . "AUTHORIZED HUMAN COMMAND =\n{$command}\n",
+    ];
+  }
+
+  /**
+   * Mirrors the bounded workflow selector for deterministic fixture proof.
+   */
+  private function selectIssue1301Authority(
+    array $comments,
+    int $commandId,
+    string $main,
+    string $command,
+  ): ?int {
+    $valid = array_filter(
+      $comments,
+      static fn(array $comment): bool =>
+        is_int($comment['id'] ?? NULL)
+        && $comment['id'] < $commandId
+        && ($comment['user']['login'] ?? NULL) === 'E-merging-digital'
+        && ($comment['author_association'] ?? NULL) === 'OWNER'
+        && str_starts_with(
+          (string) ($comment['body'] ?? ''),
+          'PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1301_R',
+        )
+        && str_contains(
+          (string) $comment['body'],
+          "LIVE_MAIN =\n{$main}",
+        )
+        && str_contains(
+          (string) $comment['body'],
+          "AUTHORIZED HUMAN COMMAND =\n{$command}",
+        ),
+    );
+    if ($valid === []) {
+      return NULL;
+    }
+    usort(
+      $valid,
+      static fn(array $left, array $right): int => $left['id'] <=> $right['id'],
+    );
+    $last = end($valid);
+    return is_array($last) ? (int) $last['id'] : NULL;
   }
 
   /**

@@ -500,15 +500,8 @@ jobs:
               sleep 2
             done
             test "$saw_down" -eq 1
-            reachable=0
-            for _ in $(seq 1 60); do
-              if ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" true >/dev/null 2>&1; then
-                reachable=1
-                break
-              fi
-              sleep 5
-            done
-            test "$reachable" -eq 1
+            bash scripts/production-maintenance-1183/stable-ssh-readiness.sh \
+              3 60 5 -- ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST"
           else
             test "$apply_rc" -eq 0
           fi

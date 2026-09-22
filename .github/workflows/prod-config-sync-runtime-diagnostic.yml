@@ -69,7 +69,7 @@ jobs:
       ${{
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request == null &&
-        (github.event.issue.number == 982 || github.event.issue.number == 995) &&
+        (github.event.issue.number == 982 || github.event.issue.number == 995 || github.event.issue.number == 1301) &&
         github.event.comment.body == '/agency-config-sync-prod-runtime diagnose'
       }}
     runs-on: ubuntu-24.04
@@ -90,27 +90,19 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           TRIGGER_COMMENT: ${{ github.event.comment.body }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
           EVENT_DEFAULT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
           [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
-          [[ "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' ]]
+          [[ "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' || "$ISSUE_NUMBER" == '1301' ]]
           [[ "$TRIGGER_COMMENT" == '/agency-config-sync-prod-runtime diagnose' ]]
 
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
           [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
           [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
-          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
-
-          authority_comment='5528251064'
-          if [[ "$ISSUE_NUMBER" == '995' ]]; then
-            authority_comment='5529562346'
-          fi
-          authority_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$authority_comment")"
-          [[ "$(jq -r '.user.login' <<<"$authority_json")" == 'E-merging-digital' ]]
-          [[ "$(jq -r '.issue_url' <<<"$authority_json")" == \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER" ]]
 
           main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
@@ -118,6 +110,58 @@ jobs:
             echo 'PROD diagnostic must execute the workflow revision on live main.' >&2
             exit 1
           }
+
+          if [[ "$ISSUE_NUMBER" == '1301' ]]; then
+            [[ "$COMMENT_AUTHOR_ASSOCIATION" == 'OWNER' ]]
+            [[ "$TRIGGER_COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
+            command_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$TRIGGER_COMMENT_ID")"
+            [[ "$(jq -r '.user.login' <<<"$command_json")" == 'E-merging-digital' ]]
+            [[ "$(jq -r '.author_association' <<<"$command_json")" == 'OWNER' ]]
+            jq -e '.performed_via_github_app == null' <<<"$command_json" >/dev/null
+            [[ "$(jq -r '.issue_url' <<<"$command_json")" == \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/1301" ]]
+            [[ "$(jq -r '.body' <<<"$command_json")" == "$TRIGGER_COMMENT" ]]
+
+            comments_file="$(mktemp)"
+            trap 'rm -f "$comments_file"' EXIT
+            gh api --paginate --slurp \
+              "repos/$GITHUB_REPOSITORY/issues/1301/comments?per_page=100" \
+              > "$comments_file"
+            authority_json="$(
+              jq -c \
+                --arg command "$TRIGGER_COMMENT" \
+                --arg main "$main_sha" \
+                --argjson command_id "$TRIGGER_COMMENT_ID" '
+                  [
+                    .[][]
+                    | select((.id | type) == "number" and .id < $command_id)
+                    | select(.user.login == "E-merging-digital")
+                    | select(.author_association == "OWNER")
+                    | select((.body // "") | startswith("PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1301_R"))
+                    | select((.body // "") | contains("LIVE_MAIN =\n" + $main))
+                    | select((.body // "") | contains("AUTHORIZED HUMAN COMMAND =\n" + $command))
+                  ]
+                  | sort_by(.id)
+                  | last // empty
+                ' "$comments_file"
+            )"
+            test -n "$authority_json"
+            authority_comment_id="$(jq -er '.id' <<<"$authority_json")"
+            [[ "$authority_comment_id" =~ ^[1-9][0-9]*$ ]]
+            [[ "$authority_comment_id" -lt "$TRIGGER_COMMENT_ID" ]]
+            echo "authority_comment_id=$authority_comment_id" >> "$GITHUB_OUTPUT"
+          else
+            [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+            authority_comment='5528251064'
+            if [[ "$ISSUE_NUMBER" == '995' ]]; then
+              authority_comment='5529562346'
+            fi
+            authority_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$authority_comment")"
+            [[ "$(jq -r '.user.login' <<<"$authority_json")" == 'E-merging-digital' ]]
+            [[ "$(jq -r '.issue_url' <<<"$authority_json")" == \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER" ]]
+          fi
+
           echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact trusted main

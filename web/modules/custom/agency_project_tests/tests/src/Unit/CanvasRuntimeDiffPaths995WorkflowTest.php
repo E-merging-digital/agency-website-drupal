@@ -49,7 +49,7 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995')",
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301')",
       $source,
     );
     self::assertStringContainsString('if isinstance(required_issue, tuple):', $source);

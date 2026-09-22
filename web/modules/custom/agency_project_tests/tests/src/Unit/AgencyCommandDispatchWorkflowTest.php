@@ -44,7 +44,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995],
-    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995],
+    'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1301],
     'INFRA_COCKPIT_CONSUMER_PROOF' => 1261,
   ];
 
@@ -197,6 +197,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
       [
+        '/agency-config-sync-prod-runtime diagnose',
+        1301,
+        'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
+      ],
+      [
         "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40} "
         . "session=0123456789abcdef pubkey={$sha64}",
         1261,
@@ -240,6 +245,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-config-sync-prod-runtime diagnose', 980],
       ['/agency-config-sync-prod-runtime diagnose', 981],
       ['/agency-config-sync-prod-runtime diagnose', 983],
+      ['/agency-config-sync-prod-runtime diagnose', 1300],
+      ['/agency-config-sync-prod-runtime diagnose', 1302],
       [
         "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40} "
         . "session=0123456789abcdef pubkey={$sha64}",
@@ -338,7 +345,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995')",
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301')",
       $source,
     );
     self::assertStringContainsString(
@@ -354,6 +361,44 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString('required_issue = incident_issue.get', $source);
+    self::assertStringContainsString("issue == '1301'", $source);
+    self::assertStringContainsString("comment_author != 'E-merging-digital'", $source);
+    self::assertStringContainsString("comment_author_association != 'OWNER'", $source);
+    self::assertStringContainsString('or comment_from_app', $source);
+
+    self::assertSame(
+      'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
+      $this->classify(
+        $routes,
+        '/agency-config-sync-prod-runtime diagnose',
+        1301,
+        'E-merging-digital',
+        'OWNER',
+        FALSE,
+      ),
+    );
+    self::assertSame(
+      'NONE',
+      $this->classify(
+        $routes,
+        '/agency-config-sync-prod-runtime diagnose',
+        1301,
+        'other-user',
+        'CONTRIBUTOR',
+        FALSE,
+      ),
+    );
+    self::assertSame(
+      'NONE',
+      $this->classify(
+        $routes,
+        '/agency-config-sync-prod-runtime diagnose',
+        1301,
+        'E-merging-digital',
+        'OWNER',
+        TRUE,
+      ),
+    );
   }
 
   /**
@@ -500,7 +545,14 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   /**
    * Classifies one body with the repository-owned route table.
    */
-  private function classify(array $routes, string $body, int $issue): string {
+  private function classify(
+    array $routes,
+    string $body,
+    int $issue,
+    string $commentAuthor = 'E-merging-digital',
+    string $commentAuthorAssociation = 'OWNER',
+    bool $commentFromApp = FALSE,
+  ): string {
     $matches = [];
     foreach ($routes as $route) {
       $routeName = $route['route'] ?? NULL;
@@ -511,6 +563,17 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         }
       }
       elseif ($requiredIssue !== NULL && $issue !== $requiredIssue) {
+        continue;
+      }
+      if (
+        $routeName === 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC'
+        && $issue === 1301
+        && (
+          $commentAuthor !== 'E-merging-digital'
+          || $commentAuthorAssociation !== 'OWNER'
+          || $commentFromApp
+        )
+      ) {
         continue;
       }
       $matched = in_array($body, $route['exact'] ?? [], TRUE);

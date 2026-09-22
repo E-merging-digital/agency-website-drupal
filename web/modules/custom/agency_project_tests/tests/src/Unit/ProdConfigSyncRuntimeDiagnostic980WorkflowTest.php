@@ -410,8 +410,8 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
       'user' => ['login' => 'E-merging-digital'],
       'author_association' => $association,
       'body' => "PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1301_R1\n"
-        . "LIVE_MAIN =\n{$main}\n"
-        . "AUTHORIZED HUMAN COMMAND =\n{$command}\n",
+      . "LIVE_MAIN =\n{$main}\n"
+      . "AUTHORIZED HUMAN COMMAND =\n{$command}\n",
     ];
   }
 

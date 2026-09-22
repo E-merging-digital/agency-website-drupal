@@ -122,28 +122,25 @@ jobs:
               "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/1301" ]]
             [[ "$(jq -r '.body' <<<"$command_json")" == "$TRIGGER_COMMENT" ]]
 
-            comments_file="$(mktemp)"
-            trap 'rm -f "$comments_file"' EXIT
-            gh api --paginate --slurp \
-              "repos/$GITHUB_REPOSITORY/issues/1301/comments?per_page=100" \
-              > "$comments_file"
             authority_json="$(
-              jq -c \
-                --arg command "$TRIGGER_COMMENT" \
-                --arg main "$main_sha" \
-                --argjson command_id "$TRIGGER_COMMENT_ID" '
-                  [
-                    .[][]
-                    | select((.id | type) == "number" and .id < $command_id)
-                    | select(.user.login == "E-merging-digital")
-                    | select(.author_association == "OWNER")
-                    | select((.body // "") | startswith("PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1301_R"))
-                    | select((.body // "") | contains("LIVE_MAIN =\n" + $main))
-                    | select((.body // "") | contains("AUTHORIZED HUMAN COMMAND =\n" + $command))
-                  ]
-                  | sort_by(.id)
-                  | last // empty
-                ' "$comments_file"
+              gh api --paginate --slurp \
+                "repos/$GITHUB_REPOSITORY/issues/1301/comments?per_page=100" \
+                | jq -c \
+                  --arg command "$TRIGGER_COMMENT" \
+                  --arg main "$main_sha" \
+                  --argjson command_id "$TRIGGER_COMMENT_ID" '
+                    [
+                      .[][]
+                      | select((.id | type) == "number" and .id < $command_id)
+                      | select(.user.login == "E-merging-digital")
+                      | select(.author_association == "OWNER")
+                      | select((.body // "") | startswith("PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1301_R"))
+                      | select((.body // "") | contains("LIVE_MAIN =\n" + $main))
+                      | select((.body // "") | contains("AUTHORIZED HUMAN COMMAND =\n" + $command))
+                    ]
+                    | sort_by(.id)
+                    | last // empty
+                  '
             )"
             test -n "$authority_json"
             authority_comment_id="$(jq -er '.id' <<<"$authority_json")"

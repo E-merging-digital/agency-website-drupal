@@ -235,6 +235,50 @@ jobs:
               and .config_values_exposed == false
               and .cohort_size == 15
             ' "$public" >/dev/null
+          elif [[ "$ISSUE_NUMBER" == '1301' ]]; then
+            jq '{
+              TARGET: .target,
+              CURRENT_RELEASE: .current_release,
+              CURRENT_SYMLINK_TARGET: .current_symlink_target,
+              DRUPAL_ROOT: .drupal_root,
+              SETTINGS_SYMLINK_TARGET: .settings_symlink_target,
+              SHARED_SETTINGS_SHA256: .shared_settings_sha256,
+              EFFECTIVE_CONFIG_SYNC_DIRECTORY: .effective_config_sync_directory,
+              RESOLVED_CONFIG_SYNC_PATH: .resolved_config_sync_path,
+              RESOLVED_PATH_EXISTS: .resolved_path_exists,
+              CONFIG_SYNC_ENTRY_COUNT: .config_sync_entry_count,
+              DRUSH_BOOTSTRAP: .drush_bootstrap,
+              DRUSH_CONFIG_STATUS: .drush_config_status,
+              DRUPAL_STATUS_CONFIG_SYNC_WARNING: .drupal_status_config_sync_warning,
+              PROD_ACCESS: .prod_access,
+              PROD_MUTATION: .prod_mutation,
+              PROD_WRITE: .prod_write,
+              PREPROD_ACCESS: .preprod_access,
+              PREPROD_WRITE: .preprod_write,
+              runtime_config_metadata: .runtime_config_metadata
+            }' "$result" > "$public"
+            jq -e '
+              .TARGET == "PROD"
+              and (.CURRENT_RELEASE | type == "string" and test("^[A-Za-z0-9._-]+$"))
+              and .CURRENT_SYMLINK_TARGET == ("/var/www/agency/releases/" + .CURRENT_RELEASE)
+              and .DRUPAL_ROOT == (.CURRENT_SYMLINK_TARGET + "/web")
+              and .SETTINGS_SYMLINK_TARGET == "/var/www/agency/shared/settings/settings.php"
+              and (.SHARED_SETTINGS_SHA256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.EFFECTIVE_CONFIG_SYNC_DIRECTORY | type == "string" and . != "UNOBSERVABLE" and test("^/?[A-Za-z0-9._/-]+$"))
+              and (.RESOLVED_CONFIG_SYNC_PATH | type == "string" and test("^/var/www/agency(/[A-Za-z0-9._-]+)+$"))
+              and (.RESOLVED_PATH_EXISTS == "YES" or .RESOLVED_PATH_EXISTS == "NO")
+              and (.CONFIG_SYNC_ENTRY_COUNT | type == "number" and . >= 0)
+              and .DRUSH_BOOTSTRAP == "SUCCESS"
+              and (.DRUSH_CONFIG_STATUS == "CLEAN" or .DRUSH_CONFIG_STATUS == "DIFFERENT")
+              and (.DRUPAL_STATUS_CONFIG_SYNC_WARNING | type == "string" and length > 0 and length <= 80 and test("^[A-Z0-9_ -]+$"))
+              and .PROD_ACCESS == "READ_ONLY"
+              and .PROD_MUTATION == "NONE"
+              and .PROD_WRITE == "NONE"
+              and .PREPROD_ACCESS == "NONE"
+              and .PREPROD_WRITE == "NONE"
+              and .runtime_config_metadata.environment == "PROD"
+              and .runtime_config_metadata.config_values_exposed == false
+            ' "$public" >/dev/null
           else
             jq '.runtime_config_metadata' "$result" > "$public"
             jq -e '.environment == "PROD" and .config_values_exposed == false' "$public" >/dev/null
@@ -276,10 +320,56 @@ jobs:
             exit 1
           fi
 
-          items="$(jq -c '.items' "$result")"
-          summary="$(jq -c '.summary' "$result")"
-          schema="$(jq -r '.public_schema // .metadata_schema' "$result")"
-          body="$(cat <<EOF_BODY
+          if [[ "$ISSUE_NUMBER" == '1301' ]]; then
+            target="$(jq -r '.TARGET' "$result")"
+            current_release="$(jq -r '.CURRENT_RELEASE' "$result")"
+            current_target="$(jq -r '.CURRENT_SYMLINK_TARGET' "$result")"
+            drupal_root="$(jq -r '.DRUPAL_ROOT' "$result")"
+            settings_target="$(jq -r '.SETTINGS_SYMLINK_TARGET' "$result")"
+            settings_sha="$(jq -r '.SHARED_SETTINGS_SHA256' "$result")"
+            effective_sync="$(jq -r '.EFFECTIVE_CONFIG_SYNC_DIRECTORY' "$result")"
+            resolved_sync="$(jq -r '.RESOLVED_CONFIG_SYNC_PATH' "$result")"
+            resolved_exists="$(jq -r '.RESOLVED_PATH_EXISTS' "$result")"
+            entry_count="$(jq -r '.CONFIG_SYNC_ENTRY_COUNT' "$result")"
+            bootstrap="$(jq -r '.DRUSH_BOOTSTRAP' "$result")"
+            config_status="$(jq -r '.DRUSH_CONFIG_STATUS' "$result")"
+            config_warning="$(jq -r '.DRUPAL_STATUS_CONFIG_SYNC_WARNING' "$result")"
+            prod_access="$(jq -r '.PROD_ACCESS' "$result")"
+            prod_mutation="$(jq -r '.PROD_MUTATION' "$result")"
+            prod_write="$(jq -r '.PROD_WRITE' "$result")"
+            preprod_access="$(jq -r '.PREPROD_ACCESS' "$result")"
+            preprod_write="$(jq -r '.PREPROD_WRITE' "$result")"
+            body="$(cat <<EOF_BODY
+          ### Agency #1301 PROD config diagnostic PASS
+
+          trusted_main: \`${TRUSTED_MAIN}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          TARGET=${target}
+          CURRENT_RELEASE=${current_release}
+          CURRENT_SYMLINK_TARGET=${current_target}
+          DRUPAL_ROOT=${drupal_root}
+          SETTINGS_SYMLINK_TARGET=${settings_target}
+          SHARED_SETTINGS_SHA256=${settings_sha}
+          EFFECTIVE_CONFIG_SYNC_DIRECTORY=${effective_sync}
+          RESOLVED_CONFIG_SYNC_PATH=${resolved_sync}
+          RESOLVED_PATH_EXISTS=${resolved_exists}
+          CONFIG_SYNC_ENTRY_COUNT=${entry_count}
+          DRUSH_BOOTSTRAP=${bootstrap}
+          DRUSH_CONFIG_STATUS=${config_status}
+          DRUPAL_STATUS_CONFIG_SYNC_WARNING=${config_warning}
+          CONFIG_VALUES_EXPOSED=NO
+          PROD_ACCESS=${prod_access}
+          PROD_MUTATION=${prod_mutation}
+          PROD_WRITE=${prod_write}
+          PREPROD_ACCESS=${preprod_access}
+          PREPROD_WRITE=${preprod_write}
+          EOF_BODY
+          )"
+          else
+            items="$(jq -c '.items' "$result")"
+            summary="$(jq -c '.summary' "$result")"
+            schema="$(jq -r '.public_schema // .metadata_schema' "$result")"
+            body="$(cat <<EOF_BODY
           ### Agency #${ISSUE_NUMBER} PROD config diagnostic PASS
 
           trusted_main: \`${TRUSTED_MAIN}\`
@@ -296,4 +386,5 @@ jobs:
           PREPROD_WRITE=NONE
           EOF_BODY
           )"
+          fi
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

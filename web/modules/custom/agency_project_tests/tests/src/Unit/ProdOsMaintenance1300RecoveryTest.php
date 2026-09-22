@@ -24,8 +24,6 @@ final class ProdOsMaintenance1300RecoveryTest extends TestCase {
     'scripts/production-maintenance-1183/claim-one-shot-recovery.sh';
   private const CLAIM_TEST =
     'scripts/production-maintenance-1183/tests/test_one_shot_recovery_claim.py';
-  private const READINESS =
-    'scripts/production-maintenance-1183/stable-ssh-readiness.sh';
   private const READINESS_TEST =
     'scripts/production-maintenance-1183/tests/test_stable_ssh_readiness.py';
   private const MAINTENANCE_TEST =

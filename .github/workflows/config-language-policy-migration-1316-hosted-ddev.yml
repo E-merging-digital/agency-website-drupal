@@ -113,7 +113,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ddev exec env SYMFONY_DEPRECATIONS_HELPER=disabled \
+          ddev exec env \
+            SYMFONY_DEPRECATIONS_HELPER=disabled \
+            SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site \
+            SIMPLETEST_DB=mysql://db:db@db/db \
             vendor/bin/phpunit -c web/core/phpunit.xml.dist \
             web/modules/custom/agency_ai_translation/tests/src/Kernel/AiAutomatorConfigSchemaCompatibilityKernelTest.php
 

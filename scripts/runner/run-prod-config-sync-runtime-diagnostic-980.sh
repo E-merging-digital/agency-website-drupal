@@ -9,13 +9,18 @@ SERVER_USER="${SERVER_USER:-}"
 PROD_SSH_KEY="${PROD_SSH_KEY:-}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/prod-config-sync-runtime-diagnostic}"
 
-[[ "$ISSUE_NUMBER" == '980' || "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' || "$ISSUE_NUMBER" == '1301' ]] || {
-  echo 'This diagnostic is bound to issue #980, #982, #995 or #1301.' >&2
+[[ "$ISSUE_NUMBER" == '980' || "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' || "$ISSUE_NUMBER" == '1301' || "$ISSUE_NUMBER" == '1302' ]] || {
+  echo 'This diagnostic is bound to issue #980, #982, #995, #1301 or #1302.' >&2
   exit 1
 }
 if [[ "$ISSUE_NUMBER" == '995' ]]; then
   [[ "$DIAGNOSTIC_PROFILE" == 'canvas_paths' ]] || {
     echo '#995 requires the bounded canvas_paths diagnostic profile.' >&2
+    exit 1
+  }
+elif [[ "$ISSUE_NUMBER" == '1302' ]]; then
+  [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]] || {
+    echo '#1302 requires the bounded language_lock diagnostic profile.' >&2
     exit 1
   }
 else
@@ -36,9 +41,11 @@ EXPECTED_SETTINGS="$PROJECT_ROOT/shared/settings/settings.php"
 PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'
 CONFIG_STATUS_FILTER='scripts/runner/filter-config-status-metadata.php'
 CANVAS_PATH_PROBE='scripts/runner/canvas-runtime-diff-paths-995.php'
+LANGUAGE_LOCK_PROBE='scripts/runner/language-lock-runtime-state-1311.php'
 
 [[ -f "$CONFIG_STATUS_FILTER" ]]
 [[ -f "$CANVAS_PATH_PROBE" ]]
+[[ -f "$LANGUAGE_LOCK_PROBE" ]]
 mkdir -p "$ARTIFACT_DIR"
 
 SERVER_HOST="$SERVER_HOST" bash "$PROD_TRUST" PROVISION >/dev/null
@@ -92,7 +99,10 @@ encoded_code="$(printf '%s' "$php_code" | base64 -w 0)"
 
 runtime_getter=''
 getter_rc=1
-if [[ "$drush_bootstrap" == 'SUCCESS' ]]; then
+if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
+  drupal_root="$current_target/web"
+  effective_config_sync='UNOBSERVABLE'
+elif [[ "$drush_bootstrap" == 'SUCCESS' ]]; then
   printf -v getter_command \
     "set -euo pipefail; cd /var/www/agency/current; code=\$(printf '%%s' '%s' | base64 -d); vendor/bin/drush php:eval \"\$code\" 2>/dev/null" \
     "$encoded_code"
@@ -102,7 +112,9 @@ if [[ "$drush_bootstrap" == 'SUCCESS' ]]; then
   set -e
 fi
 
-if [[ "$getter_rc" -eq 0 ]]; then
+if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
+  :
+elif [[ "$getter_rc" -eq 0 ]]; then
   mapfile -t getter_lines <<<"$runtime_getter"
   [[ "${#getter_lines[@]}" -eq 2 ]]
   drupal_root="$(printf '%s' "${getter_lines[0]}" | base64 -d)"
@@ -234,6 +246,56 @@ if [[ "$DIAGNOSTIC_PROFILE" == 'canvas_paths' ]]; then
   exit 0
 fi
 
+language_lock_public=''
+if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
+  language_lock_probe_code="$(tail -n +2 "$LANGUAGE_LOCK_PROBE")"
+  encoded_language_lock_probe="$(printf '%s' "$language_lock_probe_code" | base64 -w 0)"
+  [[ "$encoded_language_lock_probe" =~ ^[A-Za-z0-9+/=]+$ ]]
+
+  printf -v language_lock_command \
+    "set -euo pipefail; cd /var/www/agency/current; code=\$(printf '%%s' '%s' | base64 -d); AGENCY_LANGUAGE_LOCK_1311_EXECUTE=1 AGENCY_LANGUAGE_LOCK_1311_ENVIRONMENT=PROD vendor/bin/drush php:eval \"\$code\" 2>/dev/null" \
+    "$encoded_language_lock_probe"
+  language_lock_raw=''
+  set +e
+  language_lock_raw="$(ssh "${ssh_common[@]}" "$remote_target" "$language_lock_command")"
+  language_lock_rc="$?"
+  set -e
+  [[ "$language_lock_rc" -eq 0 ]] || {
+    echo 'PROD #1302 bounded Language Lock runtime probe failed.' >&2
+    exit 1
+  }
+
+  language_lock_public="$ARTIFACT_DIR/language-lock-runtime-state.json"
+  printf '%s\n' "$language_lock_raw" > "$language_lock_public"
+  unset language_lock_raw language_lock_probe_code encoded_language_lock_probe language_lock_command
+
+  jq -e '
+    .schema_version == 1
+    and .target == "PROD"
+    and (.current_release | type == "string" and test("^[A-Za-z0-9._-]+$"))
+    and .drupal_root == ("/var/www/agency/releases/" + .current_release + "/web")
+    and (.drupal_core_version | type == "string" and length > 0 and length <= 64)
+    and (.canvas_enabled | type == "boolean")
+    and (.canvas_version | type == "string" and length > 0 and length <= 64)
+    and (.config_language_lock_enabled | type == "boolean")
+    and (.config_language_lock_version | type == "string" and length > 0 and length <= 64)
+    and (.site_default_language | type == "string" and test("^[A-Za-z0-9_-]+$"))
+    and (.active_locked_langcode == null or (.active_locked_langcode | type == "string" and test("^[A-Za-z0-9_-]+$")))
+    and (.active_follow_site_default == null or (.active_follow_site_default | type == "boolean"))
+    and (.sync_locked_langcode == null or (.sync_locked_langcode | type == "string" and test("^[A-Za-z0-9_-]+$")))
+    and (.sync_follow_site_default == null or (.sync_follow_site_default | type == "boolean"))
+    and (.active_sync_lock_settings_match | type == "boolean")
+    and .canvas_requirement_source == "Drupal\\config_language_lock\\Hook\\ConfigLanguageLockRequirementsHooks::runtimeRequirements"
+    and .canvas_requirement_key == "config_language_lock_canvas_mismatch"
+    and (.canvas_requirement_severity == "NONE" or .canvas_requirement_severity == "INFO" or .canvas_requirement_severity == "OK" or .canvas_requirement_severity == "WARNING" or .canvas_requirement_severity == "ERROR")
+    and (.canvas_requirement_verdict == "PASS" or .canvas_requirement_verdict == "WARNING" or .canvas_requirement_verdict == "ERROR" or .canvas_requirement_verdict == "NOT_APPLICABLE")
+    and (.canvas_requirement_summary | type == "string" and length > 0 and length <= 160 and (test("[<>]") | not))
+    and (.languages.und.present | type == "boolean")
+    and (.languages.zxx.present | type == "boolean")
+    and .config_values_exposed == false
+  ' "$language_lock_public" >/dev/null
+fi
+
 config_status_raw=''
 set +e
 config_status_raw="$(ssh "${ssh_common[@]}" "$remote_target" \
@@ -270,6 +332,78 @@ jq -e '
 config_status='CLEAN'
 if [[ "$(jq -r '.summary.total' "$config_status_metadata")" -gt 0 ]]; then
   config_status='DIFFERENT'
+fi
+
+if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
+  config_status_concerned="$ARTIFACT_DIR/config-status-concerned.json"
+  jq '[
+    .items[]
+    | select(
+        .config_name == "config_language_lock.settings"
+        or .config_name == "system.site"
+        or .config_name == "core.extension"
+      )
+  ]' "$config_status_metadata" > "$config_status_concerned"
+  jq -e '
+    type == "array"
+    and all(.[];
+      (.config_name == "config_language_lock.settings" or .config_name == "system.site" or .config_name == "core.extension")
+      and (.state == "Only in DB" or .state == "Only in sync dir" or .state == "Different")
+      and (.operation == "CREATE" or .operation == "UPDATE" or .operation == "DELETE")
+      and (.classification == "EXPECTED_REPOSITORY_DEPLOY_DRIFT" or .classification == "INTENTIONAL_RUNTIME_ONLY" or .classification == "UNEXPECTED_REVIEW_REQUIRED")
+    )
+  ' "$config_status_concerned" >/dev/null
+
+  jq -n \
+    --slurpfile runtime "$language_lock_public" \
+    --slurpfile config_status_concerned "$config_status_concerned" \
+    '{
+      schema_version: 4,
+      target: $runtime[0].target,
+      diagnostic_profile: "language_lock",
+      current_release: $runtime[0].current_release,
+      drupal_root: $runtime[0].drupal_root,
+      drupal_core_version: $runtime[0].drupal_core_version,
+      canvas_enabled: $runtime[0].canvas_enabled,
+      canvas_version: $runtime[0].canvas_version,
+      config_language_lock_enabled: $runtime[0].config_language_lock_enabled,
+      config_language_lock_version: $runtime[0].config_language_lock_version,
+      site_default_language: $runtime[0].site_default_language,
+      active_locked_langcode: $runtime[0].active_locked_langcode,
+      active_follow_site_default: $runtime[0].active_follow_site_default,
+      sync_locked_langcode: $runtime[0].sync_locked_langcode,
+      sync_follow_site_default: $runtime[0].sync_follow_site_default,
+      active_sync_lock_settings_match: $runtime[0].active_sync_lock_settings_match,
+      canvas_requirement_source: $runtime[0].canvas_requirement_source,
+      canvas_requirement_key: $runtime[0].canvas_requirement_key,
+      canvas_requirement_severity: $runtime[0].canvas_requirement_severity,
+      canvas_requirement_verdict: $runtime[0].canvas_requirement_verdict,
+      canvas_requirement_summary: $runtime[0].canvas_requirement_summary,
+      config_status_concerned: $config_status_concerned[0],
+      languages: $runtime[0].languages,
+      prod_access: "READ_ONLY",
+      prod_mutation: "NONE",
+      prod_write: "NONE",
+      preprod_access: "NONE",
+      preprod_write: "NONE",
+      config_values_exposed: false
+    }' > "$ARTIFACT_DIR/result.json"
+
+  rm -f -- "$config_status_metadata" "$config_status_concerned" "$language_lock_public"
+
+  jq -e '
+    .schema_version == 4
+    and .target == "PROD"
+    and .diagnostic_profile == "language_lock"
+    and .prod_access == "READ_ONLY"
+    and .prod_mutation == "NONE"
+    and .prod_write == "NONE"
+    and .preprod_access == "NONE"
+    and .preprod_write == "NONE"
+    and .config_values_exposed == false
+    and (.config_status_concerned | type == "array")
+  ' "$ARTIFACT_DIR/result.json" >/dev/null
+  exit 0
 fi
 
 jq -n \

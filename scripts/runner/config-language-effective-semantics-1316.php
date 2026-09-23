@@ -69,6 +69,7 @@ foreach (['fr', 'en'] as $langcode) {
     'count' => count($fingerprints),
     'names_sha256' => hash('sha256', implode("\n", array_keys($fingerprints))),
     'values_sha256' => hash('sha256', json_encode($fingerprints, JSON_THROW_ON_ERROR)),
+    'object_fingerprints' => $fingerprints,
   ];
 }
 

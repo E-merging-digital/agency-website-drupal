@@ -154,25 +154,99 @@ jobs:
             and .config_values_exposed == false
           ' "${RUNNER_TEMP}/runtime-before.json" >/dev/null
 
-      - name: Prove effective FR/EN semantics preserved
+      - name: Build bounded effective FR/EN semantic diagnostic
         shell: bash
         run: |
           set -euo pipefail
           ddev drush php:script             /var/www/html/scripts/runner/config-language-effective-semantics-1316.php             > "${RUNNER_TEMP}/effective-after.json"
-          for lang in fr en; do
-            before_names="$(jq -r ".languages[\"$lang\"].names_sha256" "${RUNNER_TEMP}/effective-before.json")"
-            after_names="$(jq -r ".languages[\"$lang\"].names_sha256" "${RUNNER_TEMP}/effective-after.json")"
-            before_values="$(jq -r ".languages[\"$lang\"].values_sha256" "${RUNNER_TEMP}/effective-before.json")"
-            after_values="$(jq -r ".languages[\"$lang\"].values_sha256" "${RUNNER_TEMP}/effective-after.json")"
-            [[ "$before_names" == "$after_names" ]]
-            [[ "$before_values" == "$after_values" ]]
-          done
+
           jq -e '
             .und.id == "und"
             and .und.locked == true
             and .zxx.id == "zxx"
             and .zxx.locked == true
           ' "${RUNNER_TEMP}/effective-after.json" >/dev/null
+
+          mkdir -p "${RUNNER_TEMP}/semantic-diagnostic-1316"
+          jq -n             --slurpfile before "${RUNNER_TEMP}/effective-before.json"             --slurpfile after "${RUNNER_TEMP}/effective-after.json" '
+              def sorted_keys($map): ($map | keys | sort);
+              def difference($left; $right):
+                [$left[] | select(($right | index(.)) == null)];
+              def common($left; $right):
+                [$left[] | select(($right | index(.)) != null)];
+              def diagnostic($lang):
+                ($before[0].languages[$lang]) as $b
+                | ($after[0].languages[$lang]) as $a
+                | sorted_keys($b.object_fingerprints) as $before_names
+                | sorted_keys($a.object_fingerprints) as $after_names
+                | difference($after_names; $before_names) as $added
+                | difference($before_names; $after_names) as $removed
+                | common($before_names; $after_names) as $shared
+                | [
+                    $shared[]
+                    | select(
+                        $b.object_fingerprints[.]
+                        != $a.object_fingerprints[.]
+                      )
+                  ] as $changed
+                | {
+                    names_equal: ($b.names_sha256 == $a.names_sha256),
+                    values_equal: ($b.values_sha256 == $a.values_sha256),
+                    before_count: $b.count,
+                    after_count: $a.count,
+                    before_names_sha256: $b.names_sha256,
+                    after_names_sha256: $a.names_sha256,
+                    before_values_sha256: $b.values_sha256,
+                    after_values_sha256: $a.values_sha256,
+                    added_object_names: $added,
+                    removed_object_names: $removed,
+                    changed_object_names: $changed,
+                    added_count: ($added | length),
+                    removed_count: ($removed | length),
+                    changed_count: ($changed | length)
+                  };
+              {
+                schema_version: 1,
+                fr: diagnostic("fr"),
+                en: diagnostic("en"),
+                raw_config_values_exposed: false
+              }
+            ' > "${RUNNER_TEMP}/semantic-diagnostic-1316/result.json"
+
+          jq -e '
+            .schema_version == 1
+            and (.fr.names_equal | type == "boolean")
+            and (.fr.values_equal | type == "boolean")
+            and (.en.names_equal | type == "boolean")
+            and (.en.values_equal | type == "boolean")
+            and (.fr.added_object_names | type == "array")
+            and (.fr.removed_object_names | type == "array")
+            and (.fr.changed_object_names | type == "array")
+            and (.en.added_object_names | type == "array")
+            and (.en.removed_object_names | type == "array")
+            and (.en.changed_object_names | type == "array")
+            and .raw_config_values_exposed == false
+          ' "${RUNNER_TEMP}/semantic-diagnostic-1316/result.json" >/dev/null
+
+      - name: Upload bounded FR/EN semantic diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-semantic-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/semantic-diagnostic-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce unchanged effective FR/EN semantic equality
+        shell: bash
+        run: |
+          set -euo pipefail
+          diagnostic="${RUNNER_TEMP}/semantic-diagnostic-1316/result.json"
+          jq -e '
+            .fr.names_equal == true
+            and .fr.values_equal == true
+            and .en.names_equal == true
+            and .en.values_equal == true
+          ' "$diagnostic" >/dev/null
 
       - name: Capture pre-materialization config status
         shell: bash

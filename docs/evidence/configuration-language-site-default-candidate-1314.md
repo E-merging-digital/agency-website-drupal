@@ -2,7 +2,7 @@
 
 Status: **PROOF ONLY — NOT ADOPTED**
 
-Authority: `PROJECT_LEAD_EXECUTION_AUTHORITY_1314_R1 / 5794179907`
+Authorities: `PROJECT_LEAD_EXECUTION_AUTHORITY_1314_R1 / 5794179907` and\n`PROJECT_LEAD_CONTINUATION_AUTHORITY_1314_R2 / 5795366747`
 
 Candidate A: site default `fr`, `locked_langcode=fr`, `follow_site_default=true`.
 Exact tested versions: Drupal 11.4.7, Canvas 1.11.0, Config Language Lock 1.0.2.
@@ -102,9 +102,48 @@ temporarily changed to FR/true completes, and the Canvas requirement passes.
 However Config Language Lock reports `353 configuration objects updated`, and
 the first config-status checkpoint is dirty.
 
-One explicitly allowed control `cim` restores the repository FR/EN translation
-collection names, but overall configuration still does not converge:
-`config:status` reports 515 differences in the local proof.
+A fresh GitHub-hosted Ubuntu 24.04 replay on exact proof HEAD
+`2ebcd4b0b83d307a0acf957ec0c6847061540f08` materialized the same
+Candidate A through `site:install --existing-config` and produced bounded
+machine-readable evidence:
+
+```text
+HOSTED_DDEV_RUN = 35872994055 / run 1 / attempt 1 / SUCCESS
+HOSTED_DDEV_ARTIFACT = 10755774723
+HOSTED_DDEV_ARTIFACT_DIGEST =
+sha256:f22014c451a9badfcc51820d8d0e8afb476f81876ac3c584928a363106883111
+
+MODULE_NORMALIZATION_CHANGED_COUNT = 353
+
+FIRST_CONFIG_STATUS_TOTAL = 534
+FIRST_CONFIG_STATUS_STATE = DIFFERENT
+
+ACTIVE_FR_COLLECTION_COUNT_BEFORE_CONTROL_IMPORT = 36
+ACTIVE_EN_COLLECTION_COUNT_BEFORE_CONTROL_IMPORT = 194
+
+CONTROL_CIM_COUNT = 1
+CONTROL_CIM_RESULT = SUCCESS
+
+SECOND_CONFIG_STATUS_TOTAL = 514
+SECOND_CONFIG_STATUS_STATE = DIFFERENT
+
+ACTIVE_FR_COLLECTION_COUNT_AFTER_CONTROL_IMPORT = 36
+ACTIVE_EN_COLLECTION_COUNT_AFTER_CONTROL_IMPORT = 1
+
+EXISTING_CONFIG_REPRODUCIBILITY = FAIL
+CONFIG_SYNC_WORKTREE_UNCHANGED = YES
+```
+
+The hosted replay confirms the prior local observations of 353 normalized
+configuration objects and 194 active EN override items before the control
+import. It supersedes the prior local post-control count of 515 with the fresh
+exact-head value of 514. The bounded proof does not establish the exact cause
+of that one-item difference, so no cause is inferred.
+
+The FR collection remained at 36 items across the control import. The EN
+collection returned from 194 active items to 1 after the single allowed
+control `cim`, while overall configuration still remained materially
+different.
 
 ```text
 EXISTING_CONFIG_REPRODUCIBILITY = FAIL
@@ -112,6 +151,8 @@ EXISTING_CONFIG_REPRODUCIBILITY = FAIL
 
 This is a policy/migration result, not a CI defect. Candidate A cannot be
 adopted as a two-setting change against the current EN-oriented repository.
+The hosted reconciliation does not change Recommendation C or the migration
+classification below.
 
 ## Policy recommendation
 

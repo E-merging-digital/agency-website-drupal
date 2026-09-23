@@ -39,7 +39,10 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
       $byName['CONFIG_SYNC_RUNTIME_DIAGNOSTIC']['exact'] ?? NULL,
     );
     self::assertSame(
-      ['/agency-config-sync-prod-runtime diagnose'],
+      [
+        '/agency-config-sync-prod-runtime diagnose',
+        '/agency-config-language-lock-prod diagnose',
+      ],
       $byName['PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC']['exact'] ?? NULL,
     );
 
@@ -49,7 +52,7 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301')",
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301', '1302')",
       $source,
     );
     self::assertStringContainsString('if isinstance(required_issue, tuple):', $source);

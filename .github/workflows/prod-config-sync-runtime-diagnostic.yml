@@ -17,6 +17,7 @@ on:
       - 'scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh'
       - 'scripts/runner/filter-config-status-metadata.php'
       - 'scripts/runner/canvas-runtime-diff-paths-995.php'
+      - 'scripts/runner/language-lock-runtime-state-1311.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php'
@@ -45,6 +46,7 @@ jobs:
           bash -n scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh
           php -l scripts/runner/filter-config-status-metadata.php
           php -l scripts/runner/canvas-runtime-diff-paths-995.php
+          php -l scripts/runner/language-lock-runtime-state-1311.php
           docker run --rm -v "$PWD:/repo" -w /repo \
             rhysd/actionlint:1.7.7 -color \
             .github/workflows/prod-config-sync-runtime-diagnostic.yml
@@ -69,8 +71,16 @@ jobs:
       ${{
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request == null &&
-        (github.event.issue.number == 982 || github.event.issue.number == 995 || github.event.issue.number == 1301) &&
-        github.event.comment.body == '/agency-config-sync-prod-runtime diagnose'
+        (
+          (
+            (github.event.issue.number == 982 || github.event.issue.number == 995 || github.event.issue.number == 1301) &&
+            github.event.comment.body == '/agency-config-sync-prod-runtime diagnose'
+          ) ||
+          (
+            github.event.issue.number == 1302 &&
+            github.event.comment.body == '/agency-config-language-lock-prod diagnose'
+          )
+        )
       }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -97,8 +107,12 @@ jobs:
           set -euo pipefail
           [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
           [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
-          [[ "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' || "$ISSUE_NUMBER" == '1301' ]]
-          [[ "$TRIGGER_COMMENT" == '/agency-config-sync-prod-runtime diagnose' ]]
+          [[ "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' || "$ISSUE_NUMBER" == '1301' || "$ISSUE_NUMBER" == '1302' ]]
+          expected_command='/agency-config-sync-prod-runtime diagnose'
+          if [[ "$ISSUE_NUMBER" == '1302' ]]; then
+            expected_command='/agency-config-language-lock-prod diagnose'
+          fi
+          [[ "$TRIGGER_COMMENT" == "$expected_command" ]]
 
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
           [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
@@ -111,7 +125,43 @@ jobs:
             exit 1
           }
 
-          if [[ "$ISSUE_NUMBER" == '1301' ]]; then
+          if [[ "$ISSUE_NUMBER" == '1302' ]]; then
+            [[ "$COMMENT_AUTHOR_ASSOCIATION" == 'OWNER' ]]
+            [[ "$TRIGGER_COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
+            command_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$TRIGGER_COMMENT_ID")"
+            [[ "$(jq -r '.user.login' <<<"$command_json")" == 'E-merging-digital' ]]
+            [[ "$(jq -r '.author_association' <<<"$command_json")" == 'OWNER' ]]
+            jq -e '.performed_via_github_app == null' <<<"$command_json" >/dev/null
+            [[ "$(jq -r '.issue_url' <<<"$command_json")" == \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/1302" ]]
+            [[ "$(jq -r '.body' <<<"$command_json")" == "$TRIGGER_COMMENT" ]]
+
+            authority_json="$(
+              gh api --paginate --slurp \
+                "repos/$GITHUB_REPOSITORY/issues/1302/comments?per_page=100" \
+                | jq -c \
+                  --arg command "$TRIGGER_COMMENT" \
+                  --arg main "$main_sha" \
+                  --argjson command_id "$TRIGGER_COMMENT_ID" '
+                    [
+                      .[][]
+                      | select((.id | type) == "number" and .id < $command_id)
+                      | select(.user.login == "E-merging-digital")
+                      | select(.author_association == "OWNER")
+                      | select((.body // "") | startswith("PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1302_R"))
+                      | select((.body // "") | contains("LIVE_MAIN =\n" + $main))
+                      | select((.body // "") | contains("AUTHORIZED HUMAN COMMAND =\n" + $command))
+                    ]
+                    | sort_by(.id)
+                    | last // empty
+                  '
+            )"
+            test -n "$authority_json"
+            authority_comment_id="$(jq -er '.id' <<<"$authority_json")"
+            [[ "$authority_comment_id" =~ ^[1-9][0-9]*$ ]]
+            [[ "$authority_comment_id" -lt "$TRIGGER_COMMENT_ID" ]]
+            echo "authority_comment_id=$authority_comment_id" >> "$GITHUB_OUTPUT"
+          elif [[ "$ISSUE_NUMBER" == '1301' ]]; then
             [[ "$COMMENT_AUTHOR_ASSOCIATION" == 'OWNER' ]]
             [[ "$TRIGGER_COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
             command_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$TRIGGER_COMMENT_ID")"
@@ -179,6 +229,7 @@ jobs:
           bash -n scripts/production-ssh-trust/manage-known-host.sh
           php -l scripts/runner/filter-config-status-metadata.php
           php -l scripts/runner/canvas-runtime-diff-paths-995.php
+          php -l scripts/runner/language-lock-runtime-state-1311.php
 
       - name: JIT revalidate live main before PROD identity
         shell: bash
@@ -206,7 +257,7 @@ jobs:
         shell: bash
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          DIAGNOSTIC_PROFILE: ${{ github.event.issue.number == 995 && 'canvas_paths' || 'metadata' }}
+          DIAGNOSTIC_PROFILE: ${{ github.event.issue.number == 995 && 'canvas_paths' || github.event.issue.number == 1302 && 'language_lock' || 'metadata' }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           PROD_SSH_KEY: ${{ runner.temp }}/agency-config-prod.key
@@ -234,6 +285,85 @@ jobs:
               and .public_schema == "environment + config_name + differing_paths[] + classification"
               and .config_values_exposed == false
               and .cohort_size == 15
+            ' "$public" >/dev/null
+          elif [[ "$ISSUE_NUMBER" == '1302' ]]; then
+            jq '{
+              TARGET: .target,
+              CURRENT_RELEASE: .current_release,
+              DRUPAL_ROOT: .drupal_root,
+              DRUPAL_CORE_VERSION: .drupal_core_version,
+              CANVAS_ENABLED: .canvas_enabled,
+              CANVAS_VERSION: .canvas_version,
+              CONFIG_LANGUAGE_LOCK_ENABLED: .config_language_lock_enabled,
+              CONFIG_LANGUAGE_LOCK_VERSION: .config_language_lock_version,
+              SITE_DEFAULT_LANGUAGE: .site_default_language,
+              ACTIVE_LOCKED_LANGCODE: .active_locked_langcode,
+              ACTIVE_FOLLOW_SITE_DEFAULT: .active_follow_site_default,
+              SYNC_LOCKED_LANGCODE: .sync_locked_langcode,
+              SYNC_FOLLOW_SITE_DEFAULT: .sync_follow_site_default,
+              ACTIVE_SYNC_LOCK_SETTINGS_MATCH: .active_sync_lock_settings_match,
+              CANVAS_REQUIREMENT_SOURCE: .canvas_requirement_source,
+              CANVAS_REQUIREMENT_KEY: .canvas_requirement_key,
+              CANVAS_REQUIREMENT_SEVERITY: .canvas_requirement_severity,
+              CANVAS_REQUIREMENT_VERDICT: .canvas_requirement_verdict,
+              CANVAS_REQUIREMENT_SUMMARY: .canvas_requirement_summary,
+              CONFIG_STATUS_CONCERNED: .config_status_concerned,
+              LANGUAGE_UND_PRESENT: .languages.und.present,
+              LANGUAGE_UND_ID: .languages.und.id,
+              LANGUAGE_UND_LANGCODE: .languages.und.langcode,
+              LANGUAGE_UND_LOCKED: .languages.und.locked,
+              LANGUAGE_ZXX_PRESENT: .languages.zxx.present,
+              LANGUAGE_ZXX_ID: .languages.zxx.id,
+              LANGUAGE_ZXX_LANGCODE: .languages.zxx.langcode,
+              LANGUAGE_ZXX_LOCKED: .languages.zxx.locked,
+              PROD_ACCESS: .prod_access,
+              PROD_MUTATION: .prod_mutation,
+              PROD_WRITE: .prod_write,
+              PREPROD_ACCESS: .preprod_access,
+              PREPROD_WRITE: .preprod_write,
+              CONFIG_VALUES_EXPOSED: .config_values_exposed
+            }' "$result" > "$public"
+            jq -e '
+              .TARGET == "PROD"
+              and (.CURRENT_RELEASE | type == "string" and test("^[A-Za-z0-9._-]+$"))
+              and .DRUPAL_ROOT == ("/var/www/agency/releases/" + .CURRENT_RELEASE + "/web")
+              and (.DRUPAL_CORE_VERSION | type == "string" and length > 0 and length <= 64)
+              and (.CANVAS_ENABLED | type == "boolean")
+              and (.CANVAS_VERSION | type == "string" and length > 0 and length <= 64)
+              and (.CONFIG_LANGUAGE_LOCK_ENABLED | type == "boolean")
+              and (.CONFIG_LANGUAGE_LOCK_VERSION | type == "string" and length > 0 and length <= 64)
+              and (.SITE_DEFAULT_LANGUAGE | type == "string" and test("^[A-Za-z0-9_-]+$"))
+              and (.ACTIVE_LOCKED_LANGCODE == null or (.ACTIVE_LOCKED_LANGCODE | type == "string" and test("^[A-Za-z0-9_-]+$")))
+              and (.ACTIVE_FOLLOW_SITE_DEFAULT == null or (.ACTIVE_FOLLOW_SITE_DEFAULT | type == "boolean"))
+              and (.SYNC_LOCKED_LANGCODE == null or (.SYNC_LOCKED_LANGCODE | type == "string" and test("^[A-Za-z0-9_-]+$")))
+              and (.SYNC_FOLLOW_SITE_DEFAULT == null or (.SYNC_FOLLOW_SITE_DEFAULT | type == "boolean"))
+              and (.ACTIVE_SYNC_LOCK_SETTINGS_MATCH | type == "boolean")
+              and .CANVAS_REQUIREMENT_SOURCE == "Drupal\\config_language_lock\\Hook\\ConfigLanguageLockRequirementsHooks::runtimeRequirements"
+              and .CANVAS_REQUIREMENT_KEY == "config_language_lock_canvas_mismatch"
+              and (.CANVAS_REQUIREMENT_SEVERITY == "NONE" or .CANVAS_REQUIREMENT_SEVERITY == "INFO" or .CANVAS_REQUIREMENT_SEVERITY == "OK" or .CANVAS_REQUIREMENT_SEVERITY == "WARNING" or .CANVAS_REQUIREMENT_SEVERITY == "ERROR")
+              and (.CANVAS_REQUIREMENT_VERDICT == "PASS" or .CANVAS_REQUIREMENT_VERDICT == "WARNING" or .CANVAS_REQUIREMENT_VERDICT == "ERROR" or .CANVAS_REQUIREMENT_VERDICT == "NOT_APPLICABLE")
+              and (.CANVAS_REQUIREMENT_SUMMARY | type == "string" and length > 0 and length <= 160 and (test("[<>]") | not))
+              and (.CONFIG_STATUS_CONCERNED | type == "array")
+              and all(.CONFIG_STATUS_CONCERNED[];
+                (.config_name == "config_language_lock.settings" or .config_name == "system.site" or .config_name == "core.extension")
+                and (.state == "Only in DB" or .state == "Only in sync dir" or .state == "Different")
+                and (.operation == "CREATE" or .operation == "UPDATE" or .operation == "DELETE")
+                and (.classification == "EXPECTED_REPOSITORY_DEPLOY_DRIFT" or .classification == "INTENTIONAL_RUNTIME_ONLY" or .classification == "UNEXPECTED_REVIEW_REQUIRED")
+              )
+              and (.LANGUAGE_UND_PRESENT | type == "boolean")
+              and (.LANGUAGE_UND_ID == null or .LANGUAGE_UND_ID == "und")
+              and (.LANGUAGE_UND_LANGCODE == null or (.LANGUAGE_UND_LANGCODE | type == "string"))
+              and (.LANGUAGE_UND_LOCKED == null or (.LANGUAGE_UND_LOCKED | type == "boolean"))
+              and (.LANGUAGE_ZXX_PRESENT | type == "boolean")
+              and (.LANGUAGE_ZXX_ID == null or .LANGUAGE_ZXX_ID == "zxx")
+              and (.LANGUAGE_ZXX_LANGCODE == null or (.LANGUAGE_ZXX_LANGCODE | type == "string"))
+              and (.LANGUAGE_ZXX_LOCKED == null or (.LANGUAGE_ZXX_LOCKED | type == "boolean"))
+              and .PROD_ACCESS == "READ_ONLY"
+              and .PROD_MUTATION == "NONE"
+              and .PROD_WRITE == "NONE"
+              and .PREPROD_ACCESS == "NONE"
+              and .PREPROD_WRITE == "NONE"
+              and .CONFIG_VALUES_EXPOSED == false
             ' "$public" >/dev/null
           elif [[ "$ISSUE_NUMBER" == '1301' ]]; then
             jq '{
@@ -320,7 +450,77 @@ jobs:
             exit 1
           fi
 
-          if [[ "$ISSUE_NUMBER" == '1301' ]]; then
+          if [[ "$ISSUE_NUMBER" == '1302' ]]; then
+            target="$(jq -r '.TARGET' "$result")"
+            current_release="$(jq -r '.CURRENT_RELEASE' "$result")"
+            drupal_root="$(jq -r '.DRUPAL_ROOT' "$result")"
+            drupal_core_version="$(jq -r '.DRUPAL_CORE_VERSION' "$result")"
+            canvas_enabled="$(jq -r '.CANVAS_ENABLED' "$result")"
+            canvas_version="$(jq -r '.CANVAS_VERSION' "$result")"
+            lock_enabled="$(jq -r '.CONFIG_LANGUAGE_LOCK_ENABLED' "$result")"
+            lock_version="$(jq -r '.CONFIG_LANGUAGE_LOCK_VERSION' "$result")"
+            site_default="$(jq -r '.SITE_DEFAULT_LANGUAGE' "$result")"
+            active_locked="$(jq -r '.ACTIVE_LOCKED_LANGCODE' "$result")"
+            active_follow="$(jq -r '.ACTIVE_FOLLOW_SITE_DEFAULT' "$result")"
+            sync_locked="$(jq -r '.SYNC_LOCKED_LANGCODE' "$result")"
+            sync_follow="$(jq -r '.SYNC_FOLLOW_SITE_DEFAULT' "$result")"
+            active_sync_match="$(jq -r '.ACTIVE_SYNC_LOCK_SETTINGS_MATCH' "$result")"
+            requirement_source="$(jq -r '.CANVAS_REQUIREMENT_SOURCE' "$result")"
+            requirement_key="$(jq -r '.CANVAS_REQUIREMENT_KEY' "$result")"
+            requirement_severity="$(jq -r '.CANVAS_REQUIREMENT_SEVERITY' "$result")"
+            requirement_verdict="$(jq -r '.CANVAS_REQUIREMENT_VERDICT' "$result")"
+            requirement_summary="$(jq -r '.CANVAS_REQUIREMENT_SUMMARY' "$result")"
+            config_status="$(jq -c '.CONFIG_STATUS_CONCERNED' "$result")"
+            und_present="$(jq -r '.LANGUAGE_UND_PRESENT' "$result")"
+            und_id="$(jq -r '.LANGUAGE_UND_ID' "$result")"
+            und_langcode="$(jq -r '.LANGUAGE_UND_LANGCODE' "$result")"
+            und_locked="$(jq -r '.LANGUAGE_UND_LOCKED' "$result")"
+            zxx_present="$(jq -r '.LANGUAGE_ZXX_PRESENT' "$result")"
+            zxx_id="$(jq -r '.LANGUAGE_ZXX_ID' "$result")"
+            zxx_langcode="$(jq -r '.LANGUAGE_ZXX_LANGCODE' "$result")"
+            zxx_locked="$(jq -r '.LANGUAGE_ZXX_LOCKED' "$result")"
+            body="$(cat <<EOF_BODY
+          ### Agency #1302 PROD Language Lock / Canvas diagnostic PASS
+
+          trusted_main: $TRUSTED_MAIN
+          run_id: $GITHUB_RUN_ID
+          TARGET=$target
+          CURRENT_RELEASE=$current_release
+          DRUPAL_ROOT=$drupal_root
+          DRUPAL_CORE_VERSION=$drupal_core_version
+          CANVAS_ENABLED=$canvas_enabled
+          CANVAS_VERSION=$canvas_version
+          CONFIG_LANGUAGE_LOCK_ENABLED=$lock_enabled
+          CONFIG_LANGUAGE_LOCK_VERSION=$lock_version
+          SITE_DEFAULT_LANGUAGE=$site_default
+          ACTIVE_LOCKED_LANGCODE=$active_locked
+          ACTIVE_FOLLOW_SITE_DEFAULT=$active_follow
+          SYNC_LOCKED_LANGCODE=$sync_locked
+          SYNC_FOLLOW_SITE_DEFAULT=$sync_follow
+          ACTIVE_SYNC_LOCK_SETTINGS_MATCH=$active_sync_match
+          CANVAS_REQUIREMENT_SOURCE=$requirement_source
+          CANVAS_REQUIREMENT_KEY=$requirement_key
+          CANVAS_REQUIREMENT_SEVERITY=$requirement_severity
+          CANVAS_REQUIREMENT_VERDICT=$requirement_verdict
+          CANVAS_REQUIREMENT_SUMMARY=$requirement_summary
+          CONFIG_STATUS_CONCERNED=$config_status
+          LANGUAGE_UND_PRESENT=$und_present
+          LANGUAGE_UND_ID=$und_id
+          LANGUAGE_UND_LANGCODE=$und_langcode
+          LANGUAGE_UND_LOCKED=$und_locked
+          LANGUAGE_ZXX_PRESENT=$zxx_present
+          LANGUAGE_ZXX_ID=$zxx_id
+          LANGUAGE_ZXX_LANGCODE=$zxx_langcode
+          LANGUAGE_ZXX_LOCKED=$zxx_locked
+          CONFIG_VALUES_EXPOSED=NO
+          PROD_ACCESS=READ_ONLY
+          PROD_MUTATION=NONE
+          PROD_WRITE=NONE
+          PREPROD_ACCESS=NONE
+          PREPROD_WRITE=NONE
+          EOF_BODY
+          )"
+          elif [[ "$ISSUE_NUMBER" == '1301' ]]; then
             target="$(jq -r '.TARGET' "$result")"
             current_release="$(jq -r '.CURRENT_RELEASE' "$result")"
             current_target="$(jq -r '.CURRENT_SYMLINK_TARGET' "$result")"

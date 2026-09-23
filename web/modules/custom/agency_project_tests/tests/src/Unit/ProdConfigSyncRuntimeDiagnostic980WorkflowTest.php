@@ -24,6 +24,9 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
 
   private const FILTER = 'scripts/runner/filter-config-status-metadata.php';
 
+  private const LANGUAGE_LOCK_PROBE =
+    'scripts/runner/language-lock-runtime-state-1311.php';
+
   private const DISPATCHER = '.github/workflows/agency-command-dispatch.yml';
 
   private const LEGACY_PROD_HEALTH_DOC =
@@ -51,7 +54,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      '[[ "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' || "$ISSUE_NUMBER" == \'1301\' ]]',
+      '[[ "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' || "$ISSUE_NUMBER" == \'1301\' || "$ISSUE_NUMBER" == \'1302\' ]]',
       $source,
     );
     self::assertStringContainsString(
@@ -112,7 +115,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     $runner = $this->source(self::RUNNER);
 
     self::assertStringContainsString(
-      '[[ "$ISSUE_NUMBER" == \'980\' || "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' || "$ISSUE_NUMBER" == \'1301\' ]]',
+      '[[ "$ISSUE_NUMBER" == \'980\' || "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' || "$ISSUE_NUMBER" == \'1301\' || "$ISSUE_NUMBER" == \'1302\' ]]',
       $runner,
     );
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency'", $runner);
@@ -155,7 +158,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     $runner = $this->source(self::RUNNER);
 
     self::assertStringContainsString(
-      'DIAGNOSTIC_PROFILE: ${{ github.event.issue.number == 995 && \'canvas_paths\' || \'metadata\' }}',
+      'DIAGNOSTIC_PROFILE: ${{ github.event.issue.number == 995 && \'canvas_paths\' || github.event.issue.number == 1302 && \'language_lock\' || \'metadata\' }}',
       $workflow,
     );
     self::assertStringContainsString(
@@ -191,7 +194,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
     }
 
     self::assertStringContainsString(
-      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301')",
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301', '1302')",
       $dispatcher,
     );
     self::assertStringContainsString("issue == '1301'", $dispatcher);
@@ -542,6 +545,325 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
       self::assertStringNotContainsString($forbidden, $runner, $forbidden);
       self::assertStringNotContainsString($forbidden, $workflow, $forbidden);
     }
+  }
+
+  /**
+   * Proves the exact Composer-locked upstream Canvas requirement contract.
+   */
+  public function testIssue1311ExactInstalledSourceContract(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $lock = json_decode(
+      (string) file_get_contents($root . '/composer.lock'),
+      TRUE,
+      512,
+      JSON_THROW_ON_ERROR,
+    );
+    self::assertIsArray($lock['packages'] ?? NULL);
+    $versions = [];
+    foreach ($lock['packages'] as $package) {
+      if (isset($package['name'], $package['version'])) {
+        $versions[$package['name']] = $package['version'];
+      }
+    }
+    self::assertSame('1.0.2', $versions['drupal/config_language_lock'] ?? NULL);
+    self::assertSame('1.11.0', $versions['drupal/canvas'] ?? NULL);
+    self::assertSame('11.4.7', $versions['drupal/core'] ?? NULL);
+
+    $requirements = $this->source(
+      'web/modules/contrib/config_language_lock/src/Hook/ConfigLanguageLockRequirementsHooks.php',
+    );
+    foreach ([
+      'class ConfigLanguageLockRequirementsHooks',
+      "#[Hook('runtime_requirements')]",
+      'public function runtimeRequirements(): array',
+      '!$this->canvasChecker->isCanvasInstalled()',
+      '$settings->get(\'locked_langcode\')',
+      '$settings->get(\'follow_site_default\')',
+      '$this->languageManager->getDefaultLanguage()->getId()',
+      '$is_valid = $follow_site_default && $locked_langcode === $default_langcode;',
+      "requirements['config_language_lock_canvas_mismatch']",
+      'RequirementSeverity::Error',
+    ] as $required) {
+      self::assertStringContainsString($required, $requirements, $required);
+    }
+
+    $checker = $this->source(
+      'web/modules/contrib/config_language_lock/src/CanvasIntegrationChecker.php',
+    );
+    self::assertStringContainsString(
+      "protected const CANVAS_MODULE = 'canvas';",
+      $checker,
+    );
+    self::assertStringContainsString(
+      'return $this->moduleHandler->moduleExists(static::CANVAS_MODULE);',
+      $checker,
+    );
+
+    $canvas = $this->source('web/modules/contrib/canvas/canvas.install');
+    self::assertStringNotContainsString(
+      'config_language_lock_canvas_mismatch',
+      $canvas,
+    );
+
+    $severity = $this->source(
+      'web/core/lib/Drupal/Core/Extension/Requirement/RequirementSeverity.php',
+    );
+    self::assertStringContainsString('case Error = 2;', $severity);
+    self::assertStringContainsString("self::Error => 'error'", $severity);
+  }
+
+  /**
+   * Proves #1302 uses the exact command, fresh authority and language_lock.
+   */
+  public function testIssue1302RouteAuthorityAndProfileContract(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $dispatcher = $this->source(self::DISPATCHER);
+    $runner = $this->source(self::RUNNER);
+
+    foreach ([
+      '/agency-config-language-lock-prod diagnose',
+      'PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1302_R',
+      'repos/$GITHUB_REPOSITORY/issues/1302/comments?per_page=100',
+      'https://api.github.com/repos/$GITHUB_REPOSITORY/issues/1302',
+      '.id < $command_id',
+      '.user.login == "E-merging-digital"',
+      '.author_association == "OWNER"',
+      '.performed_via_github_app == null',
+      'contains("LIVE_MAIN =\\n" + $main)',
+      'contains("AUTHORIZED HUMAN COMMAND =\\n" + $command)',
+      'sort_by(.id)',
+      'last // empty',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow, $required);
+    }
+
+    self::assertStringContainsString(
+      "'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301', '1302')",
+      $dispatcher,
+    );
+    self::assertStringContainsString(
+      "language_lock_command = '/agency-config-language-lock-prod diagnose'",
+      $dispatcher,
+    );
+    self::assertStringContainsString(
+      "github.event.issue.number == 1302 && 'language_lock'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'elif [[ "$ISSUE_NUMBER" == \'1302\' ]]; then',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '#1302 requires the bounded language_lock diagnostic profile.',
+      $runner,
+    );
+  }
+
+  /**
+   * Proves latest-valid-preceding #1302 authority selection deterministically.
+   */
+  public function testIssue1302AuthoritySelectionMatrix(): void {
+    $main = str_repeat('a', 40);
+    $otherMain = str_repeat('b', 40);
+    $command = '/agency-config-language-lock-prod diagnose';
+    $commandId = 500;
+    $comments = [
+      $this->authorityComment1302(100, $otherMain, $command),
+      $this->authorityComment1302(200, $main, '/wrong-command'),
+      $this->authorityComment1302(300, $main, $command, 'CONTRIBUTOR'),
+      $this->authorityComment1302(400, $main, $command),
+      $this->authorityComment1302(450, $main, $command),
+      $this->authorityComment1302(600, $main, $command),
+    ];
+
+    self::assertSame(
+      450,
+      $this->selectIssue1302Authority($comments, $commandId, $main, $command),
+    );
+    self::assertNull(
+      $this->selectIssue1302Authority($comments, 400, $main, $command),
+    );
+    self::assertNull(
+      $this->selectIssue1302Authority(
+        $comments,
+        $commandId,
+        $otherMain,
+        '/absent',
+      ),
+    );
+  }
+
+  /**
+   * Proves active/sync/version/requirements evidence uses bounded sources.
+   */
+  public function testIssue1302RuntimeEvidenceSourcesAreReadOnlyAndBounded(): void {
+    $helper = $this->source(self::LANGUAGE_LOCK_PROBE);
+    $runner = $this->source(self::RUNNER);
+    $workflow = $this->source(self::WORKFLOW);
+
+    foreach ([
+      'realpath(DRUPAL_ROOT)',
+      '\\Drupal::VERSION',
+      "\\Drupal::service('extension.list.module')",
+      "\\Drupal::service('config.factory')",
+      "\\Drupal::languageManager()",
+      "get('config_language_lock.settings')",
+      "Settings::get('config_sync_directory')",
+      'new FileStorage($syncRoot)',
+      "read('config_language_lock.settings')",
+      'ConfigLanguageLockRequirementsHooks::class',
+      '->runtimeRequirements()',
+      "'config_language_lock_canvas_mismatch'",
+      'read(\'language.entity.\' . $id)',
+      "'und'",
+      "'zxx'",
+      "'config_values_exposed' => FALSE",
+    ] as $required) {
+      self::assertStringContainsString($required, $helper, $required);
+    }
+
+    foreach ([
+      'config_language_lock.settings',
+      'system.site',
+      'core.extension',
+      'config_status_concerned',
+      'AGENCY_LANGUAGE_LOCK_1311_EXECUTE=1',
+      'AGENCY_LANGUAGE_LOCK_1311_ENVIRONMENT=PROD',
+    ] as $required) {
+      self::assertStringContainsString($required, $runner . $workflow, $required);
+    }
+
+    self::assertSame(
+      1,
+      substr_count(
+        $workflow,
+        'run: bash scripts/runner/run-prod-config-sync-runtime-diagnostic-980.sh',
+      ),
+    );
+    self::assertSame(
+      1,
+      substr_count($runner, 'AGENCY_LANGUAGE_LOCK_1311_EXECUTE=1'),
+    );
+
+    foreach ([
+      'vendor/bin/drush cim',
+      'vendor/bin/drush cex',
+      'vendor/bin/drush cr',
+      'vendor/bin/drush updb',
+      'vendor/bin/drush deploy',
+      'vendor/bin/drush config:set',
+      'state:set',
+      'sql:query',
+      'getEditable',
+      '->save()',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $helper, $forbidden);
+      self::assertStringNotContainsString($forbidden, $runner, $forbidden);
+      self::assertStringNotContainsString($forbidden, $workflow, $forbidden);
+    }
+  }
+
+  /**
+   * Proves #1302 evidence is bounded and historical profiles remain intact.
+   */
+  public function testIssue1302PublicEvidenceAndHistoricalCompatibility(): void {
+    $workflow = $this->source(self::WORKFLOW);
+
+    foreach ([
+      'CANVAS_REQUIREMENT_SOURCE: .canvas_requirement_source',
+      'CANVAS_REQUIREMENT_KEY: .canvas_requirement_key',
+      'CANVAS_REQUIREMENT_SEVERITY: .canvas_requirement_severity',
+      'CANVAS_REQUIREMENT_VERDICT: .canvas_requirement_verdict',
+      'CANVAS_REQUIREMENT_SUMMARY: .canvas_requirement_summary',
+      'CONFIG_STATUS_CONCERNED: .config_status_concerned',
+      'LANGUAGE_UND_PRESENT: .languages.und.present',
+      'LANGUAGE_ZXX_PRESENT: .languages.zxx.present',
+      'CONFIG_VALUES_EXPOSED: .config_values_exposed',
+      '### Agency #1302 PROD Language Lock / Canvas diagnostic PASS',
+      'CONFIG_VALUES_EXPOSED=NO',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow, $required);
+    }
+
+    self::assertSame(
+      1,
+      substr_count(
+        $workflow,
+        "jq '.runtime_config_metadata' \"\$result\" > \"\$public\"",
+      ),
+      '#982 metadata-only publication must remain unchanged.',
+    );
+    self::assertSame(
+      1,
+      substr_count(
+        $workflow,
+        "jq '.runtime_canvas_paths' \"\$result\" > \"\$public\"",
+      ),
+      '#995 canvas_paths publication must remain unchanged.',
+    );
+    self::assertStringContainsString(
+      '### Agency #1301 PROD config diagnostic PASS',
+      $workflow,
+    );
+  }
+
+  /**
+   * Builds one synthetic #1302 Project Lead authority comment.
+   */
+  private function authorityComment1302(
+    int $id,
+    string $main,
+    string $command,
+    string $association = 'OWNER',
+  ): array {
+    return [
+      'id' => $id,
+      'user' => ['login' => 'E-merging-digital'],
+      'author_association' => $association,
+      'body' => "PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1302_R1\n"
+      . "LIVE_MAIN =\n{$main}\n"
+      . "AUTHORIZED HUMAN COMMAND =\n{$command}\n",
+    ];
+  }
+
+  /**
+   * Mirrors the #1302 latest-valid-preceding authority selector.
+   */
+  private function selectIssue1302Authority(
+    array $comments,
+    int $commandId,
+    string $main,
+    string $command,
+  ): ?int {
+    $valid = array_filter(
+      $comments,
+      static fn(array $comment): bool =>
+        is_int($comment['id'] ?? NULL)
+        && $comment['id'] < $commandId
+        && ($comment['user']['login'] ?? NULL) === 'E-merging-digital'
+        && ($comment['author_association'] ?? NULL) === 'OWNER'
+        && str_starts_with(
+          (string) ($comment['body'] ?? ''),
+          'PROJECT_LEAD_DIAGNOSTIC_AUTHORITY_1302_R',
+        )
+        && str_contains(
+          (string) $comment['body'],
+          "LIVE_MAIN =\n{$main}",
+        )
+        && str_contains(
+          (string) $comment['body'],
+          "AUTHORIZED HUMAN COMMAND =\n{$command}",
+        ),
+    );
+    if ($valid === []) {
+      return NULL;
+    }
+    usort(
+      $valid,
+      static fn(array $left, array $right): int => $left['id'] <=> $right['id'],
+    );
+    $last = end($valid);
+    return is_array($last) ? (int) $last['id'] : NULL;
   }
 
   /**

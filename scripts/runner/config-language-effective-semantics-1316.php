@@ -52,6 +52,9 @@ foreach (['fr', 'en'] as $langcode) {
   $fingerprints = [];
   foreach ($semanticNames as $name) {
     $data = $configFactory->get($name)->getRawData();
+    // #1316 compares effective semantic values, not technical ownership.
+    // Exclude only the top-level config langcode; nested langcodes remain.
+    unset($data['langcode']);
     $fingerprints[$name] = hash('sha256', json_encode(
       $normalize($data),
       JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,

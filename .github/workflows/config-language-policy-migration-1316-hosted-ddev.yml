@@ -83,6 +83,18 @@ jobs:
           ddev start -y
           ddev composer install --no-interaction --no-progress --prefer-dist
 
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          mkdir -p "$provenance"
+          ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=repository-source \
+            php /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+            > "$provenance/repository-source.json"
+          jq -e '
+            .schema_version == 1
+            and .stage == "repository-source"
+            and .object_count > 0
+            and .raw_config_values_exposed == false
+          ' "$provenance/repository-source.json" >/dev/null
+
           admin_pass="$(openssl rand -hex 24)"
           ddev drush site:install --existing-config -y             --account-pass="$admin_pass"             >"${RUNNER_TEMP}/site-install-1316.log" 2>&1
           unset admin_pass
@@ -108,6 +120,22 @@ jobs:
               encoding="utf-8",
           )
           PY
+
+      - name: Capture repository EN provenance after site install before manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=pre-manager \
+            vendor/bin/drush php:script \
+            /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+            > "$provenance/pre-manager.json"
+          jq -e '
+            .schema_version == 1
+            and .stage == "pre-manager"
+            and (.targets | length == 4)
+            and .raw_config_values_exposed == false
+          ' "$provenance/pre-manager.json" >/dev/null
 
       - name: Prove Agency AI Automator config-schema compatibility
         shell: bash
@@ -173,6 +201,23 @@ jobs:
             and .follow_site_default == true
             and .site_default_language == "fr"
           ' "${RUNNER_TEMP}/drupal-owned-migration.json" >/dev/null
+
+      - name: Capture repository EN provenance after manager
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=post-manager \
+            vendor/bin/drush php:script \
+            /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+            > "$provenance/post-manager.json"
+          jq -e '
+            .schema_version == 1
+            and .stage == "post-manager"
+            and (.targets | length == 4)
+            and .raw_config_values_exposed == false
+          ' "$provenance/post-manager.json" >/dev/null
 
       - name: Prove installed policy runtime before final materialization
         shell: bash
@@ -669,6 +714,43 @@ jobs:
 
           cat "$artifact/result.json"
           cat "$artifact/config-diff-stat.txt"
+
+      - name: Build repository historical EN provenance diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=final-candidate \
+            php /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+            > "$provenance/result.json"
+
+          jq -e '
+            .schema_version == 1
+            and .stage == "final-candidate"
+            and .raw_config_values_exposed == false
+            and .historical_en_mismatch_object_count == 3
+            and .historical_en_mismatch_objects == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and (.first_divergence_stage | type == "string")
+            and .first_divergence_stage != "NONE"
+            and (.targets.language_entity_fr_label.repository_source_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.language_entity_fr_label.pre_manager_effective_en_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.language_entity_fr_label.post_manager_effective_en_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.language_entity_fr_label.final_candidate_effective_en_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.llms_txt_content.repository_source_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.taxonomy_tags_description.repository_source_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$provenance/result.json" >/dev/null
+
+      - name: Upload repository historical EN provenance diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-repository-en-intent-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-repository-en-intent-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Upload reviewable migration artifact
         uses: actions/upload-artifact@v4

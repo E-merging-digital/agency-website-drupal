@@ -1,0 +1,277 @@
+name: "#1316 Configuration-language migration materialization"
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/config-language-policy-migration-1316-hosted-ddev.yml'
+      - 'docs/evidence/config-language-migration-1316-commit-approval.yml'
+      - 'config/sync/**'
+      - 'docs/configuration-language-policy.yml'
+      - 'docs/configuration-language-governance.md'
+      - 'AGENTS.md'
+      - 'web/modules/custom/agency_project_tests/tests/src/**'
+
+permissions:
+  contents: write
+
+jobs:
+  migration:
+    name: "#1316 hosted Drupal-owned migration"
+    if: ${{ github.event.pull_request.head.ref == 'fix/1316-configuration-language-policy-migration' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact checkout and historical boundaries
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_HEAD" ]]
+          git diff --check "$BASE_SHA..$EXPECTED_HEAD"
+          git diff --quiet "$BASE_SHA..$EXPECTED_HEAD" --             docs/decisions/ADR-002-configuration-language-governance.md             .github/workflows/config-language-lock-609-hosted-ddev.yml
+
+      - name: Setup DDEV without autostart
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Isolate hosted DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-1316-hosted.yaml <<EOF
+          name: agency-config-language-1316-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml             | grep -F "agency-config-language-1316-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Determine repository migration mode
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          settings='config/sync/config_language_lock.settings.yml'
+          locked="$(awk -F': ' '/^locked_langcode:/ {print $2}' "$settings")"
+          follow="$(awk -F': ' '/^follow_site_default:/ {print $2}' "$settings")"
+          if [[ "$locked" == 'en' && "$follow" == 'false' ]]; then
+            mode='MATERIALIZE'
+          elif [[ "$locked" == 'fr' && "$follow" == 'true' ]]; then
+            mode='VERIFY'
+          else
+            echo "Unsupported lock settings: $locked / $follow" >&2
+            exit 1
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "MODE=$mode"
+
+      - name: Materialize FR/site-default candidate only when required
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("config/sync/config_language_lock.settings.yml")
+          value = path.read_text(encoding="utf-8")
+          if value != "locked_langcode: en\nfollow_site_default: false\n":
+              raise SystemExit("Unexpected pre-migration lock settings.")
+          path.write_text(
+              "locked_langcode: fr\nfollow_site_default: true\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Install exact dependencies and existing configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y             --account-pass="$admin_pass"             >"${RUNNER_TEMP}/site-install-1316.log" 2>&1
+          unset admin_pass
+
+          grep -Fq 'Installation complete.' "${RUNNER_TEMP}/site-install-1316.log"
+
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"])
+          text = (root / "site-install-1316.log").read_text(
+              encoding="utf-8",
+              errors="replace",
+          )
+          matches = re.findall(
+              r"([0-9]+)\s+configuration objects updated",
+              text,
+              flags=re.IGNORECASE,
+          )
+          (root / "normalization-count.txt").write_text(
+              (matches[-1] if matches else "0") + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Prove installed policy runtime before final materialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/runtime-before.json"
+          jq -e '
+            .drupal_core_version == "11.4.7"
+            and .canvas_version == "1.11.0"
+            and .config_language_lock_version == "1.0.2"
+            and .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .languages.und.id == "und"
+            and .languages.und.locked == true
+            and .languages.zxx.id == "zxx"
+            and .languages.zxx.locked == true
+            and .config_values_exposed == false
+          ' "${RUNNER_TEMP}/runtime-before.json" >/dev/null
+
+      - name: Capture pre-materialization config status
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush config:status --format=json             > "${RUNNER_TEMP}/config-status-before.json"
+          jq -e 'type == "array" or type == "object"'             "${RUNNER_TEMP}/config-status-before.json" >/dev/null
+          jq 'length' "${RUNNER_TEMP}/config-status-before.json"             > "${RUNNER_TEMP}/config-status-before-count.txt"
+
+      - name: Final bounded materialization through Drupal export
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush cex -y > "${RUNNER_TEMP}/cex-1316.log" 2>&1
+          git diff --check -- config/sync
+
+      - name: Prove clean deterministic checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush config:status --format=json             > "${RUNNER_TEMP}/config-status-final.json"
+          jq -e 'type == "array" or type == "object"'             "${RUNNER_TEMP}/config-status-final.json" >/dev/null
+          final_total="$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"
+          [[ "$final_total" -eq 0 ]]
+
+          helper='/var/www/html/scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/runtime-final.json"
+          jq -e '
+            .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .languages.und.id == "und"
+            and .languages.und.locked == true
+            and .languages.zxx.id == "zxx"
+            and .languages.zxx.locked == true
+            and .config_values_exposed == false
+          ' "${RUNNER_TEMP}/runtime-final.json" >/dev/null
+
+      - name: Build migration artifact
+        shell: bash
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-policy-migration-1316'
+          mkdir -p "$artifact"
+
+          git status --porcelain -- config/sync > "$artifact/config-status-porcelain.txt"
+          git diff --name-status -- config/sync > "$artifact/config-name-status.txt"
+          git diff --stat -- config/sync > "$artifact/config-diff-stat.txt"
+          git diff --binary -- config/sync > "$artifact/config-migration.patch"
+
+          mapfile -t changed < <(git diff --name-only --diff-filter=ACMRT -- config/sync)
+          if (("${#changed[@]}" > 0)); then
+            tar -czf "$artifact/changed-config-files.tar.gz" "${changed[@]}"
+          else
+            tar -czf "$artifact/changed-config-files.tar.gz" --files-from /dev/null
+          fi
+
+          git diff --name-only --diff-filter=D -- config/sync             > "$artifact/deleted-config-files.txt"
+
+          jq -n             --arg head "$HEAD_SHA"             --arg mode "$MODE"             --arg normalization "$(cat "${RUNNER_TEMP}/normalization-count.txt")"             --argjson before "$(cat "${RUNNER_TEMP}/config-status-before-count.txt")"             --argjson final "$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"             --argjson fr "$(jq '.collections.fr.count' "${RUNNER_TEMP}/runtime-final.json")"             --argjson en "$(jq '.collections.en.count' "${RUNNER_TEMP}/runtime-final.json")"             --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/runtime-final.json")"             --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/runtime-final.json")"             --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/runtime-final.json")"             --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/runtime-final.json")"             --arg verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/runtime-final.json")"             --argjson changed_count "$(git diff --name-only -- config/sync | wc -l)"             '{
+              schema_version: 1,
+              head_sha: $head,
+              mode: $mode,
+              migration_mechanism: "config_language_lock install/runtime normalization + final drush cex materialization",
+              module_normalization_changed_count: $normalization,
+              config_status_before_count: $before,
+              final_config_status_count: $final,
+              changed_config_file_count: $changed_count,
+              active_fr_override_count: $fr,
+              active_en_override_count: $en,
+              und: {id: $und_id, locked: $und_locked},
+              zxx: {id: $zxx_id, locked: $zxx_locked},
+              canvas_requirement_verdict: $verdict,
+              prod_access: "NONE",
+              preprod_access: "NONE"
+            }' > "$artifact/result.json"
+
+          cat "$artifact/result.json"
+          cat "$artifact/config-diff-stat.txt"
+
+      - name: Upload reviewable migration artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-migration-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-policy-migration-1316
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit reviewed materialization only after explicit marker
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' && hashFiles('docs/evidence/config-language-migration-1316-commit-approval.yml') != '' }}
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          approval='docs/evidence/config-language-migration-1316-commit-approval.yml'
+          grep -Fxq 'approved: true' "$approval"
+          source_head="$(awk -F': ' '/^reviewed_source_head:/ {print $2}' "$approval")"
+          [[ "$source_head" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$source_head" HEAD
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add config/sync
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          git commit -m '[#1316][Migration] Materialize Drupal-owned configuration normalization'
+          git push origin "HEAD:$BRANCH"
+
+      - name: Verify final repository mode is already converged
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain -- config/sync)"
+          [[ "$(jq 'length' "${RUNNER_TEMP}/config-status-before.json")" -eq 0 ]]
+          [[ "$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")" -eq 0 ]]
+
+      - name: Clean DDEV
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-1316-hosted.yaml
+          rm -rf artifacts/config-language-policy-migration-1316

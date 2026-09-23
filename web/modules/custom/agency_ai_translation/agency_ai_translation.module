@@ -216,7 +216,6 @@ function agency_ai_translation_bulk_action_validate(array &$form, FormStateInter
   }
 }
 
-
 /**
  * Implements hook_config_schema_info_alter().
  *

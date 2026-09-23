@@ -74,23 +74,6 @@ jobs:
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "MODE=$mode"
 
-      - name: Materialize FR/site-default candidate only when required
-        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path("config/sync/config_language_lock.settings.yml")
-          value = path.read_text(encoding="utf-8")
-          if value != "locked_langcode: en\nfollow_site_default: false\n":
-              raise SystemExit("Unexpected pre-migration lock settings.")
-          path.write_text(
-              "locked_langcode: fr\nfollow_site_default: true\n",
-              encoding="utf-8",
-          )
-          PY
-
       - name: Install exact dependencies and existing configuration
         shell: bash
         run: |
@@ -124,6 +107,32 @@ jobs:
           )
           PY
 
+      - name: Capture effective FR/EN semantics before migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush php:script             /var/www/html/scripts/runner/config-language-effective-semantics-1316.php             > "${RUNNER_TEMP}/effective-before.json"
+          jq -e '
+            .schema_version == 1
+            and .config_values_exposed == false
+            and .languages.fr.count > 0
+            and .languages.en.count > 0
+          ' "${RUNNER_TEMP}/effective-before.json" >/dev/null
+
+      - name: Apply Candidate A through Config Language Lock manager
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev exec env AGENCY_CONFIG_LANGUAGE_1316_EXECUTE=1             vendor/bin/drush php:script             /var/www/html/scripts/runner/apply-config-language-policy-1316.php             > "${RUNNER_TEMP}/drupal-owned-migration.json"
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .site_default_language == "fr"
+          ' "${RUNNER_TEMP}/drupal-owned-migration.json" >/dev/null
+
       - name: Prove installed policy runtime before final materialization
         shell: bash
         run: |
@@ -144,6 +153,26 @@ jobs:
             and .languages.zxx.locked == true
             and .config_values_exposed == false
           ' "${RUNNER_TEMP}/runtime-before.json" >/dev/null
+
+      - name: Prove effective FR/EN semantics preserved
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush php:script             /var/www/html/scripts/runner/config-language-effective-semantics-1316.php             > "${RUNNER_TEMP}/effective-after.json"
+          for lang in fr en; do
+            before_names="$(jq -r ".languages[\"$lang\"].names_sha256" "${RUNNER_TEMP}/effective-before.json")"
+            after_names="$(jq -r ".languages[\"$lang\"].names_sha256" "${RUNNER_TEMP}/effective-after.json")"
+            before_values="$(jq -r ".languages[\"$lang\"].values_sha256" "${RUNNER_TEMP}/effective-before.json")"
+            after_values="$(jq -r ".languages[\"$lang\"].values_sha256" "${RUNNER_TEMP}/effective-after.json")"
+            [[ "$before_names" == "$after_names" ]]
+            [[ "$before_values" == "$after_values" ]]
+          done
+          jq -e '
+            .und.id == "und"
+            and .und.locked == true
+            and .zxx.id == "zxx"
+            and .zxx.locked == true
+          ' "${RUNNER_TEMP}/effective-after.json" >/dev/null
 
       - name: Capture pre-materialization config status
         shell: bash
@@ -226,11 +255,11 @@ jobs:
 
           git diff --name-only --diff-filter=D -- config/sync             > "$artifact/deleted-config-files.txt"
 
-          jq -n             --arg head "$HEAD_SHA"             --arg mode "$MODE"             --arg normalization "$(cat "${RUNNER_TEMP}/normalization-count.txt")"             --argjson before "$(cat "${RUNNER_TEMP}/config-status-before-count.txt")"             --argjson final "$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"             --argjson fr "$(jq '.collections.fr.count' "${RUNNER_TEMP}/runtime-final.json")"             --argjson en "$(jq '.collections.en.count' "${RUNNER_TEMP}/runtime-final.json")"             --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/runtime-final.json")"             --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/runtime-final.json")"             --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/runtime-final.json")"             --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/runtime-final.json")"             --arg verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/runtime-final.json")"             --argjson changed_count "$(git diff --name-only -- config/sync | wc -l)"             --argjson fr_sync_count "$(jq '.collections["language.fr"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_sync_count "$(jq '.collections["language.en"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson fr_written "$(jq '.collections["language.fr"].written' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_written "$(jq '.collections["language.en"].written' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson fr_deleted "$(jq '.collections["language.fr"].deleted' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_deleted "$(jq '.collections["language.en"].deleted' "${RUNNER_TEMP}/collection-materialization.json")"             '{
+          jq -n             --arg head "$HEAD_SHA"             --arg mode "$MODE"             --arg normalization "$(cat "${RUNNER_TEMP}/normalization-count.txt")"             --argjson before "$(cat "${RUNNER_TEMP}/config-status-before-count.txt")"             --argjson final "$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"             --argjson fr "$(jq '.collections.fr.count' "${RUNNER_TEMP}/runtime-final.json")"             --argjson en "$(jq '.collections.en.count' "${RUNNER_TEMP}/runtime-final.json")"             --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/runtime-final.json")"             --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/runtime-final.json")"             --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/runtime-final.json")"             --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/runtime-final.json")"             --arg verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/runtime-final.json")"             --argjson changed_count "$(git diff --name-only -- config/sync | wc -l)"             --argjson fr_sync_count "$(jq '.collections["language.fr"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_sync_count "$(jq '.collections["language.en"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson fr_written "$(jq '.collections["language.fr"].written' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_written "$(jq '.collections["language.en"].written' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson fr_deleted "$(jq '.collections["language.fr"].deleted' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_deleted "$(jq '.collections["language.en"].deleted' "${RUNNER_TEMP}/collection-materialization.json")"             --arg fr_before "$(jq -r '.languages.fr.values_sha256' "${RUNNER_TEMP}/effective-before.json")"             --arg fr_after "$(jq -r '.languages.fr.values_sha256' "${RUNNER_TEMP}/effective-after.json")"             --arg en_before "$(jq -r '.languages.en.values_sha256' "${RUNNER_TEMP}/effective-before.json")"             --arg en_after "$(jq -r '.languages.en.values_sha256' "${RUNNER_TEMP}/effective-after.json")"             '{
               schema_version: 1,
               head_sha: $head,
               mode: $mode,
-              migration_mechanism: "config_language_lock install/runtime normalization + final drush cex materialization",
+              migration_mechanism: "ConfigLanguageLockConfigManager::updateConfigForLockedLanguageSwitch + final sync materialization",
               module_normalization_changed_count: $normalization,
               config_status_before_count: $before,
               final_config_status_count: $final,
@@ -243,6 +272,12 @@ jobs:
               sync_en_overrides_written: $en_written,
               sync_fr_overrides_deleted: $fr_deleted,
               sync_en_overrides_deleted: $en_deleted,
+              effective_fr_values_sha256_before: $fr_before,
+              effective_fr_values_sha256_after: $fr_after,
+              effective_en_values_sha256_before: $en_before,
+              effective_en_values_sha256_after: $en_after,
+              effective_fr_semantics_preserved: ($fr_before == $fr_after),
+              effective_en_semantics_preserved: ($en_before == $en_after),
               und: {id: $und_id, locked: $und_locked},
               zxx: {id: $zxx_id, locked: $zxx_locked},
               canvas_requirement_verdict: $verdict,

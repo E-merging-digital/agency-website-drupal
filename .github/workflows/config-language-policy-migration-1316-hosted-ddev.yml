@@ -519,21 +519,92 @@ jobs:
           artifact='artifacts/config-language-policy-migration-1316'
           mkdir -p "$artifact"
 
-          git status --porcelain -- config/sync > "$artifact/config-status-porcelain.txt"
-          git diff --name-status -- config/sync > "$artifact/config-name-status.txt"
-          git diff --stat -- config/sync > "$artifact/config-diff-stat.txt"
-          git diff --binary -- config/sync > "$artifact/config-migration.patch"
+          # Stage the exact candidate first so review evidence matches a future
+          # generated configuration commit, including newly created overrides.
+          git add -A -- config/sync
 
-          mapfile -t changed < <(git diff --name-only --diff-filter=ACMRT -- config/sync)
+          git status --porcelain -- config/sync > "$artifact/config-status-porcelain.txt"
+          git diff --cached --name-status -- config/sync > "$artifact/config-name-status.txt"
+          git diff --cached --stat -- config/sync > "$artifact/config-diff-stat.txt"
+          git diff --cached --binary -- config/sync > "$artifact/config-migration.patch"
+
+          candidate_added_count="$(awk '$1 == "A" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_modified_count="$(awk '$1 == "M" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_deleted_count="$(awk '$1 == "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_total_path_count="$(git diff --cached --name-only -- config/sync | wc -l | tr -d ' ')"
+          unexpected_candidate_status_count="$(awk '$1 != "A" && $1 != "M" && $1 != "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          untracked_config_after_staging="$(git status --porcelain --untracked-files=normal -- config/sync | awk '$1 == "??" {count++} END {print count + 0}')"
+
+          [[ "$candidate_added_count" -eq 417 ]]
+          [[ "$candidate_modified_count" -eq 523 ]]
+          [[ "$candidate_deleted_count" -eq 29 ]]
+          [[ "$candidate_total_path_count" -eq 969 ]]
+          [[ "$unexpected_candidate_status_count" -eq 0 ]]
+          [[ "$untracked_config_after_staging" -eq 0 ]]
+
+          mapfile -t changed < <(git diff --cached --name-only --diff-filter=ACMRT -- config/sync)
           if (("${#changed[@]}" > 0)); then
             tar -czf "$artifact/changed-config-files.tar.gz" "${changed[@]}"
           else
             tar -czf "$artifact/changed-config-files.tar.gz" --files-from /dev/null
           fi
 
-          git diff --name-only --diff-filter=D -- config/sync             > "$artifact/deleted-config-files.txt"
+          git diff --cached --name-only --diff-filter=D -- config/sync \
+            > "$artifact/deleted-config-files.txt"
 
-          jq -n             --arg head "$HEAD_SHA"             --arg mode "$MODE"             --arg normalization "$(cat "${RUNNER_TEMP}/normalization-count.txt")"             --argjson before "$(cat "${RUNNER_TEMP}/config-status-before-count.txt")"             --argjson final "$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"             --argjson fr "$(jq '.collections.fr.count' "${RUNNER_TEMP}/runtime-final.json")"             --argjson en "$(jq '.collections.en.count' "${RUNNER_TEMP}/runtime-final.json")"             --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/runtime-final.json")"             --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/runtime-final.json")"             --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/runtime-final.json")"             --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/runtime-final.json")"             --arg verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/runtime-final.json")"             --argjson changed_count "$(git diff --name-only -- config/sync | wc -l)"             --argjson fr_sync_count "$(jq '.collections["language.fr"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_sync_count "$(jq '.collections["language.en"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson fr_written "$(jq '.collections["language.fr"].written' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_written "$(jq '.collections["language.en"].written' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson fr_deleted "$(jq '.collections["language.fr"].deleted' "${RUNNER_TEMP}/collection-materialization.json")"             --argjson en_deleted "$(jq '.collections["language.en"].deleted' "${RUNNER_TEMP}/collection-materialization.json")"             --arg fr_before "$(jq -r '.languages.fr.values_sha256' "${RUNNER_TEMP}/effective-before.json")"             --arg fr_after "$(jq -r '.languages.fr.values_sha256' "${RUNNER_TEMP}/effective-after.json")"             --arg en_before "$(jq -r '.languages.en.values_sha256' "${RUNNER_TEMP}/effective-before.json")"             --arg en_after "$(jq -r '.languages.en.values_sha256' "${RUNNER_TEMP}/effective-after.json")"             '{
+          artifact_patch_path_count="$candidate_total_path_count"
+          artifact_tar_file_count="${#changed[@]}"
+          artifact_deletion_count="$(wc -l < "$artifact/deleted-config-files.txt" | tr -d ' ')"
+
+          target_1='config/sync/language/en/ai_automators.ai_automator.node.article.field_feature_image.default.yml'
+          target_2='config/sync/language/en/ai_automators.ai_automator.node.article.field_short_description.default.yml'
+
+          grep -Fqx "A	$target_1" "$artifact/config-name-status.txt"
+          grep -Fqx "A	$target_2" "$artifact/config-name-status.txt"
+          grep -Eq '^label:' "$target_1"
+          grep -Eq '^plugin_config:' "$target_1"
+          grep -Eq '^  automator_label:' "$target_1"
+          grep -Eq '^label:' "$target_2"
+          grep -Eq '^plugin_config:' "$target_2"
+          grep -Eq '^  automator_label:' "$target_2"
+          tar -tzf "$artifact/changed-config-files.tar.gz" | grep -Fqx "$target_1"
+          tar -tzf "$artifact/changed-config-files.tar.gz" | grep -Fqx "$target_2"
+
+          jq -n \
+            --arg head "$HEAD_SHA" \
+            --arg mode "$MODE" \
+            --arg normalization "$(cat "${RUNNER_TEMP}/normalization-count.txt")" \
+            --argjson before "$(cat "${RUNNER_TEMP}/config-status-before-count.txt")" \
+            --argjson final "$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")" \
+            --argjson fr "$(jq '.collections.fr.count' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson en "$(jq '.collections.en.count' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson changed_count "$candidate_total_path_count" \
+            --argjson candidate_added "$candidate_added_count" \
+            --argjson candidate_modified "$candidate_modified_count" \
+            --argjson candidate_deleted "$candidate_deleted_count" \
+            --argjson candidate_total "$candidate_total_path_count" \
+            --argjson patch_paths "$artifact_patch_path_count" \
+            --argjson tar_files "$artifact_tar_file_count" \
+            --argjson artifact_deletions "$artifact_deletion_count" \
+            --argjson untracked_after_staging "$untracked_config_after_staging" \
+            --arg target_1 "$target_1" \
+            --arg target_2 "$target_2" \
+            --argjson fr_sync_count "$(jq '.collections["language.fr"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson en_sync_count "$(jq '.collections["language.en"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson fr_written "$(jq '.collections["language.fr"].written' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson en_written "$(jq '.collections["language.en"].written' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson fr_deleted "$(jq '.collections["language.fr"].deleted' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson en_deleted "$(jq '.collections["language.en"].deleted' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --arg fr_before "$(jq -r '.languages.fr.values_sha256' "${RUNNER_TEMP}/effective-before.json")" \
+            --arg fr_after "$(jq -r '.languages.fr.values_sha256' "${RUNNER_TEMP}/effective-after.json")" \
+            --arg en_before "$(jq -r '.languages.en.values_sha256' "${RUNNER_TEMP}/effective-before.json")" \
+            --arg en_after "$(jq -r '.languages.en.values_sha256' "${RUNNER_TEMP}/effective-after.json")" \
+            '{
               schema_version: 1,
               head_sha: $head,
               mode: $mode,
@@ -542,6 +613,20 @@ jobs:
               config_status_before_count: $before,
               final_config_status_count: $final,
               changed_config_file_count: $changed_count,
+              candidate_added_count: $candidate_added,
+              candidate_modified_count: $candidate_modified,
+              candidate_deleted_count: $candidate_deleted,
+              candidate_total_path_count: $candidate_total,
+              artifact_patch_path_count: $patch_paths,
+              artifact_tar_file_count: $tar_files,
+              artifact_deletion_count: $artifact_deletions,
+              untracked_config_after_staging: $untracked_after_staging,
+              target_1_en_override_in_artifact: true,
+              target_1_en_override_path: $target_1,
+              target_1_en_override_paths: ["label", "plugin_config.automator_label"],
+              target_2_en_override_in_artifact: true,
+              target_2_en_override_path: $target_2,
+              target_2_en_override_paths: ["label", "plugin_config.automator_label"],
               active_fr_override_count: $fr,
               active_en_override_count: $en,
               sync_fr_override_count: $fr_sync_count,
@@ -585,11 +670,19 @@ jobs:
           grep -Fxq 'approved: true' "$approval"
           source_head="$(awk -F': ' '/^reviewed_source_head:/ {print $2}' "$approval")"
           [[ "$source_head" =~ ^[0-9a-f]{40}$ ]]
-          git merge-base --is-ancestor "$source_head" HEAD
+
+          current_head="$(git rev-parse HEAD)"
+          parent_head="$(git rev-parse HEAD^)"
+          [[ "$parent_head" == "$source_head" ]]
+          git merge-base --is-ancestor "$source_head" "$current_head"
+
+          mapfile -t approval_delta < <(git diff --name-only "$source_head..$current_head")
+          [[ "${#approval_delta[@]}" -eq 1 ]]
+          [[ "${approval_delta[0]}" == "$approval" ]]
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add config/sync
+          git add -A -- config/sync
           git diff --cached --check
           test -n "$(git diff --cached --name-only)"
           git commit -m '[#1316][Migration] Materialize Drupal-owned configuration normalization'

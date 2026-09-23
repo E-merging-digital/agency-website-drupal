@@ -1,0 +1,365 @@
+name: "#1314 Candidate A hosted existing-config proof"
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/config-language-policy-candidate-1314-hosted-ddev.yml'
+      - 'scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'
+      - 'docs/evidence/configuration-language-site-default-candidate-1314.md'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigLanguagePolicyCandidate1314HostedDdevWorkflowTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-ddev-existing-config-proof:
+    name: "#1314 hosted DDEV existing-config proof"
+    if: ${{ github.event.pull_request.head.ref == 'fix/1314-prove-site-default-language-lock-policy' }}
+    timeout-minutes: 40
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checkout and proof-only boundary
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_HEAD" ]]
+          test -f scripts/runner/config-language-policy-candidate-1314-runtime-proof.php
+          php -l scripts/runner/config-language-policy-candidate-1314-runtime-proof.php >/dev/null
+          git diff --check "$BASE_SHA..$EXPECTED_HEAD"
+
+          git diff --quiet "$BASE_SHA..$EXPECTED_HEAD" -- \
+            .github/workflows/config-language-lock-609-hosted-ddev.yml \
+            config/sync/config_language_lock.settings.yml \
+            docs/configuration-language-policy.yml \
+            docs/decisions/ADR-002-configuration-language-governance.md \
+            AGENTS.md
+
+      - name: Setup DDEV without autostart
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Isolate hosted DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-1314-hosted.yaml <<EOF
+          name: agency-config-language-1314-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml \
+            | grep -F "agency-config-language-1314-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Materialize Candidate A in disposable checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          settings='config/sync/config_language_lock.settings.yml'
+          original="${RUNNER_TEMP}/config_language_lock.settings.original.yml"
+          cp "$settings" "$original"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("config/sync/config_language_lock.settings.yml")
+          value = path.read_text(encoding="utf-8")
+          if value.count("locked_langcode: en") != 1:
+              raise SystemExit("Expected exactly one locked_langcode: en.")
+          if value.count("follow_site_default: false") != 1:
+              raise SystemExit("Expected exactly one follow_site_default: false.")
+          value = value.replace("locked_langcode: en", "locked_langcode: fr", 1)
+          value = value.replace("follow_site_default: false", "follow_site_default: true", 1)
+          path.write_text(value, encoding="utf-8")
+          PY
+
+          grep -Fxq 'locked_langcode: fr' "$settings"
+          grep -Fxq 'follow_site_default: true' "$settings"
+          changed="$(git status --porcelain -- config/sync)"
+          [[ "$changed" == ' M config/sync/config_language_lock.settings.yml' ]]
+
+      - name: Install exact dependencies and existing configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          admin_pass="$(openssl rand -hex 24)"
+          set +e
+          ddev drush site:install --existing-config -y \
+            --account-pass="$admin_pass" \
+            >"${RUNNER_TEMP}/site-install-1314.log" 2>&1
+          site_install_rc=$?
+          set -e
+          unset admin_pass
+          printf '%s\n' "$site_install_rc" > "${RUNNER_TEMP}/site-install-1314.exit-code"
+          test "$site_install_rc" -eq 0
+
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          text = (root / "site-install-1314.log").read_text(
+              encoding="utf-8",
+              errors="replace",
+          )
+          matches = re.findall(
+              r"([0-9]+)\s+configuration objects updated",
+              text,
+              flags=re.IGNORECASE,
+          )
+          value = matches[-1] if matches else "NOT_OBSERVABLE"
+          (root / "module-normalization-count.txt").write_text(
+              value + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Capture bounded before control and after evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'
+
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/state-before.json"
+          jq -e '
+            .schema_version == 1
+            and .drupal_core_version == "11.4.7"
+            and .canvas_version == "1.11.0"
+            and .config_language_lock_version == "1.0.2"
+            and .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .languages.und.id == "und"
+            and .languages.und.locked == true
+            and .languages.zxx.id == "zxx"
+            and .languages.zxx.locked == true
+            and .config_values_exposed == false
+            and (.collections.fr.count | type == "number")
+            and (.collections.en.count | type == "number")
+            and (.collections.fr.names_sha256 | test("^[0-9a-f]{64}$"))
+            and (.collections.en.names_sha256 | test("^[0-9a-f]{64}$"))
+          ' "${RUNNER_TEMP}/state-before.json" >/dev/null
+
+          ddev drush config:status --format=json \
+            > "${RUNNER_TEMP}/config-status-first.json"
+          jq -e 'type == "array" or type == "object"' \
+            "${RUNNER_TEMP}/config-status-first.json" >/dev/null
+          first_total="$(jq 'length' "${RUNNER_TEMP}/config-status-first.json")"
+          if [[ "$first_total" -eq 0 ]]; then
+            first_state='CLEAN'
+          else
+            first_state='DIFFERENT'
+          fi
+          printf '%s\n' "$first_total" > "${RUNNER_TEMP}/first-total.txt"
+          printf '%s\n' "$first_state" > "${RUNNER_TEMP}/first-state.txt"
+
+          set +e
+          ddev drush cim -y > "${RUNNER_TEMP}/control-cim.log" 2>&1
+          control_cim_rc=$?
+          set -e
+          if [[ "$control_cim_rc" -eq 0 ]]; then
+            control_cim_result='SUCCESS'
+          else
+            control_cim_result='FAILURE'
+          fi
+          printf '%s\n' "$control_cim_result" > "${RUNNER_TEMP}/control-cim-result.txt"
+
+          ddev drush config:status --format=json \
+            > "${RUNNER_TEMP}/config-status-second.json"
+          jq -e 'type == "array" or type == "object"' \
+            "${RUNNER_TEMP}/config-status-second.json" >/dev/null
+          second_total="$(jq 'length' "${RUNNER_TEMP}/config-status-second.json")"
+          if [[ "$second_total" -eq 0 ]]; then
+            second_state='CLEAN'
+          else
+            second_state='DIFFERENT'
+          fi
+          printf '%s\n' "$second_total" > "${RUNNER_TEMP}/second-total.txt"
+          printf '%s\n' "$second_state" > "${RUNNER_TEMP}/second-state.txt"
+
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/state-after.json"
+          jq -e '
+            .schema_version == 1
+            and .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .languages.und.id == "und"
+            and .languages.und.locked == true
+            and .languages.zxx.id == "zxx"
+            and .languages.zxx.locked == true
+            and .config_values_exposed == false
+          ' "${RUNNER_TEMP}/state-after.json" >/dev/null
+
+      - name: Restore checkout and build bounded result
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          settings='config/sync/config_language_lock.settings.yml'
+          original="${RUNNER_TEMP}/config_language_lock.settings.original.yml"
+          cp "$original" "$settings"
+          cmp "$original" "$settings"
+          git diff --quiet HEAD -- config/sync
+          test -z "$(git status --porcelain -- config/sync)"
+          config_sync_worktree_unchanged='YES'
+
+          first_total="$(cat "${RUNNER_TEMP}/first-total.txt")"
+          first_state="$(cat "${RUNNER_TEMP}/first-state.txt")"
+          second_total="$(cat "${RUNNER_TEMP}/second-total.txt")"
+          second_state="$(cat "${RUNNER_TEMP}/second-state.txt")"
+          control_cim_result="$(cat "${RUNNER_TEMP}/control-cim-result.txt")"
+          normalization_count="$(cat "${RUNNER_TEMP}/module-normalization-count.txt")"
+
+          if [[ "$control_cim_result" == 'SUCCESS' && "$second_total" -eq 0 ]]; then
+            reproducibility='PASS'
+          else
+            reproducibility='FAIL'
+          fi
+
+          artifact='artifacts/config-language-policy-candidate-1314-hosted-ddev'
+          mkdir -p "$artifact"
+
+          jq -n \
+            --arg head_sha "$EXPECTED_HEAD" \
+            --arg core "$(jq -r '.drupal_core_version' "${RUNNER_TEMP}/state-before.json")" \
+            --arg canvas "$(jq -r '.canvas_version' "${RUNNER_TEMP}/state-before.json")" \
+            --arg lock_version "$(jq -r '.config_language_lock_version' "${RUNNER_TEMP}/state-before.json")" \
+            --arg site_default "$(jq -r '.site_default_language' "${RUNNER_TEMP}/state-before.json")" \
+            --arg verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/state-before.json")" \
+            --arg normalization_count "$normalization_count" \
+            --arg first_state "$first_state" \
+            --arg fr_before_hash "$(jq -r '.collections.fr.names_sha256' "${RUNNER_TEMP}/state-before.json")" \
+            --arg en_before_hash "$(jq -r '.collections.en.names_sha256' "${RUNNER_TEMP}/state-before.json")" \
+            --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/state-before.json")" \
+            --arg und_langcode "$(jq -r '.languages.und.technical_langcode' "${RUNNER_TEMP}/state-before.json")" \
+            --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/state-before.json")" \
+            --arg zxx_langcode "$(jq -r '.languages.zxx.technical_langcode' "${RUNNER_TEMP}/state-before.json")" \
+            --arg control_cim_result "$control_cim_result" \
+            --arg second_state "$second_state" \
+            --arg fr_after_hash "$(jq -r '.collections.fr.names_sha256' "${RUNNER_TEMP}/state-after.json")" \
+            --arg en_after_hash "$(jq -r '.collections.en.names_sha256' "${RUNNER_TEMP}/state-after.json")" \
+            --arg reproducibility "$reproducibility" \
+            --arg config_sync_worktree_unchanged "$config_sync_worktree_unchanged" \
+            --argjson first_total "$first_total" \
+            --argjson second_total "$second_total" \
+            --argjson fr_before "$(jq '.collections.fr.count' "${RUNNER_TEMP}/state-before.json")" \
+            --argjson en_before "$(jq '.collections.en.count' "${RUNNER_TEMP}/state-before.json")" \
+            --argjson fr_after "$(jq '.collections.fr.count' "${RUNNER_TEMP}/state-after.json")" \
+            --argjson en_after "$(jq '.collections.en.count' "${RUNNER_TEMP}/state-after.json")" \
+            --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/state-before.json")" \
+            --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/state-before.json")" \
+            '{
+              HEAD_SHA: $head_sha,
+              DRUPAL_CORE_VERSION: $core,
+              CANVAS_VERSION: $canvas,
+              CONFIG_LANGUAGE_LOCK_VERSION: $lock_version,
+              SITE_INSTALL_EXISTING_CONFIG: "SUCCESS",
+              CANDIDATE_LOCKED_LANGCODE: "fr",
+              CANDIDATE_FOLLOW_SITE_DEFAULT: true,
+              SITE_DEFAULT_LANGUAGE: $site_default,
+              CANVAS_REQUIREMENT_VERDICT: $verdict,
+              MODULE_NORMALIZATION_CHANGED_COUNT: $normalization_count,
+              FIRST_CONFIG_STATUS_TOTAL: $first_total,
+              FIRST_CONFIG_STATUS_STATE: $first_state,
+              ACTIVE_FR_COLLECTION_COUNT_BEFORE_CONTROL_IMPORT: $fr_before,
+              ACTIVE_EN_COLLECTION_COUNT_BEFORE_CONTROL_IMPORT: $en_before,
+              ACTIVE_FR_COLLECTION_NAMES_SHA256: $fr_before_hash,
+              ACTIVE_EN_COLLECTION_NAMES_SHA256: $en_before_hash,
+              UND_ID: $und_id,
+              UND_LOCKED: $und_locked,
+              UND_TECHNICAL_LANGCODE: $und_langcode,
+              ZXX_ID: $zxx_id,
+              ZXX_LOCKED: $zxx_locked,
+              ZXX_TECHNICAL_LANGCODE: $zxx_langcode,
+              CONTROL_CIM_COUNT: 1,
+              CONTROL_CIM_RESULT: $control_cim_result,
+              SECOND_CONFIG_STATUS_TOTAL: $second_total,
+              SECOND_CONFIG_STATUS_STATE: $second_state,
+              ACTIVE_FR_COLLECTION_COUNT_AFTER_CONTROL_IMPORT: $fr_after,
+              ACTIVE_EN_COLLECTION_COUNT_AFTER_CONTROL_IMPORT: $en_after,
+              ACTIVE_FR_COLLECTION_NAMES_SHA256_AFTER: $fr_after_hash,
+              ACTIVE_EN_COLLECTION_NAMES_SHA256_AFTER: $en_after_hash,
+              EXISTING_CONFIG_REPRODUCIBILITY: $reproducibility,
+              CONFIG_SYNC_WORKTREE_UNCHANGED: $config_sync_worktree_unchanged,
+              PROD_ACCESS: "NONE",
+              PREPROD_ACCESS: "NONE"
+            }' > "$artifact/result.json"
+
+          jq -e '
+            .HEAD_SHA == "'"$EXPECTED_HEAD"'"
+            and .DRUPAL_CORE_VERSION == "11.4.7"
+            and .CANVAS_VERSION == "1.11.0"
+            and .CONFIG_LANGUAGE_LOCK_VERSION == "1.0.2"
+            and .SITE_INSTALL_EXISTING_CONFIG == "SUCCESS"
+            and .CANDIDATE_LOCKED_LANGCODE == "fr"
+            and .CANDIDATE_FOLLOW_SITE_DEFAULT == true
+            and .SITE_DEFAULT_LANGUAGE == "fr"
+            and .CANVAS_REQUIREMENT_VERDICT == "PASS"
+            and (
+              .MODULE_NORMALIZATION_CHANGED_COUNT == "NOT_OBSERVABLE"
+              or (.MODULE_NORMALIZATION_CHANGED_COUNT | test("^[0-9]+$"))
+            )
+            and (.FIRST_CONFIG_STATUS_TOTAL | type == "number")
+            and (.SECOND_CONFIG_STATUS_TOTAL | type == "number")
+            and (.ACTIVE_FR_COLLECTION_COUNT_BEFORE_CONTROL_IMPORT | type == "number")
+            and (.ACTIVE_EN_COLLECTION_COUNT_BEFORE_CONTROL_IMPORT | type == "number")
+            and (.ACTIVE_FR_COLLECTION_COUNT_AFTER_CONTROL_IMPORT | type == "number")
+            and (.ACTIVE_EN_COLLECTION_COUNT_AFTER_CONTROL_IMPORT | type == "number")
+            and (.ACTIVE_FR_COLLECTION_NAMES_SHA256 | test("^[0-9a-f]{64}$"))
+            and (.ACTIVE_EN_COLLECTION_NAMES_SHA256 | test("^[0-9a-f]{64}$"))
+            and (.ACTIVE_FR_COLLECTION_NAMES_SHA256_AFTER | test("^[0-9a-f]{64}$"))
+            and (.ACTIVE_EN_COLLECTION_NAMES_SHA256_AFTER | test("^[0-9a-f]{64}$"))
+            and .UND_ID == "und"
+            and .UND_LOCKED == true
+            and .ZXX_ID == "zxx"
+            and .ZXX_LOCKED == true
+            and .CONTROL_CIM_COUNT == 1
+            and (.CONTROL_CIM_RESULT == "SUCCESS" or .CONTROL_CIM_RESULT == "FAILURE")
+            and (.EXISTING_CONFIG_REPRODUCIBILITY == "PASS" or .EXISTING_CONFIG_REPRODUCIBILITY == "FAIL")
+            and .CONFIG_SYNC_WORKTREE_UNCHANGED == "YES"
+            and .PROD_ACCESS == "NONE"
+            and .PREPROD_ACCESS == "NONE"
+          ' "$artifact/result.json" >/dev/null
+          cat "$artifact/result.json"
+
+      - name: Upload bounded hosted DDEV evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-candidate-1314-hosted-ddev-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-policy-candidate-1314-hosted-ddev/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean DDEV and verify workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-1314-hosted.yaml
+          rm -rf artifacts/config-language-policy-candidate-1314-hosted-ddev
+          rmdir artifacts 2>/dev/null || true
+          git restore --worktree -- config/sync web/robots.txt 2>/dev/null || true
+          git clean -fd -- config/sync
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi

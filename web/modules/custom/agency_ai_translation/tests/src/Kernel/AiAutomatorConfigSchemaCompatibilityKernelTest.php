@@ -201,7 +201,8 @@ final class AiAutomatorConfigSchemaCompatibilityKernelTest extends KernelTestBas
     $resolvedType = $definition->getDataType();
     self::assertIsString($resolvedType);
 
-    $typeDefinition = $typedManager->getDefinition($resolvedType, FALSE);
+    $rawDefinitions = $typedManager->getDefinitions();
+    $typeDefinition = $rawDefinitions[$resolvedType] ?? NULL;
     self::assertIsArray($typeDefinition);
     $baseType = $typeDefinition['type'] ?? NULL;
     self::assertIsString($baseType);

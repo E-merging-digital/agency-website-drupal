@@ -26,7 +26,12 @@ final class AiAutomatorConfigSchemaCompatibilityKernelTest extends KernelTestBas
   protected static $modules = [
     'system',
     'user',
+    'field',
     'language',
+    'file',
+    'key',
+    'token',
+    'ai',
     'config_language_lock',
     'ai_automators',
     'agency_ai_translation',

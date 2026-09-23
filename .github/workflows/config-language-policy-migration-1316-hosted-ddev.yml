@@ -524,16 +524,24 @@ jobs:
           git add -A -- config/sync
 
           git status --porcelain -- config/sync > "$artifact/config-status-porcelain.txt"
-          git diff --cached --name-status -- config/sync > "$artifact/config-name-status.txt"
-          git diff --cached --stat -- config/sync > "$artifact/config-diff-stat.txt"
-          git diff --cached --binary -- config/sync > "$artifact/config-migration.patch"
+          git diff --cached --no-renames --name-status -- config/sync > "$artifact/config-name-status.txt"
+          git diff --cached --no-renames --stat -- config/sync > "$artifact/config-diff-stat.txt"
+          git diff --cached --no-renames --binary -- config/sync > "$artifact/config-migration.patch"
 
           candidate_added_count="$(awk '$1 == "A" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
           candidate_modified_count="$(awk '$1 == "M" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
           candidate_deleted_count="$(awk '$1 == "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
-          candidate_total_path_count="$(git diff --cached --name-only -- config/sync | wc -l | tr -d ' ')"
+          candidate_total_path_count="$(git diff --cached --no-renames --name-only -- config/sync | wc -l | tr -d ' ')"
           unexpected_candidate_status_count="$(awk '$1 != "A" && $1 != "M" && $1 != "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
           untracked_config_after_staging="$(git status --porcelain --untracked-files=normal -- config/sync | awk '$1 == "??" {count++} END {print count + 0}')"
+
+          printf '%s\n' \
+            "CANDIDATE_ADDED_COUNT=$candidate_added_count" \
+            "CANDIDATE_MODIFIED_COUNT=$candidate_modified_count" \
+            "CANDIDATE_DELETED_COUNT=$candidate_deleted_count" \
+            "CANDIDATE_TOTAL_PATH_COUNT=$candidate_total_path_count" \
+            "UNEXPECTED_CANDIDATE_STATUS_COUNT=$unexpected_candidate_status_count" \
+            "UNTRACKED_CONFIG_AFTER_STAGING=$untracked_config_after_staging"
 
           [[ "$candidate_added_count" -eq 417 ]]
           [[ "$candidate_modified_count" -eq 523 ]]
@@ -542,14 +550,14 @@ jobs:
           [[ "$unexpected_candidate_status_count" -eq 0 ]]
           [[ "$untracked_config_after_staging" -eq 0 ]]
 
-          mapfile -t changed < <(git diff --cached --name-only --diff-filter=ACMRT -- config/sync)
+          mapfile -t changed < <(git diff --cached --no-renames --name-only --diff-filter=ACMRT -- config/sync)
           if (("${#changed[@]}" > 0)); then
             tar -czf "$artifact/changed-config-files.tar.gz" "${changed[@]}"
           else
             tar -czf "$artifact/changed-config-files.tar.gz" --files-from /dev/null
           fi
 
-          git diff --cached --name-only --diff-filter=D -- config/sync \
+          git diff --cached --no-renames --name-only --diff-filter=D -- config/sync \
             > "$artifact/deleted-config-files.txt"
 
           artifact_patch_path_count="$candidate_total_path_count"

@@ -13,6 +13,7 @@ on:
       - 'docs/configuration-language-governance.md'
       - 'AGENTS.md'
       - 'web/modules/custom/agency_project_tests/tests/src/**'
+      - 'web/modules/custom/agency_ai_translation/**'
 
 permissions:
   contents: write
@@ -107,6 +108,14 @@ jobs:
               encoding="utf-8",
           )
           PY
+
+      - name: Prove Agency AI Automator config-schema compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev exec env SYMFONY_DEPRECATIONS_HELPER=disabled \
+            vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            web/modules/custom/agency_ai_translation/tests/src/Kernel/AiAutomatorConfigSchemaCompatibilityKernelTest.php
 
       - name: Capture effective FR/EN semantics before migration
         shell: bash

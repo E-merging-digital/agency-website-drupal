@@ -557,11 +557,17 @@ jobs:
             tar -czf "$artifact/changed-config-files.tar.gz" --files-from /dev/null
           fi
 
+          tar_manifest="$artifact/changed-config-files-tar.txt"
+          tar -tzf "$artifact/changed-config-files.tar.gz" > "$tar_manifest"
+          artifact_tar_manifest_count="$(wc -l < "$tar_manifest" | tr -d ' ')"
+          [[ "$artifact_tar_manifest_count" -eq "${#changed[@]}" ]]
+          [[ "$artifact_tar_manifest_count" -eq 940 ]]
+
           git diff --cached --no-renames --name-only --diff-filter=D -- config/sync \
             > "$artifact/deleted-config-files.txt"
 
           artifact_patch_path_count="$candidate_total_path_count"
-          artifact_tar_file_count="${#changed[@]}"
+          artifact_tar_file_count="$artifact_tar_manifest_count"
           artifact_deletion_count="$(wc -l < "$artifact/deleted-config-files.txt" | tr -d ' ')"
 
           target_1='config/sync/language/en/ai_automators.ai_automator.node.article.field_feature_image.default.yml'
@@ -575,8 +581,13 @@ jobs:
           grep -Eq '^label:' "$target_2"
           grep -Eq '^plugin_config:' "$target_2"
           grep -Eq '^  automator_label:' "$target_2"
-          tar -tzf "$artifact/changed-config-files.tar.gz" | grep -Fqx "$target_1"
-          tar -tzf "$artifact/changed-config-files.tar.gz" | grep -Fqx "$target_2"
+          grep -Fqx "$target_1" "$tar_manifest"
+          grep -Fqx "$target_2" "$tar_manifest"
+
+          printf '%s\n' \
+            "ARTIFACT_TAR_FILE_COUNT=$artifact_tar_file_count" \
+            "TARGET_1_TAR_MEMBERSHIP=PASS" \
+            "TARGET_2_TAR_MEMBERSHIP=PASS"
 
           jq -n \
             --arg head "$HEAD_SHA" \

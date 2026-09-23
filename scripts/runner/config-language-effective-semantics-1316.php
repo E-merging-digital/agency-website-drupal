@@ -51,7 +51,10 @@ foreach (['fr', 'en'] as $langcode) {
 
   $fingerprints = [];
   foreach ($semanticNames as $name) {
-    $data = $configFactory->get($name)->getRawData();
+    $data = $configFactory->get($name)->get();
+    if (!is_array($data)) {
+      throw new RuntimeException("Effective config $name is not an array.");
+    }
     // #1316 compares effective semantic values, not technical ownership.
     // Exclude only the top-level config langcode; nested langcodes remain.
     unset($data['langcode']);

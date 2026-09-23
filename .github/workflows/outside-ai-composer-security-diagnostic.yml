@@ -1,0 +1,161 @@
+name: "#1070 Outside AI Composer security diagnostic"
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Exact authorized diagnostic request identifier
+        required: true
+        type: string
+      head_sha:
+        description: Exact live main SHA to diagnose
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-request:
+    name: Validate exact live-main Composer diagnostic request
+    runs-on: ubuntu-24.04
+    outputs:
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+    steps:
+      - name: Validate actor, request and merged source
+        id: validate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_ID: ${{ inputs.request_id }}
+          REQUESTED_HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          set -euo pipefail
+
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$REQUEST_ID" = 'outside-ai-390-composer-audit-20260907-01'
+          [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$GITHUB_REF" = 'refs/heads/main'
+
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$REQUESTED_HEAD_SHA" = "$live_main"
+
+          echo "head_sha=$REQUESTED_HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+  composer-security-diagnostic:
+    name: Execute fixed Composer-only security diagnostic in hosted DDEV
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-request.outputs.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact clean checkout and fixed diagnostic
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.validate-request.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -f .ddev/config.yaml
+          test -f composer.json
+          test -f composer.lock
+          test -f scripts/outside-ai/run-composer-security-diagnostic.sh
+          git diff --check
+          test -z "$(git status --porcelain)"
+
+      - name: Setup DDEV without autostart
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Isolate run-scoped DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-outside-ai-composer-audit.yaml <<EOF
+          name: agency-outside-ai-composer-audit-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml \
+            | grep -F "agency-outside-ai-composer-audit-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Execute fixed Composer-only diagnostic once
+        id: diagnostic
+        shell: bash
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/outside-ai-composer-security-diagnostic
+        run: |
+          set -uo pipefail
+          mkdir -p "$ARTIFACT_ROOT"
+
+          set +e
+          bash scripts/outside-ai/run-composer-security-diagnostic.sh \
+            > >(tee "$ARTIFACT_ROOT/diagnostic-output.log") \
+            2> >(tee -a "$ARTIFACT_ROOT/diagnostic-output.log" >&2)
+          diagnostic_exit_code=$?
+          set -e
+
+          printf '%s\n' "$diagnostic_exit_code" \
+            > "$ARTIFACT_ROOT/diagnostic-exit-code.txt"
+          echo "DIAGNOSTIC_EXIT_CODE=$diagnostic_exit_code"
+          echo "exit_code=$diagnostic_exit_code" >> "$GITHUB_OUTPUT"
+
+      - name: Delete disposable DDEV project and prove clean worktree
+        id: cleanup
+        if: ${{ always() }}
+        shell: bash
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/outside-ai-composer-security-diagnostic
+        run: |
+          set +e
+          cleanup_failed=0
+          mkdir -p "$ARTIFACT_ROOT"
+
+          ddev delete --omit-snapshot --yes || cleanup_failed=1
+          rm -f .ddev/config.gate-outside-ai-composer-audit.yaml
+
+          git diff --check || cleanup_failed=1
+          status="$(git status --porcelain)"
+          printf '%s' "$status" > "$ARTIFACT_ROOT/post-diagnostic-git-status.txt"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            cleanup_failed=1
+          fi
+
+          if [[ "$cleanup_failed" -eq 0 ]]; then
+            printf 'PASS\n' > "$ARTIFACT_ROOT/cleanup-status.txt"
+          else
+            printf 'FAIL\n' > "$ARTIFACT_ROOT/cleanup-status.txt"
+          fi
+
+          exit "$cleanup_failed"
+
+      - name: Upload bounded Composer security evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-outside-ai-composer-security-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/outside-ai-composer-security-diagnostic
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Remove uploaded evidence staging
+        if: ${{ always() }}
+        shell: bash
+        run: rm -rf "${RUNNER_TEMP}/outside-ai-composer-security-diagnostic"
+
+      - name: Preserve diagnostic security exit code
+        if: ${{ always() && steps.diagnostic.outputs.exit_code != '' }}
+        shell: bash
+        env:
+          DIAGNOSTIC_EXIT_CODE: ${{ steps.diagnostic.outputs.exit_code }}
+          CLEANUP_OUTCOME: ${{ steps.cleanup.outcome }}
+        run: |
+          set -euo pipefail
+          test "$CLEANUP_OUTCOME" = 'success'
+          exit "$DIAGNOSTIC_EXIT_CODE"

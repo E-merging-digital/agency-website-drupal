@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/config-language-policy-migration-1316-hosted-ddev.yml'
+      - 'scripts/runner/config-language-ai-automator-diagnostic-1316.php'
       - 'docs/evidence/config-language-migration-1316-commit-approval.yml'
       - 'config/sync/**'
       - 'docs/configuration-language-policy.yml'
@@ -119,6 +120,34 @@ jobs:
             and .languages.en.count > 0
           ' "${RUNNER_TEMP}/effective-before.json" >/dev/null
 
+      - name: Capture two-target storage/schema diagnostic before migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/config-language-ai-automator-diagnostic-1316.php'
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/ai-automator-before.json"
+
+          locked_ai_version="$(php -r '
+            $lock = json_decode(file_get_contents("composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+            foreach ($lock["packages"] as $package) {
+              if (($package["name"] ?? null) === "drupal/ai") {
+                echo $package["version"];
+                exit(0);
+              }
+            }
+            exit(1);
+          ')"
+          [[ "$locked_ai_version" == '1.5.0-rc4' ]]
+
+          jq -e --arg version "$locked_ai_version" '
+            .schema_version == 1
+            and .ai_version == $version
+            and (.ai_automator_schema_source_path | type == "string")
+            and (.ai_automator_schema_source_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets | length == 2)
+            and .raw_config_values_exposed == false
+          ' "${RUNNER_TEMP}/ai-automator-before.json" >/dev/null
+
       - name: Apply Candidate A through Config Language Lock manager
         if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
@@ -153,6 +182,167 @@ jobs:
             and .languages.zxx.locked == true
             and .config_values_exposed == false
           ' "${RUNNER_TEMP}/runtime-before.json" >/dev/null
+
+      - name: Build bounded two-target AI Automator diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/config-language-ai-automator-diagnostic-1316.php'
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/ai-automator-after.json"
+
+          before="${RUNNER_TEMP}/ai-automator-before.json"
+          after="${RUNNER_TEMP}/ai-automator-after.json"
+          migration="${RUNNER_TEMP}/drupal-owned-migration.json"
+          artifact="${RUNNER_TEMP}/ai-automator-diagnostic-1316"
+          mkdir -p "$artifact"
+
+          jq -n             --slurpfile before "$before"             --slurpfile after "$after"             --slurpfile migration "$migration" '
+              def sorted_keys($map): ($map | keys | sort);
+              def difference($left; $right):
+                [$left[] | select(($right | index(.)) == null)];
+              def common($left; $right):
+                [$left[] | select(($right | index(.)) != null)];
+              def layer_diff($b; $a):
+                sorted_keys($b.per_leaf_path_sha256) as $before_paths
+                | sorted_keys($a.per_leaf_path_sha256) as $after_paths
+                | difference($after_paths; $before_paths) as $added
+                | difference($before_paths; $after_paths) as $removed
+                | common($before_paths; $after_paths) as $shared
+                | [
+                    $shared[]
+                    | select(
+                        $b.per_leaf_path_sha256[.]
+                        != $a.per_leaf_path_sha256[.]
+                      )
+                  ] as $changed
+                | {
+                    before_exists: $b.object_exists,
+                    after_exists: $a.object_exists,
+                    before_whole_layer_sha256: $b.whole_layer_sha256,
+                    after_whole_layer_sha256: $a.whole_layer_sha256,
+                    added_paths: $added,
+                    removed_paths: $removed,
+                    changed_paths: $changed,
+                    unchanged_path_count:
+                      (($shared | length) - ($changed | length)),
+                    added_count: ($added | length),
+                    removed_count: ($removed | length),
+                    changed_count: ($changed | length)
+                  };
+              def target_diff($name):
+                ($before[0].targets[$name]) as $b
+                | ($after[0].targets[$name]) as $a
+                | {
+                    target: $name,
+                    base: layer_diff($b.layers.base; $a.layers.base),
+                    fr_override:
+                      layer_diff($b.layers.fr_override; $a.layers.fr_override),
+                    en_override:
+                      layer_diff($b.layers.en_override; $a.layers.en_override),
+                    effective_fr:
+                      layer_diff($b.layers.effective_fr; $a.layers.effective_fr),
+                    effective_en:
+                      layer_diff($b.layers.effective_en; $a.layers.effective_en)
+                  }
+                | . as $diff
+                | (
+                    [
+                      $diff.base.changed_paths[],
+                      $diff.fr_override.changed_paths[],
+                      $diff.en_override.changed_paths[],
+                      $diff.effective_fr.changed_paths[],
+                      $diff.effective_en.changed_paths[],
+                      $diff.base.added_paths[],
+                      $diff.fr_override.added_paths[],
+                      $diff.en_override.added_paths[],
+                      $diff.effective_fr.added_paths[],
+                      $diff.effective_en.added_paths[],
+                      $diff.base.removed_paths[],
+                      $diff.fr_override.removed_paths[],
+                      $diff.en_override.removed_paths[],
+                      $diff.effective_fr.removed_paths[],
+                      $diff.effective_en.removed_paths[]
+                    ]
+                    | unique
+                  ) as $changed_paths
+                | $diff + {
+                    changed_path_schema_classification:
+                      [
+                        $changed_paths[]
+                        | . as $path
+                        | (
+                            $a.schema_by_path[$path]
+                            // $b.schema_by_path[$path]
+                            // {
+                              schema_path: $path,
+                              schema_type: "UNKNOWN",
+                              schema_definition_present: "NO",
+                              schema_translatability: "UNKNOWN"
+                            }
+                          )
+                      ]
+                  };
+              ($before[0].targets | keys | sort) as $targets
+              | {
+                  schema_version: 1,
+                  ai_version: $after[0].ai_version,
+                  ai_automator_schema_source_path:
+                    $after[0].ai_automator_schema_source_path,
+                  ai_automator_schema_source_sha256:
+                    $after[0].ai_automator_schema_source_sha256,
+                  manager_stats: {
+                    config_items_changed:
+                      ($migration[0].stats.config_items_changed // null),
+                    translations_updated:
+                      ($migration[0].stats.translations_updated // null),
+                    translations_removed:
+                      ($migration[0].stats.translations_removed // null)
+                  },
+                  targets:
+                    reduce $targets[] as $target
+                      ({}; .[$target] = target_diff($target)),
+                  raw_config_values_exposed: false
+                }
+            ' > "$artifact/result.json"
+
+          jq -e '
+            .schema_version == 1
+            and .ai_version == "1.5.0-rc4"
+            and (.ai_automator_schema_source_path | type == "string")
+            and (.ai_automator_schema_source_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets | length == 2)
+            and (
+              [
+                .targets[]
+                | .base,
+                  .fr_override,
+                  .en_override,
+                  .effective_fr,
+                  .effective_en
+                | .added_paths[],
+                  .removed_paths[],
+                  .changed_paths[]
+              ]
+              | all(type == "string")
+            )
+            and (
+              [
+                .targets[]
+                | .changed_path_schema_classification[]
+                | .schema_definition_present
+              ]
+              | all(. == "YES" or . == "NO")
+            )
+            and .raw_config_values_exposed == false
+          ' "$artifact/result.json" >/dev/null
+
+      - name: Upload bounded two-target AI Automator diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-ai-automator-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ai-automator-diagnostic-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Build bounded effective FR/EN semantic diagnostic
         shell: bash

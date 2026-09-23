@@ -714,7 +714,7 @@ final class ProdConfigSyncRuntimeDiagnostic980WorkflowTest extends TestCase {
       'ConfigLanguageLockRequirementsHooks::class',
       '->runtimeRequirements()',
       "'config_language_lock_canvas_mismatch'",
-      "read('language.entity.' . $id)",
+      'read(\'language.entity.\' . $id)',
       "'und'",
       "'zxx'",
       "'config_values_exposed' => FALSE",

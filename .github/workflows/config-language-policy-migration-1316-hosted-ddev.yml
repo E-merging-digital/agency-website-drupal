@@ -161,6 +161,24 @@ jobs:
           ddev drush cex -y > "${RUNNER_TEMP}/cex-1316.log" 2>&1
           git diff --check -- config/sync
 
+      - name: Materialize or verify language override collections
+        shell: bash
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: |
+          set -euo pipefail
+          collection_mode='VERIFY'
+          if [[ "$MODE" == 'MATERIALIZE' ]]; then
+            collection_mode='MATERIALIZE'
+          fi
+          ddev exec env AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE="$collection_mode"             vendor/bin/drush php:script             /var/www/html/scripts/runner/materialize-config-language-collections-1316.php             > "${RUNNER_TEMP}/collection-materialization.json"
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .collections["language.fr"].match == true
+            and .collections["language.en"].match == true
+          ' "${RUNNER_TEMP}/collection-materialization.json" >/dev/null
+
       - name: Prove clean deterministic checkpoint
         shell: bash
         run: |
@@ -219,6 +237,12 @@ jobs:
               changed_config_file_count: $changed_count,
               active_fr_override_count: $fr,
               active_en_override_count: $en,
+              sync_fr_override_count: $fr_sync_count,
+              sync_en_override_count: $en_sync_count,
+              sync_fr_overrides_written: $fr_written,
+              sync_en_overrides_written: $en_written,
+              sync_fr_overrides_deleted: $fr_deleted,
+              sync_en_overrides_deleted: $en_deleted,
               und: {id: $und_id, locked: $und_locked},
               zxx: {id: $zxx_id, locked: $zxx_locked},
               canvas_requirement_verdict: $verdict,

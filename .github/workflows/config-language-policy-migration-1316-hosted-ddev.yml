@@ -299,8 +299,10 @@ jobs:
                       ($migration[0].stats.translations_removed // null)
                   },
                   targets:
-                    reduce $targets[] as $target
-                      ({}; .[$target] = target_diff($target)),
+                    (
+                      reduce $targets[] as $target
+                        ({}; .[$target] = target_diff($target))
+                    ),
                   raw_config_values_exposed: false
                 }
             ' > "$artifact/result.json"

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_ai_translation\Kernel;
 
 use Drupal\config_language_lock\ConfigLanguageLockConfigManager;
+use Drupal\Core\Config\Schema\ConfigSchemaDiscovery;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\language\Entity\ConfigurableLanguage;
 use PHPUnit\Framework\Attributes\Group;
@@ -201,8 +202,11 @@ final class AiAutomatorConfigSchemaCompatibilityKernelTest extends KernelTestBas
     $resolvedType = $definition->getDataType();
     self::assertIsString($resolvedType);
 
-    $rawDefinitions = $typedManager->getDefinitions();
-    $typeDefinition = $rawDefinitions[$resolvedType] ?? NULL;
+    $schemaDiscovery = new ConfigSchemaDiscovery(
+      $this->container->get('config.storage.schema'),
+    );
+    $declaredDefinitions = $schemaDiscovery->getDefinitions();
+    $typeDefinition = $declaredDefinitions[$resolvedType] ?? NULL;
     self::assertIsArray($typeDefinition);
     $baseType = $typeDefinition['type'] ?? NULL;
     self::assertIsString($baseType);

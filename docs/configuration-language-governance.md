@@ -1,10 +1,10 @@
 # Configuration Language Governance
 
-Statut : **ACTIVE / ENFORCED**  
-Décision historique : docs/decisions/ADR-002-configuration-language-governance.md  
-Policy machine-readable : docs/configuration-language-policy.yml  
-Architecture initiale : #608  
-Adoption historique : #609  
+Statut : **ACTIVE / ENFORCED**
+Décision historique : docs/decisions/ADR-002-configuration-language-governance.md
+Policy machine-readable : docs/configuration-language-policy.yml
+Architecture initiale : #608
+Adoption historique : #609
 Migration matérialisée actuelle : #1316
 
 ## 1. Objectif

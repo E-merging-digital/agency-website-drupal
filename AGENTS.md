@@ -312,31 +312,44 @@ AGENT_CANNOT_SELF_APPROVE_PUBLICATION = REQUIRED
 - Pour toute tache qui cree ou modifie de la configuration Drupal, une Recipe,
   une Config Action, une config entity Canvas ou une configuration materialisee
   par Drupal AI/agent, lire **obligatoirement**
-  `docs/decisions/ADR-002-configuration-language-governance.md` et
-  `docs/configuration-language-policy.yml`.
-- Invariant : la langue de configuration technique doit etre deterministe,
+  `docs/decisions/ADR-002-configuration-language-governance.md` et la policy
+  courante `docs/configuration-language-policy.yml`.
+- Invariant : la langue de configuration technique reste deterministe,
   reproductible et verifiable. Elle ne depend jamais accidentellement de la
-  requete HTTP, de l'admin, de la langue d'interface, de la provenance d'une
-  Recipe ou du contexte d'un agent IA.
-- La cible canonique technique Agency est `en`, distincte du
-  `system.site:default_langcode` editorial actuel `fr`.
-- La policy est actuellement `migration_required` : **ne pas normaliser en masse
-  `config/sync` et ne pas pretendre que l'enforcement EN est deja actif**.
-- #609 porte l'audit/migration. `drupal/config_language_lock` 1.0.x est le
-  candidat `USE DRUPAL` privilegie, avec `follow_site_default=false`, mais ne
-  doit pas etre active avec un lock EN avant les preuves prevues par #609.
-- Une Recipe est une transformation reproductible d'etat Drupal : verifier
+  requete HTTP, de l'admin, de la langue d'interface, d'une Recipe ou d'un agent
+  IA.
+- L'intention historique de source/base du repository etait EN. Ce fait reste
+  une preuve historique ; il ne definit plus la langue technique des futures
+  ecritures.
+- Les futures ecritures de configuration suivent la langue par defaut du site.
+  Le site actuel est FR et le langcode technique resolu courant est donc `fr`.
+- `drupal/config_language_lock` 1.0.x est **USE DRUPAL / ADOPTED** et actif avec
+  `locked_langcode=fr` et `follow_site_default=true`.
+- Un langcode technique FR ne determine pas a lui seul la langue semantique des
+  valeurs traduisibles. Les semantiques effectives FR/EN doivent rester
+  preservees.
+- Ne jamais appliquer une normalisation large/manuelle de `config/sync`.
+  Utiliser les mecanismes Drupal gouvernes et prouver le diff produit.
+- Changer les reglages du lock ne reecrit pas automatiquement la configuration
+  existante. Une sauvegarde/migration Drupal gouvernee est necessaire lorsqu'une
+  normalisation de repository doit etre materialisee.
+- Un futur changement de langue par defaut qui change le langcode technique
+  resolu exige des preuves gouvernees et, si necessaire, une migration explicite
+  du repository.
+- #609 et #1314 restent des preuves historiques immuables. #1316 represente
+  l'etat materialise courant de la policy.
+- Une Recipe reste une transformation reproductible d'etat Drupal : verifier
   preconditions, configuration/Config Actions, langcodes/traductions,
   permissions, Canvas/SDC/AI impactes et etat final avant admission.
-- `drupal/language_audit` est au plus un outil DEV/investigation tant qu'il ne
-  dispose pas d'une release stable supportee ; ne pas en faire une dependance
+- `drupal/language_audit` reste au plus un outil DEV/investigation tant qu'il
+  ne dispose pas d'une release stable supportee ; ne pas en faire une dependance
   production ni recreer son moteur sans gap demontre.
-- Agency expose la policy et les snapshots/diffs ; Preflight peut les verifier
-  independamment mais Agency ne depend pas de l'implementation interne de
-  Preflight.
-- Lorsque Drupal core fournit une primitive suffisante de langue par defaut de
-  configuration, conserver la policy/tests et retirer progressivement le
-  workaround contrib plutot que maintenir une dependance artificielle.
+- Agency expose la policy et les snapshots/diffs ; Preflight reste un
+  verificateur independant et Agency ne depend pas de son implementation
+  interne.
+- Lorsque Drupal core fournit une primitive suffisante, conserver la policy et
+  les tests, prouver la non-regression puis retirer progressivement le workaround
+  contrib devenu inutile.
 
 ## 7. Regles de maillage interne
 

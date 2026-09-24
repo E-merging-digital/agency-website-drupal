@@ -1,24 +1,34 @@
-schema_version: 1
-policy_id: agency-configuration-language-v1
-status: adopted
-canonical_configuration_language: en
+schema_version: 2
+policy_id: agency-configuration-language-v2
+status: enforced
 site_default_language: fr
 site_languages:
   - fr
   - en
-target_configuration_translation_languages:
+historical_configuration:
+  canonical_base_language_intent: en
+  evidence_issue: 609
+  migration_issue: 1316
+configuration_writes:
+  strategy: site_default
+  resolved_langcode: fr
+  follow_site_default: true
+managed_configuration_translation_languages:
   - fr
+  - en
 current_configuration_translation_directories:
   - config/sync/language/fr
   - config/sync/language/en
 enforce_consistency: true
 enforcement:
   strategy: use_drupal
-  candidate: drupal/config_language_lock
+  implementation: drupal/config_language_lock
   minimum_release: 1.0.0
-  target_locked_langcode: en
-  follow_site_default: false
+  locked_langcode_strategy: site_default
+  resolved_locked_langcode: fr
+  follow_site_default: true
   adoption_issue: 609
+  migration_issue: 1316
 transformation_sources:
   - manual_admin
   - module_install
@@ -35,7 +45,7 @@ evidence:
   require_independent_verdict: true
 preflight:
   coupling: none
-  contract: observable_policy_and_snapshots
+  contract: observable_policy_v2_and_snapshots
 migration_watchlist:
   - config/sync/language.entity.und.yml
   - config/sync/language.entity.zxx.yml

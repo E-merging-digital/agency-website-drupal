@@ -716,6 +716,384 @@ jobs:
           ddev drush cex -y > "${RUNNER_TEMP}/cex-1316.log" 2>&1
           git diff --check -- config/sync
 
+      - name: Prove isolated two-override fresh-install roundtrip
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          artifact="${GITHUB_WORKSPACE}/artifacts/config-language-roundtrip-candidate-1316"
+          candidate="${RUNNER_TEMP}/config-language-roundtrip-1316"
+          mkdir -p "$artifact"
+
+          cleanup_roundtrip() {
+            set +e
+            if [[ -d "$candidate" ]]; then
+              (
+                cd "$candidate"
+                ddev delete --omit-snapshot --yes
+              ) >/dev/null 2>&1 || true
+              git worktree remove --force "$candidate" >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup_roundtrip EXIT
+
+          cat > "$artifact/target-fingerprints.php" <<'PHP'
+          <?php
+          declare(strict_types=1);
+          use Drupal\language\Entity\ConfigurableLanguage;
+
+          $langcode = getenv('AGENCY_TARGET_LANGCODE');
+          if (!in_array($langcode, ['fr', 'en'], TRUE)) {
+            throw new RuntimeException('Unsupported target language.');
+          }
+          $language = ConfigurableLanguage::load($langcode);
+          if (!$language instanceof ConfigurableLanguage) {
+            throw new RuntimeException('Target language is unavailable.');
+          }
+          $configFactory = \Drupal::service('config.factory');
+          $overrideFactory = \Drupal::service('language.config_factory_override');
+          $overrideFactory->setLanguage($language);
+          $configFactory->reset();
+
+          $fingerprint = static fn(mixed $value): string => hash(
+            'sha256',
+            json_encode(
+              $value,
+              JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ),
+          );
+          $targets = [
+            'llms_txt_content' => ['llms_txt.settings', 'content'],
+            'taxonomy_tags_name' => ['taxonomy.vocabulary.tags', 'name'],
+            'taxonomy_tags_description' => ['taxonomy.vocabulary.tags', 'description'],
+          ];
+          $result = [];
+          foreach ($targets as $key => [$name, $path]) {
+            $result[$key] = ['sha256' => $fingerprint($configFactory->get($name)->get($path))];
+          }
+          echo json_encode([
+            'schema_version' => 1,
+            'langcode' => $langcode,
+            'targets' => $result,
+            'raw_config_values_exposed' => FALSE,
+          ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+          PHP
+
+          ddev exec env AGENCY_TARGET_LANGCODE=fr \
+            vendor/bin/drush php:script \
+            /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
+            > "$artifact/primary-fr.json"
+          jq -e '
+            .schema_version == 1
+            and .langcode == "fr"
+            and .raw_config_values_exposed == false
+            and (.targets.llms_txt_content.sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.taxonomy_tags_name.sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.taxonomy_tags_description.sha256 | test("^[0-9a-f]{64}$"))
+          ' "$artifact/primary-fr.json" >/dev/null
+
+          git worktree add --detach "$candidate" "$HEAD_SHA"
+          cat > "$candidate/.ddev/config.roundtrip-1316.yaml" <<EOF
+          name: agency-config-language-roundtrip-1316-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+
+          (
+            cd "$candidate"
+            ddev start -y
+            ddev composer install --no-interaction --no-progress --prefer-dist
+          )
+
+          candidate_artifact="$candidate/artifacts/config-language-roundtrip-candidate-1316"
+          mkdir -p "$candidate_artifact"
+          cp "$artifact/target-fingerprints.php" "$candidate_artifact/target-fingerprints.php"
+
+          cat > "$candidate_artifact/build-candidate.php" <<'PHP'
+          <?php
+          declare(strict_types=1);
+          use Symfony\Component\Yaml\Yaml;
+
+          $root = dirname(__DIR__, 2);
+          require_once $root . '/vendor/autoload.php';
+          $sync = $root . '/config/sync';
+          $llmsSource = Yaml::parseFile($sync . '/llms_txt.settings.yml');
+          $taxonomySource = Yaml::parseFile($sync . '/taxonomy.vocabulary.tags.yml');
+          $taxonomyOverridePath = $sync . '/language/en/taxonomy.vocabulary.tags.yml';
+          $taxonomyOverride = Yaml::parseFile($taxonomyOverridePath);
+
+          foreach ([$llmsSource, $taxonomySource, $taxonomyOverride] as $data) {
+            if (!is_array($data)) {
+              throw new RuntimeException('Candidate source YAML is invalid.');
+            }
+          }
+          if (!array_key_exists('content', $llmsSource)) {
+            throw new RuntimeException('Missing canonical llms content.');
+          }
+          if (!array_key_exists('description', $taxonomySource)) {
+            throw new RuntimeException('Missing canonical taxonomy description.');
+          }
+
+          $fingerprint = static fn(mixed $value): string => hash(
+            'sha256',
+            json_encode(
+              $value,
+              JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ),
+          );
+
+          $existingTaxonomyLeaves = array_keys($taxonomyOverride);
+          sort($existingTaxonomyLeaves, SORT_STRING);
+          $llmsCandidate = ['content' => $llmsSource['content']];
+          $taxonomyCandidate = $taxonomyOverride;
+          $taxonomyCandidate['description'] = $taxonomySource['description'];
+
+          $llmsLeaves = array_keys($llmsCandidate);
+          $taxonomyLeaves = array_keys($taxonomyCandidate);
+          sort($llmsLeaves, SORT_STRING);
+          sort($taxonomyLeaves, SORT_STRING);
+          $expectedTaxonomyLeaves = array_values(array_unique([
+            ...$existingTaxonomyLeaves,
+            'description',
+          ]));
+          sort($expectedTaxonomyLeaves, SORT_STRING);
+          if ($taxonomyLeaves !== $expectedTaxonomyLeaves) {
+            throw new RuntimeException('Unexpected taxonomy candidate leaves.');
+          }
+
+          file_put_contents(
+            $sync . '/language/en/llms_txt.settings.yml',
+            Yaml::dump($llmsCandidate, 4, 2),
+          );
+          file_put_contents(
+            $taxonomyOverridePath,
+            Yaml::dump($taxonomyCandidate, 4, 2),
+          );
+
+          echo json_encode([
+            'schema_version' => 1,
+            'llms_en_leaf_paths' => $llmsLeaves,
+            'taxonomy_existing_leaf_paths' => $existingTaxonomyLeaves,
+            'taxonomy_en_leaf_paths' => $taxonomyLeaves,
+            'taxonomy_leaf_set_valid' => TRUE,
+            'llms' => [
+              'source_sha256' => $fingerprint($llmsSource['content']),
+              'candidate_sha256' => $fingerprint($llmsCandidate['content']),
+            ],
+            'taxonomy_description' => [
+              'source_sha256' => $fingerprint($taxonomySource['description']),
+              'candidate_sha256' => $fingerprint($taxonomyCandidate['description']),
+            ],
+            'taxonomy_name' => [
+              'source_sha256' => $fingerprint($taxonomyOverride['name'] ?? NULL),
+              'candidate_sha256' => $fingerprint($taxonomyCandidate['name'] ?? NULL),
+            ],
+            'raw_config_values_exposed' => FALSE,
+          ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+          PHP
+
+          (
+            cd "$candidate"
+            ddev exec php \
+              /var/www/html/artifacts/config-language-roundtrip-candidate-1316/build-candidate.php \
+              > "$artifact/candidate-build.json"
+          )
+          jq -e '
+            .schema_version == 1
+            and .llms_en_leaf_paths == ["content"]
+            and (.taxonomy_en_leaf_paths | index("name")) != null
+            and (.taxonomy_en_leaf_paths | index("description")) != null
+            and .taxonomy_leaf_set_valid == true
+            and .llms.source_sha256 == .llms.candidate_sha256
+            and .taxonomy_description.source_sha256 == .taxonomy_description.candidate_sha256
+            and .taxonomy_name.source_sha256 == .taxonomy_name.candidate_sha256
+            and .raw_config_values_exposed == false
+          ' "$artifact/candidate-build.json" >/dev/null
+
+          git -C "$candidate" add -N -- config/sync/language/en/llms_txt.settings.yml
+          expected_diff=$'A\tconfig/sync/language/en/llms_txt.settings.yml\nM\tconfig/sync/language/en/taxonomy.vocabulary.tags.yml'
+          actual_diff="$(git -C "$candidate" diff --name-status -- config/sync)"
+          [[ "$actual_diff" == "$expected_diff" ]]
+
+          admin_pass="$(openssl rand -hex 24)"
+          (
+            cd "$candidate"
+            ddev drush site:install --existing-config -y \
+              --account-pass="$admin_pass" \
+              > "${RUNNER_TEMP}/roundtrip-site-install.log" 2>&1
+          )
+          unset admin_pass
+          grep -Fq 'Installation complete.' "${RUNNER_TEMP}/roundtrip-site-install.log"
+
+          (
+            cd "$candidate"
+            ddev exec env \
+              AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
+              AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 \
+              vendor/bin/drush php:script \
+              /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
+              > "$artifact/isolated-collections.json"
+          )
+          jq -e '
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .diagnostic_only == true
+            and .status == "PASS"
+            and .raw_config_values_exposed == false
+            and .collections["language.fr"].match == true
+            and .collections["language.fr"].classification == "MATCH"
+            and .collections["language.fr"].active_only_count == 0
+            and .collections["language.fr"].sync_only_count == 0
+            and .collections["language.fr"].value_mismatch_count == 0
+            and .collections["language.en"].match == true
+            and .collections["language.en"].classification == "MATCH"
+            and .collections["language.en"].active_only_count == 0
+            and .collections["language.en"].sync_only_count == 0
+            and .collections["language.en"].value_mismatch_count == 0
+          ' "$artifact/isolated-collections.json" >/dev/null
+
+          (
+            cd "$candidate"
+            ddev exec env AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
+              vendor/bin/drush php:script \
+              /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
+              > "$artifact/isolated-strict.json"
+          )
+          jq -e '
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .status == "PASS"
+            and .collections["language.fr"].match == true
+            and .collections["language.en"].match == true
+            and .collections["language.fr"].written == 0
+            and .collections["language.fr"].deleted == 0
+            and .collections["language.en"].written == 0
+            and .collections["language.en"].deleted == 0
+          ' "$artifact/isolated-strict.json" >/dev/null
+
+          (
+            cd "$candidate"
+            ddev drush config:status --format=json > "$artifact/isolated-config-status.json"
+            ddev exec env AGENCY_TARGET_LANGCODE=en \
+              vendor/bin/drush php:script \
+              /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
+              > "$artifact/isolated-en.json"
+            ddev exec env AGENCY_TARGET_LANGCODE=fr \
+              vendor/bin/drush php:script \
+              /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
+              > "$artifact/isolated-fr.json"
+          )
+
+          config_status_count="$(jq 'length' "$artifact/isolated-config-status.json")"
+          [[ "$config_status_count" -eq 0 ]]
+
+          llms_source="$(jq -r '.llms.source_sha256' "$artifact/candidate-build.json")"
+          llms_candidate="$(jq -r '.llms.candidate_sha256' "$artifact/candidate-build.json")"
+          llms_effective_en="$(jq -r '.targets.llms_txt_content.sha256' "$artifact/isolated-en.json")"
+          taxonomy_description_source="$(jq -r '.taxonomy_description.source_sha256' "$artifact/candidate-build.json")"
+          taxonomy_description_candidate="$(jq -r '.taxonomy_description.candidate_sha256' "$artifact/candidate-build.json")"
+          taxonomy_description_effective_en="$(jq -r '.targets.taxonomy_tags_description.sha256' "$artifact/isolated-en.json")"
+          taxonomy_name_source="$(jq -r '.taxonomy_name.source_sha256' "$artifact/candidate-build.json")"
+          taxonomy_name_candidate="$(jq -r '.taxonomy_name.candidate_sha256' "$artifact/candidate-build.json")"
+          taxonomy_name_effective_en="$(jq -r '.targets.taxonomy_tags_name.sha256' "$artifact/isolated-en.json")"
+
+          [[ "$llms_source" == "$llms_candidate" ]]
+          [[ "$llms_candidate" == "$llms_effective_en" ]]
+          [[ "$taxonomy_description_source" == "$taxonomy_description_candidate" ]]
+          [[ "$taxonomy_description_candidate" == "$taxonomy_description_effective_en" ]]
+          [[ "$taxonomy_name_source" == "$taxonomy_name_candidate" ]]
+          [[ "$taxonomy_name_candidate" == "$taxonomy_name_effective_en" ]]
+
+          for key in llms_txt_content taxonomy_tags_name taxonomy_tags_description; do
+            primary_fr="$(jq -r --arg key "$key" '.targets[$key].sha256' "$artifact/primary-fr.json")"
+            isolated_fr="$(jq -r --arg key "$key" '.targets[$key].sha256' "$artifact/isolated-fr.json")"
+            [[ "$primary_fr" == "$isolated_fr" ]]
+          done
+
+          git diff --quiet HEAD -- config/sync
+          test -z "$(git status --porcelain -- config/sync)"
+
+          llms_en_leaf_paths="$(jq '.llms_en_leaf_paths' "$artifact/candidate-build.json")"
+          taxonomy_en_leaf_paths="$(jq '.taxonomy_en_leaf_paths' "$artifact/candidate-build.json")"
+          language_fr="$(jq '.collections["language.fr"]' "$artifact/isolated-collections.json")"
+          language_en="$(jq '.collections["language.en"]' "$artifact/isolated-collections.json")"
+
+          jq -n \
+            --arg head_sha "$HEAD_SHA" \
+            --argjson llms_en_leaf_paths "$llms_en_leaf_paths" \
+            --argjson taxonomy_en_leaf_paths "$taxonomy_en_leaf_paths" \
+            --argjson language_fr "$language_fr" \
+            --argjson language_en "$language_en" \
+            --argjson config_status_count "$config_status_count" \
+            '{
+              schema_version: 1,
+              head_sha: $head_sha,
+              candidate_paths: [
+                "config/sync/language/en/llms_txt.settings.yml",
+                "config/sync/language/en/taxonomy.vocabulary.tags.yml"
+              ],
+              candidate_added_count: 1,
+              candidate_modified_count: 1,
+              llms_en_leaf_paths: $llms_en_leaf_paths,
+              taxonomy_en_leaf_paths: $taxonomy_en_leaf_paths,
+              site_install: "PASS",
+              language_fr: $language_fr,
+              language_en: $language_en,
+              strict_collection_gate: "PASS",
+              config_status_count: $config_status_count,
+              llms_source_equals_candidate: true,
+              llms_candidate_equals_effective_en: true,
+              taxonomy_description_source_equals_candidate: true,
+              taxonomy_description_candidate_equals_effective_en: true,
+              taxonomy_name_preserved: true,
+              effective_fr_preserved: true,
+              raw_config_values_exposed: false,
+              primary_config_sync_mutated: false,
+              prod_access: "NONE",
+              preprod_access: "NONE"
+            }' > "$artifact/result.json"
+
+          jq -e '
+            .schema_version == 1
+            and .head_sha == env.HEAD_SHA
+            and .candidate_added_count == 1
+            and .candidate_modified_count == 1
+            and .candidate_paths == [
+              "config/sync/language/en/llms_txt.settings.yml",
+              "config/sync/language/en/taxonomy.vocabulary.tags.yml"
+            ]
+            and .llms_en_leaf_paths == ["content"]
+            and (.taxonomy_en_leaf_paths | index("name")) != null
+            and (.taxonomy_en_leaf_paths | index("description")) != null
+            and .site_install == "PASS"
+            and .language_fr.match == true
+            and .language_fr.classification == "MATCH"
+            and .language_en.match == true
+            and .language_en.classification == "MATCH"
+            and .strict_collection_gate == "PASS"
+            and .config_status_count == 0
+            and .llms_source_equals_candidate == true
+            and .llms_candidate_equals_effective_en == true
+            and .taxonomy_description_source_equals_candidate == true
+            and .taxonomy_description_candidate_equals_effective_en == true
+            and .taxonomy_name_preserved == true
+            and .effective_fr_preserved == true
+            and .raw_config_values_exposed == false
+            and .primary_config_sync_mutated == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/result.json" >/dev/null
+
+      - name: Upload isolated roundtrip candidate proof
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-roundtrip-candidate-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-roundtrip-candidate-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Build active/sync collection diagnostic
         if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
         shell: bash

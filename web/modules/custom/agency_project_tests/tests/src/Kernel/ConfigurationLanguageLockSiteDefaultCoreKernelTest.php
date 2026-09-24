@@ -11,7 +11,8 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Characterizes the site-default configuration-language policy on core config entities and Config Actions.
+ * Characterizes the site-default configuration-language policy on core
+ * config entities and Config Actions.
  *
  * @group agency_project_tests
  * @group configuration_language_governance
@@ -115,7 +116,8 @@ final class ConfigurationLanguageLockSiteDefaultCoreKernelTest extends KernelTes
   }
 
   /**
-   * Enables the site-default configuration-language policy only inside this Kernel test.
+   * Enables the site-default configuration-language policy only inside this
+   * Kernel test.
    */
   private function enableSiteDefaultConfigurationLock(): void {
     $this->config('config_language_lock.settings')

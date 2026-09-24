@@ -13,7 +13,8 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Characterizes the site-default configuration-language policy for Drupal Canvas.
+ * Characterizes the site-default configuration-language policy for Drupal
+ * Canvas.
  *
  * @group agency_project_tests
  * @group configuration_language_governance
@@ -71,7 +72,8 @@ final class ConfigurationLanguageLockSiteDefaultCanvasKernelTest extends KernelT
   }
 
   /**
-   * The site-default configuration-language policy satisfies the exact installed Canvas requirement.
+   * The site-default configuration-language policy satisfies the exact
+   * installed Canvas requirement.
    */
   public function testInstalledCanvasRequirementHasNoMismatch(): void {
     $this->enableSiteDefaultConfigurationLock();
@@ -147,7 +149,8 @@ final class ConfigurationLanguageLockSiteDefaultCanvasKernelTest extends KernelT
   }
 
   /**
-   * Enables the site-default configuration-language policy only inside this Kernel test.
+   * Enables the site-default configuration-language policy only inside this
+   * Kernel test.
    */
   private function enableSiteDefaultConfigurationLock(): void {
     $this->config('config_language_lock.settings')

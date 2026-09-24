@@ -97,7 +97,8 @@ final class ConfigurationLanguageLockAdminUiTest extends BrowserTestBase {
   }
 
   /**
-   * Admin config saves follow site-default FR while editorial content remains FR.
+   * Admin config saves follow site-default FR while editorial content remains
+   * FR.
    */
   public function testAdminConfigSaveDoesNotChangeEditorialLanguage(): void {
     self::assertSame('fr', $this->config('system.site')->get('default_langcode'));

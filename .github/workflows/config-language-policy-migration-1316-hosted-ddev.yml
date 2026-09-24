@@ -1240,6 +1240,86 @@ jobs:
             test -f "$artifact/result.json"
           fi
 
+          collection_completed="$(
+            jq -r '
+              (.completed_phases | index("COLLECTION_DIAGNOSTIC")) != null
+            ' "$artifact/progress.json"
+          )"
+          failed_phase="$(
+            jq -r '.failed_phase // "NONE"' "$artifact/failure.json" 2>/dev/null || true
+          )"
+
+          if [[ "$collection_completed" == 'true' || "$failed_phase" == 'COLLECTION_DIAGNOSTIC_GATE' ]]; then
+            test -f "$artifact/isolated-collections.json"
+
+            jq -e '
+              def sha256:
+                type == "string"
+                and test("^[0-9a-f]{64}$");
+
+              def string_array:
+                type == "array"
+                and all(.[]; type == "string");
+
+              def mismatch_fingerprints:
+                type == "array"
+                and all(.[];
+                  (keys | sort) == ["active_sha256", "name", "sync_sha256"]
+                  and (.name | type == "string")
+                  and (.active_sha256 | sha256)
+                  and (.sync_sha256 | sha256)
+                );
+
+              def non_negative_integer:
+                type == "number"
+                and . >= 0
+                and floor == .;
+
+              def collection_shape:
+                type == "object"
+                and (.active_count | non_negative_integer)
+                and (.sync_count | non_negative_integer)
+                and (.active_only_count | non_negative_integer)
+                and (.active_only_names | string_array)
+                and (.sync_only_count | non_negative_integer)
+                and (.sync_only_names | string_array)
+                and (.value_mismatch_count | non_negative_integer)
+                and (.value_mismatch_names | string_array)
+                and (.value_mismatch_fingerprints | mismatch_fingerprints)
+                and (.active_names_sha256 | sha256)
+                and (.sync_names_sha256 | sha256)
+                and (.active_values_sha256 | sha256)
+                and (.sync_values_sha256 | sha256)
+                and (.match | type == "boolean")
+                and (
+                  .classification
+                  | IN(
+                      "MATCH",
+                      "ACTIVE_ONLY",
+                      "SYNC_ONLY",
+                      "VALUE_MISMATCH",
+                      "MIXED"
+                    )
+                )
+                and (.active_only_count == (.active_only_names | length))
+                and (.sync_only_count == (.sync_only_names | length))
+                and (.value_mismatch_count == (.value_mismatch_names | length))
+                and (
+                  .value_mismatch_count
+                  == (.value_mismatch_fingerprints | length)
+                );
+
+              .schema_version == 1
+              and .mode == "VERIFY"
+              and .diagnostic_only == true
+              and .raw_config_values_exposed == false
+              and .prod_access == "NONE"
+              and .preprod_access == "NONE"
+              and (.collections["language.fr"] | collection_shape)
+              and (.collections["language.en"] | collection_shape)
+            ' "$artifact/isolated-collections.json" >/dev/null
+          fi
+
           if grep -Eiq \
             '(password|passwd|api[_-]?key|access[_-]?token|refresh[_-]?token|secret)[[:space:]]*[:=][[:space:]]*["'"'"']?[^"'"'"',}[:space:]]+' \
             "$artifact"/*.json; then
@@ -1256,6 +1336,7 @@ jobs:
             artifacts/config-language-roundtrip-candidate-1316/progress.json
             artifacts/config-language-roundtrip-candidate-1316/failure.json
             artifacts/config-language-roundtrip-candidate-1316/result.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-collections.json
           if-no-files-found: error
           retention-days: 30
 

@@ -120,7 +120,10 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
     foreach (['drupal_version', 'budget', 'timeline', 'organization_type', 'phone', 'score'] as $forbidden) {
       self::assertArrayNotHasKey($forbidden, $elements);
     }
-    self::assertStringContainsString('/en/privacy-policy', (string) $elements['rgpd_consent']['#description']);
+    self::assertStringContainsString(
+      '/fr/politique-de-confidentialite',
+      (string) $elements['rgpd_consent']['#description'],
+    );
 
     self::assertSame('page', $configuration['settings']['confirmation_type']);
     self::assertTrue((bool) $configuration['settings']['confirmation_exclude_query']);
@@ -134,16 +137,19 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
       self::assertArrayNotHasKey($secret_key, $notification['settings']);
     }
 
-    $fr = $this->loadProjectYaml(
-      'config/sync/language/fr/webform.webform.drupal_lifecycle_diagnostic.yml',
+    $en = $this->loadProjectYaml(
+      'config/sync/language/en/webform.webform.drupal_lifecycle_diagnostic.yml',
     );
-    $fr_elements = DrupalYaml::decode((string) $fr['elements']);
-    self::assertIsArray($fr_elements);
-    self::assertSame('URL du site', $fr_elements['website_url']['#title']);
-    self::assertSame('Demander un diagnostic Drupal', $fr_elements['actions']['#submit__label']);
+    $en_elements = DrupalYaml::decode((string) $en['elements']);
+    self::assertIsArray($en_elements);
+    self::assertSame('Website URL', $en_elements['website_url']['#title']);
+    self::assertSame(
+      'Request a Drupal diagnostic',
+      $en_elements['actions']['#submit__label'],
+    );
     self::assertStringContainsString(
-      '/fr/politique-de-confidentialite',
-      (string) $fr_elements['rgpd_consent']['#description'],
+      '/en/privacy-policy',
+      (string) $en_elements['rgpd_consent']['#description'],
     );
 
     $definition = $this->container
@@ -157,6 +163,7 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
     self::assertSame('webform_block', $block['plugin']);
     self::assertSame('content', $block['region']);
     self::assertSame('drupal_lifecycle_diagnostic', $block['settings']['webform_id']);
+    self::assertSame('Demander un diagnostic Drupal', $block['settings']['label']);
     self::assertFalse((bool) $block['settings']['redirect']);
     self::assertFalse((bool) $block['settings']['lazy']);
 
@@ -185,10 +192,10 @@ final class DrupalLifecycleDiagnosticTest extends BrowserTestBase {
       self::assertNotContains($excluded, $paths);
     }
 
-    $fr_block = $this->loadProjectYaml(
-      'config/sync/language/fr/block.block.emerging_digital_drupal_lifecycle_diagnostic.yml',
+    $en_block = $this->loadProjectYaml(
+      'config/sync/language/en/block.block.emerging_digital_drupal_lifecycle_diagnostic.yml',
     );
-    self::assertSame('Demander un diagnostic Drupal', $fr_block['settings']['label']);
+    self::assertSame('Request a Drupal diagnostic', $en_block['settings']['label']);
 
     $analytics = file_get_contents(dirname(DRUPAL_ROOT) . '/docs/analytics.md');
     self::assertIsString($analytics);

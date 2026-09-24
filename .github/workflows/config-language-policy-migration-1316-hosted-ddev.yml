@@ -722,11 +722,86 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          set -euo pipefail
+          set -eEuo pipefail
 
           artifact="${GITHUB_WORKSPACE}/artifacts/config-language-roundtrip-candidate-1316"
           candidate="${RUNNER_TEMP}/config-language-roundtrip-1316"
+          site_install_log="${RUNNER_TEMP}/roundtrip-site-install.log"
+          candidate_paths='["config/sync/language/en/llms_txt.settings.yml","config/sync/language/en/taxonomy.vocabulary.tags.yml"]'
+          current_phase='INIT'
+          completed_phases='[]'
           mkdir -p "$artifact"
+
+          write_progress() {
+            local status="${1:-RUNNING}"
+            jq -n \
+              --arg head_sha "$HEAD_SHA" \
+              --arg status "$status" \
+              --arg current_phase "$current_phase" \
+              --argjson completed_phases "$completed_phases" \
+              --argjson candidate_paths "$candidate_paths" \
+              '{
+                schema_version: 1,
+                head_sha: $head_sha,
+                mode: "VERIFY",
+                experiment: "two_override_fresh_install_roundtrip",
+                status: $status,
+                current_phase: $current_phase,
+                completed_phases: $completed_phases,
+                candidate_paths: $candidate_paths,
+                raw_config_values_exposed: false,
+                primary_config_sync_mutated: false,
+                prod_access: "NONE",
+                preprod_access: "NONE"
+              }' > "$artifact/progress.json"
+          }
+
+          begin_phase() {
+            current_phase="$1"
+            write_progress RUNNING
+          }
+
+          complete_phase() {
+            completed_phases="$(
+              jq -c --arg phase "$current_phase" '. + [$phase]' <<<"$completed_phases"
+            )"
+            write_progress RUNNING
+          }
+
+          record_failure() {
+            local exit_code="$1"
+            local site_install_log_sha256='NONE'
+            if [[ "$current_phase" == 'SITE_INSTALL' || "$current_phase" == 'SITE_INSTALL_COMPLETION_GATE' ]] \
+              && [[ -f "$site_install_log" ]]; then
+              site_install_log_sha256="$(sha256sum "$site_install_log" | awk '{print $1}')"
+            fi
+
+            jq -n \
+              --arg head_sha "$HEAD_SHA" \
+              --arg failed_phase "$current_phase" \
+              --argjson exit_code "$exit_code" \
+              --argjson completed_phases "$completed_phases" \
+              --argjson candidate_paths "$candidate_paths" \
+              --arg site_install_log_sha256 "$site_install_log_sha256" \
+              '{
+                schema_version: 1,
+                head_sha: $head_sha,
+                mode: "VERIFY",
+                experiment: "two_override_fresh_install_roundtrip",
+                status: "FAIL",
+                failed_phase: $failed_phase,
+                exit_code: $exit_code,
+                completed_phases: $completed_phases,
+                candidate_paths: $candidate_paths,
+                site_install_log_sha256: $site_install_log_sha256,
+                site_install_safe_error_diagnostic: "NONE",
+                raw_config_values_exposed: false,
+                primary_config_sync_mutated: false,
+                prod_access: "NONE",
+                preprod_access: "NONE"
+              }' > "$artifact/failure.json"
+            write_progress FAIL
+          }
 
           cleanup_roundtrip() {
             set +e
@@ -738,8 +813,22 @@ jobs:
               git worktree remove --force "$candidate" >/dev/null 2>&1 || true
             fi
           }
-          trap cleanup_roundtrip EXIT
 
+          on_roundtrip_exit() {
+            local exit_code="$?"
+            trap - EXIT ERR
+            set +e
+            if [[ "$exit_code" -ne 0 ]]; then
+              record_failure "$exit_code"
+            fi
+            cleanup_roundtrip
+            exit "$exit_code"
+          }
+
+          trap on_roundtrip_exit EXIT
+          write_progress RUNNING
+
+          begin_phase PRIMARY_FR_FINGERPRINT
           cat > "$artifact/target-fingerprints.php" <<'PHP'
           <?php
           declare(strict_types=1);
@@ -794,18 +883,30 @@ jobs:
             and (.targets.taxonomy_tags_name.sha256 | test("^[0-9a-f]{64}$"))
             and (.targets.taxonomy_tags_description.sha256 | test("^[0-9a-f]{64}$"))
           ' "$artifact/primary-fr.json" >/dev/null
+          complete_phase
 
+          begin_phase WORKTREE_CREATE
           git worktree add --detach "$candidate" "$HEAD_SHA"
           cat > "$candidate/.ddev/config.roundtrip-1316.yaml" <<EOF
           name: agency-config-language-roundtrip-1316-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
           EOF
+          complete_phase
 
+          begin_phase DDEV_START
           (
             cd "$candidate"
             ddev start -y
+          )
+          complete_phase
+
+          begin_phase COMPOSER_INSTALL
+          (
+            cd "$candidate"
             ddev composer install --no-interaction --no-progress --prefer-dist
           )
+          complete_phase
 
+          begin_phase CANDIDATE_BUILD
           candidate_artifact="$candidate/artifacts/config-language-roundtrip-candidate-1316"
           mkdir -p "$candidate_artifact"
           cp "$artifact/target-fingerprints.php" "$candidate_artifact/target-fingerprints.php"
@@ -899,6 +1000,9 @@ jobs:
               /var/www/html/artifacts/config-language-roundtrip-candidate-1316/build-candidate.php \
               > "$artifact/candidate-build.json"
           )
+          complete_phase
+
+          begin_phase CANDIDATE_STRUCTURE_GATE
           jq -e '
             .schema_version == 1
             and .llms_en_leaf_paths == ["content"]
@@ -910,22 +1014,31 @@ jobs:
             and .taxonomy_name.source_sha256 == .taxonomy_name.candidate_sha256
             and .raw_config_values_exposed == false
           ' "$artifact/candidate-build.json" >/dev/null
+          complete_phase
 
+          begin_phase CANDIDATE_DIFF_GATE
           git -C "$candidate" add -N -- config/sync/language/en/llms_txt.settings.yml
           expected_diff=$'A\tconfig/sync/language/en/llms_txt.settings.yml\nM\tconfig/sync/language/en/taxonomy.vocabulary.tags.yml'
           actual_diff="$(git -C "$candidate" diff --name-status -- config/sync)"
           [[ "$actual_diff" == "$expected_diff" ]]
+          complete_phase
 
+          begin_phase SITE_INSTALL
           admin_pass="$(openssl rand -hex 24)"
           (
             cd "$candidate"
             ddev drush site:install --existing-config -y \
               --account-pass="$admin_pass" \
-              > "${RUNNER_TEMP}/roundtrip-site-install.log" 2>&1
+              > "$site_install_log" 2>&1
           )
           unset admin_pass
-          grep -Fq 'Installation complete.' "${RUNNER_TEMP}/roundtrip-site-install.log"
+          complete_phase
 
+          begin_phase SITE_INSTALL_COMPLETION_GATE
+          grep -Fq 'Installation complete.' "$site_install_log"
+          complete_phase
+
+          begin_phase COLLECTION_DIAGNOSTIC
           (
             cd "$candidate"
             ddev exec env \
@@ -935,6 +1048,9 @@ jobs:
               /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
               > "$artifact/isolated-collections.json"
           )
+          complete_phase
+
+          begin_phase COLLECTION_DIAGNOSTIC_GATE
           jq -e '
             .schema_version == 1
             and .mode == "VERIFY"
@@ -952,7 +1068,9 @@ jobs:
             and .collections["language.en"].sync_only_count == 0
             and .collections["language.en"].value_mismatch_count == 0
           ' "$artifact/isolated-collections.json" >/dev/null
+          complete_phase
 
+          begin_phase STRICT_COLLECTION
           (
             cd "$candidate"
             ddev exec env AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
@@ -960,6 +1078,9 @@ jobs:
               /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
               > "$artifact/isolated-strict.json"
           )
+          complete_phase
+
+          begin_phase STRICT_COLLECTION_GATE
           jq -e '
             .schema_version == 1
             and .mode == "VERIFY"
@@ -971,10 +1092,20 @@ jobs:
             and .collections["language.en"].written == 0
             and .collections["language.en"].deleted == 0
           ' "$artifact/isolated-strict.json" >/dev/null
+          complete_phase
 
+          begin_phase CONFIG_STATUS
           (
             cd "$candidate"
             ddev drush config:status --format=json > "$artifact/isolated-config-status.json"
+          )
+          config_status_count="$(jq 'length' "$artifact/isolated-config-status.json")"
+          [[ "$config_status_count" -eq 0 ]]
+          complete_phase
+
+          begin_phase TARGET_FINGERPRINTS
+          (
+            cd "$candidate"
             ddev exec env AGENCY_TARGET_LANGCODE=en \
               vendor/bin/drush php:script \
               /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
@@ -984,10 +1115,9 @@ jobs:
               /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
               > "$artifact/isolated-fr.json"
           )
+          complete_phase
 
-          config_status_count="$(jq 'length' "$artifact/isolated-config-status.json")"
-          [[ "$config_status_count" -eq 0 ]]
-
+          begin_phase TARGET_EQUALITY_GATE
           llms_source="$(jq -r '.llms.source_sha256' "$artifact/candidate-build.json")"
           llms_candidate="$(jq -r '.llms.candidate_sha256' "$artifact/candidate-build.json")"
           llms_effective_en="$(jq -r '.targets.llms_txt_content.sha256' "$artifact/isolated-en.json")"
@@ -1010,10 +1140,14 @@ jobs:
             isolated_fr="$(jq -r --arg key "$key" '.targets[$key].sha256' "$artifact/isolated-fr.json")"
             [[ "$primary_fr" == "$isolated_fr" ]]
           done
+          complete_phase
 
+          begin_phase PRIMARY_CONFIG_CLEAN_GATE
           git diff --quiet HEAD -- config/sync
           test -z "$(git status --porcelain -- config/sync)"
+          complete_phase
 
+          begin_phase RESULT_BUILD
           llms_en_leaf_paths="$(jq '.llms_en_leaf_paths' "$artifact/candidate-build.json")"
           taxonomy_en_leaf_paths="$(jq '.taxonomy_en_leaf_paths' "$artifact/candidate-build.json")"
           language_fr="$(jq '.collections["language.fr"]' "$artifact/isolated-collections.json")"
@@ -1053,7 +1187,9 @@ jobs:
               prod_access: "NONE",
               preprod_access: "NONE"
             }' > "$artifact/result.json"
+          complete_phase
 
+          begin_phase RESULT_GATE
           jq -e '
             .schema_version == 1
             and .head_sha == env.HEAD_SHA
@@ -1084,13 +1220,42 @@ jobs:
             and .prod_access == "NONE"
             and .preprod_access == "NONE"
           ' "$artifact/result.json" >/dev/null
+          complete_phase
+
+          begin_phase DONE
+          complete_phase
+          write_progress PASS
+
+      - name: Validate isolated roundtrip diagnostic safety
+        if: ${{ always() && steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-roundtrip-candidate-1316'
+          test -f "$artifact/progress.json"
+
+          if jq -e '.status == "FAIL"' "$artifact/progress.json" >/dev/null; then
+            test -f "$artifact/failure.json"
+          else
+            test -f "$artifact/result.json"
+          fi
+
+          if grep -Eiq \
+            '(password|passwd|api[_-]?key|access[_-]?token|refresh[_-]?token|secret)[[:space:]]*[:=][[:space:]]*["'"'"']?[^"'"'"',}[:space:]]+' \
+            "$artifact"/*.json; then
+            echo 'Unsafe secret-like value detected in roundtrip diagnostic artifact.' >&2
+            exit 1
+          fi
 
       - name: Upload isolated roundtrip candidate proof
-        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        if: ${{ always() && steps.mode.outputs.mode == 'VERIFY' }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-config-language-roundtrip-candidate-1316-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/config-language-roundtrip-candidate-1316/result.json
+          path: |
+            artifacts/config-language-roundtrip-candidate-1316/progress.json
+            artifacts/config-language-roundtrip-candidate-1316/failure.json
+            artifacts/config-language-roundtrip-candidate-1316/result.json
           if-no-files-found: error
           retention-days: 30
 

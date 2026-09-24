@@ -1011,28 +1011,58 @@ jobs:
           ! grep -Fq "$llms_txt_en" "$artifact/config-name-status.txt"
 
           [[ -f "$taxonomy_tags_en" ]]
-          taxonomy_tags_leaf_paths="$(
-            ddev exec php -r '
-              require "/var/www/html/vendor/autoload.php";
-              $data = Symfony\\Component\\Yaml\\Yaml::parseFile($argv[1]);
-              if (!is_array($data)) {
-                exit(1);
+          taxonomy_leaf_parser="$artifact/.taxonomy-leaf-paths.php"
+          cat > "$taxonomy_leaf_parser" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          require '/var/www/html/vendor/autoload.php';
+
+          use Symfony\Component\Yaml\Yaml;
+
+          if ($argc !== 2) {
+            exit(2);
+          }
+
+          $data = Yaml::parseFile($argv[1]);
+
+          if (!is_array($data)) {
+            exit(1);
+          }
+
+          $leaves = [];
+
+          $walk = static function (
+            mixed $value,
+            array $segments = [],
+          ) use (&$walk, &$leaves): void {
+            if (is_array($value) && $value !== []) {
+              foreach ($value as $key => $child) {
+                $walk($child, [...$segments, (string) $key]);
               }
-              $leaves = [];
-              $walk = static function (mixed $value, array $segments = []) use (&$walk, &$leaves): void {
-                if (is_array($value) && $value !== []) {
-                  foreach ($value as $key => $child) {
-                    $walk($child, [...$segments, (string) $key]);
-                  }
-                  return;
-                }
-                $leaves[] = implode(".", $segments);
-              };
-              $walk($data);
-              sort($leaves, SORT_STRING);
-              echo json_encode($leaves, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-            ' "/var/www/html/$taxonomy_tags_en"
+              return;
+            }
+
+            $leaves[] = implode('.', $segments);
+          };
+
+          $walk($data);
+          sort($leaves, SORT_STRING);
+
+          echo json_encode(
+            $leaves,
+            JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+          );
+          PHP
+
+          taxonomy_tags_leaf_paths="$(
+            ddev exec php \
+              "/var/www/html/$taxonomy_leaf_parser" \
+              "/var/www/html/$taxonomy_tags_en"
           )"
+          rm -f "$taxonomy_leaf_parser"
+
           jq -e '
             type == "array"
             and length > 0

@@ -730,6 +730,9 @@ jobs:
           candidate_paths='["config/sync/language/en/llms_txt.settings.yml","config/sync/language/en/taxonomy.vocabulary.tags.yml"]'
           current_phase='INIT'
           completed_phases='[]'
+          config_import_attempted='false'
+          config_import_exit_code='-1'
+          config_import_output_sha256='NONE'
           mkdir -p "$artifact"
 
           write_progress() {
@@ -783,6 +786,9 @@ jobs:
               --argjson completed_phases "$completed_phases" \
               --argjson candidate_paths "$candidate_paths" \
               --arg site_install_log_sha256 "$site_install_log_sha256" \
+              --argjson config_import_attempted "$config_import_attempted" \
+              --argjson config_import_exit_code "$config_import_exit_code" \
+              --arg config_import_output_sha256 "$config_import_output_sha256" \
               '{
                 schema_version: 1,
                 head_sha: $head_sha,
@@ -795,6 +801,11 @@ jobs:
                 candidate_paths: $candidate_paths,
                 site_install_log_sha256: $site_install_log_sha256,
                 site_install_safe_error_diagnostic: "NONE",
+                config_import: {
+                  attempted: $config_import_attempted,
+                  exit_code: $config_import_exit_code,
+                  output_sha256: $config_import_output_sha256
+                },
                 raw_config_values_exposed: false,
                 primary_config_sync_mutated: false,
                 prod_access: "NONE",
@@ -1046,11 +1057,91 @@ jobs:
               AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 \
               vendor/bin/drush php:script \
               /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
-              > "$artifact/isolated-collections.json"
+              > "$artifact/isolated-collections-before-reimport.json"
           )
           complete_phase
 
-          begin_phase COLLECTION_DIAGNOSTIC_GATE
+          begin_phase PRE_REIMPORT_COLLECTION_GATE
+          jq -e '
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .diagnostic_only == true
+            and .status == "PASS"
+            and .raw_config_values_exposed == false
+            and .collections["language.fr"].match == true
+            and .collections["language.fr"].classification == "MATCH"
+            and .collections["language.fr"].active_count == 7
+            and .collections["language.fr"].sync_count == 7
+            and .collections["language.fr"].active_only_count == 0
+            and .collections["language.fr"].sync_only_count == 0
+            and .collections["language.fr"].value_mismatch_count == 0
+            and .collections["language.en"].match == false
+            and .collections["language.en"].classification == "VALUE_MISMATCH"
+            and .collections["language.en"].active_count == 418
+            and .collections["language.en"].sync_count == 418
+            and .collections["language.en"].active_only_count == 0
+            and .collections["language.en"].sync_only_count == 0
+            and .collections["language.en"].value_mismatch_count == 2
+            and (.collections["language.en"].value_mismatch_names | sort)
+              == ["llms_txt.settings", "taxonomy.vocabulary.tags"]
+            and (
+              .collections["language.en"].value_mismatch_fingerprints
+              | sort_by(.name)
+            ) == [
+              {
+                "name": "llms_txt.settings",
+                "active_sha256": "e3feb7e36e65420abbf4b2898f3b9c7f5e15d9a7f08d64ca8e83f3f7e08d55f2",
+                "sync_sha256": "68635e6a322ce86f2d7692fdf31a6f34aa02f9e51afccecb0df245312336f736"
+              },
+              {
+                "name": "taxonomy.vocabulary.tags",
+                "active_sha256": "0ef643ea54ca978c93c1795b6d86379ef2678858472df05e72c979343b5cb654",
+                "sync_sha256": "8b62f618540df445425b8d38c7220827f7facb9f694b95cc5ae74c656efa5fc8"
+              }
+            ]
+          ' "$artifact/isolated-collections-before-reimport.json" >/dev/null
+          complete_phase
+
+          begin_phase PRE_REIMPORT_CONFIG_STATUS
+          (
+            cd "$candidate"
+            ddev drush config:status --format=json \
+              > "$artifact/isolated-config-status-before-reimport.json"
+          )
+          pre_reimport_config_status_count="$(
+            jq 'length' "$artifact/isolated-config-status-before-reimport.json"
+          )"
+          complete_phase
+
+          begin_phase CONFIG_IMPORT
+          config_import_log="${RUNNER_TEMP}/roundtrip-config-import.log"
+          config_import_attempted='true'
+          set +e
+          (
+            cd "$candidate"
+            ddev drush config:import -y > "$config_import_log" 2>&1
+          )
+          config_import_exit_code="$?"
+          set -e
+          config_import_output_sha256="$(
+            sha256sum "$config_import_log" | awk '{print $1}'
+          )"
+          [[ "$config_import_exit_code" -eq 0 ]]
+          complete_phase
+
+          begin_phase POST_REIMPORT_COLLECTION_DIAGNOSTIC
+          (
+            cd "$candidate"
+            ddev exec env \
+              AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
+              AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 \
+              vendor/bin/drush php:script \
+              /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
+              > "$artifact/isolated-collections-after-reimport.json"
+          )
+          complete_phase
+
+          begin_phase POST_REIMPORT_COLLECTION_GATE
           jq -e '
             .schema_version == 1
             and .mode == "VERIFY"
@@ -1064,23 +1155,22 @@ jobs:
             and .collections["language.fr"].value_mismatch_count == 0
             and .collections["language.en"].match == true
             and .collections["language.en"].classification == "MATCH"
+            and .collections["language.en"].active_count == 418
+            and .collections["language.en"].sync_count == 418
             and .collections["language.en"].active_only_count == 0
             and .collections["language.en"].sync_only_count == 0
             and .collections["language.en"].value_mismatch_count == 0
-          ' "$artifact/isolated-collections.json" >/dev/null
+          ' "$artifact/isolated-collections-after-reimport.json" >/dev/null
           complete_phase
 
-          begin_phase STRICT_COLLECTION
+          begin_phase POST_REIMPORT_STRICT_COLLECTION
           (
             cd "$candidate"
             ddev exec env AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
               vendor/bin/drush php:script \
               /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
-              > "$artifact/isolated-strict.json"
+              > "$artifact/isolated-strict-after-reimport.json"
           )
-          complete_phase
-
-          begin_phase STRICT_COLLECTION_GATE
           jq -e '
             .schema_version == 1
             and .mode == "VERIFY"
@@ -1091,42 +1181,62 @@ jobs:
             and .collections["language.fr"].deleted == 0
             and .collections["language.en"].written == 0
             and .collections["language.en"].deleted == 0
-          ' "$artifact/isolated-strict.json" >/dev/null
+          ' "$artifact/isolated-strict-after-reimport.json" >/dev/null
           complete_phase
 
-          begin_phase CONFIG_STATUS
+          begin_phase POST_REIMPORT_CONFIG_STATUS
           (
             cd "$candidate"
-            ddev drush config:status --format=json > "$artifact/isolated-config-status.json"
+            ddev drush config:status --format=json \
+              > "$artifact/isolated-config-status-after-reimport.json"
           )
-          config_status_count="$(jq 'length' "$artifact/isolated-config-status.json")"
-          [[ "$config_status_count" -eq 0 ]]
+          post_reimport_config_status_count="$(
+            jq 'length' "$artifact/isolated-config-status-after-reimport.json"
+          )"
+          [[ "$post_reimport_config_status_count" -eq 0 ]]
           complete_phase
 
-          begin_phase TARGET_FINGERPRINTS
+          begin_phase POST_REIMPORT_TARGET_FINGERPRINTS
           (
             cd "$candidate"
             ddev exec env AGENCY_TARGET_LANGCODE=en \
               vendor/bin/drush php:script \
               /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
-              > "$artifact/isolated-en.json"
+              > "$artifact/isolated-en-after-reimport.json"
             ddev exec env AGENCY_TARGET_LANGCODE=fr \
               vendor/bin/drush php:script \
               /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
-              > "$artifact/isolated-fr.json"
+              > "$artifact/isolated-fr-after-reimport.json"
           )
           complete_phase
 
-          begin_phase TARGET_EQUALITY_GATE
+          begin_phase POST_REIMPORT_TARGET_EQUALITY_GATE
           llms_source="$(jq -r '.llms.source_sha256' "$artifact/candidate-build.json")"
           llms_candidate="$(jq -r '.llms.candidate_sha256' "$artifact/candidate-build.json")"
-          llms_effective_en="$(jq -r '.targets.llms_txt_content.sha256' "$artifact/isolated-en.json")"
-          taxonomy_description_source="$(jq -r '.taxonomy_description.source_sha256' "$artifact/candidate-build.json")"
-          taxonomy_description_candidate="$(jq -r '.taxonomy_description.candidate_sha256' "$artifact/candidate-build.json")"
-          taxonomy_description_effective_en="$(jq -r '.targets.taxonomy_tags_description.sha256' "$artifact/isolated-en.json")"
-          taxonomy_name_source="$(jq -r '.taxonomy_name.source_sha256' "$artifact/candidate-build.json")"
-          taxonomy_name_candidate="$(jq -r '.taxonomy_name.candidate_sha256' "$artifact/candidate-build.json")"
-          taxonomy_name_effective_en="$(jq -r '.targets.taxonomy_tags_name.sha256' "$artifact/isolated-en.json")"
+          llms_effective_en="$(
+            jq -r '.targets.llms_txt_content.sha256' \
+              "$artifact/isolated-en-after-reimport.json"
+          )"
+          taxonomy_description_source="$(
+            jq -r '.taxonomy_description.source_sha256' "$artifact/candidate-build.json"
+          )"
+          taxonomy_description_candidate="$(
+            jq -r '.taxonomy_description.candidate_sha256' "$artifact/candidate-build.json"
+          )"
+          taxonomy_description_effective_en="$(
+            jq -r '.targets.taxonomy_tags_description.sha256' \
+              "$artifact/isolated-en-after-reimport.json"
+          )"
+          taxonomy_name_source="$(
+            jq -r '.taxonomy_name.source_sha256' "$artifact/candidate-build.json"
+          )"
+          taxonomy_name_candidate="$(
+            jq -r '.taxonomy_name.candidate_sha256' "$artifact/candidate-build.json"
+          )"
+          taxonomy_name_effective_en="$(
+            jq -r '.targets.taxonomy_tags_name.sha256' \
+              "$artifact/isolated-en-after-reimport.json"
+          )"
 
           [[ "$llms_source" == "$llms_candidate" ]]
           [[ "$llms_candidate" == "$llms_effective_en" ]]
@@ -1136,30 +1246,54 @@ jobs:
           [[ "$taxonomy_name_candidate" == "$taxonomy_name_effective_en" ]]
 
           for key in llms_txt_content taxonomy_tags_name taxonomy_tags_description; do
-            primary_fr="$(jq -r --arg key "$key" '.targets[$key].sha256' "$artifact/primary-fr.json")"
-            isolated_fr="$(jq -r --arg key "$key" '.targets[$key].sha256' "$artifact/isolated-fr.json")"
+            primary_fr="$(
+              jq -r --arg key "$key" '.targets[$key].sha256' "$artifact/primary-fr.json"
+            )"
+            isolated_fr="$(
+              jq -r --arg key "$key" '.targets[$key].sha256' \
+                "$artifact/isolated-fr-after-reimport.json"
+            )"
             [[ "$primary_fr" == "$isolated_fr" ]]
           done
           complete_phase
 
           begin_phase PRIMARY_CONFIG_CLEAN_GATE
+          expected_diff=$'A\tconfig/sync/language/en/llms_txt.settings.yml\nM\tconfig/sync/language/en/taxonomy.vocabulary.tags.yml'
+          final_candidate_diff="$(git -C "$candidate" diff --name-status -- config/sync)"
+          [[ "$final_candidate_diff" == "$expected_diff" ]]
           git diff --quiet HEAD -- config/sync
           test -z "$(git status --porcelain -- config/sync)"
           complete_phase
 
           begin_phase RESULT_BUILD
-          llms_en_leaf_paths="$(jq '.llms_en_leaf_paths' "$artifact/candidate-build.json")"
-          taxonomy_en_leaf_paths="$(jq '.taxonomy_en_leaf_paths' "$artifact/candidate-build.json")"
-          language_fr="$(jq '.collections["language.fr"]' "$artifact/isolated-collections.json")"
-          language_en="$(jq '.collections["language.en"]' "$artifact/isolated-collections.json")"
+          before_reimport_fr="$(
+            jq '.collections["language.fr"]' \
+              "$artifact/isolated-collections-before-reimport.json"
+          )"
+          before_reimport_en="$(
+            jq '.collections["language.en"]' \
+              "$artifact/isolated-collections-before-reimport.json"
+          )"
+          after_reimport_fr="$(
+            jq '.collections["language.fr"]' \
+              "$artifact/isolated-collections-after-reimport.json"
+          )"
+          after_reimport_en="$(
+            jq '.collections["language.en"]' \
+              "$artifact/isolated-collections-after-reimport.json"
+          )"
 
           jq -n \
             --arg head_sha "$HEAD_SHA" \
-            --argjson llms_en_leaf_paths "$llms_en_leaf_paths" \
-            --argjson taxonomy_en_leaf_paths "$taxonomy_en_leaf_paths" \
-            --argjson language_fr "$language_fr" \
-            --argjson language_en "$language_en" \
-            --argjson config_status_count "$config_status_count" \
+            --argjson before_reimport_fr "$before_reimport_fr" \
+            --argjson before_reimport_en "$before_reimport_en" \
+            --argjson pre_reimport_config_status_count "$pre_reimport_config_status_count" \
+            --argjson config_import_attempted "$config_import_attempted" \
+            --argjson config_import_exit_code "$config_import_exit_code" \
+            --arg config_import_output_sha256 "$config_import_output_sha256" \
+            --argjson after_reimport_fr "$after_reimport_fr" \
+            --argjson after_reimport_en "$after_reimport_en" \
+            --argjson post_reimport_config_status_count "$post_reimport_config_status_count" \
             '{
               schema_version: 1,
               head_sha: $head_sha,
@@ -1167,19 +1301,27 @@ jobs:
                 "config/sync/language/en/llms_txt.settings.yml",
                 "config/sync/language/en/taxonomy.vocabulary.tags.yml"
               ],
-              candidate_added_count: 1,
-              candidate_modified_count: 1,
-              llms_en_leaf_paths: $llms_en_leaf_paths,
-              taxonomy_en_leaf_paths: $taxonomy_en_leaf_paths,
               site_install: "PASS",
-              language_fr: $language_fr,
-              language_en: $language_en,
-              strict_collection_gate: "PASS",
-              config_status_count: $config_status_count,
+              before_reimport: {
+                language_fr: $before_reimport_fr,
+                language_en: $before_reimport_en,
+                config_status_count: $pre_reimport_config_status_count
+              },
+              config_import: {
+                attempted: $config_import_attempted,
+                exit_code: $config_import_exit_code,
+                output_sha256: $config_import_output_sha256
+              },
+              after_reimport: {
+                language_fr: $after_reimport_fr,
+                language_en: $after_reimport_en,
+                strict_collection_gate: "PASS",
+                config_status_count: $post_reimport_config_status_count
+              },
               llms_source_equals_candidate: true,
-              llms_candidate_equals_effective_en: true,
+              llms_candidate_equals_effective_en_after_reimport: true,
               taxonomy_description_source_equals_candidate: true,
-              taxonomy_description_candidate_equals_effective_en: true,
+              taxonomy_description_candidate_equals_effective_en_after_reimport: true,
               taxonomy_name_preserved: true,
               effective_fr_preserved: true,
               raw_config_values_exposed: false,
@@ -1193,26 +1335,25 @@ jobs:
           jq -e '
             .schema_version == 1
             and .head_sha == env.HEAD_SHA
-            and .candidate_added_count == 1
-            and .candidate_modified_count == 1
             and .candidate_paths == [
               "config/sync/language/en/llms_txt.settings.yml",
               "config/sync/language/en/taxonomy.vocabulary.tags.yml"
             ]
-            and .llms_en_leaf_paths == ["content"]
-            and (.taxonomy_en_leaf_paths | index("name")) != null
-            and (.taxonomy_en_leaf_paths | index("description")) != null
             and .site_install == "PASS"
-            and .language_fr.match == true
-            and .language_fr.classification == "MATCH"
-            and .language_en.match == true
-            and .language_en.classification == "MATCH"
-            and .strict_collection_gate == "PASS"
-            and .config_status_count == 0
+            and .before_reimport.language_fr.match == true
+            and .before_reimport.language_en.match == false
+            and .before_reimport.language_en.value_mismatch_count == 2
+            and .config_import.attempted == true
+            and .config_import.exit_code == 0
+            and (.config_import.output_sha256 | test("^[0-9a-f]{64}$"))
+            and .after_reimport.language_fr.match == true
+            and .after_reimport.language_en.match == true
+            and .after_reimport.strict_collection_gate == "PASS"
+            and .after_reimport.config_status_count == 0
             and .llms_source_equals_candidate == true
-            and .llms_candidate_equals_effective_en == true
+            and .llms_candidate_equals_effective_en_after_reimport == true
             and .taxonomy_description_source_equals_candidate == true
-            and .taxonomy_description_candidate_equals_effective_en == true
+            and .taxonomy_description_candidate_equals_effective_en_after_reimport == true
             and .taxonomy_name_preserved == true
             and .effective_fr_preserved == true
             and .raw_config_values_exposed == false
@@ -1240,27 +1381,15 @@ jobs:
             test -f "$artifact/result.json"
           fi
 
-          collection_completed="$(
-            jq -r '
-              (.completed_phases | index("COLLECTION_DIAGNOSTIC")) != null
-            ' "$artifact/progress.json"
-          )"
-          failed_phase="$(
-            jq -r '.failed_phase // "NONE"' "$artifact/failure.json" 2>/dev/null || true
-          )"
-
-          if [[ "$collection_completed" == 'true' || "$failed_phase" == 'COLLECTION_DIAGNOSTIC_GATE' ]]; then
-            test -f "$artifact/isolated-collections.json"
-
+          validate_collection_file() {
+            local path="$1"
             jq -e '
               def sha256:
                 type == "string"
                 and test("^[0-9a-f]{64}$");
-
               def string_array:
                 type == "array"
                 and all(.[]; type == "string");
-
               def mismatch_fingerprints:
                 type == "array"
                 and all(.[];
@@ -1269,12 +1398,10 @@ jobs:
                   and (.active_sha256 | sha256)
                   and (.sync_sha256 | sha256)
                 );
-
               def non_negative_integer:
                 type == "number"
                 and . >= 0
                 and floor == .;
-
               def collection_shape:
                 type == "object"
                 and (.active_count | non_negative_integer)
@@ -1300,15 +1427,7 @@ jobs:
                       "VALUE_MISMATCH",
                       "MIXED"
                     )
-                )
-                and (.active_only_count == (.active_only_names | length))
-                and (.sync_only_count == (.sync_only_names | length))
-                and (.value_mismatch_count == (.value_mismatch_names | length))
-                and (
-                  .value_mismatch_count
-                  == (.value_mismatch_fingerprints | length)
                 );
-
               .schema_version == 1
               and .mode == "VERIFY"
               and .diagnostic_only == true
@@ -1317,7 +1436,33 @@ jobs:
               and .preprod_access == "NONE"
               and (.collections["language.fr"] | collection_shape)
               and (.collections["language.en"] | collection_shape)
-            ' "$artifact/isolated-collections.json" >/dev/null
+            ' "$path" >/dev/null
+          }
+
+          completed_phases="$(
+            jq -c '.completed_phases' "$artifact/progress.json"
+          )"
+
+          if jq -e 'index("COLLECTION_DIAGNOSTIC") != null' <<<"$completed_phases" >/dev/null; then
+            test -f "$artifact/isolated-collections-before-reimport.json"
+            validate_collection_file "$artifact/isolated-collections-before-reimport.json"
+          fi
+
+          if jq -e 'index("PRE_REIMPORT_CONFIG_STATUS") != null' <<<"$completed_phases" >/dev/null; then
+            test -f "$artifact/isolated-config-status-before-reimport.json"
+            jq -e 'type == "array" or type == "object"' \
+              "$artifact/isolated-config-status-before-reimport.json" >/dev/null
+          fi
+
+          if jq -e 'index("POST_REIMPORT_COLLECTION_DIAGNOSTIC") != null' <<<"$completed_phases" >/dev/null; then
+            test -f "$artifact/isolated-collections-after-reimport.json"
+            validate_collection_file "$artifact/isolated-collections-after-reimport.json"
+          fi
+
+          if jq -e 'index("POST_REIMPORT_CONFIG_STATUS") != null' <<<"$completed_phases" >/dev/null; then
+            test -f "$artifact/isolated-config-status-after-reimport.json"
+            jq -e 'type == "array" or type == "object"' \
+              "$artifact/isolated-config-status-after-reimport.json" >/dev/null
           fi
 
           if grep -Eiq \
@@ -1336,7 +1481,10 @@ jobs:
             artifacts/config-language-roundtrip-candidate-1316/progress.json
             artifacts/config-language-roundtrip-candidate-1316/failure.json
             artifacts/config-language-roundtrip-candidate-1316/result.json
-            artifacts/config-language-roundtrip-candidate-1316/isolated-collections.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-collections-before-reimport.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-config-status-before-reimport.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-collections-after-reimport.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-config-status-after-reimport.json
           if-no-files-found: error
           retention-days: 30
 

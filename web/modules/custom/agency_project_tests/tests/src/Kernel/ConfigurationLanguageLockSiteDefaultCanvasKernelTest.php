@@ -71,7 +71,7 @@ final class ConfigurationLanguageLockSiteDefaultCanvasKernelTest extends KernelT
   }
 
   /**
-   * the site-default configuration-language policy satisfies the exact installed Canvas requirement.
+   * The site-default configuration-language policy satisfies the exact installed Canvas requirement.
    */
   public function testInstalledCanvasRequirementHasNoMismatch(): void {
     $this->enableSiteDefaultConfigurationLock();

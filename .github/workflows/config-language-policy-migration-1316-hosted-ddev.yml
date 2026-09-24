@@ -716,6 +716,102 @@ jobs:
           ddev drush cex -y > "${RUNNER_TEMP}/cex-1316.log" 2>&1
           git diff --check -- config/sync
 
+      - name: Build active/sync collection diagnostic
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-collection-diagnostic-1316'
+          mkdir -p "$artifact"
+
+          ddev exec env \
+            AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
+            AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 \
+            vendor/bin/drush php:script \
+            /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
+            > "$artifact/result.json"
+
+      - name: Validate value-safe collection diagnostic
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/config-language-collection-diagnostic-1316/result.json'
+
+          jq -e '
+            def sha256:
+              type == "string" and test("^[0-9a-f]{64}$");
+            def names:
+              type == "array"
+              and . == sort
+              and all(.[]; type == "string");
+            def mismatch_fingerprint:
+              (.name | type == "string")
+              and (.active_sha256 | sha256)
+              and (.sync_sha256 | sha256);
+            def classification:
+              . == "MATCH"
+              or . == "ACTIVE_ONLY"
+              or . == "SYNC_ONLY"
+              or . == "VALUE_MISMATCH"
+              or . == "MIXED";
+            def collection:
+              (.active_count | type == "number")
+              and (.sync_count | type == "number")
+              and (.active_only_count | type == "number")
+              and (.active_only_names | names)
+              and (.active_only_names | length) == .active_only_count
+              and (.sync_only_count | type == "number")
+              and (.sync_only_names | names)
+              and (.sync_only_names | length) == .sync_only_count
+              and (.value_mismatch_count | type == "number")
+              and (.value_mismatch_names | names)
+              and (.value_mismatch_names | length) == .value_mismatch_count
+              and (.value_mismatch_fingerprints | type == "array")
+              and (.value_mismatch_fingerprints | length)
+                == .value_mismatch_count
+              and ([.value_mismatch_fingerprints[].name]
+                == .value_mismatch_names)
+              and all(
+                .value_mismatch_fingerprints[];
+                mismatch_fingerprint
+              )
+              and (.active_names_sha256 | sha256)
+              and (.sync_names_sha256 | sha256)
+              and (.active_values_sha256 | sha256)
+              and (.sync_values_sha256 | sha256)
+              and (.match | type == "boolean")
+              and (.classification | classification);
+
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .diagnostic_only == true
+            and (.status == "PASS" or .status == "FAIL")
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+            and (.collections["language.fr"] | collection)
+            and (.collections["language.en"] | collection)
+            and (
+              if (
+                .collections["language.fr"].match
+                and .collections["language.en"].match
+              )
+              then .status == "PASS"
+              else .status == "FAIL"
+              end
+            )
+          ' "$result" >/dev/null
+
+      - name: Upload active/sync collection diagnostic
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-collection-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-collection-diagnostic-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Materialize or verify language override collections
         shell: bash
         env:

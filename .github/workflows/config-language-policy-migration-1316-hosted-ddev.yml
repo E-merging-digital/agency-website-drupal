@@ -126,11 +126,14 @@ jobs:
         run: |
           set -euo pipefail
           helper='/var/www/html/scripts/runner/reconcile-config-language-repository-en-intent-1316.php'
+          artifact='artifacts/config-language-repository-en-reconciliation-1316'
+          mkdir -p "$artifact"
+
           ddev exec env \
             AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_RECONCILE=1 \
             AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_MODE=ANALYZE \
             vendor/bin/drush php:script "$helper" \
-            > "${RUNNER_TEMP}/repository-en-reconcile-before.json"
+            > "$artifact/before.json"
 
           jq -e '
             .schema_version == 1
@@ -153,10 +156,9 @@ jobs:
             and .raw_config_values_exposed == false
             and .prod_access == "NONE"
             and .preprod_access == "NONE"
-          ' "${RUNNER_TEMP}/repository-en-reconcile-before.json" >/dev/null
+          ' "$artifact/before.json" >/dev/null
 
-          jq -r '.divergence_sha256' \
-            "${RUNNER_TEMP}/repository-en-reconcile-before.json" \
+          jq -r '.divergence_sha256' "$artifact/before.json" \
             > "${RUNNER_TEMP}/repository-en-divergence-sha256.txt"
 
       - name: Reconcile repository-owned historical EN before manager
@@ -164,6 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           helper='/var/www/html/scripts/runner/reconcile-config-language-repository-en-intent-1316.php'
+          artifact='artifacts/config-language-repository-en-reconciliation-1316'
           expected_sha="$(cat "${RUNNER_TEMP}/repository-en-divergence-sha256.txt")"
 
           ddev exec env \
@@ -171,7 +174,98 @@ jobs:
             AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_MODE=RECONCILE \
             AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_EXPECTED_DIVERGENCE_SHA256="$expected_sha" \
             vendor/bin/drush php:script "$helper" \
-            > "${RUNNER_TEMP}/repository-en-reconcile.json"
+            > "$artifact/result.json"
+
+          jq -e '
+            def sha256: type == "string" and test("^[0-9a-f]{64}$");
+            def boolean: type == "boolean";
+            def classification:
+              . == "CONVERGED"
+              or . == "LANGUAGE_EN_OVERRIDE_MASKS_CANONICAL"
+              or . == "CANONICAL_WRITE_DID_NOT_PERSIST"
+              or . == "OTHER_EFFECTIVE_LAYER"
+              or . == "UNCLASSIFIED";
+            def layer_shape:
+              (.source_sha256 | sha256)
+              and (.canonical_before_exists | boolean)
+              and (.canonical_before_sha256 | sha256)
+              and (.en_override_object_before_exists | boolean)
+              and (.en_override_path_before_exists | boolean)
+              and (.en_override_before_sha256 | sha256)
+              and (.effective_en_before_exists | boolean)
+              and (.effective_en_before_sha256 | sha256)
+              and (.canonical_after_exists | boolean)
+              and (.canonical_after_sha256 | sha256)
+              and (.en_override_object_after_exists | boolean)
+              and (.en_override_path_after_exists | boolean)
+              and (.en_override_after_sha256 | sha256)
+              and (.effective_en_after_exists | boolean)
+              and (.effective_en_after_sha256 | sha256)
+              and (.source_equals_canonical_after | boolean)
+              and (.source_equals_en_override_after | boolean)
+              and (.source_equals_effective_after | boolean)
+              and (.source_equals_after | boolean)
+              and (.masking_classification | classification);
+
+            .schema_version == 1
+            and .mode == "RECONCILE"
+            and .divergent_object_count_before == 3
+            and .divergent_path_count_before == 3
+            and .divergent_objects_before == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and ([.divergent_paths_before[] | "\(.config):\(.path)"] == [
+              "language.entity.fr:label",
+              "llms_txt.settings:content",
+              "taxonomy.vocabulary.tags:description"
+            ])
+            and .reconciled_object_count == 3
+            and .reconciled_path_count == 3
+            and (.reconciled_paths | length == 3)
+            and ([.reconciled_paths[].schema_translatability] | all(. == "YES"))
+            and ([.reconciled_paths[] | layer_shape] | all)
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/result.json" >/dev/null
+
+          jq '{
+            divergent_object_count_before,
+            divergent_path_count_before,
+            reconciled_object_count,
+            reconciled_path_count,
+            divergent_object_count_after,
+            divergent_path_count_after,
+            reconciled_paths: [.reconciled_paths[] | {
+              config,
+              path,
+              ownership,
+              schema_type,
+              schema_translatability,
+              source_equals_canonical_after,
+              en_override_object_after_exists,
+              en_override_path_after_exists,
+              source_equals_en_override_after,
+              source_equals_effective_after,
+              masking_classification
+            }]
+          }' "$artifact/result.json"
+
+      - name: Upload repository EN reconciliation layer diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-repository-en-reconciliation-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-repository-en-reconciliation-1316
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce strict repository EN reconciliation convergence
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-repository-en-reconciliation-1316'
 
           jq -e '
             .schema_version == 1
@@ -198,31 +292,7 @@ jobs:
             and .raw_config_values_exposed == false
             and .prod_access == "NONE"
             and .preprod_access == "NONE"
-          ' "${RUNNER_TEMP}/repository-en-reconcile.json" >/dev/null
-
-          jq '{
-            repository_en_owned_object_count,
-            repository_en_owned_path_count,
-            divergent_object_count_before,
-            divergent_path_count_before,
-            divergent_objects_before,
-            divergent_paths_before: [.divergent_paths_before[] | {
-              config,
-              path,
-              ownership,
-              schema_type,
-              schema_translatability,
-              source_sha256,
-              runtime_sha256
-            }],
-            reconciled_object_count,
-            reconciled_path_count,
-            divergent_object_count_after,
-            divergent_path_count_after,
-            raw_config_values_exposed,
-            prod_access,
-            preprod_access
-          }' "${RUNNER_TEMP}/repository-en-reconcile.json"
+          ' "$artifact/result.json" >/dev/null
 
       - name: Capture repository EN provenance after site install before manager
         shell: bash

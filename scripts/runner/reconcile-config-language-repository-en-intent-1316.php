@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Config\StorageInterface;
 use Drupal\Core\TypedData\TraversableTypedDataInterface;
 use Drupal\Core\TypedData\TypedDataInterface;
 use Drupal\language\Entity\ConfigurableLanguage;
@@ -26,6 +27,11 @@ if (!is_dir($configDirectory)) {
 $configFactory = \Drupal::service('config.factory');
 $typedConfigManager = \Drupal::service('config.typed');
 $overrideFactory = \Drupal::service('language.config_factory_override');
+$activeStorage = \Drupal::service('config.storage');
+if (!$activeStorage instanceof StorageInterface) {
+  throw new RuntimeException('Active configuration storage is unavailable.');
+}
+$englishStorage = $activeStorage->createCollection('language.en');
 $english = ConfigurableLanguage::load('en');
 if (!$english instanceof ConfigurableLanguage) {
   throw new RuntimeException('English configurable language is unavailable.');
@@ -273,6 +279,109 @@ $getEffectiveEnglish = static function (string $name) use (
   return $data;
 };
 
+$captureStorageLayers = static function (array $item) use (
+  $activeStorage,
+  $englishStorage,
+  $getEffectiveEnglish,
+  $fingerprint,
+): array {
+  $name = $item['config'];
+  $segments = $item['segments'];
+
+  $canonicalData = $activeStorage->read($name);
+  $canonicalObjectExists = is_array($canonicalData);
+  $canonicalPathExists = FALSE;
+  $canonicalValue = NULL;
+  if ($canonicalObjectExists) {
+    $canonicalValue = NestedArray::getValue(
+      $canonicalData,
+      $segments,
+      $canonicalPathExists,
+    );
+  }
+
+  $overrideData = $englishStorage->read($name);
+  $overrideObjectExists = is_array($overrideData);
+  $overridePathExists = FALSE;
+  $overrideValue = NULL;
+  if ($overrideObjectExists) {
+    $overrideValue = NestedArray::getValue(
+      $overrideData,
+      $segments,
+      $overridePathExists,
+    );
+  }
+
+  $effectiveData = $getEffectiveEnglish($name);
+  $effectivePathExists = FALSE;
+  $effectiveValue = NestedArray::getValue(
+    $effectiveData,
+    $segments,
+    $effectivePathExists,
+  );
+
+  return [
+    'canonical_exists' => $canonicalPathExists,
+    'canonical_sha256' => $fingerprint(
+      $canonicalPathExists,
+      $canonicalValue,
+    ),
+    'en_override_object_exists' => $overrideObjectExists,
+    'en_override_path_exists' => $overridePathExists,
+    'en_override_sha256' => $fingerprint(
+      $overridePathExists,
+      $overrideValue,
+    ),
+    'effective_en_exists' => $effectivePathExists,
+    'effective_en_sha256' => $fingerprint(
+      $effectivePathExists,
+      $effectiveValue,
+    ),
+  ];
+};
+
+$maskingClassification = static function (
+  string $sourceSha256,
+  array $after,
+): string {
+  $sourceEqualsCanonical = hash_equals(
+    $sourceSha256,
+    $after['canonical_sha256'],
+  );
+  $sourceEqualsEffective = hash_equals(
+    $sourceSha256,
+    $after['effective_en_sha256'],
+  );
+  $effectiveEqualsOverride = hash_equals(
+    $after['effective_en_sha256'],
+    $after['en_override_sha256'],
+  );
+
+  if ($sourceEqualsEffective) {
+    return 'CONVERGED';
+  }
+  if (!$sourceEqualsCanonical) {
+    return 'CANONICAL_WRITE_DID_NOT_PERSIST';
+  }
+  if (
+    $after['en_override_path_exists'] === TRUE
+    && $effectiveEqualsOverride
+  ) {
+    return 'LANGUAGE_EN_OVERRIDE_MASKS_CANONICAL';
+  }
+  if (
+    $sourceEqualsCanonical
+    && (
+      $after['en_override_path_exists'] !== TRUE
+      || !$effectiveEqualsOverride
+    )
+  ) {
+    return 'OTHER_EFFECTIVE_LAYER';
+  }
+
+  return 'UNCLASSIFIED';
+};
+
 $discoverDivergences = static function () use (
   $ownedPaths,
   $getEffectiveEnglish,
@@ -378,6 +487,12 @@ if (
   throw new RuntimeException('Repository EN divergence identity changed before reconciliation.');
 }
 
+$beforeLayersByKey = [];
+foreach ($before as $item) {
+  $key = $item['config'] . "\0" . $item['path'];
+  $beforeLayersByKey[$key] = $captureStorageLayers($item);
+}
+
 foreach ($before as $item) {
   foreach ($item['segments'] as $segment) {
     if (str_contains((string) $segment, '.')) {
@@ -429,34 +544,60 @@ $after = $discoverDivergences();
 $afterObjects = array_values(array_unique(array_column($after, 'config')));
 sort($afterObjects, SORT_STRING);
 
-$afterByKey = [];
-foreach ($ownedPaths as $owned) {
-  $effective = $getEffectiveEnglish($owned['config']);
-  $exists = FALSE;
-  $value = NestedArray::getValue($effective, $owned['segments'], $exists);
-  $afterByKey[$owned['config'] . "\0" . $owned['path']] = [
-    'exists' => $exists,
-    'sha256' => $fingerprint($exists, $value),
-  ];
-}
-
 $reconciledPaths = [];
 foreach ($before as $item) {
   $key = $item['config'] . "\0" . $item['path'];
-  $afterEvidence = $afterByKey[$key] ?? NULL;
-  if (!is_array($afterEvidence)) {
-    throw new RuntimeException('Post-reconciliation path evidence is unavailable.');
+  $beforeEvidence = $beforeLayersByKey[$key] ?? NULL;
+  if (!is_array($beforeEvidence)) {
+    throw new RuntimeException('Pre-reconciliation path evidence is unavailable.');
   }
+
+  $afterEvidence = $captureStorageLayers($item);
+  $sourceSha256 = $item['source_sha256'];
+  $sourceEqualsCanonicalAfter = hash_equals(
+    $sourceSha256,
+    $afterEvidence['canonical_sha256'],
+  );
+  $sourceEqualsEnOverrideAfter = hash_equals(
+    $sourceSha256,
+    $afterEvidence['en_override_sha256'],
+  );
+  $sourceEqualsEffectiveAfter = hash_equals(
+    $sourceSha256,
+    $afterEvidence['effective_en_sha256'],
+  );
+
   $reconciledPaths[] = [
     'config' => $item['config'],
     'path' => $item['path'],
     'ownership' => $item['ownership'],
     'schema_type' => $item['schema_type'],
     'schema_translatability' => $item['schema_translatability'],
-    'source_sha256' => $item['source_sha256'],
+    'source_sha256' => $sourceSha256,
     'before_sha256' => $item['runtime_sha256'],
-    'after_sha256' => $afterEvidence['sha256'],
-    'source_equals_after' => hash_equals($item['source_sha256'], $afterEvidence['sha256']),
+    'after_sha256' => $afterEvidence['effective_en_sha256'],
+    'source_equals_after' => $sourceEqualsEffectiveAfter,
+    'canonical_before_exists' => $beforeEvidence['canonical_exists'],
+    'canonical_before_sha256' => $beforeEvidence['canonical_sha256'],
+    'en_override_object_before_exists' => $beforeEvidence['en_override_object_exists'],
+    'en_override_path_before_exists' => $beforeEvidence['en_override_path_exists'],
+    'en_override_before_sha256' => $beforeEvidence['en_override_sha256'],
+    'effective_en_before_exists' => $beforeEvidence['effective_en_exists'],
+    'effective_en_before_sha256' => $beforeEvidence['effective_en_sha256'],
+    'canonical_after_exists' => $afterEvidence['canonical_exists'],
+    'canonical_after_sha256' => $afterEvidence['canonical_sha256'],
+    'en_override_object_after_exists' => $afterEvidence['en_override_object_exists'],
+    'en_override_path_after_exists' => $afterEvidence['en_override_path_exists'],
+    'en_override_after_sha256' => $afterEvidence['en_override_sha256'],
+    'effective_en_after_exists' => $afterEvidence['effective_en_exists'],
+    'effective_en_after_sha256' => $afterEvidence['effective_en_sha256'],
+    'source_equals_canonical_after' => $sourceEqualsCanonicalAfter,
+    'source_equals_en_override_after' => $sourceEqualsEnOverrideAfter,
+    'source_equals_effective_after' => $sourceEqualsEffectiveAfter,
+    'masking_classification' => $maskingClassification(
+      $sourceSha256,
+      $afterEvidence,
+    ),
   ];
 }
 

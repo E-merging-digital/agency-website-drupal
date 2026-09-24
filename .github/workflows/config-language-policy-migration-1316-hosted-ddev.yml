@@ -78,22 +78,26 @@ jobs:
 
       - name: Install exact dependencies and existing configuration
         shell: bash
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
         run: |
           set -euo pipefail
           ddev start -y
           ddev composer install --no-interaction --no-progress --prefer-dist
 
-          provenance='artifacts/config-language-repository-en-intent-1316'
-          mkdir -p "$provenance"
-          ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=repository-source \
-            php /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
-            > "$provenance/repository-source.json"
-          jq -e '
-            .schema_version == 1
-            and .stage == "repository-source"
-            and .object_count > 0
-            and .raw_config_values_exposed == false
-          ' "$provenance/repository-source.json" >/dev/null
+          if [[ "$MODE" == 'MATERIALIZE' ]]; then
+            provenance='artifacts/config-language-repository-en-intent-1316'
+            mkdir -p "$provenance"
+            ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=repository-source \
+              php /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+              > "$provenance/repository-source.json"
+            jq -e '
+              .schema_version == 1
+              and .stage == "repository-source"
+              and .object_count > 0
+              and .raw_config_values_exposed == false
+            ' "$provenance/repository-source.json" >/dev/null
+          fi
 
           admin_pass="$(openssl rand -hex 24)"
           ddev drush site:install --existing-config -y             --account-pass="$admin_pass"             >"${RUNNER_TEMP}/site-install-1316.log" 2>&1
@@ -122,6 +126,7 @@ jobs:
           PY
 
       - name: Discover repository-owned EN divergences before reconciliation
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -162,6 +167,7 @@ jobs:
             > "${RUNNER_TEMP}/repository-en-divergence-sha256.txt"
 
       - name: Reconcile repository-owned historical EN before manager
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -269,6 +275,7 @@ jobs:
           }' "$artifact/result.json"
 
       - name: Upload repository EN reconciliation layer diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-config-language-repository-en-reconciliation-1316-${{ github.run_id }}-${{ github.run_attempt }}
@@ -277,6 +284,7 @@ jobs:
           retention-days: 30
 
       - name: Enforce strict repository EN reconciliation convergence
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -313,6 +321,7 @@ jobs:
           ' "$artifact/result.json" >/dev/null
 
       - name: Capture repository EN provenance after site install before manager
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -352,6 +361,7 @@ jobs:
           ' "${RUNNER_TEMP}/effective-before.json" >/dev/null
 
       - name: Capture two-target storage/schema diagnostic before migration
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -432,6 +442,7 @@ jobs:
           ' "${RUNNER_TEMP}/runtime-before.json" >/dev/null
 
       - name: Build bounded two-target AI Automator diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -587,6 +598,7 @@ jobs:
           ' "$artifact/result.json" >/dev/null
 
       - name: Upload bounded two-target AI Automator diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-config-language-ai-automator-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
@@ -746,6 +758,7 @@ jobs:
           ' "${RUNNER_TEMP}/runtime-final.json" >/dev/null
 
       - name: Build exact candidate topology diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -927,6 +940,7 @@ jobs:
           git reset -q HEAD -- config/sync
 
       - name: Upload exact candidate topology diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-config-language-candidate-topology-1316-${{ github.run_id }}-${{ github.run_attempt }}
@@ -935,6 +949,7 @@ jobs:
           retention-days: 30
 
       - name: Build migration artifact
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         env:
           MODE: ${{ steps.mode.outputs.mode }}
@@ -1185,6 +1200,7 @@ jobs:
           cat "$artifact/config-diff-stat.txt"
 
       - name: Build repository historical EN provenance diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1274,6 +1290,7 @@ jobs:
           }' "$provenance/result.json"
 
       - name: Upload repository historical EN provenance diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-config-language-repository-en-intent-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
@@ -1282,6 +1299,7 @@ jobs:
           retention-days: 30
 
       - name: Upload reviewable migration artifact
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-config-language-migration-1316-${{ github.run_id }}-${{ github.run_attempt }}
@@ -1290,6 +1308,7 @@ jobs:
           retention-days: 30
 
       - name: Enforce repository historical EN provenance expectations
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1364,9 +1383,109 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          settings='config/sync/config_language_lock.settings.yml'
+          locked="$(awk -F': ' '/^locked_langcode:/ {print $2}' "$settings")"
+          follow="$(awk -F': ' '/^follow_site_default:/ {print $2}' "$settings")"
+          [[ "$locked" == 'fr' ]]
+          [[ "$follow" == 'true' ]]
+
+          config_status_before_count="$(jq 'length' "${RUNNER_TEMP}/config-status-before.json")"
+          config_status_final_count="$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"
+          [[ "$config_status_before_count" -eq 0 ]]
+          [[ "$config_status_final_count" -eq 0 ]]
           test -z "$(git status --porcelain -- config/sync)"
-          [[ "$(jq 'length' "${RUNNER_TEMP}/config-status-before.json")" -eq 0 ]]
-          [[ "$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")" -eq 0 ]]
+
+          jq -e '
+            .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .languages.und.id == "und"
+            and .languages.und.locked == true
+            and .languages.zxx.id == "zxx"
+            and .languages.zxx.locked == true
+            and .config_values_exposed == false
+          ' "${RUNNER_TEMP}/runtime-final.json" >/dev/null
+
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .collections["language.fr"].match == true
+            and .collections["language.en"].match == true
+          ' "${RUNNER_TEMP}/collection-materialization.json" >/dev/null
+
+          artifact='artifacts/config-language-verify-1316'
+          mkdir -p "$artifact"
+          jq -n \
+            --argjson config_status_before_count "$config_status_before_count" \
+            --argjson config_status_final_count "$config_status_final_count" \
+            --arg site_default_language "$(jq -r '.site_default_language' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg locked_langcode "$(jq -r '.locked_langcode' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson follow_site_default "$(jq '.follow_site_default' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg canvas_requirement_verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson language_fr_collection_match "$(jq '.collections["language.fr"].match' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson language_en_collection_match "$(jq '.collections["language.en"].match' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/runtime-final.json")" \
+            '{
+              schema_version: 1,
+              mode: "VERIFY",
+              site_install: "PASS",
+              config_status_before_count: $config_status_before_count,
+              config_status_final_count: $config_status_final_count,
+              config_sync_worktree_clean: true,
+              site_default_language: $site_default_language,
+              locked_langcode: $locked_langcode,
+              follow_site_default: $follow_site_default,
+              canvas_requirement_verdict: $canvas_requirement_verdict,
+              language_fr_collection_match: $language_fr_collection_match,
+              language_en_collection_match: $language_en_collection_match,
+              und: {
+                id: $und_id,
+                locked: $und_locked
+              },
+              zxx: {
+                id: $zxx_id,
+                locked: $zxx_locked
+              },
+              raw_config_values_exposed: false,
+              prod_access: "NONE",
+              preprod_access: "NONE"
+            }' > "$artifact/result.json"
+
+          jq -e '
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .site_install == "PASS"
+            and .config_status_before_count == 0
+            and .config_status_final_count == 0
+            and .config_sync_worktree_clean == true
+            and .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .language_fr_collection_match == true
+            and .language_en_collection_match == true
+            and .und.id == "und"
+            and .und.locked == true
+            and .zxx.id == "zxx"
+            and .zxx.locked == true
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/result.json" >/dev/null
+
+      - name: Upload bounded VERIFY result
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-verify-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-verify-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Clean DDEV
         if: ${{ always() }}

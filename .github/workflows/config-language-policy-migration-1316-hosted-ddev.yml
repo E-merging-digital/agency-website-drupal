@@ -968,10 +968,10 @@ jobs:
             "UNEXPECTED_CANDIDATE_STATUS_COUNT=$unexpected_candidate_status_count" \
             "UNTRACKED_CONFIG_AFTER_STAGING=$untracked_config_after_staging"
 
-          [[ "$candidate_added_count" -eq 418 ]]
+          [[ "$candidate_added_count" -eq 416 ]]
           [[ "$candidate_modified_count" -eq 523 ]]
           [[ "$candidate_deleted_count" -eq 29 ]]
-          [[ "$candidate_total_path_count" -eq 970 ]]
+          [[ "$candidate_total_path_count" -eq 968 ]]
           [[ "$unexpected_candidate_status_count" -eq 0 ]]
           [[ "$untracked_config_after_staging" -eq 0 ]]
 
@@ -986,7 +986,7 @@ jobs:
           tar -tzf "$artifact/changed-config-files.tar.gz" > "$tar_manifest"
           artifact_tar_manifest_count="$(wc -l < "$tar_manifest" | tr -d ' ')"
           [[ "$artifact_tar_manifest_count" -eq "${#changed[@]}" ]]
-          [[ "$artifact_tar_manifest_count" -eq 941 ]]
+          [[ "$artifact_tar_manifest_count" -eq 939 ]]
 
           git diff --cached --no-renames --name-only --diff-filter=D -- config/sync \
             > "$artifact/deleted-config-files.txt"
@@ -998,32 +998,68 @@ jobs:
           target_1='config/sync/language/en/ai_automators.ai_automator.node.article.field_feature_image.default.yml'
           target_2='config/sync/language/en/ai_automators.ai_automator.node.article.field_short_description.default.yml'
           language_entity_fr_en='config/sync/language/en/language.entity.fr.yml'
+          llms_txt_en='config/sync/language/en/llms_txt.settings.yml'
+          taxonomy_tags_en='config/sync/language/en/taxonomy.vocabulary.tags.yml'
 
           grep -Fqx "A	$target_1" "$artifact/config-name-status.txt"
           grep -Fqx "A	$target_2" "$artifact/config-name-status.txt"
-          grep -Fqx "A	$language_entity_fr_en" "$artifact/config-name-status.txt"
+          grep -Fqx "A	$taxonomy_tags_en" "$artifact/config-name-status.txt"
+
+          [[ ! -e "$language_entity_fr_en" ]]
+          [[ ! -e "$llms_txt_en" ]]
+          ! grep -Fq "$language_entity_fr_en" "$artifact/config-name-status.txt"
+          ! grep -Fq "$llms_txt_en" "$artifact/config-name-status.txt"
+
+          [[ -f "$taxonomy_tags_en" ]]
+          taxonomy_tags_leaf_paths="$(
+            ddev exec php -r '
+              require "/var/www/html/vendor/autoload.php";
+              $data = Symfony\\Component\\Yaml\\Yaml::parseFile($argv[1]);
+              if (!is_array($data)) {
+                exit(1);
+              }
+              $leaves = [];
+              $walk = static function (mixed $value, array $segments = []) use (&$walk, &$leaves): void {
+                if (is_array($value) && $value !== []) {
+                  foreach ($value as $key => $child) {
+                    $walk($child, [...$segments, (string) $key]);
+                  }
+                  return;
+                }
+                $leaves[] = implode(".", $segments);
+              };
+              $walk($data);
+              sort($leaves, SORT_STRING);
+              echo json_encode($leaves, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            ' "/var/www/html/$taxonomy_tags_en"
+          )"
+          jq -e '
+            type == "array"
+            and length > 0
+            and all(.[]; type == "string")
+            and (index("description") == null)
+          ' <<<"$taxonomy_tags_leaf_paths" >/dev/null
+
           grep -Eq '^label:' "$target_1"
           grep -Eq '^plugin_config:' "$target_1"
           grep -Eq '^  automator_label:' "$target_1"
           grep -Eq '^label:' "$target_2"
           grep -Eq '^plugin_config:' "$target_2"
           grep -Eq '^  automator_label:' "$target_2"
-          ddev exec php -r '
-            require "/var/www/html/vendor/autoload.php";
-            $data = Symfony\\Component\\Yaml\\Yaml::parseFile($argv[1]);
-            if (!is_array($data) || array_keys($data) !== ["label"]) {
-              exit(1);
-            }
-          ' "/var/www/html/$language_entity_fr_en"
+
           grep -Fqx "$target_1" "$tar_manifest"
           grep -Fqx "$target_2" "$tar_manifest"
-          grep -Fqx "$language_entity_fr_en" "$tar_manifest"
+          grep -Fqx "$taxonomy_tags_en" "$tar_manifest"
+          ! grep -Fqx "$language_entity_fr_en" "$tar_manifest"
+          ! grep -Fqx "$llms_txt_en" "$tar_manifest"
 
           printf '%s\n' \
             "ARTIFACT_TAR_FILE_COUNT=$artifact_tar_file_count" \
             "TARGET_1_TAR_MEMBERSHIP=PASS" \
             "TARGET_2_TAR_MEMBERSHIP=PASS" \
-            "LANGUAGE_ENTITY_FR_EN_OVERRIDE=PASS"
+            "LANGUAGE_ENTITY_FR_EN_OVERRIDE=ABSENT" \
+            "LLMS_TXT_EN_OVERRIDE=ABSENT" \
+            "TAXONOMY_TAGS_EN_OVERRIDE=PASS"
 
           jq -n \
             --arg head "$HEAD_SHA" \
@@ -1050,6 +1086,9 @@ jobs:
             --arg target_1 "$target_1" \
             --arg target_2 "$target_2" \
             --arg language_entity_fr_en "$language_entity_fr_en" \
+            --arg llms_txt_en "$llms_txt_en" \
+            --arg taxonomy_tags_en "$taxonomy_tags_en" \
+            --argjson taxonomy_tags_leaf_paths "$taxonomy_tags_leaf_paths" \
             --argjson fr_sync_count "$(jq '.collections["language.fr"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")" \
             --argjson en_sync_count "$(jq '.collections["language.en"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")" \
             --argjson fr_written "$(jq '.collections["language.fr"].written' "${RUNNER_TEMP}/collection-materialization.json")" \
@@ -1083,9 +1122,14 @@ jobs:
               target_2_en_override_in_artifact: true,
               target_2_en_override_path: $target_2,
               target_2_en_override_paths: ["label", "plugin_config.automator_label"],
-              language_entity_fr_en_override_in_artifact: true,
+              language_entity_fr_en_override_in_artifact: false,
               language_entity_fr_en_override_path: $language_entity_fr_en,
-              language_entity_fr_en_override_paths: ["label"],
+              llms_txt_en_override_in_artifact: false,
+              llms_txt_en_override_path: $llms_txt_en,
+              taxonomy_tags_en_override_in_artifact: true,
+              taxonomy_tags_en_override_path: $taxonomy_tags_en,
+              taxonomy_tags_en_override_leaf_paths: $taxonomy_tags_leaf_paths,
+              taxonomy_tags_description_present: ($taxonomy_tags_leaf_paths | index("description") != null),
               active_fr_override_count: $fr,
               active_en_override_count: $en,
               sync_fr_override_count: $fr_sync_count,

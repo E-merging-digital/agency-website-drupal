@@ -745,6 +745,195 @@ jobs:
             and .config_values_exposed == false
           ' "${RUNNER_TEMP}/runtime-final.json" >/dev/null
 
+      - name: Build exact candidate topology diagnostic
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-candidate-topology-1316'
+          mkdir -p "$artifact"
+
+          git add -A -- config/sync
+          git diff --cached --no-renames --name-status -- config/sync             > "$artifact/config-name-status.txt"
+
+          candidate_added_count="$(awk '$1 == "A" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_modified_count="$(awk '$1 == "M" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_deleted_count="$(awk '$1 == "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_total_path_count="$(git diff --cached --no-renames --name-only -- config/sync | wc -l | tr -d ' ')"
+          unexpected_candidate_status_count="$(awk '$1 != "A" && $1 != "M" && $1 != "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          untracked_config_after_staging="$(git status --porcelain --untracked-files=normal -- config/sync | awk '$1 == "??" {count++} END {print count + 0}')"
+
+          status_for() {
+            local selected_path="$1"
+            local status
+            status="$(awk -v path="$selected_path" '$2 == path {print $1; exit}' "$artifact/config-name-status.txt")"
+            case "$status" in
+              A|M|D)
+                printf '%s' "$status"
+                ;;
+              '')
+                printf 'ABSENT'
+                ;;
+              *)
+                printf 'OTHER'
+                ;;
+            esac
+          }
+
+          exists_json() {
+            if [[ -f "$1" ]]; then
+              printf 'true'
+            else
+              printf 'false'
+            fi
+          }
+
+          language_entity_fr='config/sync/language/en/language.entity.fr.yml'
+          llms_txt_en='config/sync/language/en/llms_txt.settings.yml'
+          taxonomy_tags_en='config/sync/language/en/taxonomy.vocabulary.tags.yml'
+          ai_target_1='config/sync/language/en/ai_automators.ai_automator.node.article.field_feature_image.default.yml'
+          ai_target_2='config/sync/language/en/ai_automators.ai_automator.node.article.field_short_description.default.yml'
+
+          language_entity_fr_exists="$(exists_json "$language_entity_fr")"
+          llms_txt_en_exists="$(exists_json "$llms_txt_en")"
+          taxonomy_tags_en_exists="$(exists_json "$taxonomy_tags_en")"
+          ai_target_1_exists="$(exists_json "$ai_target_1")"
+          ai_target_2_exists="$(exists_json "$ai_target_2")"
+
+          language_entity_fr_status="$(status_for "$language_entity_fr")"
+          llms_txt_en_status="$(status_for "$llms_txt_en")"
+          taxonomy_tags_en_status="$(status_for "$taxonomy_tags_en")"
+          ai_target_1_status="$(status_for "$ai_target_1")"
+          ai_target_2_status="$(status_for "$ai_target_2")"
+
+          language_entity_fr_leaf_paths='[]'
+          language_entity_fr_sha256=''
+          contains_label=false
+          contains_dependencies=false
+
+          if [[ "$language_entity_fr_exists" == 'true' ]]; then
+            language_entity_fr_leaf_paths="$(
+              ddev exec php -r '
+                require "/var/www/html/vendor/autoload.php";
+                $data = Symfony\Component\Yaml\Yaml::parseFile($argv[1]);
+                if (!is_array($data)) {
+                  exit(1);
+                }
+                $leaves = [];
+                $walk = static function (mixed $value, array $segments = []) use (&$walk, &$leaves): void {
+                  if (is_array($value) && $value !== []) {
+                    foreach ($value as $key => $child) {
+                      $walk($child, [...$segments, (string) $key]);
+                    }
+                    return;
+                  }
+                  $leaves[] = implode(".", $segments);
+                };
+                $walk($data);
+                sort($leaves, SORT_STRING);
+                echo json_encode($leaves, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+              ' "/var/www/html/$language_entity_fr"
+            )"
+            jq -e 'type == "array" and all(.[]; type == "string")'               <<<"$language_entity_fr_leaf_paths" >/dev/null
+            language_entity_fr_sha256="$(sha256sum "$language_entity_fr" | awk '{print $1}')"
+            contains_label="$(jq 'any(. == "label")' <<<"$language_entity_fr_leaf_paths")"
+            contains_dependencies="$(jq 'any(. == "dependencies" or startswith("dependencies."))' <<<"$language_entity_fr_leaf_paths")"
+          fi
+
+          jq -n             --arg head "$HEAD_SHA"             --argjson candidate_added_count "$candidate_added_count"             --argjson candidate_modified_count "$candidate_modified_count"             --argjson candidate_deleted_count "$candidate_deleted_count"             --argjson candidate_total_path_count "$candidate_total_path_count"             --argjson unexpected_candidate_status_count "$unexpected_candidate_status_count"             --argjson untracked_config_after_staging "$untracked_config_after_staging"             --arg language_entity_fr_path "$language_entity_fr"             --argjson language_entity_fr_exists "$language_entity_fr_exists"             --arg language_entity_fr_status "$language_entity_fr_status"             --argjson language_entity_fr_leaf_paths "$language_entity_fr_leaf_paths"             --argjson contains_label "$contains_label"             --argjson contains_dependencies "$contains_dependencies"             --arg language_entity_fr_sha256 "$language_entity_fr_sha256"             --arg llms_txt_en_path "$llms_txt_en"             --argjson llms_txt_en_exists "$llms_txt_en_exists"             --arg llms_txt_en_status "$llms_txt_en_status"             --arg taxonomy_tags_en_path "$taxonomy_tags_en"             --argjson taxonomy_tags_en_exists "$taxonomy_tags_en_exists"             --arg taxonomy_tags_en_status "$taxonomy_tags_en_status"             --arg ai_target_1_path "$ai_target_1"             --argjson ai_target_1_exists "$ai_target_1_exists"             --arg ai_target_1_status "$ai_target_1_status"             --arg ai_target_2_path "$ai_target_2"             --argjson ai_target_2_exists "$ai_target_2_exists"             --arg ai_target_2_status "$ai_target_2_status"             '{
+              schema_version: 1,
+              head_sha: $head,
+              candidate_added_count: $candidate_added_count,
+              candidate_modified_count: $candidate_modified_count,
+              candidate_deleted_count: $candidate_deleted_count,
+              candidate_total_path_count: $candidate_total_path_count,
+              unexpected_candidate_status_count: $unexpected_candidate_status_count,
+              untracked_config_after_staging: $untracked_config_after_staging,
+              selected_paths: {
+                language_entity_fr_en: {
+                  path: $language_entity_fr_path,
+                  file_exists: $language_entity_fr_exists,
+                  staged_status: $language_entity_fr_status,
+                  leaf_paths: $language_entity_fr_leaf_paths,
+                  contains_label: $contains_label,
+                  contains_dependencies: $contains_dependencies,
+                  sha256: $language_entity_fr_sha256
+                },
+                llms_txt_en: {
+                  path: $llms_txt_en_path,
+                  file_exists: $llms_txt_en_exists,
+                  staged_status: $llms_txt_en_status
+                },
+                taxonomy_tags_en: {
+                  path: $taxonomy_tags_en_path,
+                  file_exists: $taxonomy_tags_en_exists,
+                  staged_status: $taxonomy_tags_en_status
+                },
+                ai_target_1_en: {
+                  path: $ai_target_1_path,
+                  file_exists: $ai_target_1_exists,
+                  staged_status: $ai_target_1_status
+                },
+                ai_target_2_en: {
+                  path: $ai_target_2_path,
+                  file_exists: $ai_target_2_exists,
+                  staged_status: $ai_target_2_status
+                }
+              },
+              raw_config_values_exposed: false,
+              prod_access: "NONE",
+              preprod_access: "NONE"
+            }' > "$artifact/summary.json"
+
+          jq -e '
+            def allowed_status:
+              . == "A" or . == "M" or . == "D" or . == "ABSENT" or . == "OTHER";
+            .schema_version == 1
+            and .raw_config_values_exposed == false
+            and .unexpected_candidate_status_count == 0
+            and .untracked_config_after_staging == 0
+            and (.selected_paths | type == "object")
+            and (.selected_paths.language_entity_fr_en | type == "object")
+            and (.selected_paths.llms_txt_en | type == "object")
+            and (.selected_paths.taxonomy_tags_en | type == "object")
+            and (.selected_paths.ai_target_1_en | type == "object")
+            and (.selected_paths.ai_target_2_en | type == "object")
+            and ([.selected_paths[].staged_status | allowed_status] | all)
+            and (
+              (.selected_paths.language_entity_fr_en.file_exists == false)
+              or (.selected_paths.language_entity_fr_en.leaf_paths | type == "array")
+            )
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/summary.json" >/dev/null
+
+          jq '{
+            candidate_added_count,
+            candidate_modified_count,
+            candidate_deleted_count,
+            candidate_total_path_count,
+            unexpected_candidate_status_count,
+            untracked_config_after_staging,
+            selected_paths: {
+              language_entity_fr_en: .selected_paths.language_entity_fr_en,
+              llms_txt_en: .selected_paths.llms_txt_en,
+              taxonomy_tags_en: .selected_paths.taxonomy_tags_en,
+              ai_target_1_en: .selected_paths.ai_target_1_en,
+              ai_target_2_en: .selected_paths.ai_target_2_en
+            }
+          }' "$artifact/summary.json"
+
+          git reset -q HEAD -- config/sync
+
+      - name: Upload exact candidate topology diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-candidate-topology-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-candidate-topology-1316
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Build migration artifact
         shell: bash
         env:

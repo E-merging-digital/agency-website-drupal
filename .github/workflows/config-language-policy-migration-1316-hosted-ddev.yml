@@ -725,6 +725,107 @@ jobs:
             > "$provenance/result.json"
 
           jq -e '
+            def target_shape:
+              (.repository_source_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.pre_manager_effective_en_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.post_manager_effective_en_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.final_candidate_effective_en_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.source_equals_pre_manager | type == "boolean")
+              and (.pre_manager_equals_post_manager | type == "boolean")
+              and (.post_manager_equals_final | type == "boolean")
+              and (.source_equals_final | type == "boolean")
+              and (.first_divergence_stage | type == "string")
+              and (.schema_type | type == "string")
+              and (.schema_definition_present | type == "string")
+              and (.schema_translatability | type == "string");
+            .schema_version == 1
+            and .stage == "final-candidate"
+            and .raw_config_values_exposed == false
+            and (.historical_en_mismatch_object_count | type == "number")
+            and (.historical_en_mismatch_objects | type == "array")
+            and (.first_divergence_stage | type == "string")
+            and (.targets | type == "object")
+            and (.targets.language_entity_fr_label | type == "object")
+            and (.targets.language_entity_fr_dependencies | type == "object")
+            and (.targets.llms_txt_content | type == "object")
+            and (.targets.taxonomy_tags_description | type == "object")
+            and (.targets.language_entity_fr_label | target_shape)
+            and (.targets.language_entity_fr_dependencies | target_shape)
+            and (.targets.llms_txt_content | target_shape)
+            and (.targets.taxonomy_tags_description | target_shape)
+          ' "$provenance/result.json" >/dev/null
+
+          jq '{
+            historical_en_mismatch_object_count,
+            historical_en_mismatch_objects,
+            first_divergence_stage,
+            targets: {
+              language_entity_fr_label: {
+                source_equals_pre_manager,
+                pre_manager_equals_post_manager,
+                post_manager_equals_final,
+                source_equals_final,
+                first_divergence_stage,
+                schema_type,
+                schema_definition_present,
+                schema_translatability
+              },
+              language_entity_fr_dependencies: {
+                source_equals_pre_manager,
+                pre_manager_equals_post_manager,
+                post_manager_equals_final,
+                source_equals_final,
+                first_divergence_stage,
+                schema_type,
+                schema_definition_present,
+                schema_translatability
+              },
+              llms_txt_content: {
+                source_equals_pre_manager,
+                pre_manager_equals_post_manager,
+                post_manager_equals_final,
+                source_equals_final,
+                first_divergence_stage,
+                schema_type,
+                schema_definition_present,
+                schema_translatability
+              },
+              taxonomy_tags_description: {
+                source_equals_pre_manager,
+                pre_manager_equals_post_manager,
+                post_manager_equals_final,
+                source_equals_final,
+                first_divergence_stage,
+                schema_type,
+                schema_definition_present,
+                schema_translatability
+              }
+            },
+            raw_config_values_exposed
+          }' "$provenance/result.json"
+
+      - name: Upload repository historical EN provenance diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-repository-en-intent-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-repository-en-intent-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload reviewable migration artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-migration-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-policy-migration-1316
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce repository historical EN provenance expectations
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          jq -e '
             .schema_version == 1
             and .stage == "final-candidate"
             and .raw_config_values_exposed == false
@@ -743,22 +844,6 @@ jobs:
             and (.targets.llms_txt_content.repository_source_sha256 | test("^[0-9a-f]{64}$"))
             and (.targets.taxonomy_tags_description.repository_source_sha256 | test("^[0-9a-f]{64}$"))
           ' "$provenance/result.json" >/dev/null
-
-      - name: Upload repository historical EN provenance diagnostic
-        uses: actions/upload-artifact@v4
-        with:
-          name: agency-config-language-repository-en-intent-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/config-language-repository-en-intent-1316/result.json
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload reviewable migration artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: agency-config-language-migration-1316-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/config-language-policy-migration-1316
-          if-no-files-found: error
-          retention-days: 30
 
       - name: Commit reviewed materialization only after explicit marker
         if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' && hashFiles('docs/evidence/config-language-migration-1316-commit-approval.yml') != '' }}

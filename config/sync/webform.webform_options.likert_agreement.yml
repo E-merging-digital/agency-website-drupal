@@ -1,5 +1,5 @@
 uuid: 702f7a53-3890-41b5-915a-6d2dc3340bf3
-langcode: en
+langcode: fr
 status: true
 dependencies:
   enforced:
@@ -11,9 +11,4 @@ id: likert_agreement
 label: 'Likert: Agreement'
 category: Likert
 likert: true
-options: |
-  1: Strongly Disagree
-  2: Disagree
-  3: Neutral
-  4: Agree
-  5: Strongly Agree
+options: "1: Pas du tout d'accord\r\n2: Pas d'accord\r\n3: Ni en désaccord ni d'accord\r\n4: D'accord\r\n5: Tout à fait d'accord\n"

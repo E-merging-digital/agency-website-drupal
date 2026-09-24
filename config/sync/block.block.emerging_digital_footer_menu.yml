@@ -1,5 +1,5 @@
 uuid: d38d6f80-c89e-41cc-b6a8-12986db417f2
-langcode: en
+langcode: fr
 status: true
 dependencies:
   config:
@@ -16,7 +16,7 @@ provider: null
 plugin: 'system_menu_block:footer'
 settings:
   id: 'system_menu_block:footer'
-  label: 'Legal information'
+  label: 'Informations légales'
   label_display: visible
   provider: system
   level: 1

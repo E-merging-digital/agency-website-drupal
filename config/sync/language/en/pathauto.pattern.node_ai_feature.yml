@@ -1,0 +1,2 @@
+label: 'Content path pattern (Fonctionnalité IA fallback)'
+pattern: '/ia/[node:title]'

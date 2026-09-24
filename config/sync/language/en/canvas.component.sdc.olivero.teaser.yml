@@ -1,0 +1,20 @@
+versioned_properties:
+  active:
+    fallback_metadata:
+      slot_definitions:
+        content:
+          title: Content
+          description: 'The teaser content'
+        image:
+          title: Image
+          description: 'Teaser image'
+        meta:
+          title: Meta
+          description: 'Teaser meta'
+        prefix:
+          title: Prefix
+          description: 'Contextual links slot'
+        title:
+          title: 'Title content'
+          description: 'Teaser title'
+label: Teaser

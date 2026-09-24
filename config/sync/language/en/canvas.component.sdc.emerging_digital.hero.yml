@@ -1,0 +1,31 @@
+versioned_properties:
+  active:
+    settings:
+      prop_field_definitions:
+        heading:
+          default_value:
+            -
+              value: 'Drupal experiences, governed by design'
+        image_src:
+          default_value:
+            -
+              uri: /themes/custom/emerging_digital/images/home/home-hero-ia-drupal.svg
+        image_alt:
+          default_value:
+            -
+              value: 'Structured web platform illustration.'
+    fallback_metadata:
+      slot_definitions:
+        intro:
+          title: Introduction
+          description: 'Rendered introductory content.'
+        primary_action:
+          title: 'Primary action'
+          description: 'Primary governed action renderable.'
+        secondary_action:
+          title: 'Secondary action'
+          description: 'Optional secondary governed action renderable.'
+        media:
+          title: Media
+          description: 'Optional Drupal-rendered media replacing the fallback image.'
+label: Hero

@@ -1,5 +1,5 @@
 uuid: bb9fdc23-0f60-4489-b6c9-cfb5e421ad7e
-langcode: en
+langcode: fr
 status: true
 dependencies:
   enforced:
@@ -9,7 +9,7 @@ _core:
   default_config_hash: aaEeYBWoWETLKX2ivmZBpUAd3uPe2iPNydaxBuLPXKc
 id: province_names
 label: 'Province names'
-category: Geographic
+category: Géographique
 likert: false
 options: |
   Alberta: Alberta

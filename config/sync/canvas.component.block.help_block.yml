@@ -1,5 +1,5 @@
 uuid: 7d1cd17f-699e-42fa-a423-e8ba36ed28d3
-langcode: en
+langcode: fr
 status: false
 dependencies:
   module:
@@ -33,7 +33,7 @@ versioned_properties:
         provider: help
     fallback_metadata:
       slot_definitions: null
-label: Help
+label: Aide
 id: block.help_block
 provider: help
 source: block

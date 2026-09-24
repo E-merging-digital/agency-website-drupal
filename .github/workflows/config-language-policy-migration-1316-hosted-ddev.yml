@@ -121,6 +121,109 @@ jobs:
           )
           PY
 
+      - name: Discover repository-owned EN divergences before reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/reconcile-config-language-repository-en-intent-1316.php'
+          ddev exec env \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_RECONCILE=1 \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_MODE=ANALYZE \
+            vendor/bin/drush php:script "$helper" \
+            > "${RUNNER_TEMP}/repository-en-reconcile-before.json"
+
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .mode == "ANALYZE"
+            and .divergent_object_count_before == 3
+            and .divergent_path_count_before == 3
+            and .divergent_objects_before == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and ([.divergent_paths_before[] | "\(.config):\(.path)"] == [
+              "language.entity.fr:label",
+              "llms_txt.settings:content",
+              "taxonomy.vocabulary.tags:description"
+            ])
+            and ([.divergent_paths_before[].schema_translatability] | all(. == "YES"))
+            and (.divergence_sha256 | test("^[0-9a-f]{64}$"))
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "${RUNNER_TEMP}/repository-en-reconcile-before.json" >/dev/null
+
+          jq -r '.divergence_sha256' \
+            "${RUNNER_TEMP}/repository-en-reconcile-before.json" \
+            > "${RUNNER_TEMP}/repository-en-divergence-sha256.txt"
+
+      - name: Reconcile repository-owned historical EN before manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/reconcile-config-language-repository-en-intent-1316.php'
+          expected_sha="$(cat "${RUNNER_TEMP}/repository-en-divergence-sha256.txt")"
+
+          ddev exec env \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_RECONCILE=1 \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_MODE=RECONCILE \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_EXPECTED_DIVERGENCE_SHA256="$expected_sha" \
+            vendor/bin/drush php:script "$helper" \
+            > "${RUNNER_TEMP}/repository-en-reconcile.json"
+
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .mode == "RECONCILE"
+            and .divergent_object_count_before == 3
+            and .divergent_path_count_before == 3
+            and .divergent_objects_before == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and ([.divergent_paths_before[] | "\(.config):\(.path)"] == [
+              "language.entity.fr:label",
+              "llms_txt.settings:content",
+              "taxonomy.vocabulary.tags:description"
+            ])
+            and .reconciled_object_count == 3
+            and .reconciled_path_count == 3
+            and ([.reconciled_paths[].schema_translatability] | all(. == "YES"))
+            and ([.reconciled_paths[].source_equals_after] | all(. == true))
+            and .divergent_object_count_after == 0
+            and .divergent_path_count_after == 0
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "${RUNNER_TEMP}/repository-en-reconcile.json" >/dev/null
+
+          jq '{
+            repository_en_owned_object_count,
+            repository_en_owned_path_count,
+            divergent_object_count_before,
+            divergent_path_count_before,
+            divergent_objects_before,
+            divergent_paths_before: [.divergent_paths_before[] | {
+              config,
+              path,
+              ownership,
+              schema_type,
+              schema_translatability,
+              source_sha256,
+              runtime_sha256
+            }],
+            reconciled_object_count,
+            reconciled_path_count,
+            divergent_object_count_after,
+            divergent_path_count_after,
+            raw_config_values_exposed,
+            prod_access,
+            preprod_access
+          }' "${RUNNER_TEMP}/repository-en-reconcile.json"
+
       - name: Capture repository EN provenance after site install before manager
         shell: bash
         run: |
@@ -588,10 +691,10 @@ jobs:
             "UNEXPECTED_CANDIDATE_STATUS_COUNT=$unexpected_candidate_status_count" \
             "UNTRACKED_CONFIG_AFTER_STAGING=$untracked_config_after_staging"
 
-          [[ "$candidate_added_count" -eq 417 ]]
+          [[ "$candidate_added_count" -eq 418 ]]
           [[ "$candidate_modified_count" -eq 523 ]]
           [[ "$candidate_deleted_count" -eq 29 ]]
-          [[ "$candidate_total_path_count" -eq 969 ]]
+          [[ "$candidate_total_path_count" -eq 970 ]]
           [[ "$unexpected_candidate_status_count" -eq 0 ]]
           [[ "$untracked_config_after_staging" -eq 0 ]]
 
@@ -606,7 +709,7 @@ jobs:
           tar -tzf "$artifact/changed-config-files.tar.gz" > "$tar_manifest"
           artifact_tar_manifest_count="$(wc -l < "$tar_manifest" | tr -d ' ')"
           [[ "$artifact_tar_manifest_count" -eq "${#changed[@]}" ]]
-          [[ "$artifact_tar_manifest_count" -eq 940 ]]
+          [[ "$artifact_tar_manifest_count" -eq 941 ]]
 
           git diff --cached --no-renames --name-only --diff-filter=D -- config/sync \
             > "$artifact/deleted-config-files.txt"
@@ -617,22 +720,33 @@ jobs:
 
           target_1='config/sync/language/en/ai_automators.ai_automator.node.article.field_feature_image.default.yml'
           target_2='config/sync/language/en/ai_automators.ai_automator.node.article.field_short_description.default.yml'
+          language_entity_fr_en='config/sync/language/en/language.entity.fr.yml'
 
           grep -Fqx "A	$target_1" "$artifact/config-name-status.txt"
           grep -Fqx "A	$target_2" "$artifact/config-name-status.txt"
+          grep -Fqx "A	$language_entity_fr_en" "$artifact/config-name-status.txt"
           grep -Eq '^label:' "$target_1"
           grep -Eq '^plugin_config:' "$target_1"
           grep -Eq '^  automator_label:' "$target_1"
           grep -Eq '^label:' "$target_2"
           grep -Eq '^plugin_config:' "$target_2"
           grep -Eq '^  automator_label:' "$target_2"
+          ddev exec php -r '
+            require "/var/www/html/vendor/autoload.php";
+            $data = Symfony\\Component\\Yaml\\Yaml::parseFile($argv[1]);
+            if (!is_array($data) || array_keys($data) !== ["label"]) {
+              exit(1);
+            }
+          ' "/var/www/html/$language_entity_fr_en"
           grep -Fqx "$target_1" "$tar_manifest"
           grep -Fqx "$target_2" "$tar_manifest"
+          grep -Fqx "$language_entity_fr_en" "$tar_manifest"
 
           printf '%s\n' \
             "ARTIFACT_TAR_FILE_COUNT=$artifact_tar_file_count" \
             "TARGET_1_TAR_MEMBERSHIP=PASS" \
-            "TARGET_2_TAR_MEMBERSHIP=PASS"
+            "TARGET_2_TAR_MEMBERSHIP=PASS" \
+            "LANGUAGE_ENTITY_FR_EN_OVERRIDE=PASS"
 
           jq -n \
             --arg head "$HEAD_SHA" \
@@ -658,6 +772,7 @@ jobs:
             --argjson untracked_after_staging "$untracked_config_after_staging" \
             --arg target_1 "$target_1" \
             --arg target_2 "$target_2" \
+            --arg language_entity_fr_en "$language_entity_fr_en" \
             --argjson fr_sync_count "$(jq '.collections["language.fr"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")" \
             --argjson en_sync_count "$(jq '.collections["language.en"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")" \
             --argjson fr_written "$(jq '.collections["language.fr"].written' "${RUNNER_TEMP}/collection-materialization.json")" \
@@ -691,6 +806,9 @@ jobs:
               target_2_en_override_in_artifact: true,
               target_2_en_override_path: $target_2,
               target_2_en_override_paths: ["label", "plugin_config.automator_label"],
+              language_entity_fr_en_override_in_artifact: true,
+              language_entity_fr_en_override_path: $language_entity_fr_en,
+              language_entity_fr_en_override_paths: ["label"],
               active_fr_override_count: $fr,
               active_en_override_count: $en,
               sync_fr_override_count: $fr_sync_count,
@@ -760,7 +878,7 @@ jobs:
             historical_en_mismatch_objects,
             first_divergence_stage,
             targets: {
-              language_entity_fr_label: {
+              language_entity_fr_label: (.targets.language_entity_fr_label | {
                 source_equals_pre_manager,
                 pre_manager_equals_post_manager,
                 post_manager_equals_final,
@@ -769,8 +887,8 @@ jobs:
                 schema_type,
                 schema_definition_present,
                 schema_translatability
-              },
-              language_entity_fr_dependencies: {
+              }),
+              language_entity_fr_dependencies: (.targets.language_entity_fr_dependencies | {
                 source_equals_pre_manager,
                 pre_manager_equals_post_manager,
                 post_manager_equals_final,
@@ -779,8 +897,8 @@ jobs:
                 schema_type,
                 schema_definition_present,
                 schema_translatability
-              },
-              llms_txt_content: {
+              }),
+              llms_txt_content: (.targets.llms_txt_content | {
                 source_equals_pre_manager,
                 pre_manager_equals_post_manager,
                 post_manager_equals_final,
@@ -789,8 +907,8 @@ jobs:
                 schema_type,
                 schema_definition_present,
                 schema_translatability
-              },
-              taxonomy_tags_description: {
+              }),
+              taxonomy_tags_description: (.targets.taxonomy_tags_description | {
                 source_equals_pre_manager,
                 pre_manager_equals_post_manager,
                 post_manager_equals_final,
@@ -799,7 +917,7 @@ jobs:
                 schema_type,
                 schema_definition_present,
                 schema_translatability
-              }
+              })
             },
             raw_config_values_exposed
           }' "$provenance/result.json"
@@ -829,14 +947,30 @@ jobs:
             .schema_version == 1
             and .stage == "final-candidate"
             and .raw_config_values_exposed == false
-            and .historical_en_mismatch_object_count == 3
+            and .historical_en_mismatch_object_count == 14
             and .historical_en_mismatch_objects == [
+              "field.field.media.audio.field_media_audio_file",
+              "field.field.media.remote_video.field_media_oembed_video",
+              "field.field.media.video.field_media_video_file",
+              "image.style.media_library",
               "language.entity.fr",
-              "llms_txt.settings",
-              "taxonomy.vocabulary.tags"
+              "media.type.audio",
+              "media.type.document",
+              "media.type.image",
+              "media.type.remote_video",
+              "media.type.video",
+              "system.action.media_delete_action",
+              "system.action.media_publish_action",
+              "system.action.media_save_action",
+              "system.action.media_unpublish_action"
             ]
-            and (.first_divergence_stage | type == "string")
-            and .first_divergence_stage != "NONE"
+            and .first_divergence_stage == "NONE"
+            and .targets.language_entity_fr_label.source_equals_final == true
+            and .targets.llms_txt_content.source_equals_final == true
+            and .targets.taxonomy_tags_description.source_equals_final == true
+            and .targets.language_entity_fr_dependencies.source_equals_final == false
+            and .targets.language_entity_fr_dependencies.first_divergence_stage
+              == "SITE_INSTALL_MODULE_NORMALIZATION_BEFORE_MANAGER"
             and (.targets.language_entity_fr_label.repository_source_sha256 | test("^[0-9a-f]{64}$"))
             and (.targets.language_entity_fr_label.pre_manager_effective_en_sha256 | test("^[0-9a-f]{64}$"))
             and (.targets.language_entity_fr_label.post_manager_effective_en_sha256 | test("^[0-9a-f]{64}$"))

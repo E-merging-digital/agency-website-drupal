@@ -540,11 +540,12 @@ foreach ($byObject as $name => $items) {
 }
 
 $configFactory->reset();
-$after = $discoverDivergences();
-$afterObjects = array_values(array_unique(array_column($after, 'config')));
-sort($afterObjects, SORT_STRING);
+$afterBeforeCleanup = $discoverDivergences();
+$afterBeforeCleanupObjects = array_values(array_unique(array_column($afterBeforeCleanup, 'config')));
+sort($afterBeforeCleanupObjects, SORT_STRING);
 
 $reconciledPaths = [];
+$reconciledPathItems = [];
 foreach ($before as $item) {
   $key = $item['config'] . "\0" . $item['path'];
   $beforeEvidence = $beforeLayersByKey[$key] ?? NULL;
@@ -598,7 +599,145 @@ foreach ($before as $item) {
       $sourceSha256,
       $afterEvidence,
     ),
+    'masking_classification_before_cleanup' => $maskingClassification(
+      $sourceSha256,
+      $afterEvidence,
+    ),
+    'override_path_cleared' => FALSE,
+    'override_object_deleted' => FALSE,
+    'source_equals_effective_after_cleanup' => $sourceEqualsEffectiveAfter,
   ];
+  $reconciledPathItems[$key] = $item;
+}
+
+$maskingPathIndexes = [];
+$maskingObjectNames = [];
+foreach ($reconciledPaths as $index => $evidence) {
+  if (
+    $evidence['ownership'] === 'EN_CANONICAL_BASE'
+    && $evidence['schema_translatability'] === 'YES'
+    && $evidence['source_equals_canonical_after'] === TRUE
+    && $evidence['en_override_object_after_exists'] === TRUE
+    && $evidence['en_override_path_after_exists'] === TRUE
+    && $evidence['source_equals_en_override_after'] === FALSE
+    && $evidence['source_equals_effective_after'] === FALSE
+    && $evidence['masking_classification'] === 'LANGUAGE_EN_OVERRIDE_MASKS_CANONICAL'
+  ) {
+    $maskingPathIndexes[] = $index;
+    $maskingObjectNames[$evidence['config']] = TRUE;
+  }
+}
+
+$maskingPathCountBeforeCleanup = count($maskingPathIndexes);
+$maskingObjectCountBeforeCleanup = count($maskingObjectNames);
+if (
+  $maskingPathCountBeforeCleanup !== 2
+  || $maskingObjectCountBeforeCleanup !== 2
+) {
+  throw new RuntimeException('Repository EN masking set differs from the authorized 2-object / 2-path gate.');
+}
+
+$maskingPathsBeforeCleanup = [];
+$cleanupByObject = [];
+foreach ($maskingPathIndexes as $index) {
+  $evidence = $reconciledPaths[$index];
+  $key = $evidence['config'] . "\0" . $evidence['path'];
+  $item = $reconciledPathItems[$key] ?? NULL;
+  if (!is_array($item)) {
+    throw new RuntimeException('Masking cleanup path evidence is unavailable.');
+  }
+
+  $maskingPathsBeforeCleanup[] = [
+    'config' => $evidence['config'],
+    'path' => $evidence['path'],
+    'ownership' => $evidence['ownership'],
+    'schema_type' => $evidence['schema_type'],
+    'schema_translatability' => $evidence['schema_translatability'],
+    'masking_classification' => $evidence['masking_classification'],
+  ];
+  $cleanupByObject[$evidence['config']][] = [
+    'index' => $index,
+    'segments' => $item['segments'],
+    'path' => $evidence['path'],
+  ];
+}
+
+$clearedOverridePathCount = 0;
+$clearedOverrideObjectCount = 0;
+$deletedEmptyOverrideObjectCount = 0;
+$savedNonemptyOverrideObjectCount = 0;
+
+foreach ($cleanupByObject as $name => $cleanupItems) {
+  $rawBefore = $englishStorage->read($name);
+  if (!is_array($rawBefore)) {
+    throw new RuntimeException('Expected active language.en override object is unavailable.');
+  }
+
+  $expectedRawAfter = $rawBefore;
+  foreach ($cleanupItems as $cleanupItem) {
+    $pathExists = FALSE;
+    NestedArray::getValue(
+      $expectedRawAfter,
+      $cleanupItem['segments'],
+      $pathExists,
+    );
+    if (!$pathExists) {
+      throw new RuntimeException('Authorized masking path disappeared before cleanup.');
+    }
+    NestedArray::unsetValue($expectedRawAfter, $cleanupItem['segments']);
+  }
+
+  $override = $overrideFactory->getOverride('en', $name);
+  foreach ($cleanupItems as $cleanupItem) {
+    $override->clear($cleanupItem['path']);
+    $clearedOverridePathCount++;
+    $reconciledPaths[$cleanupItem['index']]['override_path_cleared'] = TRUE;
+  }
+  $clearedOverrideObjectCount++;
+
+  if ($override->getRawData() === []) {
+    $override->delete();
+    $deletedEmptyOverrideObjectCount++;
+    foreach ($cleanupItems as $cleanupItem) {
+      $reconciledPaths[$cleanupItem['index']]['override_object_deleted'] = TRUE;
+    }
+  }
+  else {
+    $override->save();
+    $savedNonemptyOverrideObjectCount++;
+  }
+
+  $rawAfter = $englishStorage->read($name);
+  $actualRawAfter = is_array($rawAfter) ? $rawAfter : [];
+  if ($normalize($actualRawAfter) !== $normalize($expectedRawAfter)) {
+    throw new RuntimeException('Masking cleanup changed unrelated language.en override data.');
+  }
+}
+
+if ($clearedOverridePathCount !== 2) {
+  throw new RuntimeException('Cleared override path count differs from the authorized gate.');
+}
+
+$overrideFactory->setLanguage($english);
+$configFactory->reset();
+
+$after = $discoverDivergences();
+$afterObjects = array_values(array_unique(array_column($after, 'config')));
+sort($afterObjects, SORT_STRING);
+
+foreach ($reconciledPaths as $index => $evidence) {
+  $key = $evidence['config'] . "\0" . $evidence['path'];
+  $item = $reconciledPathItems[$key] ?? NULL;
+  if (!is_array($item)) {
+    throw new RuntimeException('Post-cleanup path evidence is unavailable.');
+  }
+
+  $cleanupEvidence = $captureStorageLayers($item);
+  $sourceEqualsEffectiveAfterCleanup = hash_equals(
+    $evidence['source_sha256'],
+    $cleanupEvidence['effective_en_sha256'],
+  );
+  $reconciledPaths[$index]['source_equals_effective_after_cleanup'] = $sourceEqualsEffectiveAfterCleanup;
 }
 
 echo json_encode([
@@ -615,6 +754,13 @@ echo json_encode([
   'reconciled_object_count' => count($beforeObjects),
   'reconciled_path_count' => count($before),
   'reconciled_paths' => $reconciledPaths,
+  'masking_object_count_before_cleanup' => $maskingObjectCountBeforeCleanup,
+  'masking_path_count_before_cleanup' => $maskingPathCountBeforeCleanup,
+  'masking_paths_before_cleanup' => $maskingPathsBeforeCleanup,
+  'cleared_override_path_count' => $clearedOverridePathCount,
+  'cleared_override_object_count' => $clearedOverrideObjectCount,
+  'deleted_empty_override_object_count' => $deletedEmptyOverrideObjectCount,
+  'saved_nonempty_override_object_count' => $savedNonemptyOverrideObjectCount,
   'divergent_object_count_after' => count($afterObjects),
   'divergent_path_count_after' => count($after),
   'divergent_objects_after' => $afterObjects,

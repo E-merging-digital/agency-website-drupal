@@ -205,7 +205,11 @@ jobs:
               and (.source_equals_en_override_after | boolean)
               and (.source_equals_effective_after | boolean)
               and (.source_equals_after | boolean)
-              and (.masking_classification | classification);
+              and (.masking_classification | classification)
+              and (.masking_classification_before_cleanup | classification)
+              and (.override_path_cleared | boolean)
+              and (.override_object_deleted | boolean)
+              and (.source_equals_effective_after_cleanup | boolean);
 
             .schema_version == 1
             and .mode == "RECONCILE"
@@ -226,6 +230,13 @@ jobs:
             and (.reconciled_paths | length == 3)
             and ([.reconciled_paths[].schema_translatability] | all(. == "YES"))
             and ([.reconciled_paths[] | layer_shape] | all)
+            and (.masking_object_count_before_cleanup | type == "number")
+            and (.masking_path_count_before_cleanup | type == "number")
+            and (.masking_paths_before_cleanup | type == "array")
+            and (.cleared_override_path_count | type == "number")
+            and (.cleared_override_object_count | type == "number")
+            and (.deleted_empty_override_object_count | type == "number")
+            and (.saved_nonempty_override_object_count | type == "number")
             and .raw_config_values_exposed == false
             and .prod_access == "NONE"
             and .preprod_access == "NONE"
@@ -236,6 +247,12 @@ jobs:
             divergent_path_count_before,
             reconciled_object_count,
             reconciled_path_count,
+            masking_object_count_before_cleanup,
+            masking_path_count_before_cleanup,
+            cleared_override_path_count,
+            cleared_override_object_count,
+            deleted_empty_override_object_count,
+            saved_nonempty_override_object_count,
             divergent_object_count_after,
             divergent_path_count_after,
             reconciled_paths: [.reconciled_paths[] | {
@@ -244,12 +261,10 @@ jobs:
               ownership,
               schema_type,
               schema_translatability,
-              source_equals_canonical_after,
-              en_override_object_after_exists,
-              en_override_path_after_exists,
-              source_equals_en_override_after,
-              source_equals_effective_after,
-              masking_classification
+              masking_classification_before_cleanup,
+              override_path_cleared,
+              override_object_deleted,
+              source_equals_effective_after_cleanup
             }]
           }' "$artifact/result.json"
 
@@ -285,8 +300,11 @@ jobs:
             ])
             and .reconciled_object_count == 3
             and .reconciled_path_count == 3
+            and .masking_object_count_before_cleanup == 2
+            and .masking_path_count_before_cleanup == 2
+            and .cleared_override_path_count == 2
             and ([.reconciled_paths[].schema_translatability] | all(. == "YES"))
-            and ([.reconciled_paths[].source_equals_after] | all(. == true))
+            and ([.reconciled_paths[].source_equals_effective_after_cleanup] | all(. == true))
             and .divergent_object_count_after == 0
             and .divergent_path_count_after == 0
             and .raw_config_values_exposed == false

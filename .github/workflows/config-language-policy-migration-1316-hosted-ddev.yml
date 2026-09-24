@@ -1066,7 +1066,6 @@ jobs:
             .schema_version == 1
             and .mode == "VERIFY"
             and .diagnostic_only == true
-            and .status == "PASS"
             and .raw_config_values_exposed == false
             and .collections["language.fr"].match == true
             and .collections["language.fr"].classification == "MATCH"

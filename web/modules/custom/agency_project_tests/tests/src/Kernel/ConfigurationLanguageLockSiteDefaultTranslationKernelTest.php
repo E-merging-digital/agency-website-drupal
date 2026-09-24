@@ -12,8 +12,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Characterizes the site-default configuration-language policy translation
- * and semantic-language preservation.
+ * Tests site-default translation and semantic-language preservation.
  *
  * @group agency_project_tests
  * @group configuration_language_governance
@@ -192,8 +191,7 @@ final class ConfigurationLanguageLockSiteDefaultTranslationKernelTest extends Ke
   }
 
   /**
-   * Enables the site-default configuration-language policy only inside this
-   * Kernel test.
+   * Enables the site-default language policy for this Kernel test.
    */
   private function enableSiteDefaultConfigurationLock(): void {
     $this->config('config_language_lock.settings')

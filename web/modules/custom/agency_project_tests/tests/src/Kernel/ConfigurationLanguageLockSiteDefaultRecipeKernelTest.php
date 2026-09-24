@@ -14,8 +14,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Characterizes the site-default configuration-language policy for Recipes
- * and extension installation.
+ * Tests site-default language policy for Recipes and extension installs.
  *
  * @group agency_project_tests
  * @group configuration_language_governance
@@ -148,8 +147,7 @@ final class ConfigurationLanguageLockSiteDefaultRecipeKernelTest extends KernelT
   }
 
   /**
-   * Enables the site-default configuration-language policy only inside this
-   * Kernel test.
+   * Enables the site-default language policy for this Kernel test.
    */
   private function enableSiteDefaultConfigurationLock(): void {
     $this->config('config_language_lock.settings')

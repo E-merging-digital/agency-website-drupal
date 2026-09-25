@@ -130,6 +130,56 @@ NGINX;
   }
 
   /**
+   * PREPROD reconciles special languages after CIM and before its split.
+   */
+  public function testCandidateDeployReconcilesSpecialLanguagesAfterCim(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $deploy = (string) file_get_contents(
+      $root . '/scripts/preproduction/deploy-candidate.sh',
+    );
+
+    foreach ([
+      'SPECIAL_LANGUAGE_RECONCILER="$CURRENT_LINK/scripts/runner/reconcile-config-language-special-entities-1318.php"',
+      '[[ -f "$SPECIAL_LANGUAGE_RECONCILER" ]]',
+      'AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1',
+      '"$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER"',
+      "config_language_special_reconcile='PASS'",
+      "printf 'config_language_special_reconcile=%s",
+    ] as $required) {
+      self::assertStringContainsString($required, $deploy, $required);
+    }
+
+    $cim = strpos($deploy, '"$CURRENT_LINK/vendor/bin/drush" cim -y');
+    $reconcile = strpos(
+      $deploy,
+      'AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1',
+    );
+    $split = strpos(
+      $deploy,
+      '"$CURRENT_LINK/vendor/bin/drush" config:import --source="$preprod_split"',
+    );
+
+    self::assertNotFalse($cim);
+    self::assertNotFalse($reconcile);
+    self::assertNotFalse($split);
+    self::assertTrue($cim < $reconcile);
+    self::assertTrue($reconcile < $split);
+
+    self::assertSame(
+      1,
+      substr_count(
+        $deploy,
+        '"$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER"',
+      ),
+    );
+    self::assertStringContainsString('set -Eeuo pipefail', $deploy);
+    self::assertStringNotContainsString(
+      'php:script "$SPECIAL_LANGUAGE_RECONCILER" ||',
+      $deploy,
+    );
+  }
+
+  /**
    * Candidate deployment converges server-owned settings without new secrets.
    */
   public function testCandidateDeployReconcilesSharedSettings(): void {

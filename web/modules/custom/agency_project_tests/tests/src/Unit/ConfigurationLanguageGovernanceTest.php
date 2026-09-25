@@ -138,6 +138,84 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
+   * Special locked languages converge through one bounded Drupal manager call.
+   */
+  public function testSpecialLanguageDeploymentReconcilerIsBoundedAndIdempotent(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root
+      . '/scripts/runner/reconcile-config-language-special-entities-1318.php';
+    self::assertFileExists($path);
+
+    $helper = (string) file_get_contents($path);
+
+    foreach ([
+      "getenv('AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE') !== '1'",
+      "if (\$siteDefault !== 'fr')",
+      "\$lockedLangcode !== 'fr'",
+      "\$followSiteDefault !== TRUE",
+      "'language.entity.und' => 'und'",
+      "'language.entity.zxx' => 'zxx'",
+      "!in_array(\$technicalLangcode, ['en', 'fr'], TRUE)",
+      "\$manager->updateConfigForLockedLanguageSwitch(array_keys(\$targets))",
+      "(\$data['langcode'] ?? NULL) !== 'fr'",
+      "'config_values_exposed' => FALSE",
+    ] as $required) {
+      self::assertStringContainsString($required, $helper, $required);
+    }
+
+    self::assertSame(
+      1,
+      substr_count(
+        $helper,
+        '$manager->updateConfigForLockedLanguageSwitch(array_keys($targets))',
+      ),
+    );
+    self::assertSame(1, substr_count($helper, "'language.entity.und' => 'und'"));
+    self::assertSame(1, substr_count($helper, "'language.entity.zxx' => 'zxx'"));
+
+    foreach ([
+      '$storage->listAll()',
+      'listAll(',
+      'createCollection(',
+      'config.storage.sync',
+      "getEditable('config_language_lock.settings')",
+      "->set('locked_langcode'",
+      "->set('follow_site_default'",
+      'config:import',
+      'config:export',
+      "['label']",
+      "['translations']",
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $helper, $forbidden);
+    }
+
+    self::assertStringNotContainsString(
+      "'language.en'",
+      $helper,
+    );
+    self::assertStringNotContainsString(
+      "'language.fr'",
+      $helper,
+    );
+
+    foreach ([
+      "'schema_version' => 1",
+      "'status' => 'PASS'",
+      "'mechanism' => 'config_language_lock_special_entity_reconcile'",
+      "'targets' => array_keys(\$targets)",
+      "'before_technical_langcodes' => \$before",
+      "'after_technical_langcodes' => \$after",
+      "'manager_stats' => \$boundedStats",
+      "'site_default_language' => \$siteDefault",
+      "'locked_langcode' => \$lockedLangcode",
+      "'follow_site_default' => \$followSiteDefault",
+      "'config_values_exposed' => FALSE",
+    ] as $bounded) {
+      self::assertStringContainsString($bounded, $helper, $bounded);
+    }
+  }
+
+  /**
    * Policy ownership must be discoverable from durable agent documentation.
    */
   public function testDurableDocumentationOwnsTheInvariant(): void {

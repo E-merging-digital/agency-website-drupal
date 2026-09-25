@@ -164,6 +164,56 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
+   * Both production activation paths reconcile after CIM and before split.
+   */
+  public function testProductionDeploymentsReconcileSpecialLanguagesAfterCim(): void {
+    foreach ([
+      'scripts/deploy-production.sh',
+      'scripts/production-promotion/promote-candidate.sh',
+    ] as $path) {
+      $script = $this->script($path);
+
+      foreach ([
+        'SPECIAL_LANGUAGE_RECONCILER="$CURRENT_LINK/scripts/runner/reconcile-config-language-special-entities-1318.php"',
+        'AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1',
+        '"$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER"',
+        "config_language_special_reconcile='PASS'",
+        'config_language_special_reconcile=',
+      ] as $required) {
+        self::assertStringContainsString($required, $script, $path . ': ' . $required);
+      }
+
+      $cim = strpos($script, '"$CURRENT_LINK/vendor/bin/drush" cim -y');
+      $reconcile = strpos(
+        $script,
+        'AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1',
+      );
+      $split = strpos($script, 'config/splits/production');
+
+      self::assertNotFalse($cim, $path);
+      self::assertNotFalse($reconcile, $path);
+      self::assertNotFalse($split, $path);
+      self::assertTrue($cim < $reconcile, $path);
+      self::assertTrue($reconcile < $split, $path);
+
+      self::assertSame(
+        1,
+        substr_count(
+          $script,
+          '"$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER"',
+        ),
+        $path,
+      );
+      self::assertStringContainsString('set -Eeuo pipefail', $script, $path);
+      self::assertStringNotContainsString(
+        'php:script "$SPECIAL_LANGUAGE_RECONCILER" ||',
+        $script,
+        $path,
+      );
+    }
+  }
+
+  /**
    * Issue #990 accepts the non-executable #983 helper before activation.
    */
   public function testPromotionConvergesConfigSyncFromExactCandidateBeforeActivation(): void {

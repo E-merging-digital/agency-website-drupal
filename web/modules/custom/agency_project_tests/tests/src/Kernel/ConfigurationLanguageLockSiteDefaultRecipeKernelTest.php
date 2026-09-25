@@ -14,12 +14,12 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Characterizes Candidate A for Recipes and extension installation.
+ * Tests site-default language policy for Recipes and extension installs.
  *
  * @group agency_project_tests
- * @group configuration_language_candidate_1314
+ * @group configuration_language_governance
  */
-#[Group('configuration_language_candidate_1314')]
+#[Group('configuration_language_governance')]
 #[RunTestsInSeparateProcesses]
 final class ConfigurationLanguageLockSiteDefaultRecipeKernelTest extends KernelTestBase {
 
@@ -147,7 +147,7 @@ final class ConfigurationLanguageLockSiteDefaultRecipeKernelTest extends KernelT
   }
 
   /**
-   * Enables Candidate A only inside this Kernel test.
+   * Enables the site-default language policy for this Kernel test.
    */
   private function enableSiteDefaultConfigurationLock(): void {
     $this->config('config_language_lock.settings')

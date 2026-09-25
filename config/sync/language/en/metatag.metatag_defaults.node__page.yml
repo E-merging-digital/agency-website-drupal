@@ -1,0 +1,14 @@
+label: 'Content: Page'
+tags:
+  canonical_url: '[node:url]'
+  description: '[node:field_short_description:value]'
+  og_description: '[node:field_short_description:value]'
+  og_title: '[node:title] | [site:name]'
+  og_type: website
+  og_url: '[node:url]'
+  schema_web_page_description: '[node:field_short_description:value]'
+  schema_web_page_id: '[node:url]'
+  twitter_cards_type: summary
+  twitter_cards_description: '[node:field_short_description:value]'
+  twitter_cards_title: '[node:title] | [site:name]'
+  title: '[node:title] | [site:name]'

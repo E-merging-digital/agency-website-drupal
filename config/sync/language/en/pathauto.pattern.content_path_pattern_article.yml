@@ -1,0 +1,5 @@
+label: 'Content path pattern (Article)'
+pattern: '/blog/[node:title]'
+relationships:
+  'node:langcode:language':
+    label: Language

@@ -1,0 +1,6 @@
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: 'Main navigation'
+label: 'Main navigation'

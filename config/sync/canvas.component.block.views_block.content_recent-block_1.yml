@@ -1,5 +1,5 @@
 uuid: d9e1401b-352e-4d7b-abae-54dbef04a511
-langcode: en
+langcode: fr
 status: false
 dependencies:
   config:
@@ -41,7 +41,7 @@ versioned_properties:
         items_per_page: null
     fallback_metadata:
       slot_definitions: null
-label: 'Recent content'
+label: 'Recent content : Block'
 id: block.views_block.content_recent-block_1
 provider: views
 source: block

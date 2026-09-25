@@ -1,0 +1,5 @@
+label: 'Content path pattern (Service FR)'
+pattern: '/services/[node:title]'
+relationships:
+  'node:langcode:language':
+    label: Language

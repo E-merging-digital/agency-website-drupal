@@ -14,14 +14,14 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Characterizes Candidate A for native Drupal AI Automator config.
+ * Tests site-default language policy for Drupal AI Automator config.
  *
  * @group agency_project_tests
  * @group agency_ai
- * @group configuration_language_candidate_1314
+ * @group configuration_language_governance
  */
 #[Group('agency_ai')]
-#[Group('configuration_language_candidate_1314')]
+#[Group('configuration_language_governance')]
 #[RunTestsInSeparateProcesses]
 final class ConfigurationLanguageLockSiteDefaultAiAutomatorKernelTest extends KernelTestBase {
 
@@ -133,7 +133,7 @@ final class ConfigurationLanguageLockSiteDefaultAiAutomatorKernelTest extends Ke
   }
 
   /**
-   * Returns provider-agnostic Candidate A Automator values.
+   * Returns provider-agnostic Automator values for site-default policy.
    *
    * @return array<string, mixed>
    *   Configuration entity values.
@@ -181,7 +181,7 @@ final class ConfigurationLanguageLockSiteDefaultAiAutomatorKernelTest extends Ke
   }
 
   /**
-   * Enables Candidate A only inside this Kernel test.
+   * Enables the site-default language policy for this Kernel test.
    */
   private function enableSiteDefaultConfigurationLock(): void {
     $this->config('config_language_lock.settings')

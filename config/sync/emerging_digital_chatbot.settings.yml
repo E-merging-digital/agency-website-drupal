@@ -1,3 +1,4 @@
+langcode: fr
 enabled: true
 mode: guide
 languages:
@@ -200,7 +201,7 @@ messages:
   en:
     title: 'E-merging Digital assistant'
     launcher_label: 'Open assistant'
-    close_label: Close
+    close_label: Fermer
     reset_label: 'Start again'
     intro: 'Hello, I can help you qualify your project, choose the right path and prepare a useful contact request.'
     transparency: 'This MVP runs without free-form generative AI. Choices stay guided, no conversation is stored long term and sensitive data should not be sent.'

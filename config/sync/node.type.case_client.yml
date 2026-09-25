@@ -1,5 +1,5 @@
 uuid: 311c45aa-7ddf-4308-9e80-695be95c70d6
-langcode: en
+langcode: fr
 status: true
 dependencies: {  }
 name: 'Cas client'

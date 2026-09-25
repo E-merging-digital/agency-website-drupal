@@ -1,0 +1,5 @@
+label: 'Content path pattern (Fonctionnalité IA EN)'
+pattern: '/ai/[node:title]'
+relationships:
+  'node:langcode:language':
+    label: Language

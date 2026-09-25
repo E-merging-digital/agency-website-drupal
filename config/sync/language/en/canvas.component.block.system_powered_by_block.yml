@@ -1,0 +1,6 @@
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: 'Propulsé par Drupal'
+label: 'Powered by Drupal'

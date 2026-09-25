@@ -1,5 +1,5 @@
 uuid: c426cfeb-fc36-4c73-a7f0-d7fd71cf06b2
-langcode: en
+langcode: fr
 status: true
 dependencies:
   config:
@@ -17,7 +17,7 @@ provider: null
 plugin: webform_block
 settings:
   id: webform_block
-  label: 'Request a Drupal diagnostic'
+  label: 'Demander un diagnostic Drupal'
   label_display: visible
   provider: webform
   webform_id: drupal_lifecycle_diagnostic

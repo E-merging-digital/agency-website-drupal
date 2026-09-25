@@ -1,5 +1,5 @@
 uuid: 4e4b16f8-03a9-430f-892e-6d925152532c
-langcode: en
+langcode: fr
 status: open
 dependencies:
   enforced:
@@ -12,45 +12,45 @@ uid: null
 template: false
 archive: false
 id: drupal_lifecycle_diagnostic
-title: 'Drupal lifecycle diagnostic'
-description: 'Low-friction request for a human-reviewed first Drupal lifecycle diagnostic.'
+title: 'Diagnostic cycle de vie Drupal'
+description: 'Demande faible friction pour un premier diagnostic Drupal relu par une personne.'
 categories: {  }
-elements: |
+elements: |-
   intro:
     '#type': webform_markup
-    '#markup': '<p>Share your Drupal site URL and a short description of the issue or modernization goal. We will review the request before a human follow-up. This first diagnostic is not an automated exhaustive audit.</p>'
+    '#markup': '<p>Partagez l’URL de votre site Drupal et décrivez brièvement le problème ou l’objectif de modernisation. Nous relisons la demande avant toute reprise humaine. Ce premier diagnostic n’est pas un audit automatisé exhaustif.</p>'
   website_url:
     '#type': url
-    '#title': 'Website URL'
+    '#title': 'URL du site'
     '#required': true
-    '#placeholder': 'https://example.com'
+    '#placeholder': 'https://exemple.be'
   organization:
     '#type': textfield
-    '#title': 'Organization'
-    '#placeholder': 'Organization name (optional)'
+    '#title': 'Organisation'
+    '#placeholder': 'Nom de votre organisation (facultatif)'
   name:
     '#type': textfield
-    '#title': 'Your name'
+    '#title': 'Votre nom'
     '#required': true
     '#default_value': '[current-user:display-name]'
   email:
     '#type': email
-    '#title': 'Your email'
+    '#title': 'Votre email'
     '#required': true
     '#default_value': '[current-user:mail]'
   message:
     '#type': textarea
-    '#title': 'Context'
+    '#title': 'Contexte'
     '#required': true
     '#rows': 5
-    '#placeholder': 'Briefly describe what is blocking you, what you want to modernize, or what you would like us to review.'
+    '#placeholder': 'Décrivez brièvement ce qui vous bloque, ce que vous souhaitez moderniser ou ce que vous voulez nous faire examiner.'
   audit_note:
     '#type': webform_markup
-    '#markup': '<p>If a deeper review is useful, a paid technical audit can cover Drupal Core and PHP, Composer, contributed and custom code, theme, deprecations and upgrade readiness, security and maintenance, automated tests, infrastructure and deployment, then provide an estimate and action plan. The audit remains useful even if you do not ask us to perform the migration.</p>'
+    '#markup': '<p>Si une analyse plus approfondie est utile, un audit technique payant peut couvrir Drupal Core et PHP, Composer, les modules contrib et le code spécifique, le thème, les dépréciations et la préparation à une mise à niveau, la sécurité et la maintenance, les tests automatisés, l’infrastructure et le déploiement, puis fournir une estimation et un plan d’action. Le livrable reste utile même si vous ne nous confiez pas la migration.</p>'
   rgpd_consent:
     '#type': checkbox
-    '#title': 'I agree that my data will be used to process my request, in accordance with the'
-    '#description': '<a href="/en/privacy-policy">privacy policy</a>.<span id="drupal-diagnostic-consent-help" class="contact-consent-help">This consent is required to send the form.</span>'
+    '#title': 'J’accepte que mes données soient utilisées pour traiter ma demande, conformément à la'
+    '#description': '<a href="/fr/politique-de-confidentialite">politique de confidentialité</a>.<span id="drupal-diagnostic-consent-help" class="contact-consent-help">Ce consentement est obligatoire pour envoyer le formulaire.</span>'
     '#required': true
     '#default_value': 0
     '#attributes':
@@ -58,7 +58,7 @@ elements: |
   actions:
     '#type': webform_actions
     '#title': 'Submit button(s)'
-    '#submit__label': 'Request a Drupal diagnostic'
+    '#submit__label': 'Demander un diagnostic Drupal'
 css: ''
 javascript: ''
 settings:
@@ -165,8 +165,8 @@ settings:
   draft_pending_multiple_message: ''
   confirmation_type: page
   confirmation_url: ''
-  confirmation_title: 'Request received'
-  confirmation_message: 'Thank you. Your Drupal diagnostic request has been received and will be reviewed by a person before any recommendation is made.'
+  confirmation_title: 'Demande reçue'
+  confirmation_message: 'Merci. Votre demande de diagnostic Drupal a bien été reçue et sera relue par une personne avant toute recommandation.'
   confirmation_attributes:
     class:
       - contact-confirmation

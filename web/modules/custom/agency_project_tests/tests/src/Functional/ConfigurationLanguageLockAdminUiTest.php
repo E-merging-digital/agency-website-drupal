@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 
 /**
- * Proves EN configuration and FR content through native Drupal forms.
+ * Proves site-default configuration and FR content through native Drupal forms.
  *
  * @group agency_project_tests
  * @group configuration_language_governance
@@ -70,11 +70,11 @@ final class ConfigurationLanguageLockAdminUiTest extends BrowserTestBase {
       'type' => self::CONTENT_TYPE,
       'name' => 'Config lock UI probe',
       'description' => 'Before native Drupal admin UI save.',
-      'langcode' => 'fr',
+      'langcode' => 'en',
     ])->save();
 
     self::assertSame(
-      'fr',
+      'en',
       $this->config('node.type.' . self::CONTENT_TYPE)->get('langcode'),
     );
 
@@ -97,17 +97,17 @@ final class ConfigurationLanguageLockAdminUiTest extends BrowserTestBase {
   }
 
   /**
-   * Admin config saves are EN while editorial content remains FR.
+   * Admin config saves use FR while editorial content remains FR.
    */
   public function testAdminConfigSaveDoesNotChangeEditorialLanguage(): void {
     self::assertSame('fr', $this->config('system.site')->get('default_langcode'));
 
-    $this->enableEnglishConfigurationLock();
+    $this->enableSiteDefaultConfigurationLock();
 
     // Merely enabling the lock must not retroactively rewrite existing config.
     $this->resetConfig('node.type.' . self::CONTENT_TYPE);
     self::assertSame(
-      'fr',
+      'en',
       $this->config('node.type.' . self::CONTENT_TYPE)->get('langcode'),
     );
 
@@ -128,7 +128,7 @@ final class ConfigurationLanguageLockAdminUiTest extends BrowserTestBase {
 
     $this->resetConfig('node.type.' . self::CONTENT_TYPE);
     $stored_type = $this->config('node.type.' . self::CONTENT_TYPE);
-    self::assertSame('en', $stored_type->get('langcode'));
+    self::assertSame('fr', $stored_type->get('langcode'));
     self::assertSame(
       'Updated through the native Drupal admin UI.',
       $stored_type->get('description'),
@@ -160,26 +160,26 @@ final class ConfigurationLanguageLockAdminUiTest extends BrowserTestBase {
 
     $this->resetConfig('node.type.' . self::CONTENT_TYPE);
     self::assertSame(
-      'en',
+      'fr',
       $this->config('node.type.' . self::CONTENT_TYPE)->get('langcode'),
     );
     self::assertSame('fr', $this->config('system.site')->get('default_langcode'));
   }
 
   /**
-   * Enables the contributed EN lock only inside this test site.
+   * Enables the site-default lock only inside this test site.
    */
-  private function enableEnglishConfigurationLock(): void {
+  private function enableSiteDefaultConfigurationLock(): void {
     $this->config('config_language_lock.settings')
-      ->set('locked_langcode', 'en')
-      ->set('follow_site_default', FALSE)
+      ->set('locked_langcode', 'fr')
+      ->set('follow_site_default', TRUE)
       ->save();
 
     self::assertSame(
-      'en',
+      'fr',
       $this->config('config_language_lock.settings')->get('locked_langcode'),
     );
-    self::assertFalse(
+    self::assertTrue(
       $this->config('config_language_lock.settings')->get('follow_site_default'),
     );
     self::assertSame('fr', $this->config('system.site')->get('default_langcode'));

@@ -1,5 +1,5 @@
 uuid: 2040ea73-5e24-4fb1-a5cf-ff22ed53f5d4
-langcode: en
+langcode: fr
 status: true
 dependencies: {  }
 name: 'Type de service'

@@ -215,3 +215,30 @@ function agency_ai_translation_bulk_action_validate(array &$form, FormStateInter
     $form_state->setErrorByName('agency_ai_translation_target_langcode', t('Veuillez choisir une langue cible pour la traduction IA.'));
   }
 }
+
+/**
+ * Implements hook_config_schema_info_alter().
+ *
+ * Provides precise typed-config metadata for the duplicated AI Automator label
+ * while leaving all other free-form plugin configuration ignored.
+ */
+function agency_ai_translation_config_schema_info_alter(array &$definitions): void {
+  $schemaId = 'ai_automators.ai_automator.*.*.*.*';
+  if (!isset($definitions[$schemaId]) || !is_array($definitions[$schemaId])) {
+    return;
+  }
+
+  $pluginConfig = $definitions[$schemaId]['mapping']['plugin_config'] ?? NULL;
+  if (
+    !is_array($pluginConfig)
+    || ($pluginConfig['type'] ?? NULL) !== 'sequence'
+    || !isset($pluginConfig['sequence'])
+    || !is_array($pluginConfig['sequence'])
+    || ($pluginConfig['sequence']['type'] ?? NULL) !== 'ignore'
+  ) {
+    return;
+  }
+
+  $definitions[$schemaId]['mapping']['plugin_config']['sequence']['type'] =
+    'agency_ai_translation.ai_automator_plugin_config.[%key]';
+}

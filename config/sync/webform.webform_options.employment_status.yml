@@ -1,5 +1,5 @@
 uuid: 40596c9d-a20b-4841-a3bf-38dd9672b0ad
-langcode: en
+langcode: fr
 status: true
 dependencies:
   enforced:
@@ -9,7 +9,7 @@ _core:
   default_config_hash: 8MCmsz_csdJkVItxI8g_s4zp2PM285YqCy_gWTzOLPw
 id: employment_status
 label: 'Employment status'
-category: Demographic
+category: Démographique
 likert: false
 options: |
   'Full Time': 'Full Time'

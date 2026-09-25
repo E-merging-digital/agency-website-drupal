@@ -1,5 +1,5 @@
 uuid: ee0b945f-81b9-4f88-ac66-43ca79f3a9f5
-langcode: en
+langcode: fr
 status: false
 dependencies:
   module:
@@ -24,7 +24,7 @@ versioned_properties:
         provider: language
     fallback_metadata:
       slot_definitions: null
-label: 'Language switcher (Interface text)'
+label: "Sélecteur de langue (Texte d'interface)"
 id: block.language_block.language_interface
 provider: language
 source: block

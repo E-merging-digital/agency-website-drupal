@@ -1,11 +1,11 @@
 uuid: 3ada2cbb-43cc-46cb-993a-6d5a6b41d4d6
-langcode: en
+langcode: fr
 status: true
 dependencies:
   config:
     - canvas.component.marker.page_content
     - canvas.component.sdc.olivero.teaser
-name: Other
+name: Autre
 configEntityTypeId: component
 weight: 0
 items:

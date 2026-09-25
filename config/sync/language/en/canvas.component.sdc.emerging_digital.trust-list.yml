@@ -1,0 +1,17 @@
+versioned_properties:
+  active:
+    settings:
+      prop_field_definitions:
+        heading:
+          default_value:
+            -
+              value: Benefits
+        items:
+          default_value:
+            -
+              value: 'Drupal expertise'
+            -
+              value: 'Human validation'
+            -
+              value: 'Accessible by design'
+label: 'Trust list'

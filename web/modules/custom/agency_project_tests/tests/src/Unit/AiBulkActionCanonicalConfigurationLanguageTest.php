@@ -8,7 +8,7 @@ use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Protects the canonical source language of the AI bulk action config.
+ * Protects source defaults and materialized AI bulk-action language semantics.
  *
  * @group agency_project_tests
  * @group configuration_language
@@ -16,9 +16,9 @@ use PHPUnit\Framework\TestCase;
 final class AiBulkActionCanonicalConfigurationLanguageTest extends TestCase {
 
   /**
-   * The module default and canonical base are EN while FR remains translated.
+   * Module source stays EN while the materialized repository is technical FR.
    */
-  public function testCanonicalEnglishSourcePreservesFrenchTranslation(): void {
+  public function testSourceDefaultAndMaterializedPolicyStayDistinct(): void {
     $root = dirname(DRUPAL_ROOT);
     $relative = 'system.action.agency_ai_translate_nodes_bulk_action.yml';
 
@@ -31,17 +31,24 @@ final class AiBulkActionCanonicalConfigurationLanguageTest extends TestCase {
     $french = DrupalYaml::decode((string) file_get_contents(
       $root . '/config/sync/language/fr/' . $relative,
     ));
+    $englishOverride = $root . '/config/sync/language/en/' . $relative;
 
     self::assertIsArray($default);
     self::assertIsArray($canonical);
     self::assertIsArray($french);
 
+    self::assertSame('en', $default['langcode'] ?? NULL);
+    self::assertSame(
+      'Translate with AI to a target language',
+      $default['label'] ?? NULL,
+    );
+    self::assertSame('fr', $canonical['langcode'] ?? NULL);
+    self::assertSame(
+      'Translate with AI to a target language',
+      $canonical['label'] ?? NULL,
+    );
+
     foreach ([$default, $canonical] as $source) {
-      self::assertSame('en', $source['langcode'] ?? NULL);
-      self::assertSame(
-        'Translate with AI to a target language',
-        $source['label'] ?? NULL,
-      );
       self::assertSame(
         'agency_ai_translate_nodes_bulk_action',
         $source['plugin'] ?? NULL,
@@ -55,6 +62,7 @@ final class AiBulkActionCanonicalConfigurationLanguageTest extends TestCase {
       ['label' => 'Traduire avec IA vers une langue cible'],
       $french,
     );
+    self::assertFileDoesNotExist($englishOverride);
   }
 
 }

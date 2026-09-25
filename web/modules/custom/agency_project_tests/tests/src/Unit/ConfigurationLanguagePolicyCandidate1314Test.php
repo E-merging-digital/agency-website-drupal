@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects #1314 as proof-only without silently adopting Candidate A.
+ * Protects #1314 historical evidence after Recommendation C adoption.
  *
  * @group agency_project_tests
  * @group configuration_language_candidate_1314
@@ -16,35 +16,36 @@ use Symfony\Component\Yaml\Yaml;
 final class ConfigurationLanguagePolicyCandidate1314Test extends TestCase {
 
   /**
-   * Current policy/config stay unchanged while Candidate A remains proof-only.
+   * Current policy adopts Recommendation C while preserving historical intent.
    */
-  public function testCandidateProofDoesNotAdoptPolicy(): void {
+  public function testCurrentPolicyAdoptsRecommendationC(): void {
     $root = dirname(DRUPAL_ROOT);
 
     $lock = Yaml::parseFile(
       $root . '/config/sync/config_language_lock.settings.yml',
     );
-    self::assertSame('en', $lock['locked_langcode'] ?? NULL);
-    self::assertFalse($lock['follow_site_default'] ?? TRUE);
+    self::assertSame('fr', $lock['locked_langcode'] ?? NULL);
+    self::assertTrue($lock['follow_site_default'] ?? FALSE);
 
     $policy = Yaml::parseFile($root . '/docs/configuration-language-policy.yml');
-    self::assertSame(1, $policy['schema_version'] ?? NULL);
-    self::assertSame('en', $policy['canonical_configuration_language'] ?? NULL);
+    self::assertSame(2, $policy['schema_version'] ?? NULL);
+    self::assertSame('enforced', $policy['status'] ?? NULL);
     self::assertSame(
       'en',
-      $policy['enforcement']['target_locked_langcode'] ?? NULL,
+      $policy['historical_configuration']['canonical_base_language_intent'] ?? NULL,
     );
-    self::assertFalse($policy['enforcement']['follow_site_default'] ?? TRUE);
+    self::assertSame('site_default', $policy['configuration_writes']['strategy'] ?? NULL);
+    self::assertSame('fr', $policy['configuration_writes']['resolved_langcode'] ?? NULL);
+    self::assertTrue($policy['configuration_writes']['follow_site_default'] ?? FALSE);
   }
 
   /**
-   * The #1314 evidence makes the future migration decision explicit.
+   * The #1314 evidence keeps the accepted decision and migration scope intact.
    */
   public function testEvidenceRecordsDecisionAndMigrationScope(): void {
     $root = dirname(DRUPAL_ROOT);
     $evidence = (string) file_get_contents(
-      $root
-      . '/docs/evidence/configuration-language-site-default-candidate-1314.md',
+      $root . '/docs/evidence/configuration-language-site-default-candidate-1314.md',
     );
 
     foreach ([
@@ -52,13 +53,10 @@ final class ConfigurationLanguagePolicyCandidate1314Test extends TestCase {
       'EXISTING_CONFIG_AUTOREWRITE = NO',
       'TRANSLATION_PRESERVATION = PASS',
       'UND_ZXX_PRESERVATION = PASS',
-      'EXISTING_CONFIG_REPRODUCIBILITY = FAIL',
       'CANONICAL_LANGUAGE_POLICY_RECOMMENDATION = C',
-      'DATA_MIGRATION_REQUIRED = NO',
       'CONFIG_OBJECT_BULK_MIGRATION_REQUIRED = YES',
       'LOCK_SETTINGS_CHANGE_REQUIRED = YES',
       'POLICY_SCHEMA_CHANGE_REQUIRED = YES',
-      'MUST_CHANGE_WITH_POLICY',
       'HISTORICAL_EVIDENCE_IMMUTABLE',
       'OBSOLETE_ASSERTION_TO_RETIRE',
       'REUSABLE_TEST_TO_REBASELINE',
@@ -80,14 +78,8 @@ final class ConfigurationLanguagePolicyCandidate1314Test extends TestCase {
       "github.event.pull_request.head.ref == 'feature/609-configuration-language-audit'",
       $workflow,
     );
-    self::assertStringContainsString(
-      '.locked_langcode == "en"',
-      $workflow,
-    );
-    self::assertStringContainsString(
-      '.follow_site_default == false',
-      $workflow,
-    );
+    self::assertStringContainsString('.locked_langcode == "en"', $workflow);
+    self::assertStringContainsString('.follow_site_default == false', $workflow);
   }
 
 }

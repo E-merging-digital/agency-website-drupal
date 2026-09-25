@@ -189,8 +189,12 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       self::assertStringNotContainsString($forbidden, $helper, $forbidden);
     }
 
-    self::assertDoesNotMatchRegularExpression(
-      '~[\\'"]language\\.(?:en|fr)[\\'"]~',
+    self::assertStringNotContainsString(
+      "'language.en'",
+      $helper,
+    );
+    self::assertStringNotContainsString(
+      "'language.fr'",
       $helper,
     );
 

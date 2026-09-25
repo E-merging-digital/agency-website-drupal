@@ -244,6 +244,168 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   }
 
   /**
+   * Proves runtime mismatch evidence is bounded and deterministic.
+   */
+  public function testLanguageLockRuntimeMismatchEvidenceIsBoundedAndDeterministic(): void {
+    $runner = $this->source(self::RUNNER);
+
+    $begin = '# RUNTIME_CONTRACT_OBSERVABILITY_BEGIN';
+    $end = '# RUNTIME_CONTRACT_OBSERVABILITY_END';
+    $beginPosition = strpos($runner, $begin);
+    $endPosition = strpos($runner, $end);
+    self::assertNotFalse($beginPosition);
+    self::assertNotFalse($endPosition);
+    self::assertGreaterThan($beginPosition, $endPosition);
+
+    $observability = substr(
+      $runner,
+      $beginPosition,
+      $endPosition - $beginPosition + strlen($end),
+    );
+
+    preg_match_all(
+      '/\\{path: "([^"]+)", ok:/',
+      $observability,
+      $pathMatches,
+    );
+    self::assertSame([
+      'schema_version',
+      'drupal_core_version',
+      'canvas_version',
+      'config_language_lock_version',
+      'site_default_language',
+      'locked_langcode',
+      'follow_site_default',
+      'canvas_requirement_verdict',
+      'collections.fr.count',
+      'collections.en.count',
+      'languages.und.id',
+      'languages.und.locked',
+      'languages.und.technical_langcode',
+      'languages.zxx.id',
+      'languages.zxx.locked',
+      'languages.zxx.technical_langcode',
+      'config_values_exposed',
+    ], $pathMatches[1]);
+
+    self::assertSame(
+      1,
+      preg_match(
+        '/def observed:\\s*(\\{.*?\\n      \\});\\s*\\[/s',
+        $observability,
+        $observedMatch,
+      ),
+    );
+    $observed = $observedMatch[1];
+
+    preg_match_all(
+      '/:\\s*\\.([A-Za-z0-9_.]+)/',
+      $observed,
+      $selectorMatches,
+    );
+    self::assertSame([
+      'schema_version',
+      'drupal_core_version',
+      'canvas_version',
+      'config_language_lock_version',
+      'site_default_language',
+      'locked_langcode',
+      'follow_site_default',
+      'canvas_requirement_verdict',
+      'collections.fr.count',
+      'collections.en.count',
+      'languages.und.id',
+      'languages.und.locked',
+      'languages.und.technical_langcode',
+      'languages.zxx.id',
+      'languages.zxx.locked',
+      'languages.zxx.technical_langcode',
+      'config_values_exposed',
+    ], $selectorMatches[1]);
+
+    foreach ([
+      'active_names_sha256',
+      'sync_names_sha256',
+      'active_values_sha256',
+      'sync_values_sha256',
+      'raw_config_values',
+      'settings',
+      'ssh',
+      'secret',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $observed, $forbidden);
+    }
+
+    foreach ([
+      '.schema_version == 1',
+      '.drupal_core_version == "11.4.7"',
+      '.canvas_version == "1.11.0"',
+      '.config_language_lock_version == "1.0.2"',
+      '.site_default_language == "fr"',
+      '.locked_langcode == "fr"',
+      '.follow_site_default == true',
+      '.canvas_requirement_verdict == "PASS"',
+      '.collections.fr.count == 7',
+      '.collections.en.count == 418',
+      '.languages.und.id == "und"',
+      '.languages.und.locked == true',
+      '.languages.und.technical_langcode == "fr"',
+      '.languages.zxx.id == "zxx"',
+      '.languages.zxx.locked == true',
+      '.languages.zxx.technical_langcode == "fr"',
+      '.config_values_exposed == false',
+    ] as $expectation) {
+      self::assertStringContainsString($expectation, $observability, $expectation);
+    }
+
+    self::assertStringContainsString(
+      'jq -c "$runtime_contract_jq" "$runtime_language_json" 2>/dev/null',
+      $observability,
+    );
+    self::assertStringContainsString(
+      'LANGUAGE_LOCK_FAILURE=RUNTIME_CONTRACT',
+      $observability,
+    );
+    self::assertStringContainsString(
+      'LANGUAGE_LOCK_RUNTIME_MISMATCH_FIELDS=INVALID_JSON',
+      $observability,
+    );
+    self::assertStringContainsString(
+      'LANGUAGE_LOCK_RUNTIME_MISMATCH_FIELDS=%s',
+      $observability,
+    );
+    self::assertStringContainsString(
+      'LANGUAGE_LOCK_RUNTIME_OBSERVED=%s',
+      $observability,
+    );
+    self::assertStringContainsString(
+      '.mismatches | join(",")',
+      $observability,
+    );
+    self::assertStringContainsString(
+      "jq -c '.observed'",
+      $observability,
+    );
+    self::assertStringNotContainsString('runtime_language_raw', $observability);
+
+    $failurePosition = strpos(
+      $runner,
+      'LANGUAGE_LOCK_RUNTIME_OBSERVED=%s',
+    );
+    $collectionPosition = strpos($runner, 'printf -v collection_command');
+    self::assertNotFalse($failurePosition);
+    self::assertNotFalse($collectionPosition);
+    self::assertLessThan($collectionPosition, $failurePosition);
+
+    $failureToCollection = substr(
+      $runner,
+      $failurePosition,
+      $collectionPosition - $failurePosition,
+    );
+    self::assertStringContainsString('exit 1', $failureToCollection);
+  }
+
+  /**
    * Proves pull-request validation cannot reach the PREPROD runtime.
    */
   public function testPullRequestValidationIsNonOperational(): void {

@@ -183,13 +183,16 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       "->set('follow_site_default'",
       'config:import',
       'config:export',
-      'language.fr',
-      'language.en',
       "['label']",
       "['translations']",
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $helper, $forbidden);
     }
+
+    self::assertDoesNotMatchRegularExpression(
+      '~[\\'"]language\\.(?:en|fr)[\\'"]~',
+      $helper,
+    );
 
     foreach ([
       "'schema_version' => 1",

@@ -24,7 +24,7 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
   private const TARGETED = '.github/workflows/canvas-runtime-diff-paths-995-validation.yml';
 
   /**
-   * Existing commands are reused and routed only for #982 or #995.
+   * Existing commands are reused and routed only for #982, #995 or #1318.
    */
   public function testDispatcherReusesExactRoutesForIssue995(): void {
     $dispatcher = $this->parsed(self::DISPATCHER);
@@ -48,7 +48,7 @@ final class CanvasRuntimeDiffPaths995WorkflowTest extends TestCase {
 
     $source = $this->source(self::DISPATCHER);
     self::assertStringContainsString(
-      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995')",
+      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1318')",
       $source,
     );
     self::assertStringContainsString(

@@ -150,14 +150,14 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
 
     foreach ([
       "getenv('AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE') !== '1'",
-      "if ($siteDefault !== 'fr')",
-      "$lockedLangcode !== 'fr'",
-      "$followSiteDefault !== TRUE",
+      "if (\$siteDefault !== 'fr')",
+      "\$lockedLangcode !== 'fr'",
+      "\$followSiteDefault !== TRUE",
       "'language.entity.und' => 'und'",
       "'language.entity.zxx' => 'zxx'",
-      "!in_array($technicalLangcode, ['en', 'fr'], TRUE)",
-      "$manager->updateConfigForLockedLanguageSwitch(array_keys($targets))",
-      "($data['langcode'] ?? NULL) !== 'fr'",
+      "!in_array(\$technicalLangcode, ['en', 'fr'], TRUE)",
+      "\$manager->updateConfigForLockedLanguageSwitch(array_keys(\$targets))",
+      "(\$data['langcode'] ?? NULL) !== 'fr'",
       "'config_values_exposed' => FALSE",
     ] as $required) {
       self::assertStringContainsString($required, $helper, $required);
@@ -195,13 +195,13 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       "'schema_version' => 1",
       "'status' => 'PASS'",
       "'mechanism' => 'config_language_lock_special_entity_reconcile'",
-      "'targets' => array_keys($targets)",
-      "'before_technical_langcodes' => $before",
-      "'after_technical_langcodes' => $after",
-      "'manager_stats' => $boundedStats",
-      "'site_default_language' => $siteDefault",
-      "'locked_langcode' => $lockedLangcode",
-      "'follow_site_default' => $followSiteDefault",
+      "'targets' => array_keys(\$targets)",
+      "'before_technical_langcodes' => \$before",
+      "'after_technical_langcodes' => \$after",
+      "'manager_stats' => \$boundedStats",
+      "'site_default_language' => \$siteDefault",
+      "'locked_langcode' => \$lockedLangcode",
+      "'follow_site_default' => \$followSiteDefault",
       "'config_values_exposed' => FALSE",
     ] as $bounded) {
       self::assertStringContainsString($bounded, $helper, $bounded);

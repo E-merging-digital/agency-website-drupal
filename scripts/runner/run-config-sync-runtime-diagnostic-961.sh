@@ -130,28 +130,79 @@ if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
   printf '%s\n' "$runtime_language_raw" > "$runtime_language_json"
   unset runtime_language_raw runtime_command
 
-  if ! jq -e '
-    .schema_version == 1
-    and .drupal_core_version == "11.4.7"
-    and .canvas_version == "1.11.0"
-    and .config_language_lock_version == "1.0.2"
-    and .site_default_language == "fr"
-    and .locked_langcode == "fr"
-    and .follow_site_default == true
-    and .canvas_requirement_verdict == "PASS"
-    and .collections.fr.count == 7
-    and .collections.en.count == 418
-    and .languages.und.id == "und"
-    and .languages.und.locked == true
-    and .languages.und.technical_langcode == "fr"
-    and .languages.zxx.id == "zxx"
-    and .languages.zxx.locked == true
-    and .languages.zxx.technical_langcode == "fr"
-    and .config_values_exposed == false
-  ' "$runtime_language_json" >/dev/null 2>&1; then
+  # RUNTIME_CONTRACT_OBSERVABILITY_BEGIN
+  runtime_contract_jq='
+    def observed:
+      {
+        schema_version: .schema_version,
+        drupal_core_version: .drupal_core_version,
+        canvas_version: .canvas_version,
+        config_language_lock_version: .config_language_lock_version,
+        site_default_language: .site_default_language,
+        locked_langcode: .locked_langcode,
+        follow_site_default: .follow_site_default,
+        canvas_requirement_verdict: .canvas_requirement_verdict,
+        collections: {
+          fr: {count: .collections.fr.count},
+          en: {count: .collections.en.count}
+        },
+        languages: {
+          und: {
+            id: .languages.und.id,
+            locked: .languages.und.locked,
+            technical_langcode: .languages.und.technical_langcode
+          },
+          zxx: {
+            id: .languages.zxx.id,
+            locked: .languages.zxx.locked,
+            technical_langcode: .languages.zxx.technical_langcode
+          }
+        },
+        config_values_exposed: .config_values_exposed
+      };
+    [
+      {path: "schema_version", ok: (.schema_version == 1)},
+      {path: "drupal_core_version", ok: (.drupal_core_version == "11.4.7")},
+      {path: "canvas_version", ok: (.canvas_version == "1.11.0")},
+      {path: "config_language_lock_version", ok: (.config_language_lock_version == "1.0.2")},
+      {path: "site_default_language", ok: (.site_default_language == "fr")},
+      {path: "locked_langcode", ok: (.locked_langcode == "fr")},
+      {path: "follow_site_default", ok: (.follow_site_default == true)},
+      {path: "canvas_requirement_verdict", ok: (.canvas_requirement_verdict == "PASS")},
+      {path: "collections.fr.count", ok: (.collections.fr.count == 7)},
+      {path: "collections.en.count", ok: (.collections.en.count == 418)},
+      {path: "languages.und.id", ok: (.languages.und.id == "und")},
+      {path: "languages.und.locked", ok: (.languages.und.locked == true)},
+      {path: "languages.und.technical_langcode", ok: (.languages.und.technical_langcode == "fr")},
+      {path: "languages.zxx.id", ok: (.languages.zxx.id == "zxx")},
+      {path: "languages.zxx.locked", ok: (.languages.zxx.locked == true)},
+      {path: "languages.zxx.technical_langcode", ok: (.languages.zxx.technical_langcode == "fr")},
+      {path: "config_values_exposed", ok: (.config_values_exposed == false)}
+    ] as $checks
+    | {
+        valid: ($checks | all(.ok)),
+        mismatches: [$checks[] | select(.ok == false) | .path],
+        observed: observed
+      }
+  '
+  runtime_contract_diagnostic=''
+  if ! runtime_contract_diagnostic="$(jq -c "$runtime_contract_jq" "$runtime_language_json" 2>/dev/null)"; then
     echo 'LANGUAGE_LOCK_FAILURE=RUNTIME_CONTRACT' >&2
+    echo 'LANGUAGE_LOCK_RUNTIME_MISMATCH_FIELDS=INVALID_JSON' >&2
     exit 1
   fi
+
+  if [[ "$(jq -r '.valid' <<<"$runtime_contract_diagnostic")" != 'true' ]]; then
+    runtime_mismatch_fields="$(jq -r '.mismatches | join(",")' <<<"$runtime_contract_diagnostic")"
+    runtime_observed="$(jq -c '.observed' <<<"$runtime_contract_diagnostic")"
+    echo 'LANGUAGE_LOCK_FAILURE=RUNTIME_CONTRACT' >&2
+    printf 'LANGUAGE_LOCK_RUNTIME_MISMATCH_FIELDS=%s\n' "$runtime_mismatch_fields" >&2
+    printf 'LANGUAGE_LOCK_RUNTIME_OBSERVED=%s\n' "$runtime_observed" >&2
+    unset runtime_contract_diagnostic runtime_contract_jq runtime_mismatch_fields runtime_observed
+    exit 1
+  fi
+  unset runtime_contract_diagnostic runtime_contract_jq
+  # RUNTIME_CONTRACT_OBSERVABILITY_END
   echo 'LANGUAGE_LOCK_PHASE=RUNTIME_CONTRACT_PASS'
 
   printf -v collection_command \

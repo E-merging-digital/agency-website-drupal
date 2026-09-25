@@ -87,8 +87,8 @@ fi
 if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
   EXPECTED_LANGUAGE_LOCK_RELEASE='/var/www/agency-preprod/releases/20260925130338-5cabffd93782'
   EXPECTED_LANGUAGE_LOCK_COMPOSER_SHA256='d3948f88b04e057182a1689a492f5371c5a174f3fad3c83cf7b8ce26f498ab73'
-  RUNTIME_LANGUAGE_HELPER='scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'
-  COLLECTION_LANGUAGE_HELPER='scripts/runner/materialize-config-language-collections-1316.php'
+  RUNTIME_LANGUAGE_HELPER="$EXPECTED_LANGUAGE_LOCK_RELEASE/scripts/runner/config-language-policy-candidate-1314-runtime-proof.php"
+  COLLECTION_LANGUAGE_HELPER="$EXPECTED_LANGUAGE_LOCK_RELEASE/scripts/runner/materialize-config-language-collections-1316.php"
 
   [[ "$current_target" == "$EXPECTED_LANGUAGE_LOCK_RELEASE" ]] || {
     echo '#1318 active PREPROD release identity mismatch.' >&2
@@ -106,22 +106,31 @@ if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
     echo '#1318 active PREPROD composer.lock fingerprint mismatch.' >&2
     exit 1
   }
+  echo 'LANGUAGE_LOCK_PHASE=IDENTITY_GATE_PASS'
 
   printf -v helper_gate \
-    "set -euo pipefail; test -f '%s/%s'; test -f '%s/%s'" \
-    "$EXPECTED_LANGUAGE_LOCK_RELEASE" "$RUNTIME_LANGUAGE_HELPER" \
-    "$EXPECTED_LANGUAGE_LOCK_RELEASE" "$COLLECTION_LANGUAGE_HELPER"
-  ssh "${ssh_common[@]}" "$remote_target" "$helper_gate" >/dev/null
+    "set -euo pipefail; test -f '%s'; test -f '%s'" \
+    "$RUNTIME_LANGUAGE_HELPER" "$COLLECTION_LANGUAGE_HELPER"
+  if ! ssh "${ssh_common[@]}" "$remote_target" "$helper_gate" >/dev/null 2>/dev/null; then
+    echo 'LANGUAGE_LOCK_FAILURE=HELPER_EXISTENCE' >&2
+    exit 1
+  fi
+  echo 'LANGUAGE_LOCK_PHASE=HELPER_EXISTENCE_PASS'
 
   printf -v runtime_command \
     "set -euo pipefail; cd '%s'; vendor/bin/drush php:script '%s' 2>/dev/null" \
     "$EXPECTED_LANGUAGE_LOCK_RELEASE" "$RUNTIME_LANGUAGE_HELPER"
-  runtime_language_raw="$(ssh "${ssh_common[@]}" "$remote_target" "$runtime_command")"
+  runtime_language_raw=''
+  if ! runtime_language_raw="$(ssh "${ssh_common[@]}" "$remote_target" "$runtime_command" 2>/dev/null)"; then
+    echo 'LANGUAGE_LOCK_FAILURE=RUNTIME_HELPER_EXECUTION' >&2
+    exit 1
+  fi
+  echo 'LANGUAGE_LOCK_PHASE=RUNTIME_HELPER_EXECUTION_PASS'
   runtime_language_json="$ARTIFACT_DIR/language-lock-runtime.json"
   printf '%s\n' "$runtime_language_raw" > "$runtime_language_json"
   unset runtime_language_raw runtime_command
 
-  jq -e '
+  if ! jq -e '
     .schema_version == 1
     and .drupal_core_version == "11.4.7"
     and .canvas_version == "1.11.0"
@@ -139,17 +148,26 @@ if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
     and .languages.zxx.locked == true
     and .languages.zxx.technical_langcode == "fr"
     and .config_values_exposed == false
-  ' "$runtime_language_json" >/dev/null
+  ' "$runtime_language_json" >/dev/null 2>&1; then
+    echo 'LANGUAGE_LOCK_FAILURE=RUNTIME_CONTRACT' >&2
+    exit 1
+  fi
+  echo 'LANGUAGE_LOCK_PHASE=RUNTIME_CONTRACT_PASS'
 
   printf -v collection_command \
     "set -euo pipefail; cd '%s'; AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 vendor/bin/drush php:script '%s' 2>/dev/null" \
     "$EXPECTED_LANGUAGE_LOCK_RELEASE" "$COLLECTION_LANGUAGE_HELPER"
-  strict_collection_raw="$(ssh "${ssh_common[@]}" "$remote_target" "$collection_command")"
+  strict_collection_raw=''
+  if ! strict_collection_raw="$(ssh "${ssh_common[@]}" "$remote_target" "$collection_command" 2>/dev/null)"; then
+    echo 'LANGUAGE_LOCK_FAILURE=COLLECTION_HELPER_EXECUTION' >&2
+    exit 1
+  fi
+  echo 'LANGUAGE_LOCK_PHASE=COLLECTION_HELPER_EXECUTION_PASS'
   strict_collection_json="$ARTIFACT_DIR/language-lock-collections.json"
   printf '%s\n' "$strict_collection_raw" > "$strict_collection_json"
   unset strict_collection_raw collection_command
 
-  jq -e '
+  if ! jq -e '
     .schema_version == 1
     and .mode == "VERIFY"
     and .diagnostic_only == true
@@ -181,7 +199,11 @@ if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
     and .collections["language.en"].sync_names_sha256 == "31ff109065631edad357abbf9569f68d55dc81ac03feeb7fe99d173f00a14425"
     and .collections["language.en"].active_values_sha256 == "7ab417ceafdd77939f8fdb12f042acb6fd9bcd54242e8da5cac074f4708d36ac"
     and .collections["language.en"].sync_values_sha256 == "7ab417ceafdd77939f8fdb12f042acb6fd9bcd54242e8da5cac074f4708d36ac"
-  ' "$strict_collection_json" >/dev/null
+  ' "$strict_collection_json" >/dev/null 2>&1; then
+    echo 'LANGUAGE_LOCK_FAILURE=COLLECTION_CONTRACT' >&2
+    exit 1
+  fi
+  echo 'LANGUAGE_LOCK_PHASE=COLLECTION_CONTRACT_PASS'
 
   jq -n \
     --arg current_release "$current_target" \
@@ -229,6 +251,7 @@ if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
     and .prod_access == "NONE"
     and .prod_write == "NONE"
   ' "$ARTIFACT_DIR/result.json" >/dev/null
+  echo 'LANGUAGE_LOCK_PHASE=RESULT_MATERIALIZED'
   exit 0
 fi
 

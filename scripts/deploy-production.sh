@@ -307,6 +307,14 @@ fi
 
 "$CURRENT_LINK/vendor/bin/drush" updb -y
 "$CURRENT_LINK/vendor/bin/drush" cim -y
+SPECIAL_LANGUAGE_RECONCILER="$CURRENT_LINK/scripts/runner/reconcile-config-language-special-entities-1318.php"
+if [[ ! -f "$SPECIAL_LANGUAGE_RECONCILER" ]]; then
+  log "ERROR: Special-language reconcile helper is missing from current release: ${SPECIAL_LANGUAGE_RECONCILER}."
+  exit 1
+fi
+AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1 \
+  "$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER" >/dev/null
+config_language_special_reconcile='PASS'
 PRODUCTION_SPLIT_DIR="$CURRENT_LINK/config/splits/production"
 if [[ ! -d "$PRODUCTION_SPLIT_DIR" ]]; then
   log "ERROR: Production config split directory not found: ${PRODUCTION_SPLIT_DIR}"
@@ -345,4 +353,4 @@ if (( ${#all_backups[@]} > 10 )); then
 fi
 
 log "[deploy] SUCCESS"
-log_file "SUCCESS" "Deployment completed successfully at exact SHA ${GIT_COMMIT}"
+log_file "SUCCESS" "Deployment completed successfully at exact SHA ${GIT_COMMIT}; config_language_special_reconcile=${config_language_special_reconcile}"

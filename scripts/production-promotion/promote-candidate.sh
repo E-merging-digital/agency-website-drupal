@@ -135,6 +135,11 @@ SWITCH_COMPLETED=1
 
 "$CURRENT_LINK/vendor/bin/drush" updb -y
 "$CURRENT_LINK/vendor/bin/drush" cim -y
+SPECIAL_LANGUAGE_RECONCILER="$CURRENT_LINK/scripts/runner/reconcile-config-language-special-entities-1318.php"
+[[ -f "$SPECIAL_LANGUAGE_RECONCILER" ]] || fail "Special-language reconcile helper is missing from current release."
+AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1 \
+  "$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER" >/dev/null
+config_language_special_reconcile='PASS'
 production_split="$CURRENT_LINK/config/splits/production"
 [[ -d "$production_split" ]] || fail "Production config split directory is missing."
 "$CURRENT_LINK/vendor/bin/drush" config:import --source="$production_split" --partial -y
@@ -165,6 +170,7 @@ SCHEDULER_EXPECTED_CURRENT_RELEASE="$NEW_RELEASE" \
   printf 'database_backup=%s\n' "$DB_BACKUP"
   printf 'artifact_archive=%s\n' "$archive_dir"
   printf 'governed_content=PASS\n'
+  printf 'config_language_special_reconcile=%s\n' "$config_language_special_reconcile"
   printf 'production_scheduler=DEPLOY_USER_CRONTAB\n'
   printf 'production_scheduler_entries=1\n'
   printf 'rollback_boundary=PREVIOUS_RELEASE_PLUS_DB_BACKUP\n'

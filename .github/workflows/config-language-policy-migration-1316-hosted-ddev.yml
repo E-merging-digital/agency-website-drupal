@@ -1028,10 +1028,9 @@ jobs:
           complete_phase
 
           begin_phase CANDIDATE_DIFF_GATE
-          git -C "$candidate" add -N -- config/sync/language/en/llms_txt.settings.yml
-          expected_diff=$'A\tconfig/sync/language/en/llms_txt.settings.yml\nM\tconfig/sync/language/en/taxonomy.vocabulary.tags.yml'
           actual_diff="$(git -C "$candidate" diff --name-status -- config/sync)"
-          [[ "$actual_diff" == "$expected_diff" ]]
+          [[ -z "$actual_diff" ]]
+          test -z "$(git -C "$candidate" status --porcelain -- config/sync)"
           complete_phase
 
           begin_phase SITE_INSTALL
@@ -1257,9 +1256,9 @@ jobs:
           complete_phase
 
           begin_phase PRIMARY_CONFIG_CLEAN_GATE
-          expected_diff=$'A\tconfig/sync/language/en/llms_txt.settings.yml\nM\tconfig/sync/language/en/taxonomy.vocabulary.tags.yml'
           final_candidate_diff="$(git -C "$candidate" diff --name-status -- config/sync)"
-          [[ "$final_candidate_diff" == "$expected_diff" ]]
+          [[ -z "$final_candidate_diff" ]]
+          test -z "$(git -C "$candidate" status --porcelain -- config/sync)"
           git diff --quiet HEAD -- config/sync
           test -z "$(git status --porcelain -- config/sync)"
           complete_phase
@@ -1486,6 +1485,27 @@ jobs:
             artifacts/config-language-roundtrip-candidate-1316/isolated-config-status-after-reimport.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Converge primary fresh-install with standard config import
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="${RUNNER_TEMP}/config-status-before.json"
+
+          jq -e '
+            type == "object"
+            and length == 3
+            and (keys | sort) == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and ([.[] | .state] | all(. == "Different"))
+          ' "$before" >/dev/null
+
+          ddev drush config:import -y \
+            > "${RUNNER_TEMP}/primary-config-import-1316.log" 2>&1
 
       - name: Build active/sync collection diagnostic
         if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
@@ -2259,7 +2279,7 @@ jobs:
 
           config_status_before_count="$(jq 'length' "${RUNNER_TEMP}/config-status-before.json")"
           config_status_final_count="$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"
-          [[ "$config_status_before_count" -eq 0 ]]
+          [[ "$config_status_before_count" -eq 3 ]]
           [[ "$config_status_final_count" -eq 0 ]]
           test -z "$(git status --porcelain -- config/sync)"
 
@@ -2327,7 +2347,7 @@ jobs:
             .schema_version == 1
             and .mode == "VERIFY"
             and .site_install == "PASS"
-            and .config_status_before_count == 0
+            and .config_status_before_count == 3
             and .config_status_final_count == 0
             and .config_sync_worktree_clean == true
             and .site_default_language == "fr"

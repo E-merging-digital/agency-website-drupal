@@ -917,6 +917,166 @@ jobs:
           )
           complete_phase
 
+          begin_phase CANDIDATE_REPRESENTATION_BEFORE
+          candidate_artifact="$candidate/artifacts/config-language-roundtrip-candidate-1316"
+          mkdir -p "$candidate_artifact"
+
+          cat > "$candidate_artifact/candidate-representation.php" <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          use Symfony\Component\Yaml\Yaml;
+
+          $root = dirname(__DIR__, 2);
+          require_once $root . '/vendor/autoload.php';
+
+          $stage = getenv('AGENCY_CANDIDATE_REPRESENTATION_STAGE');
+          if (!in_array($stage, ['before', 'after'], TRUE)) {
+            throw new RuntimeException('Unsupported representation stage.');
+          }
+
+          $paths = [
+            'config/sync/language/en/llms_txt.settings.yml',
+            'config/sync/language/en/taxonomy.vocabulary.tags.yml',
+          ];
+
+          $normalize = static function (mixed $value) use (&$normalize): mixed {
+            if (!is_array($value)) {
+              return $value;
+            }
+            if (array_is_list($value)) {
+              return array_map($normalize, $value);
+            }
+            $result = [];
+            foreach ($value as $key => $child) {
+              $result[(string) $key] = $normalize($child);
+            }
+            ksort($result, SORT_STRING);
+            return $result;
+          };
+
+          $topLevelKeys = static function (string $bytes): array {
+            $keys = [];
+            foreach (preg_split('/\r?\n/', $bytes) ?: [] as $line) {
+              if (preg_match('/^([A-Za-z0-9_.-]+):(?:\s|$)/', $line, $matches) === 1) {
+                $keys[] = $matches[1];
+              }
+            }
+            return $keys;
+          };
+
+          $scalarMetadata = static function (string $bytes, string $key): array {
+            $pattern = '/^' . preg_quote($key, '/') . ':(.*)$/m';
+            if (preg_match($pattern, $bytes, $matches) !== 1) {
+              return [
+                'present' => FALSE,
+                'style' => 'other',
+                'chomping' => 'none',
+                'indent_indicator' => 'none',
+              ];
+            }
+
+            $serialized = ltrim(rtrim($matches[1], "\r"));
+            $style = 'other';
+            $chomping = 'none';
+            $indent = 'none';
+
+            if ($serialized !== '' && ($serialized[0] === '|' || $serialized[0] === '>')) {
+              $style = $serialized[0] === '|' ? 'literal_block' : 'folded_block';
+              $header = strtok($serialized, " \t") ?: $serialized;
+              if (str_contains($header, '-')) {
+                $chomping = 'strip';
+              }
+              elseif (str_contains($header, '+')) {
+                $chomping = 'keep';
+              }
+              else {
+                $chomping = 'clip';
+              }
+              if (preg_match('/[1-9]/', $header, $indentMatch) === 1) {
+                $indent = (int) $indentMatch[0];
+              }
+            }
+            elseif ($serialized !== '' && $serialized[0] === "'") {
+              $style = 'single_quoted';
+            }
+            elseif ($serialized !== '' && $serialized[0] === '"') {
+              $style = 'double_quoted';
+            }
+            elseif ($serialized !== '') {
+              $style = 'plain';
+            }
+
+            return [
+              'present' => TRUE,
+              'style' => $style,
+              'chomping' => $chomping,
+              'indent_indicator' => $indent,
+            ];
+          };
+
+          $files = [];
+          foreach ($paths as $relativePath) {
+            $absolutePath = $root . '/' . $relativePath;
+            if (!is_file($absolutePath)) {
+              throw new RuntimeException('Expected candidate config file is missing.');
+            }
+            $bytes = file_get_contents($absolutePath);
+            if ($bytes === FALSE) {
+              throw new RuntimeException('Unable to read candidate config file.');
+            }
+            $parsed = Yaml::parse($bytes);
+            if (!is_array($parsed)) {
+              throw new RuntimeException('Candidate YAML root must be a mapping.');
+            }
+            $semanticJson = json_encode(
+              $normalize($parsed),
+              JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            );
+            $endsWithNewline = $bytes !== '' && str_ends_with($bytes, "\n");
+            $lineCount = substr_count($bytes, "\n");
+            if ($bytes !== '' && !$endsWithNewline) {
+              $lineCount++;
+            }
+
+            $representation = [];
+            if ($relativePath === $paths[0]) {
+              $representation['content'] = $scalarMetadata($bytes, 'content');
+            }
+            else {
+              $representation['name'] = $scalarMetadata($bytes, 'name');
+              $representation['description'] = $scalarMetadata($bytes, 'description');
+            }
+
+            $files[] = [
+              'path' => $relativePath,
+              'file_exists' => TRUE,
+              'sha256' => hash('sha256', $bytes),
+              'byte_count' => strlen($bytes),
+              'line_count' => $lineCount,
+              'ends_with_newline' => $endsWithNewline,
+              'top_level_keys' => $topLevelKeys($bytes),
+              'semantic_sha256' => hash('sha256', $semanticJson),
+              'representation' => $representation,
+            ];
+          }
+
+          echo json_encode([
+            'schema_version' => 1,
+            'stage' => $stage,
+            'files' => $files,
+            'raw_config_values_exposed' => FALSE,
+          ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+          PHP
+
+          (
+            cd "$candidate"
+            ddev exec env AGENCY_CANDIDATE_REPRESENTATION_STAGE=before \
+              php /var/www/html/artifacts/config-language-roundtrip-candidate-1316/candidate-representation.php \
+              > "$artifact/candidate-representation-before.json"
+          )
+          complete_phase
+
           begin_phase CANDIDATE_BUILD
           candidate_artifact="$candidate/artifacts/config-language-roundtrip-candidate-1316"
           mkdir -p "$candidate_artifact"
@@ -1025,6 +1185,125 @@ jobs:
             and .taxonomy_name.source_sha256 == .taxonomy_name.candidate_sha256
             and .raw_config_values_exposed == false
           ' "$artifact/candidate-build.json" >/dev/null
+          complete_phase
+
+          begin_phase CANDIDATE_REPRESENTATION_AFTER
+          (
+            cd "$candidate"
+            ddev exec env AGENCY_CANDIDATE_REPRESENTATION_STAGE=after \
+              php /var/www/html/artifacts/config-language-roundtrip-candidate-1316/candidate-representation.php \
+              > "$artifact/candidate-representation-after.json"
+          )
+          complete_phase
+
+          begin_phase CANDIDATE_DIFF_DIAGNOSTIC
+          llms_path='config/sync/language/en/llms_txt.settings.yml'
+          taxonomy_path='config/sync/language/en/taxonomy.vocabulary.tags.yml'
+
+          actual_diff_name_status="$(
+            git -C "$candidate" diff --name-status -- "$llms_path" "$taxonomy_path"
+          )"
+          actual_diff_numstat="$(
+            git -C "$candidate" diff --numstat -- "$llms_path" "$taxonomy_path"
+          )"
+          bounded_diff_sha256="$(
+            git -C "$candidate" diff --no-ext-diff -- "$llms_path" "$taxonomy_path" \
+              | sha256sum | awk '{print $1}'
+          )"
+
+          third_config_path='NONE'
+          while IFS= read -r status_line; do
+            [[ -n "$status_line" ]] || continue
+            candidate_path="${status_line:3}"
+            if [[ "$candidate_path" != "$llms_path" && "$candidate_path" != "$taxonomy_path" ]]; then
+              if [[ "$third_config_path" == 'NONE' ]]; then
+                third_config_path="$candidate_path"
+              else
+                third_config_path+=$'\n'"$candidate_path"
+              fi
+            fi
+          done < <(git -C "$candidate" status --porcelain=v1 --untracked-files=all -- config/sync)
+
+          before_json="$(cat "$artifact/candidate-representation-before.json")"
+          after_json="$(cat "$artifact/candidate-representation-after.json")"
+
+          jq -n \
+            --arg head_sha "$HEAD_SHA" \
+            --argjson before "$before_json" \
+            --argjson after "$after_json" \
+            --arg git_name_status "$actual_diff_name_status" \
+            --arg git_numstat "$actual_diff_numstat" \
+            --arg bounded_diff_sha256 "$bounded_diff_sha256" \
+            --arg third_config_path "$third_config_path" \
+            '{
+              schema_version: 1,
+              head_sha: $head_sha,
+              raw_config_values_exposed: false,
+              paths: [
+                {
+                  path: $before.files[0].path,
+                  before: $before.files[0],
+                  after: $after.files[0],
+                  semantic_equal:
+                    ($before.files[0].semantic_sha256 == $after.files[0].semantic_sha256)
+                },
+                {
+                  path: $before.files[1].path,
+                  before: $before.files[1],
+                  after: $after.files[1],
+                  semantic_equal:
+                    ($before.files[1].semantic_sha256 == $after.files[1].semantic_sha256)
+                }
+              ],
+              git_name_status: $git_name_status,
+              git_numstat: $git_numstat,
+              bounded_diff_sha256: $bounded_diff_sha256,
+              third_config_path: $third_config_path
+            }' > "$artifact/candidate-redump-diagnostic.json"
+
+          jq -e '
+            def sha256: type == "string" and test("^[0-9a-f]{64}$");
+            def style:
+              IN("literal_block","folded_block","single_quoted","double_quoted","plain","other");
+            def chomping: IN("strip","clip","keep","none");
+            def indent_indicator:
+              . == "none"
+              or (type == "number" and . >= 1 and . <= 9 and floor == .);
+            def common_file:
+              .file_exists == true
+              and (.sha256 | sha256)
+              and (.byte_count | type == "number" and . >= 0 and floor == .)
+              and (.line_count | type == "number" and . >= 0 and floor == .)
+              and (.ends_with_newline | type == "boolean")
+              and (.top_level_keys | type == "array" and all(.[]; type == "string"))
+              and (.semantic_sha256 | sha256);
+            .schema_version == 1
+            and .head_sha == env.HEAD_SHA
+            and .raw_config_values_exposed == false
+            and (.paths | length == 2)
+            and .paths[0].path == "config/sync/language/en/llms_txt.settings.yml"
+            and .paths[1].path == "config/sync/language/en/taxonomy.vocabulary.tags.yml"
+            and (.paths[0].before | common_file)
+            and (.paths[0].after | common_file)
+            and (.paths[1].before | common_file)
+            and (.paths[1].after | common_file)
+            and .paths[0].semantic_equal == true
+            and .paths[1].semantic_equal == true
+            and (.paths[0].before.representation.content.style | style)
+            and (.paths[0].after.representation.content.style | style)
+            and (.paths[0].before.representation.content.chomping | chomping)
+            and (.paths[0].after.representation.content.chomping | chomping)
+            and (.paths[0].before.representation.content.indent_indicator | indent_indicator)
+            and (.paths[0].after.representation.content.indent_indicator | indent_indicator)
+            and (.paths[1].before.representation.name.style | style)
+            and (.paths[1].after.representation.name.style | style)
+            and (.paths[1].before.representation.description.style | style)
+            and (.paths[1].after.representation.description.style | style)
+            and (.git_name_status | type == "string")
+            and (.git_numstat | type == "string")
+            and (.bounded_diff_sha256 | sha256)
+            and .third_config_path == "NONE"
+          ' "$artifact/candidate-redump-diagnostic.json" >/dev/null
           complete_phase
 
           begin_phase CANDIDATE_DIFF_GATE
@@ -1470,6 +1749,38 @@ jobs:
             exit 1
           fi
 
+          if [[ -f "$artifact/candidate-redump-diagnostic.json" ]]; then
+            jq -e '
+              def sha256: type == "string" and test("^[0-9a-f]{64}$");
+              def style:
+                IN("literal_block","folded_block","single_quoted","double_quoted","plain","other");
+              def chomping: IN("strip","clip","keep","none");
+              def indent_indicator:
+                . == "none"
+                or (type == "number" and . >= 1 and . <= 9 and floor == .);
+              .schema_version == 1
+              and .raw_config_values_exposed == false
+              and (.paths | length == 2)
+              and .paths[0].path == "config/sync/language/en/llms_txt.settings.yml"
+              and .paths[1].path == "config/sync/language/en/taxonomy.vocabulary.tags.yml"
+              and ([.paths[].before.sha256, .paths[].after.sha256] | all(.[]; sha256))
+              and ([.paths[].before.semantic_sha256, .paths[].after.semantic_sha256] | all(.[]; sha256))
+              and ([.paths[].semantic_equal] | all(.[]; type == "boolean"))
+              and (.paths[0].before.representation.content.style | style)
+              and (.paths[0].after.representation.content.style | style)
+              and (.paths[0].before.representation.content.chomping | chomping)
+              and (.paths[0].after.representation.content.chomping | chomping)
+              and (.paths[0].before.representation.content.indent_indicator | indent_indicator)
+              and (.paths[0].after.representation.content.indent_indicator | indent_indicator)
+              and (.paths[1].before.representation.name.style | style)
+              and (.paths[1].after.representation.name.style | style)
+              and (.paths[1].before.representation.description.style | style)
+              and (.paths[1].after.representation.description.style | style)
+              and (.bounded_diff_sha256 | sha256)
+              and (.third_config_path | type == "string")
+            ' "$artifact/candidate-redump-diagnostic.json" >/dev/null
+          fi
+
       - name: Upload isolated roundtrip candidate proof
         if: ${{ always() && steps.mode.outputs.mode == 'VERIFY' }}
         uses: actions/upload-artifact@v4
@@ -1477,6 +1788,7 @@ jobs:
           name: agency-config-language-roundtrip-candidate-1316-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/config-language-roundtrip-candidate-1316/progress.json
+            artifacts/config-language-roundtrip-candidate-1316/candidate-redump-diagnostic.json
             artifacts/config-language-roundtrip-candidate-1316/failure.json
             artifacts/config-language-roundtrip-candidate-1316/result.json
             artifacts/config-language-roundtrip-candidate-1316/isolated-collections-before-reimport.json

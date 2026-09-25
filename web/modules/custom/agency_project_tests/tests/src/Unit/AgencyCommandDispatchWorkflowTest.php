@@ -43,7 +43,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_REFRESH_948_DETAIL' => 949,
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
-    'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995],
+    'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1318],
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1301, 1302],
     'INFRA_COCKPIT_CONSUMER_PROOF' => 1261,
   ];
@@ -67,9 +67,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * The historical routing matrix stays covered with #982/#995 bindings.
+   * The historical routing matrix stays covered with #982/#995 and #1318.
    */
-  public function testRoutingMatrixAndIssue982And995Bindings(): void {
+  public function testRoutingMatrixAndIssue982And995And1318Bindings(): void {
     $dispatcher = $this->parsed(self::DISPATCHER);
     self::assertArrayHasKey('env', $dispatcher);
     $raw = $dispatcher['env']['AGENCY_COMMAND_ROUTES'] ?? NULL;
@@ -192,6 +192,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
       [
+        '/agency-config-sync-runtime diagnose',
+        1318,
+        'CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
+      ],
+      [
         '/agency-config-sync-prod-runtime diagnose',
         995,
         'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
@@ -246,6 +251,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-config-sync-runtime diagnose', 980],
       ['/agency-config-sync-runtime diagnose', 981],
       ['/agency-config-sync-runtime diagnose', 983],
+      ['/agency-config-sync-runtime diagnose', 1317],
+      ['/agency-config-sync-runtime diagnose', 1319],
       ['/agency-config-sync-prod-runtime diagnose', 961],
       ['/agency-config-sync-prod-runtime diagnose', 980],
       ['/agency-config-sync-prod-runtime diagnose', 981],
@@ -306,6 +313,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     foreach ($invalid as $body) {
       self::assertSame('NONE', $this->classify($routes, $body, 982), $body);
       self::assertSame('NONE', $this->classify($routes, $body, 995), $body);
+      self::assertSame('NONE', $this->classify($routes, $body, 1318), $body);
     }
 
     $collision = $routes;
@@ -350,7 +358,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995')",
+      "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1318')",
       $source,
     );
     self::assertStringContainsString(

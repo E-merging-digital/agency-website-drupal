@@ -75,7 +75,7 @@ jobs:
               'PREPROD_REFRESH_948_DETAIL': '949',
               'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
               'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
-              'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995'),
+              'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1318'),
               'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301', '1302'),
               'INFRA_COCKPIT_CONSUMER_PROOF': '1261',
           }
@@ -370,7 +370,7 @@ jobs:
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   config-sync-runtime-diagnostic:
-    name: Route #982/#995 read-only PREPROD config diagnostic
+    name: Route #982/#995/#1318 read-only PREPROD config diagnostic
     needs: classify
     if: ${{ needs.classify.outputs.route == 'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' }}
     permissions:

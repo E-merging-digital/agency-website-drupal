@@ -8,13 +8,18 @@ PREPROD_SERVER_HOST="${PREPROD_SERVER_HOST:-}"
 PREPROD_SSH_KEY="${PREPROD_SSH_KEY:-}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-artifacts/config-sync-runtime-diagnostic}"
 
-[[ "$ISSUE_NUMBER" == '961' || "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' ]] || {
-  echo 'This diagnostic is bound to issue #961, #982 or #995.' >&2
+[[ "$ISSUE_NUMBER" == '961' || "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' || "$ISSUE_NUMBER" == '1318' ]] || {
+  echo 'This diagnostic is bound to issue #961, #982, #995 or #1318.' >&2
   exit 1
 }
 if [[ "$ISSUE_NUMBER" == '995' ]]; then
   [[ "$DIAGNOSTIC_PROFILE" == 'canvas_paths' ]] || {
     echo '#995 requires the bounded canvas_paths diagnostic profile.' >&2
+    exit 1
+  }
+elif [[ "$ISSUE_NUMBER" == '1318' ]]; then
+  [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]] || {
+    echo '#1318 requires the bounded language_lock diagnostic profile.' >&2
     exit 1
   }
 else
@@ -77,6 +82,154 @@ if [[ "$bootstrap_rc" -eq 0 && "$bootstrap_raw" == *Successful* ]]; then
   drush_bootstrap='SUCCESS'
 else
   drush_bootstrap='FAILURE'
+fi
+
+if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
+  EXPECTED_LANGUAGE_LOCK_RELEASE='/var/www/agency-preprod/releases/20260925130338-5cabffd93782'
+  EXPECTED_LANGUAGE_LOCK_COMPOSER_SHA256='d3948f88b04e057182a1689a492f5371c5a174f3fad3c83cf7b8ce26f498ab73'
+  RUNTIME_LANGUAGE_HELPER='scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'
+  COLLECTION_LANGUAGE_HELPER='scripts/runner/materialize-config-language-collections-1316.php'
+
+  [[ "$current_target" == "$EXPECTED_LANGUAGE_LOCK_RELEASE" ]] || {
+    echo '#1318 active PREPROD release identity mismatch.' >&2
+    exit 1
+  }
+  [[ "$settings_target" == '/var/www/agency-preprod/shared/settings/settings.php' ]]
+  [[ "$drush_bootstrap" == 'SUCCESS' ]] || {
+    echo '#1318 requires successful Drush bootstrap before helper execution.' >&2
+    exit 1
+  }
+
+  composer_lock_sha256="$(ssh "${ssh_common[@]}" "$remote_target" \
+    "set -euo pipefail; sha256sum '$EXPECTED_LANGUAGE_LOCK_RELEASE/composer.lock' | awk '{print \$1}'")"
+  [[ "$composer_lock_sha256" == "$EXPECTED_LANGUAGE_LOCK_COMPOSER_SHA256" ]] || {
+    echo '#1318 active PREPROD composer.lock fingerprint mismatch.' >&2
+    exit 1
+  }
+
+  printf -v helper_gate \
+    "set -euo pipefail; test -f '%s/%s'; test -f '%s/%s'" \
+    "$EXPECTED_LANGUAGE_LOCK_RELEASE" "$RUNTIME_LANGUAGE_HELPER" \
+    "$EXPECTED_LANGUAGE_LOCK_RELEASE" "$COLLECTION_LANGUAGE_HELPER"
+  ssh "${ssh_common[@]}" "$remote_target" "$helper_gate" >/dev/null
+
+  printf -v runtime_command \
+    "set -euo pipefail; cd '%s'; vendor/bin/drush php:script '%s' 2>/dev/null" \
+    "$EXPECTED_LANGUAGE_LOCK_RELEASE" "$RUNTIME_LANGUAGE_HELPER"
+  runtime_language_raw="$(ssh "${ssh_common[@]}" "$remote_target" "$runtime_command")"
+  runtime_language_json="$ARTIFACT_DIR/language-lock-runtime.json"
+  printf '%s\n' "$runtime_language_raw" > "$runtime_language_json"
+  unset runtime_language_raw runtime_command
+
+  jq -e '
+    .schema_version == 1
+    and .drupal_core_version == "11.4.7"
+    and .canvas_version == "1.11.0"
+    and .config_language_lock_version == "1.0.2"
+    and .site_default_language == "fr"
+    and .locked_langcode == "fr"
+    and .follow_site_default == true
+    and .canvas_requirement_verdict == "PASS"
+    and .collections.fr.count == 7
+    and .collections.en.count == 418
+    and .languages.und.id == "und"
+    and .languages.und.locked == true
+    and .languages.und.technical_langcode == "fr"
+    and .languages.zxx.id == "zxx"
+    and .languages.zxx.locked == true
+    and .languages.zxx.technical_langcode == "fr"
+    and .config_values_exposed == false
+  ' "$runtime_language_json" >/dev/null
+
+  printf -v collection_command \
+    "set -euo pipefail; cd '%s'; AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 vendor/bin/drush php:script '%s' 2>/dev/null" \
+    "$EXPECTED_LANGUAGE_LOCK_RELEASE" "$COLLECTION_LANGUAGE_HELPER"
+  strict_collection_raw="$(ssh "${ssh_common[@]}" "$remote_target" "$collection_command")"
+  strict_collection_json="$ARTIFACT_DIR/language-lock-collections.json"
+  printf '%s\n' "$strict_collection_raw" > "$strict_collection_json"
+  unset strict_collection_raw collection_command
+
+  jq -e '
+    .schema_version == 1
+    and .mode == "VERIFY"
+    and .diagnostic_only == true
+    and .status == "PASS"
+    and .raw_config_values_exposed == false
+    and .collections["language.fr"].classification == "MATCH"
+    and .collections["language.fr"].match == true
+    and .collections["language.fr"].active_count == 7
+    and .collections["language.fr"].sync_count == 7
+    and .collections["language.fr"].active_only_count == 0
+    and .collections["language.fr"].sync_only_count == 0
+    and .collections["language.fr"].value_mismatch_count == 0
+    and .collections["language.fr"].written == 0
+    and .collections["language.fr"].deleted == 0
+    and .collections["language.fr"].active_names_sha256 == "528df3f930b3a5b0cc26e14cabf1e628e5e7d3da8fe19634ef870bb5855a80ca"
+    and .collections["language.fr"].sync_names_sha256 == "528df3f930b3a5b0cc26e14cabf1e628e5e7d3da8fe19634ef870bb5855a80ca"
+    and .collections["language.fr"].active_values_sha256 == "5123ea2664916fb9059165b7cd2657b14b382b3ae88d0d039648e7eb4cf57b2c"
+    and .collections["language.fr"].sync_values_sha256 == "5123ea2664916fb9059165b7cd2657b14b382b3ae88d0d039648e7eb4cf57b2c"
+    and .collections["language.en"].classification == "MATCH"
+    and .collections["language.en"].match == true
+    and .collections["language.en"].active_count == 418
+    and .collections["language.en"].sync_count == 418
+    and .collections["language.en"].active_only_count == 0
+    and .collections["language.en"].sync_only_count == 0
+    and .collections["language.en"].value_mismatch_count == 0
+    and .collections["language.en"].written == 0
+    and .collections["language.en"].deleted == 0
+    and .collections["language.en"].active_names_sha256 == "31ff109065631edad357abbf9569f68d55dc81ac03feeb7fe99d173f00a14425"
+    and .collections["language.en"].sync_names_sha256 == "31ff109065631edad357abbf9569f68d55dc81ac03feeb7fe99d173f00a14425"
+    and .collections["language.en"].active_values_sha256 == "7ab417ceafdd77939f8fdb12f042acb6fd9bcd54242e8da5cac074f4708d36ac"
+    and .collections["language.en"].sync_values_sha256 == "7ab417ceafdd77939f8fdb12f042acb6fd9bcd54242e8da5cac074f4708d36ac"
+  ' "$strict_collection_json" >/dev/null
+
+  jq -n \
+    --arg current_release "$current_target" \
+    --arg composer_lock_sha256 "$composer_lock_sha256" \
+    --arg drush_bootstrap "$drush_bootstrap" \
+    --arg settings_symlink_target "$settings_target" \
+    --slurpfile runtime_language_policy "$runtime_language_json" \
+    --slurpfile strict_collection_verify "$strict_collection_json" \
+    '{
+      schema_version: 1,
+      target: "PREPROD",
+      diagnostic_profile: "language_lock",
+      current_release: $current_release,
+      composer_lock_sha256: $composer_lock_sha256,
+      drush_bootstrap: $drush_bootstrap,
+      settings_symlink_target: $settings_symlink_target,
+      runtime_language_policy: $runtime_language_policy[0],
+      strict_collection_verify: $strict_collection_verify[0],
+      config_values_exposed: false,
+      preprod_access: "READ_ONLY",
+      preprod_mutation: "NONE",
+      preprod_write: "NONE",
+      prod_access: "NONE",
+      prod_write: "NONE"
+    }' > "$ARTIFACT_DIR/result.json"
+
+  rm -f -- "$runtime_language_json" "$strict_collection_json"
+
+  jq -e '
+    .schema_version == 1
+    and .target == "PREPROD"
+    and .diagnostic_profile == "language_lock"
+    and .current_release == "/var/www/agency-preprod/releases/20260925130338-5cabffd93782"
+    and .composer_lock_sha256 == "d3948f88b04e057182a1689a492f5371c5a174f3fad3c83cf7b8ce26f498ab73"
+    and .drush_bootstrap == "SUCCESS"
+    and .settings_symlink_target == "/var/www/agency-preprod/shared/settings/settings.php"
+    and .runtime_language_policy.config_values_exposed == false
+    and .strict_collection_verify.mode == "VERIFY"
+    and .strict_collection_verify.status == "PASS"
+    and .strict_collection_verify.raw_config_values_exposed == false
+    and .config_values_exposed == false
+    and .preprod_access == "READ_ONLY"
+    and .preprod_mutation == "NONE"
+    and .preprod_write == "NONE"
+    and .prod_access == "NONE"
+    and .prod_write == "NONE"
+  ' "$ARTIFACT_DIR/result.json" >/dev/null
+  exit 0
 fi
 
 php_code="$(cat <<'PHP'

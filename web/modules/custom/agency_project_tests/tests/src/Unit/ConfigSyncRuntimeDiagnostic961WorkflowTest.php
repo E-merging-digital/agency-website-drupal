@@ -9,7 +9,7 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Protects the reused #961 PREPROD primitive for #982/#995.
+ * Protects the reused #961 PREPROD primitive for #982/#995/#1318.
  *
  * @group agency_project_tests
  * @group config_sync_runtime_diagnostic_961
@@ -21,9 +21,9 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
   private const FILTER = 'scripts/runner/filter-config-status-metadata.php';
 
   /**
-   * Proves #982/#995 PREPROD binding and exact command.
+   * Proves #982/#995/#1318 PREPROD binding and exact command.
    */
-  public function testWorkflowIsBoundToIssues982And995AndExactCommand(): void {
+  public function testWorkflowIsBoundToIssues982And995And1318AndExactCommand(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
 
@@ -34,7 +34,7 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
     self::assertArrayHasKey('pull_request', $on);
     self::assertArrayNotHasKey('issue_comment', $on);
     self::assertStringContainsString(
-      '(github.event.issue.number == 982 || github.event.issue.number == 995)',
+      '(github.event.issue.number == 982 || github.event.issue.number == 995 || github.event.issue.number == 1318)',
       $source,
     );
     self::assertStringContainsString(
@@ -42,7 +42,7 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
-      '[[ "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' ]]',
+      '[[ "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' || "$ISSUE_NUMBER" == \'1318\' ]]',
       $source,
     );
     self::assertStringContainsString(
@@ -64,6 +64,126 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
       array_keys($secrets),
     );
     self::assertArrayNotHasKey('inputs', $on['workflow_call']);
+  }
+
+  /**
+   * Proves #1318 is fail-closed to fresh R2 authority and language_lock.
+   */
+  public function testIssue1318AuthorityAndProfileAreExact(): void {
+    $workflow = $this->source(self::WORKFLOW);
+
+    self::assertStringContainsString(
+      'PROJECT_LEAD_PREPROD_READONLY_CONTINUATION_1318_R2',
+      $workflow,
+    );
+    self::assertStringContainsString('COMMENT_AUTHOR_ASSOCIATION', $workflow);
+    self::assertStringContainsString('COMMENT_FROM_APP', $workflow);
+    self::assertStringContainsString(
+      "github.event.issue.number == 1318 && 'language_lock'",
+      $workflow,
+    );
+    self::assertStringContainsString('authority_created_at', $workflow);
+    self::assertStringContainsString('prior_commands', $workflow);
+    self::assertStringContainsString('authority_main_sha', $workflow);
+    self::assertStringContainsString(
+      '[[ "$main_sha" == "$authority_main_sha" ]]',
+      $workflow,
+    );
+    self::assertStringNotContainsString('5833138659', $workflow);
+    self::assertStringNotContainsString(
+      'PROJECT_LEAD_PREPROD_VALIDATION_AUTHORITY_1318_R1',
+      $workflow,
+    );
+  }
+
+  /**
+   * Proves #1318 language_lock is exact, VERIFY-only and value-safe.
+   */
+  public function testLanguageLockProfileIsExactReadOnlyAndValueSafe(): void {
+    $runner = $this->source(self::RUNNER);
+    $workflow = $this->source(self::WORKFLOW);
+
+    self::assertStringContainsString(
+      "EXPECTED_LANGUAGE_LOCK_RELEASE='/var/www/agency-preprod/releases/20260925130338-5cabffd93782'",
+      $runner,
+    );
+    self::assertStringContainsString(
+      "EXPECTED_LANGUAGE_LOCK_COMPOSER_SHA256='d3948f88b04e057182a1689a492f5371c5a174f3fad3c83cf7b8ce26f498ab73'",
+      $runner,
+    );
+    self::assertStringContainsString(
+      "RUNTIME_LANGUAGE_HELPER='scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'",
+      $runner,
+    );
+    self::assertStringContainsString(
+      "COLLECTION_LANGUAGE_HELPER='scripts/runner/materialize-config-language-collections-1316.php'",
+      $runner,
+    );
+    self::assertStringContainsString(
+      'AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1',
+      $runner,
+    );
+    self::assertStringNotContainsString(
+      'AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=MATERIALIZE',
+      $runner,
+    );
+    self::assertStringContainsString('vendor/bin/drush php:script', $runner);
+    self::assertStringContainsString('.drupal_core_version == "11.4.7"', $runner);
+    self::assertStringContainsString('.canvas_version == "1.11.0"', $runner);
+    self::assertStringContainsString('.config_language_lock_version == "1.0.2"', $runner);
+    self::assertStringContainsString('.site_default_language == "fr"', $runner);
+    self::assertStringContainsString('.locked_langcode == "fr"', $runner);
+    self::assertStringContainsString('.follow_site_default == true', $runner);
+    self::assertStringContainsString('.canvas_requirement_verdict == "PASS"', $runner);
+    self::assertStringContainsString('.collections.fr.count == 7', $runner);
+    self::assertStringContainsString('.collections.en.count == 418', $runner);
+    self::assertStringContainsString(
+      '528df3f930b3a5b0cc26e14cabf1e628e5e7d3da8fe19634ef870bb5855a80ca',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '5123ea2664916fb9059165b7cd2657b14b382b3ae88d0d039648e7eb4cf57b2c',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '31ff109065631edad357abbf9569f68d55dc81ac03feeb7fe99d173f00a14425',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '7ab417ceafdd77939f8fdb12f042acb6fd9bcd54242e8da5cac074f4708d36ac',
+      $runner,
+    );
+    self::assertStringContainsString('diagnostic_profile: "language_lock"', $runner);
+    self::assertStringContainsString('runtime_language_policy', $runner . $workflow);
+    self::assertStringContainsString('strict_collection_verify', $runner . $workflow);
+    self::assertStringContainsString('config_values_exposed: false', $runner);
+    self::assertStringContainsString('preprod_access: "READ_ONLY"', $runner);
+    self::assertStringContainsString('preprod_write: "NONE"', $runner);
+    self::assertStringContainsString('prod_access: "NONE"', $runner);
+
+    foreach ([
+      'vendor/bin/drush cim',
+      'vendor/bin/drush cex',
+      'vendor/bin/drush config:import',
+      'vendor/bin/drush config:export',
+      'vendor/bin/drush config:set',
+      'vendor/bin/drush state:set',
+      'vendor/bin/drush sql:query',
+      'vendor/bin/drush sql:cli',
+      'vendor/bin/drush sql:dump',
+      'vendor/bin/drush cr',
+      'vendor/bin/drush updb',
+      'vendor/bin/drush deploy',
+      'vendor/bin/drush pm:enable',
+      'file_put_contents',
+      'scp ',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $runner, $forbidden);
+    }
   }
 
   /**
@@ -93,7 +213,7 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
     $runner = $this->source(self::RUNNER);
 
     self::assertStringContainsString(
-      '[[ "$ISSUE_NUMBER" == \'961\' || "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' ]]',
+      '[[ "$ISSUE_NUMBER" == \'961\' || "$ISSUE_NUMBER" == \'982\' || "$ISSUE_NUMBER" == \'995\' || "$ISSUE_NUMBER" == \'1318\' ]]',
       $runner,
     );
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency-preprod'", $runner);

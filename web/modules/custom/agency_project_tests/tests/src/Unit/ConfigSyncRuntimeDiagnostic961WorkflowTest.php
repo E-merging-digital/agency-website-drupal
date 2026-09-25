@@ -112,11 +112,25 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
       $runner,
     );
     self::assertStringContainsString(
-      "RUNTIME_LANGUAGE_HELPER='scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'",
+      'RUNTIME_LANGUAGE_HELPER="$EXPECTED_LANGUAGE_LOCK_RELEASE/' .
+      'scripts/runner/config-language-policy-candidate-1314-runtime-proof.php"',
       $runner,
     );
     self::assertStringContainsString(
-      "COLLECTION_LANGUAGE_HELPER='scripts/runner/materialize-config-language-collections-1316.php'",
+      'COLLECTION_LANGUAGE_HELPER="$EXPECTED_LANGUAGE_LOCK_RELEASE/' .
+      'scripts/runner/materialize-config-language-collections-1316.php"',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '"$EXPECTED_LANGUAGE_LOCK_RELEASE" "$RUNTIME_LANGUAGE_HELPER"',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '"$EXPECTED_LANGUAGE_LOCK_RELEASE" "$COLLECTION_LANGUAGE_HELPER"',
+      $runner,
+    );
+    self::assertStringNotContainsString(
+      "vendor/bin/drush php:script 'scripts/runner/",
       $runner,
     );
     self::assertStringContainsString(
@@ -129,6 +143,49 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
     );
     self::assertStringNotContainsString(
       'AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=MATERIALIZE',
+      $runner,
+    );
+
+    foreach ([
+      'LANGUAGE_LOCK_PHASE=IDENTITY_GATE_PASS',
+      'LANGUAGE_LOCK_PHASE=HELPER_EXISTENCE_PASS',
+      'LANGUAGE_LOCK_PHASE=RUNTIME_HELPER_EXECUTION_PASS',
+      'LANGUAGE_LOCK_PHASE=RUNTIME_CONTRACT_PASS',
+      'LANGUAGE_LOCK_PHASE=COLLECTION_HELPER_EXECUTION_PASS',
+      'LANGUAGE_LOCK_PHASE=COLLECTION_CONTRACT_PASS',
+      'LANGUAGE_LOCK_PHASE=RESULT_MATERIALIZED',
+    ] as $phase) {
+      self::assertStringContainsString($phase, $runner, $phase);
+    }
+
+    foreach ([
+      'LANGUAGE_LOCK_FAILURE=HELPER_EXISTENCE',
+      'LANGUAGE_LOCK_FAILURE=RUNTIME_HELPER_EXECUTION',
+      'LANGUAGE_LOCK_FAILURE=RUNTIME_CONTRACT',
+      'LANGUAGE_LOCK_FAILURE=COLLECTION_HELPER_EXECUTION',
+      'LANGUAGE_LOCK_FAILURE=COLLECTION_CONTRACT',
+    ] as $failure) {
+      self::assertStringContainsString($failure, $runner, $failure);
+    }
+
+    self::assertStringContainsString(
+      '"$helper_gate" >/dev/null 2>/dev/null',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '"$runtime_command" 2>/dev/null)',
+      $runner,
+    );
+    self::assertStringContainsString(
+      '"$collection_command" 2>/dev/null)',
+      $runner,
+    );
+    self::assertStringNotContainsString(
+      'echo "$runtime_language_raw"',
+      $runner,
+    );
+    self::assertStringNotContainsString(
+      'echo "$strict_collection_raw"',
       $runner,
     );
     self::assertStringContainsString('vendor/bin/drush php:script', $runner);

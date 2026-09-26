@@ -104,9 +104,14 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
     $workflow = $this->source(self::WORKFLOW);
 
     self::assertStringContainsString(
-      "EXPECTED_LANGUAGE_LOCK_RELEASE='/var/www/agency-preprod/releases/20260925130338-5cabffd93782'",
+      "EXPECTED_LANGUAGE_LOCK_RELEASE='/var/www/agency-preprod/releases/20260925235206-b33b6c240ea5'",
       $runner,
     );
+    self::assertStringNotContainsString(
+      '/var/www/agency-preprod/releases/20260925130338-5cabffd93782',
+      $runner,
+    );
+
     self::assertStringContainsString(
       "EXPECTED_LANGUAGE_LOCK_COMPOSER_SHA256='d3948f88b04e057182a1689a492f5371c5a174f3fad3c83cf7b8ce26f498ab73'",
       $runner,

@@ -144,7 +144,7 @@ final class HostOsInventory1102WorkflowTest extends TestCase {
     $runner = $this->source(self::RUNNER);
 
     foreach ([
-      "if [[ \"$surface\" == 'preprod' ]]",
+      'if [[ "$surface" == \'preprod\' ]]',
       "php_fpm_binary='php-fpm8.5'",
       "php_fpm_unit='php8.5-fpm'",
       "drupal_root='/var/www/agency-preprod/current'",

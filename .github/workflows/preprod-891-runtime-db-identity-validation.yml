@@ -48,7 +48,7 @@ jobs:
           python3 "$base/test-runtime-db-identity-probe.py"
           python3 "$base/test-plan-evidence.py"
           python3 "$base/test-nginx-vhost-selector.py"
-          test "$(git rev-parse "HEAD:$base/run-plan.sh")" = '981a719eb29f485a41500531e0ff24b0e2187470'
+          test "$(git rev-parse "HEAD:$base/run-plan.sh")" = 'bcf771969747be37723d877420a46a7ed4640b7d'
           test "$(git rev-parse "HEAD:$base/runtime-db-identity-probe.py")" = '197a2da8173f902eb5f43b96f2f14399d00df220'
           grep -Fq 'HOME=/home/agency-preprod python3 -I -' "$base/run-plan.sh"
           printf '%s\n' \

@@ -35,10 +35,10 @@ jobs:
           git diff --check
           test ! -e .env
 
-      - name: Setup PHP 8.4
+      - name: Setup PHP 8.5
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           tools: composer:v2
           coverage: none
 
@@ -104,7 +104,7 @@ jobs:
             --arg artifact_sha256 "$artifact_sha256" \
             --arg run_id "$GITHUB_RUN_ID" \
             --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
-            '{schema_version:1,repository:$repository,source_branch:$source_branch,candidate_sha:$candidate_sha,composer_lock_sha256:$composer_lock_sha256,artifact_sha256:$artifact_sha256,php_minor:"8.4",build_mode:"production",provenance:{run_id:$run_id,run_attempt:$run_attempt}}' \
+            '{schema_version:1,repository:$repository,source_branch:$source_branch,candidate_sha:$candidate_sha,composer_lock_sha256:$composer_lock_sha256,artifact_sha256:$artifact_sha256,php_minor:"8.5",build_mode:"production",provenance:{run_id:$run_id,run_attempt:$run_attempt}}' \
             > "$metadata"
 
           echo "artifact_sha256=$artifact_sha256" >> "$GITHUB_OUTPUT"

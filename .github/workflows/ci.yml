@@ -104,13 +104,19 @@ jobs:
             exit 1
           fi
 
-      - name: Setup PHP 8.4
+      - name: Setup PHP 8.5
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           tools: composer:v2
           coverage: none
           extensions: sqlite3
+
+      - name: Attest real PHP 8.5 runtime and preserved Composer platform
+        run: |
+          set -euo pipefail
+          php -r 'printf("PHP_VERSION=%s\\n", PHP_VERSION); exit(PHP_VERSION_ID >= 80500 && PHP_VERSION_ID < 80600 ? 0 : 1);'
+          test "$(composer config platform.php)" = "8.3.0"
 
       - name: Get Composer cache directory
         id: composer-cache
@@ -127,8 +133,43 @@ jobs:
       - name: Validate composer.json
         run: composer validate --strict --no-check-all
 
-      - name: Install dependencies (with require-dev)
+      - name: Install dependencies from lock (with require-dev)
         run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Check real PHP 8.5 platform requirements
+        run: composer check-platform-reqs --no-interaction
+
+      - name: Audit locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          composer audit --locked --format=json --no-interaction > "$RUNNER_TEMP/composer-audit.json" || status=$?
+          php -r '
+            $data = json_decode(file_get_contents(getenv("RUNNER_TEMP") . "/composer-audit.json"), true, 512, JSON_THROW_ON_ERROR);
+            $count = 0;
+            foreach (($data["advisories"] ?? []) as $items) {
+              if (is_array($items)) {
+                $count += count($items);
+              }
+            }
+            printf("COMPOSER_AUDIT_ADVISORIES=%d\\n", $count);
+          '
+          case "$status" in
+            0|1|2|3) ;;
+            *) echo "composer audit failed unexpectedly with exit $status" >&2; exit "$status" ;;
+          esac
+
+      - name: Prove governed Google Tag patch and authenticated exclusion
+        run: |
+          set -euo pipefail
+          test "$(composer show drupal/google_tag --locked --format=json | php -r '$d=json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo $d["versions"][0] ?? $d["version"] ?? "";')" = "2.0.9"
+          grep -F 'offsetExists($request)' web/modules/contrib/google_tag/src/TagContainerResolver.php
+          if grep -F '$this->resolved->contains($request)' web/modules/contrib/google_tag/src/TagContainerResolver.php; then
+            echo "Deprecated Google Tag SplObjectStorage::contains() guard is still installed." >&2
+            exit 1
+          fi
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional/GoogleTagAuthenticatedExclusionTest.php
 
       - name: Test dependency maintenance observability
         run: php scripts/dependency-maintenance/tests/test.php
@@ -163,3 +204,10 @@ jobs:
           path: |
             web/sites/simpletest/browser_output
             sites/simpletest/browser_output
+
+      - name: Prove repository drift is zero
+        if: always()
+        run: |
+          set -euo pipefail
+          git status --short
+          git diff --exit-code

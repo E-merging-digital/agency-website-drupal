@@ -85,7 +85,7 @@ else
 fi
 
 if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
-  EXPECTED_LANGUAGE_LOCK_RELEASE='/var/www/agency-preprod/releases/20260925130338-5cabffd93782'
+  EXPECTED_LANGUAGE_LOCK_RELEASE='/var/www/agency-preprod/releases/20260925235206-b33b6c240ea5'
   EXPECTED_LANGUAGE_LOCK_COMPOSER_SHA256='d3948f88b04e057182a1689a492f5371c5a174f3fad3c83cf7b8ce26f498ab73'
   RUNTIME_LANGUAGE_HELPER="$EXPECTED_LANGUAGE_LOCK_RELEASE/scripts/runner/config-language-policy-candidate-1314-runtime-proof.php"
   COLLECTION_LANGUAGE_HELPER="$EXPECTED_LANGUAGE_LOCK_RELEASE/scripts/runner/materialize-config-language-collections-1316.php"
@@ -287,7 +287,7 @@ if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
     .schema_version == 1
     and .target == "PREPROD"
     and .diagnostic_profile == "language_lock"
-    and .current_release == "/var/www/agency-preprod/releases/20260925130338-5cabffd93782"
+    and .current_release == "/var/www/agency-preprod/releases/20260925235206-b33b6c240ea5"
     and .composer_lock_sha256 == "d3948f88b04e057182a1689a492f5371c5a174f3fad3c83cf7b8ce26f498ab73"
     and .drush_bootstrap == "SUCCESS"
     and .settings_symlink_target == "/var/www/agency-preprod/shared/settings/settings.php"

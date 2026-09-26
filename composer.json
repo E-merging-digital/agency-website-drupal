@@ -50,6 +50,7 @@
     ],
     "require": {
         "composer/installers": "^2.3",
+        "cweagans/composer-patches": "2.0.0",
         "drupal/admin_toolbar": "^3.6",
         "drupal/ai": "1.5.0-rc4",
         "drupal/ai_ckeditor": "^1.4",
@@ -100,6 +101,8 @@
     "config": {
         "allow-plugins": {
             "composer/installers": true,
+            "cweagans/composer-configurable-plugin": true,
+            "cweagans/composer-patches": true,
             "dealerdirect/phpcodesniffer-composer-installer": true,
             "drupal/core-composer-scaffold": true,
             "drupal/core-project-message": true,
@@ -107,8 +110,8 @@
             "php-http/discovery": true,
             "php-tuf/composer-integration": true,
             "phpstan/extension-installer": true,
-            "tbachert/spi": true,
-            "symfony/runtime": true
+            "symfony/runtime": true,
+            "tbachert/spi": true
         },
         "sort-packages": true,
         "platform": {
@@ -116,6 +119,9 @@
         }
     },
     "extra": {
+        "composer-patches": {
+            "patches-file": "patches.json"
+        },
         "drupal-scaffold": {
             "locations": {
                 "web-root": "web/"

@@ -10,8 +10,8 @@ SHARED_DIR="$PROJECT_ROOT/shared"
 DB_NAME="agency_preprod"
 DB_USER="agency_preprod"
 DB_ACCOUNT_HOST="127.0.0.1"
-PHP_VERSION="8.4"
-PHP_SOCKET="/run/php/php8.4-fpm-agency-preprod.sock"
+PHP_VERSION="8.5"
+PHP_SOCKET="/run/php/php8.5-fpm-agency-preprod.sock"
 HTPASSWD_FILE="/etc/nginx/agency-preprod.htpasswd"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SETTINGS_TEMPLATE="$SCRIPT_DIR/settings.php.template"
@@ -64,7 +64,7 @@ apt-get install -y \
   ufw \
   unzip
 
-if ! apt-cache show php8.4-fpm >/dev/null 2>&1; then
+if ! apt-cache show php8.5-fpm >/dev/null 2>&1; then
   log "Add maintained PHP PPA for Ubuntu Noble."
   add-apt-repository -y ppa:ondrej/php
   apt-get update
@@ -88,18 +88,18 @@ apt-get install -y \
   mariadb-backup \
   mariadb-client \
   mariadb-server \
-  php8.4-bcmath \
-  php8.4-cli \
-  php8.4-common \
-  php8.4-curl \
-  php8.4-fpm \
-  php8.4-gd \
-  php8.4-intl \
-  php8.4-mbstring \
-  php8.4-mysql \
-  php8.4-opcache \
-  php8.4-xml \
-  php8.4-zip
+  php8.5-bcmath \
+  php8.5-cli \
+  php8.5-common \
+  php8.5-curl \
+  php8.5-fpm \
+  php8.5-gd \
+  php8.5-intl \
+  php8.5-mbstring \
+  php8.5-mysql \
+  php8.5-opcache \
+  php8.5-xml \
+  php8.5-zip
 
 if ! id "$PROJECT_USER" >/dev/null 2>&1; then
   useradd --create-home --shell /bin/bash "$PROJECT_USER"
@@ -196,7 +196,7 @@ printf '%s\n' "$BASIC_AUTH_PASSWORD" | \
 chown root:www-data "$HTPASSWD_FILE"
 chmod 640 "$HTPASSWD_FILE"
 
-fpm_pool="/etc/php/8.4/fpm/pool.d/agency-preprod.conf"
+fpm_pool="/etc/php/8.5/fpm/pool.d/agency-preprod.conf"
 cat > "$fpm_pool" <<EOF_POOL
 [agency-preprod]
 user = $PROJECT_USER
@@ -214,7 +214,7 @@ php_admin_value[sendmail_path] = /bin/true
 EOF_POOL
 chmod 644 "$fpm_pool"
 
-cli_safety="/etc/php/8.4/cli/conf.d/99-agency-preprod-safety.ini"
+cli_safety="/etc/php/8.5/cli/conf.d/99-agency-preprod-safety.ini"
 cat > "$cli_safety" <<'EOF_INI'
 sendmail_path = /bin/true
 EOF_INI
@@ -231,8 +231,8 @@ chmod 644 "$nginx_site"
 ln -sfn "$nginx_site" /etc/nginx/sites-enabled/agency-preprod
 rm -f /etc/nginx/sites-enabled/default
 
-systemctl enable --now php8.4-fpm nginx
-systemctl restart php8.4-fpm
+systemctl enable --now php8.5-fpm nginx
+systemctl restart php8.5-fpm
 nginx -t
 systemctl reload nginx
 
@@ -252,11 +252,11 @@ certbot --nginx \
 
 packet_bytes="$(mariadb --protocol=socket -Nse 'SELECT @@GLOBAL.max_allowed_packet;')"
 [[ "$packet_bytes" == "67108864" ]] || fail "MariaDB max_allowed_packet is not 64M."
-php8.4 -r 'exit(PHP_MAJOR_VERSION === 8 && PHP_MINOR_VERSION === 4 ? 0 : 1);'
+php8.5 -r 'exit(PHP_MAJOR_VERSION === 8 && PHP_MINOR_VERSION === 5 ? 0 : 1);'
 mariadb --version | grep -q '11\.8\.' || fail "MariaDB 11.8 is not active."
 nginx -t
 systemctl is-active --quiet nginx
-systemctl is-active --quiet php8.4-fpm
+systemctl is-active --quiet php8.5-fpm
 systemctl is-active --quiet mariadb
 
 log "Bootstrap converged for $HOSTNAME. Secrets were not printed."

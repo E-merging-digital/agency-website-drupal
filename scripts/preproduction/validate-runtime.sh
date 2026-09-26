@@ -88,7 +88,7 @@ if (( drupal_status_error_count > 0 )); then
 fi
 unset status_report_titles
 
-sendmail_path="$(php8.4 -r 'echo (string) ini_get("sendmail_path");')"
+sendmail_path="$(php8.5 -r 'echo (string) ini_get("sendmail_path");')"
 [[ "$sendmail_path" == "/bin/true" ]] || fail "PHP CLI sendmail_path is not /bin/true."
 
 mem_total_bytes="$(awk '/^MemTotal:/ {print $2 * 1024}' /proc/meminfo | cut -d. -f1)"

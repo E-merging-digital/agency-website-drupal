@@ -144,6 +144,18 @@ final class HostOsInventory1102WorkflowTest extends TestCase {
     $runner = $this->source(self::RUNNER);
 
     foreach ([
+      'if [[ "$surface" == \'preprod\' ]]',
+      "php_fpm_binary='php-fpm8.5'",
+      "php_fpm_unit='php8.5-fpm'",
+      "drupal_root='/var/www/agency-preprod/current'",
+      "php_fpm_binary='php-fpm8.4'",
+      "php_fpm_unit='php8.4-fpm'",
+      "drupal_root='/var/www/agency/current'",
+    ] as $runtimeIdentity) {
+      self::assertStringContainsString($runtimeIdentity, $runner);
+    }
+
+    foreach ([
       'mktemp -d',
       'Dir::State=$apt_root/state',
       'Dir::State::status=/var/lib/dpkg/status',

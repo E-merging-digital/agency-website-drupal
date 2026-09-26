@@ -66,9 +66,9 @@ final class AgencyRunnerHostPhpProvisioningTest extends TestCase {
   }
 
   /**
-   * Reuses the repository's existing PHP 8.4 repository strategy.
+   * PREPROD moves to PHP 8.5 while runner host verification remains on 8.4.
    */
-  public function testPhp84RepositoryStrategyMatchesPreproductionContract(): void {
+  public function testPhpRepositoryStrategyKeepsRuntimeSurfacesDistinct(): void {
     $root = dirname(DRUPAL_ROOT);
     $preprod = file_get_contents($root . '/scripts/preproduction/bootstrap-host.sh');
     $runner = file_get_contents($root . '/scripts/runner/bootstrap-agency-browser-runner.sh');
@@ -77,10 +77,16 @@ final class AgencyRunnerHostPhpProvisioningTest extends TestCase {
     self::assertIsString($runner);
     self::assertIsString($repair);
 
-    foreach (['add-apt-repository -y ppa:ondrej/php', 'php8.4-cli'] as $contract) {
-      self::assertStringContainsString($contract, $preprod);
-      self::assertStringContainsString($contract, $runner);
-      self::assertStringContainsString($contract, $repair);
+    foreach ([$preprod, $runner, $repair] as $contract) {
+      self::assertStringContainsString('add-apt-repository -y ppa:ondrej/php', $contract);
+    }
+
+    self::assertStringContainsString('php8.5-cli', $preprod);
+    self::assertStringNotContainsString('php8.4-cli', $preprod);
+
+    foreach ([$runner, $repair] as $hostContract) {
+      self::assertStringContainsString('php8.4-cli', $hostContract);
+      self::assertStringNotContainsString('php8.5-cli', $hostContract);
     }
   }
 

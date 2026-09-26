@@ -372,7 +372,7 @@
     "listen": "127.0.0.1:18087",
     "path": "/health/ready",
     "publicly_reachable": false,
-    "php_fpm_socket": "/run/php/php8.4-fpm-agency-preprod.sock",
+    "php_fpm_socket": "/run/php/php8.5-fpm-agency-preprod.sock",
     "release_root": "/var/www/agency-preprod/current/web",
     "same_runtime_database": true,
     "public_bypass": "NONE"

@@ -180,17 +180,20 @@ if [[ "$surface" == 'runner' ]]; then
 else
   failure_stage='RUNTIME_SERVICES'
   nginx_version="$(nginx -v 2>&1 | head -n 1 || true)"
-  php_fpm_version="$(php-fpm8.4 -v 2>/dev/null | head -n 1 || true)"
-  mariadb_version="$(mariadb --version 2>/dev/null | head -n 1 || true)"
-  nginx_service="$(systemctl is-active nginx 2>/dev/null || true)"
-  php_fpm_service="$(systemctl is-active php8.4-fpm 2>/dev/null || true)"
-  mariadb_service="$(systemctl is-active mariadb 2>/dev/null || true)"
-
   if [[ "$surface" == 'preprod' ]]; then
+    php_fpm_binary='php-fpm8.5'
+    php_fpm_unit='php8.5-fpm'
     drupal_root='/var/www/agency-preprod/current'
   else
+    php_fpm_binary='php-fpm8.4'
+    php_fpm_unit='php8.4-fpm'
     drupal_root='/var/www/agency/current'
   fi
+  php_fpm_version="$("$php_fpm_binary" -v 2>/dev/null | head -n 1 || true)"
+  mariadb_version="$(mariadb --version 2>/dev/null | head -n 1 || true)"
+  nginx_service="$(systemctl is-active nginx 2>/dev/null || true)"
+  php_fpm_service="$(systemctl is-active "$php_fpm_unit" 2>/dev/null || true)"
+  mariadb_service="$(systemctl is-active mariadb 2>/dev/null || true)"
 
   if [[ -x "$drupal_root/vendor/bin/drush" ]] && (
     cd "$drupal_root" && vendor/bin/drush status >/dev/null 2>&1

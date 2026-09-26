@@ -160,7 +160,7 @@ jobs:
             *) echo "composer audit failed unexpectedly with exit $status" >&2; exit "$status" ;;
           esac
 
-      - name: Prove governed Google Tag patch and authenticated exclusion
+      - name: Prove governed Google Tag patch
         run: |
           set -euo pipefail
           test "$(composer show drupal/google_tag --locked --format=json | php -r '$d=json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo $d["versions"][0] ?? $d["version"] ?? "";')" = "2.0.9"
@@ -169,7 +169,6 @@ jobs:
             echo "Deprecated Google Tag SplObjectStorage::contains() guard is still installed." >&2
             exit 1
           fi
-          vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional/GoogleTagAuthenticatedExclusionTest.php
 
       - name: Test dependency maintenance observability
         run: php scripts/dependency-maintenance/tests/test.php
@@ -192,6 +191,9 @@ jobs:
           chmod -R 777 web/tmp
           chmod -R 777 web/sites/simpletest
           chmod -R 777 sites/simpletest
+
+      - name: Run GoogleTagAuthenticatedExclusionTest
+        run: vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/custom/agency_project_tests/tests/src/Functional/GoogleTagAuthenticatedExclusionTest.php
 
       - name: Run custom PHPUnit suite only (exclude unstable_ia and unstable_language_switcher)
         run: vendor/bin/phpunit -c web/core/phpunit.xml.dist --exclude-group unstable_ia --exclude-group unstable_language_switcher web/modules/custom/agency_project_tests/tests

@@ -83,7 +83,7 @@ jobs:
           probe="$provisioning/runtime-db-identity-probe.py"
 
           test "$(git rev-parse "HEAD:$base/agency-preprod-refresh-control")" = \
-            '37ce38be18ad417ed3fe4386775cc6d29532ebcb'
+            '3839d5f474edc0527228188c93e552090b452a3a'
           test "$(git rev-parse "HEAD:$provisioning/agency-preprod-refresh-control.sudoers")" = \
             '193f05b9dc0422d62e0104e95a8f5444f34ec17c'
           test "$(git rev-parse "HEAD:$provisioning/nginx-vhost-selector.py")" = \

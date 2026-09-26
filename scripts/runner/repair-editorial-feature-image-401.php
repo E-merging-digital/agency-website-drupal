@@ -97,10 +97,8 @@ try {
     throw new RuntimeException('Replacement image is not GD-decodable.');
   }
   if (imagesx($decoded) !== 1200 || imagesy($decoded) !== 630) {
-    imagedestroy($decoded);
     throw new RuntimeException('GD-decoded replacement dimensions mismatch.');
   }
-  imagedestroy($decoded);
 
   $container = \Drupal::getContainer();
   $entityTypeManager = $container->get('entity_type.manager');

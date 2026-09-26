@@ -44,7 +44,7 @@ STAGING_POLICY='/usr/local/lib/agency-preprod-staging/sanitization-policy.json'
 EXPECTED_STAGING_HELPER='a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71'
 EXPECTED_SANITIZER='fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
 EXPECTED_POLICY='cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
-EXPECTED_VHOST_SELECTOR_BLOB='a17e3f932b9a5e7ec4978f3758ff0bf5bbae9c79'
+EXPECTED_VHOST_SELECTOR_BLOB='fb5fcb63a4bf726ff6ebb0a5ebe58a093a9ee6a8'
 
 [[ -d "$SOURCE" && ! -L "$SOURCE" ]] || { echo 'Fixed provisioning stage missing.' >&2; exit 67; }
 required=(

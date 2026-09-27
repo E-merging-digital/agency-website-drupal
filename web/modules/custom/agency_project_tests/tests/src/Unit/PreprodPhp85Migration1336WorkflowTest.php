@@ -622,6 +622,7 @@ BASH;
       '[[ "$current_digest" == "$EXPECTED_DIGEST" ]]',
       'apt-get --simulate install',
       'REQUESTED_PACKAGE_ALLOWLIST',
+      '[[ "${#package_specs[@]}" -eq 11 ]]',
       'actual_additions != approved[\'PACKAGE_ADDITIONS\']',
       'actual_upgrades != approved[\'PACKAGE_UPGRADES\']',
       'actual_removals != approved[\'PACKAGE_REMOVALS\']',

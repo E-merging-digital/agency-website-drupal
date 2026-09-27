@@ -990,6 +990,10 @@ BASH;
       '(.CURRENT_PHP_FPM | startswith("PHP 8.4."))',
       'preprod-php85-1336-reboot-${{ github.run_id }}-${{ github.run_attempt }}',
       'reconciliation.json',
+      'REBOOT_COMMAND_ATTEMPTED:"NO"',
+      '.REBOOT_COMMAND_ATTEMPTED = "YES"',
+      '.HOST_WENT_DOWN = "YES"',
+      '.HOST_REACHABLE_AFTER_REBOOT = "YES"',
       'POST_REBOOT_VALIDATION:"PASS"',
       'PREPROD_MUTATION:"REBOOT_ONLY"',
       'PACKAGE_MUTATION:"NONE"',
@@ -1007,6 +1011,39 @@ BASH;
     }
 
     self::assertSame(1, substr_count($workflow, '"systemctl reboot"'));
+    self::assertStringContainsString(
+      'if: ${{ always() }}',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      "steps.reboot_result.outputs.receipt_valid == 'true'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'artifacts/preprod-php85-1336/reboot/pre-plan.json',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'artifacts/preprod-php85-1336/reboot/reconciliation.json',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'artifacts/preprod-php85-1336/reboot/post-plan.json',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'artifacts/preprod-php85-1336/reboot/result.json',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      'artifacts/preprod-php85-1336/reboot/reboot.stdout',
+      $this->extractRebootArtifactUploadBlock($workflow),
+    );
+    self::assertStringNotContainsString(
+      'artifacts/preprod-php85-1336/reboot/reboot.stderr',
+      $this->extractRebootArtifactUploadBlock($workflow),
+    );
+
     self::assertStringNotContainsString(
       'body="$(cat <<EOF_BODY' . "\n"
       . '          #1336 PREPROD reboot-only evidence preserved.',
@@ -1191,6 +1228,21 @@ BASH;
       }
       @rmdir($directory);
     }
+  }
+
+  /**
+   * Extracts the bounded reboot artifact upload step.
+   */
+  private function extractRebootArtifactUploadBlock(string $workflow): string {
+    self::assertSame(
+      1,
+      preg_match(
+        '/- name: Upload immutable bounded reboot evidence\n(.*?)(?=\n      - name: Publish bounded reboot summary)/s',
+        $workflow,
+        $match,
+      ),
+    );
+    return $match[1];
   }
 
   /**

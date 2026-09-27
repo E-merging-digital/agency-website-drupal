@@ -59,15 +59,19 @@ final class PreproductionHostBootstrapTest extends TestCase {
       self::assertStringNotContainsString($obsolete, $bootstrapContent);
     }
 
-    self::assertSame(
-      1,
-      preg_match(
-        '/apt-get install -y \\\\n  mariadb-backup \\\\n(.*?)\\n\\nif ! id/s',
-        $bootstrapContent,
-        $installBlock,
-      ),
+    $installStart = strpos(
+      $bootstrapContent,
+      "apt-get install -y \\\n  mariadb-backup \\\n",
     );
-    preg_match_all('/php8\\.5-[a-z0-9.+-]+/', $installBlock[1], $packageMatches);
+    self::assertNotFalse($installStart);
+    $installEnd = strpos($bootstrapContent, "\n\nif ! id", $installStart);
+    self::assertNotFalse($installEnd);
+    $installBlock = substr(
+      $bootstrapContent,
+      $installStart,
+      $installEnd - $installStart,
+    );
+    preg_match_all('/php8\\.5-[a-z0-9.+-]+/', $installBlock, $packageMatches);
     $requestedPhp85 = array_values(array_unique($packageMatches[0] ?? []));
     sort($requestedPhp85);
     self::assertSame([

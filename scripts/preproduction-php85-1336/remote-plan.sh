@@ -268,7 +268,10 @@ checks = {
     'package_removals_none': not removals,
     'unrelated_package_upgrades_none': not upgrades,
     'transitive_additions_php85_only': not unexpected_transitive,
-    'nginx_vhost_php84_socket_match': os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'] == 'YES',
+    'nginx_vhost_php84_socket_match': (
+        os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'] == 'YES'
+        and nginx_fastcgi_pass_values == ['unix:/run/php/php8.4-fpm-agency-preprod.sock']
+    ),
     'fpm84_pool_contract': os.environ['FPM84_POOL_CONTRACT'] == 'YES',
     'sendmail_safety_contract': os.environ['SENDMAIL_SAFETY_CONTRACT'] == 'YES',
 }

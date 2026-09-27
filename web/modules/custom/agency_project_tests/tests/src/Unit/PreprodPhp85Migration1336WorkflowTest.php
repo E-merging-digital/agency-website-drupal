@@ -292,6 +292,173 @@ BASH;
   }
 
   /**
+   * Actual shell apt simulation failure survives through receipt generation.
+   */
+  public function testActualAptSimulationFailurePathEmitsFailedReceipt(): void {
+    $source = $this->source(self::PLAN);
+
+    self::assertSame(
+      1,
+      preg_match(
+        '/(: >"\\$work_root\\/install-sim\\.raw"\\n.*?)(?=\\n\\nexport MAIN_SHA PLAN_ID ISSUE TARGET MODE)/s',
+        $source,
+        $shellMatch,
+      ),
+    );
+    self::assertSame(
+      1,
+      preg_match("/python3 - <<'PY'\\n(.*?)\\nPY\\n/s", $source, $pythonMatch),
+    );
+
+    $directory = sys_get_temp_dir() . '/agency-1336-shell-' . bin2hex(random_bytes(6));
+    $bin = $directory . '/bin';
+    self::assertTrue(mkdir($bin, 0700, TRUE));
+
+    try {
+      $packages = [
+        'php8.5-bcmath', 'php8.5-cli', 'php8.5-common', 'php8.5-curl',
+        'php8.5-fpm', 'php8.5-gd', 'php8.5-intl', 'php8.5-mbstring',
+        'php8.5-mysql', 'php8.5-opcache', 'php8.5-xml', 'php8.5-zip',
+      ];
+      $candidateLines = [];
+      $packageSpecs = [];
+      foreach ($packages as $package) {
+        $candidateLines[] = $package . "\t8.5.11-1";
+        $packageSpecs[] = $package . '=8.5.11-1';
+      }
+      file_put_contents(
+        $directory . '/candidates.tsv',
+        implode("\n", $candidateLines) . "\n",
+      );
+      file_put_contents($directory . '/failed.raw', '');
+
+      $aptLog = $directory . '/apt.log';
+      $aptStub = <<<'BASH'
+#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" > "$APT_LOG"
+printf '%s\n' 'synthetic apt simulation failure' >&2
+exit 42
+BASH;
+      file_put_contents($bin . '/apt-get', $aptStub . "\n");
+      chmod($bin . '/apt-get', 0700);
+
+      $quotedSpecs = implode(
+        ' ',
+        array_map(static fn (string $spec): string => escapeshellarg($spec), $packageSpecs),
+      );
+      $script = <<<'BASH'
+set -Eeuo pipefail
+work_root=__WORK_ROOT__
+candidate_gap='NO'
+package_specs=(__PACKAGE_SPECS__)
+export PATH=__BIN__:"$PATH"
+export APT_LOG=__APT_LOG__
+__SIMULATION_BLOCK__
+printf 'APT_SIMULATION_EXECUTED=%s\n' "$(test -s "$APT_LOG" && echo YES || echo NO)" > "$work_root/shell-state"
+printf 'APT_SIMULATION_RC=%s\n' "$install_sim_rc" >> "$work_root/shell-state"
+printf 'PHP85_INSTALL_SIMULATION=%s\n' "$php85_install_simulation" >> "$work_root/shell-state"
+
+export MAIN_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+export PLAN_ID=plan-1336-shell-failure
+export ISSUE=1336
+export TARGET=PREPROD
+export MODE=PLAN
+export OS_PRETTY_NAME='Ubuntu 24.04.5 LTS'
+export VERSION_ID=24.04
+export KERNEL_RUNNING=6.8.0-139-generic
+export REBOOT_REQUIRED=NO
+export CURRENT_PHP_CLI=8.4.25
+export CURRENT_PHP_FPM='PHP 8.4.25 (fpm-fcgi)'
+export CURRENT_PHP_FPM_SERVICE=active
+export CURRENT_PREPROD_SOCKET=/run/php/php8.4-fpm-agency-preprod.sock
+export NGINX_SERVICE=active
+export MARIADB_SERVICE=active
+export MARIADB_VERSION='mariadb  Ver 15.1 Distrib 11.8.9-MariaDB'
+export DRUPAL_HEALTH=PASS
+export PUBLIC_HEALTH=PASS
+export DISK_AVAILABLE_KB=5242880
+export PHP84_PACKAGES_PRESENT=YES
+export PHP84_SERVICE_ACTIVE=YES
+export NGINX_VHOST_PHP84_SOCKET_MATCH=YES
+export FPM84_POOL_CONTRACT=YES
+export SENDMAIL_SAFETY_CONTRACT=YES
+export NGINX_VHOST_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+export FPM84_POOL_SHA256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+export CANDIDATE_GAP="$candidate_gap"
+export PHP85_INSTALL_SIMULATION="$php85_install_simulation"
+export WORK_ROOT="$work_root"
+
+python3 - <<'PY'
+__PYTHON_BLOCK__
+PY
+BASH;
+
+      $script = str_replace(
+        [
+          '__WORK_ROOT__',
+          '__PACKAGE_SPECS__',
+          '__BIN__',
+          '__APT_LOG__',
+          '__SIMULATION_BLOCK__',
+          '__PYTHON_BLOCK__',
+        ],
+        [
+          escapeshellarg($directory),
+          $quotedSpecs,
+          escapeshellarg($bin),
+          escapeshellarg($aptLog),
+          $shellMatch[1],
+          $pythonMatch[1],
+        ],
+        $script,
+      );
+
+      $scriptPath = $directory . '/failure-path.sh';
+      file_put_contents($scriptPath, $script . "\n");
+      chmod($scriptPath, 0700);
+
+      $output = [];
+      $status = 1;
+      exec('bash ' . escapeshellarg($scriptPath) . ' 2>&1', $output, $status);
+      $receiptJson = implode("\n", $output);
+
+      self::assertSame(65, $status, $receiptJson);
+      self::assertSame(
+        "--simulate install " . implode(' ', $packageSpecs),
+        trim((string) file_get_contents($aptLog)),
+      );
+
+      $shellState = (string) file_get_contents($directory . '/shell-state');
+      self::assertStringContainsString('APT_SIMULATION_EXECUTED=YES', $shellState);
+      self::assertStringContainsString('APT_SIMULATION_RC=42', $shellState);
+      self::assertStringContainsString(
+        'PHP85_INSTALL_SIMULATION=FAIL',
+        $shellState,
+      );
+
+      $receipt = json_decode($receiptJson, TRUE, 32, JSON_THROW_ON_ERROR);
+      self::assertSame('FAIL', $receipt['STATUS']);
+      self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+      self::assertSame('FAIL', $receipt['PHP85_INSTALL_SIMULATION']);
+      self::assertContains(
+        'php85_install_simulation_pass',
+        $receipt['FAILED_CHECKS'],
+      );
+    }
+    finally {
+      foreach (glob($bin . '/*') ?: [] as $file) {
+        @unlink($file);
+      }
+      @rmdir($bin);
+      foreach (glob($directory . '/*') ?: [] as $file) {
+        @unlink($file);
+      }
+      @rmdir($directory);
+    }
+  }
+
+  /**
    * Failed safety gates preserve bounded evidence and remain failed.
    */
   public function testFailedPlanReceiptIsBoundedAndFailsClosed(): void {

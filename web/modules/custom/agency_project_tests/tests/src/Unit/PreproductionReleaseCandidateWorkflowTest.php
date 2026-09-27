@@ -28,7 +28,8 @@ final class PreproductionReleaseCandidateWorkflowTest extends TestCase {
     foreach ([
       "- 'release/**'",
       'persist-credentials: false',
-      "php-version: '8.4'",
+      "php-version: '8.5'",
+      'php_minor:"8.5"',
       'composer install',
       '--no-dev',
       '--optimize-autoloader',
@@ -41,6 +42,9 @@ final class PreproductionReleaseCandidateWorkflowTest extends TestCase {
     ] as $expected) {
       self::assertStringContainsString($expected, $workflow);
     }
+
+    self::assertStringNotContainsString("php-version: '8.4'", $workflow);
+    self::assertStringNotContainsString('php_minor:"8.4"', $workflow);
 
     foreach ([
       'workflow_dispatch:',

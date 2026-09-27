@@ -12,7 +12,7 @@
   "files": {
     "helper": {
       "path": "agency-preprod-refresh-control",
-      "sha256": "dc27cdc748a6f8be70a06093630f362ac4a86ea30735f9805f55b0a00fb5cc06",
+      "sha256": "edcb0b43c59cec95c2e3c30700474f4ce71c168ab5f13349f3c4101823737481",
       "mode": "0755"
     },
     "ingress": {
@@ -47,7 +47,7 @@
     },
     "side_effect_hardening": {
       "path": "side_effect_hardening.py",
-      "sha256": "2227fc6977f1c168710853a29981172a027fa41495b503095b24476ac46c1703",
+      "sha256": "d3c2cb3bc9f45c7982f88a26e6a03d9d7650ef111610a8b58c19a5dc72f71650",
       "mode": "0644"
     },
     "runtime_state_digest": {
@@ -77,12 +77,12 @@
     },
     "internal_readiness": {
       "path": "nginx/agency-preprod-refresh-internal-readiness.conf",
-      "sha256": "352cd4cc40cdd961a51ff466acaf559c7a499c6a18fc4d51b95a675ced40a5fc",
+      "sha256": "e88107ba3a271b727a565a4091146c390399fe71f709a2d0f927c2f8a93b8a69",
       "mode": "0644"
     },
     "capability_profile": {
       "path": "profile.json",
-      "sha256": "08eb1518e38012d73857848b4808be707938ed9511040b2854c920667fa437bc",
+      "sha256": "8374fc24d2eaf5d0d36db8b05513ef126febc84ae63b602d420e8a14bd1df463",
       "mode": "0644"
     }
   },

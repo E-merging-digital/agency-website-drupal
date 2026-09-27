@@ -51,7 +51,10 @@ The current Agency PREPROD is a distinct Gandi Cloud VM:
 hostname = preprod.emergingdigital.be
 provider = Gandi Cloud
 OS       = Ubuntu 24.04 LTS
-runtime  = Nginx + PHP-FPM 8.4 + MariaDB 11.8
+runtime  = Nginx + PHP-FPM 8.5 + MariaDB 11.8
+PHP CLI  = php8.5
+PHP-FPM  = php8.5-fpm
+FPM sock = /run/php/php8.5-fpm-agency-preprod.sock
 DB packet= max_allowed_packet=64M
 root     = /var/www/agency-preprod
 user     = agency-preprod

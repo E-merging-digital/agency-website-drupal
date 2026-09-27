@@ -15,7 +15,7 @@ import re
 import subprocess
 from typing import Any, Mapping
 
-PHP_BIN = "/usr/bin/php8.4"
+PHP_BIN = "/usr/bin/php8.5"
 HARDENING_PROFILE_ID = "agency-preprod-refresh-side-effects-v1"
 RUNTIME_VALIDATOR = "/var/www/agency-preprod/current/scripts/preproduction/validate-runtime.sh"
 CLEAN_ENV = {"PATH": "/usr/bin:/bin", "HOME": "/root", "LC_ALL": "C"}

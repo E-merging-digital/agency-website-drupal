@@ -99,7 +99,7 @@ def main() -> None:
     for bypass in ("$http_","$arg_","$cookie_","allow ","satisfy ","auth_basic"):
         assert bypass not in fence
     assert "listen 127.0.0.1:18087;" in internal and "location = /health/ready" in internal
-    assert "fastcgi_pass unix:/run/php/php8.4-fpm-agency-preprod.sock;" in internal
+    assert "fastcgi_pass unix:/run/php/php8.5-fpm-agency-preprod.sock;" in internal
     assert "listen 0.0.0.0" not in internal and "listen [::]" not in internal
     print("fence_fail_closed_static=PASS")
     print("internal_health_ready_route=PASS")

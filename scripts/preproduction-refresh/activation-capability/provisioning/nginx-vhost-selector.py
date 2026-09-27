@@ -9,7 +9,7 @@ from pathlib import Path
 VHOST = Path("/etc/nginx/sites-available/agency-preprod")
 HOSTNAME = "preprod.emergingdigital.be"
 APP_ROOT = "/var/www/agency-preprod/current/web"
-PHP_UPSTREAM = "unix:/run/php/php8.4-fpm-agency-preprod.sock"
+PHP_UPSTREAM = "unix:/run/php/php8.5-fpm-agency-preprod.sock"
 FENCE_INCLUDE = "/etc/nginx/snippets/agency-preprod-refresh-fence.conf"
 FENCE_LINE = f"include {FENCE_INCLUDE};"
 

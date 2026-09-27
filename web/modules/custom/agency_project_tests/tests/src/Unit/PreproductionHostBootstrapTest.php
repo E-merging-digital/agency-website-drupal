@@ -33,7 +33,13 @@ final class PreproductionHostBootstrapTest extends TestCase {
       'Ubuntu 24.04 LTS',
       'mariadb-11.8',
       'max_allowed_packet=64M',
-      'php8.4-fpm',
+      'PHP_VERSION="8.5"',
+      'PHP_SOCKET="/run/php/php8.5-fpm-agency-preprod.sock"',
+      'php8.5-cli',
+      'php8.5-fpm',
+      '/etc/php/8.5/fpm/pool.d/agency-preprod.conf',
+      '/etc/php/8.5/cli/conf.d/99-agency-preprod-safety.ini',
+      'PHP_MINOR_VERSION === 5',
       '/var/www/agency-preprod',
       'sendmail_path = /bin/true',
       'PREPROD_BASIC_AUTH_PASSWORD',
@@ -41,6 +47,10 @@ final class PreproductionHostBootstrapTest extends TestCase {
       'ufw default deny incoming',
     ] as $expected) {
       self::assertStringContainsString($expected, $bootstrapContent);
+    }
+
+    foreach (['php8.4', '/etc/php/8.4', 'PHP_MINOR_VERSION === 4'] as $obsolete) {
+      self::assertStringNotContainsString($obsolete, $bootstrapContent);
     }
 
     $nginxContent = (string) file_get_contents($nginx);

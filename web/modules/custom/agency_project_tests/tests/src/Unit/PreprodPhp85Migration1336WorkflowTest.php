@@ -732,6 +732,7 @@ BASH;
       self::assertStringContainsString($literalField, $workflow);
     }
   }
+
   /**
    * APPLY preserves PHP 8.4 and limits Nginx to the socket-only delta.
    */

@@ -178,6 +178,7 @@ fi
 
 export MAIN_SHA PLAN_ID ISSUE TARGET MODE
 export OS_PRETTY_NAME="$os_pretty_name" VERSION_ID="$version_id" KERNEL_RUNNING="$kernel_running" REBOOT_REQUIRED="$reboot_required"
+export REBOOT_REQUIRED_PACKAGES_SOURCE="$reboot_required_packages_source"
 export CURRENT_PHP_CLI="$current_php_cli" CURRENT_PHP_FPM="$current_php_fpm" CURRENT_PHP_FPM_SERVICE="$current_php_fpm_service" CURRENT_PREPROD_SOCKET="$current_socket"
 export NGINX_SERVICE="$nginx_service" MARIADB_SERVICE="$mariadb_service" MARIADB_VERSION="$mariadb_version"
 export DRUPAL_HEALTH="$drupal_health" PUBLIC_HEALTH="$public_health" DISK_AVAILABLE_KB="$disk_available_kb"
@@ -227,6 +228,16 @@ removals.sort(key=lambda item:item['name'])
 failed_units = sorted(
     line.strip() for line in (root / 'failed.raw').read_text(encoding='utf-8', errors='replace').splitlines()
     if line.strip()
+)
+reboot_required_packages = sorted(
+    line.strip() for line in (root / 'reboot-required-packages.raw').read_text(encoding='utf-8', errors='replace').splitlines()
+    if line.strip()
+)
+nginx_fastcgi_pass_values = sorted(
+    set(
+        line.strip() for line in (root / 'nginx-fastcgi-pass.raw').read_text(encoding='utf-8', errors='replace').splitlines()
+        if line.strip()
+    )
 )
 
 addition_names = {item['name'] for item in additions}
@@ -279,6 +290,8 @@ receipt = {
     'VERSION_ID': os.environ['VERSION_ID'],
     'KERNEL_RUNNING': os.environ['KERNEL_RUNNING'],
     'REBOOT_REQUIRED': os.environ['REBOOT_REQUIRED'],
+    'REBOOT_REQUIRED_PACKAGES_SOURCE': os.environ['REBOOT_REQUIRED_PACKAGES_SOURCE'],
+    'REBOOT_REQUIRED_PACKAGES': reboot_required_packages,
     'CURRENT_PHP_CLI': os.environ['CURRENT_PHP_CLI'],
     'CURRENT_PHP_FPM': os.environ['CURRENT_PHP_FPM'],
     'CURRENT_PHP_FPM_SERVICE': os.environ['CURRENT_PHP_FPM_SERVICE'].upper(),
@@ -301,6 +314,7 @@ receipt = {
     'PHP84_SERVICE_ACTIVE': os.environ['PHP84_SERVICE_ACTIVE'],
     'NGINX_VHOST_PHP84_SOCKET_MATCH': os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'],
     'NGINX_VHOST_SHA256': os.environ['NGINX_VHOST_SHA256'],
+    'NGINX_FASTCGI_PASS_VALUES': nginx_fastcgi_pass_values,
     'FPM84_POOL_CONTRACT': os.environ['FPM84_POOL_CONTRACT'],
     'FPM84_POOL_SHA256': os.environ['FPM84_POOL_SHA256'],
     'SENDMAIL_SAFETY_CONTRACT': os.environ['SENDMAIL_SAFETY_CONTRACT'],
@@ -312,6 +326,7 @@ receipt = {
 mutation_identity_keys = (
     'schema_version','STATUS','ISSUE','TARGET','MODE','MAIN_SHA','PLAN_ID',
     'OS_PRETTY_NAME','VERSION_ID','KERNEL_RUNNING','REBOOT_REQUIRED',
+    'REBOOT_REQUIRED_PACKAGES_SOURCE','REBOOT_REQUIRED_PACKAGES',
     'CURRENT_PHP_CLI','CURRENT_PHP_FPM','CURRENT_PHP_FPM_SERVICE',
     'CURRENT_PREPROD_SOCKET','NGINX_SERVICE','MARIADB_SERVICE','MARIADB_VERSION',
     'FAILED_SYSTEMD_UNITS','DRUPAL_HEALTH','PUBLIC_HEALTH',
@@ -319,7 +334,7 @@ mutation_identity_keys = (
     'REQUESTED_PACKAGE_ALLOWLIST','PACKAGE_ADDITIONS','TRANSITIVE_ADDITIONS',
     'PACKAGE_UPGRADES','PACKAGE_REMOVALS',
     'PHP84_PACKAGES_PRESENT','PHP84_SERVICE_ACTIVE',
-    'NGINX_VHOST_PHP84_SOCKET_MATCH','NGINX_VHOST_SHA256',
+    'NGINX_VHOST_PHP84_SOCKET_MATCH','NGINX_VHOST_SHA256','NGINX_FASTCGI_PASS_VALUES',
     'FPM84_POOL_CONTRACT','FPM84_POOL_SHA256','SENDMAIL_SAFETY_CONTRACT',
     'SAFETY_GATE','FAILED_CHECKS',
 )

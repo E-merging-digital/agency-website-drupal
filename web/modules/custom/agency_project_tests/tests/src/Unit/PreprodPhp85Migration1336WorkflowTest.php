@@ -170,7 +170,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
         $lookupPosition,
       );
       self::assertNotFalse($publicationPosition);
-      self::assertLessThan($lookupPosition, $publicationPosition);
+      self::assertLessThan($publicationPosition, $lookupPosition);
     }
   }
 

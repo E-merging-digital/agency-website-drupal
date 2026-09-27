@@ -198,8 +198,17 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       "/Candidate:/ {print $2; exit}",
       $plan,
     );
-    self::assertStringNotContainsString('head -n 1', $plan);
-    self::assertStringNotContainsString('grep -m1', $plan);
+    self::assertSame(
+      1,
+      preg_match(
+        '/candidate="\\$\\(apt-cache policy.*?\\n  \'\\)"$/ms',
+        $plan,
+        $candidateParser,
+      ),
+    );
+    self::assertStringNotContainsString('exit', $candidateParser[0]);
+    self::assertStringNotContainsString('head -n 1', $candidateParser[0]);
+    self::assertStringNotContainsString('grep -m1', $candidateParser[0]);
 
     $script = <<<'BASH'
 set -o pipefail

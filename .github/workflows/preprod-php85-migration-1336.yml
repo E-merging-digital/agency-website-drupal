@@ -477,6 +477,13 @@ jobs:
           reconciliation='artifacts/preprod-php85-1336/reboot/reconciliation.json'
           result='artifacts/preprod-php85-1336/reboot/result.json'
 
+          jq -n '{
+            REBOOT_COMMAND_ATTEMPTED:"NO",
+            HOST_WENT_DOWN:"NO",
+            HOST_REACHABLE_AFTER_REBOOT:"NO",
+            SECOND_REBOOT:"NONE"
+          }' > "$reconciliation"
+
           set +e
           "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
             "bash -s -- '$MAIN_SHA' 'reboot-pre-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" \
@@ -513,6 +520,10 @@ jobs:
             and .PUBLIC_HEALTH == "PASS"
           ' "$pre" >/dev/null
 
+          jq '.REBOOT_COMMAND_ATTEMPTED = "YES"' "$reconciliation" \
+            > "$reconciliation.tmp"
+          mv "$reconciliation.tmp" "$reconciliation"
+
           set +e
           "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" "systemctl reboot" \
             > artifacts/preprod-php85-1336/reboot/reboot.stdout \
@@ -525,6 +536,8 @@ jobs:
           for attempt in $(seq 1 30); do
             if ! "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" "true" >/dev/null 2>&1; then
               host_went_down='YES'
+              jq '.HOST_WENT_DOWN = "YES"' "$reconciliation" > "$reconciliation.tmp"
+              mv "$reconciliation.tmp" "$reconciliation"
               break
             fi
             sleep 2
@@ -535,18 +548,19 @@ jobs:
           for attempt in $(seq 1 90); do
             if "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" "true" >/dev/null 2>&1; then
               host_reachable='YES'
+              jq '.HOST_REACHABLE_AFTER_REBOOT = "YES"' "$reconciliation" \
+                > "$reconciliation.tmp"
+              mv "$reconciliation.tmp" "$reconciliation"
               break
             fi
             sleep 2
           done
           test "$host_reachable" = 'YES'
 
-          jq -n \
-            --arg host_went_down "$host_went_down" \
-            --arg host_reachable "$host_reachable" \
-            --argjson reboot_ssh_rc "$reboot_ssh_rc" \
-            '{HOST_WENT_DOWN:$host_went_down,HOST_REACHABLE_AFTER_REBOOT:$host_reachable,REBOOT_SSH_RC:$reboot_ssh_rc,SECOND_REBOOT:"NONE"}' \
-            > "$reconciliation"
+          jq --argjson reboot_ssh_rc "$reboot_ssh_rc" \
+            '.REBOOT_SSH_RC = $reboot_ssh_rc' "$reconciliation" \
+            > "$reconciliation.tmp"
+          mv "$reconciliation.tmp" "$reconciliation"
 
           "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
             "bash -s -- '$MAIN_SHA' 'reboot-post-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" \
@@ -608,14 +622,14 @@ jobs:
           echo 'receipt_valid=true' >> "$GITHUB_OUTPUT"
 
       - name: Upload immutable bounded reboot evidence
-        if: ${{ always() && steps.reboot_result.outputs.receipt_valid == 'true' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: preprod-php85-1336-reboot-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/preprod-php85-1336/reboot/pre-plan.json
-            artifacts/preprod-php85-1336/reboot/post-plan.json
             artifacts/preprod-php85-1336/reboot/reconciliation.json
+            artifacts/preprod-php85-1336/reboot/post-plan.json
             artifacts/preprod-php85-1336/reboot/result.json
           if-no-files-found: error
           retention-days: 30

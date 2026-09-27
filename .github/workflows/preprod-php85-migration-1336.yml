@@ -176,6 +176,7 @@ jobs:
               .STATUS == "PASS"
               and .SAFETY_GATE == "PASS"
               and .FAILED_CHECKS == []
+              and .PHP85_INSTALL_SIMULATION == "PASS"
               and .REBOOT_REQUIRED == "NO"
               and .PACKAGE_REMOVALS == []
               and .PACKAGE_UPGRADES == []
@@ -286,7 +287,8 @@ jobs:
             and .MAIN_SHA == $main
             and .PLAN_DIGEST == $digest
             and .SAFETY_GATE == "PASS"
-            and .FAILED_CHECKS == []' "$plan" >/dev/null
+            and .FAILED_CHECKS == []
+            and .PHP85_INSTALL_SIMULATION == "PASS"' "$plan" >/dev/null
 
       - name: Materialize pinned PREPROD root trust
         shell: bash

@@ -23,7 +23,6 @@ PHP85_PACKAGES=(
   php8.5-intl
   php8.5-mbstring
   php8.5-mysql
-  php8.5-opcache
   php8.5-xml
   php8.5-zip
 )
@@ -45,6 +44,24 @@ version_id="${VERSION_ID:-}"
 kernel_running="$(uname -r)"
 reboot_required='NO'
 [[ ! -f /var/run/reboot-required ]] || reboot_required='YES'
+
+reboot_required_packages_source='ABSENT'
+: >"$work_root/reboot-required-packages.raw"
+if [[ -f /var/run/reboot-required.pkgs ]]; then
+  reboot_required_packages_source='PRESENT'
+  python3 - /var/run/reboot-required.pkgs >"$work_root/reboot-required-packages.raw" <<'PY'
+import re
+import sys
+from pathlib import Path
+names = []
+for line in Path(sys.argv[1]).read_text(encoding='utf-8', errors='replace').splitlines():
+    name = line.strip().split()[0] if line.strip() else ''
+    if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.+:-]{0,127}', name):
+        names.append(name)
+for name in sorted(set(names))[:100]:
+    print(name)
+PY
+fi
 
 current_php_cli="$(php8.4 -r 'echo PHP_VERSION;' 2>/dev/null || true)"
 current_php_fpm="$(php-fpm8.4 -v 2>/dev/null | head -n 1 || true)"
@@ -92,6 +109,241 @@ php84_service_active='NO'
 nginx_vhost_php84_socket_match='NO'
 [[ -f "$NGINX_VHOST" ]] && [[ "$(grep -Foc "$PHP84_SOCKET" "$NGINX_VHOST" || true)" == '1' ]] && nginx_vhost_php84_socket_match='YES'
 nginx_vhost_sha256="$(sha256sum "$NGINX_VHOST" 2>/dev/null | awk '{print $1}' || true)"
+: >"$work_root/nginx-fastcgi-pass.raw"
+if [[ -f "$NGINX_VHOST" ]]; then
+  python3 - "$NGINX_VHOST" >"$work_root/nginx-fastcgi-pass.raw" <<'PY'
+import re
+import sys
+from pathlib import Path
+values = set()
+for line in Path(sys.argv[1]).read_text(encoding='utf-8', errors='replace').splitlines():
+    match = re.match(r'^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?'NO'
+if [[ -f "$FPM84_POOL" ]] \
+  && grep -Eq '^\[agency-preprod\]$' "$FPM84_POOL" \
+  && grep -Eq '^user = agency-preprod$' "$FPM84_POOL" \
+  && grep -Eq '^group = www-data$' "$FPM84_POOL" \
+  && grep -Fqx "listen = $PHP84_SOCKET" "$FPM84_POOL" \
+  && grep -Eq '^listen\.owner = www-data$' "$FPM84_POOL" \
+  && grep -Eq '^listen\.group = www-data$' "$FPM84_POOL" \
+  && grep -Eq '^listen\.mode = 0660$' "$FPM84_POOL" \
+  && grep -Eq '^clear_env = yes$' "$FPM84_POOL" \
+  && grep -Fqx 'php_admin_value[sendmail_path] = /bin/true' "$FPM84_POOL"; then
+  fpm84_pool_contract='YES'
+fi
+fpm84_pool_sha256="$(sha256sum "$FPM84_POOL" 2>/dev/null | awk '{print $1}' || true)"
+
+sendmail_safety_contract='NO'
+if [[ "$(php8.4 -r 'echo (string) ini_get("sendmail_path");' 2>/dev/null || true)" == '/bin/true' ]]; then
+  sendmail_safety_contract='YES'
+fi
+
+: >"$work_root/candidates.tsv"
+package_specs=()
+candidate_gap='NO'
+for pkg in "${PHP85_PACKAGES[@]}"; do
+  candidate="$(apt-cache policy "$pkg" 2>/dev/null | awk '
+    /Candidate:/ { candidate = $2 }
+    END { if (candidate != "") print candidate }
+  ')"
+  if [[ -z "$candidate" || "$candidate" == '(none)' ]]; then
+    candidate_gap='YES'
+    candidate='NONE'
+  else
+    package_specs+=("$pkg=$candidate")
+  fi
+  printf '%s\t%s\n' "$pkg" "$candidate" >>"$work_root/candidates.tsv"
+done
+
+: >"$work_root/install-sim.raw"
+php85_install_simulation='NOT_RUN'
+if [[ "$candidate_gap" == 'NO' ]]; then
+  set +e
+  apt-get --simulate install "${package_specs[@]}" >"$work_root/install-sim.raw" 2>&1
+  install_sim_rc=$?
+  set -e
+  if [[ "$install_sim_rc" -eq 0 ]]; then
+    php85_install_simulation='PASS'
+  else
+    php85_install_simulation='FAIL'
+  fi
+fi
+
+export MAIN_SHA PLAN_ID ISSUE TARGET MODE
+export OS_PRETTY_NAME="$os_pretty_name" VERSION_ID="$version_id" KERNEL_RUNNING="$kernel_running" REBOOT_REQUIRED="$reboot_required"
+export REBOOT_REQUIRED_PACKAGES_SOURCE="$reboot_required_packages_source"
+export CURRENT_PHP_CLI="$current_php_cli" CURRENT_PHP_FPM="$current_php_fpm" CURRENT_PHP_FPM_SERVICE="$current_php_fpm_service" CURRENT_PREPROD_SOCKET="$current_socket"
+export NGINX_SERVICE="$nginx_service" MARIADB_SERVICE="$mariadb_service" MARIADB_VERSION="$mariadb_version"
+export DRUPAL_HEALTH="$drupal_health" PUBLIC_HEALTH="$public_health" DISK_AVAILABLE_KB="$disk_available_kb"
+export PHP84_PACKAGES_PRESENT="$php84_packages_present" PHP84_SERVICE_ACTIVE="$php84_service_active"
+export NGINX_VHOST_PHP84_SOCKET_MATCH="$nginx_vhost_php84_socket_match" FPM84_POOL_CONTRACT="$fpm84_pool_contract" SENDMAIL_SAFETY_CONTRACT="$sendmail_safety_contract"
+export NGINX_VHOST_SHA256="$nginx_vhost_sha256" FPM84_POOL_SHA256="$fpm84_pool_sha256"
+export CANDIDATE_GAP="$candidate_gap" PHP85_INSTALL_SIMULATION="$php85_install_simulation" WORK_ROOT="$work_root"
+
+python3 - <<'PY'
+import hashlib
+import json
+import os
+import re
+from pathlib import Path
+
+root = Path(os.environ['WORK_ROOT'])
+requested_allowlist = [
+    'php8.5-bcmath','php8.5-cli','php8.5-common','php8.5-curl',
+    'php8.5-fpm','php8.5-gd','php8.5-intl','php8.5-mbstring',
+    'php8.5-mysql','php8.5-xml','php8.5-zip',
+]
+candidates = {}
+for line in (root / 'candidates.tsv').read_text(encoding='utf-8').splitlines():
+    name, version = line.split('\t', 1)
+    candidates[name] = version
+
+additions, upgrades, removals = [], [], []
+install_simulation_state = os.environ['PHP85_INSTALL_SIMULATION']
+if install_simulation_state == 'PASS':
+    for line in (root / 'install-sim.raw').read_text(encoding='utf-8', errors='replace').splitlines():
+        if line.startswith('Inst '):
+            match = re.match(r'^Inst\s+(\S+)(?:\s+\[([^\]]+)\])?\s+\((\S+)', line)
+            if not match:
+                install_simulation_state = 'FAIL'
+                additions, upgrades, removals = [], [], []
+                break
+            name, old, new = match.groups()
+            item = {'name': name, 'from': old or 'ABSENT', 'to': new}
+            (upgrades if old else additions).append(item)
+        elif line.startswith('Remv '):
+            parts = line.split()
+            removals.append({'name': parts[1], 'from': parts[2] if len(parts) > 2 else 'UNKNOWN'})
+
+additions.sort(key=lambda item:item['name'])
+upgrades.sort(key=lambda item:item['name'])
+removals.sort(key=lambda item:item['name'])
+failed_units = sorted(
+    line.strip() for line in (root / 'failed.raw').read_text(encoding='utf-8', errors='replace').splitlines()
+    if line.strip()
+)
+reboot_required_packages = sorted(
+    line.strip() for line in (root / 'reboot-required-packages.raw').read_text(encoding='utf-8', errors='replace').splitlines()
+    if line.strip()
+)
+nginx_fastcgi_pass_values = sorted(
+    set(
+        line.strip() for line in (root / 'nginx-fastcgi-pass.raw').read_text(encoding='utf-8', errors='replace').splitlines()
+        if line.strip()
+    )
+)
+
+addition_names = {item['name'] for item in additions}
+requested_names = set(requested_allowlist)
+transitive_additions = [
+    item for item in additions if item['name'] not in requested_names
+]
+unexpected_transitive = [
+    item for item in transitive_additions
+    if re.fullmatch(r'php8\.5-[A-Za-z0-9.+-]+', item['name']) is None
+]
+
+checks = {
+    'ubuntu_24_04': os.environ['VERSION_ID'] == '24.04',
+    'reboot_not_required': os.environ['REBOOT_REQUIRED'] == 'NO',
+    'current_php_cli_8_4': os.environ['CURRENT_PHP_CLI'].startswith('8.4.'),
+    'current_php_fpm_8_4': 'PHP 8.4.' in os.environ['CURRENT_PHP_FPM'],
+    'php84_service_active': os.environ['PHP84_SERVICE_ACTIVE'] == 'YES',
+    'php84_packages_present': os.environ['PHP84_PACKAGES_PRESENT'] == 'YES',
+    'current_socket_php84': os.environ['CURRENT_PREPROD_SOCKET'] == '/run/php/php8.4-fpm-agency-preprod.sock',
+    'nginx_active': os.environ['NGINX_SERVICE'] == 'active',
+    'mariadb_active': os.environ['MARIADB_SERVICE'] == 'active',
+    'mariadb_11_8': '11.8.' in os.environ['MARIADB_VERSION'],
+    'no_failed_units': not failed_units,
+    'drupal_health': os.environ['DRUPAL_HEALTH'] == 'PASS',
+    'public_health': os.environ['PUBLIC_HEALTH'] == 'PASS',
+    'disk_space_min_2gib': int(os.environ['DISK_AVAILABLE_KB']) >= 2 * 1024 * 1024,
+    'php85_candidates_present': os.environ['CANDIDATE_GAP'] == 'NO' and set(candidates) == requested_names and all(v != 'NONE' for v in candidates.values()),
+    'php85_install_simulation_pass': install_simulation_state == 'PASS',
+    'all_requested_packages_present_in_simulation': requested_names <= addition_names,
+    'package_removals_none': not removals,
+    'unrelated_package_upgrades_none': not upgrades,
+    'transitive_additions_php85_only': not unexpected_transitive,
+    'nginx_vhost_php84_socket_match': os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'] == 'YES',
+    'fpm84_pool_contract': os.environ['FPM84_POOL_CONTRACT'] == 'YES',
+    'sendmail_safety_contract': os.environ['SENDMAIL_SAFETY_CONTRACT'] == 'YES',
+}
+failed_checks = sorted(name for name, passed in checks.items() if not passed)
+safety_pass = not failed_checks
+
+receipt = {
+    'schema_version': 1,
+    'STATUS': 'PASS' if safety_pass else 'FAIL',
+    'ISSUE': 1336,
+    'TARGET': 'PREPROD',
+    'MODE': 'PLAN',
+    'MAIN_SHA': os.environ['MAIN_SHA'],
+    'PLAN_ID': os.environ['PLAN_ID'],
+    'OS_PRETTY_NAME': os.environ['OS_PRETTY_NAME'],
+    'VERSION_ID': os.environ['VERSION_ID'],
+    'KERNEL_RUNNING': os.environ['KERNEL_RUNNING'],
+    'REBOOT_REQUIRED': os.environ['REBOOT_REQUIRED'],
+    'REBOOT_REQUIRED_PACKAGES_SOURCE': os.environ['REBOOT_REQUIRED_PACKAGES_SOURCE'],
+    'REBOOT_REQUIRED_PACKAGES': reboot_required_packages,
+    'CURRENT_PHP_CLI': os.environ['CURRENT_PHP_CLI'],
+    'CURRENT_PHP_FPM': os.environ['CURRENT_PHP_FPM'],
+    'CURRENT_PHP_FPM_SERVICE': os.environ['CURRENT_PHP_FPM_SERVICE'].upper(),
+    'CURRENT_PREPROD_SOCKET': os.environ['CURRENT_PREPROD_SOCKET'],
+    'NGINX_SERVICE': os.environ['NGINX_SERVICE'].upper(),
+    'MARIADB_SERVICE': os.environ['MARIADB_SERVICE'].upper(),
+    'MARIADB_VERSION': os.environ['MARIADB_VERSION'],
+    'FAILED_SYSTEMD_UNITS': failed_units,
+    'DRUPAL_HEALTH': os.environ['DRUPAL_HEALTH'],
+    'PUBLIC_HEALTH': os.environ['PUBLIC_HEALTH'],
+    'DISK_AVAILABLE_KB': int(os.environ['DISK_AVAILABLE_KB']),
+    'PHP85_PACKAGE_CANDIDATES': candidates,
+    'PHP85_INSTALL_SIMULATION': install_simulation_state,
+    'REQUESTED_PACKAGE_ALLOWLIST': requested_allowlist,
+    'PACKAGE_ADDITIONS': additions,
+    'TRANSITIVE_ADDITIONS': transitive_additions,
+    'PACKAGE_UPGRADES': upgrades,
+    'PACKAGE_REMOVALS': removals,
+    'PHP84_PACKAGES_PRESENT': os.environ['PHP84_PACKAGES_PRESENT'],
+    'PHP84_SERVICE_ACTIVE': os.environ['PHP84_SERVICE_ACTIVE'],
+    'NGINX_VHOST_PHP84_SOCKET_MATCH': os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'],
+    'NGINX_VHOST_SHA256': os.environ['NGINX_VHOST_SHA256'],
+    'NGINX_FASTCGI_PASS_VALUES': nginx_fastcgi_pass_values,
+    'FPM84_POOL_CONTRACT': os.environ['FPM84_POOL_CONTRACT'],
+    'FPM84_POOL_SHA256': os.environ['FPM84_POOL_SHA256'],
+    'SENDMAIL_SAFETY_CONTRACT': os.environ['SENDMAIL_SAFETY_CONTRACT'],
+    'SAFETY_GATE': 'PASS' if safety_pass else 'FAIL',
+    'FAILED_CHECKS': failed_checks,
+}
+# Exact free disk is volatile: observe and safety-gate it, but exclude it from
+# stale-plan mutation identity.
+mutation_identity_keys = (
+    'schema_version','STATUS','ISSUE','TARGET','MODE','MAIN_SHA','PLAN_ID',
+    'OS_PRETTY_NAME','VERSION_ID','KERNEL_RUNNING','REBOOT_REQUIRED',
+    'REBOOT_REQUIRED_PACKAGES_SOURCE','REBOOT_REQUIRED_PACKAGES',
+    'CURRENT_PHP_CLI','CURRENT_PHP_FPM','CURRENT_PHP_FPM_SERVICE',
+    'CURRENT_PREPROD_SOCKET','NGINX_SERVICE','MARIADB_SERVICE','MARIADB_VERSION',
+    'FAILED_SYSTEMD_UNITS','DRUPAL_HEALTH','PUBLIC_HEALTH',
+    'PHP85_PACKAGE_CANDIDATES','PHP85_INSTALL_SIMULATION',
+    'REQUESTED_PACKAGE_ALLOWLIST','PACKAGE_ADDITIONS','TRANSITIVE_ADDITIONS',
+    'PACKAGE_UPGRADES','PACKAGE_REMOVALS',
+    'PHP84_PACKAGES_PRESENT','PHP84_SERVICE_ACTIVE',
+    'NGINX_VHOST_PHP84_SOCKET_MATCH','NGINX_VHOST_SHA256','NGINX_FASTCGI_PASS_VALUES',
+    'FPM84_POOL_CONTRACT','FPM84_POOL_SHA256','SENDMAIL_SAFETY_CONTRACT',
+    'SAFETY_GATE','FAILED_CHECKS',
+)
+mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
+canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
+receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
+print(json.dumps(receipt, sort_keys=True, separators=(',', ':')))
+if failed_checks:
+    raise SystemExit(65)
+PY
+, line)
+    if match:
+        values.add(match.group(1))
+for value in sorted(values)[:20]:
+    print(value)
+PY
+fi
 
 fpm84_pool_contract='NO'
 if [[ -f "$FPM84_POOL" ]] \
@@ -165,7 +417,7 @@ root = Path(os.environ['WORK_ROOT'])
 requested_allowlist = [
     'php8.5-bcmath','php8.5-cli','php8.5-common','php8.5-curl',
     'php8.5-fpm','php8.5-gd','php8.5-intl','php8.5-mbstring',
-    'php8.5-mysql','php8.5-opcache','php8.5-xml','php8.5-zip',
+    'php8.5-mysql','php8.5-xml','php8.5-zip',
 ]
 candidates = {}
 for line in (root / 'candidates.tsv').read_text(encoding='utf-8').splitlines():

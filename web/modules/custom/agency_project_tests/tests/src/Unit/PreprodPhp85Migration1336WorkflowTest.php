@@ -69,7 +69,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   }
 
   /**
-   * Reusable workflow enforces exact-main, attempt-one authority without backdoor.
+   * Reusable workflow enforces exact-main attempt-one authority.
    */
   public function testWorkflowIsReusableExactHeadAttemptOneAndNoBackdoor(): void {
     $workflow = $this->parsed(self::WORKFLOW);
@@ -106,7 +106,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   }
 
   /**
-   * PLAN is mutation-free, allowlisted and excludes volatile disk from identity.
+   * PLAN is mutation-free and excludes volatile disk from identity.
    */
   public function testPlanIsMutationFreeAllowlistedAndStableDigestExcludesDisk(): void {
     $plan = $this->source(self::PLAN);

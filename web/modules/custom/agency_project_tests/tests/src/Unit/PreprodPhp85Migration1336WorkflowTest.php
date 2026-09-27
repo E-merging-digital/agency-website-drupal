@@ -314,7 +314,9 @@ NGINX
   }
 
   /**
-   * PLAN accepts repeated identical FastCGI locations and rejects mixed targets.
+   * PLAN accepts repeated identical FastCGI locations.
+   *
+   * Mixed targets remain fail-closed.
    */
   public function testPlanNginxGateUsesNormalizedUniqueFastcgiTargets(): void {
     $multi = $this->executePlan(

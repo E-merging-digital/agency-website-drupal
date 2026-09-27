@@ -72,7 +72,7 @@ final class PreproductionHostBootstrapTest extends TestCase {
       $installEnd - $installStart,
     );
     preg_match_all('/php8\\.5-[a-z0-9.+-]+/', $installBlock, $packageMatches);
-    $requestedPhp85 = array_values(array_unique($packageMatches[0] ?? []));
+    $requestedPhp85 = array_values(array_unique($packageMatches[0]));
     sort($requestedPhp85);
     self::assertSame([
       'php8.5-bcmath',

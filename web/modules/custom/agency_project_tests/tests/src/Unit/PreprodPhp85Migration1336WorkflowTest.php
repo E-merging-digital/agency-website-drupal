@@ -123,7 +123,6 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       'php8.5-intl',
       'php8.5-mbstring',
       'php8.5-mysql',
-      'php8.5-opcache',
       'php8.5-xml',
       'php8.5-zip',
       'apt-get --simulate install',
@@ -139,6 +138,9 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       'NGINX_VHOST_PHP84_SOCKET_MATCH',
       'FPM84_POOL_CONTRACT',
       'SENDMAIL_SAFETY_CONTRACT',
+      'REBOOT_REQUIRED_PACKAGES_SOURCE',
+      'REBOOT_REQUIRED_PACKAGES',
+      'NGINX_FASTCGI_PASS_VALUES',
       'mutation_identity_keys = (',
       "receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()",
     ] as $required) {
@@ -168,6 +170,8 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       "    'DISK_AVAILABLE_KB',",
       $plan,
     );
+    self::assertStringNotContainsString('php8.5-opcache', $plan);
+    self::assertStringNotContainsString('NGINX_VHOST_CONTENT', $plan);
 
     $first = $this->evaluatePlan(5 * 1024 * 1024);
     $second = $this->evaluatePlan(6 * 1024 * 1024);
@@ -175,13 +179,84 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     self::assertSame('PASS', $first['SAFETY_GATE']);
     self::assertSame([], $first['FAILED_CHECKS']);
     self::assertSame('PASS', $first['PHP85_INSTALL_SIMULATION']);
-    self::assertCount(12, $first['REQUESTED_PACKAGE_ALLOWLIST']);
+    self::assertCount(11, $first['REQUESTED_PACKAGE_ALLOWLIST']);
+    self::assertNotContains('php8.5-opcache', $first['REQUESTED_PACKAGE_ALLOWLIST']);
     self::assertContains(
       'php8.5-readline',
       array_column($first['TRANSITIVE_ADDITIONS'], 'name'),
     );
     self::assertNotSame($first['DISK_AVAILABLE_KB'], $second['DISK_AVAILABLE_KB']);
     self::assertSame($first['PLAN_DIGEST'], $second['PLAN_DIGEST']);
+  }
+
+  /**
+   * PLAN receipt exposes bounded reboot-package and Nginx FastCGI evidence.
+   */
+  public function testPlanReceiptIncludesBoundedRebootAndNginxEvidence(): void {
+    $present = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      FALSE,
+      'PASS',
+      'PRESENT',
+      ['linux-image-6.8.0-139-generic', 'linux-base'],
+      [
+        'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+        '127.0.0.1:9000',
+        'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+      ],
+    );
+    self::assertSame(0, $present['status'], $present['output']);
+    $presentReceipt = json_decode($present['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertSame('PRESENT', $presentReceipt['REBOOT_REQUIRED_PACKAGES_SOURCE']);
+    self::assertSame(
+      ['linux-base', 'linux-image-6.8.0-139-generic'],
+      $presentReceipt['REBOOT_REQUIRED_PACKAGES'],
+    );
+    self::assertSame(
+      [
+        '127.0.0.1:9000',
+        'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+      ],
+      $presentReceipt['NGINX_FASTCGI_PASS_VALUES'],
+    );
+
+    $absent = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+    );
+    self::assertSame(0, $absent['status'], $absent['output']);
+    $absentReceipt = json_decode($absent['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertSame('ABSENT', $absentReceipt['REBOOT_REQUIRED_PACKAGES_SOURCE']);
+    self::assertSame([], $absentReceipt['REBOOT_REQUIRED_PACKAGES']);
+  }
+
+  /**
+   * PLAN summary uses literal formatting and cannot command-substitute Markdown.
+   */
+  public function testPlanSummaryRendersLiteralPopulatedValues(): void {
+    $workflow = $this->source(self::WORKFLOW);
+
+    self::assertStringContainsString('printf -v body', $workflow);
+    self::assertStringNotContainsString('body="$(cat <<EOF_BODY', $workflow);
+    foreach ([
+      '`MODE=%s`',
+      '`RUN=%s`',
+      '`PLAN_ID=%s`',
+      '`PLAN_STATUS=%s`',
+      '`PLAN_DIGEST=%s`',
+      '`FAILED_CHECKS=%s`',
+      '`TARGET=%s`',
+      '`PREPROD_MUTATION=%s`',
+      '`PHP84_REMOVAL=%s`',
+    ] as $literalField) {
+      self::assertStringContainsString($literalField, $workflow);
+    }
   }
 
   /**
@@ -318,7 +393,7 @@ BASH;
       $packages = [
         'php8.5-bcmath', 'php8.5-cli', 'php8.5-common', 'php8.5-curl',
         'php8.5-fpm', 'php8.5-gd', 'php8.5-intl', 'php8.5-mbstring',
-        'php8.5-mysql', 'php8.5-opcache', 'php8.5-xml', 'php8.5-zip',
+        'php8.5-mysql', 'php8.5-xml', 'php8.5-zip',
       ];
       $candidateLines = [];
       $packageSpecs = [];
@@ -331,6 +406,11 @@ BASH;
         implode("\n", $candidateLines) . "\n",
       );
       file_put_contents($directory . '/failed.raw', '');
+      file_put_contents($directory . '/reboot-required-packages.raw', '');
+      file_put_contents(
+        $directory . '/nginx-fastcgi-pass.raw',
+        "unix:/run/php/php8.4-fpm-agency-preprod.sock\n",
+      );
 
       $aptLog = $directory . '/apt.log';
       $aptStub = <<<'BASH'
@@ -368,6 +448,7 @@ export OS_PRETTY_NAME='Ubuntu 24.04.5 LTS'
 export VERSION_ID=24.04
 export KERNEL_RUNNING=6.8.0-139-generic
 export REBOOT_REQUIRED=NO
+export REBOOT_REQUIRED_PACKAGES_SOURCE=ABSENT
 export CURRENT_PHP_CLI=8.4.25
 export CURRENT_PHP_FPM='PHP 8.4.25 (fpm-fcgi)'
 export CURRENT_PHP_FPM_SERVICE=active
@@ -550,6 +631,8 @@ BASH;
       '/run/php/php8.4-fpm-agency-preprod.sock',
       '/run/php/php8.5-fpm-agency-preprod.sock',
       'php-fpm8.5 -t',
+      'extension_loaded("Zend OPcache")',
+      'PHP85_OPCACHE_AVAILABLE:"PASS"',
       'systemctl enable --now php8.5-fpm',
       'NGINX_SOCKET_ONLY_DELTA failed',
       'nginx -t',
@@ -617,6 +700,12 @@ BASH;
    *   Whether one requested candidate is missing.
    * @param string $simulationState
    *   Synthetic install simulation state.
+   * @param string $rebootPackagesSource
+   *   Synthetic reboot package evidence source.
+   * @param string[] $rebootPackages
+   *   Synthetic reboot-required package names.
+   * @param string[] $nginxFastcgiValues
+   *   Synthetic normalized Nginx fastcgi_pass values.
    *
    * @return array{status:int,output:string}
    *   Process status and combined output.
@@ -626,6 +715,9 @@ BASH;
     array $extraAdditions = ['php8.5-readline'],
     bool $candidateGap = FALSE,
     string $simulationState = 'PASS',
+    string $rebootPackagesSource = 'ABSENT',
+    array $rebootPackages = [],
+    array $nginxFastcgiValues = ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
   ): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
@@ -639,7 +731,7 @@ BASH;
       $packages = [
         'php8.5-bcmath', 'php8.5-cli', 'php8.5-common', 'php8.5-curl',
         'php8.5-fpm', 'php8.5-gd', 'php8.5-intl', 'php8.5-mbstring',
-        'php8.5-mysql', 'php8.5-opcache', 'php8.5-xml', 'php8.5-zip',
+        'php8.5-mysql', 'php8.5-xml', 'php8.5-zip',
       ];
       $candidateLines = [];
       $simulationLines = [];
@@ -664,6 +756,14 @@ BASH;
         implode("\n", $simulationLines) . "\n",
       );
       file_put_contents($directory . '/failed.raw', '');
+      file_put_contents(
+        $directory . '/reboot-required-packages.raw',
+        $rebootPackages === [] ? '' : implode("\n", $rebootPackages) . "\n",
+      );
+      file_put_contents(
+        $directory . '/nginx-fastcgi-pass.raw',
+        $nginxFastcgiValues === [] ? '' : implode("\n", $nginxFastcgiValues) . "\n",
+      );
       $script = $directory . '/plan.py';
       file_put_contents($script, $matches[1] . "\n");
 
@@ -675,6 +775,7 @@ BASH;
         'VERSION_ID' => '24.04',
         'KERNEL_RUNNING' => '6.8.0-139-generic',
         'REBOOT_REQUIRED' => 'NO',
+        'REBOOT_REQUIRED_PACKAGES_SOURCE' => $rebootPackagesSource,
         'CURRENT_PHP_CLI' => '8.4.25',
         'CURRENT_PHP_FPM' => 'PHP 8.4.25 (fpm-fcgi)',
         'CURRENT_PHP_FPM_SERVICE' => 'active',

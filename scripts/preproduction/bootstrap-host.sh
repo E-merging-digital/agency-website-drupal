@@ -97,7 +97,6 @@ apt-get install -y \
   php8.5-intl \
   php8.5-mbstring \
   php8.5-mysql \
-  php8.5-opcache \
   php8.5-xml \
   php8.5-zip
 
@@ -253,6 +252,7 @@ certbot --nginx \
 packet_bytes="$(mariadb --protocol=socket -Nse 'SELECT @@GLOBAL.max_allowed_packet;')"
 [[ "$packet_bytes" == "67108864" ]] || fail "MariaDB max_allowed_packet is not 64M."
 php8.5 -r 'exit(PHP_MAJOR_VERSION === 8 && PHP_MINOR_VERSION === 5 ? 0 : 1);'
+php8.5 -r 'exit(extension_loaded("Zend OPcache") ? 0 : 1);' || fail "Zend OPcache is unavailable under PHP 8.5."
 mariadb --version | grep -q '11\.8\.' || fail "MariaDB 11.8 is not active."
 nginx -t
 systemctl is-active --quiet nginx

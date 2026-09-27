@@ -19,7 +19,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   private const PLAN = 'scripts/preproduction-php85-1336/remote-plan.sh';
   private const APPLY = 'scripts/preproduction-php85-1336/remote-apply-root.sh';
 
-  public function testDispatcherIsExactOwnerIssueBoundAndSplitByMode(): void {
+  /**\n   * Dispatcher remains exact, owner-only, issue-bound and mode-separated.\n   */\n  public function testDispatcherIsExactOwnerIssueBoundAndSplitByMode(): void {
     $dispatcher = $this->parsed(self::DISPATCHER);
     $jobs = $dispatcher['jobs'] ?? [];
     $plan = $jobs['preprod-php85-migration-1336-plan'] ?? NULL;
@@ -65,7 +65,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     );
   }
 
-  public function testWorkflowIsReusableExactHeadAttemptOneAndNoBackdoor(): void {
+  /**\n   * Reusable workflow enforces exact-main, attempt-one authority without backdoor.\n   */\n  public function testWorkflowIsReusableExactHeadAttemptOneAndNoBackdoor(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
     $on = $workflow['on'] ?? [];
@@ -99,7 +99,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     }
   }
 
-  public function testPlanIsMutationFreeAllowlistedAndStableDigestExcludesDisk(): void {
+  /**\n   * PLAN is mutation-free, allowlisted and excludes volatile disk from identity.\n   */\n  public function testPlanIsMutationFreeAllowlistedAndStableDigestExcludesDisk(): void {
     $plan = $this->source(self::PLAN);
     foreach ([
       "ISSUE='1336'",
@@ -162,7 +162,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     self::assertSame($first['PLAN_DIGEST'], $second['PLAN_DIGEST']);
   }
 
-  public function testApplyPreservesPhp84AndRestrictsNginxToSocketOnlyDelta(): void {
+  /**\n   * APPLY preserves PHP 8.4 and limits Nginx to the socket-only delta.\n   */\n  public function testApplyPreservesPhp84AndRestrictsNginxToSocketOnlyDelta(): void {
     $apply = $this->source(self::APPLY);
     foreach ([
       'STALE_PLAN',
@@ -207,7 +207,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     }
   }
 
-  public function testRemoteScriptsHaveValidBashSyntax(): void {
+  /**\n   * Both remote scripts have valid Bash syntax.\n   */\n  public function testRemoteScriptsHaveValidBashSyntax(): void {
     foreach ([self::PLAN, self::APPLY] as $relativePath) {
       $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
       $output = [];
@@ -217,7 +217,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     }
   }
 
-  private function evaluatePlan(int $diskAvailableKb): array {
+  /**\n   * Executes the embedded PLAN evaluator on deterministic synthetic inputs.\n   */\n  private function evaluatePlan(int $diskAvailableKb): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
       1,
@@ -228,9 +228,9 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     self::assertTrue(mkdir($directory, 0700, TRUE));
     try {
       $packages = [
-        'php8.5-bcmath','php8.5-cli','php8.5-common','php8.5-curl',
-        'php8.5-fpm','php8.5-gd','php8.5-intl','php8.5-mbstring',
-        'php8.5-mysql','php8.5-opcache','php8.5-xml','php8.5-zip',
+        'php8.5-bcmath', 'php8.5-cli', 'php8.5-common', 'php8.5-curl',
+        'php8.5-fpm', 'php8.5-gd', 'php8.5-intl', 'php8.5-mbstring',
+        'php8.5-mysql', 'php8.5-opcache', 'php8.5-xml', 'php8.5-zip',
       ];
       $candidateLines = [];
       $simulationLines = [];
@@ -293,7 +293,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     }
   }
 
-  private function parsed(string $relativePath): array {
+  /**\n   * Parses one workflow file.\n   */\n  private function parsed(string $relativePath): array {
     $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
     self::assertFileExists($path);
     $parsed = Yaml::parseFile($path);
@@ -301,7 +301,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     return $parsed;
   }
 
-  private function source(string $relativePath): string {
+  /**\n   * Reads one repository source file.\n   */\n  private function source(string $relativePath): string {
     return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);
   }
 

@@ -49,7 +49,7 @@ reboot_required_packages_source='ABSENT'
 : >"$work_root/reboot-required-packages.raw"
 if [[ -f /var/run/reboot-required.pkgs ]]; then
   reboot_required_packages_source='PRESENT'
-  python3 - /var/run/reboot-required.pkgs >"$work_root/reboot-required-packages.raw" <<'PY'
+  python3 - /var/run/reboot-required.pkgs >"$work_root/reboot-required-packages.raw" <<'PY_REBOOT'
 import re
 import sys
 from pathlib import Path
@@ -60,7 +60,7 @@ for line in Path(sys.argv[1]).read_text(encoding='utf-8', errors='replace').spli
         names.append(name)
 for name in sorted(set(names))[:100]:
     print(name)
-PY
+PY_REBOOT
 fi
 
 current_php_cli="$(php8.4 -r 'echo PHP_VERSION;' 2>/dev/null || true)"
@@ -111,7 +111,7 @@ nginx_vhost_php84_socket_match='NO'
 nginx_vhost_sha256="$(sha256sum "$NGINX_VHOST" 2>/dev/null | awk '{print $1}' || true)"
 : >"$work_root/nginx-fastcgi-pass.raw"
 if [[ -f "$NGINX_VHOST" ]]; then
-  python3 - "$NGINX_VHOST" >"$work_root/nginx-fastcgi-pass.raw" <<'PY'
+  python3 - "$NGINX_VHOST" >"$work_root/nginx-fastcgi-pass.raw" <<'PY_NGINX'
 import re
 import sys
 from pathlib import Path
@@ -342,7 +342,7 @@ PY
         values.add(match.group(1))
 for value in sorted(values)[:20]:
     print(value)
-PY
+PY_NGINX
 fi
 
 fpm84_pool_contract='NO'

@@ -83,13 +83,13 @@ jobs:
             marker="AGENCY_PREPROD_PHP85_1336_APPLY_CONSUMED plan_run=$plan_run plan_digest=$plan_digest"
             existing="$(gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate --jq ".[] | select(.body == \"$marker\") | .id" | head -n 1)"
             test -z "$existing"
-            gh issue comment 1336 --body "$marker" >/dev/null
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/1336/comments" -f body="$marker" >/dev/null
           elif [[ "$mode" == 'REBOOT' ]]; then
             [[ "$COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
             marker="AGENCY_PREPROD_PHP85_1336_REBOOT_CONSUMED main_sha=$main_sha comment_id=$COMMENT_ID"
             existing="$(gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate --jq ".[] | select(.body == \"$marker\") | .id" | head -n 1)"
             test -z "$existing"
-            gh issue comment 1336 --body "$marker" >/dev/null
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/1336/comments" -f body="$marker" >/dev/null
           fi
 
           plan_id="plan-1336-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"

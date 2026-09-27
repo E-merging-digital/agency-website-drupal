@@ -121,6 +121,60 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   }
 
   /**
+   * Authority consumption markers use explicit repository identity.
+   */
+  public function testAuthorityConsumptionMarkersNeedNoCheckout(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    self::assertSame(
+      1,
+      preg_match(
+        '/\\n  validate-authority:\\n(.*?)(?=\\n  plan:)/s',
+        $workflow,
+        $match,
+      ),
+    );
+    $authority = $match[1];
+
+    self::assertStringNotContainsString('actions/checkout', $authority);
+    self::assertStringNotContainsString('gh issue comment 1336', $authority);
+    self::assertSame(
+      2,
+      substr_count(
+        $authority,
+        'gh api --method POST "repos/$GITHUB_REPOSITORY/issues/1336/comments" -f body="$marker"',
+      ),
+    );
+    self::assertSame(
+      2,
+      substr_count(
+        $authority,
+        'gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate',
+      ),
+    );
+
+    foreach ([
+      'AGENCY_PREPROD_PHP85_1336_APPLY_CONSUMED',
+      'AGENCY_PREPROD_PHP85_1336_REBOOT_CONSUMED',
+    ] as $marker) {
+      $markerPosition = strpos($authority, $marker);
+      self::assertNotFalse($markerPosition);
+      $lookupPosition = strpos(
+        $authority,
+        'gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate',
+        $markerPosition,
+      );
+      self::assertNotFalse($lookupPosition);
+      $publicationPosition = strpos(
+        $authority,
+        'gh api --method POST "repos/$GITHUB_REPOSITORY/issues/1336/comments" -f body="$marker"',
+        $lookupPosition,
+      );
+      self::assertNotFalse($publicationPosition);
+      self::assertLessThan($lookupPosition, $publicationPosition);
+    }
+  }
+
+  /**
    * PLAN is mutation-free and excludes volatile disk from identity.
    */
   public function testPlanIsMutationFreeAllowlistedAndStableDigestExcludesDisk(): void {

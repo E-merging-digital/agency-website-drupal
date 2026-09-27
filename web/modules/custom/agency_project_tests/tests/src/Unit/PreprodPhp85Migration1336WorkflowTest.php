@@ -171,6 +171,9 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
 
     $first = $this->evaluatePlan(5 * 1024 * 1024);
     $second = $this->evaluatePlan(6 * 1024 * 1024);
+    self::assertSame('PASS', $first['STATUS']);
+    self::assertSame('PASS', $first['SAFETY_GATE']);
+    self::assertSame([], $first['FAILED_CHECKS']);
     self::assertCount(12, $first['REQUESTED_PACKAGE_ALLOWLIST']);
     self::assertContains(
       'php8.5-readline',
@@ -243,18 +246,73 @@ BASH;
   }
 
   /**
-   * Unrelated transitive additions fail closed.
+   * Failed safety gates preserve bounded evidence and remain failed.
    */
-  public function testPlanRejectsUnrelatedTransitiveAddition(): void {
+  public function testFailedPlanReceiptIsBoundedAndFailsClosed(): void {
     $result = $this->executePlan(
       5 * 1024 * 1024,
       ['unexpected-runtime-package'],
     );
 
-    self::assertNotSame(0, $result['status']);
+    self::assertSame(65, $result['status']);
+    $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertIsArray($receipt);
+    self::assertSame('FAIL', $receipt['STATUS']);
+    self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+    self::assertSame(
+      ['transitive_additions_php85_only'],
+      $receipt['FAILED_CHECKS'],
+    );
+
+    foreach ([
+      'PHP85_PACKAGE_CANDIDATES',
+      'REBOOT_REQUIRED',
+      'NGINX_VHOST_PHP84_SOCKET_MATCH',
+      'PACKAGE_ADDITIONS',
+      'TRANSITIVE_ADDITIONS',
+      'PACKAGE_UPGRADES',
+      'PACKAGE_REMOVALS',
+      'PHP84_PACKAGES_PRESENT',
+      'PHP84_SERVICE_ACTIVE',
+      'FPM84_POOL_CONTRACT',
+      'SENDMAIL_SAFETY_CONTRACT',
+    ] as $field) {
+      self::assertArrayHasKey($field, $receipt);
+    }
+    self::assertContains(
+      'unexpected-runtime-package',
+      array_column($receipt['TRANSITIVE_ADDITIONS'], 'name'),
+    );
+    self::assertSame([], $receipt['PACKAGE_UPGRADES']);
+    self::assertSame([], $receipt['PACKAGE_REMOVALS']);
+    self::assertSame('YES', $receipt['PHP84_PACKAGES_PRESENT']);
+    self::assertSame('YES', $receipt['PHP84_SERVICE_ACTIVE']);
+  }
+
+  /**
+   * Workflow preserves failed PLAN evidence without making it APPLY-eligible.
+   */
+  public function testFailedPlanArtifactIsUploadedWhilePlanRemainsFailure(): void {
+    $source = $this->source(self::WORKFLOW);
+
+    foreach ([
+      'receipt_valid=true',
+      'test "$plan_rc" -eq 65',
+      'exit "$plan_rc"',
+      "steps.plan_result.outputs.receipt_valid == 'true'",
+      '.STATUS == "FAIL"',
+      '.SAFETY_GATE == "FAIL"',
+      '(.FAILED_CHECKS | length) > 0',
+      'Artifact publication preserves evidence only.',
+      'test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'',
+      'and .FAILED_CHECKS == []',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
     self::assertStringContainsString(
-      'transitive_additions_php85_only',
-      $result['output'],
+      "if: ${{ always() && steps.plan_result.outputs.receipt_valid == 'true' }}",
+      $source,
     );
   }
 

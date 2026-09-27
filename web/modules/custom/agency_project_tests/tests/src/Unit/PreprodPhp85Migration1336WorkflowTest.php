@@ -237,6 +237,84 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   }
 
   /**
+   * Host evidence extractors emit only bounded normalized values.
+   */
+  public function testPlanHostEvidenceExtractorsAreBoundedAndNormalized(): void {
+    $plan = $this->source(self::PLAN);
+    self::assertSame(
+      1,
+      preg_match("/<<'PY_REBOOT'\n(.*?)\nPY_REBOOT/s", $plan, $rebootMatch),
+    );
+    self::assertSame(
+      1,
+      preg_match("/<<'PY_NGINX'\n(.*?)\nPY_NGINX/s", $plan, $nginxMatch),
+    );
+
+    $directory = sys_get_temp_dir() . '/agency-1336-evidence-' . bin2hex(random_bytes(6));
+    self::assertTrue(mkdir($directory, 0700, TRUE));
+    try {
+      $rebootInput = $directory . '/reboot-required.pkgs';
+      file_put_contents(
+        $rebootInput,
+        "linux-image-6.8.0-139-generic\nlinux-base\nlinux-base\n",
+      );
+      $rebootScript = $directory . '/reboot.py';
+      file_put_contents($rebootScript, $rebootMatch[1] . "\n");
+
+      $output = [];
+      $status = 1;
+      exec(
+        'python3 ' . escapeshellarg($rebootScript) . ' '
+        . escapeshellarg($rebootInput) . ' 2>&1',
+        $output,
+        $status,
+      );
+      self::assertSame(0, $status, implode("\n", $output));
+      self::assertSame(
+        ['linux-base', 'linux-image-6.8.0-139-generic'],
+        $output,
+      );
+
+      $vhost = $directory . '/agency-preprod';
+      file_put_contents(
+        $vhost,
+        "server {\n"
+        . "  set \\$private_value do-not-publish;\n"
+        . "  fastcgi_pass unix:/run/php/php8.4-fpm-agency-preprod.sock;\n"
+        . "  fastcgi_pass 127.0.0.1:9000; # bounded target\n"
+        . "  fastcgi_pass unix:/run/php/php8.4-fpm-agency-preprod.sock;\n"
+        . "}\n",
+      );
+      $nginxScript = $directory . '/nginx.py';
+      file_put_contents($nginxScript, $nginxMatch[1] . "\n");
+
+      $output = [];
+      $status = 1;
+      exec(
+        'python3 ' . escapeshellarg($nginxScript) . ' '
+        . escapeshellarg($vhost) . ' 2>&1',
+        $output,
+        $status,
+      );
+      self::assertSame(0, $status, implode("\n", $output));
+      self::assertSame(
+        [
+          '127.0.0.1:9000',
+          'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+        ],
+        $output,
+      );
+      self::assertNotContains('do-not-publish', $output);
+    }
+    finally {
+      foreach (glob($directory . '/*') ?: [] as $file) {
+        @unlink($file);
+      }
+      @rmdir($directory);
+    }
+  }
+
+  /**
    * PLAN summary uses literal formatting and cannot command-substitute Markdown.
    */
   public function testPlanSummaryRendersLiteralPopulatedValues(): void {

@@ -174,6 +174,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     self::assertSame('PASS', $first['STATUS']);
     self::assertSame('PASS', $first['SAFETY_GATE']);
     self::assertSame([], $first['FAILED_CHECKS']);
+    self::assertSame('PASS', $first['PHP85_INSTALL_SIMULATION']);
     self::assertCount(12, $first['REQUESTED_PACKAGE_ALLOWLIST']);
     self::assertContains(
       'php8.5-readline',
@@ -246,6 +247,51 @@ BASH;
   }
 
   /**
+   * Candidate gaps preserve a NOT_RUN simulation receipt and fail closed.
+   */
+  public function testCandidateGapPreservesNotRunSimulationReceipt(): void {
+    $result = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      TRUE,
+      'NOT_RUN',
+    );
+
+    self::assertSame(65, $result['status']);
+    $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertSame('FAIL', $receipt['STATUS']);
+    self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+    self::assertSame('NOT_RUN', $receipt['PHP85_INSTALL_SIMULATION']);
+    self::assertContains('php85_candidates_present', $receipt['FAILED_CHECKS']);
+    self::assertContains(
+      'php85_install_simulation_pass',
+      $receipt['FAILED_CHECKS'],
+    );
+  }
+
+  /**
+   * Simulation command failure preserves a FAIL receipt and exit 65.
+   */
+  public function testSimulationFailurePreservesFailedReceipt(): void {
+    $result = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      FALSE,
+      'FAIL',
+    );
+
+    self::assertSame(65, $result['status']);
+    $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertSame('FAIL', $receipt['STATUS']);
+    self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+    self::assertSame('FAIL', $receipt['PHP85_INSTALL_SIMULATION']);
+    self::assertContains(
+      'php85_install_simulation_pass',
+      $receipt['FAILED_CHECKS'],
+    );
+  }
+
+  /**
    * Failed safety gates preserve bounded evidence and remain failed.
    */
   public function testFailedPlanReceiptIsBoundedAndFailsClosed(): void {
@@ -306,6 +352,7 @@ BASH;
       'Artifact publication preserves evidence only.',
       'test "$(jq -r \'.conclusion\' <<<"$run_json")" = \'success\'',
       'and .FAILED_CHECKS == []',
+      'and .PHP85_INSTALL_SIMULATION == "PASS"',
     ] as $required) {
       self::assertStringContainsString($required, $source);
     }
@@ -399,6 +446,10 @@ BASH;
    *   Synthetic root filesystem free space in KiB.
    * @param string[] $extraAdditions
    *   Additional simulated APT package additions.
+   * @param bool $candidateGap
+   *   Whether one requested candidate is missing.
+   * @param string $simulationState
+   *   Synthetic install simulation state.
    *
    * @return array{status:int,output:string}
    *   Process status and combined output.
@@ -406,6 +457,8 @@ BASH;
   private function executePlan(
     int $diskAvailableKb,
     array $extraAdditions = ['php8.5-readline'],
+    bool $candidateGap = FALSE,
+    string $simulationState = 'PASS',
   ): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
@@ -423,12 +476,17 @@ BASH;
       ];
       $candidateLines = [];
       $simulationLines = [];
-      foreach ($packages as $package) {
-        $candidateLines[] = $package . "\t8.5.11-1";
-        $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+      foreach ($packages as $index => $package) {
+        $candidate = $candidateGap && $index === 0 ? 'NONE' : '8.5.11-1';
+        $candidateLines[] = $package . "\t" . $candidate;
+        if (!$candidateGap && $simulationState === 'PASS') {
+          $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+        }
       }
-      foreach ($extraAdditions as $package) {
-        $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+      if (!$candidateGap && $simulationState === 'PASS') {
+        foreach ($extraAdditions as $package) {
+          $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+        }
       }
       file_put_contents(
         $directory . '/candidates.tsv',
@@ -467,7 +525,8 @@ BASH;
         'SENDMAIL_SAFETY_CONTRACT' => 'YES',
         'NGINX_VHOST_SHA256' => str_repeat('b', 64),
         'FPM84_POOL_SHA256' => str_repeat('c', 64),
-        'CANDIDATE_GAP' => 'NO',
+        'CANDIDATE_GAP' => $candidateGap ? 'YES' : 'NO',
+        'PHP85_INSTALL_SIMULATION' => $simulationState,
       ];
       $assignments = [];
       foreach ($environment as $name => $value) {

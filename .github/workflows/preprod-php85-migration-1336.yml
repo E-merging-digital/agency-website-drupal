@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   validate-authority:
-    name: Validate exact #1336 PLAN/APPLY authority
+    name: Validate exact #1336 PLAN/APPLY/REBOOT authority
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -39,6 +39,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
           COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_ID: ${{ github.event.comment.id }}
           COMMENT_LOGIN: ${{ github.event.comment.user.login }}
           COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
           COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
@@ -67,6 +68,8 @@ jobs:
           plan_digest=''
           if [[ "$COMMENT_BODY" == '/agency-preprod-php85-1336 plan' ]]; then
             mode='PLAN'
+          elif [[ "$COMMENT_BODY" == '/agency-preprod-php85-1336 reboot' ]]; then
+            mode='REBOOT'
           elif [[ "$COMMENT_BODY" =~ ^/agency-preprod-php85-1336\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})$ ]]; then
             mode='APPLY'
             plan_run="${BASH_REMATCH[1]}"
@@ -78,6 +81,12 @@ jobs:
 
           if [[ "$mode" == 'APPLY' ]]; then
             marker="AGENCY_PREPROD_PHP85_1336_APPLY_CONSUMED plan_run=$plan_run plan_digest=$plan_digest"
+            existing="$(gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate --jq ".[] | select(.body == \"$marker\") | .id" | head -n 1)"
+            test -z "$existing"
+            gh issue comment 1336 --body "$marker" >/dev/null
+          elif [[ "$mode" == 'REBOOT' ]]; then
+            [[ "$COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
+            marker="AGENCY_PREPROD_PHP85_1336_REBOOT_CONSUMED main_sha=$main_sha comment_id=$COMMENT_ID"
             existing="$(gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate --jq ".[] | select(.body == \"$marker\") | .id" | head -n 1)"
             test -z "$existing"
             gh issue comment 1336 --body "$marker" >/dev/null
@@ -401,3 +410,255 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: rm -f "$RUNNER_TEMP/agency-1336-root.key"
+
+
+  reboot:
+    name: Reboot PREPROD once with exact pre/post #1336 proof
+    if: ${{ needs.validate-authority.outputs.mode == 'REBOOT' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize pinned PREPROD read-only and root trust
+        shell: bash
+        env:
+          PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_SSH_PRIVATE_KEY"
+          test -n "$PREPROD_ROOT_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          printf '%s\n' "$PREPROD_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1336-reboot-read.key"
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-1336-reboot-root.key"
+          chmod 600 "$RUNNER_TEMP/agency-1336-reboot-read.key" "$RUNNER_TEMP/agency-1336-reboot-root.key"
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - id: reboot_result
+        name: Prove exact blocker, reboot once, reconcile and prove health
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/preprod-php85-1336/reboot
+          read_ssh=(
+            ssh
+            -i "$RUNNER_TEMP/agency-1336-reboot-read.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=5
+          )
+          root_ssh=(
+            ssh
+            -i "$RUNNER_TEMP/agency-1336-reboot-root.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=5
+          )
+          pre='artifacts/preprod-php85-1336/reboot/pre-plan.json'
+          post='artifacts/preprod-php85-1336/reboot/post-plan.json'
+          reconciliation='artifacts/preprod-php85-1336/reboot/reconciliation.json'
+          result='artifacts/preprod-php85-1336/reboot/result.json'
+
+          jq -n '{
+            REBOOT_COMMAND_ATTEMPTED:"NO",
+            HOST_WENT_DOWN:"NO",
+            HOST_REACHABLE_AFTER_REBOOT:"NO",
+            SECOND_REBOOT:"NONE"
+          }' > "$reconciliation"
+
+          set +e
+          "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' 'reboot-pre-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" \
+            < scripts/preproduction-php85-1336/remote-plan.sh > "$pre"
+          pre_rc=$?
+          set -e
+          test "$pre_rc" -eq 65
+          jq -e --arg main "$MAIN_SHA" '
+            .ISSUE == 1336
+            and .TARGET == "PREPROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .STATUS == "FAIL"
+            and .SAFETY_GATE == "FAIL"
+            and .FAILED_CHECKS == ["reboot_not_required"]
+            and .REBOOT_REQUIRED == "YES"
+            and .REBOOT_REQUIRED_PACKAGES_SOURCE == "PRESENT"
+            and .REBOOT_REQUIRED_PACKAGES == ["linux-base","linux-image-6.8.0-142-generic"]
+            and .KERNEL_RUNNING == "6.8.0-139-generic"
+            and .PHP85_INSTALL_SIMULATION == "PASS"
+            and .PACKAGE_UPGRADES == []
+            and .PACKAGE_REMOVALS == []
+            and (.REQUESTED_PACKAGE_ALLOWLIST | length) == 11
+            and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+            and .NGINX_FASTCGI_PASS_VALUES == ["unix:/run/php/php8.4-fpm-agency-preprod.sock"]
+            and .PHP84_PACKAGES_PRESENT == "YES"
+            and .PHP84_SERVICE_ACTIVE == "YES"
+            and .FPM84_POOL_CONTRACT == "YES"
+            and .SENDMAIL_SAFETY_CONTRACT == "YES"
+            and (.NGINX_SERVICE | ascii_downcase) == "active"
+            and (.MARIADB_SERVICE | ascii_downcase) == "active"
+            and .FAILED_SYSTEMD_UNITS == []
+            and .DRUPAL_HEALTH == "PASS"
+            and .PUBLIC_HEALTH == "PASS"
+          ' "$pre" >/dev/null
+
+          jq '.REBOOT_COMMAND_ATTEMPTED = "YES"' "$reconciliation" \
+            > "$reconciliation.tmp"
+          mv "$reconciliation.tmp" "$reconciliation"
+
+          set +e
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" "systemctl reboot" \
+            > artifacts/preprod-php85-1336/reboot/reboot.stdout \
+            2> artifacts/preprod-php85-1336/reboot/reboot.stderr
+          reboot_ssh_rc=$?
+          set -e
+          printf '%s\n' "$reboot_ssh_rc" > artifacts/preprod-php85-1336/reboot/reboot-ssh-rc.txt
+
+          host_went_down='NO'
+          for attempt in $(seq 1 30); do
+            if ! "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" "true" >/dev/null 2>&1; then
+              host_went_down='YES'
+              jq '.HOST_WENT_DOWN = "YES"' "$reconciliation" > "$reconciliation.tmp"
+              mv "$reconciliation.tmp" "$reconciliation"
+              break
+            fi
+            sleep 2
+          done
+          test "$host_went_down" = 'YES'
+
+          host_reachable='NO'
+          for attempt in $(seq 1 90); do
+            if "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" "true" >/dev/null 2>&1; then
+              host_reachable='YES'
+              jq '.HOST_REACHABLE_AFTER_REBOOT = "YES"' "$reconciliation" \
+                > "$reconciliation.tmp"
+              mv "$reconciliation.tmp" "$reconciliation"
+              break
+            fi
+            sleep 2
+          done
+          test "$host_reachable" = 'YES'
+
+          jq --argjson reboot_ssh_rc "$reboot_ssh_rc" \
+            '.REBOOT_SSH_RC = $reboot_ssh_rc' "$reconciliation" \
+            > "$reconciliation.tmp"
+          mv "$reconciliation.tmp" "$reconciliation"
+
+          "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' 'reboot-post-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" \
+            < scripts/preproduction-php85-1336/remote-plan.sh > "$post"
+          jq -e --arg main "$MAIN_SHA" '
+            .ISSUE == 1336
+            and .TARGET == "PREPROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .STATUS == "PASS"
+            and .SAFETY_GATE == "PASS"
+            and .FAILED_CHECKS == []
+            and .KERNEL_RUNNING == "6.8.0-142-generic"
+            and .REBOOT_REQUIRED == "NO"
+            and .PHP85_INSTALL_SIMULATION == "PASS"
+            and .PACKAGE_UPGRADES == []
+            and .PACKAGE_REMOVALS == []
+            and (.REQUESTED_PACKAGE_ALLOWLIST | length) == 11
+            and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+            and .NGINX_FASTCGI_PASS_VALUES == ["unix:/run/php/php8.4-fpm-agency-preprod.sock"]
+            and (.CURRENT_PHP_CLI | startswith("8.4."))
+            and (.CURRENT_PHP_FPM | startswith("PHP 8.4."))
+            and .PHP84_SERVICE_ACTIVE == "YES"
+            and .PHP84_PACKAGES_PRESENT == "YES"
+            and .FPM84_POOL_CONTRACT == "YES"
+            and .SENDMAIL_SAFETY_CONTRACT == "YES"
+            and (.NGINX_SERVICE | ascii_downcase) == "active"
+            and (.MARIADB_SERVICE | ascii_downcase) == "active"
+            and .FAILED_SYSTEMD_UNITS == []
+            and .DRUPAL_HEALTH == "PASS"
+            and .PUBLIC_HEALTH == "PASS"
+          ' "$post" >/dev/null
+
+          jq -n \
+            --arg main "$MAIN_SHA" \
+            --arg pre_kernel "$(jq -r '.KERNEL_RUNNING' "$pre")" \
+            --arg post_kernel "$(jq -r '.KERNEL_RUNNING' "$post")" \
+            '{
+              STATUS:"PASS",
+              MODE:"REBOOT",
+              MAIN_SHA:$main,
+              PRE_KERNEL:$pre_kernel,
+              POST_KERNEL:$post_kernel,
+              REBOOT_REQUIRED_BEFORE:"YES",
+              REBOOT_REQUIRED_AFTER:"NO",
+              HOST_WENT_DOWN:"YES",
+              HOST_REACHABLE_AFTER_REBOOT:"YES",
+              POST_REBOOT_VALIDATION:"PASS",
+              PREPROD_MUTATION:"REBOOT_ONLY",
+              PACKAGE_MUTATION:"NONE",
+              NGINX_MUTATION:"NONE",
+              PHP_MUTATION:"NONE",
+              DRUPAL_MUTATION:"NONE",
+              DB_MUTATION:"NONE",
+              PROD_ACCESS:"NONE",
+              NEW_PHP85_PLAN:"NONE",
+              PHP85_APPLY:"NONE"
+            }' > "$result"
+          echo 'receipt_valid=true' >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable bounded reboot evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprod-php85-1336-reboot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/preprod-php85-1336/reboot/pre-plan.json
+            artifacts/preprod-php85-1336/reboot/reconciliation.json
+            artifacts/preprod-php85-1336/reboot/post-plan.json
+            artifacts/preprod-php85-1336/reboot/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded reboot summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/preprod-php85-1336/reboot/result.json'
+          printf -v body '#1336 PREPROD reboot-only evidence preserved.\n\n`STATUS=%s`\n`MODE=%s`\n`RUN=%s`\n`PRE_KERNEL=%s`\n`POST_KERNEL=%s`\n`HOST_WENT_DOWN=%s`\n`HOST_REACHABLE_AFTER_REBOOT=%s`\n`POST_REBOOT_VALIDATION=%s`\n`PREPROD_MUTATION=%s`\n`PACKAGE_MUTATION=%s`\n`NGINX_MUTATION=%s`\n`PHP_MUTATION=%s`\n`PROD_ACCESS=%s`' \
+            "$(jq -r '.STATUS' "$result")" \
+            "$(jq -r '.MODE' "$result")" \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            "$(jq -r '.PRE_KERNEL' "$result")" \
+            "$(jq -r '.POST_KERNEL' "$result")" \
+            "$(jq -r '.HOST_WENT_DOWN' "$result")" \
+            "$(jq -r '.HOST_REACHABLE_AFTER_REBOOT' "$result")" \
+            "$(jq -r '.POST_REBOOT_VALIDATION' "$result")" \
+            "$(jq -r '.PREPROD_MUTATION' "$result")" \
+            "$(jq -r '.PACKAGE_MUTATION' "$result")" \
+            "$(jq -r '.NGINX_MUTATION' "$result")" \
+            "$(jq -r '.PHP_MUTATION' "$result")" \
+            "$(jq -r '.PROD_ACCESS' "$result")"
+          gh issue comment 1336 --body "$body"
+
+      - name: Remove transient reboot keys
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1336-reboot-read.key" "$RUNNER_TEMP/agency-1336-reboot-root.key"

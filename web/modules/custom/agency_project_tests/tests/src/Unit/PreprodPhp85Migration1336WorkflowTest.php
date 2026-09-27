@@ -27,10 +27,12 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     $jobs = $dispatcher['jobs'] ?? [];
     $plan = $jobs['preprod-php85-migration-1336-plan'] ?? NULL;
     $apply = $jobs['preprod-php85-migration-1336-apply'] ?? NULL;
+    $reboot = $jobs['preprod-php85-migration-1336-reboot'] ?? NULL;
     self::assertIsArray($plan);
     self::assertIsArray($apply);
+    self::assertIsArray($reboot);
 
-    foreach ([$plan, $apply] as $job) {
+    foreach ([$plan, $apply, $reboot] as $job) {
       self::assertSame('./' . self::WORKFLOW, $job['uses'] ?? NULL);
       self::assertSame(
         ['actions' => 'read', 'contents' => 'read', 'issues' => 'write'],
@@ -58,6 +60,18 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       "startsWith(github.event.comment.body, '/agency-preprod-php85-1336 apply ')",
       (string) $apply['if'],
     );
+    self::assertStringContainsString(
+      "github.event.comment.body == '/agency-preprod-php85-1336 reboot'",
+      (string) $reboot['if'],
+    );
+    self::assertSame(
+      [
+        'PREPROD_SSH_PRIVATE_KEY',
+        'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
+        'PREPROD_SERVER_HOST',
+      ],
+      array_keys($reboot['secrets'] ?? []),
+    );
     self::assertSame(
       ['PREPROD_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'],
       array_keys($plan['secrets'] ?? []),
@@ -80,7 +94,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     self::assertArrayNotHasKey('workflow_dispatch', $on);
     self::assertArrayNotHasKey('issue_comment', $on);
     self::assertSame(
-      ['validate-authority', 'plan', 'apply'],
+      ['validate-authority', 'plan', 'apply', 'reboot'],
       array_keys($workflow['jobs'] ?? []),
     );
 
@@ -92,6 +106,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       'test "$COMMENT_VIA_APP" = \'false\'',
       'test "$WORKFLOW_SHA" = "$main_sha"',
       "'/agency-preprod-php85-1336 plan'",
+      "'/agency-preprod-php85-1336 reboot'",
       'plan_run=([1-9][0-9]*)',
       'plan_digest=([0-9a-f]{64})',
       'AGENCY_PREPROD_PHP85_1336_APPLY_CONSUMED',
@@ -933,6 +948,136 @@ BASH;
   }
 
   /**
+   * REBOOT is exact, one-shot, reboot-only and fully post-validated.
+   */
+  public function testRebootWorkflowIsBoundedOneShotAndFailClosed(): void {
+    $workflow = $this->source(self::WORKFLOW);
+
+    foreach ([
+      "mode='REBOOT'",
+      'COMMENT_ID: ${{ github.event.comment.id }}',
+      'AGENCY_PREPROD_PHP85_1336_REBOOT_CONSUMED',
+      'main_sha=$main_sha comment_id=$COMMENT_ID',
+      "needs.validate-authority.outputs.mode == 'REBOOT'",
+      '.FAILED_CHECKS == ["reboot_not_required"]',
+      '.REBOOT_REQUIRED == "YES"',
+      '.REBOOT_REQUIRED_PACKAGES_SOURCE == "PRESENT"',
+      '["linux-base","linux-image-6.8.0-142-generic"]',
+      '.KERNEL_RUNNING == "6.8.0-139-generic"',
+      '.PHP85_INSTALL_SIMULATION == "PASS"',
+      '(.REQUESTED_PACKAGE_ALLOWLIST | length) == 11',
+      '.NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"',
+      '["unix:/run/php/php8.4-fpm-agency-preprod.sock"]',
+      '.PHP84_PACKAGES_PRESENT == "YES"',
+      '.PHP84_SERVICE_ACTIVE == "YES"',
+      '.FPM84_POOL_CONTRACT == "YES"',
+      '.SENDMAIL_SAFETY_CONTRACT == "YES"',
+      '.FAILED_SYSTEMD_UNITS == []',
+      '.DRUPAL_HEALTH == "PASS"',
+      '.PUBLIC_HEALTH == "PASS"',
+      '"systemctl reboot"',
+      "host_went_down='NO'",
+      'for attempt in $(seq 1 30)',
+      "host_reachable='NO'",
+      'for attempt in $(seq 1 90)',
+      'SECOND_REBOOT:"NONE"',
+      '.STATUS == "PASS"',
+      '.SAFETY_GATE == "PASS"',
+      '.FAILED_CHECKS == []',
+      '.KERNEL_RUNNING == "6.8.0-142-generic"',
+      '.REBOOT_REQUIRED == "NO"',
+      '(.CURRENT_PHP_CLI | startswith("8.4."))',
+      '(.CURRENT_PHP_FPM | startswith("PHP 8.4."))',
+      'preprod-php85-1336-reboot-${{ github.run_id }}-${{ github.run_attempt }}',
+      'reconciliation.json',
+      'REBOOT_COMMAND_ATTEMPTED:"NO"',
+      '.REBOOT_COMMAND_ATTEMPTED = "YES"',
+      '.HOST_WENT_DOWN = "YES"',
+      '.HOST_REACHABLE_AFTER_REBOOT = "YES"',
+      'POST_REBOOT_VALIDATION:"PASS"',
+      'PREPROD_MUTATION:"REBOOT_ONLY"',
+      'PACKAGE_MUTATION:"NONE"',
+      'NGINX_MUTATION:"NONE"',
+      'PHP_MUTATION:"NONE"',
+      'DRUPAL_MUTATION:"NONE"',
+      'DB_MUTATION:"NONE"',
+      'PROD_ACCESS:"NONE"',
+      'NEW_PHP85_PLAN:"NONE"',
+      'PHP85_APPLY:"NONE"',
+      '#1336 PREPROD reboot-only evidence preserved.',
+      'printf -v body',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    self::assertSame(1, substr_count($workflow, '"systemctl reboot"'));
+    self::assertStringContainsString(
+      'if: ${{ always() }}',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      "steps.reboot_result.outputs.receipt_valid == 'true'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'artifacts/preprod-php85-1336/reboot/pre-plan.json',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'artifacts/preprod-php85-1336/reboot/reconciliation.json',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'artifacts/preprod-php85-1336/reboot/post-plan.json',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'artifacts/preprod-php85-1336/reboot/result.json',
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      'artifacts/preprod-php85-1336/reboot/reboot.stdout',
+      $this->extractRebootArtifactUploadBlock($workflow),
+    );
+    self::assertStringNotContainsString(
+      'artifacts/preprod-php85-1336/reboot/reboot.stderr',
+      $this->extractRebootArtifactUploadBlock($workflow),
+    );
+
+    self::assertStringNotContainsString(
+      'body="$(cat <<EOF_BODY' . "\n"
+      . '          #1336 PREPROD reboot-only evidence preserved.',
+      $workflow,
+    );
+
+    self::assertSame(
+      1,
+      preg_match(
+        "/\n  reboot:\n(.*)\z/s",
+        $workflow,
+        $match,
+      ),
+    );
+    $rebootJob = $match[1];
+    foreach ([
+      'apt-get update',
+      'apt-get install',
+      'apt-get upgrade',
+      'apt upgrade',
+      'full-upgrade',
+      'dist-upgrade',
+      'apt-get remove',
+      'apt-get purge',
+      'systemctl reload nginx',
+      'systemctl restart php',
+      'drush cim',
+      'drush updb',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $rebootJob);
+    }
+  }
+
+  /**
    * Both remote scripts have valid Bash syntax.
    */
   public function testRemoteScriptsHaveValidBashSyntax(): void {
@@ -1083,6 +1228,21 @@ BASH;
       }
       @rmdir($directory);
     }
+  }
+
+  /**
+   * Extracts the bounded reboot artifact upload step.
+   */
+  private function extractRebootArtifactUploadBlock(string $workflow): string {
+    self::assertSame(
+      1,
+      preg_match(
+        '/- name: Upload immutable bounded reboot evidence\n(.*?)(?=\n      - name: Publish bounded reboot summary)/s',
+        $workflow,
+        $match,
+      ),
+    );
+    return $match[1];
   }
 
   /**

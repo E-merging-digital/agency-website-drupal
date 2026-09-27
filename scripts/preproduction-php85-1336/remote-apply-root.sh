@@ -63,7 +63,12 @@ current_digest="$(jq -r '.PLAN_DIGEST' "$work_root/current-plan.json")"
   printf '%s\n' 'STALE_PLAN: digest drift before mutation.' >&2
   exit 65
 }
-jq -e '.REBOOT_REQUIRED == "NO" and .SAFETY_GATE == "PASS"' "$work_root/current-plan.json" >/dev/null
+jq -e '
+  .REBOOT_REQUIRED == "NO"
+  and .SAFETY_GATE == "PASS"
+  and .NGINX_FASTCGI_PASS_VALUES == ["unix:/run/php/php8.4-fpm-agency-preprod.sock"]
+  and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+' "$work_root/current-plan.json" >/dev/null
 
 mapfile -t package_specs < <(
   jq -r '.REQUESTED_PACKAGE_ALLOWLIST[] as $pkg | "\($pkg)=\(.PHP85_PACKAGE_CANDIDATES[$pkg])"' "$APPROVED_PLAN"
@@ -149,32 +154,324 @@ systemctl restart php8.5-fpm
 [[ -S "$NEW_SOCKET" ]]
 [[ "$(php8.5 -r 'echo (string) ini_get("sendmail_path");')" == '/bin/true' ]]
 
-# Derive the candidate vhost from exact live bytes, replacing exactly one socket.
+# Derive the candidate vhost from exact live bytes, replacing every exact
+# occurrence of the approved PHP 8.4 socket and nothing else.
 python3 - "$NGINX_VHOST" "$work_root/nginx.candidate" <<'PY'
+import re
 import sys
 from pathlib import Path
-src=Path(sys.argv[1]).read_bytes()
-old=b'/run/php/php8.4-fpm-agency-preprod.sock'
-new=b'/run/php/php8.5-fpm-agency-preprod.sock'
-if src.count(old) != 1:
-    raise SystemExit('Expected exactly one PHP 8.4 PREPROD socket in live vhost')
+
+source_path = Path(sys.argv[1])
+candidate_path = Path(sys.argv[2])
+src = source_path.read_bytes()
+old = b'/run/php/php8.4-fpm-agency-preprod.sock'
+new = b'/run/php/php8.5-fpm-agency-preprod.sock'
+old_count = src.count(old)
+if old_count < 1:
+    raise SystemExit('Expected at least one PHP 8.4 PREPROD socket in live vhost')
 if new in src:
     raise SystemExit('PHP 8.5 socket already present before switch')
-Path(sys.argv[2]).write_bytes(src.replace(old,new,1))
+
+text = src.decode('utf-8', errors='strict')
+targets = set()
+valid = True
+for line in text.splitlines():
+    if 'fastcgi_pass' not in line:
+        continue
+    match = re.match(r'^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?
+
+switched='NO'
+rollback() {
+  local rc="$1"
+  set +e
+  rollback_status='FAIL'
+  cp --preserve=all "$backup_root/nginx-agency-preprod.before" "$NGINX_VHOST"
+  if nginx -t >/dev/null 2>&1 \
+    && systemctl reload nginx >/dev/null 2>&1 \
+    && systemctl is-active --quiet php8.4-fpm \
+    && curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/live" >/dev/null \
+    && curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/ready" >/dev/null; then
+    rollback_status='PASS'
+  fi
+  jq -n \
+    --arg status 'FAIL' \
+    --arg rollback "$rollback_status" \
+    --arg main "$EXPECTED_MAIN" \
+    --arg digest "$EXPECTED_DIGEST" \
+    --arg backup "$backup_root" \
+    '{STATUS:$status,ISSUE:1336,TARGET:"PREPROD",MODE:"APPLY",MAIN_SHA:$main,PLAN_DIGEST:$digest,ROLLBACK:$rollback,SYSTEM_CONFIG_BACKUP:$backup,PHP84_REMOVAL:"NONE",PROD_ACCESS:"NONE"}'
+  exit "$rc"
+}
+on_error() {
+  local rc=$?
+  if [[ "$switched" == 'YES' ]]; then
+    rollback "$rc"
+  fi
+  exit "$rc"
+}
+trap on_error ERR
+
+install -m 644 "$work_root/nginx.candidate" "$NGINX_VHOST"
+switched='YES'
+nginx -t
+systemctl reload nginx
+
+# Canonical PREPROD runtime, public and internal-readiness validation.
+bash "$RUNTIME_VALIDATOR" >"$work_root/runtime-validation.txt"
+grep -Fqx 'side_effects=PASS' "$work_root/runtime-validation.txt"
+curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/live" >"$work_root/public-live.json"
+curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/ready" >"$work_root/public-ready.json"
+curl --silent --show-error --fail --max-time 8 \
+  --header 'Host: preprod.emergingdigital.be' \
+  http://127.0.0.1:18087/health/ready >"$work_root/internal-ready.json"
+
+# Prove the socket selected by Nginx is backed by a PHP 8.5 FPM process.
+python3 - "$NEW_SOCKET" <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
+socket_path=sys.argv[1]
+inode=None
+for line in Path('/proc/net/unix').read_text().splitlines()[1:]:
+    parts=line.split()
+    if len(parts) >= 8 and parts[-1] == socket_path:
+        inode=parts[6]
+        break
+if not inode:
+    raise SystemExit('Unable to resolve PHP 8.5 FPM socket inode')
+needle=f'socket:[{inode}]'
+owners=[]
+for proc in Path('/proc').glob('[0-9]*'):
+    fd=proc/'fd'
+    try:
+        for item in fd.iterdir():
+            try:
+                if os.readlink(item) == needle:
+                    cmd=(proc/'cmdline').read_bytes().replace(b'\0',b' ').decode(errors='replace')
+                    owners.append(cmd)
+                    break
+            except (OSError, PermissionError):
+                pass
+    except (OSError, PermissionError):
+        pass
+if not any('php-fpm8.5' in cmd or 'php-fpm: master process (/etc/php/8.5/' in cmd for cmd in owners):
+    raise SystemExit('PHP 8.5 FPM does not own the selected PREPROD socket')
+PY
+
+systemctl is-active --quiet nginx
+systemctl is-active --quiet php8.5-fpm
+systemctl is-active --quiet php8.4-fpm
+systemctl is-active --quiet mariadb
+grep -Fqx 'fastcgi_pass unix:/run/php/php8.5-fpm-agency-preprod.sock;' "$NGINX_VHOST" || \
+  grep -Fq '/run/php/php8.5-fpm-agency-preprod.sock' "$NGINX_VHOST"
+
+trap - ERR
+jq -n \
+  --arg status 'PASS' \
+  --arg main "$EXPECTED_MAIN" \
+  --arg digest "$EXPECTED_DIGEST" \
+  --arg backup "$backup_root" \
+  '{
+    STATUS:$status,
+    ISSUE:1336,
+    TARGET:"PREPROD",
+    MODE:"APPLY",
+    MAIN_SHA:$main,
+    PLAN_DIGEST:$digest,
+    STALE_PLAN:"PASS",
+    EXACT_PACKAGE_SIMULATION:"PASS",
+    PACKAGE_APPLY:"PASS",
+    PHP85_FPM:"ACTIVE",
+    PHP85_OPCACHE_AVAILABLE:"PASS",
+    PREPROD_SOCKET:"/run/php/php8.5-fpm-agency-preprod.sock",
+    PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE",
+    NGINX_SOCKET_ONLY_DELTA:"PASS",
+    NGINX_SERVICE:"ACTIVE",
+    MARIADB_SERVICE:"ACTIVE",
+    DRUPAL_HEALTH:"PASS",
+    PUBLIC_HEALTH:"PASS",
+    INTERNAL_READINESS:"PASS",
+    SIDE_EFFECT_ISOLATION:"PASS",
+    WEB_RUNTIME_PHP85:"PASS",
+    ROLLBACK:"NOT_REQUIRED",
+    SYSTEM_CONFIG_BACKUP:$backup,
+    PHP84_REMOVAL:"NONE",
+    DRUPAL_DEPLOY:"NONE",
+    DRUPAL_CONFIG_IMPORT:"NONE",
+    DB_MUTATION:"NONE",
+    PROD_ACCESS:"NONE"
+  }'
+, line)
+    if not match:
+        valid = False
+        continue
+    targets.add(match.group(1))
+if not valid or targets != {'unix:/run/php/php8.4-fpm-agency-preprod.sock'}:
+    raise SystemExit('Unexpected live FastCGI target set before switch')
+
+candidate = src.replace(old, new)
+if old in candidate:
+    raise SystemExit('PHP 8.4 socket remains after candidate substitution')
+if candidate.count(new) != old_count:
+    raise SystemExit('PHP 8.5 socket occurrence count does not match source')
+candidate_path.write_bytes(candidate)
 PY
 
 python3 - "$NGINX_VHOST" "$work_root/nginx.candidate" <<'PY'
+import re
 import sys
 from pathlib import Path
-old=Path(sys.argv[1]).read_bytes()
-new=Path(sys.argv[2]).read_bytes()
-expected=old.replace(
-    b'/run/php/php8.4-fpm-agency-preprod.sock',
-    b'/run/php/php8.5-fpm-agency-preprod.sock',
-    1,
-)
-if new != expected:
+
+source = Path(sys.argv[1]).read_bytes()
+candidate = Path(sys.argv[2]).read_bytes()
+old = b'/run/php/php8.4-fpm-agency-preprod.sock'
+new = b'/run/php/php8.5-fpm-agency-preprod.sock'
+old_count = source.count(old)
+expected = source.replace(old, new)
+if candidate != expected:
     raise SystemExit('NGINX_SOCKET_ONLY_DELTA failed')
+if old in candidate:
+    raise SystemExit('NGINX_SOCKET_ONLY_DELTA left old socket behind')
+if candidate.count(new) != old_count:
+    raise SystemExit('NGINX_SOCKET_ONLY_DELTA occurrence count drift')
+
+targets = set()
+valid = True
+for line in candidate.decode('utf-8', errors='strict').splitlines():
+    if 'fastcgi_pass' not in line:
+        continue
+    match = re.match(r'^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?
+
+switched='NO'
+rollback() {
+  local rc="$1"
+  set +e
+  rollback_status='FAIL'
+  cp --preserve=all "$backup_root/nginx-agency-preprod.before" "$NGINX_VHOST"
+  if nginx -t >/dev/null 2>&1 \
+    && systemctl reload nginx >/dev/null 2>&1 \
+    && systemctl is-active --quiet php8.4-fpm \
+    && curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/live" >/dev/null \
+    && curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/ready" >/dev/null; then
+    rollback_status='PASS'
+  fi
+  jq -n \
+    --arg status 'FAIL' \
+    --arg rollback "$rollback_status" \
+    --arg main "$EXPECTED_MAIN" \
+    --arg digest "$EXPECTED_DIGEST" \
+    --arg backup "$backup_root" \
+    '{STATUS:$status,ISSUE:1336,TARGET:"PREPROD",MODE:"APPLY",MAIN_SHA:$main,PLAN_DIGEST:$digest,ROLLBACK:$rollback,SYSTEM_CONFIG_BACKUP:$backup,PHP84_REMOVAL:"NONE",PROD_ACCESS:"NONE"}'
+  exit "$rc"
+}
+on_error() {
+  local rc=$?
+  if [[ "$switched" == 'YES' ]]; then
+    rollback "$rc"
+  fi
+  exit "$rc"
+}
+trap on_error ERR
+
+install -m 644 "$work_root/nginx.candidate" "$NGINX_VHOST"
+switched='YES'
+nginx -t
+systemctl reload nginx
+
+# Canonical PREPROD runtime, public and internal-readiness validation.
+bash "$RUNTIME_VALIDATOR" >"$work_root/runtime-validation.txt"
+grep -Fqx 'side_effects=PASS' "$work_root/runtime-validation.txt"
+curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/live" >"$work_root/public-live.json"
+curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/ready" >"$work_root/public-ready.json"
+curl --silent --show-error --fail --max-time 8 \
+  --header 'Host: preprod.emergingdigital.be' \
+  http://127.0.0.1:18087/health/ready >"$work_root/internal-ready.json"
+
+# Prove the socket selected by Nginx is backed by a PHP 8.5 FPM process.
+python3 - "$NEW_SOCKET" <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
+socket_path=sys.argv[1]
+inode=None
+for line in Path('/proc/net/unix').read_text().splitlines()[1:]:
+    parts=line.split()
+    if len(parts) >= 8 and parts[-1] == socket_path:
+        inode=parts[6]
+        break
+if not inode:
+    raise SystemExit('Unable to resolve PHP 8.5 FPM socket inode')
+needle=f'socket:[{inode}]'
+owners=[]
+for proc in Path('/proc').glob('[0-9]*'):
+    fd=proc/'fd'
+    try:
+        for item in fd.iterdir():
+            try:
+                if os.readlink(item) == needle:
+                    cmd=(proc/'cmdline').read_bytes().replace(b'\0',b' ').decode(errors='replace')
+                    owners.append(cmd)
+                    break
+            except (OSError, PermissionError):
+                pass
+    except (OSError, PermissionError):
+        pass
+if not any('php-fpm8.5' in cmd or 'php-fpm: master process (/etc/php/8.5/' in cmd for cmd in owners):
+    raise SystemExit('PHP 8.5 FPM does not own the selected PREPROD socket')
+PY
+
+systemctl is-active --quiet nginx
+systemctl is-active --quiet php8.5-fpm
+systemctl is-active --quiet php8.4-fpm
+systemctl is-active --quiet mariadb
+grep -Fqx 'fastcgi_pass unix:/run/php/php8.5-fpm-agency-preprod.sock;' "$NGINX_VHOST" || \
+  grep -Fq '/run/php/php8.5-fpm-agency-preprod.sock' "$NGINX_VHOST"
+
+trap - ERR
+jq -n \
+  --arg status 'PASS' \
+  --arg main "$EXPECTED_MAIN" \
+  --arg digest "$EXPECTED_DIGEST" \
+  --arg backup "$backup_root" \
+  '{
+    STATUS:$status,
+    ISSUE:1336,
+    TARGET:"PREPROD",
+    MODE:"APPLY",
+    MAIN_SHA:$main,
+    PLAN_DIGEST:$digest,
+    STALE_PLAN:"PASS",
+    EXACT_PACKAGE_SIMULATION:"PASS",
+    PACKAGE_APPLY:"PASS",
+    PHP85_FPM:"ACTIVE",
+    PHP85_OPCACHE_AVAILABLE:"PASS",
+    PREPROD_SOCKET:"/run/php/php8.5-fpm-agency-preprod.sock",
+    PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE",
+    NGINX_SOCKET_ONLY_DELTA:"PASS",
+    NGINX_SERVICE:"ACTIVE",
+    MARIADB_SERVICE:"ACTIVE",
+    DRUPAL_HEALTH:"PASS",
+    PUBLIC_HEALTH:"PASS",
+    INTERNAL_READINESS:"PASS",
+    SIDE_EFFECT_ISOLATION:"PASS",
+    WEB_RUNTIME_PHP85:"PASS",
+    ROLLBACK:"NOT_REQUIRED",
+    SYSTEM_CONFIG_BACKUP:$backup,
+    PHP84_REMOVAL:"NONE",
+    DRUPAL_DEPLOY:"NONE",
+    DRUPAL_CONFIG_IMPORT:"NONE",
+    DB_MUTATION:"NONE",
+    PROD_ACCESS:"NONE"
+  }'
+, line)
+    if not match:
+        valid = False
+        continue
+    targets.add(match.group(1))
+if not valid or targets != {'unix:/run/php/php8.5-fpm-agency-preprod.sock'}:
+    raise SystemExit('NGINX_SOCKET_ONLY_DELTA candidate FastCGI targets invalid')
 PY
 
 switched='NO'

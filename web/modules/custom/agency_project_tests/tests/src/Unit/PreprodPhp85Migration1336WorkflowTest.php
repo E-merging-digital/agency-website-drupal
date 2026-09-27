@@ -127,9 +127,13 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       'php8.5-xml',
       'php8.5-zip',
       'apt-get --simulate install',
+      'REQUESTED_PACKAGE_ALLOWLIST',
+      'PACKAGE_ADDITIONS',
+      'TRANSITIVE_ADDITIONS',
       'PACKAGE_REMOVALS',
       'PACKAGE_UPGRADES',
-      'package_additions_exact_allowlist',
+      'all_requested_packages_present_in_simulation',
+      'transitive_additions_php85_only',
       'PHP84_PACKAGES_PRESENT',
       'PHP84_SERVICE_ACTIVE',
       'NGINX_VHOST_PHP84_SOCKET_MATCH',
@@ -167,8 +171,29 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
 
     $first = $this->evaluatePlan(5 * 1024 * 1024);
     $second = $this->evaluatePlan(6 * 1024 * 1024);
+    self::assertCount(12, $first['REQUESTED_PACKAGE_ALLOWLIST']);
+    self::assertContains(
+      'php8.5-readline',
+      array_column($first['TRANSITIVE_ADDITIONS'], 'name'),
+    );
     self::assertNotSame($first['DISK_AVAILABLE_KB'], $second['DISK_AVAILABLE_KB']);
     self::assertSame($first['PLAN_DIGEST'], $second['PLAN_DIGEST']);
+  }
+
+  /**
+   * Unrelated transitive additions fail closed.
+   */
+  public function testPlanRejectsUnrelatedTransitiveAddition(): void {
+    $result = $this->executePlan(
+      5 * 1024 * 1024,
+      ['unexpected-runtime-package'],
+    );
+
+    self::assertNotSame(0, $result['status']);
+    self::assertStringContainsString(
+      'transitive_additions_php85_only',
+      $result['output'],
+    );
   }
 
   /**
@@ -181,6 +206,10 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       'current_digest',
       '[[ "$current_digest" == "$EXPECTED_DIGEST" ]]',
       'apt-get --simulate install',
+      'REQUESTED_PACKAGE_ALLOWLIST',
+      'actual_additions != approved[\'PACKAGE_ADDITIONS\']',
+      'actual_upgrades != approved[\'PACKAGE_UPGRADES\']',
+      'actual_removals != approved[\'PACKAGE_REMOVALS\']',
       'apt-get install -y',
       'dpkg-query -W',
       'systemctl is-active --quiet php8.4-fpm',
@@ -233,9 +262,29 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   }
 
   /**
-   * Executes the embedded PLAN evaluator on deterministic synthetic inputs.
+   * Executes the embedded PLAN evaluator on a valid PHP 8.5 closure.
    */
   private function evaluatePlan(int $diskAvailableKb): array {
+    $result = $this->executePlan($diskAvailableKb);
+    self::assertSame(0, $result['status'], $result['output']);
+    $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertIsArray($receipt);
+    return $receipt;
+  }
+
+  /**
+   * Executes the embedded PLAN evaluator on deterministic synthetic inputs.
+   *
+   * @param string[] $extraAdditions
+   *   Additional simulated APT package additions.
+   *
+   * @return array{status:int,output:string}
+   *   Process status and combined output.
+   */
+  private function executePlan(
+    int $diskAvailableKb,
+    array $extraAdditions = ['php8.5-readline'],
+  ): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
       1,
@@ -256,8 +305,17 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
         $candidateLines[] = $package . "\t8.5.11-1";
         $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
       }
-      file_put_contents($directory . '/candidates.tsv', implode("\n", $candidateLines) . "\n");
-      file_put_contents($directory . '/install-sim.raw', implode("\n", $simulationLines) . "\n");
+      foreach ($extraAdditions as $package) {
+        $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+      }
+      file_put_contents(
+        $directory . '/candidates.tsv',
+        implode("\n", $candidateLines) . "\n",
+      );
+      file_put_contents(
+        $directory . '/install-sim.raw',
+        implode("\n", $simulationLines) . "\n",
+      );
       file_put_contents($directory . '/failed.raw', '');
       $script = $directory . '/plan.py';
       file_put_contents($script, $matches[1] . "\n");
@@ -265,7 +323,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       $environment = [
         'WORK_ROOT' => $directory,
         'MAIN_SHA' => str_repeat('a', 40),
-        'PLAN_ID' => 'plan-1336-deterministic-fixture-r1',
+        'PLAN_ID' => 'plan-1336-deterministic-fixture-r2',
         'OS_PRETTY_NAME' => 'Ubuntu 24.04.5 LTS',
         'VERSION_ID' => '24.04',
         'KERNEL_RUNNING' => '6.8.0-139-generic',
@@ -298,10 +356,10 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       $output = [];
       $status = 1;
       exec($command, $output, $status);
-      self::assertSame(0, $status, implode("\n", $output));
-      $receipt = json_decode(implode("\n", $output), TRUE, 32, JSON_THROW_ON_ERROR);
-      self::assertIsArray($receipt);
-      return $receipt;
+      return [
+        'status' => $status,
+        'output' => implode("\n", $output),
+      ];
     }
     finally {
       foreach (glob($directory . '/*') ?: [] as $path) {

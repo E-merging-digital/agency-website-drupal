@@ -1,0 +1,371 @@
+name: '#1336 governed PREPROD PHP 8.5 migration'
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: false
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY:
+        required: false
+      PREPROD_SERVER_HOST:
+        required: true
+
+concurrency:
+  group: agency-preprod-php85-migration-1336
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate exact #1336 PLAN/APPLY authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    outputs:
+      mode: ${{ steps.authority.outputs.mode }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      plan_id: ${{ steps.authority.outputs.plan_id }}
+      plan_run: ${{ steps.authority.outputs.plan_run }}
+      plan_digest: ${{ steps.authority.outputs.plan_digest }}
+    steps:
+      - id: authority
+        name: JIT validate direct OWNER command and exact live main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1336'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1336")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          jq -e '[.labels[].name] | index("P1") != null' <<<"$issue_json" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$WORKFLOW_SHA" = "$main_sha"
+
+          mode=''
+          plan_run=''
+          plan_digest=''
+          if [[ "$COMMENT_BODY" == '/agency-preprod-php85-1336 plan' ]]; then
+            mode='PLAN'
+          elif [[ "$COMMENT_BODY" =~ ^/agency-preprod-php85-1336\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})$ ]]; then
+            mode='APPLY'
+            plan_run="${BASH_REMATCH[1]}"
+            plan_digest="${BASH_REMATCH[2]}"
+          else
+            printf '%s\n' 'Unsupported #1336 command syntax.' >&2
+            exit 64
+          fi
+
+          if [[ "$mode" == 'APPLY' ]]; then
+            marker="AGENCY_PREPROD_PHP85_1336_APPLY_CONSUMED plan_run=$plan_run plan_digest=$plan_digest"
+            existing="$(gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate --jq ".[] | select(.body == \"$marker\") | .id" | head -n 1)"
+            test -z "$existing"
+            gh issue comment 1336 --body "$marker" >/dev/null
+          fi
+
+          plan_id="plan-1336-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "mode=$mode"
+            echo "main_sha=$main_sha"
+            echo "plan_id=$plan_id"
+            echo "plan_run=$plan_run"
+            echo "plan_digest=$plan_digest"
+          } >> "$GITHUB_OUTPUT"
+
+  plan:
+    name: Build fresh mutation-free PREPROD PHP 8.5 PLAN
+    if: ${{ needs.validate-authority.outputs.mode == 'PLAN' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize pinned PREPROD read-only trust
+        shell: bash
+        env:
+          PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_SSH_PRIVATE_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          printf '%s\n' "$PREPROD_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1336-plan.key"
+          chmod 600 "$RUNNER_TEMP/agency-1336-plan.key"
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - id: plan_result
+        name: Run mutation-free PLAN on PREPROD
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/preprod-php85-1336
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1336-plan.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          ssh "${ssh_args[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID'" \
+            < scripts/preproduction-php85-1336/remote-plan.sh \
+            > artifacts/preprod-php85-1336/plan.json
+
+          jq -e --arg main "$MAIN_SHA" --arg plan_id "$PLAN_ID" '
+            .STATUS == "PASS"
+            and .ISSUE == 1336
+            and .TARGET == "PREPROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_ID == $plan_id
+            and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
+            and .REBOOT_REQUIRED == "NO"
+            and .PACKAGE_REMOVALS == []
+            and .PACKAGE_UPGRADES == []
+            and .PHP84_PACKAGES_PRESENT == "YES"
+            and .PHP84_SERVICE_ACTIVE == "YES"
+            and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+            and .FPM84_POOL_CONTRACT == "YES"
+            and .SENDMAIL_SAFETY_CONTRACT == "YES"
+            and .SAFETY_GATE == "PASS"' artifacts/preprod-php85-1336/plan.json >/dev/null
+          echo "digest=$(jq -r '.PLAN_DIGEST' artifacts/preprod-php85-1336/plan.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable PLAN evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprod-php85-1336-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/preprod-php85-1336/plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded PLAN summary
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+          PLAN_DIGEST: ${{ steps.plan_result.outputs.digest }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF_BODY
+          #1336 PREPROD PHP 8.5 migration PLAN completed.
+
+          `MODE=PLAN`
+          `RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}`
+          `PLAN_ID=${PLAN_ID}`
+          `PLAN_DIGEST=${PLAN_DIGEST}`
+          `TARGET=PREPROD`
+          `PREPROD_MUTATION=NONE`
+          `PHP84_REMOVAL=NONE`
+
+          APPLY remains separately authorized. Review the immutable PLAN artifact before posting the exact APPLY command.
+          EOF_BODY
+          )"
+          gh issue comment 1336 --body "$body"
+
+      - name: Remove transient PLAN key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1336-plan.key"
+
+  apply:
+    name: Apply exact approved PREPROD PHP 8.5 migration
+    if: ${{ needs.validate-authority.outputs.mode == 'APPLY' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Load immutable approved PLAN
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/preprod-php85-1336/approved
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN")"
+          test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'
+          test "$(jq -r '.event' <<<"$run_json")" = 'issue_comment'
+          test "$(jq -r '.head_sha' <<<"$run_json")" = "$MAIN_SHA"
+          test "$(jq -r '.run_attempt' <<<"$run_json")" = '1'
+          mapfile -t artifacts < <(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN/artifacts" \
+              --jq ".artifacts[] | select(.expired == false) | select(.name | startswith(\"preprod-php85-1336-plan-${PLAN_RUN}-\")) | .name"
+          )
+          test "${#artifacts[@]}" -eq 1
+          gh run download "$PLAN_RUN" --name "${artifacts[0]}" \
+            --dir artifacts/preprod-php85-1336/approved
+          plan='artifacts/preprod-php85-1336/approved/plan.json'
+          test -s "$plan"
+          jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" '
+            .STATUS == "PASS"
+            and .ISSUE == 1336
+            and .TARGET == "PREPROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_DIGEST == $digest
+            and .SAFETY_GATE == "PASS"' "$plan" >/dev/null
+
+      - name: Materialize pinned PREPROD root trust
+        shell: bash
+        env:
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_ROOT_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-1336-root.key"
+          chmod 600 "$RUNNER_TEMP/agency-1336-root.key"
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Execute exact stale-checked migration
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          root_ssh=(
+            ssh
+            -i "$RUNNER_TEMP/agency-1336-root.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          root_scp=(
+            scp -q
+            -i "$RUNNER_TEMP/agency-1336-root.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          remote_dir="/root/agency-1336-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          plan='artifacts/preprod-php85-1336/approved/plan.json'
+          mkdir -p artifacts/preprod-php85-1336/apply
+
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" \
+            "umask 077; rm -rf -- '$remote_dir'; install -d -m 700 '$remote_dir'"
+          "${root_scp[@]}" \
+            scripts/preproduction-php85-1336/remote-plan.sh \
+            scripts/preproduction-php85-1336/remote-apply-root.sh \
+            scripts/preproduction/validate-runtime.sh \
+            "$plan" \
+            "root@$PREPROD_SERVER_HOST:$remote_dir/"
+
+          set +e
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" \
+            "chmod 700 '$remote_dir/remote-plan.sh' '$remote_dir/remote-apply-root.sh'; '$remote_dir/remote-apply-root.sh' '$remote_dir/plan.json' '$PLAN_DIGEST' '$MAIN_SHA' '$remote_dir/remote-plan.sh' '$remote_dir/validate-runtime.sh'" \
+            > artifacts/preprod-php85-1336/apply/result.json \
+            2> artifacts/preprod-php85-1336/apply/stderr.txt
+          apply_rc=$?
+          set -e
+          test "$apply_rc" -eq 0
+          jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" '
+            .STATUS == "PASS"
+            and .ISSUE == 1336
+            and .TARGET == "PREPROD"
+            and .MODE == "APPLY"
+            and .MAIN_SHA == $main
+            and .PLAN_DIGEST == $digest
+            and .STALE_PLAN == "PASS"
+            and .EXACT_PACKAGE_SIMULATION == "PASS"
+            and .PACKAGE_APPLY == "PASS"
+            and .PHP85_FPM == "ACTIVE"
+            and .PHP84_FPM == "ACTIVE_ROLLBACK_AVAILABLE"
+            and .NGINX_SOCKET_ONLY_DELTA == "PASS"
+            and .DRUPAL_HEALTH == "PASS"
+            and .PUBLIC_HEALTH == "PASS"
+            and .INTERNAL_READINESS == "PASS"
+            and .SIDE_EFFECT_ISOLATION == "PASS"
+            and .WEB_RUNTIME_PHP85 == "PASS"
+            and .PHP84_REMOVAL == "NONE"
+            and .PROD_ACCESS == "NONE"' artifacts/preprod-php85-1336/apply/result.json >/dev/null
+
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" "rm -rf -- '$remote_dir'" >/dev/null
+
+      - name: Upload bounded APPLY evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprod-php85-1336-apply-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/preprod-php85-1336
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded APPLY summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF_BODY
+          #1336 PREPROD PHP 8.5 migration APPLY completed.
+
+          `STATUS=PASS`
+          `RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}`
+          `PREPROD_PHP=8.5`
+          `PHP84_FPM=ACTIVE_ROLLBACK_AVAILABLE`
+          `NGINX_SOCKET_ONLY_DELTA=PASS`
+          `PUBLIC_HEALTH=PASS`
+          `INTERNAL_READINESS=PASS`
+          `PROD_ACCESS=NONE`
+          EOF_BODY
+          )"
+          gh issue comment 1336 --body "$body"
+
+      - name: Remove transient APPLY key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1336-root.key"

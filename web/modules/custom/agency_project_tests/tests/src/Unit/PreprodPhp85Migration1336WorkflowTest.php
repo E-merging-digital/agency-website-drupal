@@ -311,7 +311,7 @@ BASH;
     }
 
     self::assertStringContainsString(
-      "if: ${{ always() && steps.plan_result.outputs.receipt_valid == 'true' }}",
+      'if: ${{ always() && steps.plan_result.outputs.receipt_valid == \'true\' }}',
       $source,
     );
   }

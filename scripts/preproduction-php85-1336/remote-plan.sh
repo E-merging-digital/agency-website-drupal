@@ -107,22 +107,33 @@ php84_service_active='NO'
 [[ "$current_php_fpm_service" == 'active' ]] && php84_service_active='YES'
 
 nginx_vhost_php84_socket_match='NO'
-[[ -f "$NGINX_VHOST" ]] && [[ "$(grep -Foc "$PHP84_SOCKET" "$NGINX_VHOST" || true)" == '1' ]] && nginx_vhost_php84_socket_match='YES'
 nginx_vhost_sha256="$(sha256sum "$NGINX_VHOST" 2>/dev/null | awk '{print $1}' || true)"
 : >"$work_root/nginx-fastcgi-pass.raw"
+printf '%s\n' 'ABSENT' >"$work_root/nginx-fastcgi-pass.status"
 if [[ -f "$NGINX_VHOST" ]]; then
-  python3 - "$NGINX_VHOST" >"$work_root/nginx-fastcgi-pass.raw" <<'PY_NGINX'
+  python3 - "$NGINX_VHOST" "$work_root/nginx-fastcgi-pass.status" >"$work_root/nginx-fastcgi-pass.raw" <<'PY_NGINX'
 import re
 import sys
 from pathlib import Path
 values = set()
+valid = True
 for line in Path(sys.argv[1]).read_text(encoding='utf-8', errors='replace').splitlines():
-    match = re.match(r'^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?$', line)
-    if match:
-        values.add(match.group(1))
+    if 'fastcgi_pass' not in line:
+        continue
+    match = re.match(r"^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?\Z", line)
+    if not match:
+        valid = False
+        continue
+    values.add(match.group(1))
+Path(sys.argv[2]).write_text('PASS\n' if valid else 'FAIL\n', encoding='utf-8')
 for value in sorted(values)[:20]:
     print(value)
 PY_NGINX
+fi
+if [[ "$(cat "$work_root/nginx-fastcgi-pass.status")" == 'PASS' ]] \
+  && [[ "$(wc -l <"$work_root/nginx-fastcgi-pass.raw")" -eq 1 ]] \
+  && grep -Fqx "unix:$PHP84_SOCKET" "$work_root/nginx-fastcgi-pass.raw"; then
+  nginx_vhost_php84_socket_match='YES'
 fi
 
 fpm84_pool_contract='NO'
@@ -271,7 +282,10 @@ checks = {
     'package_removals_none': not removals,
     'unrelated_package_upgrades_none': not upgrades,
     'transitive_additions_php85_only': not unexpected_transitive,
-    'nginx_vhost_php84_socket_match': os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'] == 'YES',
+    'nginx_vhost_php84_socket_match': (
+        os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'] == 'YES'
+        and nginx_fastcgi_pass_values == ['unix:/run/php/php8.4-fpm-agency-preprod.sock']
+    ),
     'fpm84_pool_contract': os.environ['FPM84_POOL_CONTRACT'] == 'YES',
     'sendmail_safety_contract': os.environ['SENDMAIL_SAFETY_CONTRACT'] == 'YES',
 }

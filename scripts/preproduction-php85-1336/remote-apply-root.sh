@@ -63,7 +63,12 @@ current_digest="$(jq -r '.PLAN_DIGEST' "$work_root/current-plan.json")"
   printf '%s\n' 'STALE_PLAN: digest drift before mutation.' >&2
   exit 65
 }
-jq -e '.REBOOT_REQUIRED == "NO" and .SAFETY_GATE == "PASS"' "$work_root/current-plan.json" >/dev/null
+jq -e '
+  .REBOOT_REQUIRED == "NO"
+  and .SAFETY_GATE == "PASS"
+  and .NGINX_FASTCGI_PASS_VALUES == ["unix:/run/php/php8.4-fpm-agency-preprod.sock"]
+  and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+' "$work_root/current-plan.json" >/dev/null
 
 mapfile -t package_specs < <(
   jq -r '.REQUESTED_PACKAGE_ALLOWLIST[] as $pkg | "\($pkg)=\(.PHP85_PACKAGE_CANDIDATES[$pkg])"' "$APPROVED_PLAN"
@@ -149,32 +154,76 @@ systemctl restart php8.5-fpm
 [[ -S "$NEW_SOCKET" ]]
 [[ "$(php8.5 -r 'echo (string) ini_get("sendmail_path");')" == '/bin/true' ]]
 
-# Derive the candidate vhost from exact live bytes, replacing exactly one socket.
+# Derive the candidate vhost from exact live bytes, replacing every exact
+# occurrence of the approved PHP 8.4 socket and nothing else.
 python3 - "$NGINX_VHOST" "$work_root/nginx.candidate" <<'PY'
+import re
 import sys
 from pathlib import Path
-src=Path(sys.argv[1]).read_bytes()
-old=b'/run/php/php8.4-fpm-agency-preprod.sock'
-new=b'/run/php/php8.5-fpm-agency-preprod.sock'
-if src.count(old) != 1:
-    raise SystemExit('Expected exactly one PHP 8.4 PREPROD socket in live vhost')
+
+source_path = Path(sys.argv[1])
+candidate_path = Path(sys.argv[2])
+src = source_path.read_bytes()
+old = b'/run/php/php8.4-fpm-agency-preprod.sock'
+new = b'/run/php/php8.5-fpm-agency-preprod.sock'
+old_count = src.count(old)
+if old_count < 1:
+    raise SystemExit('Expected at least one PHP 8.4 PREPROD socket in live vhost')
 if new in src:
     raise SystemExit('PHP 8.5 socket already present before switch')
-Path(sys.argv[2]).write_bytes(src.replace(old,new,1))
+
+text = src.decode('utf-8', errors='strict')
+targets = set()
+valid = True
+for line in text.splitlines():
+    if 'fastcgi_pass' not in line:
+        continue
+    match = re.match(r"^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?\Z", line)
+    if not match:
+        valid = False
+        continue
+    targets.add(match.group(1))
+if not valid or targets != {'unix:/run/php/php8.4-fpm-agency-preprod.sock'}:
+    raise SystemExit('Unexpected live FastCGI target set before switch')
+
+candidate = src.replace(old, new)
+if old in candidate:
+    raise SystemExit('PHP 8.4 socket remains after candidate substitution')
+if candidate.count(new) != old_count:
+    raise SystemExit('PHP 8.5 socket occurrence count does not match source')
+candidate_path.write_bytes(candidate)
 PY
 
 python3 - "$NGINX_VHOST" "$work_root/nginx.candidate" <<'PY'
+import re
 import sys
 from pathlib import Path
-old=Path(sys.argv[1]).read_bytes()
-new=Path(sys.argv[2]).read_bytes()
-expected=old.replace(
-    b'/run/php/php8.4-fpm-agency-preprod.sock',
-    b'/run/php/php8.5-fpm-agency-preprod.sock',
-    1,
-)
-if new != expected:
+
+source = Path(sys.argv[1]).read_bytes()
+candidate = Path(sys.argv[2]).read_bytes()
+old = b'/run/php/php8.4-fpm-agency-preprod.sock'
+new = b'/run/php/php8.5-fpm-agency-preprod.sock'
+old_count = source.count(old)
+expected = source.replace(old, new)
+if candidate != expected:
     raise SystemExit('NGINX_SOCKET_ONLY_DELTA failed')
+if old in candidate:
+    raise SystemExit('NGINX_SOCKET_ONLY_DELTA left old socket behind')
+if candidate.count(new) != old_count:
+    raise SystemExit('NGINX_SOCKET_ONLY_DELTA occurrence count drift')
+
+targets = set()
+valid = True
+for line in candidate.decode('utf-8', errors='strict').splitlines():
+    if 'fastcgi_pass' not in line:
+        continue
+    match = re.match(r"^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?\Z", line)
+    if not match:
+        valid = False
+        continue
+    targets.add(match.group(1))
+if not valid or targets != {'unix:/run/php/php8.5-fpm-agency-preprod.sock'}:
+    raise SystemExit('NGINX_SOCKET_ONLY_DELTA candidate FastCGI targets invalid')
 PY
 
 switched='NO'

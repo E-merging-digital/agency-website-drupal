@@ -324,7 +324,11 @@ NGINX
     $workflow = $this->source(self::WORKFLOW);
 
     self::assertStringContainsString('printf -v body', $workflow);
-    self::assertStringNotContainsString('body="$(cat <<EOF_BODY', $workflow);
+    self::assertStringNotContainsString(
+      'body="$(cat <<EOF_BODY' . "\n"
+      . '          #1336 PREPROD PHP 8.5 migration PLAN evidence preserved.',
+      $workflow,
+    );
     foreach ([
       '`MODE=%s`',
       '`RUN=%s`',

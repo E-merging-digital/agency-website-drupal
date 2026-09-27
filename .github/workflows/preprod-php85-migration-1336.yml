@@ -215,22 +215,17 @@ jobs:
           plan_status="$(jq -r '.STATUS' "$plan")"
           plan_digest="$(jq -r '.PLAN_DIGEST' "$plan")"
           failed_checks="$(jq -r '.FAILED_CHECKS | if length == 0 then "NONE" else join(",") end' "$plan")"
-          body="$(cat <<EOF_BODY
-          #1336 PREPROD PHP 8.5 migration PLAN evidence preserved.
-
-          `MODE=PLAN`
-          `RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}`
-          `PLAN_ID=${PLAN_ID}`
-          `PLAN_STATUS=${plan_status}`
-          `PLAN_DIGEST=${plan_digest}`
-          `FAILED_CHECKS=${failed_checks}`
-          `TARGET=PREPROD`
-          `PREPROD_MUTATION=NONE`
-          `PHP84_REMOVAL=NONE`
-
-          Artifact publication preserves evidence only. APPLY requires a successful source run and a PASS receipt with no failed checks.
-          EOF_BODY
-          )"
+          printf -v body '#1336 PREPROD PHP 8.5 migration PLAN evidence preserved.\n\n`MODE=%s`\n`RUN=%s`\n`PLAN_ID=%s`\n`PLAN_STATUS=%s`\n`PLAN_DIGEST=%s`\n`FAILED_CHECKS=%s`\n`TARGET=%s`\n`PREPROD_MUTATION=%s`\n`PHP84_REMOVAL=%s`\n\n%s' \
+            'PLAN' \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            "$PLAN_ID" \
+            "$plan_status" \
+            "$plan_digest" \
+            "$failed_checks" \
+            'PREPROD' \
+            'NONE' \
+            'NONE' \
+            'Artifact publication preserves evidence only. APPLY requires a successful source run and a PASS receipt with no failed checks.'
           gh issue comment 1336 --body "$body"
 
       - name: Remove transient PLAN key

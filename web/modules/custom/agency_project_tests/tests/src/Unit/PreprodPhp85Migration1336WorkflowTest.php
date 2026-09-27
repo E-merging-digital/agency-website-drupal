@@ -304,7 +304,7 @@ BASH;
       '.SAFETY_GATE == "FAIL"',
       '(.FAILED_CHECKS | length) > 0',
       'Artifact publication preserves evidence only.',
-      'test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'',
+      "test \"$(jq -r '.conclusion' <<<\"$run_json\")\" = 'success'",
       'and .FAILED_CHECKS == []',
     ] as $required) {
       self::assertStringContainsString($required, $source);

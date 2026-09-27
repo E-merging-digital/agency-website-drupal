@@ -697,6 +697,42 @@ BASH;
   }
 
   /**
+   * Workflow gates and safely summarizes the PHP 8.5 OPcache APPLY result.
+   */
+  public function testApplyWorkflowRequiresOpcacheAndUsesLiteralSummary(): void {
+    $workflow = $this->source(self::WORKFLOW);
+
+    self::assertStringContainsString(
+      'and .PHP85_OPCACHE_AVAILABLE == "PASS"',
+      $workflow,
+    );
+
+    self::assertStringContainsString(
+      '#1336 PREPROD PHP 8.5 migration APPLY completed.',
+      $workflow,
+    );
+    self::assertStringContainsString('printf -v body', $workflow);
+    self::assertStringNotContainsString(
+      'body="$(cat <<EOF_BODY' . "\n"
+      . '          #1336 PREPROD PHP 8.5 migration APPLY completed.',
+      $workflow,
+    );
+
+    foreach ([
+      '`STATUS=%s`',
+      '`RUN=%s`',
+      '`PREPROD_PHP=%s`',
+      '`PHP85_OPCACHE_AVAILABLE=%s`',
+      '`PHP84_FPM=%s`',
+      '`NGINX_SOCKET_ONLY_DELTA=%s`',
+      '`PUBLIC_HEALTH=%s`',
+      '`INTERNAL_READINESS=%s`',
+      '`PROD_ACCESS=%s`',
+    ] as $literalField) {
+      self::assertStringContainsString($literalField, $workflow);
+    }
+  }
+  /**
    * APPLY preserves PHP 8.4 and limits Nginx to the socket-only delta.
    */
   public function testApplyPreservesPhp84AndRestrictsNginxToSocketOnlyDelta(): void {

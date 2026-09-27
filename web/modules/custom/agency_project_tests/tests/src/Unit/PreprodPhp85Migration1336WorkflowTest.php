@@ -315,7 +315,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   }
 
   /**
-   * PLAN summary uses literal formatting and cannot command-substitute Markdown.
+   * PLAN summary uses literal formatting without shell command substitution.
    */
   public function testPlanSummaryRendersLiteralPopulatedValues(): void {
     $workflow = $this->source(self::WORKFLOW);

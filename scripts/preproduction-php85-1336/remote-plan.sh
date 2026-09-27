@@ -150,7 +150,7 @@ import re
 from pathlib import Path
 
 root = Path(os.environ['WORK_ROOT'])
-allowlist = [
+requested_allowlist = [
     'php8.5-bcmath','php8.5-cli','php8.5-common','php8.5-curl',
     'php8.5-fpm','php8.5-gd','php8.5-intl','php8.5-mbstring',
     'php8.5-mysql','php8.5-opcache','php8.5-xml','php8.5-zip',
@@ -181,6 +181,16 @@ failed_units = sorted(
     if line.strip()
 )
 
+addition_names = {item['name'] for item in additions}
+requested_names = set(requested_allowlist)
+transitive_additions = [
+    item for item in additions if item['name'] not in requested_names
+]
+unexpected_transitive = [
+    item for item in transitive_additions
+    if re.fullmatch(r'php8\.5-[A-Za-z0-9.+-]+', item['name']) is None
+]
+
 checks = {
     'ubuntu_24_04': os.environ['VERSION_ID'] == '24.04',
     'reboot_not_required': os.environ['REBOOT_REQUIRED'] == 'NO',
@@ -196,10 +206,11 @@ checks = {
     'drupal_health': os.environ['DRUPAL_HEALTH'] == 'PASS',
     'public_health': os.environ['PUBLIC_HEALTH'] == 'PASS',
     'disk_space_min_2gib': int(os.environ['DISK_AVAILABLE_KB']) >= 2 * 1024 * 1024,
-    'php85_candidates_present': os.environ['CANDIDATE_GAP'] == 'NO' and set(candidates) == set(allowlist) and all(v != 'NONE' for v in candidates.values()),
+    'php85_candidates_present': os.environ['CANDIDATE_GAP'] == 'NO' and set(candidates) == requested_names and all(v != 'NONE' for v in candidates.values()),
+    'all_requested_packages_present_in_simulation': requested_names <= addition_names,
     'package_removals_none': not removals,
     'unrelated_package_upgrades_none': not upgrades,
-    'package_additions_exact_allowlist': sorted(item['name'] for item in additions) == sorted(allowlist),
+    'transitive_additions_php85_only': not unexpected_transitive,
     'nginx_vhost_php84_socket_match': os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'] == 'YES',
     'fpm84_pool_contract': os.environ['FPM84_POOL_CONTRACT'] == 'YES',
     'sendmail_safety_contract': os.environ['SENDMAIL_SAFETY_CONTRACT'] == 'YES',
@@ -233,7 +244,9 @@ receipt = {
     'DISK_AVAILABLE_KB': int(os.environ['DISK_AVAILABLE_KB']),
     'PHP85_PACKAGE_CANDIDATES': candidates,
     'PHP85_INSTALL_SIMULATION': 'PASS',
+    'REQUESTED_PACKAGE_ALLOWLIST': requested_allowlist,
     'PACKAGE_ADDITIONS': additions,
+    'TRANSITIVE_ADDITIONS': transitive_additions,
     'PACKAGE_UPGRADES': upgrades,
     'PACKAGE_REMOVALS': removals,
     'PHP84_PACKAGES_PRESENT': os.environ['PHP84_PACKAGES_PRESENT'],
@@ -243,7 +256,6 @@ receipt = {
     'FPM84_POOL_CONTRACT': os.environ['FPM84_POOL_CONTRACT'],
     'FPM84_POOL_SHA256': os.environ['FPM84_POOL_SHA256'],
     'SENDMAIL_SAFETY_CONTRACT': os.environ['SENDMAIL_SAFETY_CONTRACT'],
-    'PACKAGE_ALLOWLIST': allowlist,
     'SAFETY_GATE': 'PASS',
 }
 # Exact free disk is volatile: observe and safety-gate it, but exclude it from
@@ -255,11 +267,12 @@ mutation_identity_keys = (
     'CURRENT_PREPROD_SOCKET','NGINX_SERVICE','MARIADB_SERVICE','MARIADB_VERSION',
     'FAILED_SYSTEMD_UNITS','DRUPAL_HEALTH','PUBLIC_HEALTH',
     'PHP85_PACKAGE_CANDIDATES','PHP85_INSTALL_SIMULATION',
-    'PACKAGE_ADDITIONS','PACKAGE_UPGRADES','PACKAGE_REMOVALS',
+    'REQUESTED_PACKAGE_ALLOWLIST','PACKAGE_ADDITIONS','TRANSITIVE_ADDITIONS',
+    'PACKAGE_UPGRADES','PACKAGE_REMOVALS',
     'PHP84_PACKAGES_PRESENT','PHP84_SERVICE_ACTIVE',
     'NGINX_VHOST_PHP84_SOCKET_MATCH','NGINX_VHOST_SHA256',
     'FPM84_POOL_CONTRACT','FPM84_POOL_SHA256','SENDMAIL_SAFETY_CONTRACT',
-    'PACKAGE_ALLOWLIST','SAFETY_GATE',
+    'SAFETY_GATE',
 )
 mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
 canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')

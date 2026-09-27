@@ -215,22 +215,17 @@ jobs:
           plan_status="$(jq -r '.STATUS' "$plan")"
           plan_digest="$(jq -r '.PLAN_DIGEST' "$plan")"
           failed_checks="$(jq -r '.FAILED_CHECKS | if length == 0 then "NONE" else join(",") end' "$plan")"
-          body="$(cat <<EOF_BODY
-          #1336 PREPROD PHP 8.5 migration PLAN evidence preserved.
-
-          `MODE=PLAN`
-          `RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}`
-          `PLAN_ID=${PLAN_ID}`
-          `PLAN_STATUS=${plan_status}`
-          `PLAN_DIGEST=${plan_digest}`
-          `FAILED_CHECKS=${failed_checks}`
-          `TARGET=PREPROD`
-          `PREPROD_MUTATION=NONE`
-          `PHP84_REMOVAL=NONE`
-
-          Artifact publication preserves evidence only. APPLY requires a successful source run and a PASS receipt with no failed checks.
-          EOF_BODY
-          )"
+          printf -v body '#1336 PREPROD PHP 8.5 migration PLAN evidence preserved.\n\n`MODE=%s`\n`RUN=%s`\n`PLAN_ID=%s`\n`PLAN_STATUS=%s`\n`PLAN_DIGEST=%s`\n`FAILED_CHECKS=%s`\n`TARGET=%s`\n`PREPROD_MUTATION=%s`\n`PHP84_REMOVAL=%s`\n\n%s' \
+            'PLAN' \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            "$PLAN_ID" \
+            "$plan_status" \
+            "$plan_digest" \
+            "$failed_checks" \
+            'PREPROD' \
+            'NONE' \
+            'NONE' \
+            'Artifact publication preserves evidence only. APPLY requires a successful source run and a PASS receipt with no failed checks.'
           gh issue comment 1336 --body "$body"
 
       - name: Remove transient PLAN key
@@ -361,6 +356,7 @@ jobs:
             and .EXACT_PACKAGE_SIMULATION == "PASS"
             and .PACKAGE_APPLY == "PASS"
             and .PHP85_FPM == "ACTIVE"
+            and .PHP85_OPCACHE_AVAILABLE == "PASS"
             and .PHP84_FPM == "ACTIVE_ROLLBACK_AVAILABLE"
             and .NGINX_SOCKET_ONLY_DELTA == "PASS"
             and .DRUPAL_HEALTH == "PASS"
@@ -389,19 +385,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          body="$(cat <<EOF_BODY
-          #1336 PREPROD PHP 8.5 migration APPLY completed.
-
-          `STATUS=PASS`
-          `RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}`
-          `PREPROD_PHP=8.5`
-          `PHP84_FPM=ACTIVE_ROLLBACK_AVAILABLE`
-          `NGINX_SOCKET_ONLY_DELTA=PASS`
-          `PUBLIC_HEALTH=PASS`
-          `INTERNAL_READINESS=PASS`
-          `PROD_ACCESS=NONE`
-          EOF_BODY
-          )"
+          printf -v body '#1336 PREPROD PHP 8.5 migration APPLY completed.\n\n`STATUS=%s`\n`RUN=%s`\n`PREPROD_PHP=%s`\n`PHP85_OPCACHE_AVAILABLE=%s`\n`PHP84_FPM=%s`\n`NGINX_SOCKET_ONLY_DELTA=%s`\n`PUBLIC_HEALTH=%s`\n`INTERNAL_READINESS=%s`\n`PROD_ACCESS=%s`' \
+            'PASS' \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            '8.5' \
+            'PASS' \
+            'ACTIVE_ROLLBACK_AVAILABLE' \
+            'PASS' \
+            'PASS' \
+            'PASS' \
+            'NONE'
           gh issue comment 1336 --body "$body"
 
       - name: Remove transient APPLY key

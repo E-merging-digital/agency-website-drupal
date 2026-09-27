@@ -42,7 +42,9 @@ jq -e \
   and .SENDMAIL_SAFETY_CONTRACT == "YES"
   and .PACKAGE_REMOVALS == []
   and .PACKAGE_UPGRADES == []
-  and (.REQUESTED_PACKAGE_ALLOWLIST | length) == 12' "$APPROVED_PLAN" >/dev/null
+  and .FAILED_CHECKS == []
+  and .PHP85_INSTALL_SIMULATION == "PASS"
+  and (.REQUESTED_PACKAGE_ALLOWLIST | length) == 11' "$APPROVED_PLAN" >/dev/null
 
 plan_id="$(jq -r '.PLAN_ID' "$APPROVED_PLAN")"
 work_root="$(mktemp -d /root/agency-php85-1336.XXXXXX)"
@@ -66,7 +68,7 @@ jq -e '.REBOOT_REQUIRED == "NO" and .SAFETY_GATE == "PASS"' "$work_root/current-
 mapfile -t package_specs < <(
   jq -r '.REQUESTED_PACKAGE_ALLOWLIST[] as $pkg | "\($pkg)=\(.PHP85_PACKAGE_CANDIDATES[$pkg])"' "$APPROVED_PLAN"
 )
-[[ "${#package_specs[@]}" -eq 12 ]]
+[[ "${#package_specs[@]}" -eq 11 ]]
 for spec in "${package_specs[@]}"; do
   [[ "$spec" =~ ^php8\.5-[a-z0-9.+-]+=[A-Za-z0-9.+:~_-]+$ ]]
 done
@@ -141,6 +143,7 @@ EOF_INI
 chmod 644 "$CLI85_SAFETY"
 
 php-fpm8.5 -t
+php8.5 -r 'exit(extension_loaded("Zend OPcache") ? 0 : 1);'
 systemctl enable --now php8.5-fpm
 systemctl restart php8.5-fpm
 [[ -S "$NEW_SOCKET" ]]
@@ -277,6 +280,7 @@ jq -n \
     EXACT_PACKAGE_SIMULATION:"PASS",
     PACKAGE_APPLY:"PASS",
     PHP85_FPM:"ACTIVE",
+    PHP85_OPCACHE_AVAILABLE:"PASS",
     PREPROD_SOCKET:"/run/php/php8.5-fpm-agency-preprod.sock",
     PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE",
     NGINX_SOCKET_ONLY_DELTA:"PASS",

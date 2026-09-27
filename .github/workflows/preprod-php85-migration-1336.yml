@@ -356,6 +356,7 @@ jobs:
             and .EXACT_PACKAGE_SIMULATION == "PASS"
             and .PACKAGE_APPLY == "PASS"
             and .PHP85_FPM == "ACTIVE"
+            and .PHP85_OPCACHE_AVAILABLE == "PASS"
             and .PHP84_FPM == "ACTIVE_ROLLBACK_AVAILABLE"
             and .NGINX_SOCKET_ONLY_DELTA == "PASS"
             and .DRUPAL_HEALTH == "PASS"
@@ -384,19 +385,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          body="$(cat <<EOF_BODY
-          #1336 PREPROD PHP 8.5 migration APPLY completed.
-
-          `STATUS=PASS`
-          `RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}`
-          `PREPROD_PHP=8.5`
-          `PHP84_FPM=ACTIVE_ROLLBACK_AVAILABLE`
-          `NGINX_SOCKET_ONLY_DELTA=PASS`
-          `PUBLIC_HEALTH=PASS`
-          `INTERNAL_READINESS=PASS`
-          `PROD_ACCESS=NONE`
-          EOF_BODY
-          )"
+          printf -v body '#1336 PREPROD PHP 8.5 migration APPLY completed.\n\n`STATUS=%s`\n`RUN=%s`\n`PREPROD_PHP=%s`\n`PHP85_OPCACHE_AVAILABLE=%s`\n`PHP84_FPM=%s`\n`NGINX_SOCKET_ONLY_DELTA=%s`\n`PUBLIC_HEALTH=%s`\n`INTERNAL_READINESS=%s`\n`PROD_ACCESS=%s`' \
+            'PASS' \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            '8.5' \
+            'PASS' \
+            'ACTIVE_ROLLBACK_AVAILABLE' \
+            'PASS' \
+            'PASS' \
+            'PASS' \
+            'NONE'
           gh issue comment 1336 --body "$body"
 
       - name: Remove transient APPLY key

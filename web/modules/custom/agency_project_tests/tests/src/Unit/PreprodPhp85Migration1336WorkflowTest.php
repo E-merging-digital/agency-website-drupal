@@ -275,6 +275,8 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   /**
    * Executes the embedded PLAN evaluator on deterministic synthetic inputs.
    *
+   * @param int $diskAvailableKb
+   *   Synthetic root filesystem free space in KiB.
    * @param string[] $extraAdditions
    *   Additional simulated APT package additions.
    *

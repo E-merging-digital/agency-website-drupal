@@ -131,8 +131,17 @@ for pkg in "${PHP85_PACKAGES[@]}"; do
 done
 
 : >"$work_root/install-sim.raw"
+php85_install_simulation='NOT_RUN'
 if [[ "$candidate_gap" == 'NO' ]]; then
+  set +e
   apt-get --simulate install "${package_specs[@]}" >"$work_root/install-sim.raw" 2>&1
+  install_sim_rc=$?
+  set -e
+  if [[ "$install_sim_rc" -eq 0 ]]; then
+    php85_install_simulation='PASS'
+  else
+    php85_install_simulation='FAIL'
+  fi
 fi
 
 export MAIN_SHA PLAN_ID ISSUE TARGET MODE
@@ -143,7 +152,7 @@ export DRUPAL_HEALTH="$drupal_health" PUBLIC_HEALTH="$public_health" DISK_AVAILA
 export PHP84_PACKAGES_PRESENT="$php84_packages_present" PHP84_SERVICE_ACTIVE="$php84_service_active"
 export NGINX_VHOST_PHP84_SOCKET_MATCH="$nginx_vhost_php84_socket_match" FPM84_POOL_CONTRACT="$fpm84_pool_contract" SENDMAIL_SAFETY_CONTRACT="$sendmail_safety_contract"
 export NGINX_VHOST_SHA256="$nginx_vhost_sha256" FPM84_POOL_SHA256="$fpm84_pool_sha256"
-export CANDIDATE_GAP="$candidate_gap" WORK_ROOT="$work_root"
+export CANDIDATE_GAP="$candidate_gap" PHP85_INSTALL_SIMULATION="$php85_install_simulation" WORK_ROOT="$work_root"
 
 python3 - <<'PY'
 import hashlib
@@ -164,17 +173,21 @@ for line in (root / 'candidates.tsv').read_text(encoding='utf-8').splitlines():
     candidates[name] = version
 
 additions, upgrades, removals = [], [], []
-for line in (root / 'install-sim.raw').read_text(encoding='utf-8', errors='replace').splitlines():
-    if line.startswith('Inst '):
-        match = re.match(r'^Inst\s+(\S+)(?:\s+\[([^\]]+)\])?\s+\((\S+)', line)
-        if not match:
-            raise SystemExit('Unparseable install simulation line: ' + line[:160])
-        name, old, new = match.groups()
-        item = {'name': name, 'from': old or 'ABSENT', 'to': new}
-        (upgrades if old else additions).append(item)
-    elif line.startswith('Remv '):
-        parts = line.split()
-        removals.append({'name': parts[1], 'from': parts[2] if len(parts) > 2 else 'UNKNOWN'})
+install_simulation_state = os.environ['PHP85_INSTALL_SIMULATION']
+if install_simulation_state == 'PASS':
+    for line in (root / 'install-sim.raw').read_text(encoding='utf-8', errors='replace').splitlines():
+        if line.startswith('Inst '):
+            match = re.match(r'^Inst\s+(\S+)(?:\s+\[([^\]]+)\])?\s+\((\S+)', line)
+            if not match:
+                install_simulation_state = 'FAIL'
+                additions, upgrades, removals = [], [], []
+                break
+            name, old, new = match.groups()
+            item = {'name': name, 'from': old or 'ABSENT', 'to': new}
+            (upgrades if old else additions).append(item)
+        elif line.startswith('Remv '):
+            parts = line.split()
+            removals.append({'name': parts[1], 'from': parts[2] if len(parts) > 2 else 'UNKNOWN'})
 
 additions.sort(key=lambda item:item['name'])
 upgrades.sort(key=lambda item:item['name'])
@@ -210,6 +223,7 @@ checks = {
     'public_health': os.environ['PUBLIC_HEALTH'] == 'PASS',
     'disk_space_min_2gib': int(os.environ['DISK_AVAILABLE_KB']) >= 2 * 1024 * 1024,
     'php85_candidates_present': os.environ['CANDIDATE_GAP'] == 'NO' and set(candidates) == requested_names and all(v != 'NONE' for v in candidates.values()),
+    'php85_install_simulation_pass': install_simulation_state == 'PASS',
     'all_requested_packages_present_in_simulation': requested_names <= addition_names,
     'package_removals_none': not removals,
     'unrelated_package_upgrades_none': not upgrades,
@@ -219,12 +233,11 @@ checks = {
     'sendmail_safety_contract': os.environ['SENDMAIL_SAFETY_CONTRACT'] == 'YES',
 }
 failed_checks = sorted(name for name, passed in checks.items() if not passed)
-if failed_checks:
-    raise SystemExit('PLAN safety gate failed: ' + ','.join(failed_checks))
+safety_pass = not failed_checks
 
 receipt = {
     'schema_version': 1,
-    'STATUS': 'PASS',
+    'STATUS': 'PASS' if safety_pass else 'FAIL',
     'ISSUE': 1336,
     'TARGET': 'PREPROD',
     'MODE': 'PLAN',
@@ -246,7 +259,7 @@ receipt = {
     'PUBLIC_HEALTH': os.environ['PUBLIC_HEALTH'],
     'DISK_AVAILABLE_KB': int(os.environ['DISK_AVAILABLE_KB']),
     'PHP85_PACKAGE_CANDIDATES': candidates,
-    'PHP85_INSTALL_SIMULATION': 'PASS',
+    'PHP85_INSTALL_SIMULATION': install_simulation_state,
     'REQUESTED_PACKAGE_ALLOWLIST': requested_allowlist,
     'PACKAGE_ADDITIONS': additions,
     'TRANSITIVE_ADDITIONS': transitive_additions,
@@ -259,7 +272,8 @@ receipt = {
     'FPM84_POOL_CONTRACT': os.environ['FPM84_POOL_CONTRACT'],
     'FPM84_POOL_SHA256': os.environ['FPM84_POOL_SHA256'],
     'SENDMAIL_SAFETY_CONTRACT': os.environ['SENDMAIL_SAFETY_CONTRACT'],
-    'SAFETY_GATE': 'PASS',
+    'SAFETY_GATE': 'PASS' if safety_pass else 'FAIL',
+    'FAILED_CHECKS': failed_checks,
 }
 # Exact free disk is volatile: observe and safety-gate it, but exclude it from
 # stale-plan mutation identity.
@@ -275,10 +289,12 @@ mutation_identity_keys = (
     'PHP84_PACKAGES_PRESENT','PHP84_SERVICE_ACTIVE',
     'NGINX_VHOST_PHP84_SOCKET_MATCH','NGINX_VHOST_SHA256',
     'FPM84_POOL_CONTRACT','FPM84_POOL_SHA256','SENDMAIL_SAFETY_CONTRACT',
-    'SAFETY_GATE',
+    'SAFETY_GATE','FAILED_CHECKS',
 )
 mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
 canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
 receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
 print(json.dumps(receipt, sort_keys=True, separators=(',', ':')))
+if failed_checks:
+    raise SystemExit(65)
 PY

@@ -171,6 +171,10 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
 
     $first = $this->evaluatePlan(5 * 1024 * 1024);
     $second = $this->evaluatePlan(6 * 1024 * 1024);
+    self::assertSame('PASS', $first['STATUS']);
+    self::assertSame('PASS', $first['SAFETY_GATE']);
+    self::assertSame([], $first['FAILED_CHECKS']);
+    self::assertSame('PASS', $first['PHP85_INSTALL_SIMULATION']);
     self::assertCount(12, $first['REQUESTED_PACKAGE_ALLOWLIST']);
     self::assertContains(
       'php8.5-readline',
@@ -243,18 +247,286 @@ BASH;
   }
 
   /**
-   * Unrelated transitive additions fail closed.
+   * Candidate gaps preserve a NOT_RUN simulation receipt and fail closed.
    */
-  public function testPlanRejectsUnrelatedTransitiveAddition(): void {
+  public function testCandidateGapPreservesNotRunSimulationReceipt(): void {
+    $result = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      TRUE,
+      'NOT_RUN',
+    );
+
+    self::assertSame(65, $result['status']);
+    $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertSame('FAIL', $receipt['STATUS']);
+    self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+    self::assertSame('NOT_RUN', $receipt['PHP85_INSTALL_SIMULATION']);
+    self::assertContains('php85_candidates_present', $receipt['FAILED_CHECKS']);
+    self::assertContains(
+      'php85_install_simulation_pass',
+      $receipt['FAILED_CHECKS'],
+    );
+  }
+
+  /**
+   * Simulation command failure preserves a FAIL receipt and exit 65.
+   */
+  public function testSimulationFailurePreservesFailedReceipt(): void {
+    $result = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      FALSE,
+      'FAIL',
+    );
+
+    self::assertSame(65, $result['status']);
+    $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertSame('FAIL', $receipt['STATUS']);
+    self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+    self::assertSame('FAIL', $receipt['PHP85_INSTALL_SIMULATION']);
+    self::assertContains(
+      'php85_install_simulation_pass',
+      $receipt['FAILED_CHECKS'],
+    );
+  }
+
+  /**
+   * Actual shell apt simulation failure survives through receipt generation.
+   */
+  public function testActualAptSimulationFailurePathEmitsFailedReceipt(): void {
+    $source = $this->source(self::PLAN);
+
+    self::assertSame(
+      1,
+      preg_match(
+        '/(: >"\\$work_root\\/install-sim\\.raw"\\n.*?)(?=\\n\\nexport MAIN_SHA PLAN_ID ISSUE TARGET MODE)/s',
+        $source,
+        $shellMatch,
+      ),
+    );
+    self::assertSame(
+      1,
+      preg_match("/python3 - <<'PY'\\n(.*?)\\nPY\\n/s", $source, $pythonMatch),
+    );
+
+    $directory = sys_get_temp_dir() . '/agency-1336-shell-' . bin2hex(random_bytes(6));
+    $bin = $directory . '/bin';
+    self::assertTrue(mkdir($bin, 0700, TRUE));
+
+    try {
+      $packages = [
+        'php8.5-bcmath', 'php8.5-cli', 'php8.5-common', 'php8.5-curl',
+        'php8.5-fpm', 'php8.5-gd', 'php8.5-intl', 'php8.5-mbstring',
+        'php8.5-mysql', 'php8.5-opcache', 'php8.5-xml', 'php8.5-zip',
+      ];
+      $candidateLines = [];
+      $packageSpecs = [];
+      foreach ($packages as $package) {
+        $candidateLines[] = $package . "\t8.5.11-1";
+        $packageSpecs[] = $package . '=8.5.11-1';
+      }
+      file_put_contents(
+        $directory . '/candidates.tsv',
+        implode("\n", $candidateLines) . "\n",
+      );
+      file_put_contents($directory . '/failed.raw', '');
+
+      $aptLog = $directory . '/apt.log';
+      $aptStub = <<<'BASH'
+#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" > "$APT_LOG"
+printf '%s\n' 'synthetic apt simulation failure' >&2
+exit 42
+BASH;
+      file_put_contents($bin . '/apt-get', $aptStub . "\n");
+      chmod($bin . '/apt-get', 0700);
+
+      $quotedSpecs = implode(
+        ' ',
+        array_map(static fn (string $spec): string => escapeshellarg($spec), $packageSpecs),
+      );
+      $script = <<<'BASH'
+set -Eeuo pipefail
+work_root=__WORK_ROOT__
+candidate_gap='NO'
+package_specs=(__PACKAGE_SPECS__)
+export PATH=__BIN__:"$PATH"
+export APT_LOG=__APT_LOG__
+__SIMULATION_BLOCK__
+printf 'APT_SIMULATION_EXECUTED=%s\n' "$(test -s "$APT_LOG" && echo YES || echo NO)" > "$work_root/shell-state"
+printf 'APT_SIMULATION_RC=%s\n' "$install_sim_rc" >> "$work_root/shell-state"
+printf 'PHP85_INSTALL_SIMULATION=%s\n' "$php85_install_simulation" >> "$work_root/shell-state"
+
+export MAIN_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+export PLAN_ID=plan-1336-shell-failure
+export ISSUE=1336
+export TARGET=PREPROD
+export MODE=PLAN
+export OS_PRETTY_NAME='Ubuntu 24.04.5 LTS'
+export VERSION_ID=24.04
+export KERNEL_RUNNING=6.8.0-139-generic
+export REBOOT_REQUIRED=NO
+export CURRENT_PHP_CLI=8.4.25
+export CURRENT_PHP_FPM='PHP 8.4.25 (fpm-fcgi)'
+export CURRENT_PHP_FPM_SERVICE=active
+export CURRENT_PREPROD_SOCKET=/run/php/php8.4-fpm-agency-preprod.sock
+export NGINX_SERVICE=active
+export MARIADB_SERVICE=active
+export MARIADB_VERSION='mariadb  Ver 15.1 Distrib 11.8.9-MariaDB'
+export DRUPAL_HEALTH=PASS
+export PUBLIC_HEALTH=PASS
+export DISK_AVAILABLE_KB=5242880
+export PHP84_PACKAGES_PRESENT=YES
+export PHP84_SERVICE_ACTIVE=YES
+export NGINX_VHOST_PHP84_SOCKET_MATCH=YES
+export FPM84_POOL_CONTRACT=YES
+export SENDMAIL_SAFETY_CONTRACT=YES
+export NGINX_VHOST_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+export FPM84_POOL_SHA256=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+export CANDIDATE_GAP="$candidate_gap"
+export PHP85_INSTALL_SIMULATION="$php85_install_simulation"
+export WORK_ROOT="$work_root"
+
+python3 - <<'PY'
+__PYTHON_BLOCK__
+PY
+BASH;
+
+      $script = str_replace(
+        [
+          '__WORK_ROOT__',
+          '__PACKAGE_SPECS__',
+          '__BIN__',
+          '__APT_LOG__',
+          '__SIMULATION_BLOCK__',
+          '__PYTHON_BLOCK__',
+        ],
+        [
+          escapeshellarg($directory),
+          $quotedSpecs,
+          escapeshellarg($bin),
+          escapeshellarg($aptLog),
+          $shellMatch[1],
+          $pythonMatch[1],
+        ],
+        $script,
+      );
+
+      $scriptPath = $directory . '/failure-path.sh';
+      file_put_contents($scriptPath, $script . "\n");
+      chmod($scriptPath, 0700);
+
+      $output = [];
+      $status = 1;
+      exec('bash ' . escapeshellarg($scriptPath) . ' 2>&1', $output, $status);
+      $receiptJson = implode("\n", $output);
+
+      self::assertSame(65, $status, $receiptJson);
+      self::assertSame(
+        "--simulate install " . implode(' ', $packageSpecs),
+        trim((string) file_get_contents($aptLog)),
+      );
+
+      $shellState = (string) file_get_contents($directory . '/shell-state');
+      self::assertStringContainsString('APT_SIMULATION_EXECUTED=YES', $shellState);
+      self::assertStringContainsString('APT_SIMULATION_RC=42', $shellState);
+      self::assertStringContainsString(
+        'PHP85_INSTALL_SIMULATION=FAIL',
+        $shellState,
+      );
+
+      $receipt = json_decode($receiptJson, TRUE, 32, JSON_THROW_ON_ERROR);
+      self::assertSame('FAIL', $receipt['STATUS']);
+      self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+      self::assertSame('FAIL', $receipt['PHP85_INSTALL_SIMULATION']);
+      self::assertContains(
+        'php85_install_simulation_pass',
+        $receipt['FAILED_CHECKS'],
+      );
+    }
+    finally {
+      foreach (glob($bin . '/*') ?: [] as $file) {
+        @unlink($file);
+      }
+      @rmdir($bin);
+      foreach (glob($directory . '/*') ?: [] as $file) {
+        @unlink($file);
+      }
+      @rmdir($directory);
+    }
+  }
+
+  /**
+   * Failed safety gates preserve bounded evidence and remain failed.
+   */
+  public function testFailedPlanReceiptIsBoundedAndFailsClosed(): void {
     $result = $this->executePlan(
       5 * 1024 * 1024,
       ['unexpected-runtime-package'],
     );
 
-    self::assertNotSame(0, $result['status']);
+    self::assertSame(65, $result['status']);
+    $receipt = json_decode($result['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertIsArray($receipt);
+    self::assertSame('FAIL', $receipt['STATUS']);
+    self::assertSame('FAIL', $receipt['SAFETY_GATE']);
+    self::assertSame(
+      ['transitive_additions_php85_only'],
+      $receipt['FAILED_CHECKS'],
+    );
+
+    foreach ([
+      'PHP85_PACKAGE_CANDIDATES',
+      'REBOOT_REQUIRED',
+      'NGINX_VHOST_PHP84_SOCKET_MATCH',
+      'PACKAGE_ADDITIONS',
+      'TRANSITIVE_ADDITIONS',
+      'PACKAGE_UPGRADES',
+      'PACKAGE_REMOVALS',
+      'PHP84_PACKAGES_PRESENT',
+      'PHP84_SERVICE_ACTIVE',
+      'FPM84_POOL_CONTRACT',
+      'SENDMAIL_SAFETY_CONTRACT',
+    ] as $field) {
+      self::assertArrayHasKey($field, $receipt);
+    }
+    self::assertContains(
+      'unexpected-runtime-package',
+      array_column($receipt['TRANSITIVE_ADDITIONS'], 'name'),
+    );
+    self::assertSame([], $receipt['PACKAGE_UPGRADES']);
+    self::assertSame([], $receipt['PACKAGE_REMOVALS']);
+    self::assertSame('YES', $receipt['PHP84_PACKAGES_PRESENT']);
+    self::assertSame('YES', $receipt['PHP84_SERVICE_ACTIVE']);
+  }
+
+  /**
+   * Workflow preserves failed PLAN evidence without making it APPLY-eligible.
+   */
+  public function testFailedPlanArtifactIsUploadedWhilePlanRemainsFailure(): void {
+    $source = $this->source(self::WORKFLOW);
+
+    foreach ([
+      'receipt_valid=true',
+      'test "$plan_rc" -eq 65',
+      'exit "$plan_rc"',
+      "steps.plan_result.outputs.receipt_valid == 'true'",
+      '.STATUS == "FAIL"',
+      '.SAFETY_GATE == "FAIL"',
+      '(.FAILED_CHECKS | length) > 0',
+      'Artifact publication preserves evidence only.',
+      'test "$(jq -r \'.conclusion\' <<<"$run_json")" = \'success\'',
+      'and .FAILED_CHECKS == []',
+      'and .PHP85_INSTALL_SIMULATION == "PASS"',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
     self::assertStringContainsString(
-      'transitive_additions_php85_only',
-      $result['output'],
+      'if: ${{ always() && steps.plan_result.outputs.receipt_valid == \'true\' }}',
+      $source,
     );
   }
 
@@ -341,6 +613,10 @@ BASH;
    *   Synthetic root filesystem free space in KiB.
    * @param string[] $extraAdditions
    *   Additional simulated APT package additions.
+   * @param bool $candidateGap
+   *   Whether one requested candidate is missing.
+   * @param string $simulationState
+   *   Synthetic install simulation state.
    *
    * @return array{status:int,output:string}
    *   Process status and combined output.
@@ -348,6 +624,8 @@ BASH;
   private function executePlan(
     int $diskAvailableKb,
     array $extraAdditions = ['php8.5-readline'],
+    bool $candidateGap = FALSE,
+    string $simulationState = 'PASS',
   ): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
@@ -365,12 +643,17 @@ BASH;
       ];
       $candidateLines = [];
       $simulationLines = [];
-      foreach ($packages as $package) {
-        $candidateLines[] = $package . "\t8.5.11-1";
-        $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+      foreach ($packages as $index => $package) {
+        $candidate = $candidateGap && $index === 0 ? 'NONE' : '8.5.11-1';
+        $candidateLines[] = $package . "\t" . $candidate;
+        if (!$candidateGap && $simulationState === 'PASS') {
+          $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+        }
       }
-      foreach ($extraAdditions as $package) {
-        $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+      if (!$candidateGap && $simulationState === 'PASS') {
+        foreach ($extraAdditions as $package) {
+          $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+        }
       }
       file_put_contents(
         $directory . '/candidates.tsv',
@@ -409,7 +692,8 @@ BASH;
         'SENDMAIL_SAFETY_CONTRACT' => 'YES',
         'NGINX_VHOST_SHA256' => str_repeat('b', 64),
         'FPM84_POOL_SHA256' => str_repeat('c', 64),
-        'CANDIDATE_GAP' => 'NO',
+        'CANDIDATE_GAP' => $candidateGap ? 'YES' : 'NO',
+        'PHP85_INSTALL_SIMULATION' => $simulationState,
       ];
       $assignments = [];
       foreach ($environment as $name => $value) {

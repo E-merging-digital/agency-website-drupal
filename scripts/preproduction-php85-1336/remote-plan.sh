@@ -117,7 +117,10 @@ fi
 package_specs=()
 candidate_gap='NO'
 for pkg in "${PHP85_PACKAGES[@]}"; do
-  candidate="$(apt-cache policy "$pkg" 2>/dev/null | awk '/Candidate:/ {print $2; exit}')"
+  candidate="$(apt-cache policy "$pkg" 2>/dev/null | awk '
+    /Candidate:/ { candidate = $2 }
+    END { if (candidate != "") print candidate }
+  ')"
   if [[ -z "$candidate" || "$candidate" == '(none)' ]]; then
     candidate_gap='YES'
     candidate='NONE'

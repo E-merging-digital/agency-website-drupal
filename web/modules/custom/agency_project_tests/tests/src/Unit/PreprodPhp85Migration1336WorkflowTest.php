@@ -181,6 +181,68 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
   }
 
   /**
+   * Candidate extraction remains pipefail-safe and consumes the full stream.
+   */
+  public function testAptCandidateParserConsumesToEofUnderPipefail(): void {
+    $plan = $this->source(self::PLAN);
+
+    self::assertStringContainsString(
+      '/Candidate:/ { candidate = $2 }',
+      $plan,
+    );
+    self::assertStringContainsString(
+      'END { if (candidate != "") print candidate }',
+      $plan,
+    );
+    self::assertStringNotContainsString(
+      "/Candidate:/ {print $2; exit}",
+      $plan,
+    );
+    self::assertSame(
+      1,
+      preg_match(
+        '/candidate="\\$\\(apt-cache policy.*?\\n  \'\\)"$/ms',
+        $plan,
+        $candidateParser,
+      ),
+    );
+    self::assertStringNotContainsString('exit', $candidateParser[0]);
+    self::assertStringNotContainsString('head -n 1', $candidateParser[0]);
+    self::assertStringNotContainsString('grep -m1', $candidateParser[0]);
+
+    $script = <<<'BASH'
+set -o pipefail
+candidate="$(
+  {
+    printf '%s\n' 'Package: php8.5-cli'
+    printf '%s\n' '  Candidate: 8.5.11-1'
+    i=0
+    while [ "$i" -lt 20000 ]; do
+      printf '  Version table trailing-line-%05d\n' "$i"
+      i=$((i + 1))
+    done
+  } | awk '
+    /Candidate:/ { candidate = $2 }
+    END { if (candidate != "") print candidate }
+  '
+)"
+status=$?
+printf 'PIPELINE_STATUS=%s\n' "$status"
+printf 'CANDIDATE=%s\n' "$candidate"
+exit "$status"
+BASH;
+
+    $output = [];
+    $status = 1;
+    exec('bash -c ' . escapeshellarg($script) . ' 2>&1', $output, $status);
+    $result = implode("\n", $output);
+
+    self::assertSame(0, $status, $result);
+    self::assertStringContainsString('PIPELINE_STATUS=0', $result);
+    self::assertStringContainsString('CANDIDATE=8.5.11-1', $result);
+  }
+
+  /**
    * Unrelated transitive additions fail closed.
    */
   public function testPlanRejectsUnrelatedTransitiveAddition(): void {

@@ -202,7 +202,6 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       ['linux-image-6.8.0-139-generic', 'linux-base'],
       [
         'unix:/run/php/php8.4-fpm-agency-preprod.sock',
-        '127.0.0.1:9000',
         'unix:/run/php/php8.4-fpm-agency-preprod.sock',
       ],
     );
@@ -214,10 +213,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       $presentReceipt['REBOOT_REQUIRED_PACKAGES'],
     );
     self::assertSame(
-      [
-        '127.0.0.1:9000',
-        'unix:/run/php/php8.4-fpm-agency-preprod.sock',
-      ],
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
       $presentReceipt['NGINX_FASTCGI_PASS_VALUES'],
     );
 
@@ -308,6 +304,150 @@ NGINX
         $output,
       );
       self::assertNotContains('do-not-publish', $output);
+    }
+    finally {
+      foreach (glob($directory . '/*') ?: [] as $file) {
+        @unlink($file);
+      }
+      @rmdir($directory);
+    }
+  }
+
+  /**
+   * PLAN accepts repeated identical FastCGI locations and rejects mixed targets.
+   */
+  public function testPlanNginxGateUsesNormalizedUniqueFastcgiTargets(): void {
+    $multi = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      [
+        'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+        'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+      ],
+    );
+    self::assertSame(0, $multi['status'], $multi['output']);
+    $multiReceipt = json_decode($multi['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertSame(
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+      $multiReceipt['NGINX_FASTCGI_PASS_VALUES'],
+    );
+    self::assertNotContains(
+      'nginx_vhost_php84_socket_match',
+      $multiReceipt['FAILED_CHECKS'],
+    );
+
+    $mixed = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      [
+        'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+        '127.0.0.1:9000',
+      ],
+    );
+    self::assertSame(65, $mixed['status'], $mixed['output']);
+    $mixedReceipt = json_decode($mixed['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertContains(
+      'nginx_vhost_php84_socket_match',
+      $mixedReceipt['FAILED_CHECKS'],
+    );
+
+    $none = $this->executePlan(
+      5 * 1024 * 1024,
+      ['php8.5-readline'],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      [],
+    );
+    self::assertSame(65, $none['status'], $none['output']);
+    $noneReceipt = json_decode($none['output'], TRUE, 32, JSON_THROW_ON_ERROR);
+    self::assertContains(
+      'nginx_vhost_php84_socket_match',
+      $noneReceipt['FAILED_CHECKS'],
+    );
+  }
+
+  /**
+   * APPLY globally replaces the approved socket and fails closed on drift.
+   */
+  public function testApplyNginxSocketDeltaSupportsMultipleLocationsAndFailsClosed(): void {
+    $apply = $this->source(self::APPLY);
+    self::assertSame(
+      1,
+      preg_match(
+        '/# Derive the candidate vhost.*?<<\'PY\'\n(.*?)\nPY\n\npython3 - "\$NGINX_VHOST" "\$work_root\/nginx\.candidate" <<\'PY\'\n(.*?)\nPY/s',
+        $apply,
+        $matches,
+      ),
+    );
+
+    $directory = sys_get_temp_dir() . '/agency-1336-nginx-' . bin2hex(random_bytes(6));
+    self::assertTrue(mkdir($directory, 0700, TRUE));
+    try {
+      $generator = $directory . '/generate.py';
+      $validator = $directory . '/validate.py';
+      file_put_contents($generator, $matches[1] . "\n");
+      file_put_contents($validator, $matches[2] . "\n");
+
+      $old = '/run/php/php8.4-fpm-agency-preprod.sock';
+      $new = '/run/php/php8.5-fpm-agency-preprod.sock';
+      $source = $directory . '/source.conf';
+      $candidate = $directory . '/candidate.conf';
+      $multi = "location /index { fastcgi_pass unix:$old; }\n"
+        . "location /update { fastcgi_pass unix:$old; }\n";
+      file_put_contents($source, $multi);
+
+      $output = [];
+      $status = 1;
+      exec(
+        'python3 ' . escapeshellarg($generator) . ' '
+        . escapeshellarg($source) . ' ' . escapeshellarg($candidate) . ' 2>&1',
+        $output,
+        $status,
+      );
+      self::assertSame(0, $status, implode("\n", $output));
+      $candidateBytes = (string) file_get_contents($candidate);
+      self::assertSame(str_replace($old, $new, $multi), $candidateBytes);
+      self::assertSame(0, substr_count($candidateBytes, $old));
+      self::assertSame(2, substr_count($candidateBytes, $new));
+
+      $output = [];
+      $status = 1;
+      exec(
+        'python3 ' . escapeshellarg($validator) . ' '
+        . escapeshellarg($source) . ' ' . escapeshellarg($candidate) . ' 2>&1',
+        $output,
+        $status,
+      );
+      self::assertSame(0, $status, implode("\n", $output));
+
+      foreach ([
+        "server { return 200; }\n",
+        "location / { fastcgi_pass unix:$new; }\n",
+        "location /a { fastcgi_pass unix:$old; }\n"
+          . "location /b { fastcgi_pass 127.0.0.1:9000; }\n",
+      ] as $invalid) {
+        file_put_contents($source, $invalid);
+        @unlink($candidate);
+        $output = [];
+        $status = 0;
+        exec(
+          'python3 ' . escapeshellarg($generator) . ' '
+          . escapeshellarg($source) . ' ' . escapeshellarg($candidate) . ' 2>&1',
+          $output,
+          $status,
+        );
+        self::assertNotSame(0, $status, implode("\n", $output));
+      }
     }
     finally {
       foreach (glob($directory . '/*') ?: [] as $file) {

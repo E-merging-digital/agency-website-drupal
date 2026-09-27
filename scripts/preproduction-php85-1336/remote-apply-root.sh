@@ -42,7 +42,7 @@ jq -e \
   and .SENDMAIL_SAFETY_CONTRACT == "YES"
   and .PACKAGE_REMOVALS == []
   and .PACKAGE_UPGRADES == []
-  and (.PACKAGE_ALLOWLIST | length) == 12' "$APPROVED_PLAN" >/dev/null
+  and (.REQUESTED_PACKAGE_ALLOWLIST | length) == 12' "$APPROVED_PLAN" >/dev/null
 
 plan_id="$(jq -r '.PLAN_ID' "$APPROVED_PLAN")"
 work_root="$(mktemp -d /root/agency-php85-1336.XXXXXX)"
@@ -64,7 +64,7 @@ current_digest="$(jq -r '.PLAN_DIGEST' "$work_root/current-plan.json")"
 jq -e '.REBOOT_REQUIRED == "NO" and .SAFETY_GATE == "PASS"' "$work_root/current-plan.json" >/dev/null
 
 mapfile -t package_specs < <(
-  jq -r '.PACKAGE_ALLOWLIST[] as $pkg | "\($pkg)=\(.PHP85_PACKAGE_CANDIDATES[$pkg])"' "$APPROVED_PLAN"
+  jq -r '.REQUESTED_PACKAGE_ALLOWLIST[] as $pkg | "\($pkg)=\(.PHP85_PACKAGE_CANDIDATES[$pkg])"' "$APPROVED_PLAN"
 )
 [[ "${#package_specs[@]}" -eq 12 ]]
 for spec in "${package_specs[@]}"; do

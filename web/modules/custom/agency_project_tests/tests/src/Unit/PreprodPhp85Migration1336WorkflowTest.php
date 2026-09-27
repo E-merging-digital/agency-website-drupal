@@ -434,7 +434,7 @@ NGINX
         "server { return 200; }\n",
         "location / { fastcgi_pass unix:$new; }\n",
         "location /a { fastcgi_pass unix:$old; }\n"
-          . "location /b { fastcgi_pass 127.0.0.1:9000; }\n",
+        . "location /b { fastcgi_pass 127.0.0.1:9000; }\n",
       ] as $invalid) {
         file_put_contents($source, $invalid);
         @unlink($candidate);

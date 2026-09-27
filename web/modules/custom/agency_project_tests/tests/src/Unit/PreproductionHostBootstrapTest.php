@@ -37,6 +37,7 @@ final class PreproductionHostBootstrapTest extends TestCase {
       'PHP_SOCKET="/run/php/php8.5-fpm-agency-preprod.sock"',
       'php8.5-cli',
       'php8.5-fpm',
+      'extension_loaded("Zend OPcache")',
       '/etc/php/8.5/fpm/pool.d/agency-preprod.conf',
       '/etc/php/8.5/cli/conf.d/99-agency-preprod-safety.ini',
       'PHP_MINOR_VERSION === 5',
@@ -49,9 +50,31 @@ final class PreproductionHostBootstrapTest extends TestCase {
       self::assertStringContainsString($expected, $bootstrapContent);
     }
 
-    foreach (['php8.4', '/etc/php/8.4', 'PHP_MINOR_VERSION === 4'] as $obsolete) {
+    foreach ([
+      'php8.4',
+      '/etc/php/8.4',
+      'PHP_MINOR_VERSION === 4',
+      'php8.5-opcache',
+    ] as $obsolete) {
       self::assertStringNotContainsString($obsolete, $bootstrapContent);
     }
+
+    preg_match_all('/^  (php8\.5-[a-z0-9.+-]+) \\\\?$/m', $bootstrapContent, $packageMatches);
+    $requestedPhp85 = array_values(array_unique($packageMatches[1] ?? []));
+    sort($requestedPhp85);
+    self::assertSame([
+      'php8.5-bcmath',
+      'php8.5-cli',
+      'php8.5-common',
+      'php8.5-curl',
+      'php8.5-fpm',
+      'php8.5-gd',
+      'php8.5-intl',
+      'php8.5-mbstring',
+      'php8.5-mysql',
+      'php8.5-xml',
+      'php8.5-zip',
+    ], $requestedPhp85);
 
     $nginxContent = (string) file_get_contents($nginx);
     self::assertStringContainsString('auth_basic', $nginxContent);

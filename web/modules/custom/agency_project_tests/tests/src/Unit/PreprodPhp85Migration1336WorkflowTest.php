@@ -289,9 +289,11 @@ NGINX
 
       $output = [];
       $status = 1;
+      $nginxStatus = $directory . '/nginx.status';
       exec(
         'python3 ' . escapeshellarg($nginxScript) . ' '
-        . escapeshellarg($vhost) . ' 2>&1',
+        . escapeshellarg($vhost) . ' '
+        . escapeshellarg($nginxStatus) . ' 2>&1',
         $output,
         $status,
       );
@@ -404,8 +406,8 @@ NGINX
       $new = '/run/php/php8.5-fpm-agency-preprod.sock';
       $source = $directory . '/source.conf';
       $candidate = $directory . '/candidate.conf';
-      $multi = "location /index { fastcgi_pass unix:$old; }\n"
-        . "location /update { fastcgi_pass unix:$old; }\n";
+      $multi = "location /index {\n  fastcgi_pass unix:$old;\n}\n"
+        . "location /update {\n  fastcgi_pass unix:$old;\n}\n";
       file_put_contents($source, $multi);
 
       $output = [];
@@ -434,9 +436,9 @@ NGINX
 
       foreach ([
         "server { return 200; }\n",
-        "location / { fastcgi_pass unix:$new; }\n",
-        "location /a { fastcgi_pass unix:$old; }\n"
-        . "location /b { fastcgi_pass 127.0.0.1:9000; }\n",
+        "location / {\n  fastcgi_pass unix:$new;\n}\n",
+        "location /a {\n  fastcgi_pass unix:$old;\n}\n"
+        . "location /b {\n  fastcgi_pass 127.0.0.1:9000;\n}\n",
       ] as $invalid) {
         file_put_contents($source, $invalid);
         @unlink($candidate);

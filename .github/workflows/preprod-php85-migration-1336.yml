@@ -140,31 +140,61 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
             -o ConnectTimeout=15
           )
+          set +e
           ssh "${ssh_args[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
             "bash -s -- '$MAIN_SHA' '$PLAN_ID'" \
             < scripts/preproduction-php85-1336/remote-plan.sh \
             > artifacts/preprod-php85-1336/plan.json
+          plan_rc=$?
+          set -e
 
+          plan='artifacts/preprod-php85-1336/plan.json'
+          test -s "$plan"
           jq -e --arg main "$MAIN_SHA" --arg plan_id "$PLAN_ID" '
-            .STATUS == "PASS"
+            (.STATUS == "PASS" or .STATUS == "FAIL")
             and .ISSUE == 1336
             and .TARGET == "PREPROD"
             and .MODE == "PLAN"
             and .MAIN_SHA == $main
             and .PLAN_ID == $plan_id
             and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
-            and .REBOOT_REQUIRED == "NO"
-            and .PACKAGE_REMOVALS == []
-            and .PACKAGE_UPGRADES == []
-            and .PHP84_PACKAGES_PRESENT == "YES"
-            and .PHP84_SERVICE_ACTIVE == "YES"
-            and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
-            and .FPM84_POOL_CONTRACT == "YES"
-            and .SENDMAIL_SAFETY_CONTRACT == "YES"
-            and .SAFETY_GATE == "PASS"' artifacts/preprod-php85-1336/plan.json >/dev/null
-          echo "digest=$(jq -r '.PLAN_DIGEST' artifacts/preprod-php85-1336/plan.json)" >> "$GITHUB_OUTPUT"
+            and (.FAILED_CHECKS | type == "array")
+            and (
+              (.STATUS == "PASS" and .SAFETY_GATE == "PASS" and .FAILED_CHECKS == [])
+              or
+              (.STATUS == "FAIL" and .SAFETY_GATE == "FAIL" and (.FAILED_CHECKS | length) > 0)
+            )' "$plan" >/dev/null
+
+          {
+            echo "receipt_valid=true"
+            echo "digest=$(jq -r '.PLAN_DIGEST' "$plan")"
+            echo "status=$(jq -r '.STATUS' "$plan")"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$plan_rc" -eq 0 ]]; then
+            jq -e '
+              .STATUS == "PASS"
+              and .SAFETY_GATE == "PASS"
+              and .FAILED_CHECKS == []
+              and .REBOOT_REQUIRED == "NO"
+              and .PACKAGE_REMOVALS == []
+              and .PACKAGE_UPGRADES == []
+              and .PHP84_PACKAGES_PRESENT == "YES"
+              and .PHP84_SERVICE_ACTIVE == "YES"
+              and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+              and .FPM84_POOL_CONTRACT == "YES"
+              and .SENDMAIL_SAFETY_CONTRACT == "YES"' "$plan" >/dev/null
+          else
+            test "$plan_rc" -eq 65
+            jq -e '
+              .STATUS == "FAIL"
+              and .SAFETY_GATE == "FAIL"
+              and (.FAILED_CHECKS | length) > 0' "$plan" >/dev/null
+            exit "$plan_rc"
+          fi
 
       - name: Upload immutable PLAN evidence
+        if: ${{ always() && steps.plan_result.outputs.receipt_valid == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: preprod-php85-1336-plan-${{ github.run_id }}-${{ github.run_attempt }}
@@ -173,25 +203,31 @@ jobs:
           retention-days: 30
 
       - name: Publish bounded PLAN summary
+        if: ${{ always() && steps.plan_result.outputs.receipt_valid == 'true' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
-          PLAN_DIGEST: ${{ steps.plan_result.outputs.digest }}
         run: |
           set -euo pipefail
+          plan='artifacts/preprod-php85-1336/plan.json'
+          plan_status="$(jq -r '.STATUS' "$plan")"
+          plan_digest="$(jq -r '.PLAN_DIGEST' "$plan")"
+          failed_checks="$(jq -r '.FAILED_CHECKS | if length == 0 then "NONE" else join(",") end' "$plan")"
           body="$(cat <<EOF_BODY
-          #1336 PREPROD PHP 8.5 migration PLAN completed.
+          #1336 PREPROD PHP 8.5 migration PLAN evidence preserved.
 
           `MODE=PLAN`
           `RUN=${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}`
           `PLAN_ID=${PLAN_ID}`
-          `PLAN_DIGEST=${PLAN_DIGEST}`
+          `PLAN_STATUS=${plan_status}`
+          `PLAN_DIGEST=${plan_digest}`
+          `FAILED_CHECKS=${failed_checks}`
           `TARGET=PREPROD`
           `PREPROD_MUTATION=NONE`
           `PHP84_REMOVAL=NONE`
 
-          APPLY remains separately authorized. Review the immutable PLAN artifact before posting the exact APPLY command.
+          Artifact publication preserves evidence only. APPLY requires a successful source run and a PASS receipt with no failed checks.
           EOF_BODY
           )"
           gh issue comment 1336 --body "$body"
@@ -249,7 +285,8 @@ jobs:
             and .MODE == "PLAN"
             and .MAIN_SHA == $main
             and .PLAN_DIGEST == $digest
-            and .SAFETY_GATE == "PASS"' "$plan" >/dev/null
+            and .SAFETY_GATE == "PASS"
+            and .FAILED_CHECKS == []' "$plan" >/dev/null
 
       - name: Materialize pinned PREPROD root trust
         shell: bash

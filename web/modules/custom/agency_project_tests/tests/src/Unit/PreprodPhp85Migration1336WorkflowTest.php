@@ -278,12 +278,15 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       $vhost = $directory . '/agency-preprod';
       file_put_contents(
         $vhost,
-        "server {\n"
-        . "  set \\$private_value do-not-publish;\n"
-        . "  fastcgi_pass unix:/run/php/php8.4-fpm-agency-preprod.sock;\n"
-        . "  fastcgi_pass 127.0.0.1:9000; # bounded target\n"
-        . "  fastcgi_pass unix:/run/php/php8.4-fpm-agency-preprod.sock;\n"
-        . "}\n",
+        <<<'NGINX'
+server {
+  set $private_value do-not-publish;
+  fastcgi_pass unix:/run/php/php8.4-fpm-agency-preprod.sock;
+  fastcgi_pass 127.0.0.1:9000; # bounded target
+  fastcgi_pass unix:/run/php/php8.4-fpm-agency-preprod.sock;
+}
+NGINX
+        . "\n",
       );
       $nginxScript = $directory . '/nginx.py';
       file_put_contents($nginxScript, $nginxMatch[1] . "\n");

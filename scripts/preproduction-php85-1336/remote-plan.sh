@@ -219,12 +219,11 @@ checks = {
     'sendmail_safety_contract': os.environ['SENDMAIL_SAFETY_CONTRACT'] == 'YES',
 }
 failed_checks = sorted(name for name, passed in checks.items() if not passed)
-if failed_checks:
-    raise SystemExit('PLAN safety gate failed: ' + ','.join(failed_checks))
+safety_pass = not failed_checks
 
 receipt = {
     'schema_version': 1,
-    'STATUS': 'PASS',
+    'STATUS': 'PASS' if safety_pass else 'FAIL',
     'ISSUE': 1336,
     'TARGET': 'PREPROD',
     'MODE': 'PLAN',
@@ -259,7 +258,8 @@ receipt = {
     'FPM84_POOL_CONTRACT': os.environ['FPM84_POOL_CONTRACT'],
     'FPM84_POOL_SHA256': os.environ['FPM84_POOL_SHA256'],
     'SENDMAIL_SAFETY_CONTRACT': os.environ['SENDMAIL_SAFETY_CONTRACT'],
-    'SAFETY_GATE': 'PASS',
+    'SAFETY_GATE': 'PASS' if safety_pass else 'FAIL',
+    'FAILED_CHECKS': failed_checks,
 }
 # Exact free disk is volatile: observe and safety-gate it, but exclude it from
 # stale-plan mutation identity.
@@ -275,10 +275,12 @@ mutation_identity_keys = (
     'PHP84_PACKAGES_PRESENT','PHP84_SERVICE_ACTIVE',
     'NGINX_VHOST_PHP84_SOCKET_MATCH','NGINX_VHOST_SHA256',
     'FPM84_POOL_CONTRACT','FPM84_POOL_SHA256','SENDMAIL_SAFETY_CONTRACT',
-    'SAFETY_GATE',
+    'SAFETY_GATE','FAILED_CHECKS',
 )
 mutation_identity = {key: receipt[key] for key in mutation_identity_keys}
 canonical = json.dumps(mutation_identity, sort_keys=True, separators=(',', ':')).encode('utf-8')
 receipt['PLAN_DIGEST'] = hashlib.sha256(canonical).hexdigest()
 print(json.dumps(receipt, sort_keys=True, separators=(',', ':')))
+if failed_checks:
+    raise SystemExit(65)
 PY

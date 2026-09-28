@@ -165,6 +165,7 @@ if [[ "$(php8.4 -r 'echo (string) ini_get("sendmail_path");' 2>/dev/null || true
 fi
 
 : >"$work_root/candidates.tsv"
+: >"$work_root/installed.tsv"
 package_specs=()
 candidate_gap='NO'
 for pkg in "${PHP85_PACKAGES[@]}"; do
@@ -179,6 +180,13 @@ for pkg in "${PHP85_PACKAGES[@]}"; do
     package_specs+=("$pkg=$candidate")
   fi
   printf '%s\t%s\n' "$pkg" "$candidate" >>"$work_root/candidates.tsv"
+
+  installed_version='ABSENT'
+  if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -qx 'install ok installed'; then
+    installed_version="$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || true)"
+    [[ -n "$installed_version" ]] || installed_version='INVALID'
+  fi
+  printf '%s\t%s\n' "$pkg" "$installed_version" >>"$work_root/installed.tsv"
 done
 
 : >"$work_root/install-sim.raw"
@@ -225,6 +233,11 @@ for line in (root / 'candidates.tsv').read_text(encoding='utf-8').splitlines():
     name, version = line.split('\t', 1)
     candidates[name] = version
 
+installed_versions = {}
+for line in (root / 'installed.tsv').read_text(encoding='utf-8').splitlines():
+    name, version = line.split('\t', 1)
+    installed_versions[name] = version
+
 additions, upgrades, removals = [], [], []
 install_simulation_state = os.environ['PHP85_INSTALL_SIMULATION']
 if install_simulation_state == 'PASS':
@@ -260,8 +273,33 @@ nginx_fastcgi_pass_values = sorted(
     )
 )
 
-addition_names = {item['name'] for item in additions}
 requested_names = set(requested_allowlist)
+requested_packages_converge = set(installed_versions) == requested_names
+if requested_packages_converge:
+    for name in requested_allowlist:
+        candidate = candidates.get(name, 'NONE')
+        installed = installed_versions[name]
+        matching_additions = [
+            item for item in additions if item['name'] == name
+        ]
+        if candidate == 'NONE':
+            requested_packages_converge = False
+            break
+        if installed == candidate:
+            if matching_additions:
+                requested_packages_converge = False
+                break
+            continue
+        if installed == 'ABSENT':
+            if (
+                len(matching_additions) != 1
+                or matching_additions[0]['to'] != candidate
+            ):
+                requested_packages_converge = False
+                break
+            continue
+        requested_packages_converge = False
+        break
 transitive_additions = [
     item for item in additions if item['name'] not in requested_names
 ]
@@ -287,7 +325,7 @@ checks = {
     'disk_space_min_2gib': int(os.environ['DISK_AVAILABLE_KB']) >= 2 * 1024 * 1024,
     'php85_candidates_present': os.environ['CANDIDATE_GAP'] == 'NO' and set(candidates) == requested_names and all(v != 'NONE' for v in candidates.values()),
     'php85_install_simulation_pass': install_simulation_state == 'PASS',
-    'all_requested_packages_present_in_simulation': requested_names <= addition_names,
+    'all_requested_packages_converge_to_candidate': requested_packages_converge,
     'package_removals_none': not removals,
     'unrelated_package_upgrades_none': not upgrades,
     'transitive_additions_php85_only': not unexpected_transitive,
@@ -332,6 +370,9 @@ receipt = {
     'PUBLIC_HEALTH': os.environ['PUBLIC_HEALTH'],
     'DISK_AVAILABLE_KB': int(os.environ['DISK_AVAILABLE_KB']),
     'PHP85_PACKAGE_CANDIDATES': candidates,
+    'PHP85_INSTALLED_VERSIONS': {
+        name: installed_versions[name] for name in requested_allowlist
+    },
     'PHP85_INSTALL_SIMULATION': install_simulation_state,
     'REQUESTED_PACKAGE_ALLOWLIST': requested_allowlist,
     'PACKAGE_ADDITIONS': additions,
@@ -361,7 +402,7 @@ mutation_identity_keys = (
     'CURRENT_PHP_CLI','CURRENT_PHP_FPM','CURRENT_PHP_FPM_SERVICE',
     'CURRENT_PREPROD_SOCKET','NGINX_SERVICE','MARIADB_SERVICE','MARIADB_VERSION',
     'FAILED_SYSTEMD_UNITS','DRUPAL_HEALTH','PUBLIC_HEALTH',
-    'PHP85_PACKAGE_CANDIDATES','PHP85_INSTALL_SIMULATION',
+    'PHP85_PACKAGE_CANDIDATES','PHP85_INSTALLED_VERSIONS','PHP85_INSTALL_SIMULATION',
     'REQUESTED_PACKAGE_ALLOWLIST','PACKAGE_ADDITIONS','TRANSITIVE_ADDITIONS',
     'PACKAGE_UPGRADES','PACKAGE_REMOVALS',
     'PHP84_PACKAGES_PRESENT','PHP84_SERVICE_ACTIVE',

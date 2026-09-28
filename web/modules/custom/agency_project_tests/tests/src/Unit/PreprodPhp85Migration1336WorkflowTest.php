@@ -213,7 +213,8 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       'TRANSITIVE_ADDITIONS',
       'PACKAGE_REMOVALS',
       'PACKAGE_UPGRADES',
-      'all_requested_packages_present_in_simulation',
+      'PHP85_INSTALLED_VERSIONS',
+      'all_requested_packages_converge_to_candidate',
       'transitive_additions_php85_only',
       'PHP84_PACKAGES_PRESENT',
       'PHP84_SERVICE_ACTIVE',
@@ -254,6 +255,15 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     );
     self::assertStringNotContainsString('php8.5-opcache', $plan);
     self::assertStringNotContainsString('NGINX_VHOST_CONTENT', $plan);
+    self::assertStringNotContainsString(
+      'all_requested_packages_present_in_simulation',
+      $plan,
+    );
+    self::assertStringContainsString(
+      "'PHP85_PACKAGE_CANDIDATES','PHP85_INSTALLED_VERSIONS',"
+      . "'PHP85_INSTALL_SIMULATION'",
+      $plan,
+    );
 
     $first = $this->evaluatePlan(5 * 1024 * 1024);
     $second = $this->evaluatePlan(6 * 1024 * 1024);
@@ -262,6 +272,10 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     self::assertSame([], $first['FAILED_CHECKS']);
     self::assertSame('PASS', $first['PHP85_INSTALL_SIMULATION']);
     self::assertCount(11, $first['REQUESTED_PACKAGE_ALLOWLIST']);
+    self::assertSame(
+      array_fill_keys($first['REQUESTED_PACKAGE_ALLOWLIST'], 'ABSENT'),
+      $first['PHP85_INSTALLED_VERSIONS'],
+    );
     self::assertNotContains('php8.5-opcache', $first['REQUESTED_PACKAGE_ALLOWLIST']);
     self::assertContains(
       'php8.5-readline',
@@ -269,6 +283,180 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     );
     self::assertNotSame($first['DISK_AVAILABLE_KB'], $second['DISK_AVAILABLE_KB']);
     self::assertSame($first['PLAN_DIGEST'], $second['PLAN_DIGEST']);
+  }
+
+  /**
+   * PLAN converges exact candidates across fresh and partial APPLY states.
+   */
+  public function testPlanRequestedPackagesConvergeToExactCandidates(): void {
+    $packages = [
+      'php8.5-bcmath', 'php8.5-cli', 'php8.5-common', 'php8.5-curl',
+      'php8.5-fpm', 'php8.5-gd', 'php8.5-intl', 'php8.5-mbstring',
+      'php8.5-mysql', 'php8.5-xml', 'php8.5-zip',
+    ];
+    $exactInstalled = array_fill_keys($packages, '8.5.11-1');
+
+    $partial = $this->executePlan(
+      5 * 1024 * 1024,
+      [],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+      $exactInstalled,
+    );
+    self::assertSame(0, $partial['status'], $partial['output']);
+    $partialReceipt = json_decode(
+      $partial['output'],
+      TRUE,
+      32,
+      JSON_THROW_ON_ERROR,
+    );
+    self::assertSame('PASS', $partialReceipt['STATUS']);
+    self::assertSame([], $partialReceipt['FAILED_CHECKS']);
+    self::assertSame([], $partialReceipt['PACKAGE_ADDITIONS']);
+    self::assertSame([], $partialReceipt['PACKAGE_UPGRADES']);
+    self::assertSame([], $partialReceipt['PACKAGE_REMOVALS']);
+    self::assertSame(
+      $exactInstalled,
+      $partialReceipt['PHP85_INSTALLED_VERSIONS'],
+    );
+
+    $mixedInstalled = array_fill_keys(
+      array_slice($packages, 0, 5),
+      '8.5.11-1',
+    );
+    $mixed = $this->executePlan(
+      5 * 1024 * 1024,
+      [],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+      $mixedInstalled,
+    );
+    self::assertSame(0, $mixed['status'], $mixed['output']);
+    $mixedReceipt = json_decode(
+      $mixed['output'],
+      TRUE,
+      32,
+      JSON_THROW_ON_ERROR,
+    );
+    self::assertSame('PASS', $mixedReceipt['STATUS']);
+    self::assertSame(
+      array_slice($packages, 5),
+      array_column($mixedReceipt['PACKAGE_ADDITIONS'], 'name'),
+    );
+
+    $wrongInstalled = $exactInstalled;
+    $wrongInstalled[$packages[0]] = '8.5.10-1';
+    $wrong = $this->executePlan(
+      5 * 1024 * 1024,
+      [],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+      $wrongInstalled,
+    );
+    self::assertSame(65, $wrong['status'], $wrong['output']);
+    $wrongReceipt = json_decode(
+      $wrong['output'],
+      TRUE,
+      32,
+      JSON_THROW_ON_ERROR,
+    );
+    self::assertContains(
+      'all_requested_packages_converge_to_candidate',
+      $wrongReceipt['FAILED_CHECKS'],
+    );
+    self::assertContains(
+      'unrelated_package_upgrades_none',
+      $wrongReceipt['FAILED_CHECKS'],
+    );
+
+    $missing = $this->executePlan(
+      5 * 1024 * 1024,
+      [],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+      [],
+      [$packages[0]],
+    );
+    self::assertSame(65, $missing['status'], $missing['output']);
+    $missingReceipt = json_decode(
+      $missing['output'],
+      TRUE,
+      32,
+      JSON_THROW_ON_ERROR,
+    );
+    self::assertContains(
+      'all_requested_packages_converge_to_candidate',
+      $missingReceipt['FAILED_CHECKS'],
+    );
+
+    $unsafeRemoval = $this->executePlan(
+      5 * 1024 * 1024,
+      [],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+      [],
+      [],
+      ['Remv unrelated-package 1.0'],
+    );
+    self::assertSame(65, $unsafeRemoval['status'], $unsafeRemoval['output']);
+    $unsafeRemovalReceipt = json_decode(
+      $unsafeRemoval['output'],
+      TRUE,
+      32,
+      JSON_THROW_ON_ERROR,
+    );
+    self::assertContains(
+      'package_removals_none',
+      $unsafeRemovalReceipt['FAILED_CHECKS'],
+    );
+
+    $unsafeUpgrade = $this->executePlan(
+      5 * 1024 * 1024,
+      [],
+      FALSE,
+      'PASS',
+      'ABSENT',
+      [],
+      ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+      [],
+      [],
+      ['Inst unrelated-package [1.0] (2.0 repo [amd64])'],
+    );
+    self::assertSame(65, $unsafeUpgrade['status'], $unsafeUpgrade['output']);
+    $unsafeUpgradeReceipt = json_decode(
+      $unsafeUpgrade['output'],
+      TRUE,
+      32,
+      JSON_THROW_ON_ERROR,
+    );
+    self::assertContains(
+      'unrelated_package_upgrades_none',
+      $unsafeUpgradeReceipt['FAILED_CHECKS'],
+    );
+
+    self::assertNotSame(
+      $partialReceipt['PHP85_INSTALLED_VERSIONS'],
+      $mixedReceipt['PHP85_INSTALLED_VERSIONS'],
+    );
+    self::assertNotSame(
+      $partialReceipt['PLAN_DIGEST'],
+      $mixedReceipt['PLAN_DIGEST'],
+    );
   }
 
   /**
@@ -707,14 +895,20 @@ BASH;
         'php8.5-mysql', 'php8.5-xml', 'php8.5-zip',
       ];
       $candidateLines = [];
+      $installedLines = [];
       $packageSpecs = [];
       foreach ($packages as $package) {
         $candidateLines[] = $package . "\t8.5.11-1";
+        $installedLines[] = $package . "\tABSENT";
         $packageSpecs[] = $package . '=8.5.11-1';
       }
       file_put_contents(
         $directory . '/candidates.tsv',
         implode("\n", $candidateLines) . "\n",
+      );
+      file_put_contents(
+        $directory . '/installed.tsv',
+        implode("\n", $installedLines) . "\n",
       );
       file_put_contents($directory . '/failed.raw', '');
       file_put_contents($directory . '/reboot-required-packages.raw', '');
@@ -874,6 +1068,7 @@ BASH;
 
     foreach ([
       'PHP85_PACKAGE_CANDIDATES',
+      'PHP85_INSTALLED_VERSIONS',
       'REBOOT_REQUIRED',
       'NGINX_VHOST_PHP84_SOCKET_MATCH',
       'PACKAGE_ADDITIONS',
@@ -1413,6 +1608,12 @@ BASH;
    *   Synthetic reboot-required package names.
    * @param string[] $nginxFastcgiValues
    *   Synthetic normalized Nginx fastcgi_pass values.
+   * @param array<string, string> $installedVersions
+   *   Requested package versions already installed; omitted entries are ABSENT.
+   * @param string[] $omitSimulatedPackages
+   *   Requested ABSENT packages intentionally omitted from simulated additions.
+   * @param string[] $extraSimulationLines
+   *   Additional bounded synthetic APT simulation lines.
    *
    * @return array{status:int,output:string}
    *   Process status and combined output.
@@ -1425,6 +1626,9 @@ BASH;
     string $rebootPackagesSource = 'ABSENT',
     array $rebootPackages = [],
     array $nginxFastcgiValues = ['unix:/run/php/php8.4-fpm-agency-preprod.sock'],
+    array $installedVersions = [],
+    array $omitSimulatedPackages = [],
+    array $extraSimulationLines = [],
   ): array {
     $source = $this->source(self::PLAN);
     self::assertSame(
@@ -1441,22 +1645,43 @@ BASH;
         'php8.5-mysql', 'php8.5-xml', 'php8.5-zip',
       ];
       $candidateLines = [];
+      $installedLines = [];
       $simulationLines = [];
       foreach ($packages as $index => $package) {
         $candidate = $candidateGap && $index === 0 ? 'NONE' : '8.5.11-1';
+        $installed = $installedVersions[$package] ?? 'ABSENT';
         $candidateLines[] = $package . "\t" . $candidate;
+        $installedLines[] = $package . "\t" . $installed;
         if (!$candidateGap && $simulationState === 'PASS') {
-          $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+          if (
+            $installed === 'ABSENT'
+            && !in_array($package, $omitSimulatedPackages, TRUE)
+          ) {
+            $simulationLines[] = 'Inst ' . $package
+              . ' (8.5.11-1 repo [amd64])';
+          }
+          elseif ($installed !== '8.5.11-1') {
+            $simulationLines[] = 'Inst ' . $package . ' [' . $installed
+              . '] (8.5.11-1 repo [amd64])';
+          }
         }
       }
       if (!$candidateGap && $simulationState === 'PASS') {
         foreach ($extraAdditions as $package) {
-          $simulationLines[] = 'Inst ' . $package . ' (8.5.11-1 repo [amd64])';
+          $simulationLines[] = 'Inst ' . $package
+            . ' (8.5.11-1 repo [amd64])';
+        }
+        foreach ($extraSimulationLines as $line) {
+          $simulationLines[] = $line;
         }
       }
       file_put_contents(
         $directory . '/candidates.tsv',
         implode("\n", $candidateLines) . "\n",
+      );
+      file_put_contents(
+        $directory . '/installed.tsv',
+        implode("\n", $installedLines) . "\n",
       );
       file_put_contents(
         $directory . '/install-sim.raw',

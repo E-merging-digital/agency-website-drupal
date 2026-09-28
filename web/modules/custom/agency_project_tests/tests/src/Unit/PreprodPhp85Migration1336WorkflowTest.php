@@ -1187,7 +1187,6 @@ BASH;
     }
   }
 
-
   /**
    * PLAN exposes canonical vhost metadata and gates it strictly.
    */

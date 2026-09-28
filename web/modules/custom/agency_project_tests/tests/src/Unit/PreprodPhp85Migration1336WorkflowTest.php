@@ -1002,6 +1002,42 @@ BASH;
   }
 
   /**
+   * REBOOT PRE/POST PLAN IDs satisfy the strict remote PLAN contract.
+   */
+  public function testRebootPlanIdsRespectStrictRemotePlanContract(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    $plan = $this->source(self::PLAN);
+
+    $pre = 'plan-1336-reboot-pre-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}';
+    $post = 'plan-1336-reboot-post-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}';
+
+    self::assertStringContainsString($pre, $workflow);
+    self::assertStringContainsString($post, $workflow);
+    self::assertStringNotContainsString(
+      "'reboot-pre-\${GITHUB_RUN_ID}-\${GITHUB_RUN_ATTEMPT}'",
+      $workflow,
+    );
+    self::assertStringNotContainsString(
+      "'reboot-post-\${GITHUB_RUN_ID}-\${GITHUB_RUN_ATTEMPT}'",
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '[[ "$PLAN_ID" =~ ^plan-1336-[A-Za-z0-9._-]{8,80}$ ]]',
+      $plan,
+    );
+
+    foreach ([
+      'plan-1336-reboot-pre-36362656030-1',
+      'plan-1336-reboot-post-36362656030-1',
+    ] as $planId) {
+      self::assertSame(
+        1,
+        preg_match('/^plan-1336-[A-Za-z0-9._-]{8,80}$/', $planId),
+      );
+    }
+  }
+
+  /**
    * REBOOT is exact, one-shot, reboot-only and fully post-validated.
    */
   public function testRebootWorkflowIsBoundedOneShotAndFailClosed(): void {

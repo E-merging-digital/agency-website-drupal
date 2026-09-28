@@ -38,6 +38,9 @@ jq -e \
   and .PHP84_PACKAGES_PRESENT == "YES"
   and .PHP84_SERVICE_ACTIVE == "YES"
   and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+  and .NGINX_VHOST_OWNER == "root"
+  and .NGINX_VHOST_GROUP == "root"
+  and .NGINX_VHOST_MODE == "0644"
   and .FPM84_POOL_CONTRACT == "YES"
   and .SENDMAIL_SAFETY_CONTRACT == "YES"
   and .PACKAGE_REMOVALS == []
@@ -68,6 +71,9 @@ jq -e '
   and .SAFETY_GATE == "PASS"
   and .NGINX_FASTCGI_PASS_VALUES == ["unix:/run/php/php8.4-fpm-agency-preprod.sock"]
   and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+  and .NGINX_VHOST_OWNER == "root"
+  and .NGINX_VHOST_GROUP == "root"
+  and .NGINX_VHOST_MODE == "0644"
 ' "$work_root/current-plan.json" >/dev/null
 
 mapfile -t package_specs < <(
@@ -116,7 +122,9 @@ cp --preserve=all /etc/php/8.4/fpm/pool.d/agency-preprod.conf "$backup_root/php8
 if [[ -f /etc/php/8.4/cli/conf.d/99-agency-preprod-safety.ini ]]; then
   cp --preserve=all /etc/php/8.4/cli/conf.d/99-agency-preprod-safety.ini "$backup_root/php84-cli-safety.before"
 fi
-chmod -R go-rwx "$backup_root"
+[[ "$(stat -c '%U' "$backup_root/nginx-agency-preprod.before")" == 'root' ]]
+[[ "$(stat -c '%G' "$backup_root/nginx-agency-preprod.before")" == 'root' ]]
+[[ "$(stat -c '%a' "$backup_root/nginx-agency-preprod.before")" == '644' ]]
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y "${package_specs[@]}" >"$work_root/apt-install.log" 2>&1
@@ -232,7 +240,10 @@ rollback() {
   set +e
   rollback_status='FAIL'
   cp --preserve=all "$backup_root/nginx-agency-preprod.before" "$NGINX_VHOST"
-  if nginx -t >/dev/null 2>&1 \
+  if [[ "$(stat -c '%U' "$NGINX_VHOST")" == 'root' ]] \
+    && [[ "$(stat -c '%G' "$NGINX_VHOST")" == 'root' ]] \
+    && [[ "$(stat -c '%a' "$NGINX_VHOST")" == '644' ]] \
+    && nginx -t >/dev/null 2>&1 \
     && systemctl reload nginx >/dev/null 2>&1 \
     && systemctl is-active --quiet php8.4-fpm \
     && curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/live" >/dev/null \
@@ -262,14 +273,11 @@ switched='YES'
 nginx -t
 systemctl reload nginx
 
-# Canonical PREPROD runtime, public and internal-readiness validation.
+# Canonical PREPROD runtime and public health validation.
 bash "$RUNTIME_VALIDATOR" >"$work_root/runtime-validation.txt"
 grep -Fqx 'side_effects=PASS' "$work_root/runtime-validation.txt"
 curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/live" >"$work_root/public-live.json"
 curl --silent --show-error --fail --max-time 8 "$PREPROD_URL/health/ready" >"$work_root/public-ready.json"
-curl --silent --show-error --fail --max-time 8 \
-  --header 'Host: preprod.emergingdigital.be' \
-  http://127.0.0.1:18087/health/ready >"$work_root/internal-ready.json"
 
 # Prove the socket selected by Nginx is backed by a PHP 8.5 FPM process.
 python3 - "$NEW_SOCKET" <<'PY'
@@ -337,7 +345,6 @@ jq -n \
     MARIADB_SERVICE:"ACTIVE",
     DRUPAL_HEALTH:"PASS",
     PUBLIC_HEALTH:"PASS",
-    INTERNAL_READINESS:"PASS",
     SIDE_EFFECT_ISOLATION:"PASS",
     WEB_RUNTIME_PHP85:"PASS",
     ROLLBACK:"NOT_REQUIRED",

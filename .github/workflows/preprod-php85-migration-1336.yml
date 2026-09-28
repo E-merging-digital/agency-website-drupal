@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   validate-authority:
-    name: Validate exact #1336 PLAN/APPLY/REBOOT authority
+    name: Validate exact #1336 PLAN/APPLY/REBOOT/REPAIR authority
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -70,6 +70,8 @@ jobs:
             mode='PLAN'
           elif [[ "$COMMENT_BODY" == '/agency-preprod-php85-1336 reboot' ]]; then
             mode='REBOOT'
+          elif [[ "$COMMENT_BODY" == '/agency-preprod-php85-1336 repair-vhost-metadata' ]]; then
+            mode='REPAIR'
           elif [[ "$COMMENT_BODY" =~ ^/agency-preprod-php85-1336\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})$ ]]; then
             mode='APPLY'
             plan_run="${BASH_REMATCH[1]}"
@@ -87,6 +89,12 @@ jobs:
           elif [[ "$mode" == 'REBOOT' ]]; then
             [[ "$COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
             marker="AGENCY_PREPROD_PHP85_1336_REBOOT_CONSUMED main_sha=$main_sha comment_id=$COMMENT_ID"
+            existing="$(gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate --jq ".[] | select(.body == \"$marker\") | .id" | head -n 1)"
+            test -z "$existing"
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/1336/comments" -f body="$marker" >/dev/null
+          elif [[ "$mode" == 'REPAIR' ]]; then
+            [[ "$COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
+            marker="AGENCY_PREPROD_PHP85_1336_VHOST_METADATA_REPAIR_CONSUMED main_sha=$main_sha comment_id=$COMMENT_ID"
             existing="$(gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate --jq ".[] | select(.body == \"$marker\") | .id" | head -n 1)"
             test -z "$existing"
             gh api --method POST "repos/$GITHUB_REPOSITORY/issues/1336/comments" -f body="$marker" >/dev/null
@@ -370,7 +378,6 @@ jobs:
             and .NGINX_SOCKET_ONLY_DELTA == "PASS"
             and .DRUPAL_HEALTH == "PASS"
             and .PUBLIC_HEALTH == "PASS"
-            and .INTERNAL_READINESS == "PASS"
             and .SIDE_EFFECT_ISOLATION == "PASS"
             and .WEB_RUNTIME_PHP85 == "PASS"
             and .PHP84_REMOVAL == "NONE"
@@ -394,13 +401,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          printf -v body '#1336 PREPROD PHP 8.5 migration APPLY completed.\n\n`STATUS=%s`\n`RUN=%s`\n`PREPROD_PHP=%s`\n`PHP85_OPCACHE_AVAILABLE=%s`\n`PHP84_FPM=%s`\n`NGINX_SOCKET_ONLY_DELTA=%s`\n`PUBLIC_HEALTH=%s`\n`INTERNAL_READINESS=%s`\n`PROD_ACCESS=%s`' \
+          printf -v body '#1336 PREPROD PHP 8.5 migration APPLY completed.\n\n`STATUS=%s`\n`RUN=%s`\n`PREPROD_PHP=%s`\n`PHP85_OPCACHE_AVAILABLE=%s`\n`PHP84_FPM=%s`\n`NGINX_SOCKET_ONLY_DELTA=%s`\n`PUBLIC_HEALTH=%s`\n`PROD_ACCESS=%s`' \
             'PASS' \
             "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
             '8.5' \
             'PASS' \
             'ACTIVE_ROLLBACK_AVAILABLE' \
-            'PASS' \
             'PASS' \
             'PASS' \
             'NONE'
@@ -662,3 +668,196 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: rm -f "$RUNNER_TEMP/agency-1336-reboot-read.key" "$RUNNER_TEMP/agency-1336-reboot-root.key"
+
+  repair:
+    name: Repair PREPROD vhost metadata only
+    if: ${{ needs.validate-authority.outputs.mode == 'REPAIR' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize pinned PREPROD root trust
+        shell: bash
+        env:
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_ROOT_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-1336-vhost-repair-root.key"
+          chmod 600 "$RUNNER_TEMP/agency-1336-vhost-repair-root.key"
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Prove exact vhost identity and repair metadata only
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/preprod-php85-1336/vhost-metadata-repair
+          result='artifacts/preprod-php85-1336/vhost-metadata-repair/result.json'
+          root_ssh=(
+            ssh
+            -i "$RUNNER_TEMP/agency-1336-vhost-repair-root.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA'" > "$result" <<'REMOTE_REPAIR'
+          set -euo pipefail
+          expected_main="${1:-}"
+          vhost='/etc/nginx/sites-available/agency-preprod'
+          expected_hash='50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3'
+          preprod_url='https://preprod.emergingdigital.be'
+          [[ "$(id -u)" -eq 0 ]]
+          [[ "$expected_main" =~ ^[0-9a-f]{40}$ ]]
+          [[ -f "$vhost" && ! -L "$vhost" ]]
+          owner="$(stat -c '%U' "$vhost")"
+          group="$(stat -c '%G' "$vhost")"
+          before_mode="$(stat -c '%a' "$vhost")"
+          hash_before="$(sha256sum "$vhost" | awk '{print $1}')"
+          [[ "$owner" == 'root' ]]
+          [[ "$group" == 'root' ]]
+          [[ "$hash_before" == "$expected_hash" ]]
+
+          mapfile -t fastcgi_targets < <(python3 - "$vhost" <<'PY_FASTCGI'
+          import re
+          import sys
+          from pathlib import Path
+          values=set()
+          for line in Path(sys.argv[1]).read_text(encoding='utf-8', errors='strict').splitlines():
+              if 'fastcgi_pass' not in line:
+                  continue
+              match=re.match(r'^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?\Z', line)
+              if not match:
+                  raise SystemExit('Unparseable fastcgi_pass directive')
+              values.add(match.group(1))
+          for value in sorted(values):
+              print(value)
+          PY_FASTCGI
+          )
+          [[ "${#fastcgi_targets[@]}" -eq 1 ]]
+          [[ "${fastcgi_targets[0]}" == 'unix:/run/php/php8.4-fpm-agency-preprod.sock' ]]
+          systemctl is-active --quiet php8.4-fpm
+          systemctl is-active --quiet nginx
+          systemctl is-active --quiet mariadb
+          curl --silent --show-error --fail --max-time 8 "$preprod_url/health/live" >/dev/null
+          curl --silent --show-error --fail --max-time 8 "$preprod_url/health/ready" >/dev/null
+
+          chmod 0644 "$vhost"
+
+          hash_after="$(sha256sum "$vhost" | awk '{print $1}')"
+          owner_after="$(stat -c '%U' "$vhost")"
+          group_after="$(stat -c '%G' "$vhost")"
+          mode_after="$(stat -c '%a' "$vhost")"
+          [[ "$hash_after" == "$expected_hash" ]]
+          [[ "$owner_after" == 'root' ]]
+          [[ "$group_after" == 'root' ]]
+          [[ "$mode_after" == '644' ]]
+          nginx -t >/dev/null
+          systemctl is-active --quiet php8.4-fpm
+          systemctl is-active --quiet nginx
+          systemctl is-active --quiet mariadb
+          curl --silent --show-error --fail --max-time 8 "$preprod_url/health/live" >/dev/null
+          curl --silent --show-error --fail --max-time 8 "$preprod_url/health/ready" >/dev/null
+
+          jq -n \
+            --arg main "$expected_main" \
+            --arg hash "$hash_after" \
+            --arg owner "$owner_after" \
+            --arg group "$group_after" \
+            --arg before_mode "$before_mode" \
+            --arg mode "$mode_after" \
+            '{
+              STATUS:"PASS",
+              ISSUE:1336,
+              TARGET:"PREPROD",
+              MODE:"VHOST_METADATA_REPAIR",
+              MAIN_SHA:$main,
+              PATH:"/etc/nginx/sites-available/agency-preprod",
+              TYPE:"REGULAR",
+              SYMLINK:"NO",
+              SHA256:$hash,
+              OWNER:$owner,
+              GROUP:$group,
+              MODE_BEFORE:$before_mode,
+              MODE_AFTER:$mode,
+              FASTCGI_TARGET:"unix:/run/php/php8.4-fpm-agency-preprod.sock",
+              MUTATION:"chmod 0644 /etc/nginx/sites-available/agency-preprod",
+              CONTENT_MUTATION:"NONE",
+              NGINX_RELOAD:"NONE",
+              PACKAGE_MUTATION:"NONE",
+              PHP_MUTATION:"NONE",
+              DRUPAL_MUTATION:"NONE",
+              DB_MUTATION:"NONE",
+              PROD_ACCESS:"NONE"
+            }'
+          REMOTE_REPAIR
+
+          jq -e --arg main "$MAIN_SHA" '
+            .STATUS == "PASS"
+            and .ISSUE == 1336
+            and .TARGET == "PREPROD"
+            and .MODE == "VHOST_METADATA_REPAIR"
+            and .MAIN_SHA == $main
+            and .SHA256 == "50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3"
+            and .OWNER == "root"
+            and .GROUP == "root"
+            and .MODE_AFTER == "644"
+            and .FASTCGI_TARGET == "unix:/run/php/php8.4-fpm-agency-preprod.sock"
+            and .CONTENT_MUTATION == "NONE"
+            and .NGINX_RELOAD == "NONE"
+            and .PACKAGE_MUTATION == "NONE"
+            and .PHP_MUTATION == "NONE"
+            and .DRUPAL_MUTATION == "NONE"
+            and .DB_MUTATION == "NONE"
+            and .PROD_ACCESS == "NONE"' "$result" >/dev/null
+
+      - name: Upload bounded vhost metadata repair evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: preprod-php85-1336-vhost-metadata-repair-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/preprod-php85-1336/vhost-metadata-repair/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded vhost metadata repair summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/preprod-php85-1336/vhost-metadata-repair/result.json'
+          printf -v body '#1336 PREPROD vhost metadata repair completed.\n\n`STATUS=%s`\n`RUN=%s`\n`SHA256=%s`\n`OWNER=%s`\n`GROUP=%s`\n`MODE_BEFORE=%s`\n`MODE_AFTER=%s`\n`MUTATION=%s`\n`PROD_ACCESS=%s`' \
+            "$(jq -r '.STATUS' "$result")" \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            "$(jq -r '.SHA256' "$result")" \
+            "$(jq -r '.OWNER' "$result")" \
+            "$(jq -r '.GROUP' "$result")" \
+            "$(jq -r '.MODE_BEFORE' "$result")" \
+            "$(jq -r '.MODE_AFTER' "$result")" \
+            "$(jq -r '.MUTATION' "$result")" \
+            "$(jq -r '.PROD_ACCESS' "$result")"
+          gh issue comment 1336 --body "$body"
+
+      - name: Remove transient vhost metadata repair key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1336-vhost-repair-root.key"

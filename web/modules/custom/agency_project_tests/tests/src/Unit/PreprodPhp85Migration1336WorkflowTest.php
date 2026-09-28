@@ -1325,7 +1325,7 @@ BASH;
       'SHA256_BEFORE:$sha_before',
       'OWNER_BEFORE:$owner_before',
       'GROUP_BEFORE:$group_before',
-      'MODE_BEFORE:$moe_before',
+      'MODE_BEFORE:$mode_before',
       'SHA256_AFTER:$sha_after',
       'OWNER_AFTER:$owner_after',
       'GROUP_AFTER:$group_after',

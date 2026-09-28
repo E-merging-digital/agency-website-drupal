@@ -28,11 +28,13 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     $plan = $jobs['preprod-php85-migration-1336-plan'] ?? NULL;
     $apply = $jobs['preprod-php85-migration-1336-apply'] ?? NULL;
     $reboot = $jobs['preprod-php85-migration-1336-reboot'] ?? NULL;
+    $repair = $jobs['preprod-php85-migration-1336-repair-vhost-metadata'] ?? NULL;
     self::assertIsArray($plan);
     self::assertIsArray($apply);
     self::assertIsArray($reboot);
+    self::assertIsArray($repair);
 
-    foreach ([$plan, $apply, $reboot] as $job) {
+    foreach ([$plan, $apply, $reboot, $repair] as $job) {
       self::assertSame('./' . self::WORKFLOW, $job['uses'] ?? NULL);
       self::assertSame(
         ['actions' => 'read', 'contents' => 'read', 'issues' => 'write'],
@@ -64,6 +66,14 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       "github.event.comment.body == '/agency-preprod-php85-1336 reboot'",
       (string) $reboot['if'],
     );
+    self::assertStringContainsString(
+      "github.event.comment.body == '/agency-preprod-php85-1336 repair-vhost-metadata'",
+      (string) $repair['if'],
+    );
+    self::assertSame(
+      ['PREPROD_PROVISIONING_SSH_PRIVATE_KEY', 'PREPROD_SERVER_HOST'],
+      array_keys($repair['secrets'] ?? []),
+    );
     self::assertSame(
       [
         'PREPROD_SSH_PRIVATE_KEY',
@@ -94,7 +104,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     self::assertArrayNotHasKey('workflow_dispatch', $on);
     self::assertArrayNotHasKey('issue_comment', $on);
     self::assertSame(
-      ['validate-authority', 'plan', 'apply', 'reboot'],
+      ['validate-authority', 'plan', 'apply', 'reboot', 'repair'],
       array_keys($workflow['jobs'] ?? []),
     );
 
@@ -107,6 +117,8 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
       'test "$WORKFLOW_SHA" = "$main_sha"',
       "'/agency-preprod-php85-1336 plan'",
       "'/agency-preprod-php85-1336 reboot'",
+      "'/agency-preprod-php85-1336 repair-vhost-metadata'",
+      'AGENCY_PREPROD_PHP85_1336_VHOST_METADATA_REPAIR_CONSUMED',
       'plan_run=([1-9][0-9]*)',
       'plan_digest=([0-9a-f]{64})',
       'AGENCY_PREPROD_PHP85_1336_APPLY_CONSUMED',
@@ -138,14 +150,14 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     self::assertStringNotContainsString('actions/checkout', $authority);
     self::assertStringNotContainsString('gh issue comment 1336', $authority);
     self::assertSame(
-      2,
+      3,
       substr_count(
         $authority,
         'gh api --method POST "repos/$GITHUB_REPOSITORY/issues/1336/comments" -f body="$marker"',
       ),
     );
     self::assertSame(
-      2,
+      3,
       substr_count(
         $authority,
         'gh api "repos/$GITHUB_REPOSITORY/issues/1336/comments" --paginate',
@@ -155,6 +167,7 @@ final class PreprodPhp85Migration1336WorkflowTest extends TestCase {
     foreach ([
       'AGENCY_PREPROD_PHP85_1336_APPLY_CONSUMED',
       'AGENCY_PREPROD_PHP85_1336_REBOOT_CONSUMED',
+      'AGENCY_PREPROD_PHP85_1336_VHOST_METADATA_REPAIR_CONSUMED',
     ] as $marker) {
       $markerPosition = strpos($authority, $marker);
       self::assertNotFalse($markerPosition);
@@ -760,6 +773,9 @@ export DISK_AVAILABLE_KB=5242880
 export PHP84_PACKAGES_PRESENT=YES
 export PHP84_SERVICE_ACTIVE=YES
 export NGINX_VHOST_PHP84_SOCKET_MATCH=YES
+export NGINX_VHOST_OWNER=root
+export NGINX_VHOST_GROUP=root
+export NGINX_VHOST_MODE=0644
 export FPM84_POOL_CONTRACT=YES
 export SENDMAIL_SAFETY_CONTRACT=YES
 export NGINX_VHOST_SHA256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -939,7 +955,6 @@ BASH;
       '`PHP84_FPM=%s`',
       '`NGINX_SOCKET_ONLY_DELTA=%s`',
       '`PUBLIC_HEALTH=%s`',
-      '`INTERNAL_READINESS=%s`',
       '`PROD_ACCESS=%s`',
     ] as $literalField) {
       self::assertStringContainsString($literalField, $workflow);
@@ -974,7 +989,6 @@ BASH;
       'nginx -t',
       'systemctl reload nginx',
       'side_effects=PASS',
-      '127.0.0.1:18087/health/ready',
       'WEB_RUNTIME_PHP85',
       'rollback()',
       'ROLLBACK',
@@ -986,6 +1000,15 @@ BASH;
     ] as $required) {
       self::assertStringContainsString($required, $apply);
     }
+    self::assertStringNotContainsString('127.0.0.1:18087', $apply);
+    self::assertStringNotContainsString('INTERNAL_READINESS', $apply);
+    self::assertStringNotContainsString('chmod -R go-rwx "$backup_root"', $apply);
+    self::assertStringContainsString('install -d -m 700 "$backup_root"', $apply);
+    self::assertStringContainsString(
+      'stat -c \'%a\' "$backup_root/nginx-agency-preprod.before"',
+      $apply,
+    );
+
     foreach ([
       'apt-get remove',
       'apt-get purge',
@@ -1168,6 +1191,188 @@ BASH;
   }
 
   /**
+   * PLAN exposes canonical vhost metadata and gates it strictly.
+   */
+  public function testPlanGatesCanonicalVhostMetadata(): void {
+    $plan = $this->source(self::PLAN);
+    foreach ([
+      'NGINX_VHOST_OWNER',
+      'NGINX_VHOST_GROUP',
+      'NGINX_VHOST_MODE',
+      "os.environ['NGINX_VHOST_OWNER'] == 'root'",
+      "os.environ['NGINX_VHOST_GROUP'] == 'root'",
+      "os.environ['NGINX_VHOST_MODE'] == '0644'",
+      "'nginx_vhost_metadata_exact'",
+    ] as $required) {
+      self::assertStringContainsString($required, $plan);
+    }
+    self::assertStringContainsString(
+      '[[ -f "$NGINX_VHOST" && ! -L "$NGINX_VHOST" && -r "$NGINX_VHOST" ]]',
+      $plan,
+    );
+  }
+
+  /**
+   * Rollback backup metadata remains canonical and current readiness only.
+   */
+  public function testApplyPreservesRollbackMetadataAndDropsLegacyReadiness(): void {
+    $apply = $this->source(self::APPLY);
+    self::assertStringContainsString('install -d -m 700 "$backup_root"', $apply);
+    self::assertStringContainsString(
+      'cp --preserve=all "$NGINX_VHOST" "$backup_root/nginx-agency-preprod.before"',
+      $apply,
+    );
+    self::assertStringContainsString(
+      '[[ "$(stat -c \'%a\' "$backup_root/nginx-agency-preprod.before")" == \'644\' ]]',
+      $apply,
+    );
+    self::assertStringContainsString(
+      '[[ "$(stat -c \'%a\' "$NGINX_VHOST")" == \'644\' ]]',
+      $apply,
+    );
+    self::assertStringNotContainsString('chmod -R go-rwx "$backup_root"', $apply);
+    self::assertStringNotContainsString('127.0.0.1:18087', $apply);
+    self::assertStringNotContainsString('INTERNAL_READINESS', $apply);
+    foreach ([
+      'side_effects=PASS',
+      '/health/live',
+      '/health/ready',
+      'php-fpm8.5',
+      'PHP85_OPCACHE_AVAILABLE:"PASS"',
+      'WEB_RUNTIME_PHP85:"PASS"',
+      'systemctl is-active --quiet php8.4-fpm',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+  }
+
+  /**
+   * Metadata repair is exact, one-shot, mutation-bounded and failure-safe.
+   */
+  public function testVhostMetadataRepairIsExactOneShotAndBounded(): void {
+    $workflow = $this->source(self::WORKFLOW);
+    foreach ([
+      "mode='REPAIR'",
+      "'/agency-preprod-php85-1336 repair-vhost-metadata'",
+      'AGENCY_PREPROD_PHP85_1336_VHOST_METADATA_REPAIR_CONSUMED',
+      "needs.validate-authority.outputs.mode == 'REPAIR'",
+      '50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3',
+      'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+      'repair_mutation_attempted=\'NO\'',
+      'repair_mutation_attempted=\'YES\'',
+      'chmod 0644 "$vhost"',
+      'trap on_error ERR',
+      "emit_receipt 'FAIL'",
+      'REMOTE_RECEIPT:"PRESENT"',
+      'REMOTE_RECEIPT:"ABSENT"',
+      'REPAIR_MUTATION_ATTEMPTED:"UNKNOWN"',
+      'SSH_RC:$ssh_rc',
+      'remote_receipt_valid=\'NO\'',
+      'test -s "$result"',
+      'type == "object"',
+      'nginx -t >/dev/null',
+      '/health/live',
+      '/health/ready',
+      'preprod-php85-1336-vhost-metadata-repair-',
+      'CONTENT_MUTATION:"NONE"',
+      'NGINX_RELOAD:"NONE"',
+      'PACKAGE_MUTATION:"NONE"',
+      'PHP_MUTATION:"NONE"',
+      'DRUPAL_MUTATION:"NONE"',
+      'DB_MUTATION:"NONE"',
+      'PROD_ACCESS:"NONE"',
+    ] as $required) {
+      self::assertStringContainsString($required, $workflow);
+    }
+
+    self::assertSame(1, substr_count($workflow, 'chmod 0644 "$vhost"'));
+    self::assertSame(
+      1,
+      preg_match('/\n  repair:\n(.*)\z/s', $workflow, $match),
+    );
+    $repair = $match[1];
+
+    $attemptNo = strpos($repair, "repair_mutation_attempted='NO'");
+    $attemptYes = strpos($repair, "repair_mutation_attempted='YES'");
+    $chmod = strpos($repair, 'chmod 0644 "$vhost"');
+    self::assertNotFalse($attemptNo);
+    self::assertNotFalse($attemptYes);
+    self::assertNotFalse($chmod);
+    self::assertLessThan($attemptYes, $attemptNo);
+    self::assertLessThan($chmod, $attemptYes);
+    self::assertSame(
+      "repair_mutation_attempted='YES'\n          chmod 0644 \"\$vhost\"",
+      substr(
+        $repair,
+        $attemptYes,
+        strlen("repair_mutation_attempted='YES'\n          chmod 0644 \"\$vhost\""),
+      ),
+    );
+
+    $remoteFailReceipt = strpos($repair, "emit_receipt 'FAIL'");
+    $remotePresent = strpos($repair, 'REMOTE_RECEIPT:"PRESENT"');
+    $fallbackAbsent = strpos($repair, 'REMOTE_RECEIPT:"ABSENT"');
+    $fallbackUnknown = strpos($repair, 'REPAIR_MUTATION_ATTEMPTED:"UNKNOWN"');
+    $sshRc = strpos($repair, 'ssh_rc=$?');
+    self::assertNotFalse($remoteFailReceipt);
+    self::assertNotFalse($remotePresent);
+    self::assertNotFalse($fallbackAbsent);
+    self::assertNotFalse($fallbackUnknown);
+    self::assertNotFalse($sshRc);
+    self::assertLessThan($fallbackAbsent, $sshRc);
+
+    foreach ([
+      'SHA256_BEFORE:$sha_before',
+      'OWNER_BEFORE:$owner_before',
+      'GROUP_BEFORE:$group_before',
+      'MODE_BEFORE:$mode_before',
+      'SHA256_AFTER:$sha_after',
+      'OWNER_AFTER:$owner_after',
+      'GROUP_AFTER:$group_after',
+      'MODE_AFTER:$mode_after',
+    ] as $boundedField) {
+      self::assertStringContainsString($boundedField, $repair);
+    }
+
+    self::assertStringContainsString(
+      '- name: Validate bounded vhost metadata repair receipt',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'if: ${{ always() }}',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'test -s "$result"',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'jq -e \'type == "object" and (.STATUS == "PASS" or .STATUS == "FAIL")\' "$result"',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '- name: Publish bounded vhost metadata repair summary',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'if: ${{ success() }}',
+      $workflow,
+    );
+
+    foreach ([
+      'chown ',
+      'systemctl reload nginx',
+      'systemctl restart',
+      'apt-get install',
+      'apt-get remove',
+      'drush cim',
+      'drush updb',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $repair);
+    }
+  }
+
+  /**
    * Both remote scripts have valid Bash syntax.
    */
   public function testRemoteScriptsHaveValidBashSyntax(): void {
@@ -1291,6 +1496,9 @@ BASH;
         'PHP84_PACKAGES_PRESENT' => 'YES',
         'PHP84_SERVICE_ACTIVE' => 'YES',
         'NGINX_VHOST_PHP84_SOCKET_MATCH' => 'YES',
+        'NGINX_VHOST_OWNER' => 'root',
+        'NGINX_VHOST_GROUP' => 'root',
+        'NGINX_VHOST_MODE' => '0644',
         'FPM84_POOL_CONTRACT' => 'YES',
         'SENDMAIL_SAFETY_CONTRACT' => 'YES',
         'NGINX_VHOST_SHA256' => str_repeat('b', 64),

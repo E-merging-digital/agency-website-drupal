@@ -107,10 +107,18 @@ php84_service_active='NO'
 [[ "$current_php_fpm_service" == 'active' ]] && php84_service_active='YES'
 
 nginx_vhost_php84_socket_match='NO'
+nginx_vhost_owner="$(stat -c '%U' "$NGINX_VHOST" 2>/dev/null || true)"
+nginx_vhost_group="$(stat -c '%G' "$NGINX_VHOST" 2>/dev/null || true)"
+nginx_vhost_mode_raw="$(stat -c '%a' "$NGINX_VHOST" 2>/dev/null || true)"
+nginx_vhost_mode=''
+case "$nginx_vhost_mode_raw" in
+  [0-7][0-7][0-7]) nginx_vhost_mode="0$nginx_vhost_mode_raw" ;;
+  [0-7][0-7][0-7][0-7]) nginx_vhost_mode="$nginx_vhost_mode_raw" ;;
+esac
 nginx_vhost_sha256="$(sha256sum "$NGINX_VHOST" 2>/dev/null | awk '{print $1}' || true)"
 : >"$work_root/nginx-fastcgi-pass.raw"
 printf '%s\n' 'ABSENT' >"$work_root/nginx-fastcgi-pass.status"
-if [[ -f "$NGINX_VHOST" ]]; then
+if [[ -f "$NGINX_VHOST" && ! -L "$NGINX_VHOST" && -r "$NGINX_VHOST" ]]; then
   python3 - "$NGINX_VHOST" "$work_root/nginx-fastcgi-pass.status" >"$work_root/nginx-fastcgi-pass.raw" <<'PY_NGINX'
 import re
 import sys
@@ -195,6 +203,7 @@ export NGINX_SERVICE="$nginx_service" MARIADB_SERVICE="$mariadb_service" MARIADB
 export DRUPAL_HEALTH="$drupal_health" PUBLIC_HEALTH="$public_health" DISK_AVAILABLE_KB="$disk_available_kb"
 export PHP84_PACKAGES_PRESENT="$php84_packages_present" PHP84_SERVICE_ACTIVE="$php84_service_active"
 export NGINX_VHOST_PHP84_SOCKET_MATCH="$nginx_vhost_php84_socket_match" FPM84_POOL_CONTRACT="$fpm84_pool_contract" SENDMAIL_SAFETY_CONTRACT="$sendmail_safety_contract"
+export NGINX_VHOST_OWNER="$nginx_vhost_owner" NGINX_VHOST_GROUP="$nginx_vhost_group" NGINX_VHOST_MODE="$nginx_vhost_mode"
 export NGINX_VHOST_SHA256="$nginx_vhost_sha256" FPM84_POOL_SHA256="$fpm84_pool_sha256"
 export CANDIDATE_GAP="$candidate_gap" PHP85_INSTALL_SIMULATION="$php85_install_simulation" WORK_ROOT="$work_root"
 
@@ -282,6 +291,11 @@ checks = {
     'package_removals_none': not removals,
     'unrelated_package_upgrades_none': not upgrades,
     'transitive_additions_php85_only': not unexpected_transitive,
+    'nginx_vhost_metadata_exact': (
+        os.environ['NGINX_VHOST_OWNER'] == 'root'
+        and os.environ['NGINX_VHOST_GROUP'] == 'root'
+        and os.environ['NGINX_VHOST_MODE'] == '0644'
+    ),
     'nginx_vhost_php84_socket_match': (
         os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'] == 'YES'
         and nginx_fastcgi_pass_values == ['unix:/run/php/php8.4-fpm-agency-preprod.sock']
@@ -327,6 +341,9 @@ receipt = {
     'PHP84_PACKAGES_PRESENT': os.environ['PHP84_PACKAGES_PRESENT'],
     'PHP84_SERVICE_ACTIVE': os.environ['PHP84_SERVICE_ACTIVE'],
     'NGINX_VHOST_PHP84_SOCKET_MATCH': os.environ['NGINX_VHOST_PHP84_SOCKET_MATCH'],
+    'NGINX_VHOST_OWNER': os.environ['NGINX_VHOST_OWNER'],
+    'NGINX_VHOST_GROUP': os.environ['NGINX_VHOST_GROUP'],
+    'NGINX_VHOST_MODE': os.environ['NGINX_VHOST_MODE'],
     'NGINX_VHOST_SHA256': os.environ['NGINX_VHOST_SHA256'],
     'NGINX_FASTCGI_PASS_VALUES': nginx_fastcgi_pass_values,
     'FPM84_POOL_CONTRACT': os.environ['FPM84_POOL_CONTRACT'],
@@ -348,7 +365,8 @@ mutation_identity_keys = (
     'REQUESTED_PACKAGE_ALLOWLIST','PACKAGE_ADDITIONS','TRANSITIVE_ADDITIONS',
     'PACKAGE_UPGRADES','PACKAGE_REMOVALS',
     'PHP84_PACKAGES_PRESENT','PHP84_SERVICE_ACTIVE',
-    'NGINX_VHOST_PHP84_SOCKET_MATCH','NGINX_VHOST_SHA256','NGINX_FASTCGI_PASS_VALUES',
+    'NGINX_VHOST_PHP84_SOCKET_MATCH','NGINX_VHOST_OWNER','NGINX_VHOST_GROUP',
+    'NGINX_VHOST_MODE','NGINX_VHOST_SHA256','NGINX_FASTCGI_PASS_VALUES',
     'FPM84_POOL_CONTRACT','FPM84_POOL_SHA256','SENDMAIL_SAFETY_CONTRACT',
     'SAFETY_GATE','FAILED_CHECKS',
 )

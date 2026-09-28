@@ -1247,7 +1247,7 @@ BASH;
   }
 
   /**
-   * Metadata repair is exact, one-shot and mutation-bounded.
+   * Metadata repair is exact, one-shot, mutation-bounded and failure-safe.
    */
   public function testVhostMetadataRepairIsExactOneShotAndBounded(): void {
     $workflow = $this->source(self::WORKFLOW);
@@ -1258,7 +1258,18 @@ BASH;
       "needs.validate-authority.outputs.mode == 'REPAIR'",
       '50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3',
       'unix:/run/php/php8.4-fpm-agency-preprod.sock',
+      'repair_mutation_attempted=\'NO\'',
+      'repair_mutation_attempted=\'YES\'',
       'chmod 0644 "$vhost"',
+      'trap on_error ERR',
+      "emit_receipt 'FAIL'",
+      'REMOTE_RECEIPT:"PRESENT"',
+      'REMOTE_RECEIPT:"ABSENT"',
+      'REPAIR_MUTATION_ATTEMPTED:"UNKNOWN"',
+      'SSH_RC:$ssh_rc',
+      'remote_receipt_valid=\'NO\'',
+      'test -s "$result"',
+      'type == "object"',
       'nginx -t >/dev/null',
       '/health/live',
       '/health/ready',
@@ -1273,12 +1284,81 @@ BASH;
     ] as $required) {
       self::assertStringContainsString($required, $workflow);
     }
+
     self::assertSame(1, substr_count($workflow, 'chmod 0644 "$vhost"'));
     self::assertSame(
       1,
       preg_match('/\n  repair:\n(.*)\z/s', $workflow, $match),
     );
     $repair = $match[1];
+
+    $attemptNo = strpos($repair, "repair_mutation_attempted='NO'");
+    $attemptYes = strpos($repair, "repair_mutation_attempted='YES'");
+    $chmod = strpos($repair, 'chmod 0644 "$vhost"');
+    self::assertNotFalse($attemptNo);
+    self::assertNotFalse($attemptYes);
+    self::assertNotFalse($chmod);
+    self::assertLessThan($attemptYes, $attemptNo);
+    self::assertLessThan($chmod, $attemptYes);
+    self::assertSame(
+      "repair_mutation_attempted='YES'\n          chmod 0644 \"\$vhost\"",
+      substr(
+        $repair,
+        $attemptYes,
+        strlen("repair_mutation_attempted='YES'\n          chmod 0644 \"\$vhost\""),
+      ),
+    );
+
+    $remoteFailReceipt = strpos($repair, "emit_receipt 'FAIL'");
+    $remotePresent = strpos($repair, 'REMOTE_RECEIPT:"PRESENT"');
+    $fallbackAbsent = strpos($repair, 'REMOTE_RECEIPT:"ABSENT"');
+    $fallbackUnknown = strpos($repair, 'REPAIR_MUTATION_ATTEMPTED:"UNKNOWN"');
+    $sshRc = strpos($repair, 'ssh_rc=$?');
+    self::assertNotFalse($remoteFailReceipt);
+    self::assertNotFalse($remotePresent);
+    self::assertNotFalse($fallbackAbsent);
+    self::assertNotFalse($fallbackUnknown);
+    self::assertNotFalse($sshRc);
+    self::assertLessThan($fallbackAbsent, $sshRc);
+
+    foreach ([
+      'SHA256_BEFORE:$sha_before',
+      'OWNER_BEFORE:$owner_before',
+      'GROUP_BEFORE:$group_before',
+      'MODE_BEFORE:$moe_before',
+      'SHA256_AFTER:$sha_after',
+      'OWNER_AFTER:$owner_after',
+      'GROUP_AFTER:$group_after',
+      'MODE_AFTER:$mode_after',
+    ] as $boundedField) {
+      self::assertStringContainsString($boundedField, $repair);
+    }
+
+    self::assertStringContainsString(
+      '- name: Validate bounded vhost metadata repair receipt',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'if: ${{ always() }}',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'test -s "$result"',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'jq -e \'type == "object" and (.STATUS == "PASS" or .STATUS == "FAIL")\' "$result"',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '- name: Publish bounded vhost metadata repair summary',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'if: ${{ success() }}',
+      $workflow,
+    );
+
     foreach ([
       'chown ',
       'systemctl reload nginx',

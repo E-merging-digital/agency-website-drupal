@@ -708,6 +708,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/preprod-php85-1336/vhost-metadata-repair
           result='artifacts/preprod-php85-1336/vhost-metadata-repair/result.json'
+          remote_result='artifacts/preprod-php85-1336/vhost-metadata-repair/remote-result.json'
           root_ssh=(
             ssh
             -i "$RUNNER_TEMP/agency-1336-vhost-repair-root.key"
@@ -717,23 +718,112 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
             -o ConnectTimeout=15
           )
+          set +e
           "${root_ssh[@]}" "root@$PREPROD_SERVER_HOST" \
-            "bash -s -- '$MAIN_SHA'" > "$result" <<'REMOTE_REPAIR'
-          set -euo pipefail
+            "bash -s -- '$MAIN_SHA'" > "$remote_result" <<'REMOTE_REPAIR'
+          set -Eeuo pipefail
           expected_main="${1:-}"
           vhost='/etc/nginx/sites-available/agency-preprod'
           expected_hash='50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3'
           preprod_url='https://preprod.emergingdigital.be'
+          repair_mutation_attempted='NO'
+          sha256_before='ABSENT'
+          owner_before='ABSENT'
+          group_before='ABSENT'
+          mode_before='ABSENT'
+          sha256_after='ABSENT'
+          owner_after='ABSENT'
+          group_after='ABSENT'
+          mode_after='ABSENT'
+
+          observe_before() {
+            owner_before="$(stat -c '%U' "$vhost" 2>/dev/null || printf '%s' 'ABSENT')"
+            group_before="$(stat -c '%G' "$vhost" 2>/dev/null || printf '%s' 'ABSENT')"
+            mode_before="$(stat -c '%a' "$vhost" 2>/dev/null || printf '%s' 'ABSENT')"
+            sha256_before="$({ sha256sum "$vhost" 2>/dev/null | awk '{print $1}'; } || true)"
+            [[ -n "$sha256_before" ]] || sha256_before='ABSENT'
+          }
+
+          observe_after() {
+            owner_after="$(stat -c '%U' "$vhost" 2>/dev/null || printf '%s' 'ABSENT')"
+            group_after="$(stat -c '%G' "$vhost" 2>/dev/null || printf '%s' 'ABSENT')"
+            mode_after="$(stat -c '%a' "$vhost" 2>/dev/null || printf '%s' 'ABSENT')"
+            sha256_after="$({ sha256sum "$vhost" 2>/dev/null | awk '{print $1}'; } || true)"
+            [[ -n "$sha256_after" ]] || sha256_after='ABSENT'
+          }
+
+          emit_receipt() {
+            local status="$1"
+            local mutation='NONE'
+            observe_after
+            if [[ "$status" == 'PASS' ]]; then
+              mutation='chmod 0644 /etc/nginx/sites-available/agency-preprod'
+            elif [[ "$repair_mutation_attempted" == 'YES' ]]; then
+              mutation='ATTEMPTED: chmod 0644 /etc/nginx/sites-available/agency-preprod'
+            fi
+            jq -n \
+              --arg status "$status" \
+              --arg main "$expected_main" \
+              --arg attempted "$repair_mutation_attempted" \
+              --arg sha_before "$sha256_before" \
+              --arg owner_before "$owner_before" \
+              --arg group_before "$group_before" \
+              --arg mode_before "$mode_before" \
+              --arg sha_after "$sha256_after" \
+              --arg owner_after "$owner_after" \
+              --arg group_after "$group_after" \
+              --arg mode_after "$mode_after" \
+              --arg mutation "$mutation" \
+              '{
+                STATUS:$status,
+                ISSUE:1336,
+                TARGET:"PREPROD",
+                MODE:"VHOST_METADATA_REPAIR",
+                MAIN_SHA:$main,
+                REMOTE_RECEIPT:"PRESENT",
+                REPAIR_MUTATION_ATTEMPTED:$attempted,
+                PATH:"/etc/nginx/sites-available/agency-preprod",
+                SHA256_BEFORE:$sha_before,
+                OWNER_BEFORE:$owner_before,
+                GROUP_BEFORE:$group_before,
+                MODE_BEFORE:$mode_before,
+                SHA256_AFTER:$sha_after,
+                OWNER_AFTER:$owner_after,
+                GROUP_AFTER:$group_after,
+                MODE_AFTER:$mode_after,
+                SHA256:$sha_after,
+                OWNER:$owner_after,
+                GROUP:$group_after,
+                MODE_BEFORE:$mode_before,
+                MODE_AFTER:$mode_after,
+                FASTCGI_TARGET:"unix:/run/php/php8.4-fpm-agency-preprod.sock",
+                MUTATION:$mutation,
+                CONTENT_MUTATION:"NONE",
+                NGINX_RELOAD:"NONE",
+                PACKAGE_MUTATION:"NONE",
+                PHP_MUTATION:"NONE",
+                DRUPAL_MUTATION:"NONE",
+                DB_MUTATION:"NONE",
+                PROD_ACCESS:"NONE"
+              }'
+          }
+
+          on_error() {
+            local rc=$?
+            trap - ERR
+            set +e
+            emit_receipt 'FAIL'
+            exit "$rc"
+          }
+          trap on_error ERR
+
           [[ "$(id -u)" -eq 0 ]]
           [[ "$expected_main" =~ ^[0-9a-f]{40}$ ]]
+          observe_before
           [[ -f "$vhost" && ! -L "$vhost" ]]
-          owner="$(stat -c '%U' "$vhost")"
-          group="$(stat -c '%G' "$vhost")"
-          before_mode="$(stat -c '%a' "$vhost")"
-          hash_before="$(sha256sum "$vhost" | awk '{print $1}')"
-          [[ "$owner" == 'root' ]]
-          [[ "$group" == 'root' ]]
-          [[ "$hash_before" == "$expected_hash" ]]
+          [[ "$owner_before" == 'root' ]]
+          [[ "$group_before" == 'root' ]]
+          [[ "$sha256_before" == "$expected_hash" ]]
 
           mapfile -t fastcgi_targets < <(python3 - "$vhost" <<'PY_FASTCGI'
           import re
@@ -759,13 +849,11 @@ jobs:
           curl --silent --show-error --fail --max-time 8 "$preprod_url/health/live" >/dev/null
           curl --silent --show-error --fail --max-time 8 "$preprod_url/health/ready" >/dev/null
 
+          repair_mutation_attempted='YES'
           chmod 0644 "$vhost"
 
-          hash_after="$(sha256sum "$vhost" | awk '{print $1}')"
-          owner_after="$(stat -c '%U' "$vhost")"
-          group_after="$(stat -c '%G' "$vhost")"
-          mode_after="$(stat -c '%a' "$vhost")"
-          [[ "$hash_after" == "$expected_hash" ]]
+          observe_after
+          [[ "$sha256_after" == "$expected_hash" ]]
           [[ "$owner_after" == 'root' ]]
           [[ "$group_after" == 'root' ]]
           [[ "$mode_after" == '644' ]]
@@ -776,56 +864,134 @@ jobs:
           curl --silent --show-error --fail --max-time 8 "$preprod_url/health/live" >/dev/null
           curl --silent --show-error --fail --max-time 8 "$preprod_url/health/ready" >/dev/null
 
-          jq -n \
-            --arg main "$expected_main" \
-            --arg hash "$hash_after" \
-            --arg owner "$owner_after" \
-            --arg group "$group_after" \
-            --arg before_mode "$before_mode" \
-            --arg mode "$mode_after" \
-            '{
-              STATUS:"PASS",
-              ISSUE:1336,
-              TARGET:"PREPROD",
-              MODE:"VHOST_METADATA_REPAIR",
-              MAIN_SHA:$main,
-              PATH:"/etc/nginx/sites-available/agency-preprod",
-              TYPE:"REGULAR",
-              SYMLINK:"NO",
-              SHA256:$hash,
-              OWNER:$owner,
-              GROUP:$group,
-              MODE_BEFORE:$before_mode,
-              MODE_AFTER:$mode,
-              FASTCGI_TARGET:"unix:/run/php/php8.4-fpm-agency-preprod.sock",
-              MUTATION:"chmod 0644 /etc/nginx/sites-available/agency-preprod",
-              CONTENT_MUTATION:"NONE",
-              NGINX_RELOAD:"NONE",
-              PACKAGE_MUTATION:"NONE",
-              PHP_MUTATION:"NONE",
-              DRUPAL_MUTATION:"NONE",
-              DB_MUTATION:"NONE",
-              PROD_ACCESS:"NONE"
-            }'
+          trap - ERR
+          emit_receipt 'PASS'
           REMOTE_REPAIR
+          ssh_rc=$?
+          set -e
 
-          jq -e --arg main "$MAIN_SHA" '
-            .STATUS == "PASS"
+          remote_receipt_valid='NO'
+          if test -s "$remote_result" && jq -e --arg main "$MAIN_SHA" '
+            (.STATUS == "PASS" or .STATUS == "FAIL")
             and .ISSUE == 1336
             and .TARGET == "PREPROD"
             and .MODE == "VHOST_METADATA_REPAIR"
             and .MAIN_SHA == $main
-            and .SHA256 == "50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3"
-            and .OWNER == "root"
-            and .GROUP == "root"
-            and .MODE_AFTER == "644"
-            and .FASTCGI_TARGET == "unix:/run/php/php8.4-fpm-agency-preprod.sock"
+            and .REMOTE_RECEIPT == "PRESENT"
+            and (.REPAIR_MUTATION_ATTEMPTED == "YES" or .REPAIR_MUTATION_ATTEMPTED == "NO")
+            and .PATH == "/etc/nginx/sites-available/agency-preprod"
             and .CONTENT_MUTATION == "NONE"
             and .NGINX_RELOAD == "NONE"
             and .PACKAGE_MUTATION == "NONE"
             and .PHP_MUTATION == "NONE"
             and .DRUPAL_MUTATION == "NONE"
             and .DB_MUTATION == "NONE"
+            and .PROD_ACCESS == "NONE"' "$remote_result" >/dev/null 2>&1; then
+            cp "$remote_result" "$result"
+            remote_receipt_valid='YES'
+          else
+            [[ "$ssh_rc" =~ ^[0-9]+$ ]]
+            (( ssh_rc >= 0 && ssh_rc <= 255 ))
+            jq -n \
+              --arg main "$MAIN_SHA" \
+              --argjson ssh_rc "$ssh_rc" \
+              '{
+                STATUS:"FAIL",
+                ISSUE:1336,
+                TARGET:"PREPROD",
+                MODE:"VHOST_METADATA_REPAIR",
+                MAIN_SHA:$main,
+                REMOTE_RECEIPT:"ABSENT",
+                SSH_RC:$ssh_rc,
+                REPAIR_MUTATION_ATTEMPTED:"UNKNOWN",
+                PROD_ACCESS:"NONE"
+              }' > "$result"
+          fi
+
+          test -s "$result"
+          jq -e 'type == "object" and (.STATUS == "PASS" or .STATUS == "FAIL")' "$result" >/dev/null
+
+          if [[ "$remote_receipt_valid" == 'YES' ]]; then
+            status="$(jq -r '.STATUS' "$result")"
+            if [[ "$status" == 'PASS' ]]; then
+              test "$ssh_rc" -eq 0
+              jq -e --arg main "$MAIN_SHA" '
+                .STATUS == "PASS"
+                and .ISSUE == 1336
+                and .TARGET == "PREPROD"
+                and .MODE == "VHOST_METADATA_REPAIR"
+                and .MAIN_SHA == $main
+                and .REMOTE_RECEIPT == "PRESENT"
+                and .REPAIR_MUTATION_ATTEMPTED == "YES"
+                and .SHA256_BEFORE == "50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3"
+                and .OWNER_BEFORE == "root"
+                and .GROUP_BEFORE == "root"
+                and .SHA256_AFTER == "50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3"
+                and .OWNER_AFTER == "root"
+                and .GROUP_AFTER == "root"
+                and .MODE_AFTER == "644"
+                and .SHA256 == "50456ed2925ad4eb0543d127128e781eb814258cb036a5e38804f89ee0a26ac3"
+                and .OWNER == "root"
+                and .GROUP == "root"
+                and .FASTCGI_TARGET == "unix:/run/php/php8.4-fpm-agency-preprod.sock"
+                and .MUTATION == "chmod 0644 /etc/nginx/sites-available/agency-preprod"
+                and .CONTENT_MUTATION == "NONE"
+                and .NGINX_RELOAD == "NONE"
+                and .PACKAGE_MUTATION == "NONE"
+                and .PHP_MUTATION == "NONE"
+                and .DRUPAL_MUTATION == "NONE"
+                and .DB_MUTATION == "NONE"
+                and .PROD_ACCESS == "NONE"' "$result" >/dev/null
+            else
+              jq -e '
+                .STATUS == "FAIL"
+                and .REMOTE_RECEIPT == "PRESENT"
+                and (.REPAIR_MUTATION_ATTEMPTED == "YES" or .REPAIR_MUTATION_ATTEMPTED == "NO")
+                and .CONTENT_MUTATION == "NONE"
+                and .NGINX_RELOAD == "NONE"
+                and .PACKAGE_MUTATION == "NONE"
+                and .PHP_MUTATION == "NONE"
+                and .DRUPAL_MUTATION == "NONE"
+                and .DB_MUTATION == "NONE"
+                and .PROD_ACCESS == "NONE"' "$result" >/dev/null
+              exit_rc="$ssh_rc"
+              if [[ "$exit_rc" -eq 0 ]]; then
+                exit_rc=65
+              fi
+              exit "$exit_rc"
+            fi
+          else
+            jq -e --arg main "$MAIN_SHA" --argjson ssh_rc "$ssh_rc" '
+              .STATUS == "FAIL"
+              and .ISSUE == 1336
+              and .TARGET == "PREPROD"
+              and .MODE == "VHOST_METADATA_REPAIR"
+              and .MAIN_SHA == $main
+              and .REMOTE_RECEIPT == "ABSENT"
+              and .SSH_RC == $ssh_rc
+              and .REPAIR_MUTATION_ATTEMPTED == "UNKNOWN"
+              and .PROD_ACCESS == "NONE"' "$result" >/dev/null
+            exit_rc="$ssh_rc"
+            if [[ "$exit_rc" -eq 0 ]]; then
+              exit_rc=65
+            fi
+            exit "$exit_rc"
+          fi
+
+      - name: Validate bounded vhost metadata repair receipt
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/preprod-php85-1336/vhost-metadata-repair/result.json'
+          test -s "$result"
+          jq -e '
+            type == "object"
+            and (.STATUS == "PASS" or .STATUS == "FAIL")
+            and .ISSUE == 1336
+            and .TARGET == "PREPROD"
+            and .MODE == "VHOST_METADATA_REPAIR"
+            and (.REMOTE_RECEIPT == "PRESENT" or .REMOTE_RECEIPT == "ABSENT")
             and .PROD_ACCESS == "NONE"' "$result" >/dev/null
 
       - name: Upload bounded vhost metadata repair evidence

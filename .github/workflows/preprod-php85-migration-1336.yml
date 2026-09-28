@@ -486,7 +486,7 @@ jobs:
 
           set +e
           "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
-            "bash -s -- '$MAIN_SHA' 'reboot-pre-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" \
+            "bash -s -- '$MAIN_SHA' 'plan-1336-reboot-pre-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" \
             < scripts/preproduction-php85-1336/remote-plan.sh > "$pre"
           pre_rc=$?
           set -e
@@ -563,7 +563,7 @@ jobs:
           mv "$reconciliation.tmp" "$reconciliation"
 
           "${read_ssh[@]}" "agency-preprod@$PREPROD_SERVER_HOST" \
-            "bash -s -- '$MAIN_SHA' 'reboot-post-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" \
+            "bash -s -- '$MAIN_SHA' 'plan-1336-reboot-post-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" \
             < scripts/preproduction-php85-1336/remote-plan.sh > "$post"
           jq -e --arg main "$MAIN_SHA" '
             .ISSUE == 1336

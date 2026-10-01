@@ -172,7 +172,44 @@ DELIVERY_ESCALATES_STRUCTURAL_AMBIGUITY = REQUIRED
 - Cette doctrine complete `DOD_FIRST` et `USE_EXISTING_FIRST` : elle doit
   reduire les corrections tardives, pas ajouter du processus aux taches simples.
 
-## 2.0.3 Publication editoriale : PREPROD -> validation humaine -> PROD
+## 2.0.3 Drupal ecosystem search / contrib candidate
+
+Cette doctrine s'applique aux capacites Drupal custom substantielles et complete
+`USE EXISTING FIRST`. Lire `docs/drupalorg-contribution-workflow.md` avant
+toute preparation de contribution publique.
+
+```text
+DRUPAL_ECOSYSTEM_SEARCH = REQUIRED_WHEN_MATERIALLY_RELEVANT
+CUSTOM_IMPLEMENTATION != CONTRIB_CANDIDATE_BY_DEFAULT
+CONTRIB_CANDIDATE = YES | NO | UNCERTAIN
+NO_BLIND_PUBLISHING = REQUIRED
+NO_AUTONOMOUS_DRUPALORG_MUTATION = REQUIRED
+HUMAN_ACCOUNTABILITY = REQUIRED
+```
+
+- Avant de construire une capacite raisonnablement susceptible d'exister deja,
+  rechercher proportionnellement Drupal core, contrib, issues/MR et documentation
+  pertinents. Une correction locale triviale n'exige pas une recherche lourde.
+- Si une capacite custom parait reutilisable au-dela d'Agency, produire une
+  evaluation factuelle avant de conclure qu'elle devrait devenir contrib.
+- Une contribution potentielle doit distinguer : `KEEP_CUSTOM`,
+  `EXISTING_CONTRIB`, `CORE` ou `NEW_PROJECT`.
+- L'analyse tient compte au minimum de la generalite, du couplage client, de
+  l'existant Drupal, de la generalisation API/config/entity, de la securite,
+  privacy/IP, maintenance, valeur communaute, testabilite et cout de qualite.
+- La lecture/recherche Drupal.org peut etre automatisee. La creation d'issue,
+  commentaire, issue fork, push public, merge request, release ou autre mutation
+  Drupal.org exige une autorite humaine/Project Lead explicite.
+- Les contributions assistees par IA doivent respecter la politique Drupal.org
+  courante : l'humain comprend, relit, teste, corrige, collabore avec les
+  maintainers et declare l'usage significatif d'IA lorsqu'il soumet.
+- Preferer `drupalorg-cli` et ses instructions/skills dynamiques lorsqu'ils
+  couvrent le besoin. Ne pas vendoriser des copies de skills qui risquent de
+  diverger ; revalider la release et la politique upstream avant une mutation.
+- Ne pas creer d'orchestrateur Drupal.org, base de contributions, UI ou couche
+  MCP Agency tant qu'un gap reel n'est pas demontre.
+
+## 2.0.4 Publication editoriale : PREPROD -> validation humaine -> PROD
 
 Cette doctrine s'applique a toute nouvelle publication editoriale, marketing ou
 commerciale destinee au public, y compris les contenus editor-owned Drupal.

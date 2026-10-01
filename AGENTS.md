@@ -123,7 +123,56 @@ CI_RED = ISOLATE_AND_FIX_ONLY_FIRST_MATERIAL_DOD_BLOCKER
 POSSIBLE_IMPROVEMENT_NOT_REQUIRED_BY_DOD = OUT_OF_SCOPE
 ```
 
-## 2.0.2 Publication editoriale : PREPROD -> validation humaine -> PROD
+## 2.0.2 Doctrine Clarify Before Specify
+
+Cette doctrine s'applique avant de transformer une intention utilisateur en
+specification, tickets ou implementation lorsque le besoin comporte une
+ambiguite materielle. Lire `docs/project-lead-clarification.md` pour le
+contrat detaille.
+
+```text
+CLARIFY_BEFORE_SPECIFY = REQUIRED_WHEN_MATERIAL_AMBIGUITY_EXISTS
+CLARIFICATION_PROPORTIONAL = REQUIRED
+L0 = DIRECT_EXECUTION
+L1 = TARGETED_CLARIFICATION
+L2 = STRUCTURED_CLARIFICATION
+WHAT_WHY_BEFORE_HOW = REQUIRED
+STOP_CLARIFYING_WHEN_DECISIONS_ARE_SUFFICIENT = REQUIRED
+DELIVERY_ESCALATES_STRUCTURAL_AMBIGUITY = REQUIRED
+```
+
+- Le Project Lead classe les nouveaux besoins substantiels en L0, L1 ou L2
+  avant de figer une solution.
+- **L0** : demande evidente, criteres de reussite explicites, faible ambiguite.
+  Pas de grilling ni de spec lourde.
+- **L1** : quelques decisions manquent. Poser seulement les questions qui
+  peuvent changer la solution, puis avancer.
+- **L2** : plusieurs decisions produit, UX, architecture, integration ou dette
+  durable sont encore ouvertes. Clarifier progressivement avant la spec.
+- Distinguer explicitement **faits**, **hypotheses** et **decisions** lorsque
+  cela change le cadrage.
+- Faire une recherche ou une exploration type `wayfinder` uniquement lorsqu'un
+  fait externe ou plusieurs voies plausibles doivent etre evalues avant de
+  decider.
+- La sortie de clarification decrit d'abord le probleme, l'utilisateur, le
+  resultat attendu, les comportements, decisions, contraintes, cas limites
+  significatifs, criteres de reussite et hors-perimetre. Ne pas figer classes,
+  services, plugins ou structures de code par defaut.
+- Une specification n'est produite qu'apres stabilisation suffisante des
+  decisions structurantes. Les tickets decoulent de la spec ; ils ne doivent
+  pas inventer de nouvelles decisions produit.
+- Si Delivery decouvre une ambiguite structurante, elle retourne au Project Lead
+  au lieu de choisir silencieusement.
+- Arreter la clarification des que suffisamment de decisions sont prises. Une
+  question supplementaire possible n'est pas une raison suffisante pour la
+  poser.
+- Conserver les decisions durables dans les mecanismes existants : issue,
+  commentaire durable, documentation projet ou ADR uniquement lorsqu'une vraie
+  decision architecturale le justifie.
+- Cette doctrine complete `DOD_FIRST` et `USE_EXISTING_FIRST` : elle doit
+  reduire les corrections tardives, pas ajouter du processus aux taches simples.
+
+## 2.0.3 Publication editoriale : PREPROD -> validation humaine -> PROD
 
 Cette doctrine s'applique a toute nouvelle publication editoriale, marketing ou
 commerciale destinee au public, y compris les contenus editor-owned Drupal.

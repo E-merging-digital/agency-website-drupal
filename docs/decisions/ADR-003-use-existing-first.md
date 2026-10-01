@@ -105,6 +105,76 @@ parallèle et ne remplace pas la hiérarchie : `USE PLATFORM BEFORE REBUILDING
 PLATFORM` -> `DISCOVER BEFORE MUTATE` -> `USE EXISTING FIRST` -> `COMPOSE BEFORE
 CREATE` -> `MINIMAL CUSTOM LAST`.
 
+## Gate DRUPAL_ECOSYSTEM_SEARCH / CUSTOM -> CONTRIB
+
+`EXISTING_CAPABILITY_AUDIT` inclut une recherche Drupal proportionnee lorsque
+la capacite pourrait raisonnablement exister dans l'ecosysteme.
+
+```text
+DRUPAL_ECOSYSTEM_SEARCH
+CORE = evaluated as material
+CONTRIB = evaluated as material
+EXISTING_ISSUE_OR_MR = evaluated as material
+DOCUMENTATION = evaluated as material
+RESULT = EXISTING_SOLUTION | GAP_PROVEN | UNCERTAIN
+```
+
+Ce gate n'est pas impose aux changements triviaux. Il devient obligatoire
+lorsqu'une nouvelle capacite Drupal substantielle, une abstraction reutilisable
+ou un nouveau module custom est envisage.
+
+La recherche sert a eviter trois erreurs :
+1. reconstruire une capacite existante ;
+2. ouvrir un nouveau projet alors qu'une issue/core/contrib existant est le bon
+   lieu de correction ;
+3. conserver inutilement du code proprietaire Agency lorsqu'une generalisation
+   a une valeur communautaire reelle.
+
+Apres creation d'une capacite custom materiellement reutilisable, le Project
+Lead peut demander une evaluation `CONTRIB_CANDIDATE`. Cette evaluation est
+basee sur des preuves et non sur un score arbitraire :
+
+```text
+CONTRIB_CANDIDATE = YES | NO | UNCERTAIN
+TARGET = KEEP_CUSTOM | EXISTING_CONTRIB | CORE | NEW_PROJECT
+
+GENERALITY =
+EXISTING_CONTRIB =
+EXISTING_ISSUE =
+CLIENT_COUPLING =
+API_GENERALIZABLE =
+ENTITY_GENERALIZATION =
+CONFIG_GENERALIZATION =
+SECURITY =
+PRIVACY =
+IP =
+MAINTENANCE =
+COMMUNITY_VALUE =
+TESTABILITY =
+QUALITY =
+RATIONALE =
+```
+
+Un `YES` n'autorise aucune publication. Il signifie uniquement qu'une
+contribution publique peut etre raisonnablement preparee et soumise a une
+decision humaine separee.
+
+Toute contribution publique reste soumise a :
+- sanitation des references/donnees client ;
+- compatibilite de licence/IP ;
+- quality gates adaptes au projet cible ;
+- lecture du thread et des decisions precedentes ;
+- collaboration avec les maintainers ;
+- politique Drupal.org courante sur les contributions assistees par IA ;
+- disclosure de l'usage significatif d'IA lorsque requis ;
+- autorite humaine explicite avant toute mutation Drupal.org.
+
+Pour l'outillage, preferer les primitives upstream existantes, notamment
+`drupalorg-cli`, plutot qu'une integration Agency parallele. Les instructions
+agentiques upstream doivent etre recuperees dynamiquement lorsqu'une capacite
+telle que `skill:get` existe, afin d'eviter de figer une documentation
+rapidement obsolete.
+
 ## Budget de simplicité
 
 Invariant :

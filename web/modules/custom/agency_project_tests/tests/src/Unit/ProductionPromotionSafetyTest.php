@@ -155,7 +155,7 @@ final class ProductionPromotionSafetyTest extends TestCase {
         $path,
       );
       self::assertStringContainsString(
-        "find \"$NEW_RELEASE/config/sync\" -maxdepth 1 -type f -name '*.yml' -print -quit",
+        "find \"\$NEW_RELEASE/config/sync\" -maxdepth 1 -type f -name '*.yml' -print -quit",
         $script,
         $path,
       );

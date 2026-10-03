@@ -140,6 +140,44 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
+   * Both production paths fail closed without the canonical config payload.
+   */
+  public function testProductionReleaseRequiresCanonicalConfigSyncBeforeSwitch(): void {
+    foreach ([
+      'scripts/deploy-production.sh',
+      'scripts/production-promotion/promote-candidate.sh',
+    ] as $path) {
+      $script = $this->script($path);
+
+      self::assertStringContainsString(
+        '"$NEW_RELEASE/config/sync"',
+        $script,
+        $path,
+      );
+      self::assertStringContainsString(
+        "find \"$NEW_RELEASE/config/sync\" -maxdepth 1 -type f -name '*.yml' -print -quit",
+        $script,
+        $path,
+      );
+      self::assertStringContainsString(
+        'Canonical config/sync payload is present before release activation.',
+        $script,
+        $path,
+      );
+
+      $configSync = strpos(
+        $script,
+        'Canonical config/sync payload is present before release activation.',
+      );
+      $switch = strpos($script, 'ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"');
+
+      self::assertIsInt($configSync, $path);
+      self::assertIsInt($switch, $path);
+      self::assertTrue($configSync < $switch, $path);
+    }
+  }
+
+  /**
    * Production operational invariants remain part of same-artifact activation.
    */
   public function testServerPromotionPreservesOperationalSequence(): void {

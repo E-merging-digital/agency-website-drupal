@@ -234,6 +234,16 @@ if [[ "$GIT_COMMIT" != "$EXPECTED_SHA" ]]; then
 fi
 log "Repository prepared at exact commit ${GIT_COMMIT}."
 
+if [[ ! -d "$NEW_RELEASE/config/sync" ]]; then
+  log "ERROR: Canonical config/sync directory is missing from the release."
+  exit 1
+fi
+if ! find "$NEW_RELEASE/config/sync" -maxdepth 1 -type f -name '*.yml' -print -quit | grep -q .; then
+  log "ERROR: Canonical config/sync directory contains no top-level YAML configuration."
+  exit 1
+fi
+log "Canonical config/sync payload is present before release activation."
+
 log "[deploy] Composer"
 composer --working-dir="$NEW_RELEASE" install --no-dev --optimize-autoloader
 normalize_runtime_permissions

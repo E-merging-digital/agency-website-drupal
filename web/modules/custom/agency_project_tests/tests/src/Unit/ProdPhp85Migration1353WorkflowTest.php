@@ -18,6 +18,12 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
   private const WORKFLOW = '.github/workflows/prod-php85-migration-1353.yml';
   private const PLAN = 'scripts/production-php85-1353/remote-plan.sh';
   private const APPLY = 'scripts/production-php85-1353/remote-apply-root.sh';
+  private const WRAPPER = 'scripts/production-php85-1353/remote-apply-wrapper.sh';
+  private const BOOTSTRAP = 'scripts/production-php85-1353/bootstrap/human-bootstrap-root.sh';
+  private const VERIFY = 'scripts/production-php85-1353/bootstrap/verify-installed-root.sh';
+  private const RENDER = 'scripts/production-php85-1353/bootstrap/render-sudoers.sh';
+  private const SUDOERS_TEMPLATE = 'scripts/production-php85-1353/bootstrap/agency-prod-php85-1353.sudoers.template';
+  private const CAPABILITY = 'scripts/production-php85-1353/bootstrap/capability.json';
 
   /**
    * Dispatcher keeps separate direct OWNER PLAN and APPLY routes.
@@ -95,10 +101,12 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
       'Approved #1353 PLAN run is already consumed.',
       'live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main"',
       'test "$live_main" = "$MAIN_SHA"',
-      'scripts/production-php85-1353/remote-apply-root.sh',
-      '/usr/local/sbin/agency-prod-php85-1353-apply',
-      '/etc/sudoers.d/agency-prod-php85-1353',
-      'sudo -k -n -- "$helper_dest"',
+      'scripts/production-php85-1353/remote-apply-wrapper.sh',
+      'helper_hash="$(sha256sum scripts/production-php85-1353/remote-apply-root.sh',
+      'plan_script_hash="$(sha256sum scripts/production-php85-1353/remote-plan.sh',
+      '.FAILURE_STATE == "HUMAN_BOOTSTRAP_REQUIRED"',
+      '.CAPABILITY_READY == "NO"',
+      '.PACKAGE_APPLY == "NOT_STARTED"',
     ] as $required) {
       self::assertStringContainsString($required, $source);
     }
@@ -107,6 +115,13 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
       'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
       'root@$SERVER_HOST',
       'do-release-upgrade',
+      'sudo -k -n -- /usr/bin/install',
+      'sudo -k -n -- /usr/sbin/visudo',
+      'sudo -k -n -- /bin/bash',
+      'sudo -k -n -- /usr/bin/env',
+      'NOPASSWD:ALL',
+      'helper_dest=',
+      'sudoers_dest=',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $source);
     }
@@ -251,10 +266,140 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
   }
 
   /**
+   * Ordinary PROD identity never self-bootstraps privileged material.
+   */
+  public function testOrdinaryWrapperFailsClosedAtHumanBootstrapBoundary(): void {
+    $wrapper = $this->source(self::WRAPPER);
+
+    foreach ([
+      "HELPER='/usr/local/sbin/agency-prod-php85-1353-apply'",
+      "PLAN_SCRIPT='/usr/local/lib/agency-prod-php85-1353/remote-plan.sh'",
+      'sudo -k -n -- "$HELPER" READY',
+      'sudo -k -n -- "$HELPER" APPLY < "$APPROVED_PLAN"',
+      'FAILURE_STATE:"HUMAN_BOOTSTRAP_REQUIRED"',
+      'CAPABILITY_READY:"NO"',
+      'STALE_PLAN:"NOT_REACHED"',
+      'EXACT_PACKAGE_SIMULATION:"NOT_REACHED"',
+      'PACKAGE_APPLY:"NOT_STARTED"',
+      'PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE"',
+      'PHP84_REMOVAL:"NONE"',
+      'ROLLBACK:"NOT_REQUIRED"',
+    ] as $required) {
+      self::assertStringContainsString($required, $wrapper);
+    }
+
+    $ready = strpos($wrapper, 'sudo -k -n -- "$HELPER" READY');
+    $apply = strpos($wrapper, 'sudo -k -n -- "$HELPER" APPLY < "$APPROVED_PLAN"');
+    self::assertNotFalse($ready);
+    self::assertNotFalse($apply);
+    self::assertLessThan($apply, $ready);
+
+    foreach ([
+      '/usr/bin/install',
+      '/usr/sbin/visudo',
+      'NOPASSWD:ALL',
+      'NOPASSWD: ALL',
+      'sudo -k -n -- /bin/bash',
+      'sudo -k -n -- /bin/sh',
+      'sudo -k -n -- /usr/bin/env',
+      'sudo -k -n -- /usr/bin/python',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $wrapper);
+    }
+  }
+
+  /**
+   * Human/admin bootstrap installs exact reviewed fixed-purpose bytes only.
+   */
+  public function testHumanBootstrapContractIsExactAndLeastPrivilege(): void {
+    $bootstrap = $this->source(self::BOOTSTRAP);
+    $verify = $this->source(self::VERIFY);
+    $render = $this->source(self::RENDER);
+    $sudoers = $this->source(self::SUDOERS_TEMPLATE);
+    $capability = json_decode($this->source(self::CAPABILITY), TRUE, 512, JSON_THROW_ON_ERROR);
+    self::assertIsArray($capability);
+
+    foreach ([
+      '[[ "$(id -u)" -eq 0 ]]',
+      "HELPER_DEST='/usr/local/sbin/agency-prod-php85-1353-apply'",
+      "LIB_DIR='/usr/local/lib/agency-prod-php85-1353'",
+      'PLAN_DEST="$LIB_DIR/remote-plan.sh"',
+      "SUDOERS_DEST='/etc/sudoers.d/agency-prod-php85-1353'",
+      '/usr/sbin/visudo -cf "$rendered"',
+      '/usr/bin/install -o root -g root -m 0755 -- "$HELPER_SOURCE" "$HELPER_DEST"',
+      '/usr/bin/install -o root -g root -m 0755 -- "$PLAN_SOURCE" "$PLAN_DEST"',
+      '/usr/bin/install -o root -g root -m 0440 -- "$rendered" "$SUDOERS_DEST"',
+      '/usr/sbin/visudo -cf "$SUDOERS_DEST"',
+      'HELPER_METADATA=root:root:755',
+      'PLAN_METADATA=root:root:755',
+      'SUDOERS_METADATA=root:root:440',
+      'GENERIC_ROOT_CAPABILITY=NONE',
+      'PROD_PHP_MUTATION=NONE',
+    ] as $required) {
+      self::assertStringContainsString($required, $bootstrap);
+    }
+
+    self::assertStringContainsString('test "$(sha256sum "$HELPER_SOURCE" | awk', $verify);
+    self::assertStringContainsString('test "$(sha256sum "$PLAN_SOURCE" | awk', $verify);
+    self::assertStringContainsString('test "$(sha256sum "$rendered" | awk', $verify);
+
+    $expectedSudoers = implode("\n", [
+      '__SERVER_USER__ ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-php85-1353-apply READY',
+      '__SERVER_USER__ ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-php85-1353-apply APPLY',
+      '',
+    ]);
+    self::assertSame($expectedSudoers, $sudoers);
+    self::assertStringContainsString('NOPASSWD: NOSETENV:', $render);
+
+    self::assertSame('FIXED_HELPER_READY_AND_APPLY_ONLY', $capability['sudoers']['nopasswd_scope'] ?? NULL);
+    self::assertSame('HUMAN_ADMIN_INTERACTIVE', $capability['bootstrap']['boundary'] ?? NULL);
+    self::assertSame('FORBIDDEN', $capability['bootstrap']['ordinary_prod_identity_self_bootstrap'] ?? NULL);
+    self::assertSame('FORBIDDEN', $capability['sudoers']['generic_install'] ?? NULL);
+    self::assertSame('FORBIDDEN', $capability['sudoers']['generic_visudo'] ?? NULL);
+    self::assertSame('FORBIDDEN', $capability['sudoers']['generic_shell'] ?? NULL);
+    self::assertSame('FORBIDDEN', $capability['sudoers']['nopasswd_all'] ?? NULL);
+
+    foreach (['NOPASSWD:ALL', 'NOPASSWD: ALL', '/usr/bin/install', '/usr/sbin/visudo', '/bin/bash', '/bin/sh', '/usr/bin/env', '/usr/bin/python', '*'] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $sudoers);
+    }
+  }
+
+  /**
+   * Root helper accepts fixed action tokens and no privileged path arguments.
+   */
+  public function testRootHelperUsesPersistentFixedPurposeCapability(): void {
+    $apply = $this->source(self::APPLY);
+    foreach ([
+      'ACTION="${1:-}"',
+      '[[ "$#" -eq 1 ]]',
+      '[[ "$ACTION" == \'READY\' || "$ACTION" == \'APPLY\' ]]',
+      "PLAN_SCRIPT='/usr/local/lib/agency-prod-php85-1353/remote-plan.sh'",
+      'APPROVED_PLAN="$work_root/approved-plan.json"',
+      'cat > "$APPROVED_PLAN"',
+      'CAPABILITY_READY=YES',
+      'PRIVILEGED_PATH_ARGUMENTS=NONE',
+      '"$PLAN_SCRIPT" "$EXPECTED_MAIN" "$plan_id"',
+      'apt-get --simulate install "${package_specs[@]}"',
+      'apt-get install -y "${package_specs[@]}"',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+    foreach (['APPROVED_PLAN="${1:-}"', 'PLAN_SCRIPT="${4:-}"', 'CAPABILITY_STATE=', "\nsudo -", 'rm -f -- "$CAPABILITY_SUDOERS"', 'rm -f -- "$CAPABILITY_HELPER"'] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $apply);
+    }
+  }
+  /**
    * PLAN and APPLY shells remain syntactically valid.
    */
   public function testShellSyntax(): void {
-    foreach ([self::PLAN, self::APPLY] as $relative) {
+    foreach ([
+      self::PLAN,
+      self::APPLY,
+      self::WRAPPER,
+      self::BOOTSTRAP,
+      self::VERIFY,
+      self::RENDER,
+    ] as $relative) {
       $path = dirname(DRUPAL_ROOT) . '/' . $relative;
       $output = [];
       $status = 1;

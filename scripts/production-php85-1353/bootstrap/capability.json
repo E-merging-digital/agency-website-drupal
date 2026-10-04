@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "issue": 1353,
+  "purpose": "fixed-purpose PROD PHP 8.5 migration APPLY capability",
+  "helper": {
+    "source": "scripts/production-php85-1353/remote-apply-root.sh",
+    "destination": "/usr/local/sbin/agency-prod-php85-1353-apply",
+    "owner": "root",
+    "group": "root",
+    "mode": "0755",
+    "allowed_actions": ["READY", "APPLY"],
+    "caller_controlled_privileged_path": "FORBIDDEN"
+  },
+  "plan_script": {
+    "source": "scripts/production-php85-1353/remote-plan.sh",
+    "destination": "/usr/local/lib/agency-prod-php85-1353/remote-plan.sh",
+    "owner": "root",
+    "group": "root",
+    "mode": "0755"
+  },
+  "sudoers": {
+    "template": "scripts/production-php85-1353/bootstrap/agency-prod-php85-1353.sudoers.template",
+    "destination": "/etc/sudoers.d/agency-prod-php85-1353",
+    "owner": "root",
+    "group": "root",
+    "mode": "0440",
+    "nopasswd_scope": "FIXED_HELPER_READY_AND_APPLY_ONLY",
+    "no_setenv": true,
+    "generic_install": "FORBIDDEN",
+    "generic_visudo": "FORBIDDEN",
+    "generic_shell": "FORBIDDEN",
+    "nopasswd_all": "FORBIDDEN"
+  },
+  "bootstrap": {
+    "boundary": "HUMAN_ADMIN_INTERACTIVE",
+    "script": "scripts/production-php85-1353/bootstrap/human-bootstrap-root.sh",
+    "ordinary_prod_identity_self_bootstrap": "FORBIDDEN",
+    "visudo_pre_install": "REQUIRED",
+    "visudo_post_install": "REQUIRED",
+    "exact_sha256_identity": "REQUIRED"
+  }
+}

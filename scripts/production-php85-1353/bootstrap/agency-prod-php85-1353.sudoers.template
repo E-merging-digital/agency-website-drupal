@@ -1,0 +1,2 @@
+__SERVER_USER__ ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-php85-1353-apply READY
+__SERVER_USER__ ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-php85-1353-apply APPLY

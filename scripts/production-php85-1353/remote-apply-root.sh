@@ -6,10 +6,7 @@ PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 LC_ALL=C
 export PATH LC_ALL
 
-APPROVED_PLAN="${1:-}"
-EXPECTED_DIGEST="${2:-}"
-EXPECTED_MAIN="${3:-}"
-PLAN_SCRIPT="${4:-}"
+ACTION="${1:-}"
 
 ISSUE='1353'
 TARGET='PROD'
@@ -17,16 +14,49 @@ PROD_URL='https://emergingdigital.be'
 DRUPAL_ROOT='/var/www/agency/current'
 CAPABILITY_HELPER='/usr/local/sbin/agency-prod-php85-1353-apply'
 CAPABILITY_SUDOERS='/etc/sudoers.d/agency-prod-php85-1353'
-CAPABILITY_STATE='/var/lib/agency-prod-php85-1353'
+PLAN_SCRIPT='/usr/local/lib/agency-prod-php85-1353/remote-plan.sh'
 CONSUMED_ROOT='/var/lib/agency-prod-php85-1353-consumed'
 
+[[ "$#" -eq 1 ]]
 [[ "$(id -u)" -eq 0 ]]
+[[ "$ACTION" == 'READY' || "$ACTION" == 'APPLY' ]]
+[[ "${SUDO_USER:-}" =~ ^[A-Za-z0-9._-]+$ ]]
+[[ -f "$CAPABILITY_HELPER" && ! -L "$CAPABILITY_HELPER" ]]
+[[ -f "$CAPABILITY_SUDOERS" && ! -L "$CAPABILITY_SUDOERS" ]]
+[[ -f "$PLAN_SCRIPT" && ! -L "$PLAN_SCRIPT" ]]
+[[ "$(stat -c '%U:%G:%a' "$CAPABILITY_HELPER")" == 'root:root:755' ]]
+[[ "$(stat -c '%U:%G:%a' "$CAPABILITY_SUDOERS")" == 'root:root:440' ]]
+[[ "$(stat -c '%U:%G:%a' "$PLAN_SCRIPT")" == 'root:root:755' ]]
+mapfile -t capability_sudoers < "$CAPABILITY_SUDOERS"
+[[ "${#capability_sudoers[@]}" -eq 2 ]]
+[[ "${capability_sudoers[0]}" == "$SUDO_USER ALL=(root) NOPASSWD: NOSETENV: $CAPABILITY_HELPER READY" ]]
+[[ "${capability_sudoers[1]}" == "$SUDO_USER ALL=(root) NOPASSWD: NOSETENV: $CAPABILITY_HELPER APPLY" ]]
+/usr/sbin/visudo -cf "$CAPABILITY_SUDOERS" >/dev/null
+
+if [[ "$ACTION" == 'READY' ]]; then
+  printf '%s\n' \
+    'STATUS=PASS' \
+    'ISSUE=1353' \
+    'CAPABILITY_READY=YES' \
+    'HELPER_SCOPE=FIXED_PURPOSE' \
+    'PRIVILEGED_PATH_ARGUMENTS=NONE' \
+    'PHP_MUTATION=NONE'
+  exit 0
+fi
+
+work_root="$(mktemp -d /root/agency-prod-php85-1353.XXXXXX)"
+cleanup() { rm -rf -- "$work_root"; }
+trap cleanup EXIT
+
+APPROVED_PLAN="$work_root/approved-plan.json"
+cat > "$APPROVED_PLAN"
+[[ -s "$APPROVED_PLAN" ]]
+[[ "$(stat -c '%s' "$APPROVED_PLAN")" -le 131072 ]]
+
+EXPECTED_DIGEST="$(jq -r '.PLAN_DIGEST // empty' "$APPROVED_PLAN")"
+EXPECTED_MAIN="$(jq -r '.MAIN_SHA // empty' "$APPROVED_PLAN")"
 [[ "$EXPECTED_DIGEST" =~ ^[0-9a-f]{64}$ ]]
 [[ "$EXPECTED_MAIN" =~ ^[0-9a-f]{40}$ ]]
-[[ -f "$APPROVED_PLAN" && ! -L "$APPROVED_PLAN" ]]
-[[ -f "$PLAN_SCRIPT" && ! -L "$PLAN_SCRIPT" ]]
-[[ "$APPROVED_PLAN" == "$CAPABILITY_STATE/approved-plan.json" ]]
-[[ "$PLAN_SCRIPT" == "$CAPABILITY_STATE/remote-plan.sh" ]]
 
 jq -e --arg digest "$EXPECTED_DIGEST" --arg main "$EXPECTED_MAIN" '
   .schema_version == 1
@@ -63,15 +93,7 @@ fpm84_pool="$(jq -r '.FPM84_POOL_PATH' "$APPROVED_PLAN")"
 [[ "$fpm84_pool" =~ ^/etc/php/8\.4/fpm/pool\.d/[A-Za-z0-9._-]+\.conf$ ]]
 fpm85_pool="/etc/php/8.5/fpm/pool.d/$(basename "$fpm84_pool")"
 
-work_root="$(mktemp -d /root/agency-prod-php85-1353.XXXXXX)"
-backup_root="/var/backups/agency/php85-1353-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-install -d -m 700 "$backup_root" "$CONSUMED_ROOT"
-
-cleanup() {
-  rm -rf -- "$work_root" "$CAPABILITY_STATE"
-  rm -f -- "$CAPABILITY_SUDOERS" "$CAPABILITY_HELPER"
-}
-trap cleanup EXIT
+backup_root='NONE'
 
 emit_failure() {
   local rollback="$1"
@@ -143,6 +165,11 @@ if upgrades != approved['PACKAGE_UPGRADES']:
 if removals != approved['PACKAGE_REMOVALS']:
     raise SystemExit('Exact apply simulation removal drift')
 PY_SIM
+
+# Only after stale-plan and exact package simulation pass do we cross the
+# persistent host mutation boundary.
+backup_root="/var/backups/agency/php85-1353-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+install -d -m 700 "$backup_root" "$CONSUMED_ROOT"
 
 # Host-local replay guard complements the GitHub one-shot consumption marker.
 consumed="$CONSUMED_ROOT/$EXPECTED_DIGEST"

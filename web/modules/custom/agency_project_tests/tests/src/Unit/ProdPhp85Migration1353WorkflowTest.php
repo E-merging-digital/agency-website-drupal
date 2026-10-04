@@ -359,7 +359,17 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
     self::assertSame('FORBIDDEN', $capability['sudoers']['generic_shell'] ?? NULL);
     self::assertSame('FORBIDDEN', $capability['sudoers']['nopasswd_all'] ?? NULL);
 
-    foreach (['NOPASSWD:ALL', 'NOPASSWD: ALL', '/usr/bin/install', '/usr/sbin/visudo', '/bin/bash', '/bin/sh', '/usr/bin/env', '/usr/bin/python', '*'] as $forbidden) {
+    foreach ([
+      'NOPASSWD:ALL',
+      'NOPASSWD: ALL',
+      '/usr/bin/install',
+      '/usr/sbin/visudo',
+      '/bin/bash',
+      '/bin/sh',
+      '/usr/bin/env',
+      '/usr/bin/python',
+      '*',
+    ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $sudoers);
     }
   }
@@ -384,10 +394,18 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
     ] as $required) {
       self::assertStringContainsString($required, $apply);
     }
-    foreach (['APPROVED_PLAN="${1:-}"', 'PLAN_SCRIPT="${4:-}"', 'CAPABILITY_STATE=', "\nsudo -", 'rm -f -- "$CAPABILITY_SUDOERS"', 'rm -f -- "$CAPABILITY_HELPER"'] as $forbidden) {
+    foreach ([
+      'APPROVED_PLAN="${1:-}"',
+      'PLAN_SCRIPT="${4:-}"',
+      'CAPABILITY_STATE=',
+      "\nsudo -",
+      'rm -f -- "$CAPABILITY_SUDOERS"',
+      'rm -f -- "$CAPABILITY_HELPER"',
+    ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $apply);
     }
   }
+
   /**
    * PLAN and APPLY shells remain syntactically valid.
    */

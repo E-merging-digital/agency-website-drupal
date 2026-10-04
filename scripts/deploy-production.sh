@@ -138,8 +138,8 @@ normalize_runtime_permissions() {
   fi
 
   chmod a+rx "$NEW_RELEASE"
-  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type d -exec chmod a+rx {} +
-  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type f -exec chmod a+r {} +
+  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type d -exec chmod a+rx {} +
+  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type f -exec chmod a+r {} +
 
   verify_runtime_permissions
   log "Runtime permissions are compatible with the unprivileged web runtime."

@@ -178,6 +178,64 @@ final class ProductionPromotionSafetyTest extends TestCase {
   }
 
   /**
+   * Both production paths normalize canonical config permissions before switch.
+   */
+  public function testProductionConfigPermissionsAreNormalizedBeforeSwitch(): void {
+    foreach ([
+      'scripts/deploy-production.sh',
+      'scripts/production-promotion/promote-candidate.sh',
+    ] as $path) {
+      $script = $this->script($path);
+      $directoryNormalization =
+        'find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type d -exec chmod a+rx {} +';
+      $fileNormalization =
+        'find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type f -exec chmod a+r {} +';
+
+      self::assertStringContainsString($directoryNormalization, $script, $path);
+      self::assertStringContainsString($fileNormalization, $script, $path);
+      self::assertStringNotContainsString('$NEW_RELEASE/web/config', $script, $path);
+
+      $configGuard = strpos(
+        $script,
+        'Canonical config/sync payload is present before release activation.',
+      );
+      $switch = strpos($script, 'ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"');
+
+      self::assertIsInt($configGuard, $path);
+      self::assertIsInt($switch, $path);
+
+      if ($path === 'scripts/deploy-production.sh') {
+        $normalization = strpos(
+          $script,
+          "normalize_runtime_permissions
+",
+          $configGuard,
+        );
+        self::assertIsInt($normalization, $path);
+        self::assertTrue($configGuard < $normalization, $path);
+        self::assertTrue($normalization < $switch, $path);
+      }
+      else {
+        $normalizeDirectories = strpos(
+          $script,
+          $directoryNormalization,
+          $configGuard,
+        );
+        $normalizeFiles = strpos(
+          $script,
+          $fileNormalization,
+          $configGuard,
+        );
+        self::assertIsInt($normalizeDirectories, $path);
+        self::assertIsInt($normalizeFiles, $path);
+        self::assertTrue($configGuard < $normalizeDirectories, $path);
+        self::assertTrue($normalizeDirectories < $normalizeFiles, $path);
+        self::assertTrue($normalizeFiles < $switch, $path);
+      }
+    }
+  }
+
+  /**
    * Production operational invariants remain part of same-artifact activation.
    */
   public function testServerPromotionPreservesOperationalSequence(): void {

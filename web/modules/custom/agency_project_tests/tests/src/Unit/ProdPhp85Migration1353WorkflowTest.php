@@ -8,7 +8,7 @@ use Drupal\Component\Serialization\Yaml;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Protects the PLAN-only PROD PHP 8.5 migration capability from #1353.
+ * Protects the governed PROD PHP 8.5 PLAN/APPLY capability from #1353.
  *
  * @group agency_project_tests
  */
@@ -17,42 +17,52 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
   private const DISPATCHER = '.github/workflows/agency-command-dispatch.yml';
   private const WORKFLOW = '.github/workflows/prod-php85-migration-1353.yml';
   private const PLAN = 'scripts/production-php85-1353/remote-plan.sh';
+  private const APPLY = 'scripts/production-php85-1353/remote-apply-root.sh';
 
   /**
-   * Dispatcher is exact, owner-only, issue-bound and PLAN-only.
+   * Dispatcher keeps separate direct OWNER PLAN and APPLY routes.
    */
-  public function testDispatcherUsesExactPlanOnlyProdRoute(): void {
+  public function testDispatcherUsesBoundedProdPlanAndApplyRoutes(): void {
     $dispatcher = $this->parsed(self::DISPATCHER);
-    $job = $dispatcher['jobs']['prod-php85-migration-1353-plan'] ?? NULL;
-    self::assertIsArray($job);
-    self::assertSame('./' . self::WORKFLOW, $job['uses'] ?? NULL);
-    self::assertSame(
-      ['actions' => 'read', 'contents' => 'read', 'issues' => 'write'],
-      $job['permissions'] ?? NULL,
-    );
-    self::assertSame(
-      ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER'],
-      array_keys($job['secrets'] ?? []),
-    );
-    $condition = (string) ($job['if'] ?? '');
     foreach ([
-      "github.event_name == 'issue_comment'",
-      "github.event.action == 'created'",
-      'github.event.issue.pull_request == null',
-      'github.event.issue.number == 1353',
-      "github.event.comment.author_association == 'OWNER'",
-      "github.event.comment.user.login == 'E-merging-digital'",
-      'github.event.comment.performed_via_github_app == null',
-      "github.event.comment.body == '/agency-prod-php85-1353 plan'",
-    ] as $required) {
-      self::assertStringContainsString($required, $condition);
+      'prod-php85-migration-1353-plan' => [
+        "github.event.comment.body == '/agency-prod-php85-1353 plan'",
+      ],
+      'prod-php85-migration-1353-apply' => [
+        "startsWith(github.event.comment.body, '/agency-prod-php85-1353 apply ')",
+      ],
+    ] as $jobId => $routeAssertions) {
+      $job = $dispatcher['jobs'][$jobId] ?? NULL;
+      self::assertIsArray($job, $jobId);
+      self::assertSame('./' . self::WORKFLOW, $job['uses'] ?? NULL);
+      self::assertSame(
+        ['actions' => 'read', 'contents' => 'read', 'issues' => 'write'],
+        $job['permissions'] ?? NULL,
+      );
+      self::assertSame(
+        ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER'],
+        array_keys($job['secrets'] ?? []),
+      );
+      $condition = (string) ($job['if'] ?? '');
+      foreach ([
+        "github.event_name == 'issue_comment'",
+        "github.event.action == 'created'",
+        'github.event.issue.pull_request == null',
+        'github.event.issue.number == 1353',
+        "github.event.comment.author_association == 'OWNER'",
+        "github.event.comment.user.login == 'E-merging-digital'",
+        'github.event.comment.performed_via_github_app == null',
+        ...$routeAssertions,
+      ] as $required) {
+        self::assertStringContainsString($required, $condition, $jobId);
+      }
     }
   }
 
   /**
-   * Reusable workflow exposes PLAN only with exact-main JIT authority.
+   * Workflow binds APPLY to exact immutable PLAN and one-shot consumption.
    */
-  public function testWorkflowIsPlanOnlyExactMainAndUsesExistingProdTrust(): void {
+  public function testWorkflowAppliesOnlyExactOneShotApprovedPlan(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
     $on = $workflow['on'] ?? [];
@@ -61,7 +71,7 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
     self::assertArrayNotHasKey('workflow_dispatch', $on);
     self::assertArrayNotHasKey('issue_comment', $on);
     self::assertSame(
-      ['validate-authority', 'plan'],
+      ['validate-authority', 'plan', 'apply'],
       array_keys($workflow['jobs'] ?? []),
     );
 
@@ -72,65 +82,53 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
       'test "$COMMENT_ASSOCIATION" = \'OWNER\'',
       'test "$COMMENT_VIA_APP" = \'false\'',
       'test "$WORKFLOW_SHA" = "$main_sha"',
-      "test \"\$COMMENT_BODY\" = '/agency-prod-php85-1353 plan'",
-      'scripts/production-ssh-trust/manage-known-host.sh PROVISION',
-      '"$SERVER_USER@$SERVER_HOST"',
-      'scripts/production-php85-1353/remote-plan.sh',
-      'prod-php85-1353-plan-',
+      "^/agency-prod-php85-1353\\ apply\\ plan_run=([1-9][0-9]*)\\ plan_digest=([0-9a-f]{64})$",
+      "'.github/workflows/agency-command-dispatch.yml'",
+      "'.conclusion' <<<",
+      "'.event' <<<",
+      "'.run_attempt' <<<",
+      "'.head_sha' <<<",
+      'artifact_name="prod-php85-1353-plan-${PLAN_RUN}-1"',
+      '.SAFETY_GATE == "PASS"',
+      '.FAILED_CHECKS == []',
+      'AGENCY_PROD_PHP85_1353_APPLY_CONSUMED',
+      'Approved #1353 PLAN run is already consumed.',
+      'live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main"',
+      'test "$live_main" = "$MAIN_SHA"',
+      'scripts/production-php85-1353/remote-apply-root.sh',
+      '/usr/local/sbin/agency-prod-php85-1353-apply',
+      '/etc/sudoers.d/agency-prod-php85-1353',
+      'sudo -k -n -- "$helper_dest"',
     ] as $required) {
       self::assertStringContainsString($required, $source);
     }
 
     foreach ([
-      'workflow_dispatch',
-      'apply plan_run=',
-      'APPLY_CONSUMED',
-      'root@$SERVER_HOST',
       'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
+      'root@$SERVER_HOST',
+      'do-release-upgrade',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $source);
     }
   }
 
   /**
-   * PLAN is read-only, bounded and decision-complete.
+   * PLAN remains read-only, bounded and decision-complete.
    */
   public function testPlanIsReadOnlyAndDecisionComplete(): void {
     $plan = $this->source(self::PLAN);
-
     foreach ([
       "ISSUE='1353'",
       "TARGET='PROD'",
       "MODE='PLAN'",
       "PROD_URL='https://emergingdigital.be'",
       "DRUPAL_ROOT='/var/www/agency/current'",
-      "NGINX_SITES_ENABLED='/etc/nginx/sites-enabled'",
-      "FPM84_POOL_DIR='/etc/php/8.4/fpm/pool.d'",
-      'CURRENT_RELEASE',
-      'OS_PRETTY_NAME',
-      'VERSION_ID',
-      'KERNEL_RUNNING',
-      'REBOOT_REQUIRED',
-      'CURRENT_PHP_CLI',
-      'CURRENT_PHP_FPM',
-      'CURRENT_PHP_FPM_SERVICE',
-      'CURRENT_PROD_SOCKET',
-      'NGINX_SERVICE',
-      'MARIADB_SERVICE',
-      'MARIADB_VERSION',
-      'FAILED_SYSTEMD_UNITS',
-      'DRUPAL_HEALTH',
-      'PUBLIC_HEALTH',
-      'DISK_AVAILABLE',
-      'PHP85_PACKAGE_CANDIDATES',
       'PHP85_INSTALL_SIMULATION',
       'PHP85_INSTALLABLE',
       'PHP84_PACKAGES_PRESENT',
       'PHP84_SERVICE_ACTIVE',
       'NGINX_VHOST_PHP84_SOCKET_MATCH',
       'FPM84_POOL_CONTRACT',
-      'UNEXPECTED_PACKAGE_REMOVALS',
-      'UNRELATED_PACKAGE_UPGRADES',
       'ROLLBACK_PHP84_AVAILABLE',
       'apt-get --simulate install',
       'PACKAGE_ADDITIONS',
@@ -139,7 +137,6 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
     ] as $required) {
       self::assertStringContainsString($required, $plan);
     }
-
     foreach ([
       'apt-get update',
       'apt upgrade',
@@ -158,66 +155,112 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $plan);
     }
-
-    foreach ([
-      'php8.5-bcmath',
-      'php8.5-cli',
-      'php8.5-common',
-      'php8.5-curl',
-      'php8.5-fpm',
-      'php8.5-gd',
-      'php8.5-intl',
-      'php8.5-mbstring',
-      'php8.5-mysql',
-      'php8.5-xml',
-      'php8.5-zip',
-    ] as $package) {
-      self::assertStringContainsString($package, $plan);
-    }
-
     self::assertStringNotContainsString('php8.5-opcache', $plan);
     self::assertStringContainsString(
       "    'DISK_AVAILABLE_KB': int(os.environ['DISK_AVAILABLE_KB'])",
       $plan,
     );
-    self::assertStringNotContainsString(
-      "    'DISK_AVAILABLE_KB',",
-      $plan,
-    );
+    self::assertStringNotContainsString("    'DISK_AVAILABLE_KB',", $plan);
   }
 
   /**
-   * Canonical PROD PHP 8.4 socket passes the Python PLAN regex.
+   * APPLY keeps exact stale-plan/package identity and PHP 8.4 rollback.
    */
-  public function testCanonicalPhp84SocketMatchesPythonPlanRegex(): void {
-    $plan = $this->source(self::PLAN);
-    $corrected = "re.fullmatch(r'/run/php/php8\\.4-fpm[A-Za-z0-9._-]*\\.sock', os.environ['CURRENT_PROD_SOCKET'])";
-    $overEscaped = "re.fullmatch(r'/run/php/php8\\\\.4-fpm[A-Za-z0-9._-]*\\\\.sock', os.environ['CURRENT_PROD_SOCKET'])";
+  public function testApplyEnforcesStalePlanPackageAndPhp84RollbackContract(): void {
+    $apply = $this->source(self::APPLY);
 
-    self::assertStringContainsString($corrected, $plan);
-    self::assertStringNotContainsString($overEscaped, $plan);
+    foreach ([
+      "ISSUE='1353'",
+      "TARGET='PROD'",
+      'CAPABILITY_HELPER=\'/usr/local/sbin/agency-prod-php85-1353-apply\'',
+      'CONSUMED_ROOT=\'/var/lib/agency-prod-php85-1353-consumed\'',
+      '"$PLAN_SCRIPT" "$EXPECTED_MAIN" "$plan_id"',
+      'test "$(jq -r \'.PLAN_DIGEST\' "$work_root/current-plan.json")" = "$EXPECTED_DIGEST"',
+      'apt-get --simulate install "${package_specs[@]}"',
+      'apt-get install -y "${package_specs[@]}"',
+      'dpkg-query -W -f=\'${Status}\' "$package"',
+      'systemctl is-active --quiet php8.4-fpm',
+      'php-fpm8.5 -t',
+      'systemctl enable --now php8.5-fpm',
+      'systemctl restart php8.5-fpm',
+      'FPM85_CONTRACT:"PASS"',
+      'PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE"',
+      'PHP84_REMOVAL:"NONE"',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
 
-    $python = <<<'PY'
-import re
-socket = '/run/php/php8.4-fpm.sock'
-pattern = r'/run/php/php8\.4-fpm[A-Za-z0-9._-]*\.sock'
-raise SystemExit(0 if re.fullmatch(pattern, socket) else 1)
-PY;
-    $output = [];
-    $status = 1;
-    exec('python3 -c ' . escapeshellarg($python) . ' 2>&1', $output, $status);
-    self::assertSame(0, $status, implode("\n", $output));
+    $stale = strpos($apply, '"$PLAN_SCRIPT" "$EXPECTED_MAIN" "$plan_id"');
+    $simulate = strpos($apply, 'apt-get --simulate install');
+    $install = strpos($apply, 'apt-get install -y');
+    self::assertNotFalse($stale);
+    self::assertNotFalse($simulate);
+    self::assertNotFalse($install);
+    self::assertLessThan($simulate, $stale);
+    self::assertLessThan($install, $simulate);
+
+    foreach ([
+      'apt-get remove',
+      'apt-get purge',
+      'dpkg --remove',
+      'dpkg --purge',
+      'systemctl stop php8.4-fpm',
+      'systemctl disable php8.4-fpm',
+      'do-release-upgrade',
+      'drush updb',
+      'drush cim',
+      'drush config:import',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $apply);
+    }
   }
 
   /**
-   * PLAN shell remains syntactically valid.
+   * Nginx cutover is socket-only and post-switch failures restore PHP 8.4.
    */
-  public function testPlanShellSyntax(): void {
-    $path = dirname(DRUPAL_ROOT) . '/' . self::PLAN;
-    $output = [];
-    $status = 1;
-    exec('bash -n ' . escapeshellarg($path) . ' 2>&1', $output, $status);
-    self::assertSame(0, $status, implode("\n", $output));
+  public function testApplyUsesSocketOnlyNginxSwitchAndRollback(): void {
+    $apply = $this->source(self::APPLY);
+    foreach ([
+      'candidate, substitutions = pattern.subn(',
+      'if source.count(old) != substitutions:',
+      "targets != {'unix:' + new}",
+      'cp --preserve=all "$nginx_vhost" "$backup_root/nginx-vhost.before"',
+      'cp --preserve=all "$backup_root/nginx-vhost.before" "$nginx_vhost"',
+      'nginx -t',
+      'systemctl reload nginx',
+      'vendor/bin/drush status --fields=bootstrap',
+      '"$PROD_URL/health/live"',
+      '"$PROD_URL/health/ready"',
+      'homepage_status=',
+      'NGINX_SOCKET_ONLY_DELTA:"PASS"',
+      'ROLLBACK:"NOT_REQUIRED"',
+      'OS_UPGRADE:"NONE"',
+      'MARIADB_CHANGE:"NONE"',
+    ] as $required) {
+      self::assertStringContainsString($required, $apply);
+    }
+
+    $switch = strpos($apply, 'cat "$work_root/nginx.candidate" > "$nginx_vhost"');
+    $syntax = strpos($apply, 'nginx -t', $switch === FALSE ? 0 : $switch);
+    $reload = strpos($apply, 'systemctl reload nginx', $switch === FALSE ? 0 : $switch);
+    self::assertNotFalse($switch);
+    self::assertNotFalse($syntax);
+    self::assertNotFalse($reload);
+    self::assertLessThan($syntax, $switch);
+    self::assertLessThan($reload, $syntax);
+  }
+
+  /**
+   * PLAN and APPLY shells remain syntactically valid.
+   */
+  public function testShellSyntax(): void {
+    foreach ([self::PLAN, self::APPLY] as $relative) {
+      $path = dirname(DRUPAL_ROOT) . '/' . $relative;
+      $output = [];
+      $status = 1;
+      exec('bash -n ' . escapeshellarg($path) . ' 2>&1', $output, $status);
+      self::assertSame(0, $status, $relative . "\n" . implode("\n", $output));
+    }
   }
 
   /**

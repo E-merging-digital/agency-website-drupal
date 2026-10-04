@@ -198,26 +198,38 @@ import re
 import sys
 from pathlib import Path
 
-source = Path(sys.argv[1]).read_bytes()
-old = sys.argv[3].encode()
-new = sys.argv[4].encode()
-old_count = source.count(old)
-if old_count < 1 or new in source:
-    raise SystemExit('Unexpected source socket state')
-candidate = source.replace(old, new)
-if old in candidate or candidate.count(new) != old_count:
-    raise SystemExit('Socket substitution count mismatch')
+source = Path(sys.argv[1]).read_text(encoding='utf-8', errors='strict')
+old = sys.argv[3]
+new = sys.argv[4]
+if new in source:
+    raise SystemExit('PHP 8.5 socket already present before cutover')
+pattern = re.compile(
+    r'^(?P<prefix>\\s*fastcgi_pass\\s+)unix:'
+    + re.escape(old)
+    + r'(?P<suffix>\\s*;\\s*(?:#.*)?)$',
+    re.MULTILINE,
+)
+candidate, substitutions = pattern.subn(
+    lambda match: match.group('prefix') + 'unix:' + new + match.group('suffix'),
+    source,
+)
+if substitutions < 1:
+    raise SystemExit('No Agency FastCGI socket directive was replaced')
+if source.count(old) != substitutions:
+    raise SystemExit('Old PHP socket appears outside governed fastcgi_pass directives')
+if old in candidate:
+    raise SystemExit('Old PHP socket remains after governed substitution')
 targets = set()
-for line in candidate.decode('utf-8', errors='strict').splitlines():
+for line in candidate.splitlines():
     if 'fastcgi_pass' not in line:
         continue
-    match = re.match(r'^\s*fastcgi_pass\s+([^;\s]{1,256})\s*;\s*(?:#.*)?\Z', line)
+    match = re.match(r'^\\s*fastcgi_pass\\s+([^;\\s]{1,256})\\s*;\\s*(?:#.*)?\\Z', line)
     if not match:
         raise SystemExit('Unparseable FastCGI directive')
     targets.add(match.group(1))
-if targets != {'unix:' + sys.argv[4]}:
+if targets != {'unix:' + new}:
     raise SystemExit('Unexpected candidate FastCGI target set')
-Path(sys.argv[2]).write_bytes(candidate)
+Path(sys.argv[2]).write_text(candidate, encoding='utf-8')
 PY_NGINX
 
 switched='NO'

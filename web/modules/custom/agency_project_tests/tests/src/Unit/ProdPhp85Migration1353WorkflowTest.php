@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\Component\Serialization\Yaml;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Yaml\Yaml;
 
 /**
  * Protects the PLAN-only PROD PHP 8.5 migration capability from #1353.
@@ -204,7 +204,7 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
    *   The parsed YAML data.
    */
   private function parsed(string $path): array {
-    $parsed = Yaml::parse($this->source($path));
+    $parsed = Yaml::decode($this->source($path));
     self::assertIsArray($parsed);
     return $parsed;
   }

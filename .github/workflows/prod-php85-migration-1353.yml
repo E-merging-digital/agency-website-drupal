@@ -1,0 +1,213 @@
+name: '#1353 governed PROD PHP 8.5 migration PLAN'
+
+on:
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+concurrency:
+  group: agency-prod-php85-migration-1353
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate exact #1353 PLAN authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+    outputs:
+      mode: ${{ steps.authority.outputs.mode }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      plan_id: ${{ steps.authority.outputs.plan_id }}
+    steps:
+      - id: authority
+        name: JIT validate direct OWNER PLAN command and exact live main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1353'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+          test "$COMMENT_BODY" = '/agency-prod-php85-1353 plan'
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1353")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          jq -e '[.labels[].name] | index("P1") != null' <<<"$issue_json" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$WORKFLOW_SHA" = "$main_sha"
+
+          plan_id="plan-1353-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo 'mode=PLAN'
+            echo "main_sha=$main_sha"
+            echo "plan_id=$plan_id"
+          } >> "$GITHUB_OUTPUT"
+
+  plan:
+    name: Build fresh mutation-free PROD PHP 8.5 PLAN
+    if: ${{ needs.validate-authority.outputs.mode == 'PLAN' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize pinned PROD identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1353-plan.key"
+          chmod 600 "$RUNNER_TEMP/agency-1353-plan.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - id: plan_result
+        name: Run read-only PHP 8.5 PLAN on PROD
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/prod-php85-1353
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1353-plan.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          set +e
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID'" \
+            < scripts/production-php85-1353/remote-plan.sh \
+            > artifacts/prod-php85-1353/plan.json
+          plan_rc=$?
+          set -e
+
+          plan='artifacts/prod-php85-1353/plan.json'
+          test -s "$plan"
+          jq -e --arg main "$MAIN_SHA" --arg plan_id "$PLAN_ID" '
+            (.STATUS == "PASS" or .STATUS == "FAIL")
+            and .ISSUE == 1353
+            and .TARGET == "PROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_ID == $plan_id
+            and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
+            and (.FAILED_CHECKS | type == "array")
+            and (
+              (.STATUS == "PASS" and .SAFETY_GATE == "PASS" and .FAILED_CHECKS == [])
+              or
+              (.STATUS == "FAIL" and .SAFETY_GATE == "FAIL" and (.FAILED_CHECKS | length) > 0)
+            )' "$plan" >/dev/null
+
+          {
+            echo 'receipt_valid=true'
+            echo "digest=$(jq -r '.PLAN_DIGEST' "$plan")"
+            echo "status=$(jq -r '.STATUS' "$plan")"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$plan_rc" -eq 0 ]]; then
+            jq -e '
+              .STATUS == "PASS"
+              and .SAFETY_GATE == "PASS"
+              and .FAILED_CHECKS == []
+              and .PHP85_INSTALL_SIMULATION == "PASS"
+              and .PHP85_INSTALLABLE == "YES"
+              and .UNEXPECTED_PACKAGE_REMOVALS == []
+              and .UNRELATED_PACKAGE_UPGRADES == []
+              and .PHP84_PACKAGES_PRESENT == "YES"
+              and .PHP84_SERVICE_ACTIVE == "YES"
+              and .ROLLBACK_PHP84_AVAILABLE == "YES"
+              and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+              and .FPM84_POOL_CONTRACT == "YES"' "$plan" >/dev/null
+          else
+            test "$plan_rc" -eq 65
+            jq -e '
+              .STATUS == "FAIL"
+              and .SAFETY_GATE == "FAIL"
+              and (.FAILED_CHECKS | length) > 0' "$plan" >/dev/null
+            exit "$plan_rc"
+          fi
+
+      - name: Upload immutable PLAN evidence
+        if: ${{ always() && steps.plan_result.outputs.receipt_valid == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-php85-1353-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/prod-php85-1353/plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded PLAN summary
+        if: ${{ always() && steps.plan_result.outputs.receipt_valid == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+        run: |
+          set -euo pipefail
+          plan='artifacts/prod-php85-1353/plan.json'
+          plan_status="$(jq -r '.STATUS' "$plan")"
+          plan_digest="$(jq -r '.PLAN_DIGEST' "$plan")"
+          failed_checks="$(jq -r '.FAILED_CHECKS | if length == 0 then "NONE" else join(",") end' "$plan")"
+          printf -v body '#1353 PROD PHP 8.5 migration PLAN evidence preserved.\n\n`MODE=%s`\n`RUN=%s`\n`PLAN_ID=%s`\n`PLAN_STATUS=%s`\n`PLAN_DIGEST=%s`\n`FAILED_CHECKS=%s`\n`TARGET=%s`\n`PROD_MUTATION=%s`\n`PHP84_REMOVAL=%s`\n\n%s' \
+            'PLAN' \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            "$PLAN_ID" \
+            "$plan_status" \
+            "$plan_digest" \
+            "$failed_checks" \
+            'PROD' \
+            'NONE' \
+            'NONE' \
+            'Artifact publication preserves evidence only. APPLY is not materialized or authorized by #1353 Phase A.'
+          gh issue comment 1353 --body "$body"
+
+      - name: Remove transient PLAN key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1353-plan.key"

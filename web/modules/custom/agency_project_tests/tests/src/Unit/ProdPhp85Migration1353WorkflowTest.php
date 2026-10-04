@@ -221,8 +221,9 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
   public function testApplyUsesSocketOnlyNginxSwitchAndRollback(): void {
     $apply = $this->source(self::APPLY);
     foreach ([
-      'candidate = source.replace(old, new)',
-      "targets != {'unix:' + sys.argv[4]}",
+      'candidate, substitutions = pattern.subn(',
+      'if source.count(old) != substitutions:',
+      "targets != {'unix:' + new}",
       'cp --preserve=all "$nginx_vhost" "$backup_root/nginx-vhost.before"',
       'cp --preserve=all "$backup_root/nginx-vhost.before" "$nginx_vhost"',
       'nginx -t',

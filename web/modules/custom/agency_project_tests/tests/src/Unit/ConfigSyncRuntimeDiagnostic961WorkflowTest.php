@@ -194,8 +194,8 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
       $runner,
     );
     self::assertStringContainsString('vendor/bin/drush php:script', $runner);
-    self::assertStringContainsString('.drupal_core_version == "11.4.7"', $runner);
-    self::assertStringContainsString('.canvas_version == "1.11.0"', $runner);
+    self::assertStringContainsString('.drupal_core_version == "11.4.8"', $runner);
+    self::assertStringContainsString('.canvas_version == "1.12.0"', $runner);
     self::assertStringContainsString('.config_language_lock_version == "1.0.2"', $runner);
     self::assertStringContainsString('.site_default_language == "fr"', $runner);
     self::assertStringContainsString('.locked_langcode == "fr"', $runner);
@@ -343,8 +343,8 @@ final class ConfigSyncRuntimeDiagnostic961WorkflowTest extends TestCase {
 
     foreach ([
       '.schema_version == 1',
-      '.drupal_core_version == "11.4.7"',
-      '.canvas_version == "1.11.0"',
+      '.drupal_core_version == "11.4.8"',
+      '.canvas_version == "1.12.0"',
       '.config_language_lock_version == "1.0.2"',
       '.site_default_language == "fr"',
       '.locked_langcode == "fr"',

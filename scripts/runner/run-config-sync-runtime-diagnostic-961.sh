@@ -162,8 +162,8 @@ if [[ "$DIAGNOSTIC_PROFILE" == 'language_lock' ]]; then
       };
     [
       {path: "schema_version", ok: (.schema_version == 1)},
-      {path: "drupal_core_version", ok: (.drupal_core_version == "11.4.7")},
-      {path: "canvas_version", ok: (.canvas_version == "1.11.0")},
+      {path: "drupal_core_version", ok: (.drupal_core_version == "11.4.8")},
+      {path: "canvas_version", ok: (.canvas_version == "1.12.0")},
       {path: "config_language_lock_version", ok: (.config_language_lock_version == "1.0.2")},
       {path: "site_default_language", ok: (.site_default_language == "fr")},
       {path: "locked_langcode", ok: (.locked_langcode == "fr")},

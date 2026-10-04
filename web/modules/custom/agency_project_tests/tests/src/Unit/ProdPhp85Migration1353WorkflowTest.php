@@ -201,6 +201,7 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
    * Reads and parses a repository YAML file.
    *
    * @return array<string, mixed>
+   *   The parsed YAML data.
    */
   private function parsed(string $path): array {
     $parsed = Yaml::parse($this->source($path));

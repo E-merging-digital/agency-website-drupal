@@ -104,7 +104,7 @@ final class GovernedCanvasCatalogCiTest extends TestCase {
     $packages = array_column($lock['packages'] ?? [], NULL, 'name');
 
     self::assertArrayHasKey('drupal/canvas', $packages);
-    self::assertSame('1.11.0', $packages['drupal/canvas']['version'] ?? NULL);
+    self::assertSame('1.12.0', $packages['drupal/canvas']['version'] ?? NULL);
   }
 
   /**

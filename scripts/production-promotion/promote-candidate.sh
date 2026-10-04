@@ -105,8 +105,8 @@ rm -rf "$NEW_RELEASE/web/sites/default/files"
 ln -s "$SHARED_DIR/files" "$NEW_RELEASE/web/sites/default/files"
 ln -s "$SETTINGS_FILE" "$NEW_RELEASE/web/sites/default/settings.php"
 chmod a+rx "$NEW_RELEASE"
-find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type d -exec chmod a+rx {} +
-find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type f -exec chmod a+r {} +
+find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type d -exec chmod a+rx {} +
+find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type f -exec chmod a+r {} +
 
 [[ -L "$CURRENT_LINK" ]] || fail "Production current release symlink is missing."
 ACTIVE_RELEASE="$(readlink -f "$CURRENT_LINK")"

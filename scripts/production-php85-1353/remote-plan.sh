@@ -394,7 +394,7 @@ checks = {
     'php84_service_active': os.environ['PHP84_SERVICE_ACTIVE'] == 'YES',
     'php84_packages_present': os.environ['PHP84_PACKAGES_PRESENT'] == 'YES',
     'current_release_valid': re.fullmatch(r'/var/www/agency/releases/[A-Za-z0-9._-]+', os.environ['CURRENT_RELEASE']) is not None,
-    'current_socket_php84': re.fullmatch(r'/run/php/php8\\.4-fpm[A-Za-z0-9._-]*\\.sock', os.environ['CURRENT_PROD_SOCKET']) is not None,
+    'current_socket_php84': re.fullmatch(r'/run/php/php8\.4-fpm[A-Za-z0-9._-]*\.sock', os.environ['CURRENT_PROD_SOCKET']) is not None,
     'nginx_active': os.environ['NGINX_SERVICE'] == 'active',
     'mariadb_active': os.environ['MARIADB_SERVICE'] == 'active',
     'mariadb_11_8': '11.8.' in os.environ['MARIADB_VERSION'],

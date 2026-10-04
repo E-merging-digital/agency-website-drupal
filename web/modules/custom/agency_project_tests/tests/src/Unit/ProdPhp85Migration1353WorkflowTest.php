@@ -187,6 +187,29 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
   }
 
   /**
+   * Canonical PROD PHP 8.4 socket passes the Python PLAN regex.
+   */
+  public function testCanonicalPhp84SocketMatchesPythonPlanRegex(): void {
+    $plan = $this->source(self::PLAN);
+    $corrected = "re.fullmatch(r'/run/php/php8\\.4-fpm[A-Za-z0-9._-]*\\.sock', os.environ['CURRENT_PROD_SOCKET'])";
+    $overEscaped = "re.fullmatch(r'/run/php/php8\\\\.4-fpm[A-Za-z0-9._-]*\\\\.sock', os.environ['CURRENT_PROD_SOCKET'])";
+
+    self::assertStringContainsString($corrected, $plan);
+    self::assertStringNotContainsString($overEscaped, $plan);
+
+    $python = <<<'PY'
+import re
+socket = '/run/php/php8.4-fpm.sock'
+pattern = r'/run/php/php8\.4-fpm[A-Za-z0-9._-]*\.sock'
+raise SystemExit(0 if re.fullmatch(pattern, socket) else 1)
+PY;
+    $output = [];
+    $status = 1;
+    exec('python3 -c ' . escapeshellarg($python) . ' 2>&1', $output, $status);
+    self::assertSame(0, $status, implode("\n", $output));
+  }
+
+  /**
    * PLAN shell remains syntactically valid.
    */
   public function testPlanShellSyntax(): void {

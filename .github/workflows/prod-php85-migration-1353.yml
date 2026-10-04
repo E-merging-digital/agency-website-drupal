@@ -67,12 +67,12 @@ jobs:
           plan_digest=''
           if [[ "$COMMENT_BODY" == '/agency-prod-php85-1353 plan' ]]; then
             mode='PLAN'
-          elif [[ "$COMMENT_BODY" =~ ^/agency-prod-php85-1353\\ apply\\ plan_run=([1-9][0-9]*)\\ plan_digest=([0-9a-f]{64})$ ]]; then
+          elif [[ "$COMMENT_BODY" =~ ^/agency-prod-php85-1353\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})$ ]]; then
             mode='APPLY'
             plan_run="${BASH_REMATCH[1]}"
             plan_digest="${BASH_REMATCH[2]}"
           else
-            printf '%s\\n' 'Unsupported #1353 command syntax.' >&2
+            printf '%s\n' 'Unsupported #1353 command syntax.' >&2
             exit 64
           fi
 

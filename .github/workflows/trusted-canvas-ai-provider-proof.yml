@@ -296,9 +296,11 @@ jobs:
             evidence_status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
             failure_phase="$(jq -r '.failure_phase // "none"' "$result_file")"
           fi
-          echo "evidence_status=$evidence_status" >> "$GITHUB_OUTPUT"
-          echo "failure_phase=$failure_phase" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=agency-canvas-ai-provider-proof-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          {
+            echo "evidence_status=$evidence_status"
+            echo "failure_phase=$failure_phase"
+            echo "artifact_name=agency-canvas-ai-provider-proof-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload bounded Canvas AI evidence
         if: ${{ always() }}

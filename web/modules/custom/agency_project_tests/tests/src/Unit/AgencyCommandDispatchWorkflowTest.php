@@ -654,7 +654,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * #1362 keeps the restored provider route exact, reusable and fail closed.
+   * Restored #1362 provider route stays exact, reusable and fail closed.
    */
   public function testCanvasAiProviderProofRouteIsBoundedAndJitValidated(): void {
     $workflowPath = '.github/workflows/trusted-canvas-ai-provider-proof.yml';

@@ -194,6 +194,10 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $generate,
     );
     self::assertStringContainsString(
+      '--workspace "$GITHUB_WORKSPACE"',
+      $generate,
+    );
+    self::assertStringContainsString(
       'ddev stop --unlist --omit-snapshot "$stale_project"',
       $generate,
     );
@@ -239,7 +243,30 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       'agency-composer-[0-9]+-[0-9]+',
       $script,
     );
-    self::assertStringContainsString('_PATTERN.findall(item)', $script);
+    self::assertStringContainsString(
+      '_COMPOSER_PATTERN.findall(item)',
+      $script,
+    );
+    self::assertStringContainsString(
+      '_PARENT_PROJECT = "agency-website-drupal"',
+      $script,
+    );
+    self::assertStringContainsString(
+      '_ROOT_KEYS = ("approot", "root")',
+      $script,
+    );
+    self::assertStringContainsString(
+      'observed_parent_roots == {expected_root}',
+      $script,
+    );
+    self::assertStringContainsString(
+      'Multiple roots found for agency-website-drupal',
+      $script,
+    );
+    self::assertStringContainsString(
+      'Exact parent DDEV registration is missing approot/root.',
+      $script,
+    );
     self::assertStringContainsString('decoder.raw_decode(raw, offset)', $script);
     self::assertStringContainsString(
       'Non-JSON data in DDEV output',

@@ -132,15 +132,12 @@ fpm84_pool="$(jq -r '.FPM84_POOL_PATH' "$APPROVED_PLAN")"
 [[ "$fpm84_pool" =~ ^/etc/php/8\.4/fpm/pool\.d/[A-Za-z0-9._-]+\.conf$ ]]
 fpm85_pool="/etc/php/8.5/fpm/pool.d/$(basename "$fpm84_pool")"
 
-work_root="$(mktemp -d /root/agency-prod-php85-1353.XXXXXX)"
-backup_root="/var/backups/agency/php85-1353-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+backup_root="/var/backups/agency/php85-1353-$(date -u +%Y%m%dT%H%M%SZ)-$"
 install -d -m 700 "$backup_root" "$CONSUMED_ROOT"
 
-cleanup() {
-  rm -rf -- "$work_root" "$CAPABILITY_STATE"
-  rm -f -- "$CAPABILITY_SUDOERS" "$CAPABILITY_HELPER"
-}
-trap cleanup EXIT
+STALE_PLAN='NOT_REACHED'
+EXACT_PACKAGE_SIMULATION='NOT_REACHED'
+PACKAGE_APPLY='NOT_STARTED'
 
 emit_failure() {
   local rollback="$1"
@@ -149,9 +146,14 @@ emit_failure() {
     --arg digest "$EXPECTED_DIGEST" \
     --arg rollback "$rollback" \
     --arg backup "$backup_root" \
+    --arg stale "$STALE_PLAN" \
+    --arg simulation "$EXACT_PACKAGE_SIMULATION" \
+    --arg package_apply "$PACKAGE_APPLY" \
     '{
       STATUS:"FAIL",ISSUE:1353,TARGET:"PROD",MODE:"APPLY",
       MAIN_SHA:$main,PLAN_DIGEST:$digest,ROLLBACK:$rollback,
+      STALE_PLAN:$stale,EXACT_PACKAGE_SIMULATION:$simulation,
+      PACKAGE_APPLY:$package_apply,
       SYSTEM_CONFIG_BACKUP:$backup,PHP84_REMOVAL:"NONE",
       DRUPAL_DEPLOY:"NONE",DRUPAL_CONFIG_IMPORT:"NONE",
       DB_MUTATION:"NONE",OS_UPGRADE:"NONE",MARIADB_CHANGE:"NONE"
@@ -173,6 +175,7 @@ jq -e --arg old "$old_socket" --arg nginx "$nginx_vhost" --arg pool "$fpm84_pool
   and .ROLLBACK_PHP84_AVAILABLE == "YES"
   and .NGINX_FASTCGI_PASS_VALUES == ["unix:" + $old]
   and .FPM84_POOL_CONTRACT == "YES"' "$work_root/current-plan.json" >/dev/null
+STALE_PLAN='PASS'
 
 mapfile -t package_specs < <(
   jq -r '.REQUESTED_PACKAGE_ALLOWLIST[] as $pkg | "\($pkg)=\(.PHP85_PACKAGE_CANDIDATES[$pkg])"' "$APPROVED_PLAN"
@@ -212,6 +215,7 @@ if upgrades != approved['PACKAGE_UPGRADES']:
 if removals != approved['PACKAGE_REMOVALS']:
     raise SystemExit('Exact apply simulation removal drift')
 PY_SIM
+EXACT_PACKAGE_SIMULATION='PASS'
 
 # Host-local replay guard complements the GitHub one-shot consumption marker.
 consumed="$CONSUMED_ROOT/$EXPECTED_DIGEST"
@@ -229,6 +233,7 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y "${package_specs[@]}" > "$work_root/apt-install.log" 2>&1
+PACKAGE_APPLY='PASS'
 
 # PHP 8.4 remains installed and active as the rollback runtime.
 for package in php8.4-cli php8.4-fpm; do
@@ -391,11 +396,14 @@ jq -n \
   --arg backup "$backup_root" \
   --arg old_socket "$old_socket" \
   --arg new_socket "$new_socket" \
+  --arg stale "$STALE_PLAN" \
+  --arg simulation "$EXACT_PACKAGE_SIMULATION" \
+  --arg package_apply "$PACKAGE_APPLY" \
   '{
     STATUS:"PASS",ISSUE:1353,TARGET:"PROD",MODE:"APPLY",
     MAIN_SHA:$main,PLAN_DIGEST:$digest,
-    STALE_PLAN:"PASS",EXACT_PACKAGE_SIMULATION:"PASS",
-    PACKAGE_APPLY:"PASS",PHP85_FPM:"ACTIVE",
+    STALE_PLAN:$stale,EXACT_PACKAGE_SIMULATION:$simulation,
+    PACKAGE_APPLY:$package_apply,PHP85_FPM:"ACTIVE",
     PHP85_OPCACHE_AVAILABLE:"PASS",
     PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE",
     FPM85_CONTRACT:"PASS",

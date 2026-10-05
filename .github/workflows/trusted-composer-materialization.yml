@@ -255,6 +255,7 @@ jobs:
           set -euo pipefail
           ddev list --json-output 2>&1 \
             | python3 trusted/scripts/runner/extract-stale-composer-ddev-projects.py \
+                --workspace "$GITHUB_WORKSPACE" \
             > /tmp/stale-composer-projects.txt
 
           while IFS= read -r stale_project; do

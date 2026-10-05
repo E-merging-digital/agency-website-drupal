@@ -32,6 +32,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => '.github/workflows/preprod-editorial-image-rehydrate-971.yml',
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => '.github/workflows/config-sync-runtime-diagnostic.yml',
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => '.github/workflows/prod-config-sync-runtime-diagnostic.yml',
+    'CANVAS_AI_PROVIDER_PROOF_530' => '.github/workflows/trusted-canvas-ai-provider-proof.yml',
     'INFRA_COCKPIT_CONSUMER_PROOF' => '.github/workflows/infrastructure-cockpit-consumer-proof.yml',
   ];
 
@@ -45,6 +46,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1318],
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1301, 1302],
+    'CANVAS_AI_PROVIDER_PROOF_530' => 530,
     'INFRA_COCKPIT_CONSUMER_PROOF' => 1261,
   ];
 
@@ -76,7 +78,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(15, $routes);
+    self::assertCount(16, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -212,6 +214,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
       ],
       [
+        "/agency-canvas-ai-provider-proof run pr=533 sha={$sha40}",
+        530,
+        'CANVAS_AI_PROVIDER_PROOF_530',
+      ],
+      [
         "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40} "
         . "session=0123456789abcdef pubkey={$sha64}",
         1261,
@@ -263,6 +270,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-config-language-lock-prod diagnose', 995],
       ['/agency-config-language-lock-prod diagnose', 1301],
       ['/agency-config-language-lock-prod diagnose', 1303],
+      ["/agency-canvas-ai-provider-proof run pr=533 sha={$sha40}", 529],
+      ["/agency-canvas-ai-provider-proof run pr=533 sha={$sha40}", 531],
       [
         "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40} "
         . "session=0123456789abcdef pubkey={$sha64}",
@@ -298,6 +307,9 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '/agency-config-sync-runtime diagnose target=PROD',
       '/agency-config-sync-prod-runtime diagnose now',
       '/agency-config-sync-prod-runtime diagnose target=PREPROD',
+      '/agency-canvas-ai-provider-proof run pr=532 sha=' . $sha40,
+      '/agency-canvas-ai-provider-proof run pr=533 sha=BAD',
+      '/agency-canvas-ai-provider-proof inspect pr=533 sha=' . $sha40,
       '/agency-infra-cockpit-consumer prove main=BAD infra=' . $sha40
       . ' release=' . $sha40 . ' session=0123456789abcdef pubkey=' . $sha64,
       '/agency-infra-cockpit-consumer prove main=' . $sha40
@@ -366,6 +378,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
+      "'CANVAS_AI_PROVIDER_PROOF_530': '530'",
+      $source,
+    );
+    self::assertStringContainsString(
       "'INFRA_COCKPIT_CONSUMER_PROOF': '1261'",
       $source,
     );
@@ -387,6 +403,40 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertStringContainsString("comment_author != 'E-merging-digital'", $source);
     self::assertStringContainsString("comment_author_association != 'OWNER'", $source);
     self::assertStringContainsString('or comment_from_app', $source);
+
+    self::assertSame(
+      'CANVAS_AI_PROVIDER_PROOF_530',
+      $this->classify(
+        $routes,
+        "/agency-canvas-ai-provider-proof run pr=533 sha={$sha40}",
+        530,
+        'E-merging-digital',
+        'OWNER',
+        FALSE,
+      ),
+    );
+    self::assertSame(
+      'NONE',
+      $this->classify(
+        $routes,
+        "/agency-canvas-ai-provider-proof run pr=533 sha={$sha40}",
+        530,
+        'other-user',
+        'CONTRIBUTOR',
+        FALSE,
+      ),
+    );
+    self::assertSame(
+      'NONE',
+      $this->classify(
+        $routes,
+        "/agency-canvas-ai-provider-proof run pr=533 sha={$sha40}",
+        530,
+        'E-merging-digital',
+        'OWNER',
+        TRUE,
+      ),
+    );
 
     self::assertSame(
       'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC',
@@ -484,6 +534,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
       'PREPROD_SERVER_HOST',
     ];
+    $canvasAiSecrets = ['OPENAI_API_KEY'];
     $jobMap = [
       'production-promote' => [
         'PRODUCTION_PROMOTE',
@@ -560,6 +611,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         ['contents' => 'read', 'issues' => 'write'],
         $prodSecrets,
       ],
+      'canvas-ai-provider-proof-530' => [
+        'CANVAS_AI_PROVIDER_PROOF_530',
+        ['contents' => 'read', 'issues' => 'read', 'pull-requests' => 'write'],
+        $canvasAiSecrets,
+      ],
       'infrastructure-cockpit-consumer-proof' => [
         'INFRA_COCKPIT_CONSUMER_PROOF',
         ['contents' => 'read', 'issues' => 'write'],
@@ -598,6 +654,61 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
+   * #1362 keeps the restored provider route exact, reusable and fail closed.
+   */
+  public function testCanvasAiProviderProofRouteIsBoundedAndJitValidated(): void {
+    $workflowPath = '.github/workflows/trusted-canvas-ai-provider-proof.yml';
+    $workflow = $this->parsed($workflowPath);
+    $source = $this->source($workflowPath);
+    $on = $workflow['on'] ?? NULL;
+    self::assertIsArray($on);
+    self::assertArrayHasKey('workflow_call', $on);
+    self::assertArrayNotHasKey('issue_comment', $on);
+    self::assertSame(
+      ['OPENAI_API_KEY'],
+      array_keys($on['workflow_call']['secrets'] ?? []),
+    );
+    self::assertTrue(
+      $on['workflow_call']['secrets']['OPENAI_API_KEY']['required'] ?? FALSE,
+    );
+
+    foreach ([
+      'test "$ISSUE_NUMBER" = \'530\'',
+      'test "$COMMENT_AUTHOR" = \'E-merging-digital\'',
+      'test "$COMMENT_AUTHOR_ASSOCIATION" = \'OWNER\'',
+      'test "$COMMENT_FROM_APP" = \'false\'',
+      '^/agency-canvas-ai-provider-proof\\ run\\ pr=533\\ sha=([0-9a-f]{40})$',
+      'repos/$GITHUB_REPOSITORY/issues/530',
+      'repos/$GITHUB_REPOSITORY/pulls/533',
+      'test "$head_sha" = "$requested_sha"',
+      'test "$(jq -r \'.head.sha\' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"',
+      'persist-credentials: false',
+      'PROVIDER_SECRET: ${{ secrets.OPENAI_API_KEY }}',
+      'npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs --project=desktop --workers=1',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
+    foreach ([
+      'issue_comment:',
+      'workflow_dispatch:',
+      'secrets: inherit',
+      'SSH_PRIVATE_KEY',
+      'PREPROD_SERVER_HOST',
+      'SERVER_HOST',
+      'workflow inputs',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $source);
+    }
+
+    $jit = strpos($source, 'JIT revalidate #530 and exact live #533 HEAD before secret exposure');
+    $secret = strpos($source, 'PROVIDER_SECRET: ${{ secrets.OPENAI_API_KEY }}');
+    self::assertNotFalse($jit);
+    self::assertNotFalse($secret);
+    self::assertLessThan($secret, $jit);
+  }
+
+  /**
    * Classifies one body with the repository-owned route table.
    */
   private function classify(
@@ -618,6 +729,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         }
       }
       elseif ($requiredIssue !== NULL && $issue !== $requiredIssue) {
+        continue;
+      }
+      if (
+        $routeName === 'CANVAS_AI_PROVIDER_PROOF_530'
+        && (
+          $commentAuthor !== 'E-merging-digital'
+          || $commentAuthorAssociation !== 'OWNER'
+          || $commentFromApp
+        )
+      ) {
         continue;
       }
       if ($routeName === 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC') {

@@ -23,6 +23,7 @@ env:
       {"route":"PREPROD_EDITORIAL_IMAGE_REHYDRATE_971","prefix":"/agency-preprod-image-rehydrate ","exact":["/agency-preprod-image-rehydrate dry-run","/agency-preprod-image-rehydrate apply"]},
       {"route":"CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-runtime ","exact":["/agency-config-sync-runtime diagnose"]},
       {"route":"PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-prod-runtime ","exact":["/agency-config-sync-prod-runtime diagnose","/agency-config-language-lock-prod diagnose"]},
+      {"route":"CANVAS_AI_PROVIDER_PROOF_530","prefix":"/agency-canvas-ai-provider-proof ","regex":"^/agency-canvas-ai-provider-proof run pr=533 sha=[0-9a-f]{40}$"},
       {"route":"INFRA_COCKPIT_CONSUMER_PROOF","prefix":"/agency-infra-cockpit-consumer ","regex":"^/agency-infra-cockpit-consumer prove main=[0-9a-f]{40} infra=[0-9a-f]{40} release=[0-9a-f]{40} session=[0-9a-f]{16} pubkey=[0-9a-f]{64}$"}
     ]
 
@@ -77,6 +78,7 @@ jobs:
               'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
               'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1318'),
               'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301', '1302'),
+              'CANVAS_AI_PROVIDER_PROOF_530': '530',
               'INFRA_COCKPIT_CONSUMER_PROOF': '1261',
           }
           route = 'NONE'
@@ -88,6 +90,12 @@ jobs:
                       if issue not in required_issue:
                           continue
                   elif required_issue is not None and issue != required_issue:
+                      continue
+                  if spec['route'] == 'CANVAS_AI_PROVIDER_PROOF_530' and (
+                      comment_author != 'E-merging-digital'
+                      or comment_author_association != 'OWNER'
+                      or comment_from_app
+                  ):
                       continue
                   if spec['route'] == 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC':
                       language_lock_command = '/agency-config-language-lock-prod diagnose'
@@ -380,6 +388,18 @@ jobs:
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  canvas-ai-provider-proof-530:
+    name: Route #530 bounded Canvas AI provider proof
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'CANVAS_AI_PROVIDER_PROOF_530' }}
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    uses: ./.github/workflows/trusted-canvas-ai-provider-proof.yml
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
   prod-config-sync-runtime-diagnostic:
     name: Route #982/#995/#1301/#1302 read-only PROD config diagnostic

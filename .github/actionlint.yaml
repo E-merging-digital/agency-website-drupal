@@ -2,6 +2,7 @@ self-hosted-runner:
   labels:
     - agency
     - ddev
+    - browser
 
 paths:
   .github/workflows/promote-production.yml:
@@ -18,3 +19,6 @@ paths:
   .github/workflows/trusted-editorial-feature-image.yml:
     ignore:
       - 'shellcheck reported issue in this script: SC2016:info:15:8:'
+  .github/workflows/trusted-canvas-ai-provider-proof.yml:
+    ignore:
+      - 'shellcheck reported issue in this script: SC2016:info:17:21:'

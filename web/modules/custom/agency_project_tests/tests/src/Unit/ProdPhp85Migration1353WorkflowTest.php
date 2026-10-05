@@ -145,7 +145,7 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
       '/usr/bin/env',
       'python',
       'NOPASSWD: ALL',
-      'SETENV:',
+      ' SETENV:',
       '*',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $template);

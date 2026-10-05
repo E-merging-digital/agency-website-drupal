@@ -18,6 +18,11 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
   private const WORKFLOW = '.github/workflows/prod-php85-migration-1353.yml';
   private const PLAN = 'scripts/production-php85-1353/remote-plan.sh';
   private const APPLY = 'scripts/production-php85-1353/remote-apply-root.sh';
+  private const CAPABILITY_DIR = 'scripts/production-php85-1353/capability';
+  private const SUDOERS_TEMPLATE = self::CAPABILITY_DIR . '/agency-prod-php85-1353.sudoers.template';
+  private const RENDER_SUDOERS = self::CAPABILITY_DIR . '/render-sudoers.sh';
+  private const PREPARE_BOOTSTRAP = self::CAPABILITY_DIR . '/prepare-human-bootstrap.sh';
+  private const VERIFY_INSTALLED = self::CAPABILITY_DIR . '/verify-installed-root.sh';
 
   /**
    * Dispatcher keeps separate direct OWNER PLAN and APPLY routes.
@@ -62,7 +67,7 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
   /**
    * Workflow binds APPLY to exact immutable PLAN and one-shot consumption.
    */
-  public function testWorkflowAppliesOnlyExactOneShotApprovedPlan(): void {
+  public function testWorkflowPreservesGatesAndForbidsSelfBootstrap(): void {
     $workflow = $this->parsed(self::WORKFLOW);
     $source = $this->source(self::WORKFLOW);
     $on = $workflow['on'] ?? [];
@@ -82,7 +87,7 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
       'test "$COMMENT_ASSOCIATION" = \'OWNER\'',
       'test "$COMMENT_VIA_APP" = \'false\'',
       'test "$WORKFLOW_SHA" = "$main_sha"',
-      "^/agency-prod-php85-1353\\ apply\\ plan_run=([1-9][0-9]*)\\ plan_digest=([0-9a-f]{64})$",
+      "^/agency-prod-php85-1353\\\\ apply\\\\ plan_run=([1-9][0-9]*)\\\\ plan_digest=([0-9a-f]{64})$",
       "'.github/workflows/agency-command-dispatch.yml'",
       "'.conclusion' <<<",
       "'.event' <<<",
@@ -95,21 +100,91 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
       'Approved #1353 PLAN run is already consumed.',
       'live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main"',
       'test "$live_main" = "$MAIN_SHA"',
-      'scripts/production-php85-1353/remote-apply-root.sh',
-      '/usr/local/sbin/agency-prod-php85-1353-apply',
-      '/etc/sudoers.d/agency-prod-php85-1353',
-      'sudo -k -n -- "$helper_dest"',
+      "helper='/usr/local/sbin/agency-prod-php85-1353-apply'",
+      'sudo -k -n -- "$helper" CHECK',
+      'FAILURE_STAGE:"HUMAN_BOOTSTRAP_REQUIRED"',
+      'STALE_PLAN:"NOT_REACHED"',
+      'EXACT_PACKAGE_SIMULATION:"NOT_REACHED"',
+      'PACKAGE_APPLY:"NOT_STARTED"',
+      'sudo -k -n -- "$helper" APPLY',
     ] as $required) {
       self::assertStringContainsString($required, $source);
     }
 
     foreach ([
-      'PREPROD_PROVISIONING_SSH_PRIVATE_KEY',
+      'sudo -k -n -- /usr/bin/install',
+      'sudo -k -n -- /usr/sbin/visudo',
+      'sudo -n -- /usr/bin/install',
+      'sudo -n -- /usr/sbin/visudo',
+      'NOPASSWD: ALL',
+      'NOPASSWD: /usr/bin/install',
+      'NOPASSWD: /usr/sbin/visudo',
       'root@$SERVER_HOST',
+      'scripts/production-php85-1353/remote-apply-root.sh',
       'do-release-upgrade',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $source);
     }
+  }
+
+  /**
+   * Human/admin bootstrap is fixed-purpose and independently bounded.
+   */
+  public function testHumanBootstrapContractIsFixedPurpose(): void {
+    $template = trim($this->source(self::SUDOERS_TEMPLATE));
+    self::assertSame(
+      "__SERVER_USER__ ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-php85-1353-apply CHECK\n"
+      . "__SERVER_USER__ ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-php85-1353-apply APPLY",
+      $template,
+    );
+    foreach ([
+      '/usr/bin/install',
+      '/usr/sbin/visudo',
+      '/bin/sh',
+      '/bin/bash',
+      '/usr/bin/env',
+      'python',
+      'NOPASSWD: ALL',
+      'SETENV:',
+      '*',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $template);
+    }
+
+    $render = dirname(DRUPAL_ROOT) . '/' . self::RENDER_SUDOERS;
+    $output = [];
+    $status = 1;
+    exec('bash ' . escapeshellarg($render) . ' agency1353test 2>&1', $output, $status);
+    self::assertSame(0, $status, implode("\n", $output));
+    self::assertSame([
+      'agency1353test ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-php85-1353-apply CHECK',
+      'agency1353test ALL=(root) NOPASSWD: NOSETENV: /usr/local/sbin/agency-prod-php85-1353-apply APPLY',
+    ], $output);
+
+    $prepare = $this->source(self::PREPARE_BOOTSTRAP);
+    foreach ([
+      'BOUNDARY=HUMAN_ADMIN_BOOTSTRAP',
+      'HELPER_SOURCE_SHA256=$(sha256sum',
+      'PLAN_SCRIPT_SOURCE_SHA256=$(sha256sum',
+      'RENDERED_SUDOERS_SHA256=$(sha256sum',
+      '/usr/sbin/visudo -cf "$OUTPUT_DIR/agency-prod-php85-1353.sudoers"',
+      'GENERIC_ROOT_CAPABILITY=NONE',
+    ] as $required) {
+      self::assertStringContainsString($required, $prepare);
+    }
+    self::assertStringNotContainsString('sudo ', $prepare);
+
+    $verify = $this->source(self::VERIFY_INSTALLED);
+    foreach ([
+      'root:root:755',
+      'root:root:440',
+      '/usr/sbin/visudo -cf "$SUDOERS"',
+      'runuser -u "$EXPECTED_USER" -- sudo -k -n -- "$HELPER" CHECK',
+      'GENERIC_ROOT_CAPABILITY=NONE',
+    ] as $required) {
+      self::assertStringContainsString($required, $verify);
+    }
+    self::assertStringNotContainsString('/usr/bin/install', $verify);
   }
 
   /**
@@ -166,24 +241,28 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
   /**
    * APPLY keeps exact stale-plan/package identity and PHP 8.4 rollback.
    */
-  public function testApplyEnforcesStalePlanPackageAndPhp84RollbackContract(): void {
+  public function testApplyPreservesSafetyAndHasNoSelfBootstrap(): void {
     $apply = $this->source(self::APPLY);
 
     foreach ([
-      "ISSUE='1353'",
-      "TARGET='PROD'",
-      'CAPABILITY_HELPER=\'/usr/local/sbin/agency-prod-php85-1353-apply\'',
-      'CONSUMED_ROOT=\'/var/lib/agency-prod-php85-1353-consumed\'',
+      'MODE="${1:-}"',
+      "CAPABILITY_HELPER='/usr/local/sbin/agency-prod-php85-1353-apply'",
+      'CAPABILITY_PLAN_SCRIPT="$CAPABILITY_LIB/remote-plan.sh"',
+      "CAPABILITY_SUDOERS='/etc/sudoers.d/agency-prod-php85-1353'",
+      "EXPECTED_PLAN_SCRIPT_SHA256='b6aee65d3fb0d978843bd6f3612130a00c6ba6eeaa28ccbab978958efcfc947e'",
+      'FAILURE_STAGE=HUMAN_BOOTSTRAP_REQUIRED',
+      'CAPABILITY_SCOPE=FIXED_PURPOSE_ONLY',
       '"$PLAN_SCRIPT" "$EXPECTED_MAIN" "$plan_id"',
-      'test "$(jq -r \'.PLAN_DIGEST\' "$work_root/current-plan.json")" = "$EXPECTED_DIGEST"',
+      "STALE_PLAN='PASS'",
       'apt-get --simulate install "${package_specs[@]}"',
+      "EXACT_PACKAGE_SIMULATION='PASS'",
       'apt-get install -y "${package_specs[@]}"',
-      'dpkg-query -W -f=\'${Status}\' "$package"',
+      "PACKAGE_APPLY='PASS'",
+      "CONSUMED_ROOT='/var/lib/agency-prod-php85-1353-consumed'",
       'systemctl is-active --quiet php8.4-fpm',
       'php-fpm8.5 -t',
       'systemctl enable --now php8.5-fpm',
       'systemctl restart php8.5-fpm',
-      'FPM85_CONTRACT:"PASS"',
       'PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE"',
       'PHP84_REMOVAL:"NONE"',
     ] as $required) {
@@ -200,6 +279,10 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
     self::assertLessThan($install, $simulate);
 
     foreach ([
+      'sudo ',
+      'CAPABILITY_STATE',
+      'rm -f -- "$CAPABILITY_SUDOERS"',
+      'rm -f -- "$CAPABILITY_HELPER"',
       'apt-get remove',
       'apt-get purge',
       'dpkg --remove',
@@ -254,7 +337,7 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
    * PLAN and APPLY shells remain syntactically valid.
    */
   public function testShellSyntax(): void {
-    foreach ([self::PLAN, self::APPLY] as $relative) {
+    foreach ([self::PLAN, self::APPLY, self::RENDER_SUDOERS, self::PREPARE_BOOTSTRAP, self::VERIFY_INSTALLED] as $relative) {
       $path = dirname(DRUPAL_ROOT) . '/' . $relative;
       $output = [];
       $status = 1;

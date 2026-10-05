@@ -87,7 +87,7 @@ final class ProdPhp85Migration1353WorkflowTest extends TestCase {
       'test "$COMMENT_ASSOCIATION" = \'OWNER\'',
       'test "$COMMENT_VIA_APP" = \'false\'',
       'test "$WORKFLOW_SHA" = "$main_sha"',
-      "^/agency-prod-php85-1353\\\\ apply\\\\ plan_run=([1-9][0-9]*)\\\\ plan_digest=([0-9a-f]{64})$",
+      "^/agency-prod-php85-1353\\ apply\\ plan_run=([1-9][0-9]*)\\ plan_digest=([0-9a-f]{64})$",
       "'.github/workflows/agency-command-dispatch.yml'",
       "'.conclusion' <<<",
       "'.event' <<<",

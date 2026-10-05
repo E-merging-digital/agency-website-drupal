@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "issue_number": 899,
+  "profile_id": "agency-preprod-temp-key-add-v1",
+  "implementation_only": true,
+  "fixed_target": {
+    "ssh_user": "agency-preprod",
+    "authorized_keys": "/home/agency-preprod/.ssh/authorized_keys",
+    "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIArdJ26K9/VGRXKED9m9/dji80VjuY+0NTC9ANRV25fP agency-preprod-temp-2026-08-31",
+    "fingerprint": "SHA256:xMkx4EF3Hu7b77DAYNwSW5iO0/VHwT/k2Ff25FhNxYg",
+    "action": "ADD"
+  },
+  "future_execution": {
+    "requires_successor_issue": true,
+    "runner": "ubuntu-24.04",
+    "ssh_secret": "PREPROD_SSH_PRIVATE_KEY",
+    "host_secret": "PREPROD_SERVER_HOST",
+    "root_secret": "FORBIDDEN",
+    "sudo": "FORBIDDEN",
+    "remove_action": "NOT_IMPLEMENTED"
+  },
+  "boundaries": {
+    "caller_supplied_key": false,
+    "caller_supplied_user": false,
+    "caller_supplied_path": false,
+    "caller_supplied_command": false,
+    "strict_host_key_checking": true,
+    "ssh_keyscan": "FORBIDDEN",
+    "authorized_keys_truncation": "FORBIDDEN",
+    "real_preprod_key_add_issue_899": "FORBIDDEN",
+    "mariadb": "FORBIDDEN",
+    "prod_access": "FORBIDDEN",
+    "data_activation_authority": "DISABLED"
+  }
+}

@@ -39,8 +39,8 @@ final class ProductionDeployRuntimePermissionsTest extends TestCase {
     foreach ([
       'normalize_runtime_permissions()',
       'chmod a+rx "$NEW_RELEASE"',
-      'find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type d -exec chmod a+rx {} +',
-      'find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type f -exec chmod a+r {} +',
+      'find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type d -exec chmod a+rx {} +',
+      'find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type f -exec chmod a+r {} +',
       'assert_runtime_directory_accessible',
       'assert_runtime_file_readable',
       '"$NEW_RELEASE/web/index.php" "$NEW_RELEASE/web/robots.txt"',

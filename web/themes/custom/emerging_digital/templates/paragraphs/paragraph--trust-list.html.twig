@@ -7,7 +7,7 @@
 {% endfor %}
 
 {{ include('emerging_digital:trust-list', {
-  attributes: attributes,
+  attributes,
   heading: paragraph.field_heading.value|default(''),
   items: trust_items,
-}, with_context = false) }}
+}, with_context: false) }}

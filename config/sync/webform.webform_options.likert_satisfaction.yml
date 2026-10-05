@@ -11,9 +11,4 @@ id: likert_satisfaction
 label: 'Likert: Satisfaction'
 category: Likert
 likert: true
-options: |
-  1: Very Unsatisfied
-  2: Unsatisfied
-  3: Neutral
-  4: Satisfied
-  5: Very Satisfied
+options: "1: Très insatisfait\r\n2: Insatisfait\r\n3: Neutre\r\n4: Satisfait\r\n5: Très satisfait\n"

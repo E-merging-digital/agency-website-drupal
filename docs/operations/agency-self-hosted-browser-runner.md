@@ -45,7 +45,8 @@ GitHub Actions runner= 2.336.0
 Docker               = 29.7.2
 DDEV                 = 1.25.3
 MariaDB              = 11.8
-PHP                  = 8.4
+DDEV Drupal PHP       = 8.4
+Host verifier PHP     = live repair pending; durable contract requires explicit PHP 8.4
 Node browser jobs    = 24 via actions/setup-node
 Chromium             = Playwright-managed
 ```
@@ -273,6 +274,14 @@ Runner installation:
 The live runner is already provisioned. Registration tokens are ephemeral and
 must never be committed. The provisioning documentation is retained for
 recovery/rebuild, not as a pending manual setup step.
+
+The durable source contract provisions explicit `php8.4-cli` for Development
+Seed host-side verification. On Ubuntu 24.04 it reuses the same bounded
+`ppa:ondrej/php` fallback already used by the PREPROD bootstrap when PHP 8.4 is
+not available from configured repositories. The Development Seed publisher calls
+`php8.4` explicitly and does not change the host's generic `php` alternative.
+The live runner repair remains a separate Project Lead operation after merge.
+DDEV continues to own the Drupal PHP 8.4 runtime independently.
 
 ## 11. Merge-gate policy
 

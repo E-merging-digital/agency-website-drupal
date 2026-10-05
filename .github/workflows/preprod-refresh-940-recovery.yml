@@ -1,0 +1,223 @@
+name: "#943 Bounded #940 residual root-stage recovery"
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_PROVISIONING_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: agency-preprod-refresh-940-root-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: >-
+      ${{ github.event_name == 'issue_comment' && github.event.issue.pull_request == null &&
+          github.event.issue.number == 943 && github.event.comment.user.login == 'E-merging-digital' &&
+          github.actor == 'E-merging-digital' &&
+          (github.event.comment.body == '/agency-preprod-refresh-940-recovery plan' ||
+           github.event.comment.body == '/agency-preprod-refresh-940-recovery cleanup') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - id: live
+        name: Resolve exact live main without secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live" =~ ^[0-9a-f]{40}$ ]]
+          printf 'main_sha=%s\n' "$live" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.live.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - id: action
+        name: JIT validate exact #943 recovery authority before root SSH secret
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EVENT_ACTION: ${{ github.event.action }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = issue_comment
+          test "$EVENT_ACTION" = created
+          test "$ISSUE_NUMBER" = 943
+          test "$COMMENT_AUTHOR" = E-merging-digital
+          test "$GITHUB_ACTOR" = E-merging-digital
+          case "$COMMENT_BODY" in
+            '/agency-preprod-refresh-940-recovery plan') action=PLAN ;;
+            '/agency-preprod-refresh-940-recovery cleanup') action=CLEANUP ;;
+            *) exit 64 ;;
+          esac
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$live" = '${{ steps.live.outputs.main_sha }}'
+          test "$(git rev-parse HEAD)" = "$live"
+          issue_state="$(gh api "repos/$GITHUB_REPOSITORY/issues/943" --jq '.state')"
+          test "$issue_state" = open
+          test -f scripts/preproduction-refresh/governed-successor/recover-940-residual-root-stage.py
+          test ! -L scripts/preproduction-refresh/governed-successor/recover-940-residual-root-stage.py
+          printf 'action=%s\n' "$action" >> "$GITHUB_OUTPUT"
+
+      - name: Validate pinned PREPROD SSH trust
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$PREPROD_SERVER_HOST" ]]
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            PREPROD_KNOWN_HOSTS_FILE="$HOME/.ssh/known_hosts" \
+            bash scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh >/dev/null
+
+      - name: Materialize transient fixed PREPROD root recovery identity after JIT
+        env:
+          PREPROD_ROOT_KEY: ${{ secrets.PREPROD_PROVISIONING_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "$PREPROD_ROOT_KEY" ]]
+          printf '%s\n' "$PREPROD_ROOT_KEY" > "$RUNNER_TEMP/agency-943-preprod-root.key"
+          chmod 600 "$RUNNER_TEMP/agency-943-preprod-root.key"
+
+      - name: Execute exact hard-bounded #943 PLAN or cleanup program
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          ACTION: ${{ steps.action.outputs.action }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          capability='scripts/preproduction-refresh/governed-successor/recover-940-residual-root-stage.py'
+          key="$RUNNER_TEMP/agency-943-preprod-root.key"
+          output="$RUNNER_TEMP/agency-943-result.env"
+          [[ -f "$capability" && ! -L "$capability" && -f "$key" && ! -L "$key" ]]
+
+          set +e
+          if [[ "$ACTION" == PLAN ]]; then
+            timeout 30s ssh \
+              -i "$key" \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              -o ConnectTimeout=10 \
+              -o ServerAliveInterval=5 \
+              -o ServerAliveCountMax=2 \
+              "root@$PREPROD_SERVER_HOST" \
+              'python3 -I - PLAN' < "$capability" > "$output" 2>/dev/null
+            action_status=$?
+          elif [[ "$ACTION" == CLEANUP ]]; then
+            timeout 30s ssh \
+              -i "$key" \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              -o ConnectTimeout=10 \
+              -o ServerAliveInterval=5 \
+              -o ServerAliveCountMax=2 \
+              "root@$PREPROD_SERVER_HOST" \
+              'python3 -I - CLEANUP' < "$capability" > "$output" 2>/dev/null
+            action_status=$?
+          else
+            action_status=64
+          fi
+          set -e
+          if [[ "$action_status" -eq 124 ]]; then
+            echo 'Recovery SSH operation exceeded the hard 30-second wall-clock bound.' >&2
+            exit 75
+          fi
+
+          python3 - "$output" "$ACTION" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          action = sys.argv[2]
+          data = path.read_bytes()
+          if len(data) > 4096:
+              raise SystemExit('Recovery output exceeds bounded size.')
+          pairs = {}
+          for line in data.decode('ascii').splitlines():
+              if not line or not re.fullmatch(r'[A-Za-z0-9_]+=[A-Za-z0-9._:-]{1,160}', line):
+                  raise SystemExit('Recovery output contains an unsafe line.')
+              key, value = line.split('=', 1)
+              if key in pairs:
+                  raise SystemExit('Recovery output contains a duplicate key.')
+              pairs[key] = value
+          expected = {
+              'action', 'schema_version', 'request_id', 'expected_failed_main',
+              'worker_process', 'request_dir', 'refresh_jobs_root',
+              'refresh_jobs_root_owner', 'refresh_jobs_root_mode', 'root_stage',
+              'root_stage_owner_mode', 'root_stage_inventory',
+              'prod_read_identity_file', 'bootstrap_log', 'bootstrap_log_bytes',
+              'raw_staging_scope', 'refresh_lock', 'deploy_lock',
+              'cleanup_eligible', 'root_cause_class', 'cleanup', 'root_stage_after',
+          }
+          if set(pairs) != expected or pairs.get('action') != action:
+              raise SystemExit('Recovery output key/action contract violated.')
+          checks = {
+              'schema_version': r'1',
+              'request_id': r'apply-940-first-real-s2s-r1',
+              'expected_failed_main': r'0b61d56264ad0163cd3bdbd5ea6e07253a155fbb',
+              'worker_process': r'DEAD|ALIVE|UNOBSERVABLE',
+              'request_dir': r'ABSENT|PRESENT|UNSAFE',
+              'refresh_jobs_root': r'ABSENT|PRESENT|UNSAFE',
+              'refresh_jobs_root_owner': r'AGENCY_PREPROD|OTHER|UNOBSERVABLE',
+              'refresh_jobs_root_mode': r'0[0-7]{3}|UNOBSERVABLE',
+              'root_stage': r'PRESENT|ABSENT|UNSAFE',
+              'root_stage_owner_mode': r'EXPECTED|MISMATCH|UNOBSERVABLE',
+              'root_stage_inventory': r'EXACT_EXPECTED_SET|UNEXPECTED|UNOBSERVABLE',
+              'prod_read_identity_file': r'PRESENT_SAFE_METADATA|ABSENT|UNSAFE|UNOBSERVABLE',
+              'bootstrap_log': r'PRESENT|ABSENT|UNOBSERVABLE',
+              'bootstrap_log_bytes': r'[0-9]{1,8}|NONE',
+              'raw_staging_scope': r'ABSENT|PRESENT|UNOBSERVABLE',
+              'refresh_lock': r'FREE|HELD|UNOBSERVABLE',
+              'deploy_lock': r'FREE|HELD|UNOBSERVABLE',
+              'cleanup_eligible': r'YES|NO',
+              'root_cause_class': r'REFRESH_JOBS_ROOT_MISSING|REFRESH_JOBS_ROOT_UNSAFE|EARLY_BOOTSTRAP_OTHER|UNPROVEN',
+          }
+          for key, pattern in checks.items():
+              if re.fullmatch(pattern, pairs[key]) is None:
+                  raise SystemExit(f'Recovery value contract violated for {key}.')
+          if action == 'PLAN':
+              if pairs['cleanup'] != 'NOT_REQUESTED' or pairs['root_stage_after'] != 'UNOBSERVED':
+                  raise SystemExit('PLAN attempted or claimed cleanup.')
+          elif action == 'CLEANUP':
+              if pairs['cleanup'] not in {'COMPLETED', 'FAIL_CLOSED'}:
+                  raise SystemExit('Cleanup outcome is invalid.')
+              if pairs['root_stage_after'] not in {'ABSENT', 'PRESENT', 'UNOBSERVABLE'}:
+                  raise SystemExit('Cleanup postcondition is invalid.')
+              if pairs['cleanup'] == 'COMPLETED' and pairs['root_stage_after'] != 'ABSENT':
+                  raise SystemExit('Cleanup completion lacks absence proof.')
+          else:
+              raise SystemExit('Unknown recovery action.')
+          PY
+
+          while IFS= read -r bounded_line; do
+            printf '%s\n' "$bounded_line"
+          done < "$output"
+          [[ "$action_status" -eq 0 ]]
+
+      - if: ${{ always() }}
+        name: Cleanup runner-only #943 material
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-943-preprod-root.key" "$RUNNER_TEMP/agency-943-result.env"

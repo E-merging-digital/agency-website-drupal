@@ -1,0 +1,31 @@
+#!/bin/bash
+set -Eeuo pipefail
+umask 077
+
+PATH='/usr/sbin:/usr/bin:/sbin:/bin'
+LC_ALL=C
+export PATH LC_ALL
+
+TARGET_KERNEL='6.8.0-139-generic'
+OS_RELEASE='/etc/os-release'
+REBOOT_REQUIRED='/var/run/reboot-required'
+
+fail() {
+  printf 'STATUS=FAIL\n'
+  exit 1
+}
+
+[[ "$#" -eq 0 ]] || fail
+[[ "$EUID" -eq 0 ]] || fail
+[[ -r "$OS_RELEASE" ]] || fail
+
+version_id="$(/usr/bin/awk -F= '$1 == "VERSION_ID" {gsub(/^"|"$/, "", $2); print $2; exit}' "$OS_RELEASE" 2>/dev/null)" || fail
+[[ "$version_id" == '24.04' ]] || fail
+[[ -d "/lib/modules/$TARGET_KERNEL" && ! -L "/lib/modules/$TARGET_KERNEL" ]] || fail
+current_kernel="$(/usr/bin/uname -r 2>/dev/null)" || fail
+[[ "$current_kernel" =~ ^[A-Za-z0-9._+-]+$ ]] || fail
+[[ "$current_kernel" != "$TARGET_KERNEL" ]] || fail
+[[ -f "$REBOOT_REQUIRED" && ! -L "$REBOOT_REQUIRED" ]] || fail
+
+# Clear all caller-controlled environment variables for the exact reboot exec.
+exec -c /usr/bin/systemctl reboot

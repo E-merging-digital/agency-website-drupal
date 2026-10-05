@@ -7,8 +7,8 @@
       <stop offset="1" stop-color="#dbeafe"/>
     </linearGradient>
     <linearGradient id="accent" x1="168" y1="160" x2="548" y2="570" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0f8bff"/>
-      <stop offset="1" stop-color="#89c540"/>
+      <stop stop-color="#286FB6"/>
+      <stop offset="1" stop-color="#77B72E"/>
     </linearGradient>
   </defs>
   <rect x="96" y="78" width="528" height="564" rx="42" fill="url(#panel)" stroke="#b8c7dd" stroke-width="6"/>
@@ -20,7 +20,7 @@
   <path d="M360 250v72M237 464v62M458 464v62M312 393h44" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="12"/>
   <path d="M207 370h62M207 418h42M407 370h102M407 418h78M220 556h280" fill="none" stroke="#1f3b57" stroke-linecap="round" stroke-width="12"/>
   <circle cx="360" cy="250" r="22" fill="url(#accent)"/>
-  <circle cx="237" cy="464" r="18" fill="#10b981"/>
-  <circle cx="458" cy="464" r="18" fill="#0f8bff"/>
+  <circle cx="237" cy="464" r="18" fill="#77B72E"/>
+  <circle cx="458" cy="464" r="18" fill="#286FB6"/>
   <path d="M134 606h68M518 118h68M114 242h54M562 604h48" fill="none" stroke="#7aa4d6" stroke-linecap="round" stroke-width="12" opacity=".75"/>
 </svg>

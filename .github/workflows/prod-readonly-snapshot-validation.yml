@@ -1,0 +1,83 @@
+name: Validate current PROD read-only snapshot primitive
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-914-governed-successor.yml'
+      - '.github/workflows/prod-readonly-snapshot-validation.yml'
+      - 'scripts/preproduction-refresh/governed-successor/run-apply.sh'
+      - 'scripts/production-readonly-snapshot/remote-stream.sh'
+      - 'scripts/production-ssh-trust/manage-known-host.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-snapshot-governance:
+    name: Prove current #914 PROD source stays read-only and raw-data bounded
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Validate current primitive syntax and composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/production-readonly-snapshot/remote-stream.sh
+          bash -n scripts/preproduction-refresh/governed-successor/run-apply.sh
+          python3 - <<'PY'
+          from pathlib import Path
+
+          remote = Path('scripts/production-readonly-snapshot/remote-stream.sh').read_text()
+          apply = Path('scripts/preproduction-refresh/governed-successor/run-apply.sh').read_text()
+          workflow = Path('.github/workflows/preprod-914-governed-successor.yml').read_text()
+
+          required_remote = (
+              "PROJECT_ROOT='/var/www/agency'",
+              'CURRENT_RELEASE="$PROJECT_ROOT/current"',
+              'PROMOTIONS_DIR="$PROJECT_ROOT/shared/promotions"',
+              'current_release="$(readlink -f "$CURRENT_RELEASE")"',
+              "grep -m1 '^release_path='",
+              "grep -m1 '^candidate_sha='",
+              'Current PROD release must map to exactly one promotion receipt.',
+              'Current PROD release identity does not match authorization.',
+              'vendor/bin/drush sql:dump',
+              '--single-transaction',
+              '--quick',
+              '--skip-lock-tables',
+              '--no-tablespaces',
+          )
+          for token in required_remote:
+              assert token in remote, token
+
+          forbidden_remote = (
+              'sql:connect', '--result-file', 'state:set', 'config:import',
+              'config:set', 'config:delete', ' updb', ' cim', 'sql:query',
+              'sql:drop', 'sql:create', 'user:create', 'user:password',
+              'maintenance_mode', 'git checkout', 'ln -sfn',
+          )
+          for token in forbidden_remote:
+              assert token not in remote, token
+          assert 'preprod' not in remote.lower()
+
+          assert "PROD_REMOTE='scripts/production-readonly-snapshot/remote-stream.sh'" in apply
+          assert "PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'" in apply
+          trust = apply.index('bash "$PROD_TRUST" VERIFY_ONLY')
+          snapshot = apply.index('< "$PROD_REMOTE" > "$raw"')
+          raw_import = apply.index('ddev import-db --file="$raw"')
+          sanitize = apply.index('ddev drush sql:sanitize')
+          assert trust < snapshot < raw_import < sanitize
+          assert 'raw="$stage/raw-prod.sql"' in apply
+          assert 'stage="$temp/agency-914-' in apply
+          assert 'temp="$(realpath -m "$RUNNER_TEMP")"' in apply
+          assert 'actions/upload-artifact' not in workflow
+          print('CURRENT_PROD_SNAPSHOT_PRIMITIVE=PASS')
+          print('PROD_WRITE=NONE')
+          print('RAW_PROD_GITHUB_ARTIFACT=NONE')
+          print('RAW_BEFORE_SANITIZE=TRUSTED_INTERNAL_STAGING_ONLY')
+          PY

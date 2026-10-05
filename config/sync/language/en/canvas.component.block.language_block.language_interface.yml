@@ -1,0 +1,6 @@
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: "Sélecteur de langue (Texte d'interface)"
+label: 'Language switcher (Interface text)'

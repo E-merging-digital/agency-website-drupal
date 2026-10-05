@@ -1,0 +1,20 @@
+self-hosted-runner:
+  labels:
+    - agency
+    - ddev
+
+paths:
+  .github/workflows/promote-production.yml:
+    ignore:
+      - 'shellcheck reported issue in this script: SC2129:style:25:1:'
+      - 'shellcheck reported issue in this script: SC2029:info:9:25:'
+      - 'shellcheck reported issue in this script: SC2029:info:19:15:'
+      - 'shellcheck reported issue in this script: SC2034:warning:13:1:'
+  .github/workflows/production-scheduler-change.yml:
+    ignore:
+      - 'shellcheck reported issue in this script: SC2129:style:24:1:'
+      - 'shellcheck reported issue in this script: SC2029:info:8:25:'
+      - 'shellcheck reported issue in this script: SC2029:info:12:45:'
+  .github/workflows/trusted-editorial-feature-image.yml:
+    ignore:
+      - 'shellcheck reported issue in this script: SC2016:info:15:8:'

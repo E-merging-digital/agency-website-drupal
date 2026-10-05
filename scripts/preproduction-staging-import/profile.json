@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "profile_id": "agency-preprod-isolated-staging-import-v1",
+  "issue_number": 834,
+  "authority": {
+    "trigger": "ISSUE_COMMENT",
+    "command_prefix": "/agency-preprod-staging-import",
+    "owner_actor": "E-merging-digital",
+    "live_main_required": true,
+    "run_attempt_must_equal": 1,
+    "unique_request_id_required": true,
+    "modes": ["PLAN", "APPLY"],
+    "first_real_apply": "HUMAN_REQUIRED_AFTER_PROJECT_LEAD_REVIEW"
+  },
+  "execution": {
+    "gateway_runner": "ubuntu-24.04",
+    "trusted_runner_labels": ["self-hosted", "linux", "x64", "agency"],
+    "trusted_runner_name": "agency-browser-runner-01",
+    "github_hosted_raw_prod_data": "FORBIDDEN",
+    "raw_github_artifact": "FORBIDDEN",
+    "prod_write_path": "NONE",
+    "sanitization_path": "NONE",
+    "activation_path": "NONE"
+  },
+  "snapshot": {
+    "source_profile": "agency-prod-readonly-snapshot-v1",
+    "remote_stream_script": "scripts/production-readonly-snapshot/remote-stream.sh",
+    "prod_pinned_trust_required": true,
+    "raw_material_location": "TRUSTED_RUNNER_TEMP_ONLY",
+    "raw_material_mode": "0600",
+    "consistent_read_only": true
+  },
+  "preprod_trust": {
+    "repository_pinned_identity_required": true,
+    "current_state": "PINNED",
+    "trust_issue": 836,
+    "trust_source": "OUT_OF_BAND_PREPROD_CONSOLE",
+    "public_key_path": "scripts/preproduction-ssh-trust/preprod-ed25519.pub",
+    "fingerprint_path": "scripts/preproduction-ssh-trust/preprod-ed25519.sha256",
+    "network_derived_identity": "FORBIDDEN",
+    "ssh_keyscan": "FORBIDDEN",
+    "strict_host_key_checking": "YES",
+    "accept_new": "FORBIDDEN",
+    "tofu": "FORBIDDEN"
+  },
+  "capacity": {
+    "trusted_runner_min_free_bytes": 2147483648,
+    "preprod_min_free_bytes": 2147483648,
+    "preprod_snapshot_multiplier": 4,
+    "preprod_fixed_margin_bytes": 1073741824,
+    "check_before_snapshot": true,
+    "check_before_import_with_actual_snapshot_size": true
+  },
+  "transfer": {
+    "transport": "SSH_STDIN_STREAM",
+    "encrypted_in_transit": true,
+    "github_hosted_hop": "NONE",
+    "preprod_raw_file_materialization": "NONE"
+  },
+  "staging": {
+    "runtime_database": "agency_preprod",
+    "database_prefix": "agency_preprod_stage_",
+    "suffix_policy": "SHA256_REQUEST_ID_FIRST_12_HEX",
+    "runtime_must_never_point_to_staging": true,
+    "settings_mutation": "NONE",
+    "vhost_mutation": "NONE",
+    "symlink_mutation": "NONE",
+    "runtime_secret_mutation": "NONE",
+    "server_admin_capability": {
+      "model": "FIXED_ROOT_OWNED_BOUNDED_HELPER",
+      "issue": 849,
+      "installed_path": "/usr/local/sbin/agency-preprod-staging-db",
+      "repository_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db",
+      "repository_digest_file": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256",
+      "required_owner_uid": 0,
+      "required_group_gid": 0,
+      "required_mode": "0755",
+      "direct_sudo_mariadb": "FORBIDDEN",
+      "generic_sql_executor": "FORBIDDEN",
+      "generic_shell": "FORBIDDEN",
+      "caller_database_name": "FORBIDDEN",
+      "import_scope": "DERIVED_STAGING_DB_ONLY",
+      "real_preprod_provisioning": "SEPARATE_OWNER_AUTHORIZATION_REQUIRED"
+    }
+  },
+  "cleanup": {
+    "raw_snapshot_required": true,
+    "unsanitized_staging_database_required": true,
+    "workflow_finalizer_required": true,
+    "independent_absence_check_required": true,
+    "cleanup_failure_is_terminal": true
+  },
+  "evidence": {
+    "artifact_path": "artifacts/preprod-staging-import/evidence.env",
+    "pii_allowed": false,
+    "secrets_allowed": false,
+    "allowlist": [
+      "schema_version",
+      "request_id",
+      "repository_sha",
+      "source_prod_release_sha",
+      "operation_profile",
+      "execution_mode",
+      "plan_result",
+      "apply_readiness",
+      "trusted_runner_boundary",
+      "prod_pinned_trust",
+      "preprod_trust_model",
+      "encrypted_transfer_contract",
+      "capacity_preflight",
+      "snapshot_byte_size",
+      "snapshot_sha256",
+      "transfer_result",
+      "staging_import_result",
+      "staging_db_id_hash",
+      "schema_proof",
+      "safe_table_count",
+      "preprod_runtime_points_to_staging_before",
+      "preprod_runtime_points_to_staging_after",
+      "raw_snapshot_present_after_cleanup",
+      "staging_db_present_after_cleanup",
+      "prod_write_path",
+      "github_hosted_raw_path",
+      "raw_github_artifact_path",
+      "sanitization_path",
+      "activation_path"
+    ]
+  }
+}

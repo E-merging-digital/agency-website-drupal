@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "issue_number": 895,
+  "profile_id": "agency-preprod-runtime-db-precheck-v1",
+  "implementation_only": true,
+  "future_execution": {
+    "requires_successor_issue": true,
+    "action": "PRECHECK",
+    "runner_labels": [
+      "self-hosted",
+      "linux",
+      "x64",
+      "agency"
+    ],
+    "runner_name": "agency-browser-runner-01",
+    "root_identity": {
+      "secret": "PREPROD_PROVISIONING_SSH_PRIVATE_KEY",
+      "transient": true,
+      "file_mode": "0600",
+      "artifact_upload": "FORBIDDEN",
+      "log_disclosure": "FORBIDDEN",
+      "cleanup": "MANDATORY"
+    },
+    "host_trust": {
+      "manager": "scripts/preproduction-ssh-trust/manage-known-host.sh",
+      "validator": "scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh",
+      "source": "OUT_OF_BAND_PREPROD_CONSOLE",
+      "strict_host_key_checking": true,
+      "ssh_keyscan": "FORBIDDEN"
+    },
+    "helper": {
+      "source": "scripts/preproduction/runtime-db-account/agency-preprod-runtime-db-account",
+      "manifest": "scripts/preproduction/runtime-db-account/capability.json",
+      "manifest_binding": "TRUSTED_MAIN_SHA256",
+      "installed_path": "/usr/local/sbin/agency-preprod-runtime-db-account",
+      "preexisting_policy": "FAIL_CLOSED_NO_OVERWRITE_NO_DELETE",
+      "owner": "root",
+      "group": "root",
+      "mode": "0755",
+      "transient": true,
+      "cleanup": "MANDATORY"
+    },
+    "sudoers_install": "NONE",
+    "deploy_user_privilege_widening": "NONE"
+  },
+  "evidence": {
+    "mode": "METADATA_ONLY",
+    "fields": [
+      "TARGET_DATABASE_PRESENT",
+      "ACCOUNT_127_PRESENT",
+      "ACCOUNT_LOCALHOST_PRESENT",
+      "EXPECTED_DB_GRANT",
+      "RUNTIME_ACCOUNT_STATE"
+    ],
+    "runtime_env_read": "NONE",
+    "db_password_read": "NONE",
+    "raw_grant_output": "NONE",
+    "mysql_user_row_output": "NONE"
+  },
+  "boundaries": {
+    "issue_849": "STAGING_ONLY",
+    "issue_891": "FAIL_CLOSED",
+    "issue_887": "PRESERVED",
+    "issue_889": "PRESERVED",
+    "issue_874_authority": "NOT_WIDENED",
+    "issue_876_authority": "UNCHANGED",
+    "data_activation_authority": "DISABLED",
+    "real_preprod_execution_issue_895": "FORBIDDEN",
+    "real_prod_access": "FORBIDDEN"
+  }
+}

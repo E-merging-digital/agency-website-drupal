@@ -1,0 +1,51 @@
+name: "Validate #941 read-only PREPROD refresh diagnostic"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/preprod-refresh-940-diagnostic.yml'
+      - '.github/workflows/preprod-refresh-940-diagnostic-validation.yml'
+      - 'scripts/preproduction-refresh/governed-successor/diagnose-940-worker.sh'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940DiagnosticTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Validate fixed observer shell and classification contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          observer='scripts/preproduction-refresh/governed-successor/diagnose-940-worker.sh'
+          bash -n "$observer"
+          bash "$observer" --self-test
+      - name: Validate PHP test syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940DiagnosticTest.php
+      - name: Install dependencies
+        env:
+          COMPOSER_PROCESS_TIMEOUT: 0
+          COMPOSER_NO_INTERACTION: 1
+          COMPOSER_NO_AUDIT: 1
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+      - name: Run targeted #941 repository tests
+        run: >-
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh940DiagnosticTest.php

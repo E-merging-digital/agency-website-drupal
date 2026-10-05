@@ -22,39 +22,51 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $root = dirname(DRUPAL_ROOT);
     $policy = Yaml::parseFile($root . '/docs/configuration-language-policy.yml');
 
-    self::assertSame(1, $policy['schema_version'] ?? NULL);
-    self::assertSame(
-      'agency-configuration-language-v1',
-      $policy['policy_id'] ?? NULL,
-    );
-    self::assertSame('migration_required', $policy['status'] ?? NULL);
-    self::assertSame('en', $policy['canonical_configuration_language'] ?? NULL);
+    self::assertSame(2, $policy['schema_version'] ?? NULL);
+    self::assertSame('agency-configuration-language-v2', $policy['policy_id'] ?? NULL);
+    self::assertSame('enforced', $policy['status'] ?? NULL);
     self::assertSame('fr', $policy['site_default_language'] ?? NULL);
     self::assertSame(['fr', 'en'], $policy['site_languages'] ?? NULL);
-    self::assertSame(
-      ['fr'],
-      $policy['target_configuration_translation_languages'] ?? NULL,
-    );
-    self::assertFalse($policy['enforce_consistency'] ?? TRUE);
 
     self::assertSame(
-      'use_drupal',
-      $policy['enforcement']['strategy'] ?? NULL,
+      'en',
+      $policy['historical_configuration']['canonical_base_language_intent'] ?? NULL,
     );
+    self::assertSame(609, $policy['historical_configuration']['evidence_issue'] ?? NULL);
+    self::assertSame(1316, $policy['historical_configuration']['migration_issue'] ?? NULL);
+
+    self::assertSame('site_default', $policy['configuration_writes']['strategy'] ?? NULL);
+    self::assertSame('fr', $policy['configuration_writes']['resolved_langcode'] ?? NULL);
+    self::assertTrue($policy['configuration_writes']['follow_site_default'] ?? FALSE);
+    self::assertSame(
+      ['fr', 'en'],
+      $policy['managed_configuration_translation_languages'] ?? NULL,
+    );
+    self::assertSame([
+      'config/sync/language/fr',
+      'config/sync/language/en',
+    ], $policy['current_configuration_translation_directories'] ?? NULL);
+    self::assertTrue($policy['enforce_consistency'] ?? FALSE);
+
+    self::assertSame('use_drupal', $policy['enforcement']['strategy'] ?? NULL);
     self::assertSame(
       'drupal/config_language_lock',
-      $policy['enforcement']['candidate'] ?? NULL,
+      $policy['enforcement']['implementation'] ?? NULL,
     );
+    self::assertSame('1.0.0', $policy['enforcement']['minimum_release'] ?? NULL);
     self::assertSame(
-      '1.0.0',
-      $policy['enforcement']['minimum_release'] ?? NULL,
+      'site_default',
+      $policy['enforcement']['locked_langcode_strategy'] ?? NULL,
     );
-    self::assertSame(
-      'en',
-      $policy['enforcement']['target_locked_langcode'] ?? NULL,
-    );
-    self::assertFalse($policy['enforcement']['follow_site_default'] ?? TRUE);
+    self::assertSame('fr', $policy['enforcement']['resolved_locked_langcode'] ?? NULL);
+    self::assertTrue($policy['enforcement']['follow_site_default'] ?? FALSE);
     self::assertSame(609, $policy['enforcement']['adoption_issue'] ?? NULL);
+    self::assertSame(1316, $policy['enforcement']['migration_issue'] ?? NULL);
+
+    self::assertArrayNotHasKey('canonical_configuration_language', $policy);
+    self::assertArrayNotHasKey('target_configuration_translation_languages', $policy);
+    self::assertArrayNotHasKey('candidate', $policy['enforcement']);
+    self::assertArrayNotHasKey('target_locked_langcode', $policy['enforcement']);
 
     self::assertSame([
       'manual_admin',
@@ -78,7 +90,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
 
     self::assertSame('none', $policy['preflight']['coupling'] ?? NULL);
     self::assertSame(
-      'observable_policy_and_snapshots',
+      'observable_policy_v2_and_snapshots',
       $policy['preflight']['contract'] ?? NULL,
     );
     self::assertTrue(
@@ -87,35 +99,27 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
-   * Current repository state must remain visibly classified as a migration.
+   * The enforced lock preserves editorial and semantic language invariants.
    */
-  public function testCurrentMixedSnapshotRequiresMigration(): void {
+  public function testEnforcedLockPreservesLanguageSemantics(): void {
     $root = dirname(DRUPAL_ROOT);
     $policy = Yaml::parseFile($root . '/docs/configuration-language-policy.yml');
 
-    self::assertSame('migration_required', $policy['status'] ?? NULL);
-    self::assertFalse($policy['enforce_consistency'] ?? TRUE);
+    self::assertSame('enforced', $policy['status'] ?? NULL);
+    self::assertTrue($policy['enforce_consistency'] ?? FALSE);
+
+    $extensions = Yaml::parseFile($root . '/config/sync/core.extension.yml');
+    self::assertSame(0, $extensions['module']['config_language_lock'] ?? NULL);
+
+    $lock = Yaml::parseFile(
+      $root . '/config/sync/config_language_lock.settings.yml',
+    );
+    self::assertSame('fr', $lock['locked_langcode'] ?? NULL);
+    self::assertTrue($lock['follow_site_default'] ?? FALSE);
 
     $site = Yaml::parseFile($root . '/config/sync/system.site.yml');
     self::assertSame('fr', $site['langcode'] ?? NULL);
     self::assertSame('fr', $site['default_langcode'] ?? NULL);
-
-    $canvasFolder = Yaml::parseFile(
-      $root
-      . '/config/sync/canvas.folder.'
-      . '0d5d5129-0d2e-41f3-a6d5-0211018bd59f.yml',
-    );
-    self::assertSame('fr', $canvasFolder['langcode'] ?? NULL);
-
-    $coreViewMode = Yaml::parseFile(
-      $root . '/config/sync/core.entity_view_mode.user.token.yml',
-    );
-    self::assertSame('en', $coreViewMode['langcode'] ?? NULL);
-
-    $footerMenu = Yaml::parseFile(
-      $root . '/config/sync/system.menu.footer.yml',
-    );
-    self::assertSame('und', $footerMenu['langcode'] ?? NULL);
 
     foreach ([
       '/config/sync/language/fr',
@@ -124,11 +128,90 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       self::assertDirectoryExists($root . $translationDirectory);
     }
 
+    foreach (['und', 'zxx'] as $id) {
+      $language = Yaml::parseFile(
+        $root . '/config/sync/language.entity.' . $id . '.yml',
+      );
+      self::assertSame($id, $language['id'] ?? NULL);
+      self::assertTrue((bool) ($language['locked'] ?? FALSE));
+    }
+  }
+
+  /**
+   * Special locked languages converge through one bounded Drupal manager call.
+   */
+  public function testSpecialLanguageDeploymentReconcilerIsBoundedAndIdempotent(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root
+      . '/scripts/runner/reconcile-config-language-special-entities-1318.php';
+    self::assertFileExists($path);
+
+    $helper = (string) file_get_contents($path);
+
     foreach ([
-      '/config/sync/language.entity.und.yml',
-      '/config/sync/language.entity.zxx.yml',
-    ] as $lockedLanguage) {
-      self::assertFileExists($root . $lockedLanguage);
+      "getenv('AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE') !== '1'",
+      "if (\$siteDefault !== 'fr')",
+      "\$lockedLangcode !== 'fr'",
+      "\$followSiteDefault !== TRUE",
+      "'language.entity.und' => 'und'",
+      "'language.entity.zxx' => 'zxx'",
+      "!in_array(\$technicalLangcode, ['en', 'fr'], TRUE)",
+      "\$manager->updateConfigForLockedLanguageSwitch(array_keys(\$targets))",
+      "(\$data['langcode'] ?? NULL) !== 'fr'",
+      "'config_values_exposed' => FALSE",
+    ] as $required) {
+      self::assertStringContainsString($required, $helper, $required);
+    }
+
+    self::assertSame(
+      1,
+      substr_count(
+        $helper,
+        '$manager->updateConfigForLockedLanguageSwitch(array_keys($targets))',
+      ),
+    );
+    self::assertSame(1, substr_count($helper, "'language.entity.und' => 'und'"));
+    self::assertSame(1, substr_count($helper, "'language.entity.zxx' => 'zxx'"));
+
+    foreach ([
+      '$storage->listAll()',
+      'listAll(',
+      'createCollection(',
+      'config.storage.sync',
+      "getEditable('config_language_lock.settings')",
+      "->set('locked_langcode'",
+      "->set('follow_site_default'",
+      'config:import',
+      'config:export',
+      "['label']",
+      "['translations']",
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $helper, $forbidden);
+    }
+
+    self::assertStringNotContainsString(
+      "'language.en'",
+      $helper,
+    );
+    self::assertStringNotContainsString(
+      "'language.fr'",
+      $helper,
+    );
+
+    foreach ([
+      "'schema_version' => 1",
+      "'status' => 'PASS'",
+      "'mechanism' => 'config_language_lock_special_entity_reconcile'",
+      "'targets' => array_keys(\$targets)",
+      "'before_technical_langcodes' => \$before",
+      "'after_technical_langcodes' => \$after",
+      "'manager_stats' => \$boundedStats",
+      "'site_default_language' => \$siteDefault",
+      "'locked_langcode' => \$lockedLangcode",
+      "'follow_site_default' => \$followSiteDefault",
+      "'config_values_exposed' => FALSE",
+    ] as $bounded) {
+      self::assertStringContainsString($bounded, $helper, $bounded);
     }
   }
 
@@ -156,6 +239,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       self::assertStringContainsString($surface, $architecture);
     }
 
+    self::assertStringContainsString('ACTIVE / ENFORCED', $architecture);
     self::assertStringContainsString('migration_required', $adr);
     self::assertStringContainsString('drupal/config_language_lock', $adr);
     self::assertStringContainsString('Preflight', $adr);

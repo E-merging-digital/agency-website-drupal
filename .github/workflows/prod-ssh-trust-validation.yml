@@ -1,0 +1,99 @@
+name: Validate current PROD SSH trust governance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-914-governed-successor.yml'
+      - '.github/workflows/prod-ssh-trust-validation.yml'
+      - 'scripts/preproduction-refresh/governed-successor/run-apply.sh'
+      - 'scripts/production-ssh-trust/manage-known-host.sh'
+      - 'scripts/production-ssh-trust/prod-ed25519.pub'
+      - 'scripts/production-ssh-trust/prod-ed25519.sha256'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-prod-ssh-trust:
+    name: Prove current #914 pinned PROD trust and fail-closed behavior
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Validate exact pinned trust and current #914 binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager='scripts/production-ssh-trust/manage-known-host.sh'
+          apply='scripts/preproduction-refresh/governed-successor/run-apply.sh'
+          bash -n "$manager" "$apply"
+          read -r key_type key_blob _ < scripts/production-ssh-trust/prod-ed25519.pub
+          test "$key_type" = 'ssh-ed25519'
+          test "$key_blob" = 'AAAAC3NzaC1lZDI1NTE5AAAAIHBzADlwNcSFBP6sYfGBH2SvD5NymTF6n2Ze996V4TqR'
+          fingerprint="$(ssh-keygen -lf scripts/production-ssh-trust/prod-ed25519.pub -E sha256 | awk '{print $2}')"
+          test "$fingerprint" = 'SHA256:Pflpbgh2vc9dUYe4fpXPxdwzhPqyy8vmbAOcS+BRLDQ'
+          grep -Fxq "$fingerprint" scripts/production-ssh-trust/prod-ed25519.sha256
+          python3 - <<'PY'
+          from pathlib import Path
+          apply = Path('scripts/preproduction-refresh/governed-successor/run-apply.sh').read_text()
+          manager = Path('scripts/production-ssh-trust/manage-known-host.sh').read_text()
+          assert "PROD_TRUST='scripts/production-ssh-trust/manage-known-host.sh'" in apply
+          trust = apply.index('bash "$PROD_TRUST" VERIFY_ONLY')
+          transport = apply.index('ssh -i "$PROD_SSH_KEY"')
+          assert trust < transport
+          assert 'StrictHostKeyChecking=yes' in apply
+          assert 'UserKnownHostsFile="$HOME/.ssh/known_hosts"' in apply
+          for source in (apply, manager):
+              assert 'StrictHostKeyChecking=no' not in source
+              assert 'accept-new' not in source
+              assert 'ssh-keyscan' not in source
+          assert 'SERVER_HOST has multiple known_hosts entries; refusing ambiguity.' in manager
+          assert 'Pinned PROD host identity is absent from known_hosts.' in manager
+          print('CURRENT_PROD_PINNED_TRUST=PASS')
+          print('NETWORK_DERIVED_TRUST=NONE')
+          PY
+
+      - name: Prove absent wrong and ambiguous identities fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          manager="$GITHUB_WORKSPACE/scripts/production-ssh-trust/manage-known-host.sh"
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          host='prod.example.invalid'
+
+          mkdir -p "$tmp/absent/.ssh"
+          chmod 700 "$tmp/absent/.ssh"
+          : > "$tmp/absent/.ssh/known_hosts"
+          chmod 600 "$tmp/absent/.ssh/known_hosts"
+          if HOME="$tmp/absent" SERVER_HOST="$host" bash "$manager" VERIFY_ONLY; then
+            exit 1
+          fi
+
+          ssh-keygen -q -t ed25519 -N '' -f "$tmp/wrong" >/dev/null
+          read -r wrong_type wrong_blob _ < "$tmp/wrong.pub"
+          mkdir -p "$tmp/wrong-home/.ssh"
+          chmod 700 "$tmp/wrong-home/.ssh"
+          printf '%s %s %s\n' "$host" "$wrong_type" "$wrong_blob" > "$tmp/wrong-home/.ssh/known_hosts"
+          chmod 600 "$tmp/wrong-home/.ssh/known_hosts"
+          if HOME="$tmp/wrong-home" SERVER_HOST="$host" bash "$manager" VERIFY_ONLY; then
+            exit 1
+          fi
+
+          read -r pinned_type pinned_blob _ < scripts/production-ssh-trust/prod-ed25519.pub
+          mkdir -p "$tmp/multiple/.ssh"
+          chmod 700 "$tmp/multiple/.ssh"
+          {
+            printf '%s %s %s\n' "$host" "$pinned_type" "$pinned_blob"
+            printf '%s %s %s\n' "$host" "$wrong_type" "$wrong_blob"
+          } > "$tmp/multiple/.ssh/known_hosts"
+          chmod 600 "$tmp/multiple/.ssh/known_hosts"
+          if HOME="$tmp/multiple" SERVER_HOST="$host" bash "$manager" VERIFY_ONLY; then
+            exit 1
+          fi
+          printf '%s\n' 'PROD_TRUST_FAIL_CLOSED_MATRIX=PASS'

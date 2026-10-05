@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 MODE="${EDITORIAL_IMAGE_MODE:-}"
 ISSUE_NUMBER="${ISSUE_NUMBER:-}"
+TARGET="${EDITORIAL_IMAGE_TARGET:-}"
 PROFILE_SHA256="${PROFILE_SHA256:-}"
 PROFILE_FILE="${PROFILE_FILE:-}"
 ASSET_SHA256="${ASSET_SHA256:-}"
@@ -18,12 +19,39 @@ case "$MODE" in
   *) echo "Unsupported EDITORIAL_IMAGE_MODE: $MODE" >&2; exit 1 ;;
 esac
 [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]] || { echo 'ISSUE_NUMBER must be positive numeric.' >&2; exit 1; }
+case "$TARGET" in
+  PROD) TARGET='PROD' ;;
+  PREPROD) TARGET='PREPROD' ;;
+  *) echo "Unsupported EDITORIAL_IMAGE_TARGET: $TARGET" >&2; exit 1 ;;
+esac
+
+case "$ISSUE_NUMBER:$TARGET" in
+  401:PROD)
+    PROJECT_ROOT='/var/www/agency'
+    ;;
+  958:PREPROD)
+    PROJECT_ROOT='/var/www/agency-preprod'
+    SERVER_USER='agency-preprod'
+    ;;
+  958:PROD)
+    PROJECT_ROOT='/var/www/agency'
+    ;;
+  *)
+    echo 'No bounded editorial image issue/target pair is approved.' >&2
+    exit 1
+    ;;
+esac
+
 [[ "$RUN_ID" =~ ^[0-9]+$ ]]
 [[ "$RUN_ATTEMPT" =~ ^[0-9]+$ ]]
 [[ "$PROFILE_SHA256" =~ ^[0-9a-f]{64}$ ]]
 [[ "$ASSET_SHA256" =~ ^[0-9a-f]{64}$ ]]
 [[ -f "$PROFILE_FILE" ]]
 [[ -f "$ASSET_FILE" ]]
+
+CURRENT_ROOT="$PROJECT_ROOT/current"
+BACKUP_DIR="$PROJECT_ROOT/shared/backups"
+
 actual_profile_sha="$(python3 - "$PROFILE_FILE" "$ISSUE_NUMBER" <<'PY_PROFILE'
 import hashlib
 import json
@@ -67,6 +95,15 @@ cleanup_remote() {
 }
 trap cleanup_remote EXIT
 
+remote_runtime_validate() {
+  if [[ "$TARGET" != 'PREPROD' ]]; then
+    return 0
+  fi
+  ssh "${ssh_opts[@]}" "$remote_target" \
+    "set -euo pipefail; test -x '$CURRENT_ROOT/scripts/preproduction/validate-runtime.sh'; '$CURRENT_ROOT/scripts/preproduction/validate-runtime.sh' >/dev/null"
+}
+
+remote_runtime_validate
 scp "${ssh_opts[@]}" "$PHP_SCRIPT" "$remote_target:$remote_script" >/dev/null
 scp "${ssh_opts[@]}" "$PROFILE_FILE" "$remote_target:$remote_profile" >/dev/null
 scp "${ssh_opts[@]}" "$ASSET_FILE" "$remote_target:$remote_asset" >/dev/null
@@ -75,7 +112,7 @@ remote_run() {
   local run_mode="$1"
   local remote_output="$2"
   ssh "${ssh_opts[@]}" "$remote_target" \
-    "set -euo pipefail; cd /var/www/agency/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_EDITORIAL_IMAGE_MODE='$run_mode' AGENCY_EDITORIAL_IMAGE_ISSUE='$ISSUE_NUMBER' AGENCY_EDITORIAL_IMAGE_PROFILE_PATH='$remote_profile' AGENCY_EDITORIAL_IMAGE_ASSET_PATH='$remote_asset' AGENCY_EDITORIAL_IMAGE_RESULT_PATH='$remote_output' timeout 120s vendor/bin/drush php:script '$remote_script'"
+    "set -euo pipefail; cd '$CURRENT_ROOT'; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_EDITORIAL_IMAGE_MODE='$run_mode' AGENCY_EDITORIAL_IMAGE_ISSUE='$ISSUE_NUMBER' AGENCY_EDITORIAL_IMAGE_PROFILE_PATH='$remote_profile' AGENCY_EDITORIAL_IMAGE_ASSET_PATH='$remote_asset' AGENCY_EDITORIAL_IMAGE_RESULT_PATH='$remote_output' timeout 120s vendor/bin/drush php:script '$remote_script'"
 }
 
 case "$MODE" in
@@ -95,18 +132,25 @@ case "$MODE" in
     backup_file=''
     if [[ "$preapply_verdict" == 'READY' || "$preapply_verdict" == 'REPAIR_REQUIRED' ]]; then
       timestamp="$(date -u +%Y%m%d%H%M%S)"
-      backup_stem="/var/www/agency/shared/backups/editorial-image-issue-${ISSUE_NUMBER}-${timestamp}.sql"
+      backup_stem="$BACKUP_DIR/editorial-image-issue-${ISSUE_NUMBER}-${timestamp}.sql"
       backup_file="${backup_stem}.gz"
       ssh "${ssh_opts[@]}" "$remote_target" \
-        "set -euo pipefail; cd /var/www/agency/current; mkdir -p /var/www/agency/shared/backups; timeout 120s vendor/bin/drush sql:dump --gzip --result-file='$backup_stem' >/dev/null; test -s '$backup_file'"
+        "set -euo pipefail; cd '$CURRENT_ROOT'; mkdir -p '$BACKUP_DIR'; timeout 120s vendor/bin/drush sql:dump --gzip --result-file='$backup_stem' >/dev/null; test -s '$backup_file'"
     fi
 
     remote_run apply "$remote_result"
     ;;
 esac
 
+remote_runtime_validate
 scp "${ssh_opts[@]}" "$remote_target:$remote_result" "$ARTIFACT_DIR/result.json" >/dev/null
 jq -e '.status == "PASS"' "$ARTIFACT_DIR/result.json" >/dev/null
+
+if [[ "$TARGET" == 'PREPROD' ]]; then
+  target_result="$ARTIFACT_DIR/result.target.json"
+  jq '. + {target:"PREPROD",prod_write:"NONE"}' "$ARTIFACT_DIR/result.json" > "$target_result"
+  mv "$target_result" "$ARTIFACT_DIR/result.json"
+fi
 
 if [[ "$MODE" == 'apply' ]]; then
   tmp_result="$ARTIFACT_DIR/result.tmp.json"

@@ -1,0 +1,422 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Drupal\Tests\agency_project_tests\Unit;
+
+use Drupal\Component\Serialization\Yaml as DrupalYaml;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Protects the isolated PREPROD bootstrap and deployment contract.
+ *
+ * @group agency_project_tests
+ */
+final class PreproductionHostBootstrapTest extends TestCase {
+
+  /**
+   * Host bootstrap keeps the approved isolated runtime boundaries.
+   */
+  public function testHostBootstrapIsIsolatedAndFailSafe(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $bootstrap = $root . '/scripts/preproduction/bootstrap-host.sh';
+    $nginx = $root
+      . '/scripts/preproduction/nginx-agency-preprod.conf.template';
+    $settings = $root . '/scripts/preproduction/settings.php.template';
+
+    foreach ([$bootstrap, $nginx, $settings] as $path) {
+      self::assertFileExists($path);
+    }
+
+    $bootstrapContent = (string) file_get_contents($bootstrap);
+    foreach ([
+      'Ubuntu 24.04 LTS',
+      'mariadb-11.8',
+      'max_allowed_packet=64M',
+      'PHP_VERSION="8.5"',
+      'PHP_SOCKET="/run/php/php8.5-fpm-agency-preprod.sock"',
+      'php8.5-cli',
+      'php8.5-fpm',
+      'extension_loaded("Zend OPcache")',
+      '/etc/php/8.5/fpm/pool.d/agency-preprod.conf',
+      '/etc/php/8.5/cli/conf.d/99-agency-preprod-safety.ini',
+      'PHP_MINOR_VERSION === 5',
+      '/var/www/agency-preprod',
+      'sendmail_path = /bin/true',
+      'PREPROD_BASIC_AUTH_PASSWORD',
+      'certbot --nginx',
+      'ufw default deny incoming',
+    ] as $expected) {
+      self::assertStringContainsString($expected, $bootstrapContent);
+    }
+
+    foreach ([
+      'php8.4',
+      '/etc/php/8.4',
+      'PHP_MINOR_VERSION === 4',
+      'php8.5-opcache',
+    ] as $obsolete) {
+      self::assertStringNotContainsString($obsolete, $bootstrapContent);
+    }
+
+    $installStart = strpos(
+      $bootstrapContent,
+      "apt-get install -y \\\n  mariadb-backup \\\n",
+    );
+    self::assertNotFalse($installStart);
+    $installEnd = strpos($bootstrapContent, "\n\nif ! id", $installStart);
+    self::assertNotFalse($installEnd);
+    $installBlock = substr(
+      $bootstrapContent,
+      $installStart,
+      $installEnd - $installStart,
+    );
+    preg_match_all('/php8\\.5-[a-z0-9.+-]+/', $installBlock, $packageMatches);
+    $requestedPhp85 = array_values(array_unique($packageMatches[0]));
+    sort($requestedPhp85);
+    self::assertSame([
+      'php8.5-bcmath',
+      'php8.5-cli',
+      'php8.5-common',
+      'php8.5-curl',
+      'php8.5-fpm',
+      'php8.5-gd',
+      'php8.5-intl',
+      'php8.5-mbstring',
+      'php8.5-mysql',
+      'php8.5-xml',
+      'php8.5-zip',
+    ], $requestedPhp85);
+
+    $nginxContent = (string) file_get_contents($nginx);
+    self::assertStringContainsString('auth_basic', $nginxContent);
+    self::assertStringContainsString('auth_basic off', $nginxContent);
+    self::assertStringContainsString('X-Robots-Tag', $nginxContent);
+    self::assertStringContainsString('/health/live', $nginxContent);
+    self::assertStringContainsString('/health/ready', $nginxContent);
+
+    $settingsContent = (string) file_get_contents($settings);
+    self::assertStringContainsString(
+      "config_split.config_split.production']['status'] = FALSE",
+      $settingsContent,
+    );
+    self::assertStringContainsString(
+      "config_split.config_split.preproduction']['status'] = TRUE",
+      $settingsContent,
+    );
+    self::assertStringContainsString(
+      "automated_cron.settings']['interval'] = 0",
+      $settingsContent,
+    );
+    self::assertStringContainsString(
+      "agency_external_ai_egress_enabled'] = FALSE",
+      $settingsContent,
+    );
+  }
+
+  /**
+   * Cockpit state bypasses only the outer PREPROD Basic Auth layer.
+   */
+  public function testCockpitStateRouteUsesExactNginxBearerPassThrough(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $nginx = (string) file_get_contents(
+      $root . '/scripts/preproduction/nginx-agency-preprod.conf.template',
+    );
+
+    $expected = <<<'NGINX'
+    location = /api/agency-operations/v1/environment-data-state {
+        auth_basic off;
+        include fastcgi_params;
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+        fastcgi_param SCRIPT_FILENAME $realpath_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_pass unix:@@PHP_SOCKET@@;
+    }
+NGINX;
+
+    self::assertStringContainsString($expected, $nginx);
+    self::assertStringContainsString('auth_basic "Agency PREPROD";', $nginx);
+    self::assertStringNotContainsString(
+      'location /api/agency-operations/',
+      $nginx,
+    );
+  }
+
+  /**
+   * PREPROD consumes an immutable candidate instead of rebuilding it.
+   */
+  public function testCandidateDeployDoesNotRebuildApplication(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $deploy = $root . '/scripts/preproduction/deploy-candidate.sh';
+    self::assertFileExists($deploy);
+
+    $content = (string) file_get_contents($deploy);
+    foreach ([
+      'candidate.json',
+      'sha256sum -c',
+      'ARTIFACTS_DIR="$SHARED_DIR/artifacts"',
+      'config/splits/preproduction',
+      'updb -y',
+      'cim -y',
+      'emerging:governed-content:validate',
+      'emerging:governed-content --all --dry-run',
+      'emerging:governed-content --all',
+      "governed_content='PASS'",
+      'OPENAI_API_KEY',
+    ] as $expected) {
+      self::assertStringContainsString($expected, $content);
+    }
+
+    self::assertStringNotContainsString('list --format=list', $content);
+    self::assertStringNotContainsString('composer install', $content);
+    self::assertStringNotContainsString('git clone', $content);
+    self::assertStringNotContainsString('/var/www/agency/shared', $content);
+  }
+
+  /**
+   * PREPROD reconciles special languages after CIM and before its split.
+   */
+  public function testCandidateDeployReconcilesSpecialLanguagesAfterCim(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $deploy = (string) file_get_contents(
+      $root . '/scripts/preproduction/deploy-candidate.sh',
+    );
+
+    foreach ([
+      'SPECIAL_LANGUAGE_RECONCILER="$CURRENT_LINK/scripts/runner/reconcile-config-language-special-entities-1318.php"',
+      '[[ -f "$SPECIAL_LANGUAGE_RECONCILER" ]]',
+      'AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1',
+      '"$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER"',
+      "config_language_special_reconcile='PASS'",
+      "printf 'config_language_special_reconcile=%s",
+    ] as $required) {
+      self::assertStringContainsString($required, $deploy, $required);
+    }
+
+    $cim = strpos($deploy, '"$CURRENT_LINK/vendor/bin/drush" cim -y');
+    $reconcile = strpos(
+      $deploy,
+      'AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1',
+    );
+    $split = strpos(
+      $deploy,
+      '"$CURRENT_LINK/vendor/bin/drush" config:import --source="$preprod_split"',
+    );
+
+    self::assertNotFalse($cim);
+    self::assertNotFalse($reconcile);
+    self::assertNotFalse($split);
+    self::assertTrue($cim < $reconcile);
+    self::assertTrue($reconcile < $split);
+
+    self::assertSame(
+      1,
+      substr_count(
+        $deploy,
+        '"$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER"',
+      ),
+    );
+    self::assertStringContainsString('set -Eeuo pipefail', $deploy);
+    self::assertStringNotContainsString(
+      'php:script "$SPECIAL_LANGUAGE_RECONCILER" ||',
+      $deploy,
+    );
+  }
+
+  /**
+   * Candidate deployment converges server-owned settings without new secrets.
+   */
+  public function testCandidateDeployReconcilesSharedSettings(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $deploy = (string) file_get_contents(
+      $root . '/scripts/preproduction/deploy-candidate.sh',
+    );
+
+    foreach ([
+      'scripts/preproduction/settings.php.template',
+      'source "$RUNTIME_ENV"',
+      'reconcile_settings',
+      'mv -f "$SETTINGS_TMP" "$SETTINGS_FILE"',
+    ] as $expected) {
+      self::assertStringContainsString($expected, $deploy);
+    }
+
+    self::assertStringNotContainsString('openssl rand', $deploy);
+  }
+
+  /**
+   * The deployment workflow is release-only and validates the real target.
+   */
+  public function testPreproductionWorkflowUsesExactCandidateEvidence(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root . '/.github/workflows/deploy-preproduction.yml';
+    self::assertFileExists($path);
+
+    $workflow = (string) file_get_contents($path);
+    self::assertIsArray(DrupalYaml::decode($workflow));
+
+    foreach ([
+      'workflow_run:',
+      'Build Agency release candidate',
+      'group: agency-preproduction-deploy',
+      "startsWith(github.event.workflow_run.head_branch, 'release/')",
+      'agency-release-candidate-${{ github.event.workflow_run.head_sha }}',
+      'for endpoint in live ready',
+      '$PREPROD_URL/health/$endpoint',
+      'npm run browser:validate',
+      'PREPROD_SSH_PRIVATE_KEY',
+      'PREPROD_BASIC_AUTH_PASSWORD',
+    ] as $expected) {
+      self::assertStringContainsString($expected, $workflow);
+    }
+
+    self::assertStringNotContainsString('deploy-production.sh', $workflow);
+    self::assertStringNotContainsString('/var/www/agency/shared', $workflow);
+  }
+
+  /**
+   * Browser Validation can authenticate without persisting credentials.
+   */
+  public function testBrowserValidationSupportsProtectedPreproduction(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $runner = (string) file_get_contents(
+      $root . '/scripts/run-browser-validation.mjs',
+    );
+    $config = (string) file_get_contents($root . '/playwright.config.mjs');
+
+    foreach ([$runner, $config] as $content) {
+      self::assertStringContainsString(
+        'BROWSER_VALIDATION_HTTP_USERNAME',
+        $content,
+      );
+      self::assertStringContainsString(
+        'BROWSER_VALIDATION_HTTP_PASSWORD',
+        $content,
+      );
+    }
+    self::assertStringContainsString('httpCredentials', $config);
+  }
+
+  /**
+   * Browser proof uses the same responsive boundary as the theme.
+   */
+  public function testBrowserValidationUsesDeterministicNavigationMode(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $spec = (string) file_get_contents(
+      $root . '/tests/browser/public-blog.spec.mjs',
+    );
+
+    self::assertStringContainsString(
+      "window.matchMedia('(max-width: 48rem)').matches",
+      $spec,
+    );
+    self::assertStringNotContainsString('if (await toggle.isVisible())', $spec);
+    self::assertStringContainsString(
+      "const drawerLink = drawer.getByRole('link'",
+      $spec,
+    );
+    self::assertStringContainsString(
+      'await expect(drawerLink).toBeVisible()',
+      $spec,
+    );
+  }
+
+  /**
+   * Immutable Browser proof binds evidence and active release before secrets.
+   */
+  public function testImmutablePreproductionBrowserValidationIsFailClosed(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root . '/.github/workflows/immutable-preprod-browser-1065.yml';
+    self::assertFileExists($path);
+
+    $workflow = (string) file_get_contents($path);
+    $decoded = DrupalYaml::decode($workflow);
+    self::assertIsArray($decoded);
+
+    $inputs = $decoded['on']['workflow_dispatch']['inputs'] ?? NULL;
+    self::assertIsArray($inputs);
+    self::assertSame(['candidate_sha', 'deploy_run'], array_keys($inputs));
+    foreach (['candidate_sha', 'deploy_run'] as $input) {
+      self::assertTrue($inputs[$input]['required'] ?? FALSE);
+      self::assertSame('string', $inputs[$input]['type'] ?? NULL);
+      self::assertArrayNotHasKey('default', $inputs[$input]);
+    }
+
+    foreach ([
+      'EXPECTED_CANDIDATE_SHA: ${{ inputs.candidate_sha }}',
+      'EXPECTED_DEPLOY_RUN: ${{ inputs.deploy_run }}',
+      '[[ "$EXPECTED_CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]',
+      '[[ "$EXPECTED_DEPLOY_RUN" =~ ^[0-9]+$ ]]',
+      'CONTRACT_PATH: tests/browser/contracts/homepage-brand-1059-preprod.json',
+      'group: agency-preproduction-deploy',
+      '.github/workflows/deploy-preproduction.yml',
+      'agency-preproduction-evidence-${{ env.EXPECTED_CANDIDATE_SHA }}-${{ env.EXPECTED_DEPLOY_RUN }}',
+      'candidate_sha=$EXPECTED_CANDIDATE_SHA',
+      'release_path=',
+      'deploy_evidence=MATCH',
+      'ref: ${{ env.EXPECTED_CANDIDATE_SHA }}',
+      'Unsupported BROWSER_VALIDATION_CONTRACT',
+      'readlink -f /var/www/agency-preprod/current',
+      'active_release_binding=MATCH',
+      'BROWSER_VALIDATION_CONTRACT: ${{ env.CONTRACT_PATH }}',
+      'npm run browser:validate',
+      'content_mutation=NONE',
+      'deployment=NONE',
+      'prod=NONE',
+    ] as $expected) {
+      self::assertStringContainsString($expected, $workflow);
+    }
+
+    foreach ([
+      'branches/main',
+      'TRUSTED_MAIN',
+      'homepage-brand-1059.php',
+      'run-homepage-brand-1059.sh',
+      'deploy-candidate.sh',
+      'vendor/bin/drush',
+      'rsync ',
+      'scp ',
+      'secrets.PROD_SERVER_HOST',
+      'secrets.PROD_SSH_PRIVATE_KEY',
+      'EXPECTED_CANDIDATE_SHA: 0b25e70d37fd08ff00fb058ed31e191f73d84923',
+      "EXPECTED_DEPLOY_RUN: '34066196313'",
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+    }
+
+    $evidencePosition = strpos(
+      $workflow,
+      'Bind deployment evidence to exact immutable candidate',
+    );
+    $sshPosition = strpos(
+      $workflow,
+      'Materialize PREPROD SSH identity after evidence match',
+    );
+    $activePosition = strpos(
+      $workflow,
+      'Prove exact active PREPROD release read-only',
+    );
+    $basicAuthPosition = strpos(
+      $workflow,
+      'BROWSER_VALIDATION_HTTP_USERNAME',
+    );
+    $browserPosition = strpos($workflow, 'npm run browser:validate');
+
+    foreach ([
+      $evidencePosition,
+      $sshPosition,
+      $activePosition,
+      $basicAuthPosition,
+      $browserPosition,
+    ] as $position) {
+      self::assertNotFalse($position);
+    }
+
+    self::assertTrue($evidencePosition < $sshPosition);
+    self::assertTrue($sshPosition < $activePosition);
+    self::assertTrue($activePosition < $basicAuthPosition);
+    self::assertTrue($basicAuthPosition < $browserPosition);
+  }
+
+}

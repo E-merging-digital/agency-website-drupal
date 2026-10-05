@@ -76,6 +76,31 @@ seconde intervention manuelle.
 - En production (split activé) : Google Tag est injecté selon la config du split.
 - En local/DDEV (split désactivé) : aucun script Google Tag n'est injecté.
 
+## Drupal Lifecycle Diagnostic (`#1007`)
+
+Le formulaire `drupal_lifecycle_diagnostic` réutilise exclusivement le Google
+Tag / GA4 de production existant. Aucun script ou événement custom n'est ajouté
+au formulaire.
+
+La mesure minimale retenue est la page de confirmation Webform :
+
+- `confirmation_type: page` fournit une destination distincte après une
+  soumission réussie ;
+- `confirmation_exclude_query: true` et `confirmation_exclude_token: true`
+  garantissent que le contrat de mesure ne dépend d'aucune valeur soumise ni
+  d'aucun token de soumission ;
+- le `page_view` GA4 existant de cette page de confirmation constitue le signal
+  de conversion du diagnostic ;
+- la conversion doit être configurée côté GA4 à partir du chemin de cette page,
+  sans envoyer `email`, `name`, `organization`, `website_url`, `message` ou une
+  autre donnée de formulaire.
+
+Le conteneur PROD connaît déjà l'événement recommandé `generate_lead`, mais la
+pile actuelle ne fournit pas de liaison Webform native suffisamment bornée pour
+l'émettre ici sans ajouter du tracking spécifique. Le MVP conserve donc le
+fallback `page_view` autorisé plutôt que d'ajouter du JavaScript ou une nouvelle
+dépendance uniquement pour l'élégance analytics.
+
 ## Vérifier que le script est présent en production
 
 Méthodes recommandées :

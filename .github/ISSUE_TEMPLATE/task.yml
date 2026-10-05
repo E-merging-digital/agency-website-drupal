@@ -22,6 +22,15 @@ body:
       required: true
 
   - type: textarea
+    id: clarification
+    attributes:
+      label: Clarification / spec authority
+      description: "Trace légère : L0 / direct, ou L1/L2 avec l'issue, commentaire ou spec d'autorité."
+      placeholder: "L0 / direct | L1 / #... | L2 / docs/... ou commentaire ..."
+    validations:
+      required: false
+
+  - type: textarea
     id: taches
     attributes:
       label: Tâches

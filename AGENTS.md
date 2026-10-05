@@ -23,23 +23,225 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Documentation projet dans `docs/`.
 - Scripts d'exploitation dans `scripts/`.
 
-## 2.0 Doctrine CONTRIBUTED MODULES FIRST
+## 2.0 Doctrine USE EXISTING FIRST
 
-- Invariant : **CONTRIBUTED MODULES FIRST**. Avant toute nouvelle capacite ou
-  implementation custom Agency, rechercher d'abord si Drupal core couvre le
-  besoin, puis rechercher et evaluer les modules contrib pertinents.
-- `USE DRUPAL` signifie **core + contrib**. Une absence de familiarite avec un
-  module existant ou l'absence de recherche contrib n'est jamais un gap Drupal.
-- L'evaluation contrib doit verifier au minimum : compatibilite Drupal/PHP,
-  release stable pertinente, maintenance recente, couverture de securite,
-  permissions/dependances introduites et adequation fonctionnelle au besoin.
-- Preferer un module core/contrib stable et security-covered a du code custom,
-  puis `EXTEND DRUPAL` si une extension bornee suffit. `BUILD IN AGENCY` exige
-  un gap reel, documente et demontre apres cette evaluation.
+- Lire **obligatoirement** `docs/decisions/ADR-003-use-existing-first.md` avant
+  toute nouvelle capacite custom substantielle, nouvelle abstraction, nouveau
+  moteur, nouvel orchestrateur ou nouveau mecanisme d'exploitation.
+- Invariant : **USE EXISTING FIRST**. Avant de concevoir du custom Agency,
+  evaluer dans cet ordre :
+  1. Drupal Core ;
+  2. Drush et les APIs Drupal officielles ;
+  3. DDEV et ses primitives officielles lorsque le besoin concerne les
+     environnements locaux/developpement ;
+  4. les modules contrib stables, maintenus et couverts par la Drupal Security
+     Team lorsque pertinent ;
+  5. les outils systeme standards deja adaptes au probleme (Git, Composer,
+     MariaDB, rsync/SSH, systemd, etc.) ;
+  6. les primitives Agency deja presentes ;
+  7. seulement ensuite `EXTEND EXISTING`, puis `BUILD IN AGENCY` si un gap reel
+     reste demontre.
+- `USE DRUPAL` signifie **core + contrib + APIs/Drush adaptes au besoin**. Une
+  absence de familiarite avec un outil existant ou l'absence de recherche n'est
+  jamais un gap Drupal.
+- `USE EXISTING FIRST` ne signifie pas ajouter une dependance a chaque besoin :
+  une primitive systeme simple et eprouvee peut etre preferable a un module
+  contrib supplementaire.
+- Avant d'admettre une nouvelle dependance substantielle, appliquer le gate
+  `DEPENDENCY_ADMISSION` defini dans
+  `docs/decisions/ADR-003-use-existing-first.md`.
+- Toute issue/PR introduisant une surface custom substantielle doit rendre
+  explicite son `EXISTING_CAPABILITY_AUDIT` : Drupal core, Drush/API, DDEV,
+  contrib stable/security-covered, outils systeme et primitives Agency deja
+  presentes ; puis conclure `USE EXISTING`, `EXTEND EXISTING` ou `BUILD CUSTOM`.
+- `BUILD CUSTOM` exige un `CUSTOM_GAP` precis, documente et demontre. Une
+  preference personnelle, une implementation custom deja commencee ou un CI
+  vert ne constituent pas un `CUSTOM_GAP`.
+- Invariant de revue : **CI GREEN != ARCHITECTURE APPROVED**.
+- Invariant de cout irrecuperable : **CUSTOM ALREADY WRITTEN != MUST KEEP**.
+  Supprimer ou simplifier du code non merge lorsque l'existant couvre mieux le
+  besoin.
+- Budget de simplicite : une nouvelle couche n'est admissible que si elle
+  apporte une garantie/capacite necessaire non couverte par l'existant et si son
+  benefice justifie sa complexite operationnelle durable.
+- Preferer configuration a framework, composition a reimplementation,
+  delegation a duplication, API Drupal a SQL custom, Drush/DDEV a orchestrateur
+  maison, et un fail-closed simple a une recovery sophistiquee inutile.
+- Un downtime PREPROD borne est acceptable lorsque le besoin metier le permet et
+  qu'il supprime une complexite transactionnelle disproportionnee sans reduire
+  privacy, backup, rollback ou isolation.
 - Pour le page building et l'IA de composition, evaluer et utiliser en priorite
   Drupal Canvas, Drupal AI, Canvas AI, AI Agents et les autres primitives
   upstream adaptees avant toute orchestration ou moteur Agency concurrent.
-- Cette doctrine s'applique a tous les domaines du projet, pas seulement a l'IA.
+- Cette doctrine s'applique a **tous** les domaines du projet : contenu,
+  deploiement, PREPROD/PROD, donnees, DDEV, IA, frontend et exploitation.
+
+## 2.0.1 Doctrine DOD-first / Minimum Necessary
+
+Cette doctrine s'applique a **chaque unite de travail Agency et a chaque domaine
+projet**, sans exception de produit, contenu, frontend, Drupal, IA,
+PREPROD/PROD, CI, tests, securite, operations, maintenance, recherche ou
+gouvernance.
+
+```text
+DOD_FIRST = REQUIRED
+MINIMUM_NECESSARY = REQUIRED
+USE_EXISTING_FIRST = REQUIRED
+NO_GATE_INFLATION = REQUIRED
+NO_TEST_INFLATION = REQUIRED
+NO_PROOF_FOR_PROOF_SAKE = REQUIRED
+NO_CORRECTION_LOOP = REQUIRED
+NO_PREEMPTIVE_HARDENING = REQUIRED
+NO_INFRASTRUCTURE_SIDE_QUEST = REQUIRED
+WHEN_DOD_IS_PROVEN = STOP
+```
+
+Avant toute action supplementaire, demander :
+
+> Est-ce necessaire pour atteindre ou prouver la Definition of Done de l'unite
+> de travail actuelle ?
+
+- Si **oui**, faire uniquement le minimum necessaire.
+- Si **non**, ne pas l'ajouter a l'unite de travail courante.
+- Un defaut materiel hors scope est signale au Project Lead plutot qu'absorbe
+  silencieusement ; il releve d'un scope separe si necessaire.
+- Ajouter des tests uniquement lorsque cela est necessaire pour prouver un
+  comportement modifie ou un gate deja applicable.
+- Ajouter un nouveau gate uniquement si un risque materiel non couvert est
+  demontre.
+- Ne pas durcir preventivement, accumuler des preuves pour elles-memes ni lancer
+  une side quest d'infrastructure simplement parce qu'une amelioration est
+  possible.
+- Une fois le defaut prouve corrige, ne pas relancer une boucle de correction si
+  le DOD est atteint.
+- Retirer les diagnostics temporaires lorsqu'ils ne sont plus necessaires.
+- Une fois le DOD prouve, **STOP** et retourner au Project Lead.
+
+```text
+CI_GREEN_AND_DOD_PROVEN = STOP
+CI_RED = ISOLATE_AND_FIX_ONLY_FIRST_MATERIAL_DOD_BLOCKER
+POSSIBLE_IMPROVEMENT_NOT_REQUIRED_BY_DOD = OUT_OF_SCOPE
+```
+
+## 2.0.2 Doctrine Clarify Before Specify
+
+Cette doctrine s'applique avant de transformer une intention utilisateur en
+specification, tickets ou implementation lorsque le besoin comporte une
+ambiguite materielle. Lire `docs/project-lead-clarification.md` pour le
+contrat detaille.
+
+```text
+CLARIFY_BEFORE_SPECIFY = REQUIRED_WHEN_MATERIAL_AMBIGUITY_EXISTS
+CLARIFICATION_PROPORTIONAL = REQUIRED
+L0 = DIRECT_EXECUTION
+L1 = TARGETED_CLARIFICATION
+L2 = STRUCTURED_CLARIFICATION
+WHAT_WHY_BEFORE_HOW = REQUIRED
+STOP_CLARIFYING_WHEN_DECISIONS_ARE_SUFFICIENT = REQUIRED
+DELIVERY_ESCALATES_STRUCTURAL_AMBIGUITY = REQUIRED
+```
+
+- Le Project Lead classe les nouveaux besoins substantiels en L0, L1 ou L2
+  avant de figer une solution.
+- **L0** : demande evidente, criteres de reussite explicites, faible ambiguite.
+  Pas de grilling ni de spec lourde.
+- **L1** : quelques decisions manquent. Poser seulement les questions qui
+  peuvent changer la solution, puis avancer.
+- **L2** : plusieurs decisions produit, UX, architecture, integration ou dette
+  durable sont encore ouvertes. Clarifier progressivement avant la spec.
+- Distinguer explicitement **faits**, **hypotheses** et **decisions** lorsque
+  cela change le cadrage.
+- Faire une recherche ou une exploration type `wayfinder` uniquement lorsqu'un
+  fait externe ou plusieurs voies plausibles doivent etre evalues avant de
+  decider.
+- La sortie de clarification decrit d'abord le probleme, l'utilisateur, le
+  resultat attendu, les comportements, decisions, contraintes, cas limites
+  significatifs, criteres de reussite et hors-perimetre. Ne pas figer classes,
+  services, plugins ou structures de code par defaut.
+- Une specification n'est produite qu'apres stabilisation suffisante des
+  decisions structurantes. Les tickets decoulent de la spec ; ils ne doivent
+  pas inventer de nouvelles decisions produit.
+- Si Delivery decouvre une ambiguite structurante, elle retourne au Project Lead
+  au lieu de choisir silencieusement.
+- Arreter la clarification des que suffisamment de decisions sont prises. Une
+  question supplementaire possible n'est pas une raison suffisante pour la
+  poser.
+- Conserver les decisions durables dans les mecanismes existants : issue,
+  commentaire durable, documentation projet ou ADR uniquement lorsqu'une vraie
+  decision architecturale le justifie.
+- Cette doctrine complete `DOD_FIRST` et `USE_EXISTING_FIRST` : elle doit
+  reduire les corrections tardives, pas ajouter du processus aux taches simples.
+
+## 2.0.3 Drupal ecosystem search / contrib candidate
+
+Cette doctrine s'applique aux capacites Drupal custom substantielles et complete
+`USE EXISTING FIRST`. Lire `docs/drupalorg-contribution-workflow.md` avant
+toute preparation de contribution publique.
+
+```text
+DRUPAL_ECOSYSTEM_SEARCH = REQUIRED_WHEN_MATERIALLY_RELEVANT
+CUSTOM_IMPLEMENTATION != CONTRIB_CANDIDATE_BY_DEFAULT
+CONTRIB_CANDIDATE = YES | NO | UNCERTAIN
+NO_BLIND_PUBLISHING = REQUIRED
+NO_AUTONOMOUS_DRUPALORG_MUTATION = REQUIRED
+HUMAN_ACCOUNTABILITY = REQUIRED
+```
+
+- Avant de construire une capacite raisonnablement susceptible d'exister deja,
+  rechercher proportionnellement Drupal core, contrib, issues/MR et documentation
+  pertinents. Une correction locale triviale n'exige pas une recherche lourde.
+- Si une capacite custom parait reutilisable au-dela d'Agency, produire une
+  evaluation factuelle avant de conclure qu'elle devrait devenir contrib.
+- Une contribution potentielle doit distinguer : `KEEP_CUSTOM`,
+  `EXISTING_CONTRIB`, `CORE` ou `NEW_PROJECT`.
+- L'analyse tient compte au minimum de la generalite, du couplage client, de
+  l'existant Drupal, de la generalisation API/config/entity, de la securite,
+  privacy/IP, maintenance, valeur communaute, testabilite et cout de qualite.
+- La lecture/recherche Drupal.org peut etre automatisee. La creation d'issue,
+  commentaire, issue fork, push public, merge request, release ou autre mutation
+  Drupal.org exige une autorite humaine/Project Lead explicite.
+- Les contributions assistees par IA doivent respecter la politique Drupal.org
+  courante : l'humain comprend, relit, teste, corrige, collabore avec les
+  maintainers et declare l'usage significatif d'IA lorsqu'il soumet.
+- Preferer `drupalorg-cli` et ses instructions/skills dynamiques lorsqu'ils
+  couvrent le besoin. Ne pas vendoriser des copies de skills qui risquent de
+  diverger ; revalider la release et la politique upstream avant une mutation.
+- Ne pas creer d'orchestrateur Drupal.org, base de contributions, UI ou couche
+  MCP Agency tant qu'un gap reel n'est pas demontre.
+
+## 2.0.4 Publication editoriale : PREPROD -> validation humaine -> PROD
+
+Cette doctrine s'applique a toute nouvelle publication editoriale, marketing ou
+commerciale destinee au public, y compris les contenus editor-owned Drupal.
+
+```text
+PREPROD_RENDER_REQUIRED_BEFORE_PROD = REQUIRED
+HUMAN_APPROVAL_REQUIRED_BEFORE_PROD = REQUIRED
+AGENT_CANNOT_SELF_APPROVE_PUBLICATION = REQUIRED
+```
+
+- CI vert, merge, dry-run/apply PREPROD, Browser Validation, statut
+  `READY_FOR_PROD` ou decision Project Lead ne constituent jamais une validation
+  humaine du rendu.
+- Le Project Lead peut declarer un candidat techniquement pret pour revue ; il ne
+  peut pas inferer `HUMAN_RENDER_APPROVAL = YES`.
+- La validation PROD doit etre un commentaire humain direct, explicite et lie a
+  l'identite exacte du candidat revu : revision/identite immuable, hash du
+  contenu lorsque disponible et URL PREPROD FR/EN.
+- Les commentaires bot, GitHub App, agent ou de provenance ambigue sont rejetes
+  comme approbation humaine. Une approbation editee n'est pas reutilisee apres
+  changement de candidat : un nouveau commentaire humain est requis.
+- Un agent peut preparer, tester et materialiser PREPROD, ou declencher une
+  commande technique autorisee ; il ne peut jamais s'auto-approuver pour PROD.
+- Les nouvelles pages publiques commerciales, campagnes et pages marketing ou
+  editoriales editor-owned sont FR+EN par defaut. Une publication FR-only exige
+  une exception de langue explicitement approuvee par l'humain avant PROD.
+- La validation humaine porte sur le rendu reel, pas seulement sur la
+  fonctionnalite : les formulaires integres doivent reutiliser le design system
+  et rester visuellement coherents avec les formulaires de reference existants.
+- Les details operationnels autoritatifs sont dans
+  `docs/operations/editorial-candidate.md` et
+  `docs/operations/governed-editorial-publication.md`.
 
 ## 2.1 Doctrine Drupal AI
 
@@ -180,6 +382,10 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 
 - Le site est bilingue FR/EN.
 - Toute page geree par Content Sync doit declarer ses traductions FR et EN.
+- Toute nouvelle page publique commerciale, landing de campagne ou page
+  marketing/editoriale editor-owned doit etre FR+EN par defaut. Une publication
+  FR-only exige une exception de langue explicitement approuvee par l'humain
+  avant toute mutation PROD ; un agent ou le Project Lead ne peut pas l'inferer.
 - Les aliases publics attendus sont prefixes par Drupal selon la langue
   (`/fr/...`, `/en/...`) mais les aliases declares restent neutres dans le
   catalogue (`/contact`, `/drupal-agency-belgium`, etc.).
@@ -192,31 +398,44 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Pour toute tache qui cree ou modifie de la configuration Drupal, une Recipe,
   une Config Action, une config entity Canvas ou une configuration materialisee
   par Drupal AI/agent, lire **obligatoirement**
-  `docs/decisions/ADR-002-configuration-language-governance.md` et
-  `docs/configuration-language-policy.yml`.
-- Invariant : la langue de configuration technique doit etre deterministe,
+  `docs/decisions/ADR-002-configuration-language-governance.md` et la policy
+  courante `docs/configuration-language-policy.yml`.
+- Invariant : la langue de configuration technique reste deterministe,
   reproductible et verifiable. Elle ne depend jamais accidentellement de la
-  requete HTTP, de l'admin, de la langue d'interface, de la provenance d'une
-  Recipe ou du contexte d'un agent IA.
-- La cible canonique technique Agency est `en`, distincte du
-  `system.site:default_langcode` editorial actuel `fr`.
-- La policy est actuellement `migration_required` : **ne pas normaliser en masse
-  `config/sync` et ne pas pretendre que l'enforcement EN est deja actif**.
-- #609 porte l'audit/migration. `drupal/config_language_lock` 1.0.x est le
-  candidat `USE DRUPAL` privilegie, avec `follow_site_default=false`, mais ne
-  doit pas etre active avec un lock EN avant les preuves prevues par #609.
-- Une Recipe est une transformation reproductible d'etat Drupal : verifier
+  requete HTTP, de l'admin, de la langue d'interface, d'une Recipe ou d'un agent
+  IA.
+- L'intention historique de source/base du repository etait EN. Ce fait reste
+  une preuve historique ; il ne definit plus la langue technique des futures
+  ecritures.
+- Les futures ecritures de configuration suivent la langue par defaut du site.
+  Le site actuel est FR et le langcode technique resolu courant est donc `fr`.
+- `drupal/config_language_lock` 1.0.x est **USE DRUPAL / ADOPTED** et actif avec
+  `locked_langcode=fr` et `follow_site_default=true`.
+- Un langcode technique FR ne determine pas a lui seul la langue semantique des
+  valeurs traduisibles. Les semantiques effectives FR/EN doivent rester
+  preservees.
+- Ne jamais appliquer une normalisation large/manuelle de `config/sync`.
+  Utiliser les mecanismes Drupal gouvernes et prouver le diff produit.
+- Changer les reglages du lock ne reecrit pas automatiquement la configuration
+  existante. Une sauvegarde/migration Drupal gouvernee est necessaire lorsqu'une
+  normalisation de repository doit etre materialisee.
+- Un futur changement de langue par defaut qui change le langcode technique
+  resolu exige des preuves gouvernees et, si necessaire, une migration explicite
+  du repository.
+- #609 et #1314 restent des preuves historiques immuables. #1316 represente
+  l'etat materialise courant de la policy.
+- Une Recipe reste une transformation reproductible d'etat Drupal : verifier
   preconditions, configuration/Config Actions, langcodes/traductions,
   permissions, Canvas/SDC/AI impactes et etat final avant admission.
-- `drupal/language_audit` est au plus un outil DEV/investigation tant qu'il ne
-  dispose pas d'une release stable supportee ; ne pas en faire une dependance
+- `drupal/language_audit` reste au plus un outil DEV/investigation tant qu'il
+  ne dispose pas d'une release stable supportee ; ne pas en faire une dependance
   production ni recreer son moteur sans gap demontre.
-- Agency expose la policy et les snapshots/diffs ; Preflight peut les verifier
-  independamment mais Agency ne depend pas de l'implementation interne de
-  Preflight.
-- Lorsque Drupal core fournit une primitive suffisante de langue par defaut de
-  configuration, conserver la policy/tests et retirer progressivement le
-  workaround contrib plutot que maintenir une dependance artificielle.
+- Agency expose la policy et les snapshots/diffs ; Preflight reste un
+  verificateur independant et Agency ne depend pas de son implementation
+  interne.
+- Lorsque Drupal core fournit une primitive suffisante, conserver la policy et
+  les tests, prouver la non-regression puis retirer progressivement le workaround
+  contrib devenu inutile.
 
 ## 7. Regles de maillage interne
 
@@ -309,6 +528,9 @@ preuves visuelles publiees.
 ## 15. Bonnes pratiques Codex
 
 - Lire le ticket, `AGENTS.md`, puis les fichiers touches avant modification.
+- Lire `docs/decisions/ADR-003-use-existing-first.md` avant toute nouvelle
+  abstraction/capacite custom substantielle et produire l'audit requis avant de
+  conclure qu'un nouveau moteur Agency est necessaire.
 - Lire `docs/operations/execution-capabilities.md` avant toute conclusion sur
   les capacites machine ou UI disponibles.
 - Limiter les changements au perimetre exact du ticket.

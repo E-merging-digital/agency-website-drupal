@@ -1,0 +1,2380 @@
+name: "#1316 Configuration-language migration materialization"
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/config-language-policy-migration-1316-hosted-ddev.yml'
+      - 'scripts/runner/config-language-ai-automator-diagnostic-1316.php'
+      - 'docs/evidence/config-language-migration-1316-commit-approval.yml'
+      - 'config/sync/**'
+      - 'docs/configuration-language-policy.yml'
+      - 'docs/configuration-language-governance.md'
+      - 'AGENTS.md'
+      - 'web/modules/custom/agency_project_tests/tests/src/**'
+      - 'web/modules/custom/agency_ai_translation/**'
+
+permissions:
+  contents: write
+
+jobs:
+  migration:
+    name: "#1316 hosted Drupal-owned migration"
+    if: ${{ github.event.pull_request.head.ref == 'fix/1316-configuration-language-policy-migration' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact checkout and historical boundaries
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_HEAD" ]]
+          git diff --check "$BASE_SHA..$EXPECTED_HEAD"
+          git diff --quiet "$BASE_SHA..$EXPECTED_HEAD" --             docs/decisions/ADR-002-configuration-language-governance.md             .github/workflows/config-language-lock-609-hosted-ddev.yml
+
+      - name: Setup DDEV without autostart
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Isolate hosted DDEV project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ddev/config.gate-config-language-1316-hosted.yaml <<EOF
+          name: agency-config-language-1316-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml             | grep -F "agency-config-language-1316-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Determine repository migration mode
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          settings='config/sync/config_language_lock.settings.yml'
+          locked="$(awk -F': ' '/^locked_langcode:/ {print $2}' "$settings")"
+          follow="$(awk -F': ' '/^follow_site_default:/ {print $2}' "$settings")"
+          if [[ "$locked" == 'en' && "$follow" == 'false' ]]; then
+            mode='MATERIALIZE'
+          elif [[ "$locked" == 'fr' && "$follow" == 'true' ]]; then
+            mode='VERIFY'
+          else
+            echo "Unsupported lock settings: $locked / $follow" >&2
+            exit 1
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "MODE=$mode"
+
+      - name: Install exact dependencies and existing configuration
+        shell: bash
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: |
+          set -euo pipefail
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          if [[ "$MODE" == 'MATERIALIZE' ]]; then
+            provenance='artifacts/config-language-repository-en-intent-1316'
+            mkdir -p "$provenance"
+            ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=repository-source \
+              php /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+              > "$provenance/repository-source.json"
+            jq -e '
+              .schema_version == 1
+              and .stage == "repository-source"
+              and .object_count > 0
+              and .raw_config_values_exposed == false
+            ' "$provenance/repository-source.json" >/dev/null
+          fi
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y             --account-pass="$admin_pass"             >"${RUNNER_TEMP}/site-install-1316.log" 2>&1
+          unset admin_pass
+
+          grep -Fq 'Installation complete.' "${RUNNER_TEMP}/site-install-1316.log"
+
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"])
+          text = (root / "site-install-1316.log").read_text(
+              encoding="utf-8",
+              errors="replace",
+          )
+          matches = re.findall(
+              r"([0-9]+)\s+configuration objects updated",
+              text,
+              flags=re.IGNORECASE,
+          )
+          (root / "normalization-count.txt").write_text(
+              (matches[-1] if matches else "0") + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Discover repository-owned EN divergences before reconciliation
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/reconcile-config-language-repository-en-intent-1316.php'
+          artifact='artifacts/config-language-repository-en-reconciliation-1316'
+          mkdir -p "$artifact"
+
+          ddev exec env \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_RECONCILE=1 \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_MODE=ANALYZE \
+            vendor/bin/drush php:script "$helper" \
+            > "$artifact/before.json"
+
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .mode == "ANALYZE"
+            and .divergent_object_count_before == 3
+            and .divergent_path_count_before == 3
+            and .divergent_objects_before == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and ([.divergent_paths_before[] | "\(.config):\(.path)"] == [
+              "language.entity.fr:label",
+              "llms_txt.settings:content",
+              "taxonomy.vocabulary.tags:description"
+            ])
+            and ([.divergent_paths_before[].schema_translatability] | all(. == "YES"))
+            and (.divergence_sha256 | test("^[0-9a-f]{64}$"))
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/before.json" >/dev/null
+
+          jq -r '.divergence_sha256' "$artifact/before.json" \
+            > "${RUNNER_TEMP}/repository-en-divergence-sha256.txt"
+
+      - name: Reconcile repository-owned historical EN before manager
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/reconcile-config-language-repository-en-intent-1316.php'
+          artifact='artifacts/config-language-repository-en-reconciliation-1316'
+          expected_sha="$(cat "${RUNNER_TEMP}/repository-en-divergence-sha256.txt")"
+
+          ddev exec env \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_RECONCILE=1 \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_MODE=RECONCILE \
+            AGENCY_CONFIG_LANGUAGE_REPOSITORY_EN_EXPECTED_DIVERGENCE_SHA256="$expected_sha" \
+            vendor/bin/drush php:script "$helper" \
+            > "$artifact/result.json"
+
+          jq -e '
+            def sha256: type == "string" and test("^[0-9a-f]{64}$");
+            def boolean: type == "boolean";
+            def classification:
+              . == "CONVERGED"
+              or . == "LANGUAGE_EN_OVERRIDE_MASKS_CANONICAL"
+              or . == "CANONICAL_WRITE_DID_NOT_PERSIST"
+              or . == "OTHER_EFFECTIVE_LAYER"
+              or . == "UNCLASSIFIED";
+            def layer_shape:
+              (.source_sha256 | sha256)
+              and (.canonical_before_exists | boolean)
+              and (.canonical_before_sha256 | sha256)
+              and (.en_override_object_before_exists | boolean)
+              and (.en_override_path_before_exists | boolean)
+              and (.en_override_before_sha256 | sha256)
+              and (.effective_en_before_exists | boolean)
+              and (.effective_en_before_sha256 | sha256)
+              and (.canonical_after_exists | boolean)
+              and (.canonical_after_sha256 | sha256)
+              and (.en_override_object_after_exists | boolean)
+              and (.en_override_path_after_exists | boolean)
+              and (.en_override_after_sha256 | sha256)
+              and (.effective_en_after_exists | boolean)
+              and (.effective_en_after_sha256 | sha256)
+              and (.source_equals_canonical_after | boolean)
+              and (.source_equals_en_override_after | boolean)
+              and (.source_equals_effective_after | boolean)
+              and (.source_equals_after | boolean)
+              and (.masking_classification | classification)
+              and (.masking_classification_before_cleanup | classification)
+              and (.override_path_cleared | boolean)
+              and (.override_object_deleted | boolean)
+              and (.source_equals_effective_after_cleanup | boolean);
+
+            .schema_version == 1
+            and .mode == "RECONCILE"
+            and .divergent_object_count_before == 3
+            and .divergent_path_count_before == 3
+            and .divergent_objects_before == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and ([.divergent_paths_before[] | "\(.config):\(.path)"] == [
+              "language.entity.fr:label",
+              "llms_txt.settings:content",
+              "taxonomy.vocabulary.tags:description"
+            ])
+            and .reconciled_object_count == 3
+            and .reconciled_path_count == 3
+            and (.reconciled_paths | length == 3)
+            and ([.reconciled_paths[].schema_translatability] | all(. == "YES"))
+            and ([.reconciled_paths[] | layer_shape] | all)
+            and (.masking_object_count_before_cleanup | type == "number")
+            and (.masking_path_count_before_cleanup | type == "number")
+            and (.masking_paths_before_cleanup | type == "array")
+            and (.cleared_override_path_count | type == "number")
+            and (.cleared_override_object_count | type == "number")
+            and (.deleted_empty_override_object_count | type == "number")
+            and (.saved_nonempty_override_object_count | type == "number")
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/result.json" >/dev/null
+
+          jq '{
+            divergent_object_count_before,
+            divergent_path_count_before,
+            reconciled_object_count,
+            reconciled_path_count,
+            masking_object_count_before_cleanup,
+            masking_path_count_before_cleanup,
+            cleared_override_path_count,
+            cleared_override_object_count,
+            deleted_empty_override_object_count,
+            saved_nonempty_override_object_count,
+            divergent_object_count_after,
+            divergent_path_count_after,
+            reconciled_paths: [.reconciled_paths[] | {
+              config,
+              path,
+              ownership,
+              schema_type,
+              schema_translatability,
+              masking_classification_before_cleanup,
+              override_path_cleared,
+              override_object_deleted,
+              source_equals_effective_after_cleanup
+            }]
+          }' "$artifact/result.json"
+
+      - name: Upload repository EN reconciliation layer diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-repository-en-reconciliation-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-repository-en-reconciliation-1316
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce strict repository EN reconciliation convergence
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-repository-en-reconciliation-1316'
+
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .mode == "RECONCILE"
+            and .divergent_object_count_before == 3
+            and .divergent_path_count_before == 3
+            and .divergent_objects_before == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and ([.divergent_paths_before[] | "\(.config):\(.path)"] == [
+              "language.entity.fr:label",
+              "llms_txt.settings:content",
+              "taxonomy.vocabulary.tags:description"
+            ])
+            and .reconciled_object_count == 3
+            and .reconciled_path_count == 3
+            and .masking_object_count_before_cleanup == 2
+            and .masking_path_count_before_cleanup == 2
+            and .cleared_override_path_count == 2
+            and ([.reconciled_paths[].schema_translatability] | all(. == "YES"))
+            and ([.reconciled_paths[].source_equals_effective_after_cleanup] | all(. == true))
+            and .divergent_object_count_after == 0
+            and .divergent_path_count_after == 0
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/result.json" >/dev/null
+
+      - name: Capture repository EN provenance after site install before manager
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=pre-manager \
+            vendor/bin/drush php:script \
+            /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+            > "$provenance/pre-manager.json"
+          jq -e '
+            .schema_version == 1
+            and .stage == "pre-manager"
+            and (.targets | length == 4)
+            and .raw_config_values_exposed == false
+          ' "$provenance/pre-manager.json" >/dev/null
+
+      - name: Prove Agency AI Automator config-schema compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev exec env \
+            SYMFONY_DEPRECATIONS_HELPER=disabled \
+            SIMPLETEST_BASE_URL=http://agency-website-drupal.ddev.site \
+            SIMPLETEST_DB=mysql://db:db@db/db \
+            vendor/bin/phpunit -c web/core/phpunit.xml.dist \
+            web/modules/custom/agency_ai_translation/tests/src/Kernel/AiAutomatorConfigSchemaCompatibilityKernelTest.php
+
+      - name: Capture effective FR/EN semantics before migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush php:script             /var/www/html/scripts/runner/config-language-effective-semantics-1316.php             > "${RUNNER_TEMP}/effective-before.json"
+          jq -e '
+            .schema_version == 1
+            and .config_values_exposed == false
+            and .languages.fr.count > 0
+            and .languages.en.count > 0
+          ' "${RUNNER_TEMP}/effective-before.json" >/dev/null
+
+      - name: Capture two-target storage/schema diagnostic before migration
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/config-language-ai-automator-diagnostic-1316.php'
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/ai-automator-before.json"
+
+          locked_ai_version="$(php -r '
+            $lock = json_decode(file_get_contents("composer.lock"), true, 512, JSON_THROW_ON_ERROR);
+            foreach ($lock["packages"] as $package) {
+              if (($package["name"] ?? null) === "drupal/ai") {
+                echo $package["version"];
+                exit(0);
+              }
+            }
+            exit(1);
+          ')"
+          [[ "$locked_ai_version" == '1.5.0-rc4' ]]
+
+          jq -e --arg version "$locked_ai_version" '
+            .schema_version == 1
+            and .ai_version == $version
+            and (.ai_automator_schema_source_path | type == "string")
+            and (.ai_automator_schema_source_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets | length == 2)
+            and .raw_config_values_exposed == false
+          ' "${RUNNER_TEMP}/ai-automator-before.json" >/dev/null
+
+      - name: Apply Candidate A through Config Language Lock manager
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev exec env AGENCY_CONFIG_LANGUAGE_1316_EXECUTE=1             vendor/bin/drush php:script             /var/www/html/scripts/runner/apply-config-language-policy-1316.php             > "${RUNNER_TEMP}/drupal-owned-migration.json"
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .site_default_language == "fr"
+          ' "${RUNNER_TEMP}/drupal-owned-migration.json" >/dev/null
+
+      - name: Capture repository EN provenance after manager
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=post-manager \
+            vendor/bin/drush php:script \
+            /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+            > "$provenance/post-manager.json"
+          jq -e '
+            .schema_version == 1
+            and .stage == "post-manager"
+            and (.targets | length == 4)
+            and .raw_config_values_exposed == false
+          ' "$provenance/post-manager.json" >/dev/null
+
+      - name: Prove installed policy runtime before final materialization
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/runtime-before.json"
+          jq -e '
+            .drupal_core_version == "11.4.7"
+            and .canvas_version == "1.11.0"
+            and .config_language_lock_version == "1.0.2"
+            and .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .languages.und.id == "und"
+            and .languages.und.locked == true
+            and .languages.zxx.id == "zxx"
+            and .languages.zxx.locked == true
+            and .config_values_exposed == false
+          ' "${RUNNER_TEMP}/runtime-before.json" >/dev/null
+
+      - name: Build bounded two-target AI Automator diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='/var/www/html/scripts/runner/config-language-ai-automator-diagnostic-1316.php'
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/ai-automator-after.json"
+
+          before="${RUNNER_TEMP}/ai-automator-before.json"
+          after="${RUNNER_TEMP}/ai-automator-after.json"
+          migration="${RUNNER_TEMP}/drupal-owned-migration.json"
+          artifact="${RUNNER_TEMP}/ai-automator-diagnostic-1316"
+          mkdir -p "$artifact"
+
+          jq -n             --slurpfile before "$before"             --slurpfile after "$after"             --slurpfile migration "$migration" '
+              def sorted_keys($map): ($map | keys | sort);
+              def difference($left; $right):
+                [$left[] | select(($right | index(.)) == null)];
+              def common($left; $right):
+                [$left[] | select(($right | index(.)) != null)];
+              def layer_diff($b; $a):
+                sorted_keys($b.per_leaf_path_sha256) as $before_paths
+                | sorted_keys($a.per_leaf_path_sha256) as $after_paths
+                | difference($after_paths; $before_paths) as $added
+                | difference($before_paths; $after_paths) as $removed
+                | common($before_paths; $after_paths) as $shared
+                | [
+                    $shared[]
+                    | select(
+                        $b.per_leaf_path_sha256[.]
+                        != $a.per_leaf_path_sha256[.]
+                      )
+                  ] as $changed
+                | {
+                    before_exists: $b.object_exists,
+                    after_exists: $a.object_exists,
+                    before_whole_layer_sha256: $b.whole_layer_sha256,
+                    after_whole_layer_sha256: $a.whole_layer_sha256,
+                    added_paths: $added,
+                    removed_paths: $removed,
+                    changed_paths: $changed,
+                    unchanged_path_count:
+                      (($shared | length) - ($changed | length)),
+                    added_count: ($added | length),
+                    removed_count: ($removed | length),
+                    changed_count: ($changed | length)
+                  };
+              def target_diff($name):
+                ($before[0].targets[$name]) as $b
+                | ($after[0].targets[$name]) as $a
+                | {
+                    target: $name,
+                    base: layer_diff($b.layers.base; $a.layers.base),
+                    fr_override:
+                      layer_diff($b.layers.fr_override; $a.layers.fr_override),
+                    en_override:
+                      layer_diff($b.layers.en_override; $a.layers.en_override),
+                    effective_fr:
+                      layer_diff($b.layers.effective_fr; $a.layers.effective_fr),
+                    effective_en:
+                      layer_diff($b.layers.effective_en; $a.layers.effective_en)
+                  }
+                | . as $diff
+                | (
+                    [
+                      $diff.base.changed_paths[],
+                      $diff.fr_override.changed_paths[],
+                      $diff.en_override.changed_paths[],
+                      $diff.effective_fr.changed_paths[],
+                      $diff.effective_en.changed_paths[],
+                      $diff.base.added_paths[],
+                      $diff.fr_override.added_paths[],
+                      $diff.en_override.added_paths[],
+                      $diff.effective_fr.added_paths[],
+                      $diff.effective_en.added_paths[],
+                      $diff.base.removed_paths[],
+                      $diff.fr_override.removed_paths[],
+                      $diff.en_override.removed_paths[],
+                      $diff.effective_fr.removed_paths[],
+                      $diff.effective_en.removed_paths[]
+                    ]
+                    | unique
+                  ) as $changed_paths
+                | $diff + {
+                    changed_path_schema_classification:
+                      [
+                        $changed_paths[]
+                        | . as $path
+                        | (
+                            $a.schema_by_path[$path]
+                            // $b.schema_by_path[$path]
+                            // {
+                              schema_path: $path,
+                              schema_type: "UNKNOWN",
+                              schema_definition_present: "NO",
+                              schema_translatability: "UNKNOWN"
+                            }
+                          )
+                      ]
+                  };
+              ($before[0].targets | keys | sort) as $targets
+              | {
+                  schema_version: 1,
+                  ai_version: $after[0].ai_version,
+                  ai_automator_schema_source_path:
+                    $after[0].ai_automator_schema_source_path,
+                  ai_automator_schema_source_sha256:
+                    $after[0].ai_automator_schema_source_sha256,
+                  manager_stats: {
+                    config_items_changed:
+                      ($migration[0].stats.config_items_changed // null),
+                    translations_updated:
+                      ($migration[0].stats.translations_updated // null),
+                    translations_removed:
+                      ($migration[0].stats.translations_removed // null)
+                  },
+                  targets:
+                    (
+                      reduce $targets[] as $target
+                        ({}; .[$target] = target_diff($target))
+                    ),
+                  raw_config_values_exposed: false
+                }
+            ' > "$artifact/result.json"
+
+          jq -e '
+            .schema_version == 1
+            and .ai_version == "1.5.0-rc4"
+            and (.ai_automator_schema_source_path | type == "string")
+            and (.ai_automator_schema_source_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets | length == 2)
+            and (
+              [
+                .targets[]
+                | .base,
+                  .fr_override,
+                  .en_override,
+                  .effective_fr,
+                  .effective_en
+                | .added_paths[],
+                  .removed_paths[],
+                  .changed_paths[]
+              ]
+              | all(type == "string")
+            )
+            and (
+              [
+                .targets[]
+                | .changed_path_schema_classification[]
+                | .schema_definition_present
+              ]
+              | all(. == "YES" or . == "NO")
+            )
+            and .raw_config_values_exposed == false
+          ' "$artifact/result.json" >/dev/null
+
+      - name: Upload bounded two-target AI Automator diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-ai-automator-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ai-automator-diagnostic-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Build bounded effective FR/EN semantic diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush php:script             /var/www/html/scripts/runner/config-language-effective-semantics-1316.php             > "${RUNNER_TEMP}/effective-after.json"
+
+          jq -e '
+            .und.id == "und"
+            and .und.locked == true
+            and .zxx.id == "zxx"
+            and .zxx.locked == true
+          ' "${RUNNER_TEMP}/effective-after.json" >/dev/null
+
+          mkdir -p "${RUNNER_TEMP}/semantic-diagnostic-1316"
+          jq -n             --slurpfile before "${RUNNER_TEMP}/effective-before.json"             --slurpfile after "${RUNNER_TEMP}/effective-after.json" '
+              def sorted_keys($map): ($map | keys | sort);
+              def difference($left; $right):
+                [$left[] | select(($right | index(.)) == null)];
+              def common($left; $right):
+                [$left[] | select(($right | index(.)) != null)];
+              def diagnostic($lang):
+                ($before[0].languages[$lang]) as $b
+                | ($after[0].languages[$lang]) as $a
+                | sorted_keys($b.object_fingerprints) as $before_names
+                | sorted_keys($a.object_fingerprints) as $after_names
+                | difference($after_names; $before_names) as $added
+                | difference($before_names; $after_names) as $removed
+                | common($before_names; $after_names) as $shared
+                | [
+                    $shared[]
+                    | select(
+                        $b.object_fingerprints[.]
+                        != $a.object_fingerprints[.]
+                      )
+                  ] as $changed
+                | {
+                    names_equal: ($b.names_sha256 == $a.names_sha256),
+                    values_equal: ($b.values_sha256 == $a.values_sha256),
+                    before_count: $b.count,
+                    after_count: $a.count,
+                    before_names_sha256: $b.names_sha256,
+                    after_names_sha256: $a.names_sha256,
+                    before_values_sha256: $b.values_sha256,
+                    after_values_sha256: $a.values_sha256,
+                    added_object_names: $added,
+                    removed_object_names: $removed,
+                    changed_object_names: $changed,
+                    added_count: ($added | length),
+                    removed_count: ($removed | length),
+                    changed_count: ($changed | length)
+                  };
+              {
+                schema_version: 1,
+                fr: diagnostic("fr"),
+                en: diagnostic("en"),
+                raw_config_values_exposed: false
+              }
+            ' > "${RUNNER_TEMP}/semantic-diagnostic-1316/result.json"
+
+          jq -e '
+            .schema_version == 1
+            and (.fr.names_equal | type == "boolean")
+            and (.fr.values_equal | type == "boolean")
+            and (.en.names_equal | type == "boolean")
+            and (.en.values_equal | type == "boolean")
+            and (.fr.added_object_names | type == "array")
+            and (.fr.removed_object_names | type == "array")
+            and (.fr.changed_object_names | type == "array")
+            and (.en.added_object_names | type == "array")
+            and (.en.removed_object_names | type == "array")
+            and (.en.changed_object_names | type == "array")
+            and .raw_config_values_exposed == false
+          ' "${RUNNER_TEMP}/semantic-diagnostic-1316/result.json" >/dev/null
+
+      - name: Upload bounded FR/EN semantic diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-semantic-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/semantic-diagnostic-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce unchanged effective FR/EN semantic equality
+        shell: bash
+        run: |
+          set -euo pipefail
+          diagnostic="${RUNNER_TEMP}/semantic-diagnostic-1316/result.json"
+          jq -e '
+            .fr.names_equal == true
+            and .fr.values_equal == true
+            and .en.names_equal == true
+            and .en.values_equal == true
+          ' "$diagnostic" >/dev/null
+
+      - name: Capture pre-materialization config status
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush config:status --format=json             > "${RUNNER_TEMP}/config-status-before.json"
+          jq -e 'type == "array" or type == "object"'             "${RUNNER_TEMP}/config-status-before.json" >/dev/null
+          jq 'length' "${RUNNER_TEMP}/config-status-before.json"             > "${RUNNER_TEMP}/config-status-before-count.txt"
+
+      - name: Final bounded materialization through Drupal export
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush cex -y > "${RUNNER_TEMP}/cex-1316.log" 2>&1
+          git diff --check -- config/sync
+
+      - name: Prove isolated two-override fresh-install roundtrip
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eEuo pipefail
+
+          artifact="${GITHUB_WORKSPACE}/artifacts/config-language-roundtrip-candidate-1316"
+          candidate="${RUNNER_TEMP}/config-language-roundtrip-1316"
+          site_install_log="${RUNNER_TEMP}/roundtrip-site-install.log"
+          candidate_paths='["config/sync/language/en/llms_txt.settings.yml","config/sync/language/en/taxonomy.vocabulary.tags.yml"]'
+          current_phase='INIT'
+          completed_phases='[]'
+          config_import_attempted='false'
+          config_import_exit_code='-1'
+          config_import_output_sha256='NONE'
+          mkdir -p "$artifact"
+
+          write_progress() {
+            local status="${1:-RUNNING}"
+            jq -n \
+              --arg head_sha "$HEAD_SHA" \
+              --arg status "$status" \
+              --arg current_phase "$current_phase" \
+              --argjson completed_phases "$completed_phases" \
+              --argjson candidate_paths "$candidate_paths" \
+              '{
+                schema_version: 1,
+                head_sha: $head_sha,
+                mode: "VERIFY",
+                experiment: "two_override_fresh_install_roundtrip",
+                status: $status,
+                current_phase: $current_phase,
+                completed_phases: $completed_phases,
+                candidate_paths: $candidate_paths,
+                raw_config_values_exposed: false,
+                primary_config_sync_mutated: false,
+                prod_access: "NONE",
+                preprod_access: "NONE"
+              }' > "$artifact/progress.json"
+          }
+
+          begin_phase() {
+            current_phase="$1"
+            write_progress RUNNING
+          }
+
+          complete_phase() {
+            completed_phases="$(
+              jq -c --arg phase "$current_phase" '. + [$phase]' <<<"$completed_phases"
+            )"
+            write_progress RUNNING
+          }
+
+          record_failure() {
+            local exit_code="$1"
+            local site_install_log_sha256='NONE'
+            if [[ "$current_phase" == 'SITE_INSTALL' || "$current_phase" == 'SITE_INSTALL_COMPLETION_GATE' ]] \
+              && [[ -f "$site_install_log" ]]; then
+              site_install_log_sha256="$(sha256sum "$site_install_log" | awk '{print $1}')"
+            fi
+
+            jq -n \
+              --arg head_sha "$HEAD_SHA" \
+              --arg failed_phase "$current_phase" \
+              --argjson exit_code "$exit_code" \
+              --argjson completed_phases "$completed_phases" \
+              --argjson candidate_paths "$candidate_paths" \
+              --arg site_install_log_sha256 "$site_install_log_sha256" \
+              --argjson config_import_attempted "$config_import_attempted" \
+              --argjson config_import_exit_code "$config_import_exit_code" \
+              --arg config_import_output_sha256 "$config_import_output_sha256" \
+              '{
+                schema_version: 1,
+                head_sha: $head_sha,
+                mode: "VERIFY",
+                experiment: "two_override_fresh_install_roundtrip",
+                status: "FAIL",
+                failed_phase: $failed_phase,
+                exit_code: $exit_code,
+                completed_phases: $completed_phases,
+                candidate_paths: $candidate_paths,
+                site_install_log_sha256: $site_install_log_sha256,
+                site_install_safe_error_diagnostic: "NONE",
+                config_import: {
+                  attempted: $config_import_attempted,
+                  exit_code: $config_import_exit_code,
+                  output_sha256: $config_import_output_sha256
+                },
+                raw_config_values_exposed: false,
+                primary_config_sync_mutated: false,
+                prod_access: "NONE",
+                preprod_access: "NONE"
+              }' > "$artifact/failure.json"
+            write_progress FAIL
+          }
+
+          cleanup_roundtrip() {
+            set +e
+            if [[ -d "$candidate" ]]; then
+              (
+                cd "$candidate"
+                ddev delete --omit-snapshot --yes
+              ) >/dev/null 2>&1 || true
+              git worktree remove --force "$candidate" >/dev/null 2>&1 || true
+            fi
+          }
+
+          on_roundtrip_exit() {
+            local exit_code="$?"
+            trap - EXIT ERR
+            set +e
+            if [[ "$exit_code" -ne 0 ]]; then
+              record_failure "$exit_code"
+            fi
+            cleanup_roundtrip
+            exit "$exit_code"
+          }
+
+          trap on_roundtrip_exit EXIT
+          write_progress RUNNING
+
+          begin_phase PRIMARY_FR_FINGERPRINT
+          cat > "$artifact/target-fingerprints.php" <<'PHP'
+          <?php
+          declare(strict_types=1);
+          use Drupal\language\Entity\ConfigurableLanguage;
+
+          $langcode = getenv('AGENCY_TARGET_LANGCODE');
+          if (!in_array($langcode, ['fr', 'en'], TRUE)) {
+            throw new RuntimeException('Unsupported target language.');
+          }
+          $language = ConfigurableLanguage::load($langcode);
+          if (!$language instanceof ConfigurableLanguage) {
+            throw new RuntimeException('Target language is unavailable.');
+          }
+          $configFactory = \Drupal::service('config.factory');
+          $overrideFactory = \Drupal::service('language.config_factory_override');
+          $overrideFactory->setLanguage($language);
+          $configFactory->reset();
+
+          $fingerprint = static fn(mixed $value): string => hash(
+            'sha256',
+            json_encode(
+              $value,
+              JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ),
+          );
+          $targets = [
+            'llms_txt_content' => ['llms_txt.settings', 'content'],
+            'taxonomy_tags_name' => ['taxonomy.vocabulary.tags', 'name'],
+            'taxonomy_tags_description' => ['taxonomy.vocabulary.tags', 'description'],
+          ];
+          $result = [];
+          foreach ($targets as $key => [$name, $path]) {
+            $result[$key] = ['sha256' => $fingerprint($configFactory->get($name)->get($path))];
+          }
+          echo json_encode([
+            'schema_version' => 1,
+            'langcode' => $langcode,
+            'targets' => $result,
+            'raw_config_values_exposed' => FALSE,
+          ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+          PHP
+
+          ddev exec env AGENCY_TARGET_LANGCODE=fr \
+            vendor/bin/drush php:script \
+            /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
+            > "$artifact/primary-fr.json"
+          jq -e '
+            .schema_version == 1
+            and .langcode == "fr"
+            and .raw_config_values_exposed == false
+            and (.targets.llms_txt_content.sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.taxonomy_tags_name.sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.taxonomy_tags_description.sha256 | test("^[0-9a-f]{64}$"))
+          ' "$artifact/primary-fr.json" >/dev/null
+          complete_phase
+
+          begin_phase WORKTREE_CREATE
+          git worktree add --detach "$candidate" "$HEAD_SHA"
+          cat > "$candidate/.ddev/config.roundtrip-1316.yaml" <<EOF
+          name: agency-config-language-roundtrip-1316-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          complete_phase
+
+          begin_phase DDEV_START
+          (
+            cd "$candidate"
+            ddev start -y
+          )
+          complete_phase
+
+          begin_phase COMPOSER_INSTALL
+          (
+            cd "$candidate"
+            ddev composer install --no-interaction --no-progress --prefer-dist
+          )
+          complete_phase
+
+          begin_phase CANDIDATE_BUILD
+          candidate_artifact="$candidate/artifacts/config-language-roundtrip-candidate-1316"
+          mkdir -p "$candidate_artifact"
+          cp "$artifact/target-fingerprints.php" "$candidate_artifact/target-fingerprints.php"
+
+          cat > "$candidate_artifact/build-candidate.php" <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          use Symfony\Component\Yaml\Yaml;
+
+          $root = dirname(__DIR__, 2);
+          require_once $root . '/vendor/autoload.php';
+          $sync = $root . '/config/sync';
+
+          $llmsSource = Yaml::parseFile($sync . '/llms_txt.settings.yml');
+          $llmsDurable = Yaml::parseFile($sync . '/language/en/llms_txt.settings.yml');
+          $taxonomySource = Yaml::parseFile($sync . '/taxonomy.vocabulary.tags.yml');
+          $taxonomyDurable = Yaml::parseFile($sync . '/language/en/taxonomy.vocabulary.tags.yml');
+
+          foreach ([$llmsSource, $llmsDurable, $taxonomySource, $taxonomyDurable] as $data) {
+            if (!is_array($data)) {
+              throw new RuntimeException('Candidate source or durable YAML is invalid.');
+            }
+          }
+          if (!array_key_exists('content', $llmsSource)) {
+            throw new RuntimeException('Missing canonical llms content.');
+          }
+          if (!array_key_exists('content', $llmsDurable)) {
+            throw new RuntimeException('Missing durable llms content.');
+          }
+          if (!array_key_exists('description', $taxonomySource)) {
+            throw new RuntimeException('Missing canonical taxonomy description.');
+          }
+          if (!array_key_exists('description', $taxonomyDurable)) {
+            throw new RuntimeException('Missing durable taxonomy description.');
+          }
+
+          $fingerprint = static fn(mixed $value): string => hash(
+            'sha256',
+            json_encode(
+              $value,
+              JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
+            ),
+          );
+
+          $llmsLeaves = array_keys($llmsDurable);
+          $taxonomyLeaves = array_keys($taxonomyDurable);
+          sort($llmsLeaves, SORT_STRING);
+          sort($taxonomyLeaves, SORT_STRING);
+
+          $llmsSourceSha = $fingerprint($llmsSource['content']);
+          $llmsDurableSha = $fingerprint($llmsDurable['content']);
+          $taxonomySourceSha = $fingerprint($taxonomySource['description']);
+          $taxonomyDurableSha = $fingerprint($taxonomyDurable['description']);
+          $taxonomyNamePresent = array_key_exists('name', $taxonomyDurable);
+
+          echo json_encode([
+            'schema_version' => 1,
+            'mode' => 'NON_MUTATING_VERIFY',
+            'llms_en_leaf_paths' => $llmsLeaves,
+            'taxonomy_en_leaf_paths' => $taxonomyLeaves,
+            'llms' => [
+              'source_sha256' => $llmsSourceSha,
+              'durable_sha256' => $llmsDurableSha,
+              'candidate_sha256' => $llmsDurableSha,
+              'source_equals_durable' => hash_equals($llmsSourceSha, $llmsDurableSha),
+            ],
+            'taxonomy_description' => [
+              'source_sha256' => $taxonomySourceSha,
+              'durable_sha256' => $taxonomyDurableSha,
+              'candidate_sha256' => $taxonomyDurableSha,
+              'source_equals_durable' => hash_equals($taxonomySourceSha, $taxonomyDurableSha),
+            ],
+            'taxonomy_name' => [
+              'present' => $taxonomyNamePresent,
+              'source_sha256' => $fingerprint($taxonomyDurable['name'] ?? NULL),
+              'candidate_sha256' => $fingerprint($taxonomyDurable['name'] ?? NULL),
+            ],
+            'raw_config_values_exposed' => FALSE,
+          ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+          PHP
+
+          (
+            cd "$candidate"
+            ddev exec php \
+              /var/www/html/artifacts/config-language-roundtrip-candidate-1316/build-candidate.php \
+              > "$artifact/candidate-build.json"
+          )
+          complete_phase
+
+          begin_phase CANDIDATE_STRUCTURE_GATE
+          jq -e '
+            .schema_version == 1
+            and .mode == "NON_MUTATING_VERIFY"
+            and .llms_en_leaf_paths == ["content"]
+            and .taxonomy_en_leaf_paths == ["description", "name"]
+            and .llms.source_equals_durable == true
+            and .llms.source_sha256 == .llms.durable_sha256
+            and .taxonomy_description.source_equals_durable == true
+            and .taxonomy_description.source_sha256 == .taxonomy_description.durable_sha256
+            and .taxonomy_name.present == true
+            and .raw_config_values_exposed == false
+          ' "$artifact/candidate-build.json" >/dev/null
+          complete_phase
+
+          begin_phase CANDIDATE_DIFF_GATE
+          actual_diff="$(git -C "$candidate" diff --name-status -- config/sync)"
+          [[ -z "$actual_diff" ]]
+          test -z "$(git -C "$candidate" status --porcelain -- config/sync)"
+          complete_phase
+
+          begin_phase SITE_INSTALL
+          admin_pass="$(openssl rand -hex 24)"
+          (
+            cd "$candidate"
+            ddev drush site:install --existing-config -y \
+              --account-pass="$admin_pass" \
+              > "$site_install_log" 2>&1
+          )
+          unset admin_pass
+          complete_phase
+
+          begin_phase SITE_INSTALL_COMPLETION_GATE
+          grep -Fq 'Installation complete.' "$site_install_log"
+          complete_phase
+
+          begin_phase COLLECTION_DIAGNOSTIC
+          (
+            cd "$candidate"
+            ddev exec env \
+              AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
+              AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 \
+              vendor/bin/drush php:script \
+              /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
+              > "$artifact/isolated-collections-before-reimport.json"
+          )
+          complete_phase
+
+          begin_phase PRE_REIMPORT_COLLECTION_GATE
+          jq -e '
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .diagnostic_only == true
+            and .raw_config_values_exposed == false
+            and .collections["language.fr"].match == true
+            and .collections["language.fr"].classification == "MATCH"
+            and .collections["language.fr"].active_count == 7
+            and .collections["language.fr"].sync_count == 7
+            and .collections["language.fr"].active_only_count == 0
+            and .collections["language.fr"].sync_only_count == 0
+            and .collections["language.fr"].value_mismatch_count == 0
+            and .collections["language.en"].match == false
+            and .collections["language.en"].classification == "VALUE_MISMATCH"
+            and .collections["language.en"].active_count == 418
+            and .collections["language.en"].sync_count == 418
+            and .collections["language.en"].active_only_count == 0
+            and .collections["language.en"].sync_only_count == 0
+            and .collections["language.en"].value_mismatch_count == 2
+            and (.collections["language.en"].value_mismatch_names | sort)
+              == ["llms_txt.settings", "taxonomy.vocabulary.tags"]
+            and (
+              .collections["language.en"].value_mismatch_fingerprints
+              | sort_by(.name)
+            ) == [
+              {
+                "name": "llms_txt.settings",
+                "active_sha256": "e3feb7e36e65420abbf4b2898f3b9c7f5e15d9a7f08d64ca8e83f3f7e08d55f2",
+                "sync_sha256": "68635e6a322ce86f2d7692fdf31a6f34aa02f9e51afccecb0df245312336f736"
+              },
+              {
+                "name": "taxonomy.vocabulary.tags",
+                "active_sha256": "0ef643ea54ca978c93c1795b6d86379ef2678858472df05e72c979343b5cb654",
+                "sync_sha256": "8b62f618540df445425b8d38c7220827f7facb9f694b95cc5ae74c656efa5fc8"
+              }
+            ]
+          ' "$artifact/isolated-collections-before-reimport.json" >/dev/null
+          complete_phase
+
+          begin_phase PRE_REIMPORT_CONFIG_STATUS
+          (
+            cd "$candidate"
+            ddev drush config:status --format=json \
+              > "$artifact/isolated-config-status-before-reimport.json"
+          )
+          pre_reimport_config_status_count="$(
+            jq 'length' "$artifact/isolated-config-status-before-reimport.json"
+          )"
+          complete_phase
+
+          begin_phase CONFIG_IMPORT
+          config_import_log="${RUNNER_TEMP}/roundtrip-config-import.log"
+          config_import_attempted='true'
+          set +e
+          (
+            cd "$candidate"
+            ddev drush config:import -y > "$config_import_log" 2>&1
+          )
+          config_import_exit_code="$?"
+          set -e
+          config_import_output_sha256="$(
+            sha256sum "$config_import_log" | awk '{print $1}'
+          )"
+          [[ "$config_import_exit_code" -eq 0 ]]
+          complete_phase
+
+          begin_phase POST_REIMPORT_COLLECTION_DIAGNOSTIC
+          (
+            cd "$candidate"
+            ddev exec env \
+              AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
+              AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 \
+              vendor/bin/drush php:script \
+              /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
+              > "$artifact/isolated-collections-after-reimport.json"
+          )
+          complete_phase
+
+          begin_phase POST_REIMPORT_COLLECTION_GATE
+          jq -e '
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .diagnostic_only == true
+            and .status == "PASS"
+            and .raw_config_values_exposed == false
+            and .collections["language.fr"].match == true
+            and .collections["language.fr"].classification == "MATCH"
+            and .collections["language.fr"].active_only_count == 0
+            and .collections["language.fr"].sync_only_count == 0
+            and .collections["language.fr"].value_mismatch_count == 0
+            and .collections["language.en"].match == true
+            and .collections["language.en"].classification == "MATCH"
+            and .collections["language.en"].active_count == 418
+            and .collections["language.en"].sync_count == 418
+            and .collections["language.en"].active_only_count == 0
+            and .collections["language.en"].sync_only_count == 0
+            and .collections["language.en"].value_mismatch_count == 0
+          ' "$artifact/isolated-collections-after-reimport.json" >/dev/null
+          complete_phase
+
+          begin_phase POST_REIMPORT_STRICT_COLLECTION
+          (
+            cd "$candidate"
+            ddev exec env AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
+              vendor/bin/drush php:script \
+              /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
+              > "$artifact/isolated-strict-after-reimport.json"
+          )
+          jq -e '
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .status == "PASS"
+            and .collections["language.fr"].match == true
+            and .collections["language.en"].match == true
+            and .collections["language.fr"].written == 0
+            and .collections["language.fr"].deleted == 0
+            and .collections["language.en"].written == 0
+            and .collections["language.en"].deleted == 0
+          ' "$artifact/isolated-strict-after-reimport.json" >/dev/null
+          complete_phase
+
+          begin_phase POST_REIMPORT_CONFIG_STATUS
+          (
+            cd "$candidate"
+            ddev drush config:status --format=json \
+              > "$artifact/isolated-config-status-after-reimport.json"
+          )
+          post_reimport_config_status_count="$(
+            jq 'length' "$artifact/isolated-config-status-after-reimport.json"
+          )"
+          [[ "$post_reimport_config_status_count" -eq 0 ]]
+          complete_phase
+
+          begin_phase POST_REIMPORT_TARGET_FINGERPRINTS
+          (
+            cd "$candidate"
+            ddev exec env AGENCY_TARGET_LANGCODE=en \
+              vendor/bin/drush php:script \
+              /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
+              > "$artifact/isolated-en-after-reimport.json"
+            ddev exec env AGENCY_TARGET_LANGCODE=fr \
+              vendor/bin/drush php:script \
+              /var/www/html/artifacts/config-language-roundtrip-candidate-1316/target-fingerprints.php \
+              > "$artifact/isolated-fr-after-reimport.json"
+          )
+          complete_phase
+
+          begin_phase POST_REIMPORT_TARGET_EQUALITY_GATE
+          llms_source="$(jq -r '.llms.source_sha256' "$artifact/candidate-build.json")"
+          llms_candidate="$(jq -r '.llms.candidate_sha256' "$artifact/candidate-build.json")"
+          llms_effective_en="$(
+            jq -r '.targets.llms_txt_content.sha256' \
+              "$artifact/isolated-en-after-reimport.json"
+          )"
+          taxonomy_description_source="$(
+            jq -r '.taxonomy_description.source_sha256' "$artifact/candidate-build.json"
+          )"
+          taxonomy_description_candidate="$(
+            jq -r '.taxonomy_description.candidate_sha256' "$artifact/candidate-build.json"
+          )"
+          taxonomy_description_effective_en="$(
+            jq -r '.targets.taxonomy_tags_description.sha256' \
+              "$artifact/isolated-en-after-reimport.json"
+          )"
+          taxonomy_name_source="$(
+            jq -r '.taxonomy_name.source_sha256' "$artifact/candidate-build.json"
+          )"
+          taxonomy_name_candidate="$(
+            jq -r '.taxonomy_name.candidate_sha256' "$artifact/candidate-build.json"
+          )"
+          taxonomy_name_effective_en="$(
+            jq -r '.targets.taxonomy_tags_name.sha256' \
+              "$artifact/isolated-en-after-reimport.json"
+          )"
+
+          [[ "$llms_source" == "$llms_candidate" ]]
+          [[ "$llms_candidate" == "$llms_effective_en" ]]
+          [[ "$taxonomy_description_source" == "$taxonomy_description_candidate" ]]
+          [[ "$taxonomy_description_candidate" == "$taxonomy_description_effective_en" ]]
+          [[ "$taxonomy_name_source" == "$taxonomy_name_candidate" ]]
+          [[ "$taxonomy_name_candidate" == "$taxonomy_name_effective_en" ]]
+
+          for key in llms_txt_content taxonomy_tags_name taxonomy_tags_description; do
+            primary_fr="$(
+              jq -r --arg key "$key" '.targets[$key].sha256' "$artifact/primary-fr.json"
+            )"
+            isolated_fr="$(
+              jq -r --arg key "$key" '.targets[$key].sha256' \
+                "$artifact/isolated-fr-after-reimport.json"
+            )"
+            [[ "$primary_fr" == "$isolated_fr" ]]
+          done
+          complete_phase
+
+          begin_phase PRIMARY_CONFIG_CLEAN_GATE
+          final_candidate_diff="$(git -C "$candidate" diff --name-status -- config/sync)"
+          [[ -z "$final_candidate_diff" ]]
+          test -z "$(git -C "$candidate" status --porcelain -- config/sync)"
+          git diff --quiet HEAD -- config/sync
+          test -z "$(git status --porcelain -- config/sync)"
+          complete_phase
+
+          begin_phase RESULT_BUILD
+          before_reimport_fr="$(
+            jq '.collections["language.fr"]' \
+              "$artifact/isolated-collections-before-reimport.json"
+          )"
+          before_reimport_en="$(
+            jq '.collections["language.en"]' \
+              "$artifact/isolated-collections-before-reimport.json"
+          )"
+          after_reimport_fr="$(
+            jq '.collections["language.fr"]' \
+              "$artifact/isolated-collections-after-reimport.json"
+          )"
+          after_reimport_en="$(
+            jq '.collections["language.en"]' \
+              "$artifact/isolated-collections-after-reimport.json"
+          )"
+
+          jq -n \
+            --arg head_sha "$HEAD_SHA" \
+            --argjson before_reimport_fr "$before_reimport_fr" \
+            --argjson before_reimport_en "$before_reimport_en" \
+            --argjson pre_reimport_config_status_count "$pre_reimport_config_status_count" \
+            --argjson config_import_attempted "$config_import_attempted" \
+            --argjson config_import_exit_code "$config_import_exit_code" \
+            --arg config_import_output_sha256 "$config_import_output_sha256" \
+            --argjson after_reimport_fr "$after_reimport_fr" \
+            --argjson after_reimport_en "$after_reimport_en" \
+            --argjson post_reimport_config_status_count "$post_reimport_config_status_count" \
+            '{
+              schema_version: 1,
+              head_sha: $head_sha,
+              candidate_paths: [
+                "config/sync/language/en/llms_txt.settings.yml",
+                "config/sync/language/en/taxonomy.vocabulary.tags.yml"
+              ],
+              site_install: "PASS",
+              before_reimport: {
+                language_fr: $before_reimport_fr,
+                language_en: $before_reimport_en,
+                config_status_count: $pre_reimport_config_status_count
+              },
+              config_import: {
+                attempted: $config_import_attempted,
+                exit_code: $config_import_exit_code,
+                output_sha256: $config_import_output_sha256
+              },
+              after_reimport: {
+                language_fr: $after_reimport_fr,
+                language_en: $after_reimport_en,
+                strict_collection_gate: "PASS",
+                config_status_count: $post_reimport_config_status_count
+              },
+              llms_source_equals_candidate: true,
+              llms_candidate_equals_effective_en_after_reimport: true,
+              taxonomy_description_source_equals_candidate: true,
+              taxonomy_description_candidate_equals_effective_en_after_reimport: true,
+              taxonomy_name_preserved: true,
+              effective_fr_preserved: true,
+              raw_config_values_exposed: false,
+              primary_config_sync_mutated: false,
+              prod_access: "NONE",
+              preprod_access: "NONE"
+            }' > "$artifact/result.json"
+          complete_phase
+
+          begin_phase RESULT_GATE
+          jq -e '
+            .schema_version == 1
+            and .head_sha == env.HEAD_SHA
+            and .candidate_paths == [
+              "config/sync/language/en/llms_txt.settings.yml",
+              "config/sync/language/en/taxonomy.vocabulary.tags.yml"
+            ]
+            and .site_install == "PASS"
+            and .before_reimport.language_fr.match == true
+            and .before_reimport.language_en.match == false
+            and .before_reimport.language_en.value_mismatch_count == 2
+            and .config_import.attempted == true
+            and .config_import.exit_code == 0
+            and (.config_import.output_sha256 | test("^[0-9a-f]{64}$"))
+            and .after_reimport.language_fr.match == true
+            and .after_reimport.language_en.match == true
+            and .after_reimport.strict_collection_gate == "PASS"
+            and .after_reimport.config_status_count == 0
+            and .llms_source_equals_candidate == true
+            and .llms_candidate_equals_effective_en_after_reimport == true
+            and .taxonomy_description_source_equals_candidate == true
+            and .taxonomy_description_candidate_equals_effective_en_after_reimport == true
+            and .taxonomy_name_preserved == true
+            and .effective_fr_preserved == true
+            and .raw_config_values_exposed == false
+            and .primary_config_sync_mutated == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/result.json" >/dev/null
+          complete_phase
+
+          begin_phase DONE
+          complete_phase
+          write_progress PASS
+
+      - name: Validate isolated roundtrip diagnostic safety
+        if: ${{ always() && steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-roundtrip-candidate-1316'
+          test -f "$artifact/progress.json"
+
+          if jq -e '.status == "FAIL"' "$artifact/progress.json" >/dev/null; then
+            test -f "$artifact/failure.json"
+          else
+            test -f "$artifact/result.json"
+          fi
+
+          validate_collection_file() {
+            local path="$1"
+            jq -e '
+              def sha256:
+                type == "string"
+                and test("^[0-9a-f]{64}$");
+              def string_array:
+                type == "array"
+                and all(.[]; type == "string");
+              def mismatch_fingerprints:
+                type == "array"
+                and all(.[];
+                  (keys | sort) == ["active_sha256", "name", "sync_sha256"]
+                  and (.name | type == "string")
+                  and (.active_sha256 | sha256)
+                  and (.sync_sha256 | sha256)
+                );
+              def non_negative_integer:
+                type == "number"
+                and . >= 0
+                and floor == .;
+              def collection_shape:
+                type == "object"
+                and (.active_count | non_negative_integer)
+                and (.sync_count | non_negative_integer)
+                and (.active_only_count | non_negative_integer)
+                and (.active_only_names | string_array)
+                and (.sync_only_count | non_negative_integer)
+                and (.sync_only_names | string_array)
+                and (.value_mismatch_count | non_negative_integer)
+                and (.value_mismatch_names | string_array)
+                and (.value_mismatch_fingerprints | mismatch_fingerprints)
+                and (.active_names_sha256 | sha256)
+                and (.sync_names_sha256 | sha256)
+                and (.active_values_sha256 | sha256)
+                and (.sync_values_sha256 | sha256)
+                and (.match | type == "boolean")
+                and (
+                  .classification
+                  | IN(
+                      "MATCH",
+                      "ACTIVE_ONLY",
+                      "SYNC_ONLY",
+                      "VALUE_MISMATCH",
+                      "MIXED"
+                    )
+                );
+              .schema_version == 1
+              and .mode == "VERIFY"
+              and .diagnostic_only == true
+              and .raw_config_values_exposed == false
+              and .prod_access == "NONE"
+              and .preprod_access == "NONE"
+              and (.collections["language.fr"] | collection_shape)
+              and (.collections["language.en"] | collection_shape)
+            ' "$path" >/dev/null
+          }
+
+          completed_phases="$(
+            jq -c '.completed_phases' "$artifact/progress.json"
+          )"
+
+          if jq -e 'index("COLLECTION_DIAGNOSTIC") != null' <<<"$completed_phases" >/dev/null; then
+            test -f "$artifact/isolated-collections-before-reimport.json"
+            validate_collection_file "$artifact/isolated-collections-before-reimport.json"
+          fi
+
+          if jq -e 'index("PRE_REIMPORT_CONFIG_STATUS") != null' <<<"$completed_phases" >/dev/null; then
+            test -f "$artifact/isolated-config-status-before-reimport.json"
+            jq -e 'type == "array" or type == "object"' \
+              "$artifact/isolated-config-status-before-reimport.json" >/dev/null
+          fi
+
+          if jq -e 'index("POST_REIMPORT_COLLECTION_DIAGNOSTIC") != null' <<<"$completed_phases" >/dev/null; then
+            test -f "$artifact/isolated-collections-after-reimport.json"
+            validate_collection_file "$artifact/isolated-collections-after-reimport.json"
+          fi
+
+          if jq -e 'index("POST_REIMPORT_CONFIG_STATUS") != null' <<<"$completed_phases" >/dev/null; then
+            test -f "$artifact/isolated-config-status-after-reimport.json"
+            jq -e 'type == "array" or type == "object"' \
+              "$artifact/isolated-config-status-after-reimport.json" >/dev/null
+          fi
+
+          if grep -Eiq \
+            '(password|passwd|api[_-]?key|access[_-]?token|refresh[_-]?token|secret)[[:space:]]*[:=][[:space:]]*["'"'"']?[^"'"'"',}[:space:]]+' \
+            "$artifact"/*.json; then
+            echo 'Unsafe secret-like value detected in roundtrip diagnostic artifact.' >&2
+            exit 1
+          fi
+
+      - name: Upload isolated roundtrip candidate proof
+        if: ${{ always() && steps.mode.outputs.mode == 'VERIFY' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-roundtrip-candidate-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/config-language-roundtrip-candidate-1316/progress.json
+            artifacts/config-language-roundtrip-candidate-1316/failure.json
+            artifacts/config-language-roundtrip-candidate-1316/result.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-collections-before-reimport.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-config-status-before-reimport.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-collections-after-reimport.json
+            artifacts/config-language-roundtrip-candidate-1316/isolated-config-status-after-reimport.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Converge primary fresh-install with standard config import
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="${RUNNER_TEMP}/config-status-before.json"
+
+          jq -e '
+            type == "object"
+            and length == 3
+            and (keys | sort) == [
+              "language.entity.fr",
+              "llms_txt.settings",
+              "taxonomy.vocabulary.tags"
+            ]
+            and ([.[] | .state] | all(. == "Different"))
+          ' "$before" >/dev/null
+
+          ddev drush config:import -y \
+            > "${RUNNER_TEMP}/primary-config-import-1316.log" 2>&1
+
+      - name: Build active/sync collection diagnostic
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-collection-diagnostic-1316'
+          mkdir -p "$artifact"
+
+          ddev exec env \
+            AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE=VERIFY \
+            AGENCY_CONFIG_LANGUAGE_COLLECTION_DIAGNOSTIC_ONLY=1 \
+            vendor/bin/drush php:script \
+            /var/www/html/scripts/runner/materialize-config-language-collections-1316.php \
+            > "$artifact/result.json"
+
+      - name: Validate value-safe collection diagnostic
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/config-language-collection-diagnostic-1316/result.json'
+
+          jq -e '
+            def sha256:
+              type == "string" and test("^[0-9a-f]{64}$");
+            def names:
+              type == "array"
+              and . == sort
+              and all(.[]; type == "string");
+            def mismatch_fingerprint:
+              (.name | type == "string")
+              and (.active_sha256 | sha256)
+              and (.sync_sha256 | sha256);
+            def classification:
+              . == "MATCH"
+              or . == "ACTIVE_ONLY"
+              or . == "SYNC_ONLY"
+              or . == "VALUE_MISMATCH"
+              or . == "MIXED";
+            def collection:
+              (.active_count | type == "number")
+              and (.sync_count | type == "number")
+              and (.active_only_count | type == "number")
+              and (.active_only_names | names)
+              and (.active_only_names | length) == .active_only_count
+              and (.sync_only_count | type == "number")
+              and (.sync_only_names | names)
+              and (.sync_only_names | length) == .sync_only_count
+              and (.value_mismatch_count | type == "number")
+              and (.value_mismatch_names | names)
+              and (.value_mismatch_names | length) == .value_mismatch_count
+              and (.value_mismatch_fingerprints | type == "array")
+              and (.value_mismatch_fingerprints | length)
+                == .value_mismatch_count
+              and ([.value_mismatch_fingerprints[].name]
+                == .value_mismatch_names)
+              and all(
+                .value_mismatch_fingerprints[];
+                mismatch_fingerprint
+              )
+              and (.active_names_sha256 | sha256)
+              and (.sync_names_sha256 | sha256)
+              and (.active_values_sha256 | sha256)
+              and (.sync_values_sha256 | sha256)
+              and (.match | type == "boolean")
+              and (.classification | classification);
+
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .diagnostic_only == true
+            and (.status == "PASS" or .status == "FAIL")
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+            and (.collections["language.fr"] | collection)
+            and (.collections["language.en"] | collection)
+            and (
+              if (
+                .collections["language.fr"].match
+                and .collections["language.en"].match
+              )
+              then .status == "PASS"
+              else .status == "FAIL"
+              end
+            )
+          ' "$result" >/dev/null
+
+      - name: Upload active/sync collection diagnostic
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-collection-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-collection-diagnostic-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Materialize or verify language override collections
+        shell: bash
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: |
+          set -euo pipefail
+          collection_mode='VERIFY'
+          if [[ "$MODE" == 'MATERIALIZE' ]]; then
+            collection_mode='MATERIALIZE'
+          fi
+          ddev exec env AGENCY_CONFIG_LANGUAGE_COLLECTION_MODE="$collection_mode"             vendor/bin/drush php:script             /var/www/html/scripts/runner/materialize-config-language-collections-1316.php             > "${RUNNER_TEMP}/collection-materialization.json"
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .collections["language.fr"].match == true
+            and .collections["language.en"].match == true
+          ' "${RUNNER_TEMP}/collection-materialization.json" >/dev/null
+
+      - name: Prove clean deterministic checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          ddev drush config:status --format=json             > "${RUNNER_TEMP}/config-status-final.json"
+          jq -e 'type == "array" or type == "object"'             "${RUNNER_TEMP}/config-status-final.json" >/dev/null
+          final_total="$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"
+          [[ "$final_total" -eq 0 ]]
+
+          helper='/var/www/html/scripts/runner/config-language-policy-candidate-1314-runtime-proof.php'
+          ddev drush php:script "$helper" > "${RUNNER_TEMP}/runtime-final.json"
+          jq -e '
+            .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .languages.und.id == "und"
+            and .languages.und.locked == true
+            and .languages.zxx.id == "zxx"
+            and .languages.zxx.locked == true
+            and .config_values_exposed == false
+          ' "${RUNNER_TEMP}/runtime-final.json" >/dev/null
+
+      - name: Build exact candidate topology diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-candidate-topology-1316'
+          mkdir -p "$artifact"
+
+          git add -A -- config/sync
+          git diff --cached --no-renames --name-status -- config/sync             > "$artifact/config-name-status.txt"
+
+          candidate_added_count="$(awk '$1 == "A" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_modified_count="$(awk '$1 == "M" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_deleted_count="$(awk '$1 == "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_total_path_count="$(git diff --cached --no-renames --name-only -- config/sync | wc -l | tr -d ' ')"
+          unexpected_candidate_status_count="$(awk '$1 != "A" && $1 != "M" && $1 != "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          untracked_config_after_staging="$(git status --porcelain --untracked-files=normal -- config/sync | awk '$1 == "??" {count++} END {print count + 0}')"
+
+          status_for() {
+            local selected_path="$1"
+            local status
+            status="$(awk -v path="$selected_path" '$2 == path {print $1; exit}' "$artifact/config-name-status.txt")"
+            case "$status" in
+              A|M|D)
+                printf '%s' "$status"
+                ;;
+              '')
+                printf 'ABSENT'
+                ;;
+              *)
+                printf 'OTHER'
+                ;;
+            esac
+          }
+
+          exists_json() {
+            if [[ -f "$1" ]]; then
+              printf 'true'
+            else
+              printf 'false'
+            fi
+          }
+
+          language_entity_fr='config/sync/language/en/language.entity.fr.yml'
+          llms_txt_en='config/sync/language/en/llms_txt.settings.yml'
+          taxonomy_tags_en='config/sync/language/en/taxonomy.vocabulary.tags.yml'
+          ai_target_1='config/sync/language/en/ai_automators.ai_automator.node.article.field_feature_image.default.yml'
+          ai_target_2='config/sync/language/en/ai_automators.ai_automator.node.article.field_short_description.default.yml'
+
+          language_entity_fr_exists="$(exists_json "$language_entity_fr")"
+          llms_txt_en_exists="$(exists_json "$llms_txt_en")"
+          taxonomy_tags_en_exists="$(exists_json "$taxonomy_tags_en")"
+          ai_target_1_exists="$(exists_json "$ai_target_1")"
+          ai_target_2_exists="$(exists_json "$ai_target_2")"
+
+          language_entity_fr_status="$(status_for "$language_entity_fr")"
+          llms_txt_en_status="$(status_for "$llms_txt_en")"
+          taxonomy_tags_en_status="$(status_for "$taxonomy_tags_en")"
+          ai_target_1_status="$(status_for "$ai_target_1")"
+          ai_target_2_status="$(status_for "$ai_target_2")"
+
+          language_entity_fr_leaf_paths='[]'
+          language_entity_fr_sha256=''
+          contains_label=false
+          contains_dependencies=false
+
+          if [[ "$language_entity_fr_exists" == 'true' ]]; then
+            language_entity_fr_leaf_paths="$(
+              ddev exec php -r '
+                require "/var/www/html/vendor/autoload.php";
+                $data = Symfony\Component\Yaml\Yaml::parseFile($argv[1]);
+                if (!is_array($data)) {
+                  exit(1);
+                }
+                $leaves = [];
+                $walk = static function (mixed $value, array $segments = []) use (&$walk, &$leaves): void {
+                  if (is_array($value) && $value !== []) {
+                    foreach ($value as $key => $child) {
+                      $walk($child, [...$segments, (string) $key]);
+                    }
+                    return;
+                  }
+                  $leaves[] = implode(".", $segments);
+                };
+                $walk($data);
+                sort($leaves, SORT_STRING);
+                echo json_encode($leaves, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+              ' "/var/www/html/$language_entity_fr"
+            )"
+            jq -e 'type == "array" and all(.[]; type == "string")'               <<<"$language_entity_fr_leaf_paths" >/dev/null
+            language_entity_fr_sha256="$(sha256sum "$language_entity_fr" | awk '{print $1}')"
+            contains_label="$(jq 'any(. == "label")' <<<"$language_entity_fr_leaf_paths")"
+            contains_dependencies="$(jq 'any(. == "dependencies" or startswith("dependencies."))' <<<"$language_entity_fr_leaf_paths")"
+          fi
+
+          jq -n             --arg head "$HEAD_SHA"             --argjson candidate_added_count "$candidate_added_count"             --argjson candidate_modified_count "$candidate_modified_count"             --argjson candidate_deleted_count "$candidate_deleted_count"             --argjson candidate_total_path_count "$candidate_total_path_count"             --argjson unexpected_candidate_status_count "$unexpected_candidate_status_count"             --argjson untracked_config_after_staging "$untracked_config_after_staging"             --arg language_entity_fr_path "$language_entity_fr"             --argjson language_entity_fr_exists "$language_entity_fr_exists"             --arg language_entity_fr_status "$language_entity_fr_status"             --argjson language_entity_fr_leaf_paths "$language_entity_fr_leaf_paths"             --argjson contains_label "$contains_label"             --argjson contains_dependencies "$contains_dependencies"             --arg language_entity_fr_sha256 "$language_entity_fr_sha256"             --arg llms_txt_en_path "$llms_txt_en"             --argjson llms_txt_en_exists "$llms_txt_en_exists"             --arg llms_txt_en_status "$llms_txt_en_status"             --arg taxonomy_tags_en_path "$taxonomy_tags_en"             --argjson taxonomy_tags_en_exists "$taxonomy_tags_en_exists"             --arg taxonomy_tags_en_status "$taxonomy_tags_en_status"             --arg ai_target_1_path "$ai_target_1"             --argjson ai_target_1_exists "$ai_target_1_exists"             --arg ai_target_1_status "$ai_target_1_status"             --arg ai_target_2_path "$ai_target_2"             --argjson ai_target_2_exists "$ai_target_2_exists"             --arg ai_target_2_status "$ai_target_2_status"             '{
+              schema_version: 1,
+              head_sha: $head,
+              candidate_added_count: $candidate_added_count,
+              candidate_modified_count: $candidate_modified_count,
+              candidate_deleted_count: $candidate_deleted_count,
+              candidate_total_path_count: $candidate_total_path_count,
+              unexpected_candidate_status_count: $unexpected_candidate_status_count,
+              untracked_config_after_staging: $untracked_config_after_staging,
+              selected_paths: {
+                language_entity_fr_en: {
+                  path: $language_entity_fr_path,
+                  file_exists: $language_entity_fr_exists,
+                  staged_status: $language_entity_fr_status,
+                  leaf_paths: $language_entity_fr_leaf_paths,
+                  contains_label: $contains_label,
+                  contains_dependencies: $contains_dependencies,
+                  sha256: $language_entity_fr_sha256
+                },
+                llms_txt_en: {
+                  path: $llms_txt_en_path,
+                  file_exists: $llms_txt_en_exists,
+                  staged_status: $llms_txt_en_status
+                },
+                taxonomy_tags_en: {
+                  path: $taxonomy_tags_en_path,
+                  file_exists: $taxonomy_tags_en_exists,
+                  staged_status: $taxonomy_tags_en_status
+                },
+                ai_target_1_en: {
+                  path: $ai_target_1_path,
+                  file_exists: $ai_target_1_exists,
+                  staged_status: $ai_target_1_status
+                },
+                ai_target_2_en: {
+                  path: $ai_target_2_path,
+                  file_exists: $ai_target_2_exists,
+                  staged_status: $ai_target_2_status
+                }
+              },
+              raw_config_values_exposed: false,
+              prod_access: "NONE",
+              preprod_access: "NONE"
+            }' > "$artifact/summary.json"
+
+          jq -e '
+            def allowed_status:
+              . == "A" or . == "M" or . == "D" or . == "ABSENT" or . == "OTHER";
+            .schema_version == 1
+            and .raw_config_values_exposed == false
+            and .unexpected_candidate_status_count == 0
+            and .untracked_config_after_staging == 0
+            and (.selected_paths | type == "object")
+            and (.selected_paths.language_entity_fr_en | type == "object")
+            and (.selected_paths.llms_txt_en | type == "object")
+            and (.selected_paths.taxonomy_tags_en | type == "object")
+            and (.selected_paths.ai_target_1_en | type == "object")
+            and (.selected_paths.ai_target_2_en | type == "object")
+            and ([.selected_paths[].staged_status | allowed_status] | all)
+            and (
+              (.selected_paths.language_entity_fr_en.file_exists == false)
+              or (.selected_paths.language_entity_fr_en.leaf_paths | type == "array")
+            )
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/summary.json" >/dev/null
+
+          jq '{
+            candidate_added_count,
+            candidate_modified_count,
+            candidate_deleted_count,
+            candidate_total_path_count,
+            unexpected_candidate_status_count,
+            untracked_config_after_staging,
+            selected_paths: {
+              language_entity_fr_en: .selected_paths.language_entity_fr_en,
+              llms_txt_en: .selected_paths.llms_txt_en,
+              taxonomy_tags_en: .selected_paths.taxonomy_tags_en,
+              ai_target_1_en: .selected_paths.ai_target_1_en,
+              ai_target_2_en: .selected_paths.ai_target_2_en
+            }
+          }' "$artifact/summary.json"
+
+          git reset -q HEAD -- config/sync
+
+      - name: Upload exact candidate topology diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-candidate-topology-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-candidate-topology-1316
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Build migration artifact
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          artifact='artifacts/config-language-policy-migration-1316'
+          mkdir -p "$artifact"
+
+          # Stage the exact candidate first so review evidence matches a future
+          # generated configuration commit, including newly created overrides.
+          git add -A -- config/sync
+
+          git status --porcelain -- config/sync > "$artifact/config-status-porcelain.txt"
+          git diff --cached --no-renames --name-status -- config/sync > "$artifact/config-name-status.txt"
+          git diff --cached --no-renames --stat -- config/sync > "$artifact/config-diff-stat.txt"
+          git diff --cached --no-renames --binary -- config/sync > "$artifact/config-migration.patch"
+
+          candidate_added_count="$(awk '$1 == "A" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_modified_count="$(awk '$1 == "M" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_deleted_count="$(awk '$1 == "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          candidate_total_path_count="$(git diff --cached --no-renames --name-only -- config/sync | wc -l | tr -d ' ')"
+          unexpected_candidate_status_count="$(awk '$1 != "A" && $1 != "M" && $1 != "D" {count++} END {print count + 0}' "$artifact/config-name-status.txt")"
+          untracked_config_after_staging="$(git status --porcelain --untracked-files=normal -- config/sync | awk '$1 == "??" {count++} END {print count + 0}')"
+
+          printf '%s\n' \
+            "CANDIDATE_ADDED_COUNT=$candidate_added_count" \
+            "CANDIDATE_MODIFIED_COUNT=$candidate_modified_count" \
+            "CANDIDATE_DELETED_COUNT=$candidate_deleted_count" \
+            "CANDIDATE_TOTAL_PATH_COUNT=$candidate_total_path_count" \
+            "UNEXPECTED_CANDIDATE_STATUS_COUNT=$unexpected_candidate_status_count" \
+            "UNTRACKED_CONFIG_AFTER_STAGING=$untracked_config_after_staging"
+
+          [[ "$candidate_added_count" -eq 416 ]]
+          [[ "$candidate_modified_count" -eq 523 ]]
+          [[ "$candidate_deleted_count" -eq 29 ]]
+          [[ "$candidate_total_path_count" -eq 968 ]]
+          [[ "$unexpected_candidate_status_count" -eq 0 ]]
+          [[ "$untracked_config_after_staging" -eq 0 ]]
+
+          mapfile -t changed < <(git diff --cached --no-renames --name-only --diff-filter=ACMRT -- config/sync)
+          if (("${#changed[@]}" > 0)); then
+            tar -czf "$artifact/changed-config-files.tar.gz" "${changed[@]}"
+          else
+            tar -czf "$artifact/changed-config-files.tar.gz" --files-from /dev/null
+          fi
+
+          tar_manifest="$artifact/changed-config-files-tar.txt"
+          tar -tzf "$artifact/changed-config-files.tar.gz" > "$tar_manifest"
+          artifact_tar_manifest_count="$(wc -l < "$tar_manifest" | tr -d ' ')"
+          [[ "$artifact_tar_manifest_count" -eq "${#changed[@]}" ]]
+          [[ "$artifact_tar_manifest_count" -eq 939 ]]
+
+          git diff --cached --no-renames --name-only --diff-filter=D -- config/sync \
+            > "$artifact/deleted-config-files.txt"
+
+          artifact_patch_path_count="$candidate_total_path_count"
+          artifact_tar_file_count="$artifact_tar_manifest_count"
+          artifact_deletion_count="$(wc -l < "$artifact/deleted-config-files.txt" | tr -d ' ')"
+
+          target_1='config/sync/language/en/ai_automators.ai_automator.node.article.field_feature_image.default.yml'
+          target_2='config/sync/language/en/ai_automators.ai_automator.node.article.field_short_description.default.yml'
+          language_entity_fr_en='config/sync/language/en/language.entity.fr.yml'
+          llms_txt_en='config/sync/language/en/llms_txt.settings.yml'
+          taxonomy_tags_en='config/sync/language/en/taxonomy.vocabulary.tags.yml'
+
+          grep -Fqx "A	$target_1" "$artifact/config-name-status.txt"
+          grep -Fqx "A	$target_2" "$artifact/config-name-status.txt"
+          grep -Fqx "A	$taxonomy_tags_en" "$artifact/config-name-status.txt"
+
+          [[ ! -e "$language_entity_fr_en" ]]
+          [[ ! -e "$llms_txt_en" ]]
+          ! grep -Fq "$language_entity_fr_en" "$artifact/config-name-status.txt"
+          ! grep -Fq "$llms_txt_en" "$artifact/config-name-status.txt"
+
+          [[ -f "$taxonomy_tags_en" ]]
+          taxonomy_leaf_parser="$artifact/.taxonomy-leaf-paths.php"
+          cat > "$taxonomy_leaf_parser" <<'PHP'
+          <?php
+
+          declare(strict_types=1);
+
+          require '/var/www/html/vendor/autoload.php';
+
+          use Symfony\Component\Yaml\Yaml;
+
+          if ($argc !== 2) {
+            exit(2);
+          }
+
+          $data = Yaml::parseFile($argv[1]);
+
+          if (!is_array($data)) {
+            exit(1);
+          }
+
+          $leaves = [];
+
+          $walk = static function (
+            mixed $value,
+            array $segments = [],
+          ) use (&$walk, &$leaves): void {
+            if (is_array($value) && $value !== []) {
+              foreach ($value as $key => $child) {
+                $walk($child, [...$segments, (string) $key]);
+              }
+              return;
+            }
+
+            $leaves[] = implode('.', $segments);
+          };
+
+          $walk($data);
+          sort($leaves, SORT_STRING);
+
+          echo json_encode(
+            $leaves,
+            JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+          );
+          PHP
+
+          taxonomy_tags_leaf_paths="$(
+            ddev exec php \
+              "/var/www/html/$taxonomy_leaf_parser" \
+              "/var/www/html/$taxonomy_tags_en"
+          )"
+          rm -f "$taxonomy_leaf_parser"
+
+          jq -e '
+            type == "array"
+            and length > 0
+            and all(.[]; type == "string")
+            and (index("description") == null)
+          ' <<<"$taxonomy_tags_leaf_paths" >/dev/null
+
+          grep -Eq '^label:' "$target_1"
+          grep -Eq '^plugin_config:' "$target_1"
+          grep -Eq '^  automator_label:' "$target_1"
+          grep -Eq '^label:' "$target_2"
+          grep -Eq '^plugin_config:' "$target_2"
+          grep -Eq '^  automator_label:' "$target_2"
+
+          grep -Fqx "$target_1" "$tar_manifest"
+          grep -Fqx "$target_2" "$tar_manifest"
+          grep -Fqx "$taxonomy_tags_en" "$tar_manifest"
+          ! grep -Fqx "$language_entity_fr_en" "$tar_manifest"
+          ! grep -Fqx "$llms_txt_en" "$tar_manifest"
+
+          printf '%s\n' \
+            "ARTIFACT_TAR_FILE_COUNT=$artifact_tar_file_count" \
+            "TARGET_1_TAR_MEMBERSHIP=PASS" \
+            "TARGET_2_TAR_MEMBERSHIP=PASS" \
+            "LANGUAGE_ENTITY_FR_EN_OVERRIDE=ABSENT" \
+            "LLMS_TXT_EN_OVERRIDE=ABSENT" \
+            "TAXONOMY_TAGS_EN_OVERRIDE=PASS"
+
+          jq -n \
+            --arg head "$HEAD_SHA" \
+            --arg mode "$MODE" \
+            --arg normalization "$(cat "${RUNNER_TEMP}/normalization-count.txt")" \
+            --argjson before "$(cat "${RUNNER_TEMP}/config-status-before-count.txt")" \
+            --argjson final "$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")" \
+            --argjson fr "$(jq '.collections.fr.count' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson en "$(jq '.collections.en.count' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson changed_count "$candidate_total_path_count" \
+            --argjson candidate_added "$candidate_added_count" \
+            --argjson candidate_modified "$candidate_modified_count" \
+            --argjson candidate_deleted "$candidate_deleted_count" \
+            --argjson candidate_total "$candidate_total_path_count" \
+            --argjson patch_paths "$artifact_patch_path_count" \
+            --argjson tar_files "$artifact_tar_file_count" \
+            --argjson artifact_deletions "$artifact_deletion_count" \
+            --argjson untracked_after_staging "$untracked_config_after_staging" \
+            --arg target_1 "$target_1" \
+            --arg target_2 "$target_2" \
+            --arg language_entity_fr_en "$language_entity_fr_en" \
+            --arg llms_txt_en "$llms_txt_en" \
+            --arg taxonomy_tags_en "$taxonomy_tags_en" \
+            --argjson taxonomy_tags_leaf_paths "$taxonomy_tags_leaf_paths" \
+            --argjson fr_sync_count "$(jq '.collections["language.fr"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson en_sync_count "$(jq '.collections["language.en"].sync_after_count' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson fr_written "$(jq '.collections["language.fr"].written' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson en_written "$(jq '.collections["language.en"].written' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson fr_deleted "$(jq '.collections["language.fr"].deleted' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson en_deleted "$(jq '.collections["language.en"].deleted' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --arg fr_before "$(jq -r '.languages.fr.values_sha256' "${RUNNER_TEMP}/effective-before.json")" \
+            --arg fr_after "$(jq -r '.languages.fr.values_sha256' "${RUNNER_TEMP}/effective-after.json")" \
+            --arg en_before "$(jq -r '.languages.en.values_sha256' "${RUNNER_TEMP}/effective-before.json")" \
+            --arg en_after "$(jq -r '.languages.en.values_sha256' "${RUNNER_TEMP}/effective-after.json")" \
+            '{
+              schema_version: 1,
+              head_sha: $head,
+              mode: $mode,
+              migration_mechanism: "ConfigLanguageLockConfigManager::updateConfigForLockedLanguageSwitch + final sync materialization",
+              module_normalization_changed_count: $normalization,
+              config_status_before_count: $before,
+              final_config_status_count: $final,
+              changed_config_file_count: $changed_count,
+              candidate_added_count: $candidate_added,
+              candidate_modified_count: $candidate_modified,
+              candidate_deleted_count: $candidate_deleted,
+              candidate_total_path_count: $candidate_total,
+              artifact_patch_path_count: $patch_paths,
+              artifact_tar_file_count: $tar_files,
+              artifact_deletion_count: $artifact_deletions,
+              untracked_config_after_staging: $untracked_after_staging,
+              target_1_en_override_in_artifact: true,
+              target_1_en_override_path: $target_1,
+              target_1_en_override_paths: ["label", "plugin_config.automator_label"],
+              target_2_en_override_in_artifact: true,
+              target_2_en_override_path: $target_2,
+              target_2_en_override_paths: ["label", "plugin_config.automator_label"],
+              language_entity_fr_en_override_in_artifact: false,
+              language_entity_fr_en_override_path: $language_entity_fr_en,
+              llms_txt_en_override_in_artifact: false,
+              llms_txt_en_override_path: $llms_txt_en,
+              taxonomy_tags_en_override_in_artifact: true,
+              taxonomy_tags_en_override_path: $taxonomy_tags_en,
+              taxonomy_tags_en_override_leaf_paths: $taxonomy_tags_leaf_paths,
+              taxonomy_tags_description_present: ($taxonomy_tags_leaf_paths | index("description") != null),
+              active_fr_override_count: $fr,
+              active_en_override_count: $en,
+              sync_fr_override_count: $fr_sync_count,
+              sync_en_override_count: $en_sync_count,
+              sync_fr_overrides_written: $fr_written,
+              sync_en_overrides_written: $en_written,
+              sync_fr_overrides_deleted: $fr_deleted,
+              sync_en_overrides_deleted: $en_deleted,
+              effective_fr_values_sha256_before: $fr_before,
+              effective_fr_values_sha256_after: $fr_after,
+              effective_en_values_sha256_before: $en_before,
+              effective_en_values_sha256_after: $en_after,
+              effective_fr_semantics_preserved: ($fr_before == $fr_after),
+              effective_en_semantics_preserved: ($en_before == $en_after),
+              und: {id: $und_id, locked: $und_locked},
+              zxx: {id: $zxx_id, locked: $zxx_locked},
+              canvas_requirement_verdict: $verdict,
+              prod_access: "NONE",
+              preprod_access: "NONE"
+            }' > "$artifact/result.json"
+
+          cat "$artifact/result.json"
+          cat "$artifact/config-diff-stat.txt"
+
+      - name: Build repository historical EN provenance diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          ddev exec env AGENCY_CONFIG_LANGUAGE_PROVENANCE_STAGE=final-candidate \
+            php /var/www/html/scripts/runner/config-language-repository-en-intent-diagnostic-1316.php \
+            > "$provenance/result.json"
+
+          jq -e '
+            def target_shape:
+              (.repository_source_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.pre_manager_effective_en_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.post_manager_effective_en_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.final_candidate_effective_en_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+              and (.source_equals_pre_manager | type == "boolean")
+              and (.pre_manager_equals_post_manager | type == "boolean")
+              and (.post_manager_equals_final | type == "boolean")
+              and (.source_equals_final | type == "boolean")
+              and (.first_divergence_stage | type == "string")
+              and (.schema_type | type == "string")
+              and (.schema_definition_present | type == "string")
+              and (.schema_translatability | type == "string");
+            .schema_version == 1
+            and .stage == "final-candidate"
+            and .raw_config_values_exposed == false
+            and (.historical_en_mismatch_object_count | type == "number")
+            and (.historical_en_mismatch_objects | type == "array")
+            and (.first_divergence_stage | type == "string")
+            and (.targets | type == "object")
+            and (.targets.language_entity_fr_label | type == "object")
+            and (.targets.language_entity_fr_dependencies | type == "object")
+            and (.targets.llms_txt_content | type == "object")
+            and (.targets.taxonomy_tags_description | type == "object")
+            and (.targets.language_entity_fr_label | target_shape)
+            and (.targets.language_entity_fr_dependencies | target_shape)
+            and (.targets.llms_txt_content | target_shape)
+            and (.targets.taxonomy_tags_description | target_shape)
+          ' "$provenance/result.json" >/dev/null
+
+          jq '{
+            historical_en_mismatch_object_count,
+            historical_en_mismatch_objects,
+            first_divergence_stage,
+            targets: {
+              language_entity_fr_label: (.targets.language_entity_fr_label | {
+                source_equals_pre_manager,
+                pre_manager_equals_post_manager,
+                post_manager_equals_final,
+                source_equals_final,
+                first_divergence_stage,
+                schema_type,
+                schema_definition_present,
+                schema_translatability
+              }),
+              language_entity_fr_dependencies: (.targets.language_entity_fr_dependencies | {
+                source_equals_pre_manager,
+                pre_manager_equals_post_manager,
+                post_manager_equals_final,
+                source_equals_final,
+                first_divergence_stage,
+                schema_type,
+                schema_definition_present,
+                schema_translatability
+              }),
+              llms_txt_content: (.targets.llms_txt_content | {
+                source_equals_pre_manager,
+                pre_manager_equals_post_manager,
+                post_manager_equals_final,
+                source_equals_final,
+                first_divergence_stage,
+                schema_type,
+                schema_definition_present,
+                schema_translatability
+              }),
+              taxonomy_tags_description: (.targets.taxonomy_tags_description | {
+                source_equals_pre_manager,
+                pre_manager_equals_post_manager,
+                post_manager_equals_final,
+                source_equals_final,
+                first_divergence_stage,
+                schema_type,
+                schema_definition_present,
+                schema_translatability
+              })
+            },
+            raw_config_values_exposed
+          }' "$provenance/result.json"
+
+      - name: Upload repository historical EN provenance diagnostic
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-repository-en-intent-diagnostic-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-repository-en-intent-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload reviewable migration artifact
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-migration-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-policy-migration-1316
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce repository historical EN provenance expectations
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          provenance='artifacts/config-language-repository-en-intent-1316'
+          jq -e '
+            .schema_version == 1
+            and .stage == "final-candidate"
+            and .raw_config_values_exposed == false
+            and .historical_en_mismatch_object_count == 14
+            and .historical_en_mismatch_objects == [
+              "field.field.media.audio.field_media_audio_file",
+              "field.field.media.remote_video.field_media_oembed_video",
+              "field.field.media.video.field_media_video_file",
+              "image.style.media_library",
+              "language.entity.fr",
+              "media.type.audio",
+              "media.type.document",
+              "media.type.image",
+              "media.type.remote_video",
+              "media.type.video",
+              "system.action.media_delete_action",
+              "system.action.media_publish_action",
+              "system.action.media_save_action",
+              "system.action.media_unpublish_action"
+            ]
+            and .first_divergence_stage == "NONE"
+            and .targets.language_entity_fr_label.source_equals_final == true
+            and .targets.llms_txt_content.source_equals_final == true
+            and .targets.taxonomy_tags_description.source_equals_final == true
+            and .targets.language_entity_fr_dependencies.source_equals_final == false
+            and .targets.language_entity_fr_dependencies.first_divergence_stage
+              == "SITE_INSTALL_MODULE_NORMALIZATION_BEFORE_MANAGER"
+            and (.targets.language_entity_fr_label.repository_source_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.language_entity_fr_label.pre_manager_effective_en_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.language_entity_fr_label.post_manager_effective_en_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.language_entity_fr_label.final_candidate_effective_en_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.llms_txt_content.repository_source_sha256 | test("^[0-9a-f]{64}$"))
+            and (.targets.taxonomy_tags_description.repository_source_sha256 | test("^[0-9a-f]{64}$"))
+          ' "$provenance/result.json" >/dev/null
+
+      - name: Commit reviewed materialization only after explicit marker
+        if: ${{ steps.mode.outputs.mode == 'MATERIALIZE' && hashFiles('docs/evidence/config-language-migration-1316-commit-approval.yml') != '' }}
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          approval='docs/evidence/config-language-migration-1316-commit-approval.yml'
+          grep -Fxq 'approved: true' "$approval"
+          source_head="$(awk -F': ' '/^reviewed_source_head:/ {print $2}' "$approval")"
+          [[ "$source_head" =~ ^[0-9a-f]{40}$ ]]
+
+          current_head="$(git rev-parse HEAD)"
+          parent_head="$(git rev-parse HEAD^)"
+          [[ "$parent_head" == "$source_head" ]]
+          git merge-base --is-ancestor "$source_head" "$current_head"
+
+          mapfile -t approval_delta < <(git diff --name-only "$source_head..$current_head")
+          [[ "${#approval_delta[@]}" -eq 1 ]]
+          [[ "${approval_delta[0]}" == "$approval" ]]
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- config/sync
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          git commit -m '[#1316][Migration] Materialize Drupal-owned configuration normalization'
+          git push origin "HEAD:$BRANCH"
+
+      - name: Verify final repository mode is already converged
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          settings='config/sync/config_language_lock.settings.yml'
+          locked="$(awk -F': ' '/^locked_langcode:/ {print $2}' "$settings")"
+          follow="$(awk -F': ' '/^follow_site_default:/ {print $2}' "$settings")"
+          [[ "$locked" == 'fr' ]]
+          [[ "$follow" == 'true' ]]
+
+          config_status_before_count="$(jq 'length' "${RUNNER_TEMP}/config-status-before.json")"
+          config_status_final_count="$(jq 'length' "${RUNNER_TEMP}/config-status-final.json")"
+          [[ "$config_status_before_count" -eq 3 ]]
+          [[ "$config_status_final_count" -eq 0 ]]
+          test -z "$(git status --porcelain -- config/sync)"
+
+          jq -e '
+            .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .languages.und.id == "und"
+            and .languages.und.locked == true
+            and .languages.zxx.id == "zxx"
+            and .languages.zxx.locked == true
+            and .config_values_exposed == false
+          ' "${RUNNER_TEMP}/runtime-final.json" >/dev/null
+
+          jq -e '
+            .schema_version == 1
+            and .status == "PASS"
+            and .collections["language.fr"].match == true
+            and .collections["language.en"].match == true
+          ' "${RUNNER_TEMP}/collection-materialization.json" >/dev/null
+
+          artifact='artifacts/config-language-verify-1316'
+          mkdir -p "$artifact"
+          jq -n \
+            --argjson config_status_before_count "$config_status_before_count" \
+            --argjson config_status_final_count "$config_status_final_count" \
+            --arg site_default_language "$(jq -r '.site_default_language' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg locked_langcode "$(jq -r '.locked_langcode' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson follow_site_default "$(jq '.follow_site_default' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg canvas_requirement_verdict "$(jq -r '.canvas_requirement_verdict' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson language_fr_collection_match "$(jq '.collections["language.fr"].match' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --argjson language_en_collection_match "$(jq '.collections["language.en"].match' "${RUNNER_TEMP}/collection-materialization.json")" \
+            --arg und_id "$(jq -r '.languages.und.id' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson und_locked "$(jq '.languages.und.locked' "${RUNNER_TEMP}/runtime-final.json")" \
+            --arg zxx_id "$(jq -r '.languages.zxx.id' "${RUNNER_TEMP}/runtime-final.json")" \
+            --argjson zxx_locked "$(jq '.languages.zxx.locked' "${RUNNER_TEMP}/runtime-final.json")" \
+            '{
+              schema_version: 1,
+              mode: "VERIFY",
+              site_install: "PASS",
+              config_status_before_count: $config_status_before_count,
+              config_status_final_count: $config_status_final_count,
+              config_sync_worktree_clean: true,
+              site_default_language: $site_default_language,
+              locked_langcode: $locked_langcode,
+              follow_site_default: $follow_site_default,
+              canvas_requirement_verdict: $canvas_requirement_verdict,
+              language_fr_collection_match: $language_fr_collection_match,
+              language_en_collection_match: $language_en_collection_match,
+              und: {
+                id: $und_id,
+                locked: $und_locked
+              },
+              zxx: {
+                id: $zxx_id,
+                locked: $zxx_locked
+              },
+              raw_config_values_exposed: false,
+              prod_access: "NONE",
+              preprod_access: "NONE"
+            }' > "$artifact/result.json"
+
+          jq -e '
+            .schema_version == 1
+            and .mode == "VERIFY"
+            and .site_install == "PASS"
+            and .config_status_before_count == 3
+            and .config_status_final_count == 0
+            and .config_sync_worktree_clean == true
+            and .site_default_language == "fr"
+            and .locked_langcode == "fr"
+            and .follow_site_default == true
+            and .canvas_requirement_verdict == "PASS"
+            and .language_fr_collection_match == true
+            and .language_en_collection_match == true
+            and .und.id == "und"
+            and .und.locked == true
+            and .zxx.id == "zxx"
+            and .zxx.locked == true
+            and .raw_config_values_exposed == false
+            and .prod_access == "NONE"
+            and .preprod_access == "NONE"
+          ' "$artifact/result.json" >/dev/null
+
+      - name: Upload bounded VERIFY result
+        if: ${{ steps.mode.outputs.mode == 'VERIFY' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-language-verify-1316-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-language-verify-1316/result.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean DDEV
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          ddev delete --omit-snapshot --yes
+          rm -f .ddev/config.gate-config-language-1316-hosted.yaml
+          rm -rf artifacts/config-language-policy-migration-1316

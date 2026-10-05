@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+PATH='/usr/sbin:/usr/bin:/sbin:/bin'
+LC_ALL=C
+export PATH LC_ALL
+
+emit_fail() {
+  printf '%s\n' \
+    'STATUS=FAIL' \
+    'NGINX_RECENT_ERROR_COUNT=UNKNOWN' \
+    'PHP_FPM_RECENT_ERROR_COUNT=UNKNOWN'
+}
+
+if (( $# != 0 )); then
+  emit_fail
+  exit 64
+fi
+
+count_fixed_unit() {
+  local unit="$1"
+  local count
+  if ! count="$(
+    /usr/bin/journalctl \
+      --unit "$unit" \
+      --since '30 minutes ago' \
+      --priority 'err..alert' \
+      --no-pager \
+      --output=json 2>/dev/null \
+      | /usr/bin/awk 'NF {count++} END {print count + 0}'
+  )"; then
+    return 1
+  fi
+  [[ "$count" =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$count"
+}
+nginx_count=''
+php_fpm_count=''
+if ! nginx_count="$(count_fixed_unit nginx)"; then
+  emit_fail
+  exit 1
+fi
+if ! php_fpm_count="$(count_fixed_unit php8.4-fpm)"; then
+  emit_fail
+  exit 1
+fi
+
+printf '%s\n' \
+  'STATUS=PASS' \
+  "NGINX_RECENT_ERROR_COUNT=$nginx_count" \
+  "PHP_FPM_RECENT_ERROR_COUNT=$php_fpm_count"

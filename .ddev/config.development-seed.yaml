@@ -1,0 +1,5 @@
+# #873/#1108 — DDEV-native Development Seed consumption.
+#
+# DDEV 1.25.4 owns seed/reset database mechanics. Agency keeps only the
+# compatibility declaration here; normal `ddev start` never resets or seeds.
+ddev_version_constraint: ">=1.25.4"

@@ -1,5 +1,5 @@
 uuid: 57f8a0c9-83f6-4c6d-a7ce-359147947163
-langcode: en
+langcode: fr
 status: true
 dependencies:
   config:
@@ -33,10 +33,10 @@ display:
           total_pages: 0
           id: 0
           tags:
-            next: 'Next ›'
-            previous: '‹ Previous'
-            first: '« First'
-            last: 'Last »'
+            next: 'Suivant ›'
+            previous: '‹ Précédent'
+            first: '« Premier'
+            last: 'Dernier »'
           expose:
             items_per_page: false
             items_per_page_label: 'Items per page'
@@ -74,7 +74,7 @@ display:
           plugin_id: text_custom
           label: ''
           empty: true
-          content: 'No articles are available yet.'
+          content: 'Aucun article n’est disponible pour le moment.'
           tokenize: false
       sorts:
         created:

@@ -1,0 +1,5 @@
+label: 'Content path pattern (Page EN)'
+pattern: '/[node:title]'
+relationships:
+  'node:langcode:language':
+    label: Language

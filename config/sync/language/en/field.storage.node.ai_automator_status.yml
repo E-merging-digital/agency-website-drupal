@@ -1,0 +1,10 @@
+settings:
+  allowed_values:
+    -
+      label: Pending
+    -
+      label: Processing
+    -
+      label: Failed
+    -
+      label: Finished

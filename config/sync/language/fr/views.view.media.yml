@@ -1,0 +1,26 @@
+label: Média
+description: 'Trouver et gérer des media.'
+display:
+  default:
+    display_options:
+      title: Média
+      fields:
+        thumbnail__target_id:
+          label: Vignette
+        name:
+          label: 'Nom du média'
+      empty:
+        area_text_custom:
+          content: 'Aucun média disponible.'
+      filters:
+        name:
+          expose:
+            label: 'Nom du média'
+        status:
+          expose:
+            label: Vrai
+  media_page_list:
+    display_title: Média
+    display_options:
+      menu:
+        title: Média

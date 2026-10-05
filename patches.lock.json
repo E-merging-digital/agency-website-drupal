@@ -1,0 +1,17 @@
+{
+    "_hash": "c1b16927271d416b8714eb644b4199db79f942c4817ce7727b90d6eebbbfba8c",
+    "patches": {
+        "drupal/google_tag": [
+            {
+                "package": "drupal/google_tag",
+                "description": "PHP 8.5: replace deprecated SplObjectStorage::contains() with offsetExists() (#3560958)",
+                "url": "patches/drupal/google_tag/3560958-mr129-11.patch",
+                "sha256": "bb6a2ba335b1927451ad418398ed9032e1617739f135c15d01b853b0bc3c0957",
+                "depth": 1,
+                "extra": {
+                    "provenance": "patches-file:patches.json"
+                }
+            }
+        ]
+    }
+}

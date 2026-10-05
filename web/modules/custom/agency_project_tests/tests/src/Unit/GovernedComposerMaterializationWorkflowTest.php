@@ -35,15 +35,16 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertStringContainsString(
-      'Unsupported Composer materialization profile',
+      "expected = {'request_id', 'pr_number', 'head_sha', 'profile'}",
       $workflow,
     );
     self::assertStringContainsString(
-      "changed\" != 'composer.json'",
+      'Unsupported Composer materialization profile',
       $workflow,
     );
     self::assertStringContainsString('canvas-ai-agents-530', $workflow);
     self::assertStringContainsString('config-language-lock-628', $workflow);
+    self::assertStringContainsString('dependency-maintenance-962', $workflow);
     self::assertStringContainsString(
       "expected_package='drupal/ai_agents'",
       $workflow,
@@ -60,13 +61,18 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       "expected_constraint='^1.0'",
       $workflow,
     );
+    self::assertStringContainsString("mode='lock-refresh'", $workflow);
+    self::assertStringContainsString(
+      'Lock-refresh target PR must have no file delta before resolution.',
+      $workflow,
+    );
     self::assertStringContainsString(
       "expected.setdefault('require', {})[os.environ['EXPECTED_PACKAGE']]",
       $workflow,
     );
-    self::assertStringNotContainsString('composer require $', $workflow);
     self::assertStringNotContainsString('package_name', $workflow);
     self::assertStringNotContainsString('composer_args', $workflow);
+    self::assertStringNotContainsString('selectors_input', $workflow);
   }
 
   /**
@@ -113,7 +119,7 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   /**
    * The self-hosted job must remain read-only and lockfile-only.
    */
-  public function testSelfHostedResolverIsReadOnlyAndLockOnly(): void {
+  public function testSelfHostedResolverIsReadOnlyTargetedAndLockOnly(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root
       . '/.github/workflows/trusted-composer-materialization.yml';
@@ -142,7 +148,39 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     self::assertStringContainsString('--no-install', $generate);
     self::assertStringContainsString('--no-scripts', $generate);
     self::assertStringContainsString(
+      'ddev composer update "$COMPOSER_PACKAGE"',
+      $generate,
+    );
+    self::assertStringContainsString(
+      'ddev composer update "${selectors[@]}"',
+      $generate,
+    );
+    self::assertStringContainsString(
+      'read -r -a selectors <<< "$COMPOSER_LOCK_REFRESH_SELECTORS"',
+      $generate,
+    );
+    self::assertStringContainsString(
+      'test "${#selectors[@]}" -gt 0',
+      $generate,
+    );
+    self::assertStringNotContainsString(
+      "ddev composer update \\\n              --with-all-dependencies",
+      $generate,
+    );
+    self::assertStringContainsString(
       "changed\" != 'composer.lock'",
+      $generate,
+    );
+    self::assertStringContainsString(
+      "'reviewed_selectors': reviewed_selectors",
+      $generate,
+    );
+    self::assertStringContainsString(
+      "'resolved_versions': resolved_versions",
+      $generate,
+    );
+    self::assertStringContainsString(
+      "'owner_issue': int(os.environ['EXPECTED_OWNER_ISSUE'])",
       $generate,
     );
 
@@ -164,25 +202,25 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $generate,
     );
 
-    $deletePosition = strpos(
-      $generate,
-      'ddev delete --omit-snapshot --yes "$isolated_name"',
-    );
-    $removeOverridePosition = strrpos(
-      $generate,
-      'rm -f .ddev/config.gate-composer-ci.yaml',
-    );
-    self::assertIsInt($deletePosition);
-    self::assertIsInt($removeOverridePosition);
-    self::assertLessThan($removeOverridePosition, $deletePosition);
-
     self::assertStringContainsString('contents: write', $publish);
+    self::assertStringContainsString(
+      'Hosted publisher may change exactly composer.lock.',
+      $publish,
+    );
     self::assertStringContainsString(
       'Target PR advanced before Composer lock publication.',
       $publish,
     );
     self::assertStringContainsString(
       'git push origin "HEAD:$EXPECTED_HEAD_REF"',
+      $publish,
+    );
+    self::assertStringContainsString(
+      'Artifact selector metadata mismatch.',
+      $publish,
+    );
+    self::assertStringContainsString(
+      'Artifact resolved-version map mismatch.',
       $publish,
     );
   }
@@ -220,38 +258,49 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   }
 
   /**
-   * Profile data must remain repository-owned and fail closed.
+   * Profile data must remain repository-owned, compatible and fail closed.
    */
-  public function testProfilesAreFixedAndFailClosed(): void {
+  public function testProfilesAreFixedBackwardCompatibleAndFailClosed(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root . '/scripts/runner/composer-materialization-profiles.sh';
     self::assertFileExists($path);
 
     $profiles = (string) file_get_contents($path);
     self::assertStringContainsString('canvas-ai-agents-530)', $profiles);
-    self::assertStringContainsString(
-      "COMPOSER_PACKAGE='drupal/ai_agents'",
-      $profiles,
-    );
-    self::assertStringContainsString(
-      "COMPOSER_CONSTRAINT='^1.3'",
-      $profiles,
-    );
     self::assertStringContainsString('config-language-lock-628)', $profiles);
     self::assertStringContainsString(
-      "COMPOSER_PACKAGE='drupal/config_language_lock'",
+      'drupal-maintenance-ai-1.5-rc1)',
+      $profiles,
+    );
+    self::assertStringContainsString('dependency-maintenance-962)', $profiles);
+    self::assertStringContainsString(
+      "COMPOSER_MODE='lock-refresh'",
       $profiles,
     );
     self::assertStringContainsString(
-      "COMPOSER_CONSTRAINT='^1.0'",
+      "COMPOSER_OWNER_ISSUE='962'",
+      $profiles,
+    );
+
+    $selectors = 'drupal/core-recommended '
+      . 'drupal/core-composer-scaffold '
+      . 'drupal/core-project-message '
+      . 'drupal/core-recipe-unpack '
+      . 'drupal/core-dev phpstan/phpstan composer/composer';
+    self::assertStringContainsString(
+      "COMPOSER_LOCK_REFRESH_SELECTORS='{$selectors}'",
       $profiles,
     );
     self::assertStringContainsString(
-      "COMPOSER_VERSION_REGEX='^1\\.0\\.[0-9]+$'",
+      '"drupal/core-recommended":"^11\\\\.4\\\\.[0-9]+$"',
       $profiles,
     );
     self::assertStringContainsString(
-      "COMPOSER_OWNER_ISSUE='628'",
+      '"phpstan/phpstan":"^2\\\\.2\\\\.[0-9]+$"',
+      $profiles,
+    );
+    self::assertStringContainsString(
+      '"composer/composer":"^2\\\\.10\\\\.[0-9]+$"',
       $profiles,
     );
     self::assertStringContainsString(
@@ -267,6 +316,47 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $exitCode,
     );
     self::assertSame(0, $exitCode, implode("\n", $output));
+
+    foreach ([
+      'canvas-ai-agents-530',
+      'config-language-lock-628',
+      'drupal-maintenance-ai-1.5-rc1',
+    ] as $profile) {
+      $command = 'COMPOSER_PROFILE=' . escapeshellarg($profile)
+        . ' bash -c '
+        . escapeshellarg(
+          'source ' . escapeshellarg($path)
+          . '; test "$COMPOSER_MODE" = package',
+        )
+        . ' 2>&1';
+      $profileOutput = [];
+      $profileExitCode = 0;
+      exec($command, $profileOutput, $profileExitCode);
+      self::assertSame(
+        0,
+        $profileExitCode,
+        $profile . ': ' . implode("\n", $profileOutput),
+      );
+    }
+
+    $lockRefreshOutput = [];
+    $lockRefreshExitCode = 0;
+    exec(
+      'COMPOSER_PROFILE=dependency-maintenance-962 bash -c '
+      . escapeshellarg(
+        'source ' . escapeshellarg($path)
+        . '; test "$COMPOSER_MODE" = lock-refresh'
+        . '; test -n "$COMPOSER_LOCK_REFRESH_SELECTORS"',
+      )
+      . ' 2>&1',
+      $lockRefreshOutput,
+      $lockRefreshExitCode,
+    );
+    self::assertSame(
+      0,
+      $lockRefreshExitCode,
+      implode("\n", $lockRefreshOutput),
+    );
 
     $unsupported = [];
     $unsupportedExitCode = 0;

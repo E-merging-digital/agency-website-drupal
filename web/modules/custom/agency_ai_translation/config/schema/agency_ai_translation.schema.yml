@@ -25,3 +25,11 @@ action.configuration.agency_ai_translate_nodes_bulk_action:
     target_langcode:
       type: string
       label: 'Langue cible'
+
+
+agency_ai_translation.ai_automator_plugin_config.*:
+  type: ignore
+
+agency_ai_translation.ai_automator_plugin_config.automator_label:
+  type: label
+  label: 'Automator label'

@@ -244,6 +244,7 @@ final class AgencyEditorialPublication {
 
       $node->addTranslation(self::TRANSLATION_LANGCODE, [
         'title' => $payload['en']['title'],
+        'status' => $payload['published'],
         'field_short_description' => [[
           'value' => $payload['en']['short_description'],
           'format' => self::TEXT_FORMAT,

@@ -1,0 +1,94 @@
+name: "#879 PREPROD provisioning PLAN evidence validation"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-874-capability-provisioning.yml"
+      - ".github/workflows/preprod-877-successor-authority-validation.yml"
+      - ".github/workflows/preprod-879-plan-evidence-validation.yml"
+      - ".github/workflows/preprod-915-fixed-refresh-capability-validation.yml"
+      - "scripts/preproduction-refresh/activation-capability/profile.json"
+      - "scripts/preproduction-refresh/activation-capability/bundle.json"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/profile.json"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/run-plan.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/run-apply.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/remote-provision-root.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/observe-host-state.sh"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/evaluate-plan-evidence.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/test-plan-evidence.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/nginx-vhost-selector.py"
+      - "scripts/preproduction-refresh/activation-capability/provisioning/test-nginx-vhost-selector.py"
+
+permissions:
+  contents: read
+
+jobs:
+  plan-evidence-contract:
+    name: "#879 metadata-only PLAN + #915 provisioning compatibility"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run existing PLAN evidence matrices against revised bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          provisioning="$base/provisioning"
+          bash -n \
+            "$provisioning/run-plan.sh" \
+            "$provisioning/run-apply.sh" \
+            "$provisioning/remote-provision-root.sh" \
+            "$provisioning/observe-host-state.sh"
+          python3 -m py_compile \
+            "$provisioning/evaluate-plan-evidence.py" \
+            "$provisioning/test-plan-evidence.py" \
+            "$provisioning/nginx-vhost-selector.py" \
+            "$provisioning/test-nginx-vhost-selector.py"
+          python3 "$provisioning/test-plan-evidence.py"
+          python3 "$provisioning/test-nginx-vhost-selector.py"
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          path = Path('scripts/preproduction-refresh/activation-capability/provisioning/evaluate-plan-evidence.py')
+          spec = importlib.util.spec_from_file_location('plan_evidence', path)
+          module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+          expected = module.build_expected(Path('.').resolve())
+          assert expected['runtime_db'] == 'agency_preprod'
+          assert expected['source_digests']['helper']
+          print('PINNED_SOURCE_BUNDLE_DIGESTS=PASS')
+          print('PROVISIONING_PROFILE_DIGEST=PASS')
+          PY
+
+      - name: Prove PLAN remains non-root, mutation-free and JIT lineage intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          plan="$base/provisioning/run-plan.sh"
+          observer="$base/provisioning/observe-host-state.sh"
+          grep -Fq '[[ "$PREPROD_SSH_USER" == '\''agency-preprod'\'' ]]' "$plan"
+          ! grep -Eq '(^|[;&|()[:space:]])sudo[[:space:]]' "$plan" "$observer"
+          ! grep -Fq 'root@$PREPROD_SSH_HOST' "$plan"
+          ! grep -Fq 'agency-preprod-refresh-control PRECHECK' "$plan" "$observer"
+          jq -e '
+            .apply.data_activation_authority_after_apply == "DISABLED" and
+            .apply.transaction_authority_after_apply == "ABSENT" and
+            .plan.preprod_mutation == "NONE" and
+            .plan.helper_execution == "NONE" and
+            .plan.sudo_execution == "NONE"
+          ' "$base/provisioning/profile.json" >/dev/null
+          printf '%s\n' \
+            'PLAN_MUTATION=NONE' \
+            'HELPER_EXECUTION=NONE' \
+            'SUDO_EXECUTION=NONE' \
+            'PROD_ACCESS=NONE' \
+            'PREPROD_DB_MUTATION=NONE' \
+            'PREPROD_BACKUP=NONE' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED'

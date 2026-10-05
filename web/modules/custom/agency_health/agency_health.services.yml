@@ -1,0 +1,4 @@
+services:
+  agency_health.probe:
+    class: Drupal\agency_health\HealthProbe
+    arguments: ['@database']

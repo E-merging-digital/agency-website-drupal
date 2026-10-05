@@ -8,8 +8,8 @@ dependencies:
 _core:
   default_config_hash: mII4acOv33s-j8PINywrCag4OITbeJGxdPO373dnHHw
 id: education
-label: Education
-category: Demographic
+label: Éducation
+category: Démographique
 likert: false
 options: |
   High School: High School

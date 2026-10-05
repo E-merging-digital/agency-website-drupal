@@ -1,0 +1,140 @@
+name: Validate PREPROD deterministic staging sanitization
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-staging-sanitization-validation.yml'
+      - 'scripts/preproduction-refresh/**'
+      - 'docs/operations/preproduction-data-refresh.md'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionStagingSanitizationTest.php'
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-validation:
+    name: Prove #855 sensitive-state sanitization coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate proof-only executable and policy contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          script='scripts/preproduction-refresh/sanitize-staging-fixture.py'
+          policy='scripts/preproduction-refresh/sanitization-policy.json'
+          python3 -m py_compile "$script"
+          jq -e '.policy_version == "agency-preprod-refresh-v1"' "$policy" >/dev/null
+          jq -e '.sanitization_execution.mode == "SYNTHETIC_FIXTURE_ONLY"' "$policy" >/dev/null
+          jq -e '.sanitization_execution.real_runtime_enabled == false' "$policy" >/dev/null
+          jq -e '.sanitization_execution.unknown_mandatory_class == "FAIL_CLOSED"' "$policy" >/dev/null
+          grep -Fq 'if argv != ["PROVE"]:' "$script"
+          grep -Fq 'sqlite3.connect(":memory:")' "$script"
+          ! grep -Fq 'import subprocess' "$script"
+          ! grep -Fq 'import socket' "$script"
+          ! grep -Fq 'import os' "$script"
+          ! grep -Fq 'shell=True' "$script"
+          ! grep -Fq 'os.system(' "$script"
+          ! grep -Fq -- '--host' "$script"
+          ! grep -Fq -- '--database' "$script"
+          ! grep -Fq -- '--password' "$script"
+
+      - name: Execute synthetic sensitive-state coverage proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(python3 scripts/preproduction-refresh/sanitize-staging-fixture.py PROVE)"
+          printf '%s\n' "$output"
+          for required in \
+            'SYNTHETIC_FIXTURE_PROOF=PASS' \
+            'USER_SANITIZATION=PASS' \
+            'AUTH_MATERIAL_INVALIDATION=PASS' \
+            'WEBFORM_PURGE=PASS' \
+            'SESSIONS_PURGE=PASS' \
+            'FLOOD_PURGE=PASS' \
+            'DBLOG_PURGE=PASS' \
+            'CACHE_PURGE=PASS' \
+            'BATCH_TEMP_PURGE=PASS' \
+            'QUEUES_POLICY=PASS' \
+            'CRON_UPDATE_STATE_RESET=PASS' \
+            'SECRET_LIKE_STATE_HANDLING=PASS' \
+            'PROD_ONLY_STATE_HANDLING=PASS' \
+            'WEBFORM_SUBMISSIONS_AFTER=0' \
+            'ACTIVE_SESSIONS_AFTER=0' \
+            'IMPORTED_PROD_SECRET_LIKE_STATE_SURVIVES=NO' \
+            'REAL_PROD_ACCESS=NONE' \
+            'REAL_PROD_DB_READ=NONE' \
+            'REAL_PROD_SNAPSHOT=NONE' \
+            'REAL_PREPROD_DB_MUTATION=NONE' \
+            'REAL_SANITIZATION=NOT_PERFORMED' \
+            'ACTIVATION=NOT_PERFORMED' \
+            'PII_OR_SECRET_IN_EVIDENCE=NONE'; do
+            grep -Fxq "$required" <<<"$output"
+          done
+
+  deterministic-fixture-proof:
+    name: Prove #855 deterministic fixture output
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Compare independent sanitized fixture states
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(python3 scripts/preproduction-refresh/sanitize-staging-fixture.py PROVE)"
+          printf '%s\n' "$output"
+          grep -Fxq 'DETERMINISTIC_PROOF=PASS' <<<"$output"
+          state_a="$(sed -n 's/^STATE_A_SHA256=//p' <<<"$output")"
+          state_b="$(sed -n 's/^STATE_B_SHA256=//p' <<<"$output")"
+          test "$state_a" = "$state_b"
+          test "${#state_a}" = 64
+
+  idempotence-proof:
+    name: Prove #855 second-pass idempotence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Compare first and second sanitization passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(python3 scripts/preproduction-refresh/sanitize-staging-fixture.py PROVE)"
+          printf '%s\n' "$output"
+          grep -Fxq 'SECOND_PASS_IDEMPOTENCE=PASS' <<<"$output"
+          state_a="$(sed -n 's/^STATE_A_SHA256=//p' <<<"$output")"
+          state_c="$(sed -n 's/^STATE_C_SHA256=//p' <<<"$output")"
+          test "$state_a" = "$state_c"
+          test "${#state_c}" = 64
+
+  unknown-sensitive-fail-closed:
+    name: Prove #855 unknown mandatory sensitive class fails closed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Execute fail-closed policy growth proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(python3 scripts/preproduction-refresh/sanitize-staging-fixture.py PROVE)"
+          printf '%s\n' "$output"
+          grep -Fxq 'UNKNOWN_SENSITIVE_STATE_FAIL_CLOSED=PASS' <<<"$output"

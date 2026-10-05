@@ -1,0 +1,2 @@
+label: 'Content path pattern (Article fallback)'
+pattern: '/blog/[node:title]'

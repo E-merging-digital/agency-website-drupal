@@ -1,0 +1,125 @@
+name: '#1075 PREPROD EN 503 read-only diagnostic'
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: 'Project Lead audit identity for the fixed #1075 diagnostic'
+        required: true
+        type: string
+      head_sha:
+        description: 'Exact live main SHA authorized for this diagnostic'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: agency-preproduction-deploy
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    name: Diagnose PREPROD EN-only HTTP 503 read-only
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+          && github.actor == 'E-merging-digital'
+          && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_OWNER: E-merging-digital
+      EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+      REQUEST_ID: ${{ inputs.request_id }}
+
+    steps:
+      - name: Authorize exact live-main #1075 diagnostic
+        id: authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.event_name }}' = 'workflow_dispatch'
+          test '${{ github.actor }}' = "$EXPECTED_OWNER"
+          test '${{ github.ref }}' = 'refs/heads/main'
+          [[ "$REQUEST_ID" =~ ^preprod-en-503-1075-[a-z0-9][a-z0-9-]{0,63}$ ]]
+          [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test '${{ github.sha }}' = "$EXPECTED_HEAD_SHA"
+
+          issue_json="$RUNNER_TEMP/issue-1075.json"
+          gh api "repos/$GITHUB_REPOSITORY/issues/1075" > "$issue_json"
+          test "$(jq -r '.state' "$issue_json")" = 'open'
+          test "$(jq -r '.user.login' "$issue_json")" = "$EXPECTED_OWNER"
+          test "$(jq -r 'has("pull_request")' "$issue_json")" = 'false'
+          jq -e '([.labels[].name] | index("P1")) != null and ([.labels[].name] | index("status:in-progress")) != null' "$issue_json" >/dev/null
+
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live_main" =~ ^[0-9a-f]{40}$ ]]
+          test "$live_main" = "$EXPECTED_HEAD_SHA"
+          echo "trusted_main=$live_main" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.authority.outputs.trusted_main }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify fixed repository-owned diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -f scripts/runner/run-preprod-en-503-diagnostic-1075.sh
+          bash -n scripts/runner/run-preprod-en-503-diagnostic-1075.sh
+          test -f scripts/preproduction-ssh-trust/manage-known-host.sh
+          test -f scripts/preproduction-staging-import/verify-preprod-pinned-trust.sh
+
+      - name: JIT revalidate live main before PREPROD identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$live_main" = "$EXPECTED_HEAD_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+
+      - name: Materialize transient PREPROD SSH identity after JIT
+        env:
+          PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_SSH_PRIVATE_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          [[ "$PREPROD_SERVER_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$PREPROD_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1075-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1075-preprod.key"
+
+      - name: Execute fixed read-only PREPROD EN 503 diagnostic
+        shell: bash
+        env:
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-1075-preprod.key
+          PREPROD_BASIC_AUTH_USER: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          PREPROD_BASIC_AUTH_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/preprod-en-503-diagnostic-1075
+        run: bash scripts/runner/run-preprod-en-503-diagnostic-1075.sh
+
+      - name: Cleanup transient PREPROD SSH identity
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-1075-preprod.key"
+
+      - name: Upload bounded #1075 diagnostic evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-preprod-en-503-diagnostic-1075-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/preprod-en-503-diagnostic-1075/result.json
+          if-no-files-found: warn
+          retention-days: 30

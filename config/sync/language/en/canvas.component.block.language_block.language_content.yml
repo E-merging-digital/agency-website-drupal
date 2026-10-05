@@ -1,0 +1,6 @@
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: 'Sélecteur de langue (Contenu)'
+label: 'Language switcher (Content)'

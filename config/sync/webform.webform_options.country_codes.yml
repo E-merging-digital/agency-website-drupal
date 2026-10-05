@@ -8,7 +8,7 @@ dependencies:
 _core:
   default_config_hash: adQ16YGDPk7QfUKrfrC35o2sKdHEozdNtdpiH7CftQQ
 id: country_codes
-label: 'Country codes'
-category: Geographic
+label: 'Codes pays'
+category: Géographique
 likert: false
 options: ''

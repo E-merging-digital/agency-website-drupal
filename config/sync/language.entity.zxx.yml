@@ -1,9 +1,9 @@
 uuid: 8502b414-8dad-4759-9a42-96e92cb21cc4
-langcode: en
+langcode: fr
 status: true
 dependencies: {  }
 id: zxx
-label: 'Not applicable'
+label: 'Non applicable'
 direction: ltr
 weight: 3
 locked: true

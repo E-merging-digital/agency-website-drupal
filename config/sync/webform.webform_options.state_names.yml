@@ -8,58 +8,7 @@ dependencies:
 _core:
   default_config_hash: KfYqMSrFJ5iGtDzvy_rGUeRUJ4KyM7Xt-tWtYx9WjiM
 id: state_names
-label: 'State names'
-category: Geographic
+label: 'Noms des États'
+category: Géographique
 likert: false
-options: |
-  Alabama: Alabama
-  Alaska: Alaska
-  Arizona: Arizona
-  Arkansas: Arkansas
-  California: California
-  Colorado: Colorado
-  Connecticut: Connecticut
-  Delaware: Delaware
-  'District of Columbia': 'District of Columbia'
-  Florida: Florida
-  Georgia: Georgia
-  Hawaii: Hawaii
-  Idaho: Idaho
-  Illinois: Illinois
-  Indiana: Indiana
-  Iowa: Iowa
-  Kansas: Kansas
-  Kentucky: Kentucky
-  Louisiana: Louisiana
-  Maine: Maine
-  Maryland: Maryland
-  Massachusetts: Massachusetts
-  Michigan: Michigan
-  Minnesota: Minnesota
-  Mississippi: Mississippi
-  Missouri: Missouri
-  Montana: Montana
-  Nebraska: Nebraska
-  Nevada: Nevada
-  'New Hampshire': 'New Hampshire'
-  'New Jersey': 'New Jersey'
-  'New Mexico': 'New Mexico'
-  'New York': 'New York'
-  'North Carolina': 'North Carolina'
-  'North Dakota': 'North Dakota'
-  Ohio: Ohio
-  Oklahoma: Oklahoma
-  Oregon: Oregon
-  Pennsylvania: Pennsylvania
-  'Rhode Island': 'Rhode Island'
-  'South Carolina': 'South Carolina'
-  'South Dakota': 'South Dakota'
-  Tennessee: Tennessee
-  Texas: Texas
-  Utah: Utah
-  Vermont: Vermont
-  Virginia: Virginia
-  Washington: Washington
-  'West Virginia': 'West Virginia'
-  Wisconsin: Wisconsin
-  Wyoming: Wyoming
+options: "Alabama : Alabama\r\nAlaska : Alaska\r\nArizona : Arizona\r\nArkansas : Arkansas\r\nCalifornia : Californie\r\n'North Carolina' : Caroline du Nord\r\n'South Carolina' : Caroline du Sud\r\nColorado : Colorado\r\nConnecticut : Connecticut\r\n'North Dakota' : Dakota du Nord\r\n'South Dakota' : Dakota du Sud\r\nDelaware : Delaware\r\nFlorida : Floride\r\nGeorgia : Géorgie\r\nHawaii : Hawaï\r\nIdaho : Idaho\r\nIllinois : Illinois\r\nIndiana : Indiana\r\nIowa : Iowa\r\nKansas : Kansas\r\nKentucky : Kentucky\r\nLouisiana : Louisiane\r\nMaine : Maine\r\nMaryland : Maryland\r\nMassachusetts : Massachusetts\r\nMichigan : Michigan\r\nMinnesota : Minnesota\r\nMississippi : Mississippi\r\nMissouri : Missouri\r\nMontana : Montana\r\nNebraska : Nebraska\r\nNevada : Nevada\r\n'New Hampshire' : New Hampshire\r\n'New Jersey' : New Jersey\r\n'New Mexico' : Nouveau-Mexique\r\n'New York' : New York\r\nOhio : Ohio\r\nOklahoma : Oklahoma\r\nOregon : Oregon\r\nPennsylvania : Pennsylvanie\r\n'Rhode Island' : Rhode Island\r\nTennessee : Tennessee\r\nTexas : Texas\r\nUtah : Utah\r\nVermont : Vermont\r\nVirginia : Virginie\r\n'West Virginia' : Virginie-Occidentale\r\nWashington : Washington\r\nWisconsin : Wisconsin\r\nWyoming : Wyoming\n"

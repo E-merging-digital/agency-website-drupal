@@ -1,0 +1,11 @@
+content:
+  field_feature_image:
+    third_party_settings:
+      field_widget_actions:
+        e0591308-9f78-4778-966e-7669aa785aa5:
+          button_label: 'Automator Alt Text'
+  field_short_description:
+    third_party_settings:
+      field_widget_actions:
+        429db108-b3ad-4713-bcf9-0ad6f2595568:
+          button_label: 'Automator Text Suggestion'

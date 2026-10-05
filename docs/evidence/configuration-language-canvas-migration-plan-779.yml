@@ -1,0 +1,118 @@
+schema_version: 1
+issue: 779
+parent_issue: 609
+application_issue: 781
+source:
+  trusted_main: 59b8720d307b6e141cb37d3408a27f43c4b199aa
+  run_id: 32733184593
+  artifact_id: 9522276654
+  artifact_digest: 'sha256:e1f0f53e77505ff418a09a094e2e0eddf6428cbcc1066e70db650ab46fa19141'
+  plan_sha256: 8627ce9ec73a45f5501a410e15c4e56fcbc45239ee2c1c166e5d5445337e1a24
+cohort:
+  total: 30
+  block: 26
+  sdc: 4
+  names_sha256: b2ad9dcff4b65e56e2a76efefc55b508cf4012b6aaa18cba0c4879cf2f3dec23
+  names:
+    - canvas.component.block.announce_block
+    - canvas.component.block.emerging_digital_language_switcher
+    - canvas.component.block.help_block
+    - canvas.component.block.language_block.language_content
+    - canvas.component.block.language_block.language_interface
+    - canvas.component.block.local_actions_block
+    - canvas.component.block.local_tasks_block
+    - canvas.component.block.page_title_block
+    - canvas.component.block.shortcuts
+    - canvas.component.block.system_branding_block
+    - canvas.component.block.system_breadcrumb_block
+    - canvas.component.block.system_clear_cache_block
+    - canvas.component.block.system_menu_block.account
+    - canvas.component.block.system_menu_block.admin
+    - canvas.component.block.system_menu_block.footer
+    - canvas.component.block.system_menu_block.main
+    - canvas.component.block.system_menu_block.online-presence
+    - canvas.component.block.system_menu_block.tools
+    - canvas.component.block.system_messages_block
+    - canvas.component.block.system_powered_by_block
+    - canvas.component.block.user_login_block
+    - canvas.component.block.views_block.comments_recent-block_1
+    - canvas.component.block.views_block.content_recent-block_1
+    - canvas.component.block.views_block.who_s_new-block_1
+    - canvas.component.block.views_block.who_s_online-who_s_online_block
+    - canvas.component.block.webform_block
+    - canvas.component.sdc.emerging_digital.cta
+    - canvas.component.sdc.emerging_digital.hero
+    - canvas.component.sdc.emerging_digital.trust-list
+    - canvas.component.sdc.olivero.teaser
+sdc_names:
+  - canvas.component.sdc.emerging_digital.cta
+  - canvas.component.sdc.emerging_digital.hero
+  - canvas.component.sdc.emerging_digital.trust-list
+  - canvas.component.sdc.olivero.teaser
+block_label_targets:
+  canvas.component.block.announce_block:
+    base: 'Announcements Feed'
+    fr: "Flux d'annonces"
+  canvas.component.block.emerging_digital_language_switcher:
+    base: 'Language switcher'
+    fr: 'Sélecteur de langue'
+  canvas.component.block.help_block:
+    base: 'Help'
+    fr: 'Aide'
+  canvas.component.block.language_block.language_content:
+    base: 'Language switcher (Content)'
+    fr: 'Sélecteur de langue (Contenu)'
+  canvas.component.block.language_block.language_interface:
+    base: 'Language switcher (Interface text)'
+    fr: "Sélecteur de langue (Texte d'interface)"
+  canvas.component.block.local_actions_block:
+    base: 'Primary admin actions'
+    fr: "Actions d'administration principales"
+  canvas.component.block.local_tasks_block:
+    base: 'Tabs'
+    fr: 'Onglets'
+  canvas.component.block.page_title_block:
+    base: 'Page title'
+    fr: 'Titre de la page'
+  canvas.component.block.shortcuts:
+    base: 'Shortcuts'
+    fr: 'Raccourcis'
+  canvas.component.block.system_branding_block:
+    base: 'Site branding'
+    fr: 'Identité du site'
+  canvas.component.block.system_breadcrumb_block:
+    base: 'Breadcrumbs'
+    fr: "Fils d'ariane"
+  canvas.component.block.system_clear_cache_block:
+    base: 'Clear cache'
+    fr: 'Vider le cache'
+  canvas.component.block.system_powered_by_block:
+    base: 'Powered by Drupal'
+    fr: 'Propulsé par Drupal'
+  canvas.component.block.user_login_block:
+    base: 'User login'
+    fr: 'Connexion utilisateur'
+  canvas.component.block.views_block.content_recent-block_1:
+    base: 'Recent content: Block'
+    fr: 'Recent content : Block'
+target:
+  total_config: 595
+  distribution:
+    __none__: 59
+    en: 496
+    fr: 39
+    und: 1
+  base_files_modified: 30
+  block_label_files_modified: 15
+  block_label_values_modified: 30
+  fr_overrides_created: 15
+constraints:
+  exact_plan_required: true
+  historical_versions_rewritten: false
+  sdc_values_rewritten: false
+  config_language_lock_enabled: false
+  system_site_default_langcode: fr
+  config_export_allowed: false
+  natural_language_heuristic_used: false
+  arbitrary_translation_used: false
+  fuzzy_matching_used: false

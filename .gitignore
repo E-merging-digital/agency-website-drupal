@@ -52,6 +52,7 @@ composer.phar
 .ddev/.dbimageBuild/
 .ddev/.ddev-database/
 .ddev/.drush/
+.ddev/.downloads/
 .ddev/.homeadditions/
 .ddev/.imported/
 .ddev/.mysql/

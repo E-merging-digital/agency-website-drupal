@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "policy_id": "agency-development-seed-v1",
+  "policy_version": "1",
+  "scope": {
+    "source": "SANITIZED_PREPROD_AFTER_TERMINAL_816_PROOF",
+    "output": "IMMUTABLE_DEVELOPMENT_DATABASE_SEED",
+    "public_files": "NONE",
+    "private_files": "NEVER"
+  },
+  "extends_existing": {
+    "preprod_policy_id": "agency-preprod-refresh-v1",
+    "drush_sql_sanitize": "REQUIRED",
+    "agency_preprod_sanitizer": "scripts/preproduction-refresh/governed-successor/agency-sanitize.php"
+  },
+  "additional_rules": [
+    "REMOVE_IMPORTED_USER_ROLES_AND_PROFILE_PICTURE_REFERENCES",
+    "CLEAR_IMPORTED_USER_PRIVATE_DATA",
+    "CLEAR_ALL_IMPORTED_RUNTIME_STATE_COLLECTION",
+    "RENAME_IMPORTED_USERS_TO_DEV_UID_IDENTITIES",
+    "INVALIDATE_IMPORTED_USER_ACTIVITY_TIMESTAMPS",
+    "ASSERT_NO_LOCAL_ADMIN_IS_TRANSPORTED",
+    "ASSERT_KNOWN_CREDENTIAL_CONFIG_IS_ABSENT",
+    "ASSERT_EXTERNAL_ACTION_STATE_IS_EMPTY"
+  ],
+  "local_side_effect_contract": {
+    "production_config_split": false,
+    "preproduction_config_split": false,
+    "analytics": "OFF",
+    "external_ai_egress": "OFF_BY_DEFAULT",
+    "mail": "DDEV_NATIVE_MAILPIT_ONLY",
+    "external_action_queues": "EMPTY",
+    "local_admin": "CREATE_OR_RESET_LOCALLY_AFTER_IMPORT"
+  },
+  "seed_metadata": {
+    "schema_version": 1,
+    "required": [
+      "seed_id",
+      "created_at",
+      "source_preprod_refresh_identity",
+      "source_preprod_application_release_sha",
+      "sanitization_policy",
+      "database_byte_size",
+      "database_sha256",
+      "compatibility"
+    ],
+    "hash": "SHA256",
+    "sensitive_values": "FORBIDDEN"
+  },
+  "compatibility": {
+    "strategy": "SAME_OR_SEED_ANCESTOR",
+    "checkout_older_than_seed": "FAIL_CLOSED",
+    "divergent_history": "FAIL_CLOSED",
+    "local_convergence": ["drush updb", "drush cim", "drush cr"]
+  }
+}

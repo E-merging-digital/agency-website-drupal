@@ -87,6 +87,7 @@ jobs:
           allowed_profiles = {
               'canvas-ai-agents-530',
               'config-language-lock-628',
+              'dependency-maintenance-962',
           }
           if profile not in allowed_profiles:
               raise SystemExit('Unsupported Composer materialization profile')
@@ -101,12 +102,19 @@ jobs:
 
           case "$PROFILE" in
             canvas-ai-agents-530)
+              mode='package'
               expected_package='drupal/ai_agents'
               expected_constraint='^1.3'
               ;;
             config-language-lock-628)
+              mode='package'
               expected_package='drupal/config_language_lock'
               expected_constraint='^1.0'
+              ;;
+            dependency-maintenance-962)
+              mode='lock-refresh'
+              expected_package=''
+              expected_constraint=''
               ;;
             *)
               echo 'Unsupported Composer materialization profile' >&2
@@ -127,11 +135,6 @@ jobs:
               "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
               --jq '.[].filename'
           )"
-          if [[ "$changed" != 'composer.json' ]]; then
-            echo 'Target PR must change exactly composer.json before resolution.' >&2
-            printf '%s\n' "$changed" >&2
-            exit 1
-          fi
 
           gh api \
             "repos/$GITHUB_REPOSITORY/contents/composer.json?ref=$base_sha" \
@@ -142,9 +145,16 @@ jobs:
             --jq '.content' | tr -d '\n' | base64 --decode \
             > /tmp/composer-target.json
 
-          EXPECTED_PACKAGE="$expected_package" \
-          EXPECTED_CONSTRAINT="$expected_constraint" \
-          python3 - <<'PY'
+          if [[ "$mode" == 'package' ]]; then
+            if [[ "$changed" != 'composer.json' ]]; then
+              echo 'Package target PR must change exactly composer.json before resolution.' >&2
+              printf '%s\n' "$changed" >&2
+              exit 1
+            fi
+
+            EXPECTED_PACKAGE="$expected_package" \
+            EXPECTED_CONSTRAINT="$expected_constraint" \
+            python3 - <<'PY'
           import copy
           import json
           import os
@@ -164,6 +174,17 @@ jobs:
                   'Composer profile.'
               )
           PY
+          elif [[ "$mode" == 'lock-refresh' ]]; then
+            if [[ -n "$changed" ]]; then
+              echo 'Lock-refresh target PR must have no file delta before resolution.' >&2
+              printf '%s\n' "$changed" >&2
+              exit 1
+            fi
+            cmp /tmp/composer-base.json /tmp/composer-target.json
+          else
+            echo "Unsupported Composer materialization mode: $mode" >&2
+            exit 1
+          fi
 
           echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
           echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"

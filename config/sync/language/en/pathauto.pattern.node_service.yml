@@ -1,0 +1,2 @@
+label: 'Content path pattern (Service fallback)'
+pattern: '/services/[node:title]'

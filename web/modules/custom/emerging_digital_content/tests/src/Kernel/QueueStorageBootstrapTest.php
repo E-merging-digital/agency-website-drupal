@@ -20,6 +20,7 @@ final class QueueStorageBootstrapTest extends KernelTestBase {
    */
   protected static $modules = [
     'emerging_digital_content',
+    'path_alias',
     'system',
   ];
 

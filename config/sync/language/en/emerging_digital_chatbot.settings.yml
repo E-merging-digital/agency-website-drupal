@@ -1,0 +1,204 @@
+future_ai:
+  fallback_message:
+    fr: 'Je peux vous aider à clarifier votre besoin et vous orienter vers la bonne page. Pour une proposition engageante, l’équipe doit reprendre contact avec vous.'
+    en: 'I can help you clarify your need and point you to the right page. For a binding proposal, the team needs to follow up with you.'
+  prompts:
+    fr:
+      system: |
+        Vous êtes l’assistance automatisée encadrée d’E-merging Digital. Votre rôle est d’aider un visiteur à clarifier un besoin Drupal, IA Drupal, accessibilité ou SEO, puis à l’orienter vers une page publique utile ou vers le contact humain.
+
+        Règles strictes :
+        - répondez en français, avec un ton sobre, professionnel, rassurant et concis ;
+        - ne donnez jamais de prix, devis, fourchette budgétaire, délai garanti ou validation commerciale ;
+        - ne promettez jamais qu’un projet est accepté ou techniquement validé ;
+        - ne donnez pas d’avis juridique, médical, financier ou contractuel ;
+        - ne demandez pas de données sensibles, mots de passe, secrets, documents privés ou données de tiers ;
+        - ne prétendez pas disposer d’informations hors contexte public fourni par Drupal ;
+        - indiquez que l’équipe doit reprendre contact pour toute proposition engageante.
+
+        Réponse de garde-fou à utiliser si la demande dépasse ces limites : "Je peux vous aider à clarifier votre besoin et vous orienter vers la bonne page. Pour une proposition engageante, l’équipe doit reprendre contact avec vous."
+    en:
+      system: |
+        You are E-merging Digital’s controlled automated assistant. Your role is to help a visitor clarify a Drupal, Drupal AI, accessibility, or SEO need, then point them to a useful public page or human contact.
+
+        Strict rules:
+        - answer in English with a calm, professional, reassuring, and concise tone;
+        - never provide prices, quotes, budget ranges, guaranteed timelines, or commercial validation;
+        - never promise that a project is accepted or technically validated;
+        - do not provide legal, medical, financial, or contractual advice;
+        - do not ask for sensitive data, passwords, secrets, private documents, or third-party data;
+        - do not claim access to information beyond the public context supplied by Drupal;
+        - state that the team must follow up for any binding proposal.
+
+        Guardrail response to use when the request goes beyond these limits: "I can help you clarify your need and point you to the right page. For a binding proposal, the team needs to follow up with you."
+messages:
+  fr:
+    title: 'Assistant E-merging Digital'
+    launcher_label: 'Ouvrir l’assistant'
+    close_label: Fermer
+    reset_label: Recommencer
+    intro: 'Bonjour, je peux vous aider à qualifier votre projet, choisir le bon parcours et préparer un contact utile.'
+    transparency: 'Ce MVP fonctionne sans IA générative libre. Les choix restent guidés, aucune conversation n’est stockée durablement et il ne faut pas envoyer de données sensibles.'
+    guardrail: 'Pour un budget, un délai ou une proposition engageante, l’équipe reprend contact avec vous.'
+    choose_label: 'Choisir un parcours'
+    cta_label: 'Actions proposées'
+    transparency_summary: 'Assistant guidé - pas de conservation durable'
+    back_label: 'Changer de besoin'
+    selected_label: 'Besoin sélectionné'
+    privacy_label: Confidentialité
+    flows:
+      qualify_project:
+        label: 'Qualifier mon projet'
+        response: 'Pour préparer un échange utile, rassemblez le contexte, le type de besoin, l’état du site existant, l’horizon souhaité, le niveau de maturité et les contraintes importantes. Gardez les informations sensibles hors du formulaire.'
+        ctas:
+          -
+            label: 'Qualifier mon projet'
+          -
+            label: 'Voir les services'
+          -
+            label: 'Voir des cas similaires'
+          -
+            label: 'Explorer IA & Drupal'
+      drupal_project:
+        label: 'J’ai un projet Drupal'
+        response: 'Nous pouvons vous orienter selon votre besoin : création, architecture, maintenance ou accompagnement Drupal.'
+        ctas:
+          -
+            label: 'Voir les services Drupal'
+          -
+            label: 'Agence Drupal Belgique'
+          -
+            label: 'Création de site Drupal'
+          -
+            label: 'Parler à un humain'
+      modernize:
+        label: 'Je veux moderniser un site existant'
+        response: 'Pour une refonte ou une migration, le plus utile est de clarifier le contexte actuel, les objectifs et les contraintes.'
+        ctas:
+          -
+            label: 'Refonte Drupal'
+          -
+            label: 'Migration Drupal'
+          -
+            label: 'Maintenance Drupal'
+          -
+            label: 'Nous contacter'
+      ai_drupal:
+        label: 'Je cherche de l’aide sur IA & Drupal'
+        response: 'L’approche recommandée est progressive : cadrer les cas d’usage, sécuriser les données, puis intégrer l’IA côté Drupal.'
+        ctas:
+          -
+            label: 'Découvrir IA & Drupal'
+          -
+            label: 'IA intégrée'
+          -
+            label: 'Gouvernance IA'
+          -
+            label: 'Échanger avec l’équipe'
+      seo_accessibility:
+        label: 'Je veux améliorer SEO / accessibilité'
+        response: 'Un audit permet de prioriser les corrections utiles : technique, contenu, accessibilité, performance et maillage interne.'
+        ctas:
+          -
+            label: 'SEO et accessibilité'
+          -
+            label: 'Audit Drupal'
+          -
+            label: Services
+          -
+            label: 'Demander un avis humain'
+      contact:
+        label: 'Je souhaite vous contacter'
+        response: 'Le formulaire de contact reste le meilleur canal. Vous pouvez y décrire votre contexte en quelques lignes, sans partager d’informations sensibles.'
+        ctas:
+          -
+            label: 'Aller au contact'
+          -
+            label: 'Voir les services'
+          -
+            label: 'Politique de confidentialité'
+  en:
+    title: 'E-merging Digital assistant'
+    launcher_label: 'Open assistant'
+    close_label: Close
+    reset_label: 'Start again'
+    intro: 'Hello, I can help you qualify your project, choose the right path and prepare a useful contact request.'
+    transparency: 'This MVP runs without free-form generative AI. Choices stay guided, no conversation is stored long term and sensitive data should not be sent.'
+    guardrail: 'For a budget, timeline, or binding proposal, the team will follow up with you.'
+    choose_label: 'Choose a path'
+    cta_label: 'Suggested actions'
+    transparency_summary: 'Guided assistant - no long-term storage'
+    back_label: 'Change need'
+    selected_label: 'Selected need'
+    privacy_label: Privacy
+    flows:
+      qualify_project:
+        label: 'Qualify my project'
+        response: 'To prepare a useful conversation, gather the context, need type, existing website status, desired timeline, maturity level and important constraints. Keep sensitive information out of the form.'
+        ctas:
+          -
+            label: 'Qualify my project'
+          -
+            label: 'View services'
+          -
+            label: 'See similar cases'
+          -
+            label: 'Explore AI & Drupal'
+      drupal_project:
+        label: 'I have a Drupal project'
+        response: 'We can route you by need: creation, architecture, maintenance, or Drupal support.'
+        ctas:
+          -
+            label: 'View Drupal services'
+          -
+            label: 'Drupal agency Belgium'
+          -
+            label: 'Drupal website creation'
+          -
+            label: 'Talk to a human'
+      modernize:
+        label: 'I want to modernize an existing site'
+        response: 'For a redesign or migration, the useful first step is clarifying the current context, goals, and constraints.'
+        ctas:
+          -
+            label: 'Drupal redesign'
+          -
+            label: 'Drupal migration'
+          -
+            label: 'Drupal maintenance'
+          -
+            label: 'Contact us'
+      ai_drupal:
+        label: 'I need help with AI & Drupal'
+        response: 'The recommended approach is progressive: frame the use cases, secure the data, then integrate AI on the Drupal side.'
+        ctas:
+          -
+            label: 'Explore AI & Drupal'
+          -
+            label: 'Integrated AI'
+          -
+            label: 'AI governance'
+          -
+            label: 'Talk to the team'
+      seo_accessibility:
+        label: 'I want to improve SEO / accessibility'
+        response: 'An audit helps prioritize useful fixes: technical SEO, content, accessibility, performance, and internal links.'
+        ctas:
+          -
+            label: 'SEO and accessibility'
+          -
+            label: 'Drupal audit'
+          -
+            label: Services
+          -
+            label: 'Ask for human input'
+      contact:
+        label: 'I would like to contact you'
+        response: 'The contact form is the best channel. You can describe your context in a few lines without sharing sensitive information.'
+        ctas:
+          -
+            label: 'Go to contact'
+          -
+            label: 'View services'
+          -
+            label: 'Privacy policy'

@@ -1,5 +1,5 @@
 uuid: 8d6bba0b-d68f-4135-97b6-579e1f5c419e
-langcode: en
+langcode: fr
 status: true
 dependencies: {  }
 id: agency_editorial_input_length
@@ -10,5 +10,5 @@ guardrail_settings:
   max_length: 20000
   use_tokens: false
   tokenizer_model: gpt-4
-  check_all_messages: false
+  scan_all_user_messages: false
   violation_message: 'This AI input contains @count @unit and exceeds the Agency limit of @max @unit. Reduce the submitted content and try again.'

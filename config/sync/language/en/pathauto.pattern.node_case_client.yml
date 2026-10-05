@@ -1,0 +1,2 @@
+label: 'Content path pattern (Cas client fallback)'
+pattern: '/cas-clients/[node:title]'

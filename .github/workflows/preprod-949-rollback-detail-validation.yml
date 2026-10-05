@@ -1,0 +1,62 @@
+name: "Validate #949 fixed #948 rollback detail diagnostic"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/agency-command-dispatch.yml"
+      - ".github/workflows/preprod-refresh-948-detail-diagnostic.yml"
+      - ".github/workflows/preprod-949-rollback-detail-validation.yml"
+      - "scripts/preproduction-refresh/governed-successor/observe-server-to-server-worker.py"
+      - "scripts/preproduction-refresh/governed-successor/poll-server-to-server-worker.sh"
+      - "scripts/preproduction-refresh/governed-successor/test-observe-server-to-server-worker.py"
+      - "web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php"
+      - "web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh948DetailDiagnosticTest.php"
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate observer and fixed diagnostic syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          b=scripts/preproduction-refresh/governed-successor
+          bash -n "$b/poll-server-to-server-worker.sh"
+          python3 -m py_compile \
+            "$b/observe-server-to-server-worker.py" \
+            "$b/test-observe-server-to-server-worker.py"
+          python3 "$b/observe-server-to-server-worker.py" --self-test
+          python3 "$b/test-observe-server-to-server-worker.py"
+
+      - name: Validate targeted PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh948DetailDiagnosticTest.php
+
+      - name: Setup PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run focused #949 and dispatcher tests
+        run: >-
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionRefresh948DetailDiagnosticTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php

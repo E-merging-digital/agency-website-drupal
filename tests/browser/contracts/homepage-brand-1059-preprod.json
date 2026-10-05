@@ -1,0 +1,32 @@
+{
+  "id": "homepage-brand-1059-preprod",
+  "target": "/fr",
+  "target_en": "/en",
+  "actor": "anonymous-behind-preprod-basic-auth",
+  "expected": [
+    "La homepage FR conserve exactement la copy #1015 approuvée.",
+    "La homepage EN rend exactement la master copy #1059.",
+    "Les CTA FR/EN conservent les routes contact et services existantes.",
+    "Canonical, hreflang FR/EN et Schema restent présents.",
+    "Desktop/mobile, accessibilité de base, console et réseau restent sains."
+  ],
+  "checks": [
+    "functional",
+    "rendered_dom",
+    "cta_destinations",
+    "accessibility_baseline",
+    "canonical",
+    "hreflang",
+    "schema_continuity",
+    "browser_console",
+    "page_errors",
+    "unexpected_http_failures",
+    "desktop_rendering",
+    "mobile_rendering"
+  ],
+  "evidence": [
+    "screenshots",
+    "machine_readable_result",
+    "trace_on_failure"
+  ]
+}

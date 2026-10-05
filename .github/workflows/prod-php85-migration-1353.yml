@@ -1,0 +1,516 @@
+name: '#1353 governed PROD PHP 8.5 migration PLAN/APPLY'
+
+on:
+  workflow_call:
+    secrets:
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+concurrency:
+  group: agency-prod-php85-migration-1353
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Validate exact #1353 PLAN/APPLY authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+    outputs:
+      mode: ${{ steps.authority.outputs.mode }}
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      plan_id: ${{ steps.authority.outputs.plan_id }}
+      plan_run: ${{ steps.authority.outputs.plan_run }}
+      plan_digest: ${{ steps.authority.outputs.plan_digest }}
+    steps:
+      - id: authority
+        name: JIT validate direct OWNER PLAN command and exact live main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = '1'
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1353'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_LOGIN" = 'E-merging-digital'
+          test "$COMMENT_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_VIA_APP" = 'false'
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1353")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          jq -e '[.labels[].name] | index("P1") != null' <<<"$issue_json" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$WORKFLOW_SHA" = "$main_sha"
+
+          mode=''
+          plan_run=''
+          plan_digest=''
+          if [[ "$COMMENT_BODY" == '/agency-prod-php85-1353 plan' ]]; then
+            mode='PLAN'
+          elif [[ "$COMMENT_BODY" =~ ^/agency-prod-php85-1353\ apply\ plan_run=([1-9][0-9]*)\ plan_digest=([0-9a-f]{64})$ ]]; then
+            mode='APPLY'
+            plan_run="${BASH_REMATCH[1]}"
+            plan_digest="${BASH_REMATCH[2]}"
+          else
+            printf '%s\n' 'Unsupported #1353 command syntax.' >&2
+            exit 64
+          fi
+
+          plan_id="plan-1353-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "mode=$mode"
+            echo "main_sha=$main_sha"
+            echo "plan_id=$plan_id"
+            echo "plan_run=$plan_run"
+            echo "plan_digest=$plan_digest"
+          } >> "$GITHUB_OUTPUT"
+
+  plan:
+    name: Build fresh mutation-free PROD PHP 8.5 PLAN
+    if: ${{ needs.validate-authority.outputs.mode == 'PLAN' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize pinned PROD identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1353-plan.key"
+          chmod 600 "$RUNNER_TEMP/agency-1353-plan.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - id: plan_result
+        name: Run read-only PHP 8.5 PLAN on PROD
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/prod-php85-1353
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1353-plan.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          set +e
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID'" \
+            < scripts/production-php85-1353/remote-plan.sh \
+            > artifacts/prod-php85-1353/plan.json
+          plan_rc=$?
+          set -e
+
+          plan='artifacts/prod-php85-1353/plan.json'
+          test -s "$plan"
+          jq -e --arg main "$MAIN_SHA" --arg plan_id "$PLAN_ID" '
+            (.STATUS == "PASS" or .STATUS == "FAIL")
+            and .ISSUE == 1353
+            and .TARGET == "PROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_ID == $plan_id
+            and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
+            and (.FAILED_CHECKS | type == "array")
+            and (
+              (.STATUS == "PASS" and .SAFETY_GATE == "PASS" and .FAILED_CHECKS == [])
+              or
+              (.STATUS == "FAIL" and .SAFETY_GATE == "FAIL" and (.FAILED_CHECKS | length) > 0)
+            )' "$plan" >/dev/null
+
+          {
+            echo 'receipt_valid=true'
+            echo "digest=$(jq -r '.PLAN_DIGEST' "$plan")"
+            echo "status=$(jq -r '.STATUS' "$plan")"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$plan_rc" -eq 0 ]]; then
+            jq -e '
+              .STATUS == "PASS"
+              and .SAFETY_GATE == "PASS"
+              and .FAILED_CHECKS == []
+              and .PHP85_INSTALL_SIMULATION == "PASS"
+              and .PHP85_INSTALLABLE == "YES"
+              and .UNEXPECTED_PACKAGE_REMOVALS == []
+              and .UNRELATED_PACKAGE_UPGRADES == []
+              and .PHP84_PACKAGES_PRESENT == "YES"
+              and .PHP84_SERVICE_ACTIVE == "YES"
+              and .ROLLBACK_PHP84_AVAILABLE == "YES"
+              and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+              and .FPM84_POOL_CONTRACT == "YES"' "$plan" >/dev/null
+          else
+            test "$plan_rc" -eq 65
+            jq -e '
+              .STATUS == "FAIL"
+              and .SAFETY_GATE == "FAIL"
+              and (.FAILED_CHECKS | length) > 0' "$plan" >/dev/null
+            exit "$plan_rc"
+          fi
+
+      - name: Upload immutable PLAN evidence
+        if: ${{ always() && steps.plan_result.outputs.receipt_valid == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-php85-1353-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/prod-php85-1353/plan.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded PLAN summary
+        if: ${{ always() && steps.plan_result.outputs.receipt_valid == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+        run: |
+          set -euo pipefail
+          plan='artifacts/prod-php85-1353/plan.json'
+          plan_status="$(jq -r '.STATUS' "$plan")"
+          plan_digest="$(jq -r '.PLAN_DIGEST' "$plan")"
+          failed_checks="$(jq -r '.FAILED_CHECKS | if length == 0 then "NONE" else join(",") end' "$plan")"
+          printf -v body '#1353 PROD PHP 8.5 migration PLAN evidence preserved.\n\n`MODE=%s`\n`RUN=%s`\n`PLAN_ID=%s`\n`PLAN_STATUS=%s`\n`PLAN_DIGEST=%s`\n`FAILED_CHECKS=%s`\n`TARGET=%s`\n`PROD_MUTATION=%s`\n`PHP84_REMOVAL=%s`\n\n%s' \
+            'PLAN' \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            "$PLAN_ID" \
+            "$plan_status" \
+            "$plan_digest" \
+            "$failed_checks" \
+            'PROD' \
+            'NONE' \
+            'NONE' \
+            'Artifact publication preserves evidence only. APPLY requires separate exact authority and consumes one immutable PASS PLAN exactly once.'
+          gh issue comment 1353 --body "$body"
+
+      - name: Remove transient PLAN key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1353-plan.key"
+
+  apply:
+    name: Apply exact approved PROD PHP 8.5 migration
+    if: ${{ needs.validate-authority.outputs.mode == 'APPLY' }}
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout exact live main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Load immutable approved PLAN
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/prod-php85-1353/approved
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN")"
+          test "$(jq -r '.path' <<<"$run_json")" = '.github/workflows/agency-command-dispatch.yml'
+          test "$(jq -r '.status' <<<"$run_json")" = 'completed'
+          test "$(jq -r '.conclusion' <<<"$run_json")" = 'success'
+          test "$(jq -r '.event' <<<"$run_json")" = 'issue_comment'
+          test "$(jq -r '.head_sha' <<<"$run_json")" = "$MAIN_SHA"
+          test "$(jq -r '.head_branch' <<<"$run_json")" = 'main'
+          test "$(jq -r '.run_attempt' <<<"$run_json")" = '1'
+          test "$(jq -r '.actor.login' <<<"$run_json")" = 'E-merging-digital'
+
+          artifact_name="prod-php85-1353-plan-${PLAN_RUN}-1"
+          mapfile -t artifacts < <(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PLAN_RUN/artifacts" \
+              --jq ".artifacts[] | select(.expired == false and .name == \"$artifact_name\") | .name"
+          )
+          test "${#artifacts[@]}" -eq 1
+          gh run download "$PLAN_RUN" --name "$artifact_name" \
+            --dir artifacts/prod-php85-1353/approved
+
+          plan='artifacts/prod-php85-1353/approved/plan.json'
+          test -s "$plan"
+          jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" --arg run "$PLAN_RUN" '
+            .schema_version == 1
+            and .STATUS == "PASS"
+            and .ISSUE == 1353
+            and .TARGET == "PROD"
+            and .MODE == "PLAN"
+            and .MAIN_SHA == $main
+            and .PLAN_ID == ("plan-1353-" + $run + "-1")
+            and .PLAN_DIGEST == $digest
+            and .SAFETY_GATE == "PASS"
+            and .FAILED_CHECKS == []
+            and .PHP85_INSTALL_SIMULATION == "PASS"
+            and .PHP85_INSTALLABLE == "YES"
+            and .PACKAGE_REMOVALS == []
+            and .UNEXPECTED_PACKAGE_REMOVALS == []
+            and .PACKAGE_UPGRADES == []
+            and .UNRELATED_PACKAGE_UPGRADES == []
+            and .PHP84_PACKAGES_PRESENT == "YES"
+            and .PHP84_SERVICE_ACTIVE == "YES"
+            and .ROLLBACK_PHP84_AVAILABLE == "YES"
+            and .NGINX_VHOST_PHP84_SOCKET_MATCH == "YES"
+            and .FPM84_POOL_CONTRACT == "YES"' "$plan" >/dev/null
+
+      - name: Consume approved PLAN exactly once before PROD access
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          marker="AGENCY_PROD_PHP85_1353_APPLY_CONSUMED plan_run=$PLAN_RUN plan_digest=$PLAN_DIGEST"
+          if gh api --paginate "repos/$GITHUB_REPOSITORY/issues/1353/comments" \
+            --jq '.[].body' | grep -Fx -- "$marker" >/dev/null; then
+            printf '%s\n' 'Approved #1353 PLAN run is already consumed.' >&2
+            exit 65
+          fi
+          gh issue comment 1353 --body "$marker" >/dev/null
+
+      - name: JIT revalidate exact live main before PROD access
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$live_main" = "$MAIN_SHA"
+          test "$(git rev-parse HEAD)" = "$MAIN_SHA"
+
+      - name: Materialize pinned PROD identity and trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1353-apply.key"
+          chmod 600 "$RUNNER_TEMP/agency-1353-apply.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: Execute exact stale-checked PROD PHP 8.5 APPLY
+        shell: bash
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_RUN: ${{ needs.validate-authority.outputs.plan_run }}
+          PLAN_DIGEST: ${{ needs.validate-authority.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          ssh_args=(
+            -i "$RUNNER_TEMP/agency-1353-apply.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          scp_args=(
+            -q
+            -i "$RUNNER_TEMP/agency-1353-apply.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          remote_stage=".agency-1353-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          approved='artifacts/prod-php85-1353/approved/plan.json'
+          result_dir='artifacts/prod-php85-1353/apply'
+          mkdir -p "$result_dir"
+
+          cleanup_remote() {
+            ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+              "rm -rf -- '$remote_stage'" >/dev/null 2>&1 || true
+          }
+          trap cleanup_remote EXIT
+
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "umask 077; rm -rf -- '$remote_stage'; install -d -m 700 '$remote_stage'" >/dev/null
+          scp "${scp_args[@]}" \
+            scripts/production-php85-1353/remote-plan.sh \
+            scripts/production-php85-1353/remote-apply-root.sh \
+            "$approved" \
+            "$SERVER_USER@$SERVER_HOST:$remote_stage/" >/dev/null
+
+          set +e
+          ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
+            "bash -s -- '$remote_stage' '$PLAN_RUN' '$PLAN_DIGEST' '$MAIN_SHA' '$SERVER_USER'" \
+            > "$result_dir/result.json" 2> "$result_dir/stderr.txt" <<'REMOTE_APPLY'
+          set -Eeuo pipefail
+          umask 077
+          stage="${1:-}"
+          plan_run="${2:-}"
+          digest="${3:-}"
+          main_sha="${4:-}"
+          server_user="${5:-}"
+          [[ "$stage" =~ ^\.agency-1353-[1-9][0-9]*-[1-9][0-9]*$ ]]
+          [[ "$plan_run" =~ ^[1-9][0-9]*$ ]]
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$server_user" =~ ^[A-Za-z0-9._-]+$ ]]
+          test "$(id -un)" = "$server_user"
+
+          plan="$HOME/$stage/plan.json"
+          plan_script="$HOME/$stage/remote-plan.sh"
+          helper="$HOME/$stage/remote-apply-root.sh"
+          test -f "$plan" -a ! -L "$plan"
+          test -f "$plan_script" -a ! -L "$plan_script"
+          test -f "$helper" -a ! -L "$helper"
+
+          plan_id="plan-1353-${plan_run}-1"
+          bash "$plan_script" "$main_sha" "$plan_id" > "$HOME/$stage/current-plan.json"
+          test "$(jq -r '.PLAN_DIGEST' "$HOME/$stage/current-plan.json")" = "$digest"
+          jq -e '.STATUS == "PASS" and .SAFETY_GATE == "PASS" and .FAILED_CHECKS == []' \
+            "$HOME/$stage/current-plan.json" >/dev/null
+
+          helper_dest='/usr/local/sbin/agency-prod-php85-1353-apply'
+          state_dir='/var/lib/agency-prod-php85-1353'
+          plan_dest="$state_dir/approved-plan.json"
+          plan_script_dest="$state_dir/remote-plan.sh"
+          sudoers_dest='/etc/sudoers.d/agency-prod-php85-1353'
+          sudoers_stage="$HOME/$stage/agency-prod-php85-1353.sudoers"
+          printf '%s ALL=(root) NOPASSWD: NOSETENV: %s %s %s %s %s\n' \
+            "$server_user" "$helper_dest" "$plan_dest" "$digest" "$main_sha" "$plan_script_dest" \
+            > "$sudoers_stage"
+          chmod 600 "$sudoers_stage"
+          sudo -k -n -- /usr/sbin/visudo -cf "$sudoers_stage" >/dev/null
+          sudo -k -n -- /usr/bin/install -d -o root -g root -m 0700 -- "$state_dir"
+          sudo -k -n -- /usr/bin/install -o root -g root -m 0755 -- "$helper" "$helper_dest"
+          sudo -k -n -- /usr/bin/install -o root -g root -m 0600 -- "$plan" "$plan_dest"
+          sudo -k -n -- /usr/bin/install -o root -g root -m 0755 -- "$plan_script" "$plan_script_dest"
+          sudo -k -n -- /usr/bin/install -o root -g root -m 0440 -- "$sudoers_stage" "$sudoers_dest"
+          sudo -k -n -- /usr/sbin/visudo -cf "$sudoers_dest" >/dev/null
+          sudo -k -n -- "$helper_dest" "$plan_dest" "$digest" "$main_sha" "$plan_script_dest"
+          REMOTE_APPLY
+          apply_rc=$?
+          set -e
+
+          result="$result_dir/result.json"
+          test -s "$result"
+          if [[ "$apply_rc" -eq 0 ]]; then
+            jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" '
+              .STATUS == "PASS"
+              and .ISSUE == 1353
+              and .TARGET == "PROD"
+              and .MODE == "APPLY"
+              and .MAIN_SHA == $main
+              and .PLAN_DIGEST == $digest
+              and .STALE_PLAN == "PASS"
+              and .EXACT_PACKAGE_SIMULATION == "PASS"
+              and .PACKAGE_APPLY == "PASS"
+              and .PHP85_FPM == "ACTIVE"
+              and .PHP84_FPM == "ACTIVE_ROLLBACK_AVAILABLE"
+              and .FPM85_CONTRACT == "PASS"
+              and .NGINX_SOCKET_ONLY_DELTA == "PASS"
+              and .NGINX_SERVICE == "ACTIVE"
+              and .MARIADB_SERVICE == "ACTIVE"
+              and .DRUPAL_HEALTH == "PASS"
+              and .PUBLIC_HEALTH == "PASS"
+              and .WEB_RUNTIME_PHP85 == "PASS"
+              and .ROLLBACK == "NOT_REQUIRED"
+              and .PHP84_REMOVAL == "NONE"
+              and .DRUPAL_DEPLOY == "NONE"
+              and .DRUPAL_CONFIG_IMPORT == "NONE"
+              and .DB_MUTATION == "NONE"
+              and .OS_UPGRADE == "NONE"
+              and .MARIADB_CHANGE == "NONE"' "$result" >/dev/null
+          else
+            jq -e --arg main "$MAIN_SHA" --arg digest "$PLAN_DIGEST" '
+              .STATUS == "FAIL"
+              and .ISSUE == 1353
+              and .TARGET == "PROD"
+              and .MODE == "APPLY"
+              and .MAIN_SHA == $main
+              and .PLAN_DIGEST == $digest
+              and (.ROLLBACK == "PASS" or .ROLLBACK == "NOT_REQUIRED")' "$result" >/dev/null
+            exit "$apply_rc"
+          fi
+
+      - name: Upload bounded APPLY evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-php85-1353-apply-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/prod-php85-1353/apply
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish bounded APPLY summary
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result='artifacts/prod-php85-1353/apply/result.json'
+          printf -v body '#1353 PROD PHP 8.5 migration APPLY completed.\n\n`STATUS=%s`\n`RUN=%s`\n`PROD_PHP=%s`\n`PHP84_FPM=%s`\n`NGINX_SOCKET_ONLY_DELTA=%s`\n`PUBLIC_HEALTH=%s`\n`ROLLBACK=%s`\n`PHP84_REMOVAL=%s`' \
+            "$(jq -r '.STATUS' "$result")" \
+            "${GITHUB_RUN_ID}/${GITHUB_RUN_ATTEMPT}" \
+            '8.5' \
+            "$(jq -r '.PHP84_FPM' "$result")" \
+            "$(jq -r '.NGINX_SOCKET_ONLY_DELTA' "$result")" \
+            "$(jq -r '.PUBLIC_HEALTH' "$result")" \
+            "$(jq -r '.ROLLBACK' "$result")" \
+            'NONE'
+          gh issue comment 1353 --body "$body"
+
+      - name: Remove transient APPLY key
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1353-apply.key"

@@ -1,5 +1,5 @@
 {{ include('emerging_digital:hero', {
-  attributes: attributes,
+  attributes,
   heading: paragraph.field_heading.value|default(''),
   heading_level: heading_tag|default('h2'),
   variant: hero_illustration_class|default('ed-section--hero-home')|replace({'ed-section--hero-': ''}),
@@ -10,4 +10,4 @@
   image_src: hero_illustration_src|default(''),
   image_alt: hero_illustration_alt|default(''),
   image_loading: hero_illustration_loading|default('lazy'),
-}, with_context = false) }}
+}, with_context: false) }}

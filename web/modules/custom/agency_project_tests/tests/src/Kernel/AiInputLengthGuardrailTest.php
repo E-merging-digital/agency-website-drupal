@@ -41,7 +41,7 @@ final class AiInputLengthGuardrailTest extends KernelTestBase {
         'max_length' => 20000,
         'use_tokens' => FALSE,
         'tokenizer_model' => 'gpt-4',
-        'check_all_messages' => FALSE,
+        'scan_all_user_messages' => FALSE,
         'violation_message' => 'Input too long: @count/@max @unit.',
       ]);
 
@@ -72,7 +72,7 @@ final class AiInputLengthGuardrailTest extends KernelTestBase {
         'max_length' => 20000,
         'use_tokens' => FALSE,
         'tokenizer_model' => 'gpt-4',
-        'check_all_messages' => FALSE,
+        'scan_all_user_messages' => FALSE,
         'violation_message' => 'Input too long: @count/@max @unit.',
       ]);
 

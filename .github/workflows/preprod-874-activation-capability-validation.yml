@@ -1,0 +1,98 @@
+name: "#874/#915 PREPROD activation capability regression"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-874-activation-capability-validation.yml"
+      - ".github/workflows/preprod-915-fixed-refresh-capability-validation.yml"
+      - "docs/operations/preproduction-refresh-activation-capability.md"
+      - "scripts/preproduction-refresh/activation-capability/**"
+
+permissions:
+  contents: read
+
+jobs:
+  contract-and-regressions:
+    name: "#874 lineage preserved by stronger #915 fixed contract"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate #915 revision and canonical predecessor reuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='scripts/preproduction-refresh/activation-capability'
+          python3 "$base/test-915-contract.py"
+          python3 scripts/preproduction-staging-import/privileged/test-contract.py
+          python3 scripts/preproduction-refresh/activation-boundary/test-contract.py
+          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-db | awk '{print $1}')" = 'a3eaf545abc448004f7c1136bf4e19a5728b1e16784c700ffca24e91e2e82b71'
+          test "$(sha256sum scripts/preproduction-staging-import/privileged/agency-preprod-staging-sanitizer.py | awk '{print $1}')" = 'fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f'
+          test "$(sha256sum scripts/preproduction-refresh/sanitization-policy.json | awk '{print $1}')" = 'cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb'
+          jq -e '
+            .issue_number == 874 and .revision_issue == 915 and
+            .data_activation_authority.installed_state == "DISABLED" and
+            .data_activation_authority.permanent_enabled_state == "NONE" and
+            .transaction_authority.installer_in_agency_preprod_sudoers == false and
+            .activation.database_rename == "FORBIDDEN" and
+            .activation.model == "ONE_INTERNALLY_GENERATED_ATOMIC_MULTI_TABLE_RENAME" and
+            .activation.governed_content_apply == "FORBIDDEN_BY_DATA_REFRESH_AUTHORITY"
+          ' "$base/profile.json" >/dev/null
+          printf '%s\n' \
+            '#874_IMPLEMENTATION_LINEAGE=PRESERVED' \
+            '#915_STRONGER_TRANSACTION_AUTHORITY=PASS' \
+            'CANONICAL_SANITIZER_REUSE=PASS' \
+            'DUPLICATE_SANITIZER_AUTHORITY=ABSENT' \
+            'DATA_ACTIVATION_AUTHORITY=DISABLED' \
+            'NO_REAL_PROD_ACCESS=PASS' \
+            'NO_REAL_PREPROD_MUTATION=PASS'
+
+  mariadb-state-proof:
+    name: "#874/#915 MariaDB 11.8 deterministic state regression"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: agency915-874-root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 24
+    steps:
+      - name: Checkout exact PR HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install MariaDB client
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mariadb-client
+
+      - name: Execute deterministic backup/restore proof
+        shell: bash
+        env:
+          AGENCY_874_TEST_DB_HOST: 127.0.0.1
+          AGENCY_874_TEST_DB_PORT: "3306"
+          AGENCY_874_TEST_DB_PASSWORD: agency915-874-root
+        run: |
+          set -euo pipefail
+          python3 scripts/preproduction-refresh/activation-capability/test-mariadb-state-identity.py
+          printf '%s\n' \
+            'DETERMINISTIC_STATE_IDENTITY=PASS' \
+            'EXACT_BACKUP_RESTORE=PASS' \
+            'REGRESSION_874=PASS'

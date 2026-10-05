@@ -1,0 +1,139 @@
+name: Agency dependency maintenance state
+
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - composer.json
+      - composer.lock
+      - package.json
+      - package-lock.json
+      - scripts/dependency-maintenance/**
+      - .github/workflows/dependency-maintenance-state.yml
+  pull_request:
+    paths:
+      - composer.json
+      - composer.lock
+      - package.json
+      - package-lock.json
+      - scripts/dependency-maintenance/**
+      - .github/workflows/dependency-maintenance-state.yml
+
+permissions:
+  contents: read
+concurrency:
+  group: agency-dependency-maintenance-state-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Publish read-only dependency snapshot
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout exact repository state
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Record dependency file identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum composer.json composer.lock package.json package-lock.json \
+            > "$RUNNER_TEMP/dependency-files.before"
+
+      - name: Setup PHP 8.4 and locked Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+          extensions: mbstring, dom, xml, xmlwriter
+
+      - name: Setup project Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate dependency manifests
+        run: composer validate --strict --no-check-all
+
+      - name: Install exact existing Composer lockfile
+        run: composer install --no-progress --prefer-dist --optimize-autoloader --no-interaction
+
+      - name: Run deterministic collector tests
+        run: php scripts/dependency-maintenance/tests/test.php
+
+      - name: Collect normalized dependency state
+        shell: bash
+        run: |
+          set -euo pipefail
+          php scripts/dependency-maintenance/collect.php \
+            --output="$RUNNER_TEMP/agency-dependency-maintenance-state.json"
+          python3 -m json.tool \
+            "$RUNNER_TEMP/agency-dependency-maintenance-state.json" >/dev/null
+
+      - name: Prove read-only dependency files
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum composer.json composer.lock package.json package-lock.json \
+            > "$RUNNER_TEMP/dependency-files.after"
+          diff -u \
+            "$RUNNER_TEMP/dependency-files.before" \
+            "$RUNNER_TEMP/dependency-files.after"
+          git diff --exit-code -- \
+            composer.json composer.lock package.json package-lock.json
+
+      - name: Prove snapshot contains no credential material
+        shell: bash
+        run: |
+          set -euo pipefail
+          snapshot="$RUNNER_TEMP/agency-dependency-maintenance-state.json"
+          if grep -Eiq \
+            'COMPOSER_AUTH|BEGIN [A-Z ]*PRIVATE KEY|github_pat_|gh[pousr]_|mysql://|mariadb://|postgres(ql)?://' \
+            "$snapshot"; then
+            echo "Sensitive material pattern detected in dependency snapshot." >&2
+            exit 1
+          fi
+          echo "SECRET_SCAN=PASS"
+
+      - name: Publish human-readable summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          snapshot="$RUNNER_TEMP/agency-dependency-maintenance-state.json"
+          {
+            echo '## Agency dependency maintenance state'
+            echo
+            jq -r '"- Repository SHA: `\(.repository_sha)`"' "$snapshot"
+            jq -r '"- Collected at: `\(.collected_at_utc)`"' "$snapshot"
+            jq -r '"- Overall: **\(.overall)**"' "$snapshot"
+            jq -r '"- Security advisories: \(.security.advisory_count)"' "$snapshot"
+            jq -r '"- Abandoned packages: \(.abandoned.package_count)"' "$snapshot"
+            echo
+            echo '### Material items'
+            jq -r '
+              .components[]
+              | select(.health != "OK")
+              | "- " + .component
+                + ": " + (.installed_version // "UNKNOWN")
+                + " → latest " + (.latest_available_version // "UNKNOWN")
+                + " [" + .health + " / " + .update_class + "] — "
+                + .recommended_action
+            ' "$snapshot"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload normalized dependency state
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-dependency-maintenance-state
+          path: ${{ runner.temp }}/agency-dependency-maintenance-state.json
+          if-no-files-found: error
+          retention-days: 14

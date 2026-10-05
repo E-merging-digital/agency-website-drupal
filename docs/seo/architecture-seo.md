@@ -1,240 +1,181 @@
-# Architecture SEO cible
+# Architecture SEO cible — état live
 
-Issue GitHub : https://github.com/E-merging-digital/agency-website-drupal/issues/286
-
-Ticket : 110 - Audit SEO strategique et repositionnement commercial
-
-Date : 2026-05-20
+Issue de rebaseline : #1115  
+Roadmap initiale : #286  
+Rebaseline : 2026-09-08
 
 ## Principe directeur
 
-L'architecture cible doit elargir l'acquisition sans casser le socle existant.
-Les pages Drupal restent importantes, mais elles doivent etre reliees a des hubs
-plus comprehensibles pour des prospects non techniques :
+L’architecture SEO doit élargir l’acquisition sans réduire Agency à Drupal.
 
-- agence web ;
-- creation/refonte ;
-- site PME / ASBL / institution ;
-- developpement web sur mesure ;
-- PHP / Symfony / Laravel ;
-- IA encadree ;
-- qualite web : SEO, accessibilite, performance.
+```text
+BUSINESS = portes d’entrée compréhensibles sans choix technologique préalable
+EXPERTISE = profondeur Drupal / PHP / architecture / qualité
+IA = usages utiles, encadrés et validés humainement
+```
 
-Cette architecture est editoriale. Elle ne demande aucune modification de menu
-dans ce ticket.
+Une page business part du besoin. Une page expertise explique quand sa
+technologie est pertinente. Une page IA cadre les limites, la confidentialité,
+la validation humaine et la mesure.
 
-## Modele strategique en 3 familles
+## Gouvernance éditoriale actuelle
 
-Le futur cocon SEO doit rester lisible pour un prospect non technique. Les pages
-peuvent etre organisees en trois familles principales, puis declinees en pages
-services ou guides.
+Les contenus ordinaires sont editor-owned dans Drupal.
 
-| Famille | Role SEO | Pages prioritaires | Fonction dans le tunnel |
+```text
+CONTENT_SYNC_FOR_NEW_ORDINARY_MARKETING_CONTENT = NO_BY_DEFAULT
+PREPROD_RENDER = REQUIRED
+HUMAN_APPROVAL = REQUIRED
+FR_EN = DEFAULT
+PROD_PUBLICATION = GOVERNED_SEPARATE_STEP
+```
+
+Les anciens champs de statut liés à la création via Content Sync ne sont plus
+une instruction d’implémentation.
+
+## Famille Business
+
+| Page | Alias FR | Alias EN | Statut | Rôle |
+| --- | --- | --- | --- | --- |
+| Agence web Belgique | `/agence-web-belgique` | `/web-agency-belgium` | DELIVERED | Porte d’entrée agence web senior |
+| Agence web Liège | `/agence-web-liege` | `/web-agency-liege` | DELIVERED | Acquisition locale |
+| Création site web professionnel | `/creation-site-web-professionnel` | `/professional-website-creation` | DELIVERED | Besoin de création sans technologie imposée |
+| Refonte site internet | `/refonte-site-internet` | `/website-redesign` | DELIVERED | Modernisation / continuité / SEO |
+| Site web PME | `/site-web-pme` | `/sme-website` | DELIVERED | Besoins PME |
+| Audit site web | `/audit-site-web` | `/website-audit` | NEXT_P1 | Diagnostic généraliste et orientation |
+| Site web ASBL | `/site-web-asbl` | `/non-profit-website` | PLANNED_P1 | Accessibilité / équipe réduite / publication |
+| Site web institutionnel | `/site-web-institutionnel` | `/institutional-website` | PLANNED_P1 | Gouvernance / multilingue / validation |
+| Développement web sur mesure | `/developpement-web-sur-mesure` | `/custom-web-development` | PLANNED_P2 | Besoins applicatifs / API / intégrations |
+
+## Famille Expertise Drupal / qualité
+
+Ces pages restent des actifs structurants et doivent être reliées depuis les
+portes d’entrée business lorsque le besoin devient technique.
+
+| Page | Alias FR | Rôle |
+| --- | --- | --- |
+| Agence Drupal Belgique | `/agence-drupal-belgique` | Expertise Drupal senior |
+| Création site Drupal | `/creation-site-drupal` | Création lorsque Drupal est pertinent |
+| Refonte site Drupal | `/refonte-site-drupal` | Refonte d’un socle Drupal |
+| Migration Drupal | `/migration-drupal` | Trajectoire de migration |
+| Maintenance Drupal | `/maintenance-drupal` | Continuité et care |
+| Audit Drupal | `/audit-drupal` | Audit technique approfondi |
+| Accessibilité, SEO et optimisation | `/accessibilite-seo-optimisation` | Qualité web / accessibilité / performance |
+| Drupal 2027 | `/drupal-2027` selon langue | Lifecycle / diagnostic / orientation |
+
+Le funnel lifecycle existe déjà via #1007 / #1010 et alimente #1009.
+
+## Famille PHP / Symfony / Laravel
+
+| Page cible | Alias FR | Alias EN | Statut |
 | --- | --- | --- | --- |
-| Business | Capter les recherches non techniques | creation site web professionnel, refonte site internet, agence web Belgique, site PME, site ASBL, audit site web | Transformer un besoin business en demande qualifiee |
-| Expertise | Prouver la profondeur technique | Drupal, Symfony, Laravel, PHP, architecture, accessibilite, performance, SEO technique | Rassurer et orienter vers la solution durable |
-| IA | Occuper les intentions IA sans surpromesse | IA pour PME, automatisation IA, chatbot IA, IA + Drupal, IA documentaire, workflows IA | Montrer des cas utiles avec validation humaine |
+| Développement PHP sur mesure | `/developpement-php-sur-mesure` | `/custom-php-development` | PLANNED_P2 |
+| Développement Symfony | `/developpement-symfony` | `/symfony-development` | PLANNED_P2 |
+| Développement Laravel | `/developpement-laravel` | `/laravel-development` | PLANNED_P2 |
+| Drupal / Symfony / Laravel : comment choisir | à cadrer | à cadrer | PLANNED_P2 |
 
-Regle : une page business ne doit pas commencer par la technologie. Une page
-expertise doit expliquer le cas d'usage. Une page IA doit toujours cadrer les
-limites, la confidentialite, la validation et la mesure.
+Rôle : prouver une capacité d’arbitrage technique sans créer artificiellement
+trois offres massives.
 
-## Etat actuel
+## Famille IA encadrée
 
-Pages Content Sync importantes deja presentes :
-
-| Page | Alias FR | Type | Role actuel |
+| Page / guide | Alias FR | Alias EN | Statut |
 | --- | --- | --- | --- |
-| Accueil | `/accueil` | `page` | Positionnement Drupal, PME/ASBL, IA utile |
-| Services | `/services` | `page` | Hub services Drupal |
-| Agence Drupal Belgique | `/agence-drupal-belgique` | `service` | Page pilier Drupal |
-| Creation site Drupal | `/creation-site-drupal` | `service` | Acquisition creation Drupal |
-| Refonte site Drupal | `/refonte-site-drupal` | `service` | Acquisition refonte Drupal |
-| Migration Drupal | `/migration-drupal` | `service` | Acquisition migration |
-| Maintenance Drupal | `/maintenance-drupal` | `service` | Acquisition maintenance |
-| Audit Drupal | `/audit-drupal` | `service` | Offre diagnostic |
-| Accessibilite, SEO et optimisation | `/accessibilite-seo-optimisation` | `service` | Qualite web Drupal |
-| IA integree | `/ia-integree` | `service` | Offre IA dans Drupal |
-| IA & Drupal | `/ia-drupal` | `page` | Hub IA et cas d'usage |
-| Cas clients | `/cas-clients` | `page` | Preuves et cas |
-| Equipe | `/equipe` | `page` | Expertise humaine + IA |
-| Contact | `/contact` | `page` | Conversion |
+| IA pour PME | `/ia-pour-pme` | `/ai-for-smes` | DELIVERED |
+| IA intégrée | `/ia-integree` | `/integrated-ai` | DELIVERED |
+| IA & Drupal | `/ia-drupal` | route EN existante à préserver | DELIVERED |
+| Automatisation IA | `/automatisation-ia` | `/ai-automation` | PLANNED_P2 |
+| Chatbot IA encadré | `/chatbot-ia` | `/ai-chatbot` | PLANNED_P2 |
+| IA + SEO / GEO / LLM SEO | à cadrer | à cadrer | PLANNED_P2_P3 |
 
-Constat : le socle Drupal est avance. Le manque principal concerne les portes
-d'entree non Drupal.
+## Preuve commerciale Engineering / Infrastructure
 
-## Arborescence recommandee
+Cette capacité n’est pas une nouvelle famille technologique : elle doit servir de
+preuve transversale pour les pages business et Drupal.
 
-### Niveau 1 - Hubs business
+Angles publics sûrs :
 
-| Page cible | Alias FR recommande | Alias EN recommande | Type recommande | Statut |
-| --- | --- | --- | --- | --- |
-| Agence web senior Belgique | `/agence-web-belgique` | `/web-agency-belgium` | `service` ou `page` | A creer |
-| Creation site web professionnel | `/creation-site-web-professionnel` | `/professional-website-creation` | `service` | A creer |
-| Refonte site internet | `/refonte-site-internet` | `/website-redesign` | `service` | A creer |
-| Developpement web sur mesure | `/developpement-web-sur-mesure` | `/custom-web-development` | `service` | A creer |
-| Audit site web | `/audit-site-web` | `/website-audit` | `service` | A creer |
+- PREPROD avant PROD ;
+- CI et tests ;
+- publication / déploiement contrôlé ;
+- sauvegarde et rollback ;
+- validation humaine ;
+- anonymisation et séparation des données lorsque pertinent.
 
-Role : capter les recherches qui ne mentionnent pas encore Drupal.
+Le message doit traduire ces pratiques en réduction du risque et continuité
+métier. Aucun secret ou détail d’exploitation sensible ne doit être publié.
 
-### Niveau 2 - Publics
+## Maillage cible prioritaire
 
-| Page cible | Alias FR recommande | Alias EN recommande | Type recommande | Statut |
-| --- | --- | --- | --- | --- |
-| Site web PME | `/site-web-pme` | `/sme-website` | `service` | A creer |
-| Site web ASBL | `/site-web-asbl` | `/non-profit-website` | `service` | A creer |
-| Site web institutionnel | `/site-web-institutionnel` | `/institutional-website` | `service` | A creer |
-
-Role : qualifier les besoins, les contraintes et les CTA selon le public.
-
-### Niveau 3 - Expertise Drupal existante
-
-| Page | Alias FR | Action |
-| --- | --- | --- |
-| Agence Drupal Belgique | `/agence-drupal-belgique` | Renforcer comme page expertise, pas comme seule page pilier du site |
-| Creation site Drupal | `/creation-site-drupal` | Relier depuis creation site web professionnel |
-| Refonte site Drupal | `/refonte-site-drupal` | Relier depuis refonte site internet |
-| Migration Drupal | `/migration-drupal` | Relier depuis audit site web et maintenance |
-| Maintenance Drupal | `/maintenance-drupal` | Relier depuis site PME/ASBL/institution |
-| Audit Drupal | `/audit-drupal` | Relier depuis audit site web et pages Drupal |
-
-Role : convertir les prospects dont le besoin devient clairement Drupal.
-
-### Niveau 4 - PHP, Symfony, Laravel
-
-| Page cible | Alias FR recommande | Alias EN recommande | Type recommande | Statut |
-| --- | --- | --- | --- | --- |
-| Developpement PHP sur mesure | `/developpement-php-sur-mesure` | `/custom-php-development` | `service` | A creer |
-| Developpement Symfony | `/developpement-symfony` | `/symfony-development` | `service` | A creer |
-| Developpement Laravel | `/developpement-laravel` | `/laravel-development` | `service` | A creer |
-| Drupal, Symfony ou Laravel | `/drupal-symfony-laravel` | `/drupal-symfony-laravel` | `article` ou `page` | A creer |
-
-Role : prouver que l'agence sait arbitrer au-dela du CMS. Ces pages ne doivent
-pas faire croire a trois offres massives si les preuves ne suivent pas. Elles
-doivent mettre l'accent sur l'analyse du besoin, les integrations et la
-maintenabilite.
-
-### Niveau 5 - IA encadree
-
-| Page cible | Alias FR recommande | Alias EN recommande | Type recommande | Statut |
-| --- | --- | --- | --- | --- |
-| IA pour PME | `/ia-pour-pme` | `/ai-for-smes` | `service` | A creer |
-| Automatisation IA | `/automatisation-ia` | `/ai-automation` | `service` | A creer |
-| Chatbot IA encadre | `/chatbot-ia` | `/ai-chatbot` | `service` ou `article` | A creer plus tard |
-| IA et SEO | `/ia-seo` | `/ai-seo` | `article` ou `service` | A creer plus tard |
-| LLM SEO / GEO | `/llm-seo-geo` | `/llm-seo-geo` | `article` ou `service` | A creer plus tard |
-
-Role : capter la demande IA sans modifier le chatbot public ni promettre une
-automatisation hors controle.
-
-### Niveau 6 - Guides et articles
-
-| Contenu | Format | Role |
-| --- | --- | --- |
-| Drupal ou WordPress pour une PME/ASBL | Article | Comparatif decisionnel |
-| Drupal, Symfony ou Laravel : comment choisir | Article | Pont PHP/framework/CMS |
-| Checklist avant refonte site internet | Article | Lead vers audit/refonte |
-| IA pour PME : cas utiles et limites | Article | Preparer page IA pour PME |
-| SEO technique avant refonte | Article | Lead vers audit/site web |
-| Site ASBL accessible : priorites | Article | Lead vers site web ASBL |
-
-## Maillage interne cible
-
-### Regles generales
-
-- Chaque page generaliste doit lier vers une page expertise technique.
-- Chaque page technique doit lier vers une page business plus comprehensible.
-- Chaque page public cible doit lier vers creation/refonte, maintenance, IA et
-  contact.
-- Les pages IA doivent toujours rappeler validation humaine, limites et cadre.
-- Les pages comparatives doivent ramener vers audit ou contact, pas vers une
-  conclusion unique forcee.
-
-### Hubs et liens prioritaires
-
-| Hub | Liens sortants prioritaires |
+| Hub | Liens prioritaires |
 | --- | --- |
-| `/agence-web-belgique` | `/creation-site-web-professionnel`, `/refonte-site-internet`, `/developpement-web-sur-mesure`, `/ia-pour-pme`, `/contact` |
-| `/creation-site-web-professionnel` | `/creation-site-drupal`, `/site-web-pme`, `/site-web-asbl`, `/accessibilite-seo-optimisation`, `/contact` |
-| `/refonte-site-internet` | `/refonte-site-drupal`, `/audit-site-web`, `/audit-drupal`, `/migration-drupal`, `/contact` |
-| `/developpement-web-sur-mesure` | `/developpement-php-sur-mesure`, `/developpement-symfony`, `/developpement-laravel`, `/agence-drupal-belgique` |
-| `/developpement-php-sur-mesure` | `/developpement-symfony`, `/developpement-laravel`, `/agence-drupal-belgique`, `/audit-site-web` |
-| `/ia-pour-pme` | `/ia-integree`, `/ia-drupal`, `/automatisation-ia`, `/chatbot-ia`, `/contact` |
-| `/site-web-asbl` | `/accessibilite-seo-optimisation`, `/creation-site-drupal`, `/ia-pour-pme`, `/maintenance-drupal` |
-| `/site-web-institutionnel` | `/audit-drupal`, `/refonte-site-drupal`, `/accessibilite-seo-optimisation`, `/maintenance-drupal` |
+| `/agence-web-belgique` | création, refonte, audit site web, développement sur mesure, IA pour PME, contact |
+| `/creation-site-web-professionnel` | création Drupal, site PME, site ASBL, qualité web, contact |
+| `/refonte-site-internet` | refonte Drupal, audit site web, audit Drupal, migration Drupal, contact |
+| `/audit-site-web` | audit Drupal, qualité web, refonte, IA pour PME, contact |
+| `/site-web-pme` | création, refonte, IA pour PME, maintenance, contact |
+| `/site-web-asbl` | qualité web, création, IA utile, maintenance, contact |
+| `/site-web-institutionnel` | audit Drupal, refonte Drupal, qualité web, maintenance, contact |
+| `/developpement-web-sur-mesure` | PHP, Symfony, Laravel, Drupal, contact |
+| `/ia-pour-pme` | IA intégrée, IA Drupal, automatisation, chatbot, contact |
 
-### Liens entrants a ajouter dans les futurs contenus
+Ne jamais créer un lien vers une route non publiée sans que le ticket courant
+materialise aussi un chemin sûr et valide.
 
-Les futurs tickets Content Sync devront ajouter des liens depuis :
+## Contenus de preuve / guides
 
-- `/services` vers les nouvelles pages generalistes uniquement si elles sont
-  ajoutees comme services.
-- `/agence-drupal-belgique` vers `/agence-web-belgique` et
-  `/developpement-php-sur-mesure` lorsque ces pages existeront.
-- `/ia-drupal` vers `/ia-pour-pme` et `/automatisation-ia` lorsque ces pages
-  existeront.
-- `/accessibilite-seo-optimisation` vers `/audit-site-web` lorsque la page
-  existera.
+Backlog restant à revalider avant matérialisation :
 
-Important : ne pas modifier les menus dans les tickets de contenu sauf demande
-explicite.
+- Drupal ou WordPress pour PME/ASBL ;
+- Drupal / Symfony / Laravel : comment choisir ;
+- IA pour PME : cas utiles et limites ;
+- SEO technique avant refonte ;
+- Site ASBL accessible ;
+- Préparer un audit site web exploitable ;
+- LLM SEO / GEO pour Drupal.
 
-## Choix de content type
+La checklist refonte possède déjà #401 et ne doit pas être dupliquée sans
+rechargement live.
 
-Recommandation par type de page :
+## Prévention de cannibalisation
 
-| Type de contenu SEO | Bundle recommande | Justification |
-| --- | --- | --- |
-| Landing page service commerciale | `service` | Meta description via `field_short_description`, Schema.org WebPage, sitemap, blueprint existant |
-| Hub compose avec plusieurs sections | `page` | Paragraphes disponibles via `field_home_components` |
-| Guide / comparatif / article | `article` si le type est pret, sinon ticket technique ou page dediee | Eviter de melanger articles et services |
-| Cas d'usage IA detaille | `ai_feature` si lie a IA Drupal | Type deja prevu pour les fonctionnalites IA |
+- `audit-site-web` = diagnostic généraliste ; `audit-drupal` = audit Drupal
+  approfondi.
+- `creation-site-web-professionnel` = besoin business ; `creation-site-drupal` =
+  solution Drupal lorsque justifiée.
+- `refonte-site-internet` = modernisation générale ; `refonte-site-drupal` =
+  socle Drupal identifié.
+- `developpement-web-sur-mesure` = besoin applicatif ; les pages PHP / Symfony /
+  Laravel expliquent ensuite le choix d’architecture.
+- `ia-pour-pme` = problèmes et usages ; `ia-drupal` / `ia-integree` = intégration
+  technique contextualisée.
 
-Pour la premiere vague, privilegier `service` afin de rester proche du blueprint
-`agence-drupal-belgique`.
+## Conversion
 
-## Structure type d'une landing page `service`
+Le maillage doit pousser vers une action cohérente avec le niveau de maturité :
 
-Champs attendus :
+```text
+INFORMATIONAL_CONTENT
+-> RELEVANT_BUSINESS_PAGE
+-> LOW_FRICTION_DIAGNOSTIC_OR_CONTACT
+-> PAID_AUDIT_IF_JUSTIFIED
+-> IMPLEMENTATION
+-> MAINTENANCE_CARE
+```
 
-- `field_short_description` : 150 a 170 caracteres environ, unique par langue.
-- `field_detailed_description` : HTML structure avec H2, listes, CTA et liens.
-- aliases FR/EN explicites dans `catalog.yml`.
-- promotions vers `/services` uniquement si la page doit apparaitre dans la
-  grille.
-- promotion homepage seulement si la priorite commerciale est explicite.
+Ne pas pousser directement une migration ou une refonte lorsqu’un diagnostic
+suffit.
 
-Structure editoriale :
+## Ordre de matérialisation actuel
 
-1. Introduction courte orientee probleme.
-2. H2 "Quand cette approche est pertinente".
-3. H2 "Ce que nous prenons en charge".
-4. H2 "Notre methode".
-5. H2 "Livrables ou resultats attendus".
-6. Paragraphe "Limites / quand choisir autre chose".
-7. 2 a 4 liens internes.
-8. CTA vers `/contact`.
+```text
+1 = AUDIT_SITE_WEB_FR_EN
+2 = ENGINEERING_INFRASTRUCTURE_PROOF_PUBLIC_SAFE
+3 = SITE_WEB_ASBL_AND_INSTITUTIONNEL
+4 = CUSTOM_WEB_PHP_SYMFONY_LARAVEL
+5 = AI_AUTOMATION_CHATBOT_GEO
+6 = ARTICLES_AND_LONG_TAIL
+```
 
-## Prevention de cannibalisation
-
-| Risque | Prevention |
-| --- | --- |
-| `/creation-site-web-professionnel` concurrence `/creation-site-drupal` | La page generaliste explique le besoin ; la page Drupal detaille la solution CMS |
-| `/refonte-site-internet` concurrence `/refonte-site-drupal` | La page generaliste parle audit, SEO, parcours ; la page Drupal parle migration, contenu et technique Drupal |
-| `/ia-pour-pme` concurrence `/ia-drupal` | La page PME parle usages metier ; la page Drupal parle integration CMS |
-| `/developpement-web-sur-mesure` concurrence `/developpement-php-sur-mesure` | La premiere parle besoin business ; la seconde parle socle technique PHP |
-| `/agence-web-belgique` concurrence `/agence-drupal-belgique` | La premiere est porte d'entree ; la seconde est preuve d'expertise |
-
-## Priorite architecturale
-
-Ordre recommande :
-
-1. Creer les portes generalistes : agence web, creation, refonte, audit site.
-2. Creer les pages publics : PME, ASBL, institution.
-3. Creer le cluster PHP : PHP sur mesure, Symfony, Laravel.
-4. Creer le cluster IA generaliste : IA PME, automatisation IA.
-5. Publier les guides comparatifs pour soutenir le maillage.
-6. Ajuster les pages Drupal existantes pour pointer vers les nouveaux hubs.
-
-Cette sequence evite de diluer le site trop vite et donne a chaque nouveau
-contenu un role clair dans le cocon semantique.
+#1009 continue en parallèle au rythme des interactions humaines réelles. Les
+premiers signaux commerciaux peuvent modifier cet ordre.

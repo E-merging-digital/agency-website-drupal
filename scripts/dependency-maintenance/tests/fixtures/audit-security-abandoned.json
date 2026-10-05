@@ -1,0 +1,15 @@
+{
+  "advisories": {
+    "vendor/security-package": [
+      {
+        "advisoryId": "PKSA-TEST-0001",
+        "cve": "CVE-2099-0001",
+        "title": "Deterministic fixture advisory"
+      }
+    ]
+  },
+  "abandoned": {
+    "vendor/abandoned-package": "vendor/replacement"
+  },
+  "filter": []
+}

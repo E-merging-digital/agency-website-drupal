@@ -1,0 +1,256 @@
+name: '#1059 Homepage EN Brand parity PREPROD'
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/trusted-homepage-brand-1059-preprod.yml'
+      - 'scripts/runner/homepage-brand-1059.php'
+      - 'scripts/runner/run-homepage-brand-1059.sh'
+      - 'tests/browser/contracts/homepage-brand-1059-preprod.json'
+      - 'tests/browser/homepage-brand-1059-preprod.spec.mjs'
+      - 'playwright.config.mjs'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Fixed #1059 operation
+        required: true
+        type: choice
+        options:
+          - inspect
+          - dry-run
+          - apply
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: agency-homepage-brand-1059
+  cancel-in-progress: false
+
+jobs:
+  static-validation:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate closed #1059 EN profile sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l scripts/runner/homepage-brand-1059.php
+          bash -n scripts/runner/run-homepage-brand-1059.sh
+          node --check tests/browser/homepage-brand-1059-preprod.spec.mjs
+          jq -e '.id == "homepage-brand-1059-preprod" and .target == "/fr" and .target_en == "/en"' tests/browser/contracts/homepage-brand-1059-preprod.json >/dev/null
+          grep -Fq "private const PROFILE_SHA256 = 'e7f6e184a31048b4fcea7f126b6e24e9aa23db46522cd2537f441fd2f3218390';" scripts/runner/homepage-brand-1059.php
+          grep -Fq "private const LANGCODE = 'en';" scripts/runner/homepage-brand-1059.php
+          grep -Fq "private const TARGET_NODE_ID = 5;" scripts/runner/homepage-brand-1059.php
+          grep -Fq "'homepage-brand-1059-preprod.json': '**/homepage-brand-1059-preprod.spec.mjs'" playwright.config.mjs
+
+  candidate:
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+          && github.actor == 'E-merging-digital'
+          && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      EXPECTED_OWNER: E-merging-digital
+      PROFILE_SHA256: e7f6e184a31048b4fcea7f126b6e24e9aa23db46522cd2537f441fd2f3218390
+      PREPROD_URL: https://preprod.emergingdigital.be
+    steps:
+      - name: Authorize exact #1059 owner command
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ github.actor }}' = "$EXPECTED_OWNER"
+          issue_json="$(gh api "repos/$REPO/issues/1059")"
+          test "$(jq -r '.state' <<<"$issue_json")" = 'open'
+          test "$(jq -r '.user.login' <<<"$issue_json")" = "$EXPECTED_OWNER"
+          mode='${{ inputs.mode }}'
+          case "$mode" in inspect|dry-run|apply) ;; *) exit 1 ;; esac
+          echo "MODE=$mode" >> "$GITHUB_ENV"
+
+      - name: Reload authoritative main
+        shell: bash
+        run: |
+          set -euo pipefail
+          main="$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')"
+          [[ "$main" =~ ^[0-9a-f]{40}$ ]]
+          test '${{ github.sha }}' = "$main"
+          echo "TRUSTED_MAIN=$main" >> "$GITHUB_ENV"
+
+      - name: Require exact runtime inspection before dry-run
+        if: ${{ env.MODE == 'dry-run' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          comments="$RUNNER_TEMP/homepage-1059-comments.json"
+          gh api --paginate --slurp "repos/$REPO/issues/1059/comments?per_page=100" > "$comments"
+          COMMENTS_FILE="$comments" python3 - <<'PY'
+          import json, os
+          heading = '### Agency Homepage Brand #1059 PREPROD inspect PASS'
+          pages = json.load(open(os.environ['COMMENTS_FILE'], encoding='utf-8'))
+          comments = [item for page in pages for item in (page if isinstance(page, list) else [page])]
+          required = {
+              'profile_sha256': os.environ['PROFILE_SHA256'],
+              'trusted_main': os.environ['TRUSTED_MAIN'],
+              'en_node_translation': 'EXISTS',
+              'en_hero_translation': 'EXISTS',
+              'en_axes_translation': 'EXISTS',
+          }
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'github-actions[bot]': continue
+              lines = (comment.get('body') or '').splitlines()
+              if not lines or lines[0] != heading: continue
+              fields = dict(line.split('=', 1) for line in lines[1:] if '=' in line)
+              if all(fields.get(key) == value for key, value in required.items()): raise SystemExit(0)
+          raise SystemExit('Dry-run requires exact #1059 inspect PASS proving existing EN node/Paragraph translations on the same live main.')
+          PY
+
+      - name: Require exact dry-run before apply
+        if: ${{ env.MODE == 'apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          comments="$RUNNER_TEMP/homepage-1059-comments.json"
+          gh api --paginate --slurp "repos/$REPO/issues/1059/comments?per_page=100" > "$comments"
+          COMMENTS_FILE="$comments" python3 - <<'PY'
+          import json, os
+          heading = '### Agency Homepage Brand #1059 PREPROD dry-run PASS'
+          pages = json.load(open(os.environ['COMMENTS_FILE'], encoding='utf-8'))
+          comments = [item for page in pages for item in (page if isinstance(page, list) else [page])]
+          required = {'profile_sha256': os.environ['PROFILE_SHA256'], 'trusted_main': os.environ['TRUSTED_MAIN']}
+          for comment in comments:
+              if comment.get('user', {}).get('login') != 'github-actions[bot]': continue
+              lines = (comment.get('body') or '').splitlines()
+              if not lines or lines[0] != heading: continue
+              fields = dict(line.split('=', 1) for line in lines[1:] if '=' in line)
+              if all(fields.get(key) == value for key, value in required.items()): raise SystemExit(0)
+          raise SystemExit('Apply requires exact #1059 dry-run PASS for the same profile and live main.')
+          PY
+
+      - name: Checkout exact live main execution source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.TRUSTED_MAIN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: JIT revalidate source and closed profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TRUSTED_MAIN"
+          test "$(gh api "repos/$REPO/branches/main" --jq '.commit.sha')" = "$TRUSTED_MAIN"
+          test "$(gh api "repos/$REPO/issues/1059" --jq '.state')" = 'open'
+          issue_body="$(gh api "repos/$REPO/issues/1059" --jq '.body')"
+          grep -Fq 'Create, improve or modernise your web platform' <<<"$issue_body"
+          grep -Fq 'Discuss my project' <<<"$issue_body"
+          grep -Fq 'Explore our expertise' <<<"$issue_body"
+          grep -Fq 'You are starting from a new need.' <<<"$issue_body"
+          grep -Fq 'Your platform already works, but you need new features' <<<"$issue_body"
+          grep -Fq 'Your website or application relies on an ageing foundation' <<<"$issue_body"
+          grep -Fq "private const PROFILE_SHA256 = '$PROFILE_SHA256';" scripts/runner/homepage-brand-1059.php
+          grep -Fq "private const LANGCODE = 'en';" scripts/runner/homepage-brand-1059.php
+
+      - name: Materialize PREPROD SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/agency_preprod_ed25519
+          chmod 600 ~/.ssh/agency_preprod_ed25519
+          echo "PREPROD_SSH_KEY=$HOME/.ssh/agency_preprod_ed25519" >> "$GITHUB_ENV"
+
+      - name: Execute fixed #1059 PREPROD EN profile
+        env:
+          HOMEPAGE_BRAND_1059_MODE: ${{ env.MODE }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        shell: bash
+        run: bash scripts/runner/run-homepage-brand-1059.sh
+
+      - name: Setup Node for existing Browser Validation
+        if: ${{ env.MODE == 'apply' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Run existing Browser Validation against exact PREPROD FR+EN
+        if: ${{ env.MODE == 'apply' }}
+        env:
+          BROWSER_VALIDATION_BASE_URL: ${{ env.PREPROD_URL }}
+          BROWSER_VALIDATION_CONTRACT: tests/browser/contracts/homepage-brand-1059-preprod.json
+          BROWSER_VALIDATION_HTTP_USERNAME: ${{ secrets.PREPROD_BASIC_AUTH_USER }}
+          BROWSER_VALIDATION_HTTP_PASSWORD: ${{ secrets.PREPROD_BASIC_AUTH_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run browser:validate
+          jq -e '.result == "PASS" and .functional == "PASS" and .dom == "PASS" and .visual_desktop == "PASS" and .visual_mobile == "PASS" and .console_errors == 0 and .page_errors == 0 and .unexpected_http_4xx == 0 and .http_5xx == 0 and .failed_requests == 0' artifacts/browser-validation/result.json >/dev/null
+
+      - name: Persist bounded #1059 PREPROD receipt
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result='artifacts/homepage-brand-1059/result.json'
+          verdict="$(jq -r '.verdict' "$result")"
+          node_uuid="$(jq -r '.node.uuid' "$result")"
+          revision_id="$(jq -r '.node.revision_id' "$result")"
+          en_node="$(jq -r '.en_node_translation' "$result")"
+          en_hero="$(jq -r '.en_hero_translation' "$result")"
+          en_axes="$(jq -r '.en_axes_translation' "$result")"
+          case "$MODE" in
+            inspect) heading='### Agency Homepage Brand #1059 PREPROD inspect PASS' ;;
+            dry-run) heading='### Agency Homepage Brand #1059 PREPROD dry-run PASS' ;;
+            apply) heading='### Agency Homepage Brand #1059 PREPROD apply PASS' ;;
+          esac
+          browser='NOT_YET'
+          [[ "$MODE" != apply ]] || browser="$(jq -r '.result' artifacts/browser-validation/result.json)"
+          gh issue comment 1059 --repo "$REPO" --body "$heading
+
+          mode=$MODE
+          profile=homepage-brand-1059
+          profile_sha256=$PROFILE_SHA256
+          trusted_main=$TRUSTED_MAIN
+          verdict=$verdict
+          target=PREPROD
+          node_id=5
+          node_uuid=$node_uuid
+          revision_id=$revision_id
+          bundle=page
+          language=en
+          en_node_translation=$en_node
+          en_hero_translation=$en_hero
+          en_axes_translation=$en_axes
+          fr_mutated=NO
+          browser_review=$browser
+          preprod_fr_url=https://preprod.emergingdigital.be/fr
+          preprod_en_url=https://preprod.emergingdigital.be/en
+          content_sync=RELEASED_UNCHANGED
+          prod_access=NONE
+          prod_write=NONE"
+
+      - name: Upload bounded #1059 evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: homepage-brand-1059-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/homepage-brand-1059/result.json
+            artifacts/browser-validation/result.json
+            artifacts/browser-validation/evidence
+            artifacts/browser-validation/screenshots
+            artifacts/browser-validation/test-results
+          if-no-files-found: warn
+          retention-days: 30

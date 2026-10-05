@@ -1,0 +1,109 @@
+name: "Validate #849 bounded PREPROD MariaDB capability"
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/preprod-bounded-mariadb-capability-validation.yml'
+      - '.github/workflows/preprod-isolated-staging-import-validation.yml'
+      - 'scripts/preproduction-staging-import/**'
+      - 'scripts/preproduction-refresh/one-shot-bundle-boundary.md'
+      - 'scripts/preproduction-refresh/activation-capability/**'
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-capability:
+    name: Prove #849/#859 fixed least-privilege MariaDB capability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate exact helper bundle digests and fixed contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          privileged='scripts/preproduction-staging-import/privileged'
+          helper="$privileged/agency-preprod-staging-db"
+          sanitizer="$privileged/agency-preprod-staging-sanitizer.py"
+          policy='scripts/preproduction-refresh/sanitization-policy.json'
+          python3 -m py_compile "$helper" "$sanitizer"
+          python3 "$privileged/test-contract.py"
+          test "$(sha256sum "$helper" | awk '{print $1}')" = "$(cat "$privileged/agency-preprod-staging-db.sha256")"
+          test "$(sha256sum "$sanitizer" | awk '{print $1}')" = "$(cat "$privileged/agency-preprod-staging-sanitizer.py.sha256")"
+          test "$(sha256sum "$policy" | awk '{print $1}')" = "$(cat "$privileged/sanitization-policy.sha256")"
+          jq -e '.issue_number == 849 and .revision_issue_number == 859 and .model == "FIXED_ROOT_OWNED_BOUNDED_HELPER"' "$privileged/capability.json" >/dev/null
+          jq -e '.actions == ["PRECHECK","IMPORT","IMPORT_SANITIZE_PROVE","CLEANUP","VERIFY_ABSENCE"]' "$privileged/capability.json" >/dev/null
+          jq -e '.revision_issue_number == 859 and .sudoers.change_required == false and .real_provisioning_performed == false' "$privileged/bundle.json" >/dev/null
+
+      - name: Prove no generic privileged surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope='scripts/preproduction-staging-import'
+          helper="$scope/privileged/agency-preprod-staging-db"
+          sanitizer="$scope/privileged/agency-preprod-staging-sanitizer.py"
+          contract="$scope/privileged/capability.json"
+          ! grep -REn 'sudo[[:space:]]+-n[[:space:]]+(--[[:space:]]+)?mariadb([[:space:]]|$)' "$scope"
+          ! grep -REn 'NOPASSWD:.*mariadb' "$scope"
+          for file in "$helper" "$sanitizer"; do
+            ! grep -Fq 'shell=True' "$file"
+            ! grep -Fq 'os.system(' "$file"
+            ! grep -Fq 'eval(' "$file"
+            ! grep -Fq 'exec(' "$file"
+          done
+          grep -Fq 'Expected ACTION REQUEST_ID SNAPSHOT_BYTES only.' "$helper"
+          jq -e '.sudo.direct_mariadb == "FORBIDDEN" and .sudo.generic_shell == "FORBIDDEN" and .sudo.setenv == "FORBIDDEN"' "$contract" >/dev/null
+          jq -e '[.caller_inputs[]] | all(. == "FORBIDDEN")' "$contract" >/dev/null
+          jq -e '.root_owned_bundle.mutable_checkout_runtime_read == "FORBIDDEN"' "$contract" >/dev/null
+
+      - name: Prove runtime DB isolation and atomic one-shot contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          helper='scripts/preproduction-staging-import/privileged/agency-preprod-staging-db'
+          contract='scripts/preproduction-staging-import/privileged/capability.json'
+          grep -Fq 'RUNTIME_DB = "agency_preprod"' "$helper"
+          grep -Fq 'STAGING_PREFIX = "agency_preprod_stage_"' "$helper"
+          grep -Fq 'if database == RUNTIME_DB:' "$helper"
+          grep -Fq '"IMPORT_SANITIZE_PROVE"' "$helper"
+          grep -Fq 'run_import_with_finalizer' "$helper"
+          grep -Fq 'cleanup_scope(scope)' "$helper"
+          grep -Fq 'require_absent(scope)' "$helper"
+          grep -Fq 'total != snapshot_bytes' "$helper"
+          grep -Fq '"--local-infile=0"' "$helper"
+          grep -Fq 'f"ON `{scope.database}`.* "' "$helper"
+          ! grep -Fq 'ON *.*' "$helper"
+          ! grep -Fq 'GRANT ALL' "$helper"
+          jq -e '.database_scope.runtime_database == "agency_preprod" and .database_scope.runtime_targetable == false' "$contract" >/dev/null
+          jq -e '.one_shot.action == "IMPORT_SANITIZE_PROVE" and .one_shot.unsanitized_persistence_between_caller_actions == "FORBIDDEN"' "$contract" >/dev/null
+          jq -e '.one_shot.cleanup_on_success == "MANDATORY" and .one_shot.cleanup_on_import_failure == "MANDATORY" and .one_shot.cleanup_on_sanitization_failure == "MANDATORY" and .one_shot.cleanup_on_assertion_failure == "MANDATORY"' "$contract" >/dev/null
+
+      - name: Prove installed identity still precedes any real snapshot route
+        shell: bash
+        run: |
+          set -euo pipefail
+          apply='scripts/preproduction-staging-import/run-apply.sh'
+          remote='scripts/preproduction-staging-import/remote-preprod-stage.sh'
+          grep -Fq "helper_identity=\"\$(stat -c '%u:%g:%a' \"\$PRIVILEGED_HELPER\")\"" "$remote"
+          grep -Fq 'actual_helper_sha256="$(sha256sum "$PRIVILEGED_HELPER"' "$remote"
+          precheck_line="$(grep -n -F -m1 'first_precheck="$(preprod_action PRECHECK 0)"' "$apply" | cut -d: -f1)"
+          raw_line="$(grep -n -F -m1 ': > "$raw"' "$apply" | cut -d: -f1)"
+          test -n "$precheck_line" && test -n "$raw_line" && test "$precheck_line" -lt "$raw_line"
+
+      - name: Emit bounded regression result
+        shell: bash
+        run: |
+          printf '%s\n' \
+            'NO_GENERIC_PRIVILEGED_SURFACE=SUCCESS' \
+            'RUNTIME_DB_TARGET_REJECTION=SUCCESS' \
+            'STAGING_DB_NAME_CALLER_CONTROLLED=NO' \
+            'HELPER_BUNDLE_DIGEST=PASS' \
+            'ROOT_OWNERSHIP_REQUIRED=YES' \
+            'EXACT_BYTE_IMPORT_CONTRACT=PASS' \
+            'ATOMIC_ONE_SHOT_CONTRACT=PASS' \
+            'CLEANUP_ALL_OUTCOMES=MANDATORY'

@@ -45,7 +45,7 @@
 
 .ed-blog-card:focus-within {
   border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
-  box-shadow: 0 0 0 3px rgb(0 91 187 / 14%), 0 12px 28px rgb(17 24 39 / 9%);
+  box-shadow: 0 0 0 3px rgb(40 111 182 / 14%), 0 12px 28px rgb(17 24 39 / 9%);
 }
 
 .ed-blog-card__media {

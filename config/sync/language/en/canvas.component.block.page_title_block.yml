@@ -1,0 +1,6 @@
+versioned_properties:
+  active:
+    settings:
+      default_settings:
+        label: 'Titre de la page'
+label: 'Page title'

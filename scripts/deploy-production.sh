@@ -22,6 +22,8 @@ MAINTENANCE_ENABLED=0
 SWITCH_COMPLETED=0
 SHARED_FILES_DIR="$SHARED_DIR/files"
 RELEASE_FILES_LINK="$NEW_RELEASE/web/sites/default/files"
+PRODUCTION_SETTINGS_FILE="$SHARED_DIR/settings/settings.php"
+PRODUCTION_SETTINGS_CONVERGER="$NEW_RELEASE/scripts/production-settings/converge-config-sync-directory.sh"
 
 log() {
   local message="$1"
@@ -136,8 +138,8 @@ normalize_runtime_permissions() {
   fi
 
   chmod a+rx "$NEW_RELEASE"
-  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type d -exec chmod a+rx {} +
-  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" -xdev -type f -exec chmod a+r {} +
+  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type d -exec chmod a+rx {} +
+  find "$NEW_RELEASE/vendor" "$NEW_RELEASE/web" "$NEW_RELEASE/config" -xdev -type f -exec chmod a+r {} +
 
   verify_runtime_permissions
   log "Runtime permissions are compatible with the unprivileged web runtime."
@@ -232,6 +234,16 @@ if [[ "$GIT_COMMIT" != "$EXPECTED_SHA" ]]; then
 fi
 log "Repository prepared at exact commit ${GIT_COMMIT}."
 
+if [[ ! -d "$NEW_RELEASE/config/sync" ]]; then
+  log "ERROR: Canonical config/sync directory is missing from the release."
+  exit 1
+fi
+if ! find "$NEW_RELEASE/config/sync" -maxdepth 1 -type f -name '*.yml' -print -quit | grep -q .; then
+  log "ERROR: Canonical config/sync directory contains no top-level YAML configuration."
+  exit 1
+fi
+log "Canonical config/sync payload is present before release activation."
+
 log "[deploy] Composer"
 composer --working-dir="$NEW_RELEASE" install --no-dev --optimize-autoloader
 normalize_runtime_permissions
@@ -288,6 +300,13 @@ fi
 test "$(git -C "$NEW_RELEASE" rev-parse HEAD)" = "$EXPECTED_SHA"
 verify_runtime_permissions
 
+if [[ ! -r "$PRODUCTION_SETTINGS_CONVERGER" ]]; then
+  log "ERROR: Production settings converger is missing from exact release: ${PRODUCTION_SETTINGS_CONVERGER}."
+  exit 1
+fi
+log "[deploy] Converge deterministic production config sync setting"
+bash "$PRODUCTION_SETTINGS_CONVERGER" "$PRODUCTION_SETTINGS_FILE"
+
 log "[deploy] Switch release"
 ln -sfn "$NEW_RELEASE" "$CURRENT_LINK"
 SWITCH_COMPLETED=1
@@ -298,6 +317,14 @@ fi
 
 "$CURRENT_LINK/vendor/bin/drush" updb -y
 "$CURRENT_LINK/vendor/bin/drush" cim -y
+SPECIAL_LANGUAGE_RECONCILER="$CURRENT_LINK/scripts/runner/reconcile-config-language-special-entities-1318.php"
+if [[ ! -f "$SPECIAL_LANGUAGE_RECONCILER" ]]; then
+  log "ERROR: Special-language reconcile helper is missing from current release: ${SPECIAL_LANGUAGE_RECONCILER}."
+  exit 1
+fi
+AGENCY_CONFIG_LANGUAGE_SPECIAL_RECONCILE=1 \
+  "$CURRENT_LINK/vendor/bin/drush" php:script "$SPECIAL_LANGUAGE_RECONCILER" >/dev/null
+config_language_special_reconcile='PASS'
 PRODUCTION_SPLIT_DIR="$CURRENT_LINK/config/splits/production"
 if [[ ! -d "$PRODUCTION_SPLIT_DIR" ]]; then
   log "ERROR: Production config split directory not found: ${PRODUCTION_SPLIT_DIR}"
@@ -336,4 +363,4 @@ if (( ${#all_backups[@]} > 10 )); then
 fi
 
 log "[deploy] SUCCESS"
-log_file "SUCCESS" "Deployment completed successfully at exact SHA ${GIT_COMMIT}"
+log_file "SUCCESS" "Deployment completed successfully at exact SHA ${GIT_COMMIT}; config_language_special_reconcile=${config_language_special_reconcile}"

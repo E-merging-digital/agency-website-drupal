@@ -1,0 +1,4 @@
+services:
+  agency_health_test_failure.probe:
+    class: Drupal\agency_health_test_failure\FailingHealthProbe
+    decorates: agency_health.probe

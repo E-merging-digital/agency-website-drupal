@@ -30,9 +30,12 @@ jobs:
     outputs:
       head_ref: ${{ steps.validate.outputs.head_ref }}
       base_sha: ${{ steps.validate.outputs.base_sha }}
+      mode: ${{ steps.profile.outputs.mode }}
       package: ${{ steps.profile.outputs.package }}
       constraint: ${{ steps.profile.outputs.constraint }}
       version_regex: ${{ steps.profile.outputs.version_regex }}
+      selectors: ${{ steps.profile.outputs.selectors }}
+      result_rules: ${{ steps.profile.outputs.result_rules }}
       owner_issue: ${{ steps.profile.outputs.owner_issue }}
     steps:
       - name: Checkout trusted workflow source
@@ -57,18 +60,22 @@ jobs:
           [[ "$INPUT_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
           [[ "$INPUT_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           source scripts/runner/composer-materialization-profiles.sh
+          echo "mode=$COMPOSER_MODE" >> "$GITHUB_OUTPUT"
           echo "package=$COMPOSER_PACKAGE" >> "$GITHUB_OUTPUT"
           echo "constraint=$COMPOSER_CONSTRAINT" >> "$GITHUB_OUTPUT"
           echo "version_regex=$COMPOSER_VERSION_REGEX" >> "$GITHUB_OUTPUT"
+          echo "selectors=$COMPOSER_LOCK_REFRESH_SELECTORS" >> "$GITHUB_OUTPUT"
+          echo "result_rules=$COMPOSER_RESULT_RULES" >> "$GITHUB_OUTPUT"
           echo "owner_issue=$COMPOSER_OWNER_ISSUE" >> "$GITHUB_OUTPUT"
 
-      - name: Revalidate live PR and semantic composer.json delta
+      - name: Revalidate live PR and reviewed target contract
         id: validate
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
+          EXPECTED_MODE: ${{ steps.profile.outputs.mode }}
           EXPECTED_PACKAGE: ${{ steps.profile.outputs.package }}
           EXPECTED_CONSTRAINT: ${{ steps.profile.outputs.constraint }}
         run: |
@@ -88,11 +95,6 @@ jobs:
               "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
               --jq '.[].filename'
           )"
-          if [[ "$changed" != 'composer.json' ]]; then
-            echo 'Target PR must change exactly composer.json before resolution.' >&2
-            printf '%s\n' "$changed" >&2
-            exit 1
-          fi
 
           gh api \
             "repos/$GITHUB_REPOSITORY/contents/composer.json?ref=$base_sha" \
@@ -103,9 +105,16 @@ jobs:
             --jq '.content' | tr -d '\n' | base64 --decode \
             > /tmp/composer-target.json
 
-          EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
-          EXPECTED_CONSTRAINT="$EXPECTED_CONSTRAINT" \
-          python3 - <<'PY'
+          if [[ "$EXPECTED_MODE" == 'package' ]]; then
+            if [[ "$changed" != 'composer.json' ]]; then
+              echo 'Package target PR must change exactly composer.json before resolution.' >&2
+              printf '%s\n' "$changed" >&2
+              exit 1
+            fi
+
+            EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
+            EXPECTED_CONSTRAINT="$EXPECTED_CONSTRAINT" \
+            python3 - <<'PY'
           import copy
           import json
           import os
@@ -125,6 +134,17 @@ jobs:
                   'Composer profile.'
               )
           PY
+          elif [[ "$EXPECTED_MODE" == 'lock-refresh' ]]; then
+            if [[ -n "$changed" ]]; then
+              echo 'Lock-refresh target PR must have no file delta before resolution.' >&2
+              printf '%s\n' "$changed" >&2
+              exit 1
+            fi
+            cmp /tmp/composer-base.json /tmp/composer-target.json
+          else
+            echo "Unsupported Composer materialization mode: $EXPECTED_MODE" >&2
+            exit 1
+          fi
 
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
@@ -179,19 +199,26 @@ jobs:
         env:
           EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
           COMPOSER_PROFILE: ${{ inputs.profile }}
+          EXPECTED_MODE: ${{ needs.validate-target.outputs.mode }}
           EXPECTED_PACKAGE: ${{ needs.validate-target.outputs.package }}
           EXPECTED_CONSTRAINT: ${{ needs.validate-target.outputs.constraint }}
+          EXPECTED_SELECTORS: ${{ needs.validate-target.outputs.selectors }}
+          EXPECTED_RESULT_RULES: ${{ needs.validate-target.outputs.result_rules }}
         run: |
           set -euo pipefail
           test "$(git -C trusted rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git -C target rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
           source trusted/scripts/runner/composer-materialization-profiles.sh
+          test "$COMPOSER_MODE" = "$EXPECTED_MODE"
           test "$COMPOSER_PACKAGE" = "$EXPECTED_PACKAGE"
           test "$COMPOSER_CONSTRAINT" = "$EXPECTED_CONSTRAINT"
+          test "$COMPOSER_LOCK_REFRESH_SELECTORS" = "$EXPECTED_SELECTORS"
+          test "$COMPOSER_RESULT_RULES" = "$EXPECTED_RESULT_RULES"
 
-          EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
-          EXPECTED_CONSTRAINT="$EXPECTED_CONSTRAINT" \
-          python3 - <<'PY'
+          if [[ "$COMPOSER_MODE" == 'package' ]]; then
+            EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
+            EXPECTED_CONSTRAINT="$EXPECTED_CONSTRAINT" \
+            python3 - <<'PY'
           import json
           import os
 
@@ -199,10 +226,28 @@ jobs:
               composer = json.load(handle)
           actual = composer.get('require', {}).get(os.environ['EXPECTED_PACKAGE'])
           if actual != os.environ['EXPECTED_CONSTRAINT']:
-              raise SystemExit(
-                  f'Unexpected target constraint: {actual!r}'
-              )
+              raise SystemExit(f'Unexpected target constraint: {actual!r}')
           PY
+          elif [[ "$COMPOSER_MODE" == 'lock-refresh' ]]; then
+            COMPOSER_LOCK_REFRESH_SELECTORS="$COMPOSER_LOCK_REFRESH_SELECTORS" \
+            COMPOSER_RESULT_RULES="$COMPOSER_RESULT_RULES" \
+            python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          selectors = os.environ['COMPOSER_LOCK_REFRESH_SELECTORS'].split()
+          rules = json.loads(os.environ['COMPOSER_RESULT_RULES'])
+          if not selectors or list(rules) != selectors:
+              raise SystemExit('Lock-refresh selectors and result rules must match exactly.')
+          for selector in selectors:
+              if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', selector):
+                  raise SystemExit(f'Invalid repository-owned selector: {selector!r}')
+          PY
+          else
+            echo "Unsupported Composer materialization mode: $COMPOSER_MODE" >&2
+            exit 1
+          fi
 
       - name: Remove stale governed Composer DDEV registrations
         shell: bash
@@ -235,23 +280,45 @@ jobs:
         working-directory: target
         env:
           COMPOSER_PROFILE: ${{ inputs.profile }}
+          EXPECTED_MODE: ${{ needs.validate-target.outputs.mode }}
           EXPECTED_PACKAGE: ${{ needs.validate-target.outputs.package }}
           EXPECTED_CONSTRAINT: ${{ needs.validate-target.outputs.constraint }}
           EXPECTED_VERSION_REGEX: ${{ needs.validate-target.outputs.version_regex }}
+          EXPECTED_SELECTORS: ${{ needs.validate-target.outputs.selectors }}
+          EXPECTED_RESULT_RULES: ${{ needs.validate-target.outputs.result_rules }}
+          EXPECTED_OWNER_ISSUE: ${{ needs.validate-target.outputs.owner_issue }}
           EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
           REQUEST_ID: ${{ inputs.request_id }}
         run: |
           set -euo pipefail
           source ../trusted/scripts/runner/composer-materialization-profiles.sh
+          test "$COMPOSER_MODE" = "$EXPECTED_MODE"
           test "$COMPOSER_PACKAGE" = "$EXPECTED_PACKAGE"
           test "$COMPOSER_CONSTRAINT" = "$EXPECTED_CONSTRAINT"
+          test "$COMPOSER_LOCK_REFRESH_SELECTORS" = "$EXPECTED_SELECTORS"
+          test "$COMPOSER_RESULT_RULES" = "$EXPECTED_RESULT_RULES"
+          test "$COMPOSER_OWNER_ISSUE" = "$EXPECTED_OWNER_ISSUE"
 
-          ddev composer update "$COMPOSER_PACKAGE" \
-            --with-all-dependencies \
-            --no-install \
-            --no-interaction \
-            --no-progress \
-            --no-scripts
+          if [[ "$COMPOSER_MODE" == 'package' ]]; then
+            ddev composer update "$COMPOSER_PACKAGE" \
+              --with-all-dependencies \
+              --no-install \
+              --no-interaction \
+              --no-progress \
+              --no-scripts
+          elif [[ "$COMPOSER_MODE" == 'lock-refresh' ]]; then
+            read -r -a selectors <<< "$COMPOSER_LOCK_REFRESH_SELECTORS"
+            test "${#selectors[@]}" -gt 0
+            ddev composer update "${selectors[@]}" \
+              --with-all-dependencies \
+              --no-install \
+              --no-interaction \
+              --no-progress \
+              --no-scripts
+          else
+            echo "Unsupported Composer materialization mode: $COMPOSER_MODE" >&2
+            exit 1
+          fi
 
           rm -f .ddev/config.gate-composer-ci.yaml
 
@@ -267,8 +334,12 @@ jobs:
           mkdir -p ../composer-materialization-artifact
           cp composer.lock ../composer-materialization-artifact/composer.lock
 
+          EXPECTED_MODE="$EXPECTED_MODE" \
           EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
           EXPECTED_VERSION_REGEX="$EXPECTED_VERSION_REGEX" \
+          EXPECTED_SELECTORS="$EXPECTED_SELECTORS" \
+          EXPECTED_RESULT_RULES="$EXPECTED_RESULT_RULES" \
+          EXPECTED_OWNER_ISSUE="$EXPECTED_OWNER_ISSUE" \
           EXPECTED_HEAD_SHA="$EXPECTED_HEAD_SHA" \
           REQUEST_ID="$REQUEST_ID" \
           COMPOSER_PROFILE="$COMPOSER_PROFILE" \
@@ -281,27 +352,56 @@ jobs:
 
           lock_path = Path('../composer-materialization-artifact/composer.lock')
           lock = json.loads(lock_path.read_text(encoding='utf-8'))
-          packages = [
-              package for package in lock.get('packages', [])
-              if package.get('name') == os.environ['EXPECTED_PACKAGE']
-          ]
-          if len(packages) != 1:
-              raise SystemExit('Expected package missing or duplicated in lockfile.')
+          all_packages = lock.get('packages', []) + lock.get('packages-dev', [])
 
-          version = packages[0].get('version', '').lstrip('v')
-          if not re.fullmatch(os.environ['EXPECTED_VERSION_REGEX'], version):
-              raise SystemExit(f'Unexpected resolved package version: {version!r}')
+          def version_for(name):
+              matches = [package for package in all_packages if package.get('name') == name]
+              if len(matches) != 1:
+                  raise SystemExit(f'Expected package missing or duplicated: {name}')
+              return matches[0].get('version', '').lstrip('v')
+
+          mode = os.environ['EXPECTED_MODE']
+          if mode == 'package':
+              package = os.environ['EXPECTED_PACKAGE']
+              version = version_for(package)
+              if not re.fullmatch(os.environ['EXPECTED_VERSION_REGEX'], version):
+                  raise SystemExit(f'Unexpected resolved package version: {version!r}')
+              reviewed_selectors = [package]
+              resolved_versions = {package: version}
+          elif mode == 'lock-refresh':
+              reviewed_selectors = os.environ['EXPECTED_SELECTORS'].split()
+              rules = json.loads(os.environ['EXPECTED_RESULT_RULES'])
+              if list(rules) != reviewed_selectors:
+                  raise SystemExit('Result rules do not bind the reviewed selector order.')
+              resolved_versions = {}
+              for package, pattern in rules.items():
+                  version = version_for(package)
+                  if not re.fullmatch(pattern, version):
+                      raise SystemExit(
+                          f'Unexpected resolved version for {package}: {version!r}'
+                      )
+                  resolved_versions[package] = version
+              package = ''
+              version = ''
+          else:
+              raise SystemExit(f'Unsupported Composer materialization mode: {mode}')
 
           digest = hashlib.sha256(lock_path.read_bytes()).hexdigest()
           result = {
               'status': 'PASS',
               'request_id': os.environ['REQUEST_ID'],
               'profile': os.environ['COMPOSER_PROFILE'],
+              'mode': mode,
               'target_head_sha': os.environ['EXPECTED_HEAD_SHA'],
-              'package': os.environ['EXPECTED_PACKAGE'],
-              'resolved_version': version,
+              'owner_issue': int(os.environ['EXPECTED_OWNER_ISSUE']),
+              'reviewed_selectors': reviewed_selectors,
+              'resolved_versions': resolved_versions,
               'composer_lock_sha256': digest,
           }
+          if mode == 'package':
+              result['package'] = package
+              result['resolved_version'] = version
+
           Path('../composer-materialization-artifact/result.json').write_text(
               json.dumps(result, indent=2, sort_keys=True) + '\n',
               encoding='utf-8',
@@ -365,8 +465,12 @@ jobs:
           PR_NUMBER: ${{ inputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ inputs.head_sha }}
           EXPECTED_HEAD_REF: ${{ needs.validate-target.outputs.head_ref }}
+          EXPECTED_MODE: ${{ needs.validate-target.outputs.mode }}
           EXPECTED_PACKAGE: ${{ needs.validate-target.outputs.package }}
           EXPECTED_VERSION_REGEX: ${{ needs.validate-target.outputs.version_regex }}
+          EXPECTED_SELECTORS: ${{ needs.validate-target.outputs.selectors }}
+          EXPECTED_RESULT_RULES: ${{ needs.validate-target.outputs.result_rules }}
+          EXPECTED_OWNER_ISSUE: ${{ needs.validate-target.outputs.owner_issue }}
           EXPECTED_PROFILE: ${{ inputs.profile }}
           EXPECTED_REQUEST_ID: ${{ inputs.request_id }}
         run: |
@@ -381,8 +485,12 @@ jobs:
           test "$(jq -r '.head.ref' <<<"$pr_json")" = "$EXPECTED_HEAD_REF"
           test "$(jq -r '.head.sha' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"
 
+          EXPECTED_MODE="$EXPECTED_MODE" \
           EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
           EXPECTED_VERSION_REGEX="$EXPECTED_VERSION_REGEX" \
+          EXPECTED_SELECTORS="$EXPECTED_SELECTORS" \
+          EXPECTED_RESULT_RULES="$EXPECTED_RESULT_RULES" \
+          EXPECTED_OWNER_ISSUE="$EXPECTED_OWNER_ISSUE" \
           EXPECTED_PROFILE="$EXPECTED_PROFILE" \
           EXPECTED_REQUEST_ID="$EXPECTED_REQUEST_ID" \
           EXPECTED_HEAD_SHA="$EXPECTED_HEAD_SHA" \
@@ -397,13 +505,15 @@ jobs:
           result = json.loads((artifact / 'result.json').read_text(encoding='utf-8'))
           lock_path = artifact / 'composer.lock'
           lock = json.loads(lock_path.read_text(encoding='utf-8'))
+          all_packages = lock.get('packages', []) + lock.get('packages-dev', [])
 
           expected = {
               'status': 'PASS',
               'request_id': os.environ['EXPECTED_REQUEST_ID'],
               'profile': os.environ['EXPECTED_PROFILE'],
+              'mode': os.environ['EXPECTED_MODE'],
               'target_head_sha': os.environ['EXPECTED_HEAD_SHA'],
-              'package': os.environ['EXPECTED_PACKAGE'],
+              'owner_issue': int(os.environ['EXPECTED_OWNER_ISSUE']),
           }
           for key, value in expected.items():
               if result.get(key) != value:
@@ -413,18 +523,51 @@ jobs:
           if result.get('composer_lock_sha256') != digest:
               raise SystemExit('Artifact lockfile digest mismatch.')
 
-          packages = [
-              package for package in lock.get('packages', [])
-              if package.get('name') == os.environ['EXPECTED_PACKAGE']
-          ]
-          if len(packages) != 1:
-              raise SystemExit('Expected package missing or duplicated in lockfile.')
-          version = packages[0].get('version', '').lstrip('v')
-          if not re.fullmatch(os.environ['EXPECTED_VERSION_REGEX'], version):
-              raise SystemExit(f'Unexpected resolved package version: {version!r}')
-          if result.get('resolved_version') != version:
-              raise SystemExit('Artifact version metadata does not match lockfile.')
-          print(f'Validated {os.environ["EXPECTED_PACKAGE"]} {version} ({digest})')
+          def version_for(name):
+              matches = [package for package in all_packages if package.get('name') == name]
+              if len(matches) != 1:
+                  raise SystemExit(f'Expected package missing or duplicated: {name}')
+              return matches[0].get('version', '').lstrip('v')
+
+          mode = os.environ['EXPECTED_MODE']
+          if mode == 'package':
+              package = os.environ['EXPECTED_PACKAGE']
+              version = version_for(package)
+              if not re.fullmatch(os.environ['EXPECTED_VERSION_REGEX'], version):
+                  raise SystemExit(f'Unexpected resolved package version: {version!r}')
+              if result.get('package') != package:
+                  raise SystemExit('Artifact package metadata mismatch.')
+              if result.get('resolved_version') != version:
+                  raise SystemExit('Artifact version metadata does not match lockfile.')
+              if result.get('reviewed_selectors') != [package]:
+                  raise SystemExit('Artifact selector metadata mismatch.')
+              if result.get('resolved_versions') != {package: version}:
+                  raise SystemExit('Artifact resolved-version map mismatch.')
+          elif mode == 'lock-refresh':
+              selectors = os.environ['EXPECTED_SELECTORS'].split()
+              rules = json.loads(os.environ['EXPECTED_RESULT_RULES'])
+              if list(rules) != selectors:
+                  raise SystemExit('Expected rules do not bind the reviewed selector order.')
+              resolved_versions = {}
+              for package, pattern in rules.items():
+                  version = version_for(package)
+                  if not re.fullmatch(pattern, version):
+                      raise SystemExit(
+                          f'Unexpected resolved version for {package}: {version!r}'
+                      )
+                  resolved_versions[package] = version
+              if result.get('reviewed_selectors') != selectors:
+                  raise SystemExit('Artifact selector metadata mismatch.')
+              if result.get('resolved_versions') != resolved_versions:
+                  raise SystemExit('Artifact resolved-version map mismatch.')
+          else:
+              raise SystemExit(f'Unsupported Composer materialization mode: {mode}')
+
+          print(json.dumps({
+              'mode': mode,
+              'resolved_versions': result.get('resolved_versions'),
+              'composer_lock_sha256': digest,
+          }, sort_keys=True))
           PY
 
           cp /tmp/composer-materialization/composer.lock composer.lock
@@ -437,9 +580,13 @@ jobs:
             exit 1
           fi
 
-          resolved_version="$(jq -r '.resolved_version' /tmp/composer-materialization/result.json)"
+          resolved_version="$(jq -r '.resolved_version // ""' /tmp/composer-materialization/result.json)"
+          resolved_versions="$(jq -c '.resolved_versions' /tmp/composer-materialization/result.json)"
+          reviewed_selectors="$(jq -r '.reviewed_selectors | join(" ")' /tmp/composer-materialization/result.json)"
           lock_sha256="$(jq -r '.composer_lock_sha256' /tmp/composer-materialization/result.json)"
           echo "resolved_version=$resolved_version" >> "$GITHUB_OUTPUT"
+          echo "resolved_versions=$resolved_versions" >> "$GITHUB_OUTPUT"
+          echo "reviewed_selectors=$reviewed_selectors" >> "$GITHUB_OUTPUT"
           echo "lock_sha256=$lock_sha256" >> "$GITHUB_OUTPUT"
 
       - name: Commit and push lockfile fast-forward only
@@ -479,8 +626,11 @@ jobs:
           PR_NUMBER: ${{ inputs.pr_number }}
           REQUEST_ID: ${{ inputs.request_id }}
           PROFILE: ${{ inputs.profile }}
+          MODE: ${{ needs.validate-target.outputs.mode }}
           PACKAGE: ${{ needs.validate-target.outputs.package }}
           VERSION: ${{ steps.validate-artifact.outputs.resolved_version }}
+          REVIEWED_SELECTORS: ${{ steps.validate-artifact.outputs.reviewed_selectors }}
+          RESOLVED_VERSIONS: ${{ steps.validate-artifact.outputs.resolved_versions }}
           LOCK_SHA256: ${{ steps.validate-artifact.outputs.lock_sha256 }}
           OLD_HEAD: ${{ inputs.head_sha }}
           NEW_HEAD: ${{ steps.publish.outputs.new_head_sha }}
@@ -491,8 +641,11 @@ jobs:
 
           - request: \`${REQUEST_ID}\`
           - profile: \`${PROFILE}\`
-          - package: \`${PACKAGE}\`
-          - resolved version: \`${VERSION}\`
+          - mode: \`${MODE}\`
+          - package: \`${PACKAGE:-n/a}\`
+          - resolved version: \`${VERSION:-n/a}\`
+          - reviewed selectors: \`${REVIEWED_SELECTORS}\`
+          - resolved versions: \`${RESOLVED_VERSIONS}\`
           - input HEAD: \`${OLD_HEAD}\`
           - published HEAD: \`${NEW_HEAD}\`
           - composer.lock SHA-256: \`${LOCK_SHA256}\`

@@ -1,0 +1,63 @@
+name: "Validate #945 server-to-server refresh defect fixes"
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preprod-945-server-to-server-defects-validation.yml"
+      - "scripts/preproduction/bootstrap-host.sh"
+      - "scripts/preproduction-refresh/governed-successor/**"
+      - "web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionServerToServerApplyTest.php"
+      - "web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionServerToServerDefectFixTest.php"
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate fixed prerequisite, observer, and polling syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          b=scripts/preproduction-refresh/governed-successor
+          bash -n scripts/preproduction/bootstrap-host.sh
+          bash -n "$b/run-server-to-server-apply.sh" "$b/poll-server-to-server-worker.sh"
+          python3 -m py_compile \
+            "$b/ensure-refresh-jobs-root.py" \
+            "$b/observe-server-to-server-worker.py" \
+            "$b/remote-server-to-server-worker.py" \
+            "$b/test-extensionless-helper-loader.py"
+          python3 "$b/ensure-refresh-jobs-root.py" --self-test
+          python3 "$b/observe-server-to-server-worker.py" --self-test
+          python3 "$b/test-extensionless-helper-loader.py"
+
+      - name: Validate targeted PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionServerToServerApplyTest.php
+          php -l web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionServerToServerDefectFixTest.php
+
+      - name: Setup PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run targeted #938/#945 regression tests
+        run: >-
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionServerToServerApplyTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/PreproductionServerToServerDefectFixTest.php

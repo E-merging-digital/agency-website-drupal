@@ -1,0 +1,96 @@
+schema_version: 1
+issue: 760
+parent_issue: 609
+source_proof:
+  issue: 756
+  run_id: 32710152174
+  artifact_id: 9513880054
+  artifact_digest: 'sha256:a639a37e1b37125eeb68c14bbac15879f834852a0266bc526a2a3a263ae02849'
+  trusted_main: 4b0eed9d848891de169964228add031aaad42197
+baseline:
+  total_config: 595
+  distribution:
+    __none__: 59
+    en: 413
+    fr: 122
+    und: 1
+target:
+  total_config: 595
+  distribution:
+    __none__: 59
+    en: 466
+    fr: 69
+    und: 1
+cohort:
+  total: 53
+  exact_runtime_source_match: 52
+  review_exception: 1
+  unresolved: 0
+  names_sha256: 72d2e6f904c99bfd426f6ca58e2c3e7c277beb36eff62eed269a793ff5846535
+  exact_match_names_sha256: fc71d904d034fb657ce0dc6d61528d2e8e50e9ede1b838ab4d91842f821cfcbf
+  exact_match_names:
+    - core.base_field_override.block_content.basic.changed
+    - core.base_field_override.block_content.basic.info
+    - core.base_field_override.block_content.basic.metatag
+    - core.base_field_override.block_content.basic.status
+    - core.base_field_override.comment.comment.changed
+    - core.base_field_override.comment.comment.created
+    - core.base_field_override.comment.comment.homepage
+    - core.base_field_override.comment.comment.hostname
+    - core.base_field_override.comment.comment.mail
+    - core.base_field_override.comment.comment.name
+    - core.base_field_override.comment.comment.status
+    - core.base_field_override.comment.comment.subject
+    - core.base_field_override.comment.comment.uid
+    - core.base_field_override.menu_link_content.menu_link_content.changed
+    - core.base_field_override.menu_link_content.menu_link_content.description
+    - core.base_field_override.menu_link_content.menu_link_content.metatag
+    - core.base_field_override.menu_link_content.menu_link_content.title
+    - core.base_field_override.shortcut.default.metatag
+    - core.base_field_override.shortcut.default.title
+    - core.base_field_override.taxonomy_term.localisation.changed
+    - core.base_field_override.taxonomy_term.localisation.description
+    - core.base_field_override.taxonomy_term.localisation.metatag
+    - core.base_field_override.taxonomy_term.localisation.name
+    - core.base_field_override.taxonomy_term.localisation.path
+    - core.base_field_override.taxonomy_term.localisation.status
+    - core.base_field_override.taxonomy_term.secteur.changed
+    - core.base_field_override.taxonomy_term.secteur.description
+    - core.base_field_override.taxonomy_term.secteur.metatag
+    - core.base_field_override.taxonomy_term.secteur.name
+    - core.base_field_override.taxonomy_term.secteur.path
+    - core.base_field_override.taxonomy_term.secteur.status
+    - core.base_field_override.taxonomy_term.tags.changed
+    - core.base_field_override.taxonomy_term.tags.description
+    - core.base_field_override.taxonomy_term.tags.metatag
+    - core.base_field_override.taxonomy_term.tags.name
+    - core.base_field_override.taxonomy_term.tags.path
+    - core.base_field_override.taxonomy_term.tags.status
+    - core.base_field_override.taxonomy_term.type_fonctionnalite_ia.changed
+    - core.base_field_override.taxonomy_term.type_fonctionnalite_ia.description
+    - core.base_field_override.taxonomy_term.type_fonctionnalite_ia.metatag
+    - core.base_field_override.taxonomy_term.type_fonctionnalite_ia.name
+    - core.base_field_override.taxonomy_term.type_fonctionnalite_ia.path
+    - core.base_field_override.taxonomy_term.type_fonctionnalite_ia.status
+    - core.base_field_override.taxonomy_term.type_service.changed
+    - core.base_field_override.taxonomy_term.type_service.description
+    - core.base_field_override.taxonomy_term.type_service.metatag
+    - core.base_field_override.taxonomy_term.type_service.name
+    - core.base_field_override.taxonomy_term.type_service.path
+    - core.base_field_override.taxonomy_term.type_service.status
+    - core.base_field_override.user.user.changed
+    - core.base_field_override.user.user.metatag
+    - core.base_field_override.user.user.path
+  exception:
+    name: core.base_field_override.canvas_page.canvas_page.components
+    path: label
+    current_config_value: Composants
+    runtime_untranslated_source_value: Components
+    target_base_value: Components
+    target_fr_override_value: Composants
+constraints:
+  exact_match_mutation: langcode_only
+  exception_mutation: langcode_and_label_with_fr_override
+  natural_language_heuristic_used: false
+  config_export_allowed: false
+  config_language_lock_activation_allowed: false

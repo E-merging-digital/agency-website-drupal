@@ -1,16 +1,18 @@
-name: Deploy Production
+name: Deploy Production emergency hotfix/security
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '.github/**'
-      - 'docs/**'
-      - 'tests/**'
-      - 'web/modules/custom/agency_project_tests/**'
-      - '*.md'
   workflow_dispatch:
+
+# Historical pre-#812 push paths-ignore values, retained only as cutover audit
+# markers. There is no push trigger in this workflow anymore.
+# - '.github/**'
+# - 'docs/**'
+# - 'tests/**'
+# - 'web/modules/custom/agency_project_tests/**'
+# - '*.md'
+
+permissions:
+  contents: read
 
 concurrency:
   group: agency-production-deploy
@@ -18,11 +20,25 @@ concurrency:
 
 jobs:
   deploy:
+    name: Explicit emergency hotfix/security deploy
     runs-on: ubuntu-latest
     timeout-minutes: 35
 
     steps:
-      - name: Checkout exact deployment source
+      - name: Reject non-emergency refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF_NAME" in
+            hotfix/*|security/*) ;;
+            *)
+              echo 'Emergency production deploy is restricted to hotfix/* or security/* refs.' >&2
+              exit 1
+              ;;
+          esac
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Checkout exact emergency deployment source
         uses: actions/checkout@v6
         with:
           ref: ${{ github.sha }}
@@ -32,151 +48,104 @@ jobs:
       - name: Configure SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        shell: bash
         run: |
           set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Add server to known_hosts
+      - name: Add production server to known_hosts
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
+          test -n "$SERVER_HOST"
           ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Stage exact detached deployment request
+      - name: Stage exact detached emergency deployment request
         id: request
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           EXPECTED_SHA: ${{ github.sha }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+        shell: bash
         run: |
           set -euo pipefail
-          test -n "$SERVER_HOST"
-          test -n "$SERVER_USER"
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          case "$TARGET_BRANCH" in hotfix/*|security/*) ;; *) exit 1 ;; esac
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-
           request_id="run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${EXPECTED_SHA}"
           remote_dir="/var/www/agency/shared/deploy-jobs/${request_id}"
-          [[ "$request_id" =~ ^run-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
-
           echo "request_id=$request_id" >> "$GITHUB_OUTPUT"
           echo "remote_dir=$remote_dir" >> "$GITHUB_OUTPUT"
-
           ssh "$SERVER_USER@$SERVER_HOST" \
             "umask 077; mkdir -p '$remote_dir'; test ! -L '$remote_dir'; test ! -e '$remote_dir/result.env'; test ! -e '$remote_dir/pid'"
-
           scp \
             scripts/deploy-production.sh \
             scripts/launch-production-deploy.sh \
             scripts/inspect-production-deploy.sh \
             "$SERVER_USER@$SERVER_HOST:$remote_dir/"
-
           ssh "$SERVER_USER@$SERVER_HOST" \
             "chmod 700 '$remote_dir/deploy-production.sh' '$remote_dir/launch-production-deploy.sh' '$remote_dir/inspect-production-deploy.sh'"
 
-      - name: Launch detached production worker
-        id: launch
+      - name: Launch detached emergency production worker
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           EXPECTED_SHA: ${{ github.sha }}
+          TARGET_BRANCH: ${{ github.ref_name }}
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
           REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
         run: |
           set -euo pipefail
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$REQUEST_ID" =~ ^run-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
-          [[ "$REMOTE_DIR" == "/var/www/agency/shared/deploy-jobs/$REQUEST_ID" ]]
-
           set +e
-          launch_output="$(
-            ssh \
-              -o ConnectTimeout=10 \
-              -o ServerAliveInterval=5 \
-              -o ServerAliveCountMax=2 \
-              "$SERVER_USER@$SERVER_HOST" \
-              "'$REMOTE_DIR/launch-production-deploy.sh' '$REQUEST_ID' '$EXPECTED_SHA'" \
-              2>&1
-          )"
+          launch_output="$(ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 \
+            "$SERVER_USER@$SERVER_HOST" \
+            "'$REMOTE_DIR/launch-production-deploy.sh' '$REQUEST_ID' '$EXPECTED_SHA' '$TARGET_BRANCH'" 2>&1)"
           launch_status="$?"
           set -e
-
           printf '%s\n' "$launch_output"
-          echo "transport_exit=$launch_status" >> "$GITHUB_OUTPUT"
           echo "Launch transport exit was $launch_status; detached result polling remains authoritative."
 
-      - name: Poll detached production result
+      - name: Poll detached emergency production result
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           EXPECTED_SHA: ${{ github.sha }}
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
           REMOTE_DIR: ${{ steps.request.outputs.remote_dir }}
+        shell: bash
         run: |
           set -euo pipefail
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$REQUEST_ID" =~ ^run-[0-9]+-[0-9]+-[0-9a-f]{40}$ ]]
-          [[ "$REMOTE_DIR" == "/var/www/agency/shared/deploy-jobs/$REQUEST_ID" ]]
-
           artifact_dir='artifacts/production-deploy'
           mkdir -p "$artifact_dir"
           terminal_outcome=''
           poll_output=''
           starting_count=0
-
           result_field() {
             local key="$1"
             printf '%s\n' "$poll_output" | sed -n "s/^${key}=//p" | head -n 1
           }
-
-          collect_remote_evidence() {
-            local filename
-            for filename in output.log bootstrap.log request.env pid; do
-              set +e
-              ssh \
-                -o ConnectTimeout=10 \
-                "$SERVER_USER@$SERVER_HOST" \
-                "cat '$REMOTE_DIR/$filename' 2>/dev/null || true" \
-                > "$artifact_dir/$filename" 2>&1
-              set -e
-            done
-          }
-
           for attempt in $(seq 1 180); do
             set +e
-            poll_output="$(
-              ssh \
-                -o ConnectTimeout=10 \
-                -o ServerAliveInterval=5 \
-                -o ServerAliveCountMax=2 \
-                "$SERVER_USER@$SERVER_HOST" \
-                "'$REMOTE_DIR/inspect-production-deploy.sh' '$REQUEST_ID' '$EXPECTED_SHA'" \
-                2>&1
-            )"
+            poll_output="$(ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 \
+              "$SERVER_USER@$SERVER_HOST" \
+              "'$REMOTE_DIR/inspect-production-deploy.sh' '$REQUEST_ID' '$EXPECTED_SHA'" 2>&1)"
             poll_status="$?"
             set -e
-
-            if [[ "$poll_status" -ne 0 ]]; then
-              echo "Detached deploy poll transport unavailable on attempt $attempt (exit $poll_status)."
-              sleep 5
-              continue
-            fi
-
+            if [[ "$poll_status" -ne 0 ]]; then sleep 5; continue; fi
             outcome="$(result_field outcome)"
             case "$outcome" in
               SUCCESS)
-                result_request="$(result_field request_id)"
-                result_sha="$(result_field expected_sha)"
-                result_exit="$(result_field exit_code)"
-                [[ "$result_request" == "$REQUEST_ID" ]]
-                [[ "$result_sha" == "$EXPECTED_SHA" ]]
-                [[ "$result_exit" == '0' ]]
+                test "$(result_field request_id)" = "$REQUEST_ID"
+                test "$(result_field expected_sha)" = "$EXPECTED_SHA"
+                test "$(result_field exit_code)" = '0'
                 terminal_outcome='SUCCESS'
                 break
                 ;;
@@ -184,69 +153,37 @@ jobs:
                 terminal_outcome="$outcome"
                 break
                 ;;
-              RUNNING)
-                starting_count=0
-                echo "Detached production worker is running for $REQUEST_ID."
-                ;;
+              RUNNING) starting_count=0 ;;
               STARTING|NOT_STARTED)
                 starting_count=$((starting_count + 1))
-                if [[ "$starting_count" -ge 12 ]]; then
-                  terminal_outcome='LOST'
-                  poll_output="$(cat <<EOF_RESULT
-          schema_version=1
-          request_id=$REQUEST_ID
-          expected_sha=$EXPECTED_SHA
-          outcome=LOST
-          reason=worker_never_became_observable
-          EOF_RESULT
-          )"
-                  break
-                fi
+                if [[ "$starting_count" -ge 12 ]]; then terminal_outcome='LOST'; break; fi
                 ;;
-              *)
-                terminal_outcome='INVALID'
-                poll_output="$(cat <<EOF_RESULT
-          schema_version=1
-          request_id=$REQUEST_ID
-          expected_sha=$EXPECTED_SHA
-          outcome=INVALID
-          reason=unexpected_poll_payload
-          EOF_RESULT
-          )"
-                break
-                ;;
+              *) terminal_outcome='INVALID'; break ;;
             esac
-
             sleep 5
           done
-
-          if [[ -z "$terminal_outcome" ]]; then
-            terminal_outcome='TIMEOUT'
-            poll_output="$(cat <<EOF_RESULT
-          schema_version=1
-          request_id=$REQUEST_ID
-          expected_sha=$EXPECTED_SHA
-          outcome=TIMEOUT
-          reason=no_terminal_result_before_workflow_deadline
-          EOF_RESULT
-          )"
-          fi
-
+          [[ -n "$terminal_outcome" ]] || terminal_outcome='TIMEOUT'
           printf '%s\n' "$poll_output" | tee "$artifact_dir/result.env"
-          collect_remote_evidence
+          for filename in output.log bootstrap.log request.env pid; do
+            set +e
+            ssh -o ConnectTimeout=10 "$SERVER_USER@$SERVER_HOST" \
+              "cat '$REMOTE_DIR/$filename' 2>/dev/null || true" > "$artifact_dir/$filename" 2>&1
+            set -e
+          done
+          test "$terminal_outcome" = 'SUCCESS'
 
-          if [[ "$terminal_outcome" != 'SUCCESS' ]]; then
-            echo "Detached production deployment ended with $terminal_outcome." >&2
-            exit 1
-          fi
+      - name: Validate emergency post-deploy health
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://emergingdigital.be/health/live)" = '200'
+          test "$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' https://emergingdigital.be/health/ready)" = '200'
 
-          echo "Detached production deployment completed successfully for exact SHA $EXPECTED_SHA."
-
-      - name: Upload production deployment evidence
+      - name: Upload emergency production deployment evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: agency-production-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+          name: agency-production-emergency-${{ github.sha }}-${{ github.run_id }}
           path: artifacts/production-deploy
           if-no-files-found: warn
           retention-days: 30

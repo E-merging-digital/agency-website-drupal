@@ -1,0 +1,57 @@
+title: 'Drupal lifecycle diagnostic'
+description: 'Low-friction request for a human-reviewed first Drupal lifecycle diagnostic.'
+elements: |
+  intro:
+    '#type': webform_markup
+    '#markup': '<p>Share your Drupal site URL and a short description of the issue or modernization goal. We will review the request before a human follow-up. This first diagnostic is not an automated exhaustive audit.</p>'
+  website_url:
+    '#type': url
+    '#title': 'Website URL'
+    '#required': true
+    '#placeholder': 'https://example.com'
+  organization:
+    '#type': textfield
+    '#title': 'Organization'
+    '#placeholder': 'Organization name (optional)'
+  name:
+    '#type': textfield
+    '#title': 'Your name'
+    '#required': true
+    '#default_value': '[current-user:display-name]'
+  email:
+    '#type': email
+    '#title': 'Your email'
+    '#required': true
+    '#default_value': '[current-user:mail]'
+  message:
+    '#type': textarea
+    '#title': 'Context'
+    '#required': true
+    '#rows': 5
+    '#placeholder': 'Briefly describe what is blocking you, what you want to modernize, or what you would like us to review.'
+  audit_note:
+    '#type': webform_markup
+    '#markup': '<p>If a deeper review is useful, a paid technical audit can cover Drupal Core and PHP, Composer, contributed and custom code, theme, deprecations and upgrade readiness, security and maintenance, automated tests, infrastructure and deployment, then provide an estimate and action plan. The audit remains useful even if you do not ask us to perform the migration.</p>'
+  rgpd_consent:
+    '#type': checkbox
+    '#title': 'I agree that my data will be used to process my request, in accordance with the'
+    '#description': '<a href="/en/privacy-policy">privacy policy</a>.<span id="drupal-diagnostic-consent-help" class="contact-consent-help">This consent is required to send the form.</span>'
+    '#required': true
+    '#default_value': 0
+    '#attributes':
+      aria-describedby: drupal-diagnostic-consent-help
+  actions:
+    '#type': webform_actions
+    '#title': 'Submit button(s)'
+    '#submit__label': 'Request a Drupal diagnostic'
+settings:
+  confirmation_title: 'Request received'
+  confirmation_message: 'Thank you. Your Drupal diagnostic request has been received and will be reviewed by a person before any recommendation is made.'
+handlers:
+  email_notification:
+    label: 'Email notification'
+    settings:
+      from_name: 'E-MERGING DIGITAL'
+      return_path: jonathan@emergingdigital.be
+      subject: 'Drupal diagnostic request — [webform_submission:values:website_url:raw]'
+      body: '[webform_submission:values]'

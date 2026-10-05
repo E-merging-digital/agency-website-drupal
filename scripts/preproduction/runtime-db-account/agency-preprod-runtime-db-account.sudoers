@@ -1,0 +1,7 @@
+# #893 design-only bounded PREPROD runtime MariaDB account reconciliation.
+# This repository source is NOT installed by #893.
+Cmnd_Alias AGENCY_PREPROD_RUNTIME_DB_ACCOUNT = \
+    /usr/local/sbin/agency-preprod-runtime-db-account PRECHECK, \
+    /usr/local/sbin/agency-preprod-runtime-db-account APPLY, \
+    /usr/local/sbin/agency-preprod-runtime-db-account VERIFY
+agency-preprod ALL=(root) NOPASSWD: AGENCY_PREPROD_RUNTIME_DB_ACCOUNT

@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "issue_number": 849,
+  "revision_issue_number": 859,
+  "model": "FIXED_ROOT_OWNED_BOUNDED_HELPER",
+  "repository_source": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db",
+  "repository_digest_file": "scripts/preproduction-staging-import/privileged/agency-preprod-staging-db.sha256",
+  "installed_path": "/usr/local/sbin/agency-preprod-staging-db",
+  "installed_owner_uid": 0,
+  "installed_group_gid": 0,
+  "installed_mode": "0755",
+  "non_root_writable": false,
+  "sudo": {
+    "nopasswd_only_for_installed_path": true,
+    "direct_mariadb": "FORBIDDEN",
+    "generic_shell": "FORBIDDEN",
+    "setenv": "FORBIDDEN",
+    "sudo_password_secret": "FORBIDDEN"
+  },
+  "actions": [
+    "PRECHECK",
+    "IMPORT",
+    "IMPORT_SANITIZE_PROVE",
+    "CLEANUP",
+    "VERIFY_ABSENCE"
+  ],
+  "request_id": {
+    "regex": "^[A-Za-z0-9._-]{8,80}$",
+    "database_suffix": "SHA256_REQUEST_ID_FIRST_12_HEX",
+    "caller_database_name": "FORBIDDEN"
+  },
+  "snapshot_bytes": {
+    "caller_value_required": true,
+    "max": 1099511627776,
+    "import_stdin_must_equal_declared_bytes": true,
+    "one_shot_stdin_must_equal_declared_bytes": true
+  },
+  "database_scope": {
+    "runtime_database": "agency_preprod",
+    "runtime_targetable": false,
+    "staging_prefix": "agency_preprod_stage_",
+    "staging_database_derived_in_helper": true,
+    "ephemeral_import_account_derived_in_helper": true,
+    "ephemeral_import_account_global_privileges": "NONE",
+    "import_database_privileges": "DERIVED_STAGING_DB_ONLY",
+    "local_infile": "DISABLED"
+  },
+  "caller_inputs": {
+    "sql_command": "FORBIDDEN",
+    "shell": "FORBIDDEN",
+    "executable": "FORBIDDEN",
+    "database_name": "FORBIDDEN",
+    "filesystem_path": "FORBIDDEN",
+    "host": "FORBIDDEN",
+    "credential": "FORBIDDEN",
+    "environment_override": "FORBIDDEN"
+  },
+  "one_shot": {
+    "action": "IMPORT_SANITIZE_PROVE",
+    "lifecycle": [
+      "REQUIRE_DERIVED_SCOPE_ABSENT",
+      "IMPORT_EXACT_BOUNDED_STDIN",
+      "SANITIZE_WITH_PINNED_AGENCY_PREPROD_REFRESH_V1",
+      "ASSERT_SANITIZED_METADATA_ONLY",
+      "MANDATORY_CLEANUP",
+      "VERIFY_DERIVED_SCOPE_ABSENT"
+    ],
+    "unsanitized_persistence_between_caller_actions": "FORBIDDEN",
+    "cleanup_on_success": "MANDATORY",
+    "cleanup_on_import_failure": "MANDATORY",
+    "cleanup_on_sanitization_failure": "MANDATORY",
+    "cleanup_on_assertion_failure": "MANDATORY",
+    "cleanup_on_handled_signal": "MANDATORY",
+    "evidence": "METADATA_ONLY"
+  },
+  "root_owned_bundle": {
+    "manifest": "scripts/preproduction-staging-import/privileged/bundle.json",
+    "installed_directory": "/usr/local/lib/agency-preprod-staging",
+    "mutable_checkout_runtime_read": "FORBIDDEN",
+    "sanitizer_destination": "/usr/local/lib/agency-preprod-staging/agency-preprod-staging-sanitizer.py",
+    "sanitizer_sha256": "fcdb1e42b8fd50db8e8190dea61eca66544149dc53a762affdb33bf96d2d481f",
+    "policy_destination": "/usr/local/lib/agency-preprod-staging/sanitization-policy.json",
+    "policy_sha256": "cf98b09b6f2c038aed0f82bd9a61553bff9c9cba4fee14d56eaf233cc3da98cb",
+    "policy_version": "agency-preprod-refresh-v1"
+  },
+  "cleanup": {
+    "import_finalizer": "MANDATORY",
+    "one_shot_finalizer": "MANDATORY",
+    "ephemeral_import_account": "MANDATORY",
+    "staging_database": "MANDATORY",
+    "independent_verify_absence": "MANDATORY"
+  },
+  "real_preprod_provisioning": "NOT_PERFORMED_IN_ISSUE_859"
+}

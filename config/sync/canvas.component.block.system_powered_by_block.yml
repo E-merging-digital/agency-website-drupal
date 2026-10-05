@@ -10,12 +10,30 @@ versioned_properties:
     settings:
       default_settings:
         id: system_powered_by_block
+        label: 'Propulsé par Drupal'
+        label_display: '0'
+        provider: system
+    fallback_metadata:
+      slot_definitions: null
+  732945a8b56683cd:
+    settings:
+      default_settings:
+        id: system_powered_by_block
+        label: 'Propulsé par Drupal'
+        label_display: '0'
+        provider: system
+    fallback_metadata:
+      slot_definitions: null
+  065fc349f8809d76:
+    settings:
+      default_settings:
+        id: system_powered_by_block
         label: 'Powered by Drupal'
         label_display: '0'
         provider: system
     fallback_metadata:
       slot_definitions: null
-label: 'Powered by Drupal'
+label: 'Propulsé par Drupal'
 id: block.system_powered_by_block
 provider: system
 source: block

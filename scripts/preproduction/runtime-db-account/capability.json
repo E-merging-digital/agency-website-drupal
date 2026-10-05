@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "issue_number": 893,
+  "status": "DESIGNED_NOT_INSTALLED_NOT_EXECUTED",
+  "purpose": "Bounded reconciliation of the canonical PREPROD Drupal runtime MariaDB account.",
+  "fixed_target": {
+    "database": "agency_preprod",
+    "user": "agency_preprod",
+    "account_host": "127.0.0.1",
+    "protocol": "TCP_LOOPBACK",
+    "port": 3306
+  },
+  "actions": [
+    "PRECHECK",
+    "APPLY",
+    "VERIFY"
+  ],
+  "caller_control": {
+    "sql": false,
+    "database": false,
+    "user": false,
+    "host": false,
+    "password": false,
+    "path": false,
+    "command": false,
+    "executable": false
+  },
+  "authoritative_secret": {
+    "path": "/var/www/agency-preprod/shared/settings/runtime.env",
+    "key": "DB_PASSWORD",
+    "consumption": "SERVER_SIDE_ONLY",
+    "github_argument": "FORBIDDEN",
+    "output": "FORBIDDEN"
+  },
+  "observation": {
+    "precheck_and_verify": "METADATA_ONLY",
+    "fields": [
+      "TARGET_DATABASE_PRESENT",
+      "ACCOUNT_127_PRESENT",
+      "ACCOUNT_LOCALHOST_PRESENT",
+      "EXPECTED_DB_GRANT",
+      "RUNTIME_ACCOUNT_STATE"
+    ],
+    "raw_grants_output": "FORBIDDEN",
+    "mysql_user_row_output": "FORBIDDEN",
+    "runtime_env_output": "FORBIDDEN",
+    "settings_php_output": "FORBIDDEN"
+  },
+  "apply": {
+    "scope": "FIXED_TARGET_ONLY",
+    "unknown_account_hosts": "FAIL_CLOSED",
+    "wildcard_account": "FAIL_CLOSED",
+    "legacy_localhost_account": "REMOVE_AFTER_CANONICAL_ACCOUNT_VERIFIES_EXACT",
+    "global_or_other_grants": "REVOKE_BEFORE_FIXED_DATABASE_GRANT",
+    "grant": "agency_preprod.* ONLY",
+    "generic_sql": "FORBIDDEN",
+    "generic_root_shell": "FORBIDDEN"
+  },
+  "installation": {
+    "performed_by_issue_893": false,
+    "helper": {
+      "path": "/usr/local/sbin/agency-preprod-runtime-db-account",
+      "owner": "root",
+      "group": "root",
+      "mode": "0755",
+      "sha256": "477186049fe538b75a51cb73d20bd9d308a8efb8fe225e9c81a532ad5f79cd7b"
+    },
+    "sudoers": {
+      "path": "/etc/sudoers.d/agency-preprod-runtime-db-account",
+      "owner": "root",
+      "group": "root",
+      "mode": "0440",
+      "sha256": "dcf3c4d0a96f83d390e6857954fed70f0048eecdd23ae26d3a7cca07aa8aed63"
+    }
+  },
+  "boundaries": {
+    "issue_849_staging_only": true,
+    "issue_849_privilege_widening": false,
+    "issue_891_fail_closed": true,
+    "issue_887_sudoers_semantics_preserved": true,
+    "issue_889_vhost_selector_preserved": true,
+    "data_activation_authority": "DISABLED"
+  },
+  "real_world_execution": {
+    "installed": false,
+    "executed": false,
+    "preprod_ssh_mutation": false,
+    "preprod_mariadb_mutation": false,
+    "prod_access": false
+  }
+}

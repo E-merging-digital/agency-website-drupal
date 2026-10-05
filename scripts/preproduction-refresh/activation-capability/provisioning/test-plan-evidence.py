@@ -1,0 +1,386 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location("plan_evidence", HERE / "evaluate-plan-evidence.py")
+assert SPEC and SPEC.loader
+mod = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(mod)
+
+H = lambda s: hashlib.sha256(s.encode()).hexdigest()
+
+EXPECTED = {
+    "source_digests": {
+        "helper": H("helper"),
+        "side_effect_hardening": H("side"),
+        "runtime_state_digest": H("runtime"),
+        "disabled_authority_state": H("disabled"),
+        "fence_snippet": H("fence"),
+        "internal_readiness": H("internal"),
+        "capability_profile": H("profile"),
+        "bundle_manifest": H("bundle"),
+        "sudoers": H("sudoers"),
+        "provisioning_profile": H("provisioning"),
+        "observer": H("observer"),
+        "evaluator": H("evaluator"),
+        "vhost_selector": H("vhost-selector"),
+        "runtime_db_probe": H("runtime-db-probe"),
+    },
+    "staging": {
+        "staging_helper": H("staging-helper"),
+        "staging_sanitizer": H("sanitizer"),
+        "staging_policy": H("policy"),
+    },
+    "runtime_db": "agency_preprod",
+    "deploy_user_hash": H("agency-preprod"),
+    "managed": {
+        "helper": ("REGULAR", "root", "root", "755", H("helper")),
+        "bundle_dir": ("DIRECTORY", "root", "root", "755", None),
+        "side_effect_hardening": ("REGULAR", "root", "root", "644", H("side")),
+        "runtime_state_digest": ("REGULAR", "root", "root", "644", H("runtime")),
+        "capability_profile": ("REGULAR", "root", "root", "644", H("profile")),
+        "bundle_manifest": ("REGULAR", "root", "root", "644", H("bundle")),
+        "state_dir": ("DIRECTORY", "root", "root", "711", None),
+        "incoming_dir": ("DIRECTORY", "root", "root", "700", None),
+        "candidates_dir": ("DIRECTORY", "root", "root", "700", None),
+        "backups_dir": ("DIRECTORY", "root", "root", "700", None),
+        "authority_state": ("REGULAR", "root", "root", "600", H("disabled")),
+        "sudoers": ("REGULAR", "root", "root", "440", H("sudoers")),
+        "nginx_snippets_dir": ("DIRECTORY", "root", "root", "755", None),
+        "nginx_conf_dir": ("DIRECTORY", "root", "root", "755", None),
+        "fence_snippet": ("REGULAR", "root", "root", "644", H("fence")),
+        "internal_readiness": ("REGULAR", "root", "root", "644", H("internal")),
+    },
+}
+
+
+def set_absent(obs, name):
+    for field, value in {
+        "state": "ABSENT", "type": "ABSENT", "owner": "NONE", "group": "NONE",
+        "mode": "NONE", "digest_state": "ABSENT", "sha256": "NONE",
+    }.items():
+        obs[f"{name}.{field}"] = value
+
+
+def set_unobservable(obs, name):
+    for field, value in {
+        "state": mod.UNOBSERVABLE, "type": "UNOBSERVABLE", "owner": "NONE", "group": "NONE",
+        "mode": "NONE", "digest_state": "UNOBSERVABLE", "sha256": "NONE",
+    }.items():
+        obs[f"{name}.{field}"] = value
+
+
+def set_present(obs, name, typ="REGULAR", owner="root", group="root", mode="644", digest=None, readable=True):
+    obs[f"{name}.state"] = "PRESENT"
+    obs[f"{name}.type"] = typ
+    obs[f"{name}.owner"] = owner
+    obs[f"{name}.group"] = group
+    obs[f"{name}.mode"] = mode
+    if typ == "REGULAR":
+        obs[f"{name}.digest_state"] = "READABLE" if readable else "UNREADABLE"
+        obs[f"{name}.sha256"] = digest if readable and digest else "NONE"
+    else:
+        obs[f"{name}.digest_state"] = "NOT_FILE"
+        obs[f"{name}.sha256"] = "NONE"
+
+
+def base_obs():
+    obs = {
+        "observer_schema": "2",
+        "execution_uid": "1001",
+        "execution_gid": "1001",
+        "execution_user_sha256": H("agency-preprod"),
+        "host_identity_sha256": H("preprod-host"),
+        "sudoers_dir_searchable": "YES",
+        "state_dir_searchable": "YES",
+        "vhost_selector_schema": "1",
+        "vhost_server_block_count": "2",
+        "vhost_hostname_declaration_count": "2",
+        "vhost_hostname_block_count": "2",
+        "vhost_application_block_count": "1",
+        "vhost_safe_auxiliary_block_count": "1",
+        "vhost_application_fence_include_count": "1",
+        "vhost_total_fence_include_count": "1",
+        "runtime_release_target_sha256": H("/var/www/agency-preprod/releases/20260829010000-234760742223"),
+        "runtime_release_name": "20260829010000-234760742223",
+        "runtime_db_probe_schema": "1",
+        "runtime_db_probe_state": "OBSERVED",
+        "runtime_db_probe_exit_class": "ZERO",
+        "runtime_db_name": "agency_preprod",
+        "PLAN_MUTATION": "NONE",
+        "HELPER_EXECUTION": "NONE",
+        "SUDO_EXECUTION": "NONE",
+        "PROD_ACCESS": "NONE",
+        "PREPROD_DB_MUTATION": "NONE",
+        "PREPROD_BACKUP": "NONE",
+        "FENCE_MUTATION": "NONE",
+        "NGINX_MUTATION": "NONE",
+    }
+    for name in mod.ITEMS:
+        set_absent(obs, name)
+    for name, digest in EXPECTED["staging"].items():
+        set_present(obs, name, digest=digest, mode="755" if name == "staging_helper" else "644")
+    for name, (typ, owner, group, mode, digest) in EXPECTED["managed"].items():
+        set_present(obs, name, typ=typ, owner=owner, group=group, mode=mode, digest=digest)
+    set_absent(obs, "maintenance_marker")
+    set_present(obs, "vhost", owner="root", group="root", mode="644", digest=H("vhost"))
+    set_absent(obs, "deploy_lock")
+    set_absent(obs, "refresh_lock")
+    set_present(obs, "current_release", typ="SYMLINK", owner="agency-preprod", group="www-data", mode="777")
+    set_present(obs, "current_web", typ="DIRECTORY", owner="agency-preprod", group="www-data", mode="750")
+    return obs
+
+
+def expect_error(obs, needle):
+    try:
+        mod.evaluate(obs, EXPECTED)
+    except mod.EvidenceError as exc:
+        assert needle in str(exc), (needle, str(exc))
+        return
+    raise AssertionError(f"expected EvidenceError containing {needle!r}")
+
+
+def test_runtime_db_exact_and_mismatch():
+    result = mod.evaluate(base_obs(), EXPECTED)
+    assert result["RUNTIME_DATABASE_PROBE_STATE"] == "OBSERVED"
+    assert result["RUNTIME_DATABASE_PROBE_EXIT_CLASS"] == "ZERO"
+    assert result["RUNTIME_DATABASE_IDENTITY"] == "agency_preprod"
+    print("#891_A_EXPECTED_DB=PASS")
+
+    obs = base_obs()
+    obs["runtime_db_name"] = "different_preprod"
+    expect_error(obs, "runtime database identity mismatch")
+    print("#891_B_SAFE_RUNTIME_DB_MISMATCH=FAIL_CLOSED")
+
+
+def test_runtime_db_unavailable_reasons():
+    cases = {
+        "DRUSH_MISSING": "NOT_RUN",
+        "DRUSH_NOT_EXECUTABLE": "NOT_RUN",
+        "DRUSH_EXEC_FAILED": "NOT_RUN",
+        "DRUSH_FAILED": "NONZERO",
+        "OUTPUT_EMPTY": "ZERO",
+        "OUTPUT_INVALID": "ZERO",
+        "RELEASE_UNAVAILABLE": "NOT_RUN",
+    }
+    for state, exit_class in cases.items():
+        obs = base_obs()
+        obs["runtime_db_probe_state"] = state
+        obs["runtime_db_probe_exit_class"] = exit_class
+        obs["runtime_db_name"] = "NONE"
+        expect_error(obs, f"runtime database identity probe unavailable: {state}")
+    print("#891_C_G_BOUNDED_UNAVAILABLE_REASONS=FAIL_CLOSED")
+
+
+def test_runtime_db_probe_shape_fails_closed():
+    obs = base_obs()
+    obs["runtime_db_probe_schema"] = "2"
+    expect_error(obs, "runtime database probe schema mismatch")
+
+    obs = base_obs()
+    obs["runtime_db_probe_state"] = "OBSERVED"
+    obs["runtime_db_probe_exit_class"] = "NONZERO"
+    expect_error(obs, "runtime database probe evidence inconsistent")
+
+    obs = base_obs()
+    obs["runtime_db_name"] = "unsafe-name"
+    expect_error(obs, "unsafe runtime database identity observation")
+    print("#891_DB_PROBE_EVIDENCE_SHAPE=FAIL_CLOSED")
+
+
+def test_searchable_absent_clean_install():
+    obs = base_obs()
+    for name in EXPECTED["managed"]:
+        if name not in {"nginx_snippets_dir", "nginx_conf_dir"}:
+            set_absent(obs, name)
+    obs["vhost_application_fence_include_count"] = "0"
+    obs["vhost_total_fence_include_count"] = "0"
+    obs["state_dir_searchable"] = "NOT_PRESENT"
+    result = mod.evaluate(obs, EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "CLEAN_INSTALL"
+    assert result["HOST_STATE_SUDOERS"] == "ABSENT"
+    print("A_SEARCHABLE_SUDOERS_ABSENT=CLEAN_INSTALL_EXISTING_SEMANTICS")
+
+
+def test_searchable_exact_noop_with_certbot_topology():
+    result = mod.evaluate(base_obs(), EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "NO_OP_ALREADY_EXACT"
+    assert result["FUTURE_APPLY_MUTATION_INVENTORY"] == "NONE"
+    assert result["HOST_STATE_SUDOERS"] == "EXACT"
+    assert result["VHOST_HOSTNAME_DECLARATION_COUNT"] == "2"
+    assert result["VHOST_APPLICATION_BLOCK_COUNT"] == "1"
+    assert result["VHOST_SAFE_AUXILIARY_BLOCK_COUNT"] == "1"
+    print("#889_R5_MULTI_HOSTNAME_ONE_APPLICATION=PASS")
+    print("B_SEARCHABLE_SUDOERS_EXACT=NO_OP_ELIGIBLE")
+
+
+def test_searchable_sudoers_drift():
+    obs = base_obs()
+    set_present(obs, "sudoers", owner="root", group="root", mode="440", readable=False)
+    result = mod.evaluate(obs, EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert result["PRIVILEGED_READ_REQUIRED"] == "false"
+    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    assert result["HOST_STATE_SUDOERS"] == "DRIFT_OR_UNVERIFIED"
+    print("C_SEARCHABLE_SUDOERS_DRIFT=BOUNDED_RECONCILIATION")
+
+
+def unobservable_obs():
+    obs = base_obs()
+    obs["sudoers_dir_searchable"] = "NO"
+    set_unobservable(obs, "sudoers")
+    return obs
+
+
+def test_unsearchable_sudoers_conservative_reconcile():
+    obs = unobservable_obs()
+    result = mod.evaluate(obs, EXPECTED)
+    assert result["SUDOERS_OBSERVABILITY"] == mod.UNOBSERVABLE
+    assert result["HOST_STATE_SUDOERS"] == mod.UNOBSERVABLE
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    assert result["PRIVILEGED_READ_REQUIRED"] == "false"
+    print("D_UNSEARCHABLE_SUDOERS=UNOBSERVABLE_UNPRIVILEGED")
+    print("D_UNSEARCHABLE_CLASSIFICATION=BOUNDED_RECONCILIATION")
+    print("D_UNSEARCHABLE_MUTATION=CONVERGE_SUDOERS")
+
+
+def test_unsearchable_never_false_clean_install():
+    obs = unobservable_obs()
+    for name in EXPECTED["managed"]:
+        if name not in {"sudoers", "nginx_snippets_dir", "nginx_conf_dir"}:
+            set_absent(obs, name)
+    obs["vhost_application_fence_include_count"] = "0"
+    obs["vhost_total_fence_include_count"] = "0"
+    obs["state_dir_searchable"] = "NOT_PRESENT"
+    result = mod.evaluate(obs, EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert result["HOST_STATE_SUDOERS"] == mod.UNOBSERVABLE
+    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    print("E_UNSEARCHABLE_FALSE_ABSENCE_CLEAN_INSTALL=IMPOSSIBLE")
+
+
+def test_unsearchable_never_false_noop():
+    result = mod.evaluate(unobservable_obs(), EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert result["FUTURE_APPLY_MUTATION_INVENTORY"] != "NONE"
+    assert "CONVERGE_SUDOERS" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    print("F_UNSEARCHABLE_NO_OP_ALREADY_EXACT=IMPOSSIBLE")
+
+
+def test_observability_consistency_fails_closed():
+    obs = base_obs()
+    obs["sudoers_dir_searchable"] = "NO"
+    set_absent(obs, "sudoers")
+    expect_error(obs, "sudoers evidence must be unobservable")
+    obs = base_obs()
+    set_unobservable(obs, "sudoers")
+    expect_error(obs, "inconsistent with searchable directory")
+    print("SUDOERS_OBSERVABILITY_CONSISTENCY=FAIL_CLOSED")
+
+
+def test_vhost_topology_fail_closed_cases():
+    obs = base_obs(); obs["vhost_application_block_count"] = "2"
+    expect_error(obs, "application-serving block is ambiguous")
+    print("#889_DUPLICATE_APPLICATION_BLOCK=FAIL_CLOSED")
+
+    obs = base_obs(); obs["vhost_safe_auxiliary_block_count"] = "0"
+    expect_error(obs, "server-block role is ambiguous")
+    print("#889_UNCLASSIFIED_HOSTNAME_BLOCK=FAIL_CLOSED")
+
+    obs = base_obs(); obs["vhost_total_fence_include_count"] = "2"
+    expect_error(obs, "outside the application-serving block")
+    print("#889_MISPLACED_OR_DUPLICATE_FENCE=FAIL_CLOSED")
+
+    obs = base_obs(); obs["vhost_hostname_declaration_count"] = "3"
+    expect_error(obs, "duplicate PREPROD hostname declaration")
+    print("#889_DUPLICATE_HOSTNAME_DECLARATION=FAIL_CLOSED")
+
+    obs = base_obs(); obs["vhost_selector_schema"] = "2"
+    expect_error(obs, "vhost selector schema mismatch")
+    print("#889_SELECTOR_SCHEMA_MISMATCH=FAIL_CLOSED")
+
+
+def test_general_reconciliation():
+    obs = base_obs()
+    obs["helper.sha256"] = H("managed-drift")
+    result = mod.evaluate(obs, EXPECTED)
+    assert result["FUTURE_APPLY_CLASSIFICATION"] == "BOUNDED_RECONCILIATION"
+    assert "CONVERGE_HELPER" in result["FUTURE_APPLY_MUTATION_INVENTORY"]
+    print("BOUNDED_RECONCILIATION_GENERAL=PASS")
+
+
+def test_fail_closed_cases():
+    obs = base_obs(); obs["staging_helper.sha256"] = H("wrong")
+    expect_error(obs, "required predecessor digest mismatch")
+    print("WRONG_DIGEST=FAIL_CLOSED")
+
+    obs = base_obs(); obs["authority_state.owner"] = "agency-preprod"
+    expect_error(obs, "protected authority-state metadata mismatch")
+    print("WRONG_OWNER=FAIL_CLOSED")
+
+    obs = base_obs(); obs["authority_state.mode"] = "644"
+    expect_error(obs, "protected authority-state metadata mismatch")
+    print("WRONG_MODE=FAIL_CLOSED")
+
+    obs = base_obs(); set_present(obs, "helper", typ="SYMLINK", owner="root", group="root", mode="777")
+    expect_error(obs, "unexpected managed path type")
+    print("UNEXPECTED_FILE_TYPE=FAIL_CLOSED")
+
+    obs = base_obs(); set_absent(obs, "staging_policy")
+    expect_error(obs, "missing required predecessor")
+    print("MISSING_REQUIRED_PRECONDITION=FAIL_CLOSED")
+
+    obs = base_obs(); set_present(obs, "authority_state", owner="root", group="root", mode="600", readable=False)
+    expect_error(obs, "privileged read required")
+    print("PROTECTED_AUTHORITY_PRIVILEGED_READ_BOUNDARY=FAIL_CLOSED")
+
+
+def test_metadata_only():
+    result = mod.evaluate(unobservable_obs(), EXPECTED)
+    serialized = "\n".join(f"{k}={v}" for k, v in result.items())
+    forbidden = ["password", "private key", "settings.php", "runtime.env", "basic auth", "raw sql", "pii"]
+    lowered = serialized.lower()
+    assert all(token not in lowered for token in forbidden)
+    assert result["PLAN_MUTATION"] == "NONE"
+    assert result["HELPER_EXECUTION"] == "NONE"
+    assert result["SUDO_EXECUTION"] == "NONE"
+    assert result["PROD_ACCESS"] == "NONE"
+    assert result["DATA_ACTIVATION_AUTHORITY"] == "DISABLED"
+    print("METADATA_ONLY_OUTPUT=PASS")
+    print("SECRET_VALUE_OUTPUT=ABSENT")
+    print("PLAN_MUTATION=NONE")
+    print("HELPER_EXECUTION=NONE")
+    print("SUDO_EXECUTION=NONE")
+    print("PROD_ACCESS=NONE")
+    print("DATA_ACTIVATION_AUTHORITY_DISABLED=PASS")
+
+
+def main():
+    test_runtime_db_exact_and_mismatch()
+    test_runtime_db_unavailable_reasons()
+    test_runtime_db_probe_shape_fails_closed()
+    test_searchable_absent_clean_install()
+    test_searchable_exact_noop_with_certbot_topology()
+    test_searchable_sudoers_drift()
+    test_unsearchable_sudoers_conservative_reconcile()
+    test_unsearchable_never_false_clean_install()
+    test_unsearchable_never_false_noop()
+    test_observability_consistency_fails_closed()
+    test_vhost_topology_fail_closed_cases()
+    test_general_reconciliation()
+    test_fail_closed_cases()
+    test_metadata_only()
+    print("#887_REAL_R4_SUDOERS_DIR_SEARCHABLE_NO=PASS")
+    print("#889_REAL_R5_HOSTNAME_COUNT_NOT_EQUAL_ONE=PASS")
+    print("#891_R6_DB_IDENTITY_DIAGNOSTIC_MODEL=PASS")
+    print("#876_FUTURE_PLAN_CONTRACT=PASS")
+    print("#879_PLAN_EVIDENCE_MATRIX=PASS")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,5 @@
+label: 'Content path pattern (Cas client FR)'
+pattern: '/cas-clients/[node:title]'
+relationships:
+  'node:langcode:language':
+    label: Language

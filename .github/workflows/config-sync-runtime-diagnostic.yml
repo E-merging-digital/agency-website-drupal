@@ -1,0 +1,441 @@
+name: "#982/#995/#1318 PREPROD config runtime diagnostic"
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+  pull_request:
+    paths:
+      - '.github/workflows/config-sync-runtime-diagnostic.yml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - '.github/workflows/canvas-runtime-diff-paths-995-validation.yml'
+      - 'scripts/runner/run-config-sync-runtime-diagnostic-961.sh'
+      - 'scripts/runner/filter-config-status-metadata.php'
+      - 'scripts/runner/canvas-runtime-diff-paths-995.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php'
+      - 'web/modules/custom/agency_project_tests/tests/src/Unit/CanvasRuntimeDiffPaths995Test.php'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    name: "#982/#995/#1318 static read-only PREPROD config contract"
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate bounded diagnostic shell and workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/runner/run-config-sync-runtime-diagnostic-961.sh
+          php -l scripts/runner/filter-config-status-metadata.php
+          php -l scripts/runner/canvas-runtime-diff-paths-995.php
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            rhysd/actionlint:1.7.7 -color \
+            .github/workflows/config-sync-runtime-diagnostic.yml
+          git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+      - name: Install exact locked dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Prove PREPROD config diagnostic contracts
+        run: >-
+          vendor/bin/phpunit -c web/core/phpunit.xml.dist
+          web/modules/custom/agency_project_tests/tests/src/Unit/AgencyCommandDispatchWorkflowTest.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigStatusRuntimePreflight982Test.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/CanvasRuntimeDiffPaths995Test.php
+          web/modules/custom/agency_project_tests/tests/src/Unit/ConfigSyncRuntimeDiagnostic961WorkflowTest.php
+
+  diagnose:
+    name: Read-only PREPROD config diagnostic
+    if: >-
+      ${{
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request == null &&
+        (github.event.issue.number == 982 || github.event.issue.number == 995 || github.event.issue.number == 1318) &&
+        github.event.comment.body == '/agency-config-sync-runtime diagnose'
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: agency-config-runtime-${{ github.event.issue.number }}-preprod
+      cancel-in-progress: false
+
+    steps:
+      - name: Validate owner, authority, issue, command and live main
+        id: request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
+          TRIGGER_COMMENT_CREATED_AT: ${{ github.event.comment.created_at }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_FROM_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          EVENT_DEFAULT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
+          [[ "$ISSUE_NUMBER" == '982' || "$ISSUE_NUMBER" == '995' || "$ISSUE_NUMBER" == '1318' ]]
+          [[ "$TRIGGER_COMMENT" == '/agency-config-sync-runtime diagnose' ]]
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
+          [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
+          [[ "$(jq -r '.user.login' <<<"$issue_json")" == 'E-merging-digital' ]]
+
+          authority_main_sha=''
+          if [[ "$ISSUE_NUMBER" == '1318' ]]; then
+            [[ "$COMMENT_AUTHOR_ASSOCIATION" == 'OWNER' ]]
+            [[ "$COMMENT_FROM_APP" == 'false' ]]
+            [[ "$TRIGGER_COMMENT_ID" =~ ^[0-9]+$ ]]
+            [[ "$TRIGGER_COMMENT_CREATED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]]
+            [[ "$(jq -r '.author_association // empty' <<<"$issue_json")" == 'OWNER' ]]
+
+            authority_marker='PROJECT_LEAD_PREPROD_READONLY_CONTINUATION_1318_R2'
+            comments_json="$(
+              gh api --paginate \
+                "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
+                | jq -s 'add'
+            )"
+            authorities="$(
+              jq -c \
+                --arg marker "$authority_marker" \
+                --arg trigger_at "$TRIGGER_COMMENT_CREATED_AT" \
+                '[
+                  .[]
+                  | select(((.body // "") | split("\n")[0]) == $marker)
+                  | select(.user.login == "E-merging-digital")
+                  | select((.author_association // "") == "OWNER")
+                  | select((.performed_via_github_app // null) == null)
+                  | select(.created_at < $trigger_at)
+                ] | sort_by(.created_at, .id)' \
+                <<<"$comments_json"
+            )"
+            [[ "$(jq 'length' <<<"$authorities")" -ge 1 ]]
+            authority_created_at="$(jq -r '.[-1].created_at' <<<"$authorities")"
+            [[ "$(jq --arg created "$authority_created_at" '[.[] | select(.created_at == $created)] | length' <<<"$authorities")" -eq 1 ]]
+            authority_json="$(jq -c '.[-1]' <<<"$authorities")"
+            authority_id="$(jq -r '.id' <<<"$authority_json")"
+            authority_body="$(jq -r '.body' <<<"$authority_json")"
+            [[ "$authority_id" =~ ^[0-9]+$ ]]
+            [[ "$authority_created_at" < "$TRIGGER_COMMENT_CREATED_AT" ]]
+
+            prior_commands="$(
+              jq \
+                --arg command '/agency-config-sync-runtime diagnose' \
+                --arg authority_at "$authority_created_at" \
+                --arg trigger_at "$TRIGGER_COMMENT_CREATED_AT" \
+                --argjson trigger_id "$TRIGGER_COMMENT_ID" \
+                '[
+                  .[]
+                  | select(.body == $command)
+                  | select(.id != $trigger_id)
+                  | select(.created_at > $authority_at and .created_at < $trigger_at)
+                ] | length' \
+                <<<"$comments_json"
+            )"
+            [[ "$prior_commands" -eq 0 ]]
+
+            authority_main_sha="$(
+              AUTHORITY_BODY="$authority_body" python3 - <<'PY'
+          import os
+          import re
+
+          body = os.environ['AUTHORITY_BODY']
+          markers = {
+              'MAIN =',
+              'MAIN_RELOADED =',
+              'EXPECTED_LIVE_MAIN =',
+              'LIVE_MAIN =',
+          }
+          lines = body.splitlines()
+          values = []
+          for index, line in enumerate(lines[:-1]):
+              if line.strip() not in markers:
+                  continue
+              candidate = lines[index + 1].strip()
+              if re.fullmatch(r'[0-9a-f]{40}', candidate):
+                  values.append(candidate)
+          unique = sorted(set(values))
+          if len(unique) != 1:
+              raise SystemExit(2)
+          print(unique[0])
+          PY
+            )"
+            [[ "$authority_main_sha" =~ ^[0-9a-f]{40}$ ]]
+          else
+            authority_comment='5528251064'
+            if [[ "$ISSUE_NUMBER" == '995' ]]; then
+              authority_comment='5529562346'
+            fi
+            authority_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$authority_comment")"
+            [[ "$(jq -r '.user.login' <<<"$authority_json")" == 'E-merging-digital' ]]
+            [[ "$(jq -r '.issue_url' <<<"$authority_json")" == \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER" ]]
+          fi
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$ISSUE_NUMBER" == '1318' ]]; then
+            [[ "$main_sha" == "$authority_main_sha" ]]
+          fi
+          [[ "$EVENT_DEFAULT_SHA" == "$main_sha" ]] || {
+            echo 'PREPROD diagnostic must execute the workflow revision on live main.' >&2
+            exit 1
+          }
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact trusted main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify immutable read-only implementation
+        shell: bash
+        env:
+          EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_MAIN_SHA" ]]
+          bash -n scripts/runner/run-config-sync-runtime-diagnostic-961.sh
+          php -l scripts/runner/filter-config-status-metadata.php
+          php -l scripts/runner/canvas-runtime-diff-paths-995.php
+
+      - name: JIT revalidate live main before PREPROD identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          live="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$live" == "$EXPECTED_MAIN" ]]
+          [[ "$(git rev-parse HEAD)" == "$live" ]]
+
+      - name: Materialize transient PREPROD identity after JIT
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_KEY"
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-config-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-config-preprod.key"
+
+      - name: Execute bounded read-only PREPROD diagnostic
+        id: route
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          DIAGNOSTIC_PROFILE: ${{ github.event.issue.number == 1318 && 'language_lock' || github.event.issue.number == 995 && 'canvas_paths' || 'metadata' }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-config-preprod.key
+          ARTIFACT_DIR: ${{ github.workspace }}/artifacts/config-runtime-preprod
+        run: bash scripts/runner/run-config-sync-runtime-diagnostic-961.sh
+
+      - name: Cleanup PREPROD identity
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/agency-config-preprod.key"
+
+      - name: Materialize bounded public evidence
+        if: ${{ steps.route.outcome == 'success' }}
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          result='artifacts/config-runtime-preprod/result.json'
+          public='artifacts/config-runtime-preprod/public-result.json'
+          if [[ "$ISSUE_NUMBER" == '995' ]]; then
+            jq '.runtime_canvas_paths' "$result" > "$public"
+            jq -e '
+              .environment == "PREPROD"
+              and .public_schema == "environment + config_name + differing_paths[] + classification"
+              and .config_values_exposed == false
+              and .cohort_size == 15
+            ' "$public" >/dev/null
+          elif [[ "$ISSUE_NUMBER" == '1318' ]]; then
+            jq '{
+              schema_version,
+              environment: "PREPROD",
+              diagnostic_profile,
+              current_release,
+              composer_lock_sha256,
+              runtime_language_policy,
+              strict_collection_verify,
+              config_values_exposed,
+              preprod_access,
+              preprod_mutation,
+              preprod_write,
+              prod_access,
+              prod_write
+            }' "$result" > "$public"
+            jq -e '
+              .schema_version == 1
+              and .environment == "PREPROD"
+              and .diagnostic_profile == "language_lock"
+              and .config_values_exposed == false
+              and .runtime_language_policy.config_values_exposed == false
+              and .strict_collection_verify.raw_config_values_exposed == false
+              and .strict_collection_verify.mode == "VERIFY"
+              and .strict_collection_verify.status == "PASS"
+              and .preprod_access == "READ_ONLY"
+              and .preprod_mutation == "NONE"
+              and .preprod_write == "NONE"
+              and .prod_access == "NONE"
+              and .prod_write == "NONE"
+            ' "$public" >/dev/null
+          else
+            jq '.runtime_config_metadata' "$result" > "$public"
+            jq -e '.environment == "PREPROD" and .config_values_exposed == false' "$public" >/dev/null
+          fi
+
+      - name: Upload bounded PREPROD evidence
+        id: evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-config-runtime-${{ github.event.issue.number }}-preprod-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/config-runtime-preprod/public-result.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish bounded PREPROD result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ROUTE_OUTCOME: ${{ steps.route.outcome }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.evidence.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          result='artifacts/config-runtime-preprod/public-result.json'
+          if [[ "$ROUTE_OUTCOME" != 'success' || ! -s "$result" ]] || \
+            ! jq -e . "$result" >/dev/null 2>&1; then
+            body="$(printf '%s\n' \
+              "### Agency #$ISSUE_NUMBER PREPROD config diagnostic FAILURE" \
+              '' \
+              "trusted_main: \`$TRUSTED_MAIN\`" \
+              "run_id: \`$GITHUB_RUN_ID\`" \
+              '' \
+              'CONFIG_VALUES_EXPOSED=NO' \
+              'PREPROD_WRITE=NONE' \
+              'PROD_ACCESS=NONE' \
+              'PROD_WRITE=NONE')"
+            gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
+            exit 1
+          fi
+
+          if [[ "$ISSUE_NUMBER" == '1318' ]]; then
+            runtime_summary="$(jq -c '
+              .runtime_language_policy
+              | {
+                  drupal_core_version,
+                  canvas_version,
+                  config_language_lock_version,
+                  site_default_language,
+                  locked_langcode,
+                  follow_site_default,
+                  canvas_requirement_verdict,
+                  fr_count: .collections.fr.count,
+                  en_count: .collections.en.count,
+                  und: .languages.und,
+                  zxx: .languages.zxx
+                }
+            ' "$result")"
+            collection_summary="$(jq -c '
+              .strict_collection_verify
+              | {
+                  status,
+                  mode,
+                  fr: {
+                    classification: .collections["language.fr"].classification,
+                    active_count: .collections["language.fr"].active_count,
+                    sync_count: .collections["language.fr"].sync_count,
+                    written: .collections["language.fr"].written,
+                    deleted: .collections["language.fr"].deleted,
+                    names_sha256: .collections["language.fr"].active_names_sha256,
+                    values_sha256: .collections["language.fr"].active_values_sha256
+                  },
+                  en: {
+                    classification: .collections["language.en"].classification,
+                    active_count: .collections["language.en"].active_count,
+                    sync_count: .collections["language.en"].sync_count,
+                    written: .collections["language.en"].written,
+                    deleted: .collections["language.en"].deleted,
+                    names_sha256: .collections["language.en"].active_names_sha256,
+                    values_sha256: .collections["language.en"].active_values_sha256
+                  }
+                }
+            ' "$result")"
+            body="$(cat <<EOF_BODY
+          ### Agency #1318 PREPROD Language Lock diagnostic PASS
+
+          trusted_main: \`${TRUSTED_MAIN}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          environment: \`PREPROD\`
+          profile: \`language_lock\`
+          artifact_id: \`${ARTIFACT_ID}\`
+          artifact_digest: \`${ARTIFACT_DIGEST}\`
+          runtime: \`${runtime_summary}\`
+          collections: \`${collection_summary}\`
+
+          CONFIG_VALUES_EXPOSED=NO
+          PREPROD_ACCESS=READ_ONLY
+          PREPROD_WRITE=NONE
+          PROD_ACCESS=NONE
+          PROD_WRITE=NONE
+          EOF_BODY
+            )"
+          else
+            items="$(jq -c '.items' "$result")"
+            summary="$(jq -c '.summary' "$result")"
+            schema="$(jq -r '.public_schema // .metadata_schema' "$result")"
+            body="$(cat <<EOF_BODY
+          ### Agency #${ISSUE_NUMBER} PREPROD config diagnostic PASS
+
+          trusted_main: \`${TRUSTED_MAIN}\`
+          run_id: \`${GITHUB_RUN_ID}\`
+          environment: \`PREPROD\`
+          public_schema: \`${schema}\`
+          items: \`${items}\`
+          summary: \`${summary}\`
+
+          CONFIG_VALUES_EXPOSED=NO
+          PREPROD_ACCESS=READ_ONLY
+          PREPROD_WRITE=NONE
+          PROD_ACCESS=NONE
+          PROD_WRITE=NONE
+          EOF_BODY
+            )"
+          fi
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

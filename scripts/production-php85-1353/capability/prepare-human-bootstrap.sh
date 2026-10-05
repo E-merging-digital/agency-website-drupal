@@ -21,7 +21,7 @@ RENDER="$SCRIPT_DIR/render-sudoers.sh"
 install -d -m 0700 "$OUTPUT_DIR"
 cp -- "$HELPER_SOURCE" "$OUTPUT_DIR/agency-prod-php85-1353-apply"
 cp -- "$PLAN_SOURCE" "$OUTPUT_DIR/remote-plan.sh"
-"$RENDER" "$SERVER_USER" > "$OUTPUT_DIR/agency-prod-php85-1353.sudoers"
+bash "$RENDER" "$SERVER_USER" > "$OUTPUT_DIR/agency-prod-php85-1353.sudoers"
 chmod 0755 "$OUTPUT_DIR/agency-prod-php85-1353-apply" "$OUTPUT_DIR/remote-plan.sh"
 chmod 0440 "$OUTPUT_DIR/agency-prod-php85-1353.sudoers"
 /usr/sbin/visudo -cf "$OUTPUT_DIR/agency-prod-php85-1353.sudoers" >/dev/null

@@ -6,27 +6,96 @@ PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 LC_ALL=C
 export PATH LC_ALL
 
-APPROVED_PLAN="${1:-}"
-EXPECTED_DIGEST="${2:-}"
-EXPECTED_MAIN="${3:-}"
-PLAN_SCRIPT="${4:-}"
+MODE="${1:-}"
 
 ISSUE='1353'
 TARGET='PROD'
 PROD_URL='https://emergingdigital.be'
 DRUPAL_ROOT='/var/www/agency/current'
 CAPABILITY_HELPER='/usr/local/sbin/agency-prod-php85-1353-apply'
+CAPABILITY_LIB='/usr/local/lib/agency-prod-php85-1353'
+CAPABILITY_PLAN_SCRIPT="$CAPABILITY_LIB/remote-plan.sh"
 CAPABILITY_SUDOERS='/etc/sudoers.d/agency-prod-php85-1353'
-CAPABILITY_STATE='/var/lib/agency-prod-php85-1353'
 CONSUMED_ROOT='/var/lib/agency-prod-php85-1353-consumed'
+EXPECTED_PLAN_SCRIPT_SHA256='b6aee65d3fb0d978843bd6f3612130a00c6ba6eeaa28ccbab978958efcfc947e'
 
+[[ "$#" -eq 1 ]]
+[[ "$MODE" == 'CHECK' || "$MODE" == 'APPLY' ]]
 [[ "$(id -u)" -eq 0 ]]
-[[ "$EXPECTED_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-[[ "$EXPECTED_MAIN" =~ ^[0-9a-f]{40}$ ]]
-[[ -f "$APPROVED_PLAN" && ! -L "$APPROVED_PLAN" ]]
-[[ -f "$PLAN_SCRIPT" && ! -L "$PLAN_SCRIPT" ]]
-[[ "$APPROVED_PLAN" == "$CAPABILITY_STATE/approved-plan.json" ]]
-[[ "$PLAN_SCRIPT" == "$CAPABILITY_STATE/remote-plan.sh" ]]
+
+check_capability() {
+  local expected_user
+  [[ "$(readlink -f -- "$0")" == "$CAPABILITY_HELPER" ]]
+  [[ -f "$CAPABILITY_HELPER" && ! -L "$CAPABILITY_HELPER" ]]
+  [[ -f "$CAPABILITY_PLAN_SCRIPT" && ! -L "$CAPABILITY_PLAN_SCRIPT" ]]
+  [[ -f "$CAPABILITY_SUDOERS" && ! -L "$CAPABILITY_SUDOERS" ]]
+  [[ "$(stat -c '%U:%G:%a' -- "$CAPABILITY_HELPER")" == 'root:root:755' ]]
+  [[ "$(stat -c '%U:%G:%a' -- "$CAPABILITY_PLAN_SCRIPT")" == 'root:root:755' ]]
+  [[ "$(stat -c '%U:%G:%a' -- "$CAPABILITY_SUDOERS")" == 'root:root:440' ]]
+  [[ "$(sha256sum -- "$CAPABILITY_PLAN_SCRIPT" | awk '{print $1}')" == "$EXPECTED_PLAN_SCRIPT_SHA256" ]]
+  expected_user="${SUDO_USER:-}"
+  [[ "$expected_user" =~ ^[A-Za-z0-9._-]+$ ]]
+  mapfile -t sudoers_lines < "$CAPABILITY_SUDOERS"
+  [[ "${#sudoers_lines[@]}" -eq 2 ]]
+  [[ "${sudoers_lines[0]}" == "$expected_user ALL=(root) NOPASSWD: NOSETENV: $CAPABILITY_HELPER CHECK" ]]
+  [[ "${sudoers_lines[1]}" == "$expected_user ALL=(root) NOPASSWD: NOSETENV: $CAPABILITY_HELPER APPLY" ]]
+  /usr/sbin/visudo -cf "$CAPABILITY_SUDOERS" >/dev/null
+}
+
+if ! check_capability; then
+  if [[ "$MODE" == 'CHECK' ]]; then
+    printf '%s\n' \
+      'STATUS=FAIL' \
+      'CAPABILITY_READY=NO' \
+      'FAILURE_STAGE=HUMAN_BOOTSTRAP_REQUIRED'
+    exit 78
+  fi
+  jq -n '{
+    STATUS:"FAIL",ISSUE:1353,TARGET:"PROD",MODE:"APPLY",
+    FAILURE_STAGE:"HUMAN_BOOTSTRAP_REQUIRED",
+    STALE_PLAN:"NOT_REACHED",EXACT_PACKAGE_SIMULATION:"NOT_REACHED",
+    PACKAGE_APPLY:"NOT_STARTED",PHP85_FPM:"NOT_STARTED",
+    PHP85_OPCACHE_AVAILABLE:"NOT_REACHED",
+    PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE",PHP84_REMOVAL:"NONE",
+    NGINX_SOCKET_ONLY_DELTA:"NOT_REACHED",WEB_RUNTIME_PHP85:"NOT_REACHED",
+    DRUPAL_HEALTH:"NOT_REACHED",PUBLIC_HEALTH:"NOT_REACHED",
+    ROLLBACK:"NOT_REQUIRED",DRUPAL_DEPLOY:"NONE",
+    DRUPAL_CONFIG_IMPORT:"NONE",DB_MUTATION:"NONE",
+    OS_UPGRADE:"NONE",MARIADB_CHANGE:"NONE"
+  }'
+  exit 78
+fi
+
+if [[ "$MODE" == 'CHECK' ]]; then
+  printf '%s\n' \
+    'STATUS=PASS' \
+    'CAPABILITY_READY=YES' \
+    'CAPABILITY_SCOPE=FIXED_PURPOSE_ONLY'
+  exit 0
+fi
+
+work_root="$(mktemp -d /root/agency-prod-php85-1353.XXXXXX)"
+cleanup() {
+  rm -rf -- "$work_root"
+}
+trap cleanup EXIT
+
+dd if=/dev/stdin of="$work_root/input.json" bs=131073 count=1 status=none
+input_size="$(stat -c '%s' "$work_root/input.json")"
+[[ "$input_size" -gt 0 && "$input_size" -le 131072 ]]
+jq -e '
+  type == "object"
+  and (.MAIN_SHA | type == "string" and test("^[0-9a-f]{40}$"))
+  and (.PLAN_DIGEST | type == "string" and test("^[0-9a-f]{64}$"))
+  and (.APPROVED_PLAN | type == "object")
+  and (keys | sort == ["APPROVED_PLAN","MAIN_SHA","PLAN_DIGEST"])
+' "$work_root/input.json" >/dev/null
+
+EXPECTED_MAIN="$(jq -r '.MAIN_SHA' "$work_root/input.json")"
+EXPECTED_DIGEST="$(jq -r '.PLAN_DIGEST' "$work_root/input.json")"
+APPROVED_PLAN="$work_root/approved-plan.json"
+jq -S '.APPROVED_PLAN' "$work_root/input.json" > "$APPROVED_PLAN"
+PLAN_SCRIPT="$CAPABILITY_PLAN_SCRIPT"
 
 jq -e --arg digest "$EXPECTED_DIGEST" --arg main "$EXPECTED_MAIN" '
   .schema_version == 1
@@ -63,15 +132,12 @@ fpm84_pool="$(jq -r '.FPM84_POOL_PATH' "$APPROVED_PLAN")"
 [[ "$fpm84_pool" =~ ^/etc/php/8\.4/fpm/pool\.d/[A-Za-z0-9._-]+\.conf$ ]]
 fpm85_pool="/etc/php/8.5/fpm/pool.d/$(basename "$fpm84_pool")"
 
-work_root="$(mktemp -d /root/agency-prod-php85-1353.XXXXXX)"
-backup_root="/var/backups/agency/php85-1353-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+backup_root="/var/backups/agency/php85-1353-$(date -u +%Y%m%dT%H%M%SZ)-$"
 install -d -m 700 "$backup_root" "$CONSUMED_ROOT"
 
-cleanup() {
-  rm -rf -- "$work_root" "$CAPABILITY_STATE"
-  rm -f -- "$CAPABILITY_SUDOERS" "$CAPABILITY_HELPER"
-}
-trap cleanup EXIT
+STALE_PLAN='NOT_REACHED'
+EXACT_PACKAGE_SIMULATION='NOT_REACHED'
+PACKAGE_APPLY='NOT_STARTED'
 
 emit_failure() {
   local rollback="$1"
@@ -80,9 +146,14 @@ emit_failure() {
     --arg digest "$EXPECTED_DIGEST" \
     --arg rollback "$rollback" \
     --arg backup "$backup_root" \
+    --arg stale "$STALE_PLAN" \
+    --arg simulation "$EXACT_PACKAGE_SIMULATION" \
+    --arg package_apply "$PACKAGE_APPLY" \
     '{
       STATUS:"FAIL",ISSUE:1353,TARGET:"PROD",MODE:"APPLY",
       MAIN_SHA:$main,PLAN_DIGEST:$digest,ROLLBACK:$rollback,
+      STALE_PLAN:$stale,EXACT_PACKAGE_SIMULATION:$simulation,
+      PACKAGE_APPLY:$package_apply,
       SYSTEM_CONFIG_BACKUP:$backup,PHP84_REMOVAL:"NONE",
       DRUPAL_DEPLOY:"NONE",DRUPAL_CONFIG_IMPORT:"NONE",
       DB_MUTATION:"NONE",OS_UPGRADE:"NONE",MARIADB_CHANGE:"NONE"
@@ -104,6 +175,7 @@ jq -e --arg old "$old_socket" --arg nginx "$nginx_vhost" --arg pool "$fpm84_pool
   and .ROLLBACK_PHP84_AVAILABLE == "YES"
   and .NGINX_FASTCGI_PASS_VALUES == ["unix:" + $old]
   and .FPM84_POOL_CONTRACT == "YES"' "$work_root/current-plan.json" >/dev/null
+STALE_PLAN='PASS'
 
 mapfile -t package_specs < <(
   jq -r '.REQUESTED_PACKAGE_ALLOWLIST[] as $pkg | "\($pkg)=\(.PHP85_PACKAGE_CANDIDATES[$pkg])"' "$APPROVED_PLAN"
@@ -143,6 +215,7 @@ if upgrades != approved['PACKAGE_UPGRADES']:
 if removals != approved['PACKAGE_REMOVALS']:
     raise SystemExit('Exact apply simulation removal drift')
 PY_SIM
+EXACT_PACKAGE_SIMULATION='PASS'
 
 # Host-local replay guard complements the GitHub one-shot consumption marker.
 consumed="$CONSUMED_ROOT/$EXPECTED_DIGEST"
@@ -160,6 +233,7 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y "${package_specs[@]}" > "$work_root/apt-install.log" 2>&1
+PACKAGE_APPLY='PASS'
 
 # PHP 8.4 remains installed and active as the rollback runtime.
 for package in php8.4-cli php8.4-fpm; do
@@ -322,11 +396,14 @@ jq -n \
   --arg backup "$backup_root" \
   --arg old_socket "$old_socket" \
   --arg new_socket "$new_socket" \
+  --arg stale "$STALE_PLAN" \
+  --arg simulation "$EXACT_PACKAGE_SIMULATION" \
+  --arg package_apply "$PACKAGE_APPLY" \
   '{
     STATUS:"PASS",ISSUE:1353,TARGET:"PROD",MODE:"APPLY",
     MAIN_SHA:$main,PLAN_DIGEST:$digest,
-    STALE_PLAN:"PASS",EXACT_PACKAGE_SIMULATION:"PASS",
-    PACKAGE_APPLY:"PASS",PHP85_FPM:"ACTIVE",
+    STALE_PLAN:$stale,EXACT_PACKAGE_SIMULATION:$simulation,
+    PACKAGE_APPLY:$package_apply,PHP85_FPM:"ACTIVE",
     PHP85_OPCACHE_AVAILABLE:"PASS",
     PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE",
     FPM85_CONTRACT:"PASS",

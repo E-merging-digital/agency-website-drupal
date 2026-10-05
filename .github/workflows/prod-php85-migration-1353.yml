@@ -383,60 +383,68 @@ jobs:
           ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
             "umask 077; rm -rf -- '$remote_stage'; install -d -m 700 '$remote_stage'" >/dev/null
           scp "${scp_args[@]}" \
-            scripts/production-php85-1353/remote-plan.sh \
-            scripts/production-php85-1353/remote-apply-root.sh \
             "$approved" \
-            "$SERVER_USER@$SERVER_HOST:$remote_stage/" >/dev/null
+            "$SERVER_USER@$SERVER_HOST:$remote_stage/plan.json" >/dev/null
 
           set +e
           ssh "${ssh_args[@]}" "$SERVER_USER@$SERVER_HOST" \
-            "bash -s -- '$remote_stage' '$PLAN_RUN' '$PLAN_DIGEST' '$MAIN_SHA' '$SERVER_USER'" \
+            "bash -s -- '$remote_stage' '$PLAN_DIGEST' '$MAIN_SHA' '$SERVER_USER'" \
             > "$result_dir/result.json" 2> "$result_dir/stderr.txt" <<'REMOTE_APPLY'
           set -Eeuo pipefail
           umask 077
           stage="${1:-}"
-          plan_run="${2:-}"
-          digest="${3:-}"
-          main_sha="${4:-}"
-          server_user="${5:-}"
+          digest="${2:-}"
+          main_sha="${3:-}"
+          server_user="${4:-}"
+          helper='/usr/local/sbin/agency-prod-php85-1353-apply'
+
           [[ "$stage" =~ ^\.agency-1353-[1-9][0-9]*-[1-9][0-9]*$ ]]
-          [[ "$plan_run" =~ ^[1-9][0-9]*$ ]]
           [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
           [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
           [[ "$server_user" =~ ^[A-Za-z0-9._-]+$ ]]
           test "$(id -un)" = "$server_user"
 
           plan="$HOME/$stage/plan.json"
-          plan_script="$HOME/$stage/remote-plan.sh"
-          helper="$HOME/$stage/remote-apply-root.sh"
           test -f "$plan" -a ! -L "$plan"
-          test -f "$plan_script" -a ! -L "$plan_script"
-          test -f "$helper" -a ! -L "$helper"
 
-          plan_id="plan-1353-${plan_run}-1"
-          bash "$plan_script" "$main_sha" "$plan_id" > "$HOME/$stage/current-plan.json"
-          test "$(jq -r '.PLAN_DIGEST' "$HOME/$stage/current-plan.json")" = "$digest"
-          jq -e '.STATUS == "PASS" and .SAFETY_GATE == "PASS" and .FAILED_CHECKS == []' \
-            "$HOME/$stage/current-plan.json" >/dev/null
+          set +e
+          check_output="$(sudo -k -n -- "$helper" CHECK 2>/dev/null)"
+          check_rc=$?
+          set -e
+          if [[ "$check_rc" -ne 0 ]] || ! grep -Fxq 'STATUS=PASS' <<<"$check_output" \
+            || ! grep -Fxq 'CAPABILITY_READY=YES' <<<"$check_output" \
+            || ! grep -Fxq 'CAPABILITY_SCOPE=FIXED_PURPOSE_ONLY' <<<"$check_output"; then
+            jq -n --arg main "$main_sha" --arg digest "$digest" '{
+              STATUS:"FAIL",ISSUE:1353,TARGET:"PROD",MODE:"APPLY",
+              MAIN_SHA:$main,PLAN_DIGEST:$digest,
+              FAILURE_STAGE:"HUMAN_BOOTSTRAP_REQUIRED",
+              STALE_PLAN:"NOT_REACHED",
+              EXACT_PACKAGE_SIMULATION:"NOT_REACHED",
+              PACKAGE_APPLY:"NOT_STARTED",
+              PHP85_FPM:"NOT_STARTED",
+              PHP85_OPCACHE_AVAILABLE:"NOT_REACHED",
+              PHP84_FPM:"ACTIVE_ROLLBACK_AVAILABLE",
+              PHP84_REMOVAL:"NONE",
+              NGINX_SOCKET_ONLY_DELTA:"NOT_REACHED",
+              WEB_RUNTIME_PHP85:"NOT_REACHED",
+              DRUPAL_HEALTH:"NOT_REACHED",
+              PUBLIC_HEALTH:"NOT_REACHED",
+              ROLLBACK:"NOT_REQUIRED",
+              DRUPAL_DEPLOY:"NONE",
+              DRUPAL_CONFIG_IMPORT:"NONE",
+              DB_MUTATION:"NONE",
+              OS_UPGRADE:"NONE",
+              MARIADB_CHANGE:"NONE"
+            }'
+            exit 78
+          fi
 
-          helper_dest='/usr/local/sbin/agency-prod-php85-1353-apply'
-          state_dir='/var/lib/agency-prod-php85-1353'
-          plan_dest="$state_dir/approved-plan.json"
-          plan_script_dest="$state_dir/remote-plan.sh"
-          sudoers_dest='/etc/sudoers.d/agency-prod-php85-1353'
-          sudoers_stage="$HOME/$stage/agency-prod-php85-1353.sudoers"
-          printf '%s ALL=(root) NOPASSWD: NOSETENV: %s %s %s %s %s\n' \
-            "$server_user" "$helper_dest" "$plan_dest" "$digest" "$main_sha" "$plan_script_dest" \
-            > "$sudoers_stage"
-          chmod 600 "$sudoers_stage"
-          sudo -k -n -- /usr/sbin/visudo -cf "$sudoers_stage" >/dev/null
-          sudo -k -n -- /usr/bin/install -d -o root -g root -m 0700 -- "$state_dir"
-          sudo -k -n -- /usr/bin/install -o root -g root -m 0755 -- "$helper" "$helper_dest"
-          sudo -k -n -- /usr/bin/install -o root -g root -m 0600 -- "$plan" "$plan_dest"
-          sudo -k -n -- /usr/bin/install -o root -g root -m 0755 -- "$plan_script" "$plan_script_dest"
-          sudo -k -n -- /usr/bin/install -o root -g root -m 0440 -- "$sudoers_stage" "$sudoers_dest"
-          sudo -k -n -- /usr/sbin/visudo -cf "$sudoers_dest" >/dev/null
-          sudo -k -n -- "$helper_dest" "$plan_dest" "$digest" "$main_sha" "$plan_script_dest"
+          jq -n \
+            --arg main "$main_sha" \
+            --arg digest "$digest" \
+            --slurpfile plan "$plan" \
+            '{MAIN_SHA:$main,PLAN_DIGEST:$digest,APPROVED_PLAN:$plan[0]}' \
+            | sudo -k -n -- "$helper" APPLY
           REMOTE_APPLY
           apply_rc=$?
           set -e
@@ -478,7 +486,17 @@ jobs:
               and .MODE == "APPLY"
               and .MAIN_SHA == $main
               and .PLAN_DIGEST == $digest
-              and (.ROLLBACK == "PASS" or .ROLLBACK == "NOT_REQUIRED")' "$result" >/dev/null
+              and (
+                (
+                  .FAILURE_STAGE == "HUMAN_BOOTSTRAP_REQUIRED"
+                  and .STALE_PLAN == "NOT_REACHED"
+                  and .EXACT_PACKAGE_SIMULATION == "NOT_REACHED"
+                  and .PACKAGE_APPLY == "NOT_STARTED"
+                  and .ROLLBACK == "NOT_REQUIRED"
+                )
+                or
+                (.ROLLBACK == "PASS" or .ROLLBACK == "NOT_REQUIRED")
+              )' "$result" >/dev/null
             exit "$apply_rc"
           fi
 

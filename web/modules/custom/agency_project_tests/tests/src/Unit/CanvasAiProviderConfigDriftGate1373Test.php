@@ -245,7 +245,10 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
     }
     catch (\RuntimeException $exception) {
       $message = $exception->getMessage();
-      self::assertStringContainsString('Canvas config ' . $name . ':', $message);
+      self::assertStringContainsString(
+        'Canvas config ' . $name . ':',
+        $message,
+      );
       self::assertStringContainsString(
         'path versioned_properties.active.settings.default_settings',
         $message,

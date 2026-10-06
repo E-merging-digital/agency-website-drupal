@@ -737,6 +737,37 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     }
 
     foreach ([
+      'ddev drush config:status --format=json',
+      'scripts/runner/filter-config-status-metadata.php PREPROD',
+      'canvas-ai-provider-config-drift-gate-1373.php?ref=$GITHUB_SHA',
+      'scripts/runner/canvas-runtime-diff-paths-995.php',
+      'AGENCY_CANVAS_1373_EXECUTE=1',
+      'AGENCY_CANVAS_1373_STATUS_B64=',
+      'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
+      'CANVAS_CONFIG_DRIFT_GATE=',
+      '.summary == {"total": 19, "known": 19, "unexpected": 0}',
+    ] as $gateContract) {
+      self::assertStringContainsString($gateContract, $source);
+    }
+    self::assertStringNotContainsString(
+      "grep -Fq 'No differences'",
+      $source,
+    );
+    self::assertStringNotContainsString(
+      'printf \'%s\\n\' "$config_status_raw"',
+      $source,
+    );
+
+    $driftGate = strpos($source, 'CANVAS_CONFIG_DRIFT_GATE=');
+    $providerExecution = strpos(
+      $source,
+      'npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs',
+    );
+    self::assertNotFalse($driftGate);
+    self::assertNotFalse($providerExecution);
+    self::assertLessThan($providerExecution, $driftGate);
+
+    foreach ([
       'issue_comment:',
       'workflow_dispatch:',
       'secrets: inherit',

@@ -677,7 +677,134 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'test "$COMMENT_AUTHOR" = \'E-merging-digital\'',
       'test "$COMMENT_AUTHOR_ASSOCIATION" = \'OWNER\'',
       'test "$COMMENT_FROM_APP" = \'false\'',
-      '^/agency-canvas-ai-provider-proof\\ run\\ pr=533\\ sha=([0-9a-f]{40})$',
+      '^/agency-canvas-ai-provider-proof\\ run\\ pr=533\\ sha=([0-9a-f]{40})
+    foreach ([
+      'issue_comment:',
+      'workflow_dispatch:',
+      'secrets: inherit',
+      'SSH_PRIVATE_KEY',
+      'PREPROD_SERVER_HOST',
+      'SERVER_HOST',
+      'workflow inputs',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $source);
+    }
+
+    $jit = strpos($source, 'JIT revalidate #530 and exact live #533 HEAD before secret exposure');
+    $secret = strpos($source, 'PROVIDER_SECRET: ${{ secrets.OPENAI_API_KEY }}');
+    self::assertNotFalse($jit);
+    self::assertNotFalse($secret);
+    self::assertLessThan($secret, $jit);
+  }
+
+  /**
+   * Classifies one body with the repository-owned route table.
+   */
+  private function classify(
+    array $routes,
+    string $body,
+    int $issue,
+    string $commentAuthor = 'E-merging-digital',
+    string $commentAuthorAssociation = 'OWNER',
+    bool $commentFromApp = FALSE,
+  ): string {
+    $matches = [];
+    foreach ($routes as $route) {
+      $routeName = $route['route'] ?? NULL;
+      $requiredIssue = self::INCIDENT_ISSUES[$routeName] ?? NULL;
+      if (is_array($requiredIssue)) {
+        if (!in_array($issue, $requiredIssue, TRUE)) {
+          continue;
+        }
+      }
+      elseif ($requiredIssue !== NULL && $issue !== $requiredIssue) {
+        continue;
+      }
+      if (
+        $routeName === 'CANVAS_AI_PROVIDER_PROOF_530'
+        && (
+          $commentAuthor !== 'E-merging-digital'
+          || $commentAuthorAssociation !== 'OWNER'
+          || $commentFromApp
+        )
+      ) {
+        continue;
+      }
+      if ($routeName === 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC') {
+        $languageLockCommand = '/agency-config-language-lock-prod diagnose';
+        if (
+          $issue === 1302
+          && (
+            $body !== $languageLockCommand
+            || $commentAuthor !== 'E-merging-digital'
+            || $commentAuthorAssociation !== 'OWNER'
+            || $commentFromApp
+          )
+        ) {
+          continue;
+        }
+        if ($body === $languageLockCommand && $issue !== 1302) {
+          continue;
+        }
+        if (
+          $issue === 1301
+          && (
+            $commentAuthor !== 'E-merging-digital'
+            || $commentAuthorAssociation !== 'OWNER'
+            || $commentFromApp
+          )
+        ) {
+          continue;
+        }
+      }
+      $matched = in_array($body, $route['exact'] ?? [], TRUE);
+      $pattern = $route['regex'] ?? NULL;
+      if (is_string($pattern)) {
+        $regex = '~' . str_replace('~', '\\~', $pattern) . '~D';
+        $matched = $matched || preg_match($regex, $body) === 1;
+      }
+      $template = $route['regex_template'] ?? NULL;
+      if (is_string($template)) {
+        $pattern = str_replace('{issue}', (string) $issue, $template);
+        $regex = '~' . str_replace('~', '\\~', $pattern) . '~D';
+        $matched = $matched || preg_match($regex, $body) === 1;
+      }
+      if ($matched) {
+        $matches[] = $routeName;
+      }
+      $cleanupRoute = $route['cleanup_route'] ?? NULL;
+      $cleanupPattern = $route['cleanup_regex'] ?? NULL;
+      if ($routeName === 'DEVELOPMENT_SEED' && is_string($cleanupRoute) && is_string($cleanupPattern)) {
+        $cleanupIssue = self::INCIDENT_ISSUES[$cleanupRoute] ?? NULL;
+        $regex = '~' . str_replace('~', '\\~', $cleanupPattern) . '~D';
+        if ($issue === $cleanupIssue && preg_match($regex, $body) === 1) {
+          $matches[] = $cleanupRoute;
+        }
+      }
+    }
+    return count($matches) === 1 ? $matches[0] : 'NONE';
+  }
+
+  /**
+   * Parses one repository workflow structurally.
+   */
+  private function parsed(string $relativePath): array {
+    $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
+    self::assertFileExists($path);
+    $parsed = Yaml::parseFile($path);
+    self::assertIsArray($parsed);
+    return $parsed;
+  }
+
+  /**
+   * Reads one repository source file.
+   */
+  private function source(string $relativePath): string {
+    return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);
+  }
+
+}
+,
       'repos/$GITHUB_REPOSITORY/issues/530',
       'repos/$GITHUB_REPOSITORY/pulls/533',
       'test "$head_sha" = "$requested_sha"',
@@ -687,6 +814,38 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs --project=desktop --workers=1',
     ] as $required) {
       self::assertStringContainsString($required, $source);
+    }
+
+    $providerJob = $workflow['jobs']['provider-proof'] ?? NULL;
+    self::assertIsArray($providerJob);
+    self::assertSame(
+      ['self-hosted', 'linux', 'x64', 'agency', 'ddev', 'browser'],
+      $providerJob['runs-on'] ?? NULL,
+    );
+
+    $dedicatedPorts = [
+      'host_mailpit_port' => 19025,
+      'host_webserver_port' => 19080,
+      'host_db_port' => 19306,
+      'host_https_port' => 19443,
+    ];
+    foreach ($dedicatedPorts as $key => $port) {
+      self::assertStringContainsString(
+        sprintf('%s: "%d"', $key, $port),
+        $source,
+      );
+      self::assertTrue(
+        $port < 32768 || $port > 60999,
+        sprintf('%s must stay outside host ephemeral range 32768-60999.', $key),
+      );
+    }
+
+    foreach ([
+      'rm -f .ddev/.env.web',
+      'ddev delete --omit-snapshot --yes',
+      'rm -f .ddev/config.gate-canvas-ai-provider.yaml',
+    ] as $cleanup) {
+      self::assertStringContainsString($cleanup, $source);
     }
 
     foreach ([

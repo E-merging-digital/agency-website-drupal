@@ -284,7 +284,7 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
    *
    * @param array<string, mixed> $metadata
    *   Metadata-only status payload.
-   * @param array<string, array{active: array<string, mixed>, sync: array<string, mixed>}> $dataset
+   * @param array<string, mixed> $dataset
    *   Active/sync dataset.
    *
    * @return array<string, mixed>

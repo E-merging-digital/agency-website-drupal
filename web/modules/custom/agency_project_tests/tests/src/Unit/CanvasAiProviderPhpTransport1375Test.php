@@ -77,6 +77,31 @@ final class CanvasAiProviderPhpTransport1375Test extends TestCase {
   }
 
   /**
+   * The helper is fetched from trusted main into disposable DDEV space.
+   */
+  public function testTrustedHelperMaterializationContract(): void {
+    $source = $this->workflowSource();
+
+    foreach ([
+      'scripts/runner/run-canvas-ai-provider-config-drift-gate-1375.sh?ref=$GITHUB_SHA',
+      'trusted_helper=".ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh"',
+      'base64 -d > "$trusted_helper"',
+      'test -s "$trusted_helper"',
+      'bash /var/www/html/.ddev/'
+      . 'trusted-run-canvas-ai-provider-config-drift-gate-1375.sh',
+      'rm -f .ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
+    self::assertStringNotContainsString(
+      'bash /var/www/html/scripts/runner/'
+      . 'run-canvas-ai-provider-config-drift-gate-1375.sh',
+      $source,
+    );
+  }
+
+  /**
    * Provider execution remains after the successful #1373 drift gate.
    */
   public function testProviderRemainsAfterDriftGate(): void {

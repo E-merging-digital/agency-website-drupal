@@ -324,7 +324,7 @@ jobs:
                   == "UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED"
               )
             ))
-            and (.summary | keys | sort) == ["known", "total", "unexpected"]
+            and ((.summary | keys | sort) == ["known", "total", "unexpected"])
             and .summary.total == 19
             and .summary.known
               == ([.items[] | select(

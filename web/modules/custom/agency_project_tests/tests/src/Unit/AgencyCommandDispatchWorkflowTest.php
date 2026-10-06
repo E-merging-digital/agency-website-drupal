@@ -742,7 +742,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * Asserts a dedicated provider-proof port is outside the host ephemeral range.
+   * Asserts a dedicated provider-proof port stays outside the host ephemeral
+   * range.
    */
   private function assertOutsideHostEphemeralRange(int $port, string $key): void {
     self::assertFalse(

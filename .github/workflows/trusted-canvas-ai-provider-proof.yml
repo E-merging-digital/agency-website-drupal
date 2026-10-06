@@ -237,6 +237,8 @@ jobs:
 
       - name: Rebuild exact target with provider available to Drupal only
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cat > .ddev/config.gate-canvas-ai-provider.yaml <<EOF
@@ -256,9 +258,61 @@ jobs:
 
           ddev drush php:eval '$key = \Drupal::service("key.repository")->getKey("openai_api_key"); if (!$key || trim((string) $key->getKeyValue()) === "") { throw new \RuntimeException("OpenAI key is unavailable through Drupal Key."); } print "Drupal Key provider readiness: OK\n";'
 
-          config_status="$(ddev drush config:status 2>&1)"
-          printf '%s\n' "$config_status"
-          grep -Fq 'No differences' <<<"$config_status"
+          config_status_raw="$(ddev drush config:status --format=json 2>/dev/null)"
+          config_status_metadata="$(
+            printf '%s' "$config_status_raw" |
+              php scripts/runner/filter-config-status-metadata.php PREPROD
+          )"
+          unset config_status_raw
+          config_status_payload="$(
+            jq -c '{items: [.items[] | {config_name, state}]}' \
+              <<<"$config_status_metadata"
+          )"
+          unset config_status_metadata
+          config_status_b64="$(printf '%s' "$config_status_payload" | base64 -w 0)"
+          unset config_status_payload
+
+          trusted_gate="${RUNNER_TEMP}/canvas-ai-provider-config-drift-gate-1373.php"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/contents/scripts/runner/canvas-ai-provider-config-drift-gate-1373.php?ref=$GITHUB_SHA" \
+            --jq '.content' |
+            base64 -d > "$trusted_gate"
+          test -s "$trusted_gate"
+
+          gate_code="$(
+            {
+              tail -n +2 scripts/runner/canvas-runtime-diff-paths-995.php
+              sed '1,/^declare(strict_types=1);$/d' "$trusted_gate"
+            }
+          )"
+          config_drift_evidence="$(
+            ddev exec env \
+              AGENCY_CANVAS_1373_EXECUTE=1 \
+              AGENCY_CANVAS_1373_STATUS_B64="$config_status_b64" \
+              vendor/bin/drush php:eval "$gate_code"
+          )"
+          unset config_status_b64 gate_code
+          rm -f "$trusted_gate"
+
+          jq -e '
+            (keys | sort) == ["items", "summary"]
+            and (.items | length == 19)
+            and (.items | all(
+              (keys | sort) == [
+                "classification",
+                "config_name",
+                "differing_paths"
+              ]
+              and (.config_name | type == "string")
+              and (.differing_paths | type == "array" and length > 0)
+              and (.differing_paths | all(type == "string" and length > 0))
+              and .classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"
+            ))
+            and .summary == {"total": 19, "known": 19, "unexpected": 0}
+          ' <<<"$config_drift_evidence" >/dev/null
+          printf 'CANVAS_CONFIG_DRIFT_GATE=%s\n' \
+            "$(jq -c . <<<"$config_drift_evidence")"
+          unset config_drift_evidence
 
           base_url="$(ddev describe -j | jq -r '.. | strings | select(test("^https://"))' | head -n 1)"
           if [[ -z "$base_url" ]]; then

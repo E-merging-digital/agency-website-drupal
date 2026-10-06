@@ -83,11 +83,13 @@ final class CanvasAiProviderPhpTransport1375Test extends TestCase {
     $source = $this->workflowSource();
 
     foreach ([
-      'scripts/runner/run-canvas-ai-provider-config-drift-gate-1375.sh?ref=$GITHUB_SHA',
-      'trusted_helper=".ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh"',
+      'scripts/runner/'
+      . 'run-canvas-ai-provider-config-drift-gate-1375.sh?ref=$GITHUB_SHA',
+      'trusted_helper=".ddev/'
+      . 'trusted-run-canvas-ai-provider-config-drift-gate-1375.sh"',
       'base64 -d > "$trusted_helper"',
       'test -s "$trusted_helper"',
-      'ddev exec test -s \\',
+      'ddev exec test -s',
       '/var/www/html/.ddev/'
       . 'trusted-run-canvas-ai-provider-config-drift-gate-1375.sh',
       'bash /var/www/html/.ddev/'

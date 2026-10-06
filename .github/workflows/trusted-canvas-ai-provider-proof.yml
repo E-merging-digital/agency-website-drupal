@@ -285,13 +285,16 @@ jobs:
               sed '1,/^declare(strict_types=1);$/d' "$trusted_gate"
             }
           )"
+          gate_code_b64="$(printf '%s' "$gate_code" | base64 -w 0)"
+          unset gate_code
           config_drift_evidence="$(
             ddev exec env \
               AGENCY_CANVAS_1373_EXECUTE=1 \
               AGENCY_CANVAS_1373_STATUS_B64="$config_status_b64" \
-              vendor/bin/drush php:eval "$gate_code"
+              AGENCY_CANVAS_1375_CODE_B64="$gate_code_b64" \
+              bash /var/www/html/scripts/runner/run-canvas-ai-provider-config-drift-gate-1375.sh
           )"
-          unset config_status_b64 gate_code
+          unset config_status_b64 gate_code_b64
           rm -f "$trusted_gate"
 
           jq -e '

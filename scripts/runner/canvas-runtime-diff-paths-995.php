@@ -101,7 +101,11 @@ function agency_canvas_995_diff_paths(
   $keys = array_values(array_unique(array_merge(array_keys($active), array_keys($sync))));
   foreach ($keys as $key) {
     if (!is_string($key)) {
-      throw new RuntimeException('Unknown Canvas map key type.');
+      throw new RuntimeException(sprintf(
+        'Unknown Canvas map key type at path %s; key_type=%s',
+        $path !== '' ? $path : '<root>',
+        get_debug_type($key),
+      ));
     }
   }
   sort($keys, SORT_STRING);

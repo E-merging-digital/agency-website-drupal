@@ -689,6 +689,39 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       self::assertStringContainsString($required, $source);
     }
 
+    $providerJob = $workflow['jobs']['provider-proof'] ?? NULL;
+    self::assertIsArray($providerJob);
+    self::assertSame(
+      ['self-hosted', 'linux', 'x64', 'agency', 'ddev', 'browser'],
+      $providerJob['runs-on'] ?? NULL,
+    );
+
+    $dedicatedPorts = [
+      'host_mailpit_port' => '19025',
+      'host_webserver_port' => '19080',
+      'host_db_port' => '19306',
+      'host_https_port' => '19443',
+    ];
+    foreach ($dedicatedPorts as $key => $expectedPort) {
+      self::assertStringContainsString(
+        sprintf('%s: "%s"', $key, $expectedPort),
+        $source,
+      );
+      $pattern = sprintf('/%s: "([0-9]+)"/', preg_quote($key, '/'));
+      self::assertSame(1, preg_match($pattern, $source, $matches));
+      $configuredPort = (int) ($matches[1] ?? 0);
+      self::assertSame((int) $expectedPort, $configuredPort);
+      $this->assertOutsideHostEphemeralRange($configuredPort, $key);
+    }
+
+    foreach ([
+      'rm -f .ddev/.env.web',
+      'ddev delete --omit-snapshot --yes',
+      'rm -f .ddev/config.gate-canvas-ai-provider.yaml',
+    ] as $cleanup) {
+      self::assertStringContainsString($cleanup, $source);
+    }
+
     foreach ([
       'issue_comment:',
       'workflow_dispatch:',
@@ -706,6 +739,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertNotFalse($jit);
     self::assertNotFalse($secret);
     self::assertLessThan($secret, $jit);
+  }
+
+  /**
+   * Checks a provider-proof port against the host ephemeral range.
+   */
+  private function assertOutsideHostEphemeralRange(int $port, string $key): void {
+    self::assertFalse(
+      $port >= 32768 && $port <= 60999,
+      sprintf('%s must stay outside host ephemeral range 32768-60999.', $key),
+    );
   }
 
   /**

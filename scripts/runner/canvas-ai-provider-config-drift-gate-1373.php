@@ -117,6 +117,8 @@ function agency_canvas_1373_analyze_dataset(
   }
 
   $items = [];
+  $known = 0;
+  $unexpected = 0;
   foreach ($expected as $name) {
     $pair = $dataset[$name] ?? NULL;
     if (!is_array($pair)
@@ -129,26 +131,35 @@ function agency_canvas_1373_analyze_dataset(
       $pair['active'],
       $pair['sync'],
     );
-    if (
-      $analysis['classification']
-      !== 'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN'
+    $classification = $analysis['classification'] ?? NULL;
+    if ($classification === 'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN') {
+      $known++;
+    }
+    elseif (
+      $classification
+      === 'UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED'
     ) {
-      throw new RuntimeException('Unknown #1373 Canvas drift path: ' . $name);
+      $unexpected++;
+    }
+    else {
+      throw new RuntimeException(
+        'Unsupported #1373 Canvas drift classification.',
+      );
     }
 
     $items[] = [
       'config_name' => $name,
       'differing_paths' => $analysis['differing_paths'],
-      'classification' => $analysis['classification'],
+      'classification' => $classification,
     ];
   }
 
   return [
     'items' => $items,
     'summary' => [
-      'total' => 19,
-      'known' => 19,
-      'unexpected' => 0,
+      'total' => count($items),
+      'known' => $known,
+      'unexpected' => $unexpected,
     ],
   ];
 }

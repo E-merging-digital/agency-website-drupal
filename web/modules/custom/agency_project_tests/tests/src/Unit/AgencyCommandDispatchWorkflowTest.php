@@ -697,18 +697,22 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     );
 
     $dedicatedPorts = [
-      'host_mailpit_port' => 19025,
-      'host_webserver_port' => 19080,
-      'host_db_port' => 19306,
-      'host_https_port' => 19443,
+      'host_mailpit_port' => '19025',
+      'host_webserver_port' => '19080',
+      'host_db_port' => '19306',
+      'host_https_port' => '19443',
     ];
-    foreach ($dedicatedPorts as $key => $port) {
+    foreach ($dedicatedPorts as $key => $expectedPort) {
       self::assertStringContainsString(
-        sprintf('%s: "%d"', $key, $port),
+        sprintf('%s: "%s"', $key, $expectedPort),
         $source,
       );
-      self::assertTrue(
-        $port < 32768 || $port > 60999,
+      $pattern = sprintf('/%s: "([0-9]+)"/', preg_quote($key, '/'));
+      self::assertSame(1, preg_match($pattern, $source, $matches));
+      $configuredPort = (int) ($matches[1] ?? 0);
+      self::assertSame((int) $expectedPort, $configuredPort);
+      self::assertFalse(
+        $configuredPort >= 32768 && $configuredPort <= 60999,
         sprintf('%s must stay outside host ephemeral range 32768-60999.', $key),
       );
     }

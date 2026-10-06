@@ -240,7 +240,7 @@ jobs:
         run: |
           set -euo pipefail
           cat > .ddev/config.gate-canvas-ai-provider.yaml <<EOF
-          {name: agency-canvas-ai-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}, host_mailpit_port: "19025", host_webserver_port: "19080", host_db_port: "19306", host_https_port: "19443"}
+          {name: agency-canvas-ai-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}, host_mailpit_port: "19025", host_webserver_port: "19080", host_db_port: "19306", host_https_port: "19443", router_http_port: "19180", router_https_port: "19444"}
           EOF
           ddev utility configyaml | grep -F "agency-canvas-ai-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ddev start -y

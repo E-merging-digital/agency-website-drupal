@@ -701,7 +701,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'host_webserver_port' => '19080',
       'host_db_port' => '19306',
       'host_https_port' => '19443',
+      'router_http_port' => '19180',
+      'router_https_port' => '19444',
     ];
+    $configuredPorts = [];
     foreach ($dedicatedPorts as $key => $expectedPort) {
       self::assertStringContainsString(
         sprintf('%s: "%s"', $key, $expectedPort),
@@ -712,7 +715,18 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $configuredPort = (int) ($matches[1] ?? 0);
       self::assertSame((int) $expectedPort, $configuredPort);
       $this->assertOutsideHostEphemeralRange($configuredPort, $key);
+      $configuredPorts[$key] = $configuredPort;
     }
+    self::assertGreaterThan(1024, $configuredPorts['router_http_port']);
+    self::assertGreaterThan(1024, $configuredPorts['router_https_port']);
+    self::assertNotSame(
+      $configuredPorts['router_http_port'],
+      $configuredPorts['host_webserver_port'],
+    );
+    self::assertNotSame(
+      $configuredPorts['router_https_port'],
+      $configuredPorts['host_https_port'],
+    );
 
     foreach ([
       'rm -f .ddev/.env.web',

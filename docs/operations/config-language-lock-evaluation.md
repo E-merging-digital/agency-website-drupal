@@ -59,7 +59,7 @@ Before materialization, PR #629 must differ from its base by exactly `composer.j
 "drupal/config_language_lock": "^1.0"
 ```
 
-The self-hosted resolver remains `contents: read` and `persist-credentials: false`. It publishes only a bounded `composer.lock` artifact. The GitHub-hosted publisher alone can fast-forward the validated lock to the PR branch after a live HEAD recheck.
+The GitHub-hosted resolver remains `contents: read` and `persist-credentials: false`. It publishes only a bounded `composer.lock` artifact. The separately privileged GitHub-hosted publisher alone can fast-forward the validated lock to the PR branch after a live HEAD recheck.
 
 The first real resolution for #628 produced:
 
@@ -199,7 +199,7 @@ The route provides no:
 - arbitrary PR or branch selection;
 - arbitrary package/constraint/Composer arguments;
 - arbitrary shell input;
-- self-hosted repository write credentials;
+- resolver repository write credentials;
 - provider/API secret;
 - production SSH/access;
 - Content Sync mutation;

@@ -285,6 +285,8 @@ jobs:
             --jq '.content' |
             base64 -d > "$trusted_helper"
           test -s "$trusted_helper"
+          ddev exec test -s \
+            /var/www/html/.ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh
 
           gate_code="$(
             {

@@ -203,8 +203,9 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    */
   public function testNonStringMapKeyDiagnosticIsBounded(): void {
     $pair = $this->knownPair();
-    $pair['active']['versioned_properties']['active']['settings']
-      ['default_settings'][424242] = 'DO-NOT-EXPOSE-ACTIVE-VALUE';
+    $activeVersion =& $pair['active']['versioned_properties']['active'];
+    $activeVersion['settings']['default_settings'][424242] =
+      'DO-NOT-EXPOSE-ACTIVE-VALUE';
 
     try {
       $this->analyzeConfig($pair['active'], $pair['sync']);

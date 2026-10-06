@@ -68,7 +68,9 @@ function agency_canvas_1373_validate_status_metadata(array $metadata): array {
       throw new RuntimeException('Invalid #1373 config status metadata.');
     }
     if ($state !== 'Different') {
-      throw new RuntimeException('Every #1373 Canvas config must be Different.');
+      throw new RuntimeException(
+        'Every #1373 Canvas config must be Different.',
+      );
     }
     $names[] = $name;
   }
@@ -87,7 +89,10 @@ function agency_canvas_1373_validate_status_metadata(array $metadata): array {
  *
  * @param array<string, mixed> $metadata
  *   Metadata-only config:status payload.
- * @param array<string, array{active: array<string, mixed>, sync: array<string, mixed>}> $dataset
+ * @param array<
+ *   string,
+ *   array{active: array<string, mixed>, sync: array<string, mixed>}
+ * > $dataset
  *   Exact active/sync dataset.
  *
  * @return array{
@@ -100,7 +105,10 @@ function agency_canvas_1373_validate_status_metadata(array $metadata): array {
  * }
  *   Public path-only evidence.
  */
-function agency_canvas_1373_analyze_dataset(array $metadata, array $dataset): array {
+function agency_canvas_1373_analyze_dataset(
+  array $metadata,
+  array $dataset,
+): array {
   $expected = agency_canvas_1373_validate_status_metadata($metadata);
   $actual = array_keys($dataset);
   sort($actual, SORT_STRING);
@@ -121,7 +129,10 @@ function agency_canvas_1373_analyze_dataset(array $metadata, array $dataset): ar
       $pair['active'],
       $pair['sync'],
     );
-    if ($analysis['classification'] !== 'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN') {
+    if (
+      $analysis['classification']
+      !== 'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN'
+    ) {
       throw new RuntimeException('Unknown #1373 Canvas drift path: ' . $name);
     }
 
@@ -173,7 +184,9 @@ if (getenv('AGENCY_CANVAS_1373_EXECUTE') === '1') {
   }
   $raw = base64_decode($encoded, TRUE);
   if (!is_string($raw)) {
-    throw new RuntimeException('Invalid #1373 config status metadata encoding.');
+    throw new RuntimeException(
+      'Invalid #1373 config status metadata encoding.',
+    );
   }
   $metadata = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
   if (!is_array($metadata)) {

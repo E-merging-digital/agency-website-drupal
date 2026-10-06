@@ -14,7 +14,8 @@ use PHPUnit\Framework\TestCase;
  */
 final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
 
-  private const GATE = 'scripts/runner/canvas-ai-provider-config-drift-gate-1373.php';
+  private const GATE =
+    'scripts/runner/canvas-ai-provider-config-drift-gate-1373.php';
 
   /**
    * Loads the gate and its existing #995 comparator dependency.
@@ -205,7 +206,10 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
-   * @return array<string, array{active: array<string, mixed>, sync: array<string, mixed>}>
+   * @return array<
+   *   string,
+   *   array{active: array<string, mixed>, sync: array<string, mixed>}
+   *   >
    *   Exact synthetic 19-name active/sync dataset.
    */
   private function knownDataset(): array {
@@ -270,7 +274,10 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   /**
    * @param array<string, mixed> $metadata
    *   Metadata-only status payload.
-   * @param array<string, array{active: array<string, mixed>, sync: array<string, mixed>}> $dataset
+   * @param array<
+   *   string,
+   *   array{active: array<string, mixed>, sync: array<string, mixed>}
+   * > $dataset
    *   Active/sync dataset.
    *
    * @return array<string, mixed>

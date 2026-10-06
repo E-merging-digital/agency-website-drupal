@@ -279,6 +279,13 @@ jobs:
             base64 -d > "$trusted_gate"
           test -s "$trusted_gate"
 
+          trusted_helper=".ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/contents/scripts/runner/run-canvas-ai-provider-config-drift-gate-1375.sh?ref=$GITHUB_SHA" \
+            --jq '.content' |
+            base64 -d > "$trusted_helper"
+          test -s "$trusted_helper"
+
           gate_code="$(
             {
               tail -n +2 scripts/runner/canvas-runtime-diff-paths-995.php
@@ -292,7 +299,7 @@ jobs:
               AGENCY_CANVAS_1373_EXECUTE=1 \
               AGENCY_CANVAS_1373_STATUS_B64="$config_status_b64" \
               AGENCY_CANVAS_1375_CODE_B64="$gate_code_b64" \
-              bash /var/www/html/scripts/runner/run-canvas-ai-provider-config-drift-gate-1375.sh
+              bash /var/www/html/.ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh
           )"
           unset config_status_b64 gate_code_b64
           rm -f "$trusted_gate"
@@ -379,6 +386,7 @@ jobs:
           rm -f .ddev/.env.web
           ddev delete --omit-snapshot --yes
           rm -f .ddev/config.gate-canvas-ai-provider.yaml
+          rm -f .ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh
           git restore --worktree -- web/robots.txt config/sync
           git clean -fd -- config/sync
           rm -rf artifacts/canvas-ai-provider-proof artifacts/browser-validation/test-results playwright-report

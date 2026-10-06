@@ -181,6 +181,8 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
+   * Returns the exact #1373 config-name allowlist.
+   *
    * @return list<string>
    *   Exact #1373 config-name allowlist.
    */
@@ -190,6 +192,8 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
+   * Builds the exact metadata-only status payload.
+   *
    * @return array{items: list<array{config_name: string, state: string}>}
    *   Exact metadata-only status payload.
    */
@@ -206,10 +210,12 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
+   * Builds the exact synthetic 19-name active/sync dataset.
+   *
    * @return array<
    *   string,
    *   array{active: array<string, mixed>, sync: array<string, mixed>}
-   *   >
+   * >
    *   Exact synthetic 19-name active/sync dataset.
    */
   private function knownDataset(): array {
@@ -221,6 +227,8 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
+   * Builds one representative known deterministic Canvas drift pair.
+   *
    * @return array{active: array<string, mixed>, sync: array<string, mixed>}
    *   Representative known deterministic Canvas drift.
    */
@@ -272,12 +280,11 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
+   * Analyzes one synthetic #1373 dataset.
+   *
    * @param array<string, mixed> $metadata
    *   Metadata-only status payload.
-   * @param array<
-   *   string,
-   *   array{active: array<string, mixed>, sync: array<string, mixed>}
-   * > $dataset
+   * @param array<string, array{active: array<string, mixed>, sync: array<string, mixed>}> $dataset
    *   Active/sync dataset.
    *
    * @return array<string, mixed>

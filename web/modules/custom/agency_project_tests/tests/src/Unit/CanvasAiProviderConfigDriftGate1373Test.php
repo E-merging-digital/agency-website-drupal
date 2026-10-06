@@ -135,17 +135,69 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
-   * Unknown or business paths are rejected before public evidence is emitted.
+   * Unexpected paths are collected for all 19 items without exposing values.
    */
-  public function testUnknownBusinessPathFailsClosed(): void {
+  public function testUnexpectedPathDoesNotAbortBoundedCollection(): void {
     $dataset = $this->knownDataset();
     $name = $this->allowedNames()[0];
     $dataset[$name]['active']['langcode'] = 'fr';
     $dataset[$name]['sync']['langcode'] = 'en';
 
-    $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('Unknown #1373 Canvas drift path: ' . $name);
-    $this->analyze($this->knownMetadata(), $dataset);
+    $result = $this->analyze($this->knownMetadata(), $dataset);
+
+    self::assertCount(19, $result['items']);
+    self::assertSame([
+      'total' => 19,
+      'known' => 18,
+      'unexpected' => 1,
+    ], $result['summary']);
+
+    $first = $result['items'][0] ?? NULL;
+    self::assertIsArray($first);
+    self::assertSame($name, $first['config_name']);
+    self::assertContains('langcode', $first['differing_paths']);
+    self::assertSame(
+      'UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
+      $first['classification'],
+    );
+
+    $encoded = json_encode($result, JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString('"fr"', $encoded);
+    self::assertStringNotContainsString('"en"', $encoded);
+    self::assertStringNotContainsString('active_value', $encoded);
+    self::assertStringNotContainsString('sync_value', $encoded);
+    self::assertStringNotContainsString('raw_yaml', $encoded);
+  }
+
+  /**
+   * Final provider admission remains 19/19 KNOWN and follows evidence logging.
+   */
+  public function testFinalWorkflowAdmissionStillFailsOnUnexpected(): void {
+    $source = (string) file_get_contents(
+      dirname(DRUPAL_ROOT)
+      . '/.github/workflows/trusted-canvas-ai-provider-proof.yml',
+    );
+
+    $evidence = strpos($source, 'CANVAS_CONFIG_DRIFT_EVIDENCE=');
+    $finalGate = strpos($source, 'CANVAS_CONFIG_DRIFT_GATE=PASS');
+    $provider = strpos(
+      $source,
+      'npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs',
+    );
+
+    self::assertNotFalse($evidence);
+    self::assertNotFalse($finalGate);
+    self::assertNotFalse($provider);
+    self::assertLessThan($finalGate, $evidence);
+    self::assertLessThan($provider, $finalGate);
+    self::assertStringContainsString(
+      '.summary == {"total": 19, "known": 19, "unexpected": 0}',
+      $source,
+    );
+    self::assertStringContainsString(
+      '.classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"',
+      $source,
+    );
   }
 
   /**

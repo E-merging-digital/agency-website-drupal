@@ -318,12 +318,35 @@ jobs:
               and (.config_name | type == "string")
               and (.differing_paths | type == "array" and length > 0)
               and (.differing_paths | all(type == "string" and length > 0))
-              and .classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"
+              and (
+                .classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"
+                or .classification
+                  == "UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED"
+              )
+            ))
+            and (.summary | keys | sort) == ["known", "total", "unexpected"]
+            and .summary.total == 19
+            and .summary.known
+              == ([.items[] | select(
+                .classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"
+              )] | length)
+            and .summary.unexpected
+              == ([.items[] | select(
+                .classification
+                  == "UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED"
+              )] | length)
+            and (.summary.known + .summary.unexpected) == 19
+          ' <<<"$config_drift_evidence" >/dev/null
+          printf 'CANVAS_CONFIG_DRIFT_EVIDENCE=%s\n' \
+            "$(jq -c . <<<"$config_drift_evidence")"
+
+          jq -e '
+            (.items | all(
+              .classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"
             ))
             and .summary == {"total": 19, "known": 19, "unexpected": 0}
           ' <<<"$config_drift_evidence" >/dev/null
-          printf 'CANVAS_CONFIG_DRIFT_GATE=%s\n' \
-            "$(jq -c . <<<"$config_drift_evidence")"
+          printf 'CANVAS_CONFIG_DRIFT_GATE=PASS\n'
           unset config_drift_evidence
 
           base_url="$(ddev describe -j | jq -r '.. | strings | select(test("^https://"))' | head -n 1)"

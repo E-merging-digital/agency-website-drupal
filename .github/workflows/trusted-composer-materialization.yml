@@ -150,19 +150,18 @@ jobs:
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
 
   generate-lock:
-    name: Resolve lockfile on trusted self-hosted DDEV
+    name: Resolve lockfile on GitHub-hosted DDEV
     needs: validate-target
     timeout-minutes: 30
     permissions:
       contents: read
-    runs-on:
-      - self-hosted
-      - linux
-      - x64
-      - agency
-      - ddev
-      - browser
+    runs-on: ubuntu-24.04
     steps:
+      - name: Set up DDEV
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
       - name: Verify runner identity and toolchain
         shell: bash
         run: |
@@ -248,21 +247,6 @@ jobs:
             echo "Unsupported Composer materialization mode: $COMPOSER_MODE" >&2
             exit 1
           fi
-
-      - name: Remove stale governed Composer DDEV registrations
-        shell: bash
-        run: |
-          set -euo pipefail
-          ddev list --json-output 2>&1 \
-            | python3 trusted/scripts/runner/extract-stale-composer-ddev-projects.py \
-                --workspace "$GITHUB_WORKSPACE" \
-            > /tmp/stale-composer-projects.txt
-
-          while IFS= read -r stale_project; do
-            [[ -n "$stale_project" ]] || continue
-            echo "Removing stale governed Composer DDEV project: $stale_project"
-            ddev stop --unlist --omit-snapshot "$stale_project"
-          done < /tmp/stale-composer-projects.txt
 
       - name: Isolate DDEV project
         shell: bash
@@ -652,7 +636,7 @@ jobs:
           - composer.lock SHA-256: \`${LOCK_SHA256}\`
           - workflow run: \`${GITHUB_RUN_ID}\` (attempt \`${GITHUB_RUN_ATTEMPT}\`)
 
-          The self-hosted runner had read-only repository permissions. The lockfile was transferred as an artifact, revalidated on GitHub-hosted infrastructure, and published only after a final live-HEAD check.
+          The GitHub-hosted resolver had read-only repository permissions. The lockfile was transferred as an artifact, revalidated by the separately privileged writer, and published only after a final live-HEAD check.
           EOF
           )"
           gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"

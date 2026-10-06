@@ -39,8 +39,8 @@ final class CanvasAiProviderPhpTransport1375Test extends TestCase {
       'AGENCY_CANVAS_1373_EXECUTE=1',
       'AGENCY_CANVAS_1373_STATUS_B64="$config_status_b64"',
       'AGENCY_CANVAS_1375_CODE_B64="$gate_code_b64"',
-      'bash /var/www/html/scripts/runner/'
-      . 'run-canvas-ai-provider-config-drift-gate-1375.sh',
+      'bash /var/www/html/.ddev/'
+      . 'trusted-run-canvas-ai-provider-config-drift-gate-1375.sh',
     ] as $required) {
       self::assertStringContainsString($required, $source);
     }
@@ -87,6 +87,9 @@ final class CanvasAiProviderPhpTransport1375Test extends TestCase {
       'trusted_helper=".ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh"',
       'base64 -d > "$trusted_helper"',
       'test -s "$trusted_helper"',
+      'ddev exec test -s \\',
+      '/var/www/html/.ddev/'
+      . 'trusted-run-canvas-ai-provider-config-drift-gate-1375.sh',
       'bash /var/www/html/.ddev/'
       . 'trusted-run-canvas-ai-provider-config-drift-gate-1375.sh',
       'rm -f .ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh',

@@ -711,10 +711,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       self::assertSame(1, preg_match($pattern, $source, $matches));
       $configuredPort = (int) ($matches[1] ?? 0);
       self::assertSame((int) $expectedPort, $configuredPort);
-      self::assertFalse(
-        $configuredPort >= 32768 && $configuredPort <= 60999,
-        sprintf('%s must stay outside host ephemeral range 32768-60999.', $key),
-      );
+      $this->assertOutsideHostEphemeralRange($configuredPort, $key);
     }
 
     foreach ([
@@ -742,6 +739,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertNotFalse($jit);
     self::assertNotFalse($secret);
     self::assertLessThan($secret, $jit);
+  }
+
+  /**
+   * Asserts a dedicated provider-proof port is outside the host ephemeral range.
+   */
+  private function assertOutsideHostEphemeralRange(int $port, string $key): void {
+    self::assertFalse(
+      $port >= 32768 && $port <= 60999,
+      sprintf('%s must stay outside host ephemeral range 32768-60999.', $key),
+    );
   }
 
   /**

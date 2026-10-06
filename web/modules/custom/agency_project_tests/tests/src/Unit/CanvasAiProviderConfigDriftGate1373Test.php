@@ -231,13 +231,14 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
-   * #1373 adds config name while preserving bounded #995 failure metadata.
+   * The #1373 boundary adds config name to bounded #995 failure metadata.
    */
   public function testNonStringKeyFailureIncludesConfigNameOnly(): void {
     $dataset = $this->knownDataset();
     $name = $this->allowedNames()[0];
-    $dataset[$name]['active']['versioned_properties']['active']['settings']
-      ['default_settings'][424242] = 'DO-NOT-EXPOSE-CONFIG-VALUE';
+    $activeVersion =& $dataset[$name]['active']['versioned_properties']['active'];
+    $activeVersion['settings']['default_settings'][424242] =
+      'DO-NOT-EXPOSE-CONFIG-VALUE';
 
     try {
       $this->analyze($this->knownMetadata(), $dataset);

@@ -79,6 +79,21 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
+   * Missing active or sync storage for an authorized config fails closed.
+   */
+  public function testMissingActiveConfigFailsClosed(): void {
+    $dataset = $this->knownDataset();
+    $name = $this->allowedNames()[0];
+    unset($dataset[$name]['active']);
+
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage(
+      'Missing active or sync #1373 Canvas config.',
+    );
+    $this->analyze($this->knownMetadata(), $dataset);
+  }
+
+  /**
    * Every authorized config must be reported as Different.
    */
   public function testNonDifferentStateFailsClosed(): void {

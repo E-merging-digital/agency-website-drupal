@@ -212,10 +212,7 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   /**
    * Builds the exact synthetic 19-name active/sync dataset.
    *
-   * @return array<
-   *   string,
-   *   array{active: array<string, mixed>, sync: array<string, mixed>}
-   * >
+   * @return array<string, mixed>
    *   Exact synthetic 19-name active/sync dataset.
    */
   private function knownDataset(): array {

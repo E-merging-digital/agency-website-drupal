@@ -117,9 +117,9 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   }
 
   /**
-   * The self-hosted job must remain read-only and lockfile-only.
+   * The hosted resolver must remain isolated, read-only and lockfile-only.
    */
-  public function testSelfHostedResolverIsReadOnlyTargetedAndLockOnly(): void {
+  public function testHostedResolverIsReadOnlyTargetedAndLockOnly(): void {
     $root = dirname(DRUPAL_ROOT);
     $path = $root
       . '/.github/workflows/trusted-composer-materialization.yml';
@@ -142,6 +142,21 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     );
     $publish = substr($workflow, $publishStart);
 
+    self::assertStringContainsString('runs-on: ubuntu-24.04', $generate);
+    self::assertStringContainsString(
+      'ddev/github-action-setup-ddev@v1',
+      $generate,
+    );
+    self::assertStringContainsString('autostart: false', $generate);
+    self::assertStringNotContainsString("      - self-hosted\n", $generate);
+    self::assertStringNotContainsString("      - linux\n", $generate);
+    self::assertStringNotContainsString("      - x64\n", $generate);
+    self::assertStringNotContainsString("      - agency\n", $generate);
+    self::assertStringNotContainsString("      - browser\n", $generate);
+    self::assertStringNotContainsString(
+      'Remove stale governed Composer DDEV registrations',
+      $generate,
+    );
     self::assertStringContainsString('contents: read', $generate);
     self::assertStringNotContainsString('contents: write', $generate);
     self::assertStringContainsString('persist-credentials: false', $generate);
@@ -184,23 +199,6 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $generate,
     );
 
-    self::assertStringContainsString(
-      'ddev list --json-output 2>&1',
-      $generate,
-    );
-    self::assertStringContainsString(
-      'python3 trusted/scripts/runner/'
-      . 'extract-stale-composer-ddev-projects.py',
-      $generate,
-    );
-    self::assertStringContainsString(
-      '--workspace "$GITHUB_WORKSPACE"',
-      $generate,
-    );
-    self::assertStringContainsString(
-      'ddev stop --unlist --omit-snapshot "$stale_project"',
-      $generate,
-    );
     self::assertStringContainsString(
       'ddev delete --omit-snapshot --yes "$isolated_name"',
       $generate,

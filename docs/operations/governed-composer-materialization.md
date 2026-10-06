@@ -6,10 +6,10 @@ Bounded extension: #998
 
 ## Purpose
 
-Agency can resolve a reviewed Composer dependency change on its managed DDEV
-runner without giving that self-hosted runner repository write authority and
-without asking a human to copy a generated `composer.lock` artifact back into a
-pull request.
+Agency can resolve a reviewed Composer dependency change on an ephemeral
+GitHub-hosted DDEV resolver without giving that resolver repository write
+authority and without asking a human to copy a generated `composer.lock`
+artifact back into a pull request.
 
 This route exists for dependency-only materialization. It is not a generic
 remote shell and it is not an API for arbitrary Composer commands, packages,
@@ -23,15 +23,15 @@ authorized control request
 -> exact same-repository PR / HEAD validation
 -> repository-owned profile validation
 -> trusted workflow from main
--> self-hosted DDEV resolution with contents:read
+-> GitHub-hosted ephemeral DDEV resolution with contents:read
 -> composer.lock + result.json artifact
 -> GitHub-hosted artifact revalidation
 -> final live-HEAD validation
 -> fast-forward composer.lock commit to the PR branch
 ```
 
-The self-hosted job checks out both trusted workflow code and the exact target
-with `persist-credentials: false`. It never receives `contents: write`.
+The GitHub-hosted resolver checks out both trusted workflow code and the exact
+target with `persist-credentials: false`. It never receives `contents: write`.
 
 The only write-capable job runs on GitHub-hosted infrastructure. It does not run
 scripts from the target branch. It accepts only the generated `composer.lock`,
@@ -164,8 +164,10 @@ The historical package mode still requires exactly the reviewed
 
 ## Resolver behavior
 
-The trusted self-hosted job starts an isolated DDEV project and runs the fixed
-profile.
+The trusted GitHub-hosted resolver installs DDEV with
+`ddev/github-action-setup-ddev@v1` (`autostart: false`), starts an isolated
+ephemeral DDEV project and runs the fixed profile. It does not depend on
+persistent self-hosted DDEV registrations or shared RootlessKit port state.
 
 It fails closed unless:
 
@@ -218,8 +220,8 @@ with repository write permission.
 
 ## Observability contract
 
-Issue #534 adds fail-closed observability without changing the self-hosted
-permission model.
+Issue #534 adds fail-closed observability without changing the resolver/writer
+permission boundary.
 
 After a request has passed schema, PR, exact-HEAD and profile checks, the
 GitHub-hosted gateway snapshots the existing trusted workflow run IDs,
@@ -238,7 +240,7 @@ input HEAD. On success, if the publisher created the expected direct-child
 lockfile commit, the same `success` status is also published on that new HEAD.
 
 The observable gateway does not receive product secrets and does not make the
-self-hosted job write-capable. A failure remains a failure.
+resolver job write-capable. A failure remains a failure.
 
 ## Explicit non-capabilities
 
@@ -250,7 +252,7 @@ This route does **not** provide:
 - arbitrary shell execution;
 - unscoped global Composer update;
 - generic branch mutation;
-- self-hosted GitHub write credentials;
+- resolver GitHub write credentials;
 - provider/API secrets;
 - product configuration generation;
 - automatic module enablement;

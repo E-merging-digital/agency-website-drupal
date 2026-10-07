@@ -72,7 +72,7 @@ jobs:
             provider_head="$(
               gh api "repos/$GITHUB_REPOSITORY/pulls/533" --jq '.head.sha'
             )"
-            test "$provider_head" =~ ^[0-9a-f]{40}$
+            [[ "$provider_head" =~ ^[0-9a-f]{40}$ ]]
             gh api               "repos/$GITHUB_REPOSITORY/contents/$provider_spec?ref=$provider_head"               --jq '.content' |
               base64 -d > "$provider_spec"
             test -s "$provider_spec"

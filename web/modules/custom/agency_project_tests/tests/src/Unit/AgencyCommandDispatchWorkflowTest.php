@@ -33,6 +33,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => '.github/workflows/config-sync-runtime-diagnostic.yml',
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => '.github/workflows/prod-config-sync-runtime-diagnostic.yml',
     'CANVAS_AI_PROVIDER_PROOF_530' => '.github/workflows/trusted-canvas-ai-provider-proof.yml',
+    'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392' => '.github/workflows/canvas-ai-candidate-addressing-diagnostic.yml',
     'INFRA_COCKPIT_CONSUMER_PROOF' => '.github/workflows/infrastructure-cockpit-consumer-proof.yml',
   ];
 
@@ -47,6 +48,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1318],
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1301, 1302],
     'CANVAS_AI_PROVIDER_PROOF_530' => 530,
+    'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392' => 1392,
     'INFRA_COCKPIT_CONSUMER_PROOF' => 1261,
   ];
 
@@ -78,7 +80,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(16, $routes);
+    self::assertCount(17, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -217,6 +219,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         "/agency-canvas-ai-provider-proof run pr=533 sha={$sha40}",
         530,
         'CANVAS_AI_PROVIDER_PROOF_530',
+      ],
+      [
+        "/agency-canvas-addressing-diagnostic run pr=533 sha={$sha40}",
+        1392,
+        'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392',
       ],
       [
         "/agency-infra-cockpit-consumer prove main={$sha40} infra={$sha40} release={$sha40} "
@@ -382,6 +389,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
     self::assertStringContainsString(
+      "'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392': '1392'",
+      $source,
+    );
+    self::assertStringContainsString(
       "'INFRA_COCKPIT_CONSUMER_PROOF': '1261'",
       $source,
     );
@@ -435,6 +446,51 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'E-merging-digital',
         'OWNER',
         TRUE,
+      ),
+    );
+
+    self::assertSame(
+      'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392',
+      $this->classify(
+        $routes,
+        "/agency-canvas-addressing-diagnostic run pr=533 sha={$sha40}",
+        1392,
+        'E-merging-digital',
+        'OWNER',
+        FALSE,
+      ),
+    );
+    self::assertSame(
+      'NONE',
+      $this->classify(
+        $routes,
+        "/agency-canvas-addressing-diagnostic run pr=533 sha={$sha40}",
+        1392,
+        'other-user',
+        'CONTRIBUTOR',
+        FALSE,
+      ),
+    );
+    self::assertSame(
+      'NONE',
+      $this->classify(
+        $routes,
+        "/agency-canvas-addressing-diagnostic run pr=533 sha={$sha40}",
+        1392,
+        'E-merging-digital',
+        'OWNER',
+        TRUE,
+      ),
+    );
+    self::assertSame(
+      'NONE',
+      $this->classify(
+        $routes,
+        "/agency-canvas-addressing-diagnostic run pr=534 sha={$sha40}",
+        1392,
+        'E-merging-digital',
+        'OWNER',
+        FALSE,
       ),
     );
 
@@ -615,6 +671,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         'CANVAS_AI_PROVIDER_PROOF_530',
         ['contents' => 'read', 'issues' => 'read', 'pull-requests' => 'write'],
         $canvasAiSecrets,
+      ],
+      'canvas-ai-candidate-addressing-diagnostic-1392' => [
+        'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392',
+        ['contents' => 'read', 'issues' => 'read', 'pull-requests' => 'read'],
+        [],
       ],
       'infrastructure-cockpit-consumer-proof' => [
         'INFRA_COCKPIT_CONSUMER_PROOF',
@@ -813,6 +874,204 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertLessThan($secret, $jit);
   }
 
+
+  /**
+   * #1393 addressing diagnostic stays owner-only, secret-free and bounded.
+   */
+  public function testCanvasAddressingDiagnosticRouteIsBoundedAndSecretFree(): void {
+    $path = '.github/workflows/canvas-ai-candidate-addressing-diagnostic.yml';
+    $workflow = $this->parsed($path);
+    $source = $this->source($path);
+
+    $on = $workflow['on'] ?? NULL;
+    self::assertIsArray($on);
+    self::assertArrayHasKey('workflow_call', $on);
+    self::assertArrayNotHasKey('issue_comment', $on);
+    self::assertArrayNotHasKey('workflow_dispatch', $on);
+    self::assertArrayNotHasKey('secrets', $on['workflow_call'] ?? []);
+
+    $validate = $workflow['jobs']['validate-target'] ?? NULL;
+    self::assertIsArray($validate);
+    self::assertSame('ubuntu-24.04', $validate['runs-on'] ?? NULL);
+
+    $diagnostic = $workflow['jobs']['diagnostic'] ?? NULL;
+    self::assertIsArray($diagnostic);
+    self::assertSame(
+      ['self-hosted', 'linux', 'x64', 'agency', 'ddev', 'browser'],
+      $diagnostic['runs-on'] ?? NULL,
+    );
+
+    foreach ([
+      "test \"$EVENT_NAME\" = 'issue_comment'",
+      "test \"$EVENT_ACTION\" = 'created'",
+      "test \"$ISSUE_NUMBER\" = '1392'",
+      "test \"$COMMENT_AUTHOR\" = 'E-merging-digital'",
+      "test \"$COMMENT_AUTHOR_ASSOCIATION\" = 'OWNER'",
+      "test \"$COMMENT_FROM_APP\" = 'false'",
+      "test \"$GITHUB_ACTOR\" = 'E-merging-digital'",
+      '^/agency-canvas-addressing-diagnostic\\ run\\ pr=533\\ sha=([0-9a-f]{40})
+  private function assertOutsideHostEphemeralRange(int $port, string $key): void {
+    self::assertFalse(
+      $port >= 32768 && $port <= 60999,
+      sprintf('%s must stay outside host ephemeral range 32768-60999.', $key),
+    );
+  }
+
+  /**
+   * Classifies one body with the repository-owned route table.
+   */
+  private function classify(
+    array $routes,
+    string $body,
+    int $issue,
+    string $commentAuthor = 'E-merging-digital',
+    string $commentAuthorAssociation = 'OWNER',
+    bool $commentFromApp = FALSE,
+  ): string {
+    $matches = [];
+    foreach ($routes as $route) {
+      $routeName = $route['route'] ?? NULL;
+      $requiredIssue = self::INCIDENT_ISSUES[$routeName] ?? NULL;
+      if (is_array($requiredIssue)) {
+        if (!in_array($issue, $requiredIssue, TRUE)) {
+          continue;
+        }
+      }
+      elseif ($requiredIssue !== NULL && $issue !== $requiredIssue) {
+        continue;
+      }
+      if (
+        in_array(
+          $routeName,
+          [
+            'CANVAS_AI_PROVIDER_PROOF_530',
+            'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392',
+          ],
+          TRUE,
+        )
+        && (
+          $commentAuthor !== 'E-merging-digital'
+          || $commentAuthorAssociation !== 'OWNER'
+          || $commentFromApp
+        )
+      ) {
+        continue;
+      }
+      if ($routeName === 'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC') {
+        $languageLockCommand = '/agency-config-language-lock-prod diagnose';
+        if (
+          $issue === 1302
+          && (
+            $body !== $languageLockCommand
+            || $commentAuthor !== 'E-merging-digital'
+            || $commentAuthorAssociation !== 'OWNER'
+            || $commentFromApp
+          )
+        ) {
+          continue;
+        }
+        if ($body === $languageLockCommand && $issue !== 1302) {
+          continue;
+        }
+        if (
+          $issue === 1301
+          && (
+            $commentAuthor !== 'E-merging-digital'
+            || $commentAuthorAssociation !== 'OWNER'
+            || $commentFromApp
+          )
+        ) {
+          continue;
+        }
+      }
+      $matched = in_array($body, $route['exact'] ?? [], TRUE);
+      $pattern = $route['regex'] ?? NULL;
+      if (is_string($pattern)) {
+        $regex = '~' . str_replace('~', '\\~', $pattern) . '~D';
+        $matched = $matched || preg_match($regex, $body) === 1;
+      }
+      $template = $route['regex_template'] ?? NULL;
+      if (is_string($template)) {
+        $pattern = str_replace('{issue}', (string) $issue, $template);
+        $regex = '~' . str_replace('~', '\\~', $pattern) . '~D';
+        $matched = $matched || preg_match($regex, $body) === 1;
+      }
+      if ($matched) {
+        $matches[] = $routeName;
+      }
+      $cleanupRoute = $route['cleanup_route'] ?? NULL;
+      $cleanupPattern = $route['cleanup_regex'] ?? NULL;
+      if ($routeName === 'DEVELOPMENT_SEED' && is_string($cleanupRoute) && is_string($cleanupPattern)) {
+        $cleanupIssue = self::INCIDENT_ISSUES[$cleanupRoute] ?? NULL;
+        $regex = '~' . str_replace('~', '\\~', $cleanupPattern) . '~D';
+        if ($issue === $cleanupIssue && preg_match($regex, $body) === 1) {
+          $matches[] = $cleanupRoute;
+        }
+      }
+    }
+    return count($matches) === 1 ? $matches[0] : 'NONE';
+  }
+
+  /**
+   * Parses one repository workflow structurally.
+   */
+  private function parsed(string $relativePath): array {
+    $path = dirname(DRUPAL_ROOT) . '/' . $relativePath;
+    self::assertFileExists($path);
+    $parsed = Yaml::parseFile($path);
+    self::assertIsArray($parsed);
+    return $parsed;
+  }
+
+  /**
+   * Reads one repository source file.
+   */
+  private function source(string $relativePath): string {
+    return (string) file_get_contents(dirname(DRUPAL_ROOT) . '/' . $relativePath);
+  }
+
+}
+,
+      'repos/$GITHUB_REPOSITORY/issues/1392',
+      'repos/$GITHUB_REPOSITORY/issues/530',
+      'repos/$GITHUB_REPOSITORY/pulls/533',
+      "test \"$base_ref\" = 'main'",
+      "test \"$head_ref\" = 'feature/issue-530-bounded-canvas-ai-composition'",
+      'composer.json',
+      'composer.lock',
+      'config/sync/core.extension.yml',
+      'docs/ai/canvas-ai-proof-policy.yml',
+      'tests/browser/canvas-ai-provider-proof.spec.mjs',
+      'web/modules/custom/agency_project_tests/tests/src/Unit/CanvasAiPreProviderAuditTest.php',
+      '52600000-0000-4000-8000-000000000001',
+      'ddev drush site:install --existing-config',
+      'ddev drush emerging:governed-content --all',
+      '/canvas/api/v0/layout/canvas_page/',
+      '/canvas/editor/canvas_page/',
+      'canvas_ai_post_count',
+      'AI_CHAT_OPENED',
+      'AI_PROMPT_SUBMITTED',
+      'PROVIDER_CALL',
+      'ddev delete --omit-snapshot --yes',
+      'WORKTREE_FINAL=CLEAN',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
+    foreach ([
+      'OPENAI_API_KEY',
+      'SSH_PRIVATE_KEY',
+      'PREPROD_SERVER_HOST',
+      'SERVER_HOST',
+      'secrets:',
+      'submitUserMessage',
+      'workflow_dispatch:',
+      'issue_comment:',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $source);
+    }
+  }
+
   /**
    * Checks a provider-proof port against the host ephemeral range.
    */
@@ -847,7 +1106,14 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
         continue;
       }
       if (
-        $routeName === 'CANVAS_AI_PROVIDER_PROOF_530'
+        in_array(
+          $routeName,
+          [
+            'CANVAS_AI_PROVIDER_PROOF_530',
+            'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392',
+          ],
+          TRUE,
+        )
         && (
           $commentAuthor !== 'E-merging-digital'
           || $commentAuthorAssociation !== 'OWNER'

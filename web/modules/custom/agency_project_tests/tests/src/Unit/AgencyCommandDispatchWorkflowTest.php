@@ -764,6 +764,17 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'Unknown Canvas map key type at path %s; key_type=%s',
       $trustedComparator,
     );
+    foreach ([
+      "$path === 'versioned_properties'",
+      '$sync_version === $canonical_key',
+      '&& $active_exists',
+      '&& !$sync_exists',
+    ] as $numericVersionBoundary) {
+      self::assertStringContainsString(
+        $numericVersionBoundary,
+        $trustedComparator,
+      );
+    }
     self::assertStringNotContainsString(
       "grep -Fq 'No differences'",
       $source,

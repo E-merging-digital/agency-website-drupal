@@ -127,10 +127,19 @@ function agency_canvas_1373_analyze_dataset(
       throw new RuntimeException('Missing active or sync #1373 Canvas config.');
     }
 
-    $analysis = agency_canvas_995_analyze_config(
-      $pair['active'],
-      $pair['sync'],
-    );
+    try {
+      $analysis = agency_canvas_995_analyze_config(
+        $pair['active'],
+        $pair['sync'],
+      );
+    }
+    catch (RuntimeException $exception) {
+      throw new RuntimeException(
+        'Canvas config ' . $name . ': ' . $exception->getMessage(),
+        0,
+        $exception,
+      );
+    }
     $classification = $analysis['classification'] ?? NULL;
     if ($classification === 'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN') {
       $known++;

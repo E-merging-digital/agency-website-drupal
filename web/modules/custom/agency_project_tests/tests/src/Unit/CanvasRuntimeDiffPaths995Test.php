@@ -199,6 +199,35 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
+   * Non-string map keys fail closed with path and type, never raw key/value.
+   */
+  public function testNonStringMapKeyDiagnosticIsBounded(): void {
+    $pair = $this->knownPair();
+    $activeVersion =& $pair['active']['versioned_properties']['active'];
+    $activeVersion['settings']['default_settings'][424242] =
+      'DO-NOT-EXPOSE-ACTIVE-VALUE';
+
+    try {
+      $this->analyzeConfig($pair['active'], $pair['sync']);
+      self::fail('Expected non-string Canvas map key to fail closed.');
+    }
+    catch (\RuntimeException $exception) {
+      $message = $exception->getMessage();
+      self::assertStringContainsString(
+        'Unknown Canvas map key type at path '
+        . 'versioned_properties.active.settings.default_settings',
+        $message,
+      );
+      self::assertStringContainsString('key_type=int', $message);
+      self::assertStringNotContainsString('424242', $message);
+      self::assertStringNotContainsString(
+        'DO-NOT-EXPOSE-ACTIVE-VALUE',
+        $message,
+      );
+    }
+  }
+
+  /**
    * A historical version key is known only when it equals sync active_version.
    */
   public function testUnprovenHistoricalVersionRequiresReview(): void {

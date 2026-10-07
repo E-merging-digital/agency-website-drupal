@@ -231,6 +231,43 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
+   * The #1373 boundary adds config name to bounded #995 failure metadata.
+   */
+  public function testNonStringKeyFailureIncludesConfigNameOnly(): void {
+    $dataset = $this->knownDataset();
+    $name = $this->allowedNames()[0];
+    $activeVersion =& $dataset[$name]['active']['versioned_properties']['active'];
+    $activeVersion['settings']['default_settings'][424242] =
+      'DO-NOT-EXPOSE-CONFIG-VALUE';
+
+    try {
+      $this->analyze($this->knownMetadata(), $dataset);
+      self::fail('Expected #1373 non-string Canvas key to fail closed.');
+    }
+    catch (\RuntimeException $exception) {
+      $message = $exception->getMessage();
+      self::assertStringContainsString(
+        'Canvas config ' . $name . ':',
+        $message,
+      );
+      self::assertStringContainsString(
+        'path versioned_properties.active.settings.default_settings',
+        $message,
+      );
+      self::assertStringContainsString('key_type=int', $message);
+      self::assertStringNotContainsString('424242', $message);
+      self::assertStringNotContainsString(
+        'DO-NOT-EXPOSE-CONFIG-VALUE',
+        $message,
+      );
+      self::assertInstanceOf(
+        \RuntimeException::class,
+        $exception->getPrevious(),
+      );
+    }
+  }
+
+  /**
    * The support gate reuses the existing #995 comparator.
    */
   public function testExistingComparatorIsReused(): void {

@@ -744,7 +744,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'AGENCY_CANVAS_1373_EXECUTE=1',
       'AGENCY_CANVAS_1373_STATUS_B64=',
       'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
-      'CANVAS_CONFIG_DRIFT_GATE=',
+      'CANVAS_CONFIG_DRIFT_GATE=PASS',
       '.summary == {"total": 19, "known": 19, "unexpected": 0}',
     ] as $gateContract) {
       self::assertStringContainsString($gateContract, $source);
@@ -758,7 +758,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
 
-    $driftGate = strpos($source, 'CANVAS_CONFIG_DRIFT_GATE=');
+    $driftGate = strpos($source, 'CANVAS_CONFIG_DRIFT_GATE=PASS');
     $providerExecution = strpos(
       $source,
       'npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs',

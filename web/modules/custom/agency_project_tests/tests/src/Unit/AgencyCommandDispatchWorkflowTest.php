@@ -874,7 +874,6 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertLessThan($secret, $jit);
   }
 
-
   /**
    * #1393 addressing diagnostic stays owner-only, secret-free and bounded.
    */
@@ -909,50 +908,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'test "$COMMENT_AUTHOR_ASSOCIATION" = \'OWNER\'',
       'test "$COMMENT_FROM_APP" = \'false\'',
       'test "$GITHUB_ACTOR" = \'E-merging-digital\'',
-      '^/agency-canvas-addressing-diagnostic\\ run\\ pr=533\\ sha=([0-9a-f]{40})$',
-      'repos/$GITHUB_REPOSITORY/issues/1392',
-      'repos/$GITHUB_REPOSITORY/issues/530',
-      'repos/$GITHUB_REPOSITORY/pulls/533',
-      'test "$base_ref" = \'main\'',
-      'test "$head_ref" = \'feature/issue-530-bounded-canvas-ai-composition\'',
-      'composer.json',
-      'composer.lock',
-      'config/sync/core.extension.yml',
-      'docs/ai/canvas-ai-proof-policy.yml',
-      'tests/browser/canvas-ai-provider-proof.spec.mjs',
-      'web/modules/custom/agency_project_tests/tests/src/Unit/CanvasAiPreProviderAuditTest.php',
-      '52600000-0000-4000-8000-000000000001',
-      'ddev drush site:install --existing-config',
-      'ddev drush emerging:governed-content --all',
-      '/canvas/api/v0/layout/canvas_page/',
-      '/canvas/editor/canvas_page/',
-      'canvas_ai_post_count',
-      'AI_CHAT_OPENED',
-      'AI_PROMPT_SUBMITTED',
-      'PROVIDER_CALL',
-      'ddev delete --omit-snapshot --yes',
-      'WORKTREE_FINAL=CLEAN',
-    ] as $required) {
-      self::assertStringContainsString($required, $source);
-    }
-
-    foreach ([
-      'OPENAI_API_KEY',
-      'SSH_PRIVATE_KEY',
-      'PREPROD_SERVER_HOST',
-      'SERVER_HOST',
-      'secrets:',
-      'submitUserMessage',
-      'workflow_dispatch:',
-      'issue_comment:',
-    ] as $forbidden) {
-      self::assertStringNotContainsString($forbidden, $source);
-    }
-  }
-
-  /**
-   * Checks a provider-proof port against the host ephemeral range.
-   */  private function assertOutsideHostEphemeralRange(int $port, string $key): void {
+      '^/agency-canvas-addressing-diagnostic\\ run\\ pr=533\\ sha=([0-9a-f]{40})
+  private function assertOutsideHostEphemeralRange(int $port, string $key): void {
     self::assertFalse(
       $port >= 32768 && $port <= 60999,
       sprintf('%s must stay outside host ephemeral range 32768-60999.', $key),
@@ -1077,8 +1034,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'repos/$GITHUB_REPOSITORY/issues/1392',
       'repos/$GITHUB_REPOSITORY/issues/530',
       'repos/$GITHUB_REPOSITORY/pulls/533',
-      "test \"$base_ref\" = 'main'",
-      "test \"$head_ref\" = 'feature/issue-530-bounded-canvas-ai-composition'",
+      'test "$base_ref" = \'main\'',
+      'test "$head_ref" = \'feature/issue-530-bounded-canvas-ai-composition\'',
       'composer.json',
       'composer.lock',
       'config/sync/core.extension.yml',
@@ -1113,7 +1070,6 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       self::assertStringNotContainsString($forbidden, $source);
     }
   }
-
   /**
    * Checks a provider-proof port against the host ephemeral range.
    */

@@ -228,6 +228,137 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
+   * Numeric-only historical version keys normalize only on exact proof.
+   */
+  public function testNumericVersionExactMatchUsesExistingPublicPath(): void {
+    $pair = $this->numericVersionPair();
+
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+
+    self::assertSame([
+      'active_version',
+      'label',
+      'versioned_properties.<version>',
+      'versioned_properties.active.settings.default_settings.label',
+    ], $result['differing_paths']);
+    self::assertSame(
+      'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
+      $result['classification'],
+    );
+
+    $encoded = json_encode($result, JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString('1234567890123456', $encoded);
+    self::assertStringNotContainsString('SYNC-SECRET-LABEL', $encoded);
+    self::assertStringNotContainsString('ACTIVE-SECRET-LABEL', $encoded);
+  }
+
+  /**
+   * A version-shaped integer outside versioned_properties still fails closed.
+   */
+  public function testNumericVersionOutsideExactParentFailsClosed(): void {
+    $pair = $this->knownPair();
+    $activeVersion =& $pair['active']['versioned_properties']['active'];
+    $activeVersion['settings']['default_settings'][1234567890123456] =
+      'DO-NOT-EXPOSE-NUMERIC-VALUE';
+
+    $this->assertBoundedIntKeyFailure(
+      $pair,
+      'versioned_properties.active.settings.default_settings',
+      '1234567890123456',
+      'DO-NOT-EXPOSE-NUMERIC-VALUE',
+    );
+  }
+
+  /**
+   * A numeric version differing from sync active_version fails closed.
+   */
+  public function testDifferentNumericVersionFailsClosed(): void {
+    $pair = $this->numericVersionPair();
+    unset($pair['active']['versioned_properties'][1234567890123456]);
+    $pair['active']['versioned_properties'][1234567890123457] = [
+      'settings' => ['default_settings' => ['label' => 'DO-NOT-EXPOSE']],
+    ];
+
+    $this->assertBoundedIntKeyFailure(
+      $pair,
+      'versioned_properties',
+      '1234567890123457',
+      'DO-NOT-EXPOSE',
+    );
+  }
+
+  /**
+   * A numeric version present only in sync fails closed.
+   */
+  public function testNumericVersionPresentOnlyInSyncFailsClosed(): void {
+    $pair = $this->numericVersionPair();
+    unset($pair['active']['versioned_properties'][1234567890123456]);
+    $pair['sync']['versioned_properties'][1234567890123456] = [
+      'settings' => ['default_settings' => ['label' => 'DO-NOT-EXPOSE']],
+    ];
+
+    $this->assertBoundedIntKeyFailure(
+      $pair,
+      'versioned_properties',
+      '1234567890123456',
+      'DO-NOT-EXPOSE',
+    );
+  }
+
+  /**
+   * A numeric version present on both sides fails closed.
+   */
+  public function testNumericVersionPresentOnBothSidesFailsClosed(): void {
+    $pair = $this->numericVersionPair();
+    $pair['sync']['versioned_properties'][1234567890123456] = [
+      'settings' => ['default_settings' => ['label' => 'DO-NOT-EXPOSE']],
+    ];
+
+    $this->assertBoundedIntKeyFailure(
+      $pair,
+      'versioned_properties',
+      '1234567890123456',
+      'DO-NOT-EXPOSE',
+    );
+  }
+
+  /**
+   * Short numeric keys under versioned_properties fail closed.
+   */
+  public function testShortNumericVersionFailsClosed(): void {
+    $pair = $this->numericVersionPair();
+    unset($pair['active']['versioned_properties'][1234567890123456]);
+    $pair['active']['versioned_properties'][1234] = [
+      'settings' => ['default_settings' => ['label' => 'DO-NOT-EXPOSE']],
+    ];
+
+    $this->assertBoundedIntKeyFailure(
+      $pair,
+      'versioned_properties',
+      '1234',
+      'DO-NOT-EXPOSE',
+    );
+  }
+
+  /**
+   * Negative numeric keys under versioned_properties fail closed.
+   */
+  public function testNegativeNumericVersionFailsClosed(): void {
+    $pair = $this->numericVersionPair();
+    unset($pair['active']['versioned_properties'][1234567890123456]);
+    $pair['active']['versioned_properties'][-123456789012345] = [
+      'settings' => ['default_settings' => ['label' => 'DO-NOT-EXPOSE']],
+    ];
+
+    $this->assertBoundedIntKeyFailure(
+      $pair,
+      'versioned_properties',
+      '-123456789012345',
+      'DO-NOT-EXPOSE',
+    );
+  }
+
+  /**
    * A historical version key is known only when it equals sync active_version.
    */
   public function testUnprovenHistoricalVersionRequiresReview(): void {
@@ -330,6 +461,52 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
     }
 
     return \agency_canvas_995_analyze_config($active, $sync);
+  }
+
+  /**
+   * Asserts one integer-key rejection remains bounded and path-only.
+   *
+   * @param array{active: array<string, mixed>, sync: array<string, mixed>} $pair
+   *   Active and sync pair.
+   */
+  private function assertBoundedIntKeyFailure(
+    array $pair,
+    string $expectedPath,
+    string $rawKey,
+    string $rawValue,
+  ): void {
+    try {
+      $this->analyzeConfig($pair['active'], $pair['sync']);
+      self::fail('Expected numeric Canvas map key to fail closed.');
+    }
+    catch (\RuntimeException $exception) {
+      $message = $exception->getMessage();
+      self::assertStringContainsString(
+        'Unknown Canvas map key type at path ' . $expectedPath,
+        $message,
+      );
+      self::assertStringContainsString('key_type=int', $message);
+      self::assertStringNotContainsString($rawKey, $message);
+      self::assertStringNotContainsString($rawValue, $message);
+    }
+  }
+
+  /**
+   * Produces the proven numeric-only historical Canvas version representation.
+   *
+   * @return array{active: array<string, mixed>, sync: array<string, mixed>}
+   *   Active and sync structures.
+   */
+  private function numericVersionPair(): array {
+    $pair = $this->knownPair();
+    $syncVersion = '1234567890123456';
+    $historic = $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa'];
+
+    $pair['sync']['active_version'] = $syncVersion;
+    unset($pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']);
+    $pair['active']['versioned_properties'][(int) $syncVersion] = $historic;
+
+    return $pair;
   }
 
   /**

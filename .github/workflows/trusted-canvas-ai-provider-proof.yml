@@ -275,6 +275,29 @@ jobs:
           ddev drush emerging:governed-content --all
           ddev drush cr
 
+          canvas_page_entity_id="$(
+            ddev drush php:eval '
+              $uuid = "52600000-0000-4000-8000-000000000001";
+              $ids = \Drupal::entityQuery("canvas_page")
+                ->accessCheck(FALSE)
+                ->condition("uuid", $uuid)
+                ->execute();
+              if (count($ids) !== 1) {
+                throw new \RuntimeException(sprintf(
+                  "Expected exactly one governed canvas_page for the stable UUID; found %d.",
+                  count($ids),
+                ));
+              }
+              print (string) reset($ids);
+            '
+          )"
+          if [[ -z "$canvas_page_entity_id" || ! "$canvas_page_entity_id" =~ ^[0-9]+$ ]]; then
+            echo 'Governed Canvas page entity ID must be a non-empty numeric runtime value.' >&2
+            exit 1
+          fi
+          printf 'CANVAS_AI_CANVAS_PAGE_ENTITY_ID=%s\n' "$canvas_page_entity_id" >> "$GITHUB_ENV"
+          unset canvas_page_entity_id
+
           ddev drush php:eval '$key = \Drupal::service("key.repository")->getKey("openai_api_key"); if (!$key || trim((string) $key->getKeyValue()) === "") { throw new \RuntimeException("OpenAI key is unavailable through Drupal Key."); } print "Drupal Key provider readiness: OK\n";'
 
           config_status_raw="$(ddev drush config:status --format=json 2>/dev/null)"

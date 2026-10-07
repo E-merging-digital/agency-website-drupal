@@ -923,6 +923,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '52600000-0000-4000-8000-000000000001',
       'ddev drush site:install --existing-config',
       'ddev drush emerging:governed-content --all',
+      'public_start_url="$base_url/canvas-governed-sdc-baseline"',
+      'public_initial_status="$(',
+      "public_max_redirects=3",
+      '--proto \'=https\'',
+      'next.origin !== baseUrl.origin',
+      'effectiveUrl.origin !== baseUrl.origin',
+      'public_baseline_initial_status',
+      'public_baseline_final_status',
+      'public_baseline_effective_path',
+      "test \"$public_final_status\" = '200'",
       '/canvas/api/v0/layout/canvas_page/',
       '/canvas/editor/canvas_page/',
       'canvas_ai_post_count',
@@ -944,6 +954,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'submitUserMessage',
       'workflow_dispatch:',
       'issue_comment:',
+      'public_baseline_status',
+      'curl -k -sS -L',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $source);
     }

@@ -4,6 +4,7 @@ import { defineConfig } from '@playwright/test';
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 const httpUsername = process.env.BROWSER_VALIDATION_HTTP_USERNAME ?? '';
 const httpPassword = process.env.BROWSER_VALIDATION_HTTP_PASSWORD ?? '';
+const providerProofMode = process.env.CANVAS_AI_PROVIDER_PROOF === '1';
 const contractFile = path.basename(
   process.env.BROWSER_VALIDATION_CONTRACT
     ?? 'tests/browser/contracts/public-blog.json',
@@ -14,7 +15,9 @@ const contractTestMatches = {
   'drupal-2027-preprod.json': '**/drupal-2027-preprod.spec.mjs',
   'homepage-brand-1059-preprod.json': '**/homepage-brand-1059-preprod.spec.mjs',
 };
-const contractTestMatch = contractTestMatches[contractFile];
+const contractTestMatch = providerProofMode
+  ? '**/canvas-ai-provider-proof.spec.mjs'
+  : contractTestMatches[contractFile];
 
 if (!baseURL) {
   throw new Error(
@@ -22,7 +25,7 @@ if (!baseURL) {
   );
 }
 
-if (!contractTestMatch) {
+if (!providerProofMode && !contractTestMatch) {
   throw new Error(
     `Unsupported BROWSER_VALIDATION_CONTRACT: ${contractFile}`,
   );

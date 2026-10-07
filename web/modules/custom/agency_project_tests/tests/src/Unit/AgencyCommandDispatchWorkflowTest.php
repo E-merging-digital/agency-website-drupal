@@ -732,6 +732,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'rm -f .ddev/.env.web',
       'ddev delete --omit-snapshot --yes',
       'rm -f .ddev/config.gate-canvas-ai-provider.yaml',
+      'rm -f "${RUNNER_TEMP}/canvas-runtime-diff-paths-995.php"',
     ] as $cleanup) {
       self::assertStringContainsString($cleanup, $source);
     }
@@ -740,7 +741,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'ddev drush config:status --format=json',
       'scripts/runner/filter-config-status-metadata.php PREPROD',
       'canvas-ai-provider-config-drift-gate-1373.php?ref=$GITHUB_SHA',
-      'scripts/runner/canvas-runtime-diff-paths-995.php',
+      'canvas-runtime-diff-paths-995.php?ref=$GITHUB_SHA',
+      'trusted_comparator="${RUNNER_TEMP}/canvas-runtime-diff-paths-995.php"',
+      'test -s "$trusted_comparator"',
+      'tail -n +2 "$trusted_comparator"',
       'AGENCY_CANVAS_1373_EXECUTE=1',
       'AGENCY_CANVAS_1373_STATUS_B64=',
       'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
@@ -749,6 +753,17 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     ] as $gateContract) {
       self::assertStringContainsString($gateContract, $source);
     }
+    self::assertStringNotContainsString(
+      'tail -n +2 scripts/runner/canvas-runtime-diff-paths-995.php',
+      $source,
+    );
+    $trustedComparator = $this->source(
+      'scripts/runner/canvas-runtime-diff-paths-995.php',
+    );
+    self::assertStringContainsString(
+      'Unknown Canvas map key type at path %s; key_type=%s',
+      $trustedComparator,
+    );
     self::assertStringNotContainsString(
       "grep -Fq 'No differences'",
       $source,

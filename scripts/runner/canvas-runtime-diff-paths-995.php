@@ -100,30 +100,52 @@ function agency_canvas_995_diff_paths(
 
   $keys = array_values(array_unique(array_merge(array_keys($active), array_keys($sync))));
   foreach ($keys as $key) {
-    if (!is_string($key)) {
-      throw new RuntimeException(sprintf(
-        'Unknown Canvas map key type at path %s; key_type=%s',
-        $path !== '' ? $path : '<root>',
-        get_debug_type($key),
-      ));
+    if (is_string($key)) {
+      continue;
     }
+
+    if (is_int($key) && $path === 'versioned_properties') {
+      $canonical_key = (string) $key;
+      $active_exists = array_key_exists($key, $active);
+      $sync_exists = array_key_exists($key, $sync);
+      if (
+        preg_match('/^[0-9a-f]{16}$/D', $canonical_key) === 1
+        && $sync_version === $canonical_key
+        && $active_exists
+        && !$sync_exists
+      ) {
+        continue;
+      }
+    }
+
+    throw new RuntimeException(sprintf(
+      'Unknown Canvas map key type at path %s; key_type=%s',
+      $path !== '' ? $path : '<root>',
+      get_debug_type($key),
+    ));
   }
   sort($keys, SORT_STRING);
 
   $paths = [];
   foreach ($keys as $key) {
-    agency_canvas_995_assert_safe_segment($key, $path);
+    $canonical_key = is_int($key) ? (string) $key : $key;
+    agency_canvas_995_assert_safe_segment($canonical_key, $path);
     $active_exists = array_key_exists($key, $active);
     $sync_exists = array_key_exists($key, $sync);
 
-    $public_segment = $key;
-    if ($path === 'versioned_properties' && preg_match('/^[0-9a-f]{16}$/D', $key) === 1) {
+    $public_segment = $canonical_key;
+    if (
+      $path === 'versioned_properties'
+      && preg_match('/^[0-9a-f]{16}$/D', $canonical_key) === 1
+    ) {
       $public_segment = '<version>';
       $fact_key = implode(':', [
-        $key,
+        $canonical_key,
         $active_exists ? 'active' : 'no-active',
         $sync_exists ? 'sync' : 'no-sync',
-        $sync_version === $key ? 'matches-sync-version' : 'other-version',
+        $sync_version === $canonical_key
+          ? 'matches-sync-version'
+          : 'other-version',
       ]);
       $dynamic_version_facts[$fact_key] = TRUE;
     }

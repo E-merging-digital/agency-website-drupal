@@ -745,6 +745,16 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'test "$(jq -r \'.head.sha\' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"',
       'persist-credentials: false',
       'PROVIDER_SECRET: ${{ secrets.OPENAI_API_KEY }}',
+      '52600000-0000-4000-8000-000000000001',
+      '\\Drupal::entityQuery("canvas_page")',
+      '->accessCheck(FALSE)',
+      '->condition("uuid", $uuid)',
+      'count($ids) !== 1',
+      'Expected exactly one governed canvas_page for the stable UUID',
+      'print (string) reset($ids);',
+      '! "$canvas_page_entity_id" =~ ^[0-9]+$',
+      'CANVAS_AI_CANVAS_PAGE_ENTITY_ID=%s\\n',
+      '>> "$GITHUB_ENV"',
       'npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs --project=desktop --workers=1',
     ] as $required) {
       self::assertStringContainsString($required, $source);
@@ -846,13 +856,31 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $source,
     );
 
+    $governedContent = strpos(
+      $source,
+      'ddev drush emerging:governed-content --all',
+    );
+    $entityIdLookup = strpos(
+      $source,
+      '\\Drupal::entityQuery("canvas_page")',
+    );
+    $entityIdExport = strpos(
+      $source,
+      'CANVAS_AI_CANVAS_PAGE_ENTITY_ID=%s\\n',
+    );
     $driftGate = strpos($source, 'CANVAS_CONFIG_DRIFT_GATE=PASS');
     $providerExecution = strpos(
       $source,
       'npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs',
     );
+    self::assertNotFalse($governedContent);
+    self::assertNotFalse($entityIdLookup);
+    self::assertNotFalse($entityIdExport);
     self::assertNotFalse($driftGate);
     self::assertNotFalse($providerExecution);
+    self::assertLessThan($entityIdLookup, $governedContent);
+    self::assertLessThan($entityIdExport, $entityIdLookup);
+    self::assertLessThan($providerExecution, $entityIdExport);
     self::assertLessThan($providerExecution, $driftGate);
 
     foreach ([
@@ -863,6 +891,8 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'PREPROD_SERVER_HOST',
       'SERVER_HOST',
       'workflow inputs',
+      'CANVAS_AI_CANVAS_PAGE_ENTITY_ID=1',
+      'CANVAS_AI_CANVAS_PAGE_ENTITY_ID: 1',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $source);
     }

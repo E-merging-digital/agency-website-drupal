@@ -279,6 +279,13 @@ jobs:
             base64 -d > "$trusted_gate"
           test -s "$trusted_gate"
 
+          trusted_comparator="${RUNNER_TEMP}/canvas-runtime-diff-paths-995.php"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/contents/scripts/runner/canvas-runtime-diff-paths-995.php?ref=$GITHUB_SHA" \
+            --jq '.content' |
+            base64 -d > "$trusted_comparator"
+          test -s "$trusted_comparator"
+
           trusted_helper=".ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh"
           gh api \
             "repos/$GITHUB_REPOSITORY/contents/scripts/runner/run-canvas-ai-provider-config-drift-gate-1375.sh?ref=$GITHUB_SHA" \
@@ -290,7 +297,7 @@ jobs:
 
           gate_code="$(
             {
-              tail -n +2 scripts/runner/canvas-runtime-diff-paths-995.php
+              tail -n +2 "$trusted_comparator"
               sed '1,/^declare(strict_types=1);$/d' "$trusted_gate"
             }
           )"
@@ -304,7 +311,7 @@ jobs:
               bash /var/www/html/.ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh
           )"
           unset config_status_b64 gate_code_b64
-          rm -f "$trusted_gate"
+          rm -f "$trusted_gate" "$trusted_comparator"
 
           jq -e '
             (keys | sort) == ["items", "summary"]
@@ -412,6 +419,7 @@ jobs:
           ddev delete --omit-snapshot --yes
           rm -f .ddev/config.gate-canvas-ai-provider.yaml
           rm -f .ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh
+          rm -f "${RUNNER_TEMP}/canvas-runtime-diff-paths-995.php"
           git restore --worktree -- web/robots.txt config/sync
           git clean -fd -- config/sync
           rm -rf artifacts/canvas-ai-provider-proof artifacts/browser-validation/test-results playwright-report

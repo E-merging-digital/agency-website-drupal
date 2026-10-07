@@ -897,6 +897,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       self::assertStringNotContainsString($forbidden, $source);
     }
 
+    self::assertDoesNotMatchRegularExpression(
+      '/CANVAS_AI_CANVAS_PAGE_ENTITY_ID(?:=|:)[[:space:]]*[0-9]+/',
+      $source,
+    );
+
     $jit = strpos($source, 'JIT revalidate #530 and exact live #533 HEAD before secret exposure');
     $secret = strpos($source, 'PROVIDER_SECRET: ${{ secrets.OPENAI_API_KEY }}');
     self::assertNotFalse($jit);

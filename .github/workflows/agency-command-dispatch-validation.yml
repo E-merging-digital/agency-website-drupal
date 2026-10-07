@@ -7,6 +7,7 @@ on:
       - '.github/workflows/agency-command-dispatch.yml'
       - '.github/workflows/agency-command-dispatch-validation.yml'
       - '.github/workflows/trusted-canvas-ai-provider-proof.yml'
+      - 'playwright.config.mjs'
       - '.github/workflows/promote-production.yml'
       - '.github/workflows/production-scheduler-change.yml'
       - '.github/workflows/trusted-editorial-publication.yml'
@@ -40,6 +41,73 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 2
           persist-credentials: false
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install exact browser test dependencies
+        shell: bash
+        run: npm ci
+
+      - name: Prove strict provider-only Playwright discovery
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          provider_spec='tests/browser/canvas-ai-provider-proof.spec.mjs'
+          materialized='0'
+          cleanup_provider_spec() {
+            if [[ "$materialized" = '1' ]]; then
+              rm -f "$provider_spec"
+            fi
+          }
+          trap cleanup_provider_spec EXIT
+
+          if [[ ! -f "$provider_spec" ]]; then
+            provider_head="$(
+              gh api "repos/$GITHUB_REPOSITORY/pulls/533" --jq '.head.sha'
+            )"
+            test "$provider_head" =~ ^[0-9a-f]{40}$
+            gh api               "repos/$GITHUB_REPOSITORY/contents/$provider_spec?ref=$provider_head"               --jq '.content' |
+              base64 -d > "$provider_spec"
+            test -s "$provider_spec"
+            materialized='1'
+          fi
+
+          grep -Fq             "'public-blog.json': '**/public-blog.spec.mjs'"             playwright.config.mjs
+          grep -Fq             "'production-editorial-401.json': '**/production-editorial-article.spec.mjs'"             playwright.config.mjs
+          grep -Fq             "'drupal-2027-preprod.json': '**/drupal-2027-preprod.spec.mjs'"             playwright.config.mjs
+          grep -Fq             "'homepage-brand-1059-preprod.json': '**/homepage-brand-1059-preprod.spec.mjs'"             playwright.config.mjs
+          grep -Fq             "process.env.CANVAS_AI_PROVIDER_PROOF === '1'"             playwright.config.mjs
+          grep -Fq             "'**/canvas-ai-provider-proof.spec.mjs'"             playwright.config.mjs
+
+          discovery="$(
+            CANVAS_AI_PROVIDER_PROOF=1             BROWSER_VALIDATION_CONTRACT='tests/browser/contracts/unsupported.json'             PLAYWRIGHT_BASE_URL='http://127.0.0.1:65535'             npx playwright test               tests/browser/canvas-ai-provider-proof.spec.mjs               --project=desktop               --workers=1               --list
+          )"
+          printf '%s\n' "$discovery"
+
+          discovered="$(
+            grep -E '^  \[desktop\].*canvas-ai-provider-proof\.spec\.mjs:'               <<<"$discovery" || true
+          )"
+          test "$(grep -c . <<<"$discovered")" = '1'
+          test "$(grep -Ec '^  \[[^]]+\].*\.spec\.mjs:' <<<"$discovery")" = '1'
+          grep -Fq 'Total: 1 test in 1 file' <<<"$discovery"
+
+          set +e
+          unsupported="$(
+            CANVAS_AI_PROVIDER_PROOF=0             BROWSER_VALIDATION_CONTRACT='tests/browser/contracts/unsupported.json'             PLAYWRIGHT_BASE_URL='http://127.0.0.1:65535'             npx playwright test --list 2>&1
+          )"
+          unsupported_rc=$?
+          set -e
+          test "$unsupported_rc" -ne 0
+          grep -Fq             'Unsupported BROWSER_VALIDATION_CONTRACT: unsupported.json'             <<<"$unsupported"
+
+          printf '%s\n'             'PROVIDER_SPEC_DISCOVERED=YES'             'DISCOVERED_DESKTOP_TEST_COUNT=1'             'OTHER_SPECS_DISCOVERED=0'             'PROVIDER_TEST_EXECUTED=NO'             'PROVIDER_CALL=NONE'             'NORMAL_BROWSER_CONTRACT_BEHAVIOR=UNCHANGED'             'UNSUPPORTED_CONTRACT_OUTSIDE_PROVIDER_MODE=FAIL_CLOSED'
 
       - name: Validate #922 GitHub Actions surface with actionlint
         shell: bash
@@ -101,6 +169,7 @@ jobs:
 
           $allowedUses = [
             'actions/checkout@v6',
+            'actions/setup-node@v6',
             'shivammathur/setup-php@v2',
           ];
 

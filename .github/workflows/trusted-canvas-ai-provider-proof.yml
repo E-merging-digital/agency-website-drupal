@@ -201,6 +201,25 @@ jobs:
           npm ci
           npx playwright install chromium
 
+      - name: Materialize trusted Playwright config from main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          trusted_playwright_config='.agency-trusted-playwright.config.mjs'
+          trusted_playwright_blob="$(
+            gh api               "repos/$GITHUB_REPOSITORY/contents/playwright.config.mjs?ref=$GITHUB_SHA"               --jq '.sha'
+          )"
+          [[ "$trusted_playwright_blob" =~ ^[0-9a-f]{40}$ ]]
+          gh api             "repos/$GITHUB_REPOSITORY/contents/playwright.config.mjs?ref=$GITHUB_SHA"             --jq '.content' |
+            base64 -d > "$trusted_playwright_config"
+          test -s "$trusted_playwright_config"
+          grep -Fq             "process.env.CANVAS_AI_PROVIDER_PROOF === '1'"             "$trusted_playwright_config"
+          grep -Fq             "'**/canvas-ai-provider-proof.spec.mjs'"             "$trusted_playwright_config"
+          printf 'TRUSTED_PLAYWRIGHT_CONFIG_SOURCE=MAIN / ref=%s\n' "$GITHUB_SHA"
+          printf 'TRUSTED_PLAYWRIGHT_CONFIG_BLOB=%s\n' "$trusted_playwright_blob"
+
       - name: JIT revalidate #530 and exact live #533 HEAD before secret exposure
         shell: bash
         env:
@@ -377,7 +396,7 @@ jobs:
           CANVAS_AI_PROVIDER_PROOF: '1'
         run: |
           set -euo pipefail
-          npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs --project=desktop --workers=1
+          npx playwright test tests/browser/canvas-ai-provider-proof.spec.mjs --project=desktop --workers=1 --config=.agency-trusted-playwright.config.mjs
 
       - name: Summarize bounded evidence
         id: summarize
@@ -420,6 +439,7 @@ jobs:
           rm -f .ddev/config.gate-canvas-ai-provider.yaml
           rm -f .ddev/trusted-run-canvas-ai-provider-config-drift-gate-1375.sh
           rm -f "${RUNNER_TEMP}/canvas-runtime-diff-paths-995.php"
+          rm -f .agency-trusted-playwright.config.mjs
           git restore --worktree -- web/robots.txt config/sync
           git clean -fd -- config/sync
           rm -rf artifacts/canvas-ai-provider-proof artifacts/browser-validation/test-results playwright-report

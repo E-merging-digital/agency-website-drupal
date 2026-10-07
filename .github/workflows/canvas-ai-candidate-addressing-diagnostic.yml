@@ -274,8 +274,7 @@ jobs:
 
               public_location="$(
                 awk '
-                  BEGIN { IGNORECASE = 1 }
-                  /^Location:/ {
+                  tolower($1) == "location:" {
                     sub(/\r$/, "")
                     sub(/^[^:]+:[[:space:]]*/, "")
                     print

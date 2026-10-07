@@ -875,7 +875,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * #1393 addressing diagnostic stays owner-only, secret-free and bounded.
+   * Canvas addressing diagnostic stays owner-only, secret-free and bounded.
    */
   public function testCanvasAddressingDiagnosticRouteIsBoundedAndSecretFree(): void {
     $path = '.github/workflows/canvas-ai-candidate-addressing-diagnostic.yml';

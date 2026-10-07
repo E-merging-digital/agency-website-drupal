@@ -24,6 +24,7 @@ env:
       {"route":"CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-runtime ","exact":["/agency-config-sync-runtime diagnose"]},
       {"route":"PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-prod-runtime ","exact":["/agency-config-sync-prod-runtime diagnose","/agency-config-language-lock-prod diagnose"]},
       {"route":"CANVAS_AI_PROVIDER_PROOF_530","prefix":"/agency-canvas-ai-provider-proof ","regex":"^/agency-canvas-ai-provider-proof run pr=533 sha=[0-9a-f]{40}$"},
+      {"route":"CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392","prefix":"/agency-canvas-addressing-diagnostic ","regex":"^/agency-canvas-addressing-diagnostic run pr=533 sha=[0-9a-f]{40}$"},
       {"route":"INFRA_COCKPIT_CONSUMER_PROOF","prefix":"/agency-infra-cockpit-consumer ","regex":"^/agency-infra-cockpit-consumer prove main=[0-9a-f]{40} infra=[0-9a-f]{40} release=[0-9a-f]{40} session=[0-9a-f]{16} pubkey=[0-9a-f]{64}$"}
     ]
 
@@ -79,6 +80,7 @@ jobs:
               'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1318'),
               'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301', '1302'),
               'CANVAS_AI_PROVIDER_PROOF_530': '530',
+              'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392': '1392',
               'INFRA_COCKPIT_CONSUMER_PROOF': '1261',
           }
           route = 'NONE'
@@ -91,7 +93,10 @@ jobs:
                           continue
                   elif required_issue is not None and issue != required_issue:
                       continue
-                  if spec['route'] == 'CANVAS_AI_PROVIDER_PROOF_530' and (
+                  if spec['route'] in (
+                      'CANVAS_AI_PROVIDER_PROOF_530',
+                      'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392',
+                  ) and (
                       comment_author != 'E-merging-digital'
                       or comment_author_association != 'OWNER'
                       or comment_from_app
@@ -400,6 +405,16 @@ jobs:
     uses: ./.github/workflows/trusted-canvas-ai-provider-proof.yml
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  canvas-ai-candidate-addressing-diagnostic-1392:
+    name: Route #1392 Canvas candidate addressing diagnostic
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392' }}
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    uses: ./.github/workflows/canvas-ai-candidate-addressing-diagnostic.yml
 
   prod-config-sync-runtime-diagnostic:
     name: Route #982/#995/#1301/#1302 read-only PROD config diagnostic

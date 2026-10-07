@@ -1,0 +1,543 @@
+name: Agency Canvas candidate addressing diagnostic
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-target:
+    name: Validate #1392 addressing diagnostic target
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+    steps:
+      - id: validate
+        name: Revalidate owner, #1392, #530 and exact #533 target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          TRIGGER_COMMENT: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_FROM_APP: ${{ github.event.comment.performed_via_github_app != null }}
+        run: |
+          set -euo pipefail
+
+          test "$EVENT_NAME" = 'issue_comment'
+          test "$EVENT_ACTION" = 'created'
+          test "$ISSUE_NUMBER" = '1392'
+          test "$IS_PULL_REQUEST" = 'false'
+          test "$COMMENT_AUTHOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR_ASSOCIATION" = 'OWNER'
+          test "$COMMENT_FROM_APP" = 'false'
+          test "$GITHUB_ACTOR" = 'E-merging-digital'
+          test "$COMMENT_AUTHOR" = "$GITHUB_ACTOR"
+
+          if [[ ! "$TRIGGER_COMMENT" =~ ^/agency-canvas-addressing-diagnostic\ run\ pr=533\ sha=([0-9a-f]{40})$ ]]; then
+            echo 'Invalid #1392 Canvas addressing diagnostic command.' >&2
+            exit 1
+          fi
+          requested_sha="${BASH_REMATCH[1]}"
+
+          issue_1392_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1392")"
+          test "$(jq -r '.state' <<<"$issue_1392_json")" = 'open'
+          test "$(jq -r '.pull_request // empty' <<<"$issue_1392_json")" = ''
+
+          issue_530_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/530")"
+          test "$(jq -r '.state' <<<"$issue_530_json")" = 'open'
+          test "$(jq -r '.pull_request // empty' <<<"$issue_530_json")" = ''
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/533")"
+          state="$(jq -r '.state' <<<"$pr_json")"
+          merged_at="$(jq -r '.merged_at // ""' <<<"$pr_json")"
+          base_ref="$(jq -r '.base.ref' <<<"$pr_json")"
+          head_ref="$(jq -r '.head.ref' <<<"$pr_json")"
+          head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")"
+          head_sha="$(jq -r '.head.sha' <<<"$pr_json")"
+
+          test "$state" = 'open'
+          test -z "$merged_at"
+          test "$base_ref" = 'main'
+          test "$head_ref" = 'feature/issue-530-bounded-canvas-ai-composition'
+          test "$head_repo" = "$GITHUB_REPOSITORY"
+          test "$head_sha" = "$requested_sha"
+
+          mapfile -t changed_files < <(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/533/files?per_page=100" --jq '.[].filename' | sort
+          )
+          expected_files=(
+            composer.json
+            composer.lock
+            config/sync/core.extension.yml
+            docs/ai/canvas-ai-proof-policy.yml
+            tests/browser/canvas-ai-provider-proof.spec.mjs
+            web/modules/custom/agency_project_tests/tests/src/Unit/CanvasAiPreProviderAuditTest.php
+          )
+          test "${#changed_files[@]}" -eq "${#expected_files[@]}"
+          for index in "${!expected_files[@]}"; do
+            test "${changed_files[$index]}" = "${expected_files[$index]}"
+          done
+
+          echo "head_sha=$requested_sha" >> "$GITHUB_OUTPUT"
+
+  diagnostic:
+    name: Run read-only UUID vs entity-ID Canvas diagnostic
+    needs: validate-target
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - agency
+      - ddev
+      - browser
+    env:
+      EXPECTED_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+      CANVAS_PAGE_UUID: 52600000-0000-4000-8000-000000000001
+    steps:
+      - name: Verify runner identity and trusted toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          hostname
+          whoami
+          id
+          command -v git
+          command -v docker
+          command -v ddev
+          command -v jq
+          command -v curl
+          git --version
+          docker --version
+          ddev version
+
+      - name: Checkout exact validated #533 target
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact checkout and JIT live target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          git diff --check
+
+          issue_1392_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1392")"
+          issue_530_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/530")"
+          test "$(jq -r '.state' <<<"$issue_1392_json")" = 'open'
+          test "$(jq -r '.pull_request // empty' <<<"$issue_1392_json")" = ''
+          test "$(jq -r '.state' <<<"$issue_530_json")" = 'open'
+          test "$(jq -r '.pull_request // empty' <<<"$issue_530_json")" = ''
+
+          pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/533")"
+          test "$(jq -r '.state' <<<"$pr_json")" = 'open'
+          test "$(jq -r '.merged_at // ""' <<<"$pr_json")" = ''
+          test "$(jq -r '.base.ref' <<<"$pr_json")" = 'main'
+          test "$(jq -r '.head.ref' <<<"$pr_json")" = 'feature/issue-530-bounded-canvas-ai-composition'
+          test "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.sha' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"
+
+          mapfile -t changed_files < <(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/533/files?per_page=100" --jq '.[].filename' | sort
+          )
+          expected_files=(
+            composer.json
+            composer.lock
+            config/sync/core.extension.yml
+            docs/ai/canvas-ai-proof-policy.yml
+            tests/browser/canvas-ai-provider-proof.spec.mjs
+            web/modules/custom/agency_project_tests/tests/src/Unit/CanvasAiPreProviderAuditTest.php
+          )
+          test "${#changed_files[@]}" -eq "${#expected_files[@]}"
+          for index in "${!expected_files[@]}"; do
+            test "${changed_files[$index]}" = "${expected_files[$index]}"
+          done
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install exact browser test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install chromium
+
+      - name: Materialize isolated exact #533 diagnostic runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/canvas-addressing-diagnostic
+
+          cat > .ddev/config.gate-canvas-addressing-1392.yaml <<EOF
+          name: agency-canvas-addressing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          host_mailpit_port: "21025"
+          host_webserver_port: "21080"
+          host_db_port: "21306"
+          host_https_port: "21443"
+          router_http_port: "21180"
+          router_https_port: "21444"
+          EOF
+
+          ddev utility configyaml | grep -F "agency-canvas-addressing-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush emerging:governed-content --all
+          ddev drush cr
+
+          # shellcheck disable=SC2016
+          entity_json="$(
+            ddev drush php:eval '
+              $uuid = "52600000-0000-4000-8000-000000000001";
+              $ids = \Drupal::entityQuery("canvas_page")
+                ->accessCheck(FALSE)
+                ->condition("uuid", $uuid)
+                ->execute();
+              $count = count($ids);
+              $entity_id = $count === 1 ? (string) reset($ids) : "";
+              $component_ids = [];
+              if ($count === 1) {
+                $page = \Drupal::entityTypeManager()
+                  ->getStorage("canvas_page")
+                  ->load($entity_id);
+                foreach ($page->get("components")->getValue() as $component) {
+                  $component_ids[] = $component["component_id"] ?? NULL;
+                }
+              }
+              print json_encode([
+                "uuid_entity_count" => $count,
+                "entity_id" => $entity_id,
+                "component_count" => count($component_ids),
+                "entity_component_ids" => $component_ids,
+              ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            '
+          )"
+          jq -e . <<<"$entity_json" >/dev/null
+
+          base_url="$(
+            ddev describe -j |
+              jq -r '.. | strings | select(test("^https://"))' |
+              head -n 1
+          )"
+          test -n "$base_url"
+          public_status="$(
+            curl -k -sS -o /dev/null -w '%{http_code}'               "$base_url/canvas-governed-sdc-baseline"
+          )"
+
+          jq -n             --arg target_sha "$EXPECTED_HEAD_SHA"             --arg uuid "$CANVAS_PAGE_UUID"             --arg public_status "$public_status"             --argjson entity "$entity_json"             '{
+              target_sha: $target_sha,
+              canvas_page_uuid: $uuid,
+              uuid_entity_count: $entity.uuid_entity_count,
+              canvas_page_entity_id: $entity.entity_id,
+              canvas_page_component_count: $entity.component_count,
+              entity_component_ids: $entity.entity_component_ids,
+              public_baseline_status: ($public_status | tonumber)
+            }'             > artifacts/canvas-addressing-diagnostic/runtime.json
+
+          jq -e '
+            .uuid_entity_count == 1
+            and (.canvas_page_entity_id | type == "string" and test("^[0-9]+$"))
+            and .canvas_page_component_count == 3
+            and .entity_component_ids == [
+              "sdc.emerging_digital.hero",
+              "sdc.emerging_digital.trust-list",
+              "sdc.emerging_digital.cta"
+            ]
+            and .public_baseline_status == 200
+          ' artifacts/canvas-addressing-diagnostic/runtime.json >/dev/null
+
+          login_url="$(ddev drush uli --uri="$base_url" --no-browser | tail -n 1)"
+          [[ "$login_url" =~ ^https?:// ]]
+          echo "::add-mask::$login_url"
+          login_file="${RUNNER_TEMP}/agency-canvas-addressing-login-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.txt"
+          umask 077
+          printf '%s\n' "$login_url" > "$login_file"
+          echo "CANVAS_ADDRESSING_LOGIN_FILE=$login_file" >> "$GITHUB_ENV"
+          echo "CANVAS_ADDRESSING_BASE_URL=$base_url" >> "$GITHUB_ENV"
+
+      - name: Compare UUID and numeric-ID Canvas addressing
+        shell: bash
+        env:
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { chromium } from '@playwright/test';
+          import { readFile, writeFile } from 'node:fs/promises';
+
+          const uuid = process.env.CANVAS_PAGE_UUID;
+          const baseUrl = process.env.CANVAS_ADDRESSING_BASE_URL;
+          const loginFile = process.env.CANVAS_ADDRESSING_LOGIN_FILE;
+          const runtimePath = 'artifacts/canvas-addressing-diagnostic/runtime.json';
+          const resultPath = 'artifacts/canvas-addressing-diagnostic/result.json';
+          const runtime = JSON.parse(await readFile(runtimePath, 'utf8'));
+          const entityId = runtime.canvas_page_entity_id;
+          const loginUrl = (await readFile(loginFile, 'utf8')).trim();
+          const expectedPreview = [
+            'emerging_digital:hero',
+            'emerging_digital:trust-list',
+            'emerging_digital:cta',
+          ];
+
+          const evidence = {
+            ...runtime,
+            status: 'FAIL',
+            failure_phase: 'authentication',
+            uuid_editor_status: null,
+            uuid_layout_status: null,
+            uuid_form_statuses: [],
+            id_layout_status: null,
+            id_editor_status: null,
+            id_editor_boot: 'FAIL',
+            id_preview_available: 'NO',
+            id_preview_components: [],
+            AI_CHAT_OPENED: 'NO',
+            AI_PROMPT_SUBMITTED: 'NO',
+            canvas_ai_post_count: 0,
+            PROVIDER_CALL: 'NONE',
+            cleanup_result: 'PENDING',
+          };
+
+          const browser = await chromium.launch({ headless: true });
+          const context = await browser.newContext({ ignoreHTTPSErrors: true });
+          const page = await context.newPage();
+
+          page.on('request', (request) => {
+            const path = new URL(request.url()).pathname;
+            if (request.method() === 'POST' && path === '/admin/api/canvas/ai') {
+              evidence.canvas_ai_post_count += 1;
+            }
+          });
+          page.on('response', (response) => {
+            const path = new URL(response.url()).pathname;
+            if (
+              path.startsWith(
+                `/canvas/api/v0/form/content-entity/canvas_page/${uuid}/`,
+              )
+            ) {
+              evidence.uuid_form_statuses.push(response.status());
+            }
+          });
+
+          async function apiStatus(path) {
+            const response = await context.request.get(
+              new URL(path, baseUrl).toString(),
+              { failOnStatusCode: false },
+            );
+            return response.status();
+          }
+
+          async function findPreviewFrame() {
+            for (const frame of page.frames()) {
+              const count = await frame
+                .locator('[data-ed-component]')
+                .count()
+                .catch(() => 0);
+              if (count >= 3) {
+                return frame;
+              }
+            }
+            return null;
+          }
+
+          async function waitForPreview(timeoutMs = 30_000) {
+            const deadline = Date.now() + timeoutMs;
+            while (Date.now() < deadline) {
+              const frame = await findPreviewFrame();
+              if (frame) {
+                return frame;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+            return null;
+          }
+
+          try {
+            const loginResponse = await page.goto(loginUrl, {
+              waitUntil: 'domcontentloaded',
+            });
+            if (!loginResponse || loginResponse.status() >= 400) {
+              throw new Error('Local one-time authentication failed.');
+            }
+
+            evidence.failure_phase = 'uuid_addressing';
+            const uuidEditorResponse = await page.goto(
+              new URL(`/canvas/editor/canvas_page/${uuid}`, baseUrl).toString(),
+              { waitUntil: 'domcontentloaded' },
+            );
+            evidence.uuid_editor_status = uuidEditorResponse?.status() ?? null;
+            await page.waitForTimeout(1_500);
+            evidence.uuid_layout_status = await apiStatus(
+              `/canvas/api/v0/layout/canvas_page/${uuid}`,
+            );
+
+            evidence.failure_phase = 'id_addressing';
+            evidence.id_layout_status = await apiStatus(
+              `/canvas/api/v0/layout/canvas_page/${entityId}`,
+            );
+            const idEditorResponse = await page.goto(
+              new URL(`/canvas/editor/canvas_page/${entityId}`, baseUrl).toString(),
+              { waitUntil: 'domcontentloaded' },
+            );
+            evidence.id_editor_status = idEditorResponse?.status() ?? null;
+
+            const preview = await waitForPreview();
+            if (preview) {
+              evidence.id_editor_boot = 'PASS';
+              evidence.id_preview_available = 'YES';
+              evidence.id_preview_components = await preview
+                .locator('[data-ed-component]')
+                .evaluateAll((elements) =>
+                  elements.map((element) =>
+                    element.getAttribute('data-ed-component'),
+                  ),
+                );
+            }
+
+            if (evidence.canvas_ai_post_count !== 0) {
+              evidence.PROVIDER_CALL = 'UNEXPECTED';
+              throw new Error('Canvas AI POST observed during read-only diagnostic.');
+            }
+
+            const hypothesisProven =
+              evidence.uuid_layout_status === 404
+              && evidence.id_layout_status === 200
+              && evidence.id_editor_status === 200
+              && evidence.id_editor_boot === 'PASS'
+              && evidence.id_preview_available === 'YES'
+              && JSON.stringify(evidence.id_preview_components)
+                === JSON.stringify(expectedPreview);
+
+            if (!hypothesisProven) {
+              throw new Error(
+                'UUID-vs-entity-ID addressing hypothesis not fully proven.',
+              );
+            }
+
+            evidence.status = 'PASS';
+            evidence.failure_phase = 'none';
+            evidence.verdict = 'UUID_VS_ENTITY_ID_ADDRESSING_PROVEN';
+          }
+          catch (error) {
+            evidence.error = error instanceof Error ? error.message : String(error);
+            evidence.verdict ??= 'ADDRESSING_HYPOTHESIS_UNPROVEN';
+            process.exitCode = 1;
+          }
+          finally {
+            await browser.close();
+            await writeFile(
+              resultPath,
+              `${JSON.stringify(evidence, null, 2)}\n`,
+              'utf8',
+            );
+          }
+          NODE
+
+      - name: Cleanup isolated runtime and annotate bounded evidence
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          result_file='artifacts/canvas-addressing-diagnostic/result.json'
+          runtime_file='artifacts/canvas-addressing-diagnostic/runtime.json'
+          mkdir -p artifacts/canvas-addressing-diagnostic
+          cleanup_result='PASS'
+
+          if ddev describe >/dev/null 2>&1; then
+            ddev delete --omit-snapshot --yes || cleanup_result='FAIL'
+          fi
+          rm -f .ddev/config.gate-canvas-addressing-1392.yaml || cleanup_result='FAIL'
+          if [[ -n "${CANVAS_ADDRESSING_LOGIN_FILE:-}" ]]; then
+            rm -f "$CANVAS_ADDRESSING_LOGIN_FILE" || cleanup_result='FAIL'
+          fi
+          git restore --worktree -- web/robots.txt config/sync || cleanup_result='FAIL'
+          git clean -fd -- config/sync || cleanup_result='FAIL'
+
+          if [[ ! -s "$result_file" ]]; then
+            if [[ -s "$runtime_file" ]] && jq -e . "$runtime_file" >/dev/null 2>&1; then
+              jq '
+                . + {
+                  status: "FAIL",
+                  failure_phase: "browser_not_reached",
+                  AI_CHAT_OPENED: "NO",
+                  AI_PROMPT_SUBMITTED: "NO",
+                  canvas_ai_post_count: 0,
+                  PROVIDER_CALL: "NONE"
+                }
+              ' "$runtime_file" > "$result_file"
+            else
+              jq -n                 --arg target_sha "$EXPECTED_HEAD_SHA"                 --arg uuid "$CANVAS_PAGE_UUID"                 '{
+                  target_sha: $target_sha,
+                  canvas_page_uuid: $uuid,
+                  status: "FAIL",
+                  failure_phase: "runtime_not_materialized",
+                  AI_CHAT_OPENED: "NO",
+                  AI_PROMPT_SUBMITTED: "NO",
+                  canvas_ai_post_count: 0,
+                  PROVIDER_CALL: "NONE"
+                }' > "$result_file"
+            fi
+          fi
+
+          tmp_result="${result_file}.tmp"
+          jq --arg cleanup_result "$cleanup_result"             '.cleanup_result = $cleanup_result'             "$result_file" > "$tmp_result" &&
+            mv "$tmp_result" "$result_file" ||
+            cleanup_result='FAIL'
+
+          printf '%s\n'             "AI_CHAT_OPENED=NO"             "AI_PROMPT_SUBMITTED=NO"             "CANVAS_AI_POST_COUNT=$(jq -r '.canvas_ai_post_count // 0' "$result_file" 2>/dev/null)"             "PROVIDER_CALL=$(jq -r '.PROVIDER_CALL // "NONE"' "$result_file" 2>/dev/null)"             "RUNTIME_CLEANUP=$cleanup_result"
+
+          test "$cleanup_result" = 'PASS'
+
+      - name: Upload bounded addressing evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-canvas-addressing-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/canvas-addressing-diagnostic
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Final workspace cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          rm -rf artifacts/canvas-addressing-diagnostic
+          rm -f "${CANVAS_ADDRESSING_LOGIN_FILE:-}"
+          git reset --hard "$EXPECTED_HEAD_SHA"
+          git clean -ffdx
+          git diff --check
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+          printf '%s\n' 'WORKTREE_FINAL=CLEAN'

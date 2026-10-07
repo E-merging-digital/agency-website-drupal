@@ -300,7 +300,17 @@ jobs:
           printf 'CANVAS_AI_CANVAS_PAGE_ENTITY_ID=%s\n' "$canvas_page_entity_id" >> "$GITHUB_ENV"
           unset canvas_page_entity_id
 
-          ddev drush php:eval '$key = \Drupal::service("key.repository")->getKey("openai_api_key"); if (!$key || trim((string) $key->getKeyValue()) === "") { throw new \RuntimeException("OpenAI key is unavailable through Drupal Key."); } print "Drupal Key provider readiness: OK\n";'
+          provider_key_readiness_php="$(
+            cat <<PHP
+          \$key = \Drupal::service("key.repository")->getKey("openai_api_key");
+          if (!\$key || trim((string) \$key->getKeyValue()) === "") {
+            throw new \RuntimeException("OpenAI key is unavailable through Drupal Key.");
+          }
+          print "Drupal Key provider readiness: OK\\n";
+          PHP
+          )"
+          ddev drush php:eval "$provider_key_readiness_php"
+          unset provider_key_readiness_php
 
           config_status_raw="$(ddev drush config:status --format=json 2>/dev/null)"
           config_status_metadata="$(

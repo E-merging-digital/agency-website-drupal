@@ -4,7 +4,6 @@ import path from 'node:path';
 
 const enabled = process.env.CANVAS_AI_PROVIDER_PROOF === '1';
 const adminLoginUrl = process.env.CANVAS_AI_ADMIN_LOGIN_URL;
-const editorPath = '/canvas/editor/canvas_page/52600000-0000-4000-8000-000000000001';
 const prompt = 'Using the page builder tool, place the existing approved Hero, Trust list and CTA components at the bottom of the page in that order. Do not create any new component.';
 const approved = [
   'emerging_digital:hero',
@@ -95,6 +94,13 @@ test.describe('bounded Canvas AI provider proof', () => {
       if (!adminLoginUrl) {
         throw new Error('CANVAS_AI_ADMIN_LOGIN_URL is required by the trusted route.');
       }
+
+      const canvasPageEntityId = process.env.CANVAS_AI_CANVAS_PAGE_ENTITY_ID;
+      if (!canvasPageEntityId || !/^[0-9]+$/.test(canvasPageEntityId)) {
+        throw new Error('CANVAS_AI_CANVAS_PAGE_ENTITY_ID must be a non-empty numeric Canvas page entity ID.');
+      }
+      const editorPath = `/canvas/editor/canvas_page/${canvasPageEntityId}`;
+      evidence.canvas_page_entity_id = canvasPageEntityId;
 
       evidence.failure_phase = 'authentication';
       const loginResponse = await page.goto(adminLoginUrl, { waitUntil: 'domcontentloaded' });

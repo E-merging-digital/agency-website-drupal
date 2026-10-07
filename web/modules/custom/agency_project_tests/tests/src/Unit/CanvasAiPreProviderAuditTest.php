@@ -207,6 +207,48 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
   }
 
   /**
+   * Checks that Canvas editor addressing uses the runtime numeric entity ID.
+   */
+  public function testProviderProofUsesRuntimeNumericCanvasEntityId(): void {
+    $specPath = dirname(DRUPAL_ROOT)
+      . '/tests/browser/canvas-ai-provider-proof.spec.mjs';
+    self::assertFileExists($specPath);
+    $spec = file_get_contents($specPath);
+    self::assertIsString($spec);
+
+    $providerTestStart = strpos(
+      $spec,
+      "test('uses only approved SDCs through the Page Builder path'",
+    );
+    self::assertNotFalse($providerTestStart);
+    $providerTest = substr($spec, $providerTestStart);
+    self::assertStringContainsString(
+      'process.env.CANVAS_AI_CANVAS_PAGE_ENTITY_ID',
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      '!/^[0-9]+$/.test(canvasPageEntityId)',
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      "throw new Error('CANVAS_AI_CANVAS_PAGE_ENTITY_ID",
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      '`/canvas/editor/canvas_page/${canvasPageEntityId}`',
+      $providerTest,
+    );
+    self::assertStringNotContainsString(
+      '52600000-0000-4000-8000-000000000001',
+      $spec,
+    );
+    self::assertDoesNotMatchRegularExpression(
+      '#/canvas/editor/canvas_page/[0-9]+#',
+      $spec,
+    );
+  }
+
+  /**
    * Finds every Canvas AI agent default configuration file.
    *
    * @return array<string, array<string, mixed>>

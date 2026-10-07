@@ -213,6 +213,7 @@ jobs:
           ddev drush emerging:governed-content --all
           ddev drush cr
 
+          # shellcheck disable=SC2016
           entity_json="$(
             ddev drush php:eval '
               $uuid = "52600000-0000-4000-8000-000000000001";

@@ -248,18 +248,96 @@ jobs:
               head -n 1
           )"
           test -n "$base_url"
-          public_status="$(
-            curl -k -sS -o /dev/null -w '%{http_code}'               "$base_url/canvas-governed-sdc-baseline"
+          public_start_url="$base_url/canvas-governed-sdc-baseline"
+          public_initial_status="$(
+            curl -k -sS --proto '=https' --max-redirs 0               -o /dev/null -w '%{http_code}' "$public_start_url"
           )"
 
-          jq -n             --arg target_sha "$EXPECTED_HEAD_SHA"             --arg uuid "$CANVAS_PAGE_UUID"             --arg public_status "$public_status"             --argjson entity "$entity_json"             '{
+          public_follow_url="$public_start_url"
+          public_final_status=''
+          public_redirect_count=0
+          public_max_redirects=3
+          public_headers="${RUNNER_TEMP}/agency-canvas-addressing-public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.headers"
+          trap 'rm -f "$public_headers"' EXIT
+
+          while :; do
+            : > "$public_headers"
+            current_status="$(
+              curl -k -sS --proto '=https' --max-redirs 0                 -D "$public_headers"                 -o /dev/null                 -w '%{http_code}'                 "$public_follow_url"
+            )"
+
+            if [[ "$current_status" =~ ^3[0-9][0-9]$ ]]; then
+              if (( public_redirect_count >= public_max_redirects )); then
+                echo "Public baseline exceeded bounded redirect limit." >&2
+                exit 1
+              fi
+
+              public_location="$(
+                awk '
+                  tolower($1) == "location:" {
+                    sub(/\r$/, "")
+                    sub(/^[^:]+:[[:space:]]*/, "")
+                    print
+                    exit
+                  }
+                ' "$public_headers"
+              )"
+              test -n "$public_location"
+
+              public_next_url="$(
+                node --input-type=module -e '
+                  const [location, current, base] = process.argv.slice(1);
+                  const next = new URL(location, current);
+                  const baseUrl = new URL(base);
+                  if (baseUrl.protocol !== "https:") {
+                    process.stderr.write("Public baseline base URL must remain HTTPS.\n");
+                    process.exit(41);
+                  }
+                  if (next.origin !== baseUrl.origin) {
+                    process.stderr.write("Public baseline redirect escaped the local DDEV origin.\n");
+                    process.exit(42);
+                  }
+                  process.stdout.write(next.toString());
+                ' "$public_location" "$public_follow_url" "$base_url"
+              )"
+
+              public_follow_url="$public_next_url"
+              public_redirect_count=$((public_redirect_count + 1))
+              continue
+            fi
+
+            public_final_status="$current_status"
+            break
+          done
+
+          rm -f "$public_headers"
+          trap - EXIT
+
+          public_effective_path="$(
+            node --input-type=module -e '
+              const [effective, base] = process.argv.slice(1);
+              const effectiveUrl = new URL(effective);
+              const baseUrl = new URL(base);
+              if (effectiveUrl.origin !== baseUrl.origin) {
+                process.stderr.write("Public baseline final URL escaped the local DDEV origin.\n");
+                process.exit(43);
+              }
+              process.stdout.write(effectiveUrl.pathname);
+            ' "$public_follow_url" "$base_url"
+          )"
+          [[ "$public_effective_path" == /* ]]
+          test "$public_final_status" = '200'
+
+          jq -n             --arg target_sha "$EXPECTED_HEAD_SHA"             --arg uuid "$CANVAS_PAGE_UUID"             --arg public_initial_status "$public_initial_status"             --arg public_final_status "$public_final_status"             --arg public_effective_path "$public_effective_path"             --argjson entity "$entity_json"             '{
               target_sha: $target_sha,
               canvas_page_uuid: $uuid,
               uuid_entity_count: $entity.uuid_entity_count,
               canvas_page_entity_id: $entity.entity_id,
               canvas_page_component_count: $entity.component_count,
               entity_component_ids: $entity.entity_component_ids,
-              public_baseline_status: ($public_status | tonumber)
+              public_baseline_initial_status: ($public_initial_status | tonumber),
+              public_baseline_final_status: ($public_final_status | tonumber),
+              public_baseline_effective_path: $public_effective_path
             }'             > artifacts/canvas-addressing-diagnostic/runtime.json
 
           jq -e '
@@ -271,7 +349,9 @@ jobs:
               "sdc.emerging_digital.trust-list",
               "sdc.emerging_digital.cta"
             ]
-            and .public_baseline_status == 200
+            and (.public_baseline_initial_status | type == "number")
+            and .public_baseline_final_status == 200
+            and (.public_baseline_effective_path | type == "string" and startswith("/"))
           ' artifacts/canvas-addressing-diagnostic/runtime.json >/dev/null
 
           login_url="$(ddev drush uli --uri="$base_url" --no-browser | tail -n 1)"

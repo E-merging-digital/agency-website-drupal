@@ -359,7 +359,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
-   * Common version keys create no fact and active_version-only drift stays known.
+   * Common versions create no fact; active_version-only drift stays known.
    */
   public function testCommonVersionCreatesNoFactForActiveVersionOnlyDrift(): void {
     $pair = $this->activeVersionOnlyWithCommonVersionPair();
@@ -442,8 +442,10 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    */
   public function testCommonVersionNestedDifferenceRemainsVisible(): void {
     $pair = $this->activeVersionOnlyWithCommonVersionPair();
-    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']
-      ['settings']['default_settings']['label'] = 'ACTIVE-NESTED-SECRET';
+    $commonVersion =&
+      $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa'];
+    $commonVersion['settings']['default_settings']['label'] =
+      'ACTIVE-NESTED-SECRET';
 
     $result = $this->analyzeConfig($pair['active'], $pair['sync']);
     self::assertContains(
@@ -566,7 +568,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
-   * Calls the recursive comparator and exposes only internal fact keys to tests.
+   * Calls the recursive comparator and exposes fact keys only to tests.
    *
    * @param array<string, mixed> $active
    *   Active config.
@@ -635,7 +637,7 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
-   * Produces an active_version-only drift with one identical common version key.
+   * Produces active_version-only drift with one common version key.
    *
    * @return array{active: array<string, mixed>, sync: array<string, mixed>}
    *   Active and sync structures.

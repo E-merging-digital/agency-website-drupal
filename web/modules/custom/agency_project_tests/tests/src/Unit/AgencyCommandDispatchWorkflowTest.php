@@ -765,7 +765,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       $trustedComparator,
     );
     foreach ([
-      "$path === 'versioned_properties'",
+      "\$path === 'versioned_properties'",
       '$sync_version === $canonical_key',
       '&& $active_exists',
       '&& !$sync_exists',

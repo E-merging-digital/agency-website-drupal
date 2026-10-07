@@ -359,6 +359,110 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
+   * Common versions create no fact; active_version-only drift stays known.
+   */
+  public function testCommonVersionCreatesNoFactForActiveVersionOnlyDrift(): void {
+    $pair = $this->activeVersionOnlyWithCommonVersionPair();
+    $facts = [];
+    $paths = $this->diffPaths(
+      $pair['active'],
+      $pair['sync'],
+      $pair['sync']['active_version'],
+      $facts,
+    );
+
+    self::assertSame(['active_version'], $paths);
+    self::assertSame([], $facts);
+
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+    self::assertSame(['active_version'], $result['differing_paths']);
+    self::assertSame(
+      'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
+      $result['classification'],
+    );
+  }
+
+  /**
+   * The expected active-only sync-version drift remains known.
+   */
+  public function testExpectedActiveOnlySyncVersionRemainsKnown(): void {
+    $pair = $this->knownPair();
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+
+    self::assertContains(
+      'versioned_properties.<version>',
+      $result['differing_paths'],
+    );
+    self::assertSame(
+      'KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
+      $result['classification'],
+    );
+  }
+
+  /**
+   * A sync-only version key remains review-required.
+   */
+  public function testSyncOnlyVersionRemainsReviewRequired(): void {
+    $pair = $this->activeVersionOnlyWithCommonVersionPair();
+    unset($pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']);
+
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+    self::assertContains(
+      'versioned_properties.<version>',
+      $result['differing_paths'],
+    );
+    self::assertSame(
+      'UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
+      $result['classification'],
+    );
+  }
+
+  /**
+   * Multiple asymmetric version keys remain review-required.
+   */
+  public function testMultipleAsymmetricVersionsRemainReviewRequired(): void {
+    $pair = $this->knownPair();
+    $pair['active']['versioned_properties']['cccccccccccccccc'] = [
+      'settings' => ['default_settings' => ['label' => 'historic']],
+    ];
+
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+    self::assertContains(
+      'versioned_properties.<version>',
+      $result['differing_paths'],
+    );
+    self::assertSame(
+      'UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
+      $result['classification'],
+    );
+  }
+
+  /**
+   * Nested differences under a common version remain visible and conservative.
+   */
+  public function testCommonVersionNestedDifferenceRemainsVisible(): void {
+    $pair = $this->activeVersionOnlyWithCommonVersionPair();
+    $commonVersion =&
+      $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa'];
+    $commonVersion['settings']['default_settings']['label'] =
+      'ACTIVE-NESTED-SECRET';
+
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+    self::assertContains(
+      'versioned_properties.<version>.settings.default_settings.label',
+      $result['differing_paths'],
+    );
+    self::assertSame(
+      'UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
+      $result['classification'],
+    );
+
+    $encoded = json_encode($result, JSON_THROW_ON_ERROR);
+    self::assertStringNotContainsString('aaaaaaaaaaaaaaaa', $encoded);
+    self::assertStringNotContainsString('ACTIVE-NESTED-SECRET', $encoded);
+  }
+
+  /**
    * A historical version key is known only when it equals sync active_version.
    */
   public function testUnprovenHistoricalVersionRequiresReview(): void {
@@ -464,6 +568,41 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
+   * Calls the recursive comparator and exposes fact keys only to tests.
+   *
+   * @param array<string, mixed> $active
+   *   Active config.
+   * @param array<string, mixed> $sync
+   *   Sync config.
+   * @param string $syncVersion
+   *   Sync active_version.
+   * @param array<string, bool> $facts
+   *   Dynamic version facts populated by the comparator.
+   *
+   * @return list<string>
+   *   Path-only differences.
+   */
+  private function diffPaths(
+    array $active,
+    array $sync,
+    string $syncVersion,
+    array &$facts,
+  ): array {
+    $name = 'agency_canvas_995_diff_paths';
+    if (!function_exists($name)) {
+      self::fail('The #995 Canvas recursive comparator was not loaded.');
+    }
+
+    return \agency_canvas_995_diff_paths(
+      $active,
+      $sync,
+      '',
+      $syncVersion,
+      $facts,
+    );
+  }
+
+  /**
    * Asserts one integer-key rejection remains bounded and path-only.
    *
    * @param array{active: array<string, mixed>, sync: array<string, mixed>} $pair
@@ -495,6 +634,24 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
       self::assertStringNotContainsString($rawKey, $message);
       self::assertStringNotContainsString($rawValue, $message);
     }
+  }
+
+  /**
+   * Produces active_version-only drift with one common version key.
+   *
+   * @return array{active: array<string, mixed>, sync: array<string, mixed>}
+   *   Active and sync structures.
+   */
+  private function activeVersionOnlyWithCommonVersionPair(): array {
+    $pair = $this->knownPair();
+
+    $pair['active']['versioned_properties']['active'] =
+      $pair['sync']['versioned_properties']['active'];
+    $pair['active']['label'] = $pair['sync']['label'];
+    $pair['sync']['versioned_properties']['aaaaaaaaaaaaaaaa'] =
+      $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa'];
+
+    return $pair;
   }
 
   /**

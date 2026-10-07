@@ -139,15 +139,17 @@ function agency_canvas_995_diff_paths(
       && preg_match('/^[0-9a-f]{16}$/D', $canonical_key) === 1
     ) {
       $public_segment = '<version>';
-      $fact_key = implode(':', [
-        $canonical_key,
-        $active_exists ? 'active' : 'no-active',
-        $sync_exists ? 'sync' : 'no-sync',
-        $sync_version === $canonical_key
-          ? 'matches-sync-version'
-          : 'other-version',
-      ]);
-      $dynamic_version_facts[$fact_key] = TRUE;
+      if ($active_exists !== $sync_exists) {
+        $fact_key = implode(':', [
+          $canonical_key,
+          $active_exists ? 'active' : 'no-active',
+          $sync_exists ? 'sync' : 'no-sync',
+          $sync_version === $canonical_key
+            ? 'matches-sync-version'
+            : 'other-version',
+        ]);
+        $dynamic_version_facts[$fact_key] = TRUE;
+      }
     }
 
     $child_path = agency_canvas_995_join_path($path, $public_segment);

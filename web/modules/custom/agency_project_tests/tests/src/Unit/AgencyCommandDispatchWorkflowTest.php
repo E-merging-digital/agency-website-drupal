@@ -769,6 +769,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       '$sync_version === $canonical_key',
       '&& $active_exists',
       '&& !$sync_exists',
+      '$active_exists !== $sync_exists',
     ] as $numericVersionBoundary) {
       self::assertStringContainsString(
         $numericVersionBoundary,

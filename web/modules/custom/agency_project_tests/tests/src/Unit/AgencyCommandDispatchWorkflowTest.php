@@ -932,7 +932,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'public_baseline_initial_status',
       'public_baseline_final_status',
       'public_baseline_effective_path',
-      "test \"$public_final_status\" = '200'",
+      'test "$public_final_status" = \'200\'',
       '/canvas/api/v0/layout/canvas_page/',
       '/canvas/editor/canvas_page/',
       'canvas_ai_post_count',

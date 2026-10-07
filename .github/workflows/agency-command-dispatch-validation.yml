@@ -52,42 +52,69 @@ jobs:
         shell: bash
         run: npm ci
 
-      - name: Prove strict provider-only Playwright discovery
+      - name: Prove trusted-main Playwright config with exact #533 provider spec
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TRUSTED_MAIN_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
 
           provider_spec='tests/browser/canvas-ai-provider-proof.spec.mjs'
-          materialized='0'
-          cleanup_provider_spec() {
-            if [[ "$materialized" = '1' ]]; then
+          trusted_playwright_config='.agency-trusted-playwright.config.mjs'
+          materialized_provider_spec='0'
+
+          cleanup_proof_files() {
+            rm -f "$trusted_playwright_config"
+            if [[ "$materialized_provider_spec" = '1' ]]; then
               rm -f "$provider_spec"
             fi
           }
-          trap cleanup_provider_spec EXIT
+          trap cleanup_proof_files EXIT
 
-          if [[ ! -f "$provider_spec" ]]; then
-            provider_head="$(
-              gh api "repos/$GITHUB_REPOSITORY/pulls/533" --jq '.head.sha'
-            )"
-            [[ "$provider_head" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TRUSTED_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
+          provider_head="$(
+            gh api "repos/$GITHUB_REPOSITORY/pulls/533" --jq '.head.sha'
+          )"
+          [[ "$provider_head" =~ ^[0-9a-f]{40}$ ]]
+
+          trusted_playwright_blob="$(
+            gh api               "repos/$GITHUB_REPOSITORY/contents/playwright.config.mjs?ref=$TRUSTED_MAIN_SHA"               --jq '.sha'
+          )"
+          target_playwright_blob="$(
+            gh api               "repos/$GITHUB_REPOSITORY/contents/playwright.config.mjs?ref=$provider_head"               --jq '.sha'
+          )"
+          provider_spec_blob="$(
+            gh api               "repos/$GITHUB_REPOSITORY/contents/$provider_spec?ref=$provider_head"               --jq '.sha'
+          )"
+          [[ "$trusted_playwright_blob" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$target_playwright_blob" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$provider_spec_blob" =~ ^[0-9a-f]{40}$ ]]
+
+          gh api             "repos/$GITHUB_REPOSITORY/contents/playwright.config.mjs?ref=$TRUSTED_MAIN_SHA"             --jq '.content' |
+            base64 -d > "$trusted_playwright_config"
+          test -s "$trusted_playwright_config"
+
+          if [[ -f "$provider_spec" ]]; then
+            test "$(git hash-object "$provider_spec")" = "$provider_spec_blob"
+          else
             gh api               "repos/$GITHUB_REPOSITORY/contents/$provider_spec?ref=$provider_head"               --jq '.content' |
               base64 -d > "$provider_spec"
             test -s "$provider_spec"
-            materialized='1'
+            test "$(git hash-object "$provider_spec")" = "$provider_spec_blob"
+            materialized_provider_spec='1'
           fi
 
-          grep -Fq             "'public-blog.json': '**/public-blog.spec.mjs'"             playwright.config.mjs
-          grep -Fq             "'production-editorial-401.json': '**/production-editorial-article.spec.mjs'"             playwright.config.mjs
-          grep -Fq             "'drupal-2027-preprod.json': '**/drupal-2027-preprod.spec.mjs'"             playwright.config.mjs
-          grep -Fq             "'homepage-brand-1059-preprod.json': '**/homepage-brand-1059-preprod.spec.mjs'"             playwright.config.mjs
-          grep -Fq             "process.env.CANVAS_AI_PROVIDER_PROOF === '1'"             playwright.config.mjs
-          grep -Fq             "'**/canvas-ai-provider-proof.spec.mjs'"             playwright.config.mjs
+          grep -Fq             "process.env.CANVAS_AI_PROVIDER_PROOF === '1'"             "$trusted_playwright_config"
+          grep -Fq             "'**/canvas-ai-provider-proof.spec.mjs'"             "$trusted_playwright_config"
+          grep -Fq             "'public-blog.json': '**/public-blog.spec.mjs'"             "$trusted_playwright_config"
+          grep -Fq             "'production-editorial-401.json': '**/production-editorial-article.spec.mjs'"             "$trusted_playwright_config"
+          grep -Fq             "'drupal-2027-preprod.json': '**/drupal-2027-preprod.spec.mjs'"             "$trusted_playwright_config"
+          grep -Fq             "'homepage-brand-1059-preprod.json': '**/homepage-brand-1059-preprod.spec.mjs'"             "$trusted_playwright_config"
+          grep -Fq             'if (!providerProofMode && !contractTestMatch)'             "$trusted_playwright_config"
 
           discovery="$(
-            CANVAS_AI_PROVIDER_PROOF=1             BROWSER_VALIDATION_CONTRACT='tests/browser/contracts/unsupported.json'             PLAYWRIGHT_BASE_URL='http://127.0.0.1:65535'             npx playwright test               tests/browser/canvas-ai-provider-proof.spec.mjs               --project=desktop               --workers=1               --list
+            CANVAS_AI_PROVIDER_PROOF=1             BROWSER_VALIDATION_CONTRACT='tests/browser/contracts/unsupported.json'             PLAYWRIGHT_BASE_URL='http://127.0.0.1:65535'             npx playwright test               tests/browser/canvas-ai-provider-proof.spec.mjs               --config="$trusted_playwright_config"               --project=desktop               --workers=1               --list
           )"
           printf '%s\n' "$discovery"
 
@@ -100,14 +127,19 @@ jobs:
 
           set +e
           unsupported="$(
-            CANVAS_AI_PROVIDER_PROOF=0             BROWSER_VALIDATION_CONTRACT='tests/browser/contracts/unsupported.json'             PLAYWRIGHT_BASE_URL='http://127.0.0.1:65535'             npx playwright test --list 2>&1
+            CANVAS_AI_PROVIDER_PROOF=0             BROWSER_VALIDATION_CONTRACT='tests/browser/contracts/unsupported.json'             PLAYWRIGHT_BASE_URL='http://127.0.0.1:65535'             npx playwright test               --config="$trusted_playwright_config"               --list 2>&1
           )"
           unsupported_rc=$?
           set -e
           test "$unsupported_rc" -ne 0
           grep -Fq             'Unsupported BROWSER_VALIDATION_CONTRACT: unsupported.json'             <<<"$unsupported"
 
-          printf '%s\n'             'PROVIDER_SPEC_DISCOVERED=YES'             'DISCOVERED_DESKTOP_TEST_COUNT=1'             'OTHER_SPECS_DISCOVERED=0'             'PROVIDER_TEST_EXECUTED=NO'             'PROVIDER_CALL=NONE'             'NORMAL_BROWSER_CONTRACT_BEHAVIOR=UNCHANGED'             'UNSUPPORTED_CONTRACT_OUTSIDE_PROVIDER_MODE=FAIL_CLOSED'
+          printf '%s\n'             "TRUSTED_PLAYWRIGHT_CONFIG_SOURCE=MAIN / ref=$TRUSTED_MAIN_SHA"             "TRUSTED_PLAYWRIGHT_CONFIG_BLOB=$trusted_playwright_blob"             "TARGET_PLAYWRIGHT_CONFIG_BLOB=$target_playwright_blob"             "TARGET_PROVIDER_SPEC_SOURCE=PR #533 HEAD $provider_head"             "TARGET_PROVIDER_SPEC_BLOB=$provider_spec_blob"             'PROVIDER_SPEC_DISCOVERED=YES'             'DISCOVERED_DESKTOP_TEST_COUNT=1'             'OTHER_SPECS_DISCOVERED=0'             'PROVIDER_TEST_EXECUTED=NO'             'PROVIDER_CALL=NONE'             'NORMAL_BROWSER_CONTRACT_BEHAVIOR=UNCHANGED'             'UNSUPPORTED_CONTRACT_OUTSIDE_PROVIDER_MODE=FAIL_CLOSED'
+
+          cleanup_proof_files
+          trap - EXIT
+          test -z "$(git status --porcelain)"
+          printf 'WORKTREE_FINAL=CLEAN\n'
 
       - name: Validate #922 GitHub Actions surface with actionlint
         shell: bash

@@ -468,6 +468,12 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
    *
    * @param array{active: array<string, mixed>, sync: array<string, mixed>} $pair
    *   Active and sync pair.
+   * @param string $expectedPath
+   *   Expected bounded parent path in the diagnostic.
+   * @param string $rawKey
+   *   Raw integer key text that must not be exposed.
+   * @param string $rawValue
+   *   Raw config value that must not be exposed.
    */
   private function assertBoundedIntKeyFailure(
     array $pair,

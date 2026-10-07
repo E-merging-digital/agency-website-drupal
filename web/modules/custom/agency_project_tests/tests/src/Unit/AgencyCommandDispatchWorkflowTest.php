@@ -948,6 +948,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       self::assertStringNotContainsString($forbidden, $source);
     }
   }
+
   /**
    * Checks a provider-proof port against the host ephemeral range.
    */

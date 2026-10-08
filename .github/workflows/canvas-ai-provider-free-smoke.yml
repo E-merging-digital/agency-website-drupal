@@ -246,7 +246,9 @@ jobs:
           fi
           rm -f "${RUNNER_TEMP}/agency-530-no-provider-login-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           rm -f tests/browser/.agency-trusted-provider-free-smoke.mjs
-          rm -f .ddev/config.gate-canvas-provider-free.yaml .ddev/.env.web
+          rm -f .ddev/config.gate-canvas-provider-free.yaml
+          # This workflow never owns a provider secret; do not delete an unexpected file.
+          if [[ -e .ddev/.env.web ]]; then cleanup_failed=1; fi
           git restore --worktree -- web/robots.txt config/sync || cleanup_failed=1
           git clean -fd -- config/sync >/dev/null || cleanup_failed=1
           rm -rf node_modules vendor

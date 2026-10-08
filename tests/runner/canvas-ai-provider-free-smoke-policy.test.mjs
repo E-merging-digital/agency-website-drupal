@@ -45,6 +45,7 @@ test('no send action, no provider and network fail-closed', () => {
   assert.match(browser, /external_attempts/);
   assert.match(workflow, /test ! -e \.ddev\/\.env\.web/);
   assert.match(workflow, /ddev delete --omit-snapshot --yes/);
+  assert.doesNotMatch(workflow, /rm -f[^\n]*\.ddev\/\.env\.web/);
 });
 
 test('only whitelisted sanitized JSON is uploaded', () => {

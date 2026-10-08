@@ -1,0 +1,286 @@
+name: Agency trusted provider-free Canvas AI UI smoke
+on:
+  workflow_dispatch:
+    inputs:
+      head_sha:
+        description: Exact 40-character PR #533 HEAD (human OWNER only)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: agency-530-provider-free-ui-smoke
+  cancel-in-progress: false
+
+jobs:
+  validate-target:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      head_sha: ${{ steps.gate.outputs.head_sha }}
+    steps:
+      - name: Strict OWNER and exact PR target gate
+        id: gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_SHA: ${{ inputs.head_sha }}
+          SENDER_TYPE: ${{ github.event.sender.type }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/main
+          test "$GITHUB_ACTOR" = E-merging-digital
+          test "$GITHUB_TRIGGERING_ACTOR" = E-merging-digital
+          test "$SENDER_TYPE" = User
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$GITHUB_SHA" = "$live_main"
+          issue="$(gh api "repos/$GITHUB_REPOSITORY/issues/530")"
+          test "$(jq -r '.state' <<<"$issue")" = open
+          test "$(jq -r '.pull_request // empty' <<<"$issue")" = ''
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/533")"
+          test "$(jq -r '.state' <<<"$pr")" = open
+          test "$(jq -r '.draft' <<<"$pr")" = true
+          test "$(jq -r '.merged_at // empty' <<<"$pr")" = ''
+          test "$(jq -r '.base.ref' <<<"$pr")" = main
+          test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.ref' <<<"$pr")" = feature/issue-530-bounded-canvas-ai-composition
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$REQUESTED_SHA"
+          mapfile -t actual < <(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/533/files?per_page=100" --jq '.[].filename' | sort)
+          expected=(
+            composer.json
+            composer.lock
+            config/sync/core.extension.yml
+            docs/ai/canvas-ai-proof-policy.yml
+            tests/browser/canvas-ai-provider-proof.spec.mjs
+            web/modules/custom/agency_project_tests/tests/src/Unit/CanvasAiPreProviderAuditTest.php
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          echo "head_sha=$REQUESTED_SHA" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    needs: validate-target
+    runs-on: [self-hosted, linux, x64, agency, ddev, browser]
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    env:
+      EXPECTED_HEAD_SHA: ${{ needs.validate-target.outputs.head_sha }}
+      AGENCY_SMOKE_RESULT_PATH: artifacts/canvas-ai-provider-free-smoke/result.json
+    steps:
+      - name: Verify established Agency toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          for tool in git gh jq docker ddev openssl node; do command -v "$tool"; done
+
+      - name: Checkout immutable #533 HEAD
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-target.outputs.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Repeat JIT target and six-file gate; fetch ONLY trusted-main script
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -f package-lock.json
+          test -f .ddev/config.yaml
+          test ! -e .ddev/.env.web
+          test -z "${OPENAI_API_KEY:-}"
+          live_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$GITHUB_SHA" = "$live_main"
+          issue="$(gh api "repos/$GITHUB_REPOSITORY/issues/530")"
+          test "$(jq -r '.state' <<<"$issue")" = open
+          test "$(jq -r '.pull_request // empty' <<<"$issue")" = ''
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/533")"
+          test "$(jq -r '.state' <<<"$pr")" = open
+          test "$(jq -r '.draft' <<<"$pr")" = true
+          test "$(jq -r '.merged_at // empty' <<<"$pr")" = ''
+          test "$(jq -r '.base.ref' <<<"$pr")" = main
+          test "$(jq -r '.head.repo.full_name' <<<"$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.ref' <<<"$pr")" = feature/issue-530-bounded-canvas-ai-composition
+          test "$(jq -r '.head.sha' <<<"$pr")" = "$EXPECTED_HEAD_SHA"
+          mapfile -t actual < <(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/533/files?per_page=100" --jq '.[].filename' | sort)
+          expected=(
+            composer.json
+            composer.lock
+            config/sync/core.extension.yml
+            docs/ai/canvas-ai-proof-policy.yml
+            tests/browser/canvas-ai-provider-proof.spec.mjs
+            web/modules/custom/agency_project_tests/tests/src/Unit/CanvasAiPreProviderAuditTest.php
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          dest=tests/browser/.agency-trusted-provider-free-smoke.mjs
+          test ! -e "$dest"
+          uri="repos/$GITHUB_REPOSITORY/contents/scripts/runner/canvas-ai-provider-free-smoke.mjs?ref=$GITHUB_SHA"
+          expected_blob="$(gh api "$uri" --jq '.sha')"
+          [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]]
+          umask 077
+          gh api "$uri" --jq '.content' | base64 -d > "$dest"
+          test -s "$dest"
+          test "$(git hash-object "$dest")" = "$expected_blob"
+
+      - name: Set up locked Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install browser from existing npm lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tests/browser/.agency-trusted-provider-free-smoke.mjs
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install chromium
+
+      - name: Build disposable Drupal Canvas; NEVER inject provider key
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${OPENAI_API_KEY:-}"
+          test ! -e .ddev/.env.web
+          cat > .ddev/config.gate-canvas-provider-free.yaml <<EOF
+          name: agency-canvas-no-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          EOF
+          ddev utility configyaml | grep -F "agency-canvas-no-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ddev start -y
+          ddev composer install --no-interaction --no-progress --prefer-dist
+          admin_pass="$(openssl rand -hex 24)"
+          ddev drush site:install --existing-config -y --account-pass="$admin_pass"
+          unset admin_pass
+          ddev drush cim -y
+          ddev drush cr
+          ddev drush emerging:governed-content --all
+          ddev drush cr
+          test ! -e .ddev/.env.web
+          ddev exec sh -c 'test -z "${OPENAI_API_KEY:-}"'
+          page_id="$(ddev drush php:eval '
+            $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)
+              ->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
+            if (count($ids) !== 1) { throw new \RuntimeException("Expected exactly one Canvas page."); }
+            print (string) reset($ids);
+          ')"
+          [[ "$page_id" =~ ^[0-9]+$ ]]
+          base_url="$(ddev describe -j | jq -r '.. | strings | select(test("^https://"))' | head -n 1)"
+          [[ "$base_url" == https://* ]]
+          login_url="$(ddev drush uli --uri="$base_url" --no-browser | tail -n 1)"
+          [[ "$login_url" == https://* ]]
+          echo "::add-mask::$login_url"
+          login_file="${RUNNER_TEMP}/agency-530-no-provider-login-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          umask 077
+          printf '%s\n' "$login_url" > "$login_file"
+          unset login_url
+          state_before="$(ddev drush php:eval '
+            $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)
+              ->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
+            if (count($ids) !== 1) { throw new \RuntimeException("Page missing."); }
+            $page = \Drupal::entityTypeManager()->getStorage("canvas_page")->load(reset($ids));
+            print hash("sha256", json_encode($page->toArray(), JSON_THROW_ON_ERROR));
+          ')"
+          [[ "$state_before" =~ ^[0-9a-f]{64}$ ]]
+          {
+            echo "AGENCY_SMOKE_BASE_URL=$base_url"
+            echo "AGENCY_SMOKE_LOGIN_FILE=$login_file"
+            echo "AGENCY_SMOKE_CANVAS_ENTITY_ID=$page_id"
+            echo "AGENCY_SMOKE_STATE_BEFORE=$state_before"
+          } >> "$GITHUB_ENV"
+
+      - name: Revalidate immediately before browser — no provider, no send
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/533" --jq '.head.sha')" = "$EXPECTED_HEAD_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/530" --jq '.state')" = open
+          test -z "${OPENAI_API_KEY:-}"
+          test ! -e .ddev/.env.web
+          node tests/browser/.agency-trusted-provider-free-smoke.mjs
+
+      - name: Verify persisted Canvas content is unchanged
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${AGENCY_SMOKE_STATE_BEFORE:-}" =~ ^[0-9a-f]{64}$ ]]
+          state_after="$(ddev drush php:eval '
+            $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)
+              ->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
+            if (count($ids) !== 1) { throw new \RuntimeException("Canvas page disappeared."); }
+            $page = \Drupal::entityTypeManager()->getStorage("canvas_page")->load(reset($ids));
+            print hash("sha256", json_encode($page->toArray(), JSON_THROW_ON_ERROR));
+          ')"
+          test "$state_after" = "$AGENCY_SMOKE_STATE_BEFORE"
+          mkdir -p artifacts/canvas-ai-provider-free-smoke
+          printf '{"persisted_canvas_page_unchanged":true}\n' > artifacts/canvas-ai-provider-free-smoke/integrity.json
+
+      - name: Always clean exact DDEV project and secret-free temp files
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          cleanup_failed=0
+          if [[ -f .ddev/config.gate-canvas-provider-free.yaml ]]; then
+            if ddev utility configyaml 2>/dev/null | grep -Fq "agency-canvas-no-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"; then
+              ddev delete --omit-snapshot --yes || cleanup_failed=1
+            else
+              cleanup_failed=1
+            fi
+          fi
+          rm -f "${RUNNER_TEMP}/agency-530-no-provider-login-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -f tests/browser/.agency-trusted-provider-free-smoke.mjs
+          rm -f .ddev/config.gate-canvas-provider-free.yaml .ddev/.env.web
+          git restore --worktree -- web/robots.txt config/sync || cleanup_failed=1
+          git clean -fd -- config/sync >/dev/null || cleanup_failed=1
+          rm -rf node_modules vendor
+          git diff --check || cleanup_failed=1
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then cleanup_failed=1; fi
+          mkdir -p artifacts/canvas-ai-provider-free-smoke
+          if [[ "$cleanup_failed" -eq 0 ]]; then
+            printf '{"cleanup":"PASS"}\n' > artifacts/canvas-ai-provider-free-smoke/cleanup.json
+          else
+            printf '{"cleanup":"FAIL"}\n' > artifacts/canvas-ai-provider-free-smoke/cleanup.json
+          fi
+          exit "$cleanup_failed"
+
+      - name: Upload ONLY sanitized JSON — never traces, cookies or login URLs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-530-provider-free-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/canvas-ai-provider-free-smoke/result.json
+            artifacts/canvas-ai-provider-free-smoke/integrity.json
+            artifacts/canvas-ai-provider-free-smoke/cleanup.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Delete temporary evidence and verify clean checkout
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/canvas-ai-provider-free-smoke
+          rmdir artifacts 2>/dev/null || true
+          test ! -e .ddev/config.gate-canvas-provider-free.yaml
+          test ! -e tests/browser/.agency-trusted-provider-free-smoke.mjs
+          test ! -e .ddev/.env.web
+          test -z "$(git status --porcelain)"

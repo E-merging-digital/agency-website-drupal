@@ -30,6 +30,23 @@ async function componentIds(frame) {
 
 async function openAiChat(page) {
   const chat = page.locator('[data-testid="canvas-ai-panel"] deep-chat');
+  const existingCount = await chat.count();
+  if (existingCount > 1) {
+    throw new Error('Expected at most one scoped Canvas AI deep-chat.');
+  }
+  if (existingCount === 1 && await chat.isVisible()) {
+    return chat;
+  }
+
+  const openPanel = page.getByRole('button', {
+    name: 'Open AI Panel',
+    exact: true,
+  });
+  await expect(openPanel).toHaveCount(1);
+  await expect(openPanel).toBeVisible();
+  await expect(openPanel).toBeEnabled();
+  await openPanel.click();
+
   await expect(chat).toHaveCount(1, { timeout: 10_000 });
   await expect(chat).toBeVisible({ timeout: 10_000 });
   return chat;

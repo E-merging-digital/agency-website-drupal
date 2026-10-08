@@ -326,6 +326,69 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
   }
 
   /**
+   * Ensures a closed Canvas AI panel is opened once before native chat use.
+   */
+  public function testProviderProofOpensNativeCanvasAiPanelOnce(): void {
+    $specPath = dirname(DRUPAL_ROOT)
+      . '/tests/browser/canvas-ai-provider-proof.spec.mjs';
+    self::assertFileExists($specPath);
+    $spec = file_get_contents($specPath);
+    self::assertIsString($spec);
+
+    $helperStart = strpos($spec, 'async function openAiChat(page) {');
+    $helperEnd = strpos($spec, "test.describe('bounded Canvas AI provider proof'");
+    self::assertNotFalse($helperStart);
+    self::assertNotFalse($helperEnd);
+    self::assertGreaterThan($helperStart, $helperEnd);
+    $helper = substr($spec, $helperStart, $helperEnd - $helperStart);
+
+    self::assertStringContainsString(
+      'page.locator(\'[data-testid="canvas-ai-panel"] deep-chat\')',
+      $helper,
+    );
+    self::assertStringContainsString(
+      'existingCount === 1 && await chat.isVisible()',
+      $helper,
+    );
+    self::assertStringContainsString(
+      "page.getByRole('button', {",
+      $helper,
+    );
+    self::assertStringContainsString(
+      "name: 'Open AI Panel'",
+      $helper,
+    );
+    self::assertStringContainsString(
+      'exact: true',
+      $helper,
+    );
+    self::assertStringContainsString(
+      'await expect(openPanel).toHaveCount(1)',
+      $helper,
+    );
+    self::assertStringContainsString(
+      'await expect(openPanel).toBeVisible()',
+      $helper,
+    );
+    self::assertStringContainsString(
+      'await expect(openPanel).toBeEnabled()',
+      $helper,
+    );
+    self::assertSame(1, substr_count($helper, 'await openPanel.click()'));
+    self::assertStringContainsString(
+      "await expect(chat).toHaveCount(1, { timeout: 10_000 })",
+      $helper,
+    );
+    self::assertStringContainsString(
+      "await expect(chat).toBeVisible({ timeout: 10_000 })",
+      $helper,
+    );
+    self::assertStringNotContainsString('force: true', $helper);
+    self::assertStringNotContainsString('name: /AI|assistant/i', $helper);
+    self::assertStringNotContainsString('chat.first()', $helper);
+  }
+
+  /**
    * Finds every Canvas AI agent default configuration file.
    *
    * @return array<string, array<string, mixed>>

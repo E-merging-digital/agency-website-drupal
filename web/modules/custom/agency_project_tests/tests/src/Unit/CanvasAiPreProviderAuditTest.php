@@ -249,6 +249,83 @@ final class CanvasAiPreProviderAuditTest extends TestCase {
   }
 
   /**
+   * Prevents programmatic Deep Chat bypass of Canvas's native submit guard.
+   */
+  public function testProviderProofUsesSingleNativeCanvasAiChatSubmission(): void {
+    $specPath = dirname(DRUPAL_ROOT)
+      . '/tests/browser/canvas-ai-provider-proof.spec.mjs';
+    self::assertFileExists($specPath);
+    $spec = file_get_contents($specPath);
+    self::assertIsString($spec);
+
+    $providerTestStart = strpos(
+      $spec,
+      "test('uses only approved SDCs through the Page Builder path'",
+    );
+    self::assertNotFalse($providerTestStart);
+    $providerTest = substr($spec, $providerTestStart);
+
+    self::assertStringContainsString(
+      'page.locator(\'[data-testid="canvas-ai-panel"] deep-chat\')',
+      $spec,
+    );
+    self::assertStringContainsString(
+      'await expect(chat).toHaveCount(1',
+      $spec,
+    );
+    self::assertStringContainsString(
+      "chat.locator('#text-input')",
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      "toHaveAttribute('contenteditable', 'true')",
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      'await chatInput.fill(prompt)',
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      'await expect(chatInput).toHaveText(prompt)',
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      "chat.locator('.input-button.submit-button')",
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      'await expect(submitButton).toBeEnabled()',
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      "chat.locator('.input-button.disabled-button')",
+      $providerTest,
+    );
+    self::assertSame(
+      1,
+      substr_count($providerTest, 'await submitButton.click()'),
+      'The provider proof must have exactly one native chat submission.',
+    );
+    self::assertStringContainsString(
+      "page.on('request'",
+      $spec,
+    );
+    self::assertStringContainsString(
+      'page.waitForResponse(',
+      $providerTest,
+    );
+    self::assertStringContainsString(
+      'expect(evidence.canvas_endpoint_requests).toBe(1)',
+      $providerTest,
+    );
+    self::assertStringNotContainsString('submitUserMessage', $spec);
+    self::assertStringNotContainsString(
+      'isSubmitProgrammaticallyDisabled',
+      $spec,
+    );
+  }
+
+  /**
    * Finds every Canvas AI agent default configuration file.
    *
    * @return array<string, array<string, mixed>>

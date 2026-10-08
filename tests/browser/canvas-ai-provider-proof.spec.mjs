@@ -29,26 +29,10 @@ async function componentIds(frame) {
 }
 
 async function openAiChat(page) {
-  let chat = page.locator('deep-chat');
-  if (await chat.count()) {
-    return chat.first();
-  }
-
-  const candidates = [
-    page.getByRole('button', { name: /AI|assistant/i }),
-    page.locator('button[aria-label*="AI" i]'),
-    page.locator('button[title*="AI" i]'),
-  ];
-  for (const candidate of candidates) {
-    if (await candidate.count()) {
-      await candidate.first().click();
-      chat = page.locator('deep-chat');
-      await expect(chat.first()).toBeVisible({ timeout: 10_000 });
-      return chat.first();
-    }
-  }
-
-  throw new Error('Canvas AI chat trigger/deep-chat element is unavailable.');
+  const chat = page.locator('[data-testid="canvas-ai-panel"] deep-chat');
+  await expect(chat).toHaveCount(1, { timeout: 10_000 });
+  await expect(chat).toBeVisible({ timeout: 10_000 });
+  return chat;
 }
 
 test.describe('bounded Canvas AI provider proof', () => {
@@ -123,20 +107,31 @@ test.describe('bounded Canvas AI provider proof', () => {
       const chat = await openAiChat(page);
       await expect(chat).toBeVisible();
 
+      const chatInput = chat.locator('#text-input');
+      await expect(chatInput).toHaveCount(1);
+      await expect(chatInput).toHaveAttribute('contenteditable', 'true');
+      await expect(chatInput).toBeVisible();
+      await expect(chatInput).toBeEditable();
+      await chatInput.fill(prompt);
+      await expect(chatInput).toHaveText(prompt);
+
+      // Deep Chat 2.4.2 exposes the enabled native control by CSS class.
+      // Never click a disabled control or attempt an alternate send action.
+      const submitButton = chat.locator('.input-button.submit-button');
+      await expect(submitButton).toHaveCount(1);
+      await expect(submitButton).toBeVisible();
+      await expect(submitButton).toBeEnabled();
+      await expect(submitButton).not.toHaveAttribute('aria-disabled', 'true');
+      await expect(chat.locator('.input-button.disabled-button')).toHaveCount(0);
+
       const aiResponsePromise = page.waitForResponse(
         (response) => response.request().method() === 'POST'
           && new URL(response.url()).pathname === '/admin/api/canvas/ai',
         { timeout: 120_000 },
       );
 
-      const submitted = await chat.evaluate((element, message) => {
-        if (typeof element.submitUserMessage !== 'function') {
-          return false;
-        }
-        element.submitUserMessage({ text: message });
-        return true;
-      }, prompt);
-      expect(submitted).toBe(true);
+      // Exactly one native user action, with ingress observation armed first.
+      await submitButton.click();
 
       const aiResponse = await aiResponsePromise;
       evidence.canvas_endpoint_status = aiResponse.status();

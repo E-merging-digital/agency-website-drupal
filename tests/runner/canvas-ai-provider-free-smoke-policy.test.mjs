@@ -73,3 +73,37 @@ test('Node 24 is set up before browser tooling needs node; initial runner prereq
   assert.match(installStep, /set -euo pipefail\n          command -v node\n          node --version\n          node --check/);
   assert.match(installStep, /npm ci --ignore-scripts/);
 });
+
+
+test('disposable rootless DDEV router ports stay unprivileged and provider-free', () => {
+  const config = workflow.match(/cat > \.ddev\/config\.gate-canvas-provider-free\.yaml <<EOF\n([\s\S]*?)\n          EOF/);
+  assert.ok(config, 'Expected the workflow-owned disposable DDEV configuration');
+  const entries = config[1].split('\n').map(line => line.trim()).filter(Boolean);
+  assert.equal(entries.length, 3, 'Only the unique project name and two router ports are permitted');
+  assert.match(entries[0], /^name: agency-canvas-no-provider-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}$/);
+  const ports = new Map();
+  const isSafePort = port => Number.isInteger(port) && port >= 1024 && port <= 65535 && port !== 80 && port !== 443;
+  for (const entry of entries.slice(1)) {
+    const parsed = entry.match(/^(router_http_port|router_https_port):\s*["']?(\d+)["']?$/);
+    assert.ok(parsed, 'Expected a numeric DDEV router port, with optional YAML quotes');
+    assert.equal(ports.has(parsed[1]), false, 'Duplicate router port setting');
+    const port = Number(parsed[2]);
+    assert.ok(isSafePort(port), 'Privileged or invalid DDEV router port');
+    ports.set(parsed[1], port);
+  }
+  assert.deepEqual([...ports.keys()].sort(), ['router_http_port', 'router_https_port']);
+  assert.notEqual(ports.get('router_http_port'), ports.get('router_https_port'));
+  for (const privileged of [80, 443]) assert.equal(isSafePort(privileged), false);
+  assert.doesNotMatch(workflow.replace(config[0], ''), /^\s*router_(?:http|https)_port\s*:/m);
+  assert.doesNotMatch(workflow, /^\s*(?:router_bind_all_interfaces|bind_all_interfaces)\s*:\s*true\s*$/m);
+  assert.doesNotMatch(workflow, /global_config\.yaml|ip_unprivileged_port_start|CAP_NET_BIND_SERVICE|\bsudo\b/);
+  assert.match(workflow, /test -z "\$\{OPENAI_API_KEY:-\}"/);
+  for (const preserved of [
+    'test ! -e .ddev/.env.web',
+    'ddev utility configyaml',
+    'ddev start -y',
+    'ddev delete --omit-snapshot --yes',
+    'rm -f .ddev/config.gate-canvas-provider-free.yaml',
+    'test -z "$(git status --porcelain)"',
+  ]) assert.ok(workflow.includes(preserved), preserved);
+});

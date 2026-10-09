@@ -159,6 +159,8 @@ jobs:
           test ! -e .ddev/.env.web
           cat > .ddev/config.gate-canvas-provider-free.yaml <<EOF
           name: agency-canvas-no-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          router_http_port: "18080"
+          router_https_port: "18443"
           EOF
           ddev utility configyaml | grep -F "agency-canvas-no-provider-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ddev start -y

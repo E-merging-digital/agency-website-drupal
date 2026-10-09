@@ -145,6 +145,8 @@ jobs:
           set -euo pipefail
           status=0
           composer audit --locked --format=json --no-interaction > "$RUNNER_TEMP/composer-audit.json" || status=$?
+          # Keep PHP audit variables literal for PHP evaluation.
+          # shellcheck disable=SC2016
           php -r '
             $data = json_decode(file_get_contents(getenv("RUNNER_TEMP") . "/composer-audit.json"), true, 512, JSON_THROW_ON_ERROR);
             $count = 0;
@@ -163,8 +165,14 @@ jobs:
       - name: Prove governed Google Tag patch
         run: |
           set -euo pipefail
+          # Keep the PHP expression literal inside command substitution.
+          # shellcheck disable=SC2016
           test "$(composer show drupal/google_tag --locked --format=json | php -r '$d=json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo $d["versions"][0] ?? $d["version"] ?? "";')" = "2.0.9"
+          # Match the literal PHP method argument.
+          # shellcheck disable=SC2016
           grep -F 'offsetExists($request)' web/modules/contrib/google_tag/src/TagContainerResolver.php
+          # Match the literal PHP property expression.
+          # shellcheck disable=SC2016
           if grep -F '$this->resolved->contains($request)' web/modules/contrib/google_tag/src/TagContainerResolver.php; then
             echo "Deprecated Google Tag SplObjectStorage::contains() guard is still installed." >&2
             exit 1
@@ -213,3 +221,121 @@ jobs:
           set -euo pipefail
           git status --short
           git diff --exit-code
+
+  canvas-ai-provider-free-static-gate:
+    name: Canvas AI provider-free static gate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      EXPECTED_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact PR head or push SHA
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.EXPECTED_HEAD_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Attest exact checked-out source and clean tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          if [[ "$GITHUB_EVENT_NAME" = push ]]; then
+            test "$GITHUB_SHA" = "$EXPECTED_HEAD_SHA"
+          fi
+          test -z "$(git status --porcelain)"
+          printf 'STATIC_GATE_SHA=%s\nSTATIC_GATE_RUN=%s\nSTATIC_GATE_ATTEMPT=%s\n' \
+            "$EXPECTED_HEAD_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+
+      - name: Set up locked Node 24 for static checks
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Syntax-check scripts and run real provider-free policy tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --check tests/runner/canvas-ai-provider-free-smoke-policy.test.mjs
+          node --check scripts/runner/canvas-ai-provider-free-smoke.mjs
+          node --test tests/runner/canvas-ai-provider-free-smoke-policy.test.mjs
+
+      - name: Set up Python for independent YAML validation
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Parse YAML with pinned BaseLoader (preserve Actions on key)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python --version
+          python -m pip install --disable-pip-version-check --no-deps 'PyYAML==6.0.3'
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          assert yaml.__version__ == '6.0.3', yaml.__version__
+          for name in (
+              '.github/workflows/canvas-ai-provider-free-smoke.yml',
+              '.github/workflows/ci.yml',
+          ):
+              doc = yaml.load(Path(name).read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+              assert isinstance(doc, dict), name
+              assert isinstance(doc.get('on'), dict), name
+              assert isinstance(doc.get('jobs'), dict), name
+              assert doc['jobs'], name
+              print(f'YAML_BASELOADER_PASS={name}; PyYAML={yaml.__version__}')
+          assert 'workflow_dispatch' in yaml.load(
+              Path('.github/workflows/canvas-ai-provider-free-smoke.yml').read_text(encoding='utf-8'),
+              Loader=yaml.BaseLoader,
+          )['on']
+          PY
+
+      - name: Verify official actionlint v1.7.12 archives and lint both workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          tool_dir="$(mktemp -d "$RUNNER_TEMP/agency-static-actionlint-XXXXXX")"
+          trap 'rm -rf "$tool_dir"' EXIT
+          archive=actionlint_1.7.12_linux_amd64.tar.gz
+          manifest=actionlint_1.7.12_checksums.txt
+          base_url=https://github.com/rhysd/actionlint/releases/download/v1.7.12
+          curl --fail --location --silent --show-error --retry 2 --proto '=https' --proto-redir '=https' \
+            --output "$tool_dir/$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --retry 2 --proto '=https' --proto-redir '=https' \
+            --output "$tool_dir/$manifest" "$base_url/$manifest"
+          printf '%s  %s\n' \
+            8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 "$tool_dir/$archive" \
+            433028cf0ba3c42163ea1a668dedce30fcdbe84fe912b1a5e288c006eab8a4f5 "$tool_dir/$manifest" \
+            | sha256sum -c -
+          cd "$tool_dir"
+          matching_lines="$(grep -E '^[a-f0-9]{64}[[:space:]]+\*?actionlint_1\.7\.12_linux_amd64\.tar\.gz$' "$manifest")"
+          test -n "$matching_lines"
+          test "$(printf '%s\n' "$matching_lines" | wc -l)" -eq 1
+          printf '%s\n' "$matching_lines" | sha256sum -c -
+          tar -tzf "$archive" | grep -Fx actionlint
+          tar -xzf "$archive" actionlint
+          test -x ./actionlint
+          ./actionlint -version
+          actionlint_version="$(./actionlint -version)"
+          test "${actionlint_version%%$'\n'*}" = 1.7.12
+          cd "$GITHUB_WORKSPACE"
+          "$tool_dir/actionlint" -color=false \
+            .github/workflows/canvas-ai-provider-free-smoke.yml \
+            .github/workflows/ci.yml
+
+      - name: Confirm static validation did not change checkout
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d .git ]]; then
+            test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+            test -z "$(git status --porcelain)"
+          fi

@@ -136,7 +136,9 @@ test('blocked external requests: bounded first-only metadata, no URL leakage, st
     assert.equal(metadata.resource_type, 'fetch');
     assert.ok(['http', 'https', 'other'].includes(metadata.scheme_class));
     const serialized = JSON.stringify(metadata);
-    assert.doesNotMatch(serialized, /secret|token|credential|hostname|pathname|https?:\/\/|\.com|\.site/);
+    const targetHostname = new URL(target).hostname;
+    assert.equal(serialized.includes(targetHostname), false, 'Raw fixture hostname must not leak');
+    assert.doesNotMatch(serialized, /secret|token|credential|pathname|https?:\/\/|\.com|\.site/);
   }
   const unknown = JSON.parse(JSON.stringify(classify(
     new URL('file:///private/local-path?secret=1'),

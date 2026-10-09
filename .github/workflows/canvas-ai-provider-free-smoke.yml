@@ -265,7 +265,10 @@ jobs:
           git clean -fd -- config/sync >/dev/null || cleanup_failed=1
           rm -rf node_modules vendor
           git diff --check || cleanup_failed=1
-          status="$(git status --porcelain)"
+          status="$(git status --porcelain --untracked-files=all -- . \
+            ':(exclude,top)artifacts/canvas-ai-provider-free-smoke/result.json' \
+            ':(exclude,top)artifacts/canvas-ai-provider-free-smoke/integrity.json' \
+            ':(exclude,top)artifacts/canvas-ai-provider-free-smoke/cleanup.json')"
           if [[ -n "$status" ]]; then cleanup_failed=1; fi
           mkdir -p artifacts/canvas-ai-provider-free-smoke
           if [[ "$cleanup_failed" -eq 0 ]]; then

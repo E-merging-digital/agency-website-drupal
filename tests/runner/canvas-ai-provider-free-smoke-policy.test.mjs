@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 const workflow = readFileSync('.github/workflows/canvas-ai-provider-free-smoke.yml', 'utf8');
 const browser = readFileSync('scripts/runner/canvas-ai-provider-free-smoke.mjs', 'utf8');
@@ -106,4 +111,105 @@ test('disposable rootless DDEV router ports stay unprivileged and provider-free'
     'rm -f .ddev/config.gate-canvas-provider-free.yaml',
     'test -z "$(git status --porcelain)"',
   ]) assert.ok(workflow.includes(preserved), preserved);
+});
+
+
+test('blocked external requests: bounded first-only metadata, no URL leakage, strict abort and network phase', () => {
+  const source = browser.match(/function classifyBlockedExternal\(url, request, base\) \{[\s\S]*?\n\}/);
+  assert.ok(source, 'Expected a pure bounded classifier');
+  const classify = runInNewContext('(' + source[0] + ')');
+  const base = new URL('https://agency.ddev.site:33001/editor');
+  const fixtures = [
+    ['https://agency.ddev.site:33002/private?token=secret', 'same_hostname_different_port'],
+    ['https://other.ddev.site/login?key=secret', 'other_ddev_site'],
+    ['https://analytics.example.com/collect?authorization=secret', 'public_external'],
+    ['http://localhost:5000/hidden?credential=secret', 'private_or_other'],
+  ];
+  for (const [target, relation] of fixtures) {
+    const metadata = JSON.parse(JSON.stringify(classify(new URL(target), {
+      method: () => 'POST', resourceType: () => 'fetch',
+    }, base)));
+    assert.deepEqual(Object.keys(metadata).sort(),
+      ['method', 'origin_relation', 'resource_type', 'scheme_class']);
+    assert.equal(metadata.origin_relation, relation);
+    assert.equal(metadata.method, 'POST');
+    assert.equal(metadata.resource_type, 'fetch');
+    assert.ok(['http', 'https', 'other'].includes(metadata.scheme_class));
+    const serialized = JSON.stringify(metadata);
+    const targetHostname = new URL(target).hostname;
+    assert.equal(serialized.includes(targetHostname), false, 'Raw fixture hostname must not leak');
+    assert.doesNotMatch(serialized, /secret|token|credential|pathname|https?:\/\/|\.com|\.site/);
+  }
+  const unknown = JSON.parse(JSON.stringify(classify(
+    new URL('file:///private/local-path?secret=1'),
+    { method: () => 'TRACE', resourceType: () => 'websocket' }, base,
+  )));
+  assert.deepEqual(unknown, {
+    origin_relation: 'private_or_other', method: 'OTHER',
+    resource_type: 'other', scheme_class: 'other',
+  });
+  const gate = browser.match(/if \(url\.origin !== base\.origin\) \{([\s\S]*?)\n    \}/);
+  assert.ok(gate);
+  assert.match(gate[1], /if \(status\.external_attempts === 0\)/);
+  assert.match(gate[1], /status\.first_blocked_external = classifyBlockedExternal\(url, request, base\)/);
+  assert.match(gate[1], /status\.external_attempts\+\+/);
+  assert.match(gate[1], /await route\.abort\('blockedbyclient'\)/);
+  assert.doesNotMatch(gate[1], /route\.continue/);
+  assert.match(browser, /status\.phase = 'network_integrity';[\s\S]*?status\.external_attempts !== 0/);
+  assert.match(browser, /status\.phase = 'component_integrity';\n  if \(status\.components_modified\)/);
+  assert.match(browser, /status\.canvas_ai_post_attempts !== 0/);
+  assert.match(browser, /status\.forbidden_mutation_attempts !== 0/);
+  assert.match(browser, /await route\.abort\('blockedbyclient'\)/);
+  assert.doesNotMatch(browser, /submitUserMessage|submit\.click\(|submitButton\.click\(|keyboard\.press\(/);
+  assert.doesNotMatch(source[0], /console\.log|request\.url\(\)|writeFile|status\.|\.href|\.search|\.pathname/);
+});
+
+test('intermediate cleanup permits only three JSON evidence paths and preserves strict final audit', () => {
+  const start = workflow.indexOf('      - name: Always clean exact DDEV project and secret-free temp files');
+  const end = workflow.indexOf('      - name: Upload ONLY sanitized JSON', start);
+  assert.ok(start !== -1 && end > start);
+  const cleanup = workflow.slice(start, end);
+  const expected = [
+    'artifacts/canvas-ai-provider-free-smoke/result.json',
+    'artifacts/canvas-ai-provider-free-smoke/integrity.json',
+    'artifacts/canvas-ai-provider-free-smoke/cleanup.json',
+  ];
+  assert.match(cleanup, /status="\$\(git status --porcelain --untracked-files=all -- \. \\\n/);
+  const actual = [...cleanup.matchAll(/':\(exclude,top\)([^']+)'/g)].map(m => m[1]);
+  assert.deepEqual(actual, expected);
+  assert.equal((cleanup.match(/:\(exclude,top\)/g) ?? []).length, 3);
+  assert.match(cleanup, /if \[\[ -n "\$status" \]\]; then cleanup_failed=1; fi/);
+  assert.match(cleanup, /ddev delete --omit-snapshot --yes \|\| cleanup_failed=1/);
+  assert.match(cleanup, /if \[\[ -e \.ddev\/\.env\.web \]\]; then cleanup_failed=1; fi/);
+  const final = workflow.slice(workflow.indexOf('      - name: Delete temporary evidence'));
+  assert.match(final, /rm -rf artifacts\/canvas-ai-provider-free-smoke/);
+  assert.match(final, /test -z "\$\(git status --porcelain\)"/);
+  assert.doesNotMatch(final, /:\(exclude|--untracked-files=no/);
+
+  const dir = mkdtempSync(join(tmpdir(), 'agency-r61-git-status-'));
+  const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
+  const folder = join(dir, 'artifacts/canvas-ai-provider-free-smoke');
+  try {
+    git('init', '-q');
+    writeFileSync(join(dir, 'tracked.txt'), 'clean\n');
+    git('add', 'tracked.txt');
+    git('-c', 'user.email=ci@example.invalid', '-c', 'user.name=CI',
+      'commit', '-qm', 'baseline');
+    mkdirSync(folder, { recursive: true });
+    for (const path of expected) writeFileSync(join(dir, path), '{}\n');
+    const status = () => git('status', '--porcelain', '--untracked-files=all', '--',
+      '.', ...actual.map(path => ':(exclude,top)' + path));
+    assert.equal(status(), '', 'Expected evidence must not trip intermediate audit');
+    writeFileSync(join(folder, 'extra.json'), '{}\n');
+    assert.match(status(), /extra\.json/);
+    unlinkSync(join(folder, 'extra.json'));
+    writeFileSync(join(dir, 'tracked.txt'), 'changed\n');
+    assert.match(status(), /tracked\.txt/);
+    git('restore', 'tracked.txt');
+    assert.notEqual(git('status', '--porcelain'), '',
+      'Unrestricted final audit must still detect evidence before its deletion');
+    for (const path of expected) unlinkSync(join(dir, path));
+    assert.equal(git('status', '--porcelain'), '');
+  }
+  finally { rmSync(dir, { recursive: true, force: true }); }
 });

@@ -4,6 +4,31 @@ import { dirname } from 'node:path';
 
 const prompt = 'Using the page builder tool, place the existing approved Hero, Trust list and CTA components at the bottom of the page in that order. Do not create any new component.';
 const approved = ['emerging_digital:hero', 'emerging_digital:trust-list', 'emerging_digital:cta'];
+function classifyBlockedExternal(url, request, base) {
+  const scheme_class = url.protocol === 'https:' ? 'https'
+    : url.protocol === 'http:' ? 'http' : 'other';
+  const rawMethod = request.method();
+  const method = ['GET', 'HEAD', 'OPTIONS', 'POST'].includes(rawMethod) ? rawMethod : 'OTHER';
+  const rawType = request.resourceType();
+  const resource_type = ['document', 'script', 'stylesheet', 'image', 'font', 'fetch', 'xhr']
+    .includes(rawType) ? rawType : 'other';
+  const hostname = url.hostname.toLowerCase();
+  const otherDdevSite = hostname.endsWith('.ddev.site');
+  const privateOrAmbiguous = hostname === 'localhost'
+    || ['.localhost', '.local', '.internal', '.test', '.invalid', '.example', '.home.arpa']
+      .some((suffix) => hostname.endsWith(suffix))
+    || hostname.includes(':') || !hostname.includes('.')
+    || !/^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}$/i.test(hostname);
+  const resolvedPort = (u) => u.port || (u.protocol === 'https:' ? '443'
+    : u.protocol === 'http:' ? '80' : '');
+  const origin_relation = hostname === base.hostname && resolvedPort(url) !== resolvedPort(base)
+    ? 'same_hostname_different_port'
+    : otherDdevSite ? 'other_ddev_site'
+      : !privateOrAmbiguous && scheme_class !== 'other' ? 'public_external'
+        : 'private_or_other';
+  return { origin_relation, method, resource_type, scheme_class };
+}
+
 const output = process.env.AGENCY_SMOKE_RESULT_PATH;
 const status = {
   status: 'FAIL', phase: 'config', editor_http: null,
@@ -13,6 +38,7 @@ const status = {
   native_submit_enabled: false, native_send_click_count: 0,
   prompt_submitted: false, canvas_ai_post_attempts: 0,
   canvas_ai_endpoint_attempts: 0, external_attempts: 0,
+  first_blocked_external: null,
   forbidden_mutation_attempts: 0, components_modified: null,
   error_code: null,
 };
@@ -58,6 +84,9 @@ try {
       return;
     }
     if (url.origin !== base.origin) {
+      if (status.external_attempts === 0) {
+        status.first_blocked_external = classifyBlockedExternal(url, request, base);
+      }
       status.external_attempts++;
       await route.abort('blockedbyclient');
       return;
@@ -126,11 +155,13 @@ try {
   status.final_component_ids = await componentIds(page);
   status.components_modified =
     JSON.stringify(status.initial_component_ids) !== JSON.stringify(status.final_component_ids);
-  if (status.components_modified || status.canvas_ai_endpoint_attempts !== 0
-    || status.canvas_ai_post_attempts !== 0 || status.external_attempts !== 0
-    || status.forbidden_mutation_attempts !== 0) {
-    throw new Error('UNEXPECTED_NETWORK_OR_COMPONENT_CHANGE');
+  status.phase = 'network_integrity';
+  if (status.canvas_ai_endpoint_attempts !== 0 || status.canvas_ai_post_attempts !== 0
+    || status.external_attempts !== 0 || status.forbidden_mutation_attempts !== 0) {
+    throw new Error('NETWORK_INTEGRITY_VIOLATION');
   }
+  status.phase = 'component_integrity';
+  if (status.components_modified) throw new Error('UNEXPECTED_COMPONENT_CHANGE');
   status.phase = 'none';
   status.status = 'PASS';
 }

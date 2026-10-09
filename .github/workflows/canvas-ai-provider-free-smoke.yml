@@ -80,7 +80,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for tool in git gh jq docker ddev openssl node; do command -v "$tool"; done
+          for tool in git gh jq docker ddev openssl; do command -v "$tool"; done
 
       - name: Checkout immutable #533 HEAD
         uses: actions/checkout@v6
@@ -145,6 +145,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          command -v node
+          node --version
           node --check tests/browser/.agency-trusted-provider-free-smoke.mjs
           npm ci --ignore-scripts --no-audit --no-fund
           npx --no-install playwright install chromium

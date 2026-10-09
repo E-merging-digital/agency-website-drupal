@@ -55,3 +55,21 @@ test('only whitelisted sanitized JSON is uploaded', () => {
   assert.doesNotMatch(workflow, /\.har\b|trace\.zip|\$\{\{\s*secrets\./);
   assert.match(workflow, /git status --porcelain/);
 });
+
+test('Node 24 is set up before browser tooling needs node; initial runner prerequisites remain strict', () => {
+  const initial = workflow.match(/      - name: Verify established Agency toolchain\n        shell: bash\n        run: \|\n([\s\S]*?)(?=\n      - name: )/);
+  assert.ok(initial, 'Expected initial toolchain step');
+  assert.match(initial[1], /set -euo pipefail/);
+  assert.match(initial[1], /for tool in git gh jq docker ddev openssl; do command -v "\$tool"; done/);
+  assert.doesNotMatch(initial[1], /\bnode\b/);
+
+  const checkout = workflow.indexOf('      - name: Checkout immutable #533 HEAD');
+  const setup = workflow.indexOf('      - name: Set up locked Node 24');
+  const install = workflow.indexOf('      - name: Install browser from existing npm lockfile');
+  assert.ok(checkout > 0 && setup > checkout && install > setup);
+  assert.match(workflow.slice(setup, install), /uses: actions\/setup-node@v6[\s\S]*node-version: '24'[\s\S]*cache: npm/);
+
+  const installStep = workflow.slice(install, workflow.indexOf('\n      - name: Build disposable Drupal Canvas;', install));
+  assert.match(installStep, /set -euo pipefail\n          command -v node\n          node --version\n          node --check/);
+  assert.match(installStep, /npm ci --ignore-scripts/);
+});

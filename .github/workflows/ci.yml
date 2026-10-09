@@ -315,7 +315,8 @@ jobs:
           tar -xzf "$archive" actionlint
           test -x ./actionlint
           ./actionlint -version
-          test "$(./actionlint -version)" = 1.7.12
+          actionlint_version="$(./actionlint -version)"
+          test "${actionlint_version%%$'\n'*}" = 1.7.12
           cd "$GITHUB_WORKSPACE"
           "$tool_dir/actionlint" -color=false \
             .github/workflows/canvas-ai-provider-free-smoke.yml \

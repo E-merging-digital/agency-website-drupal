@@ -171,7 +171,11 @@ jobs:
           ddev drush emerging:governed-content --all
           ddev drush cr
           test ! -e .ddev/.env.web
+          # Child shell must receive the literal environment check.
+          # shellcheck disable=SC2016
           ddev exec sh -c 'test -z "${OPENAI_API_KEY:-}"'
+          # PHP variables must stay literal until evaluated by Drush.
+          # shellcheck disable=SC2016
           page_id="$(ddev drush php:eval '
             $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)
               ->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
@@ -188,6 +192,8 @@ jobs:
           umask 077
           printf '%s\n' "$login_url" > "$login_file"
           unset login_url
+          # PHP snapshot calculation must not interpolate in Bash.
+          # shellcheck disable=SC2016
           state_before="$(ddev drush php:eval '
             $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)
               ->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();
@@ -222,6 +228,8 @@ jobs:
         run: |
           set -euo pipefail
           [[ "${AGENCY_SMOKE_STATE_BEFORE:-}" =~ ^[0-9a-f]{64}$ ]]
+          # PHP integrity comparison must not interpolate in Bash.
+          # shellcheck disable=SC2016
           state_after="$(ddev drush php:eval '
             $ids = \Drupal::entityQuery("canvas_page")->accessCheck(FALSE)
               ->condition("uuid", "52600000-0000-4000-8000-000000000001")->execute();

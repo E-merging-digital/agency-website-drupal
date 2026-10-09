@@ -145,6 +145,8 @@ jobs:
           set -euo pipefail
           status=0
           composer audit --locked --format=json --no-interaction > "$RUNNER_TEMP/composer-audit.json" || status=$?
+          # Keep PHP audit variables literal for PHP evaluation.
+          # shellcheck disable=SC2016
           php -r '
             $data = json_decode(file_get_contents(getenv("RUNNER_TEMP") . "/composer-audit.json"), true, 512, JSON_THROW_ON_ERROR);
             $count = 0;
@@ -163,8 +165,14 @@ jobs:
       - name: Prove governed Google Tag patch
         run: |
           set -euo pipefail
+          # Keep the PHP expression literal inside command substitution.
+          # shellcheck disable=SC2016
           test "$(composer show drupal/google_tag --locked --format=json | php -r '$d=json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo $d["versions"][0] ?? $d["version"] ?? "";')" = "2.0.9"
+          # Match the literal PHP method argument.
+          # shellcheck disable=SC2016
           grep -F 'offsetExists($request)' web/modules/contrib/google_tag/src/TagContainerResolver.php
+          # Match the literal PHP property expression.
+          # shellcheck disable=SC2016
           if grep -F '$this->resolved->contains($request)' web/modules/contrib/google_tag/src/TagContainerResolver.php; then
             echo "Deprecated Google Tag SplObjectStorage::contains() guard is still installed." >&2
             exit 1

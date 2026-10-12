@@ -115,11 +115,11 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertStringContainsString(
-      "MCP_BROWSER_PROOF: \$" . "{{ inputs.pr_number == '1421' }}",
+      "MCP_BROWSER_PROOF: \${{ inputs.pr_number == '1421' }}",
       $workflow,
     );
     self::assertStringContainsString(
-      "if: \$" . "{{ inputs.pr_number == '1421' }}",
+      "if: \${{ inputs.pr_number == '1421' }}",
       $workflow,
     );
     self::assertStringContainsString(
@@ -129,15 +129,15 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
     foreach ([
       'web/modules/custom/agency_project_tests/tests/src/Unit/'
-        . 'McpServiceHero1420Test.php' =>
-        '31eebb0415c7373273c95a2354be54d9b302f9d7',
+      . 'McpServiceHero1420Test.php' =>
+      '31eebb0415c7373273c95a2354be54d9b302f9d7',
       'web/themes/custom/emerging_digital/css/components.css' =>
-        'fdd92edca3f82bc877944514890d159482a35e33',
+      'fdd92edca3f82bc877944514890d159482a35e33',
       'web/themes/custom/emerging_digital/emerging_digital.theme' =>
-        'edeac8bc83ac45ceca859a29b8f2dea20045dadb',
+      'edeac8bc83ac45ceca859a29b8f2dea20045dadb',
       'web/themes/custom/emerging_digital/templates/content/'
-        . 'node--service.html.twig' =>
-        '0ce266f92d3fc8c5300bbc10edffec806da598dd',
+      . 'node--service.html.twig' =>
+      '0ce266f92d3fc8c5300bbc10edffec806da598dd',
     ] as $path => $blob) {
       self::assertSame(
         2,

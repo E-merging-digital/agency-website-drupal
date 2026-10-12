@@ -261,4 +261,102 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
   }
 
+
+  /**
+   * Isolated DDEV router ports remain safe for the rootless Agency runner.
+   */
+  public function testIsolatedDdevRouterPortsAreRootlessSafe(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $workflowPath = $root
+      . '/.github/workflows/self-hosted-browser-validation.yml';
+    $workflow = (string) file_get_contents($workflowPath);
+    self::assertIsArray(Yaml::parseFile($workflowPath));
+
+    $startMarker = 'cat > .ddev/config.gate-browser-ci.yaml <<EOF';
+    $start = strpos($workflow, $startMarker);
+    self::assertIsInt($start);
+    $bodyStart = $start + strlen($startMarker);
+    $end = strpos($workflow, "\n          EOF", $bodyStart);
+    self::assertIsInt($end);
+    $body = substr($workflow, $bodyStart, $end - $bodyStart);
+    $lines = array_values(array_map('trim', array_filter(
+      explode("\n", $body),
+      'strlen',
+    )));
+    self::assertSame([
+      'name: agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}',
+      'router_http_port: "18180"',
+      'router_https_port: "18543"',
+    ], $lines);
+
+    $ports = [];
+    foreach (array_slice($lines, 1) as $line) {
+      $matches = [];
+      self::assertSame(1, preg_match(
+        '/^(router_http_port|router_https_port): "([0-9]+)"$/',
+        $line,
+        $matches,
+      ));
+      $port = (int) $matches[2];
+      self::assertGreaterThanOrEqual(1024, $port);
+      self::assertLessThan(32768, $port);
+      // Dedicated ports must not reuse known Agency router or direct ports.
+      self::assertNotContains($port, [
+        18080, 18443, 19025, 19080, 19180, 19306, 19443, 19444,
+        21025, 21080, 21180, 21306, 21443, 21444,
+      ]);
+      self::assertArrayNotHasKey($matches[1], $ports);
+      $ports[$matches[1]] = $port;
+    }
+    self::assertSame([
+      'router_http_port' => 18180,
+      'router_https_port' => 18543,
+    ], $ports);
+    self::assertNotSame(
+      $ports['router_http_port'],
+      $ports['router_https_port'],
+    );
+
+    $isolate = strpos($workflow, '- name: Isolate DDEV project for this run');
+    $configCheck = strpos($workflow, 'ddev utility configyaml', $start);
+    $ddevStart = strpos($workflow, 'ddev start -y', $start);
+    $cleanup = strpos($workflow, 'rm -f .ddev/config.gate-browser-ci.yaml');
+    self::assertIsInt($isolate);
+    self::assertIsInt($configCheck);
+    self::assertIsInt($ddevStart);
+    self::assertIsInt($cleanup);
+    self::assertTrue($isolate < $start);
+    self::assertTrue($end < $configCheck);
+    self::assertTrue($configCheck < $ddevStart);
+    self::assertTrue($ddevStart < $cleanup);
+
+    foreach ([
+      'router_bind_all_interfaces',
+      'sysctl',
+      'RootlessKit',
+      'CAP_NET_BIND_SERVICE',
+      'sudo',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $workflow);
+    }
+    self::assertStringContainsString(
+      'ddev delete --omit-snapshot --yes',
+      $workflow,
+    );
+    self::assertStringContainsString('git diff --check', $workflow);
+    self::assertStringContainsString('git status --porcelain', $workflow);
+
+    $browserScript = (string) file_get_contents(
+      $root . '/scripts/run-browser-validation.mjs',
+    );
+    self::assertStringContainsString(
+      "execFileSync('ddev', ['describe', '-j']",
+      $browserScript,
+    );
+    self::assertStringContainsString(
+      'const url = findUrl(parsed);',
+      $browserScript,
+    );
+  }
+
 }

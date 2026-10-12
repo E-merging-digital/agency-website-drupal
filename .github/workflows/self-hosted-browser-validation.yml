@@ -95,6 +95,40 @@ jobs:
             fi
           fi
 
+
+          if [[ "$PR_NUMBER" == "1421" ]]; then
+            test "$(jq -r '.head.ref' <<<"$pr_json")" = "feature/1420-mcp-b-hero-uuid"
+            expected_files="$(printf '%s\n' \
+              'web/modules/custom/agency_project_tests/tests/src/Unit/McpServiceHero1420Test.php' \
+              'web/themes/custom/emerging_digital/css/components.css' \
+              'web/themes/custom/emerging_digital/emerging_digital.theme' \
+              'web/themes/custom/emerging_digital/templates/content/node--service.html.twig'
+            )"
+            changed_files="$(printf '%s\n' "$changed_files" | LC_ALL=C sort)"
+            test "$changed_files" = "$expected_files" || {
+              echo "MCP #1421 must change exactly its four reviewed files." >&2
+              exit 1
+            }
+            for pair in \
+              'web/modules/custom/agency_project_tests/tests/src/Unit/McpServiceHero1420Test.php|31eebb0415c7373273c95a2354be54d9b302f9d7' \
+              'web/themes/custom/emerging_digital/css/components.css|fdd92edca3f82bc877944514890d159482a35e33' \
+              'web/themes/custom/emerging_digital/emerging_digital.theme|edeac8bc83ac45ceca859a29b8f2dea20045dadb' \
+              'web/themes/custom/emerging_digital/templates/content/node--service.html.twig|0ce266f92d3fc8c5300bbc10edffec806da598dd'
+            do
+              IFS='|' read -r path pinned_sha <<<"$pair"
+              actual_sha="$(gh api "repos/$GITHUB_REPOSITORY/contents/$path?ref=$REQUESTED_HEAD_SHA" --jq '.sha')"
+              test "$actual_sha" = "$pinned_sha" || {
+                echo "Unreviewed MCP source blob: $path" >&2
+                exit 1
+              }
+            done
+            current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+            compare="$(gh api "repos/$GITHUB_REPOSITORY/compare/$current_main...$REQUESTED_HEAD_SHA")"
+            test "$(jq -r '.behind_by' <<<"$compare")" = "0" || {
+              echo "MCP #1421 must descend from current main." >&2
+              exit 1
+            }
+          fi
           echo "head_sha=$REQUESTED_HEAD_SHA" >> "$GITHUB_OUTPUT"
 
   report-start:
@@ -167,6 +201,7 @@ jobs:
         shell: bash
         env:
           EXPECTED_HEAD_SHA: ${{ needs.validate-request.outputs.head_sha }}
+          MCP_BROWSER_PROOF: ${{ inputs.pr_number == '1421' }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
@@ -185,6 +220,44 @@ jobs:
           fi
 
           git diff --check
+
+          if [[ "$MCP_BROWSER_PROOF" == "true" ]]; then
+            # Run before npm, Composer, Drush or checked-out PR code.
+            if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+              git fetch --unshallow --no-tags origin
+            fi
+            git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+            trusted_main="$(git rev-parse refs/remotes/origin/main)"
+            git merge-base --is-ancestor "$trusted_main" HEAD || {
+              echo "MCP checkout is not descended from current main." >&2
+              exit 1
+            }
+            expected_files="$(printf '%s\n' \
+              'web/modules/custom/agency_project_tests/tests/src/Unit/McpServiceHero1420Test.php' \
+              'web/themes/custom/emerging_digital/css/components.css' \
+              'web/themes/custom/emerging_digital/emerging_digital.theme' \
+              'web/themes/custom/emerging_digital/templates/content/node--service.html.twig'
+            )"
+            changed_files="$(git diff --name-only "$trusted_main" HEAD | LC_ALL=C sort)"
+            test "$changed_files" = "$expected_files" || {
+              echo "Unreviewed executable or data file in MCP checkout." >&2
+              exit 1
+            }
+            for pair in \
+              'web/modules/custom/agency_project_tests/tests/src/Unit/McpServiceHero1420Test.php|31eebb0415c7373273c95a2354be54d9b302f9d7' \
+              'web/themes/custom/emerging_digital/css/components.css|fdd92edca3f82bc877944514890d159482a35e33' \
+              'web/themes/custom/emerging_digital/emerging_digital.theme|edeac8bc83ac45ceca859a29b8f2dea20045dadb' \
+              'web/themes/custom/emerging_digital/templates/content/node--service.html.twig|0ce266f92d3fc8c5300bbc10edffec806da598dd'
+            do
+              IFS='|' read -r path pinned_sha <<<"$pair"
+              actual_sha="$(git rev-parse "HEAD:$path")"
+              test "$actual_sha" = "$pinned_sha" || {
+                echo "MCP source blob mismatch: $path" >&2
+                exit 1
+              }
+            done
+            test "$(git hash-object docs/seo/serveurs-mcp-integration-agents-ia-candidate-1415.md)" = "3631f16059c1416cbbbe1504c7d3172aba28a9c6"
+          fi
 
       - name: Setup Node 24 for lockfile bootstrap
         if: ${{ steps.checkout.outputs.lockfile_present == 'false' }}
@@ -293,14 +366,45 @@ jobs:
           ddev drush status
           verify_config_clean
 
+      - name: Prepare exact MCP fixture in isolated Drupal
+        if: ${{ inputs.pr_number == '1421' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "E-merging-digital/agency-website-drupal"
+          project="agency-browser-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          ddev utility configyaml | grep -F "name: $project"
+          mkdir -p .ddev/.downloads
+          fixture=".ddev/.downloads/mcp-browser-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json"
+          trap 'rm -f "$fixture"' EXIT
+          python3 scripts/runner/editorial-service-candidate-source.py \
+            --source docs/seo/serveurs-mcp-integration-agents-ia-candidate-1415.md \
+            --issue-number 1415 \
+            --output "$fixture"
+          ddev exec env \
+            AGENCY_BROWSER_FIXTURE_MODE=mcp-1420 \
+            AGENCY_EXPECTED_DDEV_PROJECT="$project" \
+            AGENCY_BROWSER_FIXTURE_JSON="$fixture" \
+            ./vendor/bin/drush php:script scripts/runner/fixtures/mcp-service-browser-1420.php
+          ddev drush cr
+          result="$(ddev drush config:status 2>&1)"
+          printf '%s\n' "$result"
+          grep -Fq 'No differences' <<<"$result"
+
       - name: Run unattended real-browser validation
         shell: bash
         env:
           CI: 'true'
-          BROWSER_VALIDATION_CONTRACT: tests/browser/contracts/public-blog.json
+          MCP_BROWSER_PROOF: ${{ inputs.pr_number == '1421' }}
         run: |
           set -euo pipefail
-          npm run browser:validate -- tests/browser/public-blog.spec.mjs
+          if [[ "$MCP_BROWSER_PROOF" == "true" ]]; then
+            export BROWSER_VALIDATION_CONTRACT=tests/browser/contracts/mcp-service-1420.json
+            npm run browser:validate -- tests/browser/mcp-service-1420.spec.mjs
+          else
+            export BROWSER_VALIDATION_CONTRACT=tests/browser/contracts/public-blog.json
+            npm run browser:validate -- tests/browser/public-blog.spec.mjs
+          fi
 
       - name: Upload browser and config evidence
         if: ${{ always() }}
@@ -325,6 +429,7 @@ jobs:
           set +e
           ddev delete --omit-snapshot --yes
           rm -f .ddev/config.gate-browser-ci.yaml
+          rm -f ".ddev/.downloads/mcp-browser-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json"
           git restore --worktree -- web/robots.txt config/sync
           git clean -fd -- config/sync
           if [[ "$LOCKFILE_WAS_PRESENT" == "false" ]]; then

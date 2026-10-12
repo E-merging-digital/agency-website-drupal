@@ -1,0 +1,34 @@
+{
+  "id": "mcp-service-1420",
+  "target": "/fr/serveurs-mcp-integration-agents-ia",
+  "actor": "anonymous",
+  "scope": "Agency isolated DDEV only; #1420 PR #1421 approved first-slice proof",
+  "mcp_uuid": "4081ff3d-bdce-49e1-90e3-17a7281d9880",
+  "comparator_uuid": "4e4b100e-c1a4-4a8c-ae1f-738a4c5fd370",
+  "routes": {
+    "fr": {
+      "mcp": "/fr/serveurs-mcp-integration-agents-ia",
+      "comparator": "/fr/service-temoin-mcp-1420"
+    },
+    "en": {
+      "mcp": "/en/mcp-server-ai-agent-integration",
+      "comparator": "/en/mcp-comparator-service-1420"
+    }
+  },
+  "expected": [
+    "single native H1",
+    "MCP SDC H2",
+    "qualified non-submitting contact GET CTA",
+    "static accessible authorization/denial/human approval diagram",
+    "complete bilingual expert text rendered once",
+    "other Service unmodified",
+    "desktop and mobile keyboard accessibility",
+    "no horizontal overflow",
+    "no material console or same-origin network failures"
+  ],
+  "evidence": [
+    "four unique screenshots",
+    "existing desktop/mobile machine-readable report",
+    "Playwright test attachments and failure trace"
+  ]
+}

@@ -78,6 +78,15 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
     // The historical Blog route remains the default, while #1421 alone may
     // select the MCP contract after the trusted exact-head guards.
+    $canonicalGate = strpos(
+      $workflow,
+      'if [[ ! "$PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]; then',
+    );
+    $firstGithubApi = strpos($workflow, 'gh api "repos/$GITHUB_REPOSITORY');
+    $githubPrLookup = strpos(
+      $workflow,
+      'pr_json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"',
+    );
     $mcpHostedGate = strpos($workflow, 'if [[ "$PR_NUMBER" == "1421" ]]; then');
     $runnerCheckout = strpos(
       $workflow,
@@ -88,6 +97,16 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     $browserStep = strpos(
       $workflow,
       '- name: Run unattended real-browser validation',
+    );
+    self::assertIsInt($canonicalGate);
+    self::assertIsInt($firstGithubApi);
+    self::assertIsInt($githubPrLookup);
+    self::assertLessThan($firstGithubApi, $canonicalGate);
+    self::assertLessThan($githubPrLookup, $firstGithubApi);
+    self::assertLessThan($mcpHostedGate, $githubPrLookup);
+    self::assertStringContainsString(
+      'pr_number must be canonical.',
+      $workflow,
     );
     self::assertIsInt($mcpHostedGate);
     self::assertIsInt($runnerCheckout);
@@ -182,6 +201,62 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
     self::assertStringContainsString(
       "context='agency/browser-validation'",
+      $workflow,
+    );
+  }
+
+  /**
+   * Tests actual workflow canonical input before source selection.
+   */
+  public function testPrNumberCanonicalizationFromTrustedWorkflow(): void {
+    $path = dirname(DRUPAL_ROOT)
+      . '/.github/workflows/self-hosted-browser-validation.yml';
+    self::assertFileExists($path);
+    $workflow = (string) file_get_contents($path);
+    $matches = [];
+    self::assertSame(1, preg_match_all(
+      '#^\s*if \[\[ ! "\$PR_NUMBER" =~ (\S+) \]\]; then$#m',
+      $workflow,
+      $matches,
+    ));
+    // The tested expression comes from the versioned workflow itself.
+    $actualPattern = $matches[1][0];
+    self::assertSame('^(0|[1-9][0-9]*)$', $actualPattern);
+
+    $cases = [
+      ['0', TRUE],
+      ['1421', TRUE],
+      ['1422', TRUE],
+      ['01421', FALSE],
+      ['001421', FALSE],
+      ['00', FALSE],
+      ['000', FALSE],
+      ['+1421', FALSE],
+      [' 1421', FALSE],
+      ['1421 ', FALSE],
+    ];
+    foreach ($cases as [$input, $shouldAccept]) {
+      $message = sprintf(
+        'Unexpected canonical PR number decision for %s',
+        var_export($input, TRUE),
+      );
+      self::assertSame(
+        $shouldAccept,
+        preg_match('~' . $actualPattern . '~D', $input) === 1,
+        $message,
+      );
+    }
+
+    self::assertStringContainsString(
+      'if [[ "$PR_NUMBER" == "0" ]]; then',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      'if [[ "$PR_NUMBER" == "1421" ]]; then',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      "MCP_BROWSER_PROOF: \${{ inputs.pr_number == '1421' }}",
       $workflow,
     );
   }

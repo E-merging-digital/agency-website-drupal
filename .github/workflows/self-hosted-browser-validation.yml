@@ -57,8 +57,8 @@ jobs:
             exit 1
           fi
 
-          if [[ ! "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
-            echo "pr_number must be numeric." >&2
+          if [[ ! "$PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]; then
+            echo "pr_number must be canonical." >&2
             exit 1
           fi
 

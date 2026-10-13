@@ -63,7 +63,10 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     self::assertGreaterThan($cachePosition, $governedPosition);
     self::assertGreaterThan($governedPosition, $browserPosition);
 
-    self::assertStringContainsString('ddev drush config:status', $workflow);
+    self::assertStringContainsString(
+      'bash scripts/runner/verify-browser-config-canonical-canvas-1420.sh',
+      $workflow,
+    );
     self::assertStringContainsString(
       'bash scripts/runner/prove-governed-content-cli-facade.sh',
       $workflow,
@@ -355,6 +358,140 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     self::assertStringContainsString(
       'const url = findUrl(parsed);',
       $browserScript,
+    );
+  }
+
+  /**
+   * All three phases invoke one pinned trusted config gate.
+   */
+  public function testCanvasCanonicalGateAtThreeCheckpoints(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $path = $root . '/.github/workflows/self-hosted-browser-validation.yml';
+    $workflow = (string) file_get_contents($path);
+    $parsed = Yaml::parseFile($path);
+    self::assertIsArray($parsed);
+    $steps = $parsed['jobs']['browser-validation']['steps'];
+    self::assertIsArray($steps);
+
+    $byName = [];
+    foreach ($steps as $step) {
+      $byName[$step['name']] = $step;
+    }
+
+    $rebuild = $byName['Rebuild Drupal from repository-owned state'];
+    $fixture = $byName['Prepare exact MCP fixture in isolated Drupal'];
+    $expectedInput = "\${{ inputs.pr_number }}";
+    self::assertSame(
+      $expectedInput,
+      $rebuild['env']['CANVAS_BROWSER_PR_NUMBER'],
+    );
+    self::assertSame(
+      $expectedInput,
+      $fixture['env']['CANVAS_BROWSER_PR_NUMBER'],
+    );
+
+    $call = 'bash scripts/runner/'
+      . 'verify-browser-config-canonical-canvas-1420.sh';
+    self::assertSame(2, substr_count($rebuild['run'], $call));
+    self::assertSame(1, substr_count($fixture['run'], $call));
+    self::assertSame(3, substr_count($workflow, $call));
+
+    $first = strpos($rebuild['run'], $call);
+    $second = strpos($rebuild['run'], $call, $first + strlen($call));
+    self::assertIsInt($first);
+    self::assertIsInt($second);
+    self::assertLessThan($first, strpos($rebuild['run'], 'ddev drush cr'));
+    self::assertGreaterThan(
+      strpos($rebuild['run'], 'ddev drush cim -y'),
+      $first,
+    );
+    self::assertGreaterThan(
+      strpos($rebuild['run'], 'ddev drush emerging:governed-content --all'),
+      $second,
+    );
+    self::assertGreaterThan(
+      strpos($fixture['run'], 'ddev drush cr'),
+      strpos($fixture['run'], $call),
+    );
+    self::assertStringContainsString(
+      'test "$(git hash-object '
+        . 'scripts/runner/verify-browser-config-canonical-canvas-1420.sh)"',
+      $workflow,
+    );
+    self::assertStringNotContainsString('verify_config_clean()', $workflow);
+    self::assertStringNotContainsString(
+      'grep -Fq ' . "'No differences'",
+      $workflow,
+    );
+  }
+
+  /**
+   * Clean and known Canvas paths retain distinct fail-closed admissions.
+   */
+  public function testCanvasCanonicalGateStrictAndKnownDriftPolicy(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $helperPath = $root
+      . '/scripts/runner/verify-browser-config-canonical-canvas-1420.sh';
+    self::assertFileExists($helperPath);
+    $helper = (string) file_get_contents($helperPath);
+
+    // Zero actual config status rows is the only unconditional PASS.
+    self::assertStringContainsString(
+      'ddev drush config:status --format=json',
+      $helper,
+    );
+    self::assertStringContainsString(
+      'php scripts/runner/filter-config-status-metadata.php PREPROD',
+      $helper,
+    );
+    self::assertStringContainsString('[[ "$count" == "0" ]]', $helper);
+    self::assertStringContainsString(
+      'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+      $helper,
+    );
+    self::assertStringContainsString('fail_closed', $helper);
+
+    // Existing gate, helper and comparator are used without a second engine.
+    foreach ([
+      'canvas-runtime-diff-paths-995.php|'
+        . 'ef50d3cae1b497b5931789e6a109a9f67f9c6a5f',
+      'canvas-ai-provider-config-drift-gate-1373.php|'
+        . '92f1bc7def35e2c632d1a0e70d95579fe7365dcf',
+      'run-canvas-ai-provider-config-drift-gate-1375.sh|'
+        . 'c514da23bc6f87e0ce27c86bbb2c8761d0a9e67c',
+      'filter-config-status-metadata.php|'
+        . '2c4efe9742fcca89d8169f2edcdc0f2dad99e579',
+      'AGENCY_CANVAS_1373_EXECUTE=1',
+      'AGENCY_CANVAS_1375_CODE_B64=',
+      'AGENCY_CANVAS_1373_STATUS_B64=',
+      'ddev exec env',
+    ] as $required) {
+      self::assertStringContainsString($required, $helper);
+    }
+
+    // The #1373 probe rejects any extra/missing/non-Different name, and #995
+    // rejects unknown business paths, invalid shapes and dynamic version keys.
+    // The final verdict must require every real comparator result to be known.
+    self::assertStringContainsString(
+      '(.items | type == "array" and length == 19)',
+      $helper,
+    );
+    self::assertStringContainsString(
+      '.classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"',
+      $helper,
+    );
+    self::assertStringContainsString(
+      '.summary == {"total":19,"known":19,"unexpected":0}',
+      $helper,
+    );
+    self::assertStringContainsString(
+      'git diff --binary -- config/sync',
+      $helper,
+    );
+    self::assertStringNotContainsString('raw_yaml', $helper);
+    self::assertStringNotContainsString(
+      'CANVAS_CONFIG_DRIFT_GATE=PASS',
+      $helper,
     );
   }
 

@@ -212,6 +212,7 @@ jobs:
           test -f tests/browser/contracts/public-blog.json
           test -f tests/browser/public-blog.spec.mjs
           test -f scripts/runner/prove-governed-content-cli-facade.sh
+          test "$(git hash-object scripts/runner/verify-browser-config-canonical-canvas-1420.sh)" = "cdc1f24fb81d0f10000a6af9a6222f3d35d27a3f"
 
           if [[ -f package-lock.json ]]; then
             echo "lockfile_present=true" >> "$GITHUB_OUTPUT"
@@ -321,30 +322,10 @@ jobs:
 
       - name: Rebuild Drupal from repository-owned state
         shell: bash
+        env:
+          CANVAS_BROWSER_PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
-
-          verify_config_clean() {
-            local config_status
-            config_status="$(ddev drush config:status 2>&1)"
-            printf '%s\n' "$config_status"
-            if grep -Fq 'No differences' <<<"$config_status"; then
-              return 0
-            fi
-
-            mkdir -p artifacts/config-canonicalization
-            printf '%s\n' "$config_status" > artifacts/config-canonicalization/config-status.txt
-
-            # Materialize the exact canonical export produced by the freshly
-            # rebuilt Drupal runtime so maintainers can review a deterministic
-            # patch instead of guessing which YAML normalization is required.
-            ddev drush cex -y
-            git status --short config/sync > artifacts/config-canonicalization/git-status.txt
-            git diff --binary -- config/sync > artifacts/config-canonicalization/canonical-config.patch
-
-            echo "Canonical configuration drift detected; exported patch evidence." >&2
-            return 1
-          }
 
           ddev start -y
           ddev composer install --no-interaction --no-progress --prefer-dist
@@ -360,17 +341,19 @@ jobs:
           # directory so the browser proof always starts from canonical config.
           ddev drush cim -y
           ddev drush cr
-          verify_config_clean
+          bash scripts/runner/verify-browser-config-canonical-canvas-1420.sh
 
           bash scripts/runner/prove-governed-content-cli-facade.sh
           ddev drush emerging:governed-content --all
           ddev drush cr
           ddev drush status
-          verify_config_clean
+          bash scripts/runner/verify-browser-config-canonical-canvas-1420.sh
 
       - name: Prepare exact MCP fixture in isolated Drupal
         if: ${{ inputs.pr_number == '1421' }}
         shell: bash
+        env:
+          CANVAS_BROWSER_PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = "E-merging-digital/agency-website-drupal"
@@ -389,9 +372,7 @@ jobs:
             AGENCY_BROWSER_FIXTURE_JSON="$fixture" \
             ./vendor/bin/drush php:script scripts/runner/fixtures/mcp-service-browser-1420.php
           ddev drush cr
-          result="$(ddev drush config:status 2>&1)"
-          printf '%s\n' "$result"
-          grep -Fq 'No differences' <<<"$result"
+          bash scripts/runner/verify-browser-config-canonical-canvas-1420.sh
 
       - name: Run unattended real-browser validation
         shell: bash

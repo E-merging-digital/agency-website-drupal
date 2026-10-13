@@ -38,12 +38,14 @@ props:
         - services
         - case-clients
         - team
+        - contact
       meta:enum:
         home: Home
         ia-drupal: 'AI & Drupal'
         services: Services
         case-clients: 'Case studies'
         team: Team
+        contact: Contact
       examples:
         - home
     image_src:

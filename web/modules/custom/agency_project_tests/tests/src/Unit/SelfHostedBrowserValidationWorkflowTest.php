@@ -280,7 +280,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     $body = substr($workflow, $bodyStart, $end - $bodyStart);
     $lines = array_values(array_map('trim', array_filter(
       explode("\n", $body),
-      'strlen',
+      static fn (string $line): bool => $line !== '',
     )));
     self::assertSame([
       'name: agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}',

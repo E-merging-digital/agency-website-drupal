@@ -454,13 +454,13 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     // Existing gate, helper and comparator are used without a second engine.
     foreach ([
       'canvas-runtime-diff-paths-995.php|'
-        . 'ef50d3cae1b497b5931789e6a109a9f67f9c6a5f',
+      . 'ef50d3cae1b497b5931789e6a109a9f67f9c6a5f',
       'canvas-ai-provider-config-drift-gate-1373.php|'
-        . '92f1bc7def35e2c632d1a0e70d95579fe7365dcf',
+      . '92f1bc7def35e2c632d1a0e70d95579fe7365dcf',
       'run-canvas-ai-provider-config-drift-gate-1375.sh|'
-        . 'c514da23bc6f87e0ce27c86bbb2c8761d0a9e67c',
+      . 'c514da23bc6f87e0ce27c86bbb2c8761d0a9e67c',
       'filter-config-status-metadata.php|'
-        . '2c4efe9742fcca89d8169f2edcdc0f2dad99e579',
+      . '2c4efe9742fcca89d8169f2edcdc0f2dad99e579',
       'AGENCY_CANVAS_1373_EXECUTE=1',
       'AGENCY_CANVAS_1375_CODE_B64=',
       'AGENCY_CANVAS_1373_STATUS_B64=',

@@ -151,11 +151,11 @@ final class GovernedSdcCatalogCiTest extends TestCase {
     $theme = (string) file_get_contents($themeRoot . '/emerging_digital.theme');
     self::assertStringContainsString("'/contact' => 'contact',", $theme);
     $illustrationPattern = <<<'REGEX'
-~'contact' => \[
-  \s*'path' => 'images/contact/contact-page-hero\.svg',
-  \s*'alt' => \[
-  \s*'fr' => '[^']+',
-  \s*'en' => '[^']+',
+~'contact'\s*=>\s*\[
+  \s*'path'\s*=>\s*'images/contact/contact-page-hero\.svg',
+  \s*'alt'\s*=>\s*\[
+  \s*'fr'\s*=>\s*'[^']+',
+  \s*'en'\s*=>\s*'[^']+',
 ~x
 REGEX;
     self::assertMatchesRegularExpression($illustrationPattern, $theme);

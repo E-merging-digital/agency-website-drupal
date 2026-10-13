@@ -261,7 +261,6 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
   }
 
-
   /**
    * Isolated DDEV router ports remain safe for the rootless Agency runner.
    */

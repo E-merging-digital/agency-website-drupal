@@ -314,6 +314,8 @@ jobs:
           set -euo pipefail
           cat > .ddev/config.gate-browser-ci.yaml <<EOF
           name: agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          router_http_port: "18180"
+          router_https_port: "18543"
           EOF
           ddev utility configyaml | grep -F "agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 

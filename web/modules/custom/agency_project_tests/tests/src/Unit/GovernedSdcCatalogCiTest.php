@@ -108,4 +108,73 @@ final class GovernedSdcCatalogCiTest extends TestCase {
     }
   }
 
+  /**
+   * Contact Hero must be admitted by the SDC contract and theme mapping.
+   */
+  public function testContactHeroSdcVariantContract(): void {
+    $projectRoot = dirname(DRUPAL_ROOT);
+    $themeRoot = $projectRoot . '/web/themes/custom/emerging_digital';
+    $componentRoot = $themeRoot . '/components/hero';
+    $metadata = Yaml::parseFile($componentRoot . '/hero.component.yml');
+    $variant = $metadata['props']['properties']['variant'] ?? [];
+
+    $expected = [
+      'home' => 'Home',
+      'ia-drupal' => 'AI & Drupal',
+      'services' => 'Services',
+      'case-clients' => 'Case studies',
+      'team' => 'Team',
+      'contact' => 'Contact',
+    ];
+    self::assertSame(array_keys($expected), $variant['enum'] ?? NULL);
+    self::assertSame($expected, $variant['meta:enum'] ?? NULL);
+
+    $template = (string) file_get_contents($componentRoot . '/hero.twig');
+    $matches = [];
+    self::assertSame(1, preg_match(
+      '/^\{% set allowed_variants = \[([^\r\n]*)\] %\}$/m',
+      $template,
+      $matches,
+    ));
+    $values = [];
+    preg_match_all("/'([^']+)'/", $matches[1], $values);
+    self::assertSame(array_keys($expected), $values[1]);
+    self::assertStringContainsString(
+      "variant in allowed_variants ? variant : 'home'",
+      $template,
+    );
+    self::assertStringContainsString(
+      "'ed-section--hero-' ~ safe_variant",
+      $template,
+    );
+
+    $theme = (string) file_get_contents($themeRoot . '/emerging_digital.theme');
+    self::assertStringContainsString("'/contact' => 'contact',", $theme);
+    $illustrationPattern = <<<'REGEX'
+~'contact'\s*=>\s*\[
+  \s*'path'\s*=>\s*'images/contact/contact-page-hero\.svg',
+  \s*'alt'\s*=>\s*\[
+  \s*'fr'\s*=>\s*'[^']+',
+  \s*'en'\s*=>\s*'[^']+',
+~x
+REGEX;
+    self::assertMatchesRegularExpression($illustrationPattern, $theme);
+    self::assertFileExists(
+      $themeRoot . '/images/contact/contact-page-hero.svg',
+    );
+
+    $adapter = (string) file_get_contents(
+      $themeRoot . '/templates/paragraphs/paragraph--hero.html.twig',
+    );
+    self::assertStringContainsString(
+      "include('emerging_digital:hero'",
+      $adapter,
+    );
+    self::assertStringContainsString(
+      "variant: hero_illustration_class",
+      $adapter,
+    );
+    self::assertStringContainsString("'ed-section--hero-': ''", $adapter);
+  }
+
 }

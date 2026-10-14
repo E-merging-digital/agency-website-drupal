@@ -32,6 +32,8 @@ final class ServiceMetatagTranslationKernelTest extends KernelTestBase {
     'language',
     'content_translation',
     'metatag',
+    'metatag_open_graph',
+    'metatag_twitter_cards',
     'token',
   ];
 

@@ -1766,3 +1766,133 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
     margin-right: 0;
   }
 }
+
+/* #1420: UUID-targeted MCP Service visual slice; other Services stay untouched. */
+.node--service-mcp .ed-section--hero-services {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #f6f7fb 0%, #edf5ff 100%);
+  padding-block: clamp(var(--space-5), 4vw, var(--space-7));
+}
+
+.node--service-mcp .ed-section--hero-services::before,
+.node--service-mcp .ed-section--hero-services::after {
+  content: none;
+}
+
+.node--service-mcp .ed-section--hero-services .ed-section__title--hero {
+  max-width: 22ch;
+}
+
+.node--service-mcp .ed-section__hero-illustration--media {
+  display: block;
+  width: 100%;
+  filter: none;
+}
+
+.ed-mcp-flow {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.ed-mcp-flow__caption {
+  color: var(--color-text);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.ed-mcp-flow__description {
+  margin: var(--space-2) 0 var(--space-4);
+  color: var(--color-muted);
+  font-size: 0.875rem;
+}
+
+.ed-mcp-flow__steps,
+.ed-mcp-flow__outcomes {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.ed-mcp-flow__steps {
+  counter-reset: mcp-step;
+}
+
+.ed-mcp-flow__steps li {
+  counter-increment: mcp-step;
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-7);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.ed-mcp-flow__steps li::before {
+  content: counter(mcp-step, decimal-leading-zero);
+  position: absolute;
+  left: var(--space-3);
+  top: var(--space-2);
+  color: #1c5184;
+  font-weight: 700;
+}
+
+.ed-mcp-flow li strong,
+.ed-mcp-flow li span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.ed-mcp-flow li span {
+  font-size: 0.825rem;
+  line-height: 1.45;
+}
+
+.ed-mcp-flow__outcomes-title {
+  margin: var(--space-4) 0 var(--space-2);
+  font-weight: 700;
+}
+
+.ed-mcp-flow__outcomes li {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+
+.ed-mcp-flow__outcomes .ed-mcp-flow__outcome--allowed {
+  border-left-color: #447d19;
+}
+
+.ed-mcp-flow__outcomes .ed-mcp-flow__outcome--denied {
+  border-left-color: #a33737;
+}
+
+.ed-mcp-flow__outcomes .ed-mcp-flow__outcome--approval {
+  border-left-color: #915f0f;
+}
+
+@media (min-width: 48rem) {
+  .node--service-mcp .ed-section__hero-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 1fr);
+  }
+}
+
+@media (max-width: 48rem) {
+  .node--service-mcp .ed-section__hero-illustration--media {
+    justify-self: stretch;
+  }
+  .node--service-mcp .ed-mcp-flow {
+    padding: var(--space-3);
+  }
+}

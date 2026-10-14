@@ -30,6 +30,19 @@ function emerging_digital_preprocess_node(array &$variables): void {
     $is_english,
   );
 
+  $langcode = $node->language()->getId();
+  $variables['is_mcp_service'] = emerging_digital_is_mcp_service(
+    $bundle,
+    $node->uuid(),
+    (string) ($variables['view_mode'] ?? ''),
+    $langcode,
+  );
+  if ($variables['is_mcp_service']) {
+    $variables['mcp_copy'] = emerging_digital_mcp_service_hero_copy(
+      $is_english,
+    );
+  }
+
   if ($bundle !== 'ai_feature') {
     return;
   }
@@ -49,6 +62,77 @@ function emerging_digital_preprocess_node(array &$variables): void {
   $variables['ai_feature_related_services_label'] = $is_english
     ? 'Related services'
     : 'Services liés';
+}
+
+/**
+ * Identifies the approved MCP landing without relying on local node IDs.
+ */
+function emerging_digital_is_mcp_service(
+  string $bundle,
+  string $uuid,
+  string $viewMode,
+  string $langcode,
+): bool {
+  return $bundle === 'service'
+    && $uuid === '4081ff3d-bdce-49e1-90e3-17a7281d9880'
+    && $viewMode === 'full'
+    && in_array($langcode, ['fr', 'en'], TRUE);
+}
+
+/**
+ * Returns concise localized copy for the MCP Service first-screen slice.
+ *
+ * @return array<string, string>
+ *   Approved diagram and hero presentation labels, not editorial body copy.
+ */
+function emerging_digital_mcp_service_hero_copy(bool $isEnglish): array {
+  if ($isEnglish) {
+    return [
+      'hero_heading' => 'Connect AI agents to your business tools. Keep control.',
+      'hero_intro' => 'Use selected MCP tools to reach approved application capabilities, not unrestricted access.',
+      'secondary_label' => 'How it works',
+      'diagram_title' => 'A controlled request, from agent to application',
+      'diagram_description' => 'The application checks identity and permissions; MCP alone is not a security boundary.',
+      'agent_title' => 'AI agent',
+      'agent_detail' => 'Requests an approved operation.',
+      'mcp_title' => 'MCP server',
+      'mcp_detail' => 'Exposes only selected tools.',
+      'app_title' => 'Business application',
+      'app_detail' => 'Receives the request with an identified application context.',
+      'policy_title' => 'Effective access control',
+      'policy_detail' => 'The application applies its own permissions and policies.',
+      'outcomes_title' => 'Three possible outcomes',
+      'allowed_title' => 'Allowed',
+      'allowed_detail' => 'Only the authorised, limited result is returned.',
+      'denied_title' => 'Denied',
+      'denied_detail' => 'Unauthorised requests are blocked.',
+      'approval_title' => 'Human approval',
+      'approval_detail' => 'Sensitive actions remain pending until a person decides.',
+    ];
+  }
+
+  return [
+    'hero_heading' => 'Connectez les agents IA à vos outils métier. Gardez le contrôle.',
+    'hero_intro' => 'Exposez des fonctions ciblées via MCP, sans donner un accès illimité à vos applications.',
+    'secondary_label' => 'Comprendre le fonctionnement',
+    'diagram_title' => 'Une demande encadrée, de l’agent à l’application',
+    'diagram_description' => 'L’application vérifie l’identité et les droits ; MCP ne garantit pas la sécurité à lui seul.',
+    'agent_title' => 'Agent IA',
+    'agent_detail' => 'Demande une opération autorisée.',
+    'mcp_title' => 'Serveur MCP',
+    'mcp_detail' => 'Expose uniquement les outils sélectionnés.',
+    'app_title' => 'Application métier',
+    'app_detail' => 'Reçoit la demande avec une identité applicative définie.',
+    'policy_title' => 'Contrôle d’accès réel',
+    'policy_detail' => 'L’application applique ses propres permissions et règles.',
+    'outcomes_title' => 'Trois issues possibles',
+    'allowed_title' => 'Autorisé',
+    'allowed_detail' => 'Seul un résultat limité et autorisé est renvoyé.',
+    'denied_title' => 'Refusé',
+    'denied_detail' => 'Les demandes non autorisées sont bloquées.',
+    'approval_title' => 'Validation humaine',
+    'approval_detail' => 'Une action sensible attend la décision d’une personne.',
+  ];
 }
 
 /**

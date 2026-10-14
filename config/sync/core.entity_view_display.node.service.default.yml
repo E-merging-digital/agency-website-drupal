@@ -39,8 +39,8 @@ content:
     weight: 100
     region: content
 hidden:
-  field_metatags: true
   field_localisation: true
+  field_metatags: true
   field_related_ai_features: true
   field_sector: true
   field_service_type: true

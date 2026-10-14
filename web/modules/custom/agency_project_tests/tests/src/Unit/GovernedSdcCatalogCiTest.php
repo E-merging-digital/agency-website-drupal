@@ -262,13 +262,16 @@ REGEX;
     self::assertFalse($isCompatible($missingArchive));
 
     $wrongArchive = $config;
-    $wrongArchive['versioned_properties'][$oldVersion]['settings']
-      ['prop_field_definitions']['variant']['required'] = FALSE;
+    $fields = &$wrongArchive['versioned_properties'][$oldVersion]['settings'];
+    $fields['prop_field_definitions']['variant']['required'] = FALSE;
+    unset($fields);
     self::assertFalse($isCompatible($wrongArchive));
 
     $wrongSlot = $config;
-    $wrongSlot['versioned_properties'][$oldVersion]['fallback_metadata']
-      ['slot_definitions']['media']['title'] = 'Incorrect';
+    $slotArchive = &$wrongSlot['versioned_properties'][$oldVersion];
+    $slotDefinitions = &$slotArchive['fallback_metadata']['slot_definitions'];
+    $slotDefinitions['media']['title'] = 'Incorrect';
+    unset($slotDefinitions, $slotArchive);
     self::assertFalse($isCompatible($wrongSlot));
 
     $wrongDependency = $config;

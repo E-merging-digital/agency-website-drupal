@@ -177,4 +177,110 @@ REGEX;
     self::assertStringContainsString("'ed-section--hero-': ''", $adapter);
   }
 
+  /**
+   * Keeps the previous Hero version usable by governed Default Content.
+   */
+  public function testCanonicalHeroHistoricalVersionCompatibility(): void {
+    $projectRoot = dirname(DRUPAL_ROOT);
+    $configPath = $projectRoot
+      . '/config/sync/canvas.component.sdc.emerging_digital.hero.yml';
+    $config = Yaml::parseFile($configPath);
+    $oldVersion = 'f6ebbdd7632bea80';
+    $newVersion = '8172164706c8dc5f';
+
+    self::assertSame($newVersion, $config['active_version'] ?? NULL);
+    self::assertSame(
+      '6480184b-d40e-409e-8383-94e695caae9d',
+      $config['uuid'] ?? NULL,
+    );
+    self::assertSame('sdc.emerging_digital.hero', $config['id'] ?? NULL);
+    self::assertSame('emerging_digital', $config['provider'] ?? NULL);
+    self::assertSame('sdc', $config['source'] ?? NULL);
+    self::assertSame(
+      'emerging_digital:hero',
+      $config['source_local_id'] ?? NULL,
+    );
+    self::assertSame(
+      [
+        'module' => ['link', 'options'],
+        'theme' => ['emerging_digital'],
+      ],
+      $config['dependencies'] ?? NULL,
+    );
+
+    $versions = $config['versioned_properties'] ?? [];
+    self::assertSame(['active', $oldVersion], array_keys($versions));
+    self::assertIsArray($versions['active']);
+    self::assertSame($versions['active'], $versions[$oldVersion]);
+    self::assertSame(
+      [
+        'heading',
+        'heading_level',
+        'variant',
+        'image_src',
+        'image_alt',
+        'image_loading',
+      ],
+      array_keys($versions['active']['settings']['prop_field_definitions']),
+    );
+    self::assertSame(
+      ['intro', 'primary_action', 'secondary_action', 'media'],
+      array_keys($versions['active']['fallback_metadata']['slot_definitions']),
+    );
+
+    $importer = (string) file_get_contents(
+      $projectRoot
+      . '/web/modules/custom/emerging_digital_content/src/ContentSync/'
+      . 'GovernedCoreDefaultContentImporter.php',
+    );
+    self::assertStringContainsString(
+      "'sdc.emerging_digital.hero' => '$oldVersion'",
+      $importer,
+    );
+
+    $isCompatible = static function (array $candidate) use (
+      $config,
+      $versions,
+      $oldVersion,
+      $newVersion,
+    ): bool {
+      return ($candidate['active_version'] ?? NULL) === $newVersion
+        && ($candidate['id'] ?? NULL) === $config['id']
+        && ($candidate['uuid'] ?? NULL) === $config['uuid']
+        && ($candidate['dependencies'] ?? NULL) === $config['dependencies']
+        && array_keys($candidate['versioned_properties'] ?? [])
+          === ['active', $oldVersion]
+        && $candidate['versioned_properties']['active']
+          === $versions['active']
+        && $candidate['versioned_properties'][$oldVersion]
+          === $versions['active'];
+    };
+    self::assertTrue($isCompatible($config));
+
+    $missingArchive = $config;
+    unset($missingArchive['versioned_properties'][$oldVersion]);
+    self::assertFalse($isCompatible($missingArchive));
+
+    $wrongArchive = $config;
+    $fields = &$wrongArchive['versioned_properties'][$oldVersion]['settings'];
+    $fields['prop_field_definitions']['variant']['required'] = FALSE;
+    unset($fields);
+    self::assertFalse($isCompatible($wrongArchive));
+
+    $wrongSlot = $config;
+    $slotArchive = &$wrongSlot['versioned_properties'][$oldVersion];
+    $slotDefinitions = &$slotArchive['fallback_metadata']['slot_definitions'];
+    $slotDefinitions['media']['title'] = 'Incorrect';
+    unset($slotDefinitions, $slotArchive);
+    self::assertFalse($isCompatible($wrongSlot));
+
+    $wrongDependency = $config;
+    $wrongDependency['dependencies']['module'][] = 'unexpected';
+    self::assertFalse($isCompatible($wrongDependency));
+
+    $extraVersion = $config;
+    $extraVersion['versioned_properties']['unapproved'] = [];
+    self::assertFalse($isCompatible($extraVersion));
+  }
+
 }

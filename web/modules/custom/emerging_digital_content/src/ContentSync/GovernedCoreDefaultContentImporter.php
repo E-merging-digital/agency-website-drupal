@@ -18,7 +18,7 @@ final class GovernedCoreDefaultContentImporter {
   private const CANVAS_PAGE_UUID = '52600000-0000-4000-8000-000000000001';
 
   private const CANVAS_COMPONENT_VERSIONS = [
-    'sdc.emerging_digital.hero' => 'f6ebbdd7632bea80',
+    'sdc.emerging_digital.hero' => '8172164706c8dc5f',
     'sdc.emerging_digital.trust-list' => '61b25a47f367765e',
     'sdc.emerging_digital.cta' => 'b4f165563eb02357',
   ];

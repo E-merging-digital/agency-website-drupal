@@ -38,7 +38,7 @@ final class ServiceMetatagTranslationKernelTest extends KernelTestBase {
   /**
    * Loads a committed field configuration into this disposable test database.
    */
-  private static function config(string $filename): array {
+  private static function loadSyncConfiguration(string $filename): array {
     $path = dirname(DRUPAL_ROOT) . '/config/sync/' . $filename;
     self::assertFileExists($path);
     $value = Yaml::parseFile($path);
@@ -65,8 +65,8 @@ final class ServiceMetatagTranslationKernelTest extends KernelTestBase {
     $this->container->get('content_translation.manager')
       ->setEnabled('node', 'service', TRUE);
 
-    FieldStorageConfig::create(self::config('field.storage.node.field_metatags.yml'))->save();
-    FieldConfig::create(self::config('field.field.node.service.field_metatags.yml'))->save();
+    FieldStorageConfig::create(self::loadSyncConfiguration('field.storage.node.field_metatags.yml'))->save();
+    FieldConfig::create(self::loadSyncConfiguration('field.field.node.service.field_metatags.yml'))->save();
 
     $defaults = MetatagDefaults::load('node__service');
     if ($defaults === NULL) {

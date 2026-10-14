@@ -5,6 +5,7 @@ dependencies:
   config:
     - field.field.node.service.field_detailed_description
     - field.field.node.service.field_localisation
+    - field.field.node.service.field_metatags
     - field.field.node.service.field_related_ai_features
     - field.field.node.service.field_sector
     - field.field.node.service.field_service_type
@@ -38,6 +39,7 @@ content:
     weight: 100
     region: content
 hidden:
+  field_metatags: true
   field_localisation: true
   field_related_ai_features: true
   field_sector: true

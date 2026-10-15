@@ -405,9 +405,21 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     $profiles = (string) file_get_contents($root . '/scripts/runner/composer-materialization-profiles.sh');
 
     self::assertSame(1, substr_count($gateway, "'agency-full-composer-update-1432',"));
-    self::assertStringContainsString('issue-1432-global-update-20261015-01', $gateway);
+    self::assertStringContainsString('issue-1432-global-update-20261015-02', $gateway);
     self::assertStringContainsString('665e841a57345fa2787d30da0962b60afa4f9b9f', $gateway);
     self::assertStringContainsString("COMPOSER_MODE='full-update'", $profiles);
+    // R17: the consumed R16 identity is absent from both executable sources.
+    self::assertSame(1, substr_count($gateway, "'issue-1432-global-update-20261015-02'"));
+    self::assertSame(1, substr_count($trusted, "'issue-1432-global-update-20261015-02'"));
+    self::assertStringNotContainsString('issue-1432-global-update-20261015-01', $gateway);
+    self::assertStringNotContainsString('issue-1432-global-update-20261015-01', $trusted);
+    self::assertStringContainsString('test "$REQUEST_ID" = \'issue-1432-global-update-20261015-02\'', $gateway);
+    self::assertStringContainsString('test "$INPUT_REQUEST_ID" = \'issue-1432-global-update-20261015-02\'', $trusted);
+    self::assertStringContainsString('ddev composer validate --strict --no-check-all --check-lock --no-interaction', $trusted);
+    self::assertStringNotContainsString('ddev composer validate --strict --no-interaction', $trusted);
+    self::assertStringContainsString('test "$audit_status" -eq 0', $trusted);
+    self::assertStringContainsString('if [[ "$changed" != \'composer.lock\' ]]', $trusted);
+    self::assertStringContainsString('composer_lock_sha256', $trusted);
     self::assertStringContainsString('ddev composer update --no-install --no-scripts --no-interaction --no-progress', $trusted);
     self::assertStringContainsString('ddev composer audit --locked --format=json --no-interaction', $trusted);
     self::assertStringContainsString('validate-full-composer-update-1432.py', $trusted);

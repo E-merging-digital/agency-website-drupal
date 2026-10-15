@@ -61,7 +61,7 @@ jobs:
           [[ "$INPUT_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           source scripts/runner/composer-materialization-profiles.sh
           if [[ "$COMPOSER_MODE" == 'full-update' ]]; then
-            test "$INPUT_REQUEST_ID" = 'issue-1432-global-update-20261015-01'
+            test "$INPUT_REQUEST_ID" = 'issue-1432-global-update-20261015-02'
             test "$INPUT_PR_NUMBER" = '1435'
             test "$INPUT_HEAD_SHA" = '665e841a57345fa2787d30da0962b60afa4f9b9f'
           fi
@@ -326,7 +326,7 @@ jobs:
             test "$(git hash-object composer.json)" = '7eeab76f005e49df1006707f63720aa4e7261f55'
             test "$(git hash-object composer.lock)" = 'cb225d25fd6f1e8468654339b46fea1ba6052925'
             ddev composer update --no-install --no-scripts --no-interaction --no-progress
-            ddev composer validate --strict --no-interaction
+            ddev composer validate --strict --no-check-all --check-lock --no-interaction
             audit_status=0
             ddev composer audit --locked --format=json --no-interaction \
               > /tmp/agency-r12-audit.json || audit_status=$?

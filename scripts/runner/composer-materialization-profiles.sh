@@ -50,6 +50,18 @@ case "${COMPOSER_PROFILE:-}" in
     COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
     COMPOSER_OWNER_ISSUE='962'
     ;;
+  drupal-core-security-1432)
+    COMPOSER_MODE='lock-refresh'
+    COMPOSER_PACKAGE=''
+    COMPOSER_CONSTRAINT=''
+    COMPOSER_VERSION_REGEX=''
+    COMPOSER_UPDATE_SELECTOR=''
+    COMPOSER_LOCK_REFRESH_SELECTORS='drupal/core-recommended drupal/core drupal/core-composer-scaffold drupal/core-project-message drupal/core-recipe-unpack drupal/core-dev'
+    COMPOSER_RESULT_RULES='{"drupal/core-recommended":"^11\\.4\\.10$","drupal/core":"^11\\.4\\.10$","drupal/core-composer-scaffold":"^11\\.4\\.10$","drupal/core-project-message":"^11\\.4\\.10$","drupal/core-recipe-unpack":"^11\\.4\\.10$","drupal/core-dev":"^11\\.4\\.10$"}'
+    COMPOSER_REQUIRED_AI_SEARCH_VERSION=''
+    COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
+    COMPOSER_OWNER_ISSUE='1432'
+    ;;
   *)
     printf 'Unsupported Composer materialization profile: %s\n' \
       "${COMPOSER_PROFILE:-<empty>}" >&2

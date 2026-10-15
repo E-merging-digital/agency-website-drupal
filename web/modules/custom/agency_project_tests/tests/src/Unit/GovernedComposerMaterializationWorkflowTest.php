@@ -395,7 +395,6 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     self::assertNotSame(0, $unsupportedExitCode);
   }
 
-
   /**
    * The core security profile must resolve only the six exact 11.4.10 builds.
    */
@@ -465,6 +464,5 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       }
     }
   }
-
 
 }

@@ -262,3 +262,57 @@ This route does **not** provide:
 Adding another package or maintenance selector set still requires a reviewed
 repository change. Do not extend the request schema with executable Composer
 inputs.
+
+## #1432 — one-time full Composer update (DRAFT / INACTIVE)
+
+The proposed `agency-full-composer-update-1432` is an **inactive** fixed
+profile of the preexisting separated gateway, hosted read-only DDEV resolver
+and scoped publishing job. Preparing this source does not authorize its use.
+
+- Exact initial PR: **#1435 DRAFT**, head
+  `665e841a57345fa2787d30da0962b60afa4f9b9f`, base
+  `3dc4c82f5f4fb1b5d1e8cfe2aa1eb33397b26c78`, branch
+  `security/1432-drupal-core-11410-lock`, manifest blob
+  `7eeab76f005e49df1006707f63720aa4e7261f55`, lock blob
+  `cb225d25fd6f1e8468654339b46fea1ba6052925`.
+- Fixed four-field request only, one reserved identifier
+  `issue-1432-global-update-20261015-01` and no package/constraint/shell
+  argument. Pre-update PR diff must consist of exactly `composer.lock` and
+  `web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php`.
+- Resolver command is exactly ONE unscoped
+  `ddev composer update --no-install --no-scripts --no-interaction --no-progress`
+  using the project's preserved composer.json and all require + require-dev
+  dependencies; it may not relax Composer security or platform requirements.
+  The already-reviewed Composer plugin allowlist and `patches.json` are
+  preserved. The isolated resolver has no GitHub contents:write permission.
+- Require strict `composer validate --strict` and actual
+  `composer audit --locked --format=json --no-interaction` with exit zero
+  and ZERO advisories. Validate six matching stable Drupal 11 Core packages
+  (at least 11.4.10) and production Symfony ExpressionLanguage 7.4.21 or
+  later within major 7. Reject newly selected prerelease/dev versions, major
+  version jumps and downgrades; require a separate Product Lead decision for
+  incompatible major upgrades or root constraint changes.
+- Artifact remains `composer.lock` plus `result.json`. JSON includes
+  categorized *all* added/removed/changed package metadata, scope
+  (production/dev), Core and Symfony resolved versions, zero-audit evidence,
+  fixed request/HEAD and lock SHA-256. The separately write-scoped hosted
+  publisher recomputes the inventory from the pinned source lock, rechecks
+  HEAD and may fast-forward only the new composer.lock into #1435.
+- No installation/runtime proof is claimed at preparation time. A later
+  separately approved result must undergo actual new-HEAD PHP 8.5 require-dev
+  CI, secret scan, a clean isolated composer install --no-dev test, and
+  compatibility/patch validation. Report root exact-pin constraints as
+  CONSTRAINT_BLOCKED (e.g. drupal/ai 1.5.0, field_validation 3.0.0,
+  mglaman/drupal-check 1.5.0) rather than editing manifest/platform in R12.
+- The old historical #982 workflow remains a factual failure but is not a
+  required security-PR check; never disable or falsify it.
+- **Control-branch trap:** the gateway is executed from
+  `agency/composer-materialization-dispatch-control`, which does not
+  automatically follow main. Even AFTER separate human review and merge of
+  this governance PR, a separate exact-blob guarded control-branch alignment
+  and a new one-shot Project Lead authorization are required before the
+  request can be submitted. Do not sync control branch in R12.
+- No new runner, workflow dispatcher, publishing permission, DDEV runtime,
+  production/preproduction action, or bypass is authorized.
+
+R12 state: **GOVERNANCE PR DRAFT ONLY; FULL UPDATE NOT EXECUTED.**

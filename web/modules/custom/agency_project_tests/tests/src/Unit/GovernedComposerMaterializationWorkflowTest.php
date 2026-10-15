@@ -396,6 +396,28 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   }
 
   /**
+   * R12 admits only a named one-shot full Composer update without user args.
+   */
+  public function testR12FullUpdateIsFixedAndAuditGated(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $gateway = (string) file_get_contents($root . '/.github/workflows/agent-composer-materialization-dispatch.yml');
+    $trusted = (string) file_get_contents($root . '/.github/workflows/trusted-composer-materialization.yml');
+    $profiles = (string) file_get_contents($root . '/scripts/runner/composer-materialization-profiles.sh');
+
+    self::assertSame(1, substr_count($gateway, "'agency-full-composer-update-1432',"));
+    self::assertStringContainsString('issue-1432-global-update-20261015-01', $gateway);
+    self::assertStringContainsString('665e841a57345fa2787d30da0962b60afa4f9b9f', $gateway);
+    self::assertStringContainsString("COMPOSER_MODE='full-update'", $profiles);
+    self::assertStringContainsString('ddev composer update --no-install --no-scripts --no-interaction --no-progress', $trusted);
+    self::assertStringContainsString('ddev composer audit --locked --format=json --no-interaction', $trusted);
+    self::assertStringContainsString('validate-full-composer-update-1432.py', $trusted);
+    self::assertStringContainsString('contents: read', $trusted);
+    self::assertStringContainsString('Hosted publisher may change exactly composer.lock.', $trusted);
+    self::assertStringNotContainsString('--ignore-platform-reqs', $trusted);
+    self::assertStringNotContainsString('--no-security-blocking', $trusted);
+  }
+
+  /**
    * The core security profile must resolve only the six exact 11.4.10 builds.
    */
   public function testCoreSecurity1432ProfileIsFixedAndFailClosed(): void {

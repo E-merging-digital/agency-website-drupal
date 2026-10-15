@@ -451,7 +451,7 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     self::assertIsArray($rules);
     self::assertSame($packages, array_keys($rules));
     foreach ($rules as $rule) {
-      self::assertSame('^11\.4\.10, $rule);
+      self::assertSame('^11\.4\.10$', $rule);
       self::assertSame(1, preg_match('~' . $rule . '~D', '11.4.10'));
       foreach ([
         '11.4.8',

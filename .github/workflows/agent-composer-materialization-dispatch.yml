@@ -87,6 +87,7 @@ jobs:
           allowed_profiles = {
               'canvas-ai-agents-530',
               'config-language-lock-628',
+              'drupal-core-security-1432',
               'dependency-maintenance-962',
           }
           if profile not in allowed_profiles:
@@ -112,6 +113,11 @@ jobs:
               expected_constraint='^1.0'
               ;;
             dependency-maintenance-962)
+              mode='lock-refresh'
+              expected_package=''
+              expected_constraint=''
+              ;;
+            drupal-core-security-1432)
               mode='lock-refresh'
               expected_package=''
               expected_constraint=''

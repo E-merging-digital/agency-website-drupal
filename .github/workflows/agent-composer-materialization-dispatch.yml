@@ -194,7 +194,7 @@ jobs:
             fi
             cmp /tmp/composer-base.json /tmp/composer-target.json
           elif [[ "$mode" == 'full-update' ]]; then
-            test "$REQUEST_ID" = 'issue-1432-global-update-20261015-01'
+            test "$REQUEST_ID" = 'issue-1432-global-update-20261015-02'
             test "$PR_NUMBER" = '1435'
             test "$HEAD_SHA" = '665e841a57345fa2787d30da0962b60afa4f9b9f'
             test "$(jq -r '.draft' <<<"$pr_json")" = 'true'

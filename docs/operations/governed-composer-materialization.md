@@ -316,3 +316,56 @@ and scoped publishing job. Preparing this source does not authorize its use.
   production/preproduction action, or bypass is authorized.
 
 R12 state: **GOVERNANCE PR DRAFT ONLY; FULL UPDATE NOT EXECUTED.**
+
+ 
+## #1432 R16 result and R17 repair proposal (2026-10-15)
+
+The earlier R12 preparation state above is HISTORICAL. PR #1437 was later
+squash-merged, and the existing control-branch gateway was aligned in R15.
+The R16 request `issue-1432-global-update-20261015-01` was submitted once and is now
+**permanently consumed**. Its GitHub-hosted run 38782177267 executed one real,
+unscoped `ddev composer update --no-install --no-scripts --no-interaction
+--no-progress` (eight transient dependency upgrades), but the following
+`ddev composer validate --strict --no-interaction` failed on three pre-existing
+root exact-version warnings: `cweagans/composer-patches 2.0.0`,
+`drupal/ai 1.5.0`, `drupal/field_validation 3.0.0`.
+There was no successful locked advisory audit, no published artifact,
+no publisher commit and **no accepted vulnerability fix**. The old lock and
+PR #1435 remain under SECURITY_HOLD.
+
+**R17 is a separate, DRAFT-only source-governance change.** Its full-update
+resolver keeps the original selector-free `composer update`, unchanged
+Composer plugin/patch policy, immutable PR input hashes, dedicated lockfile
+validator, isolated read-only resolver and independently permissioned writer.
+In this one mode alone, validation becomes exactly:
+
+```shell
+ddev composer validate --strict --no-check-all --check-lock --no-interaction
+```
+
+Composer `--no-check-all` excludes the class of overly restrictive root
+constraint warnings; it is **not** a global ignore-warning or security waiver.
+`--strict` still treats other warnings as failures, and `--check-lock`
+explicitly requires the generated lock to match composer.json. Crucially the
+unchanged, separately mandatory command immediately after it is:
+
+```shell
+ddev composer audit --locked --format=json --no-interaction
+```
+
+Its exit code must be ZERO and its JSON advisory inventory empty, with the
+existing Drupal Core/Symfony version contract and one-file publisher checks.
+Do not change root version pins, PHP platform, project scripts, CI or
+deployment. This proposal does not claim a successful new security audit.
+
+The NEW immutable request identifier `issue-1432-global-update-20261015-02` is
+**RESERVED BUT NOT SUBMITTED**. It appears only in the prepared gateway and
+trusted workflow source; the existing control-branch request remains R16's
+consumed `issue-1432-global-update-20261015-01`. No gateway alignment, request post,
+Composer run, READY/merge or deployment is allowed in R17. A later separate
+Project Lead authority and human review/merge gate are mandatory, followed
+by an independently guarded control-branch sync and a freshly authorized
+one-shot request on the then-exact PR #1435 identity.
+
+R17 STATUS: **GOVERNANCE DRAFT ONLY / NEW REQUEST NOT SUBMITTED /
+OLD R16 REQUEST CONSUMED / SECURITY_HOLD**.

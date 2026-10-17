@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "369c5cda501dd6e63497dc8c21680435",
+    "content-hash": "820fd00a18c6437a2703af0e266443f7",
     "packages": [
         {
             "name": "asm89/stack-cors",
@@ -1176,17 +1176,17 @@
         },
         {
             "name": "drupal/ai",
-            "version": "1.5.0",
+            "version": "1.5.1",
             "source": {
                 "type": "git",
                 "url": "https://git.drupalcode.org/project/ai.git",
-                "reference": "1.5.0"
+                "reference": "1.5.1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://ftp.drupal.org/files/projects/ai-1.5.0.zip",
-                "reference": "1.5.0",
-                "shasum": "9675eb1dba3e597b92b5cede66c1971d9684bd53"
+                "url": "https://ftp.drupal.org/files/projects/ai-1.5.1.zip",
+                "reference": "1.5.1",
+                "shasum": "a1526a41a697c4c5ccfac671a7d05a070f718d75"
             },
             "require": {
                 "drupal/ai_content_suggestions": "^1.5",
@@ -1226,8 +1226,8 @@
             "type": "drupal-module",
             "extra": {
                 "drupal": {
-                    "version": "1.5.0",
-                    "datestamp": "1790327388",
+                    "version": "1.5.1",
+                    "datestamp": "1791992201",
                     "security-coverage": {
                         "status": "covered",
                         "message": "Covered by Drupal's security advisory policy"

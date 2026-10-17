@@ -87,6 +87,7 @@ jobs:
           allowed_profiles = {
               'canvas-ai-agents-530',
               'config-language-lock-628',
+              'drupal-ai-stable-151-1441',
               'drupal-core-security-1432',
               'agency-full-composer-update-1432',
               'dependency-maintenance-962',
@@ -112,6 +113,11 @@ jobs:
               mode='package'
               expected_package='drupal/config_language_lock'
               expected_constraint='^1.0'
+              ;;
+            drupal-ai-stable-151-1441)
+              mode='package'
+              expected_package='drupal/ai'
+              expected_constraint='1.5.1'
               ;;
             dependency-maintenance-962)
               mode='lock-refresh'
@@ -140,6 +146,13 @@ jobs:
           test "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" \
             = "$GITHUB_REPOSITORY"
           test "$(jq -r '.head.sha' <<<"$pr_json")" = "$HEAD_SHA"
+
+          # #1441: this package profile is bound to one reviewed target and request.
+          if [[ "$PROFILE" == 'drupal-ai-stable-151-1441' ]]; then
+            test "$REQUEST_ID" = 'issue-1441-ai-151-20261017-01'
+            test "$(jq -r '.head.ref' <<<"$pr_json")" = 'feature/1441-contrib-ai-seo-maintenance'
+            test "$(jq -r '.draft' <<<"$pr_json")" = 'true'
+          fi
 
           base_sha="$(jq -r '.base.sha' <<<"$pr_json")"
           changed="$(

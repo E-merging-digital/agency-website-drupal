@@ -4,16 +4,89 @@
  * Theme override for service nodes.
  */
 #}
-<article{{ attributes.addClass('node', 'node--service', 'ed-detail-page', 'ed-detail-page--service') }}>
-  <header class="ed-detail-page__hero">
-    {% if content.field_short_description %}
+{% set service_classes = ['node', 'node--service', 'ed-detail-page', 'ed-detail-page--service'] %}
+{% if is_mcp_service %}
+  {% set service_classes = service_classes|merge(['node--service-mcp']) %}
+{% endif %}
+<article{{ attributes.addClass(service_classes) }}>
+  {% if is_mcp_service %}
+    {# Drupal's existing page-title block owns the single H1. #}
+    {% set mcp_media %}
+      <figure class="ed-mcp-flow" id="mcp-how-it-works" aria-labelledby="mcp-flow-title">
+        <figcaption class="ed-mcp-flow__caption" id="mcp-flow-title">{{ mcp_copy.diagram_title }}</figcaption>
+        <p class="ed-mcp-flow__description">{{ mcp_copy.diagram_description }}</p>
+        <ol class="ed-mcp-flow__steps">
+          <li>
+            <strong>{{ mcp_copy.agent_title }}</strong>
+            <span>{{ mcp_copy.agent_detail }}</span>
+          </li>
+          <li>
+            <strong>{{ mcp_copy.mcp_title }}</strong>
+            <span>{{ mcp_copy.mcp_detail }}</span>
+          </li>
+          <li>
+            <strong>{{ mcp_copy.app_title }}</strong>
+            <span>{{ mcp_copy.app_detail }}</span>
+          </li>
+          <li>
+            <strong>{{ mcp_copy.policy_title }}</strong>
+            <span>{{ mcp_copy.policy_detail }}</span>
+          </li>
+        </ol>
+        <p class="ed-mcp-flow__outcomes-title">{{ mcp_copy.outcomes_title }}</p>
+        <ul class="ed-mcp-flow__outcomes">
+          <li class="ed-mcp-flow__outcome--allowed">
+            <strong>{{ mcp_copy.allowed_title }}</strong>
+            <span>{{ mcp_copy.allowed_detail }}</span>
+          </li>
+          <li class="ed-mcp-flow__outcome--denied">
+            <strong>{{ mcp_copy.denied_title }}</strong>
+            <span>{{ mcp_copy.denied_detail }}</span>
+          </li>
+          <li class="ed-mcp-flow__outcome--approval">
+            <strong>{{ mcp_copy.approval_title }}</strong>
+            <span>{{ mcp_copy.approval_detail }}</span>
+          </li>
+        </ul>
+      </figure>
+    {% endset %}
+    {% set mcp_primary %}
+      {% if contact_qualification_cta %}
+        <a class="button button--primary" href="{{ contact_qualification_cta.url }}">{{ contact_qualification_cta.label }}</a>
+      {% endif %}
+    {% endset %}
+    {% set mcp_secondary %}
+      <a class="button button--secondary" href="#mcp-how-it-works">{{ mcp_copy.secondary_label }}</a>
+    {% endset %}
+    {% set mcp_intro %}
+      <p>{{ mcp_copy.hero_intro }}</p>
+    {% endset %}
+    {{ include('emerging_digital:hero', {
+      attributes: create_attribute(),
+      heading: mcp_copy.hero_heading,
+      heading_level: 'h2',
+      variant: 'services',
+      intro: mcp_intro,
+      primary_action: mcp_primary,
+      secondary_action: mcp_secondary,
+      media: mcp_media,
+    }, with_context: false) }}
+  {% else %}
+    <header class="ed-detail-page__hero">
+      {% if content.field_short_description %}
+        <div class="ed-detail-page__lede">
+          {{ content.field_short_description }}
+        </div>
+      {% endif %}
+    </header>
+  {% endif %}
+
+  <div class="node__content ed-detail-page__layout">
+    {% if is_mcp_service and content.field_short_description %}
       <div class="ed-detail-page__lede">
         {{ content.field_short_description }}
       </div>
     {% endif %}
-  </header>
-
-  <div class="node__content ed-detail-page__layout">
     <div class="ed-detail-page__main ed-prose">
       {{ content.field_detailed_description }}
     </div>
@@ -28,7 +101,7 @@
     </aside>
   {% endif %}
 
-  {% if contact_qualification_cta %}
+  {% if contact_qualification_cta and not is_mcp_service %}
     <aside class="ed-qualification-cta" aria-label="{{ contact_qualification_cta.title }}">
       <h2 class="ed-qualification-cta__title">{{ contact_qualification_cta.title }}</h2>
       <p>{{ contact_qualification_cta.text }}</p>

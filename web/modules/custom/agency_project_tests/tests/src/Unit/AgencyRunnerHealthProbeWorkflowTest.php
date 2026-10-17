@@ -235,6 +235,119 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
   }
 
   /**
+   * Guards the exact private Docker endpoint and rejects rootful fallbacks.
+   *
+   * These are source-level assertions, not a live Docker/runner simulation.
+   */
+  public function testRootlessEndpointAndActorFailClosedGuards(): void {
+    $source = $this->source();
+    $validationStart = strpos($source, 'command -v jq >/dev/null');
+    $dockerInfoStart = strpos($source, "docker info --format '{{.DockerRootDir}}'");
+    self::assertIsInt($validationStart);
+    self::assertIsInt($dockerInfoStart);
+
+    foreach ([
+      "EXPECTED_UID: '1002'",
+      'EXPECTED_DOCKER_HOST: unix:///run/user/1002/docker.sock',
+      'EXPECTED_RUNTIME_DIR: /run/user/1002',
+      'EXPECTED_DOCKER_ROOT: /home/agency-runner/.local/share/docker',
+      '[[ "$(id -u)" == "$EXPECTED_UID" ]]',
+      'runner retains forbidden rootful docker group',
+      'grep -Fxq docker',
+      '[[ "${DOCKER_HOST:-}" == "$EXPECTED_DOCKER_HOST" ]]',
+      '[[ -z "${DOCKER_CONTEXT:-}" ]]',
+      'Docker context override is forbidden',
+      'unexpected Docker endpoint',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
+    self::assertTrue($validationStart < $dockerInfoStart);
+    self::assertStringNotContainsString('DOCKER_HOST: unix:///var/run/docker.sock', $source);
+  }
+
+  /**
+   * Requires the real private socket, ownership and nonpublic permissions.
+   */
+  public function testRootlessSocketIdentityGuardsFailClosed(): void {
+    $source = $this->source();
+
+    foreach ([
+      '[[ -d "$EXPECTED_RUNTIME_DIR" && ! -L "$EXPECTED_RUNTIME_DIR" ]]',
+      '[[ "$runtime_identity" == "1002:1002:700" ]]',
+      '[[ "$socket_path" == "$EXPECTED_RUNTIME_DIR/docker.sock" ]]',
+      '[[ -S "$socket_path" && ! -L "$socket_path" ]]',
+      '[[ "$socket_identity" == "1002:1002" ]]',
+      '[[ "$socket_mode" =~ ^[0-7]{3,4}$ ]]',
+      '(( (8#$socket_mode & 7) == 0 ))',
+      'rootless Docker socket is missing or symlinked',
+      'rootless Docker socket owner is incorrect',
+      'rootless Docker socket is world-accessible',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+  }
+
+  /**
+   * Refuses mismatched daemons and either missing Docker security option.
+   */
+  public function testRootlessDaemonMetadataIsBoundToPinnedSocket(): void {
+    $source = $this->source();
+    $receipt = $this->receiptBlock();
+
+    foreach ([
+      '[[ "$docker_root" == "$EXPECTED_DOCKER_ROOT" ]]',
+      'docker --host "$EXPECTED_DOCKER_HOST" info --format',
+      '[[ "$pinned_docker_root" == "$docker_root" ]]',
+      "docker info --format '{{json .SecurityOptions}}'",
+      'docker_security_options" != "null"',
+      'type == "array"',
+      'index("name=rootless") != null',
+      'index("name=cgroupns") != null',
+      'Docker rootless and cgroupns security options required',
+      'Docker rootless isolation: verified',
+    ] as $required) {
+      self::assertStringContainsString($required, $source);
+    }
+
+    foreach ([
+      'EXPECTED_DOCKER_HOST',
+      'docker_security_options',
+      'pinned_docker_root',
+      'socket_path',
+      'Docker rootless isolation: verified',
+    ] as $absent) {
+      self::assertStringNotContainsString($absent, $receipt);
+    }
+  }
+
+  /**
+   * Existing disk/memory gates and receipt remain downstream of rootless proof.
+   */
+  public function testRootlessChecksPrecedeReceiptAndPreserveReadOnlyScope(): void {
+    $source = $this->source();
+    $rootless = strpos($source, 'rootless Docker socket owner is incorrect');
+    $security = strpos($source, 'Docker rootless and cgroupns security options required');
+    $receipt = strpos($source, 'receipt_dir="$RUNNER_TEMP/agency-runner-health-state"');
+    self::assertIsInt($rootless);
+    self::assertIsInt($security);
+    self::assertIsInt($receipt);
+    self::assertTrue($rootless < $security && $security < $receipt);
+
+    foreach ([
+      'systemctl restart ',
+      'docker system prune',
+      'docker context use ',
+      'docker run ',
+      'docker volume rm',
+      'ddev delete',
+      'sudo ',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $source);
+    }
+  }
+
+  /**
    * Returns only the normalized receipt-construction block.
    */
   private function receiptBlock(): string {

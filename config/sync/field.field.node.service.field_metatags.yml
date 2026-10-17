@@ -1,0 +1,19 @@
+uuid: 4a0ba728-4bde-460c-b8b1-d2a304c7ea60
+langcode: fr
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_metatags
+    - node.type.service
+id: node.service.field_metatags
+field_name: field_metatags
+entity_type: node
+bundle: service
+label: 'Métadonnées SEO'
+description: 'Titres et descriptions propres à cette traduction ; les autres balises héritent des réglages du site.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: metatag

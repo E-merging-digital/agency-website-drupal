@@ -262,3 +262,110 @@ This route does **not** provide:
 Adding another package or maintenance selector set still requires a reviewed
 repository change. Do not extend the request schema with executable Composer
 inputs.
+
+## #1432 — one-time full Composer update (DRAFT / INACTIVE)
+
+The proposed `agency-full-composer-update-1432` is an **inactive** fixed
+profile of the preexisting separated gateway, hosted read-only DDEV resolver
+and scoped publishing job. Preparing this source does not authorize its use.
+
+- Exact initial PR: **#1435 DRAFT**, head
+  `665e841a57345fa2787d30da0962b60afa4f9b9f`, base
+  `3dc4c82f5f4fb1b5d1e8cfe2aa1eb33397b26c78`, branch
+  `security/1432-drupal-core-11410-lock`, manifest blob
+  `7eeab76f005e49df1006707f63720aa4e7261f55`, lock blob
+  `cb225d25fd6f1e8468654339b46fea1ba6052925`.
+- Fixed four-field request only, one reserved identifier
+  `issue-1432-global-update-20261015-01` and no package/constraint/shell
+  argument. Pre-update PR diff must consist of exactly `composer.lock` and
+  `web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php`.
+- Resolver command is exactly ONE unscoped
+  `ddev composer update --no-install --no-scripts --no-interaction --no-progress`
+  using the project's preserved composer.json and all require + require-dev
+  dependencies; it may not relax Composer security or platform requirements.
+  The already-reviewed Composer plugin allowlist and `patches.json` are
+  preserved. The isolated resolver has no GitHub contents:write permission.
+- Require strict `composer validate --strict` and actual
+  `composer audit --locked --format=json --no-interaction` with exit zero
+  and ZERO advisories. Validate six matching stable Drupal 11 Core packages
+  (at least 11.4.10) and production Symfony ExpressionLanguage 7.4.21 or
+  later within major 7. Reject newly selected prerelease/dev versions, major
+  version jumps and downgrades; require a separate Product Lead decision for
+  incompatible major upgrades or root constraint changes.
+- Artifact remains `composer.lock` plus `result.json`. JSON includes
+  categorized *all* added/removed/changed package metadata, scope
+  (production/dev), Core and Symfony resolved versions, zero-audit evidence,
+  fixed request/HEAD and lock SHA-256. The separately write-scoped hosted
+  publisher recomputes the inventory from the pinned source lock, rechecks
+  HEAD and may fast-forward only the new composer.lock into #1435.
+- No installation/runtime proof is claimed at preparation time. A later
+  separately approved result must undergo actual new-HEAD PHP 8.5 require-dev
+  CI, secret scan, a clean isolated composer install --no-dev test, and
+  compatibility/patch validation. Report root exact-pin constraints as
+  CONSTRAINT_BLOCKED (e.g. drupal/ai 1.5.0, field_validation 3.0.0,
+  mglaman/drupal-check 1.5.0) rather than editing manifest/platform in R12.
+- The old historical #982 workflow remains a factual failure but is not a
+  required security-PR check; never disable or falsify it.
+- **Control-branch trap:** the gateway is executed from
+  `agency/composer-materialization-dispatch-control`, which does not
+  automatically follow main. Even AFTER separate human review and merge of
+  this governance PR, a separate exact-blob guarded control-branch alignment
+  and a new one-shot Project Lead authorization are required before the
+  request can be submitted. Do not sync control branch in R12.
+- No new runner, workflow dispatcher, publishing permission, DDEV runtime,
+  production/preproduction action, or bypass is authorized.
+
+R12 state: **GOVERNANCE PR DRAFT ONLY; FULL UPDATE NOT EXECUTED.**
+
+ 
+## #1432 R16 result and R17 repair proposal (2026-10-15)
+
+The earlier R12 preparation state above is HISTORICAL. PR #1437 was later
+squash-merged, and the existing control-branch gateway was aligned in R15.
+The R16 request `issue-1432-global-update-20261015-01` was submitted once and is now
+**permanently consumed**. Its GitHub-hosted run 38782177267 executed one real,
+unscoped `ddev composer update --no-install --no-scripts --no-interaction
+--no-progress` (eight transient dependency upgrades), but the following
+`ddev composer validate --strict --no-interaction` failed on three pre-existing
+root exact-version warnings: `cweagans/composer-patches 2.0.0`,
+`drupal/ai 1.5.0`, `drupal/field_validation 3.0.0`.
+There was no successful locked advisory audit, no published artifact,
+no publisher commit and **no accepted vulnerability fix**. The old lock and
+PR #1435 remain under SECURITY_HOLD.
+
+**R17 is a separate, DRAFT-only source-governance change.** Its full-update
+resolver keeps the original selector-free `composer update`, unchanged
+Composer plugin/patch policy, immutable PR input hashes, dedicated lockfile
+validator, isolated read-only resolver and independently permissioned writer.
+In this one mode alone, validation becomes exactly:
+
+```shell
+ddev composer validate --strict --no-check-all --check-lock --no-interaction
+```
+
+Composer `--no-check-all` excludes the class of overly restrictive root
+constraint warnings; it is **not** a global ignore-warning or security waiver.
+`--strict` still treats other warnings as failures, and `--check-lock`
+explicitly requires the generated lock to match composer.json. Crucially the
+unchanged, separately mandatory command immediately after it is:
+
+```shell
+ddev composer audit --locked --format=json --no-interaction
+```
+
+Its exit code must be ZERO and its JSON advisory inventory empty, with the
+existing Drupal Core/Symfony version contract and one-file publisher checks.
+Do not change root version pins, PHP platform, project scripts, CI or
+deployment. This proposal does not claim a successful new security audit.
+
+The NEW immutable request identifier `issue-1432-global-update-20261015-02` is
+**RESERVED BUT NOT SUBMITTED**. It appears only in the prepared gateway and
+trusted workflow source; the existing control-branch request remains R16's
+consumed `issue-1432-global-update-20261015-01`. No gateway alignment, request post,
+Composer run, READY/merge or deployment is allowed in R17. A later separate
+Project Lead authority and human review/merge gate are mandatory, followed
+by an independently guarded control-branch sync and a freshly authorized
+one-shot request on the then-exact PR #1435 identity.
+
+R17 STATUS: **GOVERNANCE DRAFT ONLY / NEW REQUEST NOT SUBMITTED /
+OLD R16 REQUEST CONSUMED / SECURITY_HOLD**.

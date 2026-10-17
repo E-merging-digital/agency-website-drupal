@@ -87,6 +87,9 @@ jobs:
           allowed_profiles = {
               'canvas-ai-agents-530',
               'config-language-lock-628',
+              'drupal-ai-stable-151-1441',
+              'drupal-core-security-1432',
+              'agency-full-composer-update-1432',
               'dependency-maintenance-962',
           }
           if profile not in allowed_profiles:
@@ -111,8 +114,23 @@ jobs:
               expected_package='drupal/config_language_lock'
               expected_constraint='^1.0'
               ;;
+            drupal-ai-stable-151-1441)
+              mode='package'
+              expected_package='drupal/ai'
+              expected_constraint='1.5.1'
+              ;;
             dependency-maintenance-962)
               mode='lock-refresh'
+              expected_package=''
+              expected_constraint=''
+              ;;
+            drupal-core-security-1432)
+              mode='lock-refresh'
+              expected_package=''
+              expected_constraint=''
+              ;;
+            agency-full-composer-update-1432)
+              mode='full-update'
               expected_package=''
               expected_constraint=''
               ;;
@@ -128,6 +146,13 @@ jobs:
           test "$(jq -r '.head.repo.full_name // ""' <<<"$pr_json")" \
             = "$GITHUB_REPOSITORY"
           test "$(jq -r '.head.sha' <<<"$pr_json")" = "$HEAD_SHA"
+
+          # #1441: this package profile is bound to one reviewed target and request.
+          if [[ "$PROFILE" == 'drupal-ai-stable-151-1441' ]]; then
+            test "$REQUEST_ID" = 'issue-1441-ai-151-20261017-01'
+            test "$(jq -r '.head.ref' <<<"$pr_json")" = 'feature/1441-contrib-ai-seo-maintenance'
+            test "$(jq -r '.draft' <<<"$pr_json")" = 'true'
+          fi
 
           base_sha="$(jq -r '.base.sha' <<<"$pr_json")"
           changed="$(
@@ -181,6 +206,18 @@ jobs:
               exit 1
             fi
             cmp /tmp/composer-base.json /tmp/composer-target.json
+          elif [[ "$mode" == 'full-update' ]]; then
+            test "$REQUEST_ID" = 'issue-1432-global-update-20261015-02'
+            test "$PR_NUMBER" = '1435'
+            test "$HEAD_SHA" = '665e841a57345fa2787d30da0962b60afa4f9b9f'
+            test "$(jq -r '.draft' <<<"$pr_json")" = 'true'
+            test "$(jq -r '.base.sha' <<<"$pr_json")" = '3dc4c82f5f4fb1b5d1e8cfe2aa1eb33397b26c78'
+            test "$(jq -r '.head.ref' <<<"$pr_json")" = 'security/1432-drupal-core-11410-lock'
+            expected_changed="$(printf '%s\n' 'composer.lock' 'web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php' | sort)"
+            test "$(printf '%s\n' "$changed" | sort)" = "$expected_changed"
+            cmp /tmp/composer-base.json /tmp/composer-target.json
+            test "$(gh api "repos/$GITHUB_REPOSITORY/contents/composer.json?ref=$HEAD_SHA" --jq '.sha')" = '7eeab76f005e49df1006707f63720aa4e7261f55'
+            test "$(gh api "repos/$GITHUB_REPOSITORY/contents/composer.lock?ref=$HEAD_SHA" --jq '.sha')" = 'cb225d25fd6f1e8468654339b46fea1ba6052925'
           else
             echo "Unsupported Composer materialization mode: $mode" >&2
             exit 1

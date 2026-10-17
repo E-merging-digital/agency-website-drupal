@@ -395,4 +395,201 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     self::assertNotSame(0, $unsupportedExitCode);
   }
 
+  /**
+   * R12 admits only a named one-shot full Composer update without user args.
+   */
+  public function testR12FullUpdateIsFixedAndAuditGated(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $gateway = (string) file_get_contents($root . '/.github/workflows/agent-composer-materialization-dispatch.yml');
+    $trusted = (string) file_get_contents($root . '/.github/workflows/trusted-composer-materialization.yml');
+    $profiles = (string) file_get_contents($root . '/scripts/runner/composer-materialization-profiles.sh');
+
+    self::assertSame(1, substr_count($gateway, "'agency-full-composer-update-1432',"));
+    self::assertStringContainsString('issue-1432-global-update-20261015-02', $gateway);
+    self::assertStringContainsString('665e841a57345fa2787d30da0962b60afa4f9b9f', $gateway);
+    self::assertStringContainsString("COMPOSER_MODE='full-update'", $profiles);
+    // R17: the consumed R16 identity is absent from both executable sources.
+    self::assertSame(1, substr_count($gateway, "'issue-1432-global-update-20261015-02'"));
+    self::assertSame(1, substr_count($trusted, "'issue-1432-global-update-20261015-02'"));
+    self::assertStringNotContainsString('issue-1432-global-update-20261015-01', $gateway);
+    self::assertStringNotContainsString('issue-1432-global-update-20261015-01', $trusted);
+    self::assertStringContainsString('test "$REQUEST_ID" = \'issue-1432-global-update-20261015-02\'', $gateway);
+    self::assertStringContainsString('test "$INPUT_REQUEST_ID" = \'issue-1432-global-update-20261015-02\'', $trusted);
+    self::assertStringContainsString('ddev composer validate --strict --no-check-all --check-lock --no-interaction', $trusted);
+    self::assertStringNotContainsString('ddev composer validate --strict --no-interaction', $trusted);
+    self::assertStringContainsString('test "$audit_status" -eq 0', $trusted);
+    self::assertStringContainsString('if [[ "$changed" != \'composer.lock\' ]]', $trusted);
+    self::assertStringContainsString('composer_lock_sha256', $trusted);
+    self::assertStringContainsString('ddev composer update --no-install --no-scripts --no-interaction --no-progress', $trusted);
+    self::assertStringContainsString('ddev composer audit --locked --format=json --no-interaction', $trusted);
+    self::assertStringContainsString('validate-full-composer-update-1432.py', $trusted);
+    self::assertStringContainsString('contents: read', $trusted);
+    self::assertStringContainsString('Hosted publisher may change exactly composer.lock.', $trusted);
+    self::assertStringNotContainsString('--ignore-platform-reqs', $trusted);
+    self::assertStringNotContainsString('--no-security-blocking', $trusted);
+  }
+
+  /**
+   * The #1442 profile limits #1441 to stable Drupal AI 1.5.1.
+   */
+  public function testDrupalAi151ProfileIsExactAndTargetBound(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $profilePath = $root
+      . '/scripts/runner/composer-materialization-profiles.sh';
+    $gateway = (string) file_get_contents(
+      $root . '/.github/workflows/agent-composer-materialization-dispatch.yml',
+    );
+
+    self::assertSame(
+      1,
+      substr_count($gateway, "'drupal-ai-stable-151-1441',"),
+    );
+    self::assertStringContainsString(
+      "drupal-ai-stable-151-1441)\n"
+      . "              mode='package'\n"
+      . "              expected_package='drupal/ai'\n"
+      . "              expected_constraint='1.5.1'",
+      $gateway,
+    );
+    self::assertStringContainsString(
+      "if [[ \"\$PROFILE\" == 'drupal-ai-stable-151-1441' ]]; then",
+      $gateway,
+    );
+    self::assertStringContainsString(
+      "test \"\$REQUEST_ID\" = 'issue-1441-ai-151-20261017-01'",
+      $gateway,
+    );
+    self::assertStringContainsString(
+      "'feature/1441-contrib-ai-seo-maintenance'",
+      $gateway,
+    );
+    self::assertStringContainsString(
+      "test \"$(jq -r '.draft' <<<\"\$pr_json\")\" = 'true'",
+      $gateway,
+    );
+    self::assertStringContainsString(
+      'Package target PR must change exactly composer.json before resolution.',
+      $gateway,
+    );
+    self::assertStringContainsString(
+      "expected.setdefault('require', {})[os.environ['EXPECTED_PACKAGE']]",
+      $gateway,
+    );
+    self::assertStringNotContainsString('composer_args', $gateway);
+    self::assertStringNotContainsString('selectors_input', $gateway);
+
+    $output = [];
+    $exitCode = 0;
+    exec(
+      'COMPOSER_PROFILE=drupal-ai-stable-151-1441 bash -c '
+      . escapeshellarg(
+        'source ' . escapeshellarg($profilePath)
+        . '; printf "%s\n" "$COMPOSER_MODE" "$COMPOSER_PACKAGE"'
+        . ' "$COMPOSER_CONSTRAINT" "$COMPOSER_VERSION_REGEX"'
+        . ' "$COMPOSER_UPDATE_SELECTOR" "$COMPOSER_OWNER_ISSUE"',
+      )
+      . ' 2>&1',
+      $output,
+      $exitCode,
+    );
+    self::assertSame(0, $exitCode, implode("\n", $output));
+    self::assertSame(
+      ['package', 'drupal/ai', '1.5.1', '^1\.5\.1$', 'drupal/ai', '1441'],
+      $output,
+    );
+    self::assertSame(1, preg_match('~' . $output[3] . '~D', '1.5.1'));
+    foreach ([
+      '1.5.0',
+      '1.5.2',
+      '1.5.1-rc1',
+      '1.5.1-beta1',
+      '1.5.1-dev',
+    ] as $invalid) {
+      self::assertSame(0, preg_match('~' . $output[3] . '~D', $invalid));
+    }
+
+    foreach (['drupal/ai', 'drupal-ai-stable-151-1442'] as $unapproved) {
+      $rejected = [];
+      $status = 0;
+      exec(
+        'COMPOSER_PROFILE=' . escapeshellarg($unapproved) . ' bash -c '
+        . escapeshellarg('source ' . escapeshellarg($profilePath))
+        . ' 2>&1',
+        $rejected,
+        $status,
+      );
+      self::assertNotSame(0, $status, $unapproved);
+    }
+  }
+
+  /**
+   * The core security profile must resolve only the six exact 11.4.10 builds.
+   */
+  public function testCoreSecurity1432ProfileIsFixedAndFailClosed(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $profilePath = $root
+      . '/scripts/runner/composer-materialization-profiles.sh';
+    $gatewayPath = $root
+      . '/.github/workflows/agent-composer-materialization-dispatch.yml';
+    $gateway = (string) file_get_contents($gatewayPath);
+
+    self::assertSame(
+      1,
+      substr_count($gateway, "'drupal-core-security-1432',"),
+    );
+    self::assertStringContainsString(
+      "drupal-core-security-1432)\n"
+      . "              mode='lock-refresh'\n"
+      . "              expected_package=''\n"
+      . "              expected_constraint=''",
+      $gateway,
+    );
+
+    $output = [];
+    $exitCode = 0;
+    exec(
+      'COMPOSER_PROFILE=drupal-core-security-1432 bash -c '
+      . escapeshellarg(
+        'source ' . escapeshellarg($profilePath)
+        . '; printf "%s\n" "$COMPOSER_MODE" "$COMPOSER_OWNER_ISSUE"'
+        . ' "$COMPOSER_LOCK_REFRESH_SELECTORS" "$COMPOSER_RESULT_RULES"',
+      )
+      . ' 2>&1',
+      $output,
+      $exitCode,
+    );
+    self::assertSame(0, $exitCode, implode("\n", $output));
+    self::assertCount(4, $output);
+    self::assertSame('lock-refresh', $output[0]);
+    self::assertSame('1432', $output[1]);
+
+    $packages = [
+      'drupal/core-recommended',
+      'drupal/core',
+      'drupal/core-composer-scaffold',
+      'drupal/core-project-message',
+      'drupal/core-recipe-unpack',
+      'drupal/core-dev',
+    ];
+    self::assertSame($packages, explode(' ', $output[2]));
+
+    $rules = json_decode($output[3], TRUE, 512, JSON_THROW_ON_ERROR);
+    self::assertIsArray($rules);
+    self::assertSame($packages, array_keys($rules));
+    foreach ($rules as $rule) {
+      self::assertSame('^11\.4\.10$', $rule);
+      self::assertSame(1, preg_match('~' . $rule . '~D', '11.4.10'));
+      foreach ([
+        '11.4.8',
+        '11.4.9',
+        '11.4.11',
+        '11.4.10-dev',
+        '11.4.10-beta1',
+        '11.4.10-rc1',
+      ] as $invalid) {
+        self::assertSame(0, preg_match('~' . $rule . '~D', $invalid));
+      }
+    }
+  }
+
 }

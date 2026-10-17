@@ -29,6 +29,15 @@ case "${COMPOSER_PROFILE:-}" in
     COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
     COMPOSER_OWNER_ISSUE='628'
     ;;
+  drupal-ai-stable-151-1441)
+    COMPOSER_PACKAGE='drupal/ai'
+    COMPOSER_CONSTRAINT='1.5.1'
+    COMPOSER_VERSION_REGEX='^1\.5\.1$'
+    COMPOSER_UPDATE_SELECTOR='drupal/ai'
+    COMPOSER_REQUIRED_AI_SEARCH_VERSION=''
+    COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
+    COMPOSER_OWNER_ISSUE='1441'
+    ;;
   drupal-maintenance-ai-1.5-rc1)
     COMPOSER_PACKAGE='drupal/ai'
     COMPOSER_CONSTRAINT='1.5.0-rc1'
@@ -49,6 +58,30 @@ case "${COMPOSER_PROFILE:-}" in
     COMPOSER_REQUIRED_AI_SEARCH_VERSION=''
     COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
     COMPOSER_OWNER_ISSUE='962'
+    ;;
+  drupal-core-security-1432)
+    COMPOSER_MODE='lock-refresh'
+    COMPOSER_PACKAGE=''
+    COMPOSER_CONSTRAINT=''
+    COMPOSER_VERSION_REGEX=''
+    COMPOSER_UPDATE_SELECTOR=''
+    COMPOSER_LOCK_REFRESH_SELECTORS='drupal/core-recommended drupal/core drupal/core-composer-scaffold drupal/core-project-message drupal/core-recipe-unpack drupal/core-dev'
+    COMPOSER_RESULT_RULES='{"drupal/core-recommended":"^11\\.4\\.10$","drupal/core":"^11\\.4\\.10$","drupal/core-composer-scaffold":"^11\\.4\\.10$","drupal/core-project-message":"^11\\.4\\.10$","drupal/core-recipe-unpack":"^11\\.4\\.10$","drupal/core-dev":"^11\\.4\\.10$"}'
+    COMPOSER_REQUIRED_AI_SEARCH_VERSION=''
+    COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
+    COMPOSER_OWNER_ISSUE='1432'
+    ;;
+  agency-full-composer-update-1432)
+    COMPOSER_MODE='full-update'
+    COMPOSER_PACKAGE=''
+    COMPOSER_CONSTRAINT=''
+    COMPOSER_VERSION_REGEX=''
+    COMPOSER_UPDATE_SELECTOR=''
+    COMPOSER_LOCK_REFRESH_SELECTORS=''
+    COMPOSER_RESULT_RULES='{}'
+    COMPOSER_REQUIRED_AI_SEARCH_VERSION=''
+    COMPOSER_REQUIRED_FIELD_VALIDATION_VERSION=''
+    COMPOSER_OWNER_ISSUE='1432'
     ;;
   *)
     printf 'Unsupported Composer materialization profile: %s\n' \

@@ -60,6 +60,11 @@ jobs:
           [[ "$INPUT_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
           [[ "$INPUT_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           source scripts/runner/composer-materialization-profiles.sh
+          if [[ "$COMPOSER_MODE" == 'full-update' ]]; then
+            test "$INPUT_REQUEST_ID" = 'issue-1432-global-update-20261015-02'
+            test "$INPUT_PR_NUMBER" = '1435'
+            test "$INPUT_HEAD_SHA" = '665e841a57345fa2787d30da0962b60afa4f9b9f'
+          fi
           echo "mode=$COMPOSER_MODE" >> "$GITHUB_OUTPUT"
           echo "package=$COMPOSER_PACKAGE" >> "$GITHUB_OUTPUT"
           echo "constraint=$COMPOSER_CONSTRAINT" >> "$GITHUB_OUTPUT"
@@ -141,6 +146,17 @@ jobs:
               exit 1
             fi
             cmp /tmp/composer-base.json /tmp/composer-target.json
+          elif [[ "$EXPECTED_MODE" == 'full-update' ]]; then
+            test "$PR_NUMBER" = '1435'
+            test "$EXPECTED_HEAD_SHA" = '665e841a57345fa2787d30da0962b60afa4f9b9f'
+            test "$(jq -r '.draft' <<<"$pr_json")" = 'true'
+            test "$base_sha" = '3dc4c82f5f4fb1b5d1e8cfe2aa1eb33397b26c78'
+            test "$head_ref" = 'security/1432-drupal-core-11410-lock'
+            expected_changed="$(printf '%s\n' 'composer.lock' 'web/modules/custom/agency_project_tests/tests/src/Unit/ProdConfigSyncRuntimeDiagnostic980WorkflowTest.php' | sort)"
+            test "$(printf '%s\n' "$changed" | sort)" = "$expected_changed"
+            cmp /tmp/composer-base.json /tmp/composer-target.json
+            test "$(gh api "repos/$GITHUB_REPOSITORY/contents/composer.json?ref=$EXPECTED_HEAD_SHA" --jq '.sha')" = '7eeab76f005e49df1006707f63720aa4e7261f55'
+            test "$(gh api "repos/$GITHUB_REPOSITORY/contents/composer.lock?ref=$EXPECTED_HEAD_SHA" --jq '.sha')" = 'cb225d25fd6f1e8468654339b46fea1ba6052925'
           else
             echo "Unsupported Composer materialization mode: $EXPECTED_MODE" >&2
             exit 1
@@ -243,6 +259,10 @@ jobs:
               if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', selector):
                   raise SystemExit(f'Invalid repository-owned selector: {selector!r}')
           PY
+          elif [[ "$COMPOSER_MODE" == 'full-update' ]]; then
+            test "$EXPECTED_HEAD_SHA" = '665e841a57345fa2787d30da0962b60afa4f9b9f'
+            test "$(git -C target hash-object composer.lock)" = 'cb225d25fd6f1e8468654339b46fea1ba6052925'
+            test "$(git -C target hash-object composer.json)" = '7eeab76f005e49df1006707f63720aa4e7261f55'
           else
             echo "Unsupported Composer materialization mode: $COMPOSER_MODE" >&2
             exit 1
@@ -300,6 +320,22 @@ jobs:
               --no-interaction \
               --no-progress \
               --no-scripts
+          elif [[ "$COMPOSER_MODE" == 'full-update' ]]; then
+            test "$COMPOSER_PROFILE" = 'agency-full-composer-update-1432'
+            test "$EXPECTED_HEAD_SHA" = '665e841a57345fa2787d30da0962b60afa4f9b9f'
+            test "$(git hash-object composer.json)" = '7eeab76f005e49df1006707f63720aa4e7261f55'
+            test "$(git hash-object composer.lock)" = 'cb225d25fd6f1e8468654339b46fea1ba6052925'
+            ddev composer update --no-install --no-scripts --no-interaction --no-progress
+            ddev composer validate --strict --no-check-all --check-lock --no-interaction
+            audit_status=0
+            ddev composer audit --locked --format=json --no-interaction \
+              > /tmp/agency-r12-audit.json || audit_status=$?
+            test "$audit_status" -eq 0
+            git show "$EXPECTED_HEAD_SHA:composer.lock" > /tmp/agency-r12-old.lock
+            python3 ../trusted/scripts/runner/validate-full-composer-update-1432.py \
+              /tmp/agency-r12-old.lock composer.lock \
+              --audit /tmp/agency-r12-audit.json \
+              > /tmp/agency-r12-full.json
           else
             echo "Unsupported Composer materialization mode: $COMPOSER_MODE" >&2
             exit 1
@@ -368,6 +404,13 @@ jobs:
                   resolved_versions[package] = version
               package = ''
               version = ''
+          elif mode == 'full-update':
+              if os.environ['COMPOSER_PROFILE'] != 'agency-full-composer-update-1432':
+                  raise SystemExit('Unauthorized full-update profile.')
+              reviewed_selectors = []
+              resolved_versions = {}
+              package = ''
+              version = ''
           else:
               raise SystemExit(f'Unsupported Composer materialization mode: {mode}')
 
@@ -386,6 +429,10 @@ jobs:
           if mode == 'package':
               result['package'] = package
               result['resolved_version'] = version
+          if mode == 'full-update':
+              result['full_update'] = json.loads(
+                  Path('/tmp/agency-r12-full.json').read_text(encoding='utf-8')
+              )
 
           Path('../composer-materialization-artifact/result.json').write_text(
               json.dumps(result, indent=2, sort_keys=True) + '\n',
@@ -436,6 +483,15 @@ jobs:
           ref: ${{ inputs.head_sha }}
           fetch-depth: 1
 
+      - name: Checkout trusted full-update validator
+        if: ${{ inputs.profile == 'agency-full-composer-update-1432' }}
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-r12
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Download generated Composer artifact
         uses: actions/download-artifact@v5
         with:
@@ -469,6 +525,11 @@ jobs:
             = "$GITHUB_REPOSITORY"
           test "$(jq -r '.head.ref' <<<"$pr_json")" = "$EXPECTED_HEAD_REF"
           test "$(jq -r '.head.sha' <<<"$pr_json")" = "$EXPECTED_HEAD_SHA"
+          if [[ "$EXPECTED_MODE" == 'full-update' ]]; then
+            test "$PR_NUMBER" = '1435'
+            test "$(jq -r '.draft' <<<"$pr_json")" = 'true'
+            test "$(jq -r '.base.sha' <<<"$pr_json")" = '3dc4c82f5f4fb1b5d1e8cfe2aa1eb33397b26c78'
+          fi
 
           EXPECTED_MODE="$EXPECTED_MODE" \
           EXPECTED_PACKAGE="$EXPECTED_PACKAGE" \
@@ -545,6 +606,16 @@ jobs:
                   raise SystemExit('Artifact selector metadata mismatch.')
               if result.get('resolved_versions') != resolved_versions:
                   raise SystemExit('Artifact resolved-version map mismatch.')
+          elif mode == 'full-update':
+              if os.environ['EXPECTED_PROFILE'] != 'agency-full-composer-update-1432':
+                  raise SystemExit('Unauthorized full-update publisher.')
+              if os.environ['EXPECTED_HEAD_SHA'] != '665e841a57345fa2787d30da0962b60afa4f9b9f':
+                  raise SystemExit('Full-update input HEAD changed.')
+              if result.get('reviewed_selectors') != [] or result.get('resolved_versions') != {}:
+                  raise SystemExit('Full-update cannot pass package selectors.')
+              full = result.get('full_update', {})
+              if full.get('audit_status') != 0 or full.get('advisory_count') != 0:
+                  raise SystemExit('Full-update advisory gate failed.')
           else:
               raise SystemExit(f'Unsupported Composer materialization mode: {mode}')
 
@@ -555,6 +626,16 @@ jobs:
           }, sort_keys=True))
           PY
 
+          if [[ "$EXPECTED_MODE" == 'full-update' ]]; then
+            test "$(git hash-object composer.json)" = '7eeab76f005e49df1006707f63720aa4e7261f55'
+            test "$(git hash-object composer.lock)" = 'cb225d25fd6f1e8468654339b46fea1ba6052925'
+            git show HEAD:composer.lock > /tmp/agency-r12-publisher-old.lock
+            python3 trusted-r12/scripts/runner/validate-full-composer-update-1432.py \
+              /tmp/agency-r12-publisher-old.lock \
+              /tmp/composer-materialization/composer.lock \
+              --verify-result /tmp/composer-materialization/result.json
+            rm -rf trusted-r12
+          fi
           cp /tmp/composer-materialization/composer.lock composer.lock
           test -z "$(git ls-files --others --exclude-standard)"
           test -z "$(git diff --cached --name-only)"

@@ -178,7 +178,7 @@ REGEX;
   }
 
   /**
-   * Keeps the previous Hero version usable by governed Default Content.
+   * Protects active Hero resolution and the previous archived version.
    */
   public function testCanonicalHeroHistoricalVersionCompatibility(): void {
     $projectRoot = dirname(DRUPAL_ROOT);
@@ -234,7 +234,7 @@ REGEX;
       . 'GovernedCoreDefaultContentImporter.php',
     );
     self::assertStringContainsString(
-      "'sdc.emerging_digital.hero' => '$oldVersion'",
+      "'sdc.emerging_digital.hero' => '$newVersion'",
       $importer,
     );
 

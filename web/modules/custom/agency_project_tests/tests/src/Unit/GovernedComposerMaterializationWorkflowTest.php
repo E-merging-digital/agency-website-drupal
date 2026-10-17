@@ -430,16 +430,20 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   }
 
   /**
-   * #1442 permits one stable Drupal AI patch for #1441, never user selectors.
+   * #1442 limits the #1441 package profile to stable Drupal AI 1.5.1.
    */
   public function testDrupalAi151ProfileIsExactAndTargetBound(): void {
     $root = dirname(DRUPAL_ROOT);
-    $profilePath = $root . '/scripts/runner/composer-materialization-profiles.sh';
+    $profilePath = $root
+      . '/scripts/runner/composer-materialization-profiles.sh';
     $gateway = (string) file_get_contents(
       $root . '/.github/workflows/agent-composer-materialization-dispatch.yml',
     );
 
-    self::assertSame(1, substr_count($gateway, "'drupal-ai-stable-151-1441',"));
+    self::assertSame(
+      1,
+      substr_count($gateway, "'drupal-ai-stable-151-1441',"),
+    );
     self::assertStringContainsString(
       "drupal-ai-stable-151-1441)\n"
       . "              mode='package'\n"
@@ -460,11 +464,11 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
       $gateway,
     );
     self::assertStringContainsString(
-      "' .draft '",
-      str_replace("'.draft'", "' .draft '", $gateway),
+      "test \"$(jq -r '.draft' <<<\"\$pr_json\")\" = 'true'",
+      $gateway,
     );
     self::assertStringContainsString(
-      "Package target PR must change exactly composer.json before resolution.",
+      'Package target PR must change exactly composer.json before resolution.',
       $gateway,
     );
     self::assertStringContainsString(
@@ -490,80 +494,17 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
     );
     self::assertSame(0, $exitCode, implode("\n", $output));
     self::assertSame(
-      ['package', 'drupal/ai', '1.5.1', '^1\.5\.1
-  public function testCoreSecurity1432ProfileIsFixedAndFailClosed(): void {
-    $root = dirname(DRUPAL_ROOT);
-    $profilePath = $root
-      . '/scripts/runner/composer-materialization-profiles.sh';
-    $gatewayPath = $root
-      . '/.github/workflows/agent-composer-materialization-dispatch.yml';
-    $gateway = (string) file_get_contents($gatewayPath);
-
-    self::assertSame(
-      1,
-      substr_count($gateway, "'drupal-core-security-1432',"),
-    );
-    self::assertStringContainsString(
-      "drupal-core-security-1432)\n"
-      . "              mode='lock-refresh'\n"
-      . "              expected_package=''\n"
-      . "              expected_constraint=''",
-      $gateway,
-    );
-
-    $output = [];
-    $exitCode = 0;
-    exec(
-      'COMPOSER_PROFILE=drupal-core-security-1432 bash -c '
-      . escapeshellarg(
-        'source ' . escapeshellarg($profilePath)
-        . '; printf "%s\n" "$COMPOSER_MODE" "$COMPOSER_OWNER_ISSUE"'
-        . ' "$COMPOSER_LOCK_REFRESH_SELECTORS" "$COMPOSER_RESULT_RULES"',
-      )
-      . ' 2>&1',
-      $output,
-      $exitCode,
-    );
-    self::assertSame(0, $exitCode, implode("\n", $output));
-    self::assertCount(4, $output);
-    self::assertSame('lock-refresh', $output[0]);
-    self::assertSame('1432', $output[1]);
-
-    $packages = [
-      'drupal/core-recommended',
-      'drupal/core',
-      'drupal/core-composer-scaffold',
-      'drupal/core-project-message',
-      'drupal/core-recipe-unpack',
-      'drupal/core-dev',
-    ];
-    self::assertSame($packages, explode(' ', $output[2]));
-
-    $rules = json_decode($output[3], TRUE, 512, JSON_THROW_ON_ERROR);
-    self::assertIsArray($rules);
-    self::assertSame($packages, array_keys($rules));
-    foreach ($rules as $rule) {
-      self::assertSame('^11\.4\.10$', $rule);
-      self::assertSame(1, preg_match('~' . $rule . '~D', '11.4.10'));
-      foreach ([
-        '11.4.8',
-        '11.4.9',
-        '11.4.11',
-        '11.4.10-dev',
-        '11.4.10-beta1',
-        '11.4.10-rc1',
-      ] as $invalid) {
-        self::assertSame(0, preg_match('~' . $rule . '~D', $invalid));
-      }
-    }
-  }
-
-}
-, 'drupal/ai', '1441'],
+      ['package', 'drupal/ai', '1.5.1', '^1\.5\.1$', 'drupal/ai', '1441'],
       $output,
     );
     self::assertSame(1, preg_match('~' . $output[3] . '~D', '1.5.1'));
-    foreach (['1.5.0', '1.5.2', '1.5.1-rc1', '1.5.1-beta1', '1.5.1-dev'] as $invalid) {
+    foreach ([
+      '1.5.0',
+      '1.5.2',
+      '1.5.1-rc1',
+      '1.5.1-beta1',
+      '1.5.1-dev',
+    ] as $invalid) {
       self::assertSame(0, preg_match('~' . $output[3] . '~D', $invalid));
     }
 

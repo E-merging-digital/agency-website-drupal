@@ -430,7 +430,7 @@ final class GovernedComposerMaterializationWorkflowTest extends TestCase {
   }
 
   /**
-   * #1442 limits the #1441 package profile to stable Drupal AI 1.5.1.
+   * The #1442 profile limits #1441 to stable Drupal AI 1.5.1.
    */
   public function testDrupalAi151ProfileIsExactAndTargetBound(): void {
     $root = dirname(DRUPAL_ROOT);

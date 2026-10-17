@@ -234,7 +234,6 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
     }
   }
 
-
   /**
    * Guards the exact private Docker endpoint and rejects rootful fallbacks.
    *

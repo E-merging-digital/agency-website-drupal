@@ -182,7 +182,10 @@ final class GovernedCoreDefaultContentImporter {
       if (!is_array($item)
         || ($item['uuid'] ?? NULL) !== self::CANVAS_INSTANCE_UUIDS[$n]
         || ($item['component_id'] ?? NULL) !== $id
-        || array_diff(array_keys($item), ['uuid', 'component_id', 'component_version', 'inputs', 'parent_uuid', 'slot', 'label']) !== []
+        || array_diff(array_keys($item), [
+          'uuid', 'component_id', 'component_version', 'inputs',
+          'parent_uuid', 'slot', 'label',
+        ]) !== []
         || (array_key_exists('label', $item) && $item['label'] !== NULL && !is_string($item['label']))
         || !empty($item['parent_uuid']) || !empty($item['slot'])) {
         throw new \RuntimeException('Unexpected Canvas component or nested layout.');

@@ -581,7 +581,9 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     $root = dirname(DRUPAL_ROOT);
     require_once $root . '/scripts/runner/canvas-ai-provider-config-drift-gate-1373.php';
 
-    $names = \agency_canvas_1373_allowed_names(); // @phpstan-ignore function.notFound
+    // @phpstan-ignore-next-line
+
+    $names = \agency_canvas_1373_allowed_names();
     self::assertCount(19, $names);
     $metadata = ['items' => []];
     $dataset = [];
@@ -598,7 +600,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     }
 
     // Trusted main (0) and MCP #1421 both use this exact same 19/19 gate.
-    $known = \agency_canvas_1373_analyze_dataset($metadata, $dataset); // @phpstan-ignore function.notFound
+    // @phpstan-ignore-next-line
+    $known = \agency_canvas_1373_analyze_dataset($metadata, $dataset);
     self::assertSame(['total' => 19, 'known' => 19, 'unexpected' => 0],
       $known['summary']);
     self::assertCount(19, $known['items']);
@@ -610,7 +613,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
 
     $unexpected = $dataset;
     $unexpected[$names[0]]['active']['business_ref'] = 'synthetic';
-    $rejected = \agency_canvas_1373_analyze_dataset($metadata, $unexpected); // @phpstan-ignore function.notFound
+    // @phpstan-ignore-next-line
+    $rejected = \agency_canvas_1373_analyze_dataset($metadata, $unexpected);
     self::assertSame(['total' => 19, 'known' => 18, 'unexpected' => 1],
       $rejected['summary']);
     self::assertSame('UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
@@ -630,7 +634,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
         array_pop($bad['items']);
       }
       try {
-        \agency_canvas_1373_analyze_dataset($bad, $dataset); // @phpstan-ignore function.notFound
+        // @phpstan-ignore-next-line
+        \agency_canvas_1373_analyze_dataset($bad, $dataset);
         self::fail('Unsupported Canvas status was accepted: ' . $invalid);
       }
       catch (\RuntimeException $exception) {
@@ -640,7 +645,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     $badShape = $dataset;
     $badShape[$names[0]]['active']['versioned_properties'] = 'wrong';
     try {
-      \agency_canvas_1373_analyze_dataset($metadata, $badShape); // @phpstan-ignore function.notFound
+      // @phpstan-ignore-next-line
+      \agency_canvas_1373_analyze_dataset($metadata, $badShape);
       self::fail('Unsupported Canvas storage shape was accepted.');
     }
     catch (\RuntimeException $exception) {

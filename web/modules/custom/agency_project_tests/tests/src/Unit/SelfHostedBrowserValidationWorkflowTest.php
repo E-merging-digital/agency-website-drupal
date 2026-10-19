@@ -582,7 +582,6 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     require_once $root . '/scripts/runner/canvas-ai-provider-config-drift-gate-1373.php';
 
     // @phpstan-ignore-next-line
-
     $names = \agency_canvas_1373_allowed_names();
     self::assertCount(19, $names);
     $metadata = ['items' => []];

@@ -446,7 +446,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
     self::assertStringContainsString('[[ "$count" == "0" ]]', $helper);
     self::assertStringContainsString(
-      'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+      'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && ' .
+        '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
       $helper,
     );
     self::assertStringContainsString('fail_closed', $helper);
@@ -493,6 +494,158 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       'CANVAS_CONFIG_DRIFT_GATE=PASS',
       $helper,
     );
+  }
+
+
+  /**
+   * The clean path stays admitted, but all nonzero drift goes through one gate.
+   *
+   * This is a source contract; real active/sync admission is proven at runtime.
+   */
+  public function testCanvasTrustedMainUsesExistingPinnedStrictGate(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $helper = (string) file_get_contents($root .
+      '/scripts/runner/verify-browser-config-canonical-canvas-1420.sh');
+    $workflow = (string) file_get_contents($root .
+      '/.github/workflows/self-hosted-browser-validation.yml');
+
+    $clean = strpos($helper, '[[ "$count" == "0" ]]');
+    $restricted = strpos(
+      $helper,
+      'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && '
+        . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+    );
+    self::assertIsInt($clean);
+    self::assertIsInt($restricted);
+    self::assertLessThan($restricted, $clean);
+    self::assertStringContainsString(
+      "CANVAS_BROWSER_CONFIG_GATE=PASS_CLEAN",
+      $helper,
+    );
+
+    // Only canonical main 0 or exact MCP 1421 reaches the strict nonzero gate.
+    // Every other canonical PR number still fails closed on any drift.
+    self::assertSame(
+      1,
+      substr_count(
+        $helper,
+        'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && '
+          . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+      ),
+    );
+    self::assertStringContainsString(
+      '[[ "$CANVAS_BROWSER_PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]',
+      $helper,
+    );
+    self::assertStringContainsString(
+      'agency_canvas_1373',
+      $helper,
+    );
+    self::assertStringContainsString(
+      '(.items | type == "array" and length == 19)',
+      $helper,
+    );
+    self::assertStringContainsString(
+      '.classification == "KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN"',
+      $helper,
+    );
+    self::assertStringContainsString(
+      '.summary == {"total":19,"known":19,"unexpected":0}',
+      $helper,
+    );
+    self::assertStringContainsString('fail_closed', $helper);
+
+    // The workflow must pin the EXACT Git blob of this helper, not a label or
+    // mutable branch. Every invocation still uses the same pinned script.
+    $actualBlob = sha1('blob ' . strlen($helper) . "\0" . $helper);
+    self::assertStringContainsString(
+      'test "$(git hash-object scripts/runner/'
+        . 'verify-browser-config-canonical-canvas-1420.sh)" = "'
+        . $actualBlob . '"',
+      $workflow,
+    );
+    self::assertSame(
+      3,
+      substr_count(
+        $workflow,
+        'bash scripts/runner/verify-browser-config-canonical-canvas-1420.sh',
+      ),
+    );
+  }
+
+  /**
+   * Exercises the existing #1373 exact cohort and #995 paths with synthetic
+   * data only; never considers a synthetic result proof of runtime drift.
+   */
+  public function testCanvasExactCohortKnownAndUnexpectedPathsFailClosed(): void {
+    $root = dirname(DRUPAL_ROOT);
+    require_once $root . '/scripts/runner/canvas-ai-provider-config-drift-gate-1373.php';
+
+    $names = \agency_canvas_1373_allowed_names();
+    self::assertCount(19, $names);
+    $metadata = ['items' => []];
+    $dataset = [];
+    foreach ($names as $name) {
+      $metadata['items'][] = ['config_name' => $name, 'state' => 'Different'];
+      $base = [
+        'active_version' => 'aaaaaaaaaaaaaaaa',
+        'versioned_properties' => ['active' => []],
+        'label' => 'synthetic sync',
+      ];
+      $active = $base;
+      $active['label'] = 'synthetic active';
+      $dataset[$name] = ['active' => $active, 'sync' => $base];
+    }
+
+    // Trusted main (0) and MCP #1421 both use this exact same 19/19 gate.
+    $known = \agency_canvas_1373_analyze_dataset($metadata, $dataset);
+    self::assertSame(['total' => 19, 'known' => 19, 'unexpected' => 0],
+      $known['summary']);
+    self::assertCount(19, $known['items']);
+    foreach ($known['items'] as $item) {
+      self::assertSame('KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
+        $item['classification']);
+      self::assertSame(['label'], $item['differing_paths']);
+    }
+
+    $unexpected = $dataset;
+    $unexpected[$names[0]]['active']['business_ref'] = 'synthetic';
+    $rejected = \agency_canvas_1373_analyze_dataset($metadata, $unexpected);
+    self::assertSame(['total' => 19, 'known' => 18, 'unexpected' => 1],
+      $rejected['summary']);
+    self::assertSame('UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
+      $rejected['items'][0]['classification']);
+
+    // Unknown name/state, missing item and unsupported active/sync shape
+    // must never produce an admissible 19/19 summary.
+    foreach (['name', 'state', 'missing'] as $invalid) {
+      $bad = $metadata;
+      if ($invalid === 'name') {
+        $bad['items'][0]['config_name'] = 'canvas.component.block.other';
+      }
+      elseif ($invalid === 'state') {
+        $bad['items'][0]['state'] = 'Only in DB';
+      }
+      else {
+        array_pop($bad['items']);
+      }
+      try {
+        \agency_canvas_1373_analyze_dataset($bad, $dataset);
+        self::fail('Unsupported Canvas status was accepted: ' . $invalid);
+      }
+      catch (\RuntimeException $exception) {
+        self::assertNotSame('', $exception->getMessage());
+      }
+    }
+    $badShape = $dataset;
+    $badShape[$names[0]]['active']['versioned_properties'] = 'wrong';
+    try {
+      \agency_canvas_1373_analyze_dataset($metadata, $badShape);
+      self::fail('Unsupported Canvas storage shape was accepted.');
+    }
+    catch (\RuntimeException $exception) {
+      self::assertNotSame('', $exception->getMessage());
+    }
   }
 
 }

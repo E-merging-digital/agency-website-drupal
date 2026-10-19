@@ -537,7 +537,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $helper,
     );
     self::assertStringContainsString(
-      'agency_canvas_1373',
+      'canvas-ai-provider-config-drift-gate-1373.php',
       $helper,
     );
     self::assertStringContainsString(

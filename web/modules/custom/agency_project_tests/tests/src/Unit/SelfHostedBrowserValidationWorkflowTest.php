@@ -496,7 +496,6 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
   }
 
-
   /**
    * The clean path stays admitted, but all nonzero drift goes through one gate.
    *
@@ -574,8 +573,9 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
   }
 
   /**
-   * Exercises the existing #1373 exact cohort and #995 paths with synthetic
-   * data only; never considers a synthetic result proof of runtime drift.
+   * Exercises existing #1373/#995 checks with synthetic data only.
+   *
+   * Synthetic acceptance never proves real runtime drift.
    */
   public function testCanvasExactCohortKnownAndUnexpectedPathsFailClosed(): void {
     $root = dirname(DRUPAL_ROOT);

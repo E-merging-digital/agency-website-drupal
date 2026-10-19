@@ -38,6 +38,43 @@ final class GovernedCanvasHeroVersionUpgradeTest extends TestCase {
   }
 
   /**
+   * A native Canvas label may be nonempty without changing the planned write.
+   */
+  public function testNativeLabelsAreRetainedExactly(): void {
+    $before = $this->tree(self::OLD);
+    $before[0]['label'] = 'Accueil : titre principal';
+    $before[1]['label'] = '';
+    $before[2]['label'] = 'Appel à action';
+    $expected = $before;
+    $expected[0]['component_version'] = self::NEW;
+    self::assertSame($expected, $this->plan($before));
+    self::assertNull($this->plan($expected));
+
+    // The source-only planner must not mutate the actual input tree.
+    self::assertSame('Accueil : titre principal', $before[0]['label']);
+    self::assertSame(self::OLD, $before[0]['component_version']);
+    self::assertSame('{"heading":"Keep list","items":["one","two"]}', $before[1]['inputs']);
+  }
+
+  /**
+   * Null native labels are valid and preserved on every component.
+   */
+  public function testNativeNullLabelsArePreserved(): void {
+    $before = $this->tree(self::OLD);
+    $expected = $before;
+    $expected[0]['component_version'] = self::NEW;
+    self::assertSame($expected, $this->plan($before));
+    foreach ($this->plan($before) as $row) {
+      self::assertArrayHasKey('label', $row);
+      self::assertNull($row['label']);
+      self::assertArrayHasKey('parent_uuid', $row);
+      self::assertNull($row['parent_uuid']);
+      self::assertArrayHasKey('slot', $row);
+      self::assertNull($row['slot']);
+    }
+  }
+
+  /**
    * Unknown component versions, UUIDs, order and input/layout shape are denied.
    */
   public function testUnexpectedTreeFailsClosed(): void {
@@ -62,6 +99,18 @@ final class GovernedCanvasHeroVersionUpgradeTest extends TestCase {
       },
       static function (array &$t): void {
         $t[0]['unexpected'] = 'x';
+      },
+      static function (array &$t): void {
+        $t[1]['unexpected'] = NULL;
+      },
+      static function (array &$t): void {
+        $t[0]['label'] = 123;
+      },
+      static function (array &$t): void {
+        $t[1]['label'] = FALSE;
+      },
+      static function (array &$t): void {
+        $t[2]['label'] = ['unexpected'];
       },
       static function (array &$t): void {
         $t[0]['inputs'] = '{broken';
@@ -131,27 +180,36 @@ final class GovernedCanvasHeroVersionUpgradeTest extends TestCase {
   }
 
   /**
-   * Returns the fixed native Canvas test tree with opaque stored input data.
+   * Models Canvas ComponentTreeItem::getValue() with native nullable fields.
    */
   private function tree(string $version): array {
     return [
       [
         'uuid' => '52600000-0000-4000-8000-000000000101',
-        'component_id' => 'sdc.emerging_digital.hero',
-        'component_version' => $version,
         'inputs' => '{"heading":"Keep this","heading_level":"h1","variant":"home"}',
+        'component_id' => 'sdc.emerging_digital.hero',
+        'parent_uuid' => NULL,
+        'component_version' => $version,
+        'slot' => NULL,
+        'label' => NULL,
       ],
       [
         'uuid' => '52600000-0000-4000-8000-000000000102',
-        'component_id' => 'sdc.emerging_digital.trust-list',
-        'component_version' => '61b25a47f367765e',
         'inputs' => '{"heading":"Keep list","items":["one","two"]}',
+        'component_id' => 'sdc.emerging_digital.trust-list',
+        'parent_uuid' => NULL,
+        'component_version' => '61b25a47f367765e',
+        'slot' => NULL,
+        'label' => NULL,
       ],
       [
         'uuid' => '52600000-0000-4000-8000-000000000103',
-        'component_id' => 'sdc.emerging_digital.cta',
-        'component_version' => 'b4f165563eb02357',
         'inputs' => '{"heading":"Keep CTA","heading_level":"h2"}',
+        'component_id' => 'sdc.emerging_digital.cta',
+        'parent_uuid' => NULL,
+        'component_version' => 'b4f165563eb02357',
+        'slot' => NULL,
+        'label' => NULL,
       ],
     ];
   }

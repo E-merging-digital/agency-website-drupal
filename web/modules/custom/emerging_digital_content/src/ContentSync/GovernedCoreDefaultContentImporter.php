@@ -120,7 +120,6 @@ final class GovernedCoreDefaultContentImporter {
     ];
   }
 
-
   /**
    * Fixes only the proven old Hero marker on the fixed governed proof page.
    *

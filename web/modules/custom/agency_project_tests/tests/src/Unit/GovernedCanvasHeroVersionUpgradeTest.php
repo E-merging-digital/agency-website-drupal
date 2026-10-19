@@ -42,17 +42,39 @@ final class GovernedCanvasHeroVersionUpgradeTest extends TestCase {
    */
   public function testUnexpectedTreeFailsClosed(): void {
     $mutations = [
-      static function (array &$t): void { $t[0]['uuid'] = 'wrong'; },
-      static function (array &$t): void { $t[0]['component_id'] = 'sdc.other'; },
-      static function (array &$t): void { $t[0]['component_version'] = 'other'; },
-      static function (array &$t): void { $t[1]['component_version'] = self::OLD; },
-      static function (array &$t): void { $t[0]['parent_uuid'] = $t[1]['uuid']; },
-      static function (array &$t): void { $t[0]['slot'] = 'nested'; },
-      static function (array &$t): void { $t[0]['unexpected'] = 'x'; },
-      static function (array &$t): void { $t[0]['inputs'] = '{broken'; },
-      static function (array &$t): void { $t[0]['inputs'] = '{"heading":"a","extra":"x"}'; },
-      static function (array &$t): void { unset($t[2]); },
-      static function (array &$t): void { [$t[0], $t[1]] = [$t[1], $t[0]]; },
+      static function (array &$t): void {
+        $t[0]['uuid'] = 'wrong';
+      },
+      static function (array &$t): void {
+        $t[0]['component_id'] = 'sdc.other';
+      },
+      static function (array &$t): void {
+        $t[0]['component_version'] = 'other';
+      },
+      static function (array &$t): void {
+        $t[1]['component_version'] = self::OLD;
+      },
+      static function (array &$t): void {
+        $t[0]['parent_uuid'] = $t[1]['uuid'];
+      },
+      static function (array &$t): void {
+        $t[0]['slot'] = 'nested';
+      },
+      static function (array &$t): void {
+        $t[0]['unexpected'] = 'x';
+      },
+      static function (array &$t): void {
+        $t[0]['inputs'] = '{broken';
+      },
+      static function (array &$t): void {
+        $t[0]['inputs'] = '{"heading":"a","extra":"x"}';
+      },
+      static function (array &$t): void {
+        unset($t[2]);
+      },
+      static function (array &$t): void {
+        [$t[0], $t[1]] = [$t[1], $t[0]];
+      },
     ];
     foreach ($mutations as $n => $mutate) {
       $tree = $this->tree(self::OLD);
@@ -79,9 +101,15 @@ final class GovernedCanvasHeroVersionUpgradeTest extends TestCase {
       $reordered['versioned_properties']['active'], TRUE);
     $this->schema($reordered);
     $mutations = [
-      static function (array &$c): void { $c['active_version'] = self::OLD; },
-      static function (array &$c): void { unset($c['versioned_properties'][self::OLD]); },
-      static function (array &$c): void { $c['versioned_properties']['unknown'] = []; },
+      static function (array &$c): void {
+        $c['active_version'] = self::OLD;
+      },
+      static function (array &$c): void {
+        unset($c['versioned_properties'][self::OLD]);
+      },
+      static function (array &$c): void {
+        $c['versioned_properties']['unknown'] = [];
+      },
       static function (array &$c): void {
         $c['versioned_properties'][self::OLD]['settings']['prop_field_definitions']['variant']['required'] = FALSE;
       },
@@ -102,6 +130,9 @@ final class GovernedCanvasHeroVersionUpgradeTest extends TestCase {
     }
   }
 
+  /**
+   * Returns the fixed native Canvas test tree with opaque stored input data.
+   */
   private function tree(string $version): array {
     return [
       [
@@ -125,11 +156,17 @@ final class GovernedCanvasHeroVersionUpgradeTest extends TestCase {
     ];
   }
 
+  /**
+   * Invokes the source-only plan without writing an entity.
+   */
   private function plan(array $tree): ?array {
     return (new \ReflectionMethod(GovernedCoreDefaultContentImporter::class, 'planHeroVersionUpdate'))
       ->invoke(NULL, $tree);
   }
 
+  /**
+   * Invokes the same guard used for effective Canvas configuration.
+   */
   private function schema(array $config): void {
     (new \ReflectionMethod(GovernedCoreDefaultContentImporter::class, 'assertHeroSchemaCompatible'))
       ->invoke(NULL, $config);

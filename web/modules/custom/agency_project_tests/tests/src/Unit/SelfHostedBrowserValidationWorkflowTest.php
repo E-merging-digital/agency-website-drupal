@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -335,7 +336,6 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     foreach ([
       'router_bind_all_interfaces',
       'sysctl',
-      'RootlessKit',
       'CAP_NET_BIND_SERVICE',
       'sudo',
     ] as $forbidden) {
@@ -359,6 +359,110 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       'const url = findUrl(parsed);',
       $browserScript,
     );
+  }
+
+  /**
+   * Simulates the existing rebuild's DDEV start without invoking DDEV.
+   *
+   * Only one RootlessKit bind race may retry, after owned cleanup succeeds.
+   */
+  public function testRootlessPortCollisionRetryIsOwnedAndBounded(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $yaml = Yaml::parseFile(
+      $root . '/.github/workflows/self-hosted-browser-validation.yml',
+    );
+    self::assertIsArray($yaml);
+    $rebuild = '';
+    foreach ($yaml['jobs']['browser-validation']['steps'] as $step) {
+      if ($step['name'] === 'Rebuild Drupal from repository-owned state') {
+        $rebuild = $step['run'];
+        break;
+      }
+    }
+    self::assertNotSame('', $rebuild);
+    $parts = explode('ddev composer install --no-interaction', $rebuild, 2);
+    self::assertCount(2, $parts);
+    $source = $parts[0];
+    self::assertSame(2, substr_count($source, 'ddev start -y'));
+    self::assertSame(1, substr_count($source, 'ddev delete --omit-snapshot --yes'));
+    $fake = <<<'BASH'
+    calls=0
+    ddev() {
+      case "$1" in
+        start)
+          printf 'start\n' >> "$FAKE_TRACE"
+          calls=$((calls + 1))
+          if [[ "$calls" == "1" && "$FAKE_FIRST" != "ok" ]]; then
+            printf '%s\n' "$FAKE_FIRST" >&2
+            return 1
+          fi
+          if [[ "$calls" == "2" && "$FAKE_SECOND" != "ok" ]]; then
+            echo 'synthetic second start failed' >&2
+            return 1
+          fi
+          ;;
+        utility)
+          [[ "$2" == "configyaml" ]] || return 2
+          printf 'name: %s\n' "$FAKE_PROJECT"
+          ;;
+        delete)
+          printf 'delete\n' >> "$FAKE_TRACE"
+          [[ "$2" == "--omit-snapshot" && "$3" == "--yes" && "$FAKE_DELETE" == "ok" ]]
+          ;;
+        *)
+          return 2
+          ;;
+      esac
+    }
+    BASH;
+    $collision = 'RootlessKit PortManager.AddPort(): '
+      . 'listen tcp4 127.0.0.1:32777: bind: address already in use';
+    $project = 'agency-browser-987654321-1';
+    $cases = [
+      ['normal', 'ok', 'ok', 'ok', $project, 0, "start\n"],
+      ['collision recovered', $collision, 'ok', 'ok', $project, 0,
+        "start\ndelete\nstart\n",
+      ],
+      ['unrelated failure', 'connection refused', 'ok', 'ok', $project, 1,
+        "start\n",
+      ],
+      ['rootless without bind', 'RootlessKit PortManager.AddPort(): denied',
+        'ok', 'ok', $project, 1, "start\n",
+      ],
+      ['bind without rootless', 'bind: address already in use',
+        'ok', 'ok', $project, 1, "start\n",
+      ],
+      ['second failure', $collision, 'fail', 'ok', $project, 1,
+        "start\ndelete\nstart\n",
+      ],
+      ['wrong identity', $collision, 'ok', 'ok', 'unrelated-project', 1,
+        "start\n",
+      ],
+      ['cleanup failed', $collision, 'ok', 'fail', $project, 1,
+        "start\ndelete\n",
+      ],
+    ];
+    foreach ($cases as [$name, $first, $second, $delete, $identity, $code, $events]) {
+      $trace = tempnam(sys_get_temp_dir(), 'agency-rootless-');
+      self::assertNotFalse($trace);
+      $process = new Process(['bash', '-c', $fake . "\n" . $source], $root, [
+        'RUNNER_TEMP' => sys_get_temp_dir(),
+        'GITHUB_RUN_ID' => '987654321',
+        'GITHUB_RUN_ATTEMPT' => '1',
+        'FAKE_TRACE' => $trace,
+        'FAKE_FIRST' => $first,
+        'FAKE_SECOND' => $second,
+        'FAKE_DELETE' => $delete,
+        'FAKE_PROJECT' => $identity,
+      ]);
+      $process->setTimeout(10);
+      $process->run();
+      $actualEvents = (string) file_get_contents($trace);
+      unlink($trace);
+      self::assertSame($code, $process->getExitCode(),
+        $name . ': ' . $process->getErrorOutput());
+      self::assertSame($events, $actualEvents, $name);
+    }
   }
 
   /**

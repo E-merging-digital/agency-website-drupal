@@ -327,7 +327,33 @@ jobs:
         run: |
           set -euo pipefail
 
-          ddev start -y
+          # One owned retry only for a proven RootlessKit ephemeral port race.
+          start_log="$(mktemp "${RUNNER_TEMP}/agency-ddev-start.XXXXXX")"
+          trap 'rm -f "$start_log"' EXIT
+          if ddev start -y >"$start_log" 2>&1; then
+            echo "DDEV_START=PASS_INITIAL"
+          else
+            if ! grep -Eq 'RootlessKit PortManager\.AddPort\(\).*bind: address already in use' "$start_log"; then
+              echo "DDEV_START=FAIL_NOT_ADMITTED" >&2
+              exit 1
+            fi
+            expected_project="agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            actual_project="$(ddev utility configyaml | awk '$1 == "name:" && NF == 2 {print $2}')"
+            if [[ "$actual_project" != "$expected_project" ]]; then
+              echo "DDEV_START=FAIL_PROJECT_IDENTITY" >&2
+              exit 1
+            fi
+            if ! ddev delete --omit-snapshot --yes >"$start_log" 2>&1; then
+              echo "DDEV_START=FAIL_OWNED_CLEANUP" >&2
+              exit 1
+            fi
+            echo "DDEV_START=ONE_OWNED_RETRY"
+            if ! ddev start -y >"$start_log" 2>&1; then
+              echo "DDEV_START=FAIL_SECOND_ATTEMPT" >&2
+              exit 1
+            fi
+            echo "DDEV_START=PASS_SECOND_ATTEMPT"
+          fi
           ddev composer install --no-interaction --no-progress --prefer-dist
 
           admin_pass="$(openssl rand -hex 24)"

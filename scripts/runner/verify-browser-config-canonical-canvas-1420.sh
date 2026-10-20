@@ -8,7 +8,7 @@ test "${GITHUB_REPOSITORY:-}" = "E-merging-digital/agency-website-drupal"
 
 # Never execute a gate, filter or helper supplied by a mutable PR.
 for pair in \
-  'scripts/runner/canvas-runtime-diff-paths-995.php|ef50d3cae1b497b5931789e6a109a9f67f9c6a5f' \
+  'scripts/runner/canvas-runtime-diff-paths-995.php|bdc6016b208fdad332880e4b943aa2aa0af2e94b' \
   'scripts/runner/canvas-ai-provider-config-drift-gate-1373.php|92f1bc7def35e2c632d1a0e70d95579fe7365dcf' \
   'scripts/runner/run-canvas-ai-provider-config-drift-gate-1375.sh|c514da23bc6f87e0ce27c86bbb2c8761d0a9e67c' \
   'scripts/runner/filter-config-status-metadata.php|2c4efe9742fcca89d8169f2edcdc0f2dad99e579'

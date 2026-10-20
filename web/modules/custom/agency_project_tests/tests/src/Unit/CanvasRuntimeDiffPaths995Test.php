@@ -400,6 +400,96 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
   }
 
   /**
+   * A trusted historical snapshot may reorder maps, never change contents.
+   */
+  public function testHistoricalSnapshotMapOrderIsNotBusinessDrift(): void {
+    $pair = $this->knownPair();
+    $snapshot = $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa'];
+    $snapshot['settings']['default_settings'] = array_reverse(
+      $snapshot['settings']['default_settings'],
+      TRUE,
+    );
+    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa'] = [
+      'fallback_metadata' => $snapshot['fallback_metadata'],
+      'settings' => $snapshot['settings'],
+    ];
+
+    $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+    self::assertSame('KNOWN_CANVAS_DETERMINISTIC_DRIFT_PATTERN',
+      $result['classification']);
+    self::assertContains('versioned_properties.<version>',
+      $result['differing_paths']);
+  }
+
+  /**
+   * Opaque historical paths cannot conceal new or altered business fields.
+   */
+  public function testHistoricalSnapshotTamperingRequiresReview(): void {
+    foreach ([
+      'extra_field' => ['business_ref' => 'DO-NOT-EXPOSE'],
+      'wrong_version' => ['active_version' => 'cccccccccccccccc'],
+      'unsafe_key' => ['Unsafe Business Key' => 'DO-NOT-EXPOSE'],
+    ] as $case => $addition) {
+      $pair = $this->knownPair();
+      $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa'] +=
+        $addition;
+      $this->assertHistoricalSnapshotRejected($pair, $case);
+    }
+
+    $pair = $this->knownPair();
+    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']
+      ['settings']['default_settings']['provider'] = 'DO-NOT-EXPOSE';
+    $this->assertHistoricalSnapshotRejected($pair, 'changed_value');
+
+    $pair = $this->knownPair();
+    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']
+      ['fallback_metadata'] = 'DO-NOT-EXPOSE';
+    $this->assertHistoricalSnapshotRejected($pair, 'changed_type');
+
+    $pair = $this->knownPair();
+    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']
+      ['settings']['default_settings'][424242] = 'DO-NOT-EXPOSE';
+    $this->assertHistoricalSnapshotRejected($pair, 'numeric_key');
+  }
+
+  /**
+   * Rejects mismatched historical snapshots without releasing their content.
+   *
+   * @param array{active: array<string, mixed>, sync: array<string, mixed>} $pair
+   *   Deliberately tampered snapshot pair.
+   * @param string $case
+   *   Synthetic scenario name.
+   */
+  private function assertHistoricalSnapshotRejected(
+    array $pair,
+    string $case,
+  ): void {
+    try {
+      $result = $this->analyzeConfig($pair['active'], $pair['sync']);
+      self::assertSame(
+        'UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
+        $result['classification'],
+        $case,
+      );
+      $encoded = json_encode($result, JSON_THROW_ON_ERROR);
+      self::assertStringNotContainsString('DO-NOT-EXPOSE', $encoded);
+      self::assertStringNotContainsString('aaaaaaaaaaaaaaaa', $encoded);
+    }
+    catch (\RuntimeException $exception) {
+      self::assertNotSame('', $exception->getMessage());
+      self::assertStringNotContainsString(
+        'DO-NOT-EXPOSE',
+        $exception->getMessage(),
+      );
+      self::assertStringNotContainsString(
+        'Unsafe Business Key',
+        $exception->getMessage(),
+      );
+      self::assertStringNotContainsString('424242', $exception->getMessage());
+    }
+  }
+
+  /**
    * A sync-only version key remains review-required.
    */
   public function testSyncOnlyVersionRemainsReviewRequired(): void {

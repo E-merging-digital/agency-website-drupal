@@ -8,7 +8,7 @@ test "${GITHUB_REPOSITORY:-}" = "E-merging-digital/agency-website-drupal"
 
 # Never execute a gate, filter or helper supplied by a mutable PR.
 for pair in \
-  'scripts/runner/canvas-runtime-diff-paths-995.php|ef50d3cae1b497b5931789e6a109a9f67f9c6a5f' \
+  'scripts/runner/canvas-runtime-diff-paths-995.php|bdc6016b208fdad332880e4b943aa2aa0af2e94b' \
   'scripts/runner/canvas-ai-provider-config-drift-gate-1373.php|92f1bc7def35e2c632d1a0e70d95579fe7365dcf' \
   'scripts/runner/run-canvas-ai-provider-config-drift-gate-1375.sh|c514da23bc6f87e0ce27c86bbb2c8761d0a9e67c' \
   'scripts/runner/filter-config-status-metadata.php|2c4efe9742fcca89d8169f2edcdc0f2dad99e579'
@@ -35,7 +35,8 @@ fail_closed() {
   exit 1
 }
 
-# A zero-difference status is the only acceptable result outside MCP #1421.
+# Admit zero-difference status for canonical inputs; nonzero drift on trusted
+# main (0) or MCP #1421 must pass the same strict #1373/#995 classifier.
 if ! status_json="$(ddev drush config:status --format=json 2>/dev/null)"; then
   fail_closed
 fi
@@ -61,7 +62,7 @@ if [[ "$count" == "0" ]]; then
   echo 'CANVAS_BROWSER_CONFIG_GATE=PASS_CLEAN'
   exit 0
 fi
-if [[ "$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then
+if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && "$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then
   fail_closed
 fi
 

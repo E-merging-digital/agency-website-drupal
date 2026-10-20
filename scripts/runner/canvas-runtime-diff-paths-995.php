@@ -238,6 +238,23 @@ function agency_canvas_995_analyze_config(array $active, array $sync): array {
     if (array_keys($dynamic_version_facts) !== [$expected_fact]) {
       $known = FALSE;
     }
+    else {
+      // A one-sided version path alone proves no historical content. Compare
+      // the entire saved snapshot with the trusted sync active properties,
+      // using the existing strict, map-order-independent path comparator.
+      // Never publish nested paths or scalar values from this internal check.
+      $historical_facts = [];
+      $historical_paths = agency_canvas_995_diff_paths(
+        $active['versioned_properties'][$sync_version],
+        $sync['versioned_properties']['active'],
+        'versioned_properties.active',
+        NULL,
+        $historical_facts,
+      );
+      if ($historical_paths !== [] || $historical_facts !== []) {
+        $known = FALSE;
+      }
+    }
   }
   elseif ($dynamic_version_facts !== []) {
     $known = FALSE;

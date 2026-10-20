@@ -437,18 +437,15 @@ final class CanvasRuntimeDiffPaths995Test extends TestCase {
     }
 
     $pair = $this->knownPair();
-    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']
-      ['settings']['default_settings']['provider'] = 'DO-NOT-EXPOSE';
+    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']['settings']['default_settings']['provider'] = 'DO-NOT-EXPOSE';
     $this->assertHistoricalSnapshotRejected($pair, 'changed_value');
 
     $pair = $this->knownPair();
-    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']
-      ['fallback_metadata'] = 'DO-NOT-EXPOSE';
+    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']['fallback_metadata'] = 'DO-NOT-EXPOSE';
     $this->assertHistoricalSnapshotRejected($pair, 'changed_type');
 
     $pair = $this->knownPair();
-    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']
-      ['settings']['default_settings'][424242] = 'DO-NOT-EXPOSE';
+    $pair['active']['versioned_properties']['aaaaaaaaaaaaaaaa']['settings']['default_settings'][424242] = 'DO-NOT-EXPOSE';
     $this->assertHistoricalSnapshotRejected($pair, 'numeric_key');
   }
 

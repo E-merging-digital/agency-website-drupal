@@ -150,6 +150,46 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
   }
 
   /**
+   * Nineteen valid metadata rows never mask a modified historical snapshot.
+   */
+  public function testHistoricalSnapshotCheckedAcrossExactCohort(): void {
+    $metadata = $this->knownMetadata();
+    $dataset = $this->knownDataset();
+    $name = $this->allowedNames()[0];
+    $safe = $this->analyze($metadata, $dataset);
+    self::assertSame(['total' => 19, 'known' => 19, 'unexpected' => 0],
+      $safe['summary']);
+
+    foreach (['business_ref', 'changed_value', 'changed_version'] as $case) {
+      $changed = $dataset;
+      $history =& $changed[$name]['active']['versioned_properties']['aaaaaaaaaaaaaaaa'];
+      if ($case === 'business_ref') {
+        $history['business_ref'] = 'DO-NOT-EXPOSE';
+      }
+      elseif ($case === 'changed_value') {
+        $history['settings']['default_settings']['provider'] =
+          'DO-NOT-EXPOSE';
+      }
+      else {
+        $history['active_version'] = 'cccccccccccccccc';
+      }
+      unset($history);
+
+      $result = $this->analyze($metadata, $changed);
+      self::assertSame(
+        ['total' => 19, 'known' => 18, 'unexpected' => 1],
+        $result['summary'],
+        $case,
+      );
+      self::assertSame('UNEXPECTED_CANVAS_BUSINESS_PATH_REVIEW_REQUIRED',
+        $result['items'][0]['classification'], $case);
+      $encoded = json_encode($result, JSON_THROW_ON_ERROR);
+      self::assertStringNotContainsString('DO-NOT-EXPOSE', $encoded);
+      self::assertStringNotContainsString('cccccccccccccccc', $encoded);
+    }
+  }
+
+  /**
    * Unexpected paths are collected for all 19 items without exposing values.
    */
   public function testUnexpectedPathDoesNotAbortBoundedCollection(): void {

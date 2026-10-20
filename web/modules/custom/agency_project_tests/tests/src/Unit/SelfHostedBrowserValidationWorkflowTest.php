@@ -361,7 +361,6 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
   }
 
-
   /**
    * Simulates the existing rebuild's DDEV start without invoking DDEV.
    *
@@ -422,19 +421,26 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     $cases = [
       ['normal', 'ok', 'ok', 'ok', $project, 0, "start\n"],
       ['collision recovered', $collision, 'ok', 'ok', $project, 0,
-        "start\ndelete\nstart\n"],
+        "start\ndelete\nstart\n"
+      ],
       ['unrelated failure', 'connection refused', 'ok', 'ok', $project, 1,
-        "start\n"],
+        "start\n"
+      ],
       ['rootless without bind', 'RootlessKit PortManager.AddPort(): denied',
-        'ok', 'ok', $project, 1, "start\n"],
+        'ok', 'ok', $project, 1, "start\n"
+      ],
       ['bind without rootless', 'bind: address already in use',
-        'ok', 'ok', $project, 1, "start\n"],
+        'ok', 'ok', $project, 1, "start\n"
+      ],
       ['second failure', $collision, 'fail', 'ok', $project, 1,
-        "start\ndelete\nstart\n"],
+        "start\ndelete\nstart\n"
+      ],
       ['wrong identity', $collision, 'ok', 'ok', 'unrelated-project', 1,
-        "start\n"],
+        "start\n"
+      ],
       ['cleanup failed', $collision, 'ok', 'fail', $project, 1,
-        "start\ndelete\n"],
+        "start\ndelete\n"
+      ],
     ];
     foreach ($cases as [$name, $first, $second, $delete, $identity, $code, $events]) {
       $trace = tempnam(sys_get_temp_dir(), 'agency-rootless-');

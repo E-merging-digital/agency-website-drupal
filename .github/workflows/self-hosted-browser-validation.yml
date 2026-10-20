@@ -333,7 +333,7 @@ jobs:
           if ddev start -y >"$start_log" 2>&1; then
             echo "DDEV_START=PASS_INITIAL"
           else
-            if ! grep -Eq 'RootlessKit PortManager\\.AddPort\\(\\).*bind: address already in use' "$start_log"; then
+            if ! grep -Eq 'RootlessKit PortManager\.AddPort\(\).*bind: address already in use' "$start_log"; then
               echo "DDEV_START=FAIL_NOT_ADMITTED" >&2
               exit 1
             fi

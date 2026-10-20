@@ -162,8 +162,7 @@ final class CanvasAiProviderConfigDriftGate1373Test extends TestCase {
 
     foreach (['business_ref', 'changed_value', 'changed_version'] as $case) {
       $changed = $dataset;
-      $history =& $changed[$name]['active']
-        ['versioned_properties']['aaaaaaaaaaaaaaaa'];
+      $history =& $changed[$name]['active']['versioned_properties']['aaaaaaaaaaaaaaaa'];
       if ($case === 'business_ref') {
         $history['business_ref'] = 'DO-NOT-EXPOSE';
       }

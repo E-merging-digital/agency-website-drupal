@@ -2,6 +2,10 @@
 set -Eeuo pipefail
 umask 077
 
+# Safe failure-stage marker only; never disclose system configuration or APT logs.
+stage=ARGUMENTS
+trap 'rc=$?; printf "AGENCY_1451_CONTROLLED_STOP=UNEXPECTED_FAILURE STAGE=%s EXIT=%s\n" "$stage" "$rc" >&2' ERR
+
 main_sha="$1"
 plan_id="$2"
 surface="$3"
@@ -21,12 +25,15 @@ case "$surface" in
     ;;
   *) exit 64 ;;
 esac
+stage=HOST_IDENTITY
 test "$(hostname -s)" = "$expected_host"
 test "$(id -un)" = "$expected_user"
 test "$EUID" -ne 0
+stage=OS_RELEASE
 source /etc/os-release
 test "$VERSION_ID" = 24.04
 
+stage=ISOLATED_APT_SETUP
 task_tmp="$(mktemp -d)"
 trap 'rm -rf -- "$task_tmp"' EXIT
 mkdir -p "$task_tmp/lists/partial" "$task_tmp/cache/archives/partial"
@@ -42,12 +49,14 @@ opts=(
 )
 
 # PHP-only PLAN: no privilege to inspect private MariaDB sources or pinning.
+stage=APT_REFRESH
 apt-get "${opts[@]}" update >"$task_tmp/update.log" 2>&1 || {
   printf '{"STATUS":"FAIL","ISSUE":1451,"TARGET":"%s","FAILURE_STAGE":"APT_REFRESH","REAL_PACKAGE_MUTATION":"NONE"}\n' "$target"
   echo "AGENCY_1451_CONTROLLED_STOP=APT_REFRESH" >&2
   exit 76
 }
 
+stage=PHP_INSTALLED_INVENTORY
 dpkg-query -W -f='${binary:Package}\t${Status}\t${Version}\n' 'php8.4*' 'php8.5*' 2>/dev/null |
   awk -F '\t' '$2 == "install ok installed" { print $1 "\t" $3 }' |
   LC_ALL=C sort -u >"$task_tmp/installed.tsv"
@@ -59,20 +68,24 @@ for package in "${packages[@]}"; do
   [[ "$package" =~ ^php8[.][45]-[a-z0-9.+-]+$ ]]
 done
 
+stage=SIGNED_PHP_SOURCE_PROVENANCE
 apt-cache "${opts[@]}" policy php8.5-fpm >"$task_tmp/provenance.txt"
 grep -Eq "https://(ppa[.]launchpadcontent[.]net|ppa[.]setup-php[.]com)/ondrej/php/ubuntu" "$task_tmp/provenance.txt"
+stage=PACKAGE_CANDIDATES
 : >"$task_tmp/candidates.tsv"
 for package in "${packages[@]}"; do
   candidate="$(apt-cache "${opts[@]}" policy "$package" | awk '$1 == "Candidate:" { print $2 }')"
   test -n "$candidate"
   printf '%s\t%s\n' "$package" "$candidate" >>"$task_tmp/candidates.tsv"
 done
+stage=APT_SIMULATION
 apt-get "${opts[@]}" --simulate install "${packages[@]}" >"$task_tmp/simulation.log" 2>&1 || {
   printf '{"STATUS":"FAIL","ISSUE":1451,"TARGET":"%s","FAILURE_STAGE":"APT_SIMULATION","REAL_PACKAGE_MUTATION":"NONE"}\n' "$target"
   echo "AGENCY_1451_CONTROLLED_STOP=APT_SIMULATION" >&2
   exit 76
 }
 
+stage=RECEIPT_VALIDATION
 export MAIN_SHA="$main_sha" PLAN_ID="$plan_id" TARGET="$target"
 export EXPECTED_HOST="$expected_host" EXPECTED_USER="$expected_user" TASK_TMP="$task_tmp"
 python3 - <<'PY'

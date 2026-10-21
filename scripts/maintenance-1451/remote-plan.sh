@@ -38,11 +38,13 @@ opts=(
   -o "Dir::State::status=/var/lib/dpkg/status"
   -o "Debug::NoLocking=1"
   -o "APT::Update::Error-Mode=any"
+  -o "Acquire::Retries=2"
 )
 
 # PHP-only PLAN: no privilege to inspect private MariaDB sources or pinning.
 apt-get "${opts[@]}" update >"$task_tmp/update.log" 2>&1 || {
   printf '{"STATUS":"FAIL","ISSUE":1451,"TARGET":"%s","FAILURE_STAGE":"APT_REFRESH","REAL_PACKAGE_MUTATION":"NONE"}\n' "$target"
+  echo "AGENCY_1451_CONTROLLED_STOP=APT_REFRESH" >&2
   exit 76
 }
 
@@ -67,6 +69,7 @@ for package in "${packages[@]}"; do
 done
 apt-get "${opts[@]}" --simulate install "${packages[@]}" >"$task_tmp/simulation.log" 2>&1 || {
   printf '{"STATUS":"FAIL","ISSUE":1451,"TARGET":"%s","FAILURE_STAGE":"APT_SIMULATION","REAL_PACKAGE_MUTATION":"NONE"}\n' "$target"
+  echo "AGENCY_1451_CONTROLLED_STOP=APT_SIMULATION" >&2
   exit 76
 }
 

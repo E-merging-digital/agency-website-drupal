@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
-use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Guards the independent PHP security maintenance plan.
@@ -35,13 +35,13 @@ final class PhpSecurity1451PlanWorkflowTest extends TestCase {
     $root = dirname(DRUPAL_ROOT);
     $listeners = [];
     foreach (glob($root . '/.github/workflows/*.{yml,yaml}', GLOB_BRACE) ?: [] as $file) {
-      $workflow = DrupalYaml::parseFile($file);
+      $workflow = Yaml::parseFile($file);
       if (isset($workflow['on']['issue_comment'])) {
         $listeners[] = str_replace($root . '/', '', $file);
       }
     }
     self::assertSame([self::DISPATCHER], $listeners);
-    $dispatcher = DrupalYaml::parseFile($root . '/' . self::DISPATCHER);
+    $dispatcher = Yaml::parseFile($root . '/' . self::DISPATCHER);
     $route = $dispatcher['jobs']['php-security-1451-plan'];
     self::assertSame('./' . self::WORKFLOW, $route['uses']);
     self::assertSame(['contents' => 'read', 'issues' => 'read'], $route['permissions']);
@@ -68,7 +68,7 @@ final class PhpSecurity1451PlanWorkflowTest extends TestCase {
    */
   public function testFreshMainAndSequentialReadOnlyHosts(): void {
     $root = dirname(DRUPAL_ROOT);
-    $config = DrupalYaml::parseFile($root . '/' . self::WORKFLOW);
+    $config = Yaml::parseFile($root . '/' . self::WORKFLOW);
     self::assertArrayHasKey('workflow_call', $config['on']);
     self::assertArrayNotHasKey('issue_comment', $config['on']);
     self::assertArrayNotHasKey('workflow_dispatch', $config['on']);

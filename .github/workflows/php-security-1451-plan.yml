@@ -199,6 +199,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/agency-1451
+          failure_stage=PROD_REMOTE_PLAN
+          trap 'rc=$?; printf "AGENCY_1451_PROD_PLAN_STOP=%s EXIT=%s\n" "$failure_stage" "$rc" >&2' ERR
           ssh -i "$RUNNER_TEMP/agency-1451-prod.key" \
             -o IdentitiesOnly=yes -o BatchMode=yes \
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
@@ -206,6 +208,7 @@ jobs:
             "bash -s -- '$MAIN_SHA' '$PLAN_ID' prod '$SERVER_USER'" \
             < scripts/maintenance-1451/remote-plan.sh \
             > artifacts/agency-1451/prod.json
+          failure_stage=PROD_RECEIPT_VALIDATION
           jq -e --arg main "$MAIN_SHA" --arg id "$PLAN_ID" --arg user "$SERVER_USER" '
             .STATUS == "PASS" and .ISSUE == 1451 and .TARGET == "PROD"
             and .EXPECTED_HOST == "emergingdigital"

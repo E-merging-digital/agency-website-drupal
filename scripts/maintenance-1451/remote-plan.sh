@@ -65,7 +65,7 @@ test "${#packages[@]}" -gt 0
 printf '%s\n' "${packages[@]}" | grep -Eq '^php8[.]5-fpm$'
 printf '%s\n' "${packages[@]}" | grep -Eq '^php8[.]4-fpm$'
 for package in "${packages[@]}"; do
-  [[ "$package" =~ ^php8[.][45]-[a-z0-9.+-]+$ ]]
+  [[ "$package" =~ ^php8[.][45](-[a-z0-9.+-]+)?$ ]]
 done
 
 stage=SIGNED_PHP_SOURCE_PROVENANCE

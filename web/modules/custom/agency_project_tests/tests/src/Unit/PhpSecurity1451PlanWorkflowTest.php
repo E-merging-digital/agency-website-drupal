@@ -8,19 +8,29 @@ use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
-/** @group agency_project_tests */
+/**
+ * Guards the independent PHP security maintenance plan.
+ *
+ * @group agency_project_tests
+ */
 final class PhpSecurity1451PlanWorkflowTest extends TestCase {
 
   private const DISPATCHER = '.github/workflows/agency-command-dispatch.yml';
   private const WORKFLOW = '.github/workflows/php-security-1451-plan.yml';
   private const PLAN = 'scripts/maintenance-1451/remote-plan.sh';
 
+  /**
+   * Reads a repository file without mutating it.
+   */
   private function source(string $path): string {
     $result = file_get_contents(dirname(DRUPAL_ROOT) . '/' . $path);
     self::assertIsString($result);
     return $result;
   }
 
+  /**
+   * Only the existing dispatcher may recognize a direct OWNER comment.
+   */
   public function testSingleDispatcherAndExactOwnerRoute(): void {
     $root = dirname(DRUPAL_ROOT);
     $listeners = [];
@@ -53,6 +63,9 @@ final class PhpSecurity1451PlanWorkflowTest extends TestCase {
     }
   }
 
+  /**
+   * Validates exact-main authority and PREPROD-first host ordering.
+   */
   public function testFreshMainAndSequentialReadOnlyHosts(): void {
     $root = dirname(DRUPAL_ROOT);
     $config = DrupalYaml::parseFile($root . '/' . self::WORKFLOW);
@@ -81,6 +94,9 @@ final class PhpSecurity1451PlanWorkflowTest extends TestCase {
     }
   }
 
+  /**
+   * Rejects package mutations and non-isolated APT simulation.
+   */
   public function testIsolatedSimulationNeverMutatesPackages(): void {
     $root = dirname(DRUPAL_ROOT);
     $script = $root . '/' . self::PLAN;

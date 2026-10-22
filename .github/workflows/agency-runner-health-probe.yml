@@ -42,6 +42,10 @@ jobs:
           EXPECTED_HOSTNAME: preflight-runner-01
           EXPECTED_USER: agency-runner
           EXPECTED_RUNNER_SERVICE: actions.runner.E-merging-digital-agency-website-drupal.agency-browser-runner-01.service
+          EXPECTED_UID: '1002'
+          EXPECTED_DOCKER_HOST: unix:///run/user/1002/docker.sock
+          EXPECTED_RUNTIME_DIR: /run/user/1002
+          EXPECTED_DOCKER_ROOT: /home/agency-runner/.local/share/docker
           DISK_WARNING_PCT: '85'
           DISK_CRITICAL_PCT: '92'
           MEMORY_WARNING_AVAILABLE_PCT: '10'
@@ -99,9 +103,38 @@ jobs:
           command -v docker >/dev/null || fail "docker CLI missing"
           command -v ddev >/dev/null || fail "DDEV CLI missing"
           command -v jq >/dev/null || fail "jq CLI missing"
+          command -v stat >/dev/null || fail "stat CLI missing"
+
+          [[ "$(id -u)" == "$EXPECTED_UID" ]] || fail "unexpected runner uid"
+          if id -nG | tr ' ' '\n' | grep -Fxq docker; then
+            fail "runner retains forbidden rootful docker group"
+          fi
+          [[ "${DOCKER_HOST:-}" == "$EXPECTED_DOCKER_HOST" ]] || fail "unexpected Docker endpoint"
+          [[ -z "${DOCKER_CONTEXT:-}" ]] || fail "Docker context override is forbidden"
+          [[ -d "$EXPECTED_RUNTIME_DIR" && ! -L "$EXPECTED_RUNTIME_DIR" ]] || fail "rootless runtime directory is missing or symlinked"
+          runtime_identity="$(stat -c '%u:%g:%a' -- "$EXPECTED_RUNTIME_DIR")"
+          [[ "$runtime_identity" == "1002:1002:700" ]] || fail "rootless runtime directory owner or mode is incorrect"
+          socket_path="${EXPECTED_DOCKER_HOST#unix://}"
+          [[ "$socket_path" == "$EXPECTED_RUNTIME_DIR/docker.sock" ]] || fail "unexpected rootless socket path"
+          [[ -S "$socket_path" && ! -L "$socket_path" ]] || fail "expected rootless Docker socket is missing or symlinked"
+          socket_uid="$(stat -c '%u' -- "$socket_path")"
+          [[ "$socket_uid" == "$EXPECTED_UID" ]] || fail "rootless Docker socket owner is incorrect"
+          socket_mode="$(stat -c '%a' -- "$socket_path")"
+          [[ "$socket_mode" =~ ^[0-7]{3,4}$ ]] || fail "rootless Docker socket mode is invalid"
+          (( (8#$socket_mode & 7) == 0 )) || fail "rootless Docker socket is world-accessible"
           docker_root="$(docker info --format '{{.DockerRootDir}}')"
           docker_driver="$(docker info --format '{{.Driver}}')"
           [[ -n "$docker_root" && -n "$docker_driver" ]] || fail "Docker daemon health unavailable"
+          [[ "$docker_root" == "$EXPECTED_DOCKER_ROOT" ]] || fail "Docker root is not the private Agency rootless data root"
+          pinned_docker_root="$(docker --host "$EXPECTED_DOCKER_HOST" info --format '{{.DockerRootDir}}')"
+          [[ "$pinned_docker_root" == "$docker_root" ]] || fail "effective Docker daemon differs from the pinned rootless socket"
+          docker_security_options="$(docker info --format '{{json .SecurityOptions}}')"
+          [[ -n "$docker_security_options" && "$docker_security_options" != "null" ]] || fail "Docker security options missing"
+          printf '%s\n' "$docker_security_options" | jq -e '
+            type == "array"
+            and index("name=rootless") != null
+            and index("name=cgroupns") != null
+          ' >/dev/null || fail "Docker rootless and cgroupns security options required"
           docker_storage="$(docker system df --format '{{.Type}}|{{.TotalCount}}|{{.Active}}|{{.Size}}|{{.Reclaimable}}')"
           [[ -n "$docker_storage" ]] || fail "Docker storage accounting unavailable"
           printf 'Docker storage summary:\n%s\n' "$docker_storage"
@@ -213,7 +246,7 @@ jobs:
             echo "- runner status: $runner_status"
             echo "- root filesystem: ${disk_used_pct}% used"
             echo "- memory available: ${memory_available_pct}%"
-            echo "- Docker root: $docker_root"
+            echo "- Docker rootless isolation: verified (private socket, data root, security options)"
             echo "- Docker driver: $docker_driver"
             echo
             echo "### Docker storage (read-only)"

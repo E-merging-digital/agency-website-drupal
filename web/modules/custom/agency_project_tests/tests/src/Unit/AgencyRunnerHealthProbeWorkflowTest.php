@@ -282,11 +282,14 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
     self::assertIsArray($step);
     self::assertSame('bash', $step['shell'] ?? NULL);
     $script = (string) ($step['run'] ?? '');
+    self::assertSame([
+      'EXPECTED_RUNNER' => 'agency-browser-runner-01',
+      'EXPECTED_HOST' => 'preflight-runner-01',
+      'EXPECTED_USER' => 'agency-runner',
+      'EXPECTED_UID' => '1002',
+      'R11_DIAGNOSTIC_ID' => 'agency1418-r11-ddev-20261024',
+    ], $step['env'] ?? NULL);
     foreach ([
-      'EXPECTED_RUNNER: agency-browser-runner-01',
-      'EXPECTED_HOST: preflight-runner-01',
-      "EXPECTED_USER: agency-runner",
-      "EXPECTED_UID: '1002'",
       '[[ "$(id -un)" == "$EXPECTED_USER" && "$(id -u)" == "$EXPECTED_UID" ]]',
       '[[ "$docker_security" == *rootless* ]]',
       'docker info --format',

@@ -235,6 +235,105 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
   }
 
   /**
+   * Keeps the R11 diagnostic opt-in, isolated, redacted and ownership-bounded.
+   */
+  public function testR11DiagnosticHasStaticIdentityAndDoesNotChangeHealthReceipts(): void {
+    $workflow = $this->parsed();
+    $trigger = $workflow['on']['workflow_dispatch']['inputs']['diagnostic'] ?? NULL;
+    self::assertIsArray($trigger);
+    self::assertSame('choice', $trigger['type'] ?? NULL);
+    self::assertSame('disabled', $trigger['default'] ?? NULL);
+    self::assertFalse($trigger['required'] ?? TRUE);
+    self::assertSame([
+      'disabled',
+      'agency1418-r11-ddev-20261024',
+    ], $trigger['options'] ?? NULL);
+
+    self::assertCount(2, $workflow['jobs'] ?? []);
+    $normal = $workflow['jobs']['probe'] ?? NULL;
+    self::assertIsArray($normal);
+    self::assertStringContainsString(
+      "inputs.diagnostic != 'agency1418-r11-ddev-20261024'",
+      (string) ($normal['if'] ?? ''),
+    );
+    self::assertCount(4, $normal['steps'] ?? []);
+
+    $diagnostic = $workflow['jobs']['diagnostic'] ?? NULL;
+    self::assertIsArray($diagnostic);
+    self::assertSame(
+      ['self-hosted', 'linux', 'x64', 'agency', 'ddev', 'browser'],
+      $diagnostic['runs-on'] ?? NULL,
+    );
+    self::assertSame(['contents' => 'read'], $diagnostic['permissions'] ?? NULL);
+    self::assertLessThanOrEqual(7, $diagnostic['timeout-minutes'] ?? 100);
+
+    $guard = (string) ($diagnostic['if'] ?? '');
+    foreach ([
+      "github.event_name == 'workflow_dispatch'",
+      "inputs.diagnostic == 'agency1418-r11-ddev-20261024'",
+      "github.ref == 'refs/heads/main'",
+      "github.actor == 'E-merging-digital'",
+    ] as $required) {
+      self::assertStringContainsString($required, $guard);
+    }
+
+    self::assertCount(1, $diagnostic['steps'] ?? []);
+    $step = $diagnostic['steps'][0] ?? NULL;
+    self::assertIsArray($step);
+    self::assertSame('bash', $step['shell'] ?? NULL);
+    $script = (string) ($step['run'] ?? '');
+    self::assertSame([
+      'EXPECTED_RUNNER' => 'agency-browser-runner-01',
+      'EXPECTED_HOST' => 'preflight-runner-01',
+      'EXPECTED_USER' => 'agency-runner',
+      'EXPECTED_UID' => '1002',
+      'R11_DIAGNOSTIC_ID' => 'agency1418-r11-ddev-20261024',
+    ], $step['env'] ?? NULL);
+    foreach ([
+      '[[ "$(id -un)" == "$EXPECTED_USER" && "$(id -u)" == "$EXPECTED_UID" ]]',
+      '[[ "$docker_security" == *rootless* ]]',
+      'docker info --format',
+      'ss -H -ltnp',
+      'for port in 18180 18543;',
+      'stop LISTENER_OWNERSHIP_UNVERIFIED',
+      'stop EXISTING_CONTAINERS',
+      'mktemp -d "$RUNNER_TEMP/agency-r11-ddev.',
+      'ddev config --project-name "$project"',
+      'timeout 150 ddev start',
+      'R11_FIRST_ERROR_CLASS=',
+      'chmod 600 "$log"',
+      'rm -f -- "$log"',
+      'grep -Eq "^name:',
+      'ddev stop --yes',
+      'stop OWNED_CONTAINER_REMAINS',
+      'R11_DDEV_START=$result',
+    ] as $required) {
+      self::assertStringContainsString($required, $script);
+    }
+    foreach ([
+      'sudo ',
+      'su ',
+      'ssh ',
+      '/var/run/docker.sock -v',
+      'ddev poweroff',
+      'docker prune',
+      'docker system prune',
+      'docker rm ',
+      'docker kill ',
+      'systemctl restart ',
+      'composer ',
+      'drush ',
+      'mysql ',
+      'mariadb ',
+      'site:install',
+      'curl ',
+      'wget ',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $script);
+    }
+  }
+
+  /**
    * Returns only the normalized receipt-construction block.
    */
   private function receiptBlock(): string {

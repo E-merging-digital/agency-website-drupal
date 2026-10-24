@@ -212,6 +212,14 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
   test('real home hero is readable and opt-in Kinetic is perceptible', async ({
     page, browser, audit,
   }, testInfo) => {
+    // The separate PREPROD analytics workflow runs this blog spec against
+    // the currently deployed site, not this PR's DDEV candidate.
+    // Keep that baseline test unchanged; scope Kinetic to candidate proof.
+    test.skip(
+      (process.env.BROWSER_VALIDATION_BASE_URL ?? '').replace(/\\/+$/, '')
+        === 'https://preprod.emergingdigital.be',
+      'Kinetic candidate is verified on the exact PR checkout, not current PREPROD',
+    );
     test.setTimeout(110_000);
     const surfaces = [
       {

@@ -208,18 +208,13 @@ test.describe('Browser validation capability proof', () => {
  * browser lane. Its trusted main workflow executes this exact spec.
  * No change to .github/, Playwright config, runner or control surface.
  */
+// Do not register the candidate-only test when the unrelated PREPROD
+// analytics workflow points this shared spec at the currently deployed site.
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
 test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
   test('real home hero is readable and opt-in Kinetic is perceptible', async ({
     page, browser, audit,
   }, testInfo) => {
-    // The separate PREPROD analytics workflow runs this blog spec against
-    // the currently deployed site, not this PR's DDEV candidate.
-    // Keep that baseline test unchanged; scope Kinetic to candidate proof.
-    test.skip(
-      (process.env.BROWSER_VALIDATION_BASE_URL ?? '')
-        === 'https://preprod.emergingdigital.be',
-      'Kinetic candidate is verified on the exact PR checkout, not current PREPROD',
-    );
     test.setTimeout(110_000);
     const surfaces = [
       {
@@ -359,3 +354,4 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
     audit.screenshot = `screenshots/home-1418-en-${testInfo.project.name}-kinetic.png`;
   });
 });
+}

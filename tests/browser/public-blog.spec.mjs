@@ -216,7 +216,7 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
     // the currently deployed site, not this PR's DDEV candidate.
     // Keep that baseline test unchanged; scope Kinetic to candidate proof.
     test.skip(
-      (process.env.BROWSER_VALIDATION_BASE_URL ?? '').replace(/\\/+$/, '')
+      (process.env.BROWSER_VALIDATION_BASE_URL ?? '')
         === 'https://preprod.emergingdigital.be',
       'Kinetic candidate is verified on the exact PR checkout, not current PREPROD',
     );

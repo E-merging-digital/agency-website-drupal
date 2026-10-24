@@ -326,7 +326,7 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
     const staticContext = await browser.newContext({ javaScriptEnabled: false });
     try {
       const staticPage = await staticContext.newPage();
-      const response = await staticPage.goto('/fr', { waitUntil: 'domcontentloaded' });
+      const response = await staticPage.goto(new URL('/fr', page.url()).toString(), { waitUntil: 'domcontentloaded' });
       expect(response).not.toBeNull();
       expect(response.status()).toBeLessThan(400);
       await expect(staticPage.locator('h1')).toHaveCount(1);

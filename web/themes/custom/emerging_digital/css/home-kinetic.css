@@ -115,6 +115,7 @@
   font: 700 .92rem var(--font-body);
   cursor: pointer;
 }
+.ed-home-kinetic__button[hidden] { display: none; }
 .ed-home-kinetic__button:hover { background: rgb(255 255 255 / 25%); }
 .ed-home-kinetic__button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .ed-home-kinetic__status { margin: 0; color: #e4edf7; font-size: .875rem; }

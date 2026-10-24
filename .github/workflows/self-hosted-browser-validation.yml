@@ -129,6 +129,27 @@ jobs:
               exit 1
             }
           fi
+
+          if [[ "$PR_NUMBER" == "1458" ]]; then
+            # Exact #1418 R9 reviewed source boundary. Retain the normal
+            # same-repository, OPEN/main, exact-live-SHA and unsafe-path gates.
+            test "$(jq -r '.head.ref' <<<"$pr_json")" = "feature/1418-home-bplus-kinetic" || {
+              echo "B+ Kinetic #1458 must use its reviewed source branch." >&2
+              exit 1
+            }
+            expected_files="$(printf '%s\n' \
+              'tests/browser/public-blog.spec.mjs' \
+              'web/themes/custom/emerging_digital/css/home-kinetic.css' \
+              'web/themes/custom/emerging_digital/emerging_digital.libraries.yml' \
+              'web/themes/custom/emerging_digital/js/home-kinetic.js' \
+              'web/themes/custom/emerging_digital/templates/layout/page--front.html.twig'
+            )"
+            changed_files="$(printf '%s\n' "$changed_files" | LC_ALL=C sort)"
+            test "$changed_files" = "$expected_files" || {
+              echo "B+ Kinetic #1458 must change exactly its five reviewed files." >&2
+              exit 1
+            }
+          fi
           echo "head_sha=$REQUESTED_HEAD_SHA" >> "$GITHUB_OUTPUT"
 
   report-start:
@@ -212,7 +233,7 @@ jobs:
           test -f tests/browser/contracts/public-blog.json
           test -f tests/browser/public-blog.spec.mjs
           test -f scripts/runner/prove-governed-content-cli-facade.sh
-          test "$(git hash-object scripts/runner/verify-browser-config-canonical-canvas-1420.sh)" = "b9c9e45cef17d9d3d9f5964a1f0165542dfb1fad"
+          test "$(git hash-object scripts/runner/verify-browser-config-canonical-canvas-1420.sh)" = "9efa3828e99f8e319a55ed968b0dbfda3e08606c"
 
           if [[ -f package-lock.json ]]; then
             echo "lockfile_present=true" >> "$GITHUB_OUTPUT"

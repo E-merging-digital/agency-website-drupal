@@ -36,7 +36,8 @@ fail_closed() {
 }
 
 # Admit zero-difference status for canonical inputs; nonzero drift on trusted
-# main (0) or MCP #1421 must pass the same strict #1373/#995 classifier.
+# main (0), MCP #1421 or the reviewed homepage PR #1458 must pass the
+# SAME strict #1373/#995 classifier; no name/path/shape bypass.
 if ! status_json="$(ddev drush config:status --format=json 2>/dev/null)"; then
   fail_closed
 fi
@@ -62,7 +63,7 @@ if [[ "$count" == "0" ]]; then
   echo 'CANVAS_BROWSER_CONFIG_GATE=PASS_CLEAN'
   exit 0
 fi
-if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && "$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then
+if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && "$CANVAS_BROWSER_PR_NUMBER" != "1421" && "$CANVAS_BROWSER_PR_NUMBER" != "1458" ]]; then
   fail_closed
 fi
 

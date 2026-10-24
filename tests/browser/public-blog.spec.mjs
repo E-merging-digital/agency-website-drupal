@@ -202,3 +202,152 @@ test.describe('Browser validation capability proof', () => {
     ).toEqual([]);
   });
 });
+
+/*
+ * Agency #1418 R8: homepage proof on the existing trusted public-blog
+ * browser lane. Its trusted main workflow executes this exact spec.
+ * No change to .github/, Playwright config, runner or control surface.
+ */
+test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
+  test('real home hero is readable and opt-in Kinetic is perceptible', async ({
+    page, browser, audit,
+  }, testInfo) => {
+    test.setTimeout(110_000);
+    const surfaces = [
+      {
+        lang: 'fr', path: '/fr', primary: 'Parler de mon projet',
+        secondary: 'Voir les expertises', firstWord: 'CRÉER',
+        play: 'Voir la présentation', pause: 'Pause', resume: 'Reprendre',
+        stop: 'Arrêter', replay: 'Revoir', reduced: 'Animation réduite',
+      },
+      {
+        lang: 'en', path: '/en', primary: 'Discuss my project',
+        secondary: 'Explore our expertise', firstWord: 'CREATE',
+        play: 'Watch the presentation', pause: 'Pause', resume: 'Resume',
+        stop: 'Stop', replay: 'Replay', reduced: 'Motion is reduced',
+      },
+    ];
+
+    for (const surface of surfaces) {
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+      expect(response).not.toBeNull();
+      expect(response.status()).toBeLessThan(400);
+      const hero = page.locator('.page-main--front .ed-section--hero-home');
+      await expect(hero).toBeVisible();
+      const h1 = hero.locator('h1');
+      await expect(h1).toHaveCount(1);
+      await expect(h1).toBeVisible();
+      await expect(page.locator('h1')).toHaveCount(1);
+      await expect(page.locator('html')).toHaveAttribute('lang', surface.lang);
+      const primary = page.getByRole('link', { name: surface.primary, exact: true }).first();
+      const secondary = page.getByRole('link', { name: surface.secondary, exact: true }).first();
+      await expect(primary).toBeVisible();
+      await expect(secondary).toBeVisible();
+      expect(new URL(await primary.getAttribute('href'), page.url()).pathname)
+        .toBe(`/${surface.lang}/contact`);
+      expect(new URL(await secondary.getAttribute('href'), page.url()).pathname)
+        .toBe(`/${surface.lang}/services`);
+      await expect(page.getByText(
+        surface.lang === 'fr'
+          ? /secteur public|organisations exigeantes/i
+          : /public sector|demanding organisations/i,
+      ).first()).toBeVisible();
+
+      const visual = hero.locator('.ed-home-kinetic__visual');
+      const media = visual.locator('img').first();
+      await expect(media).toBeVisible();
+      expect(await media.evaluate(el => el.complete && el.naturalWidth > 0)).toBe(true);
+      await expect(visual).toHaveAttribute('data-kinetic-static', 'true');
+      const play = hero.getByRole('button', { name: surface.play });
+      await expect(play).toBeVisible();
+      await expect(hero.getByRole('button', { name: surface.replay })).toBeHidden();
+      await expect(hero.getByRole('button', { name: surface.stop })).toBeHidden();
+      const progress = hero.locator('.ed-home-kinetic__progress');
+      expect(await progress.evaluate(el => el.value)).toBe(0);
+      const metrics = await page.evaluate(() => ({
+        width: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+      }));
+      expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.width + 1);
+
+      const dir = path.resolve('artifacts/browser-validation/screenshots');
+      await mkdir(dir, { recursive: true });
+      const staticShot = path.join(dir, `home-1418-${surface.lang}-${testInfo.project.name}-static.png`);
+      await page.screenshot({ path: staticShot, fullPage: true });
+      await testInfo.attach(`home-${surface.lang}-static`, { path: staticShot, contentType: 'image/png' });
+
+      // Keyboard starts the same voluntary demo; no autoplay.
+      await play.focus();
+      await page.keyboard.press('Enter');
+      await expect(visual).toHaveAttribute('data-kinetic-static', 'false');
+      await expect.poll(() => progress.evaluate(el => el.value), { timeout: 5_000 })
+        .toBeGreaterThan(200);
+      const word = visual.getByText(surface.firstWord, { exact: true });
+      await expect.poll(() => word.evaluate(el => Number(getComputedStyle(el).opacity)),
+        { timeout: 6_000 }).toBeGreaterThan(0.35);
+      const playingShot = path.join(dir, `home-1418-${surface.lang}-${testInfo.project.name}-kinetic.png`);
+      await page.screenshot({ path: playingShot, fullPage: true });
+      await testInfo.attach(`home-${surface.lang}-kinetic`, {
+        path: playingShot, contentType: 'image/png',
+      });
+      await hero.getByRole('button', { name: surface.pause }).click();
+      const pausedAt = await progress.evaluate(el => el.value);
+      await page.waitForTimeout(260);
+      expect(await progress.evaluate(el => el.value)).toBe(pausedAt);
+      await hero.getByRole('button', { name: surface.resume }).click();
+      await expect.poll(() => progress.evaluate(el => el.value))
+        .toBeGreaterThan(pausedAt);
+      await hero.getByRole('button', { name: surface.stop }).click();
+      expect(await progress.evaluate(el => el.value)).toBe(0);
+      await expect(visual).toHaveAttribute('data-kinetic-static', 'true');
+      await expect(hero.getByRole('button', { name: surface.play })).toBeVisible();
+
+      // Finish really animating; timer must not jump instantly to 12s.
+      await hero.getByRole('button', { name: surface.play }).click();
+      await expect.poll(() => progress.evaluate(el => el.value), { timeout: 18_000 })
+        .toBe(12_000);
+      await expect(hero.getByRole('button', { name: surface.replay })).toBeVisible();
+      await hero.getByRole('button', { name: surface.replay }).click();
+      await expect.poll(() => progress.evaluate(el => el.value)).toBeGreaterThan(0);
+      await hero.getByRole('button', { name: surface.stop }).click();
+
+      // A reduced-motion user can still read the static hero.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await hero.getByRole('button', { name: surface.play }).click();
+      expect(await progress.evaluate(el => el.value)).toBe(0);
+      await expect(visual).toHaveAttribute('data-kinetic-static', 'true');
+      await expect(hero.getByText(new RegExp(surface.reduced))).toBeVisible();
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+    }
+
+    // A fresh real browser context with JavaScript disabled must retain
+    // meaningful H1 and contact CTA without using the Kinetic behavior.
+    const staticContext = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      const staticPage = await staticContext.newPage();
+      const response = await staticPage.goto('/fr', { waitUntil: 'domcontentloaded' });
+      expect(response).not.toBeNull();
+      expect(response.status()).toBeLessThan(400);
+      await expect(staticPage.locator('h1')).toHaveCount(1);
+      await expect(staticPage.locator('h1')).toBeVisible();
+      await expect(staticPage.getByRole('link', { name: 'Parler de mon projet' }).first())
+        .toBeVisible();
+    }
+    finally {
+      await staticContext.close();
+    }
+
+    expect(audit.consoleErrors).toEqual([]);
+    expect(audit.pageErrors).toEqual([]);
+    expect(audit.http5xx).toEqual([]);
+    expect(audit.unexpectedHttp4xx).toEqual([]);
+    expect(audit.failedRequests).toEqual([]);
+    audit.checks.functional = 'PASS';
+    audit.checks.dom = 'PASS';
+    audit.checks.visual = 'PASS';
+    audit.checks.console = 'PASS';
+    audit.checks.network = 'PASS';
+    audit.screenshot = `screenshots/home-1418-en-${testInfo.project.name}-kinetic.png`;
+  });
+});

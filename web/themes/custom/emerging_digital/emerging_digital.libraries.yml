@@ -16,3 +16,14 @@ global-styling:
         defer: true
   dependencies:
     - core/drupal
+
+home-kinetic:
+  css:
+    theme:
+      css/home-kinetic.css: {}
+  js:
+    js/home-kinetic.js:
+      attributes:
+        defer: true
+  dependencies:
+    - core/drupal

@@ -235,9 +235,9 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
   }
 
   /**
-   * Keeps the R11 diagnostic opt-in, isolated, redacted and ownership-bounded.
+   * Keeps the R12 diagnostic opt-in, isolated, redacted and ownership-bounded.
    */
-  public function testR11DiagnosticHasStaticIdentityAndDoesNotChangeHealthReceipts(): void {
+  public function testR12DiagnosticHasStaticIdentityAndDoesNotChangeHealthReceipts(): void {
     $workflow = $this->parsed();
     $trigger = $workflow['on']['workflow_dispatch']['inputs']['diagnostic'] ?? NULL;
     self::assertIsArray($trigger);
@@ -246,14 +246,14 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
     self::assertFalse($trigger['required'] ?? TRUE);
     self::assertSame([
       'disabled',
-      'agency1418-r11-ddev-20261024',
+      'agency1418-r12-ownerproof-20261024',
     ], $trigger['options'] ?? NULL);
 
     self::assertCount(2, $workflow['jobs'] ?? []);
     $normal = $workflow['jobs']['probe'] ?? NULL;
     self::assertIsArray($normal);
     self::assertStringContainsString(
-      "inputs.diagnostic != 'agency1418-r11-ddev-20261024'",
+      "inputs.diagnostic != 'agency1418-r12-ownerproof-20261024'",
       (string) ($normal['if'] ?? ''),
     );
     self::assertCount(4, $normal['steps'] ?? []);
@@ -270,7 +270,7 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
     $guard = (string) ($diagnostic['if'] ?? '');
     foreach ([
       "github.event_name == 'workflow_dispatch'",
-      "inputs.diagnostic == 'agency1418-r11-ddev-20261024'",
+      "inputs.diagnostic == 'agency1418-r12-ownerproof-20261024'",
       "github.ref == 'refs/heads/main'",
       "github.actor == 'E-merging-digital'",
     ] as $required) {
@@ -287,29 +287,51 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
       'EXPECTED_HOST' => 'preflight-runner-01',
       'EXPECTED_USER' => 'agency-runner',
       'EXPECTED_UID' => '1002',
-      'R11_DIAGNOSTIC_ID' => 'agency1418-r11-ddev-20261024',
+      'R12_DIAGNOSTIC_ID' => 'agency1418-r12-ownerproof-20261024',
     ], $step['env'] ?? NULL);
     foreach ([
       '[[ "$(id -un)" == "$EXPECTED_USER" && "$(id -u)" == "$EXPECTED_UID" ]]',
-      '[[ "$docker_security" == *rootless* ]]',
+      'docker_endpoint="${DOCKER_HOST:-}"',
+      "'unix:///run/user/1002/docker.sock'",
+      "'/home/agency-runner/.local/share/docker'",
+      '[[ "$docker_security" == *rootless* && "$docker_security" == *cgroupns* ]]',
       'docker info --format',
       'ss -H -ltnp',
       'for port in 18180 18543;',
-      'stop LISTENER_OWNERSHIP_UNVERIFIED',
+      'ddev list -j',
+      'busy=no',
+      'ownership=UNVERIFIED',
+      'ownership=PROVEN_FOREIGN',
+      'ownership=PROVEN_OWNED',
+      'docker inspect --format',
+      'OWNER=$ownership',
+      '[[ "$busy" == no ]] || stop LISTENER_OCCUPIED',
+      'tee -a "$GITHUB_STEP_SUMMARY"',
       'stop EXISTING_CONTAINERS',
-      'mktemp -d "$RUNNER_TEMP/agency-r11-ddev.',
+      'mktemp -d "$RUNNER_TEMP/agency-r12-ddev.',
       'ddev config --project-name "$project"',
       'timeout 150 ddev start',
-      'R11_FIRST_ERROR_CLASS=',
+      'R12_FIRST_ERROR_CLASS=',
       'chmod 600 "$log"',
       'rm -f -- "$log"',
       'grep -Eq "^name:',
       'ddev stop --yes',
       'stop OWNED_CONTAINER_REMAINS',
-      'R11_DDEV_START=$result',
+      'R12_DDEV_START=$result',
     ] as $required) {
       self::assertStringContainsString($required, $script);
     }
+
+    // The first occupied port must not skip observation of the second port.
+    self::assertLessThan(
+      strpos($script, '[[ "$busy" == no ]] || stop LISTENER_OCCUPIED'),
+      strpos($script, 'for port in 18180 18543;'),
+    );
+    self::assertStringContainsString('R12_PORT_$port=FREE', $script);
+    self::assertStringContainsString('R12_PORT_$port=LISTENING / OWNER=$ownership / NO_STOP', $script);
+    self::assertStringNotContainsString('stop LISTENER_OWNERSHIP_UNVERIFIED', $script);
+    self::assertStringNotContainsString('echo "$ports"', $script);
+    self::assertStringNotContainsString('docker ps --format "{{.Names}}"', $script);
     foreach ([
       'sudo ',
       'su ',

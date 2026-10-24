@@ -80,8 +80,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       'test -f tests/browser/public-blog.spec.mjs',
       $workflow,
     );
-    // The historical Blog route remains the default, while #1421 alone may
-    // select the MCP contract after the trusted exact-head guards.
+    // Blog remains default: only #1421 selects the MCP contract.
+    // #1458 uses the default lane with scoped homepage assertions.
     $canonicalGate = strpos(
       $workflow,
       'if [[ ! "$PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]; then',
@@ -125,9 +125,28 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertSame(
-      2,
+      3,
       substr_count($workflow, 'test "$changed_files" = "$expected_files"'),
     );
+    // #1458 may reach this classifier only with its reviewed branch and
+    // exact five-file candidate. The original fork/exact SHA checks remain.
+    self::assertStringContainsString(
+      'if [[ "$PR_NUMBER" == "1458" ]]; then',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '"feature/1418-home-bplus-kinetic"',
+      $workflow,
+    );
+    foreach ([
+      'tests/browser/public-blog.spec.mjs',
+      'web/themes/custom/emerging_digital/css/home-kinetic.css',
+      'web/themes/custom/emerging_digital/emerging_digital.libraries.yml',
+      'web/themes/custom/emerging_digital/js/home-kinetic.js',
+      'web/themes/custom/emerging_digital/templates/layout/page--front.html.twig',
+    ] as $reviewedFile) {
+      self::assertStringContainsString("'" . $reviewedFile . "'", $workflow);
+    }
     self::assertStringContainsString(
       'git merge-base --is-ancestor "$trusted_main" HEAD',
       $workflow,
@@ -551,7 +570,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     self::assertStringContainsString('[[ "$count" == "0" ]]', $helper);
     self::assertStringContainsString(
       'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && ' .
-        '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+        '"$CANVAS_BROWSER_PR_NUMBER" != "1421" && ' .
+        '"$CANVAS_BROWSER_PR_NUMBER" != "1458" ]]; then',
       $helper,
     );
     self::assertStringContainsString('fail_closed', $helper);
@@ -616,7 +636,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     $restricted = strpos(
       $helper,
       'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && '
-        . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+        . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" && '
+        . '"$CANVAS_BROWSER_PR_NUMBER" != "1458" ]]; then',
     );
     self::assertIsInt($clean);
     self::assertIsInt($restricted);
@@ -626,14 +647,15 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $helper,
     );
 
-    // Only canonical main 0 or exact MCP 1421 reaches the strict nonzero gate.
-    // Every other canonical PR number still fails closed on any drift.
+    // Only canonical main 0, exact MCP 1421 and reviewed Kinetic 1458
+    // reach the existing strict nonzero gate; other PRs fail closed.
     self::assertSame(
       1,
       substr_count(
         $helper,
         'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && '
-          . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+          . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" && '
+          . '"$CANVAS_BROWSER_PR_NUMBER" != "1458" ]]; then',
       ),
     );
     self::assertStringContainsString(
@@ -702,7 +724,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $dataset[$name] = ['active' => $active, 'sync' => $base];
     }
 
-    // Trusted main (0) and MCP #1421 both use this exact same 19/19 gate.
+    // Main 0, MCP #1421 and Kinetic #1458 share the exact 19/19 gate.
     // @phpstan-ignore-next-line
     $known = \agency_canvas_1373_analyze_dataset($metadata, $dataset);
     self::assertSame(['total' => 19, 'known' => 19, 'unexpected' => 0],

@@ -235,9 +235,9 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
   }
 
   /**
-   * Keeps the R12 diagnostic opt-in, isolated, redacted and ownership-bounded.
+   * Protects the single R13 read-only inventory and retires R12 execution.
    */
-  public function testR12DiagnosticHasStaticIdentityAndDoesNotChangeHealthReceipts(): void {
+  public function testR13RouterInventoryIsStaticBoundedAndReadOnly(): void {
     $workflow = $this->parsed();
     $trigger = $workflow['on']['workflow_dispatch']['inputs']['diagnostic'] ?? NULL;
     self::assertIsArray($trigger);
@@ -246,110 +246,86 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
     self::assertFalse($trigger['required'] ?? TRUE);
     self::assertSame([
       'disabled',
-      'agency1418-r12-ownerproof-20261024',
+      'agency1418-router-inventory-20261025',
     ], $trigger['options'] ?? NULL);
 
     self::assertCount(2, $workflow['jobs'] ?? []);
+    self::assertArrayNotHasKey('diagnostic', $workflow['jobs']);
     $normal = $workflow['jobs']['probe'] ?? NULL;
     self::assertIsArray($normal);
     self::assertStringContainsString(
-      "inputs.diagnostic != 'agency1418-r12-ownerproof-20261024'",
+      "github.event_name != 'workflow_dispatch' || inputs.diagnostic == 'disabled'",
       (string) ($normal['if'] ?? ''),
     );
     self::assertCount(4, $normal['steps'] ?? []);
 
-    $diagnostic = $workflow['jobs']['diagnostic'] ?? NULL;
-    self::assertIsArray($diagnostic);
+    $inventory = $workflow['jobs']['inventory'] ?? NULL;
+    self::assertIsArray($inventory);
     self::assertSame(
       ['self-hosted', 'linux', 'x64', 'agency', 'ddev', 'browser'],
-      $diagnostic['runs-on'] ?? NULL,
+      $inventory['runs-on'] ?? NULL,
     );
-    self::assertSame(['contents' => 'read'], $diagnostic['permissions'] ?? NULL);
-    self::assertLessThanOrEqual(7, $diagnostic['timeout-minutes'] ?? 100);
-
-    $guard = (string) ($diagnostic['if'] ?? '');
+    self::assertSame(['contents' => 'read'], $inventory['permissions'] ?? NULL);
+    self::assertLessThanOrEqual(7, $inventory['timeout-minutes'] ?? 100);
+    $guard = (string) ($inventory['if'] ?? '');
     foreach ([
       "github.event_name == 'workflow_dispatch'",
-      "inputs.diagnostic == 'agency1418-r12-ownerproof-20261024'",
+      "inputs.diagnostic == 'agency1418-router-inventory-20261025'",
       "github.ref == 'refs/heads/main'",
       "github.actor == 'E-merging-digital'",
     ] as $required) {
       self::assertStringContainsString($required, $guard);
     }
 
-    self::assertCount(1, $diagnostic['steps'] ?? []);
-    $step = $diagnostic['steps'][0] ?? NULL;
+    self::assertCount(1, $inventory['steps'] ?? []);
+    $step = $inventory['steps'][0] ?? NULL;
     self::assertIsArray($step);
     self::assertSame('bash', $step['shell'] ?? NULL);
-    $script = (string) ($step['run'] ?? '');
     self::assertSame([
       'EXPECTED_RUNNER' => 'agency-browser-runner-01',
       'EXPECTED_HOST' => 'preflight-runner-01',
       'EXPECTED_USER' => 'agency-runner',
       'EXPECTED_UID' => '1002',
-      'R12_DIAGNOSTIC_ID' => 'agency1418-r12-ownerproof-20261024',
     ], $step['env'] ?? NULL);
+    $script = (string) ($step['run'] ?? '');
+
     foreach ([
+      '[[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER" ]]',
       '[[ "$(id -un)" == "$EXPECTED_USER" && "$(id -u)" == "$EXPECTED_UID" ]]',
-      'docker_endpoint="${DOCKER_HOST:-}"',
-      "'unix:///run/user/1002/docker.sock'",
-      "'/home/agency-runner/.local/share/docker'",
-      '[[ "$docker_security" == *rootless* && "$docker_security" == *cgroupns* ]]',
+      'unix:///run/user/1002/docker.sock',
+      '/home/agency-runner/.local/share/docker',
       'docker info --format',
-      'ss -H -ltnp',
+      '*rootless*',
+      '*cgroupns*',
       'for port in 18180 18543;',
-      'ddev list -j',
-      'busy=no',
-      'ownership=UNVERIFIED',
-      'ownership=PROVEN_FOREIGN',
-      'ownership=PROVEN_OWNED',
+      'docker ps --format',
       'docker inspect --format',
-      'OWNER=$ownership',
-      '[[ "$busy" == no ]] || stop LISTENER_OCCUPIED',
+      'select(.HostPort? == $port)',
+      ".[\"com.docker.compose.project\"]",
+      'ddev list -j',
+      'R13_PORT_$port=',
+      'R13_POTENTIAL_CONSUMER_',
+      'R13_RESULT=UNKNOWN',
+      'R13_RESULT=OBSERVED',
       'tee -a "$GITHUB_STEP_SUMMARY"',
-      'stop EXISTING_CONTAINERS',
-      'mktemp -d "$RUNNER_TEMP/agency-r12-ddev.',
-      'ddev config --project-name "$project"',
-      'timeout 150 ddev start',
-      'R12_FIRST_ERROR_CLASS=',
-      'chmod 600 "$log"',
-      'rm -f -- "$log"',
-      'grep -Eq "^name:',
-      'ddev stop --yes',
-      'stop OWNED_CONTAINER_REMAINS',
-      'R12_DDEV_START=$result',
     ] as $required) {
       self::assertStringContainsString($required, $script);
     }
 
-    // The first occupied port must not skip observation of the second port.
+    // Port candidates are selected before inspect, never inventory all configs.
     self::assertLessThan(
-      strpos($script, '[[ "$busy" == no ]] || stop LISTENER_OCCUPIED'),
-      strpos($script, 'for port in 18180 18543;'),
+      strpos($script, 'docker inspect --format'),
+      strpos($script, '[[ "$published" == *"$needle"* ]] || continue'),
     );
-    self::assertStringContainsString('R12_PORT_$port=FREE', $script);
-    self::assertStringContainsString('R12_PORT_$port=LISTENING / OWNER=$ownership / NO_STOP', $script);
-    self::assertStringNotContainsString('stop LISTENER_OWNERSHIP_UNVERIFIED', $script);
-    self::assertStringNotContainsString('echo "$ports"', $script);
-    self::assertStringNotContainsString('docker ps --format "{{.Names}}"', $script);
+    self::assertStringNotContainsString('agency1418-r12-ownerproof-20261024', $this->source());
+
     foreach ([
-      'sudo ',
-      'su ',
-      'ssh ',
-      '/var/run/docker.sock -v',
-      'ddev poweroff',
-      'docker prune',
-      'docker system prune',
-      'docker rm ',
-      'docker kill ',
-      'systemctl restart ',
-      'composer ',
-      'drush ',
-      'mysql ',
-      'mariadb ',
-      'site:install',
-      'curl ',
-      'wget ',
+      'sudo ', 'su ', 'ssh ', 'scp ', 'systemctl ', 'docker stop',
+      'docker restart', 'docker rm ', 'docker kill ', 'docker prune',
+      'ddev start', 'ddev stop', 'ddev restart', 'ddev poweroff',
+      'ddev delete', 'composer ', 'drush ', 'mysql ', 'mariadb ',
+      'curl ', 'wget ', 'env |', 'printenv ', 'docker logs',
+      'docker exec', 'cat /', 'find /', 'ps aux',
     ] as $forbidden) {
       self::assertStringNotContainsString($forbidden, $script);
     }

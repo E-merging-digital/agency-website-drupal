@@ -9,13 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       diagnostic:
-        description: 'One-shot bounded rootless DDEV diagnosis; not scheduled'
+        description: 'One-shot read-only Agency DDEV router inventory; not scheduled'
         required: false
         type: choice
         default: disabled
         options:
           - disabled
-          - agency1418-r12-ownerproof-20261024
+          - agency1418-router-inventory-20261025
 
 permissions:
   contents: read
@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   probe:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.diagnostic != 'agency1418-r12-ownerproof-20261024' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.diagnostic == 'disabled' }}
     name: Probe Agency runner health
     runs-on:
       - self-hosted
@@ -252,9 +252,10 @@ jobs:
           path: ${{ runner.temp }}/agency-runner-health-state/agency-runner-health.json
           if-no-files-found: error
  
-  diagnostic:
-    name: One-shot Agency R12 rootless DDEV diagnosis
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic == 'agency1418-r12-ownerproof-20261024' && github.ref == 'refs/heads/main' && github.actor == 'E-merging-digital' }}
+
+  inventory:
+    name: One-shot Agency R13 DDEV router inventory (read-only)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic == 'agency1418-router-inventory-20261025' && github.ref == 'refs/heads/main' && github.actor == 'E-merging-digital' }}
     runs-on:
       - self-hosted
       - linux
@@ -266,141 +267,108 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check read-only runtime, ownership, and port listeners; reproduce once only if isolated
+      - name: Inventory only the Agency private rootless mappings for 18180 and 18543
         shell: bash
         env:
           EXPECTED_RUNNER: agency-browser-runner-01
           EXPECTED_HOST: preflight-runner-01
           EXPECTED_USER: agency-runner
           EXPECTED_UID: '1002'
-          R12_DIAGNOSTIC_ID: agency1418-r12-ownerproof-20261024
         run: |
           set -euo pipefail
-          umask 077
           report() { printf '%s\n' "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
-          stop() { report "R12_RESULT=CONTROLLED_STOP_$1"; exit 1; }
-          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER" ]] || stop RUNNER_NAME
+          stop() { report "R13_RESULT=CONTROLLED_STOP_$1"; exit 1; }
+
+          [[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER" ]] || stop RUNNER_IDENTITY
           [[ "$(hostname -s)" == "$EXPECTED_HOST" ]] || stop HOST_IDENTITY
           [[ "$(id -un)" == "$EXPECTED_USER" && "$(id -u)" == "$EXPECTED_UID" ]] || stop USER_IDENTITY
-          [[ "$GITHUB_REF" == 'refs/heads/main' ]] || stop REF_NOT_MAIN
-          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]] || stop UNEXPECTED_ACTOR
-          # Resolve the effective Docker endpoint before any container or port probe.
+          [[ "$GITHUB_REF" == 'refs/heads/main' && "$GITHUB_ACTOR" == 'E-merging-digital' ]] || stop WORKFLOW_IDENTITY
           [[ "${DOCKER_HOST:-}" != *'/var/run/docker.sock'* ]] || stop ROOTFUL_SOCKET
-          command -v docker >/dev/null && command -v ddev >/dev/null || stop TOOL_MISSING
-          command -v ss >/dev/null || stop SS_MISSING
           [[ "${XDG_RUNTIME_DIR:-/run/user/1002}" == '/run/user/1002' ]] || stop RUNTIME_DIR
-          docker_context="$(docker context show 2>/dev/null)" || stop DOCKER_CONTEXT_UNAVAILABLE
-          [[ "$docker_context" =~ ^[a-zA-Z0-9_.-]{1,64}$ ]] || stop UNBOUNDED_CONTEXT
+          command -v docker >/dev/null && command -v ddev >/dev/null && command -v jq >/dev/null || stop TOOL_MISSING
+          docker_context="$(docker context show 2>/dev/null)" || stop DOCKER_CONTEXT
+          [[ "$docker_context" =~ ^[a-zA-Z0-9_.-]{1,64}$ ]] || stop CONTEXT_IDENTITY
           docker_endpoint="${DOCKER_HOST:-}"
           if [[ -z "$docker_endpoint" ]]; then
-            docker_endpoint="$(docker context inspect "$docker_context" --format '{{.Endpoints.docker.Host}}' 2>/dev/null)" || stop DOCKER_ENDPOINT_UNAVAILABLE
+            docker_endpoint="$(docker context inspect "$docker_context" --format '{{.Endpoints.docker.Host}}' 2>/dev/null)" || stop DOCKER_ENDPOINT
           fi
-          [[ "$docker_endpoint" == 'unix:///run/user/1002/docker.sock' ]] || stop UNEXPECTED_DOCKER_ENDPOINT
-          docker_root="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)" || stop DOCKER_UNAVAILABLE
-          [[ "$docker_root" == '/home/agency-runner/.local/share/docker' ]] || stop UNEXPECTED_DOCKER_ROOT
-          docker_security="$(docker info --format '{{json .SecurityOptions}}' 2>/dev/null)" || stop DOCKER_SECURITY_UNAVAILABLE
+          [[ "$docker_endpoint" == 'unix:///run/user/1002/docker.sock' ]] || stop DOCKER_ENDPOINT_IDENTITY
+          [[ "$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)" == '/home/agency-runner/.local/share/docker' ]] || stop DOCKER_ROOT
+          docker_security="$(docker info --format '{{json .SecurityOptions}}' 2>/dev/null)" || stop DOCKER_SECURITY
           [[ "$docker_security" == *rootless* && "$docker_security" == *cgroupns* ]] || stop NON_ROOTLESS
-          ddev_version="$(ddev version -j 2>/dev/null)" || stop DDEV_VERSION_UNAVAILABLE
-          [[ -n "$ddev_version" ]] || stop DDEV_VERSION_EMPTY
-          report "R12_IDENTITY=PASS / RUNNER=$EXPECTED_RUNNER / HOST=$EXPECTED_HOST / UID=$EXPECTED_UID"
-          report "R12_DOCKER=ROOTLESS / CONTEXT=$docker_context / ROOT_CLASS=AGENCY_PRIVATE"
-          report "R12_DDEV_BINARY=AVAILABLE"
+          report 'R13_IDENTITY=PASS / RUNNER=agency-browser-runner-01 / HOST=preflight-runner-01 / UID=1002'
+          report 'R13_DOCKER=PRIVATE_ROOTLESS / READ_ONLY'
 
-          # Collect BOTH ports before enforcing the stop. Never print raw ss/lsof/ps/inspect output.
-          ports="$(ss -H -ltnp 2>/dev/null)" || stop PORT_SCAN_DENIED
-          docker_containers_for_owner="$(docker ps -q)" || stop DOCKER_PS_DENIED
-          ddev list -j >/dev/null 2>&1 || stop DDEV_LIST_DENIED
-          busy=no
+          # Enumerate port summaries privately; inspect ONLY exact matching containers.
+          docker_rows="$(docker ps --format '{{.ID}}|{{.Ports}}' 2>/dev/null)" || stop DOCKER_PS
+          unknown=no
           for port in 18180 18543; do
-            listener="$(printf '%s\n' "$ports" | awk -v p=":$port" '$4 ~ (p "$") {print; exit}')"
-            if [[ -z "$listener" ]]; then
-              report "R12_PORT_$port=FREE"
+            match=''
+            duplicates=no
+            while IFS='|' read -r cid published; do
+              [[ -n "$cid" ]] || continue
+              needle=":$port->"
+              [[ "$published" == *"$needle"* ]] || continue
+              [[ "$cid" =~ ^[0-9a-f]{12}$ ]] || stop CONTAINER_ID
+              if [[ -n "$match" ]]; then duplicates=yes; break; fi
+              match="$cid"
+            done <<< "$docker_rows"
+            if [[ "$duplicates" == yes ]]; then
+              report "R13_PORT_$port=AMBIGUOUS_MAPPING"
+              unknown=yes
               continue
             fi
-            busy=yes
-            ownership=UNVERIFIED
-            # ss and optional lsof disclose PIDs only inside this private job.
-            pids="$(printf '%s\n' "$listener" | grep -Eo 'pid=[0-9]+' | cut -d= -f2 | sort -u || true)"
-            if command -v lsof >/dev/null 2>&1; then
-              lsof_pids="$(lsof -nP -t -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-              pids="$(printf '%s\n%s\n' "$pids" "$lsof_pids" | awk '/^[0-9]+$/ {print}' | sort -u)"
+            if [[ -z "$match" ]]; then
+              report "R13_PORT_$port=NOT_MAPPED_IN_PRIVATE_ENGINE"
+              unknown=yes
+              continue
             fi
-            pid_count="$(printf '%s\n' "$pids" | awk '/^[0-9]+$/ {n++} END {print n+0}')"
-            if [[ "$pid_count" == 1 ]]; then
-              pid="$pids"
-              owner_uid="$(ps -p "$pid" -o uid= 2>/dev/null | tr -d '[:space:]' || true)"
-              owner_comm="$(ps -p "$pid" -o comm= 2>/dev/null | tr -d '[:space:]' || true)"
-              if [[ "$owner_uid" =~ ^[0-9]+$ && "$owner_uid" != "$EXPECTED_UID" ]]; then
-                ownership=PROVEN_FOREIGN
-              elif [[ "$owner_uid" == "$EXPECTED_UID" && "$owner_comm" == rootlesskit ]]; then
-                # Prove the listener is mapped by a container of Agency's private engine.
-                for cid in $docker_containers_for_owner; do
-                  mapping="$(docker inspect --format '{{json .NetworkSettings.Ports}}' "$cid" 2>/dev/null)" || stop DOCKER_INSPECT_DENIED
-                  labels="$(docker inspect --format '{{json .Config.Labels}}' "$cid" 2>/dev/null)" || stop DOCKER_INSPECT_DENIED
-                  if printf '%s\n' "$mapping" | grep -Eq "\"HostPort\":\"$port\""; then
-                    if printf '%s\n' "$labels" | grep -Eq 'com[.]ddev|com[.]docker[.]compose[.]project'; then
-                      ownership=PROVEN_OWNED
-                    fi
-                  fi
-                done
-              fi
+
+            bindings="$(docker inspect --format '{{json .NetworkSettings.Ports}}' "$match" 2>/dev/null)" || stop PORT_INSPECT
+            if ! printf '%s\n' "$bindings" | jq -e --arg port "$port" '[.. | objects | select(.HostPort? == $port)] | length > 0' >/dev/null; then
+              report "R13_PORT_$port=HOSTPORT_NOT_PROVEN"
+              unknown=yes
+              continue
             fi
-            report "R12_PORT_$port=LISTENING / OWNER=$ownership / NO_STOP"
+            name="$(docker inspect --format '{{.Name}}' "$match" 2>/dev/null)" || stop NAME_INSPECT
+            name="${name#/}"
+            state="$(docker inspect --format '{{.State.Status}}' "$match" 2>/dev/null)" || stop STATE_INSPECT
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$match" 2>/dev/null)" || stop HEALTH_INSPECT
+            created="$(docker inspect --format '{{.Created}}' "$match" 2>/dev/null)" || stop AGE_INSPECT
+            labels="$(docker inspect --format '{{json .Config.Labels}}' "$match" 2>/dev/null)" || stop LABEL_INSPECT
+            project="$(printf '%s\n' "$labels" | jq -r '.["com.docker.compose.project"] // .["com.ddev.site-name"] // "UNKNOWN"')" || stop LABEL_PARSE
+            [[ "$name" =~ ^[a-zA-Z0-9_.-]{1,64}$ ]] || name=REDACTED
+            [[ "$project" =~ ^[a-zA-Z0-9_.-]{1,64}$ ]] || project=UNKNOWN
+            [[ "$state" =~ ^(running|paused|restarting|exited|created|dead)$ ]] || state=UNKNOWN
+            [[ "$health" =~ ^(healthy|unhealthy|starting|none)$ ]] || health=UNKNOWN
+            [[ "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]] || stop CREATION_METADATA
+            created_day="${created:0:10}"
+            class=OTHER
+            [[ "$name" == ddev-router ]] && class=DDEV_ROUTER
+            report "R13_PORT_$port=BOUND / ID=$match / CLASS=$class / NAME=$name / PROJECT=$project / STATE=$state / HEALTH=$health / CREATED_UTC=$created_day"
           done
-          [[ "$busy" == no ]] || stop LISTENER_OCCUPIED
-          docker_containers="$(docker ps -q)" || stop DOCKER_PS_DENIED
-          [[ -z "$docker_containers" ]] || {
-            container_count="$(printf '%s\n' "$docker_containers" | wc -l)"
-            report "R12_ROOTLESS_ACTIVE_CONTAINERS=$container_count / DO_NOT_STOP"
-            stop EXISTING_CONTAINERS
-          }
-          if ps -u "$EXPECTED_USER" -o comm= | grep -Eq '^(ddev|docker-compose)$'; then
-            stop ACTIVE_DDEV_PROCESS
-          fi
-          report "R12_ISOLATION=PASS / NO_PREEXISTING_ROOTLESS_CONTAINERS"
-          diag_dir="$(mktemp -d "$RUNNER_TEMP/agency-r12-ddev.XXXXXXXX")" || stop TEMP_DIR
-          [[ -d "$diag_dir" && "$diag_dir" == "$RUNNER_TEMP"/agency-r12-ddev.* ]] || stop TEMP_IDENTITY
-          project="agency-r12-${GITHUB_RUN_ID}"
-          [[ "$project" =~ ^agency-r12-[0-9]{8,15}$ ]] || stop PROJECT_ID
-          mkdir -p "$diag_dir/web"
-          printf '<!doctype html><title>diagnostic</title>\n' > "$diag_dir/web/index.html"
-          log="$diag_dir/private-ddev-start.log"
-          : > "$log"
-          chmod 600 "$log"
-          configured=no
-          if (cd "$diag_dir" && ddev config --project-name "$project" --project-type=php --docroot=web > "$log" 2>&1); then
-            configured=yes
+
+          # The native DDEV list describes possible consumers, not proven traffic.
+          ddev_json="$(ddev list -j 2>/dev/null)" || stop DDEV_LIST
+          if printf '%s\n' "$ddev_json" | jq -e 'type == "object" and (.raw | type == "array")' >/dev/null; then
+            names="$(printf '%s\n' "$ddev_json" | jq -r '.raw[] | select((.status // "" | ascii_downcase) == "running") | .name' | sort -u)" || stop DDEV_PARSE
+            count=0
+            while IFS= read -r project_name; do
+              [[ -n "$project_name" ]] || continue
+              count=$((count + 1))
+              if (( count <= 10 )); then
+                [[ "$project_name" =~ ^[a-zA-Z0-9_.-]{1,64}$ ]] || project_name=REDACTED
+                report "R13_POTENTIAL_CONSUMER_$count=$project_name"
+              fi
+            done <<< "$names"
+            report "R13_RUNNING_DDEV_PROJECT_COUNT=$count / NAMES_LIMIT=10 / TRAFFIC_NOT_PROVEN"
           else
-            report "R12_DDEV_CONFIG=FAIL_REDACTED"
-            rm -f -- "$log"
-            stop DDEV_CONFIG
+            report 'R13_RUNNING_DDEV_PROJECTS=UNKNOWN'
+            unknown=yes
           fi
-          result=FAIL
-          if (cd "$diag_dir" && timeout 150 ddev start >> "$log" 2>&1); then
-            result=PASS
+
+          if [[ "$unknown" == yes ]]; then
+            report 'R13_RESULT=UNKNOWN / NO_MUTATION / NO_REUSE_DECISION'
           else
-            if grep -Eqi 'PortManager.AddPort|RootlessKit' "$log"; then
-              report "R12_FIRST_ERROR_CLASS=ROOTLESSKIT_PORT_MANAGER"
-            elif grep -Eqi 'address already in use|bind:' "$log"; then
-              report "R12_FIRST_ERROR_CLASS=TCP_PORT_BIND"
-            elif grep -Eqi 'permission denied|access denied' "$log"; then
-              report "R12_FIRST_ERROR_CLASS=PERMISSION_DENIED"
-            elif grep -Eqi 'timed out|deadline exceeded' "$log"; then
-              report "R12_FIRST_ERROR_CLASS=TIMEOUT"
-            else
-              report "R12_FIRST_ERROR_CLASS=OTHER_DDEV_FAILURE"
-            fi
-            errport="$(grep -Eo ':[0-9]{4,5}([ :]|$)' "$log" | head -1 | tr -cd '0-9' || true)"
-            if [[ "$errport" =~ ^[0-9]{4,5}$ ]] && (( errport <= 65535 )); then
-              report "R12_FIRST_ERROR_TCP_PORT=$errport"
-            fi
+            report 'R13_RESULT=OBSERVED / NO_MUTATION / IMPACT_REQUIRES_INFRA_DECISION'
           fi
-          rm -f -- "$log"
-          [[ "$configured" == yes ]] || stop PROJECT_NOT_CONFIGURED
-          [[ -f "$diag_dir/.ddev/config.yaml" ]] || stop OWNED_CONFIG_MISSING
-          grep -Eq "^name: ['\"]?$project['\"]?$" "$diag_dir/.ddev/config.yaml" || stop OWNED_PROJECT_ID_MISMATCH
-          (cd "$diag_dir" && ddev stop --yes >/dev/null 2>&1) || stop OWNED_DDEV_CLEANUP
-          [[ -z "$(docker ps --filter "name=$project" -q)" ]] || stop OWNED_CONTAINER_REMAINS
-          report "R12_OWNED_CLEANUP=PASS"
-          report "R12_DDEV_START=$result"
-          [[ "$result" == PASS ]] || stop DDEV_START_FAILURE

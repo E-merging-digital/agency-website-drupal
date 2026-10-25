@@ -285,7 +285,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
   }
 
   /**
-   * Isolated DDEV router ports remain safe for the rootless Agency runner.
+   * Isolated DDEV router and direct host ports stay safe for rootless Agency.
    */
   public function testIsolatedDdevRouterPortsAreRootlessSafe(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -309,13 +309,19 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       'name: agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}',
       'router_http_port: "18180"',
       'router_https_port: "18543"',
+      'host_webserver_port: "18280"',
+      'host_https_port: "18644"',
+      'host_db_port: "18281"',
+      'host_mailpit_port: "18282"',
     ], $lines);
 
+    // Stable loopback ports avoid the shared host's occupied ephemeral
+    // 32768-60999 range; no global Docker or DDEV change is required.
     $ports = [];
     foreach (array_slice($lines, 1) as $line) {
       $matches = [];
       self::assertSame(1, preg_match(
-        '/^(router_http_port|router_https_port): "([0-9]+)"$/',
+        '/^(router_http_port|router_https_port|host_webserver_port|host_https_port|host_db_port|host_mailpit_port): "([0-9]+)"$/',
         $line,
         $matches,
       ));
@@ -333,11 +339,12 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     self::assertSame([
       'router_http_port' => 18180,
       'router_https_port' => 18543,
+      'host_webserver_port' => 18280,
+      'host_https_port' => 18644,
+      'host_db_port' => 18281,
+      'host_mailpit_port' => 18282,
     ], $ports);
-    self::assertNotSame(
-      $ports['router_http_port'],
-      $ports['router_https_port'],
-    );
+    self::assertCount(count($ports), array_unique(array_values($ports)));
 
     $isolate = strpos($workflow, '- name: Isolate DDEV project for this run');
     $configCheck = strpos($workflow, 'ddev utility configyaml', $start);

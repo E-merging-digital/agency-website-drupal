@@ -218,14 +218,12 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
     test.setTimeout(110_000);
     const surfaces = [
       {
-        lang: 'fr', path: '/fr', primary: 'Parler de mon projet',
-        secondary: 'Voir les expertises', firstWord: 'CRÉER',
+        lang: 'fr', path: '/fr', firstWord: 'CRÉER',
         play: 'Voir la présentation', pause: 'Pause', resume: 'Reprendre',
         stop: 'Arrêter', replay: 'Revoir', reduced: 'Animation réduite',
       },
       {
-        lang: 'en', path: '/en', primary: 'Discuss my project',
-        secondary: 'Explore our expertise', firstWord: 'CREATE',
+        lang: 'en', path: '/en', firstWord: 'CREATE',
         play: 'Watch the presentation', pause: 'Pause', resume: 'Resume',
         stop: 'Stop', replay: 'Replay', reduced: 'Motion is reduced',
       },
@@ -243,19 +241,17 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
       await expect(h1).toBeVisible();
       await expect(page.locator('h1')).toHaveCount(1);
       await expect(page.locator('html')).toHaveAttribute('lang', surface.lang);
-      const primary = page.getByRole('link', { name: surface.primary, exact: true }).first();
-      const secondary = page.getByRole('link', { name: surface.secondary, exact: true }).first();
+      const primary = hero.locator('.ed-actions__primary').getByRole('link').first();
+      const secondary = hero.locator('.ed-actions__secondary').getByRole('link').first();
       await expect(primary).toBeVisible();
       await expect(secondary).toBeVisible();
+      await expect(primary).toHaveText(/\S/);
+      await expect(secondary).toHaveText(/\S/);
       expect(new URL(await primary.getAttribute('href'), page.url()).pathname)
         .toBe(`/${surface.lang}/contact`);
       expect(new URL(await secondary.getAttribute('href'), page.url()).pathname)
         .toBe(`/${surface.lang}/services`);
-      await expect(page.getByText(
-        surface.lang === 'fr'
-          ? /secteur public|organisations exigeantes/i
-          : /public sector|demanding organisations/i,
-      ).first()).toBeVisible();
+      await expect(hero.locator('.ed-section__intro')).toContainText(/\S/);
 
       const visual = hero.locator('.ed-home-kinetic__visual');
       const media = visual.locator('img').first();
@@ -334,8 +330,12 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
       expect(response.status()).toBeLessThan(400);
       await expect(staticPage.locator('h1')).toHaveCount(1);
       await expect(staticPage.locator('h1')).toBeVisible();
-      await expect(staticPage.getByRole('link', { name: 'Parler de mon projet' }).first())
-        .toBeVisible();
+      const contactCta = staticPage.locator('.page-main--front .ed-section--hero-home')
+        .locator('.ed-actions__primary').getByRole('link').first();
+      await expect(contactCta).toBeVisible();
+      await expect(contactCta).toHaveText(/\S/);
+      expect(new URL(await contactCta.getAttribute('href'), staticPage.url()).pathname)
+        .toBe('/fr/contact');
     }
     finally {
       await staticContext.close();

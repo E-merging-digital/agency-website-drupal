@@ -344,7 +344,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       'host_db_port' => 18281,
       'host_mailpit_port' => 18282,
     ], $ports);
-    self::assertSame(count($ports), count(array_unique(array_values($ports))));
+    self::assertCount(count($ports), array_unique(array_values($ports)));
 
     $isolate = strpos($workflow, '- name: Isolate DDEV project for this run');
     $configCheck = strpos($workflow, 'ddev utility configyaml', $start);

@@ -247,10 +247,12 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
       await expect(secondary).toBeVisible();
       await expect(primary).toHaveText(/\S/);
       await expect(secondary).toHaveText(/\S/);
+      // Drupal's source-owned hero may render unprefixed canonical links.
+      const routePath = route => new RegExp(`^/(?:${surface.lang}/)?${route}$`);
       expect(new URL(await primary.getAttribute('href'), page.url()).pathname)
-        .toBe(`/${surface.lang}/contact`);
+        .toMatch(routePath('contact'));
       expect(new URL(await secondary.getAttribute('href'), page.url()).pathname)
-        .toBe(`/${surface.lang}/services`);
+        .toMatch(routePath('services'));
       await expect(hero.locator('.ed-section__intro')).toContainText(/\S/);
 
       const visual = hero.locator('.ed-home-kinetic__visual');

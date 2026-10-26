@@ -550,10 +550,10 @@ function emerging_digital_hero_illustration(bool $is_front = FALSE): array {
 function emerging_digital_hero_illustration_definitions(): array {
   return [
     'home' => [
-      'path' => 'images/home/home-hero-ia-drupal.svg',
+      'path' => 'images/home/home-hero-collaboration.jpg',
       'alt' => [
-        'fr' => 'Plateforme web structurée et performante.',
-        'en' => 'Structured and performant web platform.',
+        'fr' => 'Personnes travaillant ensemble autour d’un ordinateur portable et de documents.',
+        'en' => 'People working together around a laptop and documents.',
       ],
     ],
     'ia-drupal' => [

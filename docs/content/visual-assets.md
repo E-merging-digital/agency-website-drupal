@@ -10,12 +10,13 @@
 
 ## Catalogue des visuels
 
-### home-hero-ia-drupal
+### home-hero-collaboration
 - **Usage** : Hero homepage.
-- **Prompt** : `Photo réaliste premium d’une équipe (PME/ASBL) en atelier stratégique Drupal, grand écran affichant une interface CMS et des suggestions IA discrètes, ambiance bureau moderne européen, lumière naturelle, tons bleu nuit et gris clair, composition horizontale 16:9, style éditorial corporate haut de gamme, sans logo ni texte incrusté, sans watermark.`
-- **Alt text** : Équipe projet Drupal analysant un tableau de bord IA dans un environnement professionnel.
-- **Style** : Editorial corporate premium, réaliste, rassurant.
-- **Emplacement** : `web/themes/custom/emerging_digital/images/home/home-hero-ia-drupal.svg` (placeholder à remplacer par l’image finale).
+- **Origine** : photographie réelle de Mikhail Nilov, [Pexels #7731361](https://www.pexels.com/photo/a-person-using-a-laptop-7731361/), sous [licence Pexels](https://www.pexels.com/license/).
+- **Alt text FR** : Personnes travaillant ensemble autour d’un ordinateur portable et de documents.
+- **Alt text EN** : People working together around a laptop and documents.
+- **Style** : scène de collaboration professionnelle réelle, lumière naturelle et cadrage serré ; photographie de stock, **pas une photographie de l'équipe Agency**.
+- **Emplacement** : `web/themes/custom/emerging_digital/images/home/home-hero-collaboration.jpg` (1200 × 1028, versionnée). Le précédent placeholder SVG reste disponible en historique.
 
 ### home-services-overview
 - **Usage** : Intro section “Nos services” sur homepage.
@@ -68,7 +69,7 @@
 
 ## Intégration technique prévue
 
-- Tous les composants Twig référencent **des placeholders SVG versionnés**.
-- Le remplacement final se fait en conservant **les mêmes noms de fichier** pour éviter des changements Twig/CSS.
+- Les composants Twig référencent des **visuels de fallback versionnés** ; le hero homepage utilise désormais une photographie et les autres contextes gardent leurs SVG.
+- Le remplacement ultérieur se fait au niveau des définitions de visuels du thème ou via Drupal Media, sans modifier le balisage Twig.
 - Les attributs `alt`, `loading`, `width`, `height` sont déjà en place pour préparer accessibilité et performance.
 - Les classes CSS `.visual-block` et `.visual-chip` standardisent le rendu (bordure, fond, ratio flexible).

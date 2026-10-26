@@ -7,21 +7,25 @@ palette bleu/vert, formes éditoriales sobres et niveau de détail modéré.
 
 Le paragraphe `hero` rend d'abord un éventuel champ Drupal Media
 `field_hero_media` si le projet l'ajoute plus tard. Sans média, le thème
-sélectionne une illustration SVG déterministe selon la page courante.
+sélectionne un visuel versionné déterministe selon la page courante.
 
-Le choix est exclusif : si `field_hero_media` produit un rendu Drupal, le SVG
+Le choix est exclusif : si `field_hero_media` produit un rendu Drupal, le
 fallback n'est pas exposé au template. Si aucun média n'est rendu, le fallback
-SVG est utilisé. Cela évite les différences entre rendu anonyme et rendu
+versionné est utilisé. Cela évite les différences entre rendu anonyme et rendu
 connecté, notamment quand les permissions ou métadonnées de rendu du champ média
 varient.
 
-Le fallback obligatoire est `images/home/home-hero-ia-drupal.svg`.
+Le fallback de la homepage est `images/home/home-hero-collaboration.jpg` :
+photographie de stock réelle (Mikhail Nilov / Pexels, [photo #7731361](https://www.pexels.com/photo/a-person-using-a-laptop-7731361/),
+[licence Pexels](https://www.pexels.com/license/)), résolution 1200 × 1028.
+Cette scène illustre une collaboration générale : **elle ne représente pas
+l'équipe E-merging Digital**. Le SVG historique reste versionné pour référence.
 
-## Bibliothèque SVG
+## Bibliothèque des visuels de fallback
 
 | Contexte | Fichier | Intention métier |
 | --- | --- | --- |
-| Homepage | `images/home/home-hero-ia-drupal.svg` | Plateforme web structurée et performante |
+| Homepage | `images/home/home-hero-collaboration.jpg` | Photographie réelle, collaboration autour d'un ordinateur |
 | IA & Drupal | `images/ia-drupal/ia-drupal-page-hero.svg` | Modules éditoriaux, flux, gouvernance |
 | Services | `images/services/services-page-hero.svg` | Architecture, composants, parcours |
 | Contact | `images/contact/contact-page-hero.svg` | Cadrage projet, planning, accompagnement |
@@ -33,7 +37,8 @@ Le fallback obligatoire est `images/home/home-hero-ia-drupal.svg`.
 - Raconter un contexte métier, pas une technologie.
 - Éviter robots, cerveaux IA, hologrammes, mascottes, avatars cartoon et
   imagerie startup générique.
-- Garder des SVG sobres, lisibles et non textuels.
+- Garder les SVG secondaires sobres, lisibles et non textuels ; éviter les
+  représentations synthétiques trompeuses de personnes réelles.
 - Maintenir des textes alternatifs FR/EN dans
   `emerging_digital_hero_illustration_definitions()`.
 - Ne pas modifier les menus ni `system.site:page.front` pour changer une

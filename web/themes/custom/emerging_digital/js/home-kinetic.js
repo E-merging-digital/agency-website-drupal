@@ -133,7 +133,9 @@
     function frame(timestamp) {
       if (!running) return;
       if (last === null) last = timestamp;
-      elapsed = Math.min(DURATION, elapsed + Math.min(80, timestamp - last));
+      // Count real visible time even when the browser skips animation frames.
+      // Hidden tabs are paused separately by the visibilitychange listener.
+      elapsed = Math.min(DURATION, elapsed + Math.max(0, timestamp - last));
       last = timestamp;
       draw();
       if (running) raf = window.requestAnimationFrame(frame);

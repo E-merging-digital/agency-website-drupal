@@ -283,16 +283,49 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
       await play.focus();
       await page.keyboard.press('Enter');
       await expect(visual).toHaveAttribute('data-kinetic-static', 'false');
-      // The first word is deliberately delayed until 2.7s of play time.
-      // Sample it at a real visible frame, then freeze for a stable screenshot.
-      await expect.poll(() => progress.evaluate(el => el.value), { timeout: 12_000 })
-        .toBeGreaterThan(3_500);
-      await hero.getByRole('button', { name: surface.pause }).click();
-      const pausedAt = await progress.evaluate(el => el.value);
-      expect(pausedAt, 'The first word must not be skipped by a stalled browser.').toBeLessThan(5_250);
+      // The first word is visible only within a real part of its 2.7-5.25s
+      // track. Sample progress and computed opacity within the same animation
+      // frame, and pause immediately at the first perceptible frame. A skipped
+      // visible window remains a real test failure, not a timing exemption.
       const word = visual.getByText(surface.firstWord, { exact: true });
-      await expect.poll(() => word.evaluate(el => Number(getComputedStyle(el).opacity)),
-        { timeout: 3_000 }).toBeGreaterThan(0.35);
+      const visibleFrame = await page.evaluate(({ firstWord, pauseLabel }) => {
+        const host = document.querySelector('.page-main--front .ed-section--hero-home');
+        const bar = host?.querySelector('.ed-home-kinetic__progress');
+        const candidate = Array.from(host?.querySelectorAll('.ed-home-kinetic__word') || [])
+          .find(el => el.textContent?.trim() === firstWord);
+        const pauseButton = Array.from(host?.querySelectorAll('.ed-home-kinetic__button') || [])
+          .find(el => el.textContent?.trim() === pauseLabel);
+        if (!bar || !candidate || !pauseButton) {
+          throw new Error('Kinetic visible-frame controls are missing.');
+        }
+        return new Promise((resolve, reject) => {
+          const startedAt = performance.now();
+          function sample() {
+            const elapsed = Number(bar.value);
+            const opacity = Number(getComputedStyle(candidate).opacity);
+            if (elapsed >= 3_200 && elapsed < 4_800 && opacity > 0.35) {
+              pauseButton.click();
+              resolve({ elapsed: Number(bar.value), opacity });
+              return;
+            }
+            if (elapsed >= 5_100 || performance.now() - startedAt > 12_000) {
+              reject(new Error('No perceptible Kinetic word frame: elapsed=' +
+                elapsed + ', opacity=' + opacity));
+              return;
+            }
+            requestAnimationFrame(sample);
+          }
+          requestAnimationFrame(sample);
+        });
+      }, { firstWord: surface.firstWord, pauseLabel: surface.pause });
+      expect(visibleFrame.opacity).toBeGreaterThan(0.35);
+      expect(visibleFrame.elapsed).toBeGreaterThanOrEqual(3_200);
+      expect(visibleFrame.elapsed).toBeLessThan(4_800);
+      await expect(hero.getByRole('button', { name: surface.resume })).toBeVisible();
+      const pausedAt = await progress.evaluate(el => el.value);
+      expect(pausedAt).toBe(visibleFrame.elapsed);
+      expect(await word.evaluate(el => Number(getComputedStyle(el).opacity)))
+        .toBeGreaterThan(0.35);
       const playingShot = path.join(dir, `home-1418-${surface.lang}-${testInfo.project.name}-kinetic.png`);
       await page.screenshot({ path: playingShot, fullPage: true });
       await testInfo.attach(`home-${surface.lang}-kinetic`, {

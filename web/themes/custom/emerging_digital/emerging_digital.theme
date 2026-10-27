@@ -254,6 +254,52 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
     $service_groups,
     static fn (array $group): bool => !empty($group['cards']),
   ));
+
+  // The homepage also uses this paragraph. Keep the visual quick navigation
+  // exclusive to the Services hub and its existing, populated families.
+  $alias = \Drupal::service('path_alias.manager')->getAliasByPath(
+    \Drupal::service('path.current')->getPath(),
+    $langcode,
+  );
+  $variables['is_services_hub'] = $alias === '/services';
+  $variables['service_path_choices'] = [];
+
+  if (!$variables['is_services_hub']) {
+    return;
+  }
+
+  $choices = $langcode === 'en'
+    ? [
+      'business' => ['Create', 'A site or platform that inspires trust.'],
+      'drupal' => ['Improve', 'A clearer, faster site built to evolve.'],
+      'ai' => ['Automate', 'Less repetitive work for your teams.'],
+    ]
+    : [
+      'business' => ['Créer', 'Un site ou une plateforme qui inspire confiance.'],
+      'drupal' => ['Améliorer', 'Un site plus clair, rapide et facile à faire évoluer.'],
+      'ai' => ['Automatiser', 'Du temps libéré pour vos équipes.'],
+    ];
+
+  $variables['service_path_eyebrow'] = $langcode === 'en'
+    ? 'Choose where to start'
+    : 'Choisissez votre point de départ';
+  $variables['service_path_aria_label'] = $langcode === 'en'
+    ? 'Explore services by need'
+    : 'Explorer les services selon votre besoin';
+
+  foreach ($choices as $group_key => [$title, $description]) {
+    if (empty($service_groups[$group_key]['cards'])) {
+      continue;
+    }
+
+    $variables['service_path_choices'][] = [
+      'number' => sprintf('%02d', count($variables['service_path_choices']) + 1),
+      'title' => $title,
+      'description' => $description,
+      'href' => '#service-family-' . $group_key,
+      'key' => $group_key,
+    ];
+  }
 }
 
 /**

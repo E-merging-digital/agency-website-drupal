@@ -461,6 +461,54 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
       'cta_label' => $langcode === 'en' ? 'Explore' : 'Explorer',
     ];
   }
+
+  // This educational diagram belongs to the IA & Drupal landing page only.
+  // Keep reusable AI feature paragraphs unchanged on other routes.
+  $path = \Drupal::service('path.current')->getPath();
+  $alias = \Drupal::service('path_alias.manager')->getAliasByPath($path, $langcode);
+  $variables['is_ai_flow_page'] = in_array($alias, ['/ia-drupal', '/ai-drupal'], TRUE);
+  $variables['ai_flow_steps'] = [];
+
+  if (!$variables['is_ai_flow_page']) {
+    return;
+  }
+
+  $is_english = $langcode === 'en';
+  $variables['ai_flow_eyebrow'] = $is_english
+    ? 'AI & Drupal / governed automation'
+    : 'IA & Drupal / automatisation maîtrisée';
+  $variables['ai_flow_title'] = $is_english
+    ? 'AI saves you time. You stay in control.'
+    : 'L’IA vous fait gagner du temps. Vous gardez la maîtrise.';
+  $variables['ai_flow_intro'] = $is_english
+    ? 'From everyday documents to publishable content, with a human decision at the right moment.'
+    : 'Des documents aux contenus à publier, avec une décision humaine au bon moment.';
+  $variables['ai_flow_outro'] = $is_english
+    ? 'A clear, controlled workflow that fits your tools.'
+    : 'Un parcours clair, maîtrisé et intégré à vos outils.';
+
+  $steps = $is_english
+    ? [
+      ['Your content', 'Texts, documents, requests'],
+      ['AI assistance', 'Analysis and suggestions'],
+      ['Human approval', 'You make the decision'],
+      ['Publication', 'On your Drupal website'],
+    ]
+    : [
+      ['Votre contenu', 'Textes, documents, demandes'],
+      ['Assistance IA', 'Analyse et proposition'],
+      ['Validation humaine', 'Vous gardez la décision'],
+      ['Publication', 'Sur votre site Drupal'],
+    ];
+
+  foreach ($steps as $index => [$title, $description]) {
+    $variables['ai_flow_steps'][] = [
+      'number' => sprintf('%02d', $index + 1),
+      'title' => $title,
+      'description' => $description,
+      'is_human' => $index === 2,
+    ];
+  }
 }
 
 /**

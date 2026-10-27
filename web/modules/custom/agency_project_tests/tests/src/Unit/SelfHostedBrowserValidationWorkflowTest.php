@@ -576,11 +576,14 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
     self::assertStringContainsString('[[ "$count" == "0" ]]', $helper);
     self::assertStringContainsString(
-      'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && ' .
-        '"$CANVAS_BROWSER_PR_NUMBER" != "1421" && ' .
-        '"$CANVAS_BROWSER_PR_NUMBER" != "1458" ]]; then',
+      'case "$CANVAS_BROWSER_PR_NUMBER" in',
       $helper,
     );
+    self::assertStringContainsString(
+      '0|1421|1458|1472|1474) ;;',
+      $helper,
+    );
+    self::assertStringContainsString('*) fail_closed ;;', $helper);
     self::assertStringContainsString('fail_closed', $helper);
 
     // Existing gate, helper and comparator are used without a second engine.
@@ -642,9 +645,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     $clean = strpos($helper, '[[ "$count" == "0" ]]');
     $restricted = strpos(
       $helper,
-      'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && '
-        . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" && '
-        . '"$CANVAS_BROWSER_PR_NUMBER" != "1458" ]]; then',
+      'case "$CANVAS_BROWSER_PR_NUMBER" in',
     );
     self::assertIsInt($clean);
     self::assertIsInt($restricted);
@@ -654,16 +655,11 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $helper,
     );
 
-    // Only canonical main 0, exact MCP 1421 and reviewed Kinetic 1458
-    // reach the existing strict nonzero gate; other PRs fail closed.
+    // Only canonical main 0, MCP 1421, Kinetic 1458, Services 1472 and
+    // IA & Drupal 1474 reach the strict nonzero gate; others fail closed.
     self::assertSame(
       1,
-      substr_count(
-        $helper,
-        'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && '
-          . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" && '
-          . '"$CANVAS_BROWSER_PR_NUMBER" != "1458" ]]; then',
-      ),
+      substr_count($helper, '0|1421|1458|1472|1474) ;;'),
     );
     self::assertStringContainsString(
       '[[ "$CANVAS_BROWSER_PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]',

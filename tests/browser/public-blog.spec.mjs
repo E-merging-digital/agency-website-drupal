@@ -357,3 +357,87 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
   });
 });
 }
+
+/*
+ * #1473: controlled AI journey visual proof in French and English.
+ * The existing editorial AI feature cards remain below the diagram.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1473 IA & Drupal governed journey', () => {
+    test('FR/EN four-step flow emphasizes human approval without overflow', async ({
+      page, audit,
+    }, testInfo) => {
+      const surfaces = [
+        {
+          lang: 'fr',
+          path: '/fr/ia-drupal',
+          home: '/fr',
+          titles: ['Votre contenu', 'Assistance IA', 'Validation humaine', 'Publication'],
+        },
+        {
+          lang: 'en',
+          path: '/en/ai-drupal',
+          home: '/en',
+          titles: ['Your content', 'AI assistance', 'Human approval', 'Publication'],
+        },
+      ];
+
+      for (const surface of surfaces) {
+        const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+        expect(response).not.toBeNull();
+        expect(response.status()).toBeLessThan(400);
+        await expect(page.locator('html')).toHaveAttribute('lang', surface.lang);
+        await expect(page.locator('h1')).toHaveCount(1);
+
+        const flow = page.locator('section.ed-ai-flow');
+        await expect(flow).toHaveCount(1);
+        await expect(flow).toBeVisible();
+        await expect(flow.locator('h2')).toBeVisible();
+        const steps = flow.locator('li.ed-ai-flow__step');
+        await expect(steps).toHaveCount(4);
+
+        for (const [index, title] of surface.titles.entries()) {
+          await expect(steps.nth(index).locator('.ed-ai-flow__step-title'))
+            .toHaveText(title);
+        }
+        await expect(steps.nth(2)).toHaveClass(/ed-ai-flow__step--human/);
+        const approvalBorder = await steps.nth(2).evaluate(element =>
+          parseFloat(getComputedStyle(element).borderTopWidth),
+        );
+        expect(approvalBorder, 'Human approval requires a visible accent border.')
+          .toBeGreaterThanOrEqual(2);
+        await expect(page.locator('.ed-cards--ai')).toBeVisible();
+
+        const overflow = await page.evaluate(() =>
+          document.documentElement.scrollWidth > window.innerWidth + 1,
+        );
+        expect(overflow, 'The AI diagram must not overflow horizontally.').toBe(false);
+
+        const screenshotDirectory = path.resolve('artifacts/browser-validation/screenshots');
+        await mkdir(screenshotDirectory, { recursive: true });
+        const fileName = `ai-journey-1473-${surface.lang}-${testInfo.project.name}.png`;
+        const screenshotPath = path.join(screenshotDirectory, fileName);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        await testInfo.attach(`ai-journey-${surface.lang}`, {
+          path: screenshotPath,
+          contentType: 'image/png',
+        });
+        audit.screenshot = `screenshots/${fileName}`;
+
+        await page.goto(surface.home, { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.ed-ai-flow')).toHaveCount(0);
+      }
+
+      expect(audit.consoleErrors).toEqual([]);
+      expect(audit.pageErrors).toEqual([]);
+      expect(audit.http5xx).toEqual([]);
+      expect(audit.unexpectedHttp4xx).toEqual([]);
+      expect(audit.failedRequests).toEqual([]);
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+      audit.checks.console = 'PASS';
+      audit.checks.network = 'PASS';
+    });
+  });
+}

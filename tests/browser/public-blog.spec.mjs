@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './support/browser-audit.mjs';
@@ -282,18 +283,21 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
       await play.focus();
       await page.keyboard.press('Enter');
       await expect(visual).toHaveAttribute('data-kinetic-static', 'false');
-      await expect.poll(() => progress.evaluate(el => el.value), { timeout: 5_000 })
-        .toBeGreaterThan(200);
+      // The first word is deliberately delayed until 2.7s of play time.
+      // Sample it at a real visible frame, then freeze for a stable screenshot.
+      await expect.poll(() => progress.evaluate(el => el.value), { timeout: 12_000 })
+        .toBeGreaterThan(3_500);
+      await hero.getByRole('button', { name: surface.pause }).click();
+      const pausedAt = await progress.evaluate(el => el.value);
+      expect(pausedAt, 'The first word must not be skipped by a stalled browser.').toBeLessThan(5_250);
       const word = visual.getByText(surface.firstWord, { exact: true });
       await expect.poll(() => word.evaluate(el => Number(getComputedStyle(el).opacity)),
-        { timeout: 6_000 }).toBeGreaterThan(0.35);
+        { timeout: 3_000 }).toBeGreaterThan(0.35);
       const playingShot = path.join(dir, `home-1418-${surface.lang}-${testInfo.project.name}-kinetic.png`);
       await page.screenshot({ path: playingShot, fullPage: true });
       await testInfo.attach(`home-${surface.lang}-kinetic`, {
         path: playingShot, contentType: 'image/png',
       });
-      await hero.getByRole('button', { name: surface.pause }).click();
-      const pausedAt = await progress.evaluate(el => el.value);
       await page.waitForTimeout(260);
       expect(await progress.evaluate(el => el.value)).toBe(pausedAt);
       await hero.getByRole('button', { name: surface.resume }).click();
@@ -364,6 +368,93 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
  */
 if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
   test.describe('Agency #1471 graphical Services hub', () => {
+    // #1471: released Services content is editor-owned, so the fresh DDEV
+    // bootstrap intentionally imports only its historical FR Default Content.
+    // Make an ephemeral EN translation solely for the isolated CI browser proof.
+    test.beforeAll(async () => {
+      if (process.env.CI !== 'true') {
+        return;
+      }
+
+      test.setTimeout(90_000);
+      const directory = path.resolve('artifacts/browser-validation');
+      await mkdir(directory, { recursive: true });
+      const lock = path.join(directory, 'services-1471-fixture.lock');
+      const php = [
+      "$storage = \\Drupal::entityTypeManager()->getStorage('node');",
+      "$matches = $storage->loadByProperties(['uuid' => 'd6e1876f-8e32-4f75-b6bb-946de5f5afdb']);",
+      "if (count($matches) !== 1) {",
+      "  throw new \\RuntimeException('The exact Services fixture node must exist once.');",
+      "}",
+      "$node = reset($matches);",
+      "if ($node->bundle() !== 'page' || $node->language()->getId() !== 'fr' || $node->label() !== 'Services') {",
+      "  throw new \\RuntimeException('Services fixture identity or source language diverged.');",
+      "}",
+      "$path = '/node/' . $node->id();",
+      "$alias_storage = \\Drupal::entityTypeManager()->getStorage('path_alias');",
+      "foreach ($alias_storage->loadByProperties(['alias' => '/services', 'langcode' => 'en']) as $alias) {",
+      "  if ($alias->get('path')->value !== $path) {",
+      "    throw new \\RuntimeException('English Services alias belongs to another node.');",
+      "  }",
+      "}",
+      "$refs = [];",
+      "$services = 0;",
+      "foreach ($node->getTranslation('fr')->get('field_home_components') as $item) {",
+      "  $paragraph = $item->entity;",
+      "  if ($paragraph === NULL) {",
+      "    throw new \\RuntimeException('Services fixture has a missing Paragraph reference.');",
+      "  }",
+      "  if ($paragraph->bundle() === 'services') {",
+      "    $services++;",
+      "    if (!$paragraph->hasTranslation('en')) {",
+      "      $values = [];",
+      "      foreach (['field_heading', 'field_text', 'field_items'] as $field) {",
+      "        if ($paragraph->hasField($field)) {",
+      "          $values[$field] = $paragraph->getTranslation('fr')->get($field)->getValue();",
+      "        }",
+      "      }",
+      "      $paragraph->addTranslation('en', $values);",
+      "      $paragraph->save();",
+      "    }",
+      "  }",
+      "  $refs[] = [",
+      "    'target_id' => $paragraph->id(),",
+      "    'target_revision_id' => $paragraph->getRevisionId(),",
+      "  ];",
+      "}",
+      "if ($services !== 1) {",
+      "  throw new \\RuntimeException('Expected exactly one Services Paragraph.');",
+      "}",
+      "if (!$node->hasTranslation('en')) {",
+      "  $english = $node->addTranslation('en', [",
+      "    'title' => 'Services',",
+      "    'status' => 1,",
+      "    'field_home_components' => $refs,",
+      "  ]);",
+      "  $english->set('path', ['alias' => '/services', 'pathauto' => 0]);",
+      "  $english->save();",
+      "}",
+      "else {",
+      "  $english = $node->getTranslation('en');",
+      "  $existing_alias = (string) ($english->get('path')->alias ?? '');",
+      "  if ($existing_alias !== '/services') {",
+      "    throw new \\RuntimeException('Existing English Services translation alias diverged.');",
+      "  }",
+      "}",
+      "\\Drupal::service('path_alias.manager')->cacheClear($path);",
+      "print 'R1471_EN_FIXTURE=PASS';",
+      ].join('\n');
+      const result = execFileSync('flock', [
+        '-x', '-w', '60', lock, 'ddev', 'drush', 'php:eval', php,
+      ], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        timeout: 80_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      expect(result).toContain('R1471_EN_FIXTURE=PASS');
+    });
+
     test('FR/EN choices lead to real groups, and homepage stays unchanged', async ({
       page, audit,
     }, testInfo) => {

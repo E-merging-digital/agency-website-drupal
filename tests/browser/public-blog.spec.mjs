@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './support/browser-audit.mjs';
@@ -284,16 +285,54 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
       await expect(visual).toHaveAttribute('data-kinetic-static', 'false');
       await expect.poll(() => progress.evaluate(el => el.value), { timeout: 5_000 })
         .toBeGreaterThan(200);
+      // The first word is visible only within a real part of its 2.7-5.25s
+      // track. Sample progress and computed opacity within the same animation
+      // frame, and pause immediately at the first perceptible frame. A skipped
+      // visible window remains a real test failure, not a timing exemption.
       const word = visual.getByText(surface.firstWord, { exact: true });
-      await expect.poll(() => word.evaluate(el => Number(getComputedStyle(el).opacity)),
-        { timeout: 6_000 }).toBeGreaterThan(0.35);
+      const visibleFrame = await page.evaluate(({ firstWord, pauseLabel }) => {
+        const host = document.querySelector('.page-main--front .ed-section--hero-home');
+        const bar = host?.querySelector('.ed-home-kinetic__progress');
+        const candidate = Array.from(host?.querySelectorAll('.ed-home-kinetic__word') || [])
+          .find(el => el.textContent?.trim() === firstWord);
+        const pauseButton = Array.from(host?.querySelectorAll('.ed-home-kinetic__button') || [])
+          .find(el => el.textContent?.trim() === pauseLabel);
+        if (!bar || !candidate || !pauseButton) {
+          throw new Error('Kinetic visible-frame controls are missing.');
+        }
+        return new Promise((resolve, reject) => {
+          const startedAt = performance.now();
+          function sample() {
+            const elapsed = Number(bar.value);
+            const opacity = Number(getComputedStyle(candidate).opacity);
+            if (elapsed >= 3_200 && elapsed < 4_800 && opacity > 0.35) {
+              pauseButton.click();
+              resolve({ elapsed: Number(bar.value), opacity });
+              return;
+            }
+            if (elapsed >= 5_100 || performance.now() - startedAt > 12_000) {
+              reject(new Error('No perceptible Kinetic word frame: elapsed=' +
+                elapsed + ', opacity=' + opacity));
+              return;
+            }
+            requestAnimationFrame(sample);
+          }
+          requestAnimationFrame(sample);
+        });
+      }, { firstWord: surface.firstWord, pauseLabel: surface.pause });
+      expect(visibleFrame.opacity).toBeGreaterThan(0.35);
+      expect(visibleFrame.elapsed).toBeGreaterThanOrEqual(3_200);
+      expect(visibleFrame.elapsed).toBeLessThan(4_800);
+      await expect(hero.getByRole('button', { name: surface.resume })).toBeVisible();
+      const pausedAt = await progress.evaluate(el => el.value);
+      expect(pausedAt).toBe(visibleFrame.elapsed);
+      expect(await word.evaluate(el => Number(getComputedStyle(el).opacity)))
+        .toBeGreaterThan(0.35);
       const playingShot = path.join(dir, `home-1418-${surface.lang}-${testInfo.project.name}-kinetic.png`);
       await page.screenshot({ path: playingShot, fullPage: true });
       await testInfo.attach(`home-${surface.lang}-kinetic`, {
         path: playingShot, contentType: 'image/png',
       });
-      await hero.getByRole('button', { name: surface.pause }).click();
-      const pausedAt = await progress.evaluate(el => el.value);
       await page.waitForTimeout(260);
       expect(await progress.evaluate(el => el.value)).toBe(pausedAt);
       await hero.getByRole('button', { name: surface.resume }).click();
@@ -364,6 +403,89 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
  */
 if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
   test.describe('Agency #1473 IA & Drupal governed journey', () => {
+    // The editor-owned IA page has only a historical FR Default Content seed.
+    // Add an EN translation for fresh isolated CI DDEV without publishing content.
+    test.beforeAll(async () => {
+      if (process.env.CI !== 'true') {
+        return;
+      }
+      test.setTimeout(90_000);
+      const directory = path.resolve('artifacts/browser-validation');
+      await mkdir(directory, { recursive: true });
+      const lock = path.join(directory, 'ai-1473-fixture.lock');
+      const php = [
+        "$storage = \\Drupal::entityTypeManager()->getStorage('node');",
+        "$matches = $storage->loadByProperties(['uuid' => '3636da02-c8e6-40ea-aa71-54148f029a09']);",
+        "if (count($matches) !== 1) {",
+        "  throw new \\RuntimeException('Expected exactly one IA & Drupal fixture node.');",
+        "}",
+        "$node = reset($matches);",
+        "if ($node->bundle() !== 'page' || $node->language()->getId() !== 'fr' || $node->label() !== 'IA & Drupal') {",
+        "  throw new \\RuntimeException('IA fixture identity or source language diverged.');",
+        "}",
+        "$path = '/node/' . $node->id();",
+        "$alias_storage = \\Drupal::entityTypeManager()->getStorage('path_alias');",
+        "foreach ($alias_storage->loadByProperties(['alias' => '/ai-drupal', 'langcode' => 'en']) as $alias) {",
+        "  if ($alias->get('path')->value !== $path) {",
+        "    throw new \\RuntimeException('English IA alias belongs to another node.');",
+        "  }",
+        "}",
+        "$refs = [];",
+        "$ai_features = 0;",
+        "foreach ($node->getTranslation('fr')->get('field_home_components') as $item) {",
+        "  $paragraph = $item->entity;",
+        "  if ($paragraph === NULL) {",
+        "    throw new \\RuntimeException('IA fixture has a missing Paragraph reference.');",
+        "  }",
+        "  if ($paragraph->bundle() === 'ai_features') {",
+        "    $ai_features++;",
+        "    if (!$paragraph->hasTranslation('en')) {",
+        "      $values = [];",
+        "      foreach (['field_heading', 'field_items', 'field_text'] as $field) {",
+        "        if ($paragraph->hasField($field)) {",
+        "          $values[$field] = $paragraph->getTranslation('fr')->get($field)->getValue();",
+        "        }",
+        "      }",
+        "      $paragraph->addTranslation('en', $values);",
+        "      $paragraph->save();",
+        "    }",
+        "  }",
+        "  $refs[] = [",
+        "    'target_id' => $paragraph->id(),",
+        "    'target_revision_id' => $paragraph->getRevisionId(),",
+        "  ];",
+        "}",
+        "if ($ai_features !== 1) {",
+        "  throw new \\RuntimeException('Expected exactly one IA features Paragraph.');",
+        "}",
+        "if (!$node->hasTranslation('en')) {",
+        "  $english = $node->addTranslation('en', [",
+        "    'title' => 'AI & Drupal',",
+        "    'status' => 1,",
+        "    'field_home_components' => $refs,",
+        "  ]);",
+        "  $english->set('path', ['alias' => '/ai-drupal', 'pathauto' => 0]);",
+        "  $english->save();",
+        "}",
+        "else {",
+        "  $english = $node->getTranslation('en');",
+        "  $existing_alias = (string) ($english->get('path')->alias ?? '');",
+        "  if ($existing_alias !== '/ai-drupal') {",
+        "    throw new \\RuntimeException('Existing English IA translation alias diverged.');",
+        "  }",
+        "}",
+        "\\Drupal::service('path_alias.manager')->cacheClear($path);",
+        "print 'R1473_EN_FIXTURE=PASS';",
+      ].join('\n');
+      const result = execFileSync('flock', [
+        '-x', '-w', '60', lock, 'ddev', 'drush', 'php:eval', php,
+      ], {
+        cwd: process.cwd(), encoding: 'utf8', timeout: 80_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      expect(result).toContain('R1473_EN_FIXTURE=PASS');
+    });
+
     test('FR/EN four-step flow emphasizes human approval without overflow', async ({
       page, audit,
     }, testInfo) => {

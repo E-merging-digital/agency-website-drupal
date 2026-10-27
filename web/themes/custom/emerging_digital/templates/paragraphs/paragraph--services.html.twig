@@ -1,5 +1,23 @@
 <section{{ attributes.addClass('ed-section', 'ed-section--services-grid') }}>
   <div class="ed-container">
+    {% if is_services_hub and service_path_choices %}
+      <nav class="ed-services-paths" aria-label="{{ service_path_aria_label }}">
+        <p class="ed-services-paths__eyebrow">{{ service_path_eyebrow }}</p>
+        <ol class="ed-services-paths__list">
+          {% for choice in service_path_choices %}
+            <li class="ed-services-paths__item">
+              <a class="ed-services-paths__link ed-services-paths__link--{{ choice.key }}" href="{{ choice.href }}">
+                <span class="ed-services-paths__number" aria-hidden="true">{{ choice.number }}</span>
+                <span class="ed-services-paths__copy">
+                  <strong class="ed-services-paths__title">{{ choice.title }}</strong>
+                  <span class="ed-services-paths__description">{{ choice.description }}</span>
+                </span>
+              </a>
+            </li>
+          {% endfor %}
+        </ol>
+      </nav>
+    {% endif %}
     <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
     {% if paragraph.field_text.value %}
       <div class="ed-section__intro">{{ content.field_text }}</div>
@@ -7,7 +25,7 @@
     {% if service_groups is defined and service_groups %}
       <div class="ed-service-groups">
         {% for group in service_groups %}
-          <div class="ed-service-group ed-service-group--{{ group.key }}">
+          <div class="ed-service-group ed-service-group--{{ group.key }}"{% if is_services_hub %} id="service-family-{{ group.key }}"{% endif %}>
             <div class="ed-service-group__header">
               <div class="ed-service-group__copy">
                 <p class="ed-service-group__eyebrow">{{ group.eyebrow }}</p>

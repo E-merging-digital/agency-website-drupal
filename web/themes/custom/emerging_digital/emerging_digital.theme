@@ -287,11 +287,19 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
     ? 'Explore services by need'
     : 'Explorer les services selon votre besoin';
 
-  foreach ($choices as $group_key => [$title, $description]) {
-    if (empty($service_groups[$group_key]['cards'])) {
-      continue;
-    }
+  // These three existing editorial families provide descriptions and real
+  // contact CTAs even when the fresh content import has no cards for a family.
+  // Keep homepage's populated-only filter and preserve populated other cards.
+  $variables['service_groups'] = [
+    $service_groups['business'],
+    $service_groups['drupal'],
+    $service_groups['ai'],
+  ];
+  if (!empty($service_groups['other']['cards'])) {
+    $variables['service_groups'][] = $service_groups['other'];
+  }
 
+  foreach ($choices as $group_key => [$title, $description]) {
     $variables['service_path_choices'][] = [
       'number' => sprintf('%02d', count($variables['service_path_choices']) + 1),
       'title' => $title,

@@ -38,22 +38,24 @@
                 <a class="button button--secondary ed-service-group__cta" href="{{ group.cta_url }}">{{ group.cta_label }}</a>
               {% endif %}
             </div>
-            <div class="ed-cards ed-cards--services">
-              {% for card in group.cards %}
-                <article class="ed-card ed-card--service ed-card--service-{{ group.key }}">
-                  <h4>
-                    {% if card.url %}
-                      <a class="ed-card__link" href="{{ card.url }}">{{ card.title }}</a>
-                    {% else %}
-                      {{ card.title }}
+            {% if group.cards %}
+              <div class="ed-cards ed-cards--services">
+                {% for card in group.cards %}
+                  <article class="ed-card ed-card--service ed-card--service-{{ group.key }}">
+                    <h4>
+                      {% if card.url %}
+                        <a class="ed-card__link" href="{{ card.url }}">{{ card.title }}</a>
+                      {% else %}
+                        {{ card.title }}
+                      {% endif %}
+                    </h4>
+                    {% if card.description %}
+                      <p>{{ card.description }}</p>
                     {% endif %}
-                  </h4>
-                  {% if card.description %}
-                    <p>{{ card.description }}</p>
-                  {% endif %}
-                </article>
-              {% endfor %}
-            </div>
+                  </article>
+                {% endfor %}
+              </div>
+            {% endif %}
           </div>
         {% endfor %}
       </div>

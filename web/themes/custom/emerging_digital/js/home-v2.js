@@ -55,6 +55,29 @@
       if (hero) {
         window.requestAnimationFrame(() => hero.classList.add('agency-v2-hero-active'));
       }
+
+      const media = hero && hero.querySelector('.agency-v2-hero-media');
+      if (media && window.matchMedia('(max-width: 47.99rem)').matches) {
+        let mediaVisible = false;
+        const storyObserver = new IntersectionObserver(entries => {
+          mediaVisible = entries.some(entry => entry.isIntersecting);
+          tryStartStory();
+        }, { threshold: 0.35 });
+
+        function tryStartStory() {
+          if (!mediaVisible || document.hidden || document.getElementById('ed-cookie-banner')) return;
+          media.classList.add('agency-v2-story-started');
+          storyObserver.disconnect();
+          window.removeEventListener('ed-cookie-consent-updated', consentChanged);
+        }
+
+        function consentChanged() {
+          window.requestAnimationFrame(tryStartStory);
+        }
+
+        window.addEventListener('ed-cookie-consent-updated', consentChanged);
+        storyObserver.observe(media);
+      }
     }
   };
 })(Drupal);

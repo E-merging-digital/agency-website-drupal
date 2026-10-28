@@ -260,6 +260,18 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
         await expect(words).toHaveCount(3);
         const firstWord = words.first();
         await expect(firstWord).toHaveText(lang === 'fr' ? 'CRÉER' : 'CREATE');
+        if (testInfo.project.name === 'mobile') {
+          const banner = page.locator('#ed-cookie-banner');
+          if (await banner.isVisible()) {
+            // The mobile hero is initially covered by consent UI. The story
+            // must not run behind the banner and must start after dismissal.
+            await expect(firstWord).toHaveCSS('animation-name', 'none');
+            await banner.getByRole('button', { name: 'Refuser' }).click();
+          }
+          const media = hero.locator('.agency-v2-hero-media');
+          await media.scrollIntoViewIfNeeded();
+          await expect(media).toHaveClass(/agency-v2-story-started/);
+        }
         await expect.poll(() => firstWord.evaluate(element =>
           Number(getComputedStyle(element).opacity)), { timeout: 3000 }).toBeGreaterThan(0.4);
         const visibleWordOpacity = await firstWord.evaluate(element =>

@@ -216,7 +216,7 @@ test.describe('Browser validation capability proof', () => {
  */
 if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital.be') {
   test.describe('Agency #1470 homepage motion PREPROD FR/EN', () => {
-    test('hero, reveal and opt-in timeline visibly animate', async ({ page }, testInfo) => {
+    test('hero, reveal and first-visit timeline visibly animate', async ({ page }, testInfo) => {
       test.setTimeout(120_000);
 
       for (const lang of ['fr', 'en']) {
@@ -254,6 +254,22 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
         expect(entrance.to.opacity).toBeGreaterThan(0.95);
         expect(entrance.from.transform).not.toBe(entrance.to.transform);
 
+        // The main animation must be observable without a hidden user action.
+        // Keep the Pause/Stop controls immediately available for accessibility.
+        const visual = hero.locator('.ed-home-kinetic__visual');
+        await expect(visual).toHaveAttribute('data-kinetic-static', 'false', { timeout: 6000 });
+        await expect(hero.getByRole('button', { name: 'Pause' })).toBeVisible();
+        await expect(hero.getByRole('button', { name: lang === 'fr' ? 'Arrêter' : 'Stop' })).toBeVisible();
+        const firstWord = visual.locator('.ed-home-kinetic__word').first();
+        await expect.poll(() => firstWord.evaluate(element =>
+          Number(getComputedStyle(element).opacity)), { timeout: 8000 }).toBeGreaterThan(0.3);
+        const screenshotDir = path.resolve('artifacts/browser-validation/screenshots');
+        await mkdir(screenshotDir, { recursive: true });
+        const proofName = `home-motion-${lang}-${testInfo.project.name}`;
+        const screenshotPath = path.join(screenshotDir, `${proofName}.png`);
+        await hero.screenshot({ path: screenshotPath });
+        await testInfo.attach(proofName, { path: screenshotPath, contentType: 'image/png' });
+
         const firstPath = page.locator('.agency-v2-path').first();
         await firstPath.scrollIntoViewIfNeeded();
         await expect(firstPath).toHaveClass(/agency-v2-is-visible/);
@@ -267,19 +283,6 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
           getComputedStyle(element).animationName);
         expect(demoAnimation).toContain('agency-v2-flow-step');
 
-        const playLabel = lang === 'fr' ? 'Voir la présentation' : 'Watch the presentation';
-        await hero.getByRole('button', { name: playLabel }).click();
-        const visual = hero.locator('.ed-home-kinetic__visual');
-        await expect(visual).toHaveAttribute('data-kinetic-static', 'false');
-        const firstWord = visual.locator('.ed-home-kinetic__word').first();
-        await expect.poll(() => firstWord.evaluate(element =>
-          Number(getComputedStyle(element).opacity)), { timeout: 8000 }).toBeGreaterThan(0.3);
-        const screenshotDir = path.resolve('artifacts/browser-validation/screenshots');
-        await mkdir(screenshotDir, { recursive: true });
-        const proofName = `home-motion-${lang}-${testInfo.project.name}`;
-        const screenshotPath = path.join(screenshotDir, `${proofName}.png`);
-        await hero.screenshot({ path: screenshotPath });
-        await testInfo.attach(proofName, { path: screenshotPath, contentType: 'image/png' });
         const evidenceDir = path.resolve('artifacts/browser-validation/evidence');
         await mkdir(evidenceDir, { recursive: true });
         await writeFile(path.join(evidenceDir, `${proofName}.json`), JSON.stringify({
@@ -294,6 +297,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
         await expect(page.locator('h1')).toBeVisible();
         expect(await page.locator('h1').evaluate(element =>
           getComputedStyle(element).animationName)).toBe('none');
+        await expect(page.locator('.ed-home-kinetic__visual')).toHaveAttribute('data-kinetic-static', 'true');
       }
     });
   });

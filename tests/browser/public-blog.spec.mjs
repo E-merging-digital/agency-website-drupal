@@ -265,7 +265,11 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
       const visual = hero.locator('.ed-home-kinetic__visual');
       const media = visual.locator('img').first();
       await expect(media).toBeVisible();
-      expect(await media.evaluate(el => el.complete && el.naturalWidth > 0)).toBe(true);
+      // Visibility does not guarantee image load completion after DOMContentLoaded.
+      await expect.poll(
+        () => media.evaluate(el => el.complete && el.naturalWidth > 0),
+        { timeout: 10_000 },
+      ).toBe(true);
       await expect(visual).toHaveAttribute('data-kinetic-static', 'true');
       const play = hero.getByRole('button', { name: surface.play });
       await expect(play).toBeVisible();

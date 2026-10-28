@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './support/browser-audit.mjs';
 
@@ -209,6 +209,95 @@ test.describe('Browser validation capability proof', () => {
     ).toEqual([]);
   });
 });
+
+/*
+ * #1470: verify actual homepage motion in the governed PREPROD browser lane.
+ * A green Blog screenshot alone is not evidence that homepage animation runs.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1470 homepage motion PREPROD FR/EN', () => {
+    test('hero, reveal and opt-in timeline visibly animate', async ({ page }, testInfo) => {
+      test.setTimeout(120_000);
+
+      for (const lang of ['fr', 'en']) {
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        const response = await page.goto(`/${lang}`, { waitUntil: 'domcontentloaded' });
+        expect(response?.status()).toBeLessThan(400);
+        const hero = page.locator('.page-main--front .ed-section--hero-home');
+        const heading = hero.locator('h1');
+        await expect(heading).toBeVisible();
+        await expect(hero).toHaveClass(/agency-v2-hero-active/);
+
+        const entrance = await heading.evaluate(element => {
+          const animation = element.getAnimations().find(item =>
+            item.animationName === 'agency-v2-hero-enter');
+          if (!animation) return null;
+          const previousTime = animation.currentTime;
+          const wasRunning = animation.playState === 'running';
+          animation.pause();
+          animation.currentTime = 0;
+          const from = {
+            opacity: Number(getComputedStyle(element).opacity),
+            transform: getComputedStyle(element).transform,
+          };
+          animation.currentTime = animation.effect.getComputedTiming().endTime;
+          const to = {
+            opacity: Number(getComputedStyle(element).opacity),
+            transform: getComputedStyle(element).transform,
+          };
+          if (previousTime !== null) animation.currentTime = previousTime;
+          if (wasRunning) animation.play();
+          return { from, to };
+        });
+        expect(entrance, 'The homepage H1 must have an active CSS animation.').not.toBeNull();
+        expect(entrance.from.opacity).toBeLessThan(0.1);
+        expect(entrance.to.opacity).toBeGreaterThan(0.95);
+        expect(entrance.from.transform).not.toBe(entrance.to.transform);
+
+        const firstPath = page.locator('.agency-v2-path').first();
+        await firstPath.scrollIntoViewIfNeeded();
+        await expect(firstPath).toHaveClass(/agency-v2-is-visible/);
+        await expect.poll(() => firstPath.evaluate(element =>
+          Number(getComputedStyle(element).opacity))).toBeGreaterThan(0.95);
+
+        const demo = page.locator('.agency-v2-demo__flow');
+        await demo.scrollIntoViewIfNeeded();
+        await expect(demo).toHaveClass(/agency-v2-is-visible/);
+        const demoAnimation = await demo.locator('li').first().evaluate(element =>
+          getComputedStyle(element).animationName);
+        expect(demoAnimation).toContain('agency-v2-flow-step');
+
+        const playLabel = lang === 'fr' ? 'Voir la présentation' : 'Watch the presentation';
+        await hero.getByRole('button', { name: playLabel }).click();
+        const visual = hero.locator('.ed-home-kinetic__visual');
+        await expect(visual).toHaveAttribute('data-kinetic-static', 'false');
+        const firstWord = visual.locator('.ed-home-kinetic__word').first();
+        await expect.poll(() => firstWord.evaluate(element =>
+          Number(getComputedStyle(element).opacity)), { timeout: 8000 }).toBeGreaterThan(0.3);
+        const screenshotDir = path.resolve('artifacts/browser-validation/screenshots');
+        await mkdir(screenshotDir, { recursive: true });
+        const proofName = `home-motion-${lang}-${testInfo.project.name}`;
+        const screenshotPath = path.join(screenshotDir, `${proofName}.png`);
+        await hero.screenshot({ path: screenshotPath });
+        await testInfo.attach(proofName, { path: screenshotPath, contentType: 'image/png' });
+        const evidenceDir = path.resolve('artifacts/browser-validation/evidence');
+        await mkdir(evidenceDir, { recursive: true });
+        await writeFile(path.join(evidenceDir, `${proofName}.json`), JSON.stringify({
+          lang, viewport: testInfo.project.name, entrance, demoAnimation,
+          kineticWord: await firstWord.textContent(),
+          kineticOpacity: await firstWord.evaluate(element => Number(getComputedStyle(element).opacity)),
+          screenshot: `screenshots/${proofName}.png`,
+        }, null, 2));
+
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(page.locator('h1')).toBeVisible();
+        expect(await page.locator('h1').evaluate(element =>
+          getComputedStyle(element).animationName)).toBe('none');
+      }
+    });
+  });
+}
 
 /*
  * Agency #1418 R8: homepage proof on the existing trusted public-blog

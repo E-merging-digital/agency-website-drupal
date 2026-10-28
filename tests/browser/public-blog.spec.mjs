@@ -6,7 +6,13 @@ import { test, expect } from './support/browser-audit.mjs';
 const contract = JSON.parse(
   await readFile(new URL('./contracts/public-blog.json', import.meta.url), 'utf8'),
 );
-const browserBaseUrl = process.env.BROWSER_VALIDATION_BASE_URL ?? 'http://127.0.0.1';
+const browserBaseUrl = process.env.BROWSER_VALIDATION_BASE_URL
+  ?? process.env.PLAYWRIGHT_BASE_URL
+  ?? 'http://127.0.0.1';
+// Fixture writes are permitted only against an isolated DDEV browser target.
+// PROD and arbitrary remote CI targets must exercise public pages read-only.
+const canPrepareIsolatedDdevFixtures = process.env.CI === 'true'
+  && new URL(browserBaseUrl).hostname.toLowerCase().endsWith('.ddev.site');
 const expectZeroGa4 =
   new URL(browserBaseUrl).hostname === 'preprod.emergingdigital.be'
   || process.env.BROWSER_VALIDATION_EXPECT_ZERO_GA4 === '1';
@@ -405,7 +411,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
     // bootstrap intentionally imports only its historical FR Default Content.
     // Make an ephemeral EN translation solely for the isolated CI browser proof.
     test.beforeAll(async () => {
-      if (process.env.CI !== 'true') {
+      if (!canPrepareIsolatedDdevFixtures) {
         return;
       }
 
@@ -572,7 +578,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
     // The editor-owned IA page has only a historical FR Default Content seed.
     // Add an EN translation for fresh isolated CI DDEV without publishing content.
     test.beforeAll(async () => {
-      if (process.env.CI !== 'true') {
+      if (!canPrepareIsolatedDdevFixtures) {
         return;
       }
       test.setTimeout(90_000);

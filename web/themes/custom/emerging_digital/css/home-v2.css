@@ -198,25 +198,25 @@
 /* #1470 motion pass: a brief hero entrance and staged, explanatory reveals.
    No loop, no extra library, no hidden content without JavaScript. */
 @media (prefers-reduced-motion: no-preference) {
-  .page-main--front .ed-section--hero-home.agency-v2-hero-active .agency-v2-eyebrow {
+  .page-main--front .ed-section--hero-home .agency-v2-eyebrow {
     animation: agency-v2-hero-enter .65s .05s both;
   }
-  .page-main--front .ed-section--hero-home.agency-v2-hero-active .ed-section__title--hero {
+  .page-main--front .ed-section--hero-home .ed-section__title--hero {
     animation: agency-v2-hero-enter .8s .18s both;
   }
-  .page-main--front .ed-section--hero-home.agency-v2-hero-active .agency-v2-hero-intro {
+  .page-main--front .ed-section--hero-home .agency-v2-hero-intro {
     animation: agency-v2-hero-enter .75s .38s both;
   }
-  .page-main--front .ed-section--hero-home.agency-v2-hero-active .ed-actions {
+  .page-main--front .ed-section--hero-home .ed-actions {
     animation: agency-v2-hero-enter .7s .52s both;
   }
-  .page-main--front .ed-section--hero-home.agency-v2-hero-active .agency-v2-hero-proof {
+  .page-main--front .ed-section--hero-home .agency-v2-hero-proof {
     animation: agency-v2-hero-enter .7s .66s both;
   }
-  .page-main--front .ed-section--hero-home.agency-v2-hero-active .agency-v2-hero-media {
+  .page-main--front .ed-section--hero-home .agency-v2-hero-media {
     animation: agency-v2-photo-enter .95s .2s both;
   }
-  .page-main--front .ed-section--hero-home.agency-v2-hero-active .ed-home-kinetic__accent {
+  .page-main--front .ed-section--hero-home .ed-home-kinetic__accent {
     animation: agency-v2-accent-draw .85s .82s both;
     transform-origin: left center;
   }
@@ -310,4 +310,50 @@
 @keyframes agency-v2-arrow-appear {
   from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+/* #1470: short, automatic CSS-first story. Static content is present even
+   when scripts are blocked; no playback button or long-running loop. */
+.agency-v2-hero-media { position: relative; }
+.agency-v2-motion-words {
+  position: absolute;
+  z-index: 2;
+  inset: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 1.3rem 1.3rem 0 0;
+  background: linear-gradient(180deg, transparent 42%, rgb(12 22 38 / 52%));
+}
+.agency-v2-motion-words span {
+  position: absolute;
+  inset: auto 5% 11%;
+  display: block;
+  color: #fff;
+  font: 800 clamp(2.1rem, 3.5vw, 3.8rem) / 1.08 var(--font-heading);
+  letter-spacing: -.045em;
+  text-align: center;
+  text-shadow: 0 5px 24px rgb(0 0 0 / 42%);
+  opacity: 0;
+}
+.agency-v2-motion-words span:last-child { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .agency-v2-motion-words span:nth-child(1) {
+    animation: agency-v2-story-word 1.2s .65s both;
+  }
+  .agency-v2-motion-words span:nth-child(2) {
+    animation: agency-v2-story-word 1.2s 1.85s both;
+  }
+  .agency-v2-motion-words span:nth-child(3) {
+    animation: agency-v2-story-final .95s 3.05s both;
+  }
+}
+@keyframes agency-v2-story-word {
+  0%, 100% { opacity: 0; transform: translateY(16px); }
+  25%, 72% { opacity: 1; transform: translateY(0); }
+}
+@keyframes agency-v2-story-final {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }

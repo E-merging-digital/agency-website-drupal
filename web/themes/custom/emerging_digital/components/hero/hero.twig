@@ -56,6 +56,12 @@
             decoding="async"
           >
         {% endif %}
+        {# A short, automatic, CSS-first story: no user action or JavaScript needed. #}
+        <div class="agency-v2-motion-words" aria-hidden="true">
+          <span>{{ home_en ? 'CREATE' : 'CRÉER' }}</span>
+          <span>{{ home_en ? 'IMPROVE' : 'AMÉLIORER' }}</span>
+          <span>{{ home_en ? 'MODERNIZE' : 'MODERNISER' }}</span>
+        </div>
         <div class="agency-v2-photo-caption">
           <strong>{{ home_en ? 'Solutions built to last' : 'Des solutions qui durent' }}</strong>
           <span aria-hidden="true">↗</span>

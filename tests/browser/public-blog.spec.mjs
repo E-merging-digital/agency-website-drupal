@@ -215,19 +215,21 @@ test.describe('Browser validation capability proof', () => {
  * A green Blog screenshot alone is not evidence that homepage animation runs.
  */
 if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital.be') {
-  test.describe('Agency #1470 homepage motion PREPROD FR/EN', () => {
-    test('hero, reveal and first-visit timeline visibly animate', async ({ page }, testInfo) => {
+  test.describe('Agency #1470 homepage automatic motion PREPROD FR/EN', () => {
+    test('short CSS story, scroll reveals and reduced-motion fallback work without a play button', async ({ page }, testInfo) => {
       test.setTimeout(120_000);
 
       for (const lang of ['fr', 'en']) {
         await page.emulateMedia({ reducedMotion: 'no-preference' });
-        const response = await page.goto(`/${lang}`, { waitUntil: 'domcontentloaded' });
+        const response = await page.goto('/' + lang, { waitUntil: 'domcontentloaded' });
         expect(response?.status()).toBeLessThan(400);
         const hero = page.locator('.page-main--front .ed-section--hero-home');
         const heading = hero.locator('h1');
         await expect(heading).toBeVisible();
-        await expect(hero).toHaveClass(/agency-v2-hero-active/);
+        await expect(hero.locator('.ed-home-kinetic__controls')).toHaveCount(0);
+        await expect(hero.getByRole('button', { name: /Voir la présentation|Watch the presentation/ })).toHaveCount(0);
 
+        // The H1 animates directly from CSS, not from a class installed by JS.
         const entrance = await heading.evaluate(element => {
           const animation = element.getAnimations().find(item =>
             item.animationName === 'agency-v2-hero-enter');
@@ -249,33 +251,31 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
           if (wasRunning) animation.play();
           return { from, to };
         });
-        expect(entrance, 'The homepage H1 must have an active CSS animation.').not.toBeNull();
+        expect(entrance).not.toBeNull();
         expect(entrance.from.opacity).toBeLessThan(0.1);
         expect(entrance.to.opacity).toBeGreaterThan(0.95);
         expect(entrance.from.transform).not.toBe(entrance.to.transform);
 
-        // The main animation must be observable without a hidden user action.
-        // Keep the Pause/Stop controls immediately available for accessibility.
-        const visual = hero.locator('.ed-home-kinetic__visual');
-        await expect(visual).toHaveAttribute('data-kinetic-static', 'false', { timeout: 6000 });
-        await expect(hero.getByRole('button', { name: 'Pause' })).toBeVisible();
-        await expect(hero.getByRole('button', { name: lang === 'fr' ? 'Arrêter' : 'Stop' })).toBeVisible();
-        const firstWord = visual.locator('.ed-home-kinetic__word').first();
+        const words = hero.locator('.agency-v2-motion-words span');
+        await expect(words).toHaveCount(3);
+        const firstWord = words.first();
+        await expect(firstWord).toHaveText(lang === 'fr' ? 'CRÉER' : 'CREATE');
         await expect.poll(() => firstWord.evaluate(element =>
-          Number(getComputedStyle(element).opacity)), { timeout: 8000 }).toBeGreaterThan(0.3);
+          Number(getComputedStyle(element).opacity)), { timeout: 3000 }).toBeGreaterThan(0.4);
+        const visibleWordOpacity = await firstWord.evaluate(element =>
+          Number(getComputedStyle(element).opacity));
         const screenshotDir = path.resolve('artifacts/browser-validation/screenshots');
         await mkdir(screenshotDir, { recursive: true });
-        const proofName = `home-motion-${lang}-${testInfo.project.name}`;
-        const screenshotPath = path.join(screenshotDir, `${proofName}.png`);
+        const proofName = 'home-motion-' + lang + '-' + testInfo.project.name;
+        const screenshotPath = path.join(screenshotDir, proofName + '.png');
         await hero.screenshot({ path: screenshotPath });
         await testInfo.attach(proofName, { path: screenshotPath, contentType: 'image/png' });
 
-        const firstPath = page.locator('.agency-v2-path').first();
-        await firstPath.scrollIntoViewIfNeeded();
-        await expect(firstPath).toHaveClass(/agency-v2-is-visible/);
-        await expect.poll(() => firstPath.evaluate(element =>
+        const pathCard = page.locator('.agency-v2-path').first();
+        await pathCard.scrollIntoViewIfNeeded();
+        await expect(pathCard).toHaveClass(/agency-v2-is-visible/);
+        await expect.poll(() => pathCard.evaluate(element =>
           Number(getComputedStyle(element).opacity))).toBeGreaterThan(0.95);
-
         const demo = page.locator('.agency-v2-demo__flow');
         await demo.scrollIntoViewIfNeeded();
         await expect(demo).toHaveClass(/agency-v2-is-visible/);
@@ -285,19 +285,22 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
 
         const evidenceDir = path.resolve('artifacts/browser-validation/evidence');
         await mkdir(evidenceDir, { recursive: true });
-        await writeFile(path.join(evidenceDir, `${proofName}.json`), JSON.stringify({
+        await writeFile(path.join(evidenceDir, proofName + '.json'), JSON.stringify({
           lang, viewport: testInfo.project.name, entrance, demoAnimation,
-          kineticWord: await firstWord.textContent(),
-          kineticOpacity: await firstWord.evaluate(element => Number(getComputedStyle(element).opacity)),
-          screenshot: `screenshots/${proofName}.png`,
+          firstWord: await firstWord.textContent(), visibleWordOpacity,
+          controls: 0, screenshot: 'screenshots/' + proofName + '.png',
         }, null, 2));
 
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.reload({ waitUntil: 'domcontentloaded' });
         await expect(page.locator('h1')).toBeVisible();
-        expect(await page.locator('h1').evaluate(element =>
+        const reducedWords = page.locator('.agency-v2-motion-words span');
+        await expect(reducedWords).toHaveCount(3);
+        expect(await reducedWords.first().evaluate(element =>
           getComputedStyle(element).animationName)).toBe('none');
-        await expect(page.locator('.ed-home-kinetic__visual')).toHaveAttribute('data-kinetic-static', 'true');
+        expect(await reducedWords.last().evaluate(element =>
+          Number(getComputedStyle(element).opacity))).toBe(1);
+        await expect(page.locator('.ed-home-kinetic__controls')).toHaveCount(0);
       }
     });
   });
@@ -310,193 +313,8 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
  */
 // Do not register the candidate-only test when the unrelated PREPROD
 // analytics workflow points this shared spec at the currently deployed site.
-if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
-test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
-  test('real home hero is readable and opt-in Kinetic is perceptible', async ({
-    page, browser, audit,
-  }, testInfo) => {
-    test.setTimeout(110_000);
-    const surfaces = [
-      {
-        lang: 'fr', path: '/fr', firstWord: 'CRÉER',
-        play: 'Voir la présentation', pause: 'Pause', resume: 'Reprendre',
-        stop: 'Arrêter', replay: 'Revoir', reduced: 'Animation réduite',
-      },
-      {
-        lang: 'en', path: '/en', firstWord: 'CREATE',
-        play: 'Watch the presentation', pause: 'Pause', resume: 'Resume',
-        stop: 'Stop', replay: 'Replay', reduced: 'Motion is reduced',
-      },
-    ];
-
-    for (const surface of surfaces) {
-      await page.emulateMedia({ reducedMotion: 'no-preference' });
-      const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
-      expect(response).not.toBeNull();
-      expect(response.status()).toBeLessThan(400);
-      const hero = page.locator('.page-main--front .ed-section--hero-home');
-      await expect(hero).toBeVisible();
-      const h1 = hero.locator('h1');
-      await expect(h1).toHaveCount(1);
-      await expect(h1).toBeVisible();
-      await expect(page.locator('h1')).toHaveCount(1);
-      await expect(page.locator('html')).toHaveAttribute('lang', surface.lang);
-      const primary = hero.locator('.ed-actions__primary').getByRole('link').first();
-      const secondary = hero.locator('.ed-actions__secondary').getByRole('link').first();
-      await expect(primary).toBeVisible();
-      await expect(secondary).toBeVisible();
-      await expect(primary).toHaveText(/\S/);
-      await expect(secondary).toHaveText(/\S/);
-      // Drupal's source-owned hero may render unprefixed canonical links.
-      const routePath = route => new RegExp(`^/(?:${surface.lang}/)?${route}$`);
-      expect(new URL(await primary.getAttribute('href'), page.url()).pathname)
-        .toMatch(routePath('contact'));
-      expect(new URL(await secondary.getAttribute('href'), page.url()).pathname)
-        .toMatch(routePath('services'));
-      await expect(hero.locator('.ed-section__intro')).toContainText(/\S/);
-
-      const visual = hero.locator('.ed-home-kinetic__visual');
-      const media = visual.locator('img').first();
-      await expect(media).toBeVisible();
-      // Visibility does not guarantee image load completion after DOMContentLoaded.
-      await expect.poll(
-        () => media.evaluate(el => el.complete && el.naturalWidth > 0),
-        { timeout: 10_000 },
-      ).toBe(true);
-      await expect(visual).toHaveAttribute('data-kinetic-static', 'true');
-      const play = hero.getByRole('button', { name: surface.play });
-      await expect(play).toBeVisible();
-      await expect(hero.getByRole('button', { name: surface.replay })).toBeHidden();
-      await expect(hero.getByRole('button', { name: surface.stop })).toBeHidden();
-      const progress = hero.locator('.ed-home-kinetic__progress');
-      expect(await progress.evaluate(el => el.value)).toBe(0);
-      const metrics = await page.evaluate(() => ({
-        width: window.innerWidth,
-        documentWidth: document.documentElement.scrollWidth,
-      }));
-      expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.width + 1);
-
-      const dir = path.resolve('artifacts/browser-validation/screenshots');
-      await mkdir(dir, { recursive: true });
-      const staticShot = path.join(dir, `home-1418-${surface.lang}-${testInfo.project.name}-static.png`);
-      await page.screenshot({ path: staticShot, fullPage: true });
-      await testInfo.attach(`home-${surface.lang}-static`, { path: staticShot, contentType: 'image/png' });
-
-      // Keyboard starts the same voluntary demo; no autoplay.
-      await play.focus();
-      await page.keyboard.press('Enter');
-      await expect(visual).toHaveAttribute('data-kinetic-static', 'false');
-      // The first word is visible only within a real part of its 2.7-5.25s
-      // track. Sample progress and computed opacity within the same animation
-      // frame, and pause immediately at the first perceptible frame. A skipped
-      // visible window remains a real test failure, not a timing exemption.
-      const word = visual.getByText(surface.firstWord, { exact: true });
-      const visibleFrame = await page.evaluate(({ firstWord, pauseLabel }) => {
-        const host = document.querySelector('.page-main--front .ed-section--hero-home');
-        const bar = host?.querySelector('.ed-home-kinetic__progress');
-        const candidate = Array.from(host?.querySelectorAll('.ed-home-kinetic__word') || [])
-          .find(el => el.textContent?.trim() === firstWord);
-        const pauseButton = Array.from(host?.querySelectorAll('.ed-home-kinetic__button') || [])
-          .find(el => el.textContent?.trim() === pauseLabel);
-        if (!bar || !candidate || !pauseButton) {
-          throw new Error('Kinetic visible-frame controls are missing.');
-        }
-        return new Promise((resolve, reject) => {
-          const startedAt = performance.now();
-          function sample() {
-            const elapsed = Number(bar.value);
-            const opacity = Number(getComputedStyle(candidate).opacity);
-            if (elapsed >= 3_200 && elapsed < 4_800 && opacity > 0.35) {
-              pauseButton.click();
-              resolve({ elapsed: Number(bar.value), opacity });
-              return;
-            }
-            if (elapsed >= 5_100 || performance.now() - startedAt > 12_000) {
-              reject(new Error('No perceptible Kinetic word frame: elapsed=' +
-                elapsed + ', opacity=' + opacity));
-              return;
-            }
-            requestAnimationFrame(sample);
-          }
-          requestAnimationFrame(sample);
-        });
-      }, { firstWord: surface.firstWord, pauseLabel: surface.pause });
-      expect(visibleFrame.opacity).toBeGreaterThan(0.35);
-      expect(visibleFrame.elapsed).toBeGreaterThanOrEqual(3_200);
-      expect(visibleFrame.elapsed).toBeLessThan(4_800);
-      await expect(hero.getByRole('button', { name: surface.resume })).toBeVisible();
-      const pausedAt = await progress.evaluate(el => el.value);
-      expect(pausedAt).toBe(visibleFrame.elapsed);
-      expect(await word.evaluate(el => Number(getComputedStyle(el).opacity)))
-        .toBeGreaterThan(0.35);
-      const playingShot = path.join(dir, `home-1418-${surface.lang}-${testInfo.project.name}-kinetic.png`);
-      await page.screenshot({ path: playingShot, fullPage: true });
-      await testInfo.attach(`home-${surface.lang}-kinetic`, {
-        path: playingShot, contentType: 'image/png',
-      });
-      await page.waitForTimeout(260);
-      expect(await progress.evaluate(el => el.value)).toBe(pausedAt);
-      await hero.getByRole('button', { name: surface.resume }).click();
-      await expect.poll(() => progress.evaluate(el => el.value))
-        .toBeGreaterThan(pausedAt);
-      await hero.getByRole('button', { name: surface.stop }).click();
-      expect(await progress.evaluate(el => el.value)).toBe(0);
-      await expect(visual).toHaveAttribute('data-kinetic-static', 'true');
-      await expect(hero.getByRole('button', { name: surface.play })).toBeVisible();
-
-      // Finish really animating; timer must not jump instantly to 12s.
-      await hero.getByRole('button', { name: surface.play }).click();
-      await expect.poll(() => progress.evaluate(el => el.value), { timeout: 18_000 })
-        .toBe(12_000);
-      await expect(hero.getByRole('button', { name: surface.replay })).toBeVisible();
-      await hero.getByRole('button', { name: surface.replay }).click();
-      await expect.poll(() => progress.evaluate(el => el.value)).toBeGreaterThan(0);
-      await hero.getByRole('button', { name: surface.stop }).click();
-
-      // A reduced-motion user can still read the static hero.
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      await hero.getByRole('button', { name: surface.play }).click();
-      expect(await progress.evaluate(el => el.value)).toBe(0);
-      await expect(visual).toHaveAttribute('data-kinetic-static', 'true');
-      await expect(hero.getByText(new RegExp(surface.reduced))).toBeVisible();
-      await page.emulateMedia({ reducedMotion: 'no-preference' });
-    }
-
-    // A fresh real browser context with JavaScript disabled must retain
-    // meaningful H1 and contact CTA without using the Kinetic behavior.
-    const staticContext = await browser.newContext({ javaScriptEnabled: false });
-    try {
-      const staticPage = await staticContext.newPage();
-      const response = await staticPage.goto(new URL('/fr', page.url()).toString(), { waitUntil: 'domcontentloaded' });
-      expect(response).not.toBeNull();
-      expect(response.status()).toBeLessThan(400);
-      await expect(staticPage.locator('h1')).toHaveCount(1);
-      await expect(staticPage.locator('h1')).toBeVisible();
-      const contactCta = staticPage.locator('.page-main--front .ed-section--hero-home')
-        .locator('.ed-actions__primary').getByRole('link').first();
-      await expect(contactCta).toBeVisible();
-      await expect(contactCta).toHaveText(/\S/);
-      expect(new URL(await contactCta.getAttribute('href'), staticPage.url()).pathname)
-        .toMatch(/^\/(?:fr\/)?contact$/);
-    }
-    finally {
-      await staticContext.close();
-    }
-
-    expect(audit.consoleErrors).toEqual([]);
-    expect(audit.pageErrors).toEqual([]);
-    expect(audit.http5xx).toEqual([]);
-    expect(audit.unexpectedHttp4xx).toEqual([]);
-    expect(audit.failedRequests).toEqual([]);
-    audit.checks.functional = 'PASS';
-    audit.checks.dom = 'PASS';
-    audit.checks.visual = 'PASS';
-    audit.checks.console = 'PASS';
-    audit.checks.network = 'PASS';
-    audit.screenshot = `screenshots/home-1418-en-${testInfo.project.name}-kinetic.png`;
-  });
-});
-}
+// #1418's manual-playback contract was superseded by #1470 automatic motion.
+// PREPROD validates the actual CSS animation and absence of playback controls.
 
 /*
  * #1471: focused visual proof for the existing Services hub on fresh DDEV.

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './support/browser-audit.mjs';
@@ -282,18 +283,54 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
       await play.focus();
       await page.keyboard.press('Enter');
       await expect(visual).toHaveAttribute('data-kinetic-static', 'false');
-      await expect.poll(() => progress.evaluate(el => el.value), { timeout: 5_000 })
-        .toBeGreaterThan(200);
+      // The first word is visible only within a real part of its 2.7-5.25s
+      // track. Sample progress and computed opacity within the same animation
+      // frame, and pause immediately at the first perceptible frame. A skipped
+      // visible window remains a real test failure, not a timing exemption.
       const word = visual.getByText(surface.firstWord, { exact: true });
-      await expect.poll(() => word.evaluate(el => Number(getComputedStyle(el).opacity)),
-        { timeout: 6_000 }).toBeGreaterThan(0.35);
+      const visibleFrame = await page.evaluate(({ firstWord, pauseLabel }) => {
+        const host = document.querySelector('.page-main--front .ed-section--hero-home');
+        const bar = host?.querySelector('.ed-home-kinetic__progress');
+        const candidate = Array.from(host?.querySelectorAll('.ed-home-kinetic__word') || [])
+          .find(el => el.textContent?.trim() === firstWord);
+        const pauseButton = Array.from(host?.querySelectorAll('.ed-home-kinetic__button') || [])
+          .find(el => el.textContent?.trim() === pauseLabel);
+        if (!bar || !candidate || !pauseButton) {
+          throw new Error('Kinetic visible-frame controls are missing.');
+        }
+        return new Promise((resolve, reject) => {
+          const startedAt = performance.now();
+          function sample() {
+            const elapsed = Number(bar.value);
+            const opacity = Number(getComputedStyle(candidate).opacity);
+            if (elapsed >= 3_200 && elapsed < 4_800 && opacity > 0.35) {
+              pauseButton.click();
+              resolve({ elapsed: Number(bar.value), opacity });
+              return;
+            }
+            if (elapsed >= 5_100 || performance.now() - startedAt > 12_000) {
+              reject(new Error('No perceptible Kinetic word frame: elapsed=' +
+                elapsed + ', opacity=' + opacity));
+              return;
+            }
+            requestAnimationFrame(sample);
+          }
+          requestAnimationFrame(sample);
+        });
+      }, { firstWord: surface.firstWord, pauseLabel: surface.pause });
+      expect(visibleFrame.opacity).toBeGreaterThan(0.35);
+      expect(visibleFrame.elapsed).toBeGreaterThanOrEqual(3_200);
+      expect(visibleFrame.elapsed).toBeLessThan(4_800);
+      await expect(hero.getByRole('button', { name: surface.resume })).toBeVisible();
+      const pausedAt = await progress.evaluate(el => el.value);
+      expect(pausedAt).toBe(visibleFrame.elapsed);
+      expect(await word.evaluate(el => Number(getComputedStyle(el).opacity)))
+        .toBeGreaterThan(0.35);
       const playingShot = path.join(dir, `home-1418-${surface.lang}-${testInfo.project.name}-kinetic.png`);
       await page.screenshot({ path: playingShot, fullPage: true });
       await testInfo.attach(`home-${surface.lang}-kinetic`, {
         path: playingShot, contentType: 'image/png',
       });
-      await hero.getByRole('button', { name: surface.pause }).click();
-      const pausedAt = await progress.evaluate(el => el.value);
       await page.waitForTimeout(260);
       expect(await progress.evaluate(el => el.value)).toBe(pausedAt);
       await hero.getByRole('button', { name: surface.resume }).click();
@@ -356,4 +393,173 @@ test.describe('Agency #1418 B+ Kinetic homepage FR/EN', () => {
     audit.screenshot = `screenshots/home-1418-en-${testInfo.project.name}-kinetic.png`;
   });
 });
+}
+
+/*
+ * #1471: focused visual proof for the existing Services hub on fresh DDEV.
+ * Keep the shared PREPROD Blog contract independent of this candidate.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1471 graphical Services hub', () => {
+    // #1471: released Services content is editor-owned, so the fresh DDEV
+    // bootstrap intentionally imports only its historical FR Default Content.
+    // Make an ephemeral EN translation solely for the isolated CI browser proof.
+    test.beforeAll(async () => {
+      if (process.env.CI !== 'true') {
+        return;
+      }
+
+      test.setTimeout(90_000);
+      const directory = path.resolve('artifacts/browser-validation');
+      await mkdir(directory, { recursive: true });
+      const lock = path.join(directory, 'services-1471-fixture.lock');
+      const php = [
+      "$storage = \\Drupal::entityTypeManager()->getStorage('node');",
+      "$matches = $storage->loadByProperties(['uuid' => 'd6e1876f-8e32-4f75-b6bb-946de5f5afdb']);",
+      "if (count($matches) !== 1) {",
+      "  throw new \\RuntimeException('The exact Services fixture node must exist once.');",
+      "}",
+      "$node = reset($matches);",
+      "if ($node->bundle() !== 'page' || $node->language()->getId() !== 'fr' || $node->label() !== 'Services') {",
+      "  throw new \\RuntimeException('Services fixture identity or source language diverged.');",
+      "}",
+      "$path = '/node/' . $node->id();",
+      "$alias_storage = \\Drupal::entityTypeManager()->getStorage('path_alias');",
+      "foreach ($alias_storage->loadByProperties(['alias' => '/services', 'langcode' => 'en']) as $alias) {",
+      "  if ($alias->get('path')->value !== $path) {",
+      "    throw new \\RuntimeException('English Services alias belongs to another node.');",
+      "  }",
+      "}",
+      "$refs = [];",
+      "$services = 0;",
+      "foreach ($node->getTranslation('fr')->get('field_home_components') as $item) {",
+      "  $paragraph = $item->entity;",
+      "  if ($paragraph === NULL) {",
+      "    throw new \\RuntimeException('Services fixture has a missing Paragraph reference.');",
+      "  }",
+      "  if ($paragraph->bundle() === 'services') {",
+      "    $services++;",
+      "    if (!$paragraph->hasTranslation('en')) {",
+      "      $values = [];",
+      "      foreach (['field_heading', 'field_text', 'field_items'] as $field) {",
+      "        if ($paragraph->hasField($field)) {",
+      "          $values[$field] = $paragraph->getTranslation('fr')->get($field)->getValue();",
+      "        }",
+      "      }",
+      "      $paragraph->addTranslation('en', $values);",
+      "      $paragraph->save();",
+      "    }",
+      "  }",
+      "  $refs[] = [",
+      "    'target_id' => $paragraph->id(),",
+      "    'target_revision_id' => $paragraph->getRevisionId(),",
+      "  ];",
+      "}",
+      "if ($services !== 1) {",
+      "  throw new \\RuntimeException('Expected exactly one Services Paragraph.');",
+      "}",
+      "if (!$node->hasTranslation('en')) {",
+      "  $english = $node->addTranslation('en', [",
+      "    'title' => 'Services',",
+      "    'status' => 1,",
+      "    'field_home_components' => $refs,",
+      "  ]);",
+      "  $english->set('path', ['alias' => '/services', 'pathauto' => 0]);",
+      "  $english->save();",
+      "}",
+      "else {",
+      "  $english = $node->getTranslation('en');",
+      "  $existing_alias = (string) ($english->get('path')->alias ?? '');",
+      "  if ($existing_alias !== '/services') {",
+      "    throw new \\RuntimeException('Existing English Services translation alias diverged.');",
+      "  }",
+      "}",
+      "\\Drupal::service('path_alias.manager')->cacheClear($path);",
+      "print 'R1471_EN_FIXTURE=PASS';",
+      ].join('\n');
+      const result = execFileSync('flock', [
+        '-x', '-w', '60', lock, 'ddev', 'drush', 'php:eval', php,
+      ], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        timeout: 80_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      expect(result).toContain('R1471_EN_FIXTURE=PASS');
+    });
+
+    test('FR/EN choices lead to real groups, and homepage stays unchanged', async ({
+      page, audit,
+    }, testInfo) => {
+      const surfaces = [
+        {
+          lang: 'fr',
+          path: '/fr/services',
+          home: '/fr',
+          navigation: 'Explorer les services selon votre besoin',
+          labels: [['Créer', 'business'], ['Améliorer', 'drupal'], ['Automatiser', 'ai']],
+        },
+        {
+          lang: 'en',
+          path: '/en/services',
+          home: '/en',
+          navigation: 'Explore services by need',
+          labels: [['Create', 'business'], ['Improve', 'drupal'], ['Automate', 'ai']],
+        },
+      ];
+
+      for (const surface of surfaces) {
+        const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+        expect(response).not.toBeNull();
+        expect(response.status()).toBeLessThan(400);
+        await expect(page.locator('html')).toHaveAttribute('lang', surface.lang);
+        await expect(page.locator('h1')).toHaveCount(1);
+
+        const navigation = page.getByRole('navigation', { name: surface.navigation });
+        await expect(navigation).toBeVisible();
+        await expect(navigation.locator('.ed-services-paths__link')).toHaveCount(3);
+
+        for (const [label, family] of surface.labels) {
+          const choice = navigation.getByRole('link', { name: new RegExp('^' + label) });
+          await expect(choice).toBeVisible();
+          const anchor = '#service-family-' + family;
+          await expect(choice).toHaveAttribute('href', anchor);
+          await expect(page.locator(anchor)).toHaveCount(1);
+          await expect(page.locator(anchor)).toBeVisible();
+          await choice.click();
+          expect(new URL(page.url()).hash).toBe(anchor);
+        }
+
+        const overflow = await page.evaluate(() =>
+          document.documentElement.scrollWidth > window.innerWidth + 1,
+        );
+        expect(overflow, 'The Services layout must not overflow horizontally.').toBe(false);
+
+        const screenshotDirectory = path.resolve('artifacts/browser-validation/screenshots');
+        await mkdir(screenshotDirectory, { recursive: true });
+        const fileName = `services-1471-${surface.lang}-${testInfo.project.name}.png`;
+        const screenshotPath = path.join(screenshotDirectory, fileName);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        await testInfo.attach(`services-${surface.lang}`, {
+          path: screenshotPath,
+          contentType: 'image/png',
+        });
+        audit.screenshot = `screenshots/${fileName}`;
+
+        await page.goto(surface.home, { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.ed-services-paths')).toHaveCount(0);
+      }
+
+      expect(audit.consoleErrors).toEqual([]);
+      expect(audit.pageErrors).toEqual([]);
+      expect(audit.http5xx).toEqual([]);
+      expect(audit.unexpectedHttp4xx).toEqual([]);
+      expect(audit.failedRequests).toEqual([]);
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+      audit.checks.console = 'PASS';
+      audit.checks.network = 'PASS';
+    });
+  });
 }

@@ -2,6 +2,7 @@
 {% set safe_variant = variant in allowed_variants ? variant : 'home' %}
 {% set safe_heading_level = heading_level in ['h1', 'h2'] ? heading_level : 'h2' %}
 {% set safe_image_loading = image_loading == 'eager' ? 'eager' : 'lazy' %}
+{% set home_en = language|default('fr') == 'en' %}
 {% set hero_classes = [
   'ed-section',
   'ed-section--hero',
@@ -11,12 +12,17 @@
 <section{{ attributes.addClass(hero_classes).setAttribute('data-ed-component', 'emerging_digital:hero') }}>
   <div class="ed-container ed-section__hero-layout">
     <div class="ed-section__hero-content">
+      {% if front_v2|default(false) %}
+        <p class="agency-v2-eyebrow agency-v2-eyebrow--light">{{ home_en ? 'DIGITAL STUDIO · LIÈGE · BELGIUM' : 'AGENCE DIGITALE · LIÈGE · BELGIQUE' }}</p>
+      {% endif %}
       {% if heading %}
         <{{ safe_heading_level }} class="ed-section__title ed-section__title--hero">
-          {{ heading }}
+          {{ front_v2|default(false) ? (home_en ? 'Your digital project deserves more than a website.' : 'Votre projet web mérite plus qu’un site.') : heading }}
         </{{ safe_heading_level }}>
       {% endif %}
-      {% if intro %}
+      {% if front_v2|default(false) %}
+        <p class="ed-section__intro agency-v2-hero-intro">{{ home_en ? 'Websites and digital tools that are easy to use, reliable and built to evolve.' : 'Des sites et outils numériques simples à utiliser, fiables et faits pour évoluer.' }}</p>
+      {% elseif intro %}
         <div class="ed-section__intro">{{ intro }}</div>
       {% endif %}
       {% if primary_action or secondary_action %}
@@ -29,8 +35,36 @@
           {% endif %}
         </div>
       {% endif %}
+      {% if front_v2|default(false) %}
+        <p class="agency-v2-hero-proof">{{ home_en ? 'Drupal expertise · PHP architecture · Based in Belgium' : 'Expertise Drupal · Architecture PHP · Accompagnement en Belgique' }}</p>
+      {% endif %}
     </div>
-    {% if media %}
+    {% if front_v2|default(false) and (media or image_src) %}
+      <div class="agency-v2-hero-media">
+        {% if media %}
+          <div class="ed-section__hero-illustration ed-section__hero-illustration--media">
+            {{ media }}
+          </div>
+        {% else %}
+          <img
+            class="ed-section__hero-illustration"
+            src="{{ image_src }}"
+            alt="{{ image_alt|default('') }}"
+            width="512"
+            height="384"
+            loading="eager"
+            decoding="async"
+          >
+        {% endif %}
+        <div class="agency-v2-photo-caption">
+          <strong>{{ home_en ? 'Solutions built to last' : 'Des solutions qui durent' }}</strong>
+          <span aria-hidden="true">↗</span>
+          {% if not media %}
+            <small>{{ home_en ? 'AI-generated illustration · fictional participants' : 'Illustration générée par IA · participants fictifs' }}</small>
+          {% endif %}
+        </div>
+      </div>
+    {% elseif media %}
       <div class="ed-section__hero-illustration ed-section__hero-illustration--media">
         {{ media }}
       </div>

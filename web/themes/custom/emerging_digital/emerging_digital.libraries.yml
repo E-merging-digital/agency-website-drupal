@@ -21,8 +21,12 @@ home-kinetic:
   css:
     theme:
       css/home-kinetic.css: {}
+      css/home-v2.css: {}
   js:
     js/home-kinetic.js:
+      attributes:
+        defer: true
+    js/home-v2.js:
       attributes:
         defer: true
   dependencies:

@@ -1,5 +1,22 @@
 <section{{ attributes.addClass('ed-section', 'ed-section--ai-features-grid') }}>
   <div class="ed-container">
+    {% if is_ai_flow_page and ai_flow_steps %}
+      <section class="ed-ai-flow" aria-labelledby="ed-ai-flow-title-{{ paragraph.id() }}">
+        <p class="ed-ai-flow__eyebrow">{{ ai_flow_eyebrow }}</p>
+        <h2 class="ed-ai-flow__title" id="ed-ai-flow-title-{{ paragraph.id() }}">{{ ai_flow_title }}</h2>
+        <p class="ed-ai-flow__intro">{{ ai_flow_intro }}</p>
+        <ol class="ed-ai-flow__steps">
+          {% for step in ai_flow_steps %}
+            <li class="ed-ai-flow__step{% if step.is_human %} ed-ai-flow__step--human{% endif %}">
+              <span class="ed-ai-flow__number" aria-hidden="true">{{ step.number }}</span>
+              <strong class="ed-ai-flow__step-title">{{ step.title }}</strong>
+              <span class="ed-ai-flow__step-description">{{ step.description }}</span>
+            </li>
+          {% endfor %}
+        </ol>
+        <p class="ed-ai-flow__outro">{{ ai_flow_outro }}</p>
+      </section>
+    {% endif %}
     <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>
     {% if paragraph.field_text.value %}
       <div class="ed-section__intro">{{ content.field_text }}</div>

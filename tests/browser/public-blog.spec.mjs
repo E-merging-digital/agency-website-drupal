@@ -563,3 +563,169 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
     });
   });
 }
+/*
+ * #1473: controlled AI journey visual proof in French and English.
+ * The existing editorial AI feature cards remain below the diagram.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1473 IA & Drupal governed journey', () => {
+    // The editor-owned IA page has only a historical FR Default Content seed.
+    // Add an EN translation for fresh isolated CI DDEV without publishing content.
+    test.beforeAll(async () => {
+      if (process.env.CI !== 'true') {
+        return;
+      }
+      test.setTimeout(90_000);
+      const directory = path.resolve('artifacts/browser-validation');
+      await mkdir(directory, { recursive: true });
+      const lock = path.join(directory, 'ai-1473-fixture.lock');
+      const php = [
+        "$storage = \\Drupal::entityTypeManager()->getStorage('node');",
+        "$matches = $storage->loadByProperties(['uuid' => '3636da02-c8e6-40ea-aa71-54148f029a09']);",
+        "if (count($matches) !== 1) {",
+        "  throw new \\RuntimeException('Expected exactly one IA & Drupal fixture node.');",
+        "}",
+        "$node = reset($matches);",
+        "if ($node->bundle() !== 'page' || $node->language()->getId() !== 'fr' || $node->label() !== 'IA & Drupal') {",
+        "  throw new \\RuntimeException('IA fixture identity or source language diverged.');",
+        "}",
+        "$path = '/node/' . $node->id();",
+        "$alias_storage = \\Drupal::entityTypeManager()->getStorage('path_alias');",
+        "foreach ($alias_storage->loadByProperties(['alias' => '/ai-drupal', 'langcode' => 'en']) as $alias) {",
+        "  if ($alias->get('path')->value !== $path) {",
+        "    throw new \\RuntimeException('English IA alias belongs to another node.');",
+        "  }",
+        "}",
+        "$refs = [];",
+        "$ai_features = 0;",
+        "foreach ($node->getTranslation('fr')->get('field_home_components') as $item) {",
+        "  $paragraph = $item->entity;",
+        "  if ($paragraph === NULL) {",
+        "    throw new \\RuntimeException('IA fixture has a missing Paragraph reference.');",
+        "  }",
+        "  if ($paragraph->bundle() === 'ai_features') {",
+        "    $ai_features++;",
+        "    if (!$paragraph->hasTranslation('en')) {",
+        "      $values = [];",
+        "      foreach (['field_heading', 'field_items', 'field_text'] as $field) {",
+        "        if ($paragraph->hasField($field)) {",
+        "          $values[$field] = $paragraph->getTranslation('fr')->get($field)->getValue();",
+        "        }",
+        "      }",
+        "      $paragraph->addTranslation('en', $values);",
+        "      $paragraph->save();",
+        "    }",
+        "  }",
+        "  $refs[] = [",
+        "    'target_id' => $paragraph->id(),",
+        "    'target_revision_id' => $paragraph->getRevisionId(),",
+        "  ];",
+        "}",
+        "if ($ai_features !== 1) {",
+        "  throw new \\RuntimeException('Expected exactly one IA features Paragraph.');",
+        "}",
+        "if (!$node->hasTranslation('en')) {",
+        "  $english = $node->addTranslation('en', [",
+        "    'title' => 'AI & Drupal',",
+        "    'status' => 1,",
+        "    'field_home_components' => $refs,",
+        "  ]);",
+        "  $english->set('path', ['alias' => '/ai-drupal', 'pathauto' => 0]);",
+        "  $english->save();",
+        "}",
+        "else {",
+        "  $english = $node->getTranslation('en');",
+        "  $existing_alias = (string) ($english->get('path')->alias ?? '');",
+        "  if ($existing_alias !== '/ai-drupal') {",
+        "    throw new \\RuntimeException('Existing English IA translation alias diverged.');",
+        "  }",
+        "}",
+        "\\Drupal::service('path_alias.manager')->cacheClear($path);",
+        "print 'R1473_EN_FIXTURE=PASS';",
+      ].join('\n');
+      const result = execFileSync('flock', [
+        '-x', '-w', '60', lock, 'ddev', 'drush', 'php:eval', php,
+      ], {
+        cwd: process.cwd(), encoding: 'utf8', timeout: 80_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      expect(result).toContain('R1473_EN_FIXTURE=PASS');
+    });
+
+    test('FR/EN four-step flow emphasizes human approval without overflow', async ({
+      page, audit,
+    }, testInfo) => {
+      const surfaces = [
+        {
+          lang: 'fr',
+          path: '/fr/ia-drupal',
+          home: '/fr',
+          titles: ['Votre contenu', 'Assistance IA', 'Validation humaine', 'Publication'],
+        },
+        {
+          lang: 'en',
+          path: '/en/ai-drupal',
+          home: '/en',
+          titles: ['Your content', 'AI assistance', 'Human approval', 'Publication'],
+        },
+      ];
+
+      for (const surface of surfaces) {
+        const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+        expect(response).not.toBeNull();
+        expect(response.status()).toBeLessThan(400);
+        await expect(page.locator('html')).toHaveAttribute('lang', surface.lang);
+        await expect(page.locator('h1')).toHaveCount(1);
+
+        const flow = page.locator('section.ed-ai-flow');
+        await expect(flow).toHaveCount(1);
+        await expect(flow).toBeVisible();
+        await expect(flow.locator('h2')).toBeVisible();
+        const steps = flow.locator('li.ed-ai-flow__step');
+        await expect(steps).toHaveCount(4);
+
+        for (const [index, title] of surface.titles.entries()) {
+          await expect(steps.nth(index).locator('.ed-ai-flow__step-title'))
+            .toHaveText(title);
+        }
+        await expect(steps.nth(2)).toHaveClass(/ed-ai-flow__step--human/);
+        const approvalBorder = await steps.nth(2).evaluate(element =>
+          parseFloat(getComputedStyle(element).borderTopWidth),
+        );
+        expect(approvalBorder, 'Human approval requires a visible accent border.')
+          .toBeGreaterThanOrEqual(2);
+        await expect(page.locator('.ed-cards--ai')).toBeVisible();
+
+        const overflow = await page.evaluate(() =>
+          document.documentElement.scrollWidth > window.innerWidth + 1,
+        );
+        expect(overflow, 'The AI diagram must not overflow horizontally.').toBe(false);
+
+        const screenshotDirectory = path.resolve('artifacts/browser-validation/screenshots');
+        await mkdir(screenshotDirectory, { recursive: true });
+        const fileName = `ai-journey-1473-${surface.lang}-${testInfo.project.name}.png`;
+        const screenshotPath = path.join(screenshotDirectory, fileName);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        await testInfo.attach(`ai-journey-${surface.lang}`, {
+          path: screenshotPath,
+          contentType: 'image/png',
+        });
+        audit.screenshot = `screenshots/${fileName}`;
+
+        await page.goto(surface.home, { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.ed-ai-flow')).toHaveCount(0);
+      }
+
+      expect(audit.consoleErrors).toEqual([]);
+      expect(audit.pageErrors).toEqual([]);
+      expect(audit.http5xx).toEqual([]);
+      expect(audit.unexpectedHttp4xx).toEqual([]);
+      expect(audit.failedRequests).toEqual([]);
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+      audit.checks.console = 'PASS';
+      audit.checks.network = 'PASS';
+    });
+  });
+}

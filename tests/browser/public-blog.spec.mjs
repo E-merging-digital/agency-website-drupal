@@ -701,6 +701,11 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
 
           const illustration = hero.locator('.ed-section__hero-illustration').first();
           await expect(illustration, 'The hero illustration must be visible in each viewport.').toBeVisible();
+          await illustration.scrollIntoViewIfNeeded();
+          await expect.poll(
+            () => illustration.evaluate(image => image.complete && image.naturalWidth > 0),
+            { message: 'The lazy-loaded hero SVG must finish loading.', timeout: 10_000 },
+          ).toBe(true);
           const visual = await hero.evaluate(element => {
             const image = element.querySelector('img.ed-section__hero-illustration');
             return {

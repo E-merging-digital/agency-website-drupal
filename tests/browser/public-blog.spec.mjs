@@ -662,3 +662,83 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
     });
   });
 }
+
+/*
+ * #1480: inner-page visual parity needs real FR/EN desktop/mobile evidence.
+ * This runs only in the existing governed PREPROD browser-validation lane.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1480 automatic inner-page visual parity', () => {
+    test('shared V2 hero, illustrations, flow and motion stay usable FR/EN', async ({ page, audit }, testInfo) => {
+      test.setTimeout(180_000);
+
+      const surfaces = {
+        fr: ['services', 'ia-drupal', 'cas-clients', 'equipe', 'contact'],
+        en: ['services', 'ai-drupal', 'case-studies', 'team', 'contact'],
+      };
+      const screenshotDirectory = path.resolve('artifacts/browser-validation/screenshots');
+      await mkdir(screenshotDirectory, { recursive: true });
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+      for (const [lang, slugs] of Object.entries(surfaces)) {
+        for (const slug of slugs) {
+          const response = await page.goto('/' + lang + '/' + slug, {
+            waitUntil: 'domcontentloaded',
+          });
+          expect(response?.status(), 'Inner page must resolve: ' + lang + '/' + slug).toBeLessThan(400);
+
+          const reject = page.locator('[data-ed-cookie-action="reject"]');
+          if (await reject.isVisible()) {
+            await reject.click();
+          }
+
+          const hero = page.locator('.page-main:not(.page-main--front) .ed-section--hero');
+          await expect(hero, 'Inner pages must reuse the existing Drupal hero.').toBeVisible();
+          await expect(hero.locator('h2')).toBeVisible();
+          await expect(page.locator('h1'), 'Drupal page heading must remain present.').toHaveCount(1);
+
+          const illustration = hero.locator('.ed-section__hero-illustration').first();
+          await expect(illustration, 'The hero illustration must be visible in each viewport.').toBeVisible();
+          const visual = await hero.evaluate(element => {
+            const image = element.querySelector('img.ed-section__hero-illustration');
+            return {
+              background: getComputedStyle(element).backgroundColor,
+              imageLoaded: Boolean(image?.naturalWidth),
+              width: document.documentElement.scrollWidth,
+              viewport: window.innerWidth,
+            };
+          });
+          expect(visual.background).toBe('rgb(17, 24, 39)');
+          expect(visual.imageLoaded, 'The existing SVG must load visibly.').toBe(true);
+          expect(visual.width, 'No horizontal overflow on ' + lang + '/' + slug)
+            .toBeLessThanOrEqual(visual.viewport + 1);
+
+          if (slug === 'services') {
+            const section = page.locator('.ed-section--services-grid');
+            await section.scrollIntoViewIfNeeded();
+            await expect(section, 'Motion must start automatically when scrolled into view.')
+              .toHaveClass(/ed-site-is-visible/);
+          }
+
+          // Save the actual first screen, not a mock-up, for owner visual review.
+          await hero.scrollIntoViewIfNeeded();
+          const fileName = 'inner-v2-' + lang + '-' + slug + '-' + testInfo.project.name + '.png';
+          const screenshotPath = path.join(screenshotDirectory, fileName);
+          await page.screenshot({ path: screenshotPath, fullPage: false });
+          await testInfo.attach('inner-v2-' + lang + '-' + slug, {
+            path: screenshotPath,
+            contentType: 'image/png',
+          });
+        }
+      }
+
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto('/fr/services', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('.page-main')).not.toHaveClass(/ed-site-motion-ready/);
+      await expect(page.locator('.ed-section--services-grid')).toBeVisible();
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+    });
+  });
+}

@@ -10,4 +10,12 @@
   image_src: hero_illustration_src|default(''),
   image_alt: hero_illustration_alt|default(''),
   image_loading: hero_illustration_loading|default('lazy'),
+  front_v2: heading_tag|default('h2') == 'h1',
+  language: paragraph.langcode.value|default('fr'),
 }, with_context: false) }}
+
+{% if heading_tag|default('h2') == 'h1' %}
+  {{ include('@emerging_digital/layout/_home-v2-sections.html.twig', {
+    language: paragraph.langcode.value|default('fr'),
+  }, with_context: false) }}
+{% endif %}

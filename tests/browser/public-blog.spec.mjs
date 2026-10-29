@@ -665,9 +665,11 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
 
 /*
  * #1480: inner-page visual parity needs real FR/EN desktop/mobile evidence.
- * This runs only in the existing governed PREPROD browser-validation lane.
+ * This runs only after a governed PREPROD release deploy, not in the PR
+ * analytics-isolation proof which inspects the currently deployed older code.
  */
-if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital.be') {
+if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital.be'
+  && process.env.GITHUB_WORKFLOW === 'Deploy PREPRODUCTION') {
   test.describe('Agency #1480 automatic inner-page visual parity', () => {
     test('shared V2 hero, illustrations, flow and motion stay usable FR/EN', async ({ page, audit }, testInfo) => {
       test.setTimeout(180_000);

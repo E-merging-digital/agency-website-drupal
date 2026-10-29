@@ -19,7 +19,7 @@
 .page-main:not(.page-main--front) {
   padding-block: clamp(1.7rem, 3vw, 2.7rem) clamp(3.5rem, 6vw, 5rem);
 }
-.page-main:not(.page-main--front) #block-emerging-digital-page-title h1 {
+.page-main:not(.page-main--front):has(.strategic-page .ed-section--hero, .ed-detail-page) #block-emerging-digital-page-title h1 {
   margin: 0 0 1.2rem;
   color: var(--color-primary);
   font: 800 0.8rem/1.4 var(--font-body);

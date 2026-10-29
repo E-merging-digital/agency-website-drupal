@@ -219,7 +219,13 @@
   .page-main:not(.page-main--front) .ed-section--hero .ed-section__hero-illustration {
     animation: none;
   }
-  .page-main:not(.page-main--front) .ed-services-paths__link {
+  .page-main:not(.page-main--front) .ed-services-paths__link,
+  .page-main:not(.page-main--front) .ed-card {
     transition: none;
+  }
+  .page-main:not(.page-main--front) .ed-services-paths__link:hover,
+  .page-main:not(.page-main--front) .ed-services-paths__link:focus-visible,
+  .page-main:not(.page-main--front) .ed-card:hover {
+    transform: none;
   }
 }

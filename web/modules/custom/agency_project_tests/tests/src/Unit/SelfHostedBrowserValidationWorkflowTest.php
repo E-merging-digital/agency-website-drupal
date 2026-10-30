@@ -580,7 +580,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $helper,
     );
     self::assertStringContainsString(
-      '0|1421|1458|1472|1474) ;;',
+      '0|1421|1458|1469|1472|1474|1485|1487) ;;',
       $helper,
     );
     self::assertStringContainsString('*) fail_closed ;;', $helper);
@@ -655,11 +655,11 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $helper,
     );
 
-    // Only canonical main 0, MCP 1421, Kinetic 1458, Services 1472 and
-    // IA & Drupal 1474 reach the strict nonzero gate; others fail closed.
+    // Only canonical main 0 and the explicitly reviewed visual PRs
+    // reach the strict nonzero classifier; all other PRs fail closed.
     self::assertSame(
       1,
-      substr_count($helper, '0|1421|1458|1472|1474) ;;'),
+      substr_count($helper, '0|1421|1458|1469|1472|1474|1485|1487) ;;'),
     );
     self::assertStringContainsString(
       '[[ "$CANVAS_BROWSER_PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]',
@@ -727,7 +727,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $dataset[$name] = ['active' => $active, 'sync' => $base];
     }
 
-    // Main 0, MCP #1421 and Kinetic #1458 share the exact 19/19 gate.
+    // All admitted PRs reuse this exact 19/19 classifier; the gate is shared.
     // @phpstan-ignore-next-line
     $known = \agency_canvas_1373_analyze_dataset($metadata, $dataset);
     self::assertSame(['total' => 19, 'known' => 19, 'unexpected' => 0],

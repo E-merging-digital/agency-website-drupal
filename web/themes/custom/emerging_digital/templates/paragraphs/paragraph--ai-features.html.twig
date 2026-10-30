@@ -15,6 +15,12 @@
           {% endfor %}
         </ol>
         <p class="ed-ai-flow__outro">{{ ai_flow_outro }}</p>
+        {% if ai_visual_flow is defined %}
+          {% include '@emerging_digital/layout/visual-flow.html.twig' with {
+            visual_flow: ai_visual_flow,
+            flow_id: 'ed-ai-visual-' ~ paragraph.id()
+          } only %}
+        {% endif %}
       </section>
     {% endif %}
     <h2 class="ed-section__title">{{ paragraph.field_heading.value }}</h2>

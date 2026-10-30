@@ -663,6 +663,60 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
   });
 }
 
+// #1486: Case studies must explain challenge, approach and outcome at a glance.
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1486 visual case journeys', () => {
+    test('FR/EN examples remain readable and operable without extra JavaScript', async ({
+      page, audit,
+    }) => {
+      const surfaces = [
+        {
+          path: '/fr/cas-clients',
+          stages: ['Contexte', 'Réponse', 'Effet'],
+        },
+        {
+          path: '/en/case-studies',
+          stages: ['Challenge', 'Approach', 'Outcome'],
+        },
+      ];
+
+      for (const surface of surfaces) {
+        const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+        expect(response?.status()).toBeLessThan(400);
+        const journeys = page.locator('.ed-section--case-studies .ed-case-journey');
+        await expect(journeys).toHaveCount(3);
+        const details = journeys.locator('details.ed-case-journey__details');
+        await expect(details).toHaveCount(3);
+        await expect(details.first()).toHaveAttribute('open', '');
+        await expect(details.first().locator('li.ed-case-journey__step')).toHaveCount(3);
+        for (const stage of surface.stages) {
+          await expect(details.first().locator('.ed-case-journey__step-header strong', {
+            hasText: stage,
+          })).toHaveCount(1);
+        }
+
+        await details.nth(1).locator('summary').click();
+        await expect(details.nth(1)).toHaveAttribute('open', '');
+        await expect(details.first()).not.toHaveAttribute('open', '');
+        await details.nth(2).locator('summary').focus();
+        await page.keyboard.press('Enter');
+        await expect(details.nth(2)).toHaveAttribute('open', '');
+        await expect(details.nth(1)).not.toHaveAttribute('open', '');
+        await expect(details.nth(2).locator('li.ed-case-journey__step')).toHaveCount(3);
+        expect(await page.evaluate(() =>
+          document.documentElement.scrollWidth <= window.innerWidth + 1,
+        ), 'Visual case journeys must not overflow the viewport.').toBe(true);
+      }
+
+      expect(audit.consoleErrors).toEqual([]);
+      expect(audit.pageErrors).toEqual([]);
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+    });
+  });
+}
+
 /*
  * #1480: inner-page visual parity needs real FR/EN desktop/mobile evidence.
  * This runs only after a governed PREPROD release deploy, not in the PR

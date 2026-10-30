@@ -424,6 +424,8 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
     test('FR/EN choices lead to real groups, and homepage stays unchanged', async ({
       page, audit,
     }, testInfo) => {
+      // Two full-page locale captures and native interaction checks exceed 30s on CI.
+      test.setTimeout(60_000);
       const surfaces = [
         {
           lang: 'fr',

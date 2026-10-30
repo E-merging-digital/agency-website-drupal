@@ -1,0 +1,33 @@
+{# Shared, progressively disclosed explanation using native HTML only. #}
+<section class="ed-visual-flow" aria-labelledby="{{ flow_id }}-title">
+  <div class="ed-visual-flow__heading">
+    <p class="ed-visual-flow__eyebrow">{{ visual_flow.eyebrow }}</p>
+    <h3 class="ed-visual-flow__title" id="{{ flow_id }}-title">{{ visual_flow.title }}</h3>
+    <p class="ed-visual-flow__intro">{{ visual_flow.intro }}</p>
+  </div>
+  <div class="ed-visual-flow__scenarios">
+    {% for scenario in visual_flow.cases %}
+      <details class="ed-visual-flow__scenario" name="{{ flow_id }}-scenarios"{% if loop.first %} open{% endif %}>
+        <summary class="ed-visual-flow__summary">
+          <span class="ed-visual-flow__index" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
+          <strong class="ed-visual-flow__scenario-title">{{ scenario.title }}</strong>
+          <span class="ed-visual-flow__toggle" aria-hidden="true"></span>
+        </summary>
+        <div class="ed-visual-flow__content">
+          <ol class="ed-visual-flow__steps">
+            {% for step in scenario.steps %}
+              <li class="ed-visual-flow__step">
+                <span class="ed-visual-flow__step-number" aria-hidden="true">{{ loop.index }}</span>
+                <span class="ed-visual-flow__step-text">{{ step }}</span>
+              </li>
+            {% endfor %}
+          </ol>
+          <p class="ed-visual-flow__result">{{ scenario.result }}</p>
+        </div>
+      </details>
+    {% endfor %}
+  </div>
+  {% if visual_flow.disclaimer is defined and visual_flow.disclaimer %}
+    <p class="ed-visual-flow__disclaimer">{{ visual_flow.disclaimer }}</p>
+  {% endif %}
+</section>

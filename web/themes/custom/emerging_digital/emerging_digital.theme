@@ -668,10 +668,10 @@ function emerging_digital_hero_illustration(bool $is_front = FALSE): array {
 function emerging_digital_hero_illustration_definitions(): array {
   return [
     'home' => [
-      'path' => 'images/home/agency-v2-meeting-ai.jpg',
+      'path' => 'images/home/home-hero-collaboration.jpg',
       'alt' => [
-        'fr' => 'Illustration d’une réunion de conseil autour d’un projet numérique ; participants fictifs.',
-        'en' => 'Illustration of a planning meeting for a digital project; fictional participants.',
+        'fr' => 'Personnes travaillant ensemble autour d’un ordinateur portable et de documents.',
+        'en' => 'People working together around a laptop and documents.',
       ],
     ],
     'ia-drupal' => [

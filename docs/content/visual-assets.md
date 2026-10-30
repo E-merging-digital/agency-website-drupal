@@ -10,12 +10,13 @@
 
 ## Catalogue des visuels
 
-### home-hero-ia-drupal
-- **Usage** : Hero homepage.
-- **Prompt** : `Photo réaliste premium d’une équipe (PME/ASBL) en atelier stratégique Drupal, grand écran affichant une interface CMS et des suggestions IA discrètes, ambiance bureau moderne européen, lumière naturelle, tons bleu nuit et gris clair, composition horizontale 16:9, style éditorial corporate haut de gamme, sans logo ni texte incrusté, sans watermark.`
-- **Alt text** : Équipe projet Drupal analysant un tableau de bord IA dans un environnement professionnel.
-- **Style** : Editorial corporate premium, réaliste, rassurant.
-- **Emplacement** : `web/themes/custom/emerging_digital/images/home/home-hero-ia-drupal.svg` (placeholder à remplacer par l’image finale).
+### home-hero-collaboration
+- **Usage** : hero de la homepage V2, illustration d'une collaboration professionnelle, sans prétendre montrer l'équipe E-merging Digital.
+- **Origine** : photographie réelle de Mikhail Nilov, [Pexels #7731361](https://www.pexels.com/photo/a-person-using-a-laptop-7731361/), sous [licence Pexels](https://www.pexels.com/license/).
+- **Texte alternatif FR** : Personnes travaillant ensemble autour d'un ordinateur portable et de documents.
+- **Texte alternatif EN** : People working together around a laptop and documents.
+- **Emplacement** : `web/themes/custom/emerging_digital/images/home/home-hero-collaboration.jpg` (1200 × 1028, JPEG optimisé).
+- **Légende visible FR/EN** : « Photographie d’illustration » / « Illustrative stock photograph ». La scène ne représente ni une équipe salariée ni un projet client certifié.
 
 ### home-services-overview
 - **Usage** : Intro section “Nos services” sur homepage.
@@ -68,7 +69,7 @@
 
 ## Intégration technique prévue
 
-- Tous les composants Twig référencent **des placeholders SVG versionnés**.
-- Le remplacement final se fait en conservant **les mêmes noms de fichier** pour éviter des changements Twig/CSS.
+- Les composants Twig référencent des **visuels de fallback versionnés** ; la homepage V2 utilise une photographie et les autres contextes conservent leurs SVG.
+- Les remplacements passent par les définitions de visuels du thème ou par Drupal Media, en conservant les contrats Twig/CSS.
 - Les attributs `alt`, `loading`, `width`, `height` sont déjà en place pour préparer accessibilité et performance.
 - Les classes CSS `.visual-block` et `.visual-chip` standardisent le rendu (bordure, fond, ratio flexible).

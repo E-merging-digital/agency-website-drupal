@@ -66,7 +66,11 @@
           <strong>{{ home_en ? 'Solutions built to last' : 'Des solutions qui durent' }}</strong>
           <span aria-hidden="true">↗</span>
           {% if not media %}
-            <small>{{ home_en ? 'AI-generated illustration · fictional participants' : 'Illustration générée par IA · participants fictifs' }}</small>
+            {% set is_stock_photo = image_src|split('/')|last == 'home-hero-collaboration.jpg' %}
+            <small>{{ is_stock_photo
+              ? (home_en ? 'Illustrative stock photograph' : 'Photographie d’illustration')
+              : (home_en ? 'AI-generated illustration · fictional participants' : 'Illustration générée par IA · participants fictifs')
+            }}</small>
           {% endif %}
         </div>
       </div>

@@ -36,8 +36,9 @@ fail_closed() {
 }
 
 # Admit zero-difference status for canonical inputs. The reviewed main (0),
-# MCP #1421, homepage #1458, Services #1472 and IA & Drupal #1474 may
-# submit nonzero drift only to the SAME strict #1373/#995 classifier;
+# MCP #1421, homepage #1458/#1469, Services #1472/#1485, IA & Drupal #1474,
+# and case journeys #1487 may submit nonzero drift only to the SAME strict
+# #1373/#995 classifier;
 # no name/path/shape bypass.
 if ! status_json="$(ddev drush config:status --format=json 2>/dev/null)"; then
   fail_closed
@@ -65,7 +66,7 @@ if [[ "$count" == "0" ]]; then
   exit 0
 fi
 case "$CANVAS_BROWSER_PR_NUMBER" in
-  0|1421|1458|1472|1474) ;;
+  0|1421|1458|1469|1472|1474|1485|1487) ;;
   *) fail_closed ;;
 esac
 

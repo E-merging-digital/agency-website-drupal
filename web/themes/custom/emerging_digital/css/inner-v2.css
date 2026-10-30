@@ -238,3 +238,241 @@
     transform: none;
   }
 }
+
+
+/* #1484 — One native, reusable visual explainer for Services and AI & Drupal.
+   <details>/<summary> provide touch, keyboard and no-JS interaction. */
+.ed-visual-flow {
+  margin-block: clamp(2rem, 4vw, 3.2rem);
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  border: 1px solid #ccdbec;
+  border-radius: 1.2rem;
+  background: radial-gradient(ellipse at 95% 5%, rgb(119 183 46 / 13%), transparent 40%), #f3f8ff;
+  box-shadow: 0 14px 36px rgb(17 24 39 / 7%);
+  color: #111827;
+}
+
+.ed-visual-flow__heading {
+  max-width: 64ch;
+  margin-bottom: 1.4rem;
+}
+
+.ed-visual-flow__eyebrow {
+  margin: 0 0 0.45rem;
+  color: #24659c;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+}
+
+.ed-visual-flow__title {
+  margin: 0;
+  color: #111827;
+  font-size: clamp(1.35rem, 2.65vw, 2.15rem);
+  line-height: 1.23;
+  letter-spacing: -0.025em;
+}
+
+.ed-visual-flow__intro {
+  margin: 0.7rem 0 0;
+  color: #334155;
+  line-height: 1.55;
+}
+
+.ed-visual-flow__scenarios {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ed-visual-flow__scenario {
+  min-width: 0;
+  overflow: clip;
+  border: 1px solid #d7e3f1;
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.ed-visual-flow__scenario[open] {
+  border-color: #286fb6;
+  box-shadow: 0 10px 24px rgb(40 111 182 / 9%);
+}
+
+.ed-visual-flow__summary {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 1.5rem;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 4rem;
+  padding: 0.75rem 1rem;
+  color: #15263b;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ed-visual-flow__summary::-webkit-details-marker {
+  display: none;
+}
+
+.ed-visual-flow__summary::marker {
+  content: "";
+}
+
+.ed-visual-flow__summary:hover {
+  background: #f0f6ff;
+}
+
+.ed-visual-flow__summary:focus-visible {
+  outline: 3px solid #286fb6;
+  outline-offset: -3px;
+  background: #edf5ff;
+}
+
+.ed-visual-flow__index {
+  display: grid;
+  place-items: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 0.7rem;
+  background: #e5f0fc;
+  color: #1f5f9e;
+  font-weight: 800;
+}
+
+.ed-visual-flow__scenario[open] .ed-visual-flow__index {
+  background: #286fb6;
+  color: #fff;
+}
+
+.ed-visual-flow__scenario-title {
+  font-size: clamp(1rem, 1.5vw, 1.17rem);
+  line-height: 1.35;
+}
+
+.ed-visual-flow__toggle {
+  justify-self: center;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-right: 2px solid #286fb6;
+  border-bottom: 2px solid #286fb6;
+  transform: translateY(-0.15rem) rotate(45deg);
+}
+
+.ed-visual-flow__scenario[open] .ed-visual-flow__toggle {
+  transform: translateY(0.2rem) rotate(225deg);
+}
+
+.ed-visual-flow__content {
+  padding: 0.35rem 1rem 1.2rem;
+  border-top: 1px solid #e2eaf4;
+}
+
+.ed-visual-flow__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.45rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ed-visual-flow__step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  min-height: 5rem;
+  padding: 0.8rem;
+  border: 1px solid #d6e5f5;
+  border-radius: 0.75rem;
+  background: #f2f7ff;
+  color: #16263c;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.ed-visual-flow__step:last-child {
+  border-color: #a9cf87;
+  background: #f0f8e9;
+}
+
+.ed-visual-flow__step-number {
+  display: grid;
+  flex: 0 0 1.6rem;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: #286fb6;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.ed-visual-flow__step:last-child .ed-visual-flow__step-number {
+  background: #3b6e19;
+}
+
+.ed-visual-flow__step-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ed-visual-flow__step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: -1rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-top: 2px solid #286fb6;
+  border-right: 2px solid #286fb6;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.ed-visual-flow__result {
+  margin: 0.8rem 0 0;
+  padding: 0.7rem 1rem;
+  border-left: 4px solid #77b72e;
+  border-radius: 0.3rem 0.55rem 0.55rem 0.3rem;
+  background: #f4faee;
+  color: #25421b;
+  font-weight: 700;
+}
+
+.ed-visual-flow__disclaimer {
+  margin: 1rem 0 0;
+  color: #334155;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 49.99rem) {
+  .ed-visual-flow__steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.35rem;
+  }
+
+  .ed-visual-flow__step {
+    min-height: 4rem;
+  }
+
+  .ed-visual-flow__step:not(:last-child)::after {
+    top: auto;
+    right: auto;
+    bottom: -0.94rem;
+    left: 50%;
+    transform: translateX(-50%) rotate(135deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-visual-flow__summary,
+  .ed-visual-flow__toggle,
+  .ed-visual-flow__scenario {
+    animation: none;
+    transition: none;
+  }
+}

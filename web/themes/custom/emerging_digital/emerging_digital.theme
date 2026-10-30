@@ -627,7 +627,7 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
     ];
   }
 
-  // Illustrative scenarios only: no claim of a live AI connector or MCP runtime.
+  // Illustrative scenarios only: no live AI connector or MCP runtime.
   $variables['ai_visual_flow'] = $is_english
     ? [
       'eyebrow' => 'Explore the safeguards',

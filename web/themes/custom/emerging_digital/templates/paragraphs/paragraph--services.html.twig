@@ -22,6 +22,12 @@
     {% if paragraph.field_text.value %}
       <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
+    {% if is_services_hub and services_visual_flow is defined %}
+      {% include '@emerging_digital/layout/visual-flow.html.twig' with {
+        visual_flow: services_visual_flow,
+        flow_id: 'ed-services-visual-' ~ paragraph.id()
+      } only %}
+    {% endif %}
     {% if service_groups is defined and service_groups %}
       <div class="ed-service-groups">
         {% for group in service_groups %}

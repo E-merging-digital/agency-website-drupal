@@ -26,7 +26,7 @@
       {{ include('@emerging_digital/layout/visual-flow.html.twig', {
         visual_flow: services_visual_flow,
         flow_id: 'ed-services-visual-' ~ paragraph.id(),
-      }, with_context = false) }}
+      }, false) }}
     {% endif %}
     {% if service_groups is defined and service_groups %}
       <div class="ed-service-groups">

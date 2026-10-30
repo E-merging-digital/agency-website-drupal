@@ -1,6 +1,6 @@
 /**
  * Agency #1418 — isolated opt-in homepage animation, candidate only.
- * Uses actual Drupal SDC hero and its content/links. No autoplay or network.
+ * Uses actual Drupal SDC hero and its content/links. No network.
  */
 (function (Drupal) {
   'use strict';
@@ -71,6 +71,7 @@
     let running = false;
     let raf = null;
     let initialized = false;
+    let hasInteracted = false;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     function segment() {
@@ -180,12 +181,41 @@
       raf = window.requestAnimationFrame(frame);
     }
 
-    play.addEventListener('click', () => running ? pause() : start(false));
-    replay.addEventListener('click', () => start(true));
-    stopButton.addEventListener('click', stop);
+    play.addEventListener('click', () => {
+      hasInteracted = true;
+      running ? pause() : start(false);
+    });
+    replay.addEventListener('click', () => {
+      hasInteracted = true;
+      start(true);
+    });
+    stopButton.addEventListener('click', () => {
+      hasInteracted = true;
+      stop();
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && running) pause();
     });
+    // A single, visible first-visit demonstration. Pause and Stop are shown
+    // throughout; reduced-motion users always receive the static hero.
+    if ('IntersectionObserver' in window && !reduceMotion.matches) {
+      const observer = new IntersectionObserver(entries => {
+        if (!entries.some(entry => entry.isIntersecting)) return;
+        observer.disconnect();
+        window.setTimeout(() => {
+          if (hasInteracted || reduceMotion.matches || document.hidden || !hero.isConnected) return;
+          const bounds = hero.getBoundingClientRect();
+          if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) return;
+          start(true);
+        }, 1250);
+      }, { threshold: 0.15 });
+      observer.observe(hero);
+    }
+    if (reduceMotion.addEventListener) {
+      reduceMotion.addEventListener('change', event => {
+        if (event.matches && running) stop();
+      });
+    }
     status.textContent = '';
   }
 

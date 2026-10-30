@@ -52,13 +52,13 @@ props:
       type: string
       format: uri-reference
       title: Fallback image URL
-      description: 'Optional governed fallback visual URL when no media slot is provided.'
+      description: 'Optional governed fallback illustration URL when no media slot is provided.'
       examples:
         - '/themes/custom/emerging_digital/images/home/home-hero-collaboration.jpg'
     image_alt:
       type: string
       title: Fallback image alternative text
-      description: 'Alternative text for the fallback visual.'
+      description: 'Alternative text for the fallback illustration.'
       examples:
         - 'People working together around a laptop and documents.'
     image_loading:

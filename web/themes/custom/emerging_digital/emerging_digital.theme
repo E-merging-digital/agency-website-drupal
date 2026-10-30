@@ -177,6 +177,22 @@ function emerging_digital_contact_qualification_type(string $title): string {
 }
 
 /**
+ * Implements hook_preprocess_field().
+ *
+ * Keep the existing editor-owned homepage paragraphs available beneath the
+ * concise V2 narrative. All other uses of the field retain core rendering.
+ */
+function emerging_digital_preprocess_field(array &$variables): void {
+  $field_name = $variables['element']['#field_name'] ?? '';
+  $variables['agency_home_v2'] = $field_name === 'field_home_components'
+    && \Drupal::service('path.matcher')->isFrontPage();
+  if ($variables['agency_home_v2']) {
+    $variables['agency_home_v2_en'] = \Drupal::languageManager()
+      ->getCurrentLanguage()->getId() === 'en';
+  }
+}
+
+/**
  * Implements hook_preprocess_paragraph().
  */
 function emerging_digital_preprocess_paragraph(array &$variables): void {
@@ -254,6 +270,60 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
     $service_groups,
     static fn (array $group): bool => !empty($group['cards']),
   ));
+
+  // The homepage also uses this paragraph. Keep the visual quick navigation
+  // exclusive to the Services hub and its existing, populated families.
+  $alias = \Drupal::service('path_alias.manager')->getAliasByPath(
+    \Drupal::service('path.current')->getPath(),
+    $langcode,
+  );
+  $variables['is_services_hub'] = $alias === '/services';
+  $variables['service_path_choices'] = [];
+
+  if (!$variables['is_services_hub']) {
+    return;
+  }
+
+  $choices = $langcode === 'en'
+    ? [
+      'business' => ['Create', 'A site or platform that inspires trust.'],
+      'drupal' => ['Improve', 'A clearer, faster site built to evolve.'],
+      'ai' => ['Automate', 'Less repetitive work for your teams.'],
+    ]
+    : [
+      'business' => ['Créer', 'Un site ou une plateforme qui inspire confiance.'],
+      'drupal' => ['Améliorer', 'Un site plus clair, rapide et facile à faire évoluer.'],
+      'ai' => ['Automatiser', 'Du temps libéré pour vos équipes.'],
+    ];
+
+  $variables['service_path_eyebrow'] = $langcode === 'en'
+    ? 'Choose where to start'
+    : 'Choisissez votre point de départ';
+  $variables['service_path_aria_label'] = $langcode === 'en'
+    ? 'Explore services by need'
+    : 'Explorer les services selon votre besoin';
+
+  // These three existing editorial families provide descriptions and real
+  // contact CTAs even when the fresh content import has no cards for a family.
+  // Keep homepage's populated-only filter and preserve populated other cards.
+  $variables['service_groups'] = [
+    $service_groups['business'],
+    $service_groups['drupal'],
+    $service_groups['ai'],
+  ];
+  if (!empty($service_groups['other']['cards'])) {
+    $variables['service_groups'][] = $service_groups['other'];
+  }
+
+  foreach ($choices as $group_key => [$title, $description]) {
+    $variables['service_path_choices'][] = [
+      'number' => sprintf('%02d', count($variables['service_path_choices']) + 1),
+      'title' => $title,
+      'description' => $description,
+      'href' => '#service-family-' . $group_key,
+      'key' => $group_key,
+    ];
+  }
 }
 
 /**
@@ -459,6 +529,54 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
       'description' => $parts[1] ?? '',
       'url' => $url,
       'cta_label' => $langcode === 'en' ? 'Explore' : 'Explorer',
+    ];
+  }
+
+  // This educational diagram belongs to the IA & Drupal landing page only.
+  // Keep reusable AI feature paragraphs unchanged on other routes.
+  $path = \Drupal::service('path.current')->getPath();
+  $alias = \Drupal::service('path_alias.manager')->getAliasByPath($path, $langcode);
+  $variables['is_ai_flow_page'] = in_array($alias, ['/ia-drupal', '/ai-drupal'], TRUE);
+  $variables['ai_flow_steps'] = [];
+
+  if (!$variables['is_ai_flow_page']) {
+    return;
+  }
+
+  $is_english = $langcode === 'en';
+  $variables['ai_flow_eyebrow'] = $is_english
+    ? 'AI & Drupal / governed automation'
+    : 'IA & Drupal / automatisation maîtrisée';
+  $variables['ai_flow_title'] = $is_english
+    ? 'AI saves you time. You stay in control.'
+    : 'L’IA vous fait gagner du temps. Vous gardez la maîtrise.';
+  $variables['ai_flow_intro'] = $is_english
+    ? 'From everyday documents to publishable content, with a human decision at the right moment.'
+    : 'Des documents aux contenus à publier, avec une décision humaine au bon moment.';
+  $variables['ai_flow_outro'] = $is_english
+    ? 'A clear, controlled workflow that fits your tools.'
+    : 'Un parcours clair, maîtrisé et intégré à vos outils.';
+
+  $steps = $is_english
+    ? [
+      ['Your content', 'Texts, documents, requests'],
+      ['AI assistance', 'Analysis and suggestions'],
+      ['Human approval', 'You make the decision'],
+      ['Publication', 'On your Drupal website'],
+    ]
+    : [
+      ['Votre contenu', 'Textes, documents, demandes'],
+      ['Assistance IA', 'Analyse et proposition'],
+      ['Validation humaine', 'Vous gardez la décision'],
+      ['Publication', 'Sur votre site Drupal'],
+    ];
+
+  foreach ($steps as $index => [$title, $description]) {
+    $variables['ai_flow_steps'][] = [
+      'number' => sprintf('%02d', $index + 1),
+      'title' => $title,
+      'description' => $description,
+      'is_human' => $index === 2,
     ];
   }
 }

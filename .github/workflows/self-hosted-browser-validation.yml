@@ -233,7 +233,7 @@ jobs:
           test -f tests/browser/contracts/public-blog.json
           test -f tests/browser/public-blog.spec.mjs
           test -f scripts/runner/prove-governed-content-cli-facade.sh
-          test "$(git hash-object scripts/runner/verify-browser-config-canonical-canvas-1420.sh)" = "fd414e26ada9017869c0dc0bb77420dd8e672d5d"
+          test "$(git hash-object scripts/runner/verify-browser-config-canonical-canvas-1420.sh)" = "aacc8cf4a85f5967b01b1fe29f9cc3831ef509b6"
 
           if [[ -f package-lock.json ]]; then
             echo "lockfile_present=true" >> "$GITHUB_OUTPUT"

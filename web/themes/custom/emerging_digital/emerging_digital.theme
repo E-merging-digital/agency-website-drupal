@@ -324,6 +324,53 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
       'key' => $group_key,
     ];
   }
+
+  // A concise, no-JavaScript visual journey for the Services landing only.
+  $variables['services_visual_flow'] = $langcode === 'en'
+    ? [
+      'eyebrow' => 'See the journey',
+      'title' => 'From an idea to a practical result',
+      'intro' => 'Choose a situation to see the three essential steps.',
+      'cases' => [
+        [
+          'title' => 'Create a useful digital presence',
+          'steps' => ['Your goal', 'Design and development', 'A website ready to evolve'],
+          'result' => 'A clear experience for visitors and your team.',
+        ],
+        [
+          'title' => 'Improve an existing website',
+          'steps' => ['Focused review', 'Priority improvements', 'Easier daily management'],
+          'result' => 'A website that stays useful, reliable and maintainable.',
+        ],
+        [
+          'title' => 'Connect your everyday tools',
+          'steps' => ['Your existing tools', 'Secure connections', 'Less repetitive work'],
+          'result' => 'Information flows where your team needs it.',
+        ],
+      ],
+    ]
+    : [
+      'eyebrow' => 'Le parcours en images',
+      'title' => 'De votre idée à un résultat concret',
+      'intro' => 'Choisissez une situation pour voir les trois étapes essentielles.',
+      'cases' => [
+        [
+          'title' => 'Créer une présence numérique utile',
+          'steps' => ['Votre objectif', 'Design et développement', 'Un site prêt à évoluer'],
+          'result' => 'Une expérience claire pour vos visiteurs et votre équipe.',
+        ],
+        [
+          'title' => 'Améliorer un site existant',
+          'steps' => ['Diagnostic ciblé', 'Améliorations prioritaires', 'Gestion quotidienne simplifiée'],
+          'result' => 'Un site utile, fiable et facile à maintenir.',
+        ],
+        [
+          'title' => 'Connecter vos outils',
+          'steps' => ['Vos outils actuels', 'Connexions sécurisées', 'Moins de tâches répétitives'],
+          'result' => 'Les informations circulent là où votre équipe en a besoin.',
+        ],
+      ],
+    ];
 }
 
 /**
@@ -579,6 +626,55 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
       'is_human' => $index === 2,
     ];
   }
+
+  // Illustrative scenarios only: no claim of a live AI connector or MCP runtime.
+  $variables['ai_visual_flow'] = $is_english
+    ? [
+      'eyebrow' => 'Explore the safeguards',
+      'title' => 'What happens in each situation?',
+      'intro' => 'Three possible paths. The rules and people remain in control.',
+      'cases' => [
+        [
+          'title' => 'Read permitted information',
+          'steps' => ['A request', 'Access check', 'Permitted information only'],
+          'result' => 'Confidentiality remains a priority.',
+        ],
+        [
+          'title' => 'Suggest without publishing',
+          'steps' => ['AI suggestion', 'Editable draft', 'Human decision'],
+          'result' => 'No publication without approval.',
+        ],
+        [
+          'title' => 'Refuse a sensitive action',
+          'steps' => ['Unauthorized request', 'Permission check', 'Blocked without changes'],
+          'result' => 'Access rules take precedence over automation.',
+        ],
+      ],
+      'disclaimer' => 'Illustrative design scenarios, not a live AI or MCP demonstration.',
+    ]
+    : [
+      'eyebrow' => 'Explorez les garde-fous',
+      'title' => 'Que se passe-t-il selon la situation ?',
+      'intro' => 'Trois parcours possibles. Les règles et les personnes gardent la maîtrise.',
+      'cases' => [
+        [
+          'title' => 'Lire une information autorisée',
+          'steps' => ['Une demande', 'Vérification des accès', 'Informations autorisées uniquement'],
+          'result' => 'La confidentialité reste prioritaire.',
+        ],
+        [
+          'title' => 'Proposer sans publier',
+          'steps' => ['Suggestion de l’IA', 'Brouillon modifiable', 'Décision humaine'],
+          'result' => 'Aucune publication sans validation.',
+        ],
+        [
+          'title' => 'Refuser une action sensible',
+          'steps' => ['Demande non autorisée', 'Contrôle des permissions', 'Refus sans modification'],
+          'result' => 'Les règles d’accès priment sur l’automatisation.',
+        ],
+      ],
+      'disclaimer' => 'Scénarios de conception illustratifs, pas une démonstration IA ou MCP active.',
+    ];
 }
 
 /**

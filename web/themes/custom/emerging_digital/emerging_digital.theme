@@ -203,6 +203,13 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
 
   $bundle = $paragraph->bundle();
 
+  if ($bundle === 'case_clients') {
+    // Labels follow the interface language, even for reused FR paragraphs.
+    $variables['case_clients_english'] = \Drupal::languageManager()
+      ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId() === 'en';
+    $variables['elements']['#cache']['contexts'][] = 'languages:language_interface';
+  }
+
   if (isset($variables['content']['field_link'][0])) {
     $variables['content']['field_link'][0]['#options']['attributes']['class'][] = 'button';
     $variables['content']['field_link'][0]['#options']['attributes']['class'][] = 'button--primary';

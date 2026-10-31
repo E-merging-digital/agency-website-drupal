@@ -4,7 +4,7 @@
     {% if paragraph.field_text.value %}
       <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
-    {% set case_labels = paragraph.langcode.value == 'en'
+    {% set case_labels = case_clients_english|default(false)
       ? {problem: 'Challenge', solution: 'Approach', result: 'Outcome', example: 'Example', explore: 'Explore the three steps'}
       : {problem: 'Contexte', solution: 'Réponse', result: 'Effet', example: 'Exemple', explore: 'Découvrir les trois étapes'}
     %}

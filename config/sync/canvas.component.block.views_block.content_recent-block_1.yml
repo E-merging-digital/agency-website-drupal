@@ -6,7 +6,7 @@ dependencies:
     - views.view.content_recent
   module:
     - views
-active_version: 1760ca0039cb39cf
+active_version: 66bd67d1010e26aa
 versioned_properties:
   active:
     settings:

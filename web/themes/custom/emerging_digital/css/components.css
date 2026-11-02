@@ -2006,3 +2006,193 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
     transition: none;
   }
 }
+
+/* #1486 — Visual-first case journeys; native details, no JavaScript. */
+.ed-cards--cases.ed-case-journeys {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1rem, 2.8vw, 1.75rem);
+}
+
+.ed-case-journey {
+  min-width: 0;
+  padding: clamp(1.1rem, 2.8vw, 1.8rem);
+  overflow: clip;
+}
+
+.ed-case-journey__header {
+  margin-bottom: 1rem;
+}
+
+.ed-case-journey__eyebrow {
+  color: #27659b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.085em;
+  text-transform: uppercase;
+}
+
+.ed-case-journey__header h3 {
+  max-width: 55ch;
+  margin: 0.3rem 0 0;
+  font-size: clamp(1.22rem, 2.2vw, 1.65rem);
+  line-height: 1.25;
+}
+
+.ed-case-journey__details {
+  border: 1px solid #d4e2f0;
+  border-radius: 0.9rem;
+  background: #f3f8ff;
+}
+
+.ed-case-journey__details[open] {
+  border-color: #3178b8;
+  background: #fff;
+}
+
+.ed-case-journey__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem 1.5rem;
+  padding: clamp(0.8rem, 2vw, 1.25rem);
+  cursor: pointer;
+  list-style: none;
+}
+
+.ed-case-journey__summary::-webkit-details-marker {
+  display: none;
+}
+
+.ed-case-journey__summary::marker {
+  content: "";
+}
+
+.ed-case-journey__summary:hover {
+  background: #edf5ff;
+}
+
+.ed-case-journey__summary:focus-visible {
+  outline: 3px solid #286fb6;
+  outline-offset: -3px;
+}
+
+.ed-case-journey__preview {
+  display: flex;
+  flex: 1 1 19rem;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: #203956;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.ed-case-journey__preview > span:not(.ed-case-journey__arrow) {
+  padding: 0.42rem 0.7rem;
+  border-radius: 0.55rem;
+  background: #e0eefa;
+}
+
+.ed-case-journey__preview > span:last-child {
+  color: #355c20;
+  background: #e8f5dc;
+}
+
+.ed-case-journey__arrow {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-top: 2px solid #3778b5;
+  border-right: 2px solid #3778b5;
+  transform: rotate(45deg);
+}
+
+.ed-case-journey__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #17578d;
+  font-size: 0.88rem;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.ed-case-journey__details[open] .ed-case-journey__toggle > span {
+  transform: rotate(180deg);
+}
+
+.ed-case-journey__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.65rem, 1.3vw, 1rem);
+  margin: 0;
+  padding: 0.2rem clamp(0.8rem, 2vw, 1.25rem) 1.3rem;
+  list-style: none;
+}
+
+.ed-case-journey__step {
+  min-width: 0;
+  padding: clamp(0.8rem, 1.5vw, 1.1rem);
+  border: 1px solid #d4e2f0;
+  border-radius: 0.75rem;
+  background: #f5f9ff;
+}
+
+.ed-case-journey__step--result {
+  border-color: #b4d399;
+  background: #f2faec;
+}
+
+.ed-case-journey__step-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  color: #1c344e;
+}
+
+.ed-case-journey__step-header > span {
+  display: grid;
+  flex: 0 0 2rem;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.6rem;
+  background: #236cad;
+  color: #fff;
+  font-weight: 800;
+}
+
+.ed-case-journey__step--result .ed-case-journey__step-header > span {
+  background: #4a7929;
+}
+
+.ed-case-journey__copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.93rem;
+  line-height: 1.6;
+}
+
+.ed-case-journey__copy p:first-child {
+  margin-top: 0;
+}
+
+.ed-case-journey__copy p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 56rem) {
+  .ed-case-journey__steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-case-journey__toggle > span {
+    transition: none;
+  }
+}

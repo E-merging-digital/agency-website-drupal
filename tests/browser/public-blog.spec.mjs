@@ -424,6 +424,8 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
     test('FR/EN choices lead to real groups, and homepage stays unchanged', async ({
       page, audit,
     }, testInfo) => {
+      // Two full-page locale captures and native interaction checks exceed 30s on CI.
+      test.setTimeout(60_000);
       const surfaces = [
         {
           lang: 'fr',
@@ -431,6 +433,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
           home: '/fr',
           navigation: 'Explorer les services selon votre besoin',
           labels: [['Créer', 'business'], ['Améliorer', 'drupal'], ['Automatiser', 'ai']],
+          visualCases: ['Créer une présence numérique utile', 'Améliorer un site existant', 'Connecter vos outils'],
         },
         {
           lang: 'en',
@@ -438,6 +441,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
           home: '/en',
           navigation: 'Explore services by need',
           labels: [['Create', 'business'], ['Improve', 'drupal'], ['Automate', 'ai']],
+          visualCases: ['Create a useful digital presence', 'Improve an existing website', 'Connect your everyday tools'],
         },
       ];
 
@@ -463,6 +467,23 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
           expect(new URL(page.url()).hash).toBe(anchor);
         }
 
+        // Native details provide progressive visual explanations without JavaScript.
+        const explainer = page.locator('.ed-section--services-grid .ed-visual-flow');
+        await expect(explainer).toHaveCount(1);
+        const scenarios = explainer.locator('details.ed-visual-flow__scenario');
+        await expect(scenarios).toHaveCount(3);
+        for (const [index, title] of surface.visualCases.entries()) {
+          await expect(scenarios.nth(index).locator('summary')).toContainText(title);
+        }
+        await expect(scenarios.first()).toHaveAttribute('open', '');
+        await expect(scenarios.first().locator('li.ed-visual-flow__step')).toHaveCount(3);
+        await scenarios.nth(1).locator('summary').click();
+        await expect(scenarios.nth(1)).toHaveAttribute('open', '');
+        await expect(scenarios.first()).not.toHaveAttribute('open', '');
+        await scenarios.nth(2).locator('summary').focus();
+        await page.keyboard.press('Enter');
+        await expect(scenarios.nth(2)).toHaveAttribute('open', '');
+
         const overflow = await page.evaluate(() =>
           document.documentElement.scrollWidth > window.innerWidth + 1,
         );
@@ -481,6 +502,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
 
         await page.goto(surface.home, { waitUntil: 'domcontentloaded' });
         await expect(page.locator('.ed-services-paths')).toHaveCount(0);
+        await expect(page.locator('.ed-visual-flow')).toHaveCount(0);
       }
 
       expect(audit.consoleErrors).toEqual([]);
@@ -594,12 +616,14 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
           path: '/fr/ia-drupal',
           home: '/fr',
           titles: ['Votre contenu', 'Assistance IA', 'Validation humaine', 'Publication'],
+          visualCases: ['Lire une information autorisée', 'Proposer sans publier', 'Refuser une action sensible'],
         },
         {
           lang: 'en',
           path: '/en/ai-drupal',
           home: '/en',
           titles: ['Your content', 'AI assistance', 'Human approval', 'Publication'],
+          visualCases: ['Read permitted information', 'Suggest without publishing', 'Refuse a sensitive action'],
         },
       ];
 
@@ -627,6 +651,22 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
         );
         expect(approvalBorder, 'Human approval requires a visible accent border.')
           .toBeGreaterThanOrEqual(2);
+        const explainer = flow.locator('.ed-visual-flow');
+        await expect(explainer).toHaveCount(1);
+        const scenarios = explainer.locator('details.ed-visual-flow__scenario');
+        await expect(scenarios).toHaveCount(3);
+        for (const [index, title] of surface.visualCases.entries()) {
+          await expect(scenarios.nth(index).locator('summary')).toContainText(title);
+        }
+        await expect(scenarios.first()).toHaveAttribute('open', '');
+        await expect(scenarios.first().locator('li.ed-visual-flow__step')).toHaveCount(3);
+        await scenarios.nth(1).locator('summary').click();
+        await expect(scenarios.nth(1)).toHaveAttribute('open', '');
+        await scenarios.nth(2).locator('summary').focus();
+        await page.keyboard.press('Enter');
+        await expect(scenarios.nth(2)).toHaveAttribute('open', '');
+        await expect(explainer.locator('.ed-visual-flow__disclaimer')).toBeVisible();
+
         await expect(page.locator('.ed-cards--ai')).toBeVisible();
 
         const overflow = await page.evaluate(() =>
@@ -647,6 +687,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
 
         await page.goto(surface.home, { waitUntil: 'domcontentloaded' });
         await expect(page.locator('.ed-ai-flow')).toHaveCount(0);
+        await expect(page.locator('.ed-visual-flow')).toHaveCount(0);
       }
 
       expect(audit.consoleErrors).toEqual([]);
@@ -659,6 +700,60 @@ if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital
       audit.checks.visual = 'PASS';
       audit.checks.console = 'PASS';
       audit.checks.network = 'PASS';
+    });
+  });
+}
+
+// #1486: Case studies must explain challenge, approach and outcome at a glance.
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1486 visual case journeys', () => {
+    test('FR/EN examples remain readable and operable without extra JavaScript', async ({
+      page, audit,
+    }) => {
+      const surfaces = [
+        {
+          path: '/fr/cas-clients',
+          stages: ['Contexte', 'Réponse', 'Effet'],
+        },
+        {
+          path: '/en/case-studies',
+          stages: ['Challenge', 'Approach', 'Outcome'],
+        },
+      ];
+
+      for (const surface of surfaces) {
+        const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+        expect(response?.status()).toBeLessThan(400);
+        const journeys = page.locator('.ed-section--case-studies .ed-case-journey');
+        await expect(journeys).toHaveCount(3);
+        const details = journeys.locator('details.ed-case-journey__details');
+        await expect(details).toHaveCount(3);
+        await expect(details.first()).toHaveAttribute('open', '');
+        await expect(details.first().locator('li.ed-case-journey__step')).toHaveCount(3);
+        for (const stage of surface.stages) {
+          await expect(details.first().locator('.ed-case-journey__step-header strong', {
+            hasText: stage,
+          })).toHaveCount(1);
+        }
+
+        await details.nth(1).locator('summary').click();
+        await expect(details.nth(1)).toHaveAttribute('open', '');
+        await expect(details.first()).not.toHaveAttribute('open', '');
+        await details.nth(2).locator('summary').focus();
+        await page.keyboard.press('Enter');
+        await expect(details.nth(2)).toHaveAttribute('open', '');
+        await expect(details.nth(1)).not.toHaveAttribute('open', '');
+        await expect(details.nth(2).locator('li.ed-case-journey__step')).toHaveCount(3);
+        expect(await page.evaluate(() =>
+          document.documentElement.scrollWidth <= window.innerWidth + 1,
+        ), 'Visual case journeys must not overflow the viewport.').toBe(true);
+      }
+
+      expect(audit.consoleErrors).toEqual([]);
+      expect(audit.pageErrors).toEqual([]);
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
     });
   });
 }

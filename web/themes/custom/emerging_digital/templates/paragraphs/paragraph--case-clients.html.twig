@@ -4,24 +4,50 @@
     {% if paragraph.field_text.value %}
       <div class="ed-section__intro">{{ content.field_text }}</div>
     {% endif %}
-    <div class="ed-cards ed-cards--cases">
-      {% set case_labels = paragraph.langcode.value == 'en'
-        ? {problem: 'Challenge', solution: 'Approach', result: 'Outcome'}
-        : {problem: 'Contexte', solution: 'Réponse', result: 'Effet'}
-      %}
+    {% set case_labels = case_clients_english|default(false)
+      ? {problem: 'Challenge', solution: 'Approach', result: 'Outcome', example: 'Example', explore: 'Explore the three steps'}
+      : {problem: 'Contexte', solution: 'Réponse', result: 'Effet', example: 'Exemple', explore: 'Découvrir les trois étapes'}
+    %}
+    <div class="ed-cards ed-cards--cases ed-case-journeys">
       {% for item in paragraph.field_items %}
         {% set idx = loop.index0 %}
-        <article class="ed-card ed-card--case">
-          <h3>{{ item.value|striptags|trim }}</h3>
-          {% if paragraph.field_case_problem[idx].processed|default('') %}
-            <p><strong>{{ case_labels.problem }} :</strong> {{ paragraph.field_case_problem[idx].processed|raw }}</p>
-          {% endif %}
-          {% if paragraph.field_case_solution[idx].processed|default('') %}
-            <p><strong>{{ case_labels.solution }} :</strong> {{ paragraph.field_case_solution[idx].processed|raw }}</p>
-          {% endif %}
-          {% if paragraph.field_case_result[idx].processed|default('') %}
-            <p><strong>{{ case_labels.result }} :</strong> {{ paragraph.field_case_result[idx].processed|raw }}</p>
-          {% endif %}
+        <article class="ed-card ed-card--case ed-case-journey">
+          <div class="ed-case-journey__header">
+            <span class="ed-case-journey__eyebrow">{{ case_labels.example }} {{ '%02d'|format(loop.index) }}</span>
+            <h3>{{ item.value|striptags|trim }}</h3>
+          </div>
+          <details class="ed-case-journey__details" name="ed-case-journeys-{{ paragraph.id() }}"{% if loop.first %} open{% endif %}>
+            <summary class="ed-case-journey__summary">
+              <span class="ed-case-journey__preview">
+                <span>{{ case_labels.problem }}</span>
+                <span aria-hidden="true" class="ed-case-journey__arrow"></span>
+                <span>{{ case_labels.solution }}</span>
+                <span aria-hidden="true" class="ed-case-journey__arrow"></span>
+                <span>{{ case_labels.result }}</span>
+              </span>
+              <span class="ed-case-journey__toggle">{{ case_labels.explore }} <span aria-hidden="true">▾</span></span>
+            </summary>
+            <ol class="ed-case-journey__steps">
+              {% if paragraph.field_case_problem[idx].processed|default('') %}
+                <li class="ed-case-journey__step">
+                  <div class="ed-case-journey__step-header"><span aria-hidden="true">01</span><strong>{{ case_labels.problem }}</strong></div>
+                  <div class="ed-case-journey__copy">{{ paragraph.field_case_problem[idx].processed|raw }}</div>
+                </li>
+              {% endif %}
+              {% if paragraph.field_case_solution[idx].processed|default('') %}
+                <li class="ed-case-journey__step">
+                  <div class="ed-case-journey__step-header"><span aria-hidden="true">02</span><strong>{{ case_labels.solution }}</strong></div>
+                  <div class="ed-case-journey__copy">{{ paragraph.field_case_solution[idx].processed|raw }}</div>
+                </li>
+              {% endif %}
+              {% if paragraph.field_case_result[idx].processed|default('') %}
+                <li class="ed-case-journey__step ed-case-journey__step--result">
+                  <div class="ed-case-journey__step-header"><span aria-hidden="true">03</span><strong>{{ case_labels.result }}</strong></div>
+                  <div class="ed-case-journey__copy">{{ paragraph.field_case_result[idx].processed|raw }}</div>
+                </li>
+              {% endif %}
+            </ol>
+          </details>
         </article>
       {% endfor %}
     </div>

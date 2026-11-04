@@ -789,6 +789,40 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
             await reject.click();
           }
 
+          if (slug === 'contact') {
+            // Contact V3 has its own approved layout, unlike other inner pages.
+            const contact = page.locator('.ed-contact-v3');
+            await expect(contact, 'Contact V3 must render its own layout.').toBeVisible();
+            await expect(page.locator('h1'), 'Contact must keep one page heading.').toHaveCount(1);
+            await expect(contact.locator('h1')).toBeVisible();
+
+            const form = contact.locator('.ed-contact-v3__form-panel form');
+            await expect(form, 'The existing Drupal contact Webform must render.').toBeVisible();
+            await expect(form.locator('input[type="email"]')).toHaveCount(1);
+            await expect(form.locator('textarea')).toHaveCount(1);
+            await expect(form.locator('input[type="checkbox"]')).toHaveCount(1);
+            await expect(form.locator('label[for]').first()).toBeVisible();
+            await expect(contact.locator('a[href="mailto:contact@emergingdigital.be"]')).toBeVisible();
+            await expect(contact.locator('a[href="tel:+3219860698"]')).toBeVisible();
+
+            const horizontalSize = await page.evaluate(() => ({
+              documentWidth: document.documentElement.scrollWidth,
+              viewportWidth: window.innerWidth,
+            }));
+            expect(horizontalSize.documentWidth, 'No horizontal overflow on ' + lang + '/contact')
+              .toBeLessThanOrEqual(horizontalSize.viewportWidth + 1);
+
+            await contact.scrollIntoViewIfNeeded();
+            const fileName = 'contact-v3-' + lang + '-' + testInfo.project.name + '.png';
+            const screenshotPath = path.join(screenshotDirectory, fileName);
+            await page.screenshot({ path: screenshotPath, fullPage: false });
+            await testInfo.attach('contact-v3-' + lang, {
+              path: screenshotPath,
+              contentType: 'image/png',
+            });
+            continue;
+          }
+
           const hero = page.locator('.page-main:not(.page-main--front) .ed-section--hero');
           await expect(hero, 'Inner pages must reuse the existing Drupal hero.').toBeVisible();
           await expect(hero.locator('h2')).toBeVisible();

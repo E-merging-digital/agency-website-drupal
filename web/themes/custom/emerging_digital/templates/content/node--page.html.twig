@@ -3,8 +3,54 @@
   {% set node_classes = node_classes|merge(['node--contact-page']) %}
 {% endif %}
 
-<article{{ attributes.addClass(node_classes) }}>
-  <div class="node__content strategic-page__content">
-    {{ content }}
-  </div>
-</article>
+{% if agency_contact_v3_webform is defined %}
+  <article{{ attributes.addClass(node_classes, 'ed-contact-v3') }}>
+    <div class="ed-contact-v3__layout">
+      <section class="ed-contact-v3__intro" aria-labelledby="ed-contact-title">
+        <p class="ed-contact-v3__eyebrow">{{ agency_contact_v3_english ? 'LET’S MOVE YOUR PROJECT FORWARD' : 'UN PROJET À FAIRE AVANCER ?' }}</p>
+        <h1 id="ed-contact-title">{{ agency_contact_v3_english ? 'Let’s talk about your project.' : 'Parlons de votre projet.' }}</h1>
+        <p class="ed-contact-v3__lead">{{ agency_contact_v3_english ? 'Drupal, business applications and AI integrations.' : 'Drupal, applications métier et intégrations IA.' }}</p>
+        <ol class="ed-contact-v3__steps">
+          <li>
+            <span aria-hidden="true">01</span>
+            <div>
+              <strong>{{ agency_contact_v3_english ? 'Tell us what you need' : 'Vous nous expliquez' }}</strong>
+              <p>{{ agency_contact_v3_english ? 'A few words about your project are enough.' : 'Quelques mots sur votre projet suffisent.' }}</p>
+            </div>
+          </li>
+          <li>
+            <span aria-hidden="true">02</span>
+            <div>
+              <strong>{{ agency_contact_v3_english ? 'We clarify the next steps' : 'Nous clarifions' }}</strong>
+              <p>{{ agency_contact_v3_english ? 'We discuss a practical approach together.' : 'Nous échangeons sur une approche concrète.' }}</p>
+            </div>
+          </li>
+          <li>
+            <span aria-hidden="true">03</span>
+            <div>
+              <strong>{{ agency_contact_v3_english ? 'You choose how to proceed' : 'Vous choisissez la suite' }}</strong>
+              <p>{{ agency_contact_v3_english ? 'No commitment before you decide.' : 'Aucun engagement avant votre décision.' }}</p>
+            </div>
+          </li>
+        </ol>
+        <div class="ed-contact-v3__direct" aria-label="{{ agency_contact_v3_english ? 'Direct contact options' : 'Moyens de contact directs' }}">
+          <a href="mailto:contact@emergingdigital.be"><span aria-hidden="true">✉</span>contact@emergingdigital.be</a>
+          <a href="tel:+3219860698"><span aria-hidden="true">☎</span>+32 19 86 06 98</a>
+        </div>
+      </section>
+      <section class="ed-contact-v3__form-panel" id="contact-form" aria-labelledby="ed-contact-form-title">
+        <h2 id="ed-contact-form-title">{{ agency_contact_v3_english ? 'Tell us about your needs.' : 'Décrivez votre besoin.' }}</h2>
+        <p class="ed-contact-v3__form-lead">{{ agency_contact_v3_english ? 'A short message is enough to start a conversation.' : 'Quelques mots suffisent pour commencer à échanger.' }}</p>
+        <div class="ed-section__content--contact-form">
+          {{ agency_contact_v3_webform }}
+        </div>
+      </section>
+    </div>
+  </article>
+{% else %}
+  <article{{ attributes.addClass(node_classes) }}>
+    <div class="node__content strategic-page__content">
+      {{ content }}
+    </div>
+  </article>
+{% endif %}

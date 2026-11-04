@@ -586,9 +586,24 @@
       content.insertBefore(summary, form);
     }
 
-    setFormValue(form, 'project_type', qualification.type);
+    var familyByType = {
+      audit: 'audit_modernization',
+      migration: 'audit_modernization',
+      redesign: 'audit_modernization',
+      maintenance: 'development_maintenance',
+      ai: 'integration_automation'
+    };
+    var selectedFamily = familyByType[qualification.type];
+    if (selectedFamily) {
+      var radio = form.querySelector('[name="need_family"][value="' + selectedFamily + '"]');
+      if (radio) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
 
-    var subjectContext = qualification.context || labels.typeLabels[qualification.type] || labels.summaryFallback;
+    // The notification subject only uses trusted fixed labels, never URL text.
+    var subjectContext = labels.typeLabels[qualification.type] || labels.summaryFallback;
     setFormValue(form, 'subject', labels.subjectPrefix + ' - ' + subjectContext);
 
     var messageLines = [labels.messageIntro];

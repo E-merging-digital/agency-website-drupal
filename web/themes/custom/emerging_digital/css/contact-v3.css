@@ -1,0 +1,209 @@
+/* Contact V3 — node-scoped composition of the existing Drupal Webform. */
+.page-main:has(.ed-contact-v3) {
+  padding-top: var(--space-4);
+}
+.page-main:has(.ed-contact-v3) #block-emerging-digital-page-title {
+  display: none;
+}
+.ed-contact-v3 {
+  overflow: clip;
+  border-radius: 1.2rem;
+  box-shadow: 0 20px 48px rgb(17 24 39 / 9%);
+}
+.ed-contact-v3__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
+  align-items: stretch;
+}
+.ed-contact-v3__intro {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(2rem, 4vw, 4.5rem);
+  background: radial-gradient(ellipse at 90% 5%, rgb(40 111 182 / 23%), transparent 53%), #111827;
+  color: #fff;
+}
+.ed-contact-v3__eyebrow {
+  margin: 0 0 var(--space-5);
+  color: var(--color-accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.ed-contact-v3__intro h1 {
+  margin: 0 0 var(--space-5);
+  color: #fff;
+  font: 800 clamp(2.4rem, 4vw, 3.7rem)/1.11 var(--font-heading);
+  letter-spacing: -0.045em;
+}
+.ed-contact-v3__lead {
+  max-width: 38ch;
+  margin: 0;
+  color: #d8e0ec;
+  font-size: clamp(1rem, 1.4vw, 1.15rem);
+  line-height: 1.6;
+}
+.ed-contact-v3__steps {
+  display: grid;
+  gap: var(--space-6);
+  padding: 0;
+  margin: clamp(2rem, 4vw, 3.2rem) 0;
+  list-style: none;
+}
+.ed-contact-v3__steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+.ed-contact-v3__steps li > span {
+  flex: 0 0 2.2rem;
+  color: var(--color-accent);
+  font: 700 1.12rem/1.35 var(--font-heading);
+}
+.ed-contact-v3__steps strong {
+  display: block;
+  color: #fff;
+  font-size: 1.02rem;
+}
+.ed-contact-v3__steps p {
+  margin: var(--space-1) 0 0;
+  color: #bdc9d9;
+  font-size: 0.89rem;
+}
+.ed-contact-v3__direct {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-6);
+  border-top: 1px solid rgb(255 255 255 / 20%);
+}
+.ed-contact-v3__direct a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: fit-content;
+  color: #fff;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.ed-contact-v3__direct a > span {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+}
+.ed-contact-v3__direct a:hover,
+.ed-contact-v3__direct a:focus-visible {
+  color: #c9e8a5;
+  text-decoration: underline;
+}
+.ed-contact-v3__form-panel {
+  min-width: 0;
+  padding: clamp(2rem, 4vw, 4.5rem);
+  background: var(--color-surface);
+}
+.ed-contact-v3__form-panel h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text);
+  font: 750 clamp(1.65rem, 2.5vw, 2.25rem)/1.2 var(--font-heading);
+}
+.ed-contact-v3__form-lead {
+  margin: 0 0 var(--space-6);
+  color: var(--color-muted);
+}
+.ed-contact-v3 .ed-section__content--contact-form {
+  max-width: none;
+}
+.ed-contact-v3 .ed-section__content--contact-form form {
+  display: grid;
+  gap: var(--space-5);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.ed-contact-v3 .ed-section__content--contact-form fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ed-contact-v3 .ed-section__content--contact-form fieldset > legend {
+  font-weight: 700;
+  margin-bottom: var(--space-3);
+}
+.ed-contact-v3 .form-radios {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.ed-contact-v3 .form-radios .form-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+.ed-contact-v3 .form-radios input[type="radio"] {
+  flex-shrink: 0;
+  margin: 0 var(--space-2) 0 0;
+  accent-color: var(--color-primary);
+}
+.ed-contact-v3 .form-radios label {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.ed-contact-v3 .form-radios .form-item:has(input:checked) {
+  border-color: var(--color-primary);
+  background: #eef5fd;
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+}
+.ed-contact-v3 .form-radios .form-item:has(input:focus-visible) {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.ed-contact-v3 .form-item input:not([type="radio"], [type="checkbox"], [type="hidden"]),
+.ed-contact-v3 .form-item textarea {
+  width: 100%;
+  max-width: 100%;
+  border-radius: var(--radius-md);
+}
+.ed-contact-v3 .form-actions input[type="submit"],
+.ed-contact-v3 .form-actions button {
+  width: 100%;
+  min-height: 3.2rem;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: #fff;
+}
+.ed-contact-v3 .form-actions input[type="submit"]:focus-visible,
+.ed-contact-v3 .form-actions button:focus-visible {
+  outline: 3px solid #111827;
+  outline-offset: 3px;
+}
+@media (max-width: 50rem) {
+  .ed-contact-v3__layout { grid-template-columns: minmax(0, 1fr); }
+  .ed-contact-v3__intro { padding: var(--space-7) var(--space-6); }
+  .ed-contact-v3__intro h1 { max-width: 18ch; font-size: clamp(2.2rem, 7.4vw, 3rem); }
+  .ed-contact-v3__steps { display: none; }
+  .ed-contact-v3__direct { margin-top: var(--space-6); }
+  .ed-contact-v3__form-panel { padding: var(--space-7) var(--space-6); }
+}
+@media (max-width: 28rem) {
+  .ed-contact-v3 { border-radius: var(--radius-lg); }
+  .ed-contact-v3__intro,
+  .ed-contact-v3__form-panel { padding: var(--space-6) var(--space-5); }
+  .ed-contact-v3 .form-radios { gap: var(--space-2); }
+  .ed-contact-v3 .form-radios .form-item { padding: var(--space-2); }
+  .ed-contact-v3 .form-radios label { font-size: 0.8rem; }
+}

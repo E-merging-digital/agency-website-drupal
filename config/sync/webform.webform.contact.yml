@@ -19,6 +19,7 @@ elements: |
   required_notice:
     '#type': webform_markup
     '#markup': '<p class="contact-required-note">Fields marked with an asterisk are required.</p>'
+    '#access': false
   name:
     '#type': textfield
     '#title': 'Your name'
@@ -33,8 +34,10 @@ elements: |
     '#type': textfield
     '#title': 'Organization'
     '#placeholder': 'Name of your organization'
+    '#access': false
   organization_type:
     '#type': select
+    '#access': false
     '#title': 'Organization type'
     '#options':
       sme: 'SME / company'
@@ -45,6 +48,7 @@ elements: |
     '#empty_option': 'Not specified'
   project_type:
     '#type': select
+    '#access': false
     '#title': 'Project type'
     '#options':
       new_site: 'New Drupal website'
@@ -55,8 +59,17 @@ elements: |
       ai: 'AI & Drupal'
       other: 'Other need'
     '#empty_option': 'Not specified'
+  need_family:
+    '#type': radios
+    '#title': 'What do you need? (optional)'
+    '#options':
+      audit_modernization: 'Audit / modernization'
+      development_maintenance: 'Development / maintenance'
+      integration_automation: 'AI / automation'
+      other: 'Something else'
   main_need:
     '#type': select
+    '#access': false
     '#title': 'Main need'
     '#options':
       frame: 'Frame the project'
@@ -67,6 +80,7 @@ elements: |
     '#empty_option': 'Not specified'
   budget:
     '#type': select
+    '#access': false
     '#title': 'Indicative budget'
     '#options':
       unknown: 'To be defined'
@@ -77,6 +91,7 @@ elements: |
     '#empty_option': 'Not specified'
   timeline:
     '#type': select
+    '#access': false
     '#title': 'Expected timeline'
     '#options':
       urgent: 'As soon as possible'
@@ -85,9 +100,10 @@ elements: |
       later: 'Later / to be planned'
     '#empty_option': 'Not specified'
   subject:
-    '#type': textfield
+    '#type': hidden
     '#title': Subject
     '#required': true
+    '#default_value': 'Contact request - E-merging Digital'
     '#test': 'Testing contact webform from [site:name]'
   message:
     '#type': textarea

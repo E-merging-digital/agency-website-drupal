@@ -794,6 +794,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
             const contact = page.locator('.ed-contact-v3');
             await expect(contact, 'Contact V3 must render its own layout.').toBeVisible();
             await expect(page.locator('h1'), 'Contact must keep one page heading.').toHaveCount(1);
+            await expect(page.locator('#block-emerging-digital-page-title')).toHaveCount(0);
             await expect(contact.locator('h1')).toBeVisible();
 
             const form = contact.locator('.ed-contact-v3__form-panel form');
@@ -802,6 +803,16 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
             await expect(form.locator('textarea')).toHaveCount(1);
             await expect(form.locator('input[type="checkbox"]')).toHaveCount(1);
             await expect(form.locator('label[for]').first()).toBeVisible();
+            const radios = form.locator('.js-webform-radios');
+            await expect(radios.locator('input[type="radio"]')).toHaveCount(4);
+            const grid = await radios.evaluate(element => ({
+              display: getComputedStyle(element).display,
+              columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
+              mobile: window.innerWidth <= 448,
+            }));
+            expect(grid.display, 'Contact options must use an aligned grid.').toBe('grid');
+            expect(grid.columns, 'Contact options must fit the current viewport.')
+              .toBe(grid.mobile ? 1 : 2);
             await expect(contact.locator('a[href="mailto:contact@emergingdigital.be"]')).toBeVisible();
             await expect(contact.locator('a[href="tel:+3219860698"]')).toBeVisible();
 

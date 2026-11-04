@@ -25,3 +25,6 @@ visibility:
     pages: |
       <front>
       /accueil
+      /contact
+      /fr/contact
+      /en/contact

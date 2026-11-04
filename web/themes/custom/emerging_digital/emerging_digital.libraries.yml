@@ -8,6 +8,7 @@ global-styling:
       css/components.css: {}
       css/blog.css: {}
       css/inner-v2.css: {}
+      css/contact-v3.css: {}
   js:
     js/main.js:
       attributes:

@@ -30,6 +30,21 @@ function emerging_digital_preprocess_node(array &$variables): void {
     $is_english,
   );
 
+  // Keep editor-owned content; compose Contact V3 with the existing Webform.
+  $is_contact_page = $bundle === 'page'
+    && $node->uuid() === 'd962ec05-25ec-4446-b645-0959a57964e7';
+  if ($is_contact_page) {
+    $contact_webform = Webform::load('contact');
+    if ($contact_webform) {
+      $variables['agency_contact_v3_webform'] = \Drupal::entityTypeManager()
+        ->getViewBuilder('webform')
+        ->view($contact_webform);
+      $variables['agency_contact_v3_english'] = \Drupal::languageManager()
+        ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId() === 'en';
+      $variables['elements']['#cache']['contexts'][] = 'languages:language_interface';
+    }
+  }
+
   if ($bundle !== 'ai_feature') {
     return;
   }

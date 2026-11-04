@@ -5,7 +5,9 @@ languages:
   - fr
   - en
 allowed_pages:
-  - '*'
+  - /fr/services/*
+  - /en/services/*
+  - /services/*
 excluded_pages:
   - /fr/contact
   - /en/contact

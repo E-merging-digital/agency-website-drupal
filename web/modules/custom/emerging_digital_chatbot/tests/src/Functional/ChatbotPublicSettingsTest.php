@@ -41,6 +41,7 @@ final class ChatbotPublicSettingsTest extends BrowserTestBase {
     $this->config('emerging_digital_chatbot.settings')
       ->set('mode', 'ai')
       ->set('future_ai.enabled', FALSE)
+      ->set('allowed_pages', ['/user/login'])
       ->set('future_ai.provider', 'leaky_provider_public_test')
       ->set('future_ai.model', 'leaky-model-public-test')
       ->set('future_ai.prompt_version', 'leaky_prompt_version_public_test')

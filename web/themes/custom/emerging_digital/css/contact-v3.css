@@ -148,12 +148,20 @@
   border-radius: var(--radius-md);
   background: #fff;
 }
-.ed-contact-v3 .js-webform-radios input[type="radio"] {
-  flex-shrink: 0;
+.ed-contact-v3 .ed-section__content--contact-form .js-webform-radios .form-item input[type="radio"] {
+  width: 1.125rem;
+  min-width: 1.125rem;
+  max-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0;
+  flex: 0 0 1.125rem;
   margin: 0 var(--space-2) 0 0;
   accent-color: var(--color-primary);
 }
 .ed-contact-v3 .js-webform-radios label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0;
   font-size: 0.85rem;
   font-weight: 600;

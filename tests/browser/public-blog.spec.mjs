@@ -813,6 +813,59 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
             expect(grid.display, 'Contact options must use an aligned grid.').toBe('grid');
             expect(grid.columns, 'Contact options must fit the current viewport.')
               .toBe(grid.mobile ? 1 : 2);
+
+            // #1500: verify each label and native radio fit *inside* their card.
+            // A full-width radio input can otherwise push its label off-screen
+            // without increasing the document's scrollWidth.
+            const choices = radios.locator('.form-item');
+            await expect(choices).toHaveCount(4);
+            for (let index = 0; index < 4; index += 1) {
+              const choice = choices.nth(index);
+              const radio = choice.locator('input[type="radio"]');
+              const label = choice.locator('label');
+              await expect(radio).toBeVisible();
+              await expect(label).toBeVisible();
+              const geometry = await choice.evaluate(card => {
+                const input = card.querySelector('input[type="radio"]');
+                const labelNode = card.querySelector('label');
+                if (!input || !labelNode) {
+                  return null;
+                }
+                const cardRect = card.getBoundingClientRect();
+                const radioRect = input.getBoundingClientRect();
+                const labelRect = labelNode.getBoundingClientRect();
+                const inside = rect =>
+                  rect.left >= cardRect.left - 1
+                  && rect.right <= cardRect.right + 1
+                  && rect.top >= cardRect.top - 1
+                  && rect.bottom <= cardRect.bottom + 1;
+                return {
+                  radioWidth: radioRect.width,
+                  radioHeight: radioRect.height,
+                  radioInside: inside(radioRect),
+                  labelInside: inside(labelRect),
+                  noOverlap: radioRect.right <= labelRect.left + 1,
+                  labelFits: labelNode.scrollWidth <= labelNode.clientWidth + 1,
+                  linked: input.id !== '' && labelNode.htmlFor === input.id,
+                };
+              });
+              expect(geometry, 'Each Contact option must contain its input and label.').not.toBeNull();
+              expect(geometry.radioWidth).toBeGreaterThanOrEqual(12);
+              expect(geometry.radioWidth).toBeLessThanOrEqual(24);
+              expect(geometry.radioHeight).toBeGreaterThanOrEqual(12);
+              expect(geometry.radioHeight).toBeLessThanOrEqual(24);
+              expect(geometry.radioInside).toBe(true);
+              expect(geometry.labelInside).toBe(true);
+              expect(geometry.noOverlap).toBe(true);
+              expect(geometry.labelFits).toBe(true);
+              expect(geometry.linked).toBe(true);
+              await label.click();
+              await expect(radio).toBeChecked();
+            }
+            await choices.first().locator('input[type="radio"]').focus();
+            await page.keyboard.press('Space');
+            await expect(choices.first().locator('input[type="radio"]')).toBeChecked();
+
             await expect(contact.locator('a[href="mailto:contact@emergingdigital.be"]')).toBeVisible();
             await expect(contact.locator('a[href="tel:+3219860698"]')).toBeVisible();
 

@@ -128,6 +128,10 @@
   padding: 0;
   border: 0;
 }
+.ed-contact-v3 .ed-section__content--contact-form fieldset:has(.js-webform-radios) {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
 .ed-contact-v3 .ed-section__content--contact-form fieldset > legend {
   font-weight: 700;
   margin-bottom: var(--space-3);
@@ -161,7 +165,8 @@
 .ed-contact-v3 .js-webform-radios label {
   flex: 1 1 auto;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
   margin: 0;
   font-size: 0.85rem;
   font-weight: 600;

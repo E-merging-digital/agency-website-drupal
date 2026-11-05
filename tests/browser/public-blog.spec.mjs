@@ -785,7 +785,7 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
           expect(response?.status(), 'Inner page must resolve: ' + lang + '/' + slug).toBeLessThan(400);
 
           const reject = page.locator('[data-ed-cookie-action="reject"]');
-          if (await reject.isVisible()) {
+          if (slug !== 'contact' && await reject.isVisible()) {
             await reject.click();
           }
 
@@ -793,6 +793,19 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
             // Contact V3 has its own approved layout, unlike other inner pages.
             const contact = page.locator('.ed-contact-v3');
             await expect(contact, 'Contact V3 must render its own layout.').toBeVisible();
+
+            // #1500: capture the real full page at the initial scroll position,
+            // before cookie interaction, scrolling, focusing or choosing an option.
+            const fileName = 'contact-v3-' + lang + '-' + testInfo.project.name + '.png';
+            const screenshotPath = path.join(screenshotDirectory, fileName);
+            await page.screenshot({ path: screenshotPath, fullPage: true, animations: 'disabled' });
+            await testInfo.attach('contact-v3-' + lang, {
+              path: screenshotPath,
+              contentType: 'image/png',
+            });
+            if (await reject.isVisible()) {
+              await reject.click();
+            }
             await expect(page.locator('h1'), 'Contact must keep one page heading.').toHaveCount(1);
             await expect(page.locator('#block-emerging-digital-page-title')).toHaveCount(0);
             await expect(contact.locator('h1')).toBeVisible();
@@ -809,10 +822,14 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
               display: getComputedStyle(element).display,
               columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
               mobile: window.innerWidth <= 448,
+              groupWidth: element.getBoundingClientRect().width,
+              formWidth: element.closest('form').getBoundingClientRect().width,
             }));
             expect(grid.display, 'Contact options must use an aligned grid.').toBe('grid');
             expect(grid.columns, 'Contact options must fit the current viewport.')
               .toBe(grid.mobile ? 1 : 2);
+            expect(grid.groupWidth, 'Contact radio group must span the form width.')
+              .toBeGreaterThanOrEqual(grid.formWidth * 0.8);
 
             // #1500: verify each label and native radio fit *inside* their card.
             // A full-width radio input can otherwise push its label off-screen
@@ -847,6 +864,9 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
                   noOverlap: radioRect.right <= labelRect.left + 1,
                   labelFits: labelNode.scrollWidth <= labelNode.clientWidth + 1,
                   linked: input.id !== '' && labelNode.htmlFor === input.id,
+                  wrap: getComputedStyle(labelNode).overflowWrap,
+                  wordBreak: getComputedStyle(labelNode).wordBreak,
+                  cardWidth: cardRect.width,
                 };
               });
               expect(geometry, 'Each Contact option must contain its input and label.').not.toBeNull();
@@ -859,6 +879,12 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
               expect(geometry.noOverlap).toBe(true);
               expect(geometry.labelFits).toBe(true);
               expect(geometry.linked).toBe(true);
+              expect(geometry.wrap, 'Choice labels must not wrap mid-word.').toBe('normal');
+              expect(geometry.wordBreak).toBe('normal');
+              if (!grid.mobile) {
+                expect(geometry.cardWidth, 'Desktop choices must have readable card widths.')
+                  .toBeGreaterThanOrEqual(140);
+              }
               await label.click();
               await expect(radio).toBeChecked();
             }
@@ -876,14 +902,6 @@ if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital
             expect(horizontalSize.documentWidth, 'No horizontal overflow on ' + lang + '/contact')
               .toBeLessThanOrEqual(horizontalSize.viewportWidth + 1);
 
-            await contact.scrollIntoViewIfNeeded();
-            const fileName = 'contact-v3-' + lang + '-' + testInfo.project.name + '.png';
-            const screenshotPath = path.join(screenshotDirectory, fileName);
-            await page.screenshot({ path: screenshotPath, fullPage: false });
-            await testInfo.attach('contact-v3-' + lang, {
-              path: screenshotPath,
-              contentType: 'image/png',
-            });
             continue;
           }
 

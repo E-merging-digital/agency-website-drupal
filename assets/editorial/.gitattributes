@@ -1,0 +1,2 @@
+# Keep the exact #1491 original JPEG binary in diffs and whitespace checks.
+issue-1491-lens-saint-servais-flamenc-2007.jpg -text -diff

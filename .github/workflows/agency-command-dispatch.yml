@@ -217,8 +217,8 @@ jobs:
       issues: write
     uses: ./.github/workflows/trusted-editorial-feature-image.yml
     secrets:
-      SSH_PRIVATE_KEY: ${{ github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ') && secrets.PREPROD_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
-      SERVER_HOST: ${{ github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ') && secrets.PREPROD_SERVER_HOST || secrets.SERVER_HOST }}
+      SSH_PRIVATE_KEY: ${{ ((github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1491 && startsWith(github.event.comment.body, '/agency-editorial-image '))) && secrets.PREPROD_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ ((github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1491 && startsWith(github.event.comment.body, '/agency-editorial-image '))) && secrets.PREPROD_SERVER_HOST || secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
 
   preprod-refresh:

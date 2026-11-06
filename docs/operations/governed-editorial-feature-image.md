@@ -14,8 +14,9 @@ Article to receive one reviewed feature-image asset without turning Agency into 
 generic uploader or remote downloader.
 
 Drupal remains the editorial source of truth for the selected environment after
-apply. The repository owns the reviewed transfer profile plus the deterministic
-source code needed to reproduce the exact image bytes and prove their provenance.
+apply. The repository owns the reviewed transfer profile plus the exact asset
+bytes, either from an existing deterministic generator or, for #1491 only,
+from the committed owner-provided photograph.
 
 ## Control surface
 
@@ -79,8 +80,8 @@ scripts/runner/generate-editorial-feature-image-401.py
 scripts/runner/generate-editorial-feature-image-958.py
 ```
 
-The generated PNG itself is deliberately **not committed as opaque binary
-bytes**. The trusted workflow generates it in the checked-out workspace, checks
+The #401 and #958 generated PNGs are deliberately **not committed as opaque binary
+bytes**. The trusted workflow generates them in the checked-out workspace, checks
 its exact SHA-256 and proves `imagecreatefrompng()` can decode it at the expected
 dimensions before the normal transport route may copy it to the selected bounded
 target.
@@ -97,7 +98,7 @@ uploaded attachment. The route does not:
 - generate an image on the Drupal target;
 - create Media entities.
 
-The assets are language-neutral, sober illustrations based on Agency
+The #401/#958 assets are language-neutral, sober illustrations based on Agency
 design-system colors. They have no embedded marketing claim and use translated
 Drupal ALT text instead of visible language-specific copy.
 
@@ -139,6 +140,7 @@ exactly:
 ```text
 issue #401 -> PROD -> /var/www/agency/current
 issue #958 -> PREPROD -> /var/www/agency-preprod/current
+issue #1491 -> PREPROD -> /var/www/agency-preprod/current
 ```
 
 For #958, the existing #959 PREPROD connection primitives are reused:
@@ -335,3 +337,26 @@ Normal converged flow for either closed profile remains:
 
 For #958, this flow stops after PREPROD render validation and human review;
 PROD publication remains a separate Project Lead decision.
+
+## #1491 owner-provided original photograph
+
+The PREPROD-only #1491 profile binds the current Article candidate to the
+Lens-Saint-Servais photograph supplied by the owner and committed at
+`assets/editorial/issue-1491-lens-saint-servais-original.png`.
+Unlike the earlier generated illustrations, this exact original PNG is tracked
+in Git. The trusted workflow accepts neither downloads nor runtime paths or
+generators for #1491; it verifies its fixed path, SHA-256, dimensions and GD
+decodability before using the existing PREPROD image transport:
+
+```text
+Article payload SHA-256: 6f53bb01fcc8dae15d73c39a77f62e6da9d663ca588d4c5c31bedced95df11fd
+Image SHA-256: eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49
+PNG: 1122 x 1402, maximum 2 MB
+Issue/target: #1491 -> PREPROD only
+```
+
+Photo credit: Flamenc / Wikimedia Commons, CC BY-SA 3.0,
+https://commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg.
+It illustrates Lens-Saint-Servais in 2007, not the proposed wind-turbine sites.
+The Article payload contains the FR/EN credit and licence links; the profile
+binds distinct ALT text. PROD stays subject to the separate human-review gate.

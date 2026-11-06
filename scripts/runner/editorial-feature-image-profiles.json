@@ -38,6 +38,25 @@
         "fr": "Préparation d’une mise à niveau Drupal 10 vers Drupal 11",
         "en": "Planning a Drupal 10 to Drupal 11 upgrade"
       }
+    },
+    "1491": {
+      "issue_number": 1491,
+      "bundle": "article",
+      "article_payload_sha256": "6f53bb01fcc8dae15d73c39a77f62e6da9d663ca588d4c5c31bedced95df11fd",
+      "field_name": "field_feature_image",
+      "asset": {
+        "path": "assets/editorial/issue-1491-lens-saint-servais-original.png",
+        "filename": "issue-1491-lens-saint-servais-original-eebc7392.png",
+        "sha256": "eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49",
+        "mime": "image/png",
+        "width": 1122,
+        "height": 1402,
+        "max_bytes": 2000000
+      },
+      "alt": {
+        "fr": "Prairie et arbres dans le paysage rural de Lens-Saint-Servais, en Hesbaye.",
+        "en": "Meadow and trees in the rural landscape of Lens-Saint-Servais, Hesbaye, Belgium."
+      }
     }
   }
 }

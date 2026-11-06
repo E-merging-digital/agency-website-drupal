@@ -63,6 +63,7 @@ jobs:
             case "$ISSUE_NUMBER" in
               401) target='PROD' ;;
               958) target='PREPROD' ;;
+              1491) target='PREPROD' ;;
               *) echo 'No bounded editorial image target is approved for this issue.' >&2; exit 1 ;;
             esac
           else
@@ -104,7 +105,7 @@ jobs:
           extensions: gd
           coverage: none
 
-      - name: Generate and decode the exact repository-owned image
+      - name: Prepare and decode the exact repository-owned image
         shell: bash
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -119,15 +120,23 @@ jobs:
               generator='scripts/runner/generate-editorial-feature-image-958.py'
               asset='assets/editorial/issue-958-drupal-upgrade-roadmap.png'
               ;;
+            1491)
+              generator=''
+              asset='assets/editorial/issue-1491-lens-saint-servais-original.png'
+              expected_width=1122
+              expected_height=1402
+              ;;
             *)
               echo 'No deterministic editorial image generator is approved for this issue.' >&2
               exit 1
               ;;
           esac
-          test -f "$generator"
-          python3 "$generator" --output "$asset"
+          if [[ -n "$generator" ]]; then
+            test -f "$generator"
+            python3 "$generator" --output "$asset"
+          fi
           test -s "$asset"
-          ASSET_TO_DECODE="$asset" php <<'PHP'
+          ASSET_TO_DECODE="$asset" EXPECTED_WIDTH="${expected_width:-1200}" EXPECTED_HEIGHT="${expected_height:-630}" php <<'PHP'
           <?php
           $path = getenv('ASSET_TO_DECODE');
           if (!is_string($path) || $path === '') {
@@ -139,8 +148,8 @@ jobs:
             exit(3);
           }
           $image = @imagecreatefrompng($path);
-          if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
-            fwrite(STDERR, "Generated editorial PNG is not GD-decodable at 1200x630.\n");
+          if (!$image instanceof GdImage || imagesx($image) !== (int) getenv('EXPECTED_WIDTH') || imagesy($image) !== (int) getenv('EXPECTED_HEIGHT')) {
+            fwrite(STDERR, "Governed editorial PNG is not GD-decodable at the approved dimensions.\n");
             exit(4);
           }
           PHP
@@ -171,7 +180,7 @@ jobs:
           trusted_main = os.environ['TRUSTED_MAIN']
           target = os.environ['TARGET']
           if surface == 'standard':
-              approved_targets = {'401': 'PROD', '958': 'PREPROD'}
+              approved_targets = {'401': 'PROD', '958': 'PREPROD', '1491': 'PREPROD'}
               if approved_targets.get(issue) != target:
                   raise SystemExit('Editorial image issue/target binding is invalid.')
           elif surface == 'prod':
@@ -208,6 +217,12 @@ jobs:
           actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
           if actual_sha != asset['sha256']:
               raise SystemExit('Generated feature image asset hash mismatch.')
+          if issue == '1491' and (
+              asset_path != 'assets/editorial/issue-1491-lens-saint-servais-original.png'
+              or actual_sha != 'eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49'
+              or (asset['width'], asset['height']) != (1122, 1402)
+          ):
+              raise SystemExit('Issue #1491 original photograph identity mismatch.')
           if path.stat().st_size <= 0 or path.stat().st_size > asset['max_bytes']:
               raise SystemExit('Generated feature image asset size is outside the profile limit.')
           alt = profile.get('alt')
@@ -305,17 +320,25 @@ jobs:
           case "$ISSUE_NUMBER" in
             401) generator='scripts/runner/generate-editorial-feature-image-401.py' ;;
             958) generator='scripts/runner/generate-editorial-feature-image-958.py' ;;
+            1491) generator='' ;;
             *) exit 1 ;;
           esac
-          test -f "$generator"
+          if [[ -n "$generator" ]]; then test -f "$generator"; fi
           bash -n scripts/runner/run-editorial-feature-image.sh
           php -l scripts/runner/editorial-feature-image.php
           [[ "$(sha256sum "$ASSET_PATH" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
-          candidate="$(mktemp --suffix=.png)"
-          trap 'rm -f "$candidate"' EXIT
-          python3 "$generator" --output "$candidate"
-          [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
-          cmp -s "$candidate" "$ASSET_PATH"
+          if [[ -n "$generator" ]]; then
+            candidate="$(mktemp --suffix=.png)"
+            trap 'rm -f "$candidate"' EXIT
+            python3 "$generator" --output "$candidate"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
+            cmp -s "$candidate" "$ASSET_PATH"
+          else
+            [[ "$ISSUE_NUMBER" == '1491' ]]
+            [[ "$ASSET_PATH" == 'assets/editorial/issue-1491-lens-saint-servais-original.png' ]]
+            [[ "$EXPECTED_ASSET_SHA" == 'eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49' ]]
+            git ls-files --error-unmatch "$ASSET_PATH" >/dev/null
+          fi
 
       - name: Configure bounded SSH channel
         env:

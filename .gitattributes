@@ -63,3 +63,6 @@ core/.phpstan-baseline.php text eol=lf whitespace=blank-at-eol,-blank-at-eof,-sp
 *.ttf     -text diff
 *.woff    -text diff
 *.woff2   -text diff
+
+# #1491 immutable photographic JPEG: suppress text diffs and whitespace checks.
+assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg -text -diff

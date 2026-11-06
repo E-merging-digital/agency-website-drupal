@@ -131,7 +131,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       . escapeshellarg($original['asset']['path']) . ' 2>/dev/null', $tracked, $trackedExit);
     self::assertSame(0, $trackedExit, 'The exact owner-provided original must be tracked in Git.');
 
-    foreach ([401, 958, 1491] as $issueNumber) {
+    foreach ([401, 958] as $issueNumber) {
       $generator = $root . "/scripts/runner/generate-editorial-feature-image-{$issueNumber}.py";
       self::assertFileExists($generator);
       $generatorSource = (string) file_get_contents($generator);

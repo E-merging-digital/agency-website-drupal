@@ -122,9 +122,10 @@ jobs:
               ;;
             1491)
               generator=''
-              asset='assets/editorial/issue-1491-lens-saint-servais-original.png'
-              expected_width=1122
-              expected_height=1402
+              asset='assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg'
+              expected_width=3214
+              expected_height=2146
+              expected_mime='image/jpeg'
               ;;
             *)
               echo 'No deterministic editorial image generator is approved for this issue.' >&2
@@ -136,20 +137,22 @@ jobs:
             python3 "$generator" --output "$asset"
           fi
           test -s "$asset"
-          ASSET_TO_DECODE="$asset" EXPECTED_WIDTH="${expected_width:-1200}" EXPECTED_HEIGHT="${expected_height:-630}" php <<'PHP'
+          ASSET_TO_DECODE="$asset" EXPECTED_WIDTH="${expected_width:-1200}" EXPECTED_HEIGHT="${expected_height:-630}" EXPECTED_MIME="${expected_mime:-image/png}" php <<'PHP'
           <?php
           $path = getenv('ASSET_TO_DECODE');
           if (!is_string($path) || $path === '') {
-            fwrite(STDERR, "Generated editorial PNG path is unavailable.\n");
+            fwrite(STDERR, "Trusted editorial image path is unavailable.\n");
             exit(2);
           }
-          if (!function_exists('imagecreatefrompng')) {
-            fwrite(STDERR, "GD PNG decoder is unavailable.\n");
+          $mime = getenv('EXPECTED_MIME');
+          $decoder = $mime === 'image/jpeg' ? 'imagecreatefromjpeg' : 'imagecreatefrompng';
+          if (!function_exists($decoder)) {
+            fwrite(STDERR, "Trusted image GD decoder is unavailable.\n");
             exit(3);
           }
-          $image = @imagecreatefrompng($path);
+          $image = @$decoder($path);
           if (!$image instanceof GdImage || imagesx($image) !== (int) getenv('EXPECTED_WIDTH') || imagesy($image) !== (int) getenv('EXPECTED_HEIGHT')) {
-            fwrite(STDERR, "Governed editorial PNG is not GD-decodable at the approved dimensions.\n");
+            fwrite(STDERR, "Trusted editorial image is not GD-decodable at the approved dimensions.\n");
             exit(4);
           }
           PHP
@@ -207,10 +210,17 @@ jobs:
           if not isinstance(asset, dict) or set(asset) != {'path', 'filename', 'sha256', 'mime', 'width', 'height', 'max_bytes'}:
               raise SystemExit('Feature image asset profile is invalid.')
           asset_path = asset.get('path')
-          if not isinstance(asset_path, str) or not re.fullmatch(r'assets/editorial/[a-z0-9][a-z0-9._-]*\.png', asset_path):
-              raise SystemExit('Feature image asset path is not bounded.')
-          if asset.get('mime') != 'image/png' or not re.fullmatch(r'[0-9a-f]{64}', asset.get('sha256', '')):
-              raise SystemExit('Feature image v1 requires an exact PNG SHA-256.')
+          if issue == '1491':
+              if asset_path != 'assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg':
+                  raise SystemExit('Issue #1491 JPEG path mismatch.')
+              if (asset.get('filename') != 'issue-1491-lens-saint-servais-flamenc-2007-8e1cf32c.jpg'
+                  or asset.get('mime') != 'image/jpeg'
+                  or (asset.get('width'), asset.get('height'), asset.get('max_bytes')) != (3214, 2146, 4112433)):
+                  raise SystemExit('Issue #1491 JPEG profile mismatch.')
+          elif not isinstance(asset_path, str) or not re.fullmatch(r'assets/editorial/[a-z0-9][a-z0-9._-]*\.png', asset_path) or asset.get('mime') != 'image/png':
+              raise SystemExit('Other feature image profiles remain PNG-only.')
+          if not re.fullmatch(r'[0-9a-f]{64}', asset.get('sha256', '')):
+              raise SystemExit('Feature image asset SHA-256 is invalid.')
           path = Path(asset_path)
           if not path.is_file():
               raise SystemExit('Deterministically generated feature image asset is missing.')
@@ -218,11 +228,10 @@ jobs:
           if actual_sha != asset['sha256']:
               raise SystemExit('Generated feature image asset hash mismatch.')
           if issue == '1491' and (
-              asset_path != 'assets/editorial/issue-1491-lens-saint-servais-original.png'
-              or actual_sha != 'eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49'
-              or (asset['width'], asset['height']) != (1122, 1402)
+              actual_sha != '8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2'
+              or (asset['width'], asset['height']) != (3214, 2146)
           ):
-              raise SystemExit('Issue #1491 original photograph identity mismatch.')
+              raise SystemExit('Issue #1491 approved photograph identity mismatch.')
           if path.stat().st_size <= 0 or path.stat().st_size > asset['max_bytes']:
               raise SystemExit('Generated feature image asset size is outside the profile limit.')
           alt = profile.get('alt')
@@ -335,8 +344,8 @@ jobs:
             cmp -s "$candidate" "$ASSET_PATH"
           else
             [[ "$ISSUE_NUMBER" == '1491' ]]
-            [[ "$ASSET_PATH" == 'assets/editorial/issue-1491-lens-saint-servais-original.png' ]]
-            [[ "$EXPECTED_ASSET_SHA" == 'eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49' ]]
+            [[ "$ASSET_PATH" == 'assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg' ]]
+            [[ "$EXPECTED_ASSET_SHA" == '8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2' ]]
             git ls-files --error-unmatch "$ASSET_PATH" >/dev/null
           fi
 

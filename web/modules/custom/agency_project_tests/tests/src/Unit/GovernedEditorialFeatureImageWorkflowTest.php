@@ -116,9 +116,12 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertSame('article', $original['bundle']);
     self::assertSame('field_feature_image', $original['field_name']);
     self::assertSame('6f53bb01fcc8dae15d73c39a77f62e6da9d663ca588d4c5c31bedced95df11fd', $original['article_payload_sha256']);
-    self::assertSame('assets/editorial/issue-1491-lens-saint-servais-original.png', $original['asset']['path']);
-    self::assertSame('eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49', $original['asset']['sha256']);
-    self::assertSame([1122, 1402], [$original['asset']['width'], $original['asset']['height']]);
+    self::assertSame('assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg', $original['asset']['path']);
+    self::assertSame('8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2', $original['asset']['sha256']);
+    self::assertSame('image/jpeg', $original['asset']['mime']);
+    self::assertSame('issue-1491-lens-saint-servais-flamenc-2007-8e1cf32c.jpg', $original['asset']['filename']);
+    self::assertSame([3214, 2146], [$original['asset']['width'], $original['asset']['height']]);
+    self::assertSame(4112433, $original['asset']['max_bytes']);
     self::assertSame('Prairie et arbres dans le paysage rural de Lens-Saint-Servais, en Hesbaye.', $original['alt']['fr']);
     self::assertSame('Meadow and trees in the rural landscape of Lens-Saint-Servais, Hesbaye, Belgium.', $original['alt']['en']);
     $originalPath = $root . '/' . $original['asset']['path'];
@@ -163,6 +166,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString('generate-editorial-feature-image-401.py', $workflow);
     self::assertStringContainsString('generate-editorial-feature-image-958.py', $workflow);
     self::assertStringContainsString('imagecreatefrompng', $workflow);
+    self::assertStringContainsString('imagecreatefromjpeg', $workflow);
+    self::assertStringContainsString('8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2', $workflow);
     self::assertStringContainsString('hashlib.sha256', $workflow);
     self::assertStringContainsString('asset_sha256', $workflow);
     self::assertStringContainsString('profile_sha256', $workflow);
@@ -242,9 +247,10 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     foreach ([401, 958, 1491] as $issueNumber) {
       $assetPath = $this->governedAssetPath($issueNumber);
 
+      $decoder = $issueNumber === 1491 ? 'imagecreatefromjpeg' : 'imagecreatefrompng';
       self::assertTrue(
-        function_exists('imagecreatefrompng'),
-        'The governed editorial-image validation environment must provide GD PNG decoding.',
+        function_exists($decoder),
+        'The governed editorial-image validation environment must provide the exact GD decoder.',
       );
 
       $warning = NULL;
@@ -253,7 +259,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
         return TRUE;
       });
       try {
-        $image = imagecreatefrompng($assetPath);
+        $image = $decoder($assetPath);
       }
       finally {
         restore_error_handler();
@@ -264,8 +270,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
         $image,
         $warning ?? 'GD returned false while decoding the generated editorial PNG asset.',
       );
-      self::assertSame($issueNumber === 1491 ? 1122 : 1200, imagesx($image));
-      self::assertSame($issueNumber === 1491 ? 1402 : 630, imagesy($image));
+      self::assertSame($issueNumber === 1491 ? 3214 : 1200, imagesx($image));
+      self::assertSame($issueNumber === 1491 ? 2146 : 630, imagesy($image));
     }
   }
 
@@ -299,6 +305,13 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString('FileSystemInterface::MODIFY_PERMISSIONS', $php);
     self::assertStringContainsString('FileExists::Error', $php);
     self::assertStringContainsString('agency_editorial.issue.', $php);
+    self::assertStringContainsString("REPLACE_APPROVED", $php);
+    self::assertStringContainsString("(int) \$node->id() === 44", $php);
+    self::assertStringContainsString("(int) \$frFid === 4", $php);
+    self::assertStringContainsString('eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49', $php);
+    self::assertStringContainsString('public://articles/issue-1491-lens-saint-servais-original-eebc7392.png', $php);
+    self::assertStringContainsString('REPLACE_APPROVED', $shell);
+    self::assertStringContainsString('vendor/bin/drush sql:dump', $shell);
 
     foreach ([
       'drush cim',

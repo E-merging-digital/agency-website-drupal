@@ -51,6 +51,20 @@ final class AgencyEditorialPublication {
     'br',
   ];
 
+  /**
+   * Exact documentary credits/sources approved for Article #1491 only.
+   *
+   * These are full URLs, not domain or path-prefix allowances.
+   */
+  private const ISSUE_1491_EXTERNAL_HREFS = [
+    'https://commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg',
+    'https://creativecommons.org/licenses/by-sa/3.0/',
+    'https://hesbenergie.be/geer-ligney/',
+    'https://www.qu4tre.be/infos/amenagement-du-territoire/projet-eolien-citoyen-a-geer-entre-sympathisants-et-opposants/2017535',
+    'https://www.cesewallonie.be/avis/parc-de-sept-eoliennes-geer-ligney-geer-braives-et-hannut',
+    'https://portailcitoyens.be/',
+  ];
+
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly StateInterface $state,
@@ -357,7 +371,7 @@ final class AgencyEditorialPublication {
         "$langcode.short_description",
         1200,
       );
-      $this->assertBodyHtml($payload[$langcode]['body_html'], "$langcode.body_html");
+      $this->assertBodyHtml($payload[$langcode]['body_html'], "$langcode.body_html", $issueNumber);
     }
   }
 
@@ -506,7 +520,7 @@ final class AgencyEditorialPublication {
     return preg_replace('/\s+/u', ' ', trim($value)) ?? '';
   }
 
-  private function assertBodyHtml(mixed $value, string $label): void {
+  private function assertBodyHtml(mixed $value, string $label, int $issueNumber): void {
     if (!is_string($value) || trim($value) === '') {
       throw new InvalidArgumentException("$label must be non-empty HTML.");
     }
@@ -540,6 +554,10 @@ final class AgencyEditorialPublication {
         $allowedHref = $allowedHref || str_starts_with(
           $href,
           'https://emergingdigital.be/',
+        );
+        $allowedHref = $allowedHref || (
+          $issueNumber === 1491
+          && in_array($href, self::ISSUE_1491_EXTERNAL_HREFS, TRUE)
         );
         if (!$allowedHref) {
           throw new InvalidArgumentException(

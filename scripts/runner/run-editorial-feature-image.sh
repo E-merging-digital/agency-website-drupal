@@ -33,6 +33,10 @@ case "$ISSUE_NUMBER:$TARGET" in
     PROJECT_ROOT='/var/www/agency-preprod'
     SERVER_USER='agency-preprod'
     ;;
+  1491:PREPROD)
+    PROJECT_ROOT='/var/www/agency-preprod'
+    SERVER_USER='agency-preprod'
+    ;;
   958:PROD)
     PROJECT_ROOT='/var/www/agency'
     ;;

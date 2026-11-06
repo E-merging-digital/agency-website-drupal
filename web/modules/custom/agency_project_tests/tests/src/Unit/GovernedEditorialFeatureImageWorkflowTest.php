@@ -36,6 +36,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString('currently on live main', $workflow);
     self::assertStringContainsString("401) target='PROD'", $workflow);
     self::assertStringContainsString("958) target='PREPROD'", $workflow);
+    self::assertStringContainsString("1491) target='PREPROD'", $workflow);
     self::assertStringContainsString('persist-credentials: false', $workflow);
     self::assertStringContainsString(
       "always() && steps.request.outcome == 'success'",
@@ -58,7 +59,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       JSON_THROW_ON_ERROR,
     );
     self::assertSame(1, $profile['schema_version']);
-    self::assertSame([401, 958], array_keys($profile['profiles']));
+    self::assertSame([401, 958, 1491], array_keys($profile['profiles']));
 
     $issue = $profile['profiles']['401'];
     self::assertSame('article', $issue['bundle']);
@@ -111,7 +112,26 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       filesize($preprodAssetPath),
     );
 
-    foreach ([401, 958] as $issueNumber) {
+    $original = $profile['profiles']['1491'];
+    self::assertSame('article', $original['bundle']);
+    self::assertSame('field_feature_image', $original['field_name']);
+    self::assertSame('6f53bb01fcc8dae15d73c39a77f62e6da9d663ca588d4c5c31bedced95df11fd', $original['article_payload_sha256']);
+    self::assertSame('assets/editorial/issue-1491-lens-saint-servais-original.png', $original['asset']['path']);
+    self::assertSame('eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49', $original['asset']['sha256']);
+    self::assertSame([1122, 1402], [$original['asset']['width'], $original['asset']['height']]);
+    self::assertSame('Prairie et arbres dans le paysage rural de Lens-Saint-Servais, en Hesbaye.', $original['alt']['fr']);
+    self::assertSame('Meadow and trees in the rural landscape of Lens-Saint-Servais, Hesbaye, Belgium.', $original['alt']['en']);
+    $originalPath = $root . '/' . $original['asset']['path'];
+    self::assertFileExists($originalPath);
+    self::assertSame($original['asset']['sha256'], hash_file('sha256', $originalPath));
+    self::assertLessThanOrEqual($original['asset']['max_bytes'], filesize($originalPath));
+    $tracked = [];
+    $trackedExit = 0;
+    exec('git -C ' . escapeshellarg($root) . ' ls-files --error-unmatch '
+      . escapeshellarg($original['asset']['path']) . ' 2>/dev/null', $tracked, $trackedExit);
+    self::assertSame(0, $trackedExit, 'The exact owner-provided original must be tracked in Git.');
+
+    foreach ([401, 958, 1491] as $issueNumber) {
       $generator = $root . "/scripts/runner/generate-editorial-feature-image-{$issueNumber}.py";
       self::assertFileExists($generator);
       $generatorSource = (string) file_get_contents($generator);
@@ -219,7 +239,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
    * Generated editorial PNGs must remain GD-decodable.
    */
   public function testGovernedEditorialAssetIsGdDecodable(): void {
-    foreach ([401, 958] as $issueNumber) {
+    foreach ([401, 958, 1491] as $issueNumber) {
       $assetPath = $this->governedAssetPath($issueNumber);
 
       self::assertTrue(
@@ -244,8 +264,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
         $image,
         $warning ?? 'GD returned false while decoding the generated editorial PNG asset.',
       );
-      self::assertSame(1200, imagesx($image));
-      self::assertSame(630, imagesy($image));
+      self::assertSame($issueNumber === 1491 ? 1122 : 1200, imagesx($image));
+      self::assertSame($issueNumber === 1491 ? 1402 : 630, imagesy($image));
     }
   }
 
@@ -384,6 +404,12 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     $asset = $profile['profiles'][(string) $issueNumber]['asset'];
     $assetPath = $root . '/' . $asset['path'];
     $generator = $root . "/scripts/runner/generate-editorial-feature-image-{$issueNumber}.py";
+
+    if ($issueNumber === 1491) {
+      self::assertFileExists($assetPath);
+      self::assertSame($asset['sha256'], hash_file('sha256', $assetPath));
+      return $assetPath;
+    }
 
     $output = [];
     $exitCode = 0;

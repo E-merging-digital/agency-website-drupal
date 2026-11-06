@@ -284,7 +284,7 @@ final class GovernedEditorialPublicationKernelTest extends KernelTestBase {
   }
 
   /**
-   * #1491 source URLs are not a general external-link policy exception.
+   * Approved #1491 source URLs are not a general external-link exception.
    */
   public function testIssue1491ExternalLinksRejectOtherIssuesAndUrlVariants(): void {
     $original = 'https://commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg';

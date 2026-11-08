@@ -36,6 +36,37 @@ final class EditorialPromotionApprovalTest extends TestCase {
   }
 
   /**
+   * Only the existing #1491 photo may use JPEG; all other profiles stay PNG.
+   */
+  public function testIssueBoundJpegException(): void {
+    foreach ([
+      [1491, 'image/jpeg', 0],
+      [1491, 'image/png', 1],
+      [1512, 'image/jpeg', 1],
+      [1512, 'image/png', 0],
+    ] as [$issue, $mime, $expectedExit]) {
+      $fixture = $this->fixture();
+      $profile = $fixture['registry']['profiles']['999'];
+      $oldHash = hash('sha256', $this->canonicalJson($profile));
+      $profile['issue_number'] = $issue;
+      $profile['asset']['mime'] = $mime;
+      $newHash = hash('sha256', $this->canonicalJson($profile));
+      $fixture['registry']['profiles'] = [(string) $issue => $profile];
+      foreach ($fixture['comments'] as &$comment) {
+        $comment['body'] = str_replace(
+          ['999', $oldHash],
+          [(string) $issue, $newHash],
+          $comment['body'],
+        );
+      }
+      unset($comment);
+
+      [$exitCode] = $this->runValidator($fixture, $issue);
+      self::assertSame($expectedExit, $exitCode, "Issue #$issue ($mime)");
+    }
+  }
+
+  /**
    * Missing, stale or non-human authority components fail closed before PROD.
    */
   public function testGovernanceBypassesAreRefused(): void {
@@ -280,7 +311,7 @@ final class EditorialPromotionApprovalTest extends TestCase {
    * @return array{0:int,1:array<string,mixed>}
    *   Exit code and decoded result when present.
    */
-  private function runValidator(array $fixture): array {
+  private function runValidator(array $fixture, int $issue = self::ISSUE): array {
     $dir = sys_get_temp_dir() . '/agency-editorial-approval-' . bin2hex(random_bytes(6));
     self::assertTrue(mkdir($dir, 0700, TRUE));
     $commentsPath = $dir . '/comments.b64';
@@ -304,7 +335,7 @@ final class EditorialPromotionApprovalTest extends TestCase {
       'python3',
       escapeshellarg($script),
       '--comments-b64', escapeshellarg($commentsPath),
-      '--issue-number', (string) self::ISSUE,
+      '--issue-number', (string) $issue,
       '--candidate-revision', (string) self::CANDIDATE_REVISION,
       '--payload-sha256', self::PAYLOAD_SHA,
       '--trusted-main', self::MAIN_SHA,

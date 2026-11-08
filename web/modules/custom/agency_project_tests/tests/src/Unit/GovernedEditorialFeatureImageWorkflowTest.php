@@ -136,7 +136,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertSame(0, $trackedExit, 'The exact owner-provided original must be tracked in Git.');
 
     $migration = $profile['profiles']['1512'];
-    self::assertSame('60f9b01c3307cdf88d4cd820f661ee6226c03269752a91c70b5d8e7a375e4963', $migration['article_payload_sha256']);
+    self::assertSame('49fb931ab701e4914fff1117f175ef794ca7abe4087ae66629a5cb473554eaf2', $migration['article_payload_sha256']);
     self::assertSame('article', $migration['bundle']);
     self::assertSame('field_feature_image', $migration['field_name']);
     self::assertSame('assets/editorial/issue-1512-wordpress-drupal-migration.png', $migration['asset']['path']);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Drupal\Tests\agency_project_tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -79,8 +80,8 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       'test -f tests/browser/public-blog.spec.mjs',
       $workflow,
     );
-    // The historical Blog route remains the default, while #1421 alone may
-    // select the MCP contract after the trusted exact-head guards.
+    // Blog remains default: only #1421 selects the MCP contract.
+    // #1458 uses the default lane with scoped homepage assertions.
     $canonicalGate = strpos(
       $workflow,
       'if [[ ! "$PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]; then',
@@ -124,9 +125,28 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $workflow,
     );
     self::assertSame(
-      2,
+      3,
       substr_count($workflow, 'test "$changed_files" = "$expected_files"'),
     );
+    // #1458 may reach this classifier only with its reviewed branch and
+    // exact five-file candidate. The original fork/exact SHA checks remain.
+    self::assertStringContainsString(
+      'if [[ "$PR_NUMBER" == "1458" ]]; then',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      '"feature/1418-home-bplus-kinetic"',
+      $workflow,
+    );
+    foreach ([
+      'tests/browser/public-blog.spec.mjs',
+      'web/themes/custom/emerging_digital/css/home-kinetic.css',
+      'web/themes/custom/emerging_digital/emerging_digital.libraries.yml',
+      'web/themes/custom/emerging_digital/js/home-kinetic.js',
+      'web/themes/custom/emerging_digital/templates/layout/page--front.html.twig',
+    ] as $reviewedFile) {
+      self::assertStringContainsString("'" . $reviewedFile . "'", $workflow);
+    }
     self::assertStringContainsString(
       'git merge-base --is-ancestor "$trusted_main" HEAD',
       $workflow,
@@ -265,7 +285,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
   }
 
   /**
-   * Isolated DDEV router ports remain safe for the rootless Agency runner.
+   * Isolated DDEV router and direct host ports stay safe for rootless Agency.
    */
   public function testIsolatedDdevRouterPortsAreRootlessSafe(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -289,13 +309,19 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       'name: agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}',
       'router_http_port: "18180"',
       'router_https_port: "18543"',
+      'host_webserver_port: "18280"',
+      'host_https_port: "18644"',
+      'host_db_port: "18281"',
+      'host_mailpit_port: "18282"',
     ], $lines);
 
+    // Stable loopback ports avoid the shared host's occupied ephemeral
+    // 32768-60999 range; no global Docker or DDEV change is required.
     $ports = [];
     foreach (array_slice($lines, 1) as $line) {
       $matches = [];
       self::assertSame(1, preg_match(
-        '/^(router_http_port|router_https_port): "([0-9]+)"$/',
+        '/^(router_http_port|router_https_port|host_webserver_port|host_https_port|host_db_port|host_mailpit_port): "([0-9]+)"$/',
         $line,
         $matches,
       ));
@@ -313,11 +339,12 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     self::assertSame([
       'router_http_port' => 18180,
       'router_https_port' => 18543,
+      'host_webserver_port' => 18280,
+      'host_https_port' => 18644,
+      'host_db_port' => 18281,
+      'host_mailpit_port' => 18282,
     ], $ports);
-    self::assertNotSame(
-      $ports['router_http_port'],
-      $ports['router_https_port'],
-    );
+    self::assertCount(count($ports), array_unique(array_values($ports)));
 
     $isolate = strpos($workflow, '- name: Isolate DDEV project for this run');
     $configCheck = strpos($workflow, 'ddev utility configyaml', $start);
@@ -335,7 +362,6 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     foreach ([
       'router_bind_all_interfaces',
       'sysctl',
-      'RootlessKit',
       'CAP_NET_BIND_SERVICE',
       'sudo',
     ] as $forbidden) {
@@ -359,6 +385,110 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       'const url = findUrl(parsed);',
       $browserScript,
     );
+  }
+
+  /**
+   * Simulates the existing rebuild's DDEV start without invoking DDEV.
+   *
+   * Only one RootlessKit bind race may retry, after owned cleanup succeeds.
+   */
+  public function testRootlessPortCollisionRetryIsOwnedAndBounded(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $yaml = Yaml::parseFile(
+      $root . '/.github/workflows/self-hosted-browser-validation.yml',
+    );
+    self::assertIsArray($yaml);
+    $rebuild = '';
+    foreach ($yaml['jobs']['browser-validation']['steps'] as $step) {
+      if ($step['name'] === 'Rebuild Drupal from repository-owned state') {
+        $rebuild = $step['run'];
+        break;
+      }
+    }
+    self::assertNotSame('', $rebuild);
+    $parts = explode('ddev composer install --no-interaction', $rebuild, 2);
+    self::assertCount(2, $parts);
+    $source = $parts[0];
+    self::assertSame(2, substr_count($source, 'ddev start -y'));
+    self::assertSame(1, substr_count($source, 'ddev delete --omit-snapshot --yes'));
+    $fake = <<<'BASH'
+    calls=0
+    ddev() {
+      case "$1" in
+        start)
+          printf 'start\n' >> "$FAKE_TRACE"
+          calls=$((calls + 1))
+          if [[ "$calls" == "1" && "$FAKE_FIRST" != "ok" ]]; then
+            printf '%s\n' "$FAKE_FIRST" >&2
+            return 1
+          fi
+          if [[ "$calls" == "2" && "$FAKE_SECOND" != "ok" ]]; then
+            echo 'synthetic second start failed' >&2
+            return 1
+          fi
+          ;;
+        utility)
+          [[ "$2" == "configyaml" ]] || return 2
+          printf 'name: %s\n' "$FAKE_PROJECT"
+          ;;
+        delete)
+          printf 'delete\n' >> "$FAKE_TRACE"
+          [[ "$2" == "--omit-snapshot" && "$3" == "--yes" && "$FAKE_DELETE" == "ok" ]]
+          ;;
+        *)
+          return 2
+          ;;
+      esac
+    }
+    BASH;
+    $collision = 'RootlessKit PortManager.AddPort(): '
+      . 'listen tcp4 127.0.0.1:32777: bind: address already in use';
+    $project = 'agency-browser-987654321-1';
+    $cases = [
+      ['normal', 'ok', 'ok', 'ok', $project, 0, "start\n"],
+      ['collision recovered', $collision, 'ok', 'ok', $project, 0,
+        "start\ndelete\nstart\n",
+      ],
+      ['unrelated failure', 'connection refused', 'ok', 'ok', $project, 1,
+        "start\n",
+      ],
+      ['rootless without bind', 'RootlessKit PortManager.AddPort(): denied',
+        'ok', 'ok', $project, 1, "start\n",
+      ],
+      ['bind without rootless', 'bind: address already in use',
+        'ok', 'ok', $project, 1, "start\n",
+      ],
+      ['second failure', $collision, 'fail', 'ok', $project, 1,
+        "start\ndelete\nstart\n",
+      ],
+      ['wrong identity', $collision, 'ok', 'ok', 'unrelated-project', 1,
+        "start\n",
+      ],
+      ['cleanup failed', $collision, 'ok', 'fail', $project, 1,
+        "start\ndelete\n",
+      ],
+    ];
+    foreach ($cases as [$name, $first, $second, $delete, $identity, $code, $events]) {
+      $trace = tempnam(sys_get_temp_dir(), 'agency-rootless-');
+      self::assertNotFalse($trace);
+      $process = new Process(['bash', '-c', $fake . "\n" . $source], $root, [
+        'RUNNER_TEMP' => sys_get_temp_dir(),
+        'GITHUB_RUN_ID' => '987654321',
+        'GITHUB_RUN_ATTEMPT' => '1',
+        'FAKE_TRACE' => $trace,
+        'FAKE_FIRST' => $first,
+        'FAKE_SECOND' => $second,
+        'FAKE_DELETE' => $delete,
+        'FAKE_PROJECT' => $identity,
+      ]);
+      $process->setTimeout(10);
+      $process->run();
+      $actualEvents = (string) file_get_contents($trace);
+      unlink($trace);
+      self::assertSame($code, $process->getExitCode(),
+        $name . ': ' . $process->getErrorOutput());
+      self::assertSame($events, $actualEvents, $name);
+    }
   }
 
   /**
@@ -446,10 +576,14 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     );
     self::assertStringContainsString('[[ "$count" == "0" ]]', $helper);
     self::assertStringContainsString(
-      'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && ' .
-        '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+      'case "$CANVAS_BROWSER_PR_NUMBER" in',
       $helper,
     );
+    self::assertStringContainsString(
+      '0|1421|1458|1469|1472|1474|1485|1487) ;;',
+      $helper,
+    );
+    self::assertStringContainsString('*) fail_closed ;;', $helper);
     self::assertStringContainsString('fail_closed', $helper);
 
     // Existing gate, helper and comparator are used without a second engine.
@@ -511,8 +645,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     $clean = strpos($helper, '[[ "$count" == "0" ]]');
     $restricted = strpos(
       $helper,
-      'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && '
-        . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
+      'case "$CANVAS_BROWSER_PR_NUMBER" in',
     );
     self::assertIsInt($clean);
     self::assertIsInt($restricted);
@@ -522,15 +655,11 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $helper,
     );
 
-    // Only canonical main 0 or exact MCP 1421 reaches the strict nonzero gate.
-    // Every other canonical PR number still fails closed on any drift.
+    // Only canonical main 0 and the explicitly reviewed visual PRs
+    // reach the strict nonzero classifier; all other PRs fail closed.
     self::assertSame(
       1,
-      substr_count(
-        $helper,
-        'if [[ "$CANVAS_BROWSER_PR_NUMBER" != "0" && '
-          . '"$CANVAS_BROWSER_PR_NUMBER" != "1421" ]]; then',
-      ),
+      substr_count($helper, '0|1421|1458|1469|1472|1474|1485|1487) ;;'),
     );
     self::assertStringContainsString(
       '[[ "$CANVAS_BROWSER_PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]',
@@ -598,7 +727,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $dataset[$name] = ['active' => $active, 'sync' => $base];
     }
 
-    // Trusted main (0) and MCP #1421 both use this exact same 19/19 gate.
+    // All admitted PRs reuse this exact 19/19 classifier; the gate is shared.
     // @phpstan-ignore-next-line
     $known = \agency_canvas_1373_analyze_dataset($metadata, $dataset);
     self::assertSame(['total' => 19, 'known' => 19, 'unexpected' => 0],

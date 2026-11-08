@@ -1,11 +1,18 @@
-import { readFile, mkdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from './support/browser-audit.mjs';
 
 const contract = JSON.parse(
   await readFile(new URL('./contracts/public-blog.json', import.meta.url), 'utf8'),
 );
-const browserBaseUrl = process.env.BROWSER_VALIDATION_BASE_URL ?? 'http://127.0.0.1';
+const browserBaseUrl = process.env.BROWSER_VALIDATION_BASE_URL
+  ?? process.env.PLAYWRIGHT_BASE_URL
+  ?? 'http://127.0.0.1';
+// Fixture writes are permitted only against an isolated DDEV browser target.
+// PROD and arbitrary remote CI targets must exercise public pages read-only.
+const canPrepareIsolatedDdevFixtures = process.env.CI === 'true'
+  && new URL(browserBaseUrl).hostname.toLowerCase().endsWith('.ddev.site');
 const expectZeroGa4 =
   new URL(browserBaseUrl).hostname === 'preprod.emergingdigital.be'
   || process.env.BROWSER_VALIDATION_EXPECT_ZERO_GA4 === '1';
@@ -202,3 +209,754 @@ test.describe('Browser validation capability proof', () => {
     ).toEqual([]);
   });
 });
+
+/*
+ * #1470: verify actual homepage motion in the governed PREPROD browser lane.
+ * A green Blog screenshot alone is not evidence that homepage animation runs.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1470 homepage automatic motion PREPROD FR/EN', () => {
+    test('short CSS story, scroll reveals and reduced-motion fallback work without a play button', async ({ page }, testInfo) => {
+      test.setTimeout(120_000);
+
+      for (const lang of ['fr', 'en']) {
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        const response = await page.goto('/' + lang, { waitUntil: 'domcontentloaded' });
+        expect(response?.status()).toBeLessThan(400);
+        const hero = page.locator('.page-main--front .ed-section--hero-home');
+        const heading = hero.locator('h1');
+        await expect(heading).toBeVisible();
+        await expect(hero.locator('.ed-home-kinetic__controls')).toHaveCount(0);
+        await expect(hero.getByRole('button', { name: /Voir la présentation|Watch the presentation/ })).toHaveCount(0);
+
+        // The H1 animates directly from CSS, not from a class installed by JS.
+        const entrance = await heading.evaluate(element => {
+          const animation = element.getAnimations().find(item =>
+            item.animationName === 'agency-v2-hero-enter');
+          if (!animation) return null;
+          const previousTime = animation.currentTime;
+          const wasRunning = animation.playState === 'running';
+          animation.pause();
+          animation.currentTime = 0;
+          const from = {
+            opacity: Number(getComputedStyle(element).opacity),
+            transform: getComputedStyle(element).transform,
+          };
+          animation.currentTime = animation.effect.getComputedTiming().endTime;
+          const to = {
+            opacity: Number(getComputedStyle(element).opacity),
+            transform: getComputedStyle(element).transform,
+          };
+          if (previousTime !== null) animation.currentTime = previousTime;
+          if (wasRunning) animation.play();
+          return { from, to };
+        });
+        expect(entrance).not.toBeNull();
+        expect(entrance.from.opacity).toBeLessThan(0.1);
+        expect(entrance.to.opacity).toBeGreaterThan(0.95);
+        expect(entrance.from.transform).not.toBe(entrance.to.transform);
+
+        const words = hero.locator('.agency-v2-motion-words span');
+        await expect(words).toHaveCount(3);
+        const firstWord = words.first();
+        await expect(firstWord).toHaveText(lang === 'fr' ? 'CRÉER' : 'CREATE');
+        if (testInfo.project.name === 'mobile') {
+          const banner = page.locator('#ed-cookie-banner');
+          if (await banner.isVisible()) {
+            // The mobile hero is initially covered by consent UI. The story
+            // must not run behind the banner and must start after dismissal.
+            await expect(firstWord).toHaveCSS('animation-name', 'none');
+            await banner.getByRole('button', { name: 'Refuser' }).click();
+          }
+          const media = hero.locator('.agency-v2-hero-media');
+          await media.scrollIntoViewIfNeeded();
+          await expect(media).toHaveClass(/agency-v2-story-started/);
+        }
+        await expect.poll(() => firstWord.evaluate(element =>
+          Number(getComputedStyle(element).opacity)), { timeout: 3000 }).toBeGreaterThan(0.4);
+        const visibleWordOpacity = await firstWord.evaluate(element =>
+          Number(getComputedStyle(element).opacity));
+        const screenshotDir = path.resolve('artifacts/browser-validation/screenshots');
+        await mkdir(screenshotDir, { recursive: true });
+        const proofName = 'home-motion-' + lang + '-' + testInfo.project.name;
+        const screenshotPath = path.join(screenshotDir, proofName + '.png');
+        await hero.screenshot({ path: screenshotPath });
+        await testInfo.attach(proofName, { path: screenshotPath, contentType: 'image/png' });
+
+        const pathCard = page.locator('.agency-v2-path').first();
+        await pathCard.scrollIntoViewIfNeeded();
+        await expect(pathCard).toHaveClass(/agency-v2-is-visible/);
+        await expect.poll(() => pathCard.evaluate(element =>
+          Number(getComputedStyle(element).opacity))).toBeGreaterThan(0.95);
+        const demo = page.locator('.agency-v2-demo__flow');
+        await demo.scrollIntoViewIfNeeded();
+        await expect(demo).toHaveClass(/agency-v2-is-visible/);
+        const demoAnimation = await demo.locator('li').first().evaluate(element =>
+          getComputedStyle(element).animationName);
+        expect(demoAnimation).toContain('agency-v2-flow-step');
+
+        const evidenceDir = path.resolve('artifacts/browser-validation/evidence');
+        await mkdir(evidenceDir, { recursive: true });
+        await writeFile(path.join(evidenceDir, proofName + '.json'), JSON.stringify({
+          lang, viewport: testInfo.project.name, entrance, demoAnimation,
+          firstWord: await firstWord.textContent(), visibleWordOpacity,
+          controls: 0, screenshot: 'screenshots/' + proofName + '.png',
+        }, null, 2));
+
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(page.locator('h1')).toBeVisible();
+        const reducedWords = page.locator('.agency-v2-motion-words span');
+        await expect(reducedWords).toHaveCount(3);
+        expect(await reducedWords.first().evaluate(element =>
+          getComputedStyle(element).animationName)).toBe('none');
+        expect(await reducedWords.last().evaluate(element =>
+          Number(getComputedStyle(element).opacity))).toBe(1);
+        await expect(page.locator('.ed-home-kinetic__controls')).toHaveCount(0);
+      }
+    });
+  });
+}
+
+/*
+ * Agency #1418 R8: homepage proof on the existing trusted public-blog
+ * browser lane. Its trusted main workflow executes this exact spec.
+ * No change to .github/, Playwright config, runner or control surface.
+ */
+// Do not register the candidate-only test when the unrelated PREPROD
+// analytics workflow points this shared spec at the currently deployed site.
+// #1418's manual-playback contract was superseded by #1470 automatic motion.
+// PREPROD validates the actual CSS animation and absence of playback controls.
+
+/*
+ * #1471: focused visual proof for the existing Services hub on fresh DDEV.
+ * Keep the shared PREPROD Blog contract independent of this candidate.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1471 graphical Services hub', () => {
+    // #1471: released Services content is editor-owned, so the fresh DDEV
+    // bootstrap intentionally imports only its historical FR Default Content.
+    // Make an ephemeral EN translation solely for the isolated CI browser proof.
+    test.beforeAll(async () => {
+      if (!canPrepareIsolatedDdevFixtures) {
+        return;
+      }
+
+      test.setTimeout(90_000);
+      const directory = path.resolve('artifacts/browser-validation');
+      await mkdir(directory, { recursive: true });
+      const lock = path.join(directory, 'services-1471-fixture.lock');
+      const php = [
+      "$storage = \\Drupal::entityTypeManager()->getStorage('node');",
+      "$matches = $storage->loadByProperties(['uuid' => 'd6e1876f-8e32-4f75-b6bb-946de5f5afdb']);",
+      "if (count($matches) !== 1) {",
+      "  throw new \\RuntimeException('The exact Services fixture node must exist once.');",
+      "}",
+      "$node = reset($matches);",
+      "if ($node->bundle() !== 'page' || $node->language()->getId() !== 'fr' || $node->label() !== 'Services') {",
+      "  throw new \\RuntimeException('Services fixture identity or source language diverged.');",
+      "}",
+      "$path = '/node/' . $node->id();",
+      "$alias_storage = \\Drupal::entityTypeManager()->getStorage('path_alias');",
+      "foreach ($alias_storage->loadByProperties(['alias' => '/services', 'langcode' => 'en']) as $alias) {",
+      "  if ($alias->get('path')->value !== $path) {",
+      "    throw new \\RuntimeException('English Services alias belongs to another node.');",
+      "  }",
+      "}",
+      "$refs = [];",
+      "$services = 0;",
+      "foreach ($node->getTranslation('fr')->get('field_home_components') as $item) {",
+      "  $paragraph = $item->entity;",
+      "  if ($paragraph === NULL) {",
+      "    throw new \\RuntimeException('Services fixture has a missing Paragraph reference.');",
+      "  }",
+      "  if ($paragraph->bundle() === 'services') {",
+      "    $services++;",
+      "    if (!$paragraph->hasTranslation('en')) {",
+      "      $values = [];",
+      "      foreach (['field_heading', 'field_text', 'field_items'] as $field) {",
+      "        if ($paragraph->hasField($field)) {",
+      "          $values[$field] = $paragraph->getTranslation('fr')->get($field)->getValue();",
+      "        }",
+      "      }",
+      "      $paragraph->addTranslation('en', $values);",
+      "      $paragraph->save();",
+      "    }",
+      "  }",
+      "  $refs[] = [",
+      "    'target_id' => $paragraph->id(),",
+      "    'target_revision_id' => $paragraph->getRevisionId(),",
+      "  ];",
+      "}",
+      "if ($services !== 1) {",
+      "  throw new \\RuntimeException('Expected exactly one Services Paragraph.');",
+      "}",
+      "if (!$node->hasTranslation('en')) {",
+      "  $english = $node->addTranslation('en', [",
+      "    'title' => 'Services',",
+      "    'status' => 1,",
+      "    'field_home_components' => $refs,",
+      "  ]);",
+      "  $english->set('path', ['alias' => '/services', 'pathauto' => 0]);",
+      "  $english->save();",
+      "}",
+      "else {",
+      "  $english = $node->getTranslation('en');",
+      "  $existing_alias = (string) ($english->get('path')->alias ?? '');",
+      "  if ($existing_alias !== '/services') {",
+      "    throw new \\RuntimeException('Existing English Services translation alias diverged.');",
+      "  }",
+      "}",
+      "\\Drupal::service('path_alias.manager')->cacheClear($path);",
+      "print 'R1471_EN_FIXTURE=PASS';",
+      ].join('\n');
+      const result = execFileSync('flock', [
+        '-x', '-w', '60', lock, 'ddev', 'drush', 'php:eval', php,
+      ], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        timeout: 80_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      expect(result).toContain('R1471_EN_FIXTURE=PASS');
+    });
+
+    test('FR/EN choices lead to real groups, and homepage stays unchanged', async ({
+      page, audit,
+    }, testInfo) => {
+      // Two full-page locale captures and native interaction checks exceed 30s on CI.
+      test.setTimeout(60_000);
+      const surfaces = [
+        {
+          lang: 'fr',
+          path: '/fr/services',
+          home: '/fr',
+          navigation: 'Explorer les services selon votre besoin',
+          labels: [['Créer', 'business'], ['Améliorer', 'drupal'], ['Automatiser', 'ai']],
+          visualCases: ['Créer une présence numérique utile', 'Améliorer un site existant', 'Connecter vos outils'],
+        },
+        {
+          lang: 'en',
+          path: '/en/services',
+          home: '/en',
+          navigation: 'Explore services by need',
+          labels: [['Create', 'business'], ['Improve', 'drupal'], ['Automate', 'ai']],
+          visualCases: ['Create a useful digital presence', 'Improve an existing website', 'Connect your everyday tools'],
+        },
+      ];
+
+      for (const surface of surfaces) {
+        const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+        expect(response).not.toBeNull();
+        expect(response.status()).toBeLessThan(400);
+        await expect(page.locator('html')).toHaveAttribute('lang', surface.lang);
+        await expect(page.locator('h1')).toHaveCount(1);
+
+        const navigation = page.getByRole('navigation', { name: surface.navigation });
+        await expect(navigation).toBeVisible();
+        await expect(navigation.locator('.ed-services-paths__link')).toHaveCount(3);
+
+        for (const [label, family] of surface.labels) {
+          const choice = navigation.getByRole('link', { name: new RegExp('^' + label) });
+          await expect(choice).toBeVisible();
+          const anchor = '#service-family-' + family;
+          await expect(choice).toHaveAttribute('href', anchor);
+          await expect(page.locator(anchor)).toHaveCount(1);
+          await expect(page.locator(anchor)).toBeVisible();
+          await choice.click();
+          expect(new URL(page.url()).hash).toBe(anchor);
+        }
+
+        // Native details provide progressive visual explanations without JavaScript.
+        const explainer = page.locator('.ed-section--services-grid .ed-visual-flow');
+        await expect(explainer).toHaveCount(1);
+        const scenarios = explainer.locator('details.ed-visual-flow__scenario');
+        await expect(scenarios).toHaveCount(3);
+        for (const [index, title] of surface.visualCases.entries()) {
+          await expect(scenarios.nth(index).locator('summary')).toContainText(title);
+        }
+        await expect(scenarios.first()).toHaveAttribute('open', '');
+        await expect(scenarios.first().locator('li.ed-visual-flow__step')).toHaveCount(3);
+        await scenarios.nth(1).locator('summary').click();
+        await expect(scenarios.nth(1)).toHaveAttribute('open', '');
+        await expect(scenarios.first()).not.toHaveAttribute('open', '');
+        await scenarios.nth(2).locator('summary').focus();
+        await page.keyboard.press('Enter');
+        await expect(scenarios.nth(2)).toHaveAttribute('open', '');
+
+        const overflow = await page.evaluate(() =>
+          document.documentElement.scrollWidth > window.innerWidth + 1,
+        );
+        expect(overflow, 'The Services layout must not overflow horizontally.').toBe(false);
+
+        const screenshotDirectory = path.resolve('artifacts/browser-validation/screenshots');
+        await mkdir(screenshotDirectory, { recursive: true });
+        const fileName = `services-1471-${surface.lang}-${testInfo.project.name}.png`;
+        const screenshotPath = path.join(screenshotDirectory, fileName);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        await testInfo.attach(`services-${surface.lang}`, {
+          path: screenshotPath,
+          contentType: 'image/png',
+        });
+        audit.screenshot = `screenshots/${fileName}`;
+
+        await page.goto(surface.home, { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.ed-services-paths')).toHaveCount(0);
+        await expect(page.locator('.ed-visual-flow')).toHaveCount(0);
+      }
+
+      expect(audit.consoleErrors).toEqual([]);
+      expect(audit.pageErrors).toEqual([]);
+      expect(audit.http5xx).toEqual([]);
+      expect(audit.unexpectedHttp4xx).toEqual([]);
+      expect(audit.failedRequests).toEqual([]);
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+      audit.checks.console = 'PASS';
+      audit.checks.network = 'PASS';
+    });
+  });
+}
+/*
+ * #1473: controlled AI journey visual proof in French and English.
+ * The existing editorial AI feature cards remain below the diagram.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1473 IA & Drupal governed journey', () => {
+    // The editor-owned IA page has only a historical FR Default Content seed.
+    // Add an EN translation for fresh isolated CI DDEV without publishing content.
+    test.beforeAll(async () => {
+      if (!canPrepareIsolatedDdevFixtures) {
+        return;
+      }
+      test.setTimeout(90_000);
+      const directory = path.resolve('artifacts/browser-validation');
+      await mkdir(directory, { recursive: true });
+      const lock = path.join(directory, 'ai-1473-fixture.lock');
+      const php = [
+        "$storage = \\Drupal::entityTypeManager()->getStorage('node');",
+        "$matches = $storage->loadByProperties(['uuid' => '3636da02-c8e6-40ea-aa71-54148f029a09']);",
+        "if (count($matches) !== 1) {",
+        "  throw new \\RuntimeException('Expected exactly one IA & Drupal fixture node.');",
+        "}",
+        "$node = reset($matches);",
+        "if ($node->bundle() !== 'page' || $node->language()->getId() !== 'fr' || $node->label() !== 'IA & Drupal') {",
+        "  throw new \\RuntimeException('IA fixture identity or source language diverged.');",
+        "}",
+        "$path = '/node/' . $node->id();",
+        "$alias_storage = \\Drupal::entityTypeManager()->getStorage('path_alias');",
+        "foreach ($alias_storage->loadByProperties(['alias' => '/ai-drupal', 'langcode' => 'en']) as $alias) {",
+        "  if ($alias->get('path')->value !== $path) {",
+        "    throw new \\RuntimeException('English IA alias belongs to another node.');",
+        "  }",
+        "}",
+        "$refs = [];",
+        "$ai_features = 0;",
+        "foreach ($node->getTranslation('fr')->get('field_home_components') as $item) {",
+        "  $paragraph = $item->entity;",
+        "  if ($paragraph === NULL) {",
+        "    throw new \\RuntimeException('IA fixture has a missing Paragraph reference.');",
+        "  }",
+        "  if ($paragraph->bundle() === 'ai_features') {",
+        "    $ai_features++;",
+        "    if (!$paragraph->hasTranslation('en')) {",
+        "      $values = [];",
+        "      foreach (['field_heading', 'field_items', 'field_text'] as $field) {",
+        "        if ($paragraph->hasField($field)) {",
+        "          $values[$field] = $paragraph->getTranslation('fr')->get($field)->getValue();",
+        "        }",
+        "      }",
+        "      $paragraph->addTranslation('en', $values);",
+        "      $paragraph->save();",
+        "    }",
+        "  }",
+        "  $refs[] = [",
+        "    'target_id' => $paragraph->id(),",
+        "    'target_revision_id' => $paragraph->getRevisionId(),",
+        "  ];",
+        "}",
+        "if ($ai_features !== 1) {",
+        "  throw new \\RuntimeException('Expected exactly one IA features Paragraph.');",
+        "}",
+        "if (!$node->hasTranslation('en')) {",
+        "  $english = $node->addTranslation('en', [",
+        "    'title' => 'AI & Drupal',",
+        "    'status' => 1,",
+        "    'field_home_components' => $refs,",
+        "  ]);",
+        "  $english->set('path', ['alias' => '/ai-drupal', 'pathauto' => 0]);",
+        "  $english->save();",
+        "}",
+        "else {",
+        "  $english = $node->getTranslation('en');",
+        "  $existing_alias = (string) ($english->get('path')->alias ?? '');",
+        "  if ($existing_alias !== '/ai-drupal') {",
+        "    throw new \\RuntimeException('Existing English IA translation alias diverged.');",
+        "  }",
+        "}",
+        "\\Drupal::service('path_alias.manager')->cacheClear($path);",
+        "print 'R1473_EN_FIXTURE=PASS';",
+      ].join('\n');
+      const result = execFileSync('flock', [
+        '-x', '-w', '60', lock, 'ddev', 'drush', 'php:eval', php,
+      ], {
+        cwd: process.cwd(), encoding: 'utf8', timeout: 80_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      expect(result).toContain('R1473_EN_FIXTURE=PASS');
+    });
+
+    test('FR/EN four-step flow emphasizes human approval without overflow', async ({
+      page, audit,
+    }, testInfo) => {
+      const surfaces = [
+        {
+          lang: 'fr',
+          path: '/fr/ia-drupal',
+          home: '/fr',
+          titles: ['Votre contenu', 'Assistance IA', 'Validation humaine', 'Publication'],
+          visualCases: ['Lire une information autorisée', 'Proposer sans publier', 'Refuser une action sensible'],
+        },
+        {
+          lang: 'en',
+          path: '/en/ai-drupal',
+          home: '/en',
+          titles: ['Your content', 'AI assistance', 'Human approval', 'Publication'],
+          visualCases: ['Read permitted information', 'Suggest without publishing', 'Refuse a sensitive action'],
+        },
+      ];
+
+      for (const surface of surfaces) {
+        const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+        expect(response).not.toBeNull();
+        expect(response.status()).toBeLessThan(400);
+        await expect(page.locator('html')).toHaveAttribute('lang', surface.lang);
+        await expect(page.locator('h1')).toHaveCount(1);
+
+        const flow = page.locator('section.ed-ai-flow');
+        await expect(flow).toHaveCount(1);
+        await expect(flow).toBeVisible();
+        await expect(flow.locator('h2')).toBeVisible();
+        const steps = flow.locator('li.ed-ai-flow__step');
+        await expect(steps).toHaveCount(4);
+
+        for (const [index, title] of surface.titles.entries()) {
+          await expect(steps.nth(index).locator('.ed-ai-flow__step-title'))
+            .toHaveText(title);
+        }
+        await expect(steps.nth(2)).toHaveClass(/ed-ai-flow__step--human/);
+        const approvalBorder = await steps.nth(2).evaluate(element =>
+          parseFloat(getComputedStyle(element).borderTopWidth),
+        );
+        expect(approvalBorder, 'Human approval requires a visible accent border.')
+          .toBeGreaterThanOrEqual(2);
+        const explainer = flow.locator('.ed-visual-flow');
+        await expect(explainer).toHaveCount(1);
+        const scenarios = explainer.locator('details.ed-visual-flow__scenario');
+        await expect(scenarios).toHaveCount(3);
+        for (const [index, title] of surface.visualCases.entries()) {
+          await expect(scenarios.nth(index).locator('summary')).toContainText(title);
+        }
+        await expect(scenarios.first()).toHaveAttribute('open', '');
+        await expect(scenarios.first().locator('li.ed-visual-flow__step')).toHaveCount(3);
+        await scenarios.nth(1).locator('summary').click();
+        await expect(scenarios.nth(1)).toHaveAttribute('open', '');
+        await scenarios.nth(2).locator('summary').focus();
+        await page.keyboard.press('Enter');
+        await expect(scenarios.nth(2)).toHaveAttribute('open', '');
+        await expect(explainer.locator('.ed-visual-flow__disclaimer')).toBeVisible();
+
+        await expect(page.locator('.ed-cards--ai')).toBeVisible();
+
+        const overflow = await page.evaluate(() =>
+          document.documentElement.scrollWidth > window.innerWidth + 1,
+        );
+        expect(overflow, 'The AI diagram must not overflow horizontally.').toBe(false);
+
+        const screenshotDirectory = path.resolve('artifacts/browser-validation/screenshots');
+        await mkdir(screenshotDirectory, { recursive: true });
+        const fileName = `ai-journey-1473-${surface.lang}-${testInfo.project.name}.png`;
+        const screenshotPath = path.join(screenshotDirectory, fileName);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        await testInfo.attach(`ai-journey-${surface.lang}`, {
+          path: screenshotPath,
+          contentType: 'image/png',
+        });
+        audit.screenshot = `screenshots/${fileName}`;
+
+        await page.goto(surface.home, { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.ed-ai-flow')).toHaveCount(0);
+        await expect(page.locator('.ed-visual-flow')).toHaveCount(0);
+      }
+
+      expect(audit.consoleErrors).toEqual([]);
+      expect(audit.pageErrors).toEqual([]);
+      expect(audit.http5xx).toEqual([]);
+      expect(audit.unexpectedHttp4xx).toEqual([]);
+      expect(audit.failedRequests).toEqual([]);
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+      audit.checks.console = 'PASS';
+      audit.checks.network = 'PASS';
+    });
+  });
+}
+
+// #1486: Case studies must explain challenge, approach and outcome at a glance.
+if (process.env.BROWSER_VALIDATION_BASE_URL !== 'https://preprod.emergingdigital.be') {
+  test.describe('Agency #1486 visual case journeys', () => {
+    test('FR/EN examples remain readable and operable without extra JavaScript', async ({
+      page, audit,
+    }) => {
+      const surfaces = [
+        {
+          path: '/fr/cas-clients',
+          stages: ['Contexte', 'Réponse', 'Effet'],
+        },
+        {
+          path: '/en/case-studies',
+          stages: ['Challenge', 'Approach', 'Outcome'],
+        },
+      ];
+
+      for (const surface of surfaces) {
+        const response = await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
+        expect(response?.status()).toBeLessThan(400);
+        const journeys = page.locator('.ed-section--case-studies .ed-case-journey');
+        await expect(journeys).toHaveCount(3);
+        const details = journeys.locator('details.ed-case-journey__details');
+        await expect(details).toHaveCount(3);
+        await expect(details.first()).toHaveAttribute('open', '');
+        await expect(details.first().locator('li.ed-case-journey__step')).toHaveCount(3);
+        for (const stage of surface.stages) {
+          await expect(details.first().locator('.ed-case-journey__step-header strong', {
+            hasText: stage,
+          })).toHaveCount(1);
+        }
+
+        await details.nth(1).locator('summary').click();
+        await expect(details.nth(1)).toHaveAttribute('open', '');
+        await expect(details.first()).not.toHaveAttribute('open', '');
+        await details.nth(2).locator('summary').focus();
+        await page.keyboard.press('Enter');
+        await expect(details.nth(2)).toHaveAttribute('open', '');
+        await expect(details.nth(1)).not.toHaveAttribute('open', '');
+        await expect(details.nth(2).locator('li.ed-case-journey__step')).toHaveCount(3);
+        expect(await page.evaluate(() =>
+          document.documentElement.scrollWidth <= window.innerWidth + 1,
+        ), 'Visual case journeys must not overflow the viewport.').toBe(true);
+      }
+
+      expect(audit.consoleErrors).toEqual([]);
+      expect(audit.pageErrors).toEqual([]);
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+    });
+  });
+}
+
+/*
+ * #1480: inner-page visual parity needs real FR/EN desktop/mobile evidence.
+ * This runs only after a governed PREPROD release deploy, not in the PR
+ * analytics-isolation proof which inspects the currently deployed older code.
+ */
+if (process.env.BROWSER_VALIDATION_BASE_URL === 'https://preprod.emergingdigital.be'
+  && process.env.GITHUB_WORKFLOW === 'Deploy PREPRODUCTION') {
+  test.describe('Agency #1480 automatic inner-page visual parity', () => {
+    test('shared V2 hero, illustrations, flow and motion stay usable FR/EN', async ({ page, audit }, testInfo) => {
+      test.setTimeout(180_000);
+
+      const surfaces = {
+        fr: ['services', 'ia-drupal', 'cas-clients', 'equipe', 'contact'],
+        en: ['services', 'ai-drupal', 'case-studies', 'team', 'contact'],
+      };
+      const screenshotDirectory = path.resolve('artifacts/browser-validation/screenshots');
+      await mkdir(screenshotDirectory, { recursive: true });
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+      for (const [lang, slugs] of Object.entries(surfaces)) {
+        for (const slug of slugs) {
+          const response = await page.goto('/' + lang + '/' + slug, {
+            waitUntil: 'domcontentloaded',
+          });
+          expect(response?.status(), 'Inner page must resolve: ' + lang + '/' + slug).toBeLessThan(400);
+
+          const reject = page.locator('[data-ed-cookie-action="reject"]');
+          if (slug !== 'contact' && await reject.isVisible()) {
+            await reject.click();
+          }
+
+          if (slug === 'contact') {
+            // Contact V3 has its own approved layout, unlike other inner pages.
+            const contact = page.locator('.ed-contact-v3');
+            await expect(contact, 'Contact V3 must render its own layout.').toBeVisible();
+
+            // #1500: capture the real full page at the initial scroll position,
+            // before cookie interaction, scrolling, focusing or choosing an option.
+            const fileName = 'contact-v3-' + lang + '-' + testInfo.project.name + '.png';
+            const screenshotPath = path.join(screenshotDirectory, fileName);
+            await page.screenshot({ path: screenshotPath, fullPage: true, animations: 'disabled' });
+            await testInfo.attach('contact-v3-' + lang, {
+              path: screenshotPath,
+              contentType: 'image/png',
+            });
+            if (await reject.isVisible()) {
+              await reject.click();
+            }
+            await expect(page.locator('h1'), 'Contact must keep one page heading.').toHaveCount(1);
+            await expect(page.locator('#block-emerging-digital-page-title')).toHaveCount(0);
+            await expect(contact.locator('h1')).toBeVisible();
+
+            const form = contact.locator('.ed-contact-v3__form-panel form');
+            await expect(form, 'The existing Drupal contact Webform must render.').toBeVisible();
+            await expect(form.locator('input[type="email"]')).toHaveCount(1);
+            await expect(form.locator('textarea')).toHaveCount(1);
+            await expect(form.locator('input[type="checkbox"]')).toHaveCount(1);
+            await expect(form.locator('label[for]').first()).toBeVisible();
+            const radios = form.locator('.js-webform-radios');
+            await expect(radios.locator('input[type="radio"]')).toHaveCount(4);
+            const grid = await radios.evaluate(element => ({
+              display: getComputedStyle(element).display,
+              columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
+              mobile: window.innerWidth <= 448,
+              groupWidth: element.getBoundingClientRect().width,
+              formWidth: element.closest('form').getBoundingClientRect().width,
+            }));
+            expect(grid.display, 'Contact options must use an aligned grid.').toBe('grid');
+            expect(grid.columns, 'Contact options must fit the current viewport.')
+              .toBe(grid.mobile ? 1 : 2);
+            expect(grid.groupWidth, 'Contact radio group must span the form width.')
+              .toBeGreaterThanOrEqual(grid.formWidth * 0.8);
+
+            // #1500: verify each label and native radio fit *inside* their card.
+            // A full-width radio input can otherwise push its label off-screen
+            // without increasing the document's scrollWidth.
+            const choices = radios.locator('.form-item');
+            await expect(choices).toHaveCount(4);
+            for (let index = 0; index < 4; index += 1) {
+              const choice = choices.nth(index);
+              const radio = choice.locator('input[type="radio"]');
+              const label = choice.locator('label');
+              await expect(radio).toBeVisible();
+              await expect(label).toBeVisible();
+              const geometry = await choice.evaluate(card => {
+                const input = card.querySelector('input[type="radio"]');
+                const labelNode = card.querySelector('label');
+                if (!input || !labelNode) {
+                  return null;
+                }
+                const cardRect = card.getBoundingClientRect();
+                const radioRect = input.getBoundingClientRect();
+                const labelRect = labelNode.getBoundingClientRect();
+                const inside = rect =>
+                  rect.left >= cardRect.left - 1
+                  && rect.right <= cardRect.right + 1
+                  && rect.top >= cardRect.top - 1
+                  && rect.bottom <= cardRect.bottom + 1;
+                return {
+                  radioWidth: radioRect.width,
+                  radioHeight: radioRect.height,
+                  radioInside: inside(radioRect),
+                  labelInside: inside(labelRect),
+                  noOverlap: radioRect.right <= labelRect.left + 1,
+                  labelFits: labelNode.scrollWidth <= labelNode.clientWidth + 1,
+                  linked: input.id !== '' && labelNode.htmlFor === input.id,
+                  wrap: getComputedStyle(labelNode).overflowWrap,
+                  wordBreak: getComputedStyle(labelNode).wordBreak,
+                  cardWidth: cardRect.width,
+                };
+              });
+              expect(geometry, 'Each Contact option must contain its input and label.').not.toBeNull();
+              expect(geometry.radioWidth).toBeGreaterThanOrEqual(12);
+              expect(geometry.radioWidth).toBeLessThanOrEqual(24);
+              expect(geometry.radioHeight).toBeGreaterThanOrEqual(12);
+              expect(geometry.radioHeight).toBeLessThanOrEqual(24);
+              expect(geometry.radioInside).toBe(true);
+              expect(geometry.labelInside).toBe(true);
+              expect(geometry.noOverlap).toBe(true);
+              expect(geometry.labelFits).toBe(true);
+              expect(geometry.linked).toBe(true);
+              expect(geometry.wrap, 'Choice labels must not wrap mid-word.').toBe('normal');
+              expect(geometry.wordBreak).toBe('normal');
+              if (!grid.mobile) {
+                expect(geometry.cardWidth, 'Desktop choices must have readable card widths.')
+                  .toBeGreaterThanOrEqual(140);
+              }
+              await label.click();
+              await expect(radio).toBeChecked();
+            }
+            await choices.first().locator('input[type="radio"]').focus();
+            await page.keyboard.press('Space');
+            await expect(choices.first().locator('input[type="radio"]')).toBeChecked();
+
+            await expect(contact.locator('a[href="mailto:contact@emergingdigital.be"]')).toBeVisible();
+            await expect(contact.locator('a[href="tel:+3219860698"]')).toBeVisible();
+
+            const horizontalSize = await page.evaluate(() => ({
+              documentWidth: document.documentElement.scrollWidth,
+              viewportWidth: window.innerWidth,
+            }));
+            expect(horizontalSize.documentWidth, 'No horizontal overflow on ' + lang + '/contact')
+              .toBeLessThanOrEqual(horizontalSize.viewportWidth + 1);
+
+            continue;
+          }
+
+          const hero = page.locator('.page-main:not(.page-main--front) .ed-section--hero');
+          await expect(hero, 'Inner pages must reuse the existing Drupal hero.').toBeVisible();
+          await expect(hero.locator('h2')).toBeVisible();
+          await expect(page.locator('h1'), 'Drupal page heading must remain present.').toHaveCount(1);
+
+          const illustration = hero.locator('.ed-section__hero-illustration').first();
+          await expect(illustration, 'The hero illustration must be visible in each viewport.').toBeVisible();
+          await illustration.scrollIntoViewIfNeeded();
+          await expect.poll(
+            () => illustration.evaluate(image => image.complete && image.naturalWidth > 0),
+            { message: 'The lazy-loaded hero SVG must finish loading.', timeout: 10_000 },
+          ).toBe(true);
+          const visual = await hero.evaluate(element => {
+            const image = element.querySelector('img.ed-section__hero-illustration');
+            return {
+              background: getComputedStyle(element).backgroundColor,
+              imageLoaded: Boolean(image?.naturalWidth),
+              width: document.documentElement.scrollWidth,
+              viewport: window.innerWidth,
+            };
+          });
+          expect(visual.background).toBe('rgb(17, 24, 39)');
+          expect(visual.imageLoaded, 'The existing SVG must load visibly.').toBe(true);
+          expect(visual.width, 'No horizontal overflow on ' + lang + '/' + slug)
+            .toBeLessThanOrEqual(visual.viewport + 1);
+
+          if (slug === 'services') {
+            const section = page.locator('.ed-section--services-grid');
+            await section.scrollIntoViewIfNeeded();
+            await expect(section, 'Motion must start automatically when scrolled into view.')
+              .toHaveClass(/ed-site-is-visible/);
+          }
+
+          // Save the actual first screen, not a mock-up, for owner visual review.
+          await hero.scrollIntoViewIfNeeded();
+          const fileName = 'inner-v2-' + lang + '-' + slug + '-' + testInfo.project.name + '.png';
+          const screenshotPath = path.join(screenshotDirectory, fileName);
+          await page.screenshot({ path: screenshotPath, fullPage: false });
+          await testInfo.attach('inner-v2-' + lang + '-' + slug, {
+            path: screenshotPath,
+            contentType: 'image/png',
+          });
+        }
+      }
+
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto('/fr/services', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('.page-main')).not.toHaveClass(/ed-site-motion-ready/);
+      await expect(page.locator('.ed-section--services-grid')).toBeVisible();
+      audit.checks.functional = 'PASS';
+      audit.checks.dom = 'PASS';
+      audit.checks.visual = 'PASS';
+    });
+  });
+}

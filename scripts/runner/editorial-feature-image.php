@@ -94,7 +94,7 @@ final class AgencyEditorialFeatureImage {
       $before['mode'] = 'apply';
       return $before;
     }
-    if (!in_array($before['verdict'], ['READY', 'REPAIR_REQUIRED'], TRUE)) {
+    if (!in_array($before['verdict'], ['READY', 'REPAIR_REQUIRED', 'REPLACE_APPROVED'], TRUE)) {
       throw new RuntimeException('Feature image apply requires READY or REPAIR_REQUIRED.');
     }
 
@@ -157,7 +157,7 @@ final class AgencyEditorialFeatureImage {
 
       return [
         'status' => 'PASS',
-        'verdict' => $before['verdict'] === 'READY' ? 'APPLIED' : 'REPAIRED',
+        'verdict' => in_array($before['verdict'], ['READY', 'REPLACE_APPROVED'], TRUE) ? 'APPLIED' : 'REPAIRED',
         'mode' => 'apply',
         'issue_number' => $issueNumber,
         'article_payload_sha256' => $profile['article_payload_sha256'],
@@ -204,26 +204,40 @@ final class AgencyEditorialFeatureImage {
       'asset',
     );
     $asset = $profile['asset'];
-    if (!is_string($asset['path'])
-      || !preg_match('#^assets/editorial/[a-z0-9][a-z0-9._-]*\.png$#', $asset['path'])) {
-      throw new InvalidArgumentException('Asset path must be a bounded repository PNG path.');
+    if ($issueNumber === 1491) {
+      // One exact JPEG correction; other Article profiles remain PNG-only.
+      if ($asset['path'] !== 'assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg'
+        || $asset['filename'] !== 'issue-1491-lens-saint-servais-flamenc-2007-8e1cf32c.jpg'
+        || $asset['sha256'] !== '8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2'
+        || $asset['mime'] !== 'image/jpeg'
+        || $asset['width'] !== 3214
+        || $asset['height'] !== 2146
+        || $asset['max_bytes'] !== 4112433) {
+        throw new InvalidArgumentException('Issue #1491 accepts only the approved original JPEG.');
+      }
     }
-    if (!is_string($asset['filename'])
-      || !preg_match('/^[a-z0-9][a-z0-9._-]*\.png$/', $asset['filename'])) {
-      throw new InvalidArgumentException('Asset filename must be a bounded PNG filename.');
+    else {
+      if (!is_string($asset['path'])
+        || !preg_match('#^assets/editorial/[a-z0-9][a-z0-9._-]*\.png$#', $asset['path'])) {
+        throw new InvalidArgumentException('Asset path must be a bounded repository PNG path.');
+      }
+      if (!is_string($asset['filename'])
+        || !preg_match('/^[a-z0-9][a-z0-9._-]*\.png$/', $asset['filename'])) {
+        throw new InvalidArgumentException('Asset filename must be a bounded PNG filename.');
+      }
+      if ($asset['mime'] !== 'image/png') {
+        throw new InvalidArgumentException('Other feature-image profiles accept only image/png.');
+      }
     }
     if (!is_string($asset['sha256']) || !preg_match('/^[0-9a-f]{64}$/', $asset['sha256'])) {
       throw new InvalidArgumentException('Asset sha256 must be lowercase SHA-256.');
-    }
-    if (($asset['mime'] ?? NULL) !== 'image/png') {
-      throw new InvalidArgumentException('Feature image v1 accepts only image/png.');
     }
     foreach (['width', 'height', 'max_bytes'] as $key) {
       if (!is_int($asset[$key] ?? NULL) || $asset[$key] <= 0) {
         throw new InvalidArgumentException("asset.$key must be a positive integer.");
       }
     }
-    if ($asset['width'] > 2400 || $asset['height'] > 1600 || $asset['max_bytes'] > 5000000) {
+    if ($issueNumber !== 1491 && ($asset['width'] > 2400 || $asset['height'] > 1600 || $asset['max_bytes'] > 5000000)) {
       throw new InvalidArgumentException('Feature image profile exceeds the bounded image limits.');
     }
 
@@ -343,12 +357,31 @@ final class AgencyEditorialFeatureImage {
     }
     $uri = $file->getFileUri();
     $hash = hash_file('sha256', $uri);
-    if (!is_string($hash) || !hash_equals($profile['asset']['sha256'], $hash)) {
-      throw new RuntimeException('Article already has a different feature image asset.');
-    }
-
     $altFr = trim((string) ($frItem?->get('alt')->getValue() ?? ''));
     $altEn = trim((string) ($enItem?->get('alt')->getValue() ?? ''));
+
+    if (!is_string($hash) || !hash_equals($profile['asset']['sha256'], $hash)) {
+      // Closed PREPROD #1491 replacement. Never clear FID 4 to simulate READY.
+      if (($profile['issue_number'] ?? NULL) === 1491
+        && (int) $node->id() === 44
+        && (int) $frFid === 4
+        && $uri === 'public://articles/issue-1491-lens-saint-servais-original-eebc7392.png'
+        && is_string($hash)
+        && hash_equals('eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49', $hash)
+        && hash_equals($profile['alt']['fr'], $altFr)
+        && hash_equals($profile['alt']['en'], $altEn)) {
+        return [
+          'verdict' => 'REPLACE_APPROVED',
+          'file' => NULL,
+          'fid' => 4,
+          'uri' => $uri,
+          'sha256' => $hash,
+          'alt_fr' => $altFr,
+          'alt_en' => $altEn,
+        ];
+      }
+      throw new RuntimeException('Article already has a different feature image asset.');
+    }
     $altsMatch = hash_equals($profile['alt']['fr'], $altFr)
       && hash_equals($profile['alt']['en'], $altEn);
 

@@ -129,6 +129,27 @@ jobs:
               exit 1
             }
           fi
+
+          if [[ "$PR_NUMBER" == "1458" ]]; then
+            # Exact #1418 R9 reviewed source boundary. Retain the normal
+            # same-repository, OPEN/main, exact-live-SHA and unsafe-path gates.
+            test "$(jq -r '.head.ref' <<<"$pr_json")" = "feature/1418-home-bplus-kinetic" || {
+              echo "B+ Kinetic #1458 must use its reviewed source branch." >&2
+              exit 1
+            }
+            expected_files="$(printf '%s\n' \
+              'tests/browser/public-blog.spec.mjs' \
+              'web/themes/custom/emerging_digital/css/home-kinetic.css' \
+              'web/themes/custom/emerging_digital/emerging_digital.libraries.yml' \
+              'web/themes/custom/emerging_digital/js/home-kinetic.js' \
+              'web/themes/custom/emerging_digital/templates/layout/page--front.html.twig'
+            )"
+            changed_files="$(printf '%s\n' "$changed_files" | LC_ALL=C sort)"
+            test "$changed_files" = "$expected_files" || {
+              echo "B+ Kinetic #1458 must change exactly its five reviewed files." >&2
+              exit 1
+            }
+          fi
           echo "head_sha=$REQUESTED_HEAD_SHA" >> "$GITHUB_OUTPUT"
 
   report-start:
@@ -212,7 +233,7 @@ jobs:
           test -f tests/browser/contracts/public-blog.json
           test -f tests/browser/public-blog.spec.mjs
           test -f scripts/runner/prove-governed-content-cli-facade.sh
-          test "$(git hash-object scripts/runner/verify-browser-config-canonical-canvas-1420.sh)" = "b9c9e45cef17d9d3d9f5964a1f0165542dfb1fad"
+          test "$(git hash-object scripts/runner/verify-browser-config-canonical-canvas-1420.sh)" = "aacc8cf4a85f5967b01b1fe29f9cc3831ef509b6"
 
           if [[ -f package-lock.json ]]; then
             echo "lockfile_present=true" >> "$GITHUB_OUTPUT"
@@ -317,6 +338,10 @@ jobs:
           name: agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
           router_http_port: "18180"
           router_https_port: "18543"
+          host_webserver_port: "18280"
+          host_https_port: "18644"
+          host_db_port: "18281"
+          host_mailpit_port: "18282"
           EOF
           ddev utility configyaml | grep -F "agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
@@ -327,7 +352,33 @@ jobs:
         run: |
           set -euo pipefail
 
-          ddev start -y
+          # One owned retry only for a proven RootlessKit ephemeral port race.
+          start_log="$(mktemp "${RUNNER_TEMP}/agency-ddev-start.XXXXXX")"
+          trap 'rm -f "$start_log"' EXIT
+          if ddev start -y >"$start_log" 2>&1; then
+            echo "DDEV_START=PASS_INITIAL"
+          else
+            if ! grep -Eq 'RootlessKit PortManager\.AddPort\(\).*bind: address already in use' "$start_log"; then
+              echo "DDEV_START=FAIL_NOT_ADMITTED" >&2
+              exit 1
+            fi
+            expected_project="agency-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            actual_project="$(ddev utility configyaml | awk '$1 == "name:" && NF == 2 {print $2}')"
+            if [[ "$actual_project" != "$expected_project" ]]; then
+              echo "DDEV_START=FAIL_PROJECT_IDENTITY" >&2
+              exit 1
+            fi
+            if ! ddev delete --omit-snapshot --yes >"$start_log" 2>&1; then
+              echo "DDEV_START=FAIL_OWNED_CLEANUP" >&2
+              exit 1
+            fi
+            echo "DDEV_START=ONE_OWNED_RETRY"
+            if ! ddev start -y >"$start_log" 2>&1; then
+              echo "DDEV_START=FAIL_SECOND_ATTEMPT" >&2
+              exit 1
+            fi
+            echo "DDEV_START=PASS_SECOND_ATTEMPT"
+          fi
           ddev composer install --no-interaction --no-progress --prefer-dist
 
           admin_pass="$(openssl rand -hex 24)"

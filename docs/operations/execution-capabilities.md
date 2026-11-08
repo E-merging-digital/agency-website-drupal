@@ -100,6 +100,69 @@ Both remain `EXTEND_EXISTING`, not permanent multi-provider architectures.
 
 A conversation without direct MCP transport must not conclude that the registered project capability does not exist.
 
+### Agency delivery practice (owner decision, 2026-11-03; #1501)
+
+For Agency code/config changes, use one bounded delivery batch and the existing
+authorized execution route. Do not make Jonathan a manual command dispatcher when
+an approved tool can perform the task:
+
+1. Reload the GitHub issue, latest **applicable** authority, branch/PR/CI, active
+   HOLDs and current repository facts. GitHub is the decision/evidence source of
+   truth, not a remembered conversation or an available binary.
+2. Select the project channel using the
+   [Infrastructure Desktop Commander channel registry](https://github.com/E-merging-digital/infrastructure/blob/main/docs/runbooks/desktop-commander-channel-routing.md).
+   **Prefer Desktop Commander** for local Windows/WSL work only when the exact
+   Agency identity and directory are registered, online and authorized. Never use
+   Personal Secretary or Infrastructure agents as an Agency executor, widen their
+   `allowedDirectories`, or assume access from a shared device name. If no
+   authorized Agency channel exists, stop and route a **separate** Infrastructure
+   access decision; do not reconfigure a channel within the product delivery.
+   Codex CLI is optional, not a deployment prerequisite or substitute for access
+   authorization. A human-operated PowerShell/WSL command is possible only under
+   the same scoped authority.
+3. Reuse an isolated, clean `feature/*` Git worktree based on the agreed
+   baseline, the existing DDEV/Drupal runtime and project tests. Implement
+   the full authorized slice, including generated/imported/exported Drupal
+   configuration through the supported process. Do not improvise raw config
+   edits when Drupal provenance is required. Preserve unrelated worktrees.
+4. Create one PR, run local checks and the naturally triggered exact-head GitHub
+   CI. Respect protection rules, mandatory review and security gates. Continue
+   routine permitted steps without asking for optional intermediate approvals;
+   return one evidence-backed result or `CONTROLLED_STOP` at the first material
+   blocker. [Common Project Lead / Delivery protocol](https://github.com/E-merging-digital/infrastructure/blob/main/docs/runbooks/chatgpt-github-coordination.md)
+   remains authoritative for roles and handoffs.
+
+**Functional release, existing route only:**
+
+- Governed feature PR merge is **not** a PROD deployment. The coherent
+  `release/*` candidate is built **once** by
+  `.github/workflows/build-release-candidate.yml`. Capture its candidate Git
+  SHA, artifact SHA-256, `composer.lock` SHA-256 and successful build run.
+- `.github/workflows/deploy-preproduction.yml` automatically deploys **those
+  immutable bytes** to the separate PREPROD after a successful build. Require
+  all mandatory side-effect isolation, mail capture/neutralization, Basic Auth,
+  health, security and desktop/mobile browser gates, plus a genuine FR/EN
+  functional/render review where the task requires it. See
+  [PREPROD runbook](preproduction.md). No external SMTP test without proven
+  interception/neutralization; no Composer update on PREPROD.
+- `READY_FOR_HUMAN_REVIEW` / `READY_FOR_PROD` never means GO PROD. Functional
+  PROD promotion uses **the same candidate artifact**, and only the existing
+  `.github/workflows/promote-production.yml` after a new **owner-authored
+  exact-identity GO** bound to candidate SHA, artifact/composer digests and
+  successful build/PREPROD run, as specified in the PREPROD runbook. No ordinary
+  `main` push, manual `deploy-production.sh main`, rebuild or direct-server
+  command substitutes for this route. Respect independent backup/rollback
+  controls and the separate [PROD maintenance runbook](production-maintenance.md).
+- The exceptional `hotfix/*` and `security/*` dispatch lane remains separately
+  governed; no functional change may silently use it. All security HOLDs and
+  mandatory human approvals remain in force. Specific server/backup maintenance
+  work is tracked in [#1436](https://github.com/E-merging-digital/agency-website-drupal/issues/1436);
+  the workflow does not waive any of its unsatisfied gates.
+
+This section records a working preference and existing release contracts. It
+**does not** register a new Desktop Commander channel, grant access, authorize
+a merge/GO PROD, or change security/deployment controls.
+
 ## 6. Governed PROD -> PREPROD refresh (#914 / completed #816)
 
 ```text

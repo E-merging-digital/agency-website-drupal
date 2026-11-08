@@ -235,6 +235,103 @@ final class AgencyRunnerHealthProbeWorkflowTest extends TestCase {
   }
 
   /**
+   * Protects the single R13 read-only inventory and retires R12 execution.
+   */
+  public function testR13RouterInventoryIsStaticBoundedAndReadOnly(): void {
+    $workflow = $this->parsed();
+    $trigger = $workflow['on']['workflow_dispatch']['inputs']['diagnostic'] ?? NULL;
+    self::assertIsArray($trigger);
+    self::assertSame('choice', $trigger['type'] ?? NULL);
+    self::assertSame('disabled', $trigger['default'] ?? NULL);
+    self::assertFalse($trigger['required'] ?? TRUE);
+    self::assertSame([
+      'disabled',
+      'agency1418-router-inventory-20261025',
+    ], $trigger['options'] ?? NULL);
+
+    self::assertCount(2, $workflow['jobs'] ?? []);
+    self::assertArrayNotHasKey('diagnostic', $workflow['jobs']);
+    $normal = $workflow['jobs']['probe'] ?? NULL;
+    self::assertIsArray($normal);
+    self::assertStringContainsString(
+      "github.event_name != 'workflow_dispatch' || inputs.diagnostic == 'disabled'",
+      (string) ($normal['if'] ?? ''),
+    );
+    self::assertCount(4, $normal['steps'] ?? []);
+
+    $inventory = $workflow['jobs']['inventory'] ?? NULL;
+    self::assertIsArray($inventory);
+    self::assertSame(
+      ['self-hosted', 'linux', 'x64', 'agency', 'ddev', 'browser'],
+      $inventory['runs-on'] ?? NULL,
+    );
+    self::assertSame(['contents' => 'read'], $inventory['permissions'] ?? NULL);
+    self::assertLessThanOrEqual(7, $inventory['timeout-minutes'] ?? 100);
+    $guard = (string) ($inventory['if'] ?? '');
+    foreach ([
+      "github.event_name == 'workflow_dispatch'",
+      "inputs.diagnostic == 'agency1418-router-inventory-20261025'",
+      "github.ref == 'refs/heads/main'",
+      "github.actor == 'E-merging-digital'",
+    ] as $required) {
+      self::assertStringContainsString($required, $guard);
+    }
+
+    self::assertCount(1, $inventory['steps'] ?? []);
+    $step = $inventory['steps'][0] ?? NULL;
+    self::assertIsArray($step);
+    self::assertSame('bash', $step['shell'] ?? NULL);
+    self::assertSame([
+      'EXPECTED_RUNNER' => 'agency-browser-runner-01',
+      'EXPECTED_HOST' => 'preflight-runner-01',
+      'EXPECTED_USER' => 'agency-runner',
+      'EXPECTED_UID' => '1002',
+    ], $step['env'] ?? NULL);
+    $script = (string) ($step['run'] ?? '');
+
+    foreach ([
+      '[[ "${RUNNER_NAME:-}" == "$EXPECTED_RUNNER" ]]',
+      '[[ "$(id -un)" == "$EXPECTED_USER" && "$(id -u)" == "$EXPECTED_UID" ]]',
+      'unix:///run/user/1002/docker.sock',
+      '/home/agency-runner/.local/share/docker',
+      'docker info --format',
+      '*rootless*',
+      '*cgroupns*',
+      'for port in 18180 18543;',
+      'docker ps --format',
+      'docker inspect --format',
+      'select(.HostPort? == $port)',
+      ".[\"com.docker.compose.project\"]",
+      'ddev list -j',
+      'R13_PORT_$port=',
+      'R13_POTENTIAL_CONSUMER_',
+      'R13_RESULT=UNKNOWN',
+      'R13_RESULT=OBSERVED',
+      'tee -a "$GITHUB_STEP_SUMMARY"',
+    ] as $required) {
+      self::assertStringContainsString($required, $script);
+    }
+
+    // Port candidates are selected before inspect, never inventory all configs.
+    self::assertLessThan(
+      strpos($script, 'docker inspect --format'),
+      strpos($script, '[[ "$published" == *"$needle"* ]] || continue'),
+    );
+    self::assertStringNotContainsString('agency1418-r12-ownerproof-20261024', $this->source());
+
+    foreach ([
+      'sudo ', 'su ', 'ssh ', 'scp ', 'systemctl ', 'docker stop',
+      'docker restart', 'docker rm ', 'docker kill ', 'docker prune',
+      'ddev start', 'ddev stop', 'ddev restart', 'ddev poweroff',
+      'ddev delete', 'composer ', 'drush ', 'mysql ', 'mariadb ',
+      'curl ', 'wget ', 'env |', 'printenv ', 'docker logs',
+      'docker exec', 'cat /', 'find /', 'ps aux',
+    ] as $forbidden) {
+      self::assertStringNotContainsString($forbidden, $script);
+    }
+  }
+
+  /**
    * Returns only the normalized receipt-construction block.
    */
   private function receiptBlock(): string {

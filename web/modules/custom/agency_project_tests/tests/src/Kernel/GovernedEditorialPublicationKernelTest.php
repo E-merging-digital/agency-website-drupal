@@ -257,6 +257,77 @@ final class GovernedEditorialPublicationKernelTest extends KernelTestBase {
   }
 
   /**
+   * Only #1491 may cite its six approved source URLs in either translation.
+   */
+  public function testIssue1491AcceptsSixExactDocumentaryLinksInBothLanguages(): void {
+    $urls = [
+      'https://commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg',
+      'https://creativecommons.org/licenses/by-sa/3.0/',
+      'https://hesbenergie.be/geer-ligney/',
+      'https://www.qu4tre.be/infos/amenagement-du-territoire/projet-eolien-citoyen-a-geer-entre-sympathisants-et-opposants/2017535',
+      'https://www.cesewallonie.be/avis/parc-de-sept-eoliennes-geer-ligney-geer-braives-et-hannut',
+      'https://portailcitoyens.be/',
+    ];
+    $links = implode('', array_map(
+      static fn (string $url): string => '<a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">Source</a>',
+      $urls,
+    ));
+
+    $payload = $this->validPayload();
+    $payload['issue_number'] = 1491;
+    foreach (['fr', 'en'] as $langcode) {
+      $payload[$langcode]['body_html'] = '<p>' . $links . '</p>';
+    }
+
+    $this->publisher->validatePayload($payload, 1491);
+    self::assertCount(6, $urls);
+  }
+
+  /**
+   * Approved #1491 source URLs are not a general external-link exception.
+   */
+  public function testIssue1491ExternalLinksRejectOtherIssuesAndUrlVariants(): void {
+    $original = 'https://commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg';
+    $cases = [
+      [401, $original],
+      [1500, 'https://portailcitoyens.be/'],
+      [1491, 'http://commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg'],
+      [1491, 'https://other.commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg'],
+      [1491, $original . '/other'],
+      [1491, $original . '?source=article'],
+      [1491, $original . '#source'],
+      [1491, 'https://unapproved.example/'],
+      [1491, 'javascript:alert(1)'],
+    ];
+
+    foreach ($cases as [$issueNumber, $url]) {
+      $payload = $this->validPayload();
+      $payload['issue_number'] = $issueNumber;
+      $payload['fr']['body_html'] = '<p><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">Source</a></p>';
+      try {
+        $this->publisher->validatePayload($payload, $issueNumber);
+        self::fail("External link accepted for issue $issueNumber: $url");
+      }
+      catch (\InvalidArgumentException $exception) {
+        self::assertStringContainsString('external or unsafe link', $exception->getMessage());
+      }
+    }
+  }
+
+  /**
+   * Even the exact approved URL may not carry an active HTML attribute.
+   */
+  public function testIssue1491DocumentaryLinkRejectsUnsafeAttributes(): void {
+    $payload = $this->validPayload();
+    $payload['issue_number'] = 1491;
+    $payload['en']['body_html'] = '<p><a href="https://portailcitoyens.be/" onclick="alert(1)">Visit</a></p>';
+
+    $this->expectException(\InvalidArgumentException::class);
+    $this->expectExceptionMessage('forbidden attribute onclick');
+    $this->publisher->validatePayload($payload, 1491);
+  }
+
+  /**
    * Creates the exact fields the trusted helper may mutate.
    */
   private function createArticleFields(): void {

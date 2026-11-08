@@ -7,11 +7,28 @@ global-styling:
       css/layout.css: {}
       css/components.css: {}
       css/blog.css: {}
+      css/inner-v2.css: {}
+      css/contact-v3.css: {}
   js:
     js/main.js:
       attributes:
         defer: true
     js/cookie-policy-links.js:
+      attributes:
+        defer: true
+    js/inner-v2.js:
+      attributes:
+        defer: true
+  dependencies:
+    - core/drupal
+
+home-kinetic:
+  css:
+    theme:
+      css/home-kinetic.css: {}
+      css/home-v2.css: {}
+  js:
+    js/home-v2.js:
       attributes:
         defer: true
   dependencies:

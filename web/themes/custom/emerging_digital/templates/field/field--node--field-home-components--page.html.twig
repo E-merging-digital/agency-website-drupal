@@ -1,0 +1,37 @@
+{# Agency #1470: hero + visual narrative first; preserve Drupal-owned detail. #}
+{% if agency_home_v2|default(false) %}
+  <div{{ attributes.addClass('agency-v2-field') }}>
+    {% for item in items %}
+      {% if loop.first %}
+        <div{{ item.attributes.addClass('field__item') }}>{{ item.content }}</div>
+      {% endif %}
+    {% endfor %}
+    {% if items|length > 1 %}
+      <details class="agency-v2-depth">
+        <summary>{{ agency_home_v2_en|default(false) ? 'Explore all services and technical details' : 'Explorer toutes les expertises et les détails techniques' }}</summary>
+        <div class="agency-v2-depth__content">
+          {% for item in items %}
+            {% if not loop.first %}
+              <div{{ item.attributes.addClass('field__item') }}>{{ item.content }}</div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </details>
+    {% endif %}
+  </div>
+{% else %}
+  {% if label_hidden %}
+    {% if multiple %}
+      <div{{ attributes }}>
+        {% for item in items %}<div{{ item.attributes }}>{{ item.content }}</div>{% endfor %}
+      </div>
+    {% else %}
+      {% for item in items %}{{ item.content }}{% endfor %}
+    {% endif %}
+  {% else %}
+    <div{{ attributes }}>
+      <div{{ title_attributes }}>{{ label }}</div>
+      {% for item in items %}<div{{ item.attributes }}>{{ item.content }}</div>{% endfor %}
+    </div>
+  {% endif %}
+{% endif %}

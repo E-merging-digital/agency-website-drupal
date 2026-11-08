@@ -145,6 +145,34 @@ The durable model is:
 
 There is no long-lived `develop` or `preprod` integration branch.
 
+### One-action selective candidate publication (#1440)
+
+Keep independent `feature/*` work out of a candidate until selected. Once a
+specific commit has **both** its CI and committed-secret-scan runs green, publish
+it with one operator command from this repository (authenticated `gh`, `git`
+and `jq` are the only tools needed):
+
+```bash
+bash scripts/preproduction/publish-selected-candidate.sh \
+  feature/selected-change <exact-40-character-SHA> release/selected-change-r1
+```
+
+For a reviewed `main` commit, use `main` instead of `feature/selected-change`.
+The helper checks exact remote source SHA, current `main` ancestry, both
+successful GitHub checks on that exact SHA and stable branch identities before
+**creating** (never moving) the single `release/*` ref. The existing
+`build-release-candidate.yml` then automatically starts the existing immutable
+build → PREPROD deploy/validation; no extra deploy command or pipeline is added.
+If any gate fails, do not publish the candidate.
+
+**Selection is not promotion authority.** A feature candidate ahead of `main`
+is useful for PREPROD evaluation, but later PROD promotion may be rejected by
+the existing `main`/release provenance gate. Do not merge another feature into
+the candidate or bypass that gate to make it promotable. Do not start a new
+code deployment while an editorial PREPROD render review (such as #1491) is
+active without coordination; a fresh deployment may invalidate its evidence.
+PROD remains a separate human-authorized operation.
+
 After an urgent hotfix/security deployment, every active functional candidate
 must reintegrate that change and obtain fresh PREPROD evidence before promotion.
 

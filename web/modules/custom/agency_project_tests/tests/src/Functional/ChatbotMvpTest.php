@@ -40,6 +40,13 @@ final class ChatbotMvpTest extends BrowserTestBase {
     ]);
 
     $this->drupalGet('<front>');
+    $this->assertSession()->elementNotExists('css', '.ed-chatbot');
+
+    // In this test only, expose the widget to inspect its safe local payload.
+    $this->config('emerging_digital_chatbot.settings')
+      ->set('allowed_pages', ['*'])
+      ->save();
+    $this->drupalGet('<front>');
 
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->elementExists('css', '.ed-chatbot');

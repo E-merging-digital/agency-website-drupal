@@ -43,6 +43,21 @@ function emerging_digital_preprocess_node(array &$variables): void {
     );
   }
 
+  // Keep editor-owned content; compose Contact V3 with the existing Webform.
+  $is_contact_page = $bundle === 'page'
+    && $node->uuid() === 'd962ec05-25ec-4446-b645-0959a57964e7';
+  if ($is_contact_page) {
+    $contact_webform = Webform::load('contact');
+    if ($contact_webform) {
+      $variables['agency_contact_v3_webform'] = \Drupal::entityTypeManager()
+        ->getViewBuilder('webform')
+        ->view($contact_webform);
+      $variables['agency_contact_v3_english'] = \Drupal::languageManager()
+        ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId() === 'en';
+      $variables['elements']['#cache']['contexts'][] = 'languages:language_interface';
+    }
+  }
+
   if ($bundle !== 'ai_feature') {
     return;
   }
@@ -261,6 +276,22 @@ function emerging_digital_contact_qualification_type(string $title): string {
 }
 
 /**
+ * Implements hook_preprocess_field().
+ *
+ * Keep the existing editor-owned homepage paragraphs available beneath the
+ * concise V2 narrative. All other uses of the field retain core rendering.
+ */
+function emerging_digital_preprocess_field(array &$variables): void {
+  $field_name = $variables['element']['#field_name'] ?? '';
+  $variables['agency_home_v2'] = $field_name === 'field_home_components'
+    && \Drupal::service('path.matcher')->isFrontPage();
+  if ($variables['agency_home_v2']) {
+    $variables['agency_home_v2_en'] = \Drupal::languageManager()
+      ->getCurrentLanguage()->getId() === 'en';
+  }
+}
+
+/**
  * Implements hook_preprocess_paragraph().
  */
 function emerging_digital_preprocess_paragraph(array &$variables): void {
@@ -270,6 +301,13 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
   }
 
   $bundle = $paragraph->bundle();
+
+  if ($bundle === 'case_clients') {
+    // Labels follow the interface language, even for reused FR paragraphs.
+    $variables['case_clients_english'] = \Drupal::languageManager()
+      ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId() === 'en';
+    $variables['elements']['#cache']['contexts'][] = 'languages:language_interface';
+  }
 
   if (isset($variables['content']['field_link'][0])) {
     $variables['content']['field_link'][0]['#options']['attributes']['class'][] = 'button';
@@ -338,6 +376,107 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
     $service_groups,
     static fn (array $group): bool => !empty($group['cards']),
   ));
+
+  // The homepage also uses this paragraph. Keep the visual quick navigation
+  // exclusive to the Services hub and its existing, populated families.
+  $alias = \Drupal::service('path_alias.manager')->getAliasByPath(
+    \Drupal::service('path.current')->getPath(),
+    $langcode,
+  );
+  $variables['is_services_hub'] = $alias === '/services';
+  $variables['service_path_choices'] = [];
+
+  if (!$variables['is_services_hub']) {
+    return;
+  }
+
+  $choices = $langcode === 'en'
+    ? [
+      'business' => ['Create', 'A site or platform that inspires trust.'],
+      'drupal' => ['Improve', 'A clearer, faster site built to evolve.'],
+      'ai' => ['Automate', 'Less repetitive work for your teams.'],
+    ]
+    : [
+      'business' => ['Créer', 'Un site ou une plateforme qui inspire confiance.'],
+      'drupal' => ['Améliorer', 'Un site plus clair, rapide et facile à faire évoluer.'],
+      'ai' => ['Automatiser', 'Du temps libéré pour vos équipes.'],
+    ];
+
+  $variables['service_path_eyebrow'] = $langcode === 'en'
+    ? 'Choose where to start'
+    : 'Choisissez votre point de départ';
+  $variables['service_path_aria_label'] = $langcode === 'en'
+    ? 'Explore services by need'
+    : 'Explorer les services selon votre besoin';
+
+  // These three existing editorial families provide descriptions and real
+  // contact CTAs even when the fresh content import has no cards for a family.
+  // Keep homepage's populated-only filter and preserve populated other cards.
+  $variables['service_groups'] = [
+    $service_groups['business'],
+    $service_groups['drupal'],
+    $service_groups['ai'],
+  ];
+  if (!empty($service_groups['other']['cards'])) {
+    $variables['service_groups'][] = $service_groups['other'];
+  }
+
+  foreach ($choices as $group_key => [$title, $description]) {
+    $variables['service_path_choices'][] = [
+      'number' => sprintf('%02d', count($variables['service_path_choices']) + 1),
+      'title' => $title,
+      'description' => $description,
+      'href' => '#service-family-' . $group_key,
+      'key' => $group_key,
+    ];
+  }
+
+  // A concise, no-JavaScript visual journey for the Services landing only.
+  $variables['services_visual_flow'] = $langcode === 'en'
+    ? [
+      'eyebrow' => 'See the journey',
+      'title' => 'From an idea to a practical result',
+      'intro' => 'Choose a situation to see the three essential steps.',
+      'cases' => [
+        [
+          'title' => 'Create a useful digital presence',
+          'steps' => ['Your goal', 'Design and development', 'A website ready to evolve'],
+          'result' => 'A clear experience for visitors and your team.',
+        ],
+        [
+          'title' => 'Improve an existing website',
+          'steps' => ['Focused review', 'Priority improvements', 'Easier daily management'],
+          'result' => 'A website that stays useful, reliable and maintainable.',
+        ],
+        [
+          'title' => 'Connect your everyday tools',
+          'steps' => ['Your existing tools', 'Secure connections', 'Less repetitive work'],
+          'result' => 'Information flows where your team needs it.',
+        ],
+      ],
+    ]
+    : [
+      'eyebrow' => 'Le parcours en images',
+      'title' => 'De votre idée à un résultat concret',
+      'intro' => 'Choisissez une situation pour voir les trois étapes essentielles.',
+      'cases' => [
+        [
+          'title' => 'Créer une présence numérique utile',
+          'steps' => ['Votre objectif', 'Design et développement', 'Un site prêt à évoluer'],
+          'result' => 'Une expérience claire pour vos visiteurs et votre équipe.',
+        ],
+        [
+          'title' => 'Améliorer un site existant',
+          'steps' => ['Diagnostic ciblé', 'Améliorations prioritaires', 'Gestion quotidienne simplifiée'],
+          'result' => 'Un site utile, fiable et facile à maintenir.',
+        ],
+        [
+          'title' => 'Connecter vos outils',
+          'steps' => ['Vos outils actuels', 'Connexions sécurisées', 'Moins de tâches répétitives'],
+          'result' => 'Les informations circulent là où votre équipe en a besoin.',
+        ],
+      ],
+    ];
 }
 
 /**
@@ -545,6 +684,103 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
       'cta_label' => $langcode === 'en' ? 'Explore' : 'Explorer',
     ];
   }
+
+  // This educational diagram belongs to the IA & Drupal landing page only.
+  // Keep reusable AI feature paragraphs unchanged on other routes.
+  $path = \Drupal::service('path.current')->getPath();
+  $alias = \Drupal::service('path_alias.manager')->getAliasByPath($path, $langcode);
+  $variables['is_ai_flow_page'] = in_array($alias, ['/ia-drupal', '/ai-drupal'], TRUE);
+  $variables['ai_flow_steps'] = [];
+
+  if (!$variables['is_ai_flow_page']) {
+    return;
+  }
+
+  $is_english = $langcode === 'en';
+  $variables['ai_flow_eyebrow'] = $is_english
+    ? 'AI & Drupal / governed automation'
+    : 'IA & Drupal / automatisation maîtrisée';
+  $variables['ai_flow_title'] = $is_english
+    ? 'AI saves you time. You stay in control.'
+    : 'L’IA vous fait gagner du temps. Vous gardez la maîtrise.';
+  $variables['ai_flow_intro'] = $is_english
+    ? 'From everyday documents to publishable content, with a human decision at the right moment.'
+    : 'Des documents aux contenus à publier, avec une décision humaine au bon moment.';
+  $variables['ai_flow_outro'] = $is_english
+    ? 'A clear, controlled workflow that fits your tools.'
+    : 'Un parcours clair, maîtrisé et intégré à vos outils.';
+
+  $steps = $is_english
+    ? [
+      ['Your content', 'Texts, documents, requests'],
+      ['AI assistance', 'Analysis and suggestions'],
+      ['Human approval', 'You make the decision'],
+      ['Publication', 'On your Drupal website'],
+    ]
+    : [
+      ['Votre contenu', 'Textes, documents, demandes'],
+      ['Assistance IA', 'Analyse et proposition'],
+      ['Validation humaine', 'Vous gardez la décision'],
+      ['Publication', 'Sur votre site Drupal'],
+    ];
+
+  foreach ($steps as $index => [$title, $description]) {
+    $variables['ai_flow_steps'][] = [
+      'number' => sprintf('%02d', $index + 1),
+      'title' => $title,
+      'description' => $description,
+      'is_human' => $index === 2,
+    ];
+  }
+
+  // Illustrative scenarios only: no live AI connector or MCP runtime.
+  $variables['ai_visual_flow'] = $is_english
+    ? [
+      'eyebrow' => 'Explore the safeguards',
+      'title' => 'What happens in each situation?',
+      'intro' => 'Three possible paths. The rules and people remain in control.',
+      'cases' => [
+        [
+          'title' => 'Read permitted information',
+          'steps' => ['A request', 'Access check', 'Permitted information only'],
+          'result' => 'Confidentiality remains a priority.',
+        ],
+        [
+          'title' => 'Suggest without publishing',
+          'steps' => ['AI suggestion', 'Editable draft', 'Human decision'],
+          'result' => 'No publication without approval.',
+        ],
+        [
+          'title' => 'Refuse a sensitive action',
+          'steps' => ['Unauthorized request', 'Permission check', 'Blocked without changes'],
+          'result' => 'Access rules take precedence over automation.',
+        ],
+      ],
+      'disclaimer' => 'Illustrative design scenarios, not a live AI or MCP demonstration.',
+    ]
+    : [
+      'eyebrow' => 'Explorez les garde-fous',
+      'title' => 'Que se passe-t-il selon la situation ?',
+      'intro' => 'Trois parcours possibles. Les règles et les personnes gardent la maîtrise.',
+      'cases' => [
+        [
+          'title' => 'Lire une information autorisée',
+          'steps' => ['Une demande', 'Vérification des accès', 'Informations autorisées uniquement'],
+          'result' => 'La confidentialité reste prioritaire.',
+        ],
+        [
+          'title' => 'Proposer sans publier',
+          'steps' => ['Suggestion de l’IA', 'Brouillon modifiable', 'Décision humaine'],
+          'result' => 'Aucune publication sans validation.',
+        ],
+        [
+          'title' => 'Refuser une action sensible',
+          'steps' => ['Demande non autorisée', 'Contrôle des permissions', 'Refus sans modification'],
+          'result' => 'Les règles d’accès priment sur l’automatisation.',
+        ],
+      ],
+      'disclaimer' => 'Scénarios de conception illustratifs, pas une démonstration IA ou MCP active.',
+    ];
 }
 
 /**
@@ -634,10 +870,10 @@ function emerging_digital_hero_illustration(bool $is_front = FALSE): array {
 function emerging_digital_hero_illustration_definitions(): array {
   return [
     'home' => [
-      'path' => 'images/home/home-hero-ia-drupal.svg',
+      'path' => 'images/home/home-hero-collaboration.jpg',
       'alt' => [
-        'fr' => 'Plateforme web structurée et performante.',
-        'en' => 'Structured and performant web platform.',
+        'fr' => 'Personnes travaillant ensemble autour d’un ordinateur portable et de documents.',
+        'en' => 'People working together around a laptop and documents.',
       ],
     ],
     'ia-drupal' => [

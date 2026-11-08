@@ -100,7 +100,8 @@ final class ContactFormTest extends BrowserTestBase {
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->fieldExists('name');
     $this->assertSession()->fieldExists('email');
-    $this->assertSession()->fieldExists('subject');
+    $this->assertSession()->elementExists('css', 'input[name="subject"][type="hidden"]');
+    $this->assertSession()->fieldExists('need_family');
     $this->assertSession()->fieldExists('message');
     $this->assertSession()->fieldExists('rgpd_consent');
     $this->assertSession()->buttonExists($this->submitLabel);
@@ -108,7 +109,6 @@ final class ContactFormTest extends BrowserTestBase {
     $this->submitForm([
       'name' => 'Test Contact',
       'email' => 'email-invalide',
-      'subject' => 'Sujet test',
       'message' => 'Message test',
       'rgpd_consent' => '1',
     ], $this->submitLabel);
@@ -119,13 +119,25 @@ final class ContactFormTest extends BrowserTestBase {
     $this->submitForm([
       'name' => 'Test Contact',
       'email' => 'contact@example.com',
-      'subject' => 'Sujet valide',
+      'need_family' => 'audit_modernization',
       'message' => 'Message valide',
       'rgpd_consent' => '1',
     ], $this->submitLabel);
     $this->assertSession()->statusCodeEquals(200);
     $this->assertSession()->pageTextContains($this->confirmationText);
     self::assertSame(1, $this->countContactSubmissions());
+
+    $submission_ids = \Drupal::entityTypeManager()
+      ->getStorage('webform_submission')
+      ->getQuery()
+      ->accessCheck(FALSE)
+      ->condition('webform_id', 'contact')
+      ->execute();
+    $submission = \Drupal::entityTypeManager()
+      ->getStorage('webform_submission')
+      ->load(reset($submission_ids));
+    self::assertSame('Contact request - E-merging Digital', $submission->getData()['subject'] ?? NULL);
+    self::assertSame('audit_modernization', $submission->getData()['need_family'] ?? NULL);
   }
 
   /**

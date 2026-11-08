@@ -63,6 +63,8 @@ jobs:
             case "$ISSUE_NUMBER" in
               401) target='PROD' ;;
               958) target='PREPROD' ;;
+              1491) target='PREPROD' ;;
+              1512) target='PREPROD' ;;
               *) echo 'No bounded editorial image target is approved for this issue.' >&2; exit 1 ;;
             esac
           else
@@ -104,7 +106,7 @@ jobs:
           extensions: gd
           coverage: none
 
-      - name: Generate and decode the exact repository-owned image
+      - name: Prepare and decode the exact repository-owned image
         shell: bash
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -119,28 +121,46 @@ jobs:
               generator='scripts/runner/generate-editorial-feature-image-958.py'
               asset='assets/editorial/issue-958-drupal-upgrade-roadmap.png'
               ;;
+            1491)
+              generator=''
+              asset='assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg'
+              expected_width=3214
+              expected_height=2146
+              expected_mime='image/jpeg'
+              ;;
+            1512)
+              generator=''
+              asset='assets/editorial/issue-1512-wordpress-drupal-migration.png'
+              expected_width=1672
+              expected_height=941
+              expected_mime='image/png'
+              ;;
             *)
               echo 'No deterministic editorial image generator is approved for this issue.' >&2
               exit 1
               ;;
           esac
-          test -f "$generator"
-          python3 "$generator" --output "$asset"
+          if [[ -n "$generator" ]]; then
+            test -f "$generator"
+            python3 "$generator" --output "$asset"
+          fi
           test -s "$asset"
-          ASSET_TO_DECODE="$asset" php <<'PHP'
+          ASSET_TO_DECODE="$asset" EXPECTED_WIDTH="${expected_width:-1200}" EXPECTED_HEIGHT="${expected_height:-630}" EXPECTED_MIME="${expected_mime:-image/png}" php <<'PHP'
           <?php
           $path = getenv('ASSET_TO_DECODE');
           if (!is_string($path) || $path === '') {
-            fwrite(STDERR, "Generated editorial PNG path is unavailable.\n");
+            fwrite(STDERR, "Trusted editorial image path is unavailable.\n");
             exit(2);
           }
-          if (!function_exists('imagecreatefrompng')) {
-            fwrite(STDERR, "GD PNG decoder is unavailable.\n");
+          $mime = getenv('EXPECTED_MIME');
+          $decoder = $mime === 'image/jpeg' ? 'imagecreatefromjpeg' : 'imagecreatefrompng';
+          if (!function_exists($decoder)) {
+            fwrite(STDERR, "Trusted image GD decoder is unavailable.\n");
             exit(3);
           }
-          $image = @imagecreatefrompng($path);
-          if (!$image instanceof GdImage || imagesx($image) !== 1200 || imagesy($image) !== 630) {
-            fwrite(STDERR, "Generated editorial PNG is not GD-decodable at 1200x630.\n");
+          $image = @$decoder($path);
+          if (!$image instanceof GdImage || imagesx($image) !== (int) getenv('EXPECTED_WIDTH') || imagesy($image) !== (int) getenv('EXPECTED_HEIGHT')) {
+            fwrite(STDERR, "Trusted editorial image is not GD-decodable at the approved dimensions.\n");
             exit(4);
           }
           PHP
@@ -171,7 +191,7 @@ jobs:
           trusted_main = os.environ['TRUSTED_MAIN']
           target = os.environ['TARGET']
           if surface == 'standard':
-              approved_targets = {'401': 'PROD', '958': 'PREPROD'}
+              approved_targets = {'401': 'PROD', '958': 'PREPROD', '1491': 'PREPROD', '1512': 'PREPROD'}
               if approved_targets.get(issue) != target:
                   raise SystemExit('Editorial image issue/target binding is invalid.')
           elif surface == 'prod':
@@ -198,16 +218,28 @@ jobs:
           if not isinstance(asset, dict) or set(asset) != {'path', 'filename', 'sha256', 'mime', 'width', 'height', 'max_bytes'}:
               raise SystemExit('Feature image asset profile is invalid.')
           asset_path = asset.get('path')
-          if not isinstance(asset_path, str) or not re.fullmatch(r'assets/editorial/[a-z0-9][a-z0-9._-]*\.png', asset_path):
-              raise SystemExit('Feature image asset path is not bounded.')
-          if asset.get('mime') != 'image/png' or not re.fullmatch(r'[0-9a-f]{64}', asset.get('sha256', '')):
-              raise SystemExit('Feature image v1 requires an exact PNG SHA-256.')
+          if issue == '1491':
+              if asset_path != 'assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg':
+                  raise SystemExit('Issue #1491 JPEG path mismatch.')
+              if (asset.get('filename') != 'issue-1491-lens-saint-servais-flamenc-2007-8e1cf32c.jpg'
+                  or asset.get('mime') != 'image/jpeg'
+                  or (asset.get('width'), asset.get('height'), asset.get('max_bytes')) != (3214, 2146, 4112433)):
+                  raise SystemExit('Issue #1491 JPEG profile mismatch.')
+          elif not isinstance(asset_path, str) or not re.fullmatch(r'assets/editorial/[a-z0-9][a-z0-9._-]*\.png', asset_path) or asset.get('mime') != 'image/png':
+              raise SystemExit('Other feature image profiles remain PNG-only.')
+          if not re.fullmatch(r'[0-9a-f]{64}', asset.get('sha256', '')):
+              raise SystemExit('Feature image asset SHA-256 is invalid.')
           path = Path(asset_path)
           if not path.is_file():
               raise SystemExit('Deterministically generated feature image asset is missing.')
           actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
           if actual_sha != asset['sha256']:
               raise SystemExit('Generated feature image asset hash mismatch.')
+          if issue == '1491' and (
+              actual_sha != '8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2'
+              or (asset['width'], asset['height']) != (3214, 2146)
+          ):
+              raise SystemExit('Issue #1491 approved photograph identity mismatch.')
           if path.stat().st_size <= 0 or path.stat().st_size > asset['max_bytes']:
               raise SystemExit('Generated feature image asset size is outside the profile limit.')
           alt = profile.get('alt')
@@ -305,17 +337,34 @@ jobs:
           case "$ISSUE_NUMBER" in
             401) generator='scripts/runner/generate-editorial-feature-image-401.py' ;;
             958) generator='scripts/runner/generate-editorial-feature-image-958.py' ;;
+            1491) generator='' ;;
+            1512) generator='' ;;
             *) exit 1 ;;
           esac
-          test -f "$generator"
+          if [[ -n "$generator" ]]; then test -f "$generator"; fi
           bash -n scripts/runner/run-editorial-feature-image.sh
           php -l scripts/runner/editorial-feature-image.php
           [[ "$(sha256sum "$ASSET_PATH" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
-          candidate="$(mktemp --suffix=.png)"
-          trap 'rm -f "$candidate"' EXIT
-          python3 "$generator" --output "$candidate"
-          [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
-          cmp -s "$candidate" "$ASSET_PATH"
+          if [[ -n "$generator" ]]; then
+            candidate="$(mktemp --suffix=.png)"
+            trap 'rm -f "$candidate"' EXIT
+            python3 "$generator" --output "$candidate"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == "$EXPECTED_ASSET_SHA" ]]
+            cmp -s "$candidate" "$ASSET_PATH"
+          else
+            case "$ISSUE_NUMBER" in
+              1491)
+                [[ "$ASSET_PATH" == 'assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg' ]]
+                [[ "$EXPECTED_ASSET_SHA" == '8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2' ]]
+                ;;
+              1512)
+                [[ "$ASSET_PATH" == 'assets/editorial/issue-1512-wordpress-drupal-migration.png' ]]
+                [[ "$EXPECTED_ASSET_SHA" == '9f16cb72d97ec7a911b4deda57bf8708ef66affeba8d7c4f55abbfe4fd50f038' ]]
+                ;;
+              *) exit 1 ;;
+            esac
+            git ls-files --error-unmatch "$ASSET_PATH" >/dev/null
+          fi
 
       - name: Configure bounded SSH channel
         env:

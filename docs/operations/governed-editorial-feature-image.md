@@ -14,8 +14,9 @@ Article to receive one reviewed feature-image asset without turning Agency into 
 generic uploader or remote downloader.
 
 Drupal remains the editorial source of truth for the selected environment after
-apply. The repository owns the reviewed transfer profile plus the deterministic
-source code needed to reproduce the exact image bytes and prove their provenance.
+apply. The repository owns the reviewed transfer profile plus the exact asset
+bytes, either from an existing deterministic generator or, for #1491 only,
+from the committed owner-provided photograph.
 
 ## Control surface
 
@@ -54,7 +55,7 @@ fixes:
 - generated asset path;
 - final Drupal filename;
 - exact generated asset SHA-256;
-- MIME `image/png`;
+- MIME `image/png` (#401/#958), or the exact #1491 JPEG;
 - exact dimensions;
 - maximum byte size;
 - FR ALT;
@@ -71,16 +72,16 @@ profile and generator change.
 
 ## Asset boundary
 
-V1 accepts only the exact PNG generated from the approved repository source for
-the closed profile. The deterministic sources currently are:
+The #401/#958 profiles accept only exact PNGs generated from approved repository
+source. #1491 has a separate immutable JPEG exception described below. The deterministic sources currently are:
 
 ```text
 scripts/runner/generate-editorial-feature-image-401.py
 scripts/runner/generate-editorial-feature-image-958.py
 ```
 
-The generated PNG itself is deliberately **not committed as opaque binary
-bytes**. The trusted workflow generates it in the checked-out workspace, checks
+The #401 and #958 generated PNGs are deliberately **not committed as opaque binary
+bytes**. The trusted workflow generates them in the checked-out workspace, checks
 its exact SHA-256 and proves `imagecreatefrompng()` can decode it at the expected
 dimensions before the normal transport route may copy it to the selected bounded
 target.
@@ -97,7 +98,7 @@ uploaded attachment. The route does not:
 - generate an image on the Drupal target;
 - create Media entities.
 
-The assets are language-neutral, sober illustrations based on Agency
+The #401/#958 assets are language-neutral, sober illustrations based on Agency
 design-system colors. They have no embedded marketing claim and use translated
 Drupal ALT text instead of visible language-specific copy.
 
@@ -115,7 +116,7 @@ Before mutation it verifies:
 - mapped entity is an `article` node;
 - EN translation exists;
 - `field_feature_image` exists;
-- asset bytes match SHA-256, PNG MIME, dimensions and maximum size;
+- asset bytes match SHA-256, profile-bound MIME, dimensions and maximum size;
 - technical author uid 1 is active.
 
 The trusted workflow additionally requires the generated PNG to be GD-decodable
@@ -139,6 +140,7 @@ exactly:
 ```text
 issue #401 -> PROD -> /var/www/agency/current
 issue #958 -> PREPROD -> /var/www/agency-preprod/current
+issue #1491 -> PREPROD -> /var/www/agency-preprod/current
 ```
 
 For #958, the existing #959 PREPROD connection primitives are reused:
@@ -166,6 +168,8 @@ IDEMPOTENT
 - `REPAIR_REQUIRED`: the exact governed asset is already attached but one or both
   translated ALTs do not match the reviewed profile;
 - `IDEMPOTENT`: exact asset and both ALTs already match.
+- `REPLACE_APPROVED`: only #1491 PREPROD with the exact former FID 4,
+  URI, legacy SHA-256 and matching FR/EN ALT; no other transition is admitted.
 
 If the Article already references another asset, FR/EN FIDs diverge, the File
 entity is missing, hashes differ, or the Article mapping is inconsistent, the
@@ -173,8 +177,8 @@ route fails closed instead of replacing or guessing.
 
 ## Apply
 
-`apply` first runs a fresh dry-run on the selected target. For `READY` or
-`REPAIR_REQUIRED`, the runner creates and verifies a SQL backup below the fixed
+`apply` first runs a fresh dry-run on the selected target. For `READY`,
+`REPAIR_REQUIRED` or the exact #1491 `REPLACE_APPROVED`, the runner creates and verifies a SQL backup below the fixed
 target-specific shared backup directory:
 
 ```text
@@ -335,3 +339,43 @@ Normal converged flow for either closed profile remains:
 
 For #958, this flow stops after PREPROD render validation and human review;
 PROD publication remains a separate Project Lead decision.
+
+## #1491 exact Flamenc JPEG correction (PREPROD only)
+
+The #1491 Article is already materialized as node 44, with unchanged
+FR/EN author payload SHA-256
+`6f53bb01fcc8dae15d73c39a77f62e6da9d663ca588d4c5c31bedced95df11fd`.
+The former `issue-1491-lens-saint-servais-original.png` was actually a poster,
+not the landscape credited by the Article. Its File entity (FID 4) remains
+preserved for rollback; it must **not** be deleted or cleared to simulate READY.
+
+The sole approved replacement is the unmodified owner-supplied landscape:
+
+```text
+Repository asset: assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg
+Drupal filename: issue-1491-lens-saint-servais-flamenc-2007-8e1cf32c.jpg
+SHA-256: 8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2
+JPEG: 3214 x 2146, 4112433 bytes
+Issue/target: #1491 -> PREPROD only
+```
+
+The governed route admits JPEG only for this exact profile; #401 and #958
+remain PNG-only. No URL download, uploader, arbitrary path or target input
+has been added. The special transition returns `REPLACE_APPROVED` only when
+both FR/EN reference FID 4 on node 44, the legacy URI and bytes still match
+SHA-256 `eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49`,
+the existing ALT text matches the approved profile and the Article mapping
+remains exact. Other existing images, FIDs, targets or hashes are refused.
+
+`/agency-editorial-image apply` requires the matching bot-authored dry-run
+receipt and takes the existing governed SQL backup before any transition.
+The Drupal File/Entity APIs create a new file under `public://articles/`,
+update the shared FR/EN FID and distinct ALT values, save one new revision
+and verify an `IDEMPOTENT` post-state. A second dry-run must be `IDEMPOTENT`.
+No PROD write is permitted.
+
+Photo credit: Flamenc / Wikimedia Commons, CC BY-SA 3.0,
+https://commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg.
+The photograph depicts Lens-Saint-Servais in 2007, not the proposed turbine
+locations. Human review of actual FR/EN desktop/mobile PREPROD renders remains
+required before any separate PROD approval.

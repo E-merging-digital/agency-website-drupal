@@ -2,6 +2,7 @@ elements: |-
   required_notice:
     '#type': webform_markup
     '#markup': '<p class="contact-required-note">Les champs marqués d’un astérisque sont obligatoires.</p>'
+    '#access': false
   name:
     '#type': textfield
     '#title': 'Votre nom'
@@ -9,15 +10,17 @@ elements: |-
     '#default_value': '[current-user:display-name]'
   email:
     '#type': email
-    '#title': 'Votre email'
+    '#title': 'Votre e-mail'
     '#required': true
     '#default_value': '[current-user:mail]'
   organization:
     '#type': textfield
     '#title': 'Organisation'
     '#placeholder': 'Nom de votre structure'
+    '#access': false
   organization_type:
     '#type': select
+    '#access': false
     '#title': 'Type de structure'
     '#options':
       sme: 'PME / entreprise'
@@ -28,6 +31,7 @@ elements: |-
     '#empty_option': 'Non précisé'
   project_type:
     '#type': select
+    '#access': false
     '#title': 'Type de projet'
     '#options':
       new_site: 'Nouveau site Drupal'
@@ -38,8 +42,17 @@ elements: |-
       ai: 'IA & Drupal'
       other: 'Autre besoin'
     '#empty_option': 'Non précisé'
+  need_family:
+    '#type': radios
+    '#title': 'Quel est votre besoin ? (facultatif)'
+    '#options':
+      audit_modernization: 'Auditer / moderniser'
+      development_maintenance: 'Développer / maintenir'
+      integration_automation: 'Connecter / automatiser'
+      other: 'Un autre besoin'
   main_need:
     '#type': select
+    '#access': false
     '#title': 'Besoin principal'
     '#options':
       frame: 'Cadrer le projet'
@@ -50,6 +63,7 @@ elements: |-
     '#empty_option': 'Non précisé'
   budget:
     '#type': select
+    '#access': false
     '#title': 'Budget indicatif'
     '#options':
       unknown: 'À définir'
@@ -60,6 +74,7 @@ elements: |-
     '#empty_option': 'Non précisé'
   timeline:
     '#type': select
+    '#access': false
     '#title': 'Délai envisagé'
     '#options':
       urgent: 'Dès que possible'
@@ -69,11 +84,12 @@ elements: |-
     '#empty_option': 'Non précisé'
   subject:
     '#title': Objet
-    '#type': textfield
+    '#type': hidden
     '#required': true
+    '#default_value': 'Demande de contact - E-merging Digital'
     '#test': 'Testing contact webform from [site:name]'
   message:
-    '#title': Message
+    '#title': 'Votre message'
     '#type': textarea
     '#required': true
     '#rows': 5

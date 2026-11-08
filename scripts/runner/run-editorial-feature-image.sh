@@ -33,6 +33,14 @@ case "$ISSUE_NUMBER:$TARGET" in
     PROJECT_ROOT='/var/www/agency-preprod'
     SERVER_USER='agency-preprod'
     ;;
+  1491:PREPROD)
+    PROJECT_ROOT='/var/www/agency-preprod'
+    SERVER_USER='agency-preprod'
+    ;;
+  1512:PREPROD)
+    PROJECT_ROOT='/var/www/agency-preprod'
+    SERVER_USER='agency-preprod'
+    ;;
   958:PROD)
     PROJECT_ROOT='/var/www/agency'
     ;;
@@ -80,7 +88,11 @@ mkdir -p "$ARTIFACT_DIR"
 remote_stem="/tmp/agency-editorial-image-${ISSUE_NUMBER}-${RUN_ID}-${RUN_ATTEMPT}"
 remote_script="${remote_stem}.php"
 remote_profile="${remote_stem}-profile.json"
-remote_asset="${remote_stem}-asset.png"
+if [[ "$ISSUE_NUMBER" == '1491' ]]; then
+  remote_asset="${remote_stem}-asset.jpg"
+else
+  remote_asset="${remote_stem}-asset.png"
+fi
 remote_result="${remote_stem}-result.json"
 remote_preapply="${remote_stem}-preapply.json"
 remote_target="${SERVER_USER}@${SERVER_HOST}"
@@ -125,12 +137,12 @@ case "$MODE" in
   apply)
     remote_run dry-run "$remote_preapply"
     scp "${ssh_opts[@]}" "$remote_target:$remote_preapply" "$ARTIFACT_DIR/preapply.json" >/dev/null
-    jq -e '.status == "PASS" and (.verdict == "READY" or .verdict == "REPAIR_REQUIRED" or .verdict == "IDEMPOTENT")' \
+    jq -e '.status == "PASS" and (.verdict == "READY" or .verdict == "REPAIR_REQUIRED" or .verdict == "REPLACE_APPROVED" or .verdict == "IDEMPOTENT")' \
       "$ARTIFACT_DIR/preapply.json" >/dev/null
 
     preapply_verdict="$(jq -r '.verdict' "$ARTIFACT_DIR/preapply.json")"
     backup_file=''
-    if [[ "$preapply_verdict" == 'READY' || "$preapply_verdict" == 'REPAIR_REQUIRED' ]]; then
+    if [[ "$preapply_verdict" == 'READY' || "$preapply_verdict" == 'REPAIR_REQUIRED' || "$preapply_verdict" == 'REPLACE_APPROVED' ]]; then
       timestamp="$(date -u +%Y%m%d%H%M%S)"
       backup_stem="$BACKUP_DIR/editorial-image-issue-${ISSUE_NUMBER}-${timestamp}.sql"
       backup_file="${backup_stem}.gz"

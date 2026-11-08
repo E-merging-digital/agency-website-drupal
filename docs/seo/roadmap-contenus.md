@@ -204,6 +204,42 @@ Chaque article doit :
 - rester factuel et ne jamais inventer client, résultat ou métrique ;
 - suivre le workflow PREPROD -> revue humaine -> PROD.
 
+### Ligne éditoriale des articles (référence #1491 et #1512)
+
+Les articles sont rédigés comme par un journaliste spécialisé qui connaît le
+développement web : **vivants, clairs pour un dirigeant de PME ou d'ASBL,
+professionnels sans être scolaires**. Un angle concret dès l'ouverture, une
+scène ou question réelle, des exemples compréhensibles et une pointe d'humour
+discret valent mieux qu'un empilement de définitions et de listes. Ne jamais
+inventer de client, de citation, de statistique, de résultat ou de référence.
+
+- Répondre d'abord à la question du lecteur ; montrer les cas où **notre
+  solution n'est pas la meilleure** et les compromis honnêtes.
+- Inclure un cadre de décision, des conseils actionnables et une FAQ seulement
+  lorsqu'ils aident réellement ; éviter les tableaux et listes de remplissage.
+- Vérifier à la source les échéances, compatibilités, chiffres et obligations ;
+  distinguer faits vérifiés, conseils et scénarios illustratifs.
+- Préparer des versions **FR et EN naturelles**, avec titre, chapô, intention
+  de recherche, liens internes utiles et CTA pertinent mais non agressif.
+- Réutiliser les URL canoniques existantes lors d'une réécriture. Vérifier les
+  titres/metadata, liens et rendu mobile ; pas d'image IA manifestement fictive.
+  Jonathan fournit/transfère lui-même les nouvelles images, avec ALT FR/EN.
+- Une seule validation humaine du **candidat exact rendu en PREPROD** vaut GO
+  pour la promotion PROD. Les vérifications obligatoires s'exécutent ensuite
+  automatiquement sans nouvelle autorisation ; tout HOLD ou dérive fait stopper.
+
+Lot de remise à niveau des quatre articles antérieurs à #1491 / #1512,
+sans duplication des pages ni changement de slug :
+
+1. IA pour PME : sept cas utiles et les limites à l'automatisation (04/09/2026).
+2. Drupal 10 vers 11 : fin de support du 9 décembre 2026 (02/09/2026).
+3. Drupal, Symfony ou Laravel : choisir selon le métier (21/08/2026).
+4. Checklist refonte de site : les douze décisions utiles (21/08/2026, #401).
+
+Traiter chaque réécriture comme une **nouvelle révision du nœud existant**,
+et non comme un nouvel Article. Préserver catégorie, traductions, médias,
+canoniques et redirections. Préparer le texte FR/EN avant la recette PREPROD.
+
 ## WordPress — frontière commerciale
 
 WordPress reste autorisé pour :

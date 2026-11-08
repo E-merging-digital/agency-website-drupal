@@ -185,6 +185,23 @@ A fresh bot-authored PROD dry-run for the exact payload/current main must be
 later than the human approval. This makes stale approval and pre-approval PROD
 dry-runs unusable.
 
+### Single human GO, automatic technical continuation
+
+The direct, unedited OWNER/User/non-App approval comment is the **only human GO**
+for that exact rendered PREPROD candidate. Its creation event starts the existing
+trusted PROD dry-run and, **only if that job succeeds**, the existing same-artifact
+PROD apply. These remain separate machine gates with unchanged validators,
+backup, fail-closed behaviour and post-apply receipt. No extra human comment or
+manual `/agency-editorial dry-run` / `apply` is required. The explicit command
+routes remain available as a diagnostic/recovery fallback, not as routine steps.
+
+The automatic path is Article-only, requires the live event comment to be the
+same direct, unedited human approval, and binds the apply to that exact comment
+ID. If another approval supersedes it, `main` changes, PREPROD/image evidence
+is stale, or a HOLD applies, the job stops rather than falling back to older
+evidence. This never authorizes publication of a new or revised text without
+its own PREPROD review.
+
 No general image waiver or direct-PROD exception flag exists. A legal/emergency
 exception requires a separate explicit, bounded, auditable Project Lead
 capability and cannot become a reusable precedent.

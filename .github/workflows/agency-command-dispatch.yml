@@ -44,8 +44,10 @@ jobs:
           EVENT_ACTION: ${{ github.event.action }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_AUTHOR_TYPE: ${{ github.event.comment.user.type }}
           COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
           COMMENT_FROM_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          COMMENT_UNEDITED: ${{ github.event.comment.created_at == github.event.comment.updated_at }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
@@ -62,8 +64,10 @@ jobs:
           event_action = os.environ['EVENT_ACTION']
           body = os.environ['COMMENT_BODY']
           comment_author = os.environ.get('COMMENT_AUTHOR', '')
+          comment_author_type = os.environ.get('COMMENT_AUTHOR_TYPE', '')
           comment_author_association = os.environ.get('COMMENT_AUTHOR_ASSOCIATION', '')
           comment_from_app = os.environ.get('COMMENT_FROM_APP', 'false').lower() == 'true'
+          comment_unedited = os.environ.get('COMMENT_UNEDITED', 'false').lower() == 'true'
           issue = os.environ['ISSUE_NUMBER']
           issue_title = os.environ['ISSUE_TITLE']
           issue_body = os.environ['ISSUE_BODY']
@@ -137,6 +141,21 @@ jobs:
                       if issue == cleanup_required_issue and re.fullmatch(cleanup_pattern, body) is not None:
                           matches.append(cleanup_route)
               route = matches[0] if len(matches) == 1 else 'NONE'
+              approval_heading = (
+                  '## PROJECT LEAD — HUMAN APPROVAL / exact '
+                  f'#{issue} candidate approved for PROD promotion'
+              )
+              if (
+                  route == 'NONE'
+                  and issue != '1117'
+                  and body.splitlines()[0:1] == [approval_heading]
+                  and comment_author == 'E-merging-digital'
+                  and comment_author_type == 'User'
+                  and comment_author_association == 'OWNER'
+                  and not comment_from_app
+                  and comment_unedited
+              ):
+                  route = 'EDITORIAL_APPROVED_AUTO_PROMOTION'
           elif not is_pr and event_name == 'issues' and event_action == 'opened':
               marker = (
                   'AGENCY_PREPROD_COCKPIT_PLAN_AUTHORITY='
@@ -191,6 +210,40 @@ jobs:
       contents: read
       issues: write
     uses: ./.github/workflows/trusted-editorial-publication.yml
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  editorial-auto-dry-run:
+    name: Automatic PROD dry-run after direct human approval
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'EDITORIAL_APPROVED_AUTO_PROMOTION' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-publication.yml
+    with:
+      automatic_mode: dry-run
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  editorial-auto-apply:
+    name: Automatic exact PROD promotion after successful dry-run
+    needs: [classify, editorial-auto-dry-run]
+    if: >-
+      ${{
+        needs.classify.outputs.route == 'EDITORIAL_APPROVED_AUTO_PROMOTION' &&
+        needs.editorial-auto-dry-run.result == 'success'
+      }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/trusted-editorial-publication.yml
+    with:
+      automatic_mode: apply
     secrets:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       SERVER_HOST: ${{ secrets.SERVER_HOST }}

@@ -56,7 +56,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
   }
 
   /**
-   * Only the four Project Lead-approved issue/target pairs may resolve.
+   * Only the five Project Lead-approved issue/target pairs may resolve.
    */
   public function testRunnerHasOnlyClosedIssueTargetPairs(): void {
     $runner = $this->runnerSource();
@@ -65,6 +65,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
     self::assertStringContainsString('401:PROD)', $runner);
     self::assertStringContainsString('958:PREPROD)', $runner);
     self::assertStringContainsString('1491:PREPROD)', $runner);
+    self::assertStringContainsString('1512:PREPROD)', $runner);
     self::assertStringContainsString('958:PROD)', $runner);
     self::assertStringContainsString(
       'No bounded editorial image issue/target pair is approved.',
@@ -83,6 +84,10 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency-preprod'", $preprod1491);
     self::assertStringContainsString("SERVER_USER='agency-preprod'", $preprod1491);
 
+    $preprod1512 = $this->caseBody($runner, '1512:PREPROD');
+    self::assertStringContainsString("PROJECT_ROOT='/var/www/agency-preprod'", $preprod1512);
+    self::assertStringContainsString("SERVER_USER='agency-preprod'", $preprod1512);
+
     $prod958 = $this->caseBody($runner, '958:PROD');
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency'", $prod958);
     self::assertStringNotContainsString('/var/www/agency-preprod', $prod958);
@@ -90,9 +95,9 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
     self::assertStringNotContainsString('TARGET=\'PREPROD\'', $prod958);
 
     self::assertSame(
-      4,
+      5,
       preg_match_all("/PROJECT_ROOT='\\/var\\/www\\/agency(?:-preprod)?'/", $runner),
-      'Project roots must remain fixed constants for the four approved pairs.',
+      'Project roots must remain fixed constants for the five approved pairs.',
     );
     self::assertStringNotContainsString('PROJECT_ROOT="${', $runner);
   }
@@ -112,6 +117,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
     foreach ([
       ['401', 'PREPROD'],
       ['1491', 'PROD'],
+      ['1512', 'PROD'],
       ['999', 'PROD'],
       ['999', 'PREPROD'],
     ] as [$issue, $target]) {
@@ -128,6 +134,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
       ['401', 'PROD'],
       ['958', 'PREPROD'],
       ['1491', 'PREPROD'],
+      ['1512', 'PREPROD'],
       ['958', 'PROD'],
     ] as [$issue, $target]) {
       $result = $this->runResolver($issue, $target);

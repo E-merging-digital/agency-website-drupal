@@ -76,6 +76,9 @@ try {
   if (!defined('AGENCY_EDITORIAL_LIBRARY_ONLY')) {
     define('AGENCY_EDITORIAL_LIBRARY_ONLY', TRUE);
   }
+  if (!defined('AGENCY_EDITORIAL_FEATURE_IMAGE_LIBRARY_ONLY')) {
+    define('AGENCY_EDITORIAL_FEATURE_IMAGE_LIBRARY_ONLY', TRUE);
+  }
   require_once $publicationLibrary;
   require_once $imageLibrary;
   require_once $promotionLibrary;

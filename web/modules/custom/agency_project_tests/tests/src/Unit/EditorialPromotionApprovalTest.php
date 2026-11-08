@@ -36,6 +36,19 @@ final class EditorialPromotionApprovalTest extends TestCase {
   }
 
   /**
+   * The promoted image helper must not execute its standalone CLI entrypoint.
+   */
+  public function testPromotionImportsImageHelperInLibraryMode(): void {
+    $runtime = (string) file_get_contents(dirname(DRUPAL_ROOT) . '/scripts/runner/editorial-promotion-runtime.php');
+    $guard = strpos($runtime, "define('AGENCY_EDITORIAL_FEATURE_IMAGE_LIBRARY_ONLY', TRUE);");
+    $include = strpos($runtime, 'require_once $imageLibrary;');
+
+    self::assertIsInt($guard, 'Image library-only guard must be set.');
+    self::assertIsInt($include, 'Promotion must import the image library.');
+    self::assertLessThan($include, $guard, 'Image library-only guard must precede import.');
+  }
+
+  /**
    * Only the existing #1491 photo may use JPEG; all other profiles stay PNG.
    */
   public function testIssueBoundJpegException(): void {

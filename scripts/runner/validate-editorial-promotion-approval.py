@@ -75,8 +75,9 @@ def canonical_profile(
     expected_asset = {"path", "filename", "sha256", "mime", "width", "height", "max_bytes"}
     if set(asset) != expected_asset or set(alt) != {"fr", "en"}:
         raise ApprovalError("Feature-image asset/ALT keys are not exact.")
-    if asset.get("mime") != "image/png":
-        raise ApprovalError("Feature-image promotion currently requires image/png.")
+    expected_mime = "image/jpeg" if issue_number == 1491 else "image/png"
+    if asset.get("mime") != expected_mime:
+        raise ApprovalError(f"Feature-image promotion requires {expected_mime} for issue #{issue_number}.")
     if not all(isinstance(alt.get(lang), str) and alt[lang].strip() for lang in ("fr", "en")):
         raise ApprovalError("FR/EN ALT values are mandatory.")
     if not asset_path.is_file():

@@ -33,6 +33,12 @@ final class EditorialPromotionWorkflowTest extends TestCase {
     self::assertStringContainsString('Candidate revision changed after workflow start.', $workflow);
     self::assertStringContainsString('Candidate payload changed after workflow start.', $workflow);
     self::assertStringContainsString('generate-editorial-feature-image-${ISSUE_NUMBER}.py', $workflow);
+    self::assertStringContainsString('1491|1512)', $workflow);
+    self::assertStringContainsString('test -s "$asset_path"', $workflow);
+    self::assertStringContainsString("issue_number == 1512", $workflow);
+    self::assertStringContainsString("os.environ['ISSUE_NUMBER'] == '1512'", $workflow);
+    self::assertStringContainsString("comment.get('updated_at') == comment['created_at']", $workflow);
+    self::assertStringContainsString("comment['performed_via_github_app'] is None", $workflow);
     self::assertStringContainsString('run-editorial-promotion.sh', $workflow);
     self::assertStringContainsString('.image_waiver == "UNSUPPORTED"', $workflow);
 

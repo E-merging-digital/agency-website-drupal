@@ -61,7 +61,7 @@
     "1512": {
       "issue_number": 1512,
       "bundle": "article",
-      "article_payload_sha256": "60f9b01c3307cdf88d4cd820f661ee6226c03269752a91c70b5d8e7a375e4963",
+      "article_payload_sha256": "49fb931ab701e4914fff1117f175ef794ca7abe4087ae66629a5cb473554eaf2",
       "field_name": "field_feature_image",
       "asset": {
         "path": "assets/editorial/issue-1512-wordpress-drupal-migration.png",

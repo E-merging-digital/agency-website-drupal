@@ -307,6 +307,8 @@ final class EditorialPromotionApprovalTest extends TestCase {
    *
    * @param array<string, mixed> $fixture
    *   Fixture inputs.
+   * @param int $issue
+   *   Issue number used by this approval fixture.
    *
    * @return array{0:int,1:array<string,mixed>}
    *   Exit code and decoded result when present.

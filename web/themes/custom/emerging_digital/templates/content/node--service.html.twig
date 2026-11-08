@@ -12,43 +12,11 @@
   {% if is_mcp_service %}
     {# Drupal's existing page-title block owns the single H1. #}
     {% set mcp_media %}
-      <figure class="ed-mcp-flow" id="mcp-how-it-works" aria-labelledby="mcp-flow-title">
-        <figcaption class="ed-mcp-flow__caption" id="mcp-flow-title">{{ mcp_copy.diagram_title }}</figcaption>
-        <p class="ed-mcp-flow__description">{{ mcp_copy.diagram_description }}</p>
-        <ol class="ed-mcp-flow__steps">
-          <li>
-            <strong>{{ mcp_copy.agent_title }}</strong>
-            <span>{{ mcp_copy.agent_detail }}</span>
-          </li>
-          <li>
-            <strong>{{ mcp_copy.mcp_title }}</strong>
-            <span>{{ mcp_copy.mcp_detail }}</span>
-          </li>
-          <li>
-            <strong>{{ mcp_copy.app_title }}</strong>
-            <span>{{ mcp_copy.app_detail }}</span>
-          </li>
-          <li>
-            <strong>{{ mcp_copy.policy_title }}</strong>
-            <span>{{ mcp_copy.policy_detail }}</span>
-          </li>
-        </ol>
-        <p class="ed-mcp-flow__outcomes-title">{{ mcp_copy.outcomes_title }}</p>
-        <ul class="ed-mcp-flow__outcomes">
-          <li class="ed-mcp-flow__outcome--allowed">
-            <strong>{{ mcp_copy.allowed_title }}</strong>
-            <span>{{ mcp_copy.allowed_detail }}</span>
-          </li>
-          <li class="ed-mcp-flow__outcome--denied">
-            <strong>{{ mcp_copy.denied_title }}</strong>
-            <span>{{ mcp_copy.denied_detail }}</span>
-          </li>
-          <li class="ed-mcp-flow__outcome--approval">
-            <strong>{{ mcp_copy.approval_title }}</strong>
-            <span>{{ mcp_copy.approval_detail }}</span>
-          </li>
-        </ul>
-      </figure>
+      <div class="ed-mcp-scenario" role="group" aria-label="{{ mcp_copy.example_label }}">
+        <p class="ed-mcp-scenario__eyebrow">{{ mcp_copy.example_label }}</p>
+        <p class="ed-mcp-scenario__question">{{ mcp_copy.example_question }}</p>
+        <p class="ed-mcp-scenario__answer">{{ mcp_copy.example_answer }}</p>
+      </div>
     {% endset %}
     {% set mcp_primary %}
       {% if contact_qualification_cta %}
@@ -71,6 +39,42 @@
       secondary_action: mcp_secondary,
       media: mcp_media,
     }, with_context: false) }}
+    <section class="ed-mcp-flow" id="mcp-how-it-works" aria-labelledby="mcp-flow-title">
+      <div class="ed-mcp-flow__inner">
+        <h2 id="mcp-flow-title">{{ mcp_copy.diagram_title }}</h2>
+        <p class="ed-mcp-flow__description">{{ mcp_copy.diagram_description }}</p>
+        <ol class="ed-mcp-flow__steps">
+          <li>
+            <strong>{{ mcp_copy.agent_title }}</strong>
+            <span>{{ mcp_copy.agent_detail }}</span>
+          </li>
+          <li>
+            <strong>{{ mcp_copy.mcp_title }}</strong>
+            <span>{{ mcp_copy.mcp_detail }}</span>
+          </li>
+          <li>
+            <strong>{{ mcp_copy.app_title }}</strong>
+            <span>{{ mcp_copy.app_detail }}</span>
+          </li>
+        </ol>
+        <p class="ed-mcp-flow__policy"><strong>{{ mcp_copy.policy_title }}</strong> {{ mcp_copy.policy_detail }}</p>
+        <h3 class="ed-mcp-flow__outcomes-title">{{ mcp_copy.outcomes_title }}</h3>
+        <ul class="ed-mcp-flow__outcomes">
+          <li class="ed-mcp-flow__outcome--allowed">
+            <strong>{{ mcp_copy.allowed_title }}</strong>
+            <span>{{ mcp_copy.allowed_detail }}</span>
+          </li>
+          <li class="ed-mcp-flow__outcome--denied">
+            <strong>{{ mcp_copy.denied_title }}</strong>
+            <span>{{ mcp_copy.denied_detail }}</span>
+          </li>
+          <li class="ed-mcp-flow__outcome--approval">
+            <strong>{{ mcp_copy.approval_title }}</strong>
+            <span>{{ mcp_copy.approval_detail }}</span>
+          </li>
+        </ul>
+      </div>
+    </section>
   {% else %}
     <header class="ed-detail-page__hero">
       {% if content.field_short_description %}
@@ -82,11 +86,6 @@
   {% endif %}
 
   <div class="node__content ed-detail-page__layout">
-    {% if is_mcp_service and content.field_short_description %}
-      <div class="ed-detail-page__lede">
-        {{ content.field_short_description }}
-      </div>
-    {% endif %}
     <div class="ed-detail-page__main ed-prose">
       {{ content.field_detailed_description }}
     </div>
@@ -106,6 +105,13 @@
       <h2 class="ed-qualification-cta__title">{{ contact_qualification_cta.title }}</h2>
       <p>{{ contact_qualification_cta.text }}</p>
       <a class="button button--primary" href="{{ contact_qualification_cta.url }}">{{ contact_qualification_cta.label }}</a>
+    </aside>
+  {% endif %}
+  {% if contact_qualification_cta and is_mcp_service %}
+    <aside class="ed-qualification-cta ed-mcp-final-cta" aria-label="{{ contact_qualification_cta.title }}">
+      <h2 class="ed-qualification-cta__title">{{ mcp_copy.final_cta_title }}</h2>
+      <p>{{ mcp_copy.final_cta_text }}</p>
+      <a class="button button--primary" href="{{ contact_qualification_cta.url }}">{{ mcp_copy.final_cta_label }}</a>
     </aside>
   {% endif %}
 </article>

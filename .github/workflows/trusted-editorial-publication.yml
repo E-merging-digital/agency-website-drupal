@@ -139,6 +139,19 @@ jobs:
           marker = '<!-- agency-editorial-payload:v1 -->'
           owner = 'E-merging-digital'
           issue_number = int(os.environ['ISSUE_NUMBER'])
+          def trusted_payload_author(comment):
+              login = comment.get('user', {}).get('login')
+              if login == owner:
+                  return True
+              # Only #1512 accepts Jonathan's directly authored, unedited revision.
+              return (
+                  issue_number == 1512
+                  and login == 'jmaerckaert'
+                  and 'performed_via_github_app' in comment
+                  and comment['performed_via_github_app'] is None
+                  and bool(comment.get('created_at'))
+                  and comment.get('updated_at') == comment['created_at']
+              )
           expected_top = {
               'schema_version', 'issue_number', 'bundle', 'published',
               'category', 'fr', 'en',
@@ -153,7 +166,7 @@ jobs:
 
           candidates = []
           for comment in comments:
-              if comment.get('user', {}).get('login') != owner:
+              if not trusted_payload_author(comment):
                   continue
               body = comment.get('body') or ''
               if not body.startswith(marker):
@@ -289,12 +302,24 @@ jobs:
           from pathlib import Path
 
           marker = '<!-- agency-editorial-payload:v1 -->'
+          def trusted_payload_author(comment):
+              login = comment.get('user', {}).get('login')
+              if login == 'E-merging-digital':
+                  return True
+              return (
+                  os.environ['ISSUE_NUMBER'] == '1512'
+                  and login == 'jmaerckaert'
+                  and 'performed_via_github_app' in comment
+                  and comment['performed_via_github_app'] is None
+                  and bool(comment.get('created_at'))
+                  and comment.get('updated_at') == comment['created_at']
+              )
           candidates = []
           for line in Path('/tmp/agency-editorial-live-comments.b64').read_text(encoding='utf-8').splitlines():
               if not line.strip():
                   continue
               comment = json.loads(base64.b64decode(line).decode('utf-8'))
-              if comment.get('user', {}).get('login') != 'E-merging-digital':
+              if not trusted_payload_author(comment):
                   continue
               body = comment.get('body') or ''
               if not body.startswith(marker):
@@ -355,9 +380,16 @@ jobs:
           PY_PROFILE
             )"
             generator="scripts/runner/generate-editorial-feature-image-${ISSUE_NUMBER}.py"
-            test -f "$generator"
-            mkdir -p "$(dirname "$asset_path")"
-            python3 "$generator" --output "$asset_path"
+            case "$ISSUE_NUMBER" in
+              1491|1512)
+                # Immutable, repository-owned editorial images: never regenerate.
+                ;;
+              *)
+                test -f "$generator"
+                mkdir -p "$(dirname "$asset_path")"
+                python3 "$generator" --output "$asset_path"
+                ;;
+            esac
             test -s "$asset_path"
 
             python3 scripts/runner/validate-editorial-promotion-approval.py \

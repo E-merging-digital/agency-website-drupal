@@ -105,7 +105,7 @@ function emerging_digital_mcp_service_hero_copy(bool $isEnglish): array {
     return [
       'hero_heading' => 'Your tools hold the answers. AI can help your team find them.',
       'hero_intro' => 'We explore how to connect an AI assistant to your existing applications, starting with one useful task and limited, verified access.',
-      'secondary_label' => 'See a simple example',
+      'secondary_label' => 'See the three steps',
       'example_label' => 'Illustrative example',
       'example_question' => '“Which requests still need approval this week?”',
       'example_answer' => 'The assistant would show only the records the connected account is allowed to read — without changing them.',
@@ -135,7 +135,7 @@ function emerging_digital_mcp_service_hero_copy(bool $isEnglish): array {
   return [
     'hero_heading' => 'Vos logiciels ont les réponses. L’IA peut aider vos équipes à les trouver.',
     'hero_intro' => 'Nous étudions comment relier un assistant IA à vos applications existantes, pour un besoin concret et avec des accès limités et vérifiés.',
-    'secondary_label' => 'Voir un exemple simple',
+    'secondary_label' => 'Comprendre en trois étapes',
     'example_label' => 'Exemple fictif',
     'example_question' => '« Quels dossiers attendent une validation cette semaine ? »',
     'example_answer' => 'L’assistant afficherait uniquement les dossiers que le compte connecté peut consulter, sans pouvoir les modifier.',

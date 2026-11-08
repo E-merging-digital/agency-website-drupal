@@ -184,11 +184,11 @@ def direct_owner_approval(
             continue
         fields, urls = parsed
         human_matches.append((comment, fields, urls))
-    if len(human_matches) != 1:
-        raise ApprovalError(
-            f"Expected exactly one exact direct owner-authored Project Lead approval; found {len(human_matches)}."
-        )
-    return human_matches[0]
+    if not human_matches:
+        raise ApprovalError("No exact direct owner-authored Project Lead approval was found.")
+    # Historical approvals remain auditable; only the latest direct owner
+    # approval can authorize the current evidence and must pass every gate.
+    return max(human_matches, key=lambda match: int(match[0].get("id") or 0))
 
 
 def exact_service_owner_approval(

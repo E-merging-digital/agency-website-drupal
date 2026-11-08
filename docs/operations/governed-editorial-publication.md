@@ -132,7 +132,7 @@ PREPROD must then contain both:
 
 ## Explicit human approval
 
-The normal route accepts exactly one direct owner-authored approval headed:
+The normal route uses the latest direct owner-authored approval headed:
 
 ```text
 ## PROJECT LEAD — HUMAN APPROVAL / exact #<issue> candidate approved for PROD promotion
@@ -177,6 +177,10 @@ IMAGE_CHANGE_AFTER_APPROVAL = INVALIDATES_APPROVAL
 ```
 
 The approval comment must be later than the candidate Article and image evidence.
+After a new main or refreshed PREPROD receipt, a new direct human approval
+supersedes prior historical approvals, which stay auditable but cannot authorize
+the current promotion. The latest direct approval must pass every exact field
+and provenance gate; the validator never falls back to an earlier approval.
 A fresh bot-authored PROD dry-run for the exact payload/current main must be
 later than the human approval. This makes stale approval and pre-approval PROD
 dry-runs unusable.

@@ -30,6 +30,19 @@ function emerging_digital_preprocess_node(array &$variables): void {
     $is_english,
   );
 
+  $langcode = $node->language()->getId();
+  $variables['is_mcp_service'] = emerging_digital_is_mcp_service(
+    $bundle,
+    $node->uuid(),
+    (string) ($variables['view_mode'] ?? ''),
+    $langcode,
+  );
+  if ($variables['is_mcp_service']) {
+    $variables['mcp_copy'] = emerging_digital_mcp_service_hero_copy(
+      $is_english,
+    );
+  }
+
   // Keep editor-owned content; compose Contact V3 with the existing Webform.
   $is_contact_page = $bundle === 'page'
     && $node->uuid() === 'd962ec05-25ec-4446-b645-0959a57964e7';
@@ -64,6 +77,89 @@ function emerging_digital_preprocess_node(array &$variables): void {
   $variables['ai_feature_related_services_label'] = $is_english
     ? 'Related services'
     : 'Services liés';
+}
+
+/**
+ * Identifies the approved MCP landing without relying on local node IDs.
+ */
+function emerging_digital_is_mcp_service(
+  string $bundle,
+  string $uuid,
+  string $viewMode,
+  string $langcode,
+): bool {
+  return $bundle === 'service'
+    && $uuid === '4081ff3d-bdce-49e1-90e3-17a7281d9880'
+    && $viewMode === 'full'
+    && in_array($langcode, ['fr', 'en'], TRUE);
+}
+
+/**
+ * Returns concise localized copy for the MCP Service first-screen slice.
+ *
+ * @return array<string, string>
+ *   Approved diagram and hero presentation labels, not editorial body copy.
+ */
+function emerging_digital_mcp_service_hero_copy(bool $isEnglish): array {
+  if ($isEnglish) {
+    return [
+      'hero_heading' => 'Your tools hold the answers. AI can help your team find them.',
+      'hero_intro' => 'We explore how to connect an AI assistant to your existing applications, starting with one useful task and limited, verified access.',
+      'secondary_label' => 'See the three steps',
+      'example_label' => 'Illustrative example',
+      'example_question' => '“Which requests still need approval this week?”',
+      'example_answer' => 'The assistant would show only the records the connected account is allowed to read — without changing them.',
+      'diagram_title' => 'How does an assistant reach the right information?',
+      'diagram_description' => 'Three clear steps, starting with the permissions already defined in your software.',
+      'agent_title' => '1. Ask a question',
+      'agent_detail' => 'Your team asks an AI assistant for useful information.',
+      'mcp_title' => '2. Use a selected connection',
+      'mcp_detail' => 'An MCP server offers a small, clearly defined tool to request it.',
+      'app_title' => '3. Check the application rights',
+      'app_detail' => 'Your software checks what the connected account may actually access.',
+      'policy_title' => 'Who decides?',
+      'policy_detail' => 'Your application and its access rules, not MCP on its own.',
+      'outcomes_title' => 'What happens next?',
+      'allowed_title' => 'Information returned',
+      'allowed_detail' => 'Only an authorised result is shared.',
+      'denied_title' => 'Request refused',
+      'denied_detail' => 'A request outside the granted rights is blocked.',
+      'approval_title' => 'Person asked to approve',
+      'approval_detail' => 'Any later sensitive action would need a separate design and explicit approval.',
+      'final_cta_title' => 'Start with one real business question',
+      'final_cta_text' => 'Tell us what your team needs to know and which application has the answer. We will help assess whether an MCP connection makes sense.',
+      'final_cta_label' => 'Discuss my use case',
+    ];
+  }
+
+  return [
+    'hero_heading' => 'Vos logiciels ont les réponses. L’IA peut aider vos équipes à les trouver.',
+    'hero_intro' => 'Nous étudions comment relier un assistant IA à vos applications existantes, pour un besoin concret et avec des accès limités et vérifiés.',
+    'secondary_label' => 'Comprendre en trois étapes',
+    'example_label' => 'Exemple fictif',
+    'example_question' => '« Quels dossiers attendent une validation cette semaine ? »',
+    'example_answer' => 'L’assistant afficherait uniquement les dossiers que le compte connecté peut consulter, sans pouvoir les modifier.',
+    'diagram_title' => 'Comment l’assistant trouve-t-il la bonne information ?',
+    'diagram_description' => 'Trois étapes simples, en respectant les droits déjà définis dans votre logiciel.',
+    'agent_title' => '1. Poser une question',
+    'agent_detail' => 'Votre équipe demande une information utile à un assistant IA.',
+    'mcp_title' => '2. Utiliser une connexion ciblée',
+    'mcp_detail' => 'Un serveur MCP propose un outil précis pour transmettre la demande.',
+    'app_title' => '3. Vérifier les droits',
+    'app_detail' => 'Votre application contrôle les données auxquelles le compte a réellement accès.',
+    'policy_title' => 'Qui décide ?',
+    'policy_detail' => 'Votre application et ses règles d’accès, pas MCP à lui seul.',
+    'outcomes_title' => 'Et ensuite ?',
+    'allowed_title' => 'Information transmise',
+    'allowed_detail' => 'Seul le résultat autorisé est renvoyé.',
+    'denied_title' => 'Demande refusée',
+    'denied_detail' => 'Une demande hors des droits accordés est bloquée.',
+    'approval_title' => 'Validation par une personne',
+    'approval_detail' => 'Une éventuelle action sensible exigerait un cadrage et une autorisation distincts.',
+    'final_cta_title' => 'Partons d’une question concrète',
+    'final_cta_text' => 'Dites-nous ce que votre équipe aimerait savoir et dans quel logiciel se trouve la réponse. Nous évaluerons si une connexion MCP est utile.',
+    'final_cta_label' => 'Parler de mon besoin',
+  ];
 }
 
 /**

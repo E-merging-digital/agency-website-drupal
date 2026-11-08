@@ -45,17 +45,36 @@
       "article_payload_sha256": "6f53bb01fcc8dae15d73c39a77f62e6da9d663ca588d4c5c31bedced95df11fd",
       "field_name": "field_feature_image",
       "asset": {
-        "path": "assets/editorial/issue-1491-lens-saint-servais-original.png",
-        "filename": "issue-1491-lens-saint-servais-original-eebc7392.png",
-        "sha256": "eebc73921e28b181d8f97009b00cd5ca5deb988320a45f89d46c98287d73ee49",
-        "mime": "image/png",
-        "width": 1122,
-        "height": 1402,
-        "max_bytes": 2000000
+        "path": "assets/editorial/issue-1491-lens-saint-servais-flamenc-2007.jpg",
+        "filename": "issue-1491-lens-saint-servais-flamenc-2007-8e1cf32c.jpg",
+        "sha256": "8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2",
+        "mime": "image/jpeg",
+        "width": 3214,
+        "height": 2146,
+        "max_bytes": 4112433
       },
       "alt": {
         "fr": "Prairie et arbres dans le paysage rural de Lens-Saint-Servais, en Hesbaye.",
         "en": "Meadow and trees in the rural landscape of Lens-Saint-Servais, Hesbaye, Belgium."
+      }
+    },
+    "1512": {
+      "issue_number": 1512,
+      "bundle": "article",
+      "article_payload_sha256": "60f9b01c3307cdf88d4cd820f661ee6226c03269752a91c70b5d8e7a375e4963",
+      "field_name": "field_feature_image",
+      "asset": {
+        "path": "assets/editorial/issue-1512-wordpress-drupal-migration.png",
+        "filename": "issue-1512-wordpress-drupal-migration-9f16cb72d97e.png",
+        "sha256": "9f16cb72d97ec7a911b4deda57bf8708ef66affeba8d7c4f55abbfe4fd50f038",
+        "mime": "image/png",
+        "width": 1672,
+        "height": 941,
+        "max_bytes": 2671578
+      },
+      "alt": {
+        "fr": "Une responsable compare les plans de rénovation d'une maison accueillante et d'une construction modulable, image du choix entre améliorer WordPress et migrer vers Drupal.",
+        "en": "A website manager compares plans for renovating a welcoming house and building a modular one, illustrating the choice between improving WordPress and moving to Drupal."
       }
     }
   }

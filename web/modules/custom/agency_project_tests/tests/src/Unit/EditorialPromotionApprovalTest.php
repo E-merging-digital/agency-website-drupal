@@ -49,6 +49,35 @@ final class EditorialPromotionApprovalTest extends TestCase {
   }
 
   /**
+   * A fresh direct owner approval supersedes a historical one without deletion.
+   */
+  public function testFreshOwnerReapprovalPreservesHistoricalApproval(): void {
+    $fixture = $this->fixture();
+    $historical = $fixture['comments'][3];
+    $historical['id'] = 90;
+    $fixture['comments'][] = $historical;
+
+    [$exitCode, $result] = $this->runValidator($fixture);
+    self::assertSame(0, $exitCode);
+    self::assertSame('AUTHORIZED', $result['verdict']);
+    self::assertSame(140, $result['approval_comment_id']);
+  }
+
+  /**
+   * A newer invalid owner approval must fail, not fall back to an older one.
+   */
+  public function testNewerInvalidOwnerApprovalCannotFallBack(): void {
+    $fixture = $this->fixture();
+    $invalid = $fixture['comments'][3];
+    $invalid['id'] = 145;
+    $invalid['body'] = str_replace('CONTENT = APPROVED', 'CONTENT = REJECTED', $invalid['body']);
+    $fixture['comments'][] = $invalid;
+
+    [$exitCode] = $this->runValidator($fixture);
+    self::assertSame(1, $exitCode);
+  }
+
+  /**
    * Only the existing #1491 photo may use JPEG; all other profiles stay PNG.
    */
   public function testIssueBoundJpegException(): void {

@@ -55,6 +55,8 @@ final class McpServiceHero1420Test extends TestCase {
     self::assertStringContainsString('class="ed-mcp-flow"', $twig);
     self::assertStringContainsString('aria-labelledby="mcp-flow-title"', $twig);
     self::assertStringContainsString('class="ed-mcp-flow__steps"', $twig);
+    self::assertSame(3, substr_count($twig, 'class="ed-mcp-flow__icon"'));
+    self::assertSame(3, substr_count($twig, 'aria-hidden="true" focusable="false"'));
     self::assertStringContainsString('ed-mcp-final-cta', $twig);
     self::assertStringContainsString("{% else %}", $twig);
     self::assertSame(1, substr_count($twig, '{{ content.field_detailed_description }}'));
@@ -64,6 +66,7 @@ final class McpServiceHero1420Test extends TestCase {
     $css = file_get_contents(DRUPAL_ROOT . '/themes/custom/emerging_digital/css/components.css');
     self::assertIsString($css);
     self::assertStringContainsString('.node--service-mcp .ed-mcp-flow', $css);
+    self::assertStringContainsString('.ed-mcp-flow__steps li:not(:last-child)::after', $css);
     self::assertStringContainsString('max-height: none;', $css);
   }
 

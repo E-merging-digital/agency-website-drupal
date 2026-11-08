@@ -1981,11 +1981,28 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
 
 .ed-mcp-flow__steps li,
 .ed-mcp-flow__outcomes li {
+  position: relative;
   min-width: 0;
   padding: clamp(1rem, 2.5vw, 1.5rem);
   border: 1px solid #d7e4f2;
   border-radius: 0.85rem;
   background: #fff;
+}
+
+.ed-mcp-flow__icon {
+  display: block;
+  box-sizing: content-box;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin-bottom: 1rem;
+  padding: 0.65rem;
+  border-radius: 1rem;
+  background: #e4effc;
+  color: #174e85;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .ed-mcp-flow li strong,
@@ -2062,6 +2079,20 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
   .ed-mcp-flow__steps,
   .ed-mcp-flow__outcomes {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ed-mcp-flow__steps li:not(:last-child)::after {
+    position: absolute;
+    z-index: 1;
+    top: 3.5rem;
+    right: -1.2rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-top: 3px solid #225489;
+    border-right: 3px solid #225489;
+    background: #f4f8ff;
+    content: '';
+    transform: rotate(45deg) scale(0.65);
   }
 }
 

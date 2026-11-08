@@ -64,6 +64,41 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
   }
 
   /**
+   * Restricts #1512's human payload source to direct, unedited comments.
+   */
+  public function test1512HumanSourceTrustRemainsBounded(): void {
+    $workflow = $this->source(self::WORKFLOW);
+
+    foreach ([
+      'def trusted_payload_author(comment):',
+      "login == 'jmaerckaert'",
+      "'performed_via_github_app' in comment",
+      "comment['performed_via_github_app'] is None",
+      "comment.get('updated_at') == comment['created_at']",
+      'if not trusted_payload_author(comment):',
+    ] as $condition) {
+      // Initial candidate selection and the pre-secret JIT check must agree.
+      self::assertSame(2, substr_count($workflow, $condition), $condition);
+    }
+    self::assertStringContainsString('issue_number == 1512', $workflow);
+    self::assertStringContainsString(
+      "os.environ['ISSUE_NUMBER'] == '1512'",
+      $workflow,
+    );
+
+    // No additional actor can trigger the workflow; PROD remains untouched.
+    self::assertStringContainsString(
+      '[[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]',
+      $workflow,
+    );
+    self::assertStringContainsString(
+      "GITHUB_ACTOR\" == 'E-merging-digital'",
+      $workflow,
+    );
+    self::assertStringNotContainsString('secrets.SSH_PRIVATE_KEY', $workflow);
+  }
+
+  /**
    * Proves the Service source stays bound to the merged issue candidate.
    */
   public function testServiceSourceIsBoundedToMergedIssueCandidate(): void {

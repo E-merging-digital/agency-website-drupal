@@ -23,6 +23,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'EDITORIAL_PUBLICATION' => '.github/workflows/trusted-editorial-publication.yml',
     'EDITORIAL_PREPROD_CANDIDATE' => '.github/workflows/trusted-editorial-preprod-candidate.yml',
     'LEGACY_1522_PREPROD' => '.github/workflows/trusted-editorial-legacy-1522.yml',
+    'EDITORIAL_EXISTING_1525' => '.github/workflows/trusted-editorial-existing-1525.yml',
     'EDITORIAL_FEATURE_IMAGE' => '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
     'DEVELOPMENT_SEED' => '.github/workflows/development-seed-publish.yml',
@@ -47,6 +48,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
     'LEGACY_1522_PREPROD' => 1522,
+    'EDITORIAL_EXISTING_1525' => 1525,
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1318],
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1301, 1302],
     'CANVAS_AI_PROVIDER_PROOF_530' => 530,
@@ -82,7 +84,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(18, $routes);
+    self::assertCount(19, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -128,6 +130,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-editorial inspect', 402, 'EDITORIAL_PUBLICATION'],
       ['/agency-editorial-candidate dry-run', 958, 'EDITORIAL_PREPROD_CANDIDATE'],
       ['/agency-legacy-1522 dry-run', 1522, 'LEGACY_1522_PREPROD'],
+      ['/agency-existing-article inspect preprod=12345678-1234-1234-1234-123456789abc prod=87654321-4321-4321-4321-cba987654321', 1525, 'EDITORIAL_EXISTING_1525'],
       ['/agency-editorial-image dry-run', 401, 'EDITORIAL_FEATURE_IMAGE'],
       [
         '/agency-preprod-refresh-successor PLAN '
@@ -265,6 +268,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-preprod-image-rehydrate dry-run', 970],
       ['/agency-preprod-image-rehydrate apply', 972],
       ['/agency-legacy-1522 apply', 1521],
+      ['/agency-existing-article inspect preprod=12345678-1234-1234-1234-123456789abc prod=87654321-4321-4321-4321-cba987654321', 1522],
       ['/agency-config-sync-runtime diagnose', 961],
       ['/agency-config-sync-runtime diagnose', 980],
       ['/agency-config-sync-runtime diagnose', 981],
@@ -1104,6 +1108,28 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       }
     }
     return count($matches) === 1 ? $matches[0] : 'NONE';
+  }
+
+  /**
+   * Two independent selected UUIDs use the same route; a held Article is
+   * rejected by its own runtime identity/alias gate, not by a batch gate.
+   */
+  public function testSingleExistingArticleIndependenceContract(): void {
+    $dispatcher = $this->parsed(self::DISPATCHER);
+    $routes = json_decode($dispatcher['env']['AGENCY_COMMAND_ROUTES'], TRUE, 32, JSON_THROW_ON_ERROR);
+    foreach ([
+      ['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'],
+      ['cccccccc-cccc-cccc-cccc-cccccccccccc', 'dddddddd-dddd-dddd-dddd-dddddddddddd'],
+    ] as [$preprod, $prod]) {
+      $command = "/agency-existing-article inspect preprod=$preprod prod=$prod";
+      self::assertSame('EDITORIAL_EXISTING_1525', $this->classify($routes, $command, 1525));
+      self::assertSame('NONE', $this->classify($routes, $command, 1522));
+    }
+    $php = $this->source('scripts/runner/editorial-existing-article-1525.php');
+    self::assertStringContainsString("'uuid' => \$mode === 'export' ? \$sourceUuid : \$prodUuid", $php);
+    self::assertStringContainsString('IA held', $php);
+    self::assertStringNotContainsString('count($plan) !== 3', $php);
+    self::assertStringContainsString("['export', 'dry-run', 'apply', 'postcheck']", $php);
   }
 
   /**

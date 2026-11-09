@@ -9,7 +9,7 @@ use Drupal\node\NodeInterface;
 use Drupal\user\UserInterface;
 
 /**
- * One bounded PREPROD revision of four EXISTING bilingual Articles (#1522).
+ * Bounded PREPROD revision of the three existing bilingual Articles (#1522).
  *
  * Uses Drupal core Entity API; deliberately has no create-node, PROD or
  * arbitrary entity/path/field capability.
@@ -71,7 +71,8 @@ final class AgencyLegacyEditorial1522 {
       throw new RuntimeException('Closed #1522 PREPROD revision contract mismatch.');
     }
 
-    // Validate all source files and all four FR/EN alias bindings before writes.
+    // The historic IA Article is missing from PREPROD and stays on HOLD.
+    // Validate the three proven existing Article bindings before any write.
     $plan = [];
     $seen = [];
     $aliasMismatches = [];
@@ -81,6 +82,10 @@ final class AgencyLegacyEditorial1522 {
         || ($item['image']['path'] ?? NULL) !== 'assets/editorial/' . $scope['file']
         || ($item['image']['sha256'] ?? NULL) !== $scope['sha']) {
         throw new RuntimeException('Unexpected Article, alias or media in #1522 candidate.');
+      }
+      if ($index === 0) {
+        // No PREPROD alias/nid is proven for the IA Article: never create or modify it here.
+        continue;
       }
       foreach (['fr', 'en'] as $lang) {
         $fields = $item[$lang] ?? NULL;
@@ -132,7 +137,7 @@ final class AgencyLegacyEditorial1522 {
         || !$node->hasField('field_feature_image') || !$node->isPublished()) {
         throw new RuntimeException('Existing published bilingual Article cannot be proven.');
       }
-      $plan[] = ['node' => $node, 'scope' => $scope, 'item' => $item, 'asset' => $asset];
+      $plan[] = ['node' => $node, 'scope' => $scope, 'item' => $item, 'asset' => $asset, 'candidate_index' => $index + 1];
     }
     if ($aliasMismatches !== []) {
       throw new RuntimeException('FR/EN aliases do not resolve to one existing Article: ' . implode('; ', $aliasMismatches));
@@ -194,6 +199,7 @@ final class AgencyLegacyEditorial1522 {
         throw new RuntimeException('Persisted bilingual Article, image or ALT differs from exact candidate.');
       }
       $results[] = [
+        'candidate_index' => $entry['candidate_index'],
         'nid' => (int) $node->id(),
         'uuid' => $uuid,
         'revision_before' => $oldRevision,
@@ -211,6 +217,7 @@ final class AgencyLegacyEditorial1522 {
       'prod_write' => 'NONE',
       'issue_number' => 1522,
       'mode' => $mode,
+      'held_article' => 'IA_PREPROD_IDENTITY',
       'articles' => $results,
     ];
   }

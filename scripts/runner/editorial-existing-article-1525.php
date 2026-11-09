@@ -31,10 +31,13 @@ final class AgencyExistingArticle1525 {
       throw new RuntimeException('Article UUID is absent or ambiguous.');
     }
     $node = reset($nodes);
+    if ($node instanceof NodeInterface && self::isHeldIaIdentity($target, (int) $node->id())) {
+      throw new RuntimeException('HOLD_IA_PREPROD_IDENTITY: historical PROD Article is not eligible.');
+    }
     if (!$node instanceof NodeInterface || $node->bundle() !== 'article'
       || $node->language()->getId() !== 'fr' || !$node->hasTranslation('en')
       || !$node->isPublished() || !$node->hasField('field_feature_image')
-      || !$node->hasField('field_short_description')) {
+      || !$node->hasField('field_short_description') || !$node->hasField('body')) {
       throw new RuntimeException('Existing published bilingual Article is not eligible.');
     }
     $aliases = \Drupal::service('path_alias.manager');
@@ -78,12 +81,14 @@ final class AgencyExistingArticle1525 {
         $translations[$lang] = [
           'title' => $tr->label(),
           'short_description' => (string) $tr->get('field_short_description')->value,
+          'short_description_format' => $this->fieldFormat($tr, 'field_short_description'),
           'body_html' => (string) $tr->get('body')->value,
+          'body_format' => $this->fieldFormat($tr, 'body'),
           'alt' => $alt,
         ];
       }
       $snapshot = [
-        'schema_version' => 1,
+        'schema_version' => 2,
         'source_uuid' => $sourceUuid,
         'fr_alias' => $frAlias,
         'en_alias' => $enAlias,
@@ -108,19 +113,32 @@ final class AgencyExistingArticle1525 {
     $candidate = json_decode((string) $bytes, TRUE, 16, JSON_THROW_ON_ERROR);
     if (!is_array($candidate) || array_keys($candidate) !== [
       'schema_version', 'source_uuid', 'fr_alias', 'en_alias', 'image_sha256', 'fr', 'en',
-    ] || $candidate['schema_version'] !== 1 || $candidate['source_uuid'] !== $sourceUuid
+    ] || $candidate['schema_version'] !== 2 || $candidate['source_uuid'] !== $sourceUuid
       || $candidate['fr_alias'] !== $frAlias || $candidate['en_alias'] !== $enAlias) {
       throw new RuntimeException('Target aliases or exact source provenance differ.');
     }
     foreach (['fr', 'en'] as $lang) {
       $fields = $candidate[$lang] ?? NULL;
-      if (!is_array($fields) || array_keys($fields) !== ['title', 'short_description', 'body_html', 'alt']) {
+      if (!is_array($fields) || array_keys($fields) !== [
+        'title', 'short_description', 'short_description_format', 'body_html', 'body_format', 'alt',
+      ]) {
         throw new RuntimeException('Exact bilingual Article fields are missing.');
       }
-      foreach ($fields as $value) {
+      foreach (['title', 'short_description', 'body_html', 'alt'] as $name) {
+        $value = $fields[$name];
         if (!is_string($value) || trim($value) === '') {
           throw new RuntimeException('Incomplete bilingual Article field.');
         }
+      }
+      foreach (['short_description_format', 'body_format'] as $name) {
+        if ($fields[$name] !== NULL && !is_string($fields[$name])) {
+          throw new RuntimeException('Invalid reviewed text format.');
+        }
+      }
+      $tr = $node->getTranslation($lang);
+      if ($this->fieldFormat($tr, 'field_short_description') !== $fields['short_description_format']
+        || $this->fieldFormat($tr, 'body') !== $fields['body_format']) {
+        throw new RuntimeException('Target FR/EN text formats differ from reviewed PREPROD candidate.');
       }
     }
     $imageSha = $candidate['image_sha256'];
@@ -151,8 +169,8 @@ final class AgencyExistingArticle1525 {
           $tr = $node->getTranslation($lang);
           $fields = $candidate[$lang];
           $tr->setTitle($fields['title']);
-          $tr->set('field_short_description', [['value' => $fields['short_description'], 'format' => 'basic_html']]);
-          $tr->set('body', [['value' => $fields['body_html'], 'format' => 'basic_html']]);
+          $tr->get('field_short_description')->first()->set('value', $fields['short_description']);
+          $tr->get('body')->first()->set('value', $fields['body_html']);
           $tr->set('field_feature_image', [['target_id' => $file->id(), 'alt' => $fields['alt']]]);
           $tr->set('path', ['alias' => $candidate[$lang . '_alias'], 'pathauto' => 0]);
         }
@@ -197,7 +215,9 @@ final class AgencyExistingArticle1525 {
       $file = $fid ? \Drupal::entityTypeManager()->getStorage('file')->load((int) $fid) : NULL;
       if ($tr->label() !== $candidate[$lang]['title']
         || (string) $tr->get('field_short_description')->value !== $candidate[$lang]['short_description']
+        || $this->fieldFormat($tr, 'field_short_description') !== $candidate[$lang]['short_description_format']
         || (string) $tr->get('body')->value !== $candidate[$lang]['body_html']
+        || $this->fieldFormat($tr, 'body') !== $candidate[$lang]['body_format']
         || (string) ($image?->get('alt')->getValue() ?? '') !== $candidate[$lang]['alt']
         || !$file instanceof FileInterface
         || !hash_equals($sha, (string) hash_file('sha256', $file->getFileUri()))) {
@@ -205,6 +225,28 @@ final class AgencyExistingArticle1525 {
       }
     }
     return TRUE;
+  }
+
+  /**
+   * The held historic PROD nid is a veto after UUID-based lookup, never a selector.
+   */
+  private static function isHeldIaIdentity(string $target, int $nid): bool {
+    return $target === 'PROD' && $nid === 40;
+  }
+
+  /**
+   * Preserve the exact field item format, including a field without a format.
+   */
+  private function fieldFormat(NodeInterface $translation, string $field): ?string {
+    $item = $translation->get($field)->first();
+    if ($item === NULL) {
+      throw new RuntimeException('Existing bilingual text field item is missing.');
+    }
+    $format = $item->getValue()['format'] ?? NULL;
+    if ($format !== NULL && !is_string($format)) {
+      throw new RuntimeException('Existing bilingual text format is invalid.');
+    }
+    return $format;
   }
 
   private function file(string $sha, string $asset): FileInterface {

@@ -21,7 +21,7 @@ permissions:
 jobs:
   static-validation:
     if: ${{ github.event_name == 'pull_request' }}
-    name: "#1522 fixed four-node revision contract"
+    name: "#1522 fixed three-node revision contract (IA held)"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -114,7 +114,7 @@ jobs:
               jq -es --arg main "$MAIN" --arg sha "$digest" '
                 any(.[];
                   .user.login == "github-actions[bot]" and
-                  .body == ("### Agency #1522 existing Articles PREPROD dry-run PASS\nmain: `" + $main + "`\nsource_sha256: `" + $sha + "`")
+                  .body == ("### Agency #1522 existing Articles 2-4 PREPROD dry-run PASS\nmain: `" + $main + "`\nsource_sha256: `" + $sha + "`\nheld: IA_PREPROD_IDENTITY")
                 )' | grep -qx true
           fi
 
@@ -135,7 +135,7 @@ jobs:
           printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-1522-preprod.key"
           chmod 600 "$RUNNER_TEMP/agency-1522-preprod.key"
 
-      - name: Apply or inspect four bounded existing revisions
+      - name: Apply or inspect three bounded existing revisions (IA held)
         id: run
         env:
           AGENCY_LEGACY_1522_MODE: ${{ steps.request.outputs.mode }}
@@ -158,10 +158,10 @@ jobs:
         run: |
           set -euo pipefail
           file=artifacts/editorial-legacy-1522/result.json
-          if [[ "$RUN_RESULT" == success ]] && jq -e '.status == "PASS" and (.articles | length) == 4' "$file" >/dev/null 2>&1; then
-            body="$(printf '### Agency #1522 existing Articles PREPROD %s PASS\nmain: `%s`\nsource_sha256: `%s`' "$MODE" "$MAIN" "$SHA")"
+          if [[ "$RUN_RESULT" == success ]] && jq -e '.status == "PASS" and .held_article == "IA_PREPROD_IDENTITY" and ([.articles[].candidate_index] == [2,3,4])' "$file" >/dev/null 2>&1; then
+            body="$(printf '### Agency #1522 existing Articles 2-4 PREPROD %s PASS\nmain: `%s`\nsource_sha256: `%s`\nheld: IA_PREPROD_IDENTITY' "$MODE" "$MAIN" "$SHA")"
             gh issue comment 1522 --repo "$GITHUB_REPOSITORY" --body "$body"
-            jq -r '.articles[] | "\(.nid) rev \(.revision_after): \(.fr_url) | \(.en_url)"' "$file" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.articles[] | "article \(.candidate_index), nid \(.nid), rev \(.revision_after): \(.fr_url) | \(.en_url)"' "$file" >> "$GITHUB_STEP_SUMMARY"
           else
             gh issue comment 1522 --repo "$GITHUB_REPOSITORY" --body "### Agency #1522 existing Articles PREPROD ${MODE} CONTROLLED_STOP (run ${GITHUB_RUN_ID}). No PROD."
             exit 1

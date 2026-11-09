@@ -4,6 +4,15 @@ on:
   # Technical start only, after source review/merge. The existing direct owner
   # approval #6747765128 is the sole render/PROD GO; no new editorial approval.
   workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Read-only PROD identities or guarded three-Article UPDATE'
+        type: choice
+        required: true
+        default: identity
+        options:
+          - identity
+          - update
 
 permissions:
   contents: read
@@ -87,7 +96,8 @@ jobs:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           PROD_SSH_KEY: ${{ runner.temp }}/agency-1522-prod.key
-        run: bash scripts/runner/run-editorial-legacy-1522-prod.sh
+          OPERATION: ${{ inputs.operation }}
+        run: bash scripts/runner/run-editorial-legacy-1522-prod.sh "$OPERATION"
 
       - name: Remove ephemeral SSH identity
         if: ${{ always() }}

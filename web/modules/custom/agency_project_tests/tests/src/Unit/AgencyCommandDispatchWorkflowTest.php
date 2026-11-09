@@ -130,7 +130,12 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-editorial inspect', 402, 'EDITORIAL_PUBLICATION'],
       ['/agency-editorial-candidate dry-run', 958, 'EDITORIAL_PREPROD_CANDIDATE'],
       ['/agency-legacy-1522 dry-run', 1522, 'LEGACY_1522_PREPROD'],
-      ['/agency-existing-article inspect preprod=12345678-1234-1234-1234-123456789abc prod=87654321-4321-4321-4321-cba987654321', 1525, 'EDITORIAL_EXISTING_1525'],
+      [
+        '/agency-existing-article inspect preprod=12345678-1234-1234-1234-123456789abc '
+        . 'prod=87654321-4321-4321-4321-cba987654321',
+        1525,
+        'EDITORIAL_EXISTING_1525',
+      ],
       ['/agency-editorial-image dry-run', 401, 'EDITORIAL_FEATURE_IMAGE'],
       [
         '/agency-preprod-refresh-successor PLAN '
@@ -268,7 +273,11 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-preprod-image-rehydrate dry-run', 970],
       ['/agency-preprod-image-rehydrate apply', 972],
       ['/agency-legacy-1522 apply', 1521],
-      ['/agency-existing-article inspect preprod=12345678-1234-1234-1234-123456789abc prod=87654321-4321-4321-4321-cba987654321', 1522],
+      [
+        '/agency-existing-article inspect preprod=12345678-1234-1234-1234-123456789abc '
+        . 'prod=87654321-4321-4321-4321-cba987654321',
+        1522,
+      ],
       ['/agency-config-sync-runtime diagnose', 961],
       ['/agency-config-sync-runtime diagnose', 980],
       ['/agency-config-sync-runtime diagnose', 981],
@@ -1111,8 +1120,10 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
   }
 
   /**
-   * Two independent selected UUIDs use the same route; a held Article is
-   * rejected by its own runtime identity/alias gate, not by a batch gate.
+   * Two independent selected UUIDs use the same route.
+   *
+   * A held Article is rejected by its own runtime identity/alias gate,
+   * not by a batch gate.
    */
   public function testSingleExistingArticleIndependenceContract(): void {
     $dispatcher = $this->parsed(self::DISPATCHER);

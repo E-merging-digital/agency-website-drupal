@@ -297,3 +297,18 @@ The normal route cannot:
 - accept arbitrary aliases or remote media URLs;
 - invoke an AI provider;
 - turn an emergency exception into a permanent switch.
+### Four existing historical Articles (#1522) — PREPROD only
+
+The four bilingual historical Articles in #1522 are revised **in place** using
+Drupal's Entity API, the fixed source
+`assets/editorial/issue-1522-legacy-revisions.json` and Jonathan's four
+SHA-256-pinned WebP assets. The closed commands on issue #1522 are
+`/agency-legacy-1522 inspect`, `dry-run` and `apply`; the apply requires a
+prior bot dry-run PASS for the same source hash and live `main`. The runner
+checks both existing FR/EN aliases resolve to the same published Article and
+preserves nid, UUID, categories, original dates, aliases and untouched fields.
+It creates new revisions, not new nodes. Its only SSH identity is PREPROD;
+no PROD secret or PROD update mechanism is wired to this route. After the
+eight PREPROD renders are reviewed, PROD requires a separate exact human GO
+and an explicitly governed **existing-node** promotion route.
+

@@ -27,6 +27,7 @@ final class AgencyLegacyEditorial1522 {
       'fr' => '/blog/drupal-10-arrive-en-fin-de-support-comment-preparer-votre-passage-drupal-11-avant-le-9',
       'en' => '/blog/drupal-10-end-life-how-prepare-your-upgrade-drupal-11-december-9-2026',
       'uuid' => '196a8ad1-ff50-41f5-82f0-14d662f48a6f',
+      'prod_uuid' => '787d0509-67b2-4601-97a3-67228d79d1cc',
       'file' => 'issue-1522-drupal-10-vers-11.webp',
       'sha' => 'a28485b4940934da889580cd5a449f77e7515521eb8f02d850f5eb099d772399',
     ],
@@ -231,8 +232,8 @@ final class AgencyLegacyEditorial1522 {
           || !$node->hasField('field_feature_image') || !$node->isPublished()) {
           throw new RuntimeException('Existing published bilingual Article cannot be proven.');
         }
-        if ($target === 'PROD' && !hash_equals($scope['uuid'], $node->uuid())) {
-          throw new RuntimeException('PROD Article UUID differs from approved PREPROD identity.');
+        if ($target === 'PROD' && !hash_equals($scope['prod_uuid'] ?? $scope['uuid'], $node->uuid())) {
+          throw new RuntimeException('PROD Article UUID differs from pinned PROD identity.');
         }
         $proof = hash('sha256', implode('|', [1522, $number, $nid, $node->uuid(), $node->getRevisionId(), $scope['sha'], $scope['fr'], $scope['en']]));
         if ($mode === 'apply' && ($allowed[$number] === 'HOLD' || !hash_equals($allowed[$number], $proof))) {

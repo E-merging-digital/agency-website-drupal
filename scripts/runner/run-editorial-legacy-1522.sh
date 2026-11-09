@@ -12,7 +12,7 @@ case "$mode" in inspect|dry-run|apply) ;; *) exit 1 ;; esac
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 script="$root/scripts/runner/editorial-legacy-1522.php"
 candidate="$root/assets/editorial/issue-1522-legacy-revisions.json"
-images=(issue-1522-ai-pme-sept-usages.webp issue-1522-drupal-10-vers-11.webp issue-1522-drupal-symfony-laravel.webp issue-1522-refonte-site-checklist.webp)
+images=(issue-1522-drupal-10-vers-11.webp issue-1522-drupal-symfony-laravel.webp issue-1522-refonte-site-checklist.webp)
 test -f "$candidate"
 test -f "$script"
 php -l "$script" >/dev/null
@@ -52,4 +52,4 @@ if [[ "$mode" == apply ]]; then
 fi
 ssh "${ssh_args[@]}" "$target" "set -e; $runtime_check"
 scp "${ssh_args[@]}" "$target:$remote_result" artifacts/editorial-legacy-1522/result.json >/dev/null
-jq -e '.status == "PASS" and .target == "PREPROD" and .prod_write == "NONE" and (.articles | length) == 4' artifacts/editorial-legacy-1522/result.json >/dev/null
+jq -e '.status == "PASS" and .target == "PREPROD" and .prod_write == "NONE" and .held_article == "IA_PREPROD_IDENTITY" and ([.articles[].candidate_index] == [2,3,4])' artifacts/editorial-legacy-1522/result.json >/dev/null

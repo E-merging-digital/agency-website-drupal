@@ -9,10 +9,10 @@ use Drupal\node\NodeInterface;
 use Drupal\user\UserInterface;
 
 /**
- * Bounded PREPROD revision of the three existing bilingual Articles (#1522).
+ * Bounded revision of three existing bilingual Articles (#1522).
  *
- * Uses Drupal core Entity API; deliberately has no create-node, PROD or
- * arbitrary entity/path/field capability.
+ * Uses Drupal core Entity API; no create-node or arbitrary entity/path/field
+ * capability. PROD requires separately governed transport and exact UUIDs.
  */
 final class AgencyLegacyEditorial1522 {
 
@@ -26,18 +26,21 @@ final class AgencyLegacyEditorial1522 {
     [
       'fr' => '/blog/drupal-10-arrive-en-fin-de-support-comment-preparer-votre-passage-drupal-11-avant-le-9',
       'en' => '/blog/drupal-10-end-life-how-prepare-your-upgrade-drupal-11-december-9-2026',
+      'uuid' => '196a8ad1-ff50-41f5-82f0-14d662f48a6f',
       'file' => 'issue-1522-drupal-10-vers-11.webp',
       'sha' => 'a28485b4940934da889580cd5a449f77e7515521eb8f02d850f5eb099d772399',
     ],
     [
       'fr' => '/blog/drupal-symfony-ou-laravel-quelle-base-pour-votre-projet-web',
       'en' => '/blog/drupal-symfony-or-laravel-which-foundation-fits-your-web-project',
+      'uuid' => '3d638f3e-8a31-4b7c-9466-c40f70f4999a',
       'file' => 'issue-1522-drupal-symfony-laravel.webp',
       'sha' => '0eaca29c4e740a7df42bc299106c16b3619a0c2f21aa8070055e8530235626ff',
     ],
     [
       'fr' => '/blog/checklist-avant-une-refonte-de-site-internet-12-points-verifier',
       'en' => '/blog/website-redesign-checklist-12-things-verify-you-start',
+      'uuid' => '8b5c25de-88ce-4493-a28a-54d55957baaf',
       'file' => 'issue-1522-refonte-site-checklist.webp',
       'sha' => '6741c1260f4d76b197ce9308fa61b819ae0cb505115c4c792bfca183f60dd0a8',
     ],
@@ -63,6 +66,10 @@ final class AgencyLegacyEditorial1522 {
   }
 
   public function execute(array $candidate, string $assets, string $mode): array {
+    $target = getenv('AGENCY_LEGACY_1522_TARGET') ?: 'PREPROD';
+    if (!in_array($target, ['PREPROD', 'PROD'], TRUE)) {
+      throw new RuntimeException('Closed #1522 target mismatch.');
+    }
     if (!in_array($mode, ['inspect', 'dry-run', 'apply'], TRUE)
       || ($candidate['schema_version'] ?? NULL) !== 1
       || ($candidate['issue_number'] ?? NULL) !== 1522
@@ -152,6 +159,9 @@ final class AgencyLegacyEditorial1522 {
           || !$node->hasField('field_feature_image') || !$node->isPublished()) {
           throw new RuntimeException('Existing published bilingual Article cannot be proven.');
         }
+        if ($target === 'PROD' && !hash_equals($scope['uuid'], $node->uuid())) {
+          throw new RuntimeException('PROD Article UUID differs from approved PREPROD identity.');
+        }
         $proof = hash('sha256', implode('|', [1522, $number, $nid, $node->uuid(), $node->getRevisionId(), $scope['sha'], $scope['fr'], $scope['en']]));
         if ($mode === 'apply' && ($allowed[$number] === 'HOLD' || !hash_equals($allowed[$number], $proof))) {
           throw new RuntimeException('Article absent or identity/revision changed since exact dry-run.');
@@ -164,6 +174,11 @@ final class AgencyLegacyEditorial1522 {
     }
 
     $author = $this->entities->getStorage('user')->load(1);
+    // PROD must be all-or-nothing at the preflight boundary: a missing or
+    // divergent historical Article cannot cause a partial batch mutation.
+    if ($target === 'PROD' && count($plan) !== 3) {
+      throw new RuntimeException('PROD three-Article identity preflight failed closed: ' . implode('; ', $issues));
+    }
     if ($mode === 'apply' && (!$author instanceof UserInterface || !$author->isActive())) {
       throw new RuntimeException('Existing technical Drupal author is unavailable.');
     }
@@ -199,7 +214,7 @@ final class AgencyLegacyEditorial1522 {
             }
             $node->setNewRevision(TRUE);
             $node->setRevisionUserId(1);
-            $node->setRevisionLogMessage('Agency #1522 exact existing Article bilingual PREPROD revision');
+            $node->setRevisionLogMessage('Agency #1522 exact existing Article bilingual ' . $target . ' revision');
             $violations = $node->validate();
             if ($violations->count() > 0) {
               throw new RuntimeException('Article constraint violations before save.');
@@ -232,8 +247,8 @@ final class AgencyLegacyEditorial1522 {
           'uuid' => $uuid,
           'revision_before' => $oldRevision,
           'revision_after' => (int) $node->getRevisionId(),
-          'fr_url' => 'https://preprod.emergingdigital.be/fr' . $scope['fr'],
-          'en_url' => 'https://preprod.emergingdigital.be/en' . $scope['en'],
+          'fr_url' => ($target === 'PROD' ? 'https://emergingdigital.be/fr' : 'https://preprod.emergingdigital.be/fr') . $scope['fr'],
+          'en_url' => ($target === 'PROD' ? 'https://emergingdigital.be/en' : 'https://preprod.emergingdigital.be/en') . $scope['en'],
           'image_sha256' => $scope['sha'],
           'verdict' => $alreadyExact ? 'IDEMPOTENT' : ($mode === 'apply' ? 'UPDATED' : 'UPDATE_READY'),
         ];
@@ -249,8 +264,8 @@ final class AgencyLegacyEditorial1522 {
 
     return [
       'status' => $status,
-      'target' => 'PREPROD',
-      'prod_write' => 'NONE',
+      'target' => $target,
+      'prod_write' => $target === 'PROD' && $mode === 'apply' ? 'BOUNDED_UPDATE' : 'NONE',
       'issue_number' => 1522,
       'mode' => $mode,
       'held_article' => 'IA_PREPROD_IDENTITY',
@@ -329,7 +344,7 @@ catch (Throwable $exception) {
   if ($resultPath !== '') {
     file_put_contents($resultPath, json_encode([
       'status' => 'FAIL',
-      'target' => 'PREPROD',
+      'target' => getenv('AGENCY_LEGACY_1522_TARGET') ?: 'PREPROD',
       'prod_write' => 'NONE',
       'message' => $exception->getMessage(),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");

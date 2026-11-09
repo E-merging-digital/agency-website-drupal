@@ -1,0 +1,103 @@
+name: Agency exact existing Article UPDATE 1522 PROD
+
+on:
+  # Technical start only, after source review/merge. The existing direct owner
+  # approval #6747765128 is the sole render/PROD GO; no new editorial approval.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: agency-1522-existing-prod
+  cancel-in-progress: false
+
+jobs:
+  exact-update:
+    name: Guarded three-Article Drupal UPDATE, IA held
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Verify dispatch, live main and immutable unedited human GO
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main ]]
+          [[ "$GITHUB_ACTOR" == E-merging-digital ]]
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 ]]
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main" == "$GITHUB_SHA" ]]
+          gh api "repos/$GITHUB_REPOSITORY/issues/1522" --jq '.state' | grep -qx open
+          gh api "repos/$GITHUB_REPOSITORY/issues/comments/6747765128" > "$RUNNER_TEMP/agency-1522-go.json"
+          jq -e '
+            .id == 6747765128 and .user.login == "E-merging-digital"
+            and .user.type == "User" and .author_association == "OWNER"
+            and .performed_via_github_app == null
+            and .created_at == "2026-11-09T18:12:13Z"
+            and .updated_at == .created_at
+          ' "$RUNNER_TEMP/agency-1522-go.json" >/dev/null
+          go_sha="$(jq -j .body "$RUNNER_TEMP/agency-1522-go.json" | sha256sum | cut -d' ' -f1)"
+          [[ "$go_sha" == 29fb1b3a6c088d1bf9001ea8942aab96176b375b1ef0d9141258add598d68d48 ]]
+          echo "main=$main" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.guard.outputs.main }}
+          persist-credentials: false
+
+      - name: Validate closed candidate and bounded runtime
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ steps.guard.outputs.main }}"
+          test "$(sha256sum assets/editorial/issue-1522-legacy-revisions.json | cut -d' ' -f1)" = 5d852f96c10f3ea23b9a3406f5b4288bf7dbce7f3ca2631354299b41cc83848a
+          sha256sum -c <<'CHECKSUMS'
+          a28485b4940934da889580cd5a449f77e7515521eb8f02d850f5eb099d772399  assets/editorial/issue-1522-drupal-10-vers-11.webp
+          0eaca29c4e740a7df42bc299106c16b3619a0c2f21aa8070055e8530235626ff  assets/editorial/issue-1522-drupal-symfony-laravel.webp
+          6741c1260f4d76b197ce9308fa61b819ae0cb505115c4c792bfca183f60dd0a8  assets/editorial/issue-1522-refonte-site-checklist.webp
+          CHECKSUMS
+          php -l scripts/runner/editorial-legacy-1522.php
+          bash -n scripts/runner/run-editorial-legacy-1522-prod.sh
+          jq -e '.issue_number == 1522 and (.articles|length) == 4' assets/editorial/issue-1522-legacy-revisions.json >/dev/null
+
+      - name: Just-in-time main and approval revalidation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_MAIN: ${{ steps.guard.outputs.main }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$EXPECTED_MAIN"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_MAIN"
+          gh api "repos/$GITHUB_REPOSITORY/issues/comments/6747765128" |
+            jq -e '.user.login == "E-merging-digital" and .user.type == "User" and .author_association == "OWNER" and .performed_via_github_app == null and .updated_at == .created_at' >/dev/null
+
+      - name: Use existing governed PROD SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1522-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1522-prod.key"
+
+      - name: PROD inspect and dry-run, then backup and bounded UPDATE
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          PROD_SSH_KEY: ${{ runner.temp }}/agency-1522-prod.key
+        run: bash scripts/runner/run-editorial-legacy-1522-prod.sh
+
+      - name: Remove ephemeral SSH identity
+        if: ${{ always() }}
+        run: rm -f -- "$RUNNER_TEMP/agency-1522-prod.key"
+
+      - name: Upload metadata-only receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-1522-prod-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/editorial-legacy-1522-prod/*.json
+          if-no-files-found: ignore
+          retention-days: 30

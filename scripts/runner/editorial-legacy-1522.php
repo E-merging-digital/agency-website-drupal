@@ -74,6 +74,7 @@ final class AgencyLegacyEditorial1522 {
     // Validate all source files and all four FR/EN alias bindings before writes.
     $plan = [];
     $seen = [];
+    $aliasMismatches = [];
     foreach (self::SCOPE as $index => $scope) {
       $item = $candidate['articles'][$index];
       if (!is_array($item) || ($item['aliases'] ?? NULL) !== ['fr' => $scope['fr'], 'en' => $scope['en']]
@@ -108,10 +109,19 @@ final class AgencyLegacyEditorial1522 {
 
       $pathFr = $this->aliases->getPathByAlias($scope['fr'], 'fr');
       $pathEn = $this->aliases->getPathByAlias($scope['en'], 'en');
-      if (!preg_match('#^/node/([1-9][0-9]*)$#', $pathFr, $matches) || $pathEn !== $pathFr) {
-        throw new RuntimeException('FR/EN aliases do not resolve to one existing Article.');
+      $frResolved = preg_match('#^/node/([1-9][0-9]*)$#', $pathFr, $frMatch) === 1;
+      $enResolved = preg_match('#^/node/([1-9][0-9]*)$#', $pathEn, $enMatch) === 1;
+      if (!$frResolved || !$enResolved || $pathEn !== $pathFr) {
+        // Diagnostic only: expose bounded candidate index and node IDs, never arbitrary paths.
+        $aliasMismatches[] = sprintf(
+          'candidate=%d fr_nid=%s en_nid=%s',
+          $index + 1,
+          $frResolved ? $frMatch[1] : 'UNRESOLVED',
+          $enResolved ? $enMatch[1] : 'UNRESOLVED',
+        );
+        continue;
       }
-      $nid = (int) $matches[1];
+      $nid = (int) $frMatch[1];
       if (isset($seen[$nid])) {
         throw new RuntimeException('Two candidates resolve to the same Article.');
       }
@@ -123,6 +133,9 @@ final class AgencyLegacyEditorial1522 {
         throw new RuntimeException('Existing published bilingual Article cannot be proven.');
       }
       $plan[] = ['node' => $node, 'scope' => $scope, 'item' => $item, 'asset' => $asset];
+    }
+    if ($aliasMismatches !== []) {
+      throw new RuntimeException('FR/EN aliases do not resolve to one existing Article: ' . implode('; ', $aliasMismatches));
     }
 
     $author = $this->entities->getStorage('user')->load(1);

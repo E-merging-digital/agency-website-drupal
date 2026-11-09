@@ -70,7 +70,7 @@ final class AgencyLegacyEditorial1522 {
     if (!in_array($target, ['PREPROD', 'PROD'], TRUE)) {
       throw new RuntimeException('Closed #1522 target mismatch.');
     }
-    if (!in_array($mode, ['inspect', 'dry-run', 'apply'], TRUE)
+    if (!in_array($mode, ['identity', 'inspect', 'dry-run', 'apply'], TRUE)
       || ($candidate['schema_version'] ?? NULL) !== 1
       || ($candidate['issue_number'] ?? NULL) !== 1522
       || !is_array($candidate['articles'] ?? NULL)
@@ -90,6 +90,59 @@ final class AgencyLegacyEditorial1522 {
     }
     elseif ($allowlist !== '') {
       throw new RuntimeException('Dry-run authorization is not accepted outside apply.');
+    }
+
+    // Read-only PROD identity receipt for historical nodes whose UUIDs may
+    // legitimately differ from the approved PREPROD review copies.
+    if ($mode === 'identity') {
+      if ($target !== 'PROD') {
+        throw new RuntimeException('Historical identity inspection is PROD-only.');
+      }
+      $results = [];
+      $seen = [];
+      foreach ([2, 3, 4] as $number) {
+        $index = $number - 1;
+        $scope = self::SCOPE[$index];
+        $item = $candidate['articles'][$index];
+        if (!is_array($item) || ($item['aliases'] ?? NULL) !== ['fr' => $scope['fr'], 'en' => $scope['en']]) {
+          throw new RuntimeException('Historical Article aliases differ from approved candidate.');
+        }
+        $pathFr = $this->aliases->getPathByAlias($scope['fr'], 'fr');
+        $pathEn = $this->aliases->getPathByAlias($scope['en'], 'en');
+        if (!preg_match('#^/node/([1-9][0-9]*)$#', $pathFr, $match)
+          || $pathEn !== $pathFr) {
+          throw new RuntimeException('Historical bilingual alias is unresolved or divergent.');
+        }
+        $nid = (int) $match[1];
+        if (isset($seen[$nid])) {
+          throw new RuntimeException('Historical Article identity resolves ambiguously.');
+        }
+        $seen[$nid] = TRUE;
+        $node = $this->entities->getStorage('node')->load($nid);
+        if (!$node instanceof NodeInterface || $node->bundle() !== 'article'
+          || $node->language()->getId() !== 'fr' || !$node->hasTranslation('en')
+          || !$node->isPublished()) {
+          throw new RuntimeException('Existing published bilingual Article cannot be proven.');
+        }
+        $results[] = [
+          'candidate_index' => $number,
+          'nid' => $nid,
+          'uuid' => $node->uuid(),
+          'revision' => (int) $node->getRevisionId(),
+          'fr_alias' => $scope['fr'],
+          'en_alias' => $scope['en'],
+          'status' => 'PASS',
+        ];
+      }
+      return [
+        'status' => 'PASS',
+        'target' => 'PROD',
+        'prod_write' => 'NONE',
+        'issue_number' => 1522,
+        'mode' => 'identity',
+        'held_article' => 'IA_PREPROD_IDENTITY',
+        'articles' => $results,
+      ];
     }
 
     // Preflight is independent by Article; no writes until all identities are classified.

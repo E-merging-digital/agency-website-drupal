@@ -8,12 +8,12 @@ on:
       - 'scripts/runner/publish-agency-environment-data-handoff.sh'
       - 'scripts/runner/test-publish-agency-environment-data-handoff.sh'
       - 'scripts/runner/publish-agency-runner-health-handoff.sh'
-  workflow_call:
-    secrets:
-      PREPROD_SERVER_HOST:
+  workflow_dispatch:
+    inputs:
+      main_sha:
+        description: 'Exact approved Agency main SHA (40 lowercase hex)'
         required: true
-      PREPROD_SSH_PRIVATE_KEY:
-        required: true
+        type: string
 
 permissions:
   contents: read
@@ -42,38 +42,30 @@ jobs:
           bash -n scripts/runner/test-publish-agency-environment-data-handoff.sh
           bash scripts/runner/test-publish-agency-environment-data-handoff.sh
           git diff --check '${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}'
-          ! grep -Eq 'upload-artifact|download-artifact|workflow_dispatch:|schedule:' .github/workflows/agency-environment-data-private-handoff.yml
+          ! grep -Eq 'upload-artifact|download-artifact|schedule:' .github/workflows/agency-environment-data-private-handoff.yml
           ! grep -Eq '^[[:space:]]+issue_comment:' .github/workflows/agency-environment-data-private-handoff.yml
           ! grep -Eiq 'mysqli|PDO|database.*query|drush|curl' scripts/runner/read-agency-environment-data-preprod.sh
 
   publish-private:
-    if: >-
-      ${{ github.event_name == 'issue_comment'
-          && github.event.issue.number == 1309
-          && github.event.issue.pull_request == null
-          && startsWith(github.event.comment.body, '/agency-environment-data publish main=') }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: [self-hosted, linux, x64, agency, ddev, browser]
     timeout-minutes: 8
     permissions:
       contents: read
       issues: read
     steps:
-      - name: Validate exact native owner authorization and current main
+      - name: Validate owner-initiated exact SHA request and current main
         id: authority
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          COMMENT_BODY: ${{ github.event.comment.body }}
-          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
-          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
-          COMMENT_APP: ${{ github.event.comment.performed_via_github_app != null }}
-          COMMENT_CREATED: ${{ github.event.comment.created_at }}
-          COMMENT_UPDATED: ${{ github.event.comment.updated_at }}
+          REQUESTED_SHA: ${{ inputs.main_sha }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
-          [[ "$COMMENT_LOGIN" == 'E-merging-digital' && "$COMMENT_ASSOCIATION" == 'OWNER' ]]
-          [[ "$COMMENT_APP" == 'false' && "$COMMENT_CREATED" == "$COMMENT_UPDATED" ]]
+          [[ "$TRIGGERING_ACTOR" == 'E-merging-digital' ]]
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "${RUNNER_NAME:-}" == 'agency-browser-runner-01' ]]
           [[ "$(hostname)" == 'preflight-runner-01' && "$(id -un)" == 'agency-runner' ]]
           issue="$(gh api "repos/$GITHUB_REPOSITORY/issues/1309")"
@@ -81,7 +73,7 @@ jobs:
           [[ "$(jq -r '.pull_request // empty' <<< "$issue")" == '' ]]
           main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
           [[ "$main" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$COMMENT_BODY" == "/agency-environment-data publish main=$main" ]]
+          [[ "$REQUESTED_SHA" == "$main" ]]
           [[ "$GITHUB_SHA" == "$main" && "$GITHUB_REF" == 'refs/heads/main' ]]
           echo "main_sha=$main" >> "$GITHUB_OUTPUT"
 

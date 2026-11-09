@@ -56,7 +56,7 @@ check_three() {
     and ([.articles[] | .status == "PASS" and (.proof | test("^[0-9a-f]{64}$"))
       and (.uuid | test("^[0-9a-f-]{36}$")) and (.nid > 0)] | all)
     and [.articles[0].uuid,.articles[1].uuid,.articles[2].uuid] == [
-      "196a8ad1-ff50-41f5-82f0-14d662f48a6f",
+      "787d0509-67b2-4601-97a3-67228d79d1cc",
       "3d638f3e-8a31-4b7c-9466-c40f70f4999a",
       "8b5c25de-88ce-4493-a28a-54d55957baaf"
     ] and .prod_write == (if $mode == "apply" then "BOUNDED_UPDATE" else "NONE" end)

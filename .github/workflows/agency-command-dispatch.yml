@@ -26,7 +26,8 @@ env:
       {"route":"PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC","prefix":"/agency-config-sync-prod-runtime ","exact":["/agency-config-sync-prod-runtime diagnose","/agency-config-language-lock-prod diagnose"]},
       {"route":"CANVAS_AI_PROVIDER_PROOF_530","prefix":"/agency-canvas-ai-provider-proof ","regex":"^/agency-canvas-ai-provider-proof run pr=533 sha=[0-9a-f]{40}$"},
       {"route":"CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392","prefix":"/agency-canvas-addressing-diagnostic ","regex":"^/agency-canvas-addressing-diagnostic run pr=533 sha=[0-9a-f]{40}$"},
-      {"route":"INFRA_COCKPIT_CONSUMER_PROOF","prefix":"/agency-infra-cockpit-consumer ","regex":"^/agency-infra-cockpit-consumer prove main=[0-9a-f]{40} infra=[0-9a-f]{40} release=[0-9a-f]{40} session=[0-9a-f]{16} pubkey=[0-9a-f]{64}$"}
+      {"route":"INFRA_COCKPIT_CONSUMER_PROOF","prefix":"/agency-infra-cockpit-consumer ","regex":"^/agency-infra-cockpit-consumer prove main=[0-9a-f]{40} infra=[0-9a-f]{40} release=[0-9a-f]{40} session=[0-9a-f]{16} pubkey=[0-9a-f]{64}$"},
+      {"route":"ENVIRONMENT_DATA_HANDOFF_1309","prefix":"/agency-environment-data ","regex":"^/agency-environment-data publish main=[0-9a-f]{40}$"}
     ]
 
 jobs:
@@ -88,6 +89,7 @@ jobs:
               'CANVAS_AI_PROVIDER_PROOF_530': '530',
               'CANVAS_AI_CANDIDATE_ADDRESSING_DIAGNOSTIC_1392': '1392',
               'INFRA_COCKPIT_CONSUMER_PROOF': '1261',
+              'ENVIRONMENT_DATA_HANDOFF_1309': '1309',
           }
           route = 'NONE'
           if not is_pr and event_name == 'issue_comment':
@@ -620,6 +622,26 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+
+  agency-environment-data-private:
+    name: Route #1309 owner-gated private environment-data publication
+    needs: classify
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.action == 'created'
+          && github.event.issue.pull_request == null
+          && github.event.issue.number == 1309
+          && github.event.comment.author_association == 'OWNER'
+          && github.event.comment.user.login == 'E-merging-digital'
+          && github.event.comment.performed_via_github_app == null
+          && needs.classify.outputs.route == 'ENVIRONMENT_DATA_HANDOFF_1309' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/agency-environment-data-private-handoff.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   preprod-php85-migration-1336-plan:
     name: Route #1336 governed PREPROD PHP 8.5 migration PLAN

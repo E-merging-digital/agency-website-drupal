@@ -8,8 +8,12 @@ on:
       - 'scripts/runner/publish-agency-environment-data-handoff.sh'
       - 'scripts/runner/test-publish-agency-environment-data-handoff.sh'
       - 'scripts/runner/publish-agency-runner-health-handoff.sh'
-  issue_comment:
-    types: [created]
+  workflow_call:
+    secrets:
+      PREPROD_SERVER_HOST:
+        required: true
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
 
 permissions:
   contents: read
@@ -39,6 +43,7 @@ jobs:
           bash scripts/runner/test-publish-agency-environment-data-handoff.sh
           git diff --check '${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}'
           ! grep -Eq 'upload-artifact|download-artifact|workflow_dispatch:|schedule:' .github/workflows/agency-environment-data-private-handoff.yml
+          ! grep -Eq '^[[:space:]]+issue_comment:' .github/workflows/agency-environment-data-private-handoff.yml
           ! grep -Eiq 'mysqli|PDO|database.*query|drush|curl' scripts/runner/read-agency-environment-data-preprod.sh
 
   publish-private:

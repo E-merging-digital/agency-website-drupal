@@ -297,19 +297,25 @@ The normal route cannot:
 - accept arbitrary aliases or remote media URLs;
 - invoke an AI provider;
 - turn an emergency exception into a permanent switch.
-### Four existing historical Articles (#1522) — PREPROD only
+### Three revised historical Articles (#1522) — PREPROD only
 
-The four bilingual historical Articles in #1522 are revised **in place** using
-Drupal's Entity API, the fixed source
+Three of the four bilingual historical Articles in #1522 (candidates 2–4)
+were revised **in place** on PREPROD using Drupal's Entity API, the fixed source
 `assets/editorial/issue-1522-legacy-revisions.json` and Jonathan's four
-SHA-256-pinned WebP assets. The closed commands on issue #1522 are
+SHA-256-pinned WebP assets (only three applied). The IA Article (candidate 1)
+has no proven PREPROD identity and remains on `HOLD IA_PREPROD_IDENTITY`;
+its fourth WebP was not applied. The closed commands on issue #1522 are
 `/agency-legacy-1522 inspect`, `dry-run` and `apply`; the apply requires a
-prior bot dry-run PASS for the same source hash and live `main`. The runner
+prior bot dry-run receipt (PASS or correctly bounded PARTIAL) with exact
+per-Article eligibility proofs for the same source hash and live `main`. The runner
 checks both existing FR/EN aliases resolve to the same published Article and
 preserves nid, UUID, categories, original dates, aliases and untouched fields.
 It creates new revisions, not new nodes. Its only SSH identity is PREPROD;
-no PROD secret or PROD update mechanism is wired to this route. After the
-eight PREPROD renders are reviewed, PROD requires a separate exact human GO
+no PROD secret or PROD update mechanism is wired to this route. The six
+FR/EN PREPROD article pages for candidates 2–4 have the owner's reported
+visual agreement in conversation, but still require the exact direct GitHub
+GO for the bound candidate; no IA PREPROD render is attested. PROD requires
+a separate exact human GO
 and an explicitly governed **existing-node** promotion route.
 
 ## Existing Article revisions and PREPROD/PROD drift (#1525)

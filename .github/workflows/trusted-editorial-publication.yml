@@ -2,6 +2,12 @@ name: Agency trusted editorial publication
 
 on:
   workflow_call:
+    inputs:
+      automatic_mode:
+        description: "Only for an exact direct human Article approval event; dry-run then apply."
+        type: string
+        required: false
+        default: ''
     secrets:
       SSH_PRIVATE_KEY:
         required: true
@@ -23,7 +29,16 @@ jobs:
         (
           github.event.comment.body == '/agency-editorial inspect' ||
           github.event.comment.body == '/agency-editorial dry-run' ||
-          github.event.comment.body == '/agency-editorial apply'
+          github.event.comment.body == '/agency-editorial apply' ||
+          (
+            (inputs.automatic_mode == 'dry-run' || inputs.automatic_mode == 'apply') &&
+            startsWith(github.event.comment.body, '## PROJECT LEAD — HUMAN APPROVAL / exact #') &&
+            github.event.comment.user.login == 'E-merging-digital' &&
+            github.event.comment.user.type == 'User' &&
+            github.event.comment.author_association == 'OWNER' &&
+            github.event.comment.performed_via_github_app == null &&
+            github.event.comment.created_at == github.event.comment.updated_at
+          )
         )
       }}
     runs-on: ubuntu-24.04
@@ -41,6 +56,12 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           TRIGGER_COMMENT: ${{ github.event.comment.body }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_AUTHOR_TYPE: ${{ github.event.comment.user.type }}
+          COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_FROM_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          COMMENT_UNEDITED: ${{ github.event.comment.created_at == github.event.comment.updated_at }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
+          AUTOMATIC_MODE: ${{ inputs.automatic_mode }}
           EVENT_DEFAULT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -49,12 +70,32 @@ jobs:
           [[ "$COMMENT_AUTHOR" == "$GITHUB_ACTOR" ]]
           [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]
 
-          case "$TRIGGER_COMMENT" in
-            '/agency-editorial inspect') mode='inspect' ;;
-            '/agency-editorial dry-run') mode='dry-run' ;;
-            '/agency-editorial apply') mode='apply' ;;
-            *) echo 'Unsupported editorial command.' >&2; exit 1 ;;
-          esac
+          if [[ -n "$AUTOMATIC_MODE" ]]; then
+            [[ "$AUTOMATIC_MODE" == 'dry-run' || "$AUTOMATIC_MODE" == 'apply' ]]
+            [[ "$ISSUE_NUMBER" != '1117' ]]
+            [[ "$COMMENT_AUTHOR_TYPE" == 'User' ]]
+            [[ "$COMMENT_AUTHOR_ASSOCIATION" == 'OWNER' ]]
+            [[ "$COMMENT_FROM_APP" == 'false' ]]
+            [[ "$COMMENT_UNEDITED" == 'true' ]]
+            [[ "$TRIGGER_COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
+            approval_heading="## PROJECT LEAD — HUMAN APPROVAL / exact #${ISSUE_NUMBER} candidate approved for PROD promotion"
+            [[ "${TRIGGER_COMMENT%%$'\n'*}" == "$approval_heading" ]]
+            # Re-read the live comment, not only the event snapshot. No edited,
+            # App-mediated or superseded approval may trigger production work.
+            gh api "repos/$GITHUB_REPOSITORY/issues/comments/$TRIGGER_COMMENT_ID" |
+              jq -e --arg body "$TRIGGER_COMMENT" \
+                '.user.login == "E-merging-digital" and .user.type == "User" and
+                 .author_association == "OWNER" and .performed_via_github_app == null and
+                 .created_at == .updated_at and .body == $body' >/dev/null
+            mode="$AUTOMATIC_MODE"
+          else
+            case "$TRIGGER_COMMENT" in
+              '/agency-editorial inspect') mode='inspect' ;;
+              '/agency-editorial dry-run') mode='dry-run' ;;
+              '/agency-editorial apply') mode='apply' ;;
+              *) echo 'Unsupported editorial command.' >&2; exit 1 ;;
+            esac
+          fi
 
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
           [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
@@ -263,6 +304,8 @@ jobs:
           TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
           PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
           CANDIDATE_REVISION: ${{ steps.payload.outputs.candidate_revision }}
+          AUTOMATIC_MODE: ${{ inputs.automatic_mode }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           set -euo pipefail
 
@@ -405,6 +448,12 @@ jobs:
 
             jq -e '.status == "PASS" and .verdict == "AUTHORIZED" and .image_waiver == "UNSUPPORTED"' \
               "$approval_json" >/dev/null
+            if [[ "$AUTOMATIC_MODE" == 'apply' ]]; then
+              [[ "$(jq -r '.approval_comment_id' "$approval_json")" == "$TRIGGER_COMMENT_ID" ]] || {
+                echo 'Automatic apply is bound to a different or superseded owner approval.' >&2
+                exit 1
+              }
+            fi
             {
               echo "profile_sha256=$(jq -r '.profile_sha256' "$approval_json")"
               echo "asset_sha256=$(jq -r '.asset_sha256' "$approval_json")"

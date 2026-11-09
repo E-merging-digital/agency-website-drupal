@@ -185,6 +185,23 @@ A fresh bot-authored PROD dry-run for the exact payload/current main must be
 later than the human approval. This makes stale approval and pre-approval PROD
 dry-runs unusable.
 
+### Single human GO, automatic technical continuation
+
+The direct, unedited OWNER/User/non-App approval comment is the **only human GO**
+for that exact rendered PREPROD candidate. Its creation event starts the existing
+trusted PROD dry-run and, **only if that job succeeds**, the existing same-artifact
+PROD apply. These remain separate machine gates with unchanged validators,
+backup, fail-closed behaviour and post-apply receipt. No extra human comment or
+manual `/agency-editorial dry-run` / `apply` is required. The explicit command
+routes remain available as a diagnostic/recovery fallback, not as routine steps.
+
+The automatic path is Article-only, requires the live event comment to be the
+same direct, unedited human approval, and binds the apply to that exact comment
+ID. If another approval supersedes it, `main` changes, PREPROD/image evidence
+is stale, or a HOLD applies, the job stops rather than falling back to older
+evidence. This never authorizes publication of a new or revised text without
+its own PREPROD review.
+
 No general image waiver or direct-PROD exception flag exists. A legal/emergency
 exception requires a separate explicit, bounded, auditable Project Lead
 capability and cannot become a reusable precedent.
@@ -280,3 +297,18 @@ The normal route cannot:
 - accept arbitrary aliases or remote media URLs;
 - invoke an AI provider;
 - turn an emergency exception into a permanent switch.
+### Four existing historical Articles (#1522) — PREPROD only
+
+The four bilingual historical Articles in #1522 are revised **in place** using
+Drupal's Entity API, the fixed source
+`assets/editorial/issue-1522-legacy-revisions.json` and Jonathan's four
+SHA-256-pinned WebP assets. The closed commands on issue #1522 are
+`/agency-legacy-1522 inspect`, `dry-run` and `apply`; the apply requires a
+prior bot dry-run PASS for the same source hash and live `main`. The runner
+checks both existing FR/EN aliases resolve to the same published Article and
+preserves nid, UUID, categories, original dates, aliases and untouched fields.
+It creates new revisions, not new nodes. Its only SSH identity is PREPROD;
+no PROD secret or PROD update mechanism is wired to this route. After the
+eight PREPROD renders are reviewed, PROD requires a separate exact human GO
+and an explicitly governed **existing-node** promotion route.
+

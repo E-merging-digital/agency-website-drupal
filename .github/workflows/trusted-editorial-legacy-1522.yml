@@ -1,0 +1,177 @@
+name: "#1522 Existing bilingual Articles in PREPROD"
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+  pull_request:
+    paths:
+      - '.github/workflows/trusted-editorial-legacy-1522.yml'
+      - '.github/workflows/agency-command-dispatch.yml'
+      - 'scripts/runner/editorial-legacy-1522.php'
+      - 'scripts/runner/run-editorial-legacy-1522.sh'
+      - 'assets/editorial/issue-1522-*'
+
+permissions:
+  contents: read
+
+jobs:
+  static-validation:
+    if: ${{ github.event_name == 'pull_request' }}
+    name: "#1522 fixed four-node revision contract"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check PHP, shell, closed candidate and WebP bytes
+        run: |
+          set -euo pipefail
+          php -l scripts/runner/editorial-legacy-1522.php
+          bash -n scripts/runner/run-editorial-legacy-1522.sh
+          jq -e '.issue_number == 1522 and .schema_version == 1 and (.articles | length) == 4' assets/editorial/issue-1522-legacy-revisions.json >/dev/null
+          sha256sum -c <<'CHECKSUMS'
+          31821fa06570cf1135056f98398d0b329a7c330238542cf342d18f95cbba9072  assets/editorial/issue-1522-ai-pme-sept-usages.webp
+          a28485b4940934da889580cd5a449f77e7515521eb8f02d850f5eb099d772399  assets/editorial/issue-1522-drupal-10-vers-11.webp
+          0eaca29c4e740a7df42bc299106c16b3619a0c2f21aa8070055e8530235626ff  assets/editorial/issue-1522-drupal-symfony-laravel.webp
+          6741c1260f4d76b197ce9308fa61b819ae0cb505115c4c792bfca183f60dd0a8  assets/editorial/issue-1522-refonte-site-checklist.webp
+          CHECKSUMS
+
+  preprod:
+    if: >-
+      ${{
+        github.event_name == 'issue_comment' &&
+        github.event.issue.number == 1522 &&
+        github.event.issue.pull_request == null &&
+        (
+          github.event.comment.body == '/agency-legacy-1522 inspect' ||
+          github.event.comment.body == '/agency-legacy-1522 dry-run' ||
+          github.event.comment.body == '/agency-legacy-1522 apply'
+        )
+      }}
+    name: Reuse Drupal Entity API on existing PREPROD nodes only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: agency-existing-1522-preprod
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Validate exact owner request and pin main
+        id: request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHOR: ${{ github.event.comment.user.login }}
+          AUTHOR_TYPE: ${{ github.event.comment.user.type }}
+          ASSOCIATION: ${{ github.event.comment.author_association }}
+          FROM_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          COMMAND: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == E-merging-digital && "$AUTHOR" == E-merging-digital ]]
+          [[ "$AUTHOR_TYPE" == User && "$ASSOCIATION" == OWNER && "$FROM_APP" == false ]]
+          case "$COMMAND" in
+            '/agency-legacy-1522 inspect') mode=inspect ;;
+            '/agency-legacy-1522 dry-run') mode=dry-run ;;
+            '/agency-legacy-1522 apply') mode=apply ;;
+            *) exit 1 ;;
+          esac
+          gh api "repos/$GITHUB_REPOSITORY/issues/1522" --jq '.state' | grep -qx open
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          [[ "$main" =~ ^[0-9a-f]{40}$ ]]
+          {
+            echo "mode=$mode"
+            echo "main=$main"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.request.outputs.main }}
+          persist-credentials: false
+
+      - name: Verify immutable candidate and prior exact dry-run for apply
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.request.outputs.mode }}
+          MAIN: ${{ steps.request.outputs.main }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$MAIN"
+          digest="$(sha256sum assets/editorial/issue-1522-legacy-revisions.json | cut -d' ' -f1)"
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
+          echo "sha=$digest" >> "$GITHUB_OUTPUT"
+          php -l scripts/runner/editorial-legacy-1522.php
+          bash -n scripts/runner/run-editorial-legacy-1522.sh
+          if [[ "$MODE" == apply ]]; then
+            gh api --paginate "repos/$GITHUB_REPOSITORY/issues/1522/comments?per_page=100" --jq '.[]' |
+              jq -es --arg main "$MAIN" --arg sha "$digest" '
+                any(.[];
+                  .user.login == "github-actions[bot]" and
+                  .body == ("### Agency #1522 existing Articles PREPROD dry-run PASS\nmain: `" + $main + "`\nsource_sha256: `" + $sha + "`")
+                )' | grep -qx true
+          fi
+
+      - name: JIT pin to live main before PREPROD secret
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN: ${{ steps.request.outputs.main }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" = "$MAIN"
+          test "$(git rev-parse HEAD)" = "$MAIN"
+
+      - name: Materialize PREPROD-only SSH identity
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-1522-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1522-preprod.key"
+
+      - name: Apply or inspect four bounded existing revisions
+        id: run
+        env:
+          AGENCY_LEGACY_1522_MODE: ${{ steps.request.outputs.mode }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-1522-preprod.key
+        run: bash scripts/runner/run-editorial-legacy-1522.sh
+
+      - name: Cleanup transient identity
+        if: ${{ always() }}
+        run: rm -f -- "$RUNNER_TEMP/agency-1522-preprod.key"
+
+      - name: Publish bounded PREPROD result
+        if: ${{ always() && steps.request.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.request.outputs.mode }}
+          MAIN: ${{ steps.request.outputs.main }}
+          SHA: ${{ steps.candidate.outputs.sha }}
+          RUN_RESULT: ${{ steps.run.outcome }}
+        run: |
+          set -euo pipefail
+          file=artifacts/editorial-legacy-1522/result.json
+          if [[ "$RUN_RESULT" == success ]] && jq -e '.status == "PASS" and (.articles | length) == 4' "$file" >/dev/null 2>&1; then
+            body="$(printf '### Agency #1522 existing Articles PREPROD %s PASS\nmain: `%s`\nsource_sha256: `%s`' "$MODE" "$MAIN" "$SHA")"
+            gh issue comment 1522 --repo "$GITHUB_REPOSITORY" --body "$body"
+            jq -r '.articles[] | "\(.nid) rev \(.revision_after): \(.fr_url) | \(.en_url)"' "$file" >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh issue comment 1522 --repo "$GITHUB_REPOSITORY" --body "### Agency #1522 existing Articles PREPROD ${MODE} CONTROLLED_STOP (run ${GITHUB_RUN_ID}). No PROD."
+            exit 1
+          fi
+
+      - name: Upload PREPROD metadata receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-legacy-1522-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/editorial-legacy-1522/result.json
+          if-no-files-found: ignore
+          retention-days: 30

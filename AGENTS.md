@@ -233,6 +233,10 @@ AGENT_CANNOT_SELF_APPROVE_PUBLICATION = REQUIRED
   changement de candidat : un nouveau commentaire humain est requis.
 - Un agent peut preparer, tester et materialiser PREPROD, ou declencher une
   commande technique autorisee ; il ne peut jamais s'auto-approuver pour PROD.
+- Une seule approbation humaine directe du rendu PREPROD vaut aussi GO PROD
+  pour le candidat exact : le dry-run PROD frais et la promotion sont enchaines
+  automatiquement si les controles techniques passent, sans second GO humain.
+  Echec, derive du candidat ou HOLD actif = arret controle, sans contournement.
 - Les nouvelles pages publiques commerciales, campagnes et pages marketing ou
   editoriales editor-owned sont FR+EN par defaut. Une publication FR-only exige
   une exception de langue explicitement approuvee par l'humain avant PROD.

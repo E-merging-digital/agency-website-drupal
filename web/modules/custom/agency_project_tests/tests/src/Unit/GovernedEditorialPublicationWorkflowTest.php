@@ -164,4 +164,34 @@ final class GovernedEditorialPublicationWorkflowTest extends TestCase {
     self::assertStringNotContainsString('settings.php', $workflow);
   }
 
+  /**
+   * A direct human PREPROD approval is one GO, not three manual commands.
+   */
+  public function testOneHumanGoContinuesThroughExistingProtectedJobs(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $dispatch = (string) file_get_contents($root . '/.github/workflows/agency-command-dispatch.yml');
+    $publication = (string) file_get_contents($root . '/.github/workflows/trusted-editorial-publication.yml');
+
+    self::assertStringContainsString('EDITORIAL_APPROVED_AUTO_PROMOTION', $dispatch);
+    self::assertStringContainsString("comment_author_type == 'User'", $dispatch);
+    self::assertStringContainsString("comment_author_association == 'OWNER'", $dispatch);
+    self::assertStringContainsString('and not comment_from_app', $dispatch);
+    self::assertStringContainsString('and comment_unedited', $dispatch);
+    self::assertStringContainsString("and issue != '1117'", $dispatch);
+    self::assertStringContainsString('needs: [classify, editorial-auto-dry-run]', $dispatch);
+    self::assertStringContainsString('needs.editorial-auto-dry-run.result == \'success\'', $dispatch);
+    self::assertStringContainsString('automatic_mode: dry-run', $dispatch);
+    self::assertStringContainsString('automatic_mode: apply', $dispatch);
+
+    self::assertStringContainsString('github.event.comment.performed_via_github_app == null', $publication);
+    self::assertStringContainsString('github.event.comment.created_at == github.event.comment.updated_at', $publication);
+    self::assertStringContainsString('repos/$GITHUB_REPOSITORY/issues/comments/$TRIGGER_COMMENT_ID', $publication);
+    self::assertStringContainsString(".created_at == .updated_at and .body == \$body", $publication);
+    self::assertStringContainsString('approval_comment_id', $publication);
+    self::assertStringContainsString('== "$TRIGGER_COMMENT_ID"', $publication);
+    self::assertStringContainsString('validate-editorial-promotion-approval.py', $publication);
+    self::assertStringContainsString('Require exact PREPROD and human approval for apply', $publication);
+    self::assertStringNotContainsString('workflow_dispatch:', $publication);
+  }
+
 }

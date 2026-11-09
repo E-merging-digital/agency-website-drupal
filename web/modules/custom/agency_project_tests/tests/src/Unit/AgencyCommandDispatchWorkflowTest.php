@@ -22,6 +22,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PRODUCTION_SCHEDULER' => '.github/workflows/production-scheduler-change.yml',
     'EDITORIAL_PUBLICATION' => '.github/workflows/trusted-editorial-publication.yml',
     'EDITORIAL_PREPROD_CANDIDATE' => '.github/workflows/trusted-editorial-preprod-candidate.yml',
+    'LEGACY_1522_PREPROD' => '.github/workflows/trusted-editorial-legacy-1522.yml',
     'EDITORIAL_FEATURE_IMAGE' => '.github/workflows/trusted-editorial-feature-image.yml',
     'PREPROD_REFRESH' => '.github/workflows/preprod-914-governed-successor.yml',
     'DEVELOPMENT_SEED' => '.github/workflows/development-seed-publish.yml',
@@ -45,6 +46,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     'PREPROD_REFRESH_948_DETAIL' => 949,
     'PREPROD_BLOG_IMAGE_DIAGNOSTIC' => 966,
     'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971' => 971,
+    'LEGACY_1522_PREPROD' => 1522,
     'CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1318],
     'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC' => [982, 995, 1301, 1302],
     'CANVAS_AI_PROVIDER_PROOF_530' => 530,
@@ -80,7 +82,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertIsString($raw);
     $routes = json_decode($raw, TRUE, 32, JSON_THROW_ON_ERROR);
     self::assertIsArray($routes);
-    self::assertCount(17, $routes);
+    self::assertCount(18, $routes);
 
     $routeNames = array_column($routes, 'route');
     self::assertSame(array_keys(self::REUSABLES), $routeNames);
@@ -125,6 +127,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ],
       ['/agency-editorial inspect', 402, 'EDITORIAL_PUBLICATION'],
       ['/agency-editorial-candidate dry-run', 958, 'EDITORIAL_PREPROD_CANDIDATE'],
+      ['/agency-legacy-1522 dry-run', 1522, 'LEGACY_1522_PREPROD'],
       ['/agency-editorial-image dry-run', 401, 'EDITORIAL_FEATURE_IMAGE'],
       [
         '/agency-preprod-refresh-successor PLAN '
@@ -261,6 +264,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       ['/agency-preprod-blog-image-diagnostic diagnose', 967],
       ['/agency-preprod-image-rehydrate dry-run', 970],
       ['/agency-preprod-image-rehydrate apply', 972],
+      ['/agency-legacy-1522 apply', 1521],
       ['/agency-config-sync-runtime diagnose', 961],
       ['/agency-config-sync-runtime diagnose', 980],
       ['/agency-config-sync-runtime diagnose', 981],
@@ -376,6 +380,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       "'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971'",
       $source,
     );
+    self::assertStringContainsString("'LEGACY_1522_PREPROD': '1522'", $source);
     self::assertStringContainsString(
       "'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1318')",
       $source,

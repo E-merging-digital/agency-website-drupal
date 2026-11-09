@@ -312,3 +312,70 @@ no PROD secret or PROD update mechanism is wired to this route. After the
 eight PREPROD renders are reviewed, PROD requires a separate exact human GO
 and an explicitly governed **existing-node** promotion route.
 
+## Existing Article revisions and PREPROD/PROD drift (#1525)
+
+**Use Drupal Core first.** An ordinary bilingual Article is editor-owned in each
+Drupal database, not a record to be overwritten by Content Sync or by a code
+release. Updating an Article does **not** require creating a new Article or a
+custom editorial framework.
+
+### Short editor path
+
+1. In the **authorized PREPROD Drupal** interface, find the existing Article
+   under **Content** and open **Edit**, not **Add content**. Confirm its node
+   identity, FR/EN translations, current aliases, author/date, taxonomy and
+   existing image before saving.
+2. Change the FR fields on that node, then its **Translate > English > Edit**
+   fields; attach the reviewed WebP and its language-specific ALT. Use Drupal's
+   normal **Create new revision** action. Do not replace the node, regenerate
+   stable aliases, or change historical dates/categories as a side effect.
+3. Read back the **same node/UUID**, the new revision, FR/EN aliases and the
+   image/ALT. Check the six actual rendered surfaces as applicable (FR/EN
+   detail plus listings at desktop/mobile). The owner must approve the exact
+   PREPROD render before any PROD action.
+4. For an automated batch, reuse an **existing issue-bounded** PREPROD route
+   only within its proven scope (for #1522:
+   `/agency-legacy-1522 inspect`, `dry-run`, `apply`). An Article that is
+   missing or held must not prevent other independently identified Articles
+   from being revised.
+
+**PROD is a different authority boundary.** A PREPROD revision, CI pass,
+screen capture or approval of code does not authorize PROD. Only a direct,
+exact-content/image human render approval followed by a separately governed
+**existing-node UPDATE** route and its mandatory preflight, backup, rollback
+and post-write proof may update a historical Article in PROD. The
+`/agency-editorial apply` CREATE route must never be used to overwrite or
+duplicate one. If that UPDATE route has not been demonstrated for the exact
+candidate, stop and document the gap; do not infer one from the CREATE route.
+
+### Minimal identity check before an UPDATE
+
+Use existing authorized read-only Drupal/Drush inspection on **each**
+environment. Compare only: Article UUID, per-environment nid and revision,
+FR/EN title, aliases, translation/publication status, image identity and ALT.
+Use a UUID match or documented original GitHub candidate provenance; a nid
+number from PREPROD is **never** a PROD identity. No database copy or automatic
+normalization is permitted.
+
+| Classification | Meaning | Action |
+| --- | --- | --- |
+| `BOTH` | Same Article identity independently proven on both sites | Eligible for a separately approved UPDATE after checking current revisions. |
+| `PREPROD_ONLY_EXPECTED` | Candidate deliberately awaiting review | Preserve it; no implied PROD promotion. |
+| `PROD_ONLY_HISTORICAL` | Historical PROD Article absent/unresolved in PREPROD | Record provenance and HOLD any UPDATE until a safe PREPROD candidate is linked. |
+| `UNEXPECTED_DRIFT` | Identity, language, aliases or image conflict without authorized explanation | CONTROLLED_STOP for that Article only; investigate before mutation. |
+
+**Evidence snapshot, 2026-11-09 (not an assertion of perpetual parity):**
+#1522 applied PREPROD revisions to existing nodes 39 (rev 57, Drupal
+10→11), 38 (rev 58, Drupal/Symfony/Laravel) and 37 (rev 59, Checklist).
+See [run 42647796813](https://github.com/E-merging-digital/agency-website-drupal/actions/runs/42647796813)
+and [receipt #6744421721](https://github.com/E-merging-digital/agency-website-drupal/issues/1522#issuecomment-6744421721).
+The original IA-for-SMEs Article exists in PROD (nid 40/rev 44), but its
+PREPROD identity is unresolved: `PROD_ONLY_HISTORICAL`,
+`HOLD IA_PREPROD_IDENTITY`. The separate MCP PREPROD candidate (nid
+42/rev 49) is `PREPROD_ONLY_EXPECTED`, **not** the missing IA Article.
+Neither was changed by #1522. Content and code releases are separate:
+deploying `main` never proves Drupal content parity.
+
+This is a read-only classification and native editing procedure, **not a
+new synchronization job, security gate or production permission**. Reuse the
+existing controls and stop at the first genuine identity ambiguity.

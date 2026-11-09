@@ -1,0 +1,143 @@
+name: '#1309 Agency private environment-data handoff'
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/agency-environment-data-private-handoff.yml'
+      - 'scripts/runner/read-agency-environment-data-preprod.sh'
+      - 'scripts/runner/publish-agency-environment-data-handoff.sh'
+      - 'scripts/runner/test-publish-agency-environment-data-handoff.sh'
+      - 'scripts/runner/publish-agency-runner-health-handoff.sh'
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agency-environment-data-1309-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  source-contract:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate bounded private publication source
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/runner/read-agency-environment-data-preprod.sh
+          bash -n scripts/runner/publish-agency-environment-data-handoff.sh
+          bash -n scripts/runner/test-publish-agency-environment-data-handoff.sh
+          bash scripts/runner/test-publish-agency-environment-data-handoff.sh
+          git diff --check '${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}'
+          ! grep -Eq 'upload-artifact|download-artifact|workflow_dispatch:|schedule:' .github/workflows/agency-environment-data-private-handoff.yml
+          ! grep -Eiq 'mysqli|PDO|database.*query|drush|curl' scripts/runner/read-agency-environment-data-preprod.sh
+
+  publish-private:
+    if: >-
+      ${{ github.event_name == 'issue_comment'
+          && github.event.issue.number == 1309
+          && github.event.issue.pull_request == null
+          && startsWith(github.event.comment.body, '/agency-environment-data publish main=') }}
+    runs-on: [self-hosted, linux, x64, agency, ddev, browser]
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Validate exact native owner authorization and current main
+        id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          COMMENT_CREATED: ${{ github.event.comment.created_at }}
+          COMMENT_UPDATED: ${{ github.event.comment.updated_at }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+          [[ "$COMMENT_LOGIN" == 'E-merging-digital' && "$COMMENT_ASSOCIATION" == 'OWNER' ]]
+          [[ "$COMMENT_APP" == 'false' && "$COMMENT_CREATED" == "$COMMENT_UPDATED" ]]
+          [[ "${RUNNER_NAME:-}" == 'agency-browser-runner-01' ]]
+          [[ "$(hostname)" == 'preflight-runner-01' && "$(id -un)" == 'agency-runner' ]]
+          issue="$(gh api "repos/$GITHUB_REPOSITORY/issues/1309")"
+          [[ "$(jq -r '.state' <<< "$issue")" == 'open' ]]
+          [[ "$(jq -r '.pull_request // empty' <<< "$issue")" == '' ]]
+          main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          [[ "$main" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$COMMENT_BODY" == "/agency-environment-data publish main=$main" ]]
+          [[ "$GITHUB_SHA" == "$main" && "$GITHUB_REF" == 'refs/heads/main' ]]
+          echo "main_sha=$main" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Read exact PREPROD projection and publish locally (no public artifact)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ steps.authority.outputs.main_sha }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$(git rev-parse HEAD)" == "$MAIN_SHA" ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')" == "$MAIN_SHA" ]]
+          [[ "$PREPROD_SERVER_HOST" =~ ^[A-Za-z0-9.-]+$ && -n "$PREPROD_SSH_PRIVATE_KEY" ]]
+          temp="$(mktemp -d "$RUNNER_TEMP/agency-1309.XXXXXX")"
+          trap 'rm -rf -- "$temp"' EXIT
+          mkdir -m 700 "$temp/home"
+          printf '%s\n' "$PREPROD_SSH_PRIVATE_KEY" > "$temp/preprod.key"
+          chmod 600 "$temp/preprod.key"
+          HOME="$temp/home" PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+          ssh_args=(
+            -i "$temp/preprod.key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$temp/home/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+          timeout 60s ssh "${ssh_args[@]}" "agency-preprod@$PREPROD_SERVER_HOST" 'bash -s' \
+            < scripts/runner/read-agency-environment-data-preprod.sh \
+            > "$temp/raw.json" 2> "$temp/remote.stderr" || {
+              echo 'PREPROD read failed; raw diagnostics withheld.' >&2
+              exit 1
+            }
+          [[ "$(wc -c < "$temp/raw.json")" -le 16384 ]]
+          jq -cS . "$temp/raw.json" > "$temp/projection.json"
+          projection_sha="$(sha256sum "$temp/projection.json" | awk '{print $1}')"
+          observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jq -cS --arg source_sha "$MAIN_SHA" --arg digest "$projection_sha" \
+            --arg observed "$observed_at" --arg evidence "agency-1309-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" '
+              ._publication = {
+                schema_version: 1,
+                source_project: "agency-website",
+                source_repository_sha: $source_sha,
+                observed_at_utc: $observed,
+                projection_sha256: $digest,
+                evidence_reference: $evidence
+              }
+            ' "$temp/projection.json" > "$temp/receipt.json"
+          EXPECTED_SOURCE_SHA="$MAIN_SHA" \
+            bash scripts/runner/publish-agency-environment-data-handoff.sh "$temp/receipt.json"
+          echo 'AGENCY_ENVIRONMENT_DATA_PRIVATE_HANDOFF=PASS'
+          echo "PROJECTION_SHA256=$projection_sha"
+          echo "SOURCE_REPOSITORY_SHA=$MAIN_SHA"
+          echo 'TRANSPORT=RUNNER_LOCAL_ONLY / NO_GITHUB_ARTIFACT / NO_INFRA_CREDENTIAL'

@@ -3,6 +3,8 @@ set -Eeuo pipefail
 umask 077
 
 # Closed, three-Article UPDATE of #1522. No create, IA, configurable node or SQL.
+operation="${1:-}"
+[[ "$operation" == identity || "$operation" == update ]]
 [[ "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ ]]
 [[ "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]
 [[ "${SERVER_HOST:-}" =~ ^[A-Za-z0-9.-]+$ ]]
@@ -31,13 +33,15 @@ trap cleanup EXIT
 ssh "${ssh_args[@]}" "$target" "mkdir -m 700 '$remote_dir'"
 scp "${ssh_args[@]}" scripts/runner/editorial-legacy-1522.php "$target:$remote_dir/runner.php" >/dev/null
 scp "${ssh_args[@]}" assets/editorial/issue-1522-legacy-revisions.json "$target:$remote_dir/candidate.json" >/dev/null
-for image in issue-1522-drupal-10-vers-11.webp issue-1522-drupal-symfony-laravel.webp issue-1522-refonte-site-checklist.webp; do
-  scp "${ssh_args[@]}" "assets/editorial/$image" "$target:$remote_dir/$image" >/dev/null
-done
+if [[ "$operation" == update ]]; then
+  for image in issue-1522-drupal-10-vers-11.webp issue-1522-drupal-symfony-laravel.webp issue-1522-refonte-site-checklist.webp; do
+      scp "${ssh_args[@]}" "assets/editorial/$image" "$target:$remote_dir/$image" >/dev/null
+  done
+fi
 
 run_drupal() {
   local mode="$1" allowlist="${2:-}" result="$3"
-  case "$mode" in inspect|dry-run|apply) ;; *) exit 64 ;; esac
+  case "$mode" in identity|inspect|dry-run|apply) ;; *) exit 64 ;; esac
   [[ -z "$allowlist" || "$allowlist" =~ ^2:[0-9a-f]{64},3:[0-9a-f]{64},4:[0-9a-f]{64}$ ]]
   ssh "${ssh_args[@]}" "$target" \
     "set -euo pipefail; cd /var/www/agency/current; test -x vendor/bin/drush; vendor/bin/drush status --fields=bootstrap >/dev/null; AGENCY_LEGACY_1522_TARGET=PROD AGENCY_LEGACY_1522_MODE='$mode' AGENCY_LEGACY_1522_ALLOWLIST='$allowlist' AGENCY_LEGACY_1522_CANDIDATE='$remote_dir/candidate.json' AGENCY_LEGACY_1522_ASSETS='$remote_dir' AGENCY_LEGACY_1522_RESULT='$remote_dir/$result' timeout 180s vendor/bin/drush php:script '$remote_dir/runner.php'"
@@ -58,6 +62,24 @@ check_three() {
     ] and .prod_write == (if $mode == "apply" then "BOUNDED_UPDATE" else "NONE" end)
   ' "$file" >/dev/null
 }
+
+# Strictly read-only inspection of three existing Article identities.
+# No media upload, backup, revision change or publication is possible in this mode.
+if [[ "$operation" == identity ]]; then
+  run_drupal identity '' identity.json
+  jq -e '
+    .status == "PASS" and .target == "PROD" and .mode == "identity"
+    and .issue_number == 1522 and .prod_write == "NONE"
+    and .held_article == "IA_PREPROD_IDENTITY"
+    and [.articles[].candidate_index] == [2,3,4]
+    and ([.articles[] | .status == "PASS" and (.nid > 0)
+      and (.revision > 0) and (.uuid | test("^[0-9a-f-]{36}$"))
+      and (.fr_alias | startswith("/blog/")) and (.en_alias | startswith("/blog/"))] | all)
+    and ([.articles[].nid] | unique | length) == 3
+  ' "$out/identity.json" >/dev/null
+  printf 'PROD_IDENTITY_ONLY=PASS\nPROD_WRITE=NONE\nIA_HOLD=YES\n' >> "$GITHUB_STEP_SUMMARY"
+  exit 0
+fi
 
 # Fresh read-only PROD proof. It binds UUID, live revision and both aliases to
 # the same node; any mismatch stops before backup or mutation.

@@ -9,7 +9,7 @@ use Drupal\node\NodeInterface;
 use Drupal\user\UserInterface;
 
 /**
- * One bounded PREPROD revision of four EXISTING bilingual Articles (#1522).
+ * Bounded PREPROD revision of the three existing bilingual Articles (#1522).
  *
  * Uses Drupal core Entity API; deliberately has no create-node, PROD or
  * arbitrary entity/path/field capability.
@@ -71,10 +71,24 @@ final class AgencyLegacyEditorial1522 {
       throw new RuntimeException('Closed #1522 PREPROD revision contract mismatch.');
     }
 
-    // Validate all source files and all four FR/EN alias bindings before writes.
+    // The historic IA Article is missing from PREPROD and stays on HOLD.
+    // The prior dry-run authorizes each Article by its exact identity/revision.
+    $allowed = [];
+    $allowlist = getenv('AGENCY_LEGACY_1522_ALLOWLIST') ?: '';
+    if ($mode === 'apply') {
+      if (!preg_match('/^2:([0-9a-f]{64}|HOLD),3:([0-9a-f]{64}|HOLD),4:([0-9a-f]{64}|HOLD)$/D', $allowlist, $matches)) {
+        throw new RuntimeException('Exact per-Article dry-run authorization is missing.');
+      }
+      $allowed = [2 => $matches[1], 3 => $matches[2], 4 => $matches[3]];
+    }
+    elseif ($allowlist !== '') {
+      throw new RuntimeException('Dry-run authorization is not accepted outside apply.');
+    }
+
+    // Preflight is independent by Article; no writes until all identities are classified.
     $plan = [];
     $seen = [];
-    $aliasMismatches = [];
+    $issues = [];
     foreach (self::SCOPE as $index => $scope) {
       $item = $candidate['articles'][$index];
       if (!is_array($item) || ($item['aliases'] ?? NULL) !== ['fr' => $scope['fr'], 'en' => $scope['en']]
@@ -82,60 +96,71 @@ final class AgencyLegacyEditorial1522 {
         || ($item['image']['sha256'] ?? NULL) !== $scope['sha']) {
         throw new RuntimeException('Unexpected Article, alias or media in #1522 candidate.');
       }
-      foreach (['fr', 'en'] as $lang) {
-        $fields = $item[$lang] ?? NULL;
-        if (!is_array($fields)
-          || array_keys($fields) !== ['title', 'short_description', 'seo_title', 'seo_description', 'body_html']
-          || !is_string($fields['title']) || trim($fields['title']) === ''
-          || !is_string($fields['short_description']) || trim($fields['short_description']) === ''
-          || !is_string($fields['body_html']) || !str_contains($fields['body_html'], '<p>')) {
-          throw new RuntimeException('Incomplete bilingual article candidate.');
-        }
-        if (!is_string($item['image']['alt'][$lang] ?? NULL)
-          || trim($item['image']['alt'][$lang]) === '') {
-          throw new RuntimeException('Missing bilingual feature image ALT.');
-        }
-      }
-      $asset = $assets . '/' . $scope['file'];
-      if (!is_file($asset) || filesize($asset) <= 0 || filesize($asset) > 5000000
-        || !hash_equals($scope['sha'], (string) hash_file('sha256', $asset))) {
-        throw new RuntimeException('Approved WebP bytes missing or different.');
-      }
-      $raster = getimagesize($asset);
-      if (!is_array($raster) || ($raster['mime'] ?? NULL) !== 'image/webp'
-        || $raster[0] !== 1672 || $raster[1] !== 941) {
-        throw new RuntimeException('Approved WebP type/dimensions mismatch.');
-      }
-
-      $pathFr = $this->aliases->getPathByAlias($scope['fr'], 'fr');
-      $pathEn = $this->aliases->getPathByAlias($scope['en'], 'en');
-      $frResolved = preg_match('#^/node/([1-9][0-9]*)$#', $pathFr, $frMatch) === 1;
-      $enResolved = preg_match('#^/node/([1-9][0-9]*)$#', $pathEn, $enMatch) === 1;
-      if (!$frResolved || !$enResolved || $pathEn !== $pathFr) {
-        // Diagnostic only: expose bounded candidate index and node IDs, never arbitrary paths.
-        $aliasMismatches[] = sprintf(
-          'candidate=%d fr_nid=%s en_nid=%s',
-          $index + 1,
-          $frResolved ? $frMatch[1] : 'UNRESOLVED',
-          $enResolved ? $enMatch[1] : 'UNRESOLVED',
-        );
+      if ($index === 0) {
+        // No PREPROD alias/nid is proven for the IA Article: never create or modify it here.
         continue;
       }
-      $nid = (int) $frMatch[1];
-      if (isset($seen[$nid])) {
-        throw new RuntimeException('Two candidates resolve to the same Article.');
+      $number = $index + 1;
+      try {
+        foreach (['fr', 'en'] as $lang) {
+          $fields = $item[$lang] ?? NULL;
+          if (!is_array($fields)
+            || array_keys($fields) !== ['title', 'short_description', 'seo_title', 'seo_description', 'body_html']
+            || !is_string($fields['title']) || trim($fields['title']) === ''
+            || !is_string($fields['short_description']) || trim($fields['short_description']) === ''
+            || !is_string($fields['body_html']) || !str_contains($fields['body_html'], '<p>')) {
+            throw new RuntimeException('Incomplete bilingual article candidate.');
+          }
+          if (!is_string($item['image']['alt'][$lang] ?? NULL)
+            || trim($item['image']['alt'][$lang]) === '') {
+            throw new RuntimeException('Missing bilingual feature image ALT.');
+          }
+        }
+        $asset = $assets . '/' . $scope['file'];
+        if (!is_file($asset) || filesize($asset) <= 0 || filesize($asset) > 5000000
+          || !hash_equals($scope['sha'], (string) hash_file('sha256', $asset))) {
+          throw new RuntimeException('Approved WebP bytes missing or different.');
+        }
+        $raster = getimagesize($asset);
+        if (!is_array($raster) || ($raster['mime'] ?? NULL) !== 'image/webp'
+          || $raster[0] !== 1672 || $raster[1] !== 941) {
+          throw new RuntimeException('Approved WebP type/dimensions mismatch.');
+        }
+
+        $pathFr = $this->aliases->getPathByAlias($scope['fr'], 'fr');
+        $pathEn = $this->aliases->getPathByAlias($scope['en'], 'en');
+        $frResolved = preg_match('#^/node/([1-9][0-9]*)$#', $pathFr, $frMatch) === 1;
+        $enResolved = preg_match('#^/node/([1-9][0-9]*)$#', $pathEn, $enMatch) === 1;
+        if (!$frResolved || !$enResolved || $pathEn !== $pathFr) {
+          throw new RuntimeException(sprintf(
+            'candidate=%d fr_nid=%s en_nid=%s',
+            $number,
+            $frResolved ? $frMatch[1] : 'UNRESOLVED',
+            $enResolved ? $enMatch[1] : 'UNRESOLVED',
+          ));
+        }
+        $nid = (int) $frMatch[1];
+        if (isset($seen[$nid])) {
+          $issues[$seen[$nid]] = 'Two candidates resolve to the same Article.';
+          unset($plan[$seen[$nid]]);
+          throw new RuntimeException('Two candidates resolve to the same Article.');
+        }
+        $seen[$nid] = $number;
+        $node = $this->entities->getStorage('node')->load($nid);
+        if (!$node instanceof NodeInterface || $node->bundle() !== 'article'
+          || $node->language()->getId() !== 'fr' || !$node->hasTranslation('en')
+          || !$node->hasField('field_feature_image') || !$node->isPublished()) {
+          throw new RuntimeException('Existing published bilingual Article cannot be proven.');
+        }
+        $proof = hash('sha256', implode('|', [1522, $number, $nid, $node->uuid(), $node->getRevisionId(), $scope['sha'], $scope['fr'], $scope['en']]));
+        if ($mode === 'apply' && ($allowed[$number] === 'HOLD' || !hash_equals($allowed[$number], $proof))) {
+          throw new RuntimeException('Article absent or identity/revision changed since exact dry-run.');
+        }
+        $plan[$number] = ['node' => $node, 'scope' => $scope, 'item' => $item, 'asset' => $asset, 'candidate_index' => $number, 'proof' => $proof];
       }
-      $seen[$nid] = TRUE;
-      $node = $this->entities->getStorage('node')->load($nid);
-      if (!$node instanceof NodeInterface || $node->bundle() !== 'article'
-        || $node->language()->getId() !== 'fr' || !$node->hasTranslation('en')
-        || !$node->hasField('field_feature_image') || !$node->isPublished()) {
-        throw new RuntimeException('Existing published bilingual Article cannot be proven.');
+      catch (Throwable $exception) {
+        $issues[$number] = $exception->getMessage();
       }
-      $plan[] = ['node' => $node, 'scope' => $scope, 'item' => $item, 'asset' => $asset];
-    }
-    if ($aliasMismatches !== []) {
-      throw new RuntimeException('FR/EN aliases do not resolve to one existing Article: ' . implode('; ', $aliasMismatches));
     }
 
     $author = $this->entities->getStorage('user')->load(1);
@@ -144,73 +169,92 @@ final class AgencyLegacyEditorial1522 {
     }
 
     $results = [];
-    foreach ($plan as $entry) {
-      $node = $entry['node'];
-      $scope = $entry['scope'];
-      $item = $entry['item'];
-      $oldRevision = (int) $node->getRevisionId();
-      $uuid = $node->uuid();
-      $created = $node->getCreatedTime();
-      $alreadyExact = $this->matches($node, $scope, $item);
-      if ($mode === 'apply' && !$alreadyExact) {
-        $this->accounts->switchTo($author);
-        try {
-          $fid = (int) $this->materialize($scope, $entry['asset'])->id();
-          foreach (['fr', 'en'] as $lang) {
-            $translation = $node->getTranslation($lang);
-            $fields = $item[$lang];
-            $translation->setTitle($fields['title']);
-            $translation->set('field_short_description', [['value' => $fields['short_description'], 'format' => 'basic_html']]);
-            $translation->set('body', [['value' => $fields['body_html'], 'format' => 'basic_html']]);
-            $translation->set('field_feature_image', [['target_id' => $fid, 'alt' => $item['image']['alt'][$lang]]]);
-            // Title changes must NOT let Pathauto regenerate historic URLs.
-            $translation->set('path', ['alias' => $scope[$lang], 'pathauto' => 0]);
+    foreach ([2, 3, 4] as $number) {
+      if (isset($issues[$number])) {
+        $results[] = ['candidate_index' => $number, 'status' => 'CONTROLLED_STOP', 'proof' => 'HOLD', 'reason' => $issues[$number]];
+        continue;
+      }
+      $entry = $plan[$number];
+      try {
+        $node = $entry['node'];
+        $scope = $entry['scope'];
+        $item = $entry['item'];
+        $oldRevision = (int) $node->getRevisionId();
+        $uuid = $node->uuid();
+        $created = $node->getCreatedTime();
+        $alreadyExact = $this->matches($node, $scope, $item);
+        if ($mode === 'apply' && !$alreadyExact) {
+          $this->accounts->switchTo($author);
+          try {
+            $fid = (int) $this->materialize($scope, $entry['asset'])->id();
+            foreach (['fr', 'en'] as $lang) {
+              $translation = $node->getTranslation($lang);
+              $fields = $item[$lang];
+              $translation->setTitle($fields['title']);
+              $translation->set('field_short_description', [['value' => $fields['short_description'], 'format' => 'basic_html']]);
+              $translation->set('body', [['value' => $fields['body_html'], 'format' => 'basic_html']]);
+              $translation->set('field_feature_image', [['target_id' => $fid, 'alt' => $item['image']['alt'][$lang]]]);
+              // Title changes must NOT let Pathauto regenerate historic URLs.
+              $translation->set('path', ['alias' => $scope[$lang], 'pathauto' => 0]);
+            }
+            $node->setNewRevision(TRUE);
+            $node->setRevisionUserId(1);
+            $node->setRevisionLogMessage('Agency #1522 exact existing Article bilingual PREPROD revision');
+            $violations = $node->validate();
+            if ($violations->count() > 0) {
+              throw new RuntimeException('Article constraint violations before save.');
+            }
+            $node->save();
           }
-          $node->setNewRevision(TRUE);
-          $node->setRevisionUserId(1);
-          $node->setRevisionLogMessage('Agency #1522 exact existing Article bilingual PREPROD revision');
-          $violations = $node->validate();
-          if ($violations->count() > 0) {
-            throw new RuntimeException('Article constraint violations before save.');
+          finally {
+            $this->accounts->switchBack();
           }
-          $node->save();
+          $this->entities->getStorage('node')->resetCache([(int) $node->id()]);
+          $node = $this->entities->getStorage('node')->load((int) $node->id());
+          $this->aliases->cacheClear('/node/' . $node->id());
         }
-        finally {
-          $this->accounts->switchBack();
+        if ($node->uuid() !== $uuid || $node->getCreatedTime() !== $created
+          || $this->aliases->getAliasByPath('/node/' . $node->id(), 'fr') !== $scope['fr']
+          || $this->aliases->getAliasByPath('/node/' . $node->id(), 'en') !== $scope['en']) {
+          throw new RuntimeException('Existing Article identity, original date or alias drift.');
         }
-        $this->entities->getStorage('node')->resetCache([(int) $node->id()]);
-        $node = $this->entities->getStorage('node')->load((int) $node->id());
-        $this->aliases->cacheClear('/node/' . $node->id());
+        if ($mode === 'apply' && !$alreadyExact && (int) $node->getRevisionId() <= $oldRevision) {
+          throw new RuntimeException('Existing Article revision was not incremented.');
+        }
+        if ($mode === 'apply' && !$this->matches($node, $scope, $item)) {
+          throw new RuntimeException('Persisted bilingual Article, image or ALT differs from exact candidate.');
+        }
+        $results[] = [
+          'candidate_index' => $entry['candidate_index'],
+          'status' => 'PASS',
+          'proof' => $entry['proof'],
+          'nid' => (int) $node->id(),
+          'uuid' => $uuid,
+          'revision_before' => $oldRevision,
+          'revision_after' => (int) $node->getRevisionId(),
+          'fr_url' => 'https://preprod.emergingdigital.be/fr' . $scope['fr'],
+          'en_url' => 'https://preprod.emergingdigital.be/en' . $scope['en'],
+          'image_sha256' => $scope['sha'],
+          'verdict' => $alreadyExact ? 'IDEMPOTENT' : ($mode === 'apply' ? 'UPDATED' : 'UPDATE_READY'),
+        ];
       }
-      if ($node->uuid() !== $uuid || $node->getCreatedTime() !== $created
-        || $this->aliases->getAliasByPath('/node/' . $node->id(), 'fr') !== $scope['fr']
-        || $this->aliases->getAliasByPath('/node/' . $node->id(), 'en') !== $scope['en']) {
-        throw new RuntimeException('Existing Article identity, original date or alias drift.');
+      catch (Throwable $exception) {
+        $results[] = ['candidate_index' => $number, 'status' => 'CONTROLLED_STOP', 'proof' => 'HOLD', 'reason' => $exception->getMessage()];
       }
-      if ($mode === 'apply' && !$alreadyExact && (int) $node->getRevisionId() <= $oldRevision) {
-        throw new RuntimeException('Existing Article revision was not incremented.');
-      }
-      if ($mode === 'apply' && !$this->matches($node, $scope, $item)) {
-        throw new RuntimeException('Persisted bilingual Article, image or ALT differs from exact candidate.');
-      }
-      $results[] = [
-        'nid' => (int) $node->id(),
-        'uuid' => $uuid,
-        'revision_before' => $oldRevision,
-        'revision_after' => (int) $node->getRevisionId(),
-        'fr_url' => 'https://preprod.emergingdigital.be/fr' . $scope['fr'],
-        'en_url' => 'https://preprod.emergingdigital.be/en' . $scope['en'],
-        'image_sha256' => $scope['sha'],
-        'verdict' => $alreadyExact ? 'IDEMPOTENT' : ($mode === 'apply' ? 'UPDATED' : 'UPDATE_READY'),
-      ];
     }
 
+    $passed = count(array_filter($results, static fn (array $row): bool => $row['status'] === 'PASS'));
+    $status = $passed === 3 ? 'PASS' : ($passed > 0 ? 'PARTIAL' : 'CONTROLLED_STOP');
+    $eligibility = implode(',', array_map(static fn (array $row): string => $row['candidate_index'] . ':' . $row['proof'], $results));
+
     return [
-      'status' => 'PASS',
+      'status' => $status,
       'target' => 'PREPROD',
       'prod_write' => 'NONE',
       'issue_number' => 1522,
       'mode' => $mode,
+      'held_article' => 'IA_PREPROD_IDENTITY',
+      'eligible' => $eligibility,
       'articles' => $results,
     ];
   }

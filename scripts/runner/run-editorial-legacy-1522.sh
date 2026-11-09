@@ -4,6 +4,12 @@ umask 077
 
 mode="${AGENCY_LEGACY_1522_MODE:?}"
 case "$mode" in inspect|dry-run|apply) ;; *) exit 1 ;; esac
+allowlist="${AGENCY_LEGACY_1522_ALLOWLIST:-}"
+if [[ "$mode" == apply ]]; then
+  [[ "$allowlist" =~ ^2:([0-9a-f]{64}|HOLD),3:([0-9a-f]{64}|HOLD),4:([0-9a-f]{64}|HOLD)$ ]]
+else
+  [[ -z "$allowlist" ]]
+fi
 [[ "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ ]]
 [[ "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]]
 [[ "${PREPROD_SERVER_HOST:-}" =~ ^[A-Za-z0-9.-]+$ ]]
@@ -12,7 +18,7 @@ case "$mode" in inspect|dry-run|apply) ;; *) exit 1 ;; esac
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 script="$root/scripts/runner/editorial-legacy-1522.php"
 candidate="$root/assets/editorial/issue-1522-legacy-revisions.json"
-images=(issue-1522-ai-pme-sept-usages.webp issue-1522-drupal-10-vers-11.webp issue-1522-drupal-symfony-laravel.webp issue-1522-refonte-site-checklist.webp)
+images=(issue-1522-drupal-10-vers-11.webp issue-1522-drupal-symfony-laravel.webp issue-1522-refonte-site-checklist.webp)
 test -f "$candidate"
 test -f "$script"
 php -l "$script" >/dev/null
@@ -46,10 +52,17 @@ done
 runtime_check='cd /var/www/agency-preprod/current && test -x scripts/preproduction/validate-runtime.sh && scripts/preproduction/validate-runtime.sh >/dev/null'
 ssh "${ssh_args[@]}" "$target" "set -e; $runtime_check"
 ssh "${ssh_args[@]}" "$target" \
-  "set -e; cd /var/www/agency-preprod/current; test -x vendor/bin/drush; AGENCY_LEGACY_1522_MODE='$mode' AGENCY_LEGACY_1522_CANDIDATE='$remote_json' AGENCY_LEGACY_1522_ASSETS='$remote_assets' AGENCY_LEGACY_1522_RESULT='$remote_result' vendor/bin/drush php:script '$remote_script'"
+  "set -e; cd /var/www/agency-preprod/current; test -x vendor/bin/drush; AGENCY_LEGACY_1522_MODE='$mode' AGENCY_LEGACY_1522_ALLOWLIST='$allowlist' AGENCY_LEGACY_1522_CANDIDATE='$remote_json' AGENCY_LEGACY_1522_ASSETS='$remote_assets' AGENCY_LEGACY_1522_RESULT='$remote_result' vendor/bin/drush php:script '$remote_script'"
 if [[ "$mode" == apply ]]; then
   ssh "${ssh_args[@]}" "$target" "set -e; cd /var/www/agency-preprod/current; vendor/bin/drush cr >/dev/null"
 fi
 ssh "${ssh_args[@]}" "$target" "set -e; $runtime_check"
 scp "${ssh_args[@]}" "$target:$remote_result" artifacts/editorial-legacy-1522/result.json >/dev/null
-jq -e '.status == "PASS" and .target == "PREPROD" and .prod_write == "NONE" and (.articles | length) == 4' artifacts/editorial-legacy-1522/result.json >/dev/null
+jq -e '
+  ([.articles[] | select(.status == "PASS")] | length) as $passed |
+  .target == "PREPROD" and .prod_write == "NONE" and .held_article == "IA_PREPROD_IDENTITY" and
+  ([.articles[].candidate_index] == [2,3,4]) and
+  (.status == (if $passed == 3 then "PASS" elif $passed > 0 then "PARTIAL" else "CONTROLLED_STOP" end)) and
+  ([.articles[] | if .status == "PASS" then (.proof | test("^[0-9a-f]{64}$")) else (.status == "CONTROLLED_STOP" and .proof == "HOLD") end] | all) and
+  (.eligible == ([.articles[] | "\(.candidate_index):\(.proof)"] | join(",")))
+' artifacts/editorial-legacy-1522/result.json >/dev/null

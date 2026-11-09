@@ -21,7 +21,7 @@ permissions:
 jobs:
   static-validation:
     if: ${{ github.event_name == 'pull_request' }}
-    name: "#1522 fixed four-node revision contract"
+    name: "#1522 fixed three-node revision contract (IA held)"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -110,12 +110,21 @@ jobs:
           php -l scripts/runner/editorial-legacy-1522.php
           bash -n scripts/runner/run-editorial-legacy-1522.sh
           if [[ "$MODE" == apply ]]; then
-            gh api --paginate "repos/$GITHUB_REPOSITORY/issues/1522/comments?per_page=100" --jq '.[]' |
-              jq -es --arg main "$MAIN" --arg sha "$digest" '
-                any(.[];
-                  .user.login == "github-actions[bot]" and
-                  .body == ("### Agency #1522 existing Articles PREPROD dry-run PASS\nmain: `" + $main + "`\nsource_sha256: `" + $sha + "`")
-                )' | grep -qx true
+            eligible="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/1522/comments?per_page=100" --jq '.[]' |
+              jq -rs --arg main "$MAIN" --arg sha "$digest" '
+                [.[] | select(.user.login == "github-actions[bot]") | .body | split("\n") |
+                  select(
+                    (.[0] == "### Agency #1522 existing Articles 2-4 PREPROD dry-run PASS" or
+                     .[0] == "### Agency #1522 existing Articles 2-4 PREPROD dry-run PARTIAL") and
+                    .[1] == ("main: `" + $main + "`") and
+                    .[2] == ("source_sha256: `" + $sha + "`") and
+                    .[3] == "held: IA_PREPROD_IDENTITY" and
+                    (.[4] | startswith("eligible: "))
+                  ) | .[4] | ltrimstr("eligible: ")] | last // ""
+              ')"
+            [[ "$eligible" =~ ^2:([0-9a-f]{64}|HOLD),3:([0-9a-f]{64}|HOLD),4:([0-9a-f]{64}|HOLD)$ ]]
+            [[ "$eligible" != '2:HOLD,3:HOLD,4:HOLD' ]]
+            echo "allowlist=$eligible" >> "$GITHUB_OUTPUT"
           fi
 
       - name: JIT pin to live main before PREPROD secret
@@ -135,10 +144,11 @@ jobs:
           printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-1522-preprod.key"
           chmod 600 "$RUNNER_TEMP/agency-1522-preprod.key"
 
-      - name: Apply or inspect four bounded existing revisions
+      - name: Apply or inspect three bounded existing revisions (IA held)
         id: run
         env:
           AGENCY_LEGACY_1522_MODE: ${{ steps.request.outputs.mode }}
+          AGENCY_LEGACY_1522_ALLOWLIST: ${{ steps.candidate.outputs.allowlist }}
           PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
           PREPROD_SSH_KEY: ${{ runner.temp }}/agency-1522-preprod.key
         run: bash scripts/runner/run-editorial-legacy-1522.sh
@@ -158,10 +168,13 @@ jobs:
         run: |
           set -euo pipefail
           file=artifacts/editorial-legacy-1522/result.json
-          if [[ "$RUN_RESULT" == success ]] && jq -e '.status == "PASS" and (.articles | length) == 4' "$file" >/dev/null 2>&1; then
-            body="$(printf '### Agency #1522 existing Articles PREPROD %s PASS\nmain: `%s`\nsource_sha256: `%s`' "$MODE" "$MAIN" "$SHA")"
+          if [[ "$RUN_RESULT" == success ]] && jq -e '.status == "PASS" or .status == "PARTIAL" or .status == "CONTROLLED_STOP"' "$file" >/dev/null 2>&1; then
+            verdict="$(jq -r '.status' "$file")"
+            eligible="$(jq -r '.eligible' "$file")"
+            body="$(printf '### Agency #1522 existing Articles 2-4 PREPROD %s %s\nmain: `%s`\nsource_sha256: `%s`\nheld: IA_PREPROD_IDENTITY\neligible: %s' "$MODE" "$verdict" "$MAIN" "$SHA" "$eligible")"
             gh issue comment 1522 --repo "$GITHUB_REPOSITORY" --body "$body"
-            jq -r '.articles[] | "\(.nid) rev \(.revision_after): \(.fr_url) | \(.en_url)"' "$file" >> "$GITHUB_STEP_SUMMARY"
+            jq -r '.articles[] | "article \(.candidate_index): \(.status), nid \(.nid // "UNRESOLVED"), rev \(.revision_after // "NONE"): \(.fr_url // "NONE") | \(.en_url // "NONE") — \(.reason // .verdict // "")"' "$file" >> "$GITHUB_STEP_SUMMARY"
+            [[ "$verdict" == PASS ]]
           else
             gh issue comment 1522 --repo "$GITHUB_REPOSITORY" --body "### Agency #1522 existing Articles PREPROD ${MODE} CONTROLLED_STOP (run ${GITHUB_RUN_ID}). No PROD."
             exit 1

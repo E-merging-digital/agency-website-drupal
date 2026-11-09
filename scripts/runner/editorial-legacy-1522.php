@@ -133,6 +133,25 @@ final class AgencyLegacyEditorial1522 {
           || $raster[0] !== 1672 || $raster[1] !== 941) {
           throw new RuntimeException('Approved WebP type/dimensions mismatch.');
         }
+        // In PROD, a conflicting destination must fail during read-only
+        // preflight, before any of the three Article revisions can be saved.
+        if ($target === 'PROD') {
+          $uri = 'public://articles/' . $scope['file'];
+          $existingFiles = $this->entities->getStorage('file')->loadByProperties(['uri' => $uri]);
+          if (count($existingFiles) > 1) {
+            throw new RuntimeException('Ambiguous PROD feature image File entity.');
+          }
+          if ($existingFiles !== []) {
+            $existingFile = reset($existingFiles);
+            if (!$existingFile instanceof FileInterface
+              || !hash_equals($scope['sha'], (string) hash_file('sha256', $existingFile->getFileUri()))) {
+              throw new RuntimeException('PROD WebP destination bytes differ.');
+            }
+          }
+          elseif (file_exists($uri)) {
+            throw new RuntimeException('PROD WebP exists without File entity.');
+          }
+        }
 
         $pathFr = $this->aliases->getPathByAlias($scope['fr'], 'fr');
         $pathEn = $this->aliases->getPathByAlias($scope['en'], 'en');

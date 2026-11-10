@@ -360,6 +360,30 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
   }
 
   /**
+   * Keeps unpublished #1522 Article inventory out of public Actions artifacts.
+   */
+  public function test1522InspectEvidenceIsPrivateAndCollisionIsBounded(): void {
+    $parsed = Yaml::parse($this->source(self::WORKFLOW));
+    $steps = $parsed['jobs']['candidate']['steps'];
+    $uploads = array_values(array_filter(
+      $steps,
+      static fn (array $step): bool => ($step['name'] ?? NULL)
+        === 'Upload metadata-only PREPROD candidate evidence',
+    ));
+    self::assertCount(1, $uploads);
+    self::assertSame(
+      'if: ${{ always() && !(github.event.issue.number == 1522 && steps.request.outputs.mode == \'inspect\') }}',
+      'if: ' . $uploads[0]['if'],
+    );
+
+    $source = $this->source(self::WORKFLOW);
+    self::assertStringContainsString('historical_identity_check:', $source);
+    self::assertStringContainsString("historical_identity='UNKNOWN'", $source);
+    self::assertStringContainsString('historical_identity=COLLISION', $source);
+    self::assertStringContainsString('article_inventory.nodes[] | select(', $source);
+  }
+
+  /**
    * Proves runner syntax and helpers stay closed to Article or Service.
    */
   public function testRunnerSyntaxAndHelpersStayClosedToArticleOrService(): void {

@@ -310,8 +310,9 @@ prior bot dry-run receipt (PASS or correctly bounded PARTIAL) with exact
 per-Article eligibility proofs for the same source hash and live `main`. The runner
 checks both existing FR/EN aliases resolve to the same published Article and
 preserves nid, UUID, categories, original dates, aliases and untouched fields.
-It creates new revisions, not new nodes. Its only SSH identity is PREPROD;
-no PROD secret or PROD update mechanism is wired to this route. The six
+It creates new revisions, not new nodes. Its original PREPROD command is
+PREPROD-only; the separately approved #1522 historical PROD workflow later
+published candidates 2–4 with exact identity, backup and postcheck. The six
 FR/EN PREPROD article pages for candidates 2–4 have the owner's reported
 visual agreement in conversation, but still require the exact direct GitHub
 GO for the bound candidate; no IA PREPROD render is attested. PROD requires
@@ -385,3 +386,61 @@ deploying `main` never proves Drupal content parity.
 This is a read-only classification and native editing procedure, **not a
 new synchronization job, security gate or production permission**. Reuse the
 existing controls and stop at the first genuine identity ambiguity.
+
+### One existing Article at a time — reusable native UPDATE (#1525)
+
+This source-only capability composes the existing trusted SSH, Drupal Core
+Entity API/Drush, revision system and production backup. No Drupal module,
+new secret, database sync or public write endpoint is added. It is separate
+from the immutable #1522 three-Article workflow and cannot create a node.
+
+1. **Edit in Drupal PREPROD:** Content → Edit the *existing* bilingual Article,
+   update translations and WebP/ALT, save a new revision; inspect its real FR/EN
+   previews. Leave categories, historical dates and aliases unchanged.
+2. **Read-only identity/snapshot:** on the open #1525 issue, the direct GitHub
+   owner may request
+   `/agency-existing-article inspect preprod=<uuid> prod=<uuid>`.
+   The workflow exports exactly **one** published PREPROD Article by UUID,
+   checks the corresponding existing PROD Article by its separately proven UUID,
+   identical FR/EN aliases, image and target revision, and returns a metadata
+   receipt (`source_sha256`, `image_sha256`, preview URLs, PROD identity).
+   Both UUIDs must be established by read-only inspection/provenance, never by
+   assuming matching nids.
+3. **One human GO:** after personally reviewing the exact displayed FR/EN
+   PREPROD pages, image/ALT and responsive listing/detail render, the owner
+   posts a *direct, unedited* GitHub comment on #1525 in this exact format
+   (values copied from the latest successful inspect receipt):
+
+   ```text
+   ## AGENCY EXISTING ARTICLE — HUMAN APPROVAL #1525
+   PREPROD_UUID=<uuid>
+   PROD_UUID=<uuid>
+   SOURCE_SHA256=<sha256>
+   IMAGE_SHA256=<sha256>
+   FR_URL=https://preprod.emergingdigital.be/fr/blog/<alias>
+   EN_URL=https://preprod.emergingdigital.be/en/blog/<alias>
+   HUMAN_REVIEW=PASS
+   CONTENT=APPROVED
+   IMAGE=APPROVED
+   ALT_FR_EN=APPROVED
+   IMAGE_SOURCE_POLICY=APPROVED
+   RESPONSIVE_RENDER=APPROVED
+   LISTING_DETAIL_RENDER=APPROVED
+   EXACT_UPDATE_TO_PROD=AUTHORIZED
+   ```
+
+4. **Only after separate source review/merge authority:** the existing single
+   dispatcher validates the exact direct owner GO (User/OWNER/non-App/unedited),
+   live `main`, candidate hash, reviewed FR/EN URLs, WebP SHA and PROD UUID.
+   The guarded run independently dry-runs that one PROD Article, checks its
+   current revision, takes and verifies the standard SQL backup, applies via
+   Drupal Entity API, then postchecks idempotence. A held/missing/changed
+   Article stops **that selection only**; no all-Articles batch precondition.
+   The backup is retained for controlled recovery; no automatic whole-site
+   rollback may overwrite concurrent content.
+
+The exact same scripts apply to another eligible historical Article without
+a new Article-specific code PR. PREPROD source changes invalidate the GO SHA;
+the next preview requires a new approval. The historical IA Article (PROD
+nid 40; unresolved PREPROD identity) and MCP PREPROD nid 42 remain expressly
+outside this route and in `HOLD_IA_PREPROD_IDENTITY`. No existing HOLD is lifted.

@@ -14,6 +14,7 @@ env:
       {"route":"EDITORIAL_PUBLICATION","prefix":"/agency-editorial ","exact":["/agency-editorial inspect","/agency-editorial dry-run","/agency-editorial apply"]},
       {"route":"EDITORIAL_PREPROD_CANDIDATE","prefix":"/agency-editorial-candidate ","exact":["/agency-editorial-candidate inspect","/agency-editorial-candidate dry-run","/agency-editorial-candidate apply"]},
       {"route":"LEGACY_1522_PREPROD","prefix":"/agency-legacy-1522 ","exact":["/agency-legacy-1522 inspect","/agency-legacy-1522 dry-run","/agency-legacy-1522 apply"]},
+      {"route":"EDITORIAL_EXISTING_1525","prefix":"/agency-existing-article ","regex":"^/agency-existing-article inspect preprod=[0-9a-f-]{36} prod=[0-9a-f-]{36}$"},
       {"route":"EDITORIAL_FEATURE_IMAGE","prefix":"/agency-editorial-image ","exact":["/agency-editorial-image inspect","/agency-editorial-image dry-run","/agency-editorial-image apply","/agency-editorial-image-prod inspect","/agency-editorial-image-prod dry-run","/agency-editorial-image-prod apply"]},
       {"route":"PREPROD_REFRESH","prefix":"/agency-preprod-refresh-successor ","regex_template":"^/agency-preprod-refresh-successor (PLAN plan-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} AUTO agency-preprod-refresh-simple-v1|APPLY apply-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [0-9a-f]{40} agency-preprod-refresh-simple-v1)$"},
       {"route":"DEVELOPMENT_SEED","prefix":"/agency-development-seed ","regex_template":"^/agency-development-seed publish seed-{issue}-[A-Za-z0-9._-]{8,40}-r1 [0-9a-f]{40} [A-Za-z0-9._:-]{8,80} [0-9a-f]{40}$","cleanup_route":"DEVELOPMENT_SEED_CLEANUP_PROOF","cleanup_prefix":"/agency-development-seed-cleanup-proof ","cleanup_regex":"^/agency-development-seed-cleanup-proof run=[1-9][0-9]* request=seed-956-[A-Za-z0-9._-]{8,40}-r1 main=[0-9a-f]{40}$"},
@@ -83,6 +84,7 @@ jobs:
               'PREPROD_BLOG_IMAGE_DIAGNOSTIC': '966',
               'PREPROD_EDITORIAL_IMAGE_REHYDRATE_971': '971',
               'LEGACY_1522_PREPROD': '1522',
+              'EDITORIAL_EXISTING_1525': '1525',
               'CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1318'),
               'PROD_CONFIG_SYNC_RUNTIME_DIAGNOSTIC': ('982', '995', '1301', '1302'),
               'CANVAS_AI_PROVIDER_PROOF_530': '530',
@@ -158,6 +160,17 @@ jobs:
                   and comment_unedited
               ):
                   route = 'EDITORIAL_APPROVED_AUTO_PROMOTION'
+              if (
+                  route == 'NONE'
+                  and issue == '1525'
+                  and body.splitlines()[0:1] == ['## AGENCY EXISTING ARTICLE — HUMAN APPROVAL #1525']
+                  and comment_author == 'E-merging-digital'
+                  and comment_author_type == 'User'
+                  and comment_author_association == 'OWNER'
+                  and not comment_from_app
+                  and comment_unedited
+              ):
+                  route = 'EDITORIAL_EXISTING_1525'
           elif not is_pr and event_name == 'issues' and event_action == 'opened':
               marker = (
                   'AGENCY_PREPROD_COCKPIT_PLAN_AUTHORITY='
@@ -274,6 +287,21 @@ jobs:
     secrets:
       PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
       PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+
+  editorial-existing-1525:
+    name: Route one reviewed existing Article (Core Entity API)
+    needs: classify
+    if: ${{ needs.classify.outputs.route == 'EDITORIAL_EXISTING_1525' }}
+    permissions:
+      contents: read
+      issues: read
+    uses: ./.github/workflows/trusted-editorial-existing-1525.yml
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
 
   editorial-feature-image:
     name: Route editorial feature image

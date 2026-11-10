@@ -1,0 +1,189 @@
+name: Agency single existing Article UPDATE (Core)
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+  pull_request:
+    paths:
+      - '.github/workflows/trusted-editorial-existing-1525.yml'
+      - 'scripts/runner/editorial-existing-article-1525.php'
+      - 'scripts/runner/run-editorial-existing-1525.sh'
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  static-validation:
+    if: ${{ github.event_name == 'pull_request' }}
+    name: Single-Article Core contract (source only)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Validate syntax
+        run: |
+          set -euo pipefail
+          php -l scripts/runner/editorial-existing-article-1525.php
+          bash -n scripts/runner/run-editorial-existing-1525.sh
+
+  existing-update:
+    if: ${{ github.event_name == 'issue_comment' && github.event.issue.number == 1525 && github.event.issue.pull_request == null }}
+    name: Owner-gated one-Article UPDATE (IA held)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    concurrency:
+      group: agency-existing-article-1525
+      cancel-in-progress: false
+    steps:
+      - name: Verify direct unedited owner, exact GO and live main
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BODY: ${{ github.event.comment.body }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_TYPE: ${{ github.event.comment.user.type }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          COMMENT_UNEDITED: ${{ github.event.comment.created_at == github.event.comment.updated_at }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_ACTOR" == E-merging-digital ]]
+          [[ "$COMMENT_AUTHOR" == E-merging-digital && "$COMMENT_TYPE" == User ]]
+          [[ "$COMMENT_ASSOCIATION" == OWNER && "$COMMENT_APP" == false && "$COMMENT_UNEDITED" == true ]]
+          [[ "$GITHUB_RUN_ATTEMPT" == 1 && "$COMMENT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/issues/1525" --jq .state)" == open ]]
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)"
+          [[ "$main" == "$GITHUB_SHA" ]]
+          gh api "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" |
+            jq -e --arg body "$BODY" '
+              .user.login == "E-merging-digital" and .user.type == "User"
+              and .author_association == "OWNER" and .performed_via_github_app == null
+              and .created_at == .updated_at and .body == $body' >/dev/null
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import re
+
+          body = os.environ['BODY']
+          uuid = r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}'
+          sha = r'[0-9a-f]{64}'
+          command = re.fullmatch(r'/agency-existing-article inspect preprod=(' + uuid + r') prod=(' + uuid + r')', body)
+          if command:
+              mode = 'inspect'
+              values = {'source_uuid': command.group(1), 'prod_uuid': command.group(2)}
+          else:
+              lines = body.splitlines()
+              expected = [
+                  '## AGENCY EXISTING ARTICLE — HUMAN APPROVAL #1525',
+                  'PREPROD_UUID', 'PROD_UUID', 'SOURCE_SHA256', 'IMAGE_SHA256',
+                  'FR_URL', 'EN_URL', 'HUMAN_REVIEW=PASS', 'CONTENT=APPROVED',
+                  'IMAGE=APPROVED', 'ALT_FR_EN=APPROVED',
+                  'IMAGE_SOURCE_POLICY=APPROVED', 'RESPONSIVE_RENDER=APPROVED',
+                  'LISTING_DETAIL_RENDER=APPROVED', 'EXACT_UPDATE_TO_PROD=AUTHORIZED',
+              ]
+              if len(lines) != len(expected) or lines[0] != expected[0] or lines[7:] != expected[7:]:
+                  raise SystemExit('A direct, complete exact Article review/GO is required.')
+              parsed = {}
+              for i, label in enumerate(expected[1:7], start=1):
+                  prefix = label + '='
+                  if not lines[i].startswith(prefix):
+                      raise SystemExit('Exact GO field ordering mismatch.')
+                  parsed[label] = lines[i][len(prefix):]
+              if not re.fullmatch(uuid, parsed['PREPROD_UUID']) or not re.fullmatch(uuid, parsed['PROD_UUID']):
+                  raise SystemExit('GO UUID mismatch.')
+              if not re.fullmatch(sha, parsed['SOURCE_SHA256']) or not re.fullmatch(sha, parsed['IMAGE_SHA256']):
+                  raise SystemExit('GO digest mismatch.')
+              for lang in ('FR', 'EN'):
+                  url = parsed[lang + '_URL']
+                  if not re.fullmatch(r'https://preprod\.emergingdigital\.be/' + lang.lower() + r'/blog/[a-z0-9-]+', url):
+                      raise SystemExit('GO preview URL is not an exact PREPROD blog alias.')
+              mode = 'apply'
+              values = {
+                  'source_uuid': parsed['PREPROD_UUID'], 'prod_uuid': parsed['PROD_UUID'],
+                  'source_sha': parsed['SOURCE_SHA256'], 'image_sha': parsed['IMAGE_SHA256'],
+                  'fr_url': parsed['FR_URL'], 'en_url': parsed['EN_URL'],
+              }
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as f:
+              f.write(f'mode={mode}\n')
+              f.write(f'main={os.environ["GITHUB_SHA"]}\n')
+              f.write(f'comment_sha={hashlib.sha256(body.encode("utf-8")).hexdigest()}\n')
+              for key, value in values.items():
+                  f.write(f'{key}={value}\n')
+          PY
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.guard.outputs.main }}
+          persist-credentials: false
+
+      - name: Revalidate source before runtime identities
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN: ${{ steps.guard.outputs.main }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_SHA: ${{ steps.guard.outputs.comment_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$MAIN"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)" = "$MAIN"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" | jq -j .body | sha256sum | cut -d' ' -f1)" = "$COMMENT_SHA"
+          php -l scripts/runner/editorial-existing-article-1525.php
+          bash -n scripts/runner/run-editorial-existing-1525.sh
+
+      - name: Use existing temporary PREPROD and PROD SSH credentials
+        env:
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PROD_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_KEY" && test -n "$PROD_KEY"
+          printf '%s\n' "$PREPROD_KEY" > "$RUNNER_TEMP/agency-existing-1525-preprod.key"
+          printf '%s\n' "$PROD_KEY" > "$RUNNER_TEMP/agency-existing-1525-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-existing-1525-preprod.key" "$RUNNER_TEMP/agency-existing-1525-prod.key"
+
+      - name: Export one PREPROD Article and inspect or guarded UPDATE PROD
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_UUID: ${{ steps.guard.outputs.source_uuid }}
+          PROD_UUID: ${{ steps.guard.outputs.prod_uuid }}
+          GO_SOURCE_SHA: ${{ steps.guard.outputs.source_sha }}
+          GO_IMAGE_SHA: ${{ steps.guard.outputs.image_sha }}
+          GO_FR_URL: ${{ steps.guard.outputs.fr_url }}
+          GO_EN_URL: ${{ steps.guard.outputs.en_url }}
+          GO_COMMENT_ID: ${{ github.event.comment.id }}
+          GO_COMMENT_SHA: ${{ steps.guard.outputs.comment_sha }}
+          TRUSTED_MAIN: ${{ steps.guard.outputs.main }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-existing-1525-preprod.key
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          PROD_SSH_KEY: ${{ runner.temp }}/agency-existing-1525-prod.key
+          MODE: ${{ steps.guard.outputs.mode }}
+        run: bash scripts/runner/run-editorial-existing-1525.sh "$MODE"
+
+      - name: Remove temporary credentials
+        if: ${{ always() }}
+        run: rm -f -- "$RUNNER_TEMP/agency-existing-1525-preprod.key" "$RUNNER_TEMP/agency-existing-1525-prod.key"
+
+      - name: Upload metadata-only identity and revision receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-existing-1525-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/editorial-existing-1525/*.json
+          if-no-files-found: ignore
+          retention-days: 30

@@ -424,7 +424,7 @@ jobs:
             )"
             generator="scripts/runner/generate-editorial-feature-image-${ISSUE_NUMBER}.py"
             case "$ISSUE_NUMBER" in
-              1491|1512)
+              1404|1491|1512)
                 # Immutable, repository-owned editorial images: never regenerate.
                 ;;
               *)

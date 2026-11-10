@@ -101,7 +101,7 @@ try {
   $stagedPayload['published'] = FALSE;
   $stageResult = $publisher->apply($stagedPayload, $issueNumber, $payloadSha);
 
-  $imageResult = $image->apply($profile, $issueNumber, $assetPath);
+  $imageResult = $image->apply($profile, $issueNumber, $assetPath, $issueNumber === 1404);
   if (!in_array($imageResult['verdict'] ?? '', ['APPLIED', 'REPAIRED', 'IDEMPOTENT'], TRUE)) {
     throw new RuntimeException('Feature image did not converge before publication.');
   }

@@ -472,8 +472,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
 
     $php = (string) file_get_contents($root . '/scripts/runner/editorial-feature-image.php');
     self::assertStringContainsString('$this->loadMappedNode($profile, $issueNumber)', $php);
-    self::assertStringContainsString('if ($issueNumber === 1404 && $before[\'verdict\'] !== \'RELINK_REQUIRED\')', $php);
-    self::assertStringContainsString('Issue #1404 cannot create or replace a File entity.', $php);
+    self::assertStringContainsString("($governedProdPromotion ? 'READY' : 'RELINK_REQUIRED')", $php);
+    self::assertStringContainsString('Issue #1404 may materialize a File only for a staged unpublished PROD Article.', $php);
     self::assertStringContainsString('if (($profile[\'issue_number\'] ?? NULL) === 1404 && !$altsMatch)', $php);
   }
 

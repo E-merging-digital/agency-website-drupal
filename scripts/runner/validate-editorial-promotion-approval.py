@@ -75,9 +75,24 @@ def canonical_profile(
     expected_asset = {"path", "filename", "sha256", "mime", "width", "height", "max_bytes"}
     if set(asset) != expected_asset or set(alt) != {"fr", "en"}:
         raise ApprovalError("Feature-image asset/ALT keys are not exact.")
-    expected_mime = "image/jpeg" if issue_number == 1491 else "image/png"
+    expected_mime = "image/jpeg" if issue_number == 1491 else "image/webp" if issue_number == 1404 else "image/png"
     if asset.get("mime") != expected_mime:
         raise ApprovalError(f"Feature-image promotion requires {expected_mime} for issue #{issue_number}.")
+    if issue_number == 1404 and (
+        asset.get("path") != "assets/editorial/issue-1404-mcp-permissions-editorial-v1.webp"
+        or asset.get("filename") != "agency-mcp-permissions-editorial-v1.webp"
+        or asset.get("sha256") != "0c504f2f72d1fa9cb6569c404fd9d0ae0853d3cfdc49ae422076b19c3bcd24c6"
+        or asset.get("width") != 1672
+        or asset.get("height") != 941
+        or asset.get("max_bytes") != 55408
+        or profile.get("article_payload_sha256") != "dfeba8f86b6a51f02b7ba2d914aa3e94bdb4245e8f48785c34016421689eac07"
+    ):
+        raise ApprovalError("Issue #1404 requires the exact owner-approved WebP and Article payload.")
+    if issue_number == 1404 and alt != {
+        "fr": "Une application métier communique avec un agent IA à travers une passerelle qui limite les autorisations accordées.",
+        "en": "A business application connects to an AI agent through a gateway that limits the permissions granted.",
+    }:
+        raise ApprovalError("Issue #1404 requires the exact reviewed FR/EN ALT values.")
     if not all(isinstance(alt.get(lang), str) and alt[lang].strip() for lang in ("fr", "en")):
         raise ApprovalError("FR/EN ALT values are mandatory.")
     if not asset_path.is_file():
@@ -238,6 +253,12 @@ def validate_article(args: argparse.Namespace, comments: list[dict[str, Any]]) -
         args.asset_path,
     )
     candidate_id = f"agency-article-{args.issue_number}"
+    mcp = args.issue_number == 1404
+    if mcp and (
+        candidate_revision != 6110961556
+        or args.payload_sha256 != "dfeba8f86b6a51f02b7ba2d914aa3e94bdb4245e8f48785c34016421689eac07"
+    ):
+        raise ApprovalError("Issue #1404 requires the exact historical owner Article candidate.")
 
     prod_dry_run = matching_bot_receipt(
         comments,
@@ -284,14 +305,16 @@ def validate_article(args: argparse.Namespace, comments: list[dict[str, Any]]) -
         r"([1-9][0-9]*) / SUCCESS / IDEMPOTENT",
         fields.get("PREPROD_IMAGE_POST_APPLY_DRY_RUN", ""),
     )
-    if None in (article_apply, preprod_node, article_revision, image_apply, image_post):
+    if None in (article_apply, preprod_node, article_revision, image_apply) or (not mcp and image_post is None):
         raise ApprovalError("Human approval PREPROD execution fields are incomplete or malformed.")
 
     article_run = article_apply.group(1)
     node_id = preprod_node.group(1)
     revision_id = article_revision.group(1)
     image_run = image_apply.group(1)
-    image_post_run = image_post.group(1)
+    if mcp and (article_run, node_id, revision_id, image_run) != ("38154962644", "42", "65", "42911099314"):
+        raise ApprovalError("Issue #1404 PREPROD Article/image evidence does not match the exact owner receipts.")
+    image_post_run = image_post.group(1) if image_post is not None else None
 
     preprod_article = matching_bot_receipt(
         comments,
@@ -301,7 +324,7 @@ def validate_article(args: argparse.Namespace, comments: list[dict[str, Any]]) -
             "candidate_id": candidate_id,
             "candidate_revision": str(candidate_revision),
             "payload_sha256": args.payload_sha256,
-            "trusted_main": args.trusted_main,
+            "trusted_main": "14cbc02945c37a72732b2b7a05b16593f79848e6" if mcp else args.trusted_main,
             "run_id": article_run,
             "node_id": node_id,
             "prod_write": "NONE",
@@ -313,39 +336,47 @@ def validate_article(args: argparse.Namespace, comments: list[dict[str, Any]]) -
         {
             "profile_sha256": profile_sha,
             "asset_sha256": asset_sha,
-            "trusted_main": args.trusted_main,
+            "trusted_main": "30cb29b7c4666da92fe1315be9a2bf0b30e828a2" if mcp else args.trusted_main,
             "target": "PREPROD",
             "run_id": image_run,
             "route_outcome": "success",
             "node_id": node_id,
             "revision_id": revision_id,
             "prod_write": "NONE",
+            **({"verdict": "REPAIRED", "fid": "12", "uri": "public://articles/agency-mcp-permissions-editorial-v1.webp"} if mcp else {}),
         },
     )
-    preprod_image_post = matching_bot_receipt(
-        comments,
-        "### Agency editorial image dry-run PASS",
-        {
-            "profile_sha256": profile_sha,
-            "asset_sha256": asset_sha,
-            "trusted_main": args.trusted_main,
-            "target": "PREPROD",
-            "run_id": image_post_run,
-            "route_outcome": "success",
-            "verdict": "IDEMPOTENT",
-            "node_id": node_id,
-            "revision_id": revision_id,
-            "prod_write": "NONE",
-        },
-    )
+    # The #1404 image apply receipt itself proves the exact post-state.
+    preprod_image_post = None
+    if not mcp:
+        preprod_image_post = matching_bot_receipt(
+            comments,
+            "### Agency editorial image dry-run PASS",
+            {
+                "profile_sha256": profile_sha,
+                "asset_sha256": asset_sha,
+                "trusted_main": args.trusted_main,
+                "target": "PREPROD",
+                "run_id": image_post_run,
+                "route_outcome": "success",
+                "verdict": "IDEMPOTENT",
+                "node_id": node_id,
+                "revision_id": revision_id,
+                "prod_write": "NONE",
+            },
+        )
 
+    if mcp and (int(preprod_article.get("id") or 0) != 6111077035
+                or int(preprod_image.get("id") or 0) != 6780534837):
+        raise ApprovalError("Issue #1404 must match the exact historical PREPROD bot receipts.")
     approval_id = int(approval.get("id") or 0)
     evidence_ids = [
         candidate_revision,
         int(preprod_article.get("id") or 0),
         int(preprod_image.get("id") or 0),
-        int(preprod_image_post.get("id") or 0),
     ]
+    if preprod_image_post is not None:
+        evidence_ids.append(int(preprod_image_post.get("id") or 0))
     if approval_id <= max(evidence_ids):
         raise ApprovalError("Project Lead approval is stale or predates exact PREPROD evidence.")
     prod_dry_run_id = int(prod_dry_run.get("id") or 0)

@@ -56,7 +56,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
   }
 
   /**
-   * Only the five Project Lead-approved issue/target pairs may resolve.
+   * Only the six Project Lead-approved issue/target pairs may resolve.
    */
   public function testRunnerHasOnlyClosedIssueTargetPairs(): void {
     $runner = $this->runnerSource();
@@ -66,6 +66,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
     self::assertStringContainsString('958:PREPROD)', $runner);
     self::assertStringContainsString('1491:PREPROD)', $runner);
     self::assertStringContainsString('1512:PREPROD)', $runner);
+    self::assertStringContainsString('1404:PREPROD)', $runner);
     self::assertStringContainsString('958:PROD)', $runner);
     self::assertStringContainsString(
       'No bounded editorial image issue/target pair is approved.',
@@ -88,6 +89,10 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency-preprod'", $preprod1512);
     self::assertStringContainsString("SERVER_USER='agency-preprod'", $preprod1512);
 
+    $preprod1404 = $this->caseBody($runner, '1404:PREPROD');
+    self::assertStringContainsString("PROJECT_ROOT='/var/www/agency-preprod'", $preprod1404);
+    self::assertStringContainsString("SERVER_USER='agency-preprod'", $preprod1404);
+
     $prod958 = $this->caseBody($runner, '958:PROD');
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency'", $prod958);
     self::assertStringNotContainsString('/var/www/agency-preprod', $prod958);
@@ -95,9 +100,9 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
     self::assertStringNotContainsString('TARGET=\'PREPROD\'', $prod958);
 
     self::assertSame(
-      5,
+      6,
       preg_match_all("/PROJECT_ROOT='\\/var\\/www\\/agency(?:-preprod)?'/", $runner),
-      'Project roots must remain fixed constants for the five approved pairs.',
+      'Project roots must remain fixed constants for the six approved pairs.',
     );
     self::assertStringNotContainsString('PROJECT_ROOT="${', $runner);
   }
@@ -118,6 +123,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
       ['401', 'PREPROD'],
       ['1491', 'PROD'],
       ['1512', 'PROD'],
+      ['1404', 'PROD'],
       ['999', 'PROD'],
       ['999', 'PREPROD'],
     ] as [$issue, $target]) {
@@ -135,6 +141,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
       ['958', 'PREPROD'],
       ['1491', 'PREPROD'],
       ['1512', 'PREPROD'],
+      ['1404', 'PREPROD'],
       ['958', 'PROD'],
     ] as [$issue, $target]) {
       $result = $this->runResolver($issue, $target);
@@ -145,6 +152,17 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
         $result['output'],
       );
       self::assertStringNotContainsString('Permission denied', $result['output']);
+    }
+  }
+
+  /**
+   * #1404 stays inspect-only even though its PREPROD pair is registered.
+   */
+  public function test1404DryRunAndApplyAreRefusedBeforeSsh(): void {
+    foreach (['dry-run', 'apply'] as $mode) {
+      $result = $this->runResolver('1404', 'PREPROD', $mode);
+      self::assertNotSame(0, $result['exit']);
+      self::assertStringContainsString('Issue #1404 is inspect-only pending separate runtime authority.', $result['output']);
     }
   }
 
@@ -187,10 +205,11 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
    * @return array{exit:int,output:string}
    *   Process exit status and output.
    */
-  private function runResolver(string $issue, string $target): array {
+  private function runResolver(string $issue, string $target, string $mode = 'inspect'): array {
     $runner = dirname(DRUPAL_ROOT) . '/scripts/runner/run-editorial-feature-image.sh';
     $command = sprintf(
-      'EDITORIAL_IMAGE_MODE=inspect ISSUE_NUMBER=%s EDITORIAL_IMAGE_TARGET=%s bash %s 2>&1',
+      'EDITORIAL_IMAGE_MODE=%s ISSUE_NUMBER=%s EDITORIAL_IMAGE_TARGET=%s bash %s 2>&1',
+      escapeshellarg($mode),
       escapeshellarg($issue),
       escapeshellarg($target),
       escapeshellarg($runner),

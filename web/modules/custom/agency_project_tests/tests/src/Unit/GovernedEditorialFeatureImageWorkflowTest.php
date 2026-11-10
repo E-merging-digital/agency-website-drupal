@@ -38,6 +38,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString("958) target='PREPROD'", $workflow);
     self::assertStringContainsString("1491) target='PREPROD'", $workflow);
     self::assertStringContainsString("1512) target='PREPROD'", $workflow);
+    self::assertStringContainsString("1404) target='PREPROD'", $workflow);
+    self::assertStringContainsString('Issue #1404 is inspect-only pending separate runtime authority.', $workflow);
     self::assertStringContainsString('persist-credentials: false', $workflow);
     self::assertStringContainsString(
       "always() && steps.request.outcome == 'success'",
@@ -60,7 +62,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       JSON_THROW_ON_ERROR,
     );
     self::assertSame(1, $profile['schema_version']);
-    self::assertSame([401, 958, 1491, 1512], array_keys($profile['profiles']));
+    self::assertSame([401, 958, 1404, 1491, 1512], array_keys($profile['profiles']));
 
     $issue = $profile['profiles']['401'];
     self::assertSame('article', $issue['bundle']);
@@ -112,6 +114,25 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       $preprod['asset']['max_bytes'],
       filesize($preprodAssetPath),
     );
+
+    $mcp = $profile['profiles']['1404'];
+    self::assertSame('article', $mcp['bundle']);
+    self::assertSame('field_feature_image', $mcp['field_name']);
+    self::assertSame('dfeba8f86b6a51f02b7ba2d914aa3e94bdb4245e8f48785c34016421689eac07', $mcp['article_payload_sha256']);
+    self::assertSame('assets/editorial/issue-1404-mcp-permissions-editorial-v1.webp', $mcp['asset']['path']);
+    self::assertSame('agency-mcp-permissions-editorial-v1.webp', $mcp['asset']['filename']);
+    self::assertSame('image/webp', $mcp['asset']['mime']);
+    self::assertSame([1672, 941, 55408], [$mcp['asset']['width'], $mcp['asset']['height'], $mcp['asset']['max_bytes']]);
+    self::assertSame('0c504f2f72d1fa9cb6569c404fd9d0ae0853d3cfdc49ae422076b19c3bcd24c6', $mcp['asset']['sha256']);
+    self::assertSame('Une application métier communique avec un agent IA à travers une passerelle qui limite les autorisations accordées.', $mcp['alt']['fr']);
+    self::assertSame('A business application connects to an AI agent through a gateway that limits the permissions granted.', $mcp['alt']['en']);
+    $mcpAsset = $this->governedAssetPath(1404);
+    self::assertSame($mcp['asset']['sha256'], hash_file('sha256', $mcpAsset));
+    self::assertSame(55408, filesize($mcpAsset));
+    $trackedMcp = [];
+    $trackedMcpExit = 0;
+    exec('git -C ' . escapeshellarg($root) . ' ls-files --error-unmatch ' . escapeshellarg($mcp['asset']['path']) . ' 2>/dev/null', $trackedMcp, $trackedMcpExit);
+    self::assertSame(0, $trackedMcpExit, 'Exact owner #1404 WebP must be tracked in Git.');
 
     $original = $profile['profiles']['1491'];
     self::assertSame('article', $original['bundle']);
@@ -184,6 +205,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString('generate-editorial-feature-image-958.py', $workflow);
     self::assertStringContainsString('imagecreatefrompng', $workflow);
     self::assertStringContainsString('imagecreatefromjpeg', $workflow);
+    self::assertStringContainsString('imagecreatefromwebp', $workflow);
     self::assertStringContainsString('8e1cf32c125973a6e3c0103d7b36f7f997fc6fa87b59bda5b835b4c13b5094a2', $workflow);
     self::assertStringContainsString('hashlib.sha256', $workflow);
     self::assertStringContainsString('asset_sha256', $workflow);
@@ -261,10 +283,14 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
    * Generated editorial PNGs must remain GD-decodable.
    */
   public function testGovernedEditorialAssetIsGdDecodable(): void {
-    foreach ([401, 958, 1491, 1512] as $issueNumber) {
+    foreach ([401, 958, 1491, 1512, 1404] as $issueNumber) {
       $assetPath = $this->governedAssetPath($issueNumber);
 
-      $decoder = $issueNumber === 1491 ? 'imagecreatefromjpeg' : 'imagecreatefrompng';
+      $decoder = match ($issueNumber) {
+        1491 => 'imagecreatefromjpeg',
+        1404 => 'imagecreatefromwebp',
+        default => 'imagecreatefrompng',
+      };
       self::assertTrue(
         function_exists($decoder),
         'The governed editorial-image validation environment must provide the exact GD decoder.',
@@ -289,12 +315,12 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       );
       self::assertSame(match ($issueNumber) {
         1491 => 3214,
-        1512 => 1672,
+        1512, 1404 => 1672,
         default => 1200,
       }, imagesx($image));
       self::assertSame(match ($issueNumber) {
         1491 => 2146,
-        1512 => 941,
+        1512, 1404 => 941,
         default => 630,
       }, imagesy($image));
     }
@@ -318,6 +344,9 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency'", $shell);
     self::assertStringContainsString("PROJECT_ROOT='/var/www/agency-preprod'", $shell);
     self::assertStringContainsString("SERVER_USER='agency-preprod'", $shell);
+    self::assertStringContainsString('1404:PREPROD)', $shell);
+    self::assertStringContainsString('remote_asset="${remote_stem}-asset.webp"', $shell);
+    self::assertStringContainsString('Issue #1404 is inspect-only pending separate runtime authority.', $shell);
     self::assertStringContainsString('scripts/preproduction/validate-runtime.sh', $shell);
     self::assertStringContainsString('vendor/bin/drush sql:dump', $shell);
     self::assertStringContainsString('vendor/bin/drush php:script', $shell);
@@ -443,7 +472,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     $assetPath = $root . '/' . $asset['path'];
     $generator = $root . "/scripts/runner/generate-editorial-feature-image-{$issueNumber}.py";
 
-    if (in_array($issueNumber, [1491, 1512], TRUE)) {
+    if (in_array($issueNumber, [1491, 1512, 1404], TRUE)) {
       self::assertFileExists($assetPath);
       self::assertSame($asset['sha256'], hash_file('sha256', $assetPath));
       return $assetPath;

@@ -54,11 +54,6 @@ case "$ISSUE_NUMBER:$TARGET" in
     ;;
 esac
 
-if [[ "$ISSUE_NUMBER" == '1404' && "$MODE" != 'inspect' ]]; then
-  echo 'Issue #1404 is inspect-only pending separate runtime authority.' >&2
-  exit 1
-fi
-
 [[ "$RUN_ID" =~ ^[0-9]+$ ]]
 [[ "$RUN_ATTEMPT" =~ ^[0-9]+$ ]]
 [[ "$PROFILE_SHA256" =~ ^[0-9a-f]{64}$ ]]
@@ -166,6 +161,10 @@ case "$MODE" in
               failure_verdict='DRUSH_FAIL_CLOSED_FILE_MISSING' ;;
             'Article already has a different feature image asset.')
               failure_verdict='DRUSH_FAIL_CLOSED_IMAGE_MISMATCH' ;;
+            'Issue #1404 FID reconciliation evidence is incomplete or ambiguous.')
+              failure_verdict='DRUSH_FAIL_CLOSED_RELINK_EVIDENCE' ;;
+            'Issue #1404 image ALT does not match the approved FR/EN profile.')
+              failure_verdict='DRUSH_FAIL_CLOSED_ALT_MISMATCH' ;;
             *) failure_verdict='DRUSH_FAIL_CLOSED_OTHER' ;;
           esac
           unset failure_message
@@ -186,12 +185,12 @@ case "$MODE" in
   apply)
     remote_run dry-run "$remote_preapply"
     scp "${ssh_opts[@]}" "$remote_target:$remote_preapply" "$ARTIFACT_DIR/preapply.json" >/dev/null
-    jq -e '.status == "PASS" and (.verdict == "READY" or .verdict == "REPAIR_REQUIRED" or .verdict == "REPLACE_APPROVED" or .verdict == "IDEMPOTENT")' \
+    jq -e '.status == "PASS" and (.verdict == "READY" or .verdict == "REPAIR_REQUIRED" or .verdict == "REPLACE_APPROVED" or .verdict == "RELINK_REQUIRED" or .verdict == "IDEMPOTENT")' \
       "$ARTIFACT_DIR/preapply.json" >/dev/null
 
     preapply_verdict="$(jq -r '.verdict' "$ARTIFACT_DIR/preapply.json")"
     backup_file=''
-    if [[ "$preapply_verdict" == 'READY' || "$preapply_verdict" == 'REPAIR_REQUIRED' || "$preapply_verdict" == 'REPLACE_APPROVED' ]]; then
+    if [[ "$preapply_verdict" == 'READY' || "$preapply_verdict" == 'REPAIR_REQUIRED' || "$preapply_verdict" == 'REPLACE_APPROVED' || "$preapply_verdict" == 'RELINK_REQUIRED' ]]; then
       timestamp="$(date -u +%Y%m%d%H%M%S)"
       backup_stem="$BACKUP_DIR/editorial-image-issue-${ISSUE_NUMBER}-${timestamp}.sql"
       backup_file="${backup_stem}.gz"

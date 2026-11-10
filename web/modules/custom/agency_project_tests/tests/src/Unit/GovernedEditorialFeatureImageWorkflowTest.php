@@ -39,7 +39,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString("1491) target='PREPROD'", $workflow);
     self::assertStringContainsString("1512) target='PREPROD'", $workflow);
     self::assertStringContainsString("1404) target='PREPROD'", $workflow);
-    self::assertStringContainsString('Issue #1404 is inspect-only pending separate runtime authority.', $workflow);
+    self::assertStringContainsString("issue == '1404' and 'verdict: `RELINK_REQUIRED`'", $workflow);
     self::assertStringContainsString('persist-credentials: false', $workflow);
     self::assertStringContainsString(
       "always() && steps.request.outcome == 'success'",
@@ -50,7 +50,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
-   * Issue #1404 inspection uses PREPROD SSH bindings and stays inspect-only.
+   * Issue #1404 uses only the PREPROD SSH bindings for its governed route.
    */
   public function testIssue1404InspectSelectsOnlyPreprodConnection(): void {
     $root = dirname(DRUPAL_ROOT);
@@ -90,7 +90,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString("1404) target='PREPROD'", $workflow);
     self::assertStringNotContainsString("1404) target='PROD'", $workflow);
     self::assertStringContainsString(
-      'Issue #1404 is inspect-only pending separate runtime authority.',
+      "issue == '1404' and 'verdict: `RELINK_REQUIRED`'",
       $workflow,
     );
   }
@@ -420,6 +420,62 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
+   * Issue #1404 may reuse only an existing File proven for both languages.
+   */
+  public function testIssue1404FidReconciliationRefusesAmbiguousEvidence(): void {
+    $root = dirname(DRUPAL_ROOT);
+    if (!defined('AGENCY_EDITORIAL_FEATURE_IMAGE_LIBRARY_ONLY')) {
+      define('AGENCY_EDITORIAL_FEATURE_IMAGE_LIBRARY_ONLY', TRUE);
+    }
+    require_once $root . '/scripts/runner/editorial-feature-image.php';
+
+    $profiles = json_decode(
+      (string) file_get_contents($root . '/scripts/runner/editorial-feature-image-profiles.json'),
+      TRUE,
+      512,
+      JSON_THROW_ON_ERROR,
+    );
+    $profile = $profiles['profiles']['1404'];
+    $sha = $profile['asset']['sha256'];
+    $fr = ['fid' => 11, 'exists' => TRUE, 'sha256' => $sha, 'alt' => $profile['alt']['fr']];
+    $en = ['fid' => 12, 'exists' => TRUE, 'sha256' => $sha, 'alt' => $profile['alt']['en']];
+
+    self::assertSame(11, \AgencyEditorialFeatureImage::selectIssue1404ExistingFid($profile, $fr, $en));
+
+    $otherIssue = array_replace($profile, ['issue_number' => 1491]);
+    $invalid = [
+      'different FR SHA' => [$profile, array_replace($fr, ['sha256' => str_repeat('0', 64)]), $en],
+      'different EN SHA' => [$profile, $fr, array_replace($en, ['sha256' => str_repeat('0', 64)])],
+      'missing FR File' => [$profile, array_replace($fr, ['exists' => FALSE]), $en],
+      'missing EN File' => [$profile, $fr, array_replace($en, ['exists' => FALSE])],
+      'wrong FR ALT' => [$profile, array_replace($fr, ['alt' => 'incorrect']), $en],
+      'wrong EN ALT' => [$profile, $fr, array_replace($en, ['alt' => 'incorrect'])],
+      'no FR FID' => [$profile, array_replace($fr, ['fid' => 0]), $en],
+      'shared FID already' => [$profile, $fr, array_replace($en, ['fid' => 11])],
+      'wrong Article profile' => [$otherIssue, $fr, $en],
+    ];
+    foreach ($invalid as $label => [$candidate, $left, $right]) {
+      try {
+        \AgencyEditorialFeatureImage::selectIssue1404ExistingFid($candidate, $left, $right);
+        self::fail($label . ' must fail closed.');
+      }
+      catch (\RuntimeException $exception) {
+        self::assertSame(
+          'Issue #1404 FID reconciliation evidence is incomplete or ambiguous.',
+          $exception->getMessage(),
+          $label,
+        );
+      }
+    }
+
+    $php = (string) file_get_contents($root . '/scripts/runner/editorial-feature-image.php');
+    self::assertStringContainsString('$this->loadMappedNode($profile, $issueNumber)', $php);
+    self::assertStringContainsString('if ($issueNumber === 1404 && $before[\'verdict\'] !== \'RELINK_REQUIRED\')', $php);
+    self::assertStringContainsString('Issue #1404 cannot create or replace a File entity.', $php);
+    self::assertStringContainsString('if (($profile[\'issue_number\'] ?? NULL) === 1404 && !$altsMatch)', $php);
+  }
+
+  /**
    * The runner may transport only the trusted profile and asset.
    */
   public function testRunnerIsFixedAndSyntaxValid(): void {
@@ -439,7 +495,8 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString("SERVER_USER='agency-preprod'", $shell);
     self::assertStringContainsString('1404:PREPROD)', $shell);
     self::assertStringContainsString('remote_asset="${remote_stem}-asset.webp"', $shell);
-    self::assertStringContainsString('Issue #1404 is inspect-only pending separate runtime authority.', $shell);
+    self::assertStringContainsString('RELINK_REQUIRED', $shell);
+    self::assertStringContainsString('DRUSH_FAIL_CLOSED_RELINK_EVIDENCE', $shell);
     self::assertStringContainsString('scripts/preproduction/validate-runtime.sh', $shell);
     self::assertStringContainsString('vendor/bin/drush sql:dump', $shell);
     self::assertStringContainsString('vendor/bin/drush php:script', $shell);

@@ -94,8 +94,11 @@ final class AgencyEditorialFeatureImage {
       $before['mode'] = 'apply';
       return $before;
     }
-    if (!in_array($before['verdict'], ['READY', 'REPAIR_REQUIRED', 'REPLACE_APPROVED'], TRUE)) {
-      throw new RuntimeException('Feature image apply requires READY or REPAIR_REQUIRED.');
+    if ($issueNumber === 1404 && $before['verdict'] !== 'RELINK_REQUIRED') {
+      throw new RuntimeException('Issue #1404 apply requires exact existing-FID reconciliation evidence.');
+    }
+    if (!in_array($before['verdict'], ['READY', 'REPAIR_REQUIRED', 'REPLACE_APPROVED', 'RELINK_REQUIRED'], TRUE)) {
+      throw new RuntimeException('Feature image apply requires an approved image state.');
     }
 
     $profile = $this->validateProfile($profile, $issueNumber);
@@ -103,11 +106,20 @@ final class AgencyEditorialFeatureImage {
     $author = $this->loadAuthor();
     $oldRevisionId = (int) $node->getRevisionId();
     $classification = $this->classifyCurrentImage($node, $profile);
+    if ($issueNumber === 1404 && (
+      $classification['verdict'] !== 'RELINK_REQUIRED'
+      || $classification['fid'] !== $before['node']['image']['fid']
+    )) {
+      throw new RuntimeException('Issue #1404 FID evidence changed before apply.');
+    }
 
     $this->accountSwitcher->switchTo($author);
     try {
       $file = $classification['file'] ?? NULL;
       if (!$file instanceof FileInterface) {
+        if ($issueNumber === 1404) {
+          throw new RuntimeException('Issue #1404 cannot create or replace a File entity.');
+        }
         $file = $this->materializeFile($profile, $assetPath);
       }
       $fid = (int) $file->id();
@@ -349,6 +361,9 @@ final class AgencyEditorialFeatureImage {
     $enFid = $enItem?->get('target_id')->getValue();
 
     if ($frFid === NULL && $enFid === NULL) {
+      if (($profile['issue_number'] ?? NULL) === 1404) {
+        throw new RuntimeException('Issue #1404 requires two existing image references.');
+      }
       return [
         'verdict' => 'READY',
         'file' => NULL,
@@ -359,8 +374,39 @@ final class AgencyEditorialFeatureImage {
         'alt_en' => '',
       ];
     }
-    if ($frFid === NULL || $enFid === NULL || (int) $frFid !== (int) $enFid) {
+    if ($frFid === NULL || $enFid === NULL) {
       throw new RuntimeException('FR/EN feature image file references diverge; refusing ambiguous repair.');
+    }
+    if ((int) $frFid !== (int) $enFid) {
+      if (($profile['issue_number'] ?? NULL) !== 1404) {
+        throw new RuntimeException('FR/EN feature image file references diverge; refusing ambiguous repair.');
+      }
+      $storage = $this->entityTypeManager->getStorage('file');
+      $frFile = $storage->load((int) $frFid);
+      $enFile = $storage->load((int) $enFid);
+      $fid = self::selectIssue1404ExistingFid($profile,
+        [
+          'fid' => (int) $frFid,
+          'exists' => $frFile instanceof FileInterface && !$frFile->isTemporary(),
+          'sha256' => $frFile instanceof FileInterface ? @hash_file('sha256', $frFile->getFileUri()) : NULL,
+          'alt' => $frItem?->get('alt')->getValue(),
+        ],
+        [
+          'fid' => (int) $enFid,
+          'exists' => $enFile instanceof FileInterface && !$enFile->isTemporary(),
+          'sha256' => $enFile instanceof FileInterface ? @hash_file('sha256', $enFile->getFileUri()) : NULL,
+          'alt' => $enItem?->get('alt')->getValue(),
+        ],
+      );
+      return [
+        'verdict' => 'RELINK_REQUIRED',
+        'file' => $frFile,
+        'fid' => $fid,
+        'uri' => $frFile->getFileUri(),
+        'sha256' => $profile['asset']['sha256'],
+        'alt_fr' => $profile['alt']['fr'],
+        'alt_en' => $profile['alt']['en'],
+      ];
     }
 
     $file = $this->entityTypeManager->getStorage('file')->load((int) $frFid);
@@ -369,8 +415,12 @@ final class AgencyEditorialFeatureImage {
     }
     $uri = $file->getFileUri();
     $hash = hash_file('sha256', $uri);
-    $altFr = trim((string) ($frItem?->get('alt')->getValue() ?? ''));
-    $altEn = trim((string) ($enItem?->get('alt')->getValue() ?? ''));
+    $altFr = (string) ($frItem?->get('alt')->getValue() ?? '');
+    $altEn = (string) ($enItem?->get('alt')->getValue() ?? '');
+    if (($profile['issue_number'] ?? NULL) !== 1404) {
+      $altFr = trim($altFr);
+      $altEn = trim($altEn);
+    }
 
     if (!is_string($hash) || !hash_equals($profile['asset']['sha256'], $hash)) {
       // Closed PREPROD #1491 replacement. Never clear FID 4 to simulate READY.
@@ -396,6 +446,9 @@ final class AgencyEditorialFeatureImage {
     }
     $altsMatch = hash_equals($profile['alt']['fr'], $altFr)
       && hash_equals($profile['alt']['en'], $altEn);
+    if (($profile['issue_number'] ?? NULL) === 1404 && !$altsMatch) {
+      throw new RuntimeException('Issue #1404 image ALT does not match the approved FR/EN profile.');
+    }
 
     return [
       'verdict' => $altsMatch ? 'IDEMPOTENT' : 'REPAIR_REQUIRED',
@@ -406,6 +459,34 @@ final class AgencyEditorialFeatureImage {
       'alt_fr' => $altFr,
       'alt_en' => $altEn,
     ];
+  }
+
+  /**
+   * Selects only an already existing FR FID when both #1404 files prove identical.
+   *
+   * No candidate mutation is allowed; the mapped Article was checked upstream.
+   */
+  public static function selectIssue1404ExistingFid(array $profile, array $fr, array $en): int {
+    $expectedSha = $profile['asset']['sha256'] ?? NULL;
+    if (($profile['issue_number'] ?? NULL) !== 1404
+      || !is_string($expectedSha)
+      || !is_int($fr['fid'] ?? NULL) || $fr['fid'] <= 0
+      || !is_int($en['fid'] ?? NULL) || $en['fid'] <= 0
+      || $fr['fid'] === $en['fid']
+      || ($fr['exists'] ?? NULL) !== TRUE
+      || ($en['exists'] ?? NULL) !== TRUE
+      || !is_string($fr['sha256'] ?? NULL)
+      || !is_string($en['sha256'] ?? NULL)
+      || !hash_equals($expectedSha, $fr['sha256'])
+      || !hash_equals($expectedSha, $en['sha256'])
+      || !is_string($fr['alt'] ?? NULL)
+      || !is_string($en['alt'] ?? NULL)
+      || !hash_equals($profile['alt']['fr'], $fr['alt'])
+      || !hash_equals($profile['alt']['en'], $en['alt'])
+    ) {
+      throw new RuntimeException('Issue #1404 FID reconciliation evidence is incomplete or ambiguous.');
+    }
+    return $fr['fid'];
   }
 
   /**

@@ -76,11 +76,6 @@ jobs:
             target='PROD'
           fi
 
-          if [[ "$ISSUE_NUMBER" == 1404 && "$mode" != inspect ]]; then
-             echo 'Issue #1404 is inspect-only pending separate runtime authority.' >&2
-             exit 1
-          fi
-
           issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER")"
           [[ "$(jq -r '.state' <<<"$issue_json")" == 'open' ]]
           [[ "$(jq -r '.pull_request // empty' <<<"$issue_json")" == '' ]]
@@ -311,9 +306,6 @@ jobs:
               if any(line not in approval_body for line in required_approval_lines):
                   raise SystemExit('Exact #958 human approval receipt no longer matches the approved candidate.')
 
-          if issue == '1404' and mode != 'inspect':
-              raise SystemExit('Issue #1404 is inspect-only pending separate runtime authority.')
-
           if mode == 'apply':
               raw = subprocess.check_output([
                   'gh', 'api', f'repos/{os.environ["GITHUB_REPOSITORY"]}/issues/{issue}/comments?per_page=100',
@@ -335,6 +327,8 @@ jobs:
                       continue
                   match = pattern.search(comment.get('body') or '')
                   if match and match.groups() == (profile_sha, actual_sha, trusted_main, target):
+                      if issue == '1404' and 'verdict: `RELINK_REQUIRED`' not in (comment.get('body') or ''):
+                          continue
                       authorized = True
                       break
               if not authorized:

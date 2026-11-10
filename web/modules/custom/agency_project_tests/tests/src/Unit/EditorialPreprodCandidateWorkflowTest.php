@@ -363,7 +363,7 @@ final class EditorialPreprodCandidateWorkflowTest extends TestCase {
    * Keeps unpublished #1522 Article inventory out of public Actions artifacts.
    */
   public function test1522InspectEvidenceIsPrivateAndCollisionIsBounded(): void {
-    $parsed = Yaml::parse($this->source(self::WORKFLOW));
+    $parsed = Yaml::parseFile(dirname(DRUPAL_ROOT) . '/' . self::WORKFLOW);
     $steps = $parsed['jobs']['candidate']['steps'];
     $uploads = array_values(array_filter(
       $steps,

@@ -531,6 +531,11 @@ jobs:
           # Compare against the already-public #403 identities in the trusted job.
           # The raw #1522 inventory stays on this ephemeral runner and is not uploaded.
           if [[ "$ISSUE_NUMBER" == 1522 && "$MODE" == inspect ]]; then
+            # Do not expose mapped unpublished PREPROD identifiers or aliases.
+            node_id='n/a'
+            revision_id='n/a'
+            fr_alias='n/a'
+            en_alias='n/a'
             historical_identity='UNKNOWN'
             if [[ "$ROUTE_OUTCOME" == success ]] && jq -e '
               .status == "PASS" and .target == "PREPROD" and

@@ -541,7 +541,7 @@ jobs:
               historical_hits="$(jq \
                 --arg fa '/blog/ia-pour-pme-7-cas-utiles-et-les-limites-poser-avant-dautomatiser' \
                 --arg ea '/blog/ai-smes-7-useful-use-cases-and-limits-set-automating' \
-                --arg ft 'IA pour PME : 7 cas utiles et les limites à poser avant d’automatiser' \
+                --arg ft $'IA pour PME : 7 cas utiles et les limites à poser avant d\u2019automatiser' \
                 --arg et 'AI for SMEs: 7 useful use cases and the limits to set before automating' \
                 '[.article_inventory.nodes[] | select(
                   any(.fr.aliases[]?; . == $fa) or any(.en.aliases[]?; . == $ea) or

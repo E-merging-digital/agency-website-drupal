@@ -486,7 +486,8 @@ jobs:
           "$RUNNER_TEMP/agency-editorial-jit-payload.json"
 
       - name: Upload metadata-only PREPROD candidate evidence
-        if: ${{ always() }}
+        # #1522 inspect carries unpublished Article metadata: never upload it.
+        if: ${{ always() && !(github.event.issue.number == 1522 && steps.request.outputs.mode == 'inspect') }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-editorial-preprod-${{ github.event.issue.number }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -517,6 +518,8 @@ jobs:
           revision_id='n/a'
           fr_alias='n/a'
           en_alias='n/a'
+          historical_identity='n/a'
+          historical_identity_line=''
           if [[ -s "$result_file" ]] && jq -e . "$result_file" >/dev/null 2>&1; then
             status="$(jq -r '.status // "UNKNOWN"' "$result_file")"
             verdict="$(jq -r '.verdict // "UNKNOWN"' "$result_file")"
@@ -524,6 +527,33 @@ jobs:
             revision_id="$(jq -r '.node.revision_id // "n/a"' "$result_file")"
             fr_alias="$(jq -r '.node.aliases.fr // "n/a"' "$result_file")"
             en_alias="$(jq -r '.node.aliases.en // "n/a"' "$result_file")"
+          fi
+          # Compare against the already-public #403 identities in the trusted job.
+          # The raw #1522 inventory stays on this ephemeral runner and is not uploaded.
+          if [[ "$ISSUE_NUMBER" == 1522 && "$MODE" == inspect ]]; then
+            historical_identity='UNKNOWN'
+            if [[ "$ROUTE_OUTCOME" == success ]] && jq -e '
+              .status == "PASS" and .target == "PREPROD" and
+              .article_inventory.bundle == "article" and
+              (.article_inventory.nodes | type == "array") and
+              .article_inventory.count == (.article_inventory.nodes | length)
+            ' "$result_file" >/dev/null 2>&1; then
+              historical_hits="$(jq \
+                --arg fa '/blog/ia-pour-pme-7-cas-utiles-et-les-limites-poser-avant-dautomatiser' \
+                --arg ea '/blog/ai-smes-7-useful-use-cases-and-limits-set-automating' \
+                --arg ft 'IA pour PME : 7 cas utiles et les limites à poser avant d’automatiser' \
+                --arg et 'AI for SMEs: 7 useful use cases and the limits to set before automating' \
+                '[.article_inventory.nodes[] | select(
+                  any(.fr.aliases[]?; . == $fa) or any(.en.aliases[]?; . == $ea) or
+                  .fr.title == $ft or .en.title == $et
+                )] | length' "$result_file")"
+              [[ "$historical_hits" =~ ^[0-9]+$ ]]
+              if (( historical_hits > 0 )); then historical_identity=COLLISION; fi
+            else
+              status='FAIL'
+              verdict='UNKNOWN'
+            fi
+            historical_identity_line="historical_identity_check: ${historical_identity} (exact public #403 identities only; UNKNOWN is not clearance)"
           fi
           heading="### Agency editorial PREPROD candidate ${MODE} ${status}"
           if [[ "$ROUTE_OUTCOME" == success && "$status" == PASS ]]; then
@@ -553,6 +583,7 @@ jobs:
           fr_url: \`${fr_url}\`
           en_url: \`${en_url}\`
           prod_write: \`NONE\`
+          ${historical_identity_line}
 
           ${provenance}
           EOF_BODY

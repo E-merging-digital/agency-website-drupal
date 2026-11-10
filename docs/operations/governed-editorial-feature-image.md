@@ -141,6 +141,8 @@ exactly:
 issue #401 -> PROD -> /var/www/agency/current
 issue #958 -> PREPROD -> /var/www/agency-preprod/current
 issue #1491 -> PREPROD -> /var/www/agency-preprod/current
+issue #1512 -> PREPROD -> /var/www/agency-preprod/current
+issue #1404 -> PREPROD -> /var/www/agency-preprod/current (inspect only until separate authority)
 ```
 
 For #958, the existing #959 PREPROD connection primitives are reused:
@@ -379,3 +381,20 @@ https://commons.wikimedia.org/wiki/File:Lens-Saint-Servais_-_Wet_meadows.jpg.
 The photograph depicts Lens-Saint-Servais in 2007, not the proposed turbine
 locations. Human review of actual FR/EN desktop/mobile PREPROD renders remains
 required before any separate PROD approval.
+
+## #1404 MCP owner WebP (PREPROD inspection only)
+
+The repository owns the exact original 1672×941 WebP (`55,408` bytes), not a
+regenerated rendition. The closed profile pins `agency-article-1404`, the owner
+payload from comment `6110961556` (`dfeba8f86b6a51f02b7ba2d914aa3e94bdb4245e8f48785c34016421689eac07`),
+`field_feature_image`, `image/webp`, exact SHA-256
+`0c504f2f72d1fa9cb6569c404fd9d0ae0853d3cfdc49ae422076b19c3bcd24c6`
+and the separately reviewed FR/EN ALT values from issue #1404.
+
+Only `inspect` may be admitted for #1404 on the trusted PREPROD route after a
+separate human/runtime authorization. `dry-run` and `apply` are rejected for
+#1404; this source PR authorizes **no** runtime execution, mutation or PROD
+promotion. If FR/EN FIDs differ, inspection fails closed and a separately
+approved native Drupal correction is required. All #1014 approval and image
+HOLDs remain in force; #1525 UPDATE is not applicable to this
+`PREPROD_ONLY_EXPECTED` Article.

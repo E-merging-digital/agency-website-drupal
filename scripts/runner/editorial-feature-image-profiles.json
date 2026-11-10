@@ -39,6 +39,25 @@
         "en": "Planning a Drupal 10 to Drupal 11 upgrade"
       }
     },
+    "1404": {
+      "issue_number": 1404,
+      "bundle": "article",
+      "article_payload_sha256": "dfeba8f86b6a51f02b7ba2d914aa3e94bdb4245e8f48785c34016421689eac07",
+      "field_name": "field_feature_image",
+      "asset": {
+        "path": "assets/editorial/issue-1404-mcp-permissions-editorial-v1.webp",
+        "filename": "agency-mcp-permissions-editorial-v1.webp",
+        "sha256": "0c504f2f72d1fa9cb6569c404fd9d0ae0853d3cfdc49ae422076b19c3bcd24c6",
+        "mime": "image/webp",
+        "width": 1672,
+        "height": 941,
+        "max_bytes": 55408
+      },
+      "alt": {
+        "fr": "Une application métier communique avec un agent IA à travers une passerelle qui limite les autorisations accordées.",
+        "en": "A business application connects to an AI agent through a gateway that limits the permissions granted."
+      }
+    },
     "1491": {
       "issue_number": 1491,
       "bundle": "article",

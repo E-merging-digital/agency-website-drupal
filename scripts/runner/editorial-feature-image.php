@@ -216,6 +216,18 @@ final class AgencyEditorialFeatureImage {
         throw new InvalidArgumentException('Issue #1491 accepts only the approved original JPEG.');
       }
     }
+    elseif ($issueNumber === 1404) {
+      // Exact owner-provided WebP; no other issue may admit WebP.
+      if ($asset['path'] !== 'assets/editorial/issue-1404-mcp-permissions-editorial-v1.webp'
+        || $asset['filename'] !== 'agency-mcp-permissions-editorial-v1.webp'
+        || $asset['sha256'] !== '0c504f2f72d1fa9cb6569c404fd9d0ae0853d3cfdc49ae422076b19c3bcd24c6'
+        || $asset['mime'] !== 'image/webp'
+        || $asset['width'] !== 1672
+        || $asset['height'] !== 941
+        || $asset['max_bytes'] !== 55408) {
+        throw new InvalidArgumentException('Issue #1404 accepts only the approved owner WebP.');
+      }
+    }
     else {
       if (!is_string($asset['path'])
         || !preg_match('#^assets/editorial/[a-z0-9][a-z0-9._-]*\.png$#', $asset['path'])) {

@@ -41,6 +41,10 @@ case "$ISSUE_NUMBER:$TARGET" in
     PROJECT_ROOT='/var/www/agency-preprod'
     SERVER_USER='agency-preprod'
     ;;
+  1404:PREPROD)
+    PROJECT_ROOT='/var/www/agency-preprod'
+    SERVER_USER='agency-preprod'
+    ;;
   958:PROD)
     PROJECT_ROOT='/var/www/agency'
     ;;
@@ -49,6 +53,11 @@ case "$ISSUE_NUMBER:$TARGET" in
     exit 1
     ;;
 esac
+
+if [[ "$ISSUE_NUMBER" == '1404' && "$MODE" != 'inspect' ]]; then
+  echo 'Issue #1404 is inspect-only pending separate runtime authority.' >&2
+  exit 1
+fi
 
 [[ "$RUN_ID" =~ ^[0-9]+$ ]]
 [[ "$RUN_ATTEMPT" =~ ^[0-9]+$ ]]
@@ -88,11 +97,11 @@ mkdir -p "$ARTIFACT_DIR"
 remote_stem="/tmp/agency-editorial-image-${ISSUE_NUMBER}-${RUN_ID}-${RUN_ATTEMPT}"
 remote_script="${remote_stem}.php"
 remote_profile="${remote_stem}-profile.json"
-if [[ "$ISSUE_NUMBER" == '1491' ]]; then
-  remote_asset="${remote_stem}-asset.jpg"
-else
-  remote_asset="${remote_stem}-asset.png"
-fi
+case "$ISSUE_NUMBER" in
+  1491) remote_asset="${remote_stem}-asset.jpg" ;;
+  1404) remote_asset="${remote_stem}-asset.webp" ;;
+  *) remote_asset="${remote_stem}-asset.png" ;;
+esac
 remote_result="${remote_stem}-result.json"
 remote_preapply="${remote_stem}-preapply.json"
 remote_target="${SERVER_USER}@${SERVER_HOST}"

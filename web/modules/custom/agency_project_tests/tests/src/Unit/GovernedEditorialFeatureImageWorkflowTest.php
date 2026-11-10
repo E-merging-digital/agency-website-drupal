@@ -50,6 +50,52 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
+   * Issue #1404 inspection uses PREPROD SSH bindings and stays inspect-only.
+   */
+  public function testIssue1404InspectSelectsOnlyPreprodConnection(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $dispatcher = Yaml::parseFile(
+      $root . '/.github/workflows/agency-command-dispatch.yml',
+    );
+    self::assertIsArray($dispatcher);
+    $job = $dispatcher['jobs']['editorial-feature-image'] ?? [];
+    self::assertSame(
+      './.github/workflows/trusted-editorial-feature-image.yml',
+      $job['uses'] ?? NULL,
+    );
+    $secrets = $job['secrets'] ?? [];
+
+    foreach ([
+      'SSH_PRIVATE_KEY' => ['PREPROD_SSH_PRIVATE_KEY', 'SSH_PRIVATE_KEY'],
+      'SERVER_HOST' => ['PREPROD_SERVER_HOST', 'SERVER_HOST'],
+    ] as $name => [$preprodSecret, $prodSecret]) {
+      $binding = $secrets[$name] ?? NULL;
+      self::assertIsString($binding);
+      self::assertStringContainsString(
+        " || (github.event.issue.number == 1404 && startsWith("
+        . "github.event.comment.body, '/agency-editorial-image '))) "
+        . "&& secrets.{$preprodSecret} || secrets.{$prodSecret}",
+        $binding,
+      );
+      self::assertStringNotContainsString(
+        "github.event.issue.number == 1404 && startsWith("
+        . "github.event.comment.body, '/agency-editorial-image-prod ')",
+        $binding,
+      );
+    }
+
+    $workflow = (string) file_get_contents(
+      $root . '/.github/workflows/trusted-editorial-feature-image.yml',
+    );
+    self::assertStringContainsString("1404) target='PREPROD'", $workflow);
+    self::assertStringNotContainsString("1404) target='PROD'", $workflow);
+    self::assertStringContainsString(
+      'Issue #1404 is inspect-only pending separate runtime authority.',
+      $workflow,
+    );
+  }
+
+  /**
    * Asset transport stays exact, deterministic and repository-owned.
    */
   public function testProfileAndAssetAreClosedAndHashBound(): void {

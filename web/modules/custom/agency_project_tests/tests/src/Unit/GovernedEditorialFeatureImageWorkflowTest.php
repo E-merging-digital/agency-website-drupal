@@ -440,7 +440,9 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     $fr = ['fid' => 11, 'exists' => TRUE, 'sha256' => $sha, 'alt' => $profile['alt']['fr']];
     $en = ['fid' => 12, 'exists' => TRUE, 'sha256' => $sha, 'alt' => $profile['alt']['en']];
 
-    self::assertSame(11, \AgencyEditorialFeatureImage::selectIssue1404ExistingFid($profile, $fr, $en));
+    $method = new \ReflectionMethod('AgencyEditorialFeatureImage', 'selectIssue1404ExistingFid');
+    $selectFid = static fn (array $candidate, array $left, array $right): mixed => $method->invoke(NULL, $candidate, $left, $right);
+    self::assertSame(11, $selectFid($profile, $fr, $en));
 
     $otherIssue = array_replace($profile, ['issue_number' => 1491]);
     $invalid = [
@@ -456,7 +458,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     ];
     foreach ($invalid as $label => [$candidate, $left, $right]) {
       try {
-        \AgencyEditorialFeatureImage::selectIssue1404ExistingFid($candidate, $left, $right);
+        $selectFid($candidate, $left, $right);
         self::fail($label . ' must fail closed.');
       }
       catch (\RuntimeException $exception) {

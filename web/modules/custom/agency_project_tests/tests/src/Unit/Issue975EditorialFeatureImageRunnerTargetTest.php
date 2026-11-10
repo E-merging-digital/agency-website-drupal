@@ -156,14 +156,19 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
   }
 
   /**
-   * Issue #1404 stays inspect-only even though its PREPROD pair is registered.
+   * Issue #1404 modes require trusted profile evidence before any SSH.
    */
-  public function test1404DryRunAndApplyAreRefusedBeforeSsh(): void {
+  public function test1404DryRunAndApplyRequireProfileBeforeSsh(): void {
     foreach (['dry-run', 'apply'] as $mode) {
       $result = $this->runResolver('1404', 'PREPROD', $mode);
       self::assertNotSame(0, $result['exit']);
-      self::assertStringContainsString('Issue #1404 is inspect-only pending separate runtime authority.', $result['output']);
+      self::assertStringNotContainsString('Permission denied', $result['output']);
+      self::assertStringNotContainsString('ssh:', $result['output']);
     }
+    $workflow = (string) file_get_contents(
+      dirname(DRUPAL_ROOT) . '/.github/workflows/trusted-editorial-feature-image.yml',
+    );
+    self::assertStringContainsString("issue == '1404' and 'verdict: `RELINK_REQUIRED`'", $workflow);
   }
 
   /**

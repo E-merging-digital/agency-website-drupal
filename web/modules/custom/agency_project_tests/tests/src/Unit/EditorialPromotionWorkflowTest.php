@@ -33,7 +33,7 @@ final class EditorialPromotionWorkflowTest extends TestCase {
     self::assertStringContainsString('Candidate revision changed after workflow start.', $workflow);
     self::assertStringContainsString('Candidate payload changed after workflow start.', $workflow);
     self::assertStringContainsString('generate-editorial-feature-image-${ISSUE_NUMBER}.py', $workflow);
-    self::assertStringContainsString('1491|1512)', $workflow);
+    self::assertStringContainsString('1404|1491|1512)', $workflow);
     self::assertStringContainsString('test -s "$asset_path"', $workflow);
     self::assertStringContainsString("issue_number == 1512", $workflow);
     self::assertStringContainsString("os.environ['ISSUE_NUMBER'] == '1512'", $workflow);
@@ -71,6 +71,12 @@ final class EditorialPromotionWorkflowTest extends TestCase {
     self::assertStringContainsString('Feature image did not converge before publication.', $runtime);
     self::assertStringContainsString('visual_completeness', $runtime);
     self::assertStringContainsString('REFUSED_BY_DESIGN', $runtime);
+    self::assertStringContainsString('$issueNumber === 1404', $runtime);
+    self::assertStringContainsString('remote_asset="${remote_stem}-asset.webp"', $runner);
+    $imageHelper = (string) file_get_contents($root . '/scripts/runner/editorial-feature-image.php');
+    self::assertStringContainsString('bool $governedProdPromotion = FALSE', $imageHelper);
+    self::assertStringContainsString('staged unpublished PROD Article', $imageHelper);
+    self::assertStringContainsString('Issue #1404 requires two existing image references.', $imageHelper);
     self::assertStringContainsString('Mapped Article content drifted', $promotion);
     self::assertStringContainsString('exact approved FR/EN ALT', $promotion);
     self::assertStringContainsString('feature image bytes drifted', $promotion);

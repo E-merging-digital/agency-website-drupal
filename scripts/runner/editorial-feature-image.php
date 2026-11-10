@@ -88,14 +88,34 @@ final class AgencyEditorialFeatureImage {
    * @return array<string, mixed>
    *   Structured evidence.
    */
-  public function apply(array $profile, int $issueNumber, string $assetPath): array {
-    $before = $this->dryRun($profile, $issueNumber, $assetPath);
+  public function apply(array $profile, int $issueNumber, string $assetPath, bool $governedProdPromotion = FALSE): array {
+    if ($governedProdPromotion && $issueNumber !== 1404) {
+      throw new RuntimeException('Governed WebP creation is restricted to issue #1404 PROD promotion.');
+    }
+    if ($governedProdPromotion) {
+      // Only the approval-gated PROD promotion runtime supplies this capability.
+      // Standalone image apply retains the existing-FID-only rule.
+      $profile = $this->validateProfile($profile, $issueNumber);
+      $this->validateAsset($profile, $assetPath);
+      $staged = $this->loadMappedNode($profile, $issueNumber);
+      $initial = $this->classifyCurrentImage($staged, $profile, TRUE);
+      $before = [
+        'verdict' => $initial['verdict'],
+        'node' => $this->nodeResult($staged, $initial),
+      ];
+    }
+    else {
+      $before = $this->dryRun($profile, $issueNumber, $assetPath);
+    }
     if ($before['verdict'] === 'IDEMPOTENT') {
+      if ($governedProdPromotion) {
+        $before = $this->dryRun($profile, $issueNumber, $assetPath);
+      }
       $before['mode'] = 'apply';
       return $before;
     }
-    if ($issueNumber === 1404 && $before['verdict'] !== 'RELINK_REQUIRED') {
-      throw new RuntimeException('Issue #1404 apply requires exact existing-FID reconciliation evidence.');
+    if ($issueNumber === 1404 && $before['verdict'] !== ($governedProdPromotion ? 'READY' : 'RELINK_REQUIRED')) {
+      throw new RuntimeException('Issue #1404 apply requires the exact governed image state.');
     }
     if (!in_array($before['verdict'], ['READY', 'REPAIR_REQUIRED', 'REPLACE_APPROVED', 'RELINK_REQUIRED'], TRUE)) {
       throw new RuntimeException('Feature image apply requires an approved image state.');
@@ -105,9 +125,9 @@ final class AgencyEditorialFeatureImage {
     $node = $this->loadMappedNode($profile, $issueNumber);
     $author = $this->loadAuthor();
     $oldRevisionId = (int) $node->getRevisionId();
-    $classification = $this->classifyCurrentImage($node, $profile);
+    $classification = $this->classifyCurrentImage($node, $profile, $governedProdPromotion);
     if ($issueNumber === 1404 && (
-      $classification['verdict'] !== 'RELINK_REQUIRED'
+      $classification['verdict'] !== ($governedProdPromotion ? 'READY' : 'RELINK_REQUIRED')
       || $classification['fid'] !== $before['node']['image']['fid']
     )) {
       throw new RuntimeException('Issue #1404 FID evidence changed before apply.');
@@ -118,7 +138,11 @@ final class AgencyEditorialFeatureImage {
       $file = $classification['file'] ?? NULL;
       if (!$file instanceof FileInterface) {
         if ($issueNumber === 1404) {
-          throw new RuntimeException('Issue #1404 cannot create or replace a File entity.');
+          if (!$governedProdPromotion || $classification['verdict'] !== 'READY'
+            || $node->isPublished()
+            || $node->getTranslation(self::TRANSLATION_LANGCODE)->isPublished()) {
+            throw new RuntimeException('Issue #1404 may materialize a File only for a staged unpublished PROD Article.');
+          }
         }
         $file = $this->materializeFile($profile, $assetPath);
       }
@@ -265,6 +289,12 @@ final class AgencyEditorialFeatureImage {
       throw new InvalidArgumentException('Feature image profile exceeds the bounded image limits.');
     }
 
+    if ($issueNumber === 1404 && (($profile['alt']['fr'] ?? NULL)
+        !== 'Une application métier communique avec un agent IA à travers une passerelle qui limite les autorisations accordées.'
+      || ($profile['alt']['en'] ?? NULL)
+        !== 'A business application connects to an AI agent through a gateway that limits the permissions granted.')) {
+      throw new InvalidArgumentException('Issue #1404 requires the exact reviewed FR/EN ALT values.');
+    }
     if (!is_array($profile['alt'] ?? NULL)) {
       throw new InvalidArgumentException('alt must be an object.');
     }
@@ -352,7 +382,7 @@ final class AgencyEditorialFeatureImage {
    * @return array<string, mixed>
    *   Classification plus existing File entity when applicable.
    */
-  private function classifyCurrentImage(NodeInterface $node, array $profile): array {
+  private function classifyCurrentImage(NodeInterface $node, array $profile, bool $governedProdPromotion = FALSE): array {
     $frItem = $node->get(self::FIELD_NAME)->first();
     $enItem = $node->getTranslation(self::TRANSLATION_LANGCODE)
       ->get(self::FIELD_NAME)
@@ -361,7 +391,7 @@ final class AgencyEditorialFeatureImage {
     $enFid = $enItem?->get('target_id')->getValue();
 
     if ($frFid === NULL && $enFid === NULL) {
-      if (($profile['issue_number'] ?? NULL) === 1404) {
+      if (($profile['issue_number'] ?? NULL) === 1404 && !$governedProdPromotion) {
         throw new RuntimeException('Issue #1404 requires two existing image references.');
       }
       return [

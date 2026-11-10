@@ -66,6 +66,9 @@ remote_runtime="${remote_stem}-runtime.php"
 remote_payload="${remote_stem}-payload.json"
 remote_profile="${remote_stem}-profiles.json"
 remote_asset="${remote_stem}-asset.png"
+if [[ "$ISSUE_NUMBER" == "1404" ]]; then
+  remote_asset="${remote_stem}-asset.webp"
+fi
 remote_result="${remote_stem}-result.json"
 remote_target="${SERVER_USER}@${SERVER_HOST}"
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)

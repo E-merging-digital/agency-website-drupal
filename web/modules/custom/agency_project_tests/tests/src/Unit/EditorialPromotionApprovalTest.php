@@ -109,6 +109,173 @@ final class EditorialPromotionApprovalTest extends TestCase {
   }
 
   /**
+   * Accept exact historical MCP evidence.
+   *
+   * The old PREPROD main is distinct from the fresh PROD main.
+   */
+  public function testMcpWebpPromotionUsesExactHistoricEvidence(): void {
+    $fixture = $this->mcpFixture();
+    [$exitCode, $result] = $this->runValidator($fixture, 1404);
+    self::assertSame(0, $exitCode);
+    self::assertSame('AUTHORIZED', $result['verdict']);
+    self::assertSame(6110961556, $result['candidate_revision']);
+    self::assertSame(42, $result['preprod_node_id']);
+    self::assertSame(65, $result['preprod_revision_id']);
+    self::assertSame('0c504f2f72d1fa9cb6569c404fd9d0ae0853d3cfdc49ae422076b19c3bcd24c6', $result['asset_sha256']);
+  }
+
+  /**
+   * Reject malformed or stale MCP approval evidence.
+   */
+  public function testMcpWebpGovernanceFailsClosed(): void {
+    $mutations = [
+      'wrong MIME' => static function (array &$f): void {
+        $f['registry']['profiles']['1404']['asset']['mime'] = 'image/png';
+      },
+      'wrong WebP bytes' => static function (array &$f): void {
+        $f['asset'] = 'wrong WebP bytes';
+      },
+      'wrong ALT' => static function (array &$f): void {
+        $f['registry']['profiles']['1404']['alt']['en'] = 'Unapproved English ALT';
+      },
+      'wrong candidate' => static function (array &$f): void {
+        $f['candidate_revision'] = 6110961557;
+      },
+      'missing Article receipt' => static function (array &$f): void {
+        unset($f['comments'][0]);
+      },
+      'unrelated Article receipt main' => static function (array &$f): void {
+        $f['comments'][0]['body'] = str_replace('14cbc02945c37a72732b2b7a05b16593f79848e6', str_repeat('f', 40), $f['comments'][0]['body']);
+      },
+      'wrong image FID' => static function (array &$f): void {
+        $f['comments'][1]['body'] = str_replace('fid: `12`', 'fid: `13`', $f['comments'][1]['body']);
+      },
+      'wrong image revision' => static function (array &$f): void {
+        $f['comments'][1]['body'] = str_replace('revision_id: `65`', 'revision_id: `66`', $f['comments'][1]['body']);
+      },
+      'image receipt not from bot' => static function (array &$f): void {
+        $f['comments'][1]['user']['login'] = 'E-merging-digital';
+      },
+      'missing human approval' => static function (array &$f): void {
+        unset($f['comments'][2]);
+      },
+      'stale approval' => static function (array &$f): void {
+        $f['comments'][2]['id'] = 6780534836;
+      },
+      'wrong owner identity' => static function (array &$f): void {
+        $f['comments'][2]['user']['type'] = 'Bot';
+      },
+      'missing image approval' => static function (array &$f): void {
+        $f['comments'][2]['body'] = str_replace("ALT_FR_EN = APPROVED\n", '', $f['comments'][2]['body']);
+      },
+      'stale current main in PROD dry-run' => static function (array &$f): void {
+        $f['comments'][3]['body'] = str_replace(self::MAIN_SHA, str_repeat('d', 40), $f['comments'][3]['body']);
+      },
+      'dry-run before human approval' => static function (array &$f): void {
+        $f['comments'][3]['id'] = 6781000000;
+      },
+    ];
+    foreach ($mutations as $name => $mutate) {
+      $fixture = $this->mcpFixture();
+      $mutate($fixture);
+      [$exitCode] = $this->runValidator($fixture, 1404);
+      self::assertSame(1, $exitCode, $name);
+    }
+  }
+
+  /**
+   * Exact repository WebP with immutable historic and fresh synthetic receipts.
+   */
+  private function mcpFixture(): array {
+    $root = dirname(DRUPAL_ROOT);
+    $registry = json_decode((string) file_get_contents($root . '/scripts/runner/editorial-feature-image-profiles.json'), TRUE, 32, JSON_THROW_ON_ERROR);
+    $profile = $registry['profiles']['1404'];
+    $asset = (string) file_get_contents($root . '/' . $profile['asset']['path']);
+    self::assertNotSame('', $asset);
+    $profileSha = hash('sha256', $this->canonicalJson($profile));
+    $assetSha = hash('sha256', $asset);
+    $payload = $profile['article_payload_sha256'];
+    $candidateRevision = 6110961556;
+    $approvalId = 6781000001;
+    $comments = [
+      $this->botComment(6111077035, implode("\n", [
+        '### Agency editorial PREPROD candidate apply PASS',
+        'target: `PREPROD`',
+        'candidate_id: `agency-article-1404`',
+        'candidate_revision: `6110961556`',
+        'payload_sha256: `' . $payload . '`',
+        'trusted_main: `14cbc02945c37a72732b2b7a05b16593f79848e6`',
+        'run_id: `38154962644`',
+        'node_id: `42`',
+        'revision_id: `49`',
+        'prod_write: `NONE`',
+      ])),
+      $this->botComment(6780534837, implode("\n", [
+        '### Agency editorial image apply PASS',
+        'profile_sha256: `' . $profileSha . '`',
+        'asset_sha256: `' . $assetSha . '`',
+        'trusted_main: `30cb29b7c4666da92fe1315be9a2bf0b30e828a2`',
+        'target: `PREPROD`',
+        'run_id: `42911099314`',
+        'route_outcome: `success`',
+        'verdict: `REPAIRED`',
+        'node_id: `42`',
+        'revision_id: `65`',
+        'fid: `12`',
+        'uri: `public://articles/agency-mcp-permissions-editorial-v1.webp`',
+        'prod_write: `NONE`',
+      ])),
+      [
+        'id' => $approvalId,
+        'user' => ['login' => 'E-merging-digital', 'type' => 'User'],
+        'author_association' => 'OWNER',
+        'performed_via_github_app' => NULL,
+        'body' => implode("\n", [
+          '## PROJECT LEAD — HUMAN APPROVAL / exact #1404 candidate approved for PROD promotion',
+          'CANDIDATE_ID = agency-article-1404',
+          'CANDIDATE_REVISION = 6110961556',
+          'ARTICLE_PAYLOAD_SHA256 = ' . $payload,
+          'PREPROD_ARTICLE_APPLY = 38154962644 / SUCCESS',
+          'PREPROD_NODE_ID = 42',
+          'PREPROD_ARTICLE_REVISION_AFTER_IMAGE = 65',
+          'IMAGE_PROFILE_SHA256 = ' . $profileSha,
+          'IMAGE_ASSET_SHA256 = ' . $assetSha,
+          'PREPROD_IMAGE_APPLY = 42911099314 / SUCCESS',
+          'Approved rendered URLs:',
+          '- FR: `https://preprod.emergingdigital.be/fr/blog/comment-connecter-une-application-metier-un-agent-ia-grace-mcp-sans-lui-donner-tous-les-droits`',
+          '- EN: `https://preprod.emergingdigital.be/en/blog/how-connect-business-application-ai-agent-mcp-without-giving-it-full-access`',
+          'HUMAN_REVIEW = PASS',
+          'CONTENT = APPROVED',
+          'IMAGE = APPROVED',
+          'ALT_FR_EN = APPROVED',
+          'IMAGE_SOURCE_POLICY = APPROVED',
+          'RESPONSIVE_RENDER = APPROVED',
+          'LISTING_DETAIL_RENDER = APPROVED',
+          'EXACT_CANDIDATE_PROMOTION_TO_PROD = AUTHORIZED',
+          'CONTENT_CHANGE_AFTER_APPROVAL = INVALIDATES_APPROVAL',
+          'IMAGE_CHANGE_AFTER_APPROVAL = INVALIDATES_APPROVAL',
+        ]),
+      ],
+      $this->botComment(6781000002, implode("\n", [
+        '### Agency editorial dry-run PASS',
+        'payload_sha256: `' . $payload . '`',
+        'trusted_main: `' . self::MAIN_SHA . '`',
+        'run_id: `50000000000`',
+        'route_outcome: `success`',
+        'verdict: `READY`',
+      ])),
+    ];
+    return [
+      'comments' => $comments,
+      'registry' => ['schema_version' => 1, 'profiles' => ['1404' => $profile]],
+      'asset' => $asset,
+      'candidate_revision' => $candidateRevision,
+      'payload_sha' => $payload,
+      'trusted_main' => self::MAIN_SHA,
+    ];
+  }
+
+  /**
    * Missing, stale or non-human authority components fail closed before PROD.
    */
   public function testGovernanceBypassesAreRefused(): void {
@@ -380,9 +547,9 @@ final class EditorialPromotionApprovalTest extends TestCase {
       escapeshellarg($script),
       '--comments-b64', escapeshellarg($commentsPath),
       '--issue-number', (string) $issue,
-      '--candidate-revision', (string) self::CANDIDATE_REVISION,
-      '--payload-sha256', self::PAYLOAD_SHA,
-      '--trusted-main', self::MAIN_SHA,
+      '--candidate-revision', (string) ($fixture['candidate_revision'] ?? self::CANDIDATE_REVISION),
+      '--payload-sha256', ($fixture['payload_sha'] ?? self::PAYLOAD_SHA),
+      '--trusted-main', ($fixture['trusted_main'] ?? self::MAIN_SHA),
       '--profile-registry', escapeshellarg($registryPath),
       '--asset-path', escapeshellarg($assetPath),
       '--output', escapeshellarg($resultPath),

@@ -138,7 +138,47 @@ remote_run() {
 
 case "$MODE" in
   inspect)
-    remote_run inspect "$remote_result"
+    if [[ "$ISSUE_NUMBER" == '1404' ]]; then
+      if ! remote_run inspect "$remote_result" >/dev/null 2>&1; then
+        # Copy only to a private temporary file outside uploaded artifacts.
+        failure_raw="$(mktemp "${RUNNER_TEMP:-/tmp}/agency-editorial-image-fail.XXXXXX")"
+        failure_verdict='DRUSH_FAILED_NO_RESULT'
+        if scp "${ssh_opts[@]}" "$remote_target:$remote_result" "$failure_raw" >/dev/null 2>&1 \
+          && jq -e --argjson issue "$ISSUE_NUMBER" \
+            'type == "object" and .status == "FAIL" and .verdict == "FAIL_CLOSED" and .mode == "inspect" and .issue_number == $issue and (.message | type == "string")' \
+            "$failure_raw" >/dev/null 2>&1; then
+          # Only these fixed classes may be emitted; never publish .message.
+          failure_message="$(jq -r '.message' "$failure_raw")"
+          case "$failure_message" in
+            'Feature image route requires an existing editorial issue mapping.')
+              failure_verdict='DRUSH_FAIL_CLOSED_MAPPING_MISSING' ;;
+            'Editorial issue mapping is incomplete.')
+              failure_verdict='DRUSH_FAIL_CLOSED_MAPPING_INCOMPLETE' ;;
+            'Feature image profile does not match the mapped Article payload hash.')
+              failure_verdict='DRUSH_FAIL_CLOSED_MAPPING_HASH_MISMATCH' ;;
+            'Editorial issue mapping points to an invalid Article.')
+              failure_verdict='DRUSH_FAIL_CLOSED_ARTICLE_INVALID' ;;
+            'Feature image route requires the EN translation.')
+              failure_verdict='DRUSH_FAIL_CLOSED_TRANSLATION_MISSING' ;;
+            'FR/EN feature image file references diverge; refusing ambiguous repair.')
+              failure_verdict='DRUSH_FAIL_CLOSED_FID_DIVERGENCE' ;;
+            'Article feature image points to a missing File entity.')
+              failure_verdict='DRUSH_FAIL_CLOSED_FILE_MISSING' ;;
+            'Article already has a different feature image asset.')
+              failure_verdict='DRUSH_FAIL_CLOSED_IMAGE_MISMATCH' ;;
+            *) failure_verdict='DRUSH_FAIL_CLOSED_OTHER' ;;
+          esac
+          unset failure_message
+        fi
+        rm -f -- "$failure_raw"
+        jq -n --arg verdict "$failure_verdict" --argjson issue "$ISSUE_NUMBER" \
+          '{status:"FAIL", verdict:$verdict, mode:"inspect", issue_number:$issue, target:"PREPROD", prod_write:"NONE"}' \
+          > "$ARTIFACT_DIR/result.json"
+        exit 1
+      fi
+    else
+      remote_run inspect "$remote_result"
+    fi
     ;;
   dry-run)
     remote_run dry-run "$remote_result"

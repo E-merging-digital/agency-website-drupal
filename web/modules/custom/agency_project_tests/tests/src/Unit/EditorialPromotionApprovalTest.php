@@ -109,8 +109,9 @@ final class EditorialPromotionApprovalTest extends TestCase {
   }
 
   /**
-   * The exact historic MCP Article and image apply receipts permit a fresh
-   * approval without replaying PREPROD or requiring an obsolete main SHA.
+   * Accept exact historical MCP evidence.
+   *
+   * The old PREPROD main is distinct from the fresh PROD main.
    */
   public function testMcpWebpPromotionUsesExactHistoricEvidence(): void {
     $fixture = $this->mcpFixture();
@@ -124,7 +125,7 @@ final class EditorialPromotionApprovalTest extends TestCase {
   }
 
   /**
-   * Reject ambiguous FIDs, ALT drift, unrelated receipts, stale or bot approval.
+   * Reject malformed or stale MCP approval evidence.
    */
   public function testMcpWebpGovernanceFailsClosed(): void {
     $mutations = [

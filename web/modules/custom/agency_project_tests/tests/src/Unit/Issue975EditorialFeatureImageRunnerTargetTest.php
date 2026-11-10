@@ -156,7 +156,7 @@ final class Issue975EditorialFeatureImageRunnerTargetTest extends TestCase {
   }
 
   /**
-   * #1404 stays inspect-only even though its PREPROD pair is registered.
+   * Issue #1404 stays inspect-only even though its PREPROD pair is registered.
    */
   public function test1404DryRunAndApplyAreRefusedBeforeSsh(): void {
     foreach (['dry-run', 'apply'] as $mode) {

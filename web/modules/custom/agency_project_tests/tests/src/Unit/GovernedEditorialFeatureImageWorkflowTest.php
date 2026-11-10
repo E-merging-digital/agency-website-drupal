@@ -373,6 +373,53 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
   }
 
   /**
+   * Issue #1404 Drush inspection failures yield only classified evidence.
+   */
+  public function testIssue1404InspectFailureEvidenceIsSanitized(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $runner = (string) file_get_contents(
+      $root . '/scripts/runner/run-editorial-feature-image.sh',
+    );
+    self::assertStringContainsString(
+      'if ! remote_run inspect "$remote_result" >/dev/null 2>&1; then',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'scp "${ssh_opts[@]}" "$remote_target:$remote_result" "$failure_raw"',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'DRUSH_FAILED_NO_RESULT',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'DRUSH_FAIL_CLOSED_FID_DIVERGENCE',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'DRUSH_FAIL_CLOSED_MAPPING_MISSING',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'DRUSH_FAIL_CLOSED_OTHER',
+      $runner,
+    );
+    self::assertStringContainsString(
+      'rm -f -- "$failure_raw"',
+      $runner,
+    );
+    self::assertStringContainsString(
+      "'{status:\"FAIL\", verdict:\$verdict, mode:\"inspect\", issue_number:\$issue, target:\"PREPROD\", prod_write:\"NONE\"}'",
+      $runner,
+    );
+    self::assertStringNotContainsString(
+      '> "$ARTIFACT_DIR/raw-result.json"',
+      $runner,
+    );
+    self::assertStringContainsString('        exit 1', $runner);
+  }
+
+  /**
    * The runner may transport only the trusted profile and asset.
    */
   public function testRunnerIsFixedAndSyntaxValid(): void {

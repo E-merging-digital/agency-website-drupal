@@ -53,7 +53,82 @@ final class AgencyEditorialPreprodCandidate {
     $result['candidate_id'] = $this->candidateId($issueNumber);
     $result['candidate_store'] = 'GITHUB_ISSUE_COMMENT';
     $result['prod_write'] = 'NONE';
+    if ($issueNumber === 1522) {
+      $result['article_inventory'] = $this->inspectArticleInventory(
+        $result['runtime']['mapping'] ?? NULL,
+      );
+    }
     return $result;
+  }
+
+  /**
+   * Lists only Article identity and FR/EN routing metadata for issue #1522.
+   *
+   * Uses Drupal entity and path alias storage without changing any entity,
+   * state, revision, or alias. Other candidate issues retain their old output.
+   */
+  private function inspectArticleInventory(mixed $mapping): array {
+    $storage = $this->entityTypeManager->getStorage('node');
+    $ids = $storage->getQuery()
+      ->condition('type', self::BUNDLE)
+      ->accessCheck(FALSE)
+      ->execute();
+    sort($ids, SORT_NUMERIC);
+
+    $mappedId = is_array($mapping) && is_int($mapping['node_id'] ?? NULL)
+      ? $mapping['node_id']
+      : NULL;
+    $articles = [];
+    foreach ($ids as $id) {
+      $node = $storage->load((int) $id);
+      if (!$node instanceof NodeInterface || $node->bundle() !== self::BUNDLE) {
+        throw new RuntimeException(
+          'PREPROD Article inventory could not load an Article.',
+        );
+      }
+
+      $aliases = ['fr' => [], 'en' => []];
+      $pathAliases = $this->entityTypeManager->getStorage('path_alias')
+        ->loadByProperties(['path' => '/node/' . $node->id()]);
+      foreach ($pathAliases as $pathAlias) {
+        $langcode = $pathAlias->language()->getId();
+        if (array_key_exists($langcode, $aliases)) {
+          $aliases[$langcode][] = $pathAlias->getAlias();
+        }
+      }
+      foreach ($aliases as &$languageAliases) {
+        $languageAliases = array_values(array_unique($languageAliases));
+        sort($languageAliases, SORT_STRING);
+      }
+      unset($languageAliases);
+
+      $languages = [];
+      foreach ([self::SOURCE_LANGCODE, self::TRANSLATION_LANGCODE] as $langcode) {
+        $translation = $node->hasTranslation($langcode)
+          ? $node->getTranslation($langcode)
+          : NULL;
+        $languages[$langcode] = [
+          'exists' => $translation !== NULL,
+          'title' => $translation?->label(),
+          'published' => $translation?->isPublished(),
+          'aliases' => $aliases[$langcode],
+        ];
+      }
+
+      $articles[] = [
+        'nid' => (int) $node->id(),
+        'uuid' => $node->uuid(),
+        'fr' => $languages['fr'],
+        'en' => $languages['en'],
+        'mapped_to_1522' => $mappedId === (int) $node->id(),
+      ];
+    }
+
+    return [
+      'bundle' => self::BUNDLE,
+      'count' => count($articles),
+      'nodes' => $articles,
+    ];
   }
 
   /**

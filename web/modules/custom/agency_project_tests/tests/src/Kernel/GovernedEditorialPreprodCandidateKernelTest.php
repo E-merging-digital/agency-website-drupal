@@ -11,6 +11,7 @@ use Drupal\KernelTests\KernelTestBase;
 use Drupal\language\Entity\ConfigurableLanguage;
 use Drupal\node\Entity\Node;
 use Drupal\node\Entity\NodeType;
+use Drupal\path_alias\Entity\PathAlias;
 use Drupal\taxonomy\Entity\Term;
 use Drupal\taxonomy\Entity\Vocabulary;
 use Drupal\user\Entity\User;
@@ -173,6 +174,129 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
     $reloaded = Node::load($applied['node']['id']);
     self::assertNotNull($reloaded);
     self::assertSame($revision, (int) $reloaded->getRevisionId());
+  }
+
+  /**
+   * #1522 lists every Article's safe metadata without a PREPROD mutation.
+   */
+  public function test1522InspectIsCompleteReadOnlyAndIssueBound(): void {
+    $created = $this->candidate->apply(
+      $this->validPayload(),
+      958,
+      str_repeat('a', 64),
+    );
+    $articleId = (int) $created['node']['id'];
+    $article = Node::load($articleId);
+    self::assertNotNull($article);
+    $article->getTranslation('en')->setUnpublished();
+    $article->save();
+
+    $historic = Node::create([
+      'type' => 'article',
+      'langcode' => 'fr',
+      'title' => 'IA pour PME : sept cas utiles',
+      'status' => 0,
+      'uid' => 1,
+    ]);
+    $historic->save();
+    $service = Node::create([
+      'type' => 'service',
+      'langcode' => 'fr',
+      'title' => 'Private service must not be listed',
+      'status' => 1,
+      'uid' => 1,
+    ]);
+    $service->save();
+
+    foreach ([
+      ['fr', '/drupal-10-11'],
+      ['fr', '/archives/drupal-10-11'],
+      ['en', '/drupal-10-to-11'],
+    ] as [$langcode, $alias]) {
+      PathAlias::create([
+        'path' => '/node/' . $articleId,
+        'alias' => $alias,
+        'langcode' => $langcode,
+      ])->save();
+    }
+
+    $state = $this->container->get('state');
+    $mapping = [
+      'node_id' => $articleId,
+      'payload_sha256' => str_repeat('f', 64),
+    ];
+    $state->set('agency_editorial.issue.1522', $mapping);
+    $revisionBefore = (int) Node::load($articleId)->getRevisionId();
+    $aliasesBefore = $this->container->get('entity_type.manager')
+      ->getStorage('path_alias')
+      ->loadByProperties(['path' => '/node/' . $articleId]);
+
+    $inspection = $this->candidate->inspect(1522);
+    self::assertSame('PREPROD', $inspection['target']);
+    self::assertSame('NONE', $inspection['prod_write']);
+    $inventory = $inspection['article_inventory'];
+    self::assertSame('article', $inventory['bundle']);
+    self::assertSame(2, $inventory['count']);
+    self::assertSame(
+      [$articleId, (int) $historic->id()],
+      array_column($inventory['nodes'], 'nid'),
+    );
+    self::assertSame(
+      ['nid', 'uuid', 'fr', 'en', 'mapped_to_1522'],
+      array_keys($inventory['nodes'][0]),
+    );
+    self::assertSame($article->uuid(), $inventory['nodes'][0]['uuid']);
+    self::assertTrue($inventory['nodes'][0]['mapped_to_1522']);
+    self::assertSame(
+      ['exists', 'title', 'published', 'aliases'],
+      array_keys($inventory['nodes'][0]['fr']),
+    );
+    self::assertSame(
+      'Drupal 10 arrive en fin de support',
+      $inventory['nodes'][0]['fr']['title'],
+    );
+    self::assertTrue($inventory['nodes'][0]['fr']['published']);
+    self::assertSame(
+      ['/archives/drupal-10-11', '/drupal-10-11'],
+      $inventory['nodes'][0]['fr']['aliases'],
+    );
+    self::assertSame(
+      'Drupal 10 reaches end of life',
+      $inventory['nodes'][0]['en']['title'],
+    );
+    self::assertFalse($inventory['nodes'][0]['en']['published']);
+    self::assertSame(
+      ['/drupal-10-to-11'],
+      $inventory['nodes'][0]['en']['aliases'],
+    );
+    self::assertFalse($inventory['nodes'][1]['mapped_to_1522']);
+    self::assertFalse($inventory['nodes'][1]['fr']['published']);
+    self::assertFalse($inventory['nodes'][1]['en']['exists']);
+    self::assertNull($inventory['nodes'][1]['en']['title']);
+    self::assertNull($inventory['nodes'][1]['en']['published']);
+    self::assertSame([], $inventory['nodes'][1]['en']['aliases']);
+    self::assertStringNotContainsString(
+      'Private service must not be listed',
+      json_encode($inventory, JSON_THROW_ON_ERROR),
+    );
+    self::assertStringNotContainsString(
+      'Auditer avant de mettre à niveau',
+      json_encode($inventory, JSON_THROW_ON_ERROR),
+    );
+
+    $otherIssue = $this->candidate->inspect(958);
+    self::assertArrayNotHasKey('article_inventory', $otherIssue);
+    self::assertSame($mapping, $state->get('agency_editorial.issue.1522'));
+    self::assertSame(
+      $revisionBefore,
+      (int) Node::load($articleId)->getRevisionId(),
+    );
+    self::assertCount(
+      count($aliasesBefore),
+      $this->container->get('entity_type.manager')
+        ->getStorage('path_alias')
+        ->loadByProperties(['path' => '/node/' . $articleId]),
+    );
   }
 
   /**

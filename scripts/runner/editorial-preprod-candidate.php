@@ -103,7 +103,10 @@ final class AgencyEditorialPreprodCandidate {
       unset($languageAliases);
 
       $languages = [];
-      foreach ([self::SOURCE_LANGCODE, self::TRANSLATION_LANGCODE] as $langcode) {
+      foreach ([
+        self::SOURCE_LANGCODE,
+        self::TRANSLATION_LANGCODE,
+      ] as $langcode) {
         $translation = $node->hasTranslation($langcode)
           ? $node->getTranslation($langcode)
           : NULL;

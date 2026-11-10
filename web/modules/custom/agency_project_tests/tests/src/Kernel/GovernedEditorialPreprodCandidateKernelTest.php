@@ -177,7 +177,7 @@ final class GovernedEditorialPreprodCandidateKernelTest extends KernelTestBase {
   }
 
   /**
-   * Inspects every Article's safe metadata without a PREPROD mutation for #1522.
+   * Inspects Article metadata read-only for issue #1522.
    */
   public function test1522InspectIsCompleteReadOnlyAndIssueBound(): void {
     $created = $this->candidate->apply(

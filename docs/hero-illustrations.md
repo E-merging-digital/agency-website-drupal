@@ -15,13 +15,13 @@ versionné est utilisé. Cela évite les différences entre rendu anonyme et ren
 connecté, notamment quand les permissions ou métadonnées de rendu du champ média
 varient.
 
-Le fallback de la homepage V2 est `images/home/home-hero-collaboration.jpg` : photographie réelle de Mikhail Nilov ([Pexels #7731361](https://www.pexels.com/photo/a-person-using-a-laptop-7731361/), [licence Pexels](https://www.pexels.com/license/)). Cette photo d'illustration ne présente pas l'équipe E-merging Digital. Les autres pages utilisent leurs SVG.
+Le fallback de la homepage V2 est `images/home/agency-v2-meeting-ai.jpg` : illustration générée par IA d'une réunion autour d'un projet numérique, avec des participants fictifs. Elle ne représente pas une réunion réelle de l'équipe ou de clients E-merging Digital. Les autres pages utilisent leurs SVG.
 
 ## Bibliothèque des visuels de fallback
 
 | Contexte | Fichier | Intention métier |
 | --- | --- | --- |
-| Homepage | `images/home/home-hero-collaboration.jpg` | Collaboration professionnelle, photo d'illustration |
+| Homepage | `images/home/agency-v2-meeting-ai.jpg` | Réunion illustrée par IA, participants fictifs |
 | IA & Drupal | `images/ia-drupal/ia-drupal-page-hero.svg` | Modules éditoriaux, flux, gouvernance |
 | Services | `images/services/services-page-hero.svg` | Architecture, composants, parcours |
 | Contact | `images/contact/contact-page-hero.svg` | Cadrage projet, planning, accompagnement |

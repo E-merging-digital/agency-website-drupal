@@ -10,13 +10,13 @@
 
 ## Catalogue des visuels
 
-### home-hero-collaboration
-- **Usage** : hero de la homepage V2, illustration d'une collaboration professionnelle, sans prétendre montrer l'équipe E-merging Digital.
-- **Origine** : photographie réelle de Mikhail Nilov, [Pexels #7731361](https://www.pexels.com/photo/a-person-using-a-laptop-7731361/), sous [licence Pexels](https://www.pexels.com/license/).
-- **Texte alternatif FR** : Personnes travaillant ensemble autour d'un ordinateur portable et de documents.
-- **Texte alternatif EN** : People working together around a laptop and documents.
-- **Emplacement** : `web/themes/custom/emerging_digital/images/home/home-hero-collaboration.jpg` (1200 × 1028, JPEG optimisé).
-- **Légende visible FR/EN** : « Photographie d’illustration » / « Illustrative stock photograph ». La scène ne représente ni une équipe salariée ni un projet client certifié.
+### agency-v2-meeting-ai
+- **Usage** : hero de la homepage V2, scène de réunion illustrée autour d'un projet numérique.
+- **Origine** : illustration générée par IA ; participants fictifs, sans identité réelle revendiquée.
+- **Texte alternatif FR** : Illustration générée par IA d’une réunion autour d’un projet numérique, avec des participants fictifs.
+- **Texte alternatif EN** : AI-generated illustration of a meeting about a digital project, with fictional participants.
+- **Emplacement** : `web/themes/custom/emerging_digital/images/home/agency-v2-meeting-ai.jpg` (JPEG existant, inchangé).
+- **Légende visible FR/EN** : « Illustration générée par IA · participants fictifs » / « AI-generated illustration · fictional participants ».
 
 ### home-services-overview
 - **Usage** : Intro section “Nos services” sur homepage.
@@ -69,7 +69,7 @@
 
 ## Intégration technique prévue
 
-- Les composants Twig référencent des **visuels de fallback versionnés** ; la homepage V2 utilise une photographie et les autres contextes conservent leurs SVG.
+- Les composants Twig référencent des **visuels de fallback versionnés** ; la homepage V2 utilise l'illustration IA historique et les autres contextes conservent leurs SVG.
 - Les remplacements passent par les définitions de visuels du thème ou par Drupal Media, en conservant les contrats Twig/CSS.
 - Les attributs `alt`, `loading`, `width`, `height` sont déjà en place pour préparer accessibilité et performance.
 - Les classes CSS `.visual-block` et `.visual-chip` standardisent le rendu (bordure, fond, ratio flexible).

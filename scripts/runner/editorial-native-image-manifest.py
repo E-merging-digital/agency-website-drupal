@@ -12,6 +12,7 @@ import base64
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 
 OWNER = "E-merging-digital"
@@ -161,6 +162,25 @@ def validate_snapshot(manifest: dict, asset: bytes, issue: int, revision: int,
     # decodes the image with GD. This is deliberately not a remote file path.
     if len(asset) < 16 or asset[:4] != b"RIFF" or asset[8:12] != b"WEBP" or int.from_bytes(asset[4:8], "little") + 8 != len(asset):
         raise NativeImageError("WebP container is malformed.")
+    # Do not accept a merely plausible RIFF header: decode actual bytes with
+    # the existing PHP GD raster engine on the trusted Actions runner.
+    php_code = (
+        '$bytes=stream_get_contents(STDIN);'
+        '$image=@imagecreatefromstring($bytes);'
+        'if (!$image instanceof GdImage) { exit(2); }'
+        'echo imagesx($image),"x",imagesy($image);'
+    )
+    try:
+        decoded = subprocess.run(
+            ["php", "-r", php_code], input=asset, capture_output=True,
+            timeout=10, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise NativeImageError("The required WebP decoder is unavailable.") from exc
+    if decoded.returncode != 0 or decoded.stdout.decode("ascii", "replace").strip() != (
+        f"{manifest['width']}x{manifest['height']}"
+    ):
+        raise NativeImageError("WebP bytes could not be decoded to the proven dimensions.")
     profile = {
         "issue_number": issue,
         "bundle": "article",

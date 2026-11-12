@@ -98,6 +98,12 @@ jobs:
           set -euo pipefail
           cat > .ddev/config.gate-config-language-982.yaml <<EOF
           name: agency-config-language-982-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          router_http_port: "23180"
+          router_https_port: "23543"
+          host_webserver_port: "23280"
+          host_https_port: "23644"
+          host_db_port: "23281"
+          host_mailpit_port: "23282"
           EOF
           ddev utility configyaml | grep -F "agency-config-language-982-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
       - name: Rebuild Drupal from repository-owned configuration

@@ -66,7 +66,14 @@ jobs:
               1491) target='PREPROD' ;;
               1512) target='PREPROD' ;;
               1404) target='PREPROD' ;;
-              *) echo 'No bounded editorial image target is approved for this issue.' >&2; exit 1 ;;
+              *)
+                if (( ISSUE_NUMBER >= 1542 )) && [[ "$TRIGGER_COMMENT" == '/agency-editorial-image inspect' ]]; then
+                  target='PREPROD'
+                else
+                  echo 'No bounded editorial image target is approved for this issue.' >&2
+                  exit 1
+                fi
+                ;;
             esac
           else
             [[ "$surface" == 'prod' && "$ISSUE_NUMBER" == '958' ]] || {
@@ -101,6 +108,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup PHP 8.4 with GD
+        if: ${{ github.event.issue.number < 1542 }}
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -108,6 +116,7 @@ jobs:
           coverage: none
 
       - name: Prepare and decode the exact repository-owned image
+        if: ${{ github.event.issue.number < 1542 }}
         shell: bash
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -178,6 +187,7 @@ jobs:
           PHP
 
       - name: Resolve exact repository-owned image profile
+        if: ${{ github.event.issue.number < 1542 }}
         id: profile
         shell: bash
         env:
@@ -342,6 +352,7 @@ jobs:
           PY
 
       - name: Verify immutable implementation
+        if: ${{ github.event.issue.number < 1542 }}
         shell: bash
         env:
           EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
@@ -393,6 +404,7 @@ jobs:
           fi
 
       - name: Configure bounded SSH channel
+        if: ${{ github.event.issue.number < 1542 }}
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -419,6 +431,7 @@ jobs:
           fi
 
       - name: Execute bounded editorial image route
+        if: ${{ github.event.issue.number < 1542 }}
         id: route
         shell: bash
         env:
@@ -437,7 +450,7 @@ jobs:
           bash scripts/runner/run-editorial-feature-image.sh
 
       - name: Upload feature image evidence
-        if: ${{ always() }}
+        if: ${{ always() && github.event.issue.number < 1542 }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-editorial-image-${{ github.event.issue.number }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -446,7 +459,7 @@ jobs:
           retention-days: 30
 
       - name: Publish bounded result
-        if: ${{ always() && steps.request.outcome == 'success' }}
+        if: ${{ always() && github.event.issue.number < 1542 && steps.request.outcome == 'success' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

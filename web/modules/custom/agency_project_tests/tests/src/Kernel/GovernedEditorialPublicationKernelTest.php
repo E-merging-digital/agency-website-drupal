@@ -328,6 +328,83 @@ final class GovernedEditorialPublicationKernelTest extends KernelTestBase {
   }
 
   /**
+   * Only Article #1544 may cite these seven official documentary source URLs.
+   */
+  public function testIssue1544AcceptsSevenExactOfficialLinksInBothLanguages(): void {
+    $urls = [
+      'https://statbel.fgov.be/en/news/artificial-intelligence-gaining-ground-belgian-enterprises',
+      'https://ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20251211-2',
+      'https://www.digitalwallonia.be/fr/publications/entreprises2025/',
+      'https://www.digitalwallonia.be/entreprises2025/methodologie/',
+      'https://www.digitalwallonia.be/fr/publications/start-ia-tremplin-ia-etude-impact-2026/',
+      'https://efacture.belgium.be/fr/FAQ/questions-generales-b2b',
+      'https://einvoice.belgium.be/en/FAQ/general-questions-b2b',
+    ];
+    $links = implode('', array_map(
+      static fn (string $url): string => '<a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">Source</a>',
+      $urls,
+    ));
+
+    $payload = $this->validPayload();
+    $payload['issue_number'] = 1544;
+    foreach (['fr', 'en'] as $langcode) {
+      $payload[$langcode]['body_html'] = '<p>' . $links . '</p>';
+    }
+
+    $this->publisher->validatePayload($payload, 1544);
+    self::assertCount(7, $urls);
+  }
+
+  /**
+   * An exact official source URL does not authorize lookalikes or other issues.
+   */
+  public function testIssue1544OfficialSourcesRejectOtherIssuesAndUrlVariants(): void {
+    $original = 'https://ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20251211-2';
+    $cases = [
+      [401, $original],
+      [1491, $original],
+      [1540, $original],
+      [1544, 'http://ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20251211-2'],
+      [1544, 'https://evil.ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20251211-2'],
+      [1544, 'https://ec.europa.eu.evil.example/eurostat/web/products-eurostat-news/w/ddn-20251211-2'],
+      [1544, 'https://ec.europa.eu@evil.example/eurostat/web/products-eurostat-news/w/ddn-20251211-2'],
+      [1544, $original . '?ref=agency'],
+      [1544, $original . '#source'],
+      [1544, $original . '/additional'],
+      [1544, '//ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20251211-2'],
+      [1544, 'javascript:alert(1)'],
+      [1544, 'data:text/html,x'],
+      [1544, 'https://example.invalid/'],
+    ];
+
+    foreach ($cases as [$issueNumber, $url]) {
+      $payload = $this->validPayload();
+      $payload['issue_number'] = $issueNumber;
+      $payload['fr']['body_html'] = '<p><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">Source</a></p>';
+      try {
+        $this->publisher->validatePayload($payload, $issueNumber);
+        self::fail("External link accepted for issue $issueNumber: $url");
+      }
+      catch (\InvalidArgumentException $exception) {
+        self::assertStringContainsString('external or unsafe link', $exception->getMessage());
+      }
+    }
+  }
+
+  /**
+   * Official links may not carry executable or decorative HTML attributes.
+   */
+  public function testIssue1544OfficialLinksRejectUnsafeHtmlAttributes(): void {
+    $payload = $this->validPayload();
+    $payload['issue_number'] = 1544;
+    $payload['en']['body_html'] = '<p><a href="https://einvoice.belgium.be/en/FAQ/general-questions-b2b" onclick="alert(1)">Source</a></p>';
+
+    $this->expectException(\InvalidArgumentException::class);
+    $this->expectExceptionMessage('forbidden attribute onclick');
+    $this->publisher->validatePayload($payload, 1544);
+  }
+
+  /**
    * Creates the exact fields the trusted helper may mutate.
    */
   private function createArticleFields(): void {

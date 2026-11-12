@@ -91,7 +91,7 @@ def canonical_profile(
         raise ApprovalError("Issue #1404 requires the exact owner-approved WebP and Article payload.")
     if issue_number >= 1542 and (
         asset.get("path") != f"assets/editorial/native-preprod-{issue_number}.webp"
-        or not re.fullmatch(r"agency-native-[0-9a-f]{16}\\.webp", str(asset.get("filename")))
+        or not re.fullmatch(r"agency-native-[0-9a-f]{16}\.webp", str(asset.get("filename")))
         or str(asset.get("filename")) != f"agency-native-{str(asset.get('sha256', ''))[:16]}.webp"
         or not isinstance(asset.get("width"), int) or asset["width"] <= 0 or asset["width"] > 2400
         or not isinstance(asset.get("height"), int) or asset["height"] <= 0 or asset["height"] > 1600

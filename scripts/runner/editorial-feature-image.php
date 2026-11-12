@@ -264,6 +264,18 @@ final class AgencyEditorialFeatureImage {
         throw new InvalidArgumentException('Issue #1404 accepts only the approved owner WebP.');
       }
     }
+    elseif ($issueNumber >= 1542) {
+      // Native Drupal PREPROD WebP profile: issued only from a pinned, live
+      // File API snapshot. Historical repository-owned cases are unchanged.
+      if ($asset['path'] !== 'assets/editorial/native-preprod-' . $issueNumber . '.webp'
+        || !is_string($asset['filename'])
+        || !preg_match('/^agency-native-[0-9a-f]{16}\\.webp$/', $asset['filename'])
+        || !is_string($asset['sha256'])
+        || substr($asset['sha256'], 0, 16) !== substr($asset['filename'], strlen('agency-native-'), 16)
+        || $asset['mime'] !== 'image/webp') {
+        throw new InvalidArgumentException('Future Article requires an exact native PREPROD WebP profile.');
+      }
+    }
     else {
       if (!is_string($asset['path'])
         || !preg_match('#^assets/editorial/[a-z0-9][a-z0-9._-]*\.png$#', $asset['path'])) {

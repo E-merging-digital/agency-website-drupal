@@ -108,13 +108,13 @@ jobs:
           persist-credentials: false
 
       - name: Resolve owner-authored new Article
-        if: ${${ github.event.issue.number >= 1542 }}
+        if: ${{ github.event.issue.number >= 1542 }}
         id: native_candidate
         shell: bash
         env:
-          GH_TOKEN: ${${ github.token }}
-          ISSUE_NUMBER: ${${ github.event.issue.number }}
-          TRUSTED_MAIN: ${${ steps.request.outputs.main_sha }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
         run: |
           set -euo pipefail
           gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
@@ -128,10 +128,10 @@ jobs:
           echo "payload_sha256=$(jq -r '.payload_sha256' "$RUNNER_TEMP/native-candidate.json")" >> "$GITHUB_OUTPUT"
 
       - name: Prepare native PREPROD capture key
-        if: ${${ github.event.issue.number >= 1542 }}
+        if: ${{ github.event.issue.number >= 1542 }}
         shell: bash
         env:
-          SSH_PRIVATE_KEY: ${${ secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           umask 077
@@ -140,19 +140,19 @@ jobs:
           chmod 600 "$RUNNER_TEMP/agency-native-preprod.key"
 
       - name: Capture native Article image via authenticated Drupal PREPROD
-        if: ${${ github.event.issue.number >= 1542 }}
+        if: ${{ github.event.issue.number >= 1542 }}
         id: native_source
         shell: bash
         env:
-          GH_TOKEN: ${${ github.token }}
-          ISSUE_NUMBER: ${${ github.event.issue.number }}
-          PAYLOAD_SHA256: ${${ steps.native_candidate.outputs.payload_sha256 }}
-          CANDIDATE_REVISION: ${${ steps.native_candidate.outputs.candidate_revision }}
-          TRUSTED_MAIN: ${${ steps.request.outputs.main_sha }}
-          PAYLOAD_FILE: ${${ runner.temp }}/native-payload.json
-          PREPROD_SSH_KEY: ${${ runner.temp }}/agency-native-preprod.key
-          PREPROD_SERVER_HOST: ${${ secrets.SERVER_HOST }}
-          NATIVE_IMAGE_DIR: ${${ runner.temp }}/agency-native-webp
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PAYLOAD_SHA256: ${{ steps.native_candidate.outputs.payload_sha256 }}
+          CANDIDATE_REVISION: ${{ steps.native_candidate.outputs.candidate_revision }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          PAYLOAD_FILE: ${{ runner.temp }}/native-payload.json
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-native-preprod.key
+          PREPROD_SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          NATIVE_IMAGE_DIR: ${{ runner.temp }}/agency-native-webp
         run: |
           set -euo pipefail
           bash scripts/runner/run-editorial-native-image-source.sh
@@ -163,7 +163,7 @@ jobs:
           done
 
       - name: Purge private native WebP staging
-        if: ${${ always() && github.event.issue.number >= 1542 }}
+        if: ${{ always() && github.event.issue.number >= 1542 }}
         shell: bash
         run: |
           rm -f -- "$RUNNER_TEMP/agency-native-preprod.key" "$RUNNER_TEMP/native-payload.json" \
@@ -171,45 +171,45 @@ jobs:
           rm -rf -- "$RUNNER_TEMP/agency-native-webp"
 
       - name: Publish metadata-only future Article image manifest
-        if: ${${ steps.native_source.outcome == 'success' }}
+        if: ${{ steps.native_source.outcome == 'success' }}
         shell: bash
         env:
-          GH_TOKEN: ${${ github.token }}
-          ISSUE_NUMBER: ${${ github.event.issue.number }}
-          CANDIDATE_REVISION: ${${ steps.native_source.outputs.candidate_revision }}
-          PAYLOAD_SHA256: ${${ steps.native_source.outputs.payload_sha256 }}
-          TRUSTED_MAIN: ${${ steps.native_source.outputs.trusted_main }}
-          MANIFEST_SHA: ${${ steps.native_source.outputs.manifest_sha256 }}
-          PROFILE_SHA: ${${ steps.native_source.outputs.profile_sha256 }}
-          ASSET_SHA: ${${ steps.native_source.outputs.asset_sha256 }}
-          NODE_ID: ${${ steps.native_source.outputs.node_id }}
-          NODE_UUID: ${${ steps.native_source.outputs.node_uuid }}
-          REVISION_ID: ${${ steps.native_source.outputs.revision_id }}
-          FID: ${${ steps.native_source.outputs.fid }}
-          FILE_UUID: ${${ steps.native_source.outputs.file_uuid }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CANDIDATE_REVISION: ${{ steps.native_source.outputs.candidate_revision }}
+          PAYLOAD_SHA256: ${{ steps.native_source.outputs.payload_sha256 }}
+          TRUSTED_MAIN: ${{ steps.native_source.outputs.trusted_main }}
+          MANIFEST_SHA: ${{ steps.native_source.outputs.manifest_sha256 }}
+          PROFILE_SHA: ${{ steps.native_source.outputs.profile_sha256 }}
+          ASSET_SHA: ${{ steps.native_source.outputs.asset_sha256 }}
+          NODE_ID: ${{ steps.native_source.outputs.node_id }}
+          NODE_UUID: ${{ steps.native_source.outputs.node_uuid }}
+          REVISION_ID: ${{ steps.native_source.outputs.revision_id }}
+          FID: ${{ steps.native_source.outputs.fid }}
+          FILE_UUID: ${{ steps.native_source.outputs.file_uuid }}
         run: |
           set -euo pipefail
           body="$(cat <<EOF
           ### Agency editorial native image manifest PASS
 
-          source: `DRUPAL_PREPROD_FILE_API`
-          issue_number: `$ISSUE_NUMBER`
-          candidate_id: `agency-article-$ISSUE_NUMBER`
-          candidate_revision: `$CANDIDATE_REVISION`
-          payload_sha256: `$PAYLOAD_SHA256`
-          trusted_main: `$TRUSTED_MAIN`
-          manifest_sha256: `$MANIFEST_SHA`
-          profile_sha256: `$PROFILE_SHA`
-          asset_sha256: `$ASSET_SHA`
-          node_id: `$NODE_ID`
-          node_uuid: `$NODE_UUID`
-          revision_id: `$REVISION_ID`
-          fid: `$FID`
-          file_uuid: `$FILE_UUID`
-          run_id: `$GITHUB_RUN_ID`
-          target: `PREPROD`
-          prod_write: `NONE`
-          route_outcome: `success`
+          source: \`DRUPAL_PREPROD_FILE_API\`
+          issue_number: \`$ISSUE_NUMBER\`
+          candidate_id: \`agency-article-$ISSUE_NUMBER\`
+          candidate_revision: \`$CANDIDATE_REVISION\`
+          payload_sha256: \`$PAYLOAD_SHA256\`
+          trusted_main: \`$TRUSTED_MAIN\`
+          manifest_sha256: \`$MANIFEST_SHA\`
+          profile_sha256: \`$PROFILE_SHA\`
+          asset_sha256: \`$ASSET_SHA\`
+          node_id: \`$NODE_ID\`
+          node_uuid: \`$NODE_UUID\`
+          revision_id: \`$REVISION_ID\`
+          fid: \`$FID\`
+          file_uuid: \`$FILE_UUID\`
+          run_id: \`$GITHUB_RUN_ID\`
+          target: \`PREPROD\`
+          prod_write: \`NONE\`
+          route_outcome: \`success\`
 
           The native Drupal image was verified through pinned PREPROD SSH; no binary, public URL or arbitrary file path is published.
           EOF
@@ -217,7 +217,6 @@ jobs:
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
 
       - name: Setup PHP 8.4 with GD
-        if: ${{ github.event.issue.number < 1542 }}
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'

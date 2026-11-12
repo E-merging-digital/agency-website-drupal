@@ -296,21 +296,21 @@ jobs:
           python3 -m py_compile scripts/runner/editorial-service-candidate-source.py
 
       - name: Verify future Article native PREPROD source before production access
-        if: ${${ steps.request.outputs.candidate_kind == 'article' && github.event.issue.number >= 1542 && (steps.request.outputs.mode == 'dry-run' || steps.request.outputs.mode == 'apply') }}
+        if: ${{ steps.request.outputs.candidate_kind == 'article' && github.event.issue.number >= 1542 && (steps.request.outputs.mode == 'dry-run' || steps.request.outputs.mode == 'apply') }}
         id: native_source
         shell: bash
         env:
-          GH_TOKEN: ${${ github.token }}
-          ISSUE_NUMBER: ${${ github.event.issue.number }}
-          CANDIDATE_REVISION: ${${ steps.payload.outputs.candidate_revision }}
-          PAYLOAD_SHA256: ${${ steps.payload.outputs.payload_sha256 }}
-          TRUSTED_MAIN: ${${ steps.request.outputs.main_sha }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.candidate_revision }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
           PAYLOAD_FILE: /tmp/agency-editorial-payload.json
-          PREPROD_SERVER_HOST: ${${ secrets.PREPROD_SERVER_HOST }}
-          NATIVE_IMAGE_DIR: ${${ runner.temp }}/agency-native-webp
-          PREPROD_KEY: ${${ secrets.PREPROD_SSH_PRIVATE_KEY }}
-          AUTOMATIC_MODE: ${${ inputs.automatic_mode }}
-          TRIGGER_COMMENT_ID: ${${ github.event.comment.id }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          NATIVE_IMAGE_DIR: ${{ runner.temp }}/agency-native-webp
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          AUTOMATIC_MODE: ${{ inputs.automatic_mode }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           set -euo pipefail
           umask 077
@@ -581,7 +581,7 @@ jobs:
           fi
 
       - name: Purge native PREPROD image and transient SSH credentials
-        if: ${${ always() && github.event.issue.number >= 1542 }}
+        if: ${{ always() && github.event.issue.number >= 1542 }}
         shell: bash
         run: |
           rm -f -- "$RUNNER_TEMP/agency-native-preprod.key"

@@ -319,6 +319,84 @@ GO for the bound candidate; no IA PREPROD render is attested. PROD requires
 a separate exact human GO
 and an explicitly governed **existing-node** promotion route.
 
+
+## Future Article WebP from native PREPROD Drupal (#1540, source-only)
+
+For **new Article issues numbered 1542 or later only**, the existing
+repository-owned image profiles remain the sole legacy path for
+#401/#958/#1491/#1512/#1404. This future-only extension does **not** apply to
+historical Article UPDATE (#1525), the held IA candidate or Service.
+
+The first editorial input is still the **complete owner-authored**
+`<!-- agency-editorial-payload:v1 -->` Article FR/EN JSON comment, not an
+agent's brief. Materialize that exact candidate in protected PREPROD with the
+existing #959 inspect/dry-run/apply workflow and an exact bot apply receipt.
+
+Next, use **Drupal Core** (authenticated PREPROD editing and the existing
+`field_feature_image` field) to attach **one WebP** with FR/EN ALT on the
+mapped Article. The image must reside in Drupal's managed
+`public://articles/` storage; there is no new upload endpoint, API, URL
+download, service, Git asset or per-Article code PR. After the image is saved,
+the existing `/agency-editorial-image inspect` route performs a read-only,
+pinned SSH/Drush File API capture for that future issue. The runner validates
+the latest owner payload/main and earlier Article apply receipt, exact Drupal
+mapping, Article FR/EN text/category, node/UUID/revision, File ID/UUID, same
+FID and plain ALT in both languages, managed local WebP filename, GD-decoded
+MIME, dimensions (up to 2400×1600) and bytes (up to 5 MB). The temporary
+source copy is private, never attached to GitHub artifacts or issue comments.
+The bot publishes only the deterministic manifest/profile/asset SHA-256 and
+identities.
+
+The owner personally reviews actual protected PREPROD FR/EN detail/listing
+and mobile views. The final approval is a **new direct, unedited**
+GitHub OWNER/User/non-App issue comment headed:
+
+```text
+## PROJECT LEAD — HUMAN APPROVAL / exact #<issue> candidate approved for PROD promotion
+CANDIDATE_ID = agency-article-<issue>
+CANDIDATE_REVISION = <exact owner payload comment ID>
+ARTICLE_PAYLOAD_SHA256 = <hash>
+IMAGE_PROFILE_SHA256 = <hash>
+IMAGE_ASSET_SHA256 = <hash>
+IMAGE_MANIFEST_SHA256 = <hash>
+PREPROD_NODE_ID = <id>
+PREPROD_NODE_UUID = <uuid>
+PREPROD_ARTICLE_REVISION_AFTER_IMAGE = <revision>
+PREPROD_IMAGE_FID = <fid>
+PREPROD_IMAGE_FILE_UUID = <uuid>
+PREPROD_ARTICLE_APPLY = <run_id> / SUCCESS
+PREPROD_IMAGE_MANIFEST = <run_id> / SUCCESS
+HUMAN_REVIEW = PASS
+CONTENT = APPROVED
+IMAGE = APPROVED
+ALT_FR_EN = APPROVED
+IMAGE_SOURCE_POLICY = APPROVED
+RESPONSIVE_RENDER = APPROVED
+LISTING_DETAIL_RENDER = APPROVED
+EXACT_CANDIDATE_PROMOTION_TO_PROD = AUTHORIZED
+CONTENT_CHANGE_AFTER_APPROVAL = INVALIDATES_APPROVAL
+IMAGE_CHANGE_AFTER_APPROVAL = INVALIDATES_APPROVAL
+- FR: `https://preprod.emergingdigital.be/fr/blog/<alias>`
+- EN: `https://preprod.emergingdigital.be/en/blog/<alias>`
+```
+
+The current automatic #1014 dry-run→apply mechanism remains unchanged in
+authority: it first re-reads the PREPROD file through the same pinned SSH
+reader and verifies **all** manifest, Article, media and owner identifiers
+against the latest PREPROD receipts. A changed file, revision, ALT, owner
+payload, main SHA, newer manifest, replay or missing direct GO stops before
+production access. The exact authenticated WebP bytes alone are then passed
+to the existing staged-unpublished Drupal File/Entity API promotion, database
+backup, alias finalization and postchecks. Never copy the PREPROD database.
+
+**UX limitation:** the current owner-authored payload requirement and any
+separately performed native Drupal image upload are real operator actions.
+Neither an agent-written brief nor a GitHub App comment counts as the owner's
+first or final direct approval. Do **not** report two human gestures or a
+successful public release before a real bounded PREPROD/prod pilot proves it.
+The #1540 implementation pass is **SOURCE_ONLY**: no PREPROD/PROD runtime
+mutation, merge, release or owner publication approval is authorized by it.
+
 ## Existing Article revisions and PREPROD/PROD drift (#1525)
 
 **Use Drupal Core first.** An ordinary bilingual Article is editor-owned in each

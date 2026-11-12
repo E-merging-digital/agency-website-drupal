@@ -16,6 +16,16 @@ on:
       - 'scripts/runner/editorial-service-candidate-source.py'
       - 'scripts/runner/editorial-preprod-candidate-runner.php'
       - 'scripts/runner/run-editorial-preprod-candidate.sh'
+      - '.github/workflows/trusted-editorial-feature-image.yml'
+      - '.github/workflows/trusted-editorial-publication.yml'
+      - 'scripts/runner/editorial-native-image-manifest.py'
+      - 'scripts/runner/editorial-native-image-source.php'
+      - 'scripts/runner/run-editorial-native-image-source.sh'
+      - 'scripts/runner/editorial-feature-image.php'
+      - 'scripts/runner/run-editorial-promotion.sh'
+      - 'scripts/runner/validate-editorial-promotion-approval.py'
+      - 'scripts/runner/tests/test_editorial_native_image_manifest.py'
+      - 'docs/operations/governed-editorial-publication.md'
       - 'web/modules/custom/agency_project_tests/tests/src/Kernel/GovernedEditorialPreprodCandidateKernelTest.php'
       - 'web/modules/custom/agency_project_tests/tests/src/Unit/EditorialPreprodCandidateWorkflowTest.php'
 
@@ -48,13 +58,24 @@ jobs:
           php -l scripts/runner/editorial-service-preprod-candidate.php
           php -l scripts/runner/editorial-preprod-candidate-runner.php
           python3 -m py_compile scripts/runner/editorial-service-candidate-source.py
+          bash -n scripts/runner/run-editorial-native-image-source.sh
+          bash -n scripts/runner/run-editorial-promotion.sh
+          php -l scripts/runner/editorial-native-image-source.php
+          php -l scripts/runner/editorial-feature-image.php
+          python3 -m py_compile scripts/runner/editorial-native-image-manifest.py
+          python3 -m py_compile scripts/runner/validate-editorial-promotion-approval.py
           git diff --check "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
           tools: composer:v2
           coverage: none
-          extensions: sqlite3
+          extensions: sqlite3, gd
+      - name: Native image source, exact approval and fail-closed synthetic regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts/runner/tests -p 'test_editorial_native_image_manifest.py' -v
       - name: Install exact locked dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
       - name: Start local web server for BrowserTestBase

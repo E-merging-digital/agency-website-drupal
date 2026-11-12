@@ -229,6 +229,8 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   editorial-auto-dry-run:
     name: Automatic PROD dry-run after direct human approval
@@ -244,6 +246,8 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   editorial-auto-apply:
     name: Automatic exact PROD promotion after successful dry-run
@@ -263,6 +267,8 @@ jobs:
       SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
+      PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+      PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
 
   editorial-preprod-candidate:
     name: Route PREPROD Article candidate
@@ -312,8 +318,8 @@ jobs:
       issues: write
     uses: ./.github/workflows/trusted-editorial-feature-image.yml
     secrets:
-      SSH_PRIVATE_KEY: ${{ ((github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1491 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1512 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1404 && startsWith(github.event.comment.body, '/agency-editorial-image '))) && secrets.PREPROD_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
-      SERVER_HOST: ${{ ((github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1491 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1512 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1404 && startsWith(github.event.comment.body, '/agency-editorial-image '))) && secrets.PREPROD_SERVER_HOST || secrets.SERVER_HOST }}
+      SSH_PRIVATE_KEY: ${{ ((github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1491 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1512 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1404 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number >= 1542 && github.event.comment.body == '/agency-editorial-image inspect')) && secrets.PREPROD_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+      SERVER_HOST: ${{ ((github.event.issue.number == 958 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1491 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1512 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number == 1404 && startsWith(github.event.comment.body, '/agency-editorial-image ')) || (github.event.issue.number >= 1542 && github.event.comment.body == '/agency-editorial-image inspect')) && secrets.PREPROD_SERVER_HOST || secrets.SERVER_HOST }}
       SERVER_USER: ${{ secrets.SERVER_USER }}
 
   preprod-refresh:

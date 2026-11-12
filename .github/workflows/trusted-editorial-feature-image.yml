@@ -66,7 +66,14 @@ jobs:
               1491) target='PREPROD' ;;
               1512) target='PREPROD' ;;
               1404) target='PREPROD' ;;
-              *) echo 'No bounded editorial image target is approved for this issue.' >&2; exit 1 ;;
+              *)
+                if (( ISSUE_NUMBER >= 1542 )) && [[ "$TRIGGER_COMMENT" == '/agency-editorial-image inspect' ]]; then
+                  target='PREPROD'
+                else
+                  echo 'No bounded editorial image target is approved for this issue.' >&2
+                  exit 1
+                fi
+                ;;
             esac
           else
             [[ "$surface" == 'prod' && "$ISSUE_NUMBER" == '958' ]] || {
@@ -107,7 +114,117 @@ jobs:
           extensions: gd
           coverage: none
 
+      - name: Resolve owner-authored new Article
+        if: ${{ github.event.issue.number >= 1542 }}
+        id: native_candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
+            --jq '.[] | @base64' > "$RUNNER_TEMP/native-comments.b64"
+          python3 scripts/runner/editorial-native-image-manifest.py \
+            --issue "$ISSUE_NUMBER" --trusted-main "$TRUSTED_MAIN" \
+            --payload-comments "$RUNNER_TEMP/native-comments.b64" \
+            --payload-output "$RUNNER_TEMP/native-payload.json" \
+            > "$RUNNER_TEMP/native-candidate.json"
+          echo "candidate_revision=$(jq -r '.candidate_revision' "$RUNNER_TEMP/native-candidate.json")" >> "$GITHUB_OUTPUT"
+          echo "payload_sha256=$(jq -r '.payload_sha256' "$RUNNER_TEMP/native-candidate.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare native PREPROD capture key
+        if: ${{ github.event.issue.number >= 1542 }}
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$SSH_PRIVATE_KEY"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-native-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-native-preprod.key"
+
+      - name: Capture native Article image via authenticated Drupal PREPROD
+        if: ${{ github.event.issue.number >= 1542 }}
+        id: native_source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PAYLOAD_SHA256: ${{ steps.native_candidate.outputs.payload_sha256 }}
+          CANDIDATE_REVISION: ${{ steps.native_candidate.outputs.candidate_revision }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          PAYLOAD_FILE: ${{ runner.temp }}/native-payload.json
+          PREPROD_SSH_KEY: ${{ runner.temp }}/agency-native-preprod.key
+          PREPROD_SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          NATIVE_IMAGE_DIR: ${{ runner.temp }}/agency-native-webp
+        run: |
+          set -euo pipefail
+          bash scripts/runner/run-editorial-native-image-source.sh
+          identity="$NATIVE_IMAGE_DIR/identity.json"
+          for name in manifest_sha256 profile_sha256 asset_sha256 node_id node_uuid revision_id fid file_uuid candidate_revision payload_sha256 trusted_main; do
+            value="$(jq -er --arg key "$name" '.[$key]' "$identity")"
+            echo "$name=$value" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Purge private native WebP staging
+        if: ${{ always() && github.event.issue.number >= 1542 }}
+        shell: bash
+        run: |
+          rm -f -- "$RUNNER_TEMP/agency-native-preprod.key" "$RUNNER_TEMP/native-payload.json" \
+            "$RUNNER_TEMP/native-candidate.json" "$RUNNER_TEMP/native-comments.b64"
+          rm -rf -- "$RUNNER_TEMP/agency-native-webp"
+
+      - name: Publish metadata-only future Article image manifest
+        if: ${{ steps.native_source.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CANDIDATE_REVISION: ${{ steps.native_source.outputs.candidate_revision }}
+          PAYLOAD_SHA256: ${{ steps.native_source.outputs.payload_sha256 }}
+          TRUSTED_MAIN: ${{ steps.native_source.outputs.trusted_main }}
+          MANIFEST_SHA: ${{ steps.native_source.outputs.manifest_sha256 }}
+          PROFILE_SHA: ${{ steps.native_source.outputs.profile_sha256 }}
+          ASSET_SHA: ${{ steps.native_source.outputs.asset_sha256 }}
+          NODE_ID: ${{ steps.native_source.outputs.node_id }}
+          NODE_UUID: ${{ steps.native_source.outputs.node_uuid }}
+          REVISION_ID: ${{ steps.native_source.outputs.revision_id }}
+          FID: ${{ steps.native_source.outputs.fid }}
+          FILE_UUID: ${{ steps.native_source.outputs.file_uuid }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<EOF
+          ### Agency editorial native image manifest PASS
+
+          source: \`DRUPAL_PREPROD_FILE_API\`
+          issue_number: \`$ISSUE_NUMBER\`
+          candidate_id: \`agency-article-$ISSUE_NUMBER\`
+          candidate_revision: \`$CANDIDATE_REVISION\`
+          payload_sha256: \`$PAYLOAD_SHA256\`
+          trusted_main: \`$TRUSTED_MAIN\`
+          manifest_sha256: \`$MANIFEST_SHA\`
+          profile_sha256: \`$PROFILE_SHA\`
+          asset_sha256: \`$ASSET_SHA\`
+          node_id: \`$NODE_ID\`
+          node_uuid: \`$NODE_UUID\`
+          revision_id: \`$REVISION_ID\`
+          fid: \`$FID\`
+          file_uuid: \`$FILE_UUID\`
+          run_id: \`$GITHUB_RUN_ID\`
+          target: \`PREPROD\`
+          prod_write: \`NONE\`
+          route_outcome: \`success\`
+
+          The native Drupal image was verified through pinned PREPROD SSH; no binary, public URL or arbitrary file path is published.
+          EOF
+          )"
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
+
       - name: Prepare and decode the exact repository-owned image
+        if: ${{ github.event.issue.number < 1542 }}
         shell: bash
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -178,6 +295,7 @@ jobs:
           PHP
 
       - name: Resolve exact repository-owned image profile
+        if: ${{ github.event.issue.number < 1542 }}
         id: profile
         shell: bash
         env:
@@ -342,6 +460,7 @@ jobs:
           PY
 
       - name: Verify immutable implementation
+        if: ${{ github.event.issue.number < 1542 }}
         shell: bash
         env:
           EXPECTED_MAIN_SHA: ${{ steps.request.outputs.main_sha }}
@@ -393,6 +512,7 @@ jobs:
           fi
 
       - name: Configure bounded SSH channel
+        if: ${{ github.event.issue.number < 1542 }}
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -419,6 +539,7 @@ jobs:
           fi
 
       - name: Execute bounded editorial image route
+        if: ${{ github.event.issue.number < 1542 }}
         id: route
         shell: bash
         env:
@@ -437,7 +558,7 @@ jobs:
           bash scripts/runner/run-editorial-feature-image.sh
 
       - name: Upload feature image evidence
-        if: ${{ always() }}
+        if: ${{ always() && github.event.issue.number < 1542 }}
         uses: actions/upload-artifact@v4
         with:
           name: agency-editorial-image-${{ github.event.issue.number }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -446,7 +567,7 @@ jobs:
           retention-days: 30
 
       - name: Publish bounded result
-        if: ${{ always() && steps.request.outcome == 'success' }}
+        if: ${{ always() && github.event.issue.number < 1542 && steps.request.outcome == 'success' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

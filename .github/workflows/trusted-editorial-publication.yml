@@ -15,6 +15,10 @@ on:
         required: true
       SERVER_USER:
         required: true
+      PREPROD_SSH_PRIVATE_KEY:
+        required: false
+      PREPROD_SERVER_HOST:
+        required: false
 
 permissions:
   contents: read
@@ -135,6 +139,13 @@ jobs:
           ref: ${{ steps.request.outputs.main_sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Setup PHP 8.4 with GD
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: gd
+          coverage: none
 
       - name: Resolve exact Article or Service candidate
         id: payload
@@ -291,6 +302,50 @@ jobs:
           python3 -m py_compile scripts/runner/validate-editorial-promotion-approval.py
           python3 -m py_compile scripts/runner/editorial-service-candidate-source.py
 
+      - name: Verify future Article native PREPROD source before production access
+        if: ${{ steps.request.outputs.candidate_kind == 'article' && github.event.issue.number >= 1542 && (steps.request.outputs.mode == 'dry-run' || steps.request.outputs.mode == 'apply') }}
+        id: native_source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CANDIDATE_REVISION: ${{ steps.payload.outputs.candidate_revision }}
+          PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
+          TRUSTED_MAIN: ${{ steps.request.outputs.main_sha }}
+          PAYLOAD_FILE: /tmp/agency-editorial-payload.json
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          NATIVE_IMAGE_DIR: ${{ runner.temp }}/agency-native-webp
+          PREPROD_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          AUTOMATIC_MODE: ${{ inputs.automatic_mode }}
+          TRIGGER_COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$PREPROD_KEY" && test -n "$PREPROD_SERVER_HOST"
+          PREPROD_SSH_KEY="$RUNNER_TEMP/agency-native-preprod.key"
+          printf '%s\n' "$PREPROD_KEY" > "$PREPROD_SSH_KEY"
+          chmod 600 "$PREPROD_SSH_KEY"
+          export PREPROD_SSH_KEY
+          bash scripts/runner/run-editorial-native-image-source.sh
+          python3 scripts/runner/validate-editorial-promotion-approval.py \
+            --native-preflight \
+            --candidate-kind article \
+            --comments-b64 "$NATIVE_IMAGE_DIR/latest-comments.b64" \
+            --issue-number "$ISSUE_NUMBER" \
+            --candidate-revision "$CANDIDATE_REVISION" \
+            --payload-sha256 "$PAYLOAD_SHA256" \
+            --trusted-main "$TRUSTED_MAIN" \
+            --profile-registry "$NATIVE_IMAGE_DIR/profiles.json" \
+            --asset-path "$NATIVE_IMAGE_DIR/asset.webp" \
+            --native-manifest "$NATIVE_IMAGE_DIR/manifest.json" \
+            --output "$NATIVE_IMAGE_DIR/approval-preflight.json"
+          jq -e '.status == "PASS" and .verdict == "AUTHORIZED" and .image_waiver == "UNSUPPORTED"' \
+            "$NATIVE_IMAGE_DIR/approval-preflight.json" >/dev/null
+          if [[ -n "$AUTOMATIC_MODE" ]]; then
+            [[ "$(jq -r '.approval_comment_id' "$NATIVE_IMAGE_DIR/approval-preflight.json")" == "$TRIGGER_COMMENT_ID" ]]
+          fi
+          rm -f -- "$PREPROD_SSH_KEY"
+
       - name: Require exact PREPROD and human approval for apply
         id: promotion
         if: ${{ steps.request.outputs.mode == 'apply' }}
@@ -404,7 +459,35 @@ jobs:
               echo "approval_comment_id=$(jq -r '.approval_comment_id' "$approval_json")"
             } >> "$GITHUB_OUTPUT"
           else
-            profile_registry='scripts/runner/editorial-feature-image-profiles.json'
+            if (( ISSUE_NUMBER >= 1542 )); then
+              native_dir="$RUNNER_TEMP/agency-native-webp"
+              test -s "$native_dir/manifest.json" && test -s "$native_dir/asset.webp"
+              python3 scripts/runner/validate-editorial-promotion-approval.py \
+                --candidate-kind article \
+                --comments-b64 /tmp/agency-editorial-live-comments.b64 \
+                --issue-number "$ISSUE_NUMBER" \
+                --candidate-revision "$CANDIDATE_REVISION" \
+                --payload-sha256 "$PAYLOAD_SHA256" \
+                --trusted-main "$TRUSTED_MAIN" \
+                --profile-registry "$native_dir/profiles.json" \
+                --asset-path "$native_dir/asset.webp" \
+                --native-manifest "$native_dir/manifest.json" \
+                --output "$approval_json"
+              jq -e '.status == "PASS" and .verdict == "AUTHORIZED" and .image_waiver == "UNSUPPORTED"' \
+                "$approval_json" >/dev/null
+              if [[ "$AUTOMATIC_MODE" == 'apply' ]]; then
+                [[ "$(jq -r '.approval_comment_id' "$approval_json")" == "$TRIGGER_COMMENT_ID" ]] || exit 1
+              fi
+              {
+                echo "profile_sha256=$(jq -r '.profile_sha256' "$approval_json")"
+                echo "asset_sha256=$(jq -r '.asset_sha256' "$approval_json")"
+                echo "asset_path=$(jq -r '.asset_path' "$approval_json")"
+                echo "profile_file=$native_dir/profiles.json"
+                echo "asset_file=$native_dir/asset.webp"
+                echo "approval_comment_id=$(jq -r '.approval_comment_id' "$approval_json")"
+              } >> "$GITHUB_OUTPUT"
+            else
+              profile_registry='scripts/runner/editorial-feature-image-profiles.json'
             asset_path="$(python3 - "$profile_registry" "$ISSUE_NUMBER" "$PAYLOAD_SHA256" <<'PY_PROFILE'
           import json
           import sys
@@ -460,6 +543,7 @@ jobs:
               echo "asset_path=$(jq -r '.asset_path' "$approval_json")"
               echo "approval_comment_id=$(jq -r '.approval_comment_id' "$approval_json")"
             } >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Configure existing production SSH channel
@@ -487,9 +571,9 @@ jobs:
           PAYLOAD_SHA256: ${{ steps.payload.outputs.payload_sha256 }}
           PAYLOAD_FILE: /tmp/agency-editorial-payload.json
           PROFILE_SHA256: ${{ steps.promotion.outputs.profile_sha256 }}
-          PROFILE_FILE: scripts/runner/editorial-feature-image-profiles.json
+          PROFILE_FILE: ${{ steps.promotion.outputs.profile_file || 'scripts/runner/editorial-feature-image-profiles.json' }}
           ASSET_SHA256: ${{ steps.promotion.outputs.asset_sha256 }}
-          ASSET_FILE: ${{ steps.promotion.outputs.asset_path }}
+          ASSET_FILE: ${{ steps.promotion.outputs.asset_file || steps.promotion.outputs.asset_path }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           ARTIFACT_DIR: ${{ github.workspace }}/artifacts/editorial-publication
@@ -502,6 +586,13 @@ jobs:
           else
             bash scripts/runner/run-editorial-publication.sh
           fi
+
+      - name: Purge native PREPROD image and transient SSH credentials
+        if: ${{ always() && github.event.issue.number >= 1542 }}
+        shell: bash
+        run: |
+          rm -f -- "$RUNNER_TEMP/agency-native-preprod.key"
+          rm -rf -- "$RUNNER_TEMP/agency-native-webp"
 
       - name: Upload editorial evidence
         if: ${{ always() }}

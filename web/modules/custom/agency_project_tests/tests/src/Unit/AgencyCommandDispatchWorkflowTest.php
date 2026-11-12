@@ -593,6 +593,13 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
     self::assertArrayNotHasKey('secrets', $jobs['classify']);
 
     $prodSecrets = ['SSH_PRIVATE_KEY', 'SERVER_HOST', 'SERVER_USER'];
+    // #1540: the existing editorial publication runner also needs pinned,
+    // read-only PREPROD access to rehash the exact approved WebP binary.
+    $editorialSourceSecrets = [
+      ...$prodSecrets,
+      'PREPROD_SSH_PRIVATE_KEY',
+      'PREPROD_SERVER_HOST',
+    ];
     $preprodSecrets = [
       'SSH_PRIVATE_KEY',
       'PREPROD_SSH_PRIVATE_KEY',
@@ -623,7 +630,7 @@ final class AgencyCommandDispatchWorkflowTest extends TestCase {
       'editorial-publication' => [
         'EDITORIAL_PUBLICATION',
         ['contents' => 'read', 'issues' => 'write'],
-        $prodSecrets,
+        $editorialSourceSecrets,
       ],
       'editorial-preprod-candidate' => [
         'EDITORIAL_PREPROD_CANDIDATE',

@@ -66,7 +66,7 @@ remote_runtime="${remote_stem}-runtime.php"
 remote_payload="${remote_stem}-payload.json"
 remote_profile="${remote_stem}-profiles.json"
 remote_asset="${remote_stem}-asset.png"
-if [[ "$ISSUE_NUMBER" == "1404" ]]; then
+if [[ "$ISSUE_NUMBER" == "1404" ]] || (( ISSUE_NUMBER >= 1542 )); then
   remote_asset="${remote_stem}-asset.webp"
 fi
 remote_result="${remote_stem}-result.json"

@@ -42,7 +42,7 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
     self::assertStringContainsString("issue == '1404' and 'verdict: `RELINK_REQUIRED`'", $workflow);
     self::assertStringContainsString('persist-credentials: false', $workflow);
     self::assertStringContainsString(
-      "always() && steps.request.outcome == 'success'",
+      "always() && github.event.issue.number < 1542 && steps.request.outcome == 'success'",
       $workflow,
     );
     self::assertStringContainsString('Apply requires a bot-authored image dry-run PASS', $workflow);
@@ -73,7 +73,9 @@ final class GovernedEditorialFeatureImageWorkflowTest extends TestCase {
       self::assertIsString($binding);
       self::assertStringContainsString(
         " || (github.event.issue.number == 1404 && startsWith("
-        . "github.event.comment.body, '/agency-editorial-image '))) "
+        . "github.event.comment.body, '/agency-editorial-image '))"
+        . " || (github.event.issue.number >= 1542 && "
+        . "github.event.comment.body == '/agency-editorial-image inspect')) "
         . "&& secrets.{$preprodSecret} || secrets.{$prodSecret}",
         $binding,
       );

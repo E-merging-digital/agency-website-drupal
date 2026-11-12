@@ -65,6 +65,21 @@ final class AgencyEditorialPublication {
     'https://portailcitoyens.be/',
   ];
 
+  /**
+   * Exact official sources verified for the new Article #1544 only.
+   *
+   * Do not generalize to external domains or other editorial candidates.
+   */
+  private const ISSUE_1544_EXTERNAL_HREFS = [
+    'https://statbel.fgov.be/en/news/artificial-intelligence-gaining-ground-belgian-enterprises',
+    'https://ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20251211-2',
+    'https://www.digitalwallonia.be/fr/publications/entreprises2025/',
+    'https://www.digitalwallonia.be/entreprises2025/methodologie/',
+    'https://www.digitalwallonia.be/fr/publications/start-ia-tremplin-ia-etude-impact-2026/',
+    'https://efacture.belgium.be/fr/FAQ/questions-generales-b2b',
+    'https://einvoice.belgium.be/en/FAQ/general-questions-b2b',
+  ];
+
   public function __construct(
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly StateInterface $state,
@@ -558,6 +573,10 @@ final class AgencyEditorialPublication {
         $allowedHref = $allowedHref || (
           $issueNumber === 1491
           && in_array($href, self::ISSUE_1491_EXTERNAL_HREFS, TRUE)
+        );
+        $allowedHref = $allowedHref || (
+          $issueNumber === 1544
+          && in_array($href, self::ISSUE_1544_EXTERNAL_HREFS, TRUE)
         );
         if (!$allowedHref) {
           throw new InvalidArgumentException(

@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import re
+import runpy
 from pathlib import Path
 from typing import Any
 
@@ -75,7 +76,7 @@ def canonical_profile(
     expected_asset = {"path", "filename", "sha256", "mime", "width", "height", "max_bytes"}
     if set(asset) != expected_asset or set(alt) != {"fr", "en"}:
         raise ApprovalError("Feature-image asset/ALT keys are not exact.")
-    expected_mime = "image/jpeg" if issue_number == 1491 else "image/webp" if issue_number == 1404 else "image/png"
+    expected_mime = "image/jpeg" if issue_number == 1491 else "image/webp" if issue_number == 1404 or issue_number >= 1542 else "image/png"
     if asset.get("mime") != expected_mime:
         raise ApprovalError(f"Feature-image promotion requires {expected_mime} for issue #{issue_number}.")
     if issue_number == 1404 and (
@@ -88,6 +89,15 @@ def canonical_profile(
         or profile.get("article_payload_sha256") != "dfeba8f86b6a51f02b7ba2d914aa3e94bdb4245e8f48785c34016421689eac07"
     ):
         raise ApprovalError("Issue #1404 requires the exact owner-approved WebP and Article payload.")
+    if issue_number >= 1542 and (
+        asset.get("path") != f"assets/editorial/native-preprod-{issue_number}.webp"
+        or not re.fullmatch(r"agency-native-[0-9a-f]{16}\\.webp", str(asset.get("filename")))
+        or str(asset.get("filename")) != f"agency-native-{str(asset.get('sha256', ''))[:16]}.webp"
+        or not isinstance(asset.get("width"), int) or asset["width"] <= 0 or asset["width"] > 2400
+        or not isinstance(asset.get("height"), int) or asset["height"] <= 0 or asset["height"] > 1600
+        or not isinstance(asset.get("max_bytes"), int) or asset["max_bytes"] <= 0 or asset["max_bytes"] > 5000000
+    ):
+        raise ApprovalError("Future Article must use an exact bounded PREPROD-native WebP profile.")
     if issue_number == 1404 and alt != {
         "fr": "Une application métier communique avec un agent IA à travers une passerelle qui limite les autorisations accordées.",
         "en": "A business application connects to an AI agent through a gateway that limits the permissions granted.",
@@ -239,6 +249,124 @@ def exact_service_owner_approval(
     return matches[0]
 
 
+def validate_native_article(
+    args: argparse.Namespace,
+    comments: list[dict[str, Any]],
+    profile: dict[str, Any],
+    profile_sha: str,
+    asset_sha: str,
+) -> dict[str, Any]:
+    """For new issues only: existing owner approval plus pinned File API snapshot."""
+    if args.issue_number < 1542 or args.native_manifest is None or args.asset_path is None:
+        raise ApprovalError("Native image mode is not allowed for historical issues.")
+    manifest = json.loads(args.native_manifest.read_text(encoding="utf-8"))
+    # Reuse exactly the same snapshot checker as the PREPROD capture job.
+    checker = runpy.run_path(str(Path(__file__).with_name("editorial-native-image-manifest.py")))
+    manifest_sha, derived_profile, derived_profile_sha = checker["validate_snapshot"](
+        manifest, args.asset_path.read_bytes(), args.issue_number,
+        int(args.candidate_revision), args.payload_sha256, args.trusted_main
+    )
+    if derived_profile != profile or derived_profile_sha != profile_sha:
+        raise ApprovalError("The native WebP profile was not derived from the trusted source.")
+    approval, fields, urls = direct_owner_approval(comments, args.issue_number)
+    if approval.get("created_at") != approval.get("updated_at") or not approval.get("created_at"):
+        raise ApprovalError("Native Article approval must be a new unedited direct OWNER comment.")
+    exact = {
+        "CANDIDATE_ID": f"agency-article-{args.issue_number}",
+        "CANDIDATE_REVISION": args.candidate_revision,
+        "ARTICLE_PAYLOAD_SHA256": args.payload_sha256,
+        "IMAGE_PROFILE_SHA256": profile_sha,
+        "IMAGE_ASSET_SHA256": asset_sha,
+        "IMAGE_MANIFEST_SHA256": manifest_sha,
+        "PREPROD_NODE_ID": str(manifest["node_id"]),
+        "PREPROD_NODE_UUID": manifest["node_uuid"],
+        "PREPROD_ARTICLE_REVISION_AFTER_IMAGE": str(manifest["node_revision_id"]),
+        "PREPROD_IMAGE_FID": str(manifest["fid"]),
+        "PREPROD_IMAGE_FILE_UUID": manifest["file_uuid"],
+        "HUMAN_REVIEW": "PASS",
+        "CONTENT": "APPROVED",
+        "IMAGE": "APPROVED",
+        "ALT_FR_EN": "APPROVED",
+        "IMAGE_SOURCE_POLICY": "APPROVED",
+        "RESPONSIVE_RENDER": "APPROVED",
+        "LISTING_DETAIL_RENDER": "APPROVED",
+        "EXACT_CANDIDATE_PROMOTION_TO_PROD": "AUTHORIZED",
+        "CONTENT_CHANGE_AFTER_APPROVAL": "INVALIDATES_APPROVAL",
+        "IMAGE_CHANGE_AFTER_APPROVAL": "INVALIDATES_APPROVAL",
+    }
+    for key, value in exact.items():
+        if fields.get(key) != str(value):
+            raise ApprovalError(f"Native Article approval field {key} does not match.")
+    if set(urls) != {"FR", "EN"} or not all(url.startswith(PREPROD_PREFIX) for url in urls.values()):
+        raise ApprovalError("Direct native Article approval must bind both real PREPROD URLs.")
+    article_apply = re.fullmatch(r"([1-9][0-9]*) / SUCCESS", fields.get("PREPROD_ARTICLE_APPLY", ""))
+    image_manifest_run = re.fullmatch(r"([1-9][0-9]*) / SUCCESS", fields.get("PREPROD_IMAGE_MANIFEST", ""))
+    if article_apply is None or image_manifest_run is None:
+        raise ApprovalError("Native Article PREPROD apply/manifest run identities are missing.")
+    article_receipt = matching_bot_receipt(comments,
+        "### Agency editorial PREPROD candidate apply PASS", {
+            "candidate_id": f"agency-article-{args.issue_number}",
+            "candidate_revision": args.candidate_revision,
+            "payload_sha256": args.payload_sha256,
+            "trusted_main": args.trusted_main,
+            "target": "PREPROD",
+            "node_id": str(manifest["node_id"]),
+            "run_id": article_apply.group(1),
+            "prod_write": "NONE",
+        })
+    manifest_receipt = matching_bot_receipt(comments,
+        "### Agency editorial native image manifest PASS", {
+            "source": "DRUPAL_PREPROD_FILE_API",
+            "issue_number": str(args.issue_number),
+            "candidate_id": f"agency-article-{args.issue_number}",
+            "candidate_revision": args.candidate_revision,
+            "payload_sha256": args.payload_sha256,
+            "trusted_main": args.trusted_main,
+            "manifest_sha256": manifest_sha,
+            "profile_sha256": profile_sha,
+            "asset_sha256": asset_sha,
+            "node_id": str(manifest["node_id"]),
+            "node_uuid": manifest["node_uuid"],
+            "revision_id": str(manifest["node_revision_id"]),
+            "fid": str(manifest["fid"]),
+            "file_uuid": manifest["file_uuid"],
+            "run_id": image_manifest_run.group(1),
+            "target": "PREPROD",
+            "prod_write": "NONE",
+            "route_outcome": "success",
+        })
+    approval_id = int(approval.get("id") or 0)
+    if (int(article_receipt.get("id") or 0) <= int(args.candidate_revision)
+            or int(manifest_receipt.get("id") or 0) <= int(article_receipt.get("id") or 0)
+            or approval_id <= int(manifest_receipt.get("id") or 0)):
+        raise ApprovalError("Native source or OWNER approval evidence is stale.")
+    if not args.native_preflight:
+        matching_bot_receipt(comments, "### Agency editorial dry-run PASS", {
+            "candidate_kind": "article",
+            "payload_sha256": args.payload_sha256,
+            "trusted_main": args.trusted_main,
+            "route_outcome": "success",
+        }, after_comment_id=approval_id)
+    return {
+        "status": "PASS", "verdict": "AUTHORIZED",
+        "candidate_id": f"agency-article-{args.issue_number}",
+        "candidate_revision": int(args.candidate_revision),
+        "payload_sha256": args.payload_sha256,
+        "trusted_main": args.trusted_main,
+        "approval_comment_id": approval_id,
+        "profile_sha256": profile_sha,
+        "asset_sha256": asset_sha,
+        "asset_path": profile["asset"]["path"],
+        "manifest_sha256": manifest_sha,
+        "preprod_node_id": manifest["node_id"],
+        "preprod_node_uuid": manifest["node_uuid"],
+        "preprod_revision_id": manifest["node_revision_id"],
+        "preprod_fid": manifest["fid"],
+        "fr_url": urls["FR"], "en_url": urls["EN"],
+        "image_waiver": "UNSUPPORTED",
+    }
+
+
 def validate_article(args: argparse.Namespace, comments: list[dict[str, Any]]) -> dict[str, Any]:
     if not re.fullmatch(r"[1-9][0-9]*", args.candidate_revision):
         raise ApprovalError("Article candidate revision must be a positive comment id.")
@@ -252,6 +380,8 @@ def validate_article(args: argparse.Namespace, comments: list[dict[str, Any]]) -
         args.payload_sha256,
         args.asset_path,
     )
+    if args.issue_number >= 1542:
+        return validate_native_article(args, comments, profile, profile_sha, asset_sha)
     candidate_id = f"agency-article-{args.issue_number}"
     mcp = args.issue_number == 1404
     if mcp and (
@@ -505,6 +635,8 @@ def main() -> int:
     parser.add_argument("--trusted-main", required=True)
     parser.add_argument("--profile-registry", type=Path)
     parser.add_argument("--asset-path", type=Path)
+    parser.add_argument("--native-manifest", type=Path)
+    parser.add_argument("--native-preflight", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 

@@ -335,6 +335,17 @@ def validate_native_article(
             "prod_write": "NONE",
             "route_outcome": "success",
         })
+    # Replaying or superseding the manifest after the human GO requires a
+    # new human approval, even when the image bytes happen to be identical.
+    new_manifests = [
+        c for c in comments
+        if c.get("user", {}).get("login") == "github-actions[bot]"
+        and str(c.get("body") or "").startswith("### Agency editorial native image manifest PASS\n")
+    ]
+    if not new_manifests or max(
+        int(c.get("id") or 0) for c in new_manifests
+    ) != int(manifest_receipt.get("id") or 0):
+        raise ApprovalError("A newer native WebP manifest superseded the approved source.")
     approval_id = int(approval.get("id") or 0)
     if (int(article_receipt.get("id") or 0) <= int(args.candidate_revision)
             or int(manifest_receipt.get("id") or 0) <= int(article_receipt.get("id") or 0)

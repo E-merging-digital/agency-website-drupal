@@ -85,7 +85,6 @@ def owner_payload(comments_b64: Path, issue: int, trusted_main: str | None = Non
             "target": "PREPROD", "candidate_id": f"agency-article-{issue}",
             "candidate_revision": str(revision), "payload_sha256": payload_hash,
             "trusted_main": trusted_main, "prod_write": "NONE",
-            "route_outcome": "success",
         }
         receipts = []
         for item in comments:

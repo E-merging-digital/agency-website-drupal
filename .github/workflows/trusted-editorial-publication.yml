@@ -140,6 +140,13 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Setup PHP 8.4 with GD
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: gd
+          coverage: none
+
       - name: Resolve exact Article or Service candidate
         id: payload
         shell: bash

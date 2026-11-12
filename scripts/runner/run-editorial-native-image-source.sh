@@ -25,7 +25,7 @@ mkdir -p "$NATIVE_IMAGE_DIR"
 [[ "$(git rev-parse HEAD)" == "$TRUSTED_MAIN" ]]
 gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUMBER/comments?per_page=100" \
   --jq '.[] | @base64' > "$NATIVE_IMAGE_DIR/latest-comments.b64"
-python3 "$helper" --issue "$ISSUE_NUMBER" \
+python3 "$helper" --issue "$ISSUE_NUMBER" --trusted-main "$TRUSTED_MAIN" \
   --payload-comments "$NATIVE_IMAGE_DIR/latest-comments.b64" \
   --payload-output "$NATIVE_IMAGE_DIR/latest-payload.json" \
   > "$NATIVE_IMAGE_DIR/latest-identity.json"

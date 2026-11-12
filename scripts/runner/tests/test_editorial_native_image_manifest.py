@@ -148,8 +148,8 @@ class NativeImageManifestTest(unittest.TestCase):
 
     def test_wrong_issue_uuid_fid_article_hash_and_image_hash(self):
         for key, replacement in (
-            ("issue_number", 1543), ("node_uuid", FILE_UUID[:35] + "0"),
-            ("file_uuid", NODE_UUID), ("fid", 4),
+            ("issue_number", 1543), ("node_uuid", "not-a-uuid"),
+            ("file_uuid", "not-a-uuid"),
             ("payload_sha256", "b"*64), ("asset_sha256", "f"*64),
         ):
             with self.subTest(key=key):

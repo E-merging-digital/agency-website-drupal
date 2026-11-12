@@ -15,6 +15,10 @@ on:
         required: true
       SERVER_USER:
         required: true
+      PREPROD_SSH_PRIVATE_KEY:
+        required: false
+      PREPROD_SERVER_HOST:
+        required: false
 
 permissions:
   contents: read
@@ -290,6 +294,50 @@ jobs:
           php -l scripts/runner/editorial-service-publication-runtime.php
           python3 -m py_compile scripts/runner/validate-editorial-promotion-approval.py
           python3 -m py_compile scripts/runner/editorial-service-candidate-source.py
+
+      - name: Verify future Article native PREPROD source before production access
+        if: ${${ steps.request.outputs.candidate_kind == 'article' && github.event.issue.number >= 1542 && (steps.request.outputs.mode == 'dry-run' || steps.request.outputs.mode == 'apply') }}
+        id: native_source
+        shell: bash
+        env:
+          GH_TOKEN: ${${ github.token }}
+          ISSUE_NUMBER: ${${ github.event.issue.number }}
+          CANDIDATE_REVISION: ${${ steps.payload.outputs.candidate_revision }}
+          PAYLOAD_SHA256: ${${ steps.payload.outputs.payload_sha256 }}
+          TRUSTED_MAIN: ${${ steps.request.outputs.main_sha }}
+          PAYLOAD_FILE: /tmp/agency-editorial-payload.json
+          PREPROD_SERVER_HOST: ${${ secrets.PREPROD_SERVER_HOST }}
+          NATIVE_IMAGE_DIR: ${${ runner.temp }}/agency-native-webp
+          PREPROD_KEY: ${${ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          AUTOMATIC_MODE: ${${ inputs.automatic_mode }}
+          TRIGGER_COMMENT_ID: ${${ github.event.comment.id }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$PREPROD_KEY" && test -n "$PREPROD_SERVER_HOST"
+          PREPROD_SSH_KEY="$RUNNER_TEMP/agency-native-preprod.key"
+          printf '%s\n' "$PREPROD_KEY" > "$PREPROD_SSH_KEY"
+          chmod 600 "$PREPROD_SSH_KEY"
+          export PREPROD_SSH_KEY
+          bash scripts/runner/run-editorial-native-image-source.sh
+          python3 scripts/runner/validate-editorial-promotion-approval.py \
+            --native-preflight \
+            --candidate-kind article \
+            --comments-b64 "$NATIVE_IMAGE_DIR/latest-comments.b64" \
+            --issue-number "$ISSUE_NUMBER" \
+            --candidate-revision "$CANDIDATE_REVISION" \
+            --payload-sha256 "$PAYLOAD_SHA256" \
+            --trusted-main "$TRUSTED_MAIN" \
+            --profile-registry "$NATIVE_IMAGE_DIR/profiles.json" \
+            --asset-path "$NATIVE_IMAGE_DIR/asset.webp" \
+            --native-manifest "$NATIVE_IMAGE_DIR/manifest.json" \
+            --output "$NATIVE_IMAGE_DIR/approval-preflight.json"
+          jq -e '.status == "PASS" and .verdict == "AUTHORIZED" and .image_waiver == "UNSUPPORTED"' \
+            "$NATIVE_IMAGE_DIR/approval-preflight.json" >/dev/null
+          if [[ -n "$AUTOMATIC_MODE" ]]; then
+            [[ "$(jq -r '.approval_comment_id' "$NATIVE_IMAGE_DIR/approval-preflight.json")" == "$TRIGGER_COMMENT_ID" ]]
+          fi
+          rm -f -- "$PREPROD_SSH_KEY"
 
       - name: Require exact PREPROD and human approval for apply
         id: promotion

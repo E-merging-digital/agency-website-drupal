@@ -107,6 +107,13 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Setup PHP 8.4 with GD
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: gd
+          coverage: none
+
       - name: Resolve owner-authored new Article
         if: ${{ github.event.issue.number >= 1542 }}
         id: native_candidate
@@ -215,13 +222,6 @@ jobs:
           EOF
           )"
           gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$body"
-
-      - name: Setup PHP 8.4 with GD
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: gd
-          coverage: none
 
       - name: Prepare and decode the exact repository-owned image
         if: ${{ github.event.issue.number < 1542 }}

@@ -37,13 +37,16 @@ def digest(value: dict) -> str:
     return hashlib.sha256(canonical(value)).hexdigest()
 
 
-def owner_payload(comments_b64: Path, issue: int) -> tuple[dict, int, str]:
+def owner_payload(comments_b64: Path, issue: int, trusted_main: str | None = None) -> tuple[dict, int, str]:
     """Reuse the existing #576 schema and owner-login admission, unchanged."""
     latest = None
+    comments = []
     for line in comments_b64.read_text(encoding="utf-8").splitlines():
+
         if not line:
             continue
         comment = json.loads(base64.b64decode(line).decode("utf-8"))
+        comments.append(comment)
         if comment.get("user", {}).get("login") != OWNER:
             continue
         body = comment.get("body") or ""
@@ -74,7 +77,39 @@ def owner_payload(comments_b64: Path, issue: int) -> tuple[dict, int, str]:
     revision = int(comment["id"])
     if revision <= 0:
         raise NativeImageError("Invalid candidate revision.")
-    return payload, revision, digest(payload)
+    payload_hash = digest(payload)
+    if trusted_main is not None:
+        if not re.fullmatch(r"[0-9a-f]{40}", trusted_main):
+            raise NativeImageError("Invalid exact live main.")
+        expected = {
+            "target": "PREPROD", "candidate_id": f"agency-article-{issue}",
+            "candidate_revision": str(revision), "payload_sha256": payload_hash,
+            "trusted_main": trusted_main, "prod_write": "NONE",
+            "route_outcome": "success",
+        }
+        receipts = []
+        for item in comments:
+            if item.get("user", {}).get("login") != "github-actions[bot]":
+                continue
+            if int(item.get("id") or 0) <= revision:
+                continue
+            lines = (item.get("body") or "").splitlines()
+            if not lines or lines[0] != "### Agency editorial PREPROD candidate apply PASS":
+                continue
+            fields = {}
+            for line in lines[1:]:
+                if ": " in line:
+                    name, val = line.split(": ", 1)
+                    if val.startswith("`") and val.endswith("`"):
+                        if name in fields:
+                            raise NativeImageError("Duplicate PREPROD receipt field.")
+                        fields[name] = val[1:-1]
+            if (all(fields.get(key) == val for key, val in expected.items())
+                    and ISSUE.fullmatch(fields.get("node_id", ""))):
+                receipts.append(item)
+        if not receipts:
+            raise NativeImageError("Exact PREPROD Article apply receipt missing.")
+    return payload, revision, payload_hash
 
 
 def plain_alt(value: object) -> bool:
@@ -165,7 +200,7 @@ def main() -> int:
         if args.payload_comments:
             if not args.payload_output:
                 raise NativeImageError("Payload output is missing.")
-            payload, revision, sha = owner_payload(args.payload_comments, args.issue)
+            payload, revision, sha = owner_payload(args.payload_comments, args.issue, args.trusted_main)
             args.payload_output.write_bytes(canonical(payload))
             print(json.dumps({"candidate_revision": revision, "payload_sha256": sha}))
         else:

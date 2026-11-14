@@ -251,5 +251,49 @@ class NativeImageManifestTest(unittest.TestCase):
             NATIVE["validate_snapshot"](self.manifest, WEBP, 1404, 100, self.payload_sha, MAIN)
 
 
+    def test_native_reader_fail_closed_class_is_fixed_and_redacted(self):
+        """Source-only PHP probe: known codes, unknown redacted, exit remains 1."""
+        import shutil
+        import subprocess
+
+        php = shutil.which("php")
+        self.assertIsNotNone(php)
+        source = (ROOT / "runner/editorial-native-image-source.php").read_text(encoding="utf-8")
+        initial_guard = "throw new RuntimeException('Invalid new-Article source identity.');"
+        self.assertIn(initial_guard, source)
+        cases = {
+            "Invalid new-Article source identity.": "SOURCE_IDENTITY",
+            "PREPROD Article issue/hash mapping is absent or stale.": "ARTICLE_MAPPING",
+            "PREPROD Article text/category drifted from owner payload.": "ARTICLE_TEXT_DRIFT",
+            "PREPROD image File ID must be identical in FR and EN.": "IMAGE_FID_MISMATCH",
+            "PREPROD File entity is missing or temporary.": "FILE_ENTITY",
+            "File URI must remain in Drupal articles storage.": "FILE_URI",
+            "Both FR/EN ALT values must be bounded plain text.": "ALT_INVALID",
+            "PREPROD WebP is not a valid bounded decoded image.": "WEBP_DECODE",
+            "Could not stage verified private source bytes.": "PRIVATE_STAGING",
+            "PREPROD source changed during snapshot.": "SOURCE_DRIFT",
+            "secret=/private/untrusted-exception": "UNKNOWN",
+        }
+        probe = self.base / "reader-failure-probe.php"
+        for message, expected in cases.items():
+            with self.subTest(expected=expected):
+                # No Drupal host is accessed: the initial identity guard fails first.
+                probe.write_text(
+                    source.replace(initial_guard, f"throw new RuntimeException('{message}');", 1),
+                    encoding="utf-8",
+                )
+                result = subprocess.run(
+                    [php, str(probe)], env={}, capture_output=True, text=True,
+                    check=False, timeout=10,
+                )
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(
+                    result.stderr,
+                    "NATIVE_WEBP_SOURCE=FAIL_CLOSED\\n"
+                    f"NATIVE_WEBP_FAILURE_CLASS={expected}\\n",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

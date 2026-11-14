@@ -280,6 +280,7 @@ class NativeImageManifestTest(unittest.TestCase):
             "PREPROD WebP is not a valid bounded decoded image.": "WEBP_DECODE",
             "Could not stage verified private source bytes.": "PRIVATE_STAGING",
             "PREPROD source changed during snapshot.": "SOURCE_DRIFT",
+            "PREPROD FR/EN WebP bytes differ.": "IMAGE_BYTES_MISMATCH",
             "secret=/private/untrusted-exception": "UNKNOWN",
         }
         probe = self.base / "reader-failure-probe.php"
@@ -312,7 +313,7 @@ class NativeImageManifestTest(unittest.TestCase):
         comparisons = (
             "$translation->label() !== ($payload[$lang]['title'] ?? NULL)",
             "(string) $translation->get('field_short_description')->value !== ($payload[$lang]['short_description'] ?? NULL)",
-            "(string) $translation->get('body')->value !== ($payload[$lang]['body_html'] ?? NULL)",
+            "!$sameBody((string) $translation->get('body')->value, (string) ($payload[$lang]['body_html'] ?? ''))",
             "(int) $translation->get('field_blog_category')->target_id !== (int) ($payload['category']['tid'] ?? 0)",
         )
         offsets = [guard.index(expression) for expression in comparisons]
@@ -322,6 +323,62 @@ class NativeImageManifestTest(unittest.TestCase):
         for code in ("TITLE", "SHORT_DESCRIPTION", "BODY_HTML", "CATEGORY"):
             self.assertIn(f"'PREPROD Article FR_{code} drift.'", guard)
             self.assertIn(f"'PREPROD Article EN_{code} drift.'", guard)
+
+
+    def test_ckeditor_structural_equivalence_preserves_meaning(self):
+        """Execute the actual PHP comparison with a tiny DOM-backed Html stub."""
+        import shutil
+        import subprocess
+        php = shutil.which("php")
+        self.assertIsNotNone(php)
+        source = (ROOT / "runner/editorial-native-image-source.php").read_text(encoding="utf-8")
+        body = source.split("  $sameBody = static function", 1)[1].split("  $mapping =", 1)[0]
+        closure = "  $sameBody = static function" + body
+        probe = self.base / "canonical-body.php"
+        probe.write_text(
+            "<?php\n"
+            "namespace Drupal\\Component\\Utility { class Html { "
+            "public static function load(string $html): \\DOMDocument { "
+            "$d = new \\DOMDocument(); "
+            "@$d->loadHTML('<!DOCTYPE html><html><body>' . $html . '</body></html>'); "
+            "return $d; } } }\n"
+            "namespace {\n" + closure +
+            "$pair = json_decode(stream_get_contents(STDIN), TRUE, 4, JSON_THROW_ON_ERROR);"
+            "echo $sameBody($pair[0], $pair[1]) ? 'EQUAL' : 'DIFFERENT';"
+            "}\n", encoding="utf-8"
+        )
+        approved = '<h2>Essentiel</h2><ul><li>Bonjour <strong>monde</strong></li></ul><p><a href="/fr/contact">Lien</a></p>'
+        ckeditor = ('<h2>Essentiel</h2>\r\n <ul>\r\n'
+                    ' <li data-list-item-id="e012ab1">Bonjour <strong>monde</strong></li>\r\n'
+                    ' </ul>\r\n <p><a href="/fr/contact">Lien</a></p>')
+        cases = [
+            (approved, approved, "EQUAL"),
+            (ckeditor, approved, "EQUAL"),
+            (ckeditor.replace("monde", "MONDE"), approved, "DIFFERENT"),
+            (ckeditor.replace("/fr/contact", "https://evil.invalid"), approved, "DIFFERENT"),
+            (ckeditor.replace("<strong>", "<em>").replace("</strong>", "</em>"), approved, "DIFFERENT"),
+            (ckeditor.replace("<li ", '<li onclick="bad()" '), approved, "DIFFERENT"),
+            (ckeditor.replace('<li data-list-item-id="e012ab1"', '<li data-list-item-id="bad value"'), approved, "DIFFERENT"),
+            (ckeditor.replace('<h2>', '<script>alert(1)</script><h2>'), approved, "DIFFERENT"),
+        ]
+        for live, expected, result in cases:
+            with self.subTest(expected=result, live=live[:65]):
+                completed = subprocess.run([php, str(probe)], input=json.dumps([live, expected]),
+                                           capture_output=True, text=True, timeout=10)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual(completed.stdout, result)
+
+    def test_two_file_refs_keep_manifest_identity_and_recheck(self):
+        source = (ROOT / "runner/editorial-native-image-source.php").read_text(encoding="utf-8")
+        self.assertIn("$enFile = $manager->getStorage('file')->load((int) $enFid);", source)
+        self.assertIn("$enFile->isTemporary()", source)
+        self.assertIn("$enReal", source)
+        self.assertIn("hash_equals(hash('sha256', $bytes), hash('sha256', $enBytes))", source)
+        self.assertIn("hash_file('sha256', $enUri)", source)
+        self.assertIn("(int) $enFid", source)
+        self.assertIn("'fid' => (int) $frFid", source)
+        self.assertIn("'file_uuid' => $file->uuid()", source)
+        self.assertIn("PREPROD FR/EN WebP bytes differ.", source)
 
 
 if __name__ == "__main__":

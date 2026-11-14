@@ -354,6 +354,8 @@ class NativeImageManifestTest(unittest.TestCase):
         cases = [
             (approved, approved, "EQUAL"),
             (ckeditor, approved, "EQUAL"),
+            ("<p><strong>A</strong>\n<strong>B</strong></p>",
+             "<p><strong>A</strong><strong>B</strong></p>", "DIFFERENT"),
             (ckeditor.replace("monde", "MONDE"), approved, "DIFFERENT"),
             (ckeditor.replace("/fr/contact", "https://evil.invalid"), approved, "DIFFERENT"),
             (ckeditor.replace("<strong>", "<em>").replace("</strong>", "</em>"), approved, "DIFFERENT"),
@@ -375,6 +377,9 @@ class NativeImageManifestTest(unittest.TestCase):
         self.assertIn("$enReal", source)
         self.assertIn("hash_equals(hash('sha256', $bytes), hash('sha256', $enBytes))", source)
         self.assertIn("hash_file('sha256', $enUri)", source)
+        self.assertIn("$enFile->getMimeType()", source)
+        self.assertIn("$enFile->getSize()", source)
+        self.assertIn("file_get_contents($enUri, FALSE, NULL, 0, 5000001)", source)
         self.assertIn("(int) $enFid", source)
         self.assertIn("'fid' => (int) $frFid", source)
         self.assertIn("'file_uuid' => $file->uuid()", source)

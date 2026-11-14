@@ -63,9 +63,16 @@ try {
         $children = [];
         foreach ($node->childNodes as $child) {
           // Ignore only presentation indentation around block-level tags.
+          $left = $child->previousSibling;
+          $right = $child->nextSibling;
+          $block = ['h2', 'h3', 'p', 'ul', 'ol', 'li'];
+          $betweenBlocks = $left instanceof \DOMElement && $right instanceof \DOMElement
+            && in_array(strtolower($left->tagName), $block, TRUE)
+            && in_array(strtolower($right->tagName), $block, TRUE);
           if ($child instanceof \DOMText && trim($child->nodeValue) === ''
             && preg_match('/[\r\n]/', $child->nodeValue)
-            && in_array($tag, ['body', 'ul', 'ol', 'li', 'p', 'h2', 'h3'], TRUE)) {
+            && in_array($tag, ['body', 'ul', 'ol', 'li', 'p', 'h2', 'h3'], TRUE)
+            && ($left === NULL || $right === NULL || $betweenBlocks)) {
             continue;
           }
           $part = $walk($child);
@@ -166,8 +173,14 @@ try {
   if (!is_string($bytes) || strlen($bytes) < 16 || strlen($bytes) > 5000000) {
     throw new RuntimeException('PREPROD WebP bytes are missing or too large.');
   }
-  $enBytes = file_get_contents($enUri);
-  if (!is_string($enBytes) || !hash_equals(hash('sha256', $bytes), hash('sha256', $enBytes))) {
+  if ($file->getMimeType() !== 'image/webp' || $enFile->getMimeType() !== 'image/webp'
+    || (int) $file->getSize() !== strlen($bytes)) {
+    throw new RuntimeException('PREPROD WebP is not a valid bounded decoded image.');
+  }
+  $enBytes = file_get_contents($enUri, FALSE, NULL, 0, 5000001);
+  if (!is_string($enBytes) || strlen($enBytes) < 16 || strlen($enBytes) > 5000000
+    || (int) $enFile->getSize() !== strlen($enBytes)
+    || !hash_equals(hash('sha256', $bytes), hash('sha256', $enBytes))) {
     throw new RuntimeException('PREPROD FR/EN WebP bytes differ.');
   }
   $info = getimagesizefromstring($bytes);

@@ -47,11 +47,17 @@ try {
   }
   $en = $node->getTranslation('en');
   foreach (['fr' => $node, 'en' => $en] as $lang => $translation) {
-    if ($translation->label() !== ($payload[$lang]['title'] ?? NULL)
-      || (string) $translation->get('field_short_description')->value !== ($payload[$lang]['short_description'] ?? NULL)
-      || (string) $translation->get('body')->value !== ($payload[$lang]['body_html'] ?? NULL)
-      || (int) $translation->get('field_blog_category')->target_id !== (int) ($payload['category']['tid'] ?? 0)) {
-      throw new RuntimeException('PREPROD Article text/category drifted from owner payload.');
+    if ($translation->label() !== ($payload[$lang]['title'] ?? NULL)) {
+      throw new RuntimeException($lang === 'fr' ? 'PREPROD Article FR_TITLE drift.' : 'PREPROD Article EN_TITLE drift.');
+    }
+    if ((string) $translation->get('field_short_description')->value !== ($payload[$lang]['short_description'] ?? NULL)) {
+      throw new RuntimeException($lang === 'fr' ? 'PREPROD Article FR_SHORT_DESCRIPTION drift.' : 'PREPROD Article EN_SHORT_DESCRIPTION drift.');
+    }
+    if ((string) $translation->get('body')->value !== ($payload[$lang]['body_html'] ?? NULL)) {
+      throw new RuntimeException($lang === 'fr' ? 'PREPROD Article FR_BODY_HTML drift.' : 'PREPROD Article EN_BODY_HTML drift.');
+    }
+    if ((int) $translation->get('field_blog_category')->target_id !== (int) ($payload['category']['tid'] ?? 0)) {
+      throw new RuntimeException($lang === 'fr' ? 'PREPROD Article FR_CATEGORY drift.' : 'PREPROD Article EN_CATEGORY drift.');
     }
   }
   $frImage = $node->get('field_feature_image')->first();
@@ -153,6 +159,14 @@ catch (\Throwable $exception) {
     'PREPROD Article issue/hash mapping is absent or stale.',
     'PREPROD mapped Article/translation is invalid.' => 'ARTICLE_MAPPING',
     'PREPROD Article text/category drifted from owner payload.' => 'ARTICLE_TEXT_DRIFT',
+    'PREPROD Article FR_TITLE drift.' => 'ARTICLE_TEXT_DRIFT_FR_TITLE',
+    'PREPROD Article FR_SHORT_DESCRIPTION drift.' => 'ARTICLE_TEXT_DRIFT_FR_SHORT_DESCRIPTION',
+    'PREPROD Article FR_BODY_HTML drift.' => 'ARTICLE_TEXT_DRIFT_FR_BODY_HTML',
+    'PREPROD Article FR_CATEGORY drift.' => 'ARTICLE_TEXT_DRIFT_FR_CATEGORY',
+    'PREPROD Article EN_TITLE drift.' => 'ARTICLE_TEXT_DRIFT_EN_TITLE',
+    'PREPROD Article EN_SHORT_DESCRIPTION drift.' => 'ARTICLE_TEXT_DRIFT_EN_SHORT_DESCRIPTION',
+    'PREPROD Article EN_BODY_HTML drift.' => 'ARTICLE_TEXT_DRIFT_EN_BODY_HTML',
+    'PREPROD Article EN_CATEGORY drift.' => 'ARTICLE_TEXT_DRIFT_EN_CATEGORY',
     'PREPROD image File ID must be identical in FR and EN.' => 'IMAGE_FID_MISMATCH',
     'PREPROD File entity is missing or temporary.' => 'FILE_ENTITY',
     'File URI must remain in Drupal articles storage.',

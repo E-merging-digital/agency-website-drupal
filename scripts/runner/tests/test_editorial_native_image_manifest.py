@@ -265,6 +265,14 @@ class NativeImageManifestTest(unittest.TestCase):
             "Invalid new-Article source identity.": "SOURCE_IDENTITY",
             "PREPROD Article issue/hash mapping is absent or stale.": "ARTICLE_MAPPING",
             "PREPROD Article text/category drifted from owner payload.": "ARTICLE_TEXT_DRIFT",
+            "PREPROD Article FR_TITLE drift.": "ARTICLE_TEXT_DRIFT_FR_TITLE",
+            "PREPROD Article FR_SHORT_DESCRIPTION drift.": "ARTICLE_TEXT_DRIFT_FR_SHORT_DESCRIPTION",
+            "PREPROD Article FR_BODY_HTML drift.": "ARTICLE_TEXT_DRIFT_FR_BODY_HTML",
+            "PREPROD Article FR_CATEGORY drift.": "ARTICLE_TEXT_DRIFT_FR_CATEGORY",
+            "PREPROD Article EN_TITLE drift.": "ARTICLE_TEXT_DRIFT_EN_TITLE",
+            "PREPROD Article EN_SHORT_DESCRIPTION drift.": "ARTICLE_TEXT_DRIFT_EN_SHORT_DESCRIPTION",
+            "PREPROD Article EN_BODY_HTML drift.": "ARTICLE_TEXT_DRIFT_EN_BODY_HTML",
+            "PREPROD Article EN_CATEGORY drift.": "ARTICLE_TEXT_DRIFT_EN_CATEGORY",
             "PREPROD image File ID must be identical in FR and EN.": "IMAGE_FID_MISMATCH",
             "PREPROD File entity is missing or temporary.": "FILE_ENTITY",
             "File URI must remain in Drupal articles storage.": "FILE_URI",
@@ -293,6 +301,27 @@ class NativeImageManifestTest(unittest.TestCase):
                     "NATIVE_WEBP_SOURCE=FAIL_CLOSED\n"
                     f"NATIVE_WEBP_FAILURE_CLASS={expected}\n",
                 )
+
+
+    def test_native_article_drift_guard_order_is_identical_and_bounded(self):
+        """Enforce FR then EN, and title/summary/body/category within each."""
+        source = (ROOT / "runner/editorial-native-image-source.php").read_text(encoding="utf-8")
+        start = source.index("  foreach (['fr' => $node, 'en' => $en] as $lang => $translation) {")
+        end = source.index("  $frImage =", start)
+        guard = source[start:end]
+        comparisons = (
+            "$translation->label() !== ($payload[$lang]['title'] ?? NULL)",
+            "(string) $translation->get('field_short_description')->value !== ($payload[$lang]['short_description'] ?? NULL)",
+            "(string) $translation->get('body')->value !== ($payload[$lang]['body_html'] ?? NULL)",
+            "(int) $translation->get('field_blog_category')->target_id !== (int) ($payload['category']['tid'] ?? 0)",
+        )
+        offsets = [guard.index(expression) for expression in comparisons]
+        self.assertEqual(offsets, sorted(offsets))
+        self.assertEqual(guard.count("throw new RuntimeException("), 4)
+        self.assertEqual(guard.count("$lang === 'fr'"), 4)
+        for code in ("TITLE", "SHORT_DESCRIPTION", "BODY_HTML", "CATEGORY"):
+            self.assertIn(f"'PREPROD Article FR_{code} drift.'", guard)
+            self.assertIn(f"'PREPROD Article EN_{code} drift.'", guard)
 
 
 if __name__ == "__main__":

@@ -290,8 +290,8 @@ class NativeImageManifestTest(unittest.TestCase):
                 self.assertEqual(result.stdout, "")
                 self.assertEqual(
                     result.stderr,
-                    "NATIVE_WEBP_SOURCE=FAIL_CLOSED\\n"
-                    f"NATIVE_WEBP_FAILURE_CLASS={expected}\\n",
+                    "NATIVE_WEBP_SOURCE=FAIL_CLOSED\n"
+                    f"NATIVE_WEBP_FAILURE_CLASS={expected}\n",
                 )
 
 

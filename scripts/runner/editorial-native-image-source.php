@@ -145,7 +145,28 @@ try {
   chmod($manifestFile, 0600);
 }
 catch (\Throwable $exception) {
-  // Do not leak Drupal paths, content or credentials through CI logs.
+  // Only fixed classes for known reader invariants; never log exception text.
+  $failureClass = match ($exception->getMessage()) {
+    'Invalid new-Article source identity.',
+    'Owner Article payload hash mismatch.',
+    'Owner Article payload issue/bundle mismatch.' => 'SOURCE_IDENTITY',
+    'PREPROD Article issue/hash mapping is absent or stale.',
+    'PREPROD mapped Article/translation is invalid.' => 'ARTICLE_MAPPING',
+    'PREPROD Article text/category drifted from owner payload.' => 'ARTICLE_TEXT_DRIFT',
+    'PREPROD image File ID must be identical in FR and EN.' => 'IMAGE_FID_MISMATCH',
+    'PREPROD File entity is missing or temporary.' => 'FILE_ENTITY',
+    'File URI must remain in Drupal articles storage.',
+    'File source cannot escape the Drupal articles directory.',
+    'File name is not a bounded WebP filename.' => 'FILE_URI',
+    'Both FR/EN ALT values must be bounded plain text.' => 'ALT_INVALID',
+    'PREPROD WebP bytes are missing or too large.',
+    'PREPROD WebP is not a valid bounded decoded image.' => 'WEBP_DECODE',
+    'Could not stage verified private source bytes.',
+    'Could not save metadata-only manifest.' => 'PRIVATE_STAGING',
+    'PREPROD source changed during snapshot.' => 'SOURCE_DRIFT',
+    default => 'UNKNOWN',
+  };
   fwrite(STDERR, "NATIVE_WEBP_SOURCE=FAIL_CLOSED\n");
+  fwrite(STDERR, "NATIVE_WEBP_FAILURE_CLASS={$failureClass}\n");
   exit(1);
 }

@@ -32,6 +32,56 @@ try {
     throw new RuntimeException('Owner Article payload issue/bundle mismatch.');
   }
 
+  // Compare the exact parsed editorial structure, not CKEditor's formatting
+  // of whitespace between blocks or its inert list-item bookkeeping attribute.
+  $sameBody = static function (string $actual, string $approved): bool {
+    if ($actual === $approved) {
+      return TRUE;
+    }
+    $tree = static function (string $html): ?array {
+      if (preg_match('/<!--[\s\S]*?-->|<!DOCTYPE|<\?/iu', $html)) {
+        return NULL;
+      }
+      $dom = \Drupal\Component\Utility\Html::load($html);
+      $walk = static function (\DOMNode $node) use (&$walk): ?array {
+        if ($node instanceof \DOMText) {
+          return ['text', $node->nodeValue];
+        }
+        if (!$node instanceof \DOMElement) {
+          return NULL;
+        }
+        $tag = strtolower($node->tagName);
+        $attrs = [];
+        foreach ($node->attributes as $attribute) {
+          if ($tag === 'li' && $attribute->name === 'data-list-item-id'
+            && preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $attribute->value)) {
+            continue;
+          }
+          $attrs[$attribute->name] = $attribute->value;
+        }
+        ksort($attrs);
+        $children = [];
+        foreach ($node->childNodes as $child) {
+          // Ignore only presentation indentation around block-level tags.
+          if ($child instanceof \DOMText && trim($child->nodeValue) === ''
+            && preg_match('/[\r\n]/', $child->nodeValue)
+            && in_array($tag, ['body', 'ul', 'ol', 'li', 'p', 'h2', 'h3'], TRUE)) {
+            continue;
+          }
+          $part = $walk($child);
+          if ($part === NULL) {
+            return NULL;
+          }
+          $children[] = $part;
+        }
+        return [$tag, $attrs, $children];
+      };
+      return $walk($dom->getElementsByTagName('body')->item(0));
+    };
+    $expected = $tree($approved);
+    return $expected !== NULL && $expected === $tree($actual);
+  };
+
   $mapping = \Drupal::state()->get('agency_editorial.issue.' . $issueRaw);
   if (!is_array($mapping) || !is_int($mapping['node_id'] ?? NULL)
     || !is_string($mapping['payload_sha256'] ?? NULL)
@@ -53,7 +103,7 @@ try {
     if ((string) $translation->get('field_short_description')->value !== ($payload[$lang]['short_description'] ?? NULL)) {
       throw new RuntimeException($lang === 'fr' ? 'PREPROD Article FR_SHORT_DESCRIPTION drift.' : 'PREPROD Article EN_SHORT_DESCRIPTION drift.');
     }
-    if ((string) $translation->get('body')->value !== ($payload[$lang]['body_html'] ?? NULL)) {
+    if (!$sameBody((string) $translation->get('body')->value, (string) ($payload[$lang]['body_html'] ?? ''))) {
       throw new RuntimeException($lang === 'fr' ? 'PREPROD Article FR_BODY_HTML drift.' : 'PREPROD Article EN_BODY_HTML drift.');
     }
     if ((int) $translation->get('field_blog_category')->target_id !== (int) ($payload['category']['tid'] ?? 0)) {
@@ -64,11 +114,13 @@ try {
   $enImage = $en->get('field_feature_image')->first();
   $frFid = $frImage?->get('target_id')->getValue();
   $enFid = $enImage?->get('target_id')->getValue();
-  if ($frFid === NULL || $enFid === NULL || (int) $frFid <= 0 || (int) $frFid !== (int) $enFid) {
+  if ($frFid === NULL || $enFid === NULL || (int) $frFid <= 0 || (int) $enFid <= 0) {
     throw new RuntimeException('PREPROD image File ID must be identical in FR and EN.');
   }
   $file = $manager->getStorage('file')->load((int) $frFid);
-  if (!$file instanceof \Drupal\file\FileInterface || $file->isTemporary()) {
+  $enFile = $manager->getStorage('file')->load((int) $enFid);
+  if (!$file instanceof \Drupal\file\FileInterface || $file->isTemporary()
+    || !$enFile instanceof \Drupal\file\FileInterface || $enFile->isTemporary()) {
     throw new RuntimeException('PREPROD File entity is missing or temporary.');
   }
   $uri = $file->getFileUri();
@@ -87,6 +139,20 @@ try {
     || !preg_match('/^[^\x00-\x1f\x7f\/\\\\]{1,128}\.webp$/iu', $filename)) {
     throw new RuntimeException('File name is not a bounded WebP filename.');
   }
+  // When translations reference two File entities, prove both bounded
+  // sources are independently valid and byte-identical before retaining the
+  // existing canonical FR FID/UUID in the unchanged manifest schema.
+  $enUri = $enFile->getFileUri();
+  $enFilename = $enFile->getFilename();
+  $enReal = is_string($enUri) ? $fileSystem->realpath($enUri) : FALSE;
+  if (!is_string($enUri)
+    || !preg_match('#^public://articles/([^/\\\\]{1,128}\.webp)$#iu', $enUri, $enParts)
+    || !is_string($enReal)
+    || !str_starts_with($enReal, rtrim($root, '/') . DIRECTORY_SEPARATOR)
+    || !is_string($enFilename) || $enFilename !== $enParts[1]
+    || !preg_match('/^[^\x00-\x1f\x7f\/\\\\]{1,128}\.webp$/iu', $enFilename)) {
+    throw new RuntimeException('File URI must remain in Drupal articles storage.');
+  }
   $altFr = $frImage?->get('alt')->getValue();
   $altEn = $enImage?->get('alt')->getValue();
   foreach ([$altFr, $altEn] as $alt) {
@@ -99,6 +165,10 @@ try {
   $bytes = file_get_contents($uri);
   if (!is_string($bytes) || strlen($bytes) < 16 || strlen($bytes) > 5000000) {
     throw new RuntimeException('PREPROD WebP bytes are missing or too large.');
+  }
+  $enBytes = file_get_contents($enUri);
+  if (!is_string($enBytes) || !hash_equals(hash('sha256', $bytes), hash('sha256', $enBytes))) {
+    throw new RuntimeException('PREPROD FR/EN WebP bytes differ.');
   }
   $info = getimagesizefromstring($bytes);
   $decoded = @imagecreatefromstring($bytes);
@@ -120,8 +190,11 @@ try {
   if (!$fresh instanceof \Drupal\node\NodeInterface
     || (int) $fresh->getRevisionId() !== (int) $node->getRevisionId()
     || (int) $fresh->get('field_feature_image')->target_id !== (int) $frFid
-    || (int) $fresh->getTranslation('en')->get('field_feature_image')->target_id !== (int) $frFid
-    || !hash_equals($assetSha, (string) hash_file('sha256', $uri))) {
+    || (int) $fresh->getTranslation('en')->get('field_feature_image')->target_id !== (int) $enFid
+    || (string) $fresh->get('field_feature_image')->alt !== $altFr
+    || (string) $fresh->getTranslation('en')->get('field_feature_image')->alt !== $altEn
+    || !hash_equals($assetSha, (string) hash_file('sha256', $uri))
+    || !hash_equals($assetSha, (string) hash_file('sha256', $enUri))) {
     throw new RuntimeException('PREPROD source changed during snapshot.');
   }
   $manifest = [
@@ -177,6 +250,7 @@ catch (\Throwable $exception) {
     'PREPROD WebP is not a valid bounded decoded image.' => 'WEBP_DECODE',
     'Could not stage verified private source bytes.',
     'Could not save metadata-only manifest.' => 'PRIVATE_STAGING',
+    'PREPROD FR/EN WebP bytes differ.' => 'IMAGE_BYTES_MISMATCH',
     'PREPROD source changed during snapshot.' => 'SOURCE_DRIFT',
     default => 'UNKNOWN',
   };

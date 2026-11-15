@@ -5,9 +5,7 @@ url:
   prefixes:
     en: en
     fr: fr
-    nl: nl
   domains:
     en: ''
     fr: ''
-    nl: ''
 selected_langcode: site_default

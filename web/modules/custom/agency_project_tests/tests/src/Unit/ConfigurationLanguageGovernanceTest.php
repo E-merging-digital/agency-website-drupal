@@ -132,12 +132,13 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $root . '/config/sync/language.negotiation.yml',
     );
     self::assertSame('path_prefix', $negotiation['url']['source'] ?? NULL);
+    // NL is configured but must not expose untranslated pages via direct /nl URLs.
     self::assertSame(
-      ['en' => 'en', 'fr' => 'fr', 'nl' => 'nl'],
+      ['en' => 'en', 'fr' => 'fr'],
       $negotiation['url']['prefixes'] ?? NULL,
     );
     self::assertSame(
-      ['en' => '', 'fr' => '', 'nl' => ''],
+      ['en' => '', 'fr' => ''],
       $negotiation['url']['domains'] ?? NULL,
     );
     self::assertSame('site_default', $negotiation['selected_langcode'] ?? NULL);

@@ -140,7 +140,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $negotiation['url']['domains'] ?? NULL,
     );
     self::assertSame('site_default', $negotiation['selected_langcode'] ?? NULL);
-    self::assertDirectoryDoesNotExist($root . '/config/sync/language/nl');
+    self::assertDirectoryExists($root . '/config/sync/language/nl');
 
     foreach ([
       '/config/sync/language/fr',
@@ -156,6 +156,31 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       self::assertSame($id, $language['id'] ?? NULL);
       self::assertTrue((bool) ($language['locked'] ?? FALSE));
     }
+  }
+
+  /**
+   * The NL Webform candidate preserves native field identities and requirements.
+   */
+  public function testNlContactTranslationPreservesFieldSemantics(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $base = Yaml::parseFile($root . '/config/sync/webform.webform.contact.yml');
+    $nl = Yaml::parseFile($root . '/config/sync/language/nl/webform.webform.contact.yml');
+    $base_elements = Yaml::parse($base['elements']);
+    $nl_elements = Yaml::parse($nl['elements']);
+    self::assertSame(array_keys($base_elements), array_keys($nl_elements));
+    foreach ($base_elements as $key => $field) {
+      foreach (['#type', '#required', '#access'] as $property) {
+        self::assertSame($field[$property] ?? NULL, $nl_elements[$key][$property] ?? NULL);
+      }
+    }
+    self::assertSame('Uw naam', $nl_elements['name']['#title']);
+    self::assertSame('Bericht verzenden', $nl_elements['actions']['#submit__label']);
+    self::assertStringContainsString('/nl/privacyverklaring', $nl_elements['rgpd_consent']['#description']);
+    self::assertStringNotContainsString('/fr/', $nl['elements']);
+    self::assertStringNotContainsString('/en/', $nl['elements']);
+    self::assertArrayNotHasKey('handlers', $nl);
+    self::assertFileExists($root . '/config/sync/language/nl/block.block.emerging_digital_footer_branding.yml');
+    self::assertFileExists($root . '/config/sync/language/nl/block.block.emerging_digital_footer_menu.yml');
   }
 
   /**

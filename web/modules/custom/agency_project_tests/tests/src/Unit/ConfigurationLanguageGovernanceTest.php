@@ -132,7 +132,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $root . '/config/sync/language.negotiation.yml',
     );
     self::assertSame('path_prefix', $negotiation['url']['source'] ?? NULL);
-    // NL is configured but must not expose untranslated pages via direct /nl URLs.
+    // NL URLs remain unavailable until real Dutch content is reviewed.
     self::assertSame(
       ['en' => 'en', 'fr' => 'fr'],
       $negotiation['url']['prefixes'] ?? NULL,

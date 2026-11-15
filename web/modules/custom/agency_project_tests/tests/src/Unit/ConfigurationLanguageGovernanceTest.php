@@ -159,7 +159,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
-   * The NL Webform candidate preserves native field identities and requirements.
+   * NL Webform keeps native field identities and requirements.
    */
   public function testNlContactTranslationPreservesFieldSemantics(): void {
     $root = dirname(DRUPAL_ROOT);

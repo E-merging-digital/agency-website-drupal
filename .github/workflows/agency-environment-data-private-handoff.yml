@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: agency-environment-data-1309-${{ github.event_name }}
+  group: agency-environment-data-1309
   cancel-in-progress: false
 
 jobs:
@@ -42,19 +42,30 @@ jobs:
           bash -n scripts/runner/test-publish-agency-environment-data-handoff.sh
           bash scripts/runner/test-publish-agency-environment-data-handoff.sh
           git diff --check '${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}'
-          ! grep -Eq 'upload-artifact|download-artifact|schedule:' .github/workflows/agency-environment-data-private-handoff.yml
+          ! grep -Eq 'upload-artifact|download-artifact' .github/workflows/agency-environment-data-private-handoff.yml
           ! grep -Eq '^[[:space:]]+issue_comment:' .github/workflows/agency-environment-data-private-handoff.yml
+          # Only a separately approved activation PR may add on.schedule.
+          # Permit only the bounded five-minute cron when that PR is reviewed.
+          if grep -Eq '^  schedule:[[:space:]]*$' .github/workflows/agency-environment-data-private-handoff.yml; then
+            [[ "$(grep -Ec '^[[:space:]]+- cron:' .github/workflows/agency-environment-data-private-handoff.yml)" -eq 1 ]]
+            grep -Fqx "    - cron: '2-57/5 * * * *'" .github/workflows/agency-environment-data-private-handoff.yml
+          fi
+          # The existing manual owner and exact SHA checks remain mandatory.
+          grep -Fq '[[ "$GITHUB_ACTOR" == ' .github/workflows/agency-environment-data-private-handoff.yml
+          grep -Fq '[[ "$TRIGGERING_ACTOR" == ' .github/workflows/agency-environment-data-private-handoff.yml
+          grep -Fq '[[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]' .github/workflows/agency-environment-data-private-handoff.yml
+          grep -Fq '[[ "$REQUESTED_SHA" == "$main" ]]' .github/workflows/agency-environment-data-private-handoff.yml
           ! grep -Eiq 'mysqli|PDO|database.*query|drush|curl' scripts/runner/read-agency-environment-data-preprod.sh
 
   publish-private:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on: [self-hosted, linux, x64, agency, ddev, browser]
     timeout-minutes: 8
     permissions:
       contents: read
       issues: read
     steps:
-      - name: Validate owner-initiated exact SHA request and current main
+      - name: Validate exact SHA and event-specific authority
         id: authority
         shell: bash
         env:
@@ -63,9 +74,24 @@ jobs:
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
-          [[ "$TRIGGERING_ACTOR" == 'E-merging-digital' ]]
-          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          case "$GITHUB_EVENT_NAME" in
+            workflow_dispatch)
+              [[ "$GITHUB_ACTOR" == 'E-merging-digital' ]]
+              [[ "$TRIGGERING_ACTOR" == 'E-merging-digital' ]]
+              [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+              ;;
+            schedule)
+              # Reserved for a separate, owner-approved activation PR.
+              # Scheduled workflows use GitHub's main event identity, not
+              # the owner-only manual dispatch identity or its input.
+              [[ -z "$REQUESTED_SHA" ]]
+              [[ "$GITHUB_REF" == 'refs/heads/main' ]]
+              ;;
+            *)
+              echo 'Unexpected environment-data event' >&2
+              exit 1
+              ;;
+          esac
           [[ "${RUNNER_NAME:-}" == 'agency-browser-runner-01' ]]
           [[ "$(hostname)" == 'preflight-runner-01' && "$(id -un)" == 'agency-runner' ]]
           issue="$(gh api "repos/$GITHUB_REPOSITORY/issues/1309")"
@@ -73,7 +99,9 @@ jobs:
           [[ "$(jq -r '.pull_request // empty' <<< "$issue")" == '' ]]
           main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
           [[ "$main" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$REQUESTED_SHA" == "$main" ]]
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            [[ "$REQUESTED_SHA" == "$main" ]]
+          fi
           [[ "$GITHUB_SHA" == "$main" && "$GITHUB_REF" == 'refs/heads/main' ]]
           echo "main_sha=$main" >> "$GITHUB_OUTPUT"
 

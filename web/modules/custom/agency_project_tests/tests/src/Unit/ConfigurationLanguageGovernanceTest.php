@@ -26,7 +26,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     self::assertSame('agency-configuration-language-v2', $policy['policy_id'] ?? NULL);
     self::assertSame('enforced', $policy['status'] ?? NULL);
     self::assertSame('fr', $policy['site_default_language'] ?? NULL);
-    self::assertSame(['fr', 'en'], $policy['site_languages'] ?? NULL);
+    self::assertSame(['fr', 'en', 'nl'], $policy['site_languages'] ?? NULL);
 
     self::assertSame(
       'en',
@@ -120,6 +120,19 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $site = Yaml::parseFile($root . '/config/sync/system.site.yml');
     self::assertSame('fr', $site['langcode'] ?? NULL);
     self::assertSame('fr', $site['default_langcode'] ?? NULL);
+
+    // A third core language is only a source candidate: no NL content is implied.
+    $dutch = Yaml::parseFile($root . '/config/sync/language.entity.nl.yml');
+    self::assertSame('nl', $dutch['id'] ?? NULL);
+    self::assertSame('fr', $dutch['langcode'] ?? NULL);
+    self::assertTrue($dutch['status'] ?? FALSE);
+    self::assertSame('ltr', $dutch['direction'] ?? NULL);
+    $negotiation = Yaml::parseFile($root . '/config/sync/language.negotiation.yml');
+    self::assertSame('path_prefix', $negotiation['url']['source'] ?? NULL);
+    self::assertSame(['en' => 'en', 'fr' => 'fr', 'nl' => 'nl'], $negotiation['url']['prefixes'] ?? NULL);
+    self::assertSame(['en' => '', 'fr' => '', 'nl' => ''], $negotiation['url']['domains'] ?? NULL);
+    self::assertSame('site_default', $negotiation['selected_langcode'] ?? NULL);
+    self::assertDirectoryDoesNotExist($root . '/config/sync/language/nl');
 
     foreach ([
       '/config/sync/language/fr',

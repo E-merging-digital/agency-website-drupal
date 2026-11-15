@@ -102,7 +102,7 @@ case "$endpoint" in
   repos/*/git/refs)
     test "$method" = POST
     key="$(printf '%s' "$ref" | sha256sum | cut -d' ' -f1)"
-    if ! mkdir "$FAKE_CLAIMS_DIR/$key" 2>/dev/null; then
+    if ! ( set -C; : > "$FAKE_CLAIMS_DIR/$key" ) 2>/dev/null; then
       echo "REJECT pid=${BASHPID} key=$key dir=$FAKE_CLAIMS_DIR" >> "$FAKE_CLAIMS_AUDIT"
       exit 1
     fi

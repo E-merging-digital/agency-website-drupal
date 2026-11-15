@@ -165,8 +165,8 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $root = dirname(DRUPAL_ROOT);
     $base = Yaml::parseFile($root . '/config/sync/webform.webform.contact.yml');
     $nl = Yaml::parseFile($root . '/config/sync/language/nl/webform.webform.contact.yml');
-    $base_elements = Yaml::parse($base['elements']);
-    $nl_elements = Yaml::parse($nl['elements']);
+    $base_elements = \Drupal\Component\Serialization\Yaml::decode($base['elements']);
+    $nl_elements = \Drupal\Component\Serialization\Yaml::decode($nl['elements']);
     self::assertSame(array_keys($base_elements), array_keys($nl_elements));
     foreach ($base_elements as $key => $field) {
       foreach (['#type', '#required', '#access'] as $property) {

@@ -3,6 +3,7 @@
 {% set safe_heading_level = heading_level in ['h1', 'h2'] ? heading_level : 'h2' %}
 {% set safe_image_loading = image_loading == 'eager' ? 'eager' : 'lazy' %}
 {% set home_en = language|default('fr') == 'en' %}
+{% set home_nl = language|default('fr') == 'nl' %}
 {% set hero_classes = [
   'ed-section',
   'ed-section--hero',
@@ -13,15 +14,15 @@
   <div class="ed-container ed-section__hero-layout">
     <div class="ed-section__hero-content">
       {% if front_v2|default(false) %}
-        <p class="agency-v2-eyebrow agency-v2-eyebrow--light">{{ home_en ? 'DIGITAL STUDIO · LIÈGE · BELGIUM' : 'AGENCE DIGITALE · LIÈGE · BELGIQUE' }}</p>
+        <p class="agency-v2-eyebrow agency-v2-eyebrow--light">{{ home_nl ? 'DIGITAAL BUREAU · LUIK · BELGIË' : (home_en ? 'DIGITAL STUDIO · LIÈGE · BELGIUM' : 'AGENCE DIGITALE · LIÈGE · BELGIQUE') }}</p>
       {% endif %}
       {% if heading %}
         <{{ safe_heading_level }} class="ed-section__title ed-section__title--hero">
-          {{ front_v2|default(false) ? (home_en ? 'Your digital project deserves more than a website.' : 'Votre projet web mérite plus qu’un site.') : heading }}
+          {{ front_v2|default(false) ? (home_nl ? 'Uw digitaal project verdient meer dan een website.' : (home_en ? 'Your digital project deserves more than a website.' : 'Votre projet web mérite plus qu’un site.')) : heading }}
         </{{ safe_heading_level }}>
       {% endif %}
       {% if front_v2|default(false) %}
-        <p class="ed-section__intro agency-v2-hero-intro">{{ home_en ? 'Websites and digital tools that are easy to use, reliable and built to evolve.' : 'Des sites et outils numériques simples à utiliser, fiables et faits pour évoluer.' }}</p>
+        <p class="ed-section__intro agency-v2-hero-intro">{{ home_nl ? 'Gebruiksvriendelijke websites en digitale toepassingen die betrouwbaar zijn en met uw organisatie meegroeien.' : (home_en ? 'Websites and digital tools that are easy to use, reliable and built to evolve.' : 'Des sites et outils numériques simples à utiliser, fiables et faits pour évoluer.') }}</p>
       {% elseif intro %}
         <div class="ed-section__intro">{{ intro }}</div>
       {% endif %}
@@ -36,7 +37,7 @@
         </div>
       {% endif %}
       {% if front_v2|default(false) %}
-        <p class="agency-v2-hero-proof">{{ home_en ? 'Drupal expertise · PHP architecture · Based in Belgium' : 'Expertise Drupal · Architecture PHP · Accompagnement en Belgique' }}</p>
+        <p class="agency-v2-hero-proof">{{ home_nl ? 'Drupal-expertise · PHP-architectuur · Actief in België' : (home_en ? 'Drupal expertise · PHP architecture · Based in Belgium' : 'Expertise Drupal · Architecture PHP · Accompagnement en Belgique') }}</p>
       {% endif %}
     </div>
     {% if front_v2|default(false) and (media or image_src) %}
@@ -58,18 +59,18 @@
         {% endif %}
         {# A short, automatic, CSS-first story: no user action or JavaScript needed. #}
         <div class="agency-v2-motion-words" aria-hidden="true">
-          <span>{{ home_en ? 'CREATE' : 'CRÉER' }}</span>
-          <span>{{ home_en ? 'IMPROVE' : 'AMÉLIORER' }}</span>
-          <span>{{ home_en ? 'MODERNIZE' : 'MODERNISER' }}</span>
+          <span>{{ home_nl ? 'BOUWEN' : (home_en ? 'CREATE' : 'CRÉER') }}</span>
+          <span>{{ home_nl ? 'VERBETEREN' : (home_en ? 'IMPROVE' : 'AMÉLIORER') }}</span>
+          <span>{{ home_nl ? 'MODERNISEREN' : (home_en ? 'MODERNIZE' : 'MODERNISER') }}</span>
         </div>
         <div class="agency-v2-photo-caption">
-          <strong>{{ home_en ? 'Solutions built to last' : 'Des solutions qui durent' }}</strong>
+          <strong>{{ home_nl ? 'Oplossingen die blijven werken' : (home_en ? 'Solutions built to last' : 'Des solutions qui durent') }}</strong>
           <span aria-hidden="true">↗</span>
           {% if not media %}
             {% set is_stock_photo = image_src|split('/')|last == 'home-hero-collaboration.jpg' %}
             <small>{{ is_stock_photo
-              ? (home_en ? 'Illustrative stock photograph' : 'Photographie d’illustration')
-              : (home_en ? 'AI-generated illustration · fictional participants' : 'Illustration générée par IA · participants fictifs')
+              ? (home_nl ? 'Illustratieve stockfoto' : (home_en ? 'Illustrative stock photograph' : 'Photographie d’illustration'))
+              : (home_nl ? 'AI-gegenereerde illustratie · fictieve deelnemers' : (home_en ? 'AI-generated illustration · fictional participants' : 'Illustration générée par IA · participants fictifs'))
             }}</small>
           {% endif %}
         </div>

@@ -186,6 +186,51 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
+   * NL legal drafts use the existing Governed Content catalog, not new IDs.
+   */
+  public function testNlGovernedLegalDraftSourceIsBounded(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $base = $root . '/web/modules/custom/emerging_digital_content/content_sync';
+    $catalog = Yaml::parseFile($base . '/catalog.yml');
+    $expected = [
+      'mentions-legales' => '/wettelijke-vermeldingen',
+      'politique-confidentialite' => '/privacyverklaring',
+      'politique-cookies' => '/cookiebeleid',
+    ];
+    self::assertSame(array_keys($expected),
+      array_column($catalog['contents'], 'id'));
+    foreach ($catalog['contents'] as $entry) {
+      $id = $entry['id'];
+      self::assertSame($expected[$id], $entry['translations']['nl']['alias']);
+      $source = Yaml::parseFile($base . '/node/' . $id . '.yml');
+      self::assertSame(['fr', 'en', 'nl'],
+        array_keys($source['translations']));
+      self::assertSame(['fr', 'en', 'nl'],
+        array_keys($source['components'][0]['translations']));
+      self::assertNotEmpty(
+        $source['components'][0]['translations']['nl']['fields']['field_text'][0]['value']
+      );
+    }
+
+    $hero = (string) file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/components/hero/hero.twig'
+    );
+    self::assertStringContainsString('home_nl', $hero);
+    self::assertStringContainsString(
+      'Uw digitaal project verdient meer dan een website.',
+      $hero,
+    );
+
+    $switcher = (string) file_get_contents(
+      $root . '/web/modules/custom/emerging_digital_content/src/Plugin/Block/LanguageSwitcherBlock.php'
+    );
+    self::assertStringContainsString(
+      'if ($langcode === \'nl\' && $nl_prefix !== \'nl\')',
+      $switcher,
+    );
+  }
+
+  /**
    * Special locked languages converge through one bounded Drupal manager call.
    */
   public function testSpecialLanguageDeploymentReconcilerIsBoundedAndIdempotent(): void {

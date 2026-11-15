@@ -7,6 +7,7 @@ namespace Drupal\emerging_digital_content\Plugin\Block;
 use Drupal\Core\Block\Attribute\Block;
 use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Cache\CacheableMetadata;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
@@ -34,6 +35,7 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
     protected LanguageManagerInterface $languageManager,
     protected PathMatcherInterface $pathMatcher,
     protected RouteMatchInterface $routeMatch,
+    protected ConfigFactoryInterface $configFactory,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -49,6 +51,7 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
       $container->get('language_manager'),
       $container->get('path.matcher'),
       $container->get('current_route_match'),
+      $container->get('config.factory'),
     );
   }
 
@@ -86,6 +89,9 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
       ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)
       ->getId();
     $route_entities = $this->getRouteContentEntities();
+    $negotiation = $this->configFactory->get('language.negotiation');
+    $cache_metadata->addCacheableDependency($negotiation);
+    $nl_prefix = $negotiation->get('url.prefixes.nl');
 
     foreach ($route_entities as $entity) {
       $cache_metadata->addCacheableDependency($entity);
@@ -93,6 +99,10 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
 
     $links = [];
     foreach ($switch_links->links as $langcode => $link) {
+      // Hide NL until a reviewed, routable /nl prefix is explicitly enabled.
+      if ($langcode === 'nl' && $nl_prefix !== 'nl') {
+        continue;
+      }
       if (!$this->hasRouteEntityTranslation($route_entities, $langcode)) {
         continue;
       }

@@ -39,8 +39,11 @@ function emerging_digital_preprocess_node(array &$variables): void {
       $variables['agency_contact_v3_webform'] = \Drupal::entityTypeManager()
         ->getViewBuilder('webform')
         ->view($contact_webform);
-      $variables['agency_contact_v3_english'] = \Drupal::languageManager()
-        ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId() === 'en';
+      $contact_langcode = \Drupal::languageManager()
+        ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId();
+      $variables['agency_contact_v3_english'] = $contact_langcode === 'en';
+      $variables['agency_contact_v3_dutch'] = $contact_langcode === 'nl'
+        && $node->language()->getId() === 'nl';
       $variables['elements']['#cache']['contexts'][] = 'languages:language_interface';
     }
   }
@@ -202,8 +205,9 @@ function emerging_digital_preprocess_field(array &$variables): void {
   $variables['agency_home_v2'] = $field_name === 'field_home_components'
     && \Drupal::service('path.matcher')->isFrontPage();
   if ($variables['agency_home_v2']) {
-    $variables['agency_home_v2_en'] = \Drupal::languageManager()
-      ->getCurrentLanguage()->getId() === 'en';
+    $home_langcode = \Drupal::languageManager()->getCurrentLanguage()->getId();
+    $variables['agency_home_v2_en'] = $home_langcode === 'en';
+    $variables['agency_home_v2_nl'] = $home_langcode === 'nl';
   }
 }
 
@@ -276,7 +280,7 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
       'title' => $parts[0],
       'description' => $parts[1] ?? '',
       'url' => $url,
-      'cta_label' => $langcode === 'en' ? 'Discover' : 'Découvrir',
+      'cta_label' => $langcode === 'nl' ? 'Ontdek' : ($langcode === 'en' ? 'Discover' : 'Découvrir'),
     ];
 
     $group_key = $parts[3] ?? emerging_digital_service_card_group($card);
@@ -299,7 +303,7 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
     \Drupal::service('path.current')->getPath(),
     $langcode,
   );
-  $variables['is_services_hub'] = $alias === '/services';
+  $variables['is_services_hub'] = $alias === ($langcode === 'nl' ? '/diensten' : '/services');
   $variables['service_path_choices'] = [];
 
   if (!$variables['is_services_hub']) {
@@ -318,12 +322,23 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
       'ai' => ['Automatiser', 'Du temps libéré pour vos équipes.'],
     ];
 
+  if ($langcode === 'nl') {
+    $choices = [
+      'business' => ['Bouwen', 'Een website of platform dat vertrouwen wekt.'],
+      'drupal' => ['Verbeteren', 'Een duidelijke, snelle website die kan meegroeien.'],
+      'ai' => ['Automatiseren', 'Minder repetitief werk voor uw team.'],
+    ];
+  }
   $variables['service_path_eyebrow'] = $langcode === 'en'
     ? 'Choose where to start'
     : 'Choisissez votre point de départ';
   $variables['service_path_aria_label'] = $langcode === 'en'
     ? 'Explore services by need'
     : 'Explorer les services selon votre besoin';
+  if ($langcode === 'nl') {
+    $variables['service_path_eyebrow'] = 'Kies uw vertrekpunt';
+    $variables['service_path_aria_label'] = 'Ontdek diensten volgens uw behoeften';
+  }
 
   // These three existing editorial families provide descriptions and real
   // contact CTAs even when the fresh content import has no cards for a family.
@@ -393,6 +408,31 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
         ],
       ],
     ];
+  if ($langcode === 'nl') {
+    $variables['services_visual_flow'] = [
+      'eyebrow' => 'Drie manieren om uw project vorm te geven',
+      'title' => 'Van uw idee tot een bruikbaar resultaat',
+      'intro' => 'Kies een situatie om de belangrijkste stappen te ontdekken.',
+      'cases' => [
+        [
+          'title' => 'Een digitale aanwezigheid opbouwen',
+          'steps' => ['Uw doel bepalen', 'Ontwerp en ontwikkeling', 'Een oplossing die kan meegroeien'],
+          'result' => 'Een duidelijke ervaring voor bezoekers en uw team.',
+        ],
+        [
+          'title' => 'Een bestaande website verbeteren',
+          'steps' => ['Gerichte analyse', 'Verbeteringen met prioriteit', 'Eenvoudiger dagelijks beheer'],
+          'result' => 'Een website die betrouwbaar en onderhoudbaar blijft.',
+        ],
+        [
+          'title' => 'Uw dagelijkse tools verbinden',
+          'steps' => ['Uw bestaande tools', 'Veilige verbindingen', 'Minder repetitief werk'],
+          'result' => 'Informatie komt terecht waar uw team ze nodig heeft.',
+        ],
+      ],
+    ];
+  }
+
 }
 
 /**
@@ -405,6 +445,48 @@ function emerging_digital_service_group_definitions(
   string $langcode,
   LanguageInterface $language,
 ): array {
+
+  if ($langcode === 'nl') {
+    return [
+      'drupal' => [
+        'key' => 'drupal',
+        'eyebrow' => 'Drupal als sterke basis',
+        'title' => 'Drupal-expertise',
+        'description' => 'Voor gestructureerde en meertalige platforms waar inhoud, beveiliging en onderhoudbaarheid belangrijk zijn.',
+        'cta_label' => 'Vertel ons wat u nodig hebt',
+        'cta_url' => emerging_digital_service_url('/nl/contact', $language),
+        'cards' => [],
+      ],
+      'business' => [
+        'key' => 'business',
+        'eyebrow' => 'Duidelijke digitale oplossingen',
+        'title' => "Weboplossingen voor kmo's",
+        'description' => 'Duidelijke websites die uw aanbod begrijpelijk maken en bezoekers helpen om contact op te nemen.',
+        'cta_label' => 'Vertel ons wat u nodig hebt',
+        'cta_url' => emerging_digital_service_url('/nl/contact', $language),
+        'cards' => [],
+      ],
+      'ai' => [
+        'key' => 'ai',
+        'eyebrow' => 'AI met controle',
+        'title' => 'AI en automatisering, met controle',
+        'description' => 'We zoeken nuttige toepassingen met duidelijke grenzen, menselijke beoordeling en aandacht voor uw gegevens.',
+        'cta_label' => 'Vertel ons wat u nodig hebt',
+        'cta_url' => emerging_digital_service_url('/nl/contact', $language),
+        'cards' => [],
+      ],
+      'other' => [
+        'key' => 'other',
+        'eyebrow' => 'Aanvullende expertise',
+        'title' => 'Andere diensten',
+        'description' => '',
+        'cta_label' => 'Neem contact op',
+        'cta_url' => emerging_digital_service_url('/nl/contact', $language),
+        'cards' => [],
+      ],
+    ];
+  }
+
   if ($langcode === 'en') {
     return [
       'drupal' => [
@@ -789,6 +871,7 @@ function emerging_digital_hero_illustration_definitions(): array {
       'path' => 'images/home/agency-v2-meeting-ai.jpg',
       'alt' => [
         'fr' => 'Illustration générée par IA d’une réunion autour d’un projet numérique, avec des participants fictifs.',
+        'nl' => 'AI-gegenereerde illustratie van een overleg over een digitaal project, met fictieve deelnemers.',
         'en' => 'AI-generated illustration of a meeting about a digital project, with fictional participants.',
       ],
     ],
@@ -803,6 +886,7 @@ function emerging_digital_hero_illustration_definitions(): array {
       'path' => 'images/services/services-page-hero.svg',
       'alt' => [
         'fr' => 'Architecture de services web en composants et parcours.',
+        'nl' => 'Schema van webdiensten, onderdelen en mogelijke trajecten.',
         'en' => 'Web service architecture in components and journeys.',
       ],
     ],
@@ -810,6 +894,7 @@ function emerging_digital_hero_illustration_definitions(): array {
       'path' => 'images/contact/contact-page-hero.svg',
       'alt' => [
         'fr' => 'Cadrage de projet avec planning et accompagnement humain.',
+        'nl' => 'Projectvoorbereiding met planning en persoonlijke begeleiding.',
         'en' => 'Project scoping with planning, priorities and human support.',
       ],
     ],

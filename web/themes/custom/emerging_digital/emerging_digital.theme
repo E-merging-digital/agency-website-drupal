@@ -871,8 +871,8 @@ function emerging_digital_hero_illustration_definitions(): array {
       'path' => 'images/home/agency-v2-meeting-ai.jpg',
       'alt' => [
         'fr' => 'Illustration générée par IA d’une réunion autour d’un projet numérique, avec des participants fictifs.',
-        'nl' => 'AI-gegenereerde illustratie van een overleg over een digitaal project, met fictieve deelnemers.',
         'en' => 'AI-generated illustration of a meeting about a digital project, with fictional participants.',
+        'nl' => 'AI-gegenereerde illustratie van een overleg over een digitaal project, met fictieve deelnemers.',
       ],
     ],
     'ia-drupal' => [
@@ -886,16 +886,16 @@ function emerging_digital_hero_illustration_definitions(): array {
       'path' => 'images/services/services-page-hero.svg',
       'alt' => [
         'fr' => 'Architecture de services web en composants et parcours.',
-        'nl' => 'Schema van webdiensten, onderdelen en mogelijke trajecten.',
         'en' => 'Web service architecture in components and journeys.',
+        'nl' => 'Schema van webdiensten, onderdelen en mogelijke trajecten.',
       ],
     ],
     'contact' => [
       'path' => 'images/contact/contact-page-hero.svg',
       'alt' => [
         'fr' => 'Cadrage de projet avec planning et accompagnement humain.',
-        'nl' => 'Projectvoorbereiding met planning en persoonlijke begeleiding.',
         'en' => 'Project scoping with planning, priorities and human support.',
+        'nl' => 'Projectvoorbereiding met planning en persoonlijke begeleiding.',
       ],
     ],
     'case-clients' => [

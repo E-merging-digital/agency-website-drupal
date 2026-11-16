@@ -98,7 +98,7 @@ final class LanguageSwitcherFrontPageTest extends TestCase {
     return new LanguageSwitcherBlock(
       [],
       'emerging_digital_language_switcher',
-      [],
+      ['provider' => 'emerging_digital_content'],
       $this->createMock(LanguageManagerInterface::class),
       $path_matcher,
       $route_match,

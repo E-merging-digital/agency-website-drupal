@@ -241,6 +241,18 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     self::assertStringContainsString("startsWith('nl')", $script);
     self::assertStringContainsString('Cookievoorkeuren', $script);
     self::assertStringContainsString('showPreferencesShortcut();', $script);
+    // The legacy theme helper must not nest policy anchors in CMP buttons.
+    $theme = (string) file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/js/main.js',
+    );
+    self::assertStringContainsString(
+      "banner.closest('#ed-cookie-banner, #ed-cookie-preferences-shortcut')",
+      $theme,
+    );
+    self::assertStringContainsString(
+      "modal.closest('#ed-cookie-preferences-modal')",
+      $theme,
+    );
 
     $module = (string) file_get_contents(
       $root . '/web/modules/custom/emerging_digital_cookie_consent/emerging_digital_cookie_consent.module',

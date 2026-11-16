@@ -54,6 +54,7 @@ with tempfile.TemporaryDirectory(prefix="agency-1296-claim-") as tmp:
     claims.mkdir()
     issue = root / "issue.json"
     comments = root / "comments.json"
+    audit = root / "claims-audit.log"
     issue.write_text(
         json.dumps({"state": "open", "labels": [{"name": "P1"}, {"name": "status:in-progress"}]}),
         encoding="utf-8",
@@ -101,9 +102,11 @@ case "$endpoint" in
   repos/*/git/refs)
     test "$method" = POST
     key="$(printf '%s' "$ref" | sha256sum | cut -d' ' -f1)"
-    if ! mkdir "$FAKE_CLAIMS_DIR/$key" 2>/dev/null; then
+    if ! ( set -C; : > "$FAKE_CLAIMS_DIR/$key" ) 2>/dev/null; then
+      echo "REJECT pid=${BASHPID} key=$key dir=$FAKE_CLAIMS_DIR" >> "$FAKE_CLAIMS_AUDIT"
       exit 1
     fi
+    echo "ACCEPT pid=${BASHPID} key=$key dir=$FAKE_CLAIMS_DIR" >> "$FAKE_CLAIMS_AUDIT"
     printf '{\"ref\":\"%s\",\"object\":{\"sha\":\"%s\"}}\\n' "$ref" "$sha" ;;
   *)
     printf 'unexpected endpoint: %s\\n' "$endpoint" >&2
@@ -121,6 +124,7 @@ esac
             "FAKE_ISSUE_JSON": str(issue),
             "FAKE_COMMENTS_JSON": str(comments),
             "FAKE_CLAIMS_DIR": str(claims),
+            "FAKE_CLAIMS_AUDIT": str(audit),
             "FAKE_MAIN_SHA": MAIN,
         }
     )
@@ -181,6 +185,7 @@ esac
         comments,
         [authority(100, 17), authority(200, 18), authority(300, 19)],
     )
+    audit.write_text("", encoding="utf-8")
     processes = [
         subprocess.Popen(
             ["bash", str(HELPER), str(comment_id), COMMAND, MAIN],
@@ -195,7 +200,11 @@ esac
     for process in processes:
         stdout, stderr = process.communicate(timeout=10)
         concurrent.append((process.returncode, stdout, stderr))
-    assert sorted(item[0] for item in concurrent) == [0, 75], concurrent
+    assert sorted(item[0] for item in concurrent) == [0, 75], (
+        concurrent,
+        sorted(item.name for item in claims.iterdir()),
+        audit.read_text(encoding="utf-8"),
+    )
     print("CONCURRENT_DUPLICATE=ONE_WINNER_ONE_REJECTED")
 
     plan = run_claim(env, 400, "/agency-prod-os-maintenance-1183 plan")

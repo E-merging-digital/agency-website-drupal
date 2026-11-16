@@ -9,6 +9,7 @@ use Drupal\Core\Block\BlockBase;
 use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\EntityPublishedInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Path\PathMatcherInterface;
@@ -172,9 +173,21 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
    *   The target language code.
    */
   private function hasRouteEntityTranslation(array $entities, string $langcode): bool {
+    // Entityless routes (including <front>) cannot prove a published NL page.
+    if ($langcode === 'nl' && !$entities) {
+      return FALSE;
+    }
+
     foreach ($entities as $entity) {
       if ($entity->isTranslatable() && !$entity->hasTranslation($langcode)) {
         return FALSE;
+      }
+      // A draft translation must never advertise a public Dutch destination.
+      if ($langcode === 'nl' && $entity->isTranslatable()) {
+        $translation = $entity->getTranslation($langcode);
+        if ($translation instanceof EntityPublishedInterface && !$translation->isPublished()) {
+          return FALSE;
+        }
       }
     }
 

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\emerging_digital_content\StackMiddleware\NlVisibilityGuard;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
@@ -157,6 +161,55 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       );
       self::assertSame($id, $language['id'] ?? NULL);
       self::assertTrue((bool) ($language['locked'] ?? FALSE));
+    }
+  }
+
+  /**
+   * NL visibility is enforced before Drupal's anonymous page cache.
+   */
+  public function testNlMiddlewareBlocksAliasesAndPreservesNativeEditAccess(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $services = Yaml::parseFile(
+      $root . '/web/modules/custom/emerging_digital_content/emerging_digital_content.services.yml',
+    );
+    $middleware = $services['services']['emerging_digital_content.nl_visibility_guard'];
+    self::assertGreaterThan(
+      200,
+      $middleware['tags'][0]['priority'],
+    );
+    self::assertSame('http_middleware', $middleware['tags'][0]['name']);
+
+    $inner = new class implements HttpKernelInterface {
+
+      /**
+       * {@inheritdoc}
+       */
+      public function handle(Request $request, $type = self::MAIN_REQUEST, $catch = TRUE): Response {
+        return new Response('NATIVE_ROUTE');
+      }
+
+    };
+    $guard = new NlVisibilityGuard($inner);
+    foreach ([
+      '/nl',
+      '/nl/',
+      '/nl/node/5',
+      '/nl/node/6',
+      '/nl/diensten',
+      '/nl/wettelijke-vermeldingen',
+      '/nl/privacyverklaring',
+      '/nl/cookiebeleid',
+      '/nl/contact',
+      '/nl/not-translated',
+    ] as $path) {
+      $response = $guard->handle(Request::create($path));
+      self::assertSame(404, $response->getStatusCode(), $path);
+      self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
+    }
+    foreach (['/fr', '/en', '/nl/node/6/edit', '/nl/node/5/edit'] as $path) {
+      $response = $guard->handle(Request::create($path));
+      self::assertSame(200, $response->getStatusCode(), $path);
+      self::assertSame('NATIVE_ROUTE', $response->getContent());
     }
   }
 

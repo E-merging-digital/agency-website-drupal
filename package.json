@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "browser:install": "playwright install chromium",
@@ -11,6 +11,6 @@
     "browser:validate:direct": "playwright test --config=playwright.config.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1"
+    "@playwright/test": "1.65.1"
   }
 }

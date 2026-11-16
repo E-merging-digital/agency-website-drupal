@@ -66,7 +66,7 @@ if [[ "$count" == "0" ]]; then
   exit 0
 fi
 case "$CANVAS_BROWSER_PR_NUMBER" in
-  0|1421|1458|1469|1472|1474|1485|1487) ;;
+  0|1421|1458|1469|1472|1474|1485|1487|1559) ;;
   *) fail_closed ;;
 esac
 

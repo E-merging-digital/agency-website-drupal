@@ -198,13 +198,21 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/cookiebeleid',
       '/nl/contact',
       '/nl/not-translated',
+      '/nl/node/preview/not-a-uuid/full',
+      '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
     ] as $path) {
       $response = $guard->handle(Request::create($path));
       self::assertSame(404, $response->getStatusCode(), $path);
       self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
       self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
     }
-    foreach (['/fr', '/en', '/nl/node/6/edit', '/nl/node/5/edit'] as $path) {
+    foreach ([
+      '/fr',
+      '/en',
+      '/nl/node/6/edit',
+      '/nl/node/5/edit',
+      '/nl/node/preview/00000000-0000-0000-0000-000000000000/full',
+    ] as $path) {
       $response = $guard->handle(Request::create($path));
       self::assertSame(200, $response->getStatusCode(), $path);
       self::assertSame('NATIVE_ROUTE', $response->getContent());

@@ -10,6 +10,7 @@ use Drupal\Core\Cache\CacheableMetadata;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityPublishedInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Language\LanguageInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Path\PathMatcherInterface;
@@ -37,6 +38,7 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
     protected PathMatcherInterface $pathMatcher,
     protected RouteMatchInterface $routeMatch,
     protected ConfigFactoryInterface $configFactory,
+    protected EntityTypeManagerInterface $entityTypeManager,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
   }
@@ -53,6 +55,7 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
       $container->get('path.matcher'),
       $container->get('current_route_match'),
       $container->get('config.factory'),
+      $container->get('entity_type.manager'),
     );
   }
 
@@ -69,7 +72,7 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
         'url.query_args',
         'url.site',
       ])
-      ->addCacheTags(['config:configurable_language_list']);
+      ->addCacheTags(['config:configurable_language_list', 'config:system.site']);
 
     if (!$this->languageManager->isMultilingual()) {
       $cache_metadata->applyTo($build);
@@ -158,6 +161,17 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
     foreach ($this->routeMatch->getParameters()->all() as $parameter) {
       if ($parameter instanceof ContentEntityInterface) {
         $entities[] = $parameter;
+      }
+    }
+
+    // The front route can be entityless even when Drupal serves a node.
+    if (!$entities && $this->pathMatcher->isFrontPage()) {
+      $front = $this->configFactory->get('system.site')->get('page.front');
+      if (is_string($front) && preg_match('~^/node/([1-9][0-9]*)$~D', $front, $matches)) {
+        $node = $this->entityTypeManager->getStorage('node')->load($matches[1]);
+        if ($node instanceof ContentEntityInterface) {
+          $entities[] = $node;
+        }
       }
     }
 

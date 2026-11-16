@@ -136,7 +136,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $root . '/config/sync/language.negotiation.yml',
     );
     self::assertSame('path_prefix', $negotiation['url']['source'] ?? NULL);
-    // The NL prefix is source-only; the existing middleware blocks public NL routes.
+    // The NL prefix is source-only; existing middleware blocks NL routes.
     self::assertSame(
       ['en' => 'en', 'fr' => 'fr', 'nl' => 'nl'],
       $negotiation['url']['prefixes'] ?? NULL,

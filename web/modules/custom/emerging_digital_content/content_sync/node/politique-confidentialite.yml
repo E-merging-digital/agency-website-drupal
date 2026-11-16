@@ -15,6 +15,7 @@ translations:
           form, your GDPR rights and the channels available for any request.
         format: basic_html
   nl:
+    status: unpublished
     fields:
       field_short_description:
         value: "Lees welke gegevens via het contactformulier worden verwerkt, waarom, hoe lang en welke rechten u hebt volgens de AVG."

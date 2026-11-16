@@ -64,6 +64,7 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
 
     ConfigurableLanguage::createFromLangcode('fr')->save();
     ConfigurableLanguage::createFromLangcode('en')->save();
+    ConfigurableLanguage::createFromLangcode('nl')->save();
     $this->config('system.site')
       ->set('langcode', 'fr')
       ->set('default_langcode', 'fr')
@@ -1480,6 +1481,8 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       self::assertSame($expected['fr_title'], $node->label());
       self::assertTrue($node->hasTranslation('en'));
       self::assertSame($expected['en_title'], $node->getTranslation('en')->label());
+      self::assertTrue($node->hasTranslation('nl'));
+      self::assertFalse($node->getTranslation('nl')->isPublished());
 
       $alias_manager = $this->container->get('path_alias.manager');
       $alias_manager->cacheClear('/node/' . $node->id());
@@ -1493,17 +1496,88 @@ final class ContentSyncManagerTargetedWriteTest extends KernelTestBase {
       self::assertSame($expected['fr_title'], $paragraphs[0]->get('field_heading')->value);
       self::assertStringContainsString($expected['fr_text'], (string) $paragraphs[0]->get('field_text')->value);
       self::assertSame($expected['en_title'], $paragraphs[0]->getTranslation('en')->get('field_heading')->value);
+      self::assertTrue($paragraphs[0]->hasTranslation('nl'));
+      self::assertCount(1, $node->getTranslation('nl')->get('field_home_components'));
       self::assertStringContainsString($expected['en_text'], (string) $paragraphs[0]->getTranslation('en')->get('field_text')->value);
       self::assertNotNull($mapping_repository->findByContentId($expected['component_id']));
 
       $component_ids = array_map(static fn ($paragraph): int => (int) $paragraph->id(), $paragraphs);
       $second_apply = $manager->sync($content_id, FALSE);
       self::assertSame([], $second_apply['errors']);
+      $second_node = $this->loadPageNodeByUuid($expected['uuid']);
+      self::assertFalse($second_node->getTranslation('nl')->isPublished());
       self::assertSame($component_ids, array_map(
         static fn ($paragraph): int => (int) $paragraph->id(),
-        $this->loadPageNodeByUuid($expected['uuid'])->get('field_home_components')->referencedEntities(),
+        $second_node->get('field_home_components')->referencedEntities(),
       ));
       self::assertSame('updated', $mapping_repository->findByContentId($content_id)?->lastAction());
+    }
+  }
+
+  /**
+   * Existing legal FR/EN revisions remain intact across both NL draft applies.
+   */
+  public function testLegalNlDraftPreservesDivergentFrenchAndEnglish(): void {
+    $manager = $this->container->get('emerging_digital_content.content_sync_manager');
+    $expected = [
+      'uuid' => '0705e972-2817-4e71-a29e-659bbe78ab73',
+      'paragraph_uuid' => 'd88c477b-b568-4353-8c4a-e159644325bf',
+      'fr_title' => 'Mentions légales',
+      'en_title' => 'Legal Notices',
+      'fr_alias' => '/mentions-legales',
+      'en_alias' => '/legal-notices',
+      'fr_text' => 'Éditeur du site',
+      'en_text' => 'Site Publisher',
+    ];
+    $node = $this->createLegacyLegalPage($expected);
+    $paragraph = $node->get('field_home_components')->referencedEntities()[0];
+
+    // The protected site may contain extra FR components not approved for NL.
+    $extra = Paragraph::create([
+      'type' => 'text_block',
+      'langcode' => 'fr',
+      'field_heading' => 'FR supplement',
+      'field_text' => ['value' => 'Published FR extra', 'format' => 'basic_html'],
+    ]);
+    $extra->save();
+    $node->get('field_home_components')->appendItem([
+      'target_id' => $extra->id(),
+      'target_revision_id' => $extra->getRevisionId(),
+    ]);
+    $node->save();
+
+    $before = $this->loadPageNodeByUuid($expected['uuid']);
+    $fr_refs = $before->get('field_home_components')->getValue();
+    $en_refs = $before->getTranslation('en')->get('field_home_components')->getValue();
+    self::assertNotSame($fr_refs, $en_refs);
+    $fr_title = $before->label();
+    $en_title = $before->getTranslation('en')->label();
+    $fr_text = $paragraph->get('field_text')->getValue();
+    $en_text = $paragraph->getTranslation('en')->get('field_text')->getValue();
+    $fr_alias = $before->get('path')->alias;
+    $en_alias = $before->getTranslation('en')->get('path')->alias;
+
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+      $result = $manager->sync('mentions-legales', FALSE);
+      self::assertSame([], $result['errors']);
+      $current = $this->loadPageNodeByUuid($expected['uuid']);
+      self::assertSame($expected['uuid'], $current->uuid());
+      self::assertTrue($current->isPublished());
+      self::assertTrue($current->getTranslation('en')->isPublished());
+      self::assertSame($fr_refs, $current->get('field_home_components')->getValue());
+      self::assertSame($en_refs, $current->getTranslation('en')->get('field_home_components')->getValue());
+      self::assertSame($fr_title, $current->label());
+      self::assertSame($en_title, $current->getTranslation('en')->label());
+      self::assertSame($fr_alias, $current->get('path')->alias);
+      self::assertSame($en_alias, $current->getTranslation('en')->get('path')->alias);
+      self::assertTrue($current->hasTranslation('nl'));
+      self::assertFalse($current->getTranslation('nl')->isPublished());
+      $nl_paragraphs = $current->getTranslation('nl')->get('field_home_components')->referencedEntities();
+      self::assertCount(1, $nl_paragraphs);
+      self::assertSame($expected['paragraph_uuid'], $nl_paragraphs[0]->uuid());
+      self::assertTrue($nl_paragraphs[0]->hasTranslation('nl'));
+      self::assertSame($fr_text, $nl_paragraphs[0]->get('field_text')->getValue());
+      self::assertSame($en_text, $nl_paragraphs[0]->getTranslation('en')->get('field_text')->getValue());
     }
   }
 

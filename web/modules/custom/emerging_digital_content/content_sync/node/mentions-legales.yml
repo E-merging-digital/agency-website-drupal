@@ -16,6 +16,7 @@ translations:
           information.
         format: basic_html
   nl:
+    status: unpublished
     fields:
       field_short_description:
         value: "Wettelijke informatie over E-MERGING DIGITAL SRL, contactgegevens, ondernemingsnummer, maatschappelijke zetel en hosting."

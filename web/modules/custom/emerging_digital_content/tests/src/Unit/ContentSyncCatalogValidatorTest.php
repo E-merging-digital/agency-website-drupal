@@ -26,6 +26,7 @@ final class ContentSyncCatalogValidatorTest extends TestCase {
     require_once $module_path . '/src/ContentSync/Catalog/ContentSyncCatalog.php';
     require_once $module_path . '/src/ContentSync/Catalog/ContentSyncCatalogEntry.php';
     require_once $module_path . '/src/ContentSync/Validator/ContentSyncCatalogValidator.php';
+    require_once $module_path . '/src/ContentSync/Policy/GovernedContentPolicy.php';
   }
 
   /**
@@ -87,6 +88,45 @@ final class ContentSyncCatalogValidatorTest extends TestCase {
       . 'is not a valid UUID.',
       $report['errors'],
     );
+  }
+
+  /**
+   * Legal Dutch translations must carry an explicit valid draft status.
+   */
+  public function testLegalDutchStatusValidationFailsClosed(): void {
+    $base = [
+      'id' => 'mentions-legales',
+      'entity_type' => 'node',
+      'bundle' => 'page',
+      'translations' => [
+        'fr' => ['alias' => '/mentions-legales'],
+        'en' => ['alias' => '/legal-notices'],
+        'nl' => ['alias' => '/wettelijke-vermeldingen', 'status' => 'unpublished'],
+      ],
+      'components' => [[
+        'id' => 'mentions-legales.content',
+        'bundle' => 'text_block',
+        'translations' => ['fr' => [], 'en' => [], 'nl' => []],
+      ],
+      ],
+    ];
+    foreach ([NULL, 'published', 'draft', TRUE] as $invalid) {
+      $data = $base;
+      if ($invalid === NULL) {
+        unset($data['translations']['nl']['status']);
+      }
+      else {
+        $data['translations']['nl']['status'] = $invalid;
+      }
+      $catalog = new ContentSyncCatalog(__DIR__, [
+        new ContentSyncCatalogEntry($data, 0, NULL),
+      ]);
+      self::assertNotEmpty((new ContentSyncCatalogValidator())->validate($catalog)['errors']);
+    }
+    $valid = new ContentSyncCatalog(__DIR__, [
+      new ContentSyncCatalogEntry($base, 0, NULL),
+    ]);
+    self::assertSame([], (new ContentSyncCatalogValidator())->validate($valid)['errors']);
   }
 
 }

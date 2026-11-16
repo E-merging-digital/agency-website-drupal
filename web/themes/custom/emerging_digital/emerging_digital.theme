@@ -224,8 +224,10 @@ function emerging_digital_preprocess_paragraph(array &$variables): void {
 
   if ($bundle === 'case_clients') {
     // Labels follow the interface language, even for reused FR paragraphs.
-    $variables['case_clients_english'] = \Drupal::languageManager()
-      ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId() === 'en';
+    $langcode = \Drupal::languageManager()
+      ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE)->getId();
+    $variables['case_clients_english'] = $langcode === 'en';
+    $variables['case_clients_dutch'] = $langcode === 'nl';
     $variables['elements']['#cache']['contexts'][] = 'languages:language_interface';
   }
 
@@ -264,7 +266,11 @@ function emerging_digital_preprocess_paragraph__services(array &$variables): voi
   $variables['service_cards'] = [];
 
   foreach ($paragraph->get('field_items') as $item) {
-    $parts = array_map('trim', explode('|', (string) $item->value));
+    // These pipe-delimited card fragments are plain text, not rich HTML.
+    $parts = array_map(
+      static fn (string $part): string => trim(strip_tags($part)),
+      explode('|', (string) $item->value),
+    );
     $url = '';
 
     if (!empty($parts[2])) {
@@ -663,7 +669,11 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
   $variables['ai_feature_cards'] = [];
 
   foreach ($paragraph->get('field_items') as $item) {
-    $parts = array_map('trim', explode('|', (string) $item->value));
+    // These pipe-delimited card fragments are plain text, not rich HTML.
+    $parts = array_map(
+      static fn (string $part): string => trim(strip_tags($part)),
+      explode('|', (string) $item->value),
+    );
     $url = '';
 
     if (!empty($parts[2])) {

@@ -8,6 +8,9 @@
       ? {problem: 'Challenge', solution: 'Approach', result: 'Outcome', example: 'Example', explore: 'Explore the three steps'}
       : {problem: 'Contexte', solution: 'Réponse', result: 'Effet', example: 'Exemple', explore: 'Découvrir les trois étapes'}
     %}
+    {% if case_clients_dutch|default(false) %}
+      {% set case_labels = {problem: 'Context', solution: 'Aanpak', result: 'Resultaat', example: 'Voorbeeld', explore: 'Ontdek de drie stappen'} %}
+    {% endif %}
     <div class="ed-cards ed-cards--cases ed-case-journeys">
       {% for item in paragraph.field_items %}
         {% set idx = loop.index0 %}

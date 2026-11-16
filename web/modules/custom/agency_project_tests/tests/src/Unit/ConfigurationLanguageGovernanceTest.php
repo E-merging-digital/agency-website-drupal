@@ -287,6 +287,21 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       'if ($langcode === \'nl\' && $nl_prefix !== \'nl\')',
       $switcher,
     );
+
+    $theme = (string) file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/emerging_digital.theme',
+    );
+    // Card fragments are text, including when CKEditor wraps preview input.
+    self::assertSame(2, substr_count($theme, 'trim(strip_tags($part))'));
+    self::assertStringContainsString(
+      "\$variables['case_clients_dutch'] = \$langcode === 'nl';",
+      $theme,
+    );
+    $cases = (string) file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/templates/paragraphs/paragraph--case-clients.html.twig',
+    );
+    self::assertStringContainsString('case_clients_dutch|default(false)', $cases);
+    self::assertStringContainsString('Ontdek de drie stappen', $cases);
   }
 
   /**

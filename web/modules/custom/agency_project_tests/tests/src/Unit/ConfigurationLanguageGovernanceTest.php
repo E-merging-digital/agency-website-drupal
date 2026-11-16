@@ -231,6 +231,29 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
+   * Cookie consent NL copy stays local and /nl remains visibility-gated.
+   */
+  public function testNlCookieConsentReviewGates(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $script = (string) file_get_contents(
+      $root . '/web/modules/custom/emerging_digital_cookie_consent/js/cookie-consent.js',
+    );
+    self::assertStringContainsString("startsWith('nl')", $script);
+    self::assertStringContainsString('Cookievoorkeuren', $script);
+    self::assertStringContainsString('showPreferencesShortcut();', $script);
+
+    $module = (string) file_get_contents(
+      $root . '/web/modules/custom/emerging_digital_cookie_consent/emerging_digital_cookie_consent.module',
+    );
+    self::assertStringContainsString('getPathByAlias(', $module);
+    self::assertStringContainsString('isPublished()', $module);
+    self::assertStringContainsString(
+      "isset(\$aliases[\$langcode], \$prefixes[\$langcode])",
+      $module,
+    );
+  }
+
+  /**
    * Special locked languages converge through one bounded Drupal manager call.
    */
   public function testSpecialLanguageDeploymentReconcilerIsBoundedAndIdempotent(): void {

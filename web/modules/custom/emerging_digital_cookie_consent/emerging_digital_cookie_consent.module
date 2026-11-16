@@ -14,6 +14,33 @@ function emerging_digital_cookie_consent_page_attachments(array &$attachments): 
   $config = \Drupal::config('emerging_digital_cookie_consent.settings');
   $policy_path = trim((string) $config->get('policy_path'));
 
+  // Resolve only a published legal page for an enabled URL language.
+  // An unpublished /nl translation must never become a public link.
+  if ($policy_path === '') {
+    $language = \Drupal::languageManager()->getCurrentLanguage();
+    $langcode = $language->getId();
+    $aliases = [
+      'fr' => '/politique-de-cookies',
+      'en' => '/cookie-policy',
+      'nl' => '/cookiebeleid',
+    ];
+    $prefixes = \Drupal::config('language.negotiation')->get('url.prefixes') ?? [];
+    if (isset($aliases[$langcode], $prefixes[$langcode])) {
+      $target = \Drupal::service('path_alias.manager')
+        ->getPathByAlias($aliases[$langcode], $langcode);
+      if (preg_match('@^/node/([0-9]+)$@', $target, $matches)) {
+        $node = \Drupal::entityTypeManager()->getStorage('node')
+          ->load((int) $matches[1]);
+        if ($node && $node->hasTranslation($langcode) &&
+          $node->getTranslation($langcode)->isPublished()) {
+          $policy_path = $node->toUrl('canonical', [
+            'language' => $language,
+          ])->toString();
+        }
+      }
+    }
+  }
+
   $attachments['#attached']['library'][] = 'emerging_digital_cookie_consent/banner';
   $attachments['#attached']['drupalSettings']['emergingDigitalCookieConsent'] = [
     'policyPath' => $policy_path,

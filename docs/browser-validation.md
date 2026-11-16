@@ -37,7 +37,7 @@ Le vertical slice reproductible utilise :
 
 - Playwright Test ;
 - Chromium ;
-- Node.js 20+ (Node 24 sur le runner gouverné actuel) ;
+- Node.js 22+ (Node 24 sur le runner gouverné actuel) ;
 - DDEV comme environnement Agency réel ;
 - desktop 1440x900 ;
 - mobile 390x844.

@@ -14,6 +14,12 @@ translations:
           Understand how cookies and external content are used on the E-merging
           Digital website, with simple consent choices you can change.
         format: basic_html
+  nl:
+    status: unpublished
+    fields:
+      field_short_description:
+        value: "Informatie over cookies, externe inhoud, Google Maps en de mogelijkheden om uw toestemming te beheren."
+        format: basic_html
 components:
   - id: politique-cookies.content
     legacy_uuid: 4629b8a1-71cd-4298-9d0c-e668e27f6e99
@@ -50,4 +56,20 @@ components:
                 <p>Some pages may display content from third-party services. For example, we use Google Maps on the contact page to show our location. When displaying this map, Google may place cookies or process certain technical data (such as your IP address), according to its own privacy policy.</p>
                 <h2>How to manage your consent?</h2>
                 <p>You can accept or refuse non-essential cookies via the cookie banner displayed on the site. You can also change your choices at any time by reopening this consent manager or by configuring your browser to block or delete cookies.</p>
+              format: basic_html
+      nl:
+        fields:
+          field_heading:
+            - value: "Cookiebeleid"
+          field_text:
+            - value: |-
+                <p>Hier leest u hoe onze website cookies en externe inhoud gebruikt, in duidelijke taal.</p>
+                <h2>Waarom gebruiken we cookies?</h2>
+                <p>Cookies helpen de website correct en stabiel te werken. We gebruiken ze niet om onnodige gegevens te verzamelen.</p>
+                <h2>Noodzakelijke cookies</h2>
+                <p>Deze zijn nodig voor beveiliging, basisvoorkeuren en een stabiele weergave. Zonder deze cookies werken sommige functies mogelijk niet goed.</p>
+                <h2>Externe inhoud en derden</h2>
+                <p>Sommige pagina's tonen inhoud van externe diensten, zoals Google Maps op de contactpagina. Google kan daarbij cookies plaatsen of technische gegevens zoals uw IP-adres verwerken, volgens het eigen privacybeleid.</p>
+                <h2>Uw toestemming beheren</h2>
+                <p>U kunt niet-noodzakelijke cookies aanvaarden of weigeren via de cookiebanner. U kunt uw keuze later wijzigen via het toestemmingsbeheer of cookies via uw browser blokkeren of verwijderen.</p>
               format: basic_html

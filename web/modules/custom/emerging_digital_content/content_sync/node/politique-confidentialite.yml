@@ -14,6 +14,12 @@ translations:
           Learn how E-merging Digital processes data sent through the contact
           form, your GDPR rights and the channels available for any request.
         format: basic_html
+  nl:
+    status: unpublished
+    fields:
+      field_short_description:
+        value: "Lees welke gegevens via het contactformulier worden verwerkt, waarom, hoe lang en welke rechten u hebt volgens de AVG."
+        format: basic_html
 components:
   - id: politique-confidentialite.content
     legacy_uuid: 50c557e0-a74e-4124-acb2-115ab84e402b
@@ -58,4 +64,24 @@ components:
                 <p>In accordance with the GDPR, you can request access to your data, its rectification, its deletion, the limitation of processing, or object to processing where applicable.</p>
                 <h2>GDPR Contact</h2>
                 <p>For any requests regarding your personal data: <a href="mailto:rgpd@emergingdigital.be">rgpd@emergingdigital.be</a>.</p>
+              format: basic_html
+      nl:
+        fields:
+          field_heading:
+            - value: "Privacyverklaring"
+          field_text:
+            - value: |-
+                <p>Hier leggen we duidelijk uit hoe we omgaan met persoonsgegevens die u via ons contactformulier verstuurt.</p>
+                <h2>Welke gegevens verzamelen we?</h2>
+                <p>Wanneer u ons contacteert, verwerken we enkel de gegevens die u zelf invult: uw naam, e-mailadres, bericht en eventuele informatie die nuttig is om uw vraag te begrijpen, zoals uw organisatie, het type project, een indicatief budget of een termijn.</p>
+                <h2>Waarom verwerken we deze gegevens?</h2>
+                <p>We gebruiken ze uitsluitend om uw aanvraag te beantwoorden en onze verdere uitwisseling op te volgen.</p>
+                <h2>Rechtsgrond</h2>
+                <p>Uw uitdrukkelijke toestemming wanneer u het contactformulier verzendt.</p>
+                <h2>Bewaartermijn</h2>
+                <p>We bewaren deze gegevens maximaal twaalf maanden na het laatste contact en verwijderen ze daarna.</p>
+                <h2>Uw rechten</h2>
+                <p>Volgens de AVG kunt u om inzage, verbetering, verwijdering of beperking van de verwerking vragen. Waar van toepassing kunt u ook bezwaar maken.</p>
+                <h2>Privacycontact</h2>
+                <p>Voor vragen over persoonsgegevens: <a href="mailto:rgpd@emergingdigital.be">rgpd@emergingdigital.be</a>.</p>
               format: basic_html

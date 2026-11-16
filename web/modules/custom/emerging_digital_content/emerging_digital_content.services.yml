@@ -1,4 +1,10 @@
 services:
+  emerging_digital_content.nl_visibility_guard:
+    class: Drupal\emerging_digital_content\StackMiddleware\NlVisibilityGuard
+    tags:
+      # Must run ahead of Internal Page Cache (priority 200).
+      - { name: http_middleware, priority: 220 }
+
   logger.channel.emerging_digital_content:
     parent: logger.channel_base
     arguments:

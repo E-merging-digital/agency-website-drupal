@@ -1,6 +1,11 @@
 {% set en = language|default('fr') == 'en' %}
-{% set prefix = en ? '/en' : '/fr' %}
-{% set paths = en ? [
+{% set nl = language|default('fr') == 'nl' %}
+{% set prefix = nl ? '/nl' : (en ? '/en' : '/fr') %}
+{% set paths = nl ? [
+  {number: '01', key: 'create', title: 'Een platform bouwen', description: 'Een website of platform dat vertrouwen wekt.', action: 'Bekijk onze diensten', href: prefix ~ '/diensten'},
+  {number: '02', key: 'improve', title: 'Uw bestaande platform moderniseren', description: 'Een snellere, veiligere website die eenvoudiger kan meegroeien.', action: 'Ontdek onze aanpak', href: prefix ~ '/diensten'},
+  {number: '03', key: 'automate', title: 'Slim automatiseren', description: 'Minder repetitief werk. Meer tijd voor wat telt.', action: 'Bespreek een integratie', href: prefix ~ '/contact'},
+] : (en ? [
   {number: '01', key: 'create', title: 'Build a platform', description: 'A website or platform people can trust.', action: 'Explore new builds', href: prefix ~ '/services'},
   {number: '02', key: 'improve', title: 'Modernise your platform', description: 'Make your site faster, safer and easier to improve.', action: 'Explore modernisation', href: prefix ~ '/services'},
   {number: '03', key: 'automate', title: 'Automate what matters', description: 'Less repetitive work. More time for what matters.', action: 'Explore integrations', href: prefix ~ '/ai-drupal'},
@@ -8,8 +13,12 @@
   {number: '01', key: 'create', title: 'Créer une plateforme', description: 'Un site ou une plateforme qui inspire confiance.', action: 'Explorer la création', href: prefix ~ '/services'},
   {number: '02', key: 'improve', title: 'Moderniser l’existant', description: 'Un site plus rapide, plus sûr et facile à faire évoluer.', action: 'Explorer la modernisation', href: prefix ~ '/services'},
   {number: '03', key: 'automate', title: 'Automatiser utilement', description: 'Moins de tâches répétitives. Plus de temps pour l’essentiel.', action: 'Explorer les intégrations', href: prefix ~ '/ia-drupal'},
-] %}
-{% set steps = en ? [
+]) %}
+{% set steps = nl ? [
+  {number: '01 / BEGRIJPEN', title: 'De behoefte begrijpen', description: 'Doelen, doelgroepen, beperkingen en de huidige situatie in kaart brengen.'},
+  {number: '02 / BOUWEN', title: 'Stap voor stap opleveren', description: 'Ontwerp, ontwikkeling, tests en regelmatige feedback.'},
+  {number: '03 / ONDERHOUDEN', title: 'Overdragen en onderhouden', description: 'Documentatie, beveiliging, overdracht en onderhoud.'},
+] : (en ? [
   {number: '01 / DISCOVER', title: 'Understand your needs', description: 'Goals, audiences, constraints and the current setup.'},
   {number: '02 / BUILD', title: 'Deliver in stages', description: 'Design, development, testing and frequent feedback.'},
   {number: '03 / SUSTAIN', title: 'Support & maintain', description: 'Documentation, security, handover and maintenance.'},
@@ -17,22 +26,22 @@
   {number: '01 / COMPRENDRE', title: 'Cadrer le besoin', description: 'Objectifs, publics, contraintes et état de l’existant.'},
   {number: '02 / CONSTRUIRE', title: 'Livrer par étapes', description: 'Design, développement, tests et retours réguliers.'},
   {number: '03 / FAIRE DURER', title: 'Transmettre & maintenir', description: 'Documentation, sécurité, transmission et maintenance.'},
-] %}
+]) %}
 
 <div class="agency-v2" data-agency-v2>
-  <div class="agency-v2-trust" aria-label="{{ en ? 'Our strengths' : 'Nos points forts' }}">
+  <div class="agency-v2-trust" aria-label="{{ nl ? 'Onze troeven' : (en ? 'Our strengths' : 'Nos points forts') }}">
     <div class="agency-v2-container">
-      <span><b aria-hidden="true">✓</b> {{ en ? 'Long-standing Drupal expertise' : 'Expertise historique Drupal' }}</span>
-      <span><b aria-hidden="true">✓</b> {{ en ? 'PHP architecture & integrations' : 'Architecture & intégrations PHP' }}</span>
-      <span><b aria-hidden="true">✓</b> {{ en ? 'Belgium-based collaboration' : 'Accompagnement en Belgique' }}</span>
+      <span><b aria-hidden="true">✓</b> {{ nl ? 'Ruime Drupal-expertise' : (en ? 'Long-standing Drupal expertise' : 'Expertise historique Drupal') }}</span>
+      <span><b aria-hidden="true">✓</b> {{ nl ? 'PHP-architectuur en integraties' : (en ? 'PHP architecture & integrations' : 'Architecture & intégrations PHP') }}</span>
+      <span><b aria-hidden="true">✓</b> {{ nl ? 'Samenwerking in België' : (en ? 'Belgium-based collaboration' : 'Accompagnement en Belgique') }}</span>
     </div>
   </div>
 
   <section class="agency-v2-section agency-v2-section--soft" id="agency-v2-paths" aria-labelledby="agency-v2-paths-title">
     <div class="agency-v2-container">
-      <p class="agency-v2-eyebrow">{{ en ? 'YOUR NEEDS. OUR STARTING POINT.' : 'VOTRE BESOIN, NOTRE POINT DE DÉPART' }}</p>
-      <h2 id="agency-v2-paths-title">{{ en ? 'Whatever stage your project is at.' : 'À chaque étape de votre projet.' }}</h2>
-      <p class="agency-v2-lead">{{ en ? 'Three ways to move your organisation forward.' : 'Trois façons de faire avancer votre activité.' }}</p>
+      <p class="agency-v2-eyebrow">{{ nl ? 'UW VRAAG, ONS VERTREKPUNT' : (en ? 'YOUR NEEDS. OUR STARTING POINT.' : 'VOTRE BESOIN, NOTRE POINT DE DÉPART') }}</p>
+      <h2 id="agency-v2-paths-title">{{ nl ? 'Uw vraag, ons vertrekpunt.' : (en ? 'Whatever stage your project is at.' : 'À chaque étape de votre projet.') }}</h2>
+      <p class="agency-v2-lead">{{ nl ? 'Drie manieren om uw organisatie vooruit te helpen.' : (en ? 'Three ways to move your organisation forward.' : 'Trois façons de faire avancer votre activité.') }}</p>
       <div class="agency-v2-paths">
         {% for path in paths %}
           <article class="agency-v2-path agency-v2-path--{{ path.key }}" data-agency-reveal>
@@ -51,9 +60,9 @@
 
   <section class="agency-v2-section" id="agency-v2-method" aria-labelledby="agency-v2-method-title">
     <div class="agency-v2-container">
-      <p class="agency-v2-eyebrow">{{ en ? 'FROM AN IDEA TO A DEPENDABLE SERVICE' : 'DE L’IDÉE À UN SERVICE QUI TIENT' }}</p>
-      <h2 id="agency-v2-method-title">{{ en ? 'Clear for you. Rigorous in delivery.' : 'Clair pour vous. Rigoureux dans la réalisation.' }}</h2>
-      <p class="agency-v2-lead">{{ en ? 'A clear process and documented work that can evolve over time.' : 'Une méthode claire et des livrables documentés, faciles à faire évoluer.' }}</p>
+      <p class="agency-v2-eyebrow">{{ nl ? 'VAN IDEE TOT BETROUWBARE DIENST' : (en ? 'FROM AN IDEA TO A DEPENDABLE SERVICE' : 'DE L’IDÉE À UN SERVICE QUI TIENT') }}</p>
+      <h2 id="agency-v2-method-title">{{ nl ? 'Duidelijk voor u. Grondig in de uitvoering.' : (en ? 'Clear for you. Rigorous in delivery.' : 'Clair pour vous. Rigoureux dans la réalisation.') }}</h2>
+      <p class="agency-v2-lead">{{ nl ? 'We werken stapsgewijs, met duidelijke keuzes, tests en documentatie.' : (en ? 'A clear process and documented work that can evolve over time.' : 'Une méthode claire et des livrables documentés, faciles à faire évoluer.') }}</p>
       <ol class="agency-v2-steps">
         {% for step in steps %}
           <li class="agency-v2-step" data-agency-reveal>
@@ -69,17 +78,17 @@
   <section class="agency-v2-section agency-v2-section--soft" id="agency-v2-proof" aria-labelledby="agency-v2-proof-title">
     <div class="agency-v2-container agency-v2-demo">
       <div>
-        <p class="agency-v2-eyebrow">{{ en ? 'REAL EXAMPLE · OUR OWN WEBSITE' : 'EXEMPLE RÉEL · NOTRE PROPRE SITE' }}</p>
-        <h2 id="agency-v2-proof-title">{{ en ? 'See our work in action.' : 'Voyez notre travail en action.' }}</h2>
-        <p class="agency-v2-lead">{{ en ? 'A bilingual site with a contact form and guided assistant: a real example to explore.' : 'Un site bilingue avec formulaire de contact et assistant guidé : un exemple concret à parcourir.' }}</p>
-        <a class="agency-v2-text-link" href="{{ prefix }}/contact">{{ en ? 'View the contact form' : 'Voir le formulaire de contact' }} <span aria-hidden="true">↗</span></a>
+        <p class="agency-v2-eyebrow">{{ nl ? 'EEN ECHT VOORBEELD · ONZE EIGEN WEBSITE' : (en ? 'REAL EXAMPLE · OUR OWN WEBSITE' : 'EXEMPLE RÉEL · NOTRE PROPRE SITE') }}</p>
+        <h2 id="agency-v2-proof-title">{{ nl ? 'Bekijk ons werk in de praktijk.' : (en ? 'See our work in action.' : 'Voyez notre travail en action.') }}</h2>
+        <p class="agency-v2-lead">{{ nl ? 'Onze eigen website is beschikbaar in het Frans en Engels, met een contactformulier en begeleide assistent.' : (en ? 'A bilingual site with a contact form and guided assistant: a real example to explore.' : 'Un site bilingue avec formulaire de contact et assistant guidé : un exemple concret à parcourir.') }}</p>
+        <a class="agency-v2-text-link" href="{{ prefix }}/contact">{{ nl ? 'Bekijk het contactformulier' : (en ? 'View the contact form' : 'Voir le formulaire de contact') }} <span aria-hidden="true">↗</span></a>
       </div>
       <div class="agency-v2-demo__flow" data-agency-reveal>
-        <p class="agency-v2-eyebrow">{{ en ? 'LIVE IN-HOUSE PROJECT · EMERGINGDIGITAL.BE' : 'PROJET INTERNE EN LIGNE · EMERGINGDIGITAL.BE' }}</p>
+        <p class="agency-v2-eyebrow">{{ nl ? 'EIGEN PROJECT ONLINE · EMERGINGDIGITAL.BE' : (en ? 'LIVE IN-HOUSE PROJECT · EMERGINGDIGITAL.BE' : 'PROJET INTERNE EN LIGNE · EMERGINGDIGITAL.BE') }}</p>
         <ol>
-          <li><b>01</b><strong>{{ en ? 'Drupal website' : 'Site Drupal' }}</strong><span>{{ en ? 'FR/EN content' : 'Contenus FR/EN' }}</span></li>
-          <li><b>02</b><strong>{{ en ? 'Contact journey' : 'Parcours de contact' }}</strong><span>{{ en ? 'Needs qualification' : 'Qualification des besoins' }}</span></li>
-          <li><b>03</b><strong>{{ en ? 'Guided assistant' : 'Assistant guidé' }}</strong><span>{{ en ? 'Interactive pathways' : 'Parcours interactifs' }}</span></li>
+          <li><b>01</b><strong>{{ nl ? 'Drupal-website' : (en ? 'Drupal website' : 'Site Drupal') }}</strong><span>{{ nl ? 'Inhoud in FR/EN' : (en ? 'FR/EN content' : 'Contenus FR/EN') }}</span></li>
+          <li><b>02</b><strong>{{ nl ? 'Contacttraject' : (en ? 'Contact journey' : 'Parcours de contact') }}</strong><span>{{ nl ? 'Uw vraag verduidelijken' : (en ? 'Needs qualification' : 'Qualification des besoins') }}</span></li>
+          <li><b>03</b><strong>{{ nl ? 'Begeleide assistent' : (en ? 'Guided assistant' : 'Assistant guidé') }}</strong><span>{{ nl ? 'Interactieve trajecten' : (en ? 'Interactive pathways' : 'Parcours interactifs') }}</span></li>
         </ol>
       </div>
     </div>
@@ -87,23 +96,23 @@
 
   <section class="agency-v2-section agency-v2-section--tech" aria-labelledby="agency-v2-tech-title">
     <div class="agency-v2-container">
-      <p class="agency-v2-eyebrow">{{ en ? 'FOR TECHNICAL TEAMS' : 'POUR LES ÉQUIPES TECHNIQUES' }}</p>
-      <h2 id="agency-v2-tech-title">{{ en ? 'Drupal, PHP and integrations: our expertise in depth.' : 'Drupal, PHP et intégrations : notre expertise en détail.' }}</h2>
+      <p class="agency-v2-eyebrow">{{ nl ? 'VOOR TECHNISCHE TEAMS' : (en ? 'FOR TECHNICAL TEAMS' : 'POUR LES ÉQUIPES TECHNIQUES') }}</p>
+      <h2 id="agency-v2-tech-title">{{ nl ? 'Drupal, PHP en integraties: onze expertise.' : (en ? 'Drupal, PHP and integrations: our expertise in depth.' : 'Drupal, PHP et intégrations : notre expertise en détail.') }}</h2>
       <ul class="agency-v2-tech-list">
         <li>Drupal & migrations</li>
         <li>PHP · Symfony · Laravel</li>
-        <li>{{ en ? 'APIs & applications' : 'API & applications' }}</li>
-        <li>{{ en ? 'Automation & AI' : 'Automatisation · IA' }}</li>
+        <li>{{ nl ? 'API\'s en webtoepassingen' : (en ? 'APIs & applications' : 'API & applications') }}</li>
+        <li>{{ nl ? 'Automatisering en AI' : (en ? 'Automation & AI' : 'Automatisation · IA') }}</li>
       </ul>
     </div>
   </section>
 
   <section class="agency-v2-final" aria-labelledby="agency-v2-final-title">
     <div class="agency-v2-container">
-      <p class="agency-v2-eyebrow agency-v2-eyebrow--light">{{ en ? 'LET’S TALK ABOUT YOUR PROJECT' : 'ET SI NOUS PARLIONS DE VOTRE PROJET ?' }}</p>
-      <h2 id="agency-v2-final-title">{{ en ? 'Planning a new project or ready to improve what you have?' : 'Un projet à créer ou un existant à faire avancer ?' }}</h2>
-      <p>{{ en ? 'We start with your goals, your context and what matters to your organisation.' : 'Commençons par vos objectifs, votre contexte et ce qui compte vraiment pour votre organisation.' }}</p>
-      <a class="button" href="{{ prefix }}/contact">{{ en ? 'Discuss your project' : 'Échanger sur mon projet' }}</a>
+      <p class="agency-v2-eyebrow agency-v2-eyebrow--light">{{ nl ? 'LATEN WE UW PROJECT BESPREKEN' : (en ? 'LET’S TALK ABOUT YOUR PROJECT' : 'ET SI NOUS PARLIONS DE VOTRE PROJET ?') }}</p>
+      <h2 id="agency-v2-final-title">{{ nl ? 'Wilt u iets nieuws bouwen of uw bestaande platform verbeteren?' : (en ? 'Planning a new project or ready to improve what you have?' : 'Un projet à créer ou un existant à faire avancer ?') }}</h2>
+      <p>{{ nl ? 'We beginnen bij uw doelstellingen, uw context en wat voor uw organisatie belangrijk is.' : (en ? 'We start with your goals, your context and what matters to your organisation.' : 'Commençons par vos objectifs, votre contexte et ce qui compte vraiment pour votre organisation.') }}</p>
+      <a class="button" href="{{ prefix }}/contact">{{ nl ? 'Bespreek uw project' : (en ? 'Discuss your project' : 'Échanger sur mon projet') }}</a>
     </div>
   </section>
 </div>

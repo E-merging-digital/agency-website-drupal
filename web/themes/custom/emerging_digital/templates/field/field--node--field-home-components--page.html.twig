@@ -8,7 +8,7 @@
     {% endfor %}
     {% if items|length > 1 %}
       <details class="agency-v2-depth">
-        <summary>{{ agency_home_v2_en|default(false) ? 'Explore all services and technical details' : 'Explorer toutes les expertises et les détails techniques' }}</summary>
+        <summary>{{ agency_home_v2_nl|default(false) ? 'Ontdek alle diensten en technische details' : (agency_home_v2_en|default(false) ? 'Explore all services and technical details' : 'Explorer toutes les expertises et les détails techniques') }}</summary>
         <div class="agency-v2-depth__content">
           {% for item in items %}
             {% if not loop.first %}

@@ -15,6 +15,10 @@ contents:
       en:
         title: 'Legal Notices'
         alias: /legal-notices
+      nl:
+        title: "Wettelijke vermeldingen"
+        alias: /wettelijke-vermeldingen
+
   - id: politique-confidentialite
     entity_type: node
     bundle: page
@@ -30,6 +34,10 @@ contents:
       en:
         title: 'Privacy Policy'
         alias: /privacy-policy
+      nl:
+        title: "Privacyverklaring"
+        alias: /privacyverklaring
+
   - id: politique-cookies
     entity_type: node
     bundle: page
@@ -45,3 +53,6 @@ contents:
       en:
         title: 'Cookie Policy'
         alias: /cookie-policy
+      nl:
+        title: "Cookiebeleid"
+        alias: /cookiebeleid

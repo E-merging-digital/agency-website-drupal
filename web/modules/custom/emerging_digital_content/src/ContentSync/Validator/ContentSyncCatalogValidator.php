@@ -6,6 +6,7 @@ namespace Drupal\emerging_digital_content\ContentSync\Validator;
 
 use Drupal\emerging_digital_content\ContentSync\Catalog\ContentSyncCatalog;
 use Drupal\emerging_digital_content\ContentSync\Catalog\ContentSyncCatalogEntry;
+use Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy;
 
 /**
  * Performs minimal schema validation for the Content Sync catalog.
@@ -350,6 +351,15 @@ final class ContentSyncCatalogValidator {
           (string) $langcode,
         );
         continue;
+      }
+
+      if (array_key_exists('status', $translation)
+        && !in_array($translation['status'], ['published', 'unpublished'], TRUE)) {
+        $errors[] = sprintf('Content "%s" translation "%s" has invalid status.', $entry->id(), (string) $langcode);
+      }
+      if ($langcode === 'nl' && GovernedContentPolicy::isGoverned($entry->id())
+        && ($translation['status'] ?? NULL) !== 'unpublished') {
+        $errors[] = sprintf('Governed legal content "%s" requires unpublished NL.', $entry->id());
       }
 
       if (!isset($translation['alias']) || !is_string($translation['alias']) || $translation['alias'] === '') {

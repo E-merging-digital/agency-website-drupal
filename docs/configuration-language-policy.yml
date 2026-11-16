@@ -5,6 +5,7 @@ site_default_language: fr
 site_languages:
   - fr
   - en
+  - nl
 historical_configuration:
   canonical_base_language_intent: en
   evidence_issue: 609

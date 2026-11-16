@@ -1,0 +1,111 @@
+elements: |-
+  required_notice:
+    '#type': webform_markup
+    '#markup': '<p class="contact-required-note">Fields marked with an asterisk are required.</p>'
+    '#access': false
+  name:
+    '#type': textfield
+    '#title': 'Uw naam'
+    '#required': true
+    '#default_value': '[current-user:display-name]'
+  email:
+    '#type': email
+    '#title': 'Uw e-mailadres'
+    '#required': true
+    '#default_value': '[current-user:mail]'
+  organization:
+    '#type': textfield
+    '#title': 'Organization'
+    '#placeholder': 'Name of your organization'
+    '#access': false
+  organization_type:
+    '#type': select
+    '#access': false
+    '#title': 'Organization type'
+    '#options':
+      sme: 'SME / company'
+      nonprofit: 'Non-profit'
+      public: 'Public institution'
+      agency: 'Agency / partner'
+      other: 'Other'
+    '#empty_option': 'Not specified'
+  project_type:
+    '#type': select
+    '#access': false
+    '#title': 'Project type'
+    '#options':
+      new_site: 'New Drupal website'
+      redesign: 'Redesign or modernization'
+      migration: 'Drupal migration'
+      audit: 'Drupal audit'
+      maintenance: 'Maintenance or support'
+      ai: 'AI & Drupal'
+      other: 'Other need'
+    '#empty_option': 'Not specified'
+  need_family:
+    '#type': radios
+    '#title': 'Waarmee kunnen we u helpen? (optioneel)'
+    '#options':
+      audit_modernization: 'Audit of modernisering'
+      development_maintenance: 'Ontwikkeling of onderhoud'
+      integration_automation: 'Integratie of automatisering'
+      other: 'Iets anders'
+  main_need:
+    '#type': select
+    '#access': false
+    '#title': 'Main need'
+    '#options':
+      frame: 'Frame the project'
+      estimate: 'Get an estimate'
+      improve: 'Improve an existing site'
+      secure: 'Secure or maintain'
+      discuss: 'Discuss an idea'
+    '#empty_option': 'Not specified'
+  budget:
+    '#type': select
+    '#access': false
+    '#title': 'Indicative budget'
+    '#options':
+      unknown: 'To be defined'
+      under_5k: 'Less than €5,000'
+      5k_15k: '€5,000 to €15,000'
+      15k_30k: '€15,000 to €30,000'
+      over_30k: 'More than €30,000'
+    '#empty_option': 'Not specified'
+  timeline:
+    '#type': select
+    '#access': false
+    '#title': 'Expected timeline'
+    '#options':
+      urgent: 'As soon as possible'
+      one_three_months: '1 to 3 months'
+      three_six_months: '3 to 6 months'
+      later: 'Later / to be planned'
+    '#empty_option': 'Not specified'
+  subject:
+    '#type': hidden
+    '#title': Subject
+    '#required': true
+    '#default_value': 'Contact request - E-merging Digital'
+    '#test': 'Testing contact webform from [site:name]'
+  message:
+    '#type': textarea
+    '#title': 'Uw bericht'
+    '#required': true
+    '#rows': 5
+    '#placeholder': 'Beschrijf kort uw situatie, uw doel en eventuele belangrijke beperkingen.'
+    '#test': 'Please ignore this email.'
+  rgpd_consent:
+    '#type': checkbox
+    '#title': 'Ik ga ermee akkoord dat mijn gegevens worden gebruikt om mijn aanvraag te behandelen, overeenkomstig het'
+    '#description': '<a href="/nl/privacyverklaring">privacybeleid</a>.<span id="rgpd-consent-help" class="contact-consent-help">Deze toestemming is verplicht om het formulier te verzenden.</span>'
+    '#required': true
+    '#default_value': 0
+    '#attributes':
+      aria-describedby: rgpd-consent-help
+  actions:
+    '#type': webform_actions
+    '#title': 'Submit button(s)'
+    '#submit__label': 'Bericht verzenden'
+settings:
+  confirmation_message: "Bedankt, we hebben uw aanvraag goed ontvangen.\r\nWe nemen binnenkort contact met u op."

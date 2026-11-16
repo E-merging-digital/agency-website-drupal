@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\emerging_digital_content\StackMiddleware\NlVisibilityGuard;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
@@ -26,7 +31,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     self::assertSame('agency-configuration-language-v2', $policy['policy_id'] ?? NULL);
     self::assertSame('enforced', $policy['status'] ?? NULL);
     self::assertSame('fr', $policy['site_default_language'] ?? NULL);
-    self::assertSame(['fr', 'en'], $policy['site_languages'] ?? NULL);
+    self::assertSame(['fr', 'en', 'nl'], $policy['site_languages'] ?? NULL);
 
     self::assertSame(
       'en',
@@ -121,6 +126,28 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     self::assertSame('fr', $site['langcode'] ?? NULL);
     self::assertSame('fr', $site['default_langcode'] ?? NULL);
 
+    // NL source configuration does not imply Dutch content.
+    $dutch = Yaml::parseFile($root . '/config/sync/language.entity.nl.yml');
+    self::assertSame('nl', $dutch['id'] ?? NULL);
+    self::assertSame('fr', $dutch['langcode'] ?? NULL);
+    self::assertTrue($dutch['status'] ?? FALSE);
+    self::assertSame('ltr', $dutch['direction'] ?? NULL);
+    $negotiation = Yaml::parseFile(
+      $root . '/config/sync/language.negotiation.yml',
+    );
+    self::assertSame('path_prefix', $negotiation['url']['source'] ?? NULL);
+    // The NL prefix is source-only; existing middleware blocks NL routes.
+    self::assertSame(
+      ['en' => 'en', 'fr' => 'fr', 'nl' => 'nl'],
+      $negotiation['url']['prefixes'] ?? NULL,
+    );
+    self::assertSame(
+      ['en' => '', 'fr' => '', 'nl' => ''],
+      $negotiation['url']['domains'] ?? NULL,
+    );
+    self::assertSame('site_default', $negotiation['selected_langcode'] ?? NULL);
+    self::assertDirectoryExists($root . '/config/sync/language/nl');
+
     foreach ([
       '/config/sync/language/fr',
       '/config/sync/language/en',
@@ -135,6 +162,181 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       self::assertSame($id, $language['id'] ?? NULL);
       self::assertTrue((bool) ($language['locked'] ?? FALSE));
     }
+  }
+
+  /**
+   * NL visibility is enforced before Drupal's anonymous page cache.
+   */
+  public function testNlMiddlewareBlocksAliasesAndPreservesNativeEditAccess(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $services = Yaml::parseFile(
+      $root . '/web/modules/custom/emerging_digital_content/emerging_digital_content.services.yml',
+    );
+    $middleware = $services['services']['emerging_digital_content.nl_visibility_guard'];
+    self::assertSame(220, $middleware['tags'][0]['priority']);
+    self::assertSame('http_middleware', $middleware['tags'][0]['name']);
+
+    $inner = new class implements HttpKernelInterface {
+
+      /**
+       * {@inheritdoc}
+       */
+      public function handle(Request $request, $type = self::MAIN_REQUEST, $catch = TRUE): Response {
+        return new Response('NATIVE_ROUTE');
+      }
+
+    };
+    $guard = new NlVisibilityGuard($inner);
+    foreach ([
+      '/nl',
+      '/nl/',
+      '/nl/node/5',
+      '/nl/node/6',
+      '/nl/diensten',
+      '/nl/wettelijke-vermeldingen',
+      '/nl/privacyverklaring',
+      '/nl/cookiebeleid',
+      '/nl/contact',
+      '/nl/not-translated',
+      '/nl/node/preview/not-a-uuid/full',
+      '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
+    ] as $path) {
+      $response = $guard->handle(Request::create($path));
+      self::assertSame(404, $response->getStatusCode(), $path);
+      self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
+      self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+    }
+    foreach ([
+      '/fr',
+      '/en',
+      '/nl/node/6/edit',
+      '/nl/node/5/edit',
+      '/nl/node/preview/00000000-0000-0000-0000-000000000000/full',
+    ] as $path) {
+      $response = $guard->handle(Request::create($path));
+      self::assertSame(200, $response->getStatusCode(), $path);
+      self::assertSame('NATIVE_ROUTE', $response->getContent());
+    }
+  }
+
+  /**
+   * NL Webform keeps native field identities and requirements.
+   */
+  public function testNlContactTranslationPreservesFieldSemantics(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $base = Yaml::parseFile($root . '/config/sync/webform.webform.contact.yml');
+    $nl = Yaml::parseFile($root . '/config/sync/language/nl/webform.webform.contact.yml');
+    $base_elements = DrupalYaml::decode($base['elements']);
+    $nl_elements = DrupalYaml::decode($nl['elements']);
+    self::assertSame(array_keys($base_elements), array_keys($nl_elements));
+    foreach ($base_elements as $key => $field) {
+      foreach (['#type', '#required', '#access'] as $property) {
+        self::assertSame($field[$property] ?? NULL, $nl_elements[$key][$property] ?? NULL);
+      }
+    }
+    self::assertSame('Uw naam', $nl_elements['name']['#title']);
+    self::assertSame('Bericht verzenden', $nl_elements['actions']['#submit__label']);
+    self::assertStringContainsString('/nl/privacyverklaring', $nl_elements['rgpd_consent']['#description']);
+    self::assertStringNotContainsString('/fr/', $nl['elements']);
+    self::assertStringNotContainsString('/en/', $nl['elements']);
+    self::assertArrayNotHasKey('handlers', $nl);
+    self::assertFileExists($root . '/config/sync/language/nl/block.block.emerging_digital_footer_branding.yml');
+    self::assertFileExists($root . '/config/sync/language/nl/block.block.emerging_digital_footer_menu.yml');
+  }
+
+  /**
+   * NL legal drafts use the existing Governed Content catalog, not new IDs.
+   */
+  public function testNlGovernedLegalDraftSourceIsBounded(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $base = $root . '/web/modules/custom/emerging_digital_content/content_sync';
+    $catalog = Yaml::parseFile($base . '/catalog.yml');
+    $expected = [
+      'mentions-legales' => '/wettelijke-vermeldingen',
+      'politique-confidentialite' => '/privacyverklaring',
+      'politique-cookies' => '/cookiebeleid',
+    ];
+    self::assertSame(array_keys($expected),
+      array_column($catalog['contents'], 'id'));
+    foreach ($catalog['contents'] as $entry) {
+      $id = $entry['id'];
+      self::assertSame($expected[$id], $entry['translations']['nl']['alias']);
+      $source = Yaml::parseFile($base . '/node/' . $id . '.yml');
+      self::assertSame(['fr', 'en', 'nl'],
+        array_keys($source['translations']));
+      self::assertSame(['fr', 'en', 'nl'],
+        array_keys($source['components'][0]['translations']));
+      self::assertNotEmpty(
+        $source['components'][0]['translations']['nl']['fields']['field_text'][0]['value']
+      );
+    }
+
+    $hero = (string) file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/components/hero/hero.twig'
+    );
+    self::assertStringContainsString('home_nl', $hero);
+    self::assertStringContainsString(
+      'Uw digitaal project verdient meer dan een website.',
+      $hero,
+    );
+
+    $switcher = (string) file_get_contents(
+      $root . '/web/modules/custom/emerging_digital_content/src/Plugin/Block/LanguageSwitcherBlock.php'
+    );
+    self::assertStringContainsString(
+      'if ($langcode === \'nl\' && $nl_prefix !== \'nl\')',
+      $switcher,
+    );
+
+    $theme = (string) file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/emerging_digital.theme',
+    );
+    // Card fragments are text, including when CKEditor wraps preview input.
+    self::assertSame(2, substr_count($theme, 'trim(strip_tags($part))'));
+    self::assertStringContainsString(
+      "\$variables['case_clients_dutch'] = \$langcode === 'nl';",
+      $theme,
+    );
+    $cases = (string) file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/templates/paragraphs/paragraph--case-clients.html.twig',
+    );
+    self::assertStringContainsString('case_clients_dutch|default(false)', $cases);
+    self::assertStringContainsString('Ontdek de drie stappen', $cases);
+  }
+
+  /**
+   * Cookie consent NL copy stays local and /nl remains visibility-gated.
+   */
+  public function testNlCookieConsentReviewGates(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $script = (string) file_get_contents(
+      $root . '/web/modules/custom/emerging_digital_cookie_consent/js/cookie-consent.js',
+    );
+    self::assertStringContainsString("startsWith('nl')", $script);
+    self::assertStringContainsString('Cookievoorkeuren', $script);
+    self::assertStringContainsString('showPreferencesShortcut();', $script);
+    // The legacy theme helper must not nest policy anchors in CMP buttons.
+    $theme = (string) file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/js/main.js',
+    );
+    self::assertStringContainsString(
+      "banner.closest('#ed-cookie-banner, #ed-cookie-preferences-shortcut')",
+      $theme,
+    );
+    self::assertStringContainsString(
+      "modal.closest('#ed-cookie-preferences-modal')",
+      $theme,
+    );
+
+    $module = (string) file_get_contents(
+      $root . '/web/modules/custom/emerging_digital_cookie_consent/emerging_digital_cookie_consent.module',
+    );
+    self::assertStringContainsString('getPathByAlias(', $module);
+    self::assertStringContainsString('isPublished()', $module);
+    self::assertStringContainsString(
+      "isset(\$aliases[\$langcode], \$prefixes[\$langcode])",
+      $module,
+    );
   }
 
   /**

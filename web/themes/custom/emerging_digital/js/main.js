@@ -29,7 +29,8 @@
       '[class*="cookie"][class*="banner"]'
     ];
     var banner = document.querySelector(bannerSelectors.join(','));
-    if (!banner || banner.querySelector('.js-cookie-policy-link--banner')) {
+    if (!banner || banner.closest('#ed-cookie-banner, #ed-cookie-preferences-shortcut') ||
+      banner.querySelector('.js-cookie-policy-link--banner')) {
       return;
     }
 
@@ -58,7 +59,8 @@
       '[class*="cookie"][class*="modal"]'
     ];
     var modal = document.querySelector(modalSelectors.join(','));
-    if (!modal || modal.querySelector('.js-cookie-policy-link--modal')) {
+    if (!modal || modal.closest('#ed-cookie-preferences-modal') ||
+      modal.querySelector('.js-cookie-policy-link--modal')) {
       return;
     }
 

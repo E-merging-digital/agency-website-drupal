@@ -1,0 +1,11 @@
+uuid: 9d6d25df-ce06-4e9f-9d11-193a7082fcad
+langcode: fr
+status: true
+dependencies:
+  module:
+    - language
+id: nl
+label: Néerlandais
+direction: ltr
+weight: 2
+locked: false

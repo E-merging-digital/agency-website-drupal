@@ -15,6 +15,12 @@ translations:
           company number, registered office, editorial responsibility and legal
           information.
         format: basic_html
+  nl:
+    status: unpublished
+    fields:
+      field_short_description:
+        value: "Wettelijke informatie over E-MERGING DIGITAL SRL, contactgegevens, ondernemingsnummer, maatschappelijke zetel en hosting."
+        format: basic_html
 components:
   - id: mentions-legales.content
     legacy_uuid: d88c477b-b568-4353-8c4a-e159644325bf
@@ -51,4 +57,17 @@ components:
                 <strong>Phone&nbsp;:</strong> <a href="tel:+3219860698">+32 19 86 06 98</a></p>
                 <h2>Hosting</h2>
                 <p>Hosting information available upon request.</p>
+              format: basic_html
+      nl:
+        fields:
+          field_heading:
+            - value: "Wettelijke vermeldingen"
+          field_text:
+            - value: |-
+                <h2>Uitgever van de website</h2>
+                <p><strong>Wettelijke naam:</strong> E-MERGING DIGITAL SRL<br><strong>Ondernemingsnummer:</strong> BE 0746.356.206<br><strong>Maatschappelijke zetel:</strong> Rue des Peupliers 1, 4254 Ligney (Geer), België</p>
+                <h2>Contact</h2>
+                <p><strong>E-mail:</strong> <a href="mailto:contact@emergingdigital.be">contact@emergingdigital.be</a><br><strong>Telefoon:</strong> <a href="tel:+3219860698">+32 19 86 06 98</a></p>
+                <h2>Hosting</h2>
+                <p>Informatie over de hosting is op aanvraag beschikbaar.</p>
               format: basic_html

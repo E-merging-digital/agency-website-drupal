@@ -11,6 +11,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\emerging_digital_content\ContentSync\Catalog\ContentSyncCatalog;
 use Drupal\emerging_digital_content\ContentSync\Catalog\ContentSyncCatalogEntry;
+use Drupal\emerging_digital_content\ContentSync\Policy\GovernedContentPolicy;
 use Drupal\emerging_digital_content\ContentSync\Catalog\Exception\ContentSyncCatalogException;
 use Drupal\emerging_digital_content\ContentSync\Entity\ContentSyncMappingRecord;
 use Drupal\emerging_digital_content\ContentSync\Loader\ContentSyncCatalogLoader;
@@ -731,18 +732,34 @@ final class ContentSyncManager {
       ));
     }
 
-    $this->applyNodeTranslations($node, $definition);
+    // Existing governed legal pages admit only their unapproved NL draft.
+    $nl_only = !$created
+      && GovernedContentPolicy::isGoverned($entry->id())
+      && ($definition['translations']['nl']['status'] ?? NULL) === 'unpublished';
+    if ($nl_only && ($node->uuid() !== ($definition['legacy_uuid'] ?? NULL)
+      || !$node->hasTranslation('fr') || !$node->hasTranslation('en'))) {
+      throw new \RuntimeException('Legal NL draft requires the canonical FR/EN node.');
+    }
+    $nl_before = $nl_only && $node->hasTranslation('nl')
+      ? $node->getTranslation('nl')->toArray() : NULL;
+    $this->applyNodeTranslations($node, $definition, $nl_only);
     $component_actions = [];
-    $this->applyPageComponents($node, $definition, $component_actions);
+    $this->applyPageComponents($node, $definition, $component_actions, $nl_only);
     $actions = array_merge($actions, $component_actions);
 
     foreach ($this->collectAliases($definition) as $langcode => $aliases) {
+      if ($nl_only && $langcode !== 'nl') {
+        continue;
+      }
       foreach ($aliases as $alias) {
         $this->assertAliasIsAvailableForNode($alias, $langcode, $node);
       }
     }
 
-    $node->save();
+    if (!$nl_only || $nl_before === NULL
+      || $nl_before !== $node->getTranslation('nl')->toArray()) {
+      $node->save();
+    }
     $actions[] = sprintf(
       '%s node:%d translations: %s',
       $created ? 'saved new' : 'updated existing',
@@ -912,9 +929,14 @@ final class ContentSyncManager {
    *   Node to update.
    * @param array<string, mixed> $definition
    *   Catalog definition.
+   * @param bool $nl_only
+   *   When set, edit only the existing governed NL draft.
    */
-  private function applyNodeTranslations(NodeInterface $node, array $definition): void {
+  private function applyNodeTranslations(NodeInterface $node, array $definition, bool $nl_only = FALSE): void {
     foreach ($this->translations($definition) as $langcode => $translation_definition) {
+      if ($nl_only && $langcode !== 'nl') {
+        continue;
+      }
       $translation = $this->nodeTranslation($node, $langcode);
 
       if (isset($translation_definition['title']) && is_string($translation_definition['title'])) {
@@ -922,7 +944,9 @@ final class ContentSyncManager {
       }
 
       if ($translation->hasField('status')) {
-        $translation->set('status', NodeInterface::PUBLISHED);
+        $translation->set('status',
+          ($translation_definition['status'] ?? 'published') === 'unpublished'
+            ? NodeInterface::NOT_PUBLISHED : NodeInterface::PUBLISHED);
       }
 
       $fields = is_array($translation_definition['fields'] ?? NULL)
@@ -952,8 +976,10 @@ final class ContentSyncManager {
    *   Catalog definition.
    * @param list<string> $actions
    *   Actions populated for the apply report.
+   * @param bool $nl_only
+   *   When set, edit only the existing governed NL draft.
    */
-  private function applyPageComponents(NodeInterface $node, array $definition, array &$actions): void {
+  private function applyPageComponents(NodeInterface $node, array $definition, array &$actions, bool $nl_only = FALSE): void {
     if (($definition['bundle'] ?? NULL) !== 'page') {
       return;
     }
@@ -972,14 +998,14 @@ final class ContentSyncManager {
         continue;
       }
 
-      $paragraph = $this->applyParagraphComponent($component_definition, $actions);
+      $paragraph = $this->applyParagraphComponent($component_definition, $actions, $nl_only);
       $references[] = [
         'target_id' => (int) $paragraph->id(),
         'target_revision_id' => (int) $paragraph->getRevisionId(),
       ];
     }
 
-    foreach (array_keys($this->translations($definition)) as $langcode) {
+    foreach ($nl_only ? ['nl'] : array_keys($this->translations($definition)) as $langcode) {
       $translation = $this->nodeTranslation($node, (string) $langcode);
       $translation->set('field_home_components', $references);
     }
@@ -994,8 +1020,10 @@ final class ContentSyncManager {
    *   Paragraph component definition.
    * @param list<string> $actions
    *   Actions populated for the apply report.
+   * @param bool $nl_only
+   *   When set, edit only the existing governed NL draft.
    */
-  private function applyParagraphComponent(array $definition, array &$actions): ParagraphInterface {
+  private function applyParagraphComponent(array $definition, array &$actions, bool $nl_only = FALSE): ParagraphInterface {
     $content_id = (string) ($definition['id'] ?? '');
     if ($content_id === '') {
       throw new \RuntimeException('Page component is missing a stable business id.');
@@ -1043,8 +1071,18 @@ final class ContentSyncManager {
       ));
     }
 
-    $this->applyParagraphTranslations($paragraph, $definition);
-    $paragraph->save();
+    if ($nl_only && ($created
+      || $paragraph->uuid() !== ($definition['legacy_uuid'] ?? NULL)
+      || !$paragraph->hasTranslation('fr') || !$paragraph->hasTranslation('en'))) {
+      throw new \RuntimeException('Legal NL draft requires the canonical FR/EN paragraph.');
+    }
+    $nl_before = $nl_only && $paragraph->hasTranslation('nl')
+      ? $paragraph->getTranslation('nl')->toArray() : NULL;
+    $this->applyParagraphTranslations($paragraph, $definition, $nl_only);
+    if (!$nl_only || $nl_before === NULL
+      || $nl_before !== $paragraph->getTranslation('nl')->toArray()) {
+      $paragraph->save();
+    }
 
     $record = $this->mappingRepository->createOrUpdate(new ContentSyncMappingRecord(
       $content_id,
@@ -1098,9 +1136,14 @@ final class ContentSyncManager {
    *   Paragraph to update.
    * @param array<string, mixed> $definition
    *   Paragraph component definition.
+   * @param bool $nl_only
+   *   When set, edit only the existing governed NL draft.
    */
-  private function applyParagraphTranslations(ParagraphInterface $paragraph, array $definition): void {
+  private function applyParagraphTranslations(ParagraphInterface $paragraph, array $definition, bool $nl_only = FALSE): void {
     foreach ($this->translations($definition) as $langcode => $translation_definition) {
+      if ($nl_only && $langcode !== 'nl') {
+        continue;
+      }
       $translation = $this->paragraphTranslation($paragraph, $langcode);
 
       if ($translation->hasField('status')) {

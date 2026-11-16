@@ -169,6 +169,18 @@ export const test = base.extend({
         errorText: request.failure()?.errorText ?? 'Unknown request failure',
       };
 
+      // Canceled speculative prefetches are not required document requests.
+      // Keep them as evidence; never reconcile navigation or other failures.
+      if (
+        entry.errorText === 'net::ERR_ABORTED'
+        && entry.resourceType === 'other'
+        && !request.isNavigationRequest()
+        && request.headers()['sec-purpose'] === 'prefetch'
+      ) {
+        audit.reconciledRequestAborts.push(entry);
+        return;
+      }
+
       audit.failedRequests.push(entry);
 
       if (

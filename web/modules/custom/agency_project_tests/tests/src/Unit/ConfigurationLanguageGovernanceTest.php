@@ -202,7 +202,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $response = $guard->handle(Request::create($path));
       self::assertSame(404, $response->getStatusCode(), $path);
       self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
-      self::assertSame('private, no-store', $response->headers->get('Cache-Control'));
+      self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
     }
     foreach (['/fr', '/en', '/nl/node/6/edit', '/nl/node/5/edit'] as $path) {
       $response = $guard->handle(Request::create($path));

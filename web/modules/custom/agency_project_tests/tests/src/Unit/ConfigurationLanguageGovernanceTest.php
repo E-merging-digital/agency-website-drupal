@@ -136,13 +136,13 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $root . '/config/sync/language.negotiation.yml',
     );
     self::assertSame('path_prefix', $negotiation['url']['source'] ?? NULL);
-    // NL URLs remain unavailable until real Dutch content is reviewed.
+    // The NL prefix is source-only; the existing middleware blocks public NL routes.
     self::assertSame(
-      ['en' => 'en', 'fr' => 'fr'],
+      ['en' => 'en', 'fr' => 'fr', 'nl' => 'nl'],
       $negotiation['url']['prefixes'] ?? NULL,
     );
     self::assertSame(
-      ['en' => '', 'fr' => ''],
+      ['en' => '', 'fr' => '', 'nl' => ''],
       $negotiation['url']['domains'] ?? NULL,
     );
     self::assertSame('site_default', $negotiation['selected_langcode'] ?? NULL);
@@ -173,10 +173,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $root . '/web/modules/custom/emerging_digital_content/emerging_digital_content.services.yml',
     );
     $middleware = $services['services']['emerging_digital_content.nl_visibility_guard'];
-    self::assertGreaterThan(
-      200,
-      $middleware['tags'][0]['priority'],
-    );
+    self::assertSame(220, $middleware['tags'][0]['priority']);
     self::assertSame('http_middleware', $middleware['tags'][0]['name']);
 
     $inner = new class implements HttpKernelInterface {
@@ -205,6 +202,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $response = $guard->handle(Request::create($path));
       self::assertSame(404, $response->getStatusCode(), $path);
       self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
+      self::assertSame('private, no-store', $response->headers->get('Cache-Control'));
     }
     foreach (['/fr', '/en', '/nl/node/6/edit', '/nl/node/5/edit'] as $path) {
       $response = $guard->handle(Request::create($path));

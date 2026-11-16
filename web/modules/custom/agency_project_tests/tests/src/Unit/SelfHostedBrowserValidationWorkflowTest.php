@@ -580,7 +580,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
       $helper,
     );
     self::assertStringContainsString(
-      '0|1421|1458|1469|1472|1474|1485|1487) ;;',
+      '0|1421|1458|1469|1472|1474|1485|1487|1559) ;;',
       $helper,
     );
     self::assertStringContainsString('*) fail_closed ;;', $helper);
@@ -659,7 +659,7 @@ final class SelfHostedBrowserValidationWorkflowTest extends TestCase {
     // reach the strict nonzero classifier; all other PRs fail closed.
     self::assertSame(
       1,
-      substr_count($helper, '0|1421|1458|1469|1472|1474|1485|1487) ;;'),
+      substr_count($helper, '0|1421|1458|1469|1472|1474|1485|1487|1559) ;;'),
     );
     self::assertStringContainsString(
       '[[ "$CANVAS_BROWSER_PR_NUMBER" =~ ^(0|[1-9][0-9]*)$ ]]',

@@ -290,6 +290,13 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/admin/structure/menu/item/6/edit/translations',
       '/nl/admin/structure/menu/item/6/edit/translations/add/fr/nl',
       '/nl/admin/structure/menu/item/6/edit/translations/edit/nl',
+      '/nl/node/5/translations',
+      '/nl/node/5/translations/add/fr/nl',
+      '/nl/node/5/translations/edit/nl',
+      '/nl/admin/structure/webform/manage/contact',
+      '/nl/admin/structure/webform/manage/contact/translate',
+      '/nl/admin/structure/webform/manage/contact/translate/add/fr/nl',
+      '/nl/admin/structure/webform/manage/contact/translate/nl/edit',
       '/nl/node/preview/00000000-0000-0000-0000-000000000000/full',
     ] as $path) {
       $response = $guard->handle(Request::create($path));
@@ -316,6 +323,13 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/admin/structure/menu/item/6/edit/translations/delete/nl',
       '/nl/admin/structure/menu/item/6/edit/translations/add/nl/fr',
       '/nl/admin/structure/menu/item/6/edit/translations/add/fr/nl/extra',
+      '/nl/node/5/translations/delete/nl',
+      '/nl/node/5/translations/add/nl/fr',
+      '/nl/admin/structure/webform',
+      '/nl/admin/structure/webform/manage/other',
+      '/nl/admin/structure/webform/manage/contact/delete',
+      '/nl/admin/structure/webform/manage/contact/translate/add/nl/fr',
+      '/nl/webform/contact',
       '/nl/node/preview/not-a-uuid/full',
       '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
     ] as $path) {
@@ -354,22 +368,15 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
-   * The NL MVP main menu is explicit; unknown links never leak FR fallbacks.
+   * The main menu uses translated Drupal links, not a hardcoded three-link cap.
    */
-  public function testNlMainMenuAllowsOnlyReviewedDestinations(): void {
+  public function testNlMainMenuIsNotLimitedByTitle(): void {
     $root = dirname(DRUPAL_ROOT);
     $theme = file_get_contents(
       $root . '/web/themes/custom/emerging_digital/emerging_digital.theme',
     );
-    self::assertStringContainsString(
-      "['Startpagina', 'Diensten', 'Contact']", $theme,
-    );
-    self::assertStringContainsString(
-      "Url::fromUri('internal:/diensten', ['language' => \$language])",
-      $theme,
-    );
     self::assertStringNotContainsString(
-      "['Blog', 'AI & Drupal', 'Klantcases']", $theme,
+      'function emerging_digital_preprocess_menu(', $theme,
     );
   }
 
@@ -389,13 +396,18 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       }
     }
     self::assertSame('Uw naam', $nl_elements['name']['#title']);
+    self::assertSame('Uw e-mailadres', $nl_elements['email']['#title']);
+    self::assertSame('Uw bericht', $nl_elements['message']['#title']);
     self::assertSame('Bericht verzenden', $nl_elements['actions']['#submit__label']);
+    self::assertStringContainsString('Bedankt,', $nl['settings']['confirmation_message']);
     self::assertStringContainsString('/nl/privacyverklaring', $nl_elements['rgpd_consent']['#description']);
     self::assertStringNotContainsString('/fr/', $nl['elements']);
     self::assertStringNotContainsString('/en/', $nl['elements']);
     self::assertArrayNotHasKey('handlers', $nl);
     self::assertFileExists($root . '/config/sync/language/nl/block.block.emerging_digital_footer_branding.yml');
     self::assertFileExists($root . '/config/sync/language/nl/block.block.emerging_digital_footer_menu.yml');
+    $online = Yaml::parseFile($root . '/config/sync/language/nl/block.block.emerging_digital_online_presence.yml');
+    self::assertSame('Online aanwezigheid', $online['settings']['label']);
   }
 
   /**

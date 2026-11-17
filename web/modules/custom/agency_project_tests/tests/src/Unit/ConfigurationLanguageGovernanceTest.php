@@ -252,23 +252,20 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       },
     );
 
-    $flags = ['prefix' => TRUE, 'source' => TRUE, 'language' => TRUE];
+    $nl_settings = ['url.source' => 'path_prefix', 'url.prefixes.nl' => 'nl'];
+    $language_status = ['status' => TRUE];
     $site = $this->createMock(ImmutableConfig::class);
     $site->method('get')->with('page.front')->willReturn('/node/5');
     $negotiation = $this->createMock(ImmutableConfig::class);
     $negotiation->method('get')->willReturnCallback(
-      static function (string $key) use (&$flags): ?string {
-        return match ($key) {
-          'url.source' => $flags['source'] ? 'path_prefix' : 'domain',
-          'url.prefixes.nl' => $flags['prefix'] ? 'nl' : '',
-          default => NULL,
-        };
+      static function (string $key) use (&$nl_settings): ?string {
+        return $nl_settings[$key] ?? NULL;
       },
     );
     $language = $this->createMock(ImmutableConfig::class);
     $language->method('get')->with('status')->willReturnCallback(
-      static function () use (&$flags): bool {
-        return $flags['language'];
+      static function () use (&$language_status): bool {
+        return $language_status['status'];
       },
     );
     $config = $this->createMock(ConfigFactoryInterface::class);
@@ -319,15 +316,22 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     }
 
     // Misconfigured language negotiation must not admit even published pages.
-    foreach (array_keys($flags) as $flag) {
-      $flags[$flag] = FALSE;
+    foreach ([
+      ['source' => 'path_prefix', 'prefix' => '', 'status' => TRUE],
+      ['source' => 'domain', 'prefix' => 'nl', 'status' => TRUE],
+      ['source' => 'path_prefix', 'prefix' => 'nl', 'status' => FALSE],
+    ] as $scenario) {
+      $nl_settings['url.source'] = $scenario['source'];
+      $nl_settings['url.prefixes.nl'] = $scenario['prefix'];
+      $language_status['status'] = $scenario['status'];
       foreach (['/nl', '/nl/node/5', '/nl/diensten'] as $path) {
         $response = $guard->handle(Request::create($path));
-        self::assertSame(404, $response->getStatusCode(), $flag . ': ' . $path);
+        self::assertSame(404, $response->getStatusCode(), $path);
         self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
       }
-      $flags[$flag] = TRUE;
     }
+    $nl_settings = ['url.source' => 'path_prefix', 'url.prefixes.nl' => 'nl'];
+    $language_status['status'] = TRUE;
 
     // An earlier public response must not admit a later unpublished NL node,
     // even if Drupal's anonymous page cache still has the old page.

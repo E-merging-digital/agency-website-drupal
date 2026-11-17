@@ -175,6 +175,11 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $middleware = $services['services']['emerging_digital_content.nl_visibility_guard'];
     self::assertSame(220, $middleware['tags'][0]['priority']);
     self::assertSame('http_middleware', $middleware['tags'][0]['name']);
+    self::assertSame([
+      '@path_alias.manager',
+      '@entity_type.manager',
+      '@config.factory',
+    ], $middleware['arguments']);
 
     $inner = new class implements HttpKernelInterface {
 
@@ -186,27 +191,70 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       }
 
     };
-    $guard = new NlVisibilityGuard($inner);
+
+    $published_now = TRUE;
+    $published = $this->createMock(\Drupal\node\NodeInterface::class);
+    $published->method('bundle')->willReturn('page');
+    $published->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $published->method('getTranslation')->with('nl')->willReturn($published);
+    $published->method('isPublished')->willReturnCallback(
+      static function () use (&$published_now): bool {
+        return $published_now;
+      },
+    );
+
+    $draft = $this->createMock(\Drupal\node\NodeInterface::class);
+    $draft->method('bundle')->willReturn('page');
+    $draft->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $draft->method('getTranslation')->with('nl')->willReturn($draft);
+    $draft->method('isPublished')->willReturn(FALSE);
+
+    $missing_nl = $this->createMock(\Drupal\node\NodeInterface::class);
+    $missing_nl->method('bundle')->willReturn('page');
+    $missing_nl->method('hasTranslation')->with('nl')->willReturn(FALSE);
+
+    $other_bundle = $this->createMock(\Drupal\node\NodeInterface::class);
+    $other_bundle->method('bundle')->willReturn('article');
+
+    $nodes = [
+      5 => $published,
+      6 => $draft,
+      7 => $missing_nl,
+      8 => $other_bundle,
+    ];
+    $storage = $this->createMock(\Drupal\Core\Entity\EntityStorageInterface::class);
+    $storage->method('load')->willReturnCallback(
+      static fn ($id) => $nodes[(int) $id] ?? NULL,
+    );
+    $entities = $this->createMock(\Drupal\Core\Entity\EntityTypeManagerInterface::class);
+    $entities->method('getStorage')->with('node')->willReturn($storage);
+
+    $alias = $this->createMock(\Drupal\path_alias\AliasManagerInterface::class);
+    $alias->method('getPathByAlias')->willReturnCallback(
+      static function (string $path, string $langcode): string {
+        self::assertSame('nl', $langcode);
+        return [
+          '/diensten' => '/node/5',
+          '/wettelijke-vermeldingen' => '/node/6',
+          '/not-translated' => '/node/7',
+          '/article' => '/node/8',
+          '/wrong-target' => '/user/login',
+        ][$path] ?? $path;
+      },
+    );
+
+    $site = $this->createMock(\Drupal\Core\Config\ImmutableConfig::class);
+    $site->method('get')->with('page.front')->willReturn('/node/5');
+    $config = $this->createMock(\Drupal\Core\Config\ConfigFactoryInterface::class);
+    $config->method('get')->with('system.site')->willReturn($site);
+
+    $guard = new NlVisibilityGuard($inner, $alias, $entities, $config);
+
     foreach ([
       '/nl',
       '/nl/',
       '/nl/node/5',
-      '/nl/node/6',
       '/nl/diensten',
-      '/nl/wettelijke-vermeldingen',
-      '/nl/privacyverklaring',
-      '/nl/cookiebeleid',
-      '/nl/contact',
-      '/nl/not-translated',
-      '/nl/node/preview/not-a-uuid/full',
-      '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
-    ] as $path) {
-      $response = $guard->handle(Request::create($path));
-      self::assertSame(404, $response->getStatusCode(), $path);
-      self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
-      self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
-    }
-    foreach ([
       '/fr',
       '/en',
       '/nl/node/6/edit',
@@ -215,7 +263,35 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     ] as $path) {
       $response = $guard->handle(Request::create($path));
       self::assertSame(200, $response->getStatusCode(), $path);
-      self::assertSame('NATIVE_ROUTE', $response->getContent());
+      self::assertSame('NATIVE_ROUTE', $response->getContent(), $path);
+    }
+
+    foreach ([
+      '/nl/node/6',
+      '/nl/wettelijke-vermeldingen',
+      '/nl/node/7',
+      '/nl/not-translated',
+      '/nl/node/8',
+      '/nl/article',
+      '/nl/no-such-alias',
+      '/nl/wrong-target',
+      '/nl/node/5/extra',
+      '/nl/node/preview/not-a-uuid/full',
+      '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
+    ] as $path) {
+      $response = $guard->handle(Request::create($path));
+      self::assertSame(404, $response->getStatusCode(), $path);
+      self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
+      self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+    }
+
+    // An earlier public response must not admit a later unpublished NL node,
+    // even if Drupal's anonymous page cache still has the old page.
+    $published_now = FALSE;
+    foreach (['/nl', '/nl/node/5', '/nl/diensten'] as $path) {
+      $response = $guard->handle(Request::create($path));
+      self::assertSame(404, $response->getStatusCode(), $path);
+      self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
     }
   }
 
@@ -261,9 +337,11 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     foreach ($catalog['contents'] as $entry) {
       $id = $entry['id'];
       self::assertSame($expected[$id], $entry['translations']['nl']['alias']);
+      self::assertArrayNotHasKey('status', $entry['translations']['nl']);
       $source = Yaml::parseFile($base . '/node/' . $id . '.yml');
       self::assertSame(['fr', 'en', 'nl'],
         array_keys($source['translations']));
+      self::assertArrayNotHasKey('status', $source['translations']['nl']);
       self::assertSame(['fr', 'en', 'nl'],
         array_keys($source['components'][0]['translations']));
       self::assertNotEmpty(

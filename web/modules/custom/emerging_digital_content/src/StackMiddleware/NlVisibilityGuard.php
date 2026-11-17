@@ -89,6 +89,10 @@ final class NlVisibilityGuard implements HttpKernelInterface {
     }
 
     $relative = substr($path, 3);
+    if ($relative === '/blog') {
+      // Views must remain restricted to published articles in the active content language.
+      return $this->isSafeDutchBlogView();
+    }
     if ($relative === '' || $relative === '/') {
       $target = $this->configFactory->get('system.site')->get('page.front');
     }
@@ -117,9 +121,29 @@ final class NlVisibilityGuard implements HttpKernelInterface {
 
     $node = $this->entityTypeManager->getStorage('node')->load((int) $matches[1]);
     return $node instanceof NodeInterface
-      && $node->bundle() === 'page'
+      && in_array($node->bundle(), ['page', 'article'], TRUE)
       && $node->hasTranslation('nl')
       && $node->getTranslation('nl')->isPublished();
+  }
+
+  /**
+   * Only the native Blog View with strict language/publication filters is safe.
+   */
+  private function isSafeDutchBlogView(): bool {
+    $view = $this->configFactory->get('views.view.blog');
+    $displays = $view->get('display');
+    if ($view->get('status') !== TRUE || !is_array($displays)) {
+      return FALSE;
+    }
+
+    $page = $displays['page_1'] ?? [];
+    $filters = $displays['default']['display_options']['filters'] ?? [];
+    return ($page['display_plugin'] ?? NULL) === 'page'
+      && ($page['display_options']['path'] ?? NULL) === 'blog'
+      && ($filters['status']['value'] ?? NULL) === '1'
+      && ($filters['type']['value']['article'] ?? NULL) === 'article'
+      && ($filters['langcode']['value']['***LANGUAGE_language_content***'] ?? NULL)
+        === '***LANGUAGE_language_content***';
   }
 
 }

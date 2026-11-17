@@ -2,6 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'ed_cookie_consent_v1';
+  const CONSENT_VALIDITY_MONTHS = 6;
   let lastFocusedElement = null;
 
   // Preserve existing FR/EN messages. Use Dutch only on Dutch pages.
@@ -50,13 +51,30 @@
       }
 
       const parsed = JSON.parse(raw);
-      if (typeof parsed !== 'object' || parsed === null) {
+      if (typeof parsed !== 'object' || parsed === null ||
+        parsed.necessary !== true || typeof parsed.external !== 'boolean' ||
+        typeof parsed.updatedAt !== 'string') {
+        return null;
+      }
+
+      const updatedAt = new Date(parsed.updatedAt);
+      if (Number.isNaN(updatedAt.getTime()) || updatedAt.getTime() > Date.now()) {
+        return null;
+      }
+
+      // Calendar months, clamped at month-end (e.g. 31 August -> 28/29 February).
+      const expiresAt = new Date(updatedAt.getTime());
+      expiresAt.setUTCDate(1);
+      expiresAt.setUTCMonth(expiresAt.getUTCMonth() + CONSENT_VALIDITY_MONTHS);
+      const lastDay = new Date(Date.UTC(expiresAt.getUTCFullYear(), expiresAt.getUTCMonth() + 1, 0)).getUTCDate();
+      expiresAt.setUTCDate(Math.min(updatedAt.getUTCDate(), lastDay));
+      if (Date.now() >= expiresAt.getTime()) {
         return null;
       }
 
       return {
         necessary: true,
-        external: Boolean(parsed.external),
+        external: parsed.external,
       };
     }
     catch (error) {

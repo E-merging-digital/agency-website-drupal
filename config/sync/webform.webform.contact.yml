@@ -255,8 +255,11 @@ settings:
   entity_limit_total_interval: null
   entity_limit_user: null
   entity_limit_user_interval: null
-  purge: none
-  purge_days: null
+  # Complete submissions received via this non-draft form. Cron runs every 15
+  # minutes in PROD; 364 days leaves a margin below 12 calendar months.
+  # Actual scheduler health and mailbox copies require separate verification.
+  purge: completed
+  purge_days: 364
   results_disabled: false
   results_disabled_ignore: false
   results_customize: false

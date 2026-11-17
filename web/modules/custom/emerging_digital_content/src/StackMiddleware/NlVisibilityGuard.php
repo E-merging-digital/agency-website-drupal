@@ -137,11 +137,27 @@ final class NlVisibilityGuard implements HttpKernelInterface {
     }
 
     $page = $displays['page_1'] ?? [];
-    $filters = $displays['default']['display_options']['filters'] ?? [];
+    $default = $displays['default']['display_options'] ?? [];
+    $filters = $default['filters'] ?? [];
+    $groups = $default['filter_groups'] ?? [];
     return ($page['display_plugin'] ?? NULL) === 'page'
       && ($page['display_options']['path'] ?? NULL) === 'blog'
+      // Page-level overrides must not bypass the checked default filters.
+      && !isset($page['display_options']['filters'])
+      && !isset($page['display_options']['filter_groups'])
+      && ($groups['operator'] ?? NULL) === 'AND'
+      && ($groups['groups'][1] ?? NULL) === 'AND'
+      && ($filters['status']['group'] ?? NULL) === 1
+      && ($filters['status']['operator'] ?? NULL) === '='
+      && ($filters['status']['exposed'] ?? TRUE) === FALSE
       && ($filters['status']['value'] ?? NULL) === '1'
+      && ($filters['type']['group'] ?? NULL) === 1
+      && ($filters['type']['operator'] ?? NULL) === 'in'
+      && ($filters['type']['exposed'] ?? TRUE) === FALSE
       && ($filters['type']['value']['article'] ?? NULL) === 'article'
+      && ($filters['langcode']['group'] ?? NULL) === 1
+      && ($filters['langcode']['operator'] ?? NULL) === 'in'
+      && ($filters['langcode']['exposed'] ?? TRUE) === FALSE
       && ($filters['langcode']['value']['***LANGUAGE_language_content***'] ?? NULL)
         === '***LANGUAGE_language_content***';
   }

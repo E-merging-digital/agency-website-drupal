@@ -33,10 +33,11 @@ function emerging_digital_preprocess_menu(array &$variables): void {
 
   foreach ($variables['items'] as $key => &$item) {
     $title = (string) ($item['title'] ?? '');
-    if (in_array($title, ['Blog', 'AI & Drupal', 'Klantcases'], TRUE)) {
+    if (!in_array($title, ['Startpagina', 'Diensten', 'Contact'], TRUE)) {
       unset($variables['items'][$key]);
+      continue;
     }
-    elseif ($title === 'Diensten') {
+    if ($title === 'Diensten') {
       $item['url'] = Url::fromUri('internal:/diensten', ['language' => $language]);
     }
   }

@@ -286,6 +286,10 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/en',
       '/nl/node/6/edit',
       '/nl/node/5/edit',
+      '/nl/admin/structure/menu/item/6/edit',
+      '/nl/admin/structure/menu/item/6/edit/translations',
+      '/nl/admin/structure/menu/item/6/edit/translations/add/fr/nl',
+      '/nl/admin/structure/menu/item/6/edit/translations/edit/nl',
       '/nl/node/preview/00000000-0000-0000-0000-000000000000/full',
     ] as $path) {
       $response = $guard->handle(Request::create($path));
@@ -306,6 +310,12 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/mismatched',
       '/nl/wrong-target',
       '/nl/node/5/extra',
+      '/nl/admin',
+      '/nl/admin/config/system/site-information',
+      '/nl/admin/structure/menu/item/6/delete',
+      '/nl/admin/structure/menu/item/6/edit/translations/delete/nl',
+      '/nl/admin/structure/menu/item/6/edit/translations/add/nl/fr',
+      '/nl/admin/structure/menu/item/6/edit/translations/add/fr/nl/extra',
       '/nl/node/preview/not-a-uuid/full',
       '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
     ] as $path) {
@@ -341,6 +351,26 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       self::assertSame(404, $response->getStatusCode(), $path);
       self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
     }
+  }
+
+  /**
+   * The NL MVP main menu is explicit; unknown links never leak FR fallbacks.
+   */
+  public function testNlMainMenuAllowsOnlyReviewedDestinations(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $theme = file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/emerging_digital.theme',
+    );
+    self::assertStringContainsString(
+      "['Startpagina', 'Diensten', 'Contact']", $theme,
+    );
+    self::assertStringContainsString(
+      "Url::fromUri('internal:/diensten', ['language' => $language])",
+      $theme,
+    );
+    self::assertStringNotContainsString(
+      "['Blog', 'AI & Drupal', 'Klantcases']", $theme,
+    );
   }
 
   /**

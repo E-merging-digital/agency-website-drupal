@@ -39,9 +39,14 @@ final class NlVisibilityGuard implements HttpKernelInterface {
       . '[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}/'
       . '[a-z0-9_]+/?$@D';
     $native_preview = (bool) preg_match($preview_pattern, $path);
+    // Allow only Core's menu-link translation editor, not public NL fallbacks.
+    $menu_translation_pattern = '@^/nl/admin/structure/menu/item/'
+      . '[1-9][0-9]*/edit'
+      . '(?:/translations(?:/(?:add/(?:fr|en)/nl|edit/nl))?)?/?$@D';
+    $native_menu_translation = (bool) preg_match($menu_translation_pattern, $path);
 
     if (($path !== '/nl' && !str_starts_with($path, '/nl/'))
-      || $native_edit || $native_preview) {
+      || $native_edit || $native_preview || $native_menu_translation) {
       return $this->inner->handle($request, $type, $catch);
     }
 

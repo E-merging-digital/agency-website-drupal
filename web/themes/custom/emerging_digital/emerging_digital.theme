@@ -17,7 +17,8 @@ use Drupal\webform\Entity\Webform;
  * Implements hook_preprocess_menu().
  *
  * The Dutch MVP only exposes published destination pages. Keep the untranslated
- * editorial destinations available in FR/EN without advertising broken NL links.
+ * editorial destinations available in FR/EN without advertising broken
+ * NL links.
  */
 function emerging_digital_preprocess_menu(array &$variables): void {
   if (($variables['menu_name'] ?? '') !== 'main') {

@@ -383,6 +383,16 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       404, $guard->handle(Request::create('/nl/blog'))->getStatusCode(),
     );
     $blog_displays = $saved_displays;
+    $blog_displays['default']['display_options']['filter_groups']['operator'] = 'OR';
+    self::assertSame(
+      404, $guard->handle(Request::create('/nl/blog'))->getStatusCode(),
+    );
+    $blog_displays = $saved_displays;
+    $blog_displays['page_1']['display_options']['filters'] = [];
+    self::assertSame(
+      404, $guard->handle(Request::create('/nl/blog'))->getStatusCode(),
+    );
+    $blog_displays = $saved_displays;
     $blog_enabled = FALSE;
     self::assertSame(
       404, $guard->handle(Request::create('/nl/blog'))->getStatusCode(),

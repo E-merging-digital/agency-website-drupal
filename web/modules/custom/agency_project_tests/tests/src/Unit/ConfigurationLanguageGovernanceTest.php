@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\ImmutableConfig;
+use Drupal\Core\Entity\EntityStorageInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\node\NodeInterface;
+use Drupal\path_alias\AliasManagerInterface;
 use Drupal\emerging_digital_content\StackMiddleware\NlVisibilityGuard;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
@@ -193,7 +199,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     };
 
     $published_now = TRUE;
-    $published = $this->createMock(\Drupal\node\NodeInterface::class);
+    $published = $this->createMock(NodeInterface::class);
     $published->method('bundle')->willReturn('page');
     $published->method('hasTranslation')->with('nl')->willReturn(TRUE);
     $published->method('getTranslation')->with('nl')->willReturn($published);
@@ -203,17 +209,17 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       },
     );
 
-    $draft = $this->createMock(\Drupal\node\NodeInterface::class);
+    $draft = $this->createMock(NodeInterface::class);
     $draft->method('bundle')->willReturn('page');
     $draft->method('hasTranslation')->with('nl')->willReturn(TRUE);
     $draft->method('getTranslation')->with('nl')->willReturn($draft);
     $draft->method('isPublished')->willReturn(FALSE);
 
-    $missing_nl = $this->createMock(\Drupal\node\NodeInterface::class);
+    $missing_nl = $this->createMock(NodeInterface::class);
     $missing_nl->method('bundle')->willReturn('page');
     $missing_nl->method('hasTranslation')->with('nl')->willReturn(FALSE);
 
-    $other_bundle = $this->createMock(\Drupal\node\NodeInterface::class);
+    $other_bundle = $this->createMock(NodeInterface::class);
     $other_bundle->method('bundle')->willReturn('article');
 
     $nodes = [
@@ -222,14 +228,14 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       7 => $missing_nl,
       8 => $other_bundle,
     ];
-    $storage = $this->createMock(\Drupal\Core\Entity\EntityStorageInterface::class);
+    $storage = $this->createMock(EntityStorageInterface::class);
     $storage->method('load')->willReturnCallback(
       static fn ($id) => $nodes[(int) $id] ?? NULL,
     );
-    $entities = $this->createMock(\Drupal\Core\Entity\EntityTypeManagerInterface::class);
+    $entities = $this->createMock(EntityTypeManagerInterface::class);
     $entities->method('getStorage')->with('node')->willReturn($storage);
 
-    $alias = $this->createMock(\Drupal\path_alias\AliasManagerInterface::class);
+    $alias = $this->createMock(AliasManagerInterface::class);
     $alias->method('getPathByAlias')->willReturnCallback(
       static function (string $path, string $langcode): string {
         self::assertSame('nl', $langcode);
@@ -243,9 +249,9 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       },
     );
 
-    $site = $this->createMock(\Drupal\Core\Config\ImmutableConfig::class);
+    $site = $this->createMock(ImmutableConfig::class);
     $site->method('get')->with('page.front')->willReturn('/node/5');
-    $config = $this->createMock(\Drupal\Core\Config\ConfigFactoryInterface::class);
+    $config = $this->createMock(ConfigFactoryInterface::class);
     $config->method('get')->with('system.site')->willReturn($site);
 
     $guard = new NlVisibilityGuard($inner, $alias, $entities, $config);

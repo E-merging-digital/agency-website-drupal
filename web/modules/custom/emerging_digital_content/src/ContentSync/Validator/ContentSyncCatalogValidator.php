@@ -358,8 +358,8 @@ final class ContentSyncCatalogValidator {
         $errors[] = sprintf('Content "%s" translation "%s" has invalid status.', $entry->id(), (string) $langcode);
       }
       if ($langcode === 'nl' && GovernedContentPolicy::isGoverned($entry->id())
-        && ($translation['status'] ?? NULL) !== 'unpublished') {
-        $errors[] = sprintf('Governed legal content "%s" requires unpublished NL.', $entry->id());
+        && array_key_exists('status', $translation)) {
+        $errors[] = sprintf('Governed legal content "%s" keeps NL publication editor-owned.', $entry->id());
       }
 
       if (!isset($translation['alias']) || !is_string($translation['alias']) || $translation['alias'] === '') {

@@ -91,7 +91,7 @@ final class ContentSyncCatalogValidatorTest extends TestCase {
   }
 
   /**
-   * Legal Dutch translations must carry an explicit valid draft status.
+   * Governed legal NL publication is editor-owned, never set by the catalog.
    */
   public function testLegalDutchStatusValidationFailsClosed(): void {
     $base = [
@@ -101,7 +101,7 @@ final class ContentSyncCatalogValidatorTest extends TestCase {
       'translations' => [
         'fr' => ['alias' => '/mentions-legales'],
         'en' => ['alias' => '/legal-notices'],
-        'nl' => ['alias' => '/wettelijke-vermeldingen', 'status' => 'unpublished'],
+        'nl' => ['alias' => '/wettelijke-vermeldingen'],
       ],
       'components' => [[
         'id' => 'mentions-legales.content',
@@ -110,14 +110,9 @@ final class ContentSyncCatalogValidatorTest extends TestCase {
       ],
       ],
     ];
-    foreach ([NULL, 'published', 'draft', TRUE] as $invalid) {
+    foreach (['unpublished', 'published', 'draft', TRUE] as $invalid) {
       $data = $base;
-      if ($invalid === NULL) {
-        unset($data['translations']['nl']['status']);
-      }
-      else {
-        $data['translations']['nl']['status'] = $invalid;
-      }
+      $data['translations']['nl']['status'] = $invalid;
       $catalog = new ContentSyncCatalog(__DIR__, [
         new ContentSyncCatalogEntry($data, 0, NULL),
       ]);

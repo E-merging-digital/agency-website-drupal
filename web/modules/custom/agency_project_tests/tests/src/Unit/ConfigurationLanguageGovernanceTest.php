@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Drupal\Tests\agency_project_tests\Unit;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\ImmutableConfig;
+use Drupal\Core\Entity\EntityStorageInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\node\NodeInterface;
+use Drupal\path_alias\AliasRepositoryInterface;
 use Drupal\emerging_digital_content\StackMiddleware\NlVisibilityGuard;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
@@ -175,6 +181,11 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $middleware = $services['services']['emerging_digital_content.nl_visibility_guard'];
     self::assertSame(220, $middleware['tags'][0]['priority']);
     self::assertSame('http_middleware', $middleware['tags'][0]['name']);
+    self::assertSame([
+      '@path_alias.repository',
+      '@entity_type.manager',
+      '@config.factory',
+    ], $middleware['arguments']);
 
     $inner = new class implements HttpKernelInterface {
 
@@ -186,27 +197,91 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       }
 
     };
-    $guard = new NlVisibilityGuard($inner);
+
+    $published_now = TRUE;
+    $published = $this->createMock(NodeInterface::class);
+    $published->method('bundle')->willReturn('page');
+    $published->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $published->method('getTranslation')->with('nl')->willReturn($published);
+    $published->method('isPublished')->willReturnCallback(
+      static function () use (&$published_now): bool {
+        return $published_now;
+      },
+    );
+
+    $draft = $this->createMock(NodeInterface::class);
+    $draft->method('bundle')->willReturn('page');
+    $draft->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $draft->method('getTranslation')->with('nl')->willReturn($draft);
+    $draft->method('isPublished')->willReturn(FALSE);
+
+    $missing_nl = $this->createMock(NodeInterface::class);
+    $missing_nl->method('bundle')->willReturn('page');
+    $missing_nl->method('hasTranslation')->with('nl')->willReturn(FALSE);
+
+    $other_bundle = $this->createMock(NodeInterface::class);
+    $other_bundle->method('bundle')->willReturn('article');
+
+    $nodes = [
+      5 => $published,
+      6 => $draft,
+      7 => $missing_nl,
+      8 => $other_bundle,
+    ];
+    $storage = $this->createMock(EntityStorageInterface::class);
+    $storage->method('load')->willReturnCallback(
+      static fn ($id) => $nodes[(int) $id] ?? NULL,
+    );
+    $entities = $this->createMock(EntityTypeManagerInterface::class);
+    $entities->method('getStorage')->with('node')->willReturn($storage);
+
+    $alias = $this->createMock(AliasRepositoryInterface::class);
+    $alias->method('lookupByAlias')->willReturnCallback(
+      static function (string $path, string $langcode): ?array {
+        self::assertSame('nl', $langcode);
+        return [
+          '/diensten' => ['alias' => '/diensten', 'path' => '/node/5', 'langcode' => 'nl'],
+          '/wettelijke-vermeldingen' => ['alias' => '/wettelijke-vermeldingen', 'path' => '/node/6', 'langcode' => 'nl'],
+          '/not-translated' => ['alias' => '/not-translated', 'path' => '/node/7', 'langcode' => 'nl'],
+          '/article' => ['alias' => '/article', 'path' => '/node/8', 'langcode' => 'nl'],
+          '/wrong-target' => ['alias' => '/wrong-target', 'path' => '/user/login', 'langcode' => 'nl'],
+          '/neutral' => ['alias' => '/neutral', 'path' => '/node/5', 'langcode' => 'und'],
+          '/fr-fallback' => ['alias' => '/fr-fallback', 'path' => '/node/5', 'langcode' => 'fr'],
+          '/mismatched' => ['alias' => '/different', 'path' => '/node/5', 'langcode' => 'nl'],
+        ][$path] ?? NULL;
+      },
+    );
+
+    $nl_settings = ['url.source' => 'path_prefix', 'url.prefixes.nl' => 'nl'];
+    $language_status = ['status' => TRUE];
+    $site = $this->createMock(ImmutableConfig::class);
+    $site->method('get')->with('page.front')->willReturn('/node/5');
+    $negotiation = $this->createMock(ImmutableConfig::class);
+    $negotiation->method('get')->willReturnCallback(
+      static function (string $key) use (&$nl_settings): ?string {
+        return $nl_settings[$key] ?? NULL;
+      },
+    );
+    $language = $this->createMock(ImmutableConfig::class);
+    $language->method('get')->with('status')->willReturnCallback(
+      static function () use (&$language_status): bool {
+        return $language_status['status'];
+      },
+    );
+    $config = $this->createMock(ConfigFactoryInterface::class);
+    $config->method('get')->willReturnMap([
+      ['system.site', $site],
+      ['language.negotiation', $negotiation],
+      ['language.entity.nl', $language],
+    ]);
+
+    $guard = new NlVisibilityGuard($inner, $alias, $entities, $config);
+
     foreach ([
       '/nl',
       '/nl/',
       '/nl/node/5',
-      '/nl/node/6',
       '/nl/diensten',
-      '/nl/wettelijke-vermeldingen',
-      '/nl/privacyverklaring',
-      '/nl/cookiebeleid',
-      '/nl/contact',
-      '/nl/not-translated',
-      '/nl/node/preview/not-a-uuid/full',
-      '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
-    ] as $path) {
-      $response = $guard->handle(Request::create($path));
-      self::assertSame(404, $response->getStatusCode(), $path);
-      self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
-      self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
-    }
-    foreach ([
       '/fr',
       '/en',
       '/nl/node/6/edit',
@@ -215,7 +290,56 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     ] as $path) {
       $response = $guard->handle(Request::create($path));
       self::assertSame(200, $response->getStatusCode(), $path);
-      self::assertSame('NATIVE_ROUTE', $response->getContent());
+      self::assertSame('NATIVE_ROUTE', $response->getContent(), $path);
+    }
+
+    foreach ([
+      '/nl/node/6',
+      '/nl/wettelijke-vermeldingen',
+      '/nl/node/7',
+      '/nl/not-translated',
+      '/nl/node/8',
+      '/nl/article',
+      '/nl/no-such-alias',
+      '/nl/neutral',
+      '/nl/fr-fallback',
+      '/nl/mismatched',
+      '/nl/wrong-target',
+      '/nl/node/5/extra',
+      '/nl/node/preview/not-a-uuid/full',
+      '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
+    ] as $path) {
+      $response = $guard->handle(Request::create($path));
+      self::assertSame(404, $response->getStatusCode(), $path);
+      self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
+      self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+    }
+
+    // Misconfigured language negotiation must not admit even published pages.
+    foreach ([
+      ['source' => 'path_prefix', 'prefix' => '', 'status' => TRUE],
+      ['source' => 'domain', 'prefix' => 'nl', 'status' => TRUE],
+      ['source' => 'path_prefix', 'prefix' => 'nl', 'status' => FALSE],
+    ] as $scenario) {
+      $nl_settings['url.source'] = $scenario['source'];
+      $nl_settings['url.prefixes.nl'] = $scenario['prefix'];
+      $language_status['status'] = $scenario['status'];
+      foreach (['/nl', '/nl/node/5', '/nl/diensten'] as $path) {
+        $response = $guard->handle(Request::create($path));
+        self::assertSame(404, $response->getStatusCode(), $path);
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+      }
+    }
+    $nl_settings = ['url.source' => 'path_prefix', 'url.prefixes.nl' => 'nl'];
+    $language_status['status'] = TRUE;
+
+    // An earlier public response must not admit a later unpublished NL node,
+    // even if Drupal's anonymous page cache still has the old page.
+    $published_now = FALSE;
+    foreach (['/nl', '/nl/node/5', '/nl/diensten'] as $path) {
+      $response = $guard->handle(Request::create($path));
+      self::assertSame(404, $response->getStatusCode(), $path);
+      self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
     }
   }
 
@@ -261,9 +385,11 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     foreach ($catalog['contents'] as $entry) {
       $id = $entry['id'];
       self::assertSame($expected[$id], $entry['translations']['nl']['alias']);
+      self::assertArrayNotHasKey('status', $entry['translations']['nl']);
       $source = Yaml::parseFile($base . '/node/' . $id . '.yml');
       self::assertSame(['fr', 'en', 'nl'],
         array_keys($source['translations']));
+      self::assertArrayNotHasKey('status', $source['translations']['nl']);
       self::assertSame(['fr', 'en', 'nl'],
         array_keys($source['components'][0]['translations']));
       self::assertNotEmpty(

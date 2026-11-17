@@ -732,10 +732,11 @@ final class ContentSyncManager {
       ));
     }
 
-    // Existing governed legal pages admit only their unapproved NL draft.
+    // Existing legal content may update NL only; FR/EN are editor-owned.
+    // NL publication is a Drupal editorial decision, not a catalog import.
     $nl_only = !$created
       && GovernedContentPolicy::isGoverned($entry->id())
-      && ($definition['translations']['nl']['status'] ?? NULL) === 'unpublished';
+      && isset($definition['translations']['nl']);
     if ($nl_only && ($node->uuid() !== ($definition['legacy_uuid'] ?? NULL)
       || !$node->hasTranslation('fr') || !$node->hasTranslation('en'))) {
       throw new \RuntimeException('Legal NL draft requires the canonical FR/EN node.');
@@ -937,6 +938,7 @@ final class ContentSyncManager {
       if ($nl_only && $langcode !== 'nl') {
         continue;
       }
+      $had_translation = $node->hasTranslation($langcode);
       $translation = $this->nodeTranslation($node, $langcode);
 
       if (isset($translation_definition['title']) && is_string($translation_definition['title'])) {
@@ -944,9 +946,20 @@ final class ContentSyncManager {
       }
 
       if ($translation->hasField('status')) {
-        $translation->set('status',
-          ($translation_definition['status'] ?? 'published') === 'unpublished'
-            ? NodeInterface::NOT_PUBLISHED : NodeInterface::PUBLISHED);
+        if ($langcode === 'nl'
+          && GovernedContentPolicy::isGoverned((string) ($definition['id'] ?? ''))
+          && !array_key_exists('status', $translation_definition)) {
+          // New legal NL translations start as drafts. Once an editor publishes
+          // one, subsequent Governed Content applies must preserve that state.
+          if (!$had_translation) {
+            $translation->set('status', NodeInterface::NOT_PUBLISHED);
+          }
+        }
+        else {
+          $translation->set('status',
+            ($translation_definition['status'] ?? 'published') === 'unpublished'
+              ? NodeInterface::NOT_PUBLISHED : NodeInterface::PUBLISHED);
+        }
       }
 
       $fields = is_array($translation_definition['fields'] ?? NULL)

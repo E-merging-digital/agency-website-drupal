@@ -7,6 +7,7 @@ namespace Drupal\Tests\agency_project_tests\Functional;
 use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\webform\Entity\Webform;
+use Drupal\webform\Entity\WebformSubmission;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Symfony\Component\Yaml\Yaml;
@@ -154,7 +155,7 @@ final class ContactFormTest extends BrowserTestBase {
     $ids = [];
 
     foreach (['expired' => $cutoff - 60, 'retained' => $cutoff + 60] as $label => $received_at) {
-      $submission = \Drupal\webform\Entity\WebformSubmission::create([
+      $submission = WebformSubmission::create([
         'webform_id' => 'contact',
         'data' => [
           'name' => 'Synthetic ' . $label,

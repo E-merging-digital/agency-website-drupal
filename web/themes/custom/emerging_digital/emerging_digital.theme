@@ -14,6 +14,36 @@ use Drupal\node\NodeInterface;
 use Drupal\webform\Entity\Webform;
 
 /**
+ * Implements hook_preprocess_menu().
+ *
+ * The Dutch MVP only exposes published destination pages. Keep the untranslated
+ * editorial destinations available in FR/EN without advertising broken
+ * NL links.
+ */
+function emerging_digital_preprocess_menu(array &$variables): void {
+  if (($variables['menu_name'] ?? '') !== 'main') {
+    return;
+  }
+
+  $language = \Drupal::languageManager()
+    ->getCurrentLanguage(LanguageInterface::TYPE_INTERFACE);
+  if ($language->getId() !== 'nl') {
+    return;
+  }
+
+  foreach ($variables['items'] as $key => &$item) {
+    $title = (string) ($item['title'] ?? '');
+    if (in_array($title, ['Blog', 'AI & Drupal', 'Klantcases'], TRUE)) {
+      unset($variables['items'][$key]);
+    }
+    elseif ($title === 'Diensten') {
+      $item['url'] = Url::fromUri('internal:/diensten', ['language' => $language]);
+    }
+  }
+  unset($item);
+}
+
+/**
  * Implements hook_preprocess_node().
  */
 function emerging_digital_preprocess_node(array &$variables): void {

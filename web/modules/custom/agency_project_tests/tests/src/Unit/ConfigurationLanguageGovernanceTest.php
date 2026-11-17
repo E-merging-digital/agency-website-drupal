@@ -365,7 +365,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       "['Startpagina', 'Diensten', 'Contact']", $theme,
     );
     self::assertStringContainsString(
-      "Url::fromUri('internal:/diensten', ['language' => $language])",
+      "Url::fromUri('internal:/diensten', ['language' => \$language])",
       $theme,
     );
     self::assertStringNotContainsString(

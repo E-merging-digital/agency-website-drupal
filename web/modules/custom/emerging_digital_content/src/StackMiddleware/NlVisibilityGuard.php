@@ -44,9 +44,18 @@ final class NlVisibilityGuard implements HttpKernelInterface {
       . '[1-9][0-9]*/edit'
       . '(?:/translations(?:/(?:add/(?:fr|en)/nl|edit/nl))?)?/?$@D';
     $native_menu_translation = (bool) preg_match($menu_translation_pattern, $path);
+    // Drupal Core owns access to native node translation forms.
+    $node_translation_pattern = '@^/nl/node/[1-9][0-9]*/translations'
+      . '(?:/(?:add/(?:fr|en)/nl|edit/nl))?/?$@D';
+    $native_node_translation = (bool) preg_match($node_translation_pattern, $path);
+    // Keep the Contact Webform edit/translation routes inside Core permissions.
+    $contact_translation_pattern = '@^/nl/admin/structure/webform/manage/contact'
+      . '(?:/translate(?:/(?:add/(?:fr|en)/nl|edit/nl|nl/(?:add|edit)))?)?/?$@D';
+    $native_contact_translation = (bool) preg_match($contact_translation_pattern, $path);
 
     if (($path !== '/nl' && !str_starts_with($path, '/nl/'))
-      || $native_edit || $native_preview || $native_menu_translation) {
+      || $native_edit || $native_preview || $native_menu_translation
+      || $native_node_translation || $native_contact_translation) {
       return $this->inner->handle($request, $type, $catch);
     }
 

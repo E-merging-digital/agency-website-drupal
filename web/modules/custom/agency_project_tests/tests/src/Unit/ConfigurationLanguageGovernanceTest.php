@@ -9,7 +9,7 @@ use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\node\NodeInterface;
-use Drupal\path_alias\AliasManagerInterface;
+use Drupal\path_alias\AliasRepositoryInterface;
 use Drupal\emerging_digital_content\StackMiddleware\NlVisibilityGuard;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
@@ -182,7 +182,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     self::assertSame(220, $middleware['tags'][0]['priority']);
     self::assertSame('http_middleware', $middleware['tags'][0]['name']);
     self::assertSame([
-      '@path_alias.manager',
+      '@path_alias.repository',
       '@entity_type.manager',
       '@config.factory',
     ], $middleware['arguments']);
@@ -235,24 +235,52 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $entities = $this->createMock(EntityTypeManagerInterface::class);
     $entities->method('getStorage')->with('node')->willReturn($storage);
 
-    $alias = $this->createMock(AliasManagerInterface::class);
-    $alias->method('getPathByAlias')->willReturnCallback(
-      static function (string $path, string $langcode): string {
+    $alias = $this->createMock(AliasRepositoryInterface::class);
+    $alias->method('lookupByAlias')->willReturnCallback(
+      static function (string $path, string $langcode): ?array {
         self::assertSame('nl', $langcode);
         return [
-          '/diensten' => '/node/5',
-          '/wettelijke-vermeldingen' => '/node/6',
-          '/not-translated' => '/node/7',
-          '/article' => '/node/8',
-          '/wrong-target' => '/user/login',
-        ][$path] ?? $path;
+          '/diensten' => ['alias' => '/diensten', 'path' => '/node/5', 'langcode' => 'nl'],
+          '/wettelijke-vermeldingen' => ['alias' => '/wettelijke-vermeldingen', 'path' => '/node/6', 'langcode' => 'nl'],
+          '/not-translated' => ['alias' => '/not-translated', 'path' => '/node/7', 'langcode' => 'nl'],
+          '/article' => ['alias' => '/article', 'path' => '/node/8', 'langcode' => 'nl'],
+          '/wrong-target' => ['alias' => '/wrong-target', 'path' => '/user/login', 'langcode' => 'nl'],
+          '/neutral' => ['alias' => '/neutral', 'path' => '/node/5', 'langcode' => 'und'],
+          '/fr-fallback' => ['alias' => '/fr-fallback', 'path' => '/node/5', 'langcode' => 'fr'],
+          '/mismatched' => ['alias' => '/different', 'path' => '/node/5', 'langcode' => 'nl'],
+        ][$path] ?? NULL;
       },
     );
 
+    $prefix_enabled = TRUE;
+    $source_enabled = TRUE;
+    $language_enabled = TRUE;
     $site = $this->createMock(ImmutableConfig::class);
     $site->method('get')->with('page.front')->willReturn('/node/5');
+    $negotiation = $this->createMock(ImmutableConfig::class);
+    $negotiation->method('get')->willReturnCallback(
+      static function (string $key) use (&$prefix_enabled, &$source_enabled): ?string {
+        return match ($key) {
+          'url.source' => $source_enabled ? 'path_prefix' : 'domain',
+          'url.prefixes.nl' => $prefix_enabled ? 'nl' : '',
+          default => NULL,
+        };
+      },
+    );
+    $language = $this->createMock(ImmutableConfig::class);
+    $language->method('get')->with('status')->willReturnCallback(
+      static function () use (&$language_enabled): bool {
+        return $language_enabled;
+      },
+    );
     $config = $this->createMock(ConfigFactoryInterface::class);
-    $config->method('get')->with('system.site')->willReturn($site);
+    $config->method('get')->willReturnCallback(
+      static fn (string $key): ImmutableConfig => match ($key) {
+        'system.site' => $site,
+        'language.negotiation' => $negotiation,
+        'language.entity.nl' => $language,
+      },
+    );
 
     $guard = new NlVisibilityGuard($inner, $alias, $entities, $config);
 
@@ -280,6 +308,9 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/node/8',
       '/nl/article',
       '/nl/no-such-alias',
+      '/nl/neutral',
+      '/nl/fr-fallback',
+      '/nl/mismatched',
       '/nl/wrong-target',
       '/nl/node/5/extra',
       '/nl/node/preview/not-a-uuid/full',
@@ -289,6 +320,17 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       self::assertSame(404, $response->getStatusCode(), $path);
       self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
       self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+    }
+
+    // Misconfigured language negotiation must not admit even published pages.
+    foreach (['prefix_enabled', 'source_enabled', 'language_enabled'] as $flag) {
+      $flag = FALSE;
+      foreach (['/nl', '/nl/node/5', '/nl/diensten'] as $path) {
+        $response = $guard->handle(Request::create($path));
+        self::assertSame(404, $response->getStatusCode(), $flag . ': ' . $path);
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+      }
+      $flag = TRUE;
     }
 
     // An earlier public response must not admit a later unpublished NL node,

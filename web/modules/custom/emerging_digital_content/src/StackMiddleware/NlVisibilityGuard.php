@@ -7,7 +7,7 @@ namespace Drupal\emerging_digital_content\StackMiddleware;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\node\NodeInterface;
-use Drupal\path_alias\AliasManagerInterface;
+use Drupal\path_alias\AliasRepositoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
@@ -22,7 +22,7 @@ final class NlVisibilityGuard implements HttpKernelInterface {
 
   public function __construct(
     private readonly HttpKernelInterface $inner,
-    private readonly AliasManagerInterface $aliasManager,
+    private readonly AliasRepositoryInterface $aliasRepository,
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly ConfigFactoryInterface $configFactory,
   ) {}
@@ -66,18 +66,35 @@ final class NlVisibilityGuard implements HttpKernelInterface {
    * Checks the canonical node, never the current-language fallback.
    */
   private function isPublishedDutchPage(string $path): bool {
-    $relative = substr($path, 3);
+    // An NL node cannot be exposed if URL language negotiation is inactive.
+    $negotiation = $this->configFactory->get('language.negotiation');
+    if ($negotiation->get('url.source') !== 'path_prefix'
+      || $negotiation->get('url.prefixes.nl') !== 'nl'
+      || $this->configFactory->get('language.entity.nl')->get('status') !== TRUE) {
+      return FALSE;
+    }
 
+    $relative = substr($path, 3);
     if ($relative === '' || $relative === '/') {
       $target = $this->configFactory->get('system.site')->get('page.front');
     }
+    elseif (preg_match('@^/node/[1-9][0-9]*$@D', $relative)) {
+      // Canonical node path: publication is still checked below.
+      $target = $relative;
+    }
     else {
-      // Only paths resolved by Drupal's NL alias manager or canonical /node/N
-      // routes are eligible. Never infer a translation from a FR/EN URL.
       if (!str_starts_with($relative, '/') || str_contains($relative, '%')) {
         return FALSE;
       }
-      $target = $this->aliasManager->getPathByAlias($relative, 'nl');
+      // Core's repository may fall back to und: require a real NL record,
+      // with an exact requested alias, before delegating to Drupal.
+      $record = $this->aliasRepository->lookupByAlias($relative, 'nl');
+      if (!is_array($record)
+        || ($record['langcode'] ?? NULL) !== 'nl'
+        || ($record['alias'] ?? NULL) !== $relative) {
+        return FALSE;
+      }
+      $target = $record['path'] ?? NULL;
     }
 
     if (!is_string($target) || !preg_match('@^/node/([1-9][0-9]*)$@D', $target, $matches)) {

@@ -5,7 +5,7 @@ dependencies:
   module:
     - language
 id: nl
-label: Néerlandais
+label: Nederlands
 direction: ltr
 weight: 2
 locked: false

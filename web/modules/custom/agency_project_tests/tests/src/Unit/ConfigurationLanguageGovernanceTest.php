@@ -252,35 +252,31 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       },
     );
 
-    $prefix_enabled = TRUE;
-    $source_enabled = TRUE;
-    $language_enabled = TRUE;
+    $flags = ['prefix' => TRUE, 'source' => TRUE, 'language' => TRUE];
     $site = $this->createMock(ImmutableConfig::class);
     $site->method('get')->with('page.front')->willReturn('/node/5');
     $negotiation = $this->createMock(ImmutableConfig::class);
     $negotiation->method('get')->willReturnCallback(
-      static function (string $key) use (&$prefix_enabled, &$source_enabled): ?string {
+      static function (string $key) use (&$flags): ?string {
         return match ($key) {
-          'url.source' => $source_enabled ? 'path_prefix' : 'domain',
-          'url.prefixes.nl' => $prefix_enabled ? 'nl' : '',
+          'url.source' => $flags['source'] ? 'path_prefix' : 'domain',
+          'url.prefixes.nl' => $flags['prefix'] ? 'nl' : '',
           default => NULL,
         };
       },
     );
     $language = $this->createMock(ImmutableConfig::class);
     $language->method('get')->with('status')->willReturnCallback(
-      static function () use (&$language_enabled): bool {
-        return $language_enabled;
+      static function () use (&$flags): bool {
+        return $flags['language'];
       },
     );
     $config = $this->createMock(ConfigFactoryInterface::class);
-    $config->method('get')->willReturnCallback(
-      static fn (string $key): ImmutableConfig => match ($key) {
-        'system.site' => $site,
-        'language.negotiation' => $negotiation,
-        'language.entity.nl' => $language,
-      },
-    );
+    $config->method('get')->willReturnMap([
+      ['system.site', $site],
+      ['language.negotiation', $negotiation],
+      ['language.entity.nl', $language],
+    ]);
 
     $guard = new NlVisibilityGuard($inner, $alias, $entities, $config);
 
@@ -323,14 +319,14 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     }
 
     // Misconfigured language negotiation must not admit even published pages.
-    foreach (['prefix_enabled', 'source_enabled', 'language_enabled'] as $flag) {
-      $flag = FALSE;
+    foreach (array_keys($flags) as $flag) {
+      $flags[$flag] = FALSE;
       foreach (['/nl', '/nl/node/5', '/nl/diensten'] as $path) {
         $response = $guard->handle(Request::create($path));
         self::assertSame(404, $response->getStatusCode(), $flag . ': ' . $path);
         self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
       }
-      $flag = TRUE;
+      $flags[$flag] = TRUE;
     }
 
     // An earlier public response must not admit a later unpublished NL node,

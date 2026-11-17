@@ -39,9 +39,23 @@ final class NlVisibilityGuard implements HttpKernelInterface {
       . '[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}/'
       . '[a-z0-9_]+/?$@D';
     $native_preview = (bool) preg_match($preview_pattern, $path);
+    // Allow only Core's menu-link translation editor, not public NL fallbacks.
+    $menu_translation_pattern = '@^/nl/admin/structure/menu/item/'
+      . '[1-9][0-9]*/edit'
+      . '(?:/translations(?:/(?:add/(?:fr|en)/nl|edit/nl))?)?/?$@D';
+    $native_menu_translation = (bool) preg_match($menu_translation_pattern, $path);
+    // Drupal Core owns access to native node translation forms.
+    $node_translation_pattern = '@^/nl/node/[1-9][0-9]*/translations'
+      . '(?:/(?:add/(?:fr|en)/nl|edit/nl))?/?$@D';
+    $native_node_translation = (bool) preg_match($node_translation_pattern, $path);
+    // Keep the Contact Webform edit/translation routes inside Core permissions.
+    $contact_translation_pattern = '@^/nl/admin/structure/webform/manage/contact'
+      . '(?:/translate(?:/(?:add/(?:fr|en)/nl|edit/nl|nl/(?:add|edit)))?)?/?$@D';
+    $native_contact_translation = (bool) preg_match($contact_translation_pattern, $path);
 
     if (($path !== '/nl' && !str_starts_with($path, '/nl/'))
-      || $native_edit || $native_preview) {
+      || $native_edit || $native_preview || $native_menu_translation
+      || $native_node_translation || $native_contact_translation) {
       return $this->inner->handle($request, $type, $catch);
     }
 
@@ -75,6 +89,10 @@ final class NlVisibilityGuard implements HttpKernelInterface {
     }
 
     $relative = substr($path, 3);
+    if ($relative === '/blog') {
+      // Only published articles in the active content language may appear.
+      return $this->isSafeDutchBlogView();
+    }
     if ($relative === '' || $relative === '/') {
       $target = $this->configFactory->get('system.site')->get('page.front');
     }
@@ -103,9 +121,45 @@ final class NlVisibilityGuard implements HttpKernelInterface {
 
     $node = $this->entityTypeManager->getStorage('node')->load((int) $matches[1]);
     return $node instanceof NodeInterface
-      && $node->bundle() === 'page'
+      && in_array($node->bundle(), ['page', 'article'], TRUE)
       && $node->hasTranslation('nl')
       && $node->getTranslation('nl')->isPublished();
+  }
+
+  /**
+   * Only the native Blog View with strict language/publication filters is safe.
+   */
+  private function isSafeDutchBlogView(): bool {
+    $view = $this->configFactory->get('views.view.blog');
+    $displays = $view->get('display');
+    if ($view->get('status') !== TRUE || !is_array($displays)) {
+      return FALSE;
+    }
+
+    $page = $displays['page_1'] ?? [];
+    $default = $displays['default']['display_options'] ?? [];
+    $filters = $default['filters'] ?? [];
+    $groups = $default['filter_groups'] ?? [];
+    return ($page['display_plugin'] ?? NULL) === 'page'
+      && ($page['display_options']['path'] ?? NULL) === 'blog'
+      // Page-level overrides must not bypass the checked default filters.
+      && !isset($page['display_options']['filters'])
+      && !isset($page['display_options']['filter_groups'])
+      && ($groups['operator'] ?? NULL) === 'AND'
+      && ($groups['groups'][1] ?? NULL) === 'AND'
+      && ($filters['status']['group'] ?? NULL) === 1
+      && ($filters['status']['operator'] ?? NULL) === '='
+      && ($filters['status']['exposed'] ?? TRUE) === FALSE
+      && ($filters['status']['value'] ?? NULL) === '1'
+      && ($filters['type']['group'] ?? NULL) === 1
+      && ($filters['type']['operator'] ?? NULL) === 'in'
+      && ($filters['type']['exposed'] ?? TRUE) === FALSE
+      && ($filters['type']['value']['article'] ?? NULL) === 'article'
+      && ($filters['langcode']['group'] ?? NULL) === 1
+      && ($filters['langcode']['operator'] ?? NULL) === 'in'
+      && ($filters['langcode']['exposed'] ?? TRUE) === FALSE
+      && ($filters['langcode']['value']['***LANGUAGE_language_content***'] ?? NULL)
+        === '***LANGUAGE_language_content***';
   }
 
 }

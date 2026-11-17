@@ -219,14 +219,29 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $missing_nl->method('bundle')->willReturn('page');
     $missing_nl->method('hasTranslation')->with('nl')->willReturn(FALSE);
 
-    $other_bundle = $this->createMock(NodeInterface::class);
-    $other_bundle->method('bundle')->willReturn('article');
+    $article = $this->createMock(NodeInterface::class);
+    $article->method('bundle')->willReturn('article');
+    $article->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $article->method('getTranslation')->with('nl')->willReturn($article);
+    $article->method('isPublished')->willReturn(TRUE);
+
+    $article_draft = $this->createMock(NodeInterface::class);
+    $article_draft->method('bundle')->willReturn('article');
+    $article_draft->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $article_draft->method('getTranslation')->with('nl')->willReturn($article_draft);
+    $article_draft->method('isPublished')->willReturn(FALSE);
+
+    $article_missing = $this->createMock(NodeInterface::class);
+    $article_missing->method('bundle')->willReturn('article');
+    $article_missing->method('hasTranslation')->with('nl')->willReturn(FALSE);
 
     $nodes = [
       5 => $published,
       6 => $draft,
       7 => $missing_nl,
-      8 => $other_bundle,
+      8 => $article,
+      9 => $article_draft,
+      10 => $article_missing,
     ];
     $storage = $this->createMock(EntityStorageInterface::class);
     $storage->method('load')->willReturnCallback(
@@ -244,6 +259,8 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
           '/wettelijke-vermeldingen' => ['alias' => '/wettelijke-vermeldingen', 'path' => '/node/6', 'langcode' => 'nl'],
           '/not-translated' => ['alias' => '/not-translated', 'path' => '/node/7', 'langcode' => 'nl'],
           '/article' => ['alias' => '/article', 'path' => '/node/8', 'langcode' => 'nl'],
+          '/article-draft' => ['alias' => '/article-draft', 'path' => '/node/9', 'langcode' => 'nl'],
+          '/article-missing' => ['alias' => '/article-missing', 'path' => '/node/10', 'langcode' => 'nl'],
           '/wrong-target' => ['alias' => '/wrong-target', 'path' => '/user/login', 'langcode' => 'nl'],
           '/neutral' => ['alias' => '/neutral', 'path' => '/node/5', 'langcode' => 'und'],
           '/fr-fallback' => ['alias' => '/fr-fallback', 'path' => '/node/5', 'langcode' => 'fr'],
@@ -268,11 +285,26 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
         return $language_status['status'];
       },
     );
+    $blog_displays = Yaml::parseFile(
+      $root . '/config/sync/views.view.blog.yml',
+    )['display'];
+    $blog_enabled = TRUE;
+    $blog = $this->createMock(ImmutableConfig::class);
+    $blog->method('get')->willReturnCallback(
+      static function (string $key) use (&$blog_displays, &$blog_enabled): mixed {
+        return match ($key) {
+          'status' => $blog_enabled,
+          'display' => $blog_displays,
+          default => NULL,
+        };
+      },
+    );
     $config = $this->createMock(ConfigFactoryInterface::class);
     $config->method('get')->willReturnMap([
       ['system.site', $site],
       ['language.negotiation', $negotiation],
       ['language.entity.nl', $language],
+      ['views.view.blog', $blog],
     ]);
 
     $guard = new NlVisibilityGuard($inner, $alias, $entities, $config);
@@ -282,10 +314,24 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/',
       '/nl/node/5',
       '/nl/diensten',
+      '/nl/blog',
+      '/nl/node/8',
+      '/nl/article',
       '/fr',
       '/en',
       '/nl/node/6/edit',
       '/nl/node/5/edit',
+      '/nl/admin/structure/menu/item/6/edit',
+      '/nl/admin/structure/menu/item/6/edit/translations',
+      '/nl/admin/structure/menu/item/6/edit/translations/add/fr/nl',
+      '/nl/admin/structure/menu/item/6/edit/translations/edit/nl',
+      '/nl/node/5/translations',
+      '/nl/node/5/translations/add/fr/nl',
+      '/nl/node/5/translations/edit/nl',
+      '/nl/admin/structure/webform/manage/contact',
+      '/nl/admin/structure/webform/manage/contact/translate',
+      '/nl/admin/structure/webform/manage/contact/translate/add/fr/nl',
+      '/nl/admin/structure/webform/manage/contact/translate/nl/edit',
       '/nl/node/preview/00000000-0000-0000-0000-000000000000/full',
     ] as $path) {
       $response = $guard->handle(Request::create($path));
@@ -298,14 +344,29 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/wettelijke-vermeldingen',
       '/nl/node/7',
       '/nl/not-translated',
-      '/nl/node/8',
-      '/nl/article',
+      '/nl/node/9',
+      '/nl/article-draft',
+      '/nl/node/10',
+      '/nl/article-missing',
       '/nl/no-such-alias',
       '/nl/neutral',
       '/nl/fr-fallback',
       '/nl/mismatched',
       '/nl/wrong-target',
       '/nl/node/5/extra',
+      '/nl/admin',
+      '/nl/admin/config/system/site-information',
+      '/nl/admin/structure/menu/item/6/delete',
+      '/nl/admin/structure/menu/item/6/edit/translations/delete/nl',
+      '/nl/admin/structure/menu/item/6/edit/translations/add/nl/fr',
+      '/nl/admin/structure/menu/item/6/edit/translations/add/fr/nl/extra',
+      '/nl/node/5/translations/delete/nl',
+      '/nl/node/5/translations/add/nl/fr',
+      '/nl/admin/structure/webform',
+      '/nl/admin/structure/webform/manage/other',
+      '/nl/admin/structure/webform/manage/contact/delete',
+      '/nl/admin/structure/webform/manage/contact/translate/add/nl/fr',
+      '/nl/webform/contact',
       '/nl/node/preview/not-a-uuid/full',
       '/nl/node/preview/00000000-0000-0000-0000-000000000000/full/extra',
     ] as $path) {
@@ -314,6 +375,29 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       self::assertSame('blocked', $response->headers->get('X-Agency-NL-Guard'));
       self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
     }
+
+    // A missing safety filter or a disabled Blog View must block /nl/blog.
+    $saved_displays = $blog_displays;
+    unset($blog_displays['default']['display_options']['filters']['langcode']);
+    self::assertSame(
+      404, $guard->handle(Request::create('/nl/blog'))->getStatusCode(),
+    );
+    $blog_displays = $saved_displays;
+    $blog_displays['default']['display_options']['filter_groups']['operator'] = 'OR';
+    self::assertSame(
+      404, $guard->handle(Request::create('/nl/blog'))->getStatusCode(),
+    );
+    $blog_displays = $saved_displays;
+    $blog_displays['page_1']['display_options']['filters'] = [];
+    self::assertSame(
+      404, $guard->handle(Request::create('/nl/blog'))->getStatusCode(),
+    );
+    $blog_displays = $saved_displays;
+    $blog_enabled = FALSE;
+    self::assertSame(
+      404, $guard->handle(Request::create('/nl/blog'))->getStatusCode(),
+    );
+    $blog_enabled = TRUE;
 
     // Misconfigured language negotiation must not admit even published pages.
     foreach ([
@@ -324,7 +408,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $nl_settings['url.source'] = $scenario['source'];
       $nl_settings['url.prefixes.nl'] = $scenario['prefix'];
       $language_status['status'] = $scenario['status'];
-      foreach (['/nl', '/nl/node/5', '/nl/diensten'] as $path) {
+      foreach (['/nl', '/nl/node/5', '/nl/diensten', '/nl/blog', '/nl/node/8'] as $path) {
         $response = $guard->handle(Request::create($path));
         self::assertSame(404, $response->getStatusCode(), $path);
         self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
@@ -344,6 +428,19 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
   }
 
   /**
+   * The main menu uses translated Drupal links, not a hardcoded three-link cap.
+   */
+  public function testNlMainMenuIsNotLimitedByTitle(): void {
+    $root = dirname(DRUPAL_ROOT);
+    $theme = file_get_contents(
+      $root . '/web/themes/custom/emerging_digital/emerging_digital.theme',
+    );
+    self::assertStringNotContainsString(
+      'function emerging_digital_preprocess_menu(', $theme,
+    );
+  }
+
+  /**
    * NL Webform keeps native field identities and requirements.
    */
   public function testNlContactTranslationPreservesFieldSemantics(): void {
@@ -359,13 +456,23 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       }
     }
     self::assertSame('Uw naam', $nl_elements['name']['#title']);
+    self::assertSame('Uw e-mailadres', $nl_elements['email']['#title']);
+    self::assertSame('Uw bericht', $nl_elements['message']['#title']);
     self::assertSame('Bericht verzenden', $nl_elements['actions']['#submit__label']);
+    self::assertStringContainsString('Bedankt,', $nl['settings']['confirmation_message']);
     self::assertStringContainsString('/nl/privacyverklaring', $nl_elements['rgpd_consent']['#description']);
     self::assertStringNotContainsString('/fr/', $nl['elements']);
     self::assertStringNotContainsString('/en/', $nl['elements']);
     self::assertArrayNotHasKey('handlers', $nl);
     self::assertFileExists($root . '/config/sync/language/nl/block.block.emerging_digital_footer_branding.yml');
     self::assertFileExists($root . '/config/sync/language/nl/block.block.emerging_digital_footer_menu.yml');
+    $online = Yaml::parseFile($root . '/config/sync/language/nl/block.block.emerging_digital_online_presence.yml');
+    self::assertSame('Online aanwezigheid', $online['settings']['label']);
+    $blog_nl = Yaml::parseFile($root . '/config/sync/language/nl/views.view.blog.yml');
+    self::assertSame(
+      'Er zijn momenteel geen artikelen beschikbaar.',
+      $blog_nl['display']['default']['display_options']['empty']['area_text_custom']['content'],
+    );
   }
 
   /**

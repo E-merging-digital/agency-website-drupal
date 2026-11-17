@@ -148,13 +148,13 @@ final class ContactFormTest extends BrowserTestBase {
     self::assertSame(364, (int) $this->contactWebform->getSetting('purge_days'));
     self::assertSame('none', $this->contactWebform->getSetting('draft'));
 
-    $storage = \\Drupal::entityTypeManager()->getStorage('webform_submission');
-    $now = \\Drupal::time()->getRequestTime();
+    $storage = \Drupal::entityTypeManager()->getStorage('webform_submission');
+    $now = \Drupal::time()->getRequestTime();
     $cutoff = $now - 364 * 86400;
     $ids = [];
 
     foreach (['expired' => $cutoff - 60, 'retained' => $cutoff + 60] as $label => $received_at) {
-      $submission = \\Drupal\\webform\\Entity\\WebformSubmission::create([
+      $submission = \Drupal\webform\Entity\WebformSubmission::create([
         'webform_id' => 'contact',
         'data' => [
           'name' => 'Synthetic ' . $label,

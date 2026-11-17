@@ -58,7 +58,9 @@
       }
 
       const updatedAt = new Date(parsed.updatedAt);
-      if (Number.isNaN(updatedAt.getTime()) || updatedAt.getTime() > Date.now()) {
+      if (Number.isNaN(updatedAt.getTime()) ||
+        updatedAt.toISOString() !== parsed.updatedAt ||
+        updatedAt.getTime() > Date.now()) {
         return null;
       }
 

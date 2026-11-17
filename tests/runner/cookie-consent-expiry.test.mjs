@@ -81,6 +81,16 @@ test('missing, malformed and future timestamps never authorize external content'
   }
 });
 
+test('impossible and noncanonical timestamps require renewed consent in FR/EN/NL', () => {
+  const now = '2030-03-03T00:00:00.000Z';
+  for (const lang of ['fr', 'en', 'nl']) {
+    // JS Date normally rolls this impossible 30 February forward to 2 March.
+    assert.equal(hasBanner(render(lang, accepted('2030-02-30T00:00:00.000Z'), now)), true);
+    assert.equal(hasBanner(render(lang, accepted('2030-03-02T00:00:00+00:00'), now)), true);
+    assert.equal(hasBanner(render(lang, accepted('2030-03-02T00:00:00.000Z'), now)), false);
+  }
+});
+
 test('both acceptance and refusal remain editable in all three languages', () => {
   for (const lang of ['fr', 'en', 'nl']) {
     const previous = render(lang, accepted('2030-02-01T12:00:00.000Z', false), '2030-03-01T12:00:00.000Z');

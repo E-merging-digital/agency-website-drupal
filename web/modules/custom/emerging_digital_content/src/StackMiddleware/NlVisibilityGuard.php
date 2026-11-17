@@ -90,7 +90,7 @@ final class NlVisibilityGuard implements HttpKernelInterface {
 
     $relative = substr($path, 3);
     if ($relative === '/blog') {
-      // Views must remain restricted to published articles in the active content language.
+      // Only published articles in the active content language may appear.
       return $this->isSafeDutchBlogView();
     }
     if ($relative === '' || $relative === '/') {

@@ -78,7 +78,7 @@ final class AgencyNlTenDraftsTest extends TestCase {
       $candidate['items'][] = [
         'prod_nid' => $id,
         'bundle' => $fr['bundle'],
-        'source_fr_sha256' => \agency1417_ten_digest($fr),
+        'source_fr_sha256' => $this->synthetic('agency1417_ten_digest', $fr),
         'title_fr_for_review' => $fr['title_fr'],
         'alias_fr_for_review' => $fr['alias_fr'],
         'status_nl' => 'DRAFT_NOT_PUBLISHED',
@@ -86,6 +86,18 @@ final class AgencyNlTenDraftsTest extends TestCase {
       ];
     }
     return [$source, $candidate];
+  }
+
+  /**
+   * Calls pure script helpers without adding a new Composer autoload entry.
+   */
+  private function synthetic(string $function, mixed ...$args): mixed {
+    if (!function_exists($function)) {
+      throw new \RuntimeException('Synthetic helper unavailable');
+    }
+    /** @var callable $callback */
+    $callback = $function;
+    return $callback(...$args);
   }
 
   /**
@@ -106,7 +118,7 @@ final class AgencyNlTenDraftsTest extends TestCase {
    */
   public function testSyntheticTenItemContract(): void {
     [$fr, $nl] = $this->fakeBatch();
-    $batch = \agency1417_ten_batch($fr, $nl);
+    $batch = $this->synthetic('agency1417_ten_batch', $fr, $nl);
     self::assertSame([37, 38, 39, 41, 45, 43, 44, 46, 47, 48], array_keys($batch));
     self::assertCount(10, $batch[41]['nl']['fields_nl']['field_home_components']);
   }
@@ -118,16 +130,16 @@ final class AgencyNlTenDraftsTest extends TestCase {
     [$fr, $nl] = $this->fakeBatch();
     $bad = $nl;
     $bad['items'][1]['prod_nid'] = 99;
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'CANDIDATE_NODE_IDENTITY_OR_FIELDS');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'CANDIDATE_NODE_IDENTITY_OR_FIELDS');
     $bad = $nl;
     $bad['items'][1]['source_fr_sha256'] = str_repeat('0', 64);
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'CANDIDATE_NODE_IDENTITY_OR_FIELDS');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'CANDIDATE_NODE_IDENTITY_OR_FIELDS');
     $bad = $nl;
     $bad['publication_authorized'] = TRUE;
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'PRIVATE_BATCH_CONTRACT');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'PRIVATE_BATCH_CONTRACT');
     $bad = $nl;
     $bad['items'][1]['status_nl'] = 'PUBLISHED';
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'CANDIDATE_NODE_IDENTITY_OR_FIELDS');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'CANDIDATE_NODE_IDENTITY_OR_FIELDS');
   }
 
   /**
@@ -137,13 +149,13 @@ final class AgencyNlTenDraftsTest extends TestCase {
     [$fr, $nl] = $this->fakeBatch();
     $bad = $nl;
     $bad['items'][0]['fields_nl']['body']['value'] = '<a href="javascript:alert(1)">NO</a>';
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'UNSAFE_LINK_URI');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'UNSAFE_LINK_URI');
     $bad = $nl;
     $bad['items'][0]['fields_nl']['body']['value'] = '<a href="/nl/contact">NO</a>';
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'EDITORIAL_LINK_DRIFT');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'EDITORIAL_LINK_DRIFT');
     $bad = $nl;
     $bad['items'][0]['fields_nl']['body']['value'] = '<a href=/fr/contact>NO</a>';
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'UNQUOTED_OR_UNSAFE_LINK');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'UNQUOTED_OR_UNSAFE_LINK');
   }
 
   /**
@@ -153,13 +165,13 @@ final class AgencyNlTenDraftsTest extends TestCase {
     [$fr, $nl] = $this->fakeBatch();
     $bad = $nl;
     $bad['items'][3]['fields_nl']['field_home_components'][4]['paragraph_index'] = 5;
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'PARAGRAPH_MAPPING_UNPROVEN');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'PARAGRAPH_MAPPING_UNPROVEN');
     $bad = $nl;
     $bad['items'][3]['fields_nl']['field_home_components'][4]['bundle'] = 'hero';
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'PARAGRAPH_MAPPING_UNPROVEN');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'PARAGRAPH_MAPPING_UNPROVEN');
     $bad = $nl;
     array_pop($bad['items'][3]['fields_nl']['field_home_components']);
-    $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'PARAGRAPH_COUNT_UNPROVEN');
+    $this->expectStop(fn () => $this->synthetic('agency1417_ten_batch', $fr, $bad), 'PARAGRAPH_COUNT_UNPROVEN');
   }
 
   /**
@@ -167,19 +179,19 @@ final class AgencyNlTenDraftsTest extends TestCase {
    */
   public function testRejectsMediaMismatchAndNonexistentInput(): void {
     $this->expectStop(
-      fn () => \agency1417_ten_reference('media',
+      fn () => $this->synthetic('agency1417_ten_reference', 'media',
         ['alt' => 'FR', 'title' => NULL],
         ['alt' => 'OTHER', 'title' => NULL, 'target_id' => 11, 'file_id' => 11, 'uuid' => 'synthetic-uuid']),
       'MEDIA_IDENTITY_UNPROVEN',
     );
     $this->expectStop(
-      fn () => \agency1417_ten_reference('paragraph',
+      fn () => $this->synthetic('agency1417_ten_reference', 'paragraph',
         ['bundle' => 'text_block'],
         ['bundle' => 'text_block', 'uuid' => 'synthetic-uuid', 'revision_id' => 4, 'linked_revision_id' => 3]),
       'PARAGRAPH_IDENTITY_UNPROVEN',
     );
     $this->expectStop(
-      fn () => \agency1417_ten_private('', str_repeat('a', 64)),
+      fn () => $this->synthetic('agency1417_ten_private', '', str_repeat('a', 64)),
       'PRIVATE_FILE_UNAVAILABLE_OR_INTEGRITY',
     );
   }

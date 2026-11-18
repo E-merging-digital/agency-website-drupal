@@ -79,14 +79,15 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('DRAFT_LINK_NODE_DEPENDENCY_NOT_READY', $source);
     self::assertStringContainsString('DRAFT_LINK_URI_UNVERIFIED', $source);
     self::assertStringContainsString('DRAFT_MEDIA_ASSET_PARITY_UNPROVEN', $source);
-    self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT=PASS NODES=36', $source);
-    self::assertStringContainsString('DRAFT_EXTRA41=PARITY_PASS', $source);
-    self::assertStringContainsString('DRAFT_EXTRA41_FR_EN_PARITY_CHANGED', $source);
-    self::assertStringContainsString('NOT_ADMITTED=YES TARGET_WRITE=NONE', $source);
-    self::assertLessThan(
-      strpos($source, "if (!\$lang) {"),
-      strpos($source, 'DRAFT_EXTRA41=PARITY_PASS'),
-    );
+    self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT=PASS NODES=37', $source);
+    self::assertStringContainsString('DRAFT_APPLY=PASS NODES=37', $source);
+    self::assertStringContainsString('$safeSourceIds = array_merge($safeIds, [41]);', $source);
+    self::assertStringContainsString('$safeTargetIds = array_merge($safeIds, [42]);', $source);
+    self::assertStringContainsString('foreach ($safeSourceIds as $id)', $source);
+    self::assertStringContainsString('$targetId = $map[$id];', $source);
+    self::assertStringContainsString("$node->uuid() === $item['uuid']", $source);
+    self::assertStringContainsString("($id === 41 && $node->bundle() !== 'service')", $source);
+    self::assertStringNotContainsString('DRAFT_EXTRA41=PARITY_PASS', $source);
     self::assertStringContainsString("if (\$name === 'content_translation_changed')", $source);
     self::assertStringContainsString("if (\$name === 'metatag' && \$entity->hasField(\$name)", $source);
     self::assertStringContainsString("->getType() === 'metatag_computed'", $source);

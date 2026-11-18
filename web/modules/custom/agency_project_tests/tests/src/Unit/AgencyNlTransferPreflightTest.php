@@ -24,10 +24,22 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     // Parse using the CI PHP runtime, including its syntax errors.
     self::assertNotEmpty(token_get_all($source, TOKEN_PARSE));
 
-    self::assertStringContainsString('INVALID_MODE_EXPORT_OR_PLAN_ONLY', $source);
+    self::assertStringContainsString('INVALID_MODE_EXPORT_PLAN_OR_DIAGNOSE_ONLY', $source);
     self::assertStringContainsString('EXISTING_NL_', $source);
     self::assertStringContainsString('CONTENT_IMPORT_NOT_IMPLEMENTED=YES', $source);
     self::assertStringContainsString('MANIFEST_MISSING_OR_HASH_MISMATCH', $source);
+    // Diagnostics consume the existing immutable private export, never re-export
+    // NL fields or log their plaintext. PREPROD/PROD remain owner operated.
+    self::assertStringContainsString("'diagnose-export' =>", $source);
+    self::assertStringContainsString("'diagnose-plan' =>", $source);
+    self::assertStringContainsString('agency1417_diagnostic_fields(', $source);
+    self::assertStringContainsString('agency1417_diagnostic_diff(', $source);
+    self::assertStringContainsString('DIAGNOSTIC_FILE_ALREADY_EXISTS', $source);
+    self::assertStringContainsString('SOURCE_FIELD_CHANGED_', $source);
+    self::assertStringContainsString('DIAGNOSTIC_HASH_OR_FILE_MISMATCH', $source);
+    self::assertStringContainsString('UNEXPECTED_TARGET_IDENTITY_OR_REFERENCE_ERROR', $source);
+    self::assertStringContainsString('FIELD_PATHS=', $source);
+    self::assertStringContainsString('NO_WRITE=YES', $source);
     self::assertStringContainsString("'exceptions' => [43, 46]", $source);
     // Drush php:script includes the file inside a method, not global scope.
     self::assertStringNotContainsString('global $map;', $source);

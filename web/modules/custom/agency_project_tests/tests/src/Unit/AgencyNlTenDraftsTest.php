@@ -95,8 +95,7 @@ final class AgencyNlTenDraftsTest extends TestCase {
     if (!function_exists($function)) {
       throw new \RuntimeException('Synthetic helper unavailable');
     }
-    /** @var callable $callback */
-    $callback = $function;
+    $callback = \Closure::fromCallable($function);
     return $callback(...$args);
   }
 

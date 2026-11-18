@@ -69,6 +69,9 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('NL_LANGUAGE_NOT_ACTIVE', $source);
     self::assertStringContainsString('DRAFT_UNSUPPORTED_REFERENCE_', $source);
     self::assertStringContainsString('DRAFT_NODE_DEPENDENCY_NOT_READY', $source);
+    self::assertStringContainsString('DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION', $source);
+    self::assertStringContainsString('DRAFT_PARAGRAPH_REVISION_NOT_SAVED', $source);
+    self::assertStringContainsString('$paragraph->setNewRevision(TRUE);', $source);
     self::assertStringContainsString('array_diff(range(1, 38), [5, 37, 38])', $source);
     self::assertStringContainsString('$translation->setUnpublished();', $source);
     self::assertStringContainsString('NO_WRITE=YES', $source);

@@ -28,7 +28,7 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('EXISTING_NL_', $source);
     self::assertStringContainsString('CONTENT_IMPORT_NOT_IMPLEMENTED=YES', $source);
     self::assertStringContainsString('MANIFEST_MISSING_OR_HASH_MISMATCH', $source);
-    // Diagnostics consume the existing immutable private export, never re-export
+    // Diagnose using the immutable private export; never re-export
     // NL fields or log their plaintext. PREPROD/PROD remain owner operated.
     self::assertStringContainsString("'diagnose-export' =>", $source);
     self::assertStringContainsString("'diagnose-plan' =>", $source);

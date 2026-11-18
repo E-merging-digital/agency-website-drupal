@@ -81,9 +81,12 @@ function agency1417_draft_fields(ContentEntityInterface $entity, string $langcod
 }
 
 /**
- * Resolves only already-existing, unambiguous local field dependencies.
+ * Maps NL fields to existing entities; prepares owned Paragraph translations.
  */
-function agency1417_draft_values(ContentEntityInterface $node, array $fields, array $safeIds): array {
+function agency1417_draft_values(ContentEntityInterface $entity, array $fields, array $safeIds, array &$paragraphs, int $depth = 0): array {
+  if ($depth > 3 || !$entity->hasTranslation('fr')) {
+    agency1417_draft_stop('DRAFT_REFERENCE_DEPTH_OR_LANGUAGE');
+  }
   $values = [];
   $allowed = [
     'string', 'string_long', 'text', 'text_long', 'text_with_summary',
@@ -91,15 +94,15 @@ function agency1417_draft_values(ContentEntityInterface $node, array $fields, ar
     'link', 'email', 'telephone', 'datetime', 'metatag',
   ];
   foreach ($fields as $name => $field) {
-    if (!$node->hasField($name) ||
-        !$node->getFieldDefinition($name)->isTranslatable()) {
+    if (!$entity->hasField($name) ||
+        !$entity->getFieldDefinition($name)->isTranslatable()) {
       agency1417_draft_stop('DRAFT_FIELD_DEFINITION_MISMATCH');
     }
-    $type = $node->getFieldDefinition($name)->getType();
+    $type = $entity->getFieldDefinition($name)->getType();
     if (array_key_exists('value', $field)) {
       if (!is_array($field['value']) ||
           ($field['value'] !== [] && !in_array($type, $allowed, TRUE))) {
-        // Source file IDs cannot be copied as destination file IDs.
+        // Raw file IDs are never copied between independent databases.
         agency1417_draft_stop('DRAFT_UNSUPPORTED_VALUE_TYPE_' . $name);
       }
       $values[$name] = $field['value'];
@@ -108,16 +111,48 @@ function agency1417_draft_values(ContentEntityInterface $node, array $fields, ar
     if (!isset($field['reference']) || !is_array($field['reference'])) {
       agency1417_draft_stop('DRAFT_INVALID_REFERENCE_' . $name);
     }
+    $values[$name] = [];
     if ($field['reference'] === []) {
-      $values[$name] = [];
       continue;
     }
-    if ($type !== 'entity_reference') {
-      // Paragraph revisions require distinct NL revision mapping.
+    if (!in_array($type, ['entity_reference', 'entity_reference_revisions'], TRUE)) {
       agency1417_draft_stop('DRAFT_UNSUPPORTED_REFERENCE_' . $name);
     }
-    $values[$name] = [];
+
+    // Never pair Paragraphs by position alone: require the same UUID.
+    $existing = [];
+    foreach ($entity->getTranslation('fr')->get($name)->referencedEntities() as $ref) {
+      if ($ref instanceof ContentEntityInterface) {
+        $existing[$ref->uuid()] = $ref;
+      }
+    }
     foreach ($field['reference'] as $ref) {
+      if ($type === 'entity_reference_revisions') {
+        if (($ref['type'] ?? '') !== 'paragraph' ||
+            !isset($ref['fields']) || !is_array($ref['fields'])) {
+          agency1417_draft_stop('DRAFT_UNSUPPORTED_REFERENCE_' . $name);
+        }
+        $uuid = $ref['identity'];
+        $paragraph = $existing[$uuid] ?? NULL;
+        if (!$paragraph instanceof ContentEntityInterface ||
+            $paragraph->bundle() !== $ref['bundle'] ||
+            $paragraph->hasTranslation('nl') ||
+            isset($paragraphs[$uuid])) {
+          agency1417_draft_stop('DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION');
+        }
+        $nested = agency1417_draft_values(
+          $paragraph, $ref['fields'], $safeIds, $paragraphs, $depth + 1,
+        );
+        $paragraphs[$uuid] = [
+          'entity' => $paragraph,
+          'values' => $nested,
+        ];
+        $values[$name][] = [
+          'target_id' => $paragraph->id(),
+          'target_revision_id' => $paragraph->getRevisionId(),
+        ];
+        continue;
+      }
       if (!in_array($ref['type'], ['node', 'media', 'taxonomy_term'], TRUE)) {
         agency1417_draft_stop('DRAFT_UNSUPPORTED_REFERENCE_TYPE');
       }
@@ -143,6 +178,26 @@ function agency1417_draft_values(ContentEntityInterface $node, array $fields, ar
       $values[$name][] = ['target_id' => $target->id()];
     }
   }
+  return $values;
+}
+
+/**
+ * Substitutes only revisions saved during this exact NL staging transaction.
+ */
+function agency1417_draft_revisions(array $values, array $revisions): array {
+  foreach ($values as &$items) {
+    foreach ($items as &$item) {
+      if (isset($item['target_revision_id'])) {
+        $id = (int) $item['target_id'];
+        if (!isset($revisions[$id])) {
+          agency1417_draft_stop('DRAFT_PARAGRAPH_REVISION_NOT_SAVED');
+        }
+        $item['target_revision_id'] = $revisions[$id];
+      }
+    }
+    unset($item);
+  }
+  unset($items);
   return $values;
 }
 
@@ -193,6 +248,7 @@ if (count($byId) !== 47) {
 }
 $storage = \Drupal::entityTypeManager()->getStorage('node');
 $prepared = [];
+$paragraphs = [];
 foreach ($safeIds as $id) {
   $item = $byId[$id];
   $node = $storage->load($id);
@@ -220,7 +276,7 @@ foreach ($safeIds as $id) {
     }
   }
   $prepared[$id] = agency1417_draft_values(
-    $node, $item['nl_fields'], $safeIds,
+    $node, $item['nl_fields'], $safeIds, $paragraphs,
   );
 }
 if (count($prepared) !== 35) {
@@ -244,8 +300,21 @@ if (getenv('AGENCY1417_APPROVED_MANIFEST_SHA256') !== $sha ||
 }
 $transaction = \Drupal::database()->startTransaction();
 try {
+  $revisions = [];
+  // Create NL Paragraph revisions first; FR/EN references keep old revisions.
+  foreach ($paragraphs as $definition) {
+    $paragraph = $definition['entity'];
+    $values = agency1417_draft_revisions(
+      $definition['values'], $revisions,
+    );
+    $paragraph->addTranslation('nl', $values);
+    $paragraph->setNewRevision(TRUE);
+    $paragraph->save();
+    $revisions[(int) $paragraph->id()] = $paragraph->getRevisionId();
+  }
   foreach ($prepared as $id => $values) {
     $node = $storage->load($id);
+    $values = agency1417_draft_revisions($values, $revisions);
     $translation = $node->addTranslation('nl', $values);
     $translation->setUnpublished();
     $node->setNewRevision(TRUE);

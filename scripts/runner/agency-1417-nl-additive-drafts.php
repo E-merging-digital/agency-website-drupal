@@ -202,7 +202,9 @@ function agency1417_draft_links(array $items, array $safeIds, array $map): array
  * Maps NL fields to existing entities; prepares owned Paragraph translations.
  */
 function agency1417_draft_values(ContentEntityInterface $entity, array $fields, array $safeIds, array $map, array &$paragraphs, int $depth = 0): array {
-  if ($depth > 3 || !$entity->hasTranslation('fr')) {
+  $newNlParagraph = $entity->getEntityTypeId() === 'paragraph' &&
+    $entity->isNew() && $entity->hasTranslation('nl');
+  if ($depth > 3 || (!$entity->hasTranslation('fr') && !$newNlParagraph)) {
     agency1417_draft_stop('DRAFT_REFERENCE_DEPTH_OR_LANGUAGE');
   }
   $values = [];
@@ -217,11 +219,9 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
       continue;
     }
     if ($name === 'metatag' && $entity->hasField($name) &&
-        $entity->getFieldDefinition($name)->getType() === 'map' &&
-        $entity->get($name) instanceof
-        \Drupal\metatag\Plugin\Field\MetatagEntityFieldItemList) {
-      // Ignore only Metatag's generated field, not editable SEO fields.
-      // Preserve FR/EN fingerprints and all other type checks.
+        $entity->getFieldDefinition($name)->getType() === 'metatag_computed') {
+      // Metatag 2.x generates this field; it is not editable SEO content.
+      // Keep stored type 'metatag' and FR/EN fingerprints unchanged.
       continue;
     }
     if (!$entity->hasField($name) ||
@@ -258,9 +258,11 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
 
     // Never pair Paragraphs by position alone: require the same UUID.
     $existing = [];
-    foreach ($entity->getTranslation('fr')->get($name)->referencedEntities() as $ref) {
-      if ($ref instanceof ContentEntityInterface) {
-        $existing[$ref->uuid()] = $ref;
+    if (!$entity->isNew()) {
+      foreach ($entity->getTranslation('fr')->get($name)->referencedEntities() as $ref) {
+        if ($ref instanceof ContentEntityInterface) {
+          $existing[$ref->uuid()] = $ref;
+        }
       }
     }
     foreach ($field['reference'] as $ref) {
@@ -272,7 +274,36 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
         $uuid = $ref['identity'];
         $paragraph = $existing[$uuid] ?? NULL;
         if (!$paragraph instanceof ContentEntityInterface) {
-          agency1417_draft_stop('DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION_UUID');
+          // NID 2 has NL Paragraph references without existing FR UUIDs.
+          // Create NL-exclusive entities; never pair by array position.
+          if ($entity->getEntityTypeId() !== 'node' ||
+              (int) $entity->id() !== 2 ||
+              $name !== 'field_home_components' ||
+              isset($paragraphs[$uuid]) ||
+              count(\Drupal::entityTypeManager()->getStorage('paragraph')
+                ->loadByProperties(['uuid' => $uuid])) !== 0) {
+            agency1417_draft_stop('DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION_UUID');
+          }
+          $paragraph = \Drupal::entityTypeManager()->getStorage('paragraph')
+            ->create(['type' => $ref['bundle'], 'langcode' => 'nl']);
+          if (!$paragraph instanceof ContentEntityInterface ||
+              !$paragraph->isNew() ||
+              $paragraph->bundle() !== $ref['bundle'] ||
+              !$paragraph->hasTranslation('nl')) {
+            agency1417_draft_stop('DRAFT_NEW_PARAGRAPH_INVALID');
+          }
+          $nested = agency1417_draft_values(
+            $paragraph, $ref['fields'], $safeIds, $map, $paragraphs,
+            $depth + 1,
+          );
+          foreach ($nested as $fieldName => $items) {
+            $paragraph->set($fieldName, $items);
+          }
+          $paragraphs[$uuid] = ['entity' => $paragraph, 'new' => TRUE];
+          // Entity Reference Revisions persists the owned Paragraph on
+          // node save. No entity/database writes occur during dry-run.
+          $values[$name][] = ['entity' => $paragraph];
+          continue;
         }
         if ($paragraph->bundle() !== $ref['bundle']) {
           agency1417_draft_stop('DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION_BUNDLE');
@@ -495,6 +526,10 @@ try {
   $revisions = [];
   // Create NL Paragraph revisions first; FR/EN references keep old revisions.
   foreach ($paragraphs as $definition) {
+    if (!empty($definition['new'])) {
+      // Unsaved NL-only Paragraphs are persisted by their node reference.
+      continue;
+    }
     $paragraph = $definition['entity'];
     $values = agency1417_draft_revisions(
       $definition['values'], $revisions,

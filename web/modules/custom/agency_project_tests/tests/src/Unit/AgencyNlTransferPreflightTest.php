@@ -72,7 +72,14 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION', $source);
     self::assertStringContainsString('DRAFT_PARAGRAPH_REVISION_NOT_SAVED', $source);
     self::assertStringContainsString('$paragraph->setNewRevision(TRUE);', $source);
-    self::assertStringContainsString('array_diff(range(1, 38), [5, 37, 38])', $source);
+    self::assertStringContainsString('array_diff(range(1, 38), [37, 38])', $source);
+    self::assertStringContainsString('DRAFT_HOMEPAGE_DIAGNOSTIC_INTEGRITY', $source);
+    self::assertStringContainsString('DRAFT_HOMEPAGE_EDITORIAL_DRIFT', $source);
+    self::assertStringContainsString('DRAFT_HOMEPAGE_REFERENCE_IDENTITY', $source);
+    self::assertStringContainsString('DRAFT_LINK_NODE_DEPENDENCY_NOT_READY', $source);
+    self::assertStringContainsString('DRAFT_LINK_URI_UNVERIFIED', $source);
+    self::assertStringContainsString('DRAFT_MEDIA_ASSET_PARITY_UNPROVEN', $source);
+    self::assertStringContainsString('DRAFT_DRY_RUN=PASS NODES=36', $source);
     self::assertStringContainsString('$translation->setUnpublished();', $source);
     self::assertStringContainsString('NO_WRITE=YES', $source);
     self::assertStringNotContainsString('->delete(', $source);

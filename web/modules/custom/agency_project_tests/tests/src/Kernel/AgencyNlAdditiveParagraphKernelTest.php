@@ -121,6 +121,11 @@ final class AgencyNlAdditiveParagraphKernelTest extends KernelTestBase {
     ]);
     $node->save();
 
+    // Compare persisted references, not unsaved PHP integer IDs.
+    $storage = $this->container->get('entity_type.manager')->getStorage('node');
+    $storage->resetCache([(int) $node->id()]);
+    $node = $storage->load((int) $node->id());
+    self::assertNotNull($node);
     $fr_before = $node->getTranslation('fr')
       ->get('field_home_components')->getValue();
     $en_before = $node->getTranslation('en')
@@ -142,7 +147,6 @@ final class AgencyNlAdditiveParagraphKernelTest extends KernelTestBase {
     $node->setNewRevision(TRUE);
     $node->save();
 
-    $storage = $this->container->get('entity_type.manager')->getStorage('node');
     $storage->resetCache([(int) $node->id()]);
     $reloaded = $storage->load((int) $node->id());
     self::assertNotNull($reloaded);

@@ -97,14 +97,22 @@ function agency1417_draft_values(ContentEntityInterface $node, array $fields, ar
     }
     $type = $node->getFieldDefinition($name)->getType();
     if (array_key_exists('value', $field)) {
-      if (!in_array($type, $allowed, TRUE) || !is_array($field['value'])) {
+      if (!is_array($field['value']) ||
+          ($field['value'] !== [] && !in_array($type, $allowed, TRUE))) {
         // Source file IDs cannot be copied as destination file IDs.
         agency1417_draft_stop('DRAFT_UNSUPPORTED_VALUE_TYPE_' . $name);
       }
       $values[$name] = $field['value'];
       continue;
     }
-    if (!isset($field['reference']) || $type !== 'entity_reference') {
+    if (!isset($field['reference']) || !is_array($field['reference'])) {
+      agency1417_draft_stop('DRAFT_INVALID_REFERENCE_' . $name);
+    }
+    if ($field['reference'] === []) {
+      $values[$name] = [];
+      continue;
+    }
+    if ($type !== 'entity_reference') {
       // Paragraph revisions require distinct NL revision mapping.
       agency1417_draft_stop('DRAFT_UNSUPPORTED_REFERENCE_' . $name);
     }

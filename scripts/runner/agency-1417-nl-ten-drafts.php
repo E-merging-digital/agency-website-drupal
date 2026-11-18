@@ -184,6 +184,35 @@ function agency1417_ten_batch(array $source, array $candidate): array {
   return $batch;
 }
 
+/**
+ * Pure identity checks shared by synthetic tests and the runtime adapter.
+ * Values are metadata only: no media bytes, file IDs from another database,
+ * or private editorial strings are stored in the repository.
+ */
+function agency1417_ten_reference(string $kind, array $source, array $actual): void {
+  if ($kind === 'media') {
+    if (!is_string($actual['uuid'] ?? NULL) || $actual['uuid'] === '' ||
+        !is_int($actual['target_id'] ?? NULL) ||
+        $actual['target_id'] < 1 || $actual['file_id'] !== $actual['target_id'] ||
+        ($actual['alt'] ?? NULL) !== ($source['alt'] ?? NULL) ||
+        ($actual['title'] ?? NULL) !== ($source['title'] ?? NULL)) {
+      agency1417_ten_stop('MEDIA_IDENTITY_UNPROVEN');
+    }
+    return;
+  }
+  if ($kind === 'paragraph') {
+    if (!is_string($actual['uuid'] ?? NULL) || $actual['uuid'] === '' ||
+        !is_int($actual['revision_id'] ?? NULL) || $actual['revision_id'] < 1 ||
+        $actual['linked_revision_id'] !== $actual['revision_id'] ||
+        ($actual['bundle'] ?? NULL) !== ($source['bundle'] ?? NULL) ||
+        ($actual['existing_nl'] ?? FALSE) !== FALSE) {
+      agency1417_ten_stop('PARAGRAPH_IDENTITY_UNPROVEN');
+    }
+    return;
+  }
+  agency1417_ten_stop('UNSUPPORTED_REFERENCE_IDENTITY');
+}
+
 /** Checks a canonical FR field recursively; never guesses media/Paragraph IDs. */
 function agency1417_ten_canonical(ContentEntityInterface $entity, array $fields): void {
   foreach ($fields as $name => $original) {
@@ -200,10 +229,17 @@ function agency1417_ten_canonical(ContentEntityInterface $entity, array $fields)
       $seen = [];
       foreach (array_values($refs) as $i => $paragraph) {
         if (!$paragraph instanceof ContentEntityInterface || !$paragraph->hasTranslation('fr') ||
-            !$paragraph->id() || !$paragraph->getRevisionId() ||
-            !$paragraph->uuid() || isset($seen[$paragraph->uuid()]) ||
-            $paragraph->bundle() !== ($original[$i]['bundle'] ?? NULL) ||
-            (int) ($raw[$i]['target_revision_id'] ?? 0) !== (int) $paragraph->getRevisionId()) {
+            !$paragraph->id() || !$paragraph->getRevisionId()) {
+          agency1417_ten_stop('PARAGRAPH_IDENTITY_UNPROVEN');
+        }
+        agency1417_ten_reference('paragraph', $original[$i], [
+          'uuid' => $paragraph->uuid(),
+          'revision_id' => (int) $paragraph->getRevisionId(),
+          'linked_revision_id' => (int) ($raw[$i]['target_revision_id'] ?? 0),
+          'bundle' => $paragraph->bundle(),
+          'existing_nl' => $paragraph->hasTranslation('nl'),
+        ]);
+        if (isset($seen[$paragraph->uuid()])) {
           agency1417_ten_stop('PARAGRAPH_IDENTITY_UNPROVEN');
         }
         $seen[$paragraph->uuid()] = TRUE;
@@ -217,11 +253,16 @@ function agency1417_ten_canonical(ContentEntityInterface $entity, array $fields)
       }
       foreach ($raw as $i => $fileItem) {
         $file = \Drupal::entityTypeManager()->getStorage('file')->load($fileItem['target_id'] ?? 0);
-        if (!$file || !$file->uuid() ||
-            ($fileItem['alt'] ?? NULL) !== ($original[$i]['alt'] ?? NULL) ||
-            ($fileItem['title'] ?? NULL) !== ($original[$i]['title'] ?? NULL)) {
+        if (!$file) {
           agency1417_ten_stop('MEDIA_IDENTITY_UNPROVEN');
         }
+        agency1417_ten_reference('media', $original[$i], [
+          'target_id' => (int) ($fileItem['target_id'] ?? 0),
+          'file_id' => (int) $file->id(),
+          'uuid' => $file->uuid(),
+          'alt' => $fileItem['alt'] ?? NULL,
+          'title' => $fileItem['title'] ?? NULL,
+        ]);
       }
     }
     elseif ($name === 'field_blog_category') {
@@ -304,7 +345,9 @@ foreach ($batch as $id => $entry) {
       $node->getTranslation('fr')->label() !== $fr['title_fr'] ||
       $node->getTranslation('fr')->isPublished() !== $fr['published_fr'] ||
       (\Drupal::service('path_alias.repository')
-        ->lookupBySystemPath('/node/' . $id, 'fr')['alias'] ?? NULL) !== $fr['alias_fr']) {
+        ->lookupBySystemPath('/node/' . $id, 'fr')['alias'] ?? NULL) !== $fr['alias_fr'] ||
+      (\Drupal::service('path_alias.repository')
+        ->lookupBySystemPath('/node/' . $id, 'nl')['alias'] ?? NULL) !== NULL) {
     agency1417_ten_stop('TARGET_IDENTITY_NL_OR_ALIAS_' . $id);
   }
   agency1417_ten_canonical($node->getTranslation('fr'), $fr['fields_fr']);
@@ -369,6 +412,8 @@ try {
     $storage->resetCache([$id]);
     $reloaded = $storage->load($id);
     if (!$reloaded->hasTranslation('nl') || $reloaded->getTranslation('nl')->isPublished() ||
+        (\Drupal::service('path_alias.repository')
+          ->lookupBySystemPath('/node/' . $id, 'nl')['alias'] ?? NULL) !== NULL ||
         $before[$id]['fr'] !== agency1417_ten_snapshot($reloaded, 'fr') ||
         $before[$id]['en'] !== agency1417_ten_snapshot($reloaded, 'en')) {
       agency1417_ten_stop('POST_SAVE_LANGUAGE_OR_CONTENT_DRIFT');

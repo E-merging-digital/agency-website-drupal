@@ -81,6 +81,97 @@ function agency1417_draft_fields(ContentEntityInterface $entity, string $langcod
 }
 
 /**
+ * Compares original private per-field digests, ignoring only known metadata.
+ */
+function agency1417_draft_fingerprints(array $fields): array {
+  $out = [];
+  foreach ($fields as $name => $field) {
+    if (array_key_exists('value', $field)) {
+      $out[$name] = [
+        'kind' => 'value',
+        'hash' => hash('sha256', json_encode(
+          $field['value'], JSON_UNESCAPED_UNICODE |
+          JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+        )),
+      ];
+    }
+    else {
+      $refs = [];
+      foreach ($field['reference'] as $ref) {
+        $refs[] = [
+          'type' => $ref['type'],
+          'bundle' => $ref['bundle'],
+          'identity_hash' => hash('sha256', (string) $ref['identity']),
+          'fields' => isset($ref['fields'])
+            ? agency1417_draft_fingerprints($ref['fields']) : [],
+        ];
+      }
+      $out[$name] = ['kind' => 'reference', 'references' => $refs];
+    }
+  }
+  ksort($out);
+  return $out;
+}
+
+/**
+ * Validates homepage source/target equivalence apart from named bookkeeping.
+ */
+function agency1417_draft_homepage_compare(array $source, array $target, array $allowed, string $path = ''): void {
+  if (array_keys($source) !== array_keys($target)) {
+    agency1417_draft_stop('DRAFT_HOMEPAGE_FIELD_SET_CHANGED');
+  }
+  foreach ($source as $name => $a) {
+    $b = $target[$name];
+    $key = $path . $name;
+    if (($a['kind'] ?? '') !== ($b['kind'] ?? '')) {
+      agency1417_draft_stop('DRAFT_HOMEPAGE_FIELD_KIND_CHANGED');
+    }
+    if ($a['kind'] === 'value') {
+      if ($a['hash'] !== $b['hash'] && !in_array($key, $allowed, TRUE)) {
+        agency1417_draft_stop('DRAFT_HOMEPAGE_EDITORIAL_DRIFT');
+      }
+      continue;
+    }
+    if (count($a['references']) !== count($b['references'])) {
+      agency1417_draft_stop('DRAFT_HOMEPAGE_REFERENCE_COUNT');
+    }
+    foreach ($a['references'] as $index => $ref) {
+      $other = $b['references'][$index];
+      if ($ref['type'] !== $other['type'] ||
+          $ref['bundle'] !== $other['bundle'] ||
+          $ref['identity_hash'] !== $other['identity_hash']) {
+        agency1417_draft_stop('DRAFT_HOMEPAGE_REFERENCE_IDENTITY');
+      }
+      agency1417_draft_homepage_compare(
+        $ref['fields'], $other['fields'], $allowed,
+        $key . '[' . $index . '].',
+      );
+    }
+  }
+}
+
+/**
+ * Reuses the already-verified private diagnostic, not a new export.
+ */
+function agency1417_draft_homepage_proof(array $entry, array $fields, string $lang): void {
+  if (($entry['source_nid'] ?? 0) !== 5 ||
+      ($entry['target_nid'] ?? 0) !== 5 ||
+      !isset($entry['langs'][$lang])) {
+    agency1417_draft_stop('DRAFT_HOMEPAGE_DIAGNOSTIC_IDENTITY');
+  }
+  $allowed = $lang === 'fr'
+    ? ['field_home_components[1].content_translation_changed']
+    : [
+      'field_home_components[0].content_translation_changed',
+      'field_home_components[1].content_translation_changed',
+    ];
+  agency1417_draft_homepage_compare(
+    $entry['langs'][$lang], agency1417_draft_fingerprints($fields),
+    $allowed,
+  );
+}
+
+/**
  * Remaps only explicit node links within the approved same-identity cohort.
  */
 function agency1417_draft_links(array $items, array $safeIds, array $map): array {
@@ -266,8 +357,8 @@ if (($data['contract'] ?? '') !== 'agency-1417-private-nl-preflight-v1' ||
   agency1417_draft_stop('PRIVATE_MANIFEST_CONTRACT');
 }
 
-// Exactly the UUID-identical, no-FR/EN-drift cohort proved by R135.
-$safeIds = array_values(array_diff(range(1, 38), [5, 37, 38]));
+// Same-UUID cohort, plus homepage NID 5 with exact metadata-only proof.
+$safeIds = array_values(array_diff(range(1, 38), [37, 38]));
 $map = array_combine(range(1, 38), range(1, 38));
 $map += [39 => 39, 40 => 41, 41 => 42, 42 => 45, 44 => 43,
   45 => 44, 47 => 46, 48 => 47, 49 => 48];
@@ -284,6 +375,27 @@ foreach ($data['items'] as $item) {
 if (count($byId) !== 47) {
   agency1417_draft_stop('INCOMPLETE_MANIFEST_MAPPING');
 }
+// The owner already verified this separate immutable hash in R135.
+$diagPath = '/home/deploy/agency-1417-nl-field-diagnostics.json';
+$diagSha = 'a3807b748db92e496fb28c2fe0dd506710c9276fc2b6b8b879b28f5434c72f50';
+if (!is_file($diagPath) || is_link($diagPath) ||
+    hash_file('sha256', $diagPath) !== $diagSha) {
+  agency1417_draft_stop('DRAFT_HOMEPAGE_DIAGNOSTIC_INTEGRITY');
+}
+$diagnostic = json_decode(file_get_contents($diagPath), TRUE, 512, JSON_THROW_ON_ERROR);
+if (($diagnostic['contract'] ?? '') !== 'agency-1417-private-nl-diagnostic-v1' ||
+    ($diagnostic['source_export_sha256'] ?? '') !== $sha) {
+  agency1417_draft_stop('DRAFT_HOMEPAGE_DIAGNOSTIC_CONTRACT');
+}
+$homeEntries = array_values(array_filter(
+  $diagnostic['entries'] ?? [],
+  static fn (array $entry): bool => ($entry['source_nid'] ?? NULL) === 5,
+));
+if (count($homeEntries) !== 1 ||
+    $homeEntries[0]['uuid'] !== $byId[5]['uuid']) {
+  agency1417_draft_stop('DRAFT_HOMEPAGE_DIAGNOSTIC_IDENTITY');
+}
+$homeProof = $homeEntries[0];
 $storage = \Drupal::entityTypeManager()->getStorage('node');
 $prepared = [];
 $paragraphs = [];
@@ -309,7 +421,10 @@ foreach ($safeIds as $id) {
       $fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES |
       JSON_THROW_ON_ERROR,
     ));
-    if ($digest !== $item['fingerprint_' . $lang]) {
+    if ($id === 5) {
+      agency1417_draft_homepage_proof($homeProof, $fields, $lang);
+    }
+    elseif ($digest !== $item['fingerprint_' . $lang]) {
       agency1417_draft_stop('DRAFT_FR_EN_CHANGED_' . $id . '_' . $lang);
     }
   }
@@ -317,7 +432,7 @@ foreach ($safeIds as $id) {
     $node, $item['nl_fields'], $safeIds, $map, $paragraphs,
   );
 }
-if (count($prepared) !== 35) {
+if (count($prepared) !== 36) {
   agency1417_draft_stop('INCOMPLETE_DRAFT_COHORT');
 }
 $lang = \Drupal::languageManager()->getLanguage('nl');
@@ -325,7 +440,7 @@ if (!$lang) {
   agency1417_draft_stop('NL_LANGUAGE_NOT_ACTIVE');
 }
 if ($mode === 'dry-run') {
-  echo 'DRAFT_DRY_RUN=PASS NODES=35 NL_STATUS=UNPUBLISHED' .
+  echo 'DRAFT_DRY_RUN=PASS NODES=36 NL_STATUS=UNPUBLISHED' .
     ' PUBLIC_ALIASES=NONE NO_WRITE=YES' . PHP_EOL;
   return;
 }
@@ -369,7 +484,14 @@ try {
         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES |
         JSON_THROW_ON_ERROR,
       ));
-      if ($digest !== $byId[$id]['fingerprint_' . $langcode]) {
+      if ($id === 5) {
+        agency1417_draft_homepage_proof(
+          $homeProof, agency1417_draft_fields(
+            $reloaded, $langcode, FALSE, $map,
+          ), $langcode,
+        );
+      }
+      elseif ($digest !== $byId[$id]['fingerprint_' . $langcode]) {
         agency1417_draft_stop('DRAFT_POST_SAVE_FR_EN_DRIFT');
       }
     }
@@ -379,5 +501,5 @@ catch (Throwable $error) {
   $transaction->rollBack();
   throw $error;
 }
-echo 'DRAFT_APPLY=PASS NODES=35 NL_STATUS=UNPUBLISHED' .
+echo 'DRAFT_APPLY=PASS NODES=36 NL_STATUS=UNPUBLISHED' .
   ' PUBLIC_ALIASES=NONE' . PHP_EOL;

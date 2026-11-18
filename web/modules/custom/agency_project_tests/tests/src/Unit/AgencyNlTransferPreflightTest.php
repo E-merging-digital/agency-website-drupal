@@ -29,6 +29,10 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('CONTENT_IMPORT_NOT_IMPLEMENTED=YES', $source);
     self::assertStringContainsString('MANIFEST_MISSING_OR_HASH_MISMATCH', $source);
     self::assertStringContainsString("'exceptions' => [43, 46]", $source);
+    // Drush php:script includes the file inside a method, not global scope.
+    self::assertStringNotContainsString('global $map;', $source);
+    self::assertStringContainsString('array $map, int $depth = 0', $source);
+    self::assertStringContainsString('agency1417_fields($ref, $langcode, $source, $map, $depth + 1)', $source);
     self::assertStringNotContainsString('->save(', $source);
     self::assertStringNotContainsString('->delete(', $source);
     self::assertStringNotContainsString('addTranslation(', $source);

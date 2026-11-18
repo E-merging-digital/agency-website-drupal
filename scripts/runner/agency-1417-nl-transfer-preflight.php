@@ -51,8 +51,7 @@ $map += [39 => 39, 40 => 41, 41 => 42, 42 => 45, 44 => 43,
   45 => 44, 47 => 46, 48 => 47, 49 => 48];
 $expectedCount = 47;
 
-function agency1417_fields(ContentEntityInterface $entity, string $langcode, bool $source, int $depth = 0): array {
-  global $map;
+function agency1417_fields(ContentEntityInterface $entity, string $langcode, bool $source, array $map, int $depth = 0): array {
   if ($depth > 3 || !$entity->hasTranslation($langcode)) {
     agency1417_stop('MISSING_TRANSLATION_OR_NESTED_REFERENCE');
   }
@@ -90,7 +89,7 @@ function agency1417_fields(ContentEntityInterface $entity, string $langcode, boo
         }
         $entry = ['type' => $typeId, 'bundle' => $ref->bundle(), 'identity' => $refKey];
         if ($typeId === 'paragraph') {
-          $entry['fields'] = agency1417_fields($ref, $langcode, $source, $depth + 1);
+          $entry['fields'] = agency1417_fields($ref, $langcode, $source, $map, $depth + 1);
         }
         $refs[] = $entry;
       }
@@ -104,9 +103,9 @@ function agency1417_fields(ContentEntityInterface $entity, string $langcode, boo
   return $out;
 }
 
-function agency1417_digest(ContentEntityInterface $entity, string $langcode, bool $source): string {
+function agency1417_digest(ContentEntityInterface $entity, string $langcode, bool $source, array $map): string {
   return hash('sha256', json_encode(
-    agency1417_fields($entity, $langcode, $source),
+    agency1417_fields($entity, $langcode, $source, $map),
     JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
   ));
 }
@@ -139,9 +138,9 @@ if ($mode === 'export') {
       'title_fr' => $node->getTranslation('fr')->label(),
       'alias_fr' => agency1417_alias($sourceNid, 'fr'),
       'alias_nl' => agency1417_alias($sourceNid, 'nl'),
-      'fingerprint_fr' => agency1417_digest($node, 'fr', TRUE),
-      'fingerprint_en' => agency1417_digest($node, 'en', TRUE),
-      'nl_fields' => agency1417_fields($node, 'nl', TRUE),
+      'fingerprint_fr' => agency1417_digest($node, 'fr', TRUE, $map),
+      'fingerprint_en' => agency1417_digest($node, 'en', TRUE, $map),
+      'nl_fields' => agency1417_fields($node, 'nl', TRUE, $map),
     ];
   }
   if (count($items) !== $expectedCount) {
@@ -213,7 +212,7 @@ foreach ($data['items'] as $item) {
   }
   foreach (['fr', 'en'] as $lang) {
     try {
-      if (agency1417_digest($node, $lang, FALSE) !== $item['fingerprint_' . $lang]) {
+      if (agency1417_digest($node, $lang, FALSE, $map) !== $item['fingerprint_' . $lang]) {
         $errors[] = strtoupper($lang) . "_FIELD_DRIFT_$sid";
       }
     }

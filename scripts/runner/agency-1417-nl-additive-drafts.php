@@ -423,6 +423,10 @@ if (($data['contract'] ?? '') !== 'agency-1417-private-nl-preflight-v1' ||
 
 // Same-UUID cohort, plus homepage NID 5 with exact metadata-only proof.
 $safeIds = array_values(array_diff(range(1, 38), [37, 38]));
+// PREPROD 41 / PROD 42 has independently verified FR/EN parity (R151).
+// Keep source and target identities separate: never pair by node ID blindly.
+$safeSourceIds = array_merge($safeIds, [41]);
+$safeTargetIds = array_merge($safeIds, [42]);
 $map = array_combine(range(1, 38), range(1, 38));
 $map += [39 => 39, 40 => 41, 41 => 42, 42 => 45, 44 => 43,
   45 => 44, 47 => 46, 48 => 47, 49 => 48];
@@ -464,19 +468,23 @@ $storage = \Drupal::entityTypeManager()->getStorage('node');
 $prepared = [];
 $paragraphs = [];
 $fieldBlockers = [];
-foreach ($safeIds as $id) {
+foreach ($safeSourceIds as $id) {
   $item = $byId[$id];
-  $node = $storage->load($id);
+  $targetId = $map[$id];
+  $node = $storage->load($targetId);
   if (!$node instanceof ContentEntityInterface ||
-      $node->uuid() !== $item['uuid'] ||
+      ($id === 41
+        ? $node->uuid() === $item['uuid']
+        : $node->uuid() !== $item['uuid']) ||
       $node->bundle() !== $item['bundle'] ||
+      ($id === 41 && $node->bundle() !== 'service') ||
       !$node->hasTranslation('fr') || !$node->hasTranslation('en') ||
       $node->hasTranslation('nl') ||
       $node->getTranslation('fr')->label() !== $item['title_fr']) {
     agency1417_draft_stop('DRAFT_TARGET_IDENTITY_CHANGED_' . $id);
   }
   $alias = \Drupal::service('path_alias.repository')
-    ->lookupBySystemPath('/node/' . $id, 'fr');
+    ->lookupBySystemPath('/node/' . $targetId, 'fr');
   if (($alias['alias'] ?? '') !== $item['alias_fr']) {
     agency1417_draft_stop('DRAFT_TARGET_ALIAS_CHANGED_' . $id);
   }
@@ -496,7 +504,7 @@ foreach ($safeIds as $id) {
   $nodeParagraphs = $paragraphs;
   try {
     $values = agency1417_draft_values(
-      $node, $item['nl_fields'], $safeIds, $map, $nodeParagraphs,
+      $node, $item['nl_fields'], $safeTargetIds, $map, $nodeParagraphs,
     );
     $prepared[$id] = $values;
     $paragraphs = $nodeParagraphs;
@@ -516,52 +524,12 @@ if ($fieldBlockers) {
   }
   agency1417_draft_stop('DRAFT_FIELD_PREFLIGHT_BLOCKERS_' . count($fieldBlockers));
 }
-if (count($prepared) !== 36) {
+if (count($prepared) !== 37) {
   agency1417_draft_stop('INCOMPLETE_DRAFT_COHORT');
 }
 $lang = \Drupal::languageManager()->getLanguage('nl');
 if ($mode === 'dry-run') {
-  // R135: source 41 / target 42 has FR/EN field parity but different UUIDs.
-  // Evidence-only: validate the bounded correspondence without extending
-  // the existing 36-node apply cohort or modifying any Drupal entity.
-  $extra = $byId[41];
-  $extraNode = $storage->load(42);
-  if (($extra['source_nid'] ?? NULL) !== 41 ||
-      ($extra['target_nid'] ?? NULL) !== 42 ||
-      ($extra['bundle'] ?? NULL) !== 'service' ||
-      !$extraNode instanceof ContentEntityInterface ||
-      $extraNode->bundle() !== 'service' ||
-      $extraNode->uuid() === $extra['uuid'] ||
-      !$extraNode->hasTranslation('fr') ||
-      !$extraNode->hasTranslation('en') ||
-      $extraNode->hasTranslation('nl')) {
-    agency1417_draft_stop('DRAFT_EXTRA41_IDENTITY_CHANGED');
-  }
-  $extraAlias = \Drupal::service('path_alias.repository')
-    ->lookupBySystemPath('/node/42', 'fr');
-  if ($extraNode->getTranslation('fr')->label() !== $extra['title_fr'] ||
-      ($extraAlias['alias'] ?? NULL) !== $extra['alias_fr']) {
-    agency1417_draft_stop('DRAFT_EXTRA41_EDITORIAL_CHANGED');
-  }
-  foreach (['fr', 'en'] as $language) {
-    $digest = hash('sha256', json_encode(
-      agency1417_draft_fields($extraNode, $language, FALSE, $map),
-      JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES |
-      JSON_THROW_ON_ERROR,
-    ));
-    if ($digest !== $extra['fingerprint_' . $language]) {
-      agency1417_draft_stop('DRAFT_EXTRA41_FR_EN_PARITY_CHANGED');
-    }
-  }
-  // Check the NL field shape against existing safe targets only.
-  // No new saved Paragraphs, no change in 36-node apply eligibility.
-  $extraParagraphs = [];
-  agency1417_draft_values(
-    $extraNode, $extra['nl_fields'], $safeIds, $map, $extraParagraphs,
-  );
-  echo 'DRAFT_EXTRA41=PARITY_PASS SOURCE_NID=41 TARGET_NID=42' .
-    ' NOT_ADMITTED=YES TARGET_WRITE=NONE' . PHP_EOL;
-  echo 'DRAFT_FIELD_PREFLIGHT=PASS NODES=36 NL_LANGUAGE=' .
+  echo 'DRAFT_FIELD_PREFLIGHT=PASS NODES=37 NL_LANGUAGE=' .
     ($lang ? 'ACTIVE' : 'MISSING') .
     ' TARGET_WRITE=NONE PUBLIC_ALIASES=NONE' . PHP_EOL;
   return;
@@ -595,14 +563,15 @@ try {
     $revisions[(int) $paragraph->id()] = $paragraph->getRevisionId();
   }
   foreach ($prepared as $id => $values) {
-    $node = $storage->load($id);
+    $targetId = $map[$id];
+    $node = $storage->load($targetId);
     $values = agency1417_draft_revisions($values, $revisions);
     $translation = $node->addTranslation('nl', $values);
     $translation->setUnpublished();
     $node->setNewRevision(TRUE);
     $node->save();
-    $storage->resetCache([$id]);
-    $reloaded = $storage->load($id);
+    $storage->resetCache([$targetId]);
+    $reloaded = $storage->load($targetId);
     if (!$reloaded->hasTranslation('nl') ||
         $reloaded->getTranslation('nl')->isPublished()) {
       agency1417_draft_stop('DRAFT_POST_SAVE_STATUS');
@@ -645,5 +614,5 @@ catch (Throwable $error) {
   $transaction->rollBack();
   throw $error;
 }
-echo 'DRAFT_APPLY=PASS NODES=36 NL_STATUS=UNPUBLISHED' .
+echo 'DRAFT_APPLY=PASS NODES=37 NL_STATUS=UNPUBLISHED' .
   ' PUBLIC_ALIASES=NONE' . PHP_EOL;

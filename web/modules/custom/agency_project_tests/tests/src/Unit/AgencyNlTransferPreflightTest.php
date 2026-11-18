@@ -51,4 +51,32 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringNotContainsString('importContent(', $source);
   }
 
+
+  /**
+   * Keeps the additive NL candidate a draft-only, owner-operated operation.
+   */
+  public function testAdditiveCandidateCannotPublishOrReplaceFrEn(): void {
+    $path = dirname(DRUPAL_ROOT) . '/scripts/runner/agency-1417-nl-additive-drafts.php';
+    $source = file_get_contents($path);
+    self::assertNotFalse($source);
+    self::assertNotEmpty(token_get_all($source, TOKEN_PARSE));
+
+    self::assertStringContainsString("['dry-run', 'apply']", $source);
+    self::assertStringContainsString('PRIVATE_MANIFEST_INTEGRITY', $source);
+    self::assertStringContainsString('SOURCE_TARGET_MAPPING_CHANGED', $source);
+    self::assertStringContainsString('DRAFT_FR_EN_CHANGED_', $source);
+    self::assertStringContainsString('DRAFT_POST_SAVE_FR_EN_DRIFT', $source);
+    self::assertStringContainsString('EXACT_OWNER_DRAFT_GO_REQUIRED', $source);
+    self::assertStringContainsString('NL_LANGUAGE_NOT_ACTIVE', $source);
+    self::assertStringContainsString('DRAFT_UNSUPPORTED_REFERENCE_', $source);
+    self::assertStringContainsString('DRAFT_NODE_DEPENDENCY_NOT_READY', $source);
+    self::assertStringContainsString('array_diff(range(1, 38), [5, 37, 38])', $source);
+    self::assertStringContainsString('$translation->setUnpublished();', $source);
+    self::assertStringContainsString('NO_WRITE=YES', $source);
+    self::assertStringNotContainsString('->delete(', $source);
+    self::assertStringNotContainsString("->addTranslation('fr'", $source);
+    self::assertStringNotContainsString("->addTranslation('en'", $source);
+    self::assertStringNotContainsString("getStorage('path_alias')", $source);
+  }
+
 }

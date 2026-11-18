@@ -521,6 +521,46 @@ if (count($prepared) !== 36) {
 }
 $lang = \Drupal::languageManager()->getLanguage('nl');
 if ($mode === 'dry-run') {
+  // R135: source 41 / target 42 has FR/EN field parity but different UUIDs.
+  // Evidence-only: validate the bounded correspondence without extending
+  // the existing 36-node apply cohort or modifying any Drupal entity.
+  $extra = $byId[41];
+  $extraNode = $storage->load(42);
+  if (($extra['source_nid'] ?? NULL) !== 41 ||
+      ($extra['target_nid'] ?? NULL) !== 42 ||
+      ($extra['bundle'] ?? NULL) !== 'service' ||
+      !$extraNode instanceof ContentEntityInterface ||
+      $extraNode->bundle() !== 'service' ||
+      $extraNode->uuid() === $extra['uuid'] ||
+      !$extraNode->hasTranslation('fr') ||
+      !$extraNode->hasTranslation('en') ||
+      $extraNode->hasTranslation('nl')) {
+    agency1417_draft_stop('DRAFT_EXTRA41_IDENTITY_CHANGED');
+  }
+  $extraAlias = \Drupal::service('path_alias.repository')
+    ->lookupBySystemPath('/node/42', 'fr');
+  if ($extraNode->getTranslation('fr')->label() !== $extra['title_fr'] ||
+      ($extraAlias['alias'] ?? NULL) !== $extra['alias_fr']) {
+    agency1417_draft_stop('DRAFT_EXTRA41_EDITORIAL_CHANGED');
+  }
+  foreach (['fr', 'en'] as $language) {
+    $digest = hash('sha256', json_encode(
+      agency1417_draft_fields($extraNode, $language, FALSE, $map),
+      JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES |
+      JSON_THROW_ON_ERROR,
+    ));
+    if ($digest !== $extra['fingerprint_' . $language]) {
+      agency1417_draft_stop('DRAFT_EXTRA41_FR_EN_PARITY_CHANGED');
+    }
+  }
+  // Check the NL field shape against existing safe targets only.
+  // No new saved Paragraphs, no change in 36-node apply eligibility.
+  $extraParagraphs = [];
+  agency1417_draft_values(
+    $extraNode, $extra['nl_fields'], $safeIds, $map, $extraParagraphs,
+  );
+  echo 'DRAFT_EXTRA41=PARITY_PASS SOURCE_NID=41 TARGET_NID=42' .
+    ' NOT_ADMITTED=YES TARGET_WRITE=NONE' . PHP_EOL;
   echo 'DRAFT_FIELD_PREFLIGHT=PASS NODES=36 NL_LANGUAGE=' .
     ($lang ? 'ACTIVE' : 'MISSING') .
     ' TARGET_WRITE=NONE PUBLIC_ALIASES=NONE' . PHP_EOL;

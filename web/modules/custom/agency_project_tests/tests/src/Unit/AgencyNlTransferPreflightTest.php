@@ -85,8 +85,12 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('$safeTargetIds = array_merge($safeIds, [42]);', $source);
     self::assertStringContainsString('foreach ($safeSourceIds as $id)', $source);
     self::assertStringContainsString('$targetId = $map[$id];', $source);
-    self::assertStringContainsString("$node->uuid() === $item['uuid']", $source);
-    self::assertStringContainsString("($id === 41 && $node->bundle() !== 'service')", $source);
+    self::assertStringContainsString(
+      '$node->uuid() === $item[\'uuid\']', $source,
+    );
+    self::assertStringContainsString(
+      '($id === 41 && $node->bundle() !== \'service\')', $source,
+    );
     self::assertStringNotContainsString('DRAFT_EXTRA41=PARITY_PASS', $source);
     self::assertStringContainsString("if (\$name === 'content_translation_changed')", $source);
     self::assertStringContainsString("if (\$name === 'metatag' && \$entity->hasField(\$name)", $source);

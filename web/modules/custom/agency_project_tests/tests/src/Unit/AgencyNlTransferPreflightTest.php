@@ -81,6 +81,9 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('DRAFT_MEDIA_ASSET_PARITY_UNPROVEN', $source);
     self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT=PASS NODES=36', $source);
     self::assertStringContainsString("if (\$name === 'content_translation_changed')", $source);
+    self::assertStringContainsString("if (\$name === 'metatag' && \$entity->hasField(\$name)", $source);
+    self::assertStringContainsString('MetatagEntityFieldItemList', $source);
+    self::assertStringContainsString("DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION_UUID", $source);
     self::assertStringContainsString('DRAFT_FIELD_BLOCKER NID=', $source);
     self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT_BLOCKERS_', $source);
     self::assertStringContainsString('$translation->setUnpublished();', $source);

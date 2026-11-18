@@ -86,6 +86,10 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString("DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION_UUID", $source);
     self::assertStringContainsString("(int) \$entity->id() !== 2", $source);
     self::assertStringContainsString("loadByProperties(['uuid' => \$uuid])", $source);
+    self::assertStringContainsString("'uuid' => \$uuid", $source);
+    self::assertStringContainsString("!\$nlConfigured || \$entity->hasTranslation('nl')", $source);
+    self::assertStringContainsString("if (\$mode === 'apply' && \\Drupal::languageManager()->getLanguage('nl') === NULL)", $source);
+    self::assertStringContainsString('DRAFT_NEW_PARAGRAPH_NL_LANGUAGE_INVALID', $source);
     self::assertStringContainsString("'new' => TRUE", $source);
     self::assertStringContainsString("['entity' => \$paragraph]", $source);
     self::assertStringContainsString('DRAFT_POST_SAVE_NL_PARAGRAPH_COUNT', $source);

@@ -202,8 +202,12 @@ function agency1417_draft_links(array $items, array $safeIds, array $map): array
  * Maps NL fields to existing entities; prepares owned Paragraph translations.
  */
 function agency1417_draft_values(ContentEntityInterface $entity, array $fields, array $safeIds, array $map, array &$paragraphs, int $depth = 0): array {
+  // A dry-run can inspect a new, unsaved NL Paragraph before NL is installed.
+  // Apply still requires an active NL language and an actual NL translation.
+  $nlConfigured = \Drupal::languageManager()->getLanguage('nl') !== NULL;
   $newNlParagraph = $entity->getEntityTypeId() === 'paragraph' &&
-    $entity->isNew() && $entity->hasTranslation('nl');
+    $entity->isNew() &&
+    (!$nlConfigured || $entity->hasTranslation('nl'));
   if ($depth > 3 || (!$entity->hasTranslation('fr') && !$newNlParagraph)) {
     agency1417_draft_stop('DRAFT_REFERENCE_DEPTH_OR_LANGUAGE');
   }
@@ -285,12 +289,20 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
             agency1417_draft_stop('DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION_UUID');
           }
           $paragraph = \Drupal::entityTypeManager()->getStorage('paragraph')
-            ->create(['type' => $ref['bundle'], 'langcode' => 'nl']);
+            ->create([
+              'type' => $ref['bundle'],
+              'langcode' => 'nl',
+              'uuid' => $uuid,
+            ]);
           if (!$paragraph instanceof ContentEntityInterface ||
               !$paragraph->isNew() ||
               $paragraph->bundle() !== $ref['bundle'] ||
-              !$paragraph->hasTranslation('nl')) {
+              $paragraph->uuid() !== $uuid) {
             agency1417_draft_stop('DRAFT_NEW_PARAGRAPH_INVALID');
+          }
+          if (\Drupal::languageManager()->getLanguage('nl') !== NULL &&
+              !$paragraph->hasTranslation('nl')) {
+            agency1417_draft_stop('DRAFT_NEW_PARAGRAPH_NL_LANGUAGE_INVALID');
           }
           $nested = agency1417_draft_values(
             $paragraph, $ref['fields'], $safeIds, $map, $paragraphs,
@@ -382,6 +394,9 @@ function agency1417_draft_revisions(array $values, array $revisions): array {
 $mode = getenv('AGENCY1417_DRAFT_MODE') ?: '';
 if (!in_array($mode, ['dry-run', 'apply'], TRUE)) {
   agency1417_draft_stop('INVALID_DRAFT_MODE');
+}
+if ($mode === 'apply' && \Drupal::languageManager()->getLanguage('nl') === NULL) {
+  agency1417_draft_stop('NL_LANGUAGE_NOT_ACTIVE');
 }
 $account = posix_getpwuid(posix_geteuid());
 $cwd = realpath(getcwd());

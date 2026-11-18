@@ -79,8 +79,17 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('DRAFT_LINK_NODE_DEPENDENCY_NOT_READY', $source);
     self::assertStringContainsString('DRAFT_LINK_URI_UNVERIFIED', $source);
     self::assertStringContainsString('DRAFT_MEDIA_ASSET_PARITY_UNPROVEN', $source);
-    self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT=PASS NODES=37', $source);
-    self::assertStringContainsString('DRAFT_APPLY=PASS NODES=37', $source);
+    self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT=PASS NODES=34', $source);
+    self::assertStringContainsString('DRAFT_APPLY=PASS NODES=34', $source);
+    self::assertStringContainsString('EXISTING_NL_DRAFTS=3', $source);
+    self::assertStringContainsString('DRAFT_EXISTING_NL_NOT_ADMITTED_', $source);
+    self::assertStringContainsString('DRAFT_EXISTING_NL_STATUS_CHANGED_', $source);
+    self::assertStringContainsString('DRAFT_EXISTING_NL_CHANGED_', $source);
+    self::assertStringContainsString('DRAFT_EXPECTED_LEGAL_NL_MISSING_', $source);
+    self::assertStringContainsString('array_keys($existingNlDrafts) !== [6, 7, 8]', $source);
+    self::assertStringContainsString(
+      'if (!in_array($id, [6, 7, 8], TRUE)', $source,
+    );
     self::assertStringContainsString('$safeSourceIds = array_merge($safeIds, [41]);', $source);
     self::assertStringContainsString('$safeTargetIds = array_merge($safeIds, [42]);', $source);
     self::assertStringContainsString('foreach ($safeSourceIds as $id)', $source);

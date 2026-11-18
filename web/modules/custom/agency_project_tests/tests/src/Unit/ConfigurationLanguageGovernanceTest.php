@@ -500,7 +500,11 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $nl_settings['url.source'] = $scenario['source'];
       $nl_settings['url.prefixes.nl'] = $scenario['prefix'];
       $language_status['status'] = $scenario['status'];
-      foreach (['/nl', '/nl/node/5', '/nl/diensten', '/nl/blog', '/nl/node/8', '/nl/node/11', '/nl/service', '/nl/node/15', '/nl/case-client', '/nl/node/18', '/nl/ai-feature'] as $path) {
+      foreach ([
+        '/nl', '/nl/node/5', '/nl/diensten', '/nl/blog',
+        '/nl/node/8', '/nl/node/11', '/nl/service',
+        '/nl/node/15', '/nl/case-client', '/nl/node/18', '/nl/ai-feature',
+      ] as $path) {
         $response = $guard->handle(Request::create($path));
         self::assertSame(404, $response->getStatusCode(), $path);
         self::assertSame('no-store, private', $response->headers->get('Cache-Control'));

@@ -58,6 +58,22 @@ final class LanguageSwitcherFrontPageTest extends TestCase {
   }
 
   /**
+   * The published native Blog View is the only entityless NL exception.
+   */
+  public function testBlogListingCanOfferDutchWithoutAContentEntity(): void {
+    $manager = $this->createMock(EntityTypeManagerInterface::class);
+    $block = $this->makeBlock(FALSE, '/node/5', $manager, 'view.blog.page_1');
+    $filter = new \ReflectionMethod($block, 'hasRouteEntityTranslation');
+
+    self::assertTrue($filter->invoke($block, [], 'nl'));
+    self::assertTrue($filter->invoke($block, [], 'fr'));
+    self::assertTrue($filter->invoke($block, [], 'en'));
+
+    $unrelated = $this->makeBlock(FALSE, '/node/5', $manager, 'view.other.page_1');
+    self::assertFalse($filter->invoke($unrelated, [], 'nl'));
+  }
+
+  /**
    * Draft Dutch translations stay hidden, published ones can be selected.
    */
   public function testOnlyPublishedDutchTranslationIsEligible(): void {
@@ -83,12 +99,13 @@ final class LanguageSwitcherFrontPageTest extends TestCase {
   /**
    * Builds an isolated switcher with no Drupal runtime or credentials.
    */
-  private function makeBlock(bool $is_front, string $front, EntityTypeManagerInterface $manager): LanguageSwitcherBlock {
+  private function makeBlock(bool $is_front, string $front, EntityTypeManagerInterface $manager, ?string $route_name = NULL): LanguageSwitcherBlock {
     $path_matcher = $this->createMock(PathMatcherInterface::class);
     $path_matcher->method('isFrontPage')->willReturn($is_front);
 
     $route_match = $this->createMock(RouteMatchInterface::class);
     $route_match->method('getParameters')->willReturn(new ParameterBag());
+    $route_match->method('getRouteName')->willReturn($route_name);
 
     $site_config = $this->createMock(ImmutableConfig::class);
     $site_config->method('get')->with('page.front')->willReturn($front);

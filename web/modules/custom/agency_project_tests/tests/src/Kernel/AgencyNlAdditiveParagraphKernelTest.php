@@ -27,6 +27,7 @@ final class AgencyNlAdditiveParagraphKernelTest extends KernelTestBase {
     'system',
     'user',
     'field',
+    'file',
     'node',
     'language',
     'content_translation',
@@ -43,7 +44,9 @@ final class AgencyNlAdditiveParagraphKernelTest extends KernelTestBase {
     $this->installEntitySchema('user');
     $this->installEntitySchema('node');
     $this->installEntitySchema('paragraph');
+    $this->installEntitySchema('file');
     $this->installSchema('node', ['node_access']);
+    $this->installSchema('file', ['file_usage']);
     $this->installConfig(['system', 'node']);
 
     foreach (['fr', 'en', 'nl'] as $langcode) {

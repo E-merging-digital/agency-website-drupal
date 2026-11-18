@@ -110,7 +110,7 @@ function agency1417_draft_links(array $items, array $safeIds, array $map): array
 /**
  * Maps NL fields to existing entities; prepares owned Paragraph translations.
  */
-function agency1417_draft_values(ContentEntityInterface $entity, array $fields, array $safeIds, array &$paragraphs, int $depth = 0): array {
+function agency1417_draft_values(ContentEntityInterface $entity, array $fields, array $safeIds, array $map, array &$paragraphs, int $depth = 0): array {
   if ($depth > 3 || !$entity->hasTranslation('fr')) {
     agency1417_draft_stop('DRAFT_REFERENCE_DEPTH_OR_LANGUAGE');
   }
@@ -134,7 +134,7 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
       }
       if ($type === 'link') {
         $values[$name] = agency1417_draft_links(
-          $field['value'], $safeIds, $GLOBALS['agency1417_node_map'],
+          $field['value'], $safeIds, $map,
         );
       }
       else {
@@ -175,7 +175,7 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
           agency1417_draft_stop('DRAFT_PARAGRAPH_IDENTITY_OR_TRANSLATION');
         }
         $nested = agency1417_draft_values(
-          $paragraph, $ref['fields'], $safeIds, $paragraphs, $depth + 1,
+          $paragraph, $ref['fields'], $safeIds, $map, $paragraphs, $depth + 1,
         );
         $paragraphs[$uuid] = [
           'entity' => $paragraph,
@@ -271,7 +271,6 @@ $safeIds = array_values(array_diff(range(1, 38), [5, 37, 38]));
 $map = array_combine(range(1, 38), range(1, 38));
 $map += [39 => 39, 40 => 41, 41 => 42, 42 => 45, 44 => 43,
   45 => 44, 47 => 46, 48 => 47, 49 => 48];
-$GLOBALS['agency1417_node_map'] = $map;
 $byId = [];
 foreach ($data['items'] as $item) {
   $id = $item['source_nid'] ?? 0;
@@ -315,7 +314,7 @@ foreach ($safeIds as $id) {
     }
   }
   $prepared[$id] = agency1417_draft_values(
-    $node, $item['nl_fields'], $safeIds, $paragraphs,
+    $node, $item['nl_fields'], $safeIds, $map, $paragraphs,
   );
 }
 if (count($prepared) !== 35) {

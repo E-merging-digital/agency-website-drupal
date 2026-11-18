@@ -81,6 +81,33 @@ function agency1417_draft_fields(ContentEntityInterface $entity, string $langcod
 }
 
 /**
+ * Remaps only explicit node links within the approved same-identity cohort.
+ */
+function agency1417_draft_links(array $items, array $safeIds, array $map): array {
+  foreach ($items as &$item) {
+    if (!is_array($item) || !isset($item['uri']) ||
+        !is_string($item['uri'])) {
+      agency1417_draft_stop('DRAFT_LINK_URI_MISSING');
+    }
+    $uri = $item['uri'];
+    if (preg_match('~^(entity:node/|internal:/node/)([1-9][0-9]*)([?#].*)?$~', $uri, $parts)) {
+      $target = $map[(int) $parts[2]] ?? NULL;
+      if ($target === NULL || !in_array($target, $safeIds, TRUE)) {
+        agency1417_draft_stop('DRAFT_LINK_NODE_DEPENDENCY_NOT_READY');
+      }
+      $item['uri'] = $parts[1] . $target . ($parts[3] ?? '');
+    }
+    elseif (!preg_match('~^(https?://|mailto:|tel:)~i', $uri) ||
+            str_contains(strtolower($uri), 'preprod.emergingdigital.be')) {
+      // Aliases, relative URLs and PREPROD links are not identity mappings.
+      agency1417_draft_stop('DRAFT_LINK_URI_UNVERIFIED');
+    }
+  }
+  unset($item);
+  return $items;
+}
+
+/**
  * Maps NL fields to existing entities; prepares owned Paragraph translations.
  */
 function agency1417_draft_values(ContentEntityInterface $entity, array $fields, array $safeIds, array &$paragraphs, int $depth = 0): array {
@@ -105,7 +132,14 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
         // Raw file IDs are never copied between independent databases.
         agency1417_draft_stop('DRAFT_UNSUPPORTED_VALUE_TYPE_' . $name);
       }
-      $values[$name] = $field['value'];
+      if ($type === 'link') {
+        $values[$name] = agency1417_draft_links(
+          $field['value'], $safeIds, $GLOBALS['agency1417_node_map'],
+        );
+      }
+      else {
+        $values[$name] = $field['value'];
+      }
       continue;
     }
     if (!isset($field['reference']) || !is_array($field['reference'])) {
@@ -153,7 +187,11 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
         ];
         continue;
       }
-      if (!in_array($ref['type'], ['node', 'media', 'taxonomy_term'], TRUE)) {
+      if (($ref['type'] ?? '') === 'media') {
+        // Equal media UUID does not prove identical underlying file bytes.
+        agency1417_draft_stop('DRAFT_MEDIA_ASSET_PARITY_UNPROVEN');
+      }
+      if (!in_array($ref['type'], ['node', 'taxonomy_term'], TRUE)) {
         agency1417_draft_stop('DRAFT_UNSUPPORTED_REFERENCE_TYPE');
       }
       $storage = \Drupal::entityTypeManager()->getStorage($ref['type']);
@@ -233,6 +271,7 @@ $safeIds = array_values(array_diff(range(1, 38), [5, 37, 38]));
 $map = array_combine(range(1, 38), range(1, 38));
 $map += [39 => 39, 40 => 41, 41 => 42, 42 => 45, 44 => 43,
   45 => 44, 47 => 46, 48 => 47, 49 => 48];
+$GLOBALS['agency1417_node_map'] = $map;
 $byId = [];
 foreach ($data['items'] as $item) {
   $id = $item['source_nid'] ?? 0;

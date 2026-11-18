@@ -51,7 +51,6 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringNotContainsString('importContent(', $source);
   }
 
-
   /**
    * Keeps the additive NL candidate a draft-only, owner-operated operation.
    */

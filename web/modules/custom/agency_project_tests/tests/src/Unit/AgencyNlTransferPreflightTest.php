@@ -81,7 +81,7 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('DRAFT_MEDIA_ASSET_PARITY_UNPROVEN', $source);
     self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT=PASS NODES=36', $source);
     self::assertStringContainsString('$translation->setUnpublished();', $source);
-    self::assertStringContainsString('NO_WRITE=YES', $source);
+    self::assertStringContainsString('TARGET_WRITE=NONE', $source);
     self::assertStringNotContainsString('->delete(', $source);
     self::assertStringNotContainsString("->addTranslation('fr'", $source);
     self::assertStringNotContainsString("->addTranslation('en'", $source);

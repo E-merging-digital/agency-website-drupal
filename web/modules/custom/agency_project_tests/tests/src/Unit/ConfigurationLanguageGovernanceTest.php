@@ -235,6 +235,30 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
     $article_missing->method('bundle')->willReturn('article');
     $article_missing->method('hasTranslation')->with('nl')->willReturn(FALSE);
 
+    // Published NL services must remain subject to the same exact-translation
+    // and exact-alias requirements as pages and articles.
+    $service = $this->createMock(NodeInterface::class);
+    $service->method('bundle')->willReturn('service');
+    $service->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $service->method('getTranslation')->with('nl')->willReturn($service);
+    $service->method('isPublished')->willReturn(TRUE);
+
+    $service_draft = $this->createMock(NodeInterface::class);
+    $service_draft->method('bundle')->willReturn('service');
+    $service_draft->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $service_draft->method('getTranslation')->with('nl')->willReturn($service_draft);
+    $service_draft->method('isPublished')->willReturn(FALSE);
+
+    $service_missing = $this->createMock(NodeInterface::class);
+    $service_missing->method('bundle')->willReturn('service');
+    $service_missing->method('hasTranslation')->with('nl')->willReturn(FALSE);
+
+    $unapproved_bundle = $this->createMock(NodeInterface::class);
+    $unapproved_bundle->method('bundle')->willReturn('case_study');
+    $unapproved_bundle->method('hasTranslation')->with('nl')->willReturn(TRUE);
+    $unapproved_bundle->method('getTranslation')->with('nl')->willReturn($unapproved_bundle);
+    $unapproved_bundle->method('isPublished')->willReturn(TRUE);
+
     $nodes = [
       5 => $published,
       6 => $draft,
@@ -242,6 +266,10 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       8 => $article,
       9 => $article_draft,
       10 => $article_missing,
+      11 => $service,
+      12 => $service_draft,
+      13 => $service_missing,
+      14 => $unapproved_bundle,
     ];
     $storage = $this->createMock(EntityStorageInterface::class);
     $storage->method('load')->willReturnCallback(
@@ -261,6 +289,11 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
           '/article' => ['alias' => '/article', 'path' => '/node/8', 'langcode' => 'nl'],
           '/article-draft' => ['alias' => '/article-draft', 'path' => '/node/9', 'langcode' => 'nl'],
           '/article-missing' => ['alias' => '/article-missing', 'path' => '/node/10', 'langcode' => 'nl'],
+          '/service' => ['alias' => '/service', 'path' => '/node/11', 'langcode' => 'nl'],
+          '/service-draft' => ['alias' => '/service-draft', 'path' => '/node/12', 'langcode' => 'nl'],
+          '/service-missing' => ['alias' => '/service-missing', 'path' => '/node/13', 'langcode' => 'nl'],
+          '/unapproved-bundle' => ['alias' => '/unapproved-bundle', 'path' => '/node/14', 'langcode' => 'nl'],
+          '/service-fr-fallback' => ['alias' => '/service-fr-fallback', 'path' => '/node/11', 'langcode' => 'fr'],
           '/wrong-target' => ['alias' => '/wrong-target', 'path' => '/user/login', 'langcode' => 'nl'],
           '/neutral' => ['alias' => '/neutral', 'path' => '/node/5', 'langcode' => 'und'],
           '/fr-fallback' => ['alias' => '/fr-fallback', 'path' => '/node/5', 'langcode' => 'fr'],
@@ -317,6 +350,8 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/blog',
       '/nl/node/8',
       '/nl/article',
+      '/nl/node/11',
+      '/nl/service',
       '/fr',
       '/en',
       '/nl/node/6/edit',
@@ -348,6 +383,13 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/article-draft',
       '/nl/node/10',
       '/nl/article-missing',
+      '/nl/node/12',
+      '/nl/service-draft',
+      '/nl/node/13',
+      '/nl/service-missing',
+      '/nl/node/14',
+      '/nl/unapproved-bundle',
+      '/nl/service-fr-fallback',
       '/nl/no-such-alias',
       '/nl/neutral',
       '/nl/fr-fallback',
@@ -408,7 +450,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       $nl_settings['url.source'] = $scenario['source'];
       $nl_settings['url.prefixes.nl'] = $scenario['prefix'];
       $language_status['status'] = $scenario['status'];
-      foreach (['/nl', '/nl/node/5', '/nl/diensten', '/nl/blog', '/nl/node/8'] as $path) {
+      foreach (['/nl', '/nl/node/5', '/nl/diensten', '/nl/blog', '/nl/node/8', '/nl/node/11', '/nl/service'] as $path) {
         $response = $guard->handle(Request::create($path));
         self::assertSame(404, $response->getStatusCode(), $path);
         self::assertSame('no-store, private', $response->headers->get('Cache-Control'));

@@ -121,7 +121,7 @@ final class NlVisibilityGuard implements HttpKernelInterface {
 
     $node = $this->entityTypeManager->getStorage('node')->load((int) $matches[1]);
     return $node instanceof NodeInterface
-      && in_array($node->bundle(), ['page', 'article'], TRUE)
+      && in_array($node->bundle(), ['page', 'article', 'service'], TRUE)
       && $node->hasTranslation('nl')
       && $node->getTranslation('nl')->isPublished();
   }

@@ -88,7 +88,7 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('DRAFT_EXPECTED_LEGAL_NL_MISSING_', $source);
     self::assertStringContainsString('array_keys($existingNlDrafts) !== [6, 7, 8]', $source);
     self::assertStringContainsString(
-      "if (!in_array($id, [6, 7, 8], TRUE)", $source,
+      'if (!in_array($id, [6, 7, 8], TRUE)', $source,
     );
     self::assertStringContainsString('$safeSourceIds = array_merge($safeIds, [41]);', $source);
     self::assertStringContainsString('$safeTargetIds = array_merge($safeIds, [42]);', $source);

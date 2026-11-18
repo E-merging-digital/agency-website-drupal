@@ -187,9 +187,10 @@ final class LanguageSwitcherBlock extends BlockBase implements ContainerFactoryP
    *   The target language code.
    */
   private function hasRouteEntityTranslation(array $entities, string $langcode): bool {
-    // Entityless routes (including <front>) cannot prove a published NL page.
+    // The native Blog View has an explicitly guarded, language-filtered
+    // public NL listing, even though its route contains no content entity.
     if ($langcode === 'nl' && !$entities) {
-      return FALSE;
+      return $this->routeMatch->getRouteName() === 'view.blog.page_1';
     }
 
     foreach ($entities as $entity) {

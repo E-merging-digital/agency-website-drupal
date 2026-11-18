@@ -60,7 +60,7 @@ final class LanguageSwitcherFrontPageTest extends TestCase {
   /**
    * The published native Blog View is the only entityless NL exception.
    */
-  public function testBlogListingCanOfferDutchWithoutAContentEntity(): void {
+  public function testBlogListingOffersDutchWithoutEntity(): void {
     $manager = $this->createMock(EntityTypeManagerInterface::class);
     $block = $this->makeBlock(FALSE, '/node/5', $manager, 'view.blog.page_1');
     $filter = new \ReflectionMethod($block, 'hasRouteEntityTranslation');

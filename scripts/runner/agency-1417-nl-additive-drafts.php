@@ -468,6 +468,7 @@ $storage = \Drupal::entityTypeManager()->getStorage('node');
 $prepared = [];
 $paragraphs = [];
 $fieldBlockers = [];
+$existingNlDrafts = [];
 foreach ($safeSourceIds as $id) {
   $item = $byId[$id];
   $targetId = $map[$id];
@@ -479,7 +480,6 @@ foreach ($safeSourceIds as $id) {
       $node->bundle() !== $item['bundle'] ||
       ($id === 41 && $node->bundle() !== 'service') ||
       !$node->hasTranslation('fr') || !$node->hasTranslation('en') ||
-      $node->hasTranslation('nl') ||
       $node->getTranslation('fr')->label() !== $item['title_fr']) {
     agency1417_draft_stop('DRAFT_TARGET_IDENTITY_CHANGED_' . $id);
   }
@@ -500,6 +500,23 @@ foreach ($safeSourceIds as $id) {
     elseif ($digest !== $item['fingerprint_' . $lang]) {
       agency1417_draft_stop('DRAFT_FR_EN_CHANGED_' . $id . '_' . $lang);
     }
+  }
+  // Existing Governed Content legal NL drafts must remain untouched.
+  // Refuse any other NL translation or a published legal translation.
+  if ($node->hasTranslation('nl')) {
+    if (!in_array($id, [6, 7, 8], TRUE) ||
+        $node->getTranslation('nl')->isPublished()) {
+      agency1417_draft_stop('DRAFT_EXISTING_NL_NOT_ADMITTED_' . $id);
+    }
+    $existingNlDrafts[$id] = hash('sha256', json_encode(
+      agency1417_draft_fields($node, 'nl', FALSE, $map),
+      JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES |
+      JSON_THROW_ON_ERROR,
+    ));
+    continue;
+  }
+  if (in_array($id, [6, 7, 8], TRUE)) {
+    agency1417_draft_stop('DRAFT_EXPECTED_LEGAL_NL_MISSING_' . $id);
   }
   $nodeParagraphs = $paragraphs;
   try {
@@ -524,13 +541,13 @@ if ($fieldBlockers) {
   }
   agency1417_draft_stop('DRAFT_FIELD_PREFLIGHT_BLOCKERS_' . count($fieldBlockers));
 }
-if (count($prepared) !== 37) {
+if (count($prepared) !== 34 || array_keys($existingNlDrafts) !== [6, 7, 8]) {
   agency1417_draft_stop('INCOMPLETE_DRAFT_COHORT');
 }
 $lang = \Drupal::languageManager()->getLanguage('nl');
 if ($mode === 'dry-run') {
-  echo 'DRAFT_FIELD_PREFLIGHT=PASS NODES=37 NL_LANGUAGE=' .
-    ($lang ? 'ACTIVE' : 'MISSING') .
+  echo 'DRAFT_FIELD_PREFLIGHT=PASS NODES=34 EXISTING_NL_DRAFTS=3' .
+    ' TOTAL=37 NL_LANGUAGE=' . ($lang ? 'ACTIVE' : 'MISSING') .
     ' TARGET_WRITE=NONE PUBLIC_ALIASES=NONE' . PHP_EOL;
   return;
 }
@@ -609,10 +626,38 @@ try {
       }
     }
   }
+  // Prove the three preexisting legal NL drafts stayed unpublished,
+  // and their content and FR/EN fields were not changed by this import.
+  foreach ($existingNlDrafts as $id => $before) {
+    $legal = $storage->load($map[$id]);
+    if (!$legal instanceof ContentEntityInterface ||
+        !$legal->hasTranslation('nl') ||
+        $legal->getTranslation('nl')->isPublished()) {
+      agency1417_draft_stop('DRAFT_EXISTING_NL_STATUS_CHANGED_' . $id);
+    }
+    $after = hash('sha256', json_encode(
+      agency1417_draft_fields($legal, 'nl', FALSE, $map),
+      JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES |
+      JSON_THROW_ON_ERROR,
+    ));
+    if ($after !== $before) {
+      agency1417_draft_stop('DRAFT_EXISTING_NL_CHANGED_' . $id);
+    }
+    foreach (['fr', 'en'] as $langcode) {
+      $digest = hash('sha256', json_encode(
+        agency1417_draft_fields($legal, $langcode, FALSE, $map),
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES |
+        JSON_THROW_ON_ERROR,
+      ));
+      if ($digest !== $byId[$id]['fingerprint_' . $langcode]) {
+        agency1417_draft_stop('DRAFT_POST_SAVE_FR_EN_DRIFT');
+      }
+    }
+  }
 }
 catch (Throwable $error) {
   $transaction->rollBack();
   throw $error;
 }
-echo 'DRAFT_APPLY=PASS NODES=37 NL_STATUS=UNPUBLISHED' .
-  ' PUBLIC_ALIASES=NONE' . PHP_EOL;
+echo 'DRAFT_APPLY=PASS NODES=34 EXISTING_NL_DRAFTS=3' .
+  ' TOTAL=37 NL_STATUS=UNPUBLISHED PUBLIC_ALIASES=NONE' . PHP_EOL;

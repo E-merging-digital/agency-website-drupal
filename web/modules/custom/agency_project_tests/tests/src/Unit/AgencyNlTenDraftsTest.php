@@ -7,7 +7,7 @@ namespace Drupal\Tests\agency_project_tests\Unit;
 use PHPUnit\Framework\TestCase;
 
 /**
- * #1417 R177: synthetic-only checks; no private content or Drupal runtime.
+ * Verifies R177 using synthetic data, never private production content.
  *
  * @group agency_project_tests
  */
@@ -24,7 +24,9 @@ final class AgencyNlTenDraftsTest extends TestCase {
     require_once dirname(DRUPAL_ROOT) . '/scripts/runner/agency-1417-nl-ten-drafts.php';
   }
 
-  /** Makes a fully invented ten-node, ten-Paragraph contract. */
+  /**
+   * Makes a fully invented ten-node, ten-Paragraph contract.
+   */
   private function fakeBatch(): array {
     $source = ['contract' => 'agency1417-10-prod-fr-texts-v1', 'source' => 'SYNTHETIC', 'items' => []];
     $candidate = [
@@ -86,6 +88,9 @@ final class AgencyNlTenDraftsTest extends TestCase {
     return [$source, $candidate];
   }
 
+  /**
+   * Asserts that a synthetic case fails closed with the expected code.
+   */
   private function expectStop(callable $check, string $reason): void {
     try {
       $check();
@@ -96,6 +101,9 @@ final class AgencyNlTenDraftsTest extends TestCase {
     }
   }
 
+  /**
+   * Checks the exact ten synthetic identities and ten-page components.
+   */
   public function testSyntheticTenItemContract(): void {
     [$fr, $nl] = $this->fakeBatch();
     $batch = \agency1417_ten_batch($fr, $nl);
@@ -103,6 +111,9 @@ final class AgencyNlTenDraftsTest extends TestCase {
     self::assertCount(10, $batch[41]['nl']['fields_nl']['field_home_components']);
   }
 
+  /**
+   * Rejects identity, provenance and publication changes.
+   */
   public function testRejectsWrongIdentitySourceAndPublication(): void {
     [$fr, $nl] = $this->fakeBatch();
     $bad = $nl;
@@ -119,6 +130,9 @@ final class AgencyNlTenDraftsTest extends TestCase {
     $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'CANDIDATE_NODE_IDENTITY_OR_FIELDS');
   }
 
+  /**
+   * Rejects unsafe, unquoted and invented destinations.
+   */
   public function testRejectsNewUnsafeOrChangedLink(): void {
     [$fr, $nl] = $this->fakeBatch();
     $bad = $nl;
@@ -132,6 +146,9 @@ final class AgencyNlTenDraftsTest extends TestCase {
     $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'UNQUOTED_OR_UNSAFE_LINK');
   }
 
+  /**
+   * Rejects a changed Paragraph order, bundle or count.
+   */
   public function testRejectsParagraphIdentityAndFieldDifferences(): void {
     [$fr, $nl] = $this->fakeBatch();
     $bad = $nl;
@@ -145,6 +162,9 @@ final class AgencyNlTenDraftsTest extends TestCase {
     $this->expectStop(fn () => \agency1417_ten_batch($fr, $bad), 'PARAGRAPH_COUNT_UNPROVEN');
   }
 
+  /**
+   * Rejects missing media proof, revisions and private input.
+   */
   public function testRejectsMediaMismatchAndNonexistentInput(): void {
     $this->expectStop(
       fn () => \agency1417_ten_reference('media',
@@ -164,6 +184,9 @@ final class AgencyNlTenDraftsTest extends TestCase {
     );
   }
 
+  /**
+   * Keeps the future runtime source-only and draft-gated.
+   */
   public function testRuntimeRemainsGatedAndOtherImporterUntouched(): void {
     $script = file_get_contents(dirname(DRUPAL_ROOT) . '/scripts/runner/agency-1417-nl-ten-drafts.php');
     self::assertNotFalse($script);

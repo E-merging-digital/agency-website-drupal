@@ -552,6 +552,21 @@ try {
         $reloaded->getTranslation('nl')->isPublished()) {
       agency1417_draft_stop('DRAFT_POST_SAVE_STATUS');
     }
+    if ($id === 2) {
+      $sourceRefs = $byId[$id]['nl_fields']['field_home_components']['reference'] ?? NULL;
+      $targetRefs = $reloaded->getTranslation('nl')
+        ->get('field_home_components')->referencedEntities();
+      if (!is_array($sourceRefs) || count($sourceRefs) !== count($targetRefs)) {
+        agency1417_draft_stop('DRAFT_POST_SAVE_NL_PARAGRAPH_COUNT');
+      }
+      foreach (array_values($targetRefs) as $index => $paragraph) {
+        if (!$paragraph instanceof ContentEntityInterface ||
+            $paragraph->isNew() ||
+            $paragraph->bundle() !== ($sourceRefs[$index]['bundle'] ?? NULL)) {
+          agency1417_draft_stop('DRAFT_POST_SAVE_NL_PARAGRAPH_BUNDLE');
+        }
+      }
+    }
     foreach (['fr', 'en'] as $langcode) {
       $digest = hash('sha256', json_encode(
         agency1417_draft_fields($reloaded, $langcode, FALSE, $map),

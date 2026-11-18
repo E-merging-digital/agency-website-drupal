@@ -436,13 +436,14 @@ if (count($prepared) !== 36) {
   agency1417_draft_stop('INCOMPLETE_DRAFT_COHORT');
 }
 $lang = \Drupal::languageManager()->getLanguage('nl');
+if ($mode === 'dry-run') {
+  echo 'DRAFT_FIELD_PREFLIGHT=PASS NODES=36 NL_LANGUAGE=' .
+    ($lang ? 'ACTIVE' : 'MISSING') .
+    ' TARGET_WRITE=NONE PUBLIC_ALIASES=NONE' . PHP_EOL;
+  return;
+}
 if (!$lang) {
   agency1417_draft_stop('NL_LANGUAGE_NOT_ACTIVE');
-}
-if ($mode === 'dry-run') {
-  echo 'DRAFT_DRY_RUN=PASS NODES=36 NL_STATUS=UNPUBLISHED' .
-    ' PUBLIC_ALIASES=NONE NO_WRITE=YES' . PHP_EOL;
-  return;
 }
 
 // A code flag is not GitHub authorization: the exact owner-go and current

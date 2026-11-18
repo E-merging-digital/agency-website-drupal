@@ -80,6 +80,9 @@ final class AgencyNlTransferPreflightTest extends TestCase {
     self::assertStringContainsString('DRAFT_LINK_URI_UNVERIFIED', $source);
     self::assertStringContainsString('DRAFT_MEDIA_ASSET_PARITY_UNPROVEN', $source);
     self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT=PASS NODES=36', $source);
+    self::assertStringContainsString("if ($name === 'content_translation_changed')", $source);
+    self::assertStringContainsString('DRAFT_FIELD_BLOCKER NID=', $source);
+    self::assertStringContainsString('DRAFT_FIELD_PREFLIGHT_BLOCKERS_', $source);
     self::assertStringContainsString('$translation->setUnpublished();', $source);
     self::assertStringContainsString('TARGET_WRITE=NONE', $source);
     self::assertStringNotContainsString('->delete(', $source);

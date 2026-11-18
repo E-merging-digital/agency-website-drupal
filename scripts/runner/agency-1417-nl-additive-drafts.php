@@ -212,6 +212,10 @@ function agency1417_draft_values(ContentEntityInterface $entity, array $fields, 
     'link', 'email', 'telephone', 'datetime', 'metatag',
   ];
   foreach ($fields as $name => $field) {
+    if ($name === 'content_translation_changed') {
+      // Drupal maintains this translation timestamp on save; never import it.
+      continue;
+    }
     if (!$entity->hasField($name) ||
         !$entity->getFieldDefinition($name)->isTranslatable()) {
       agency1417_draft_stop('DRAFT_FIELD_DEFINITION_MISMATCH');
@@ -399,6 +403,7 @@ $homeProof = $homeEntries[0];
 $storage = \Drupal::entityTypeManager()->getStorage('node');
 $prepared = [];
 $paragraphs = [];
+$fieldBlockers = [];
 foreach ($safeIds as $id) {
   $item = $byId[$id];
   $node = $storage->load($id);
@@ -428,9 +433,28 @@ foreach ($safeIds as $id) {
       agency1417_draft_stop('DRAFT_FR_EN_CHANGED_' . $id . '_' . $lang);
     }
   }
-  $prepared[$id] = agency1417_draft_values(
-    $node, $item['nl_fields'], $safeIds, $map, $paragraphs,
-  );
+  $nodeParagraphs = $paragraphs;
+  try {
+    $values = agency1417_draft_values(
+      $node, $item['nl_fields'], $safeIds, $map, $nodeParagraphs,
+    );
+    $prepared[$id] = $values;
+    $paragraphs = $nodeParagraphs;
+  }
+  catch (RuntimeException $error) {
+    if ($mode !== 'dry-run' ||
+        !str_starts_with($error->getMessage(), 'CONTROLLED_STOP=DRAFT_')) {
+      throw $error;
+    }
+    // Collect one safe failure code per node in a single read-only pass.
+    $fieldBlockers[$id] = substr($error->getMessage(), strlen('CONTROLLED_STOP='));
+  }
+}
+if ($fieldBlockers) {
+  foreach ($fieldBlockers as $id => $reason) {
+    echo 'DRAFT_FIELD_BLOCKER NID=' . $id . ' CODE=' . $reason . PHP_EOL;
+  }
+  agency1417_draft_stop('DRAFT_FIELD_PREFLIGHT_BLOCKERS_' . count($fieldBlockers));
 }
 if (count($prepared) !== 36) {
   agency1417_draft_stop('INCOMPLETE_DRAFT_COHORT');

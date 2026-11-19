@@ -174,6 +174,30 @@ final class AgencyNlTenDraftsTest extends TestCase {
   }
 
   /**
+   * Accepts native taxonomy term kind independently of its vocabulary.
+   */
+  public function testBlogTaxonomyKindAndVocabulary(): void {
+    $source = ['kind' => 'taxonomy_term', 'label' => 'Synthetic category'];
+    self::assertNull($this->synthetic('agency1417_ten_taxonomy',
+      $source, 'taxonomy_term', 'blog_categories', 'Synthetic category'));
+    $this->expectStop(
+      fn () => $this->synthetic('agency1417_ten_taxonomy',
+        $source, 'taxonomy_term', 'wrong_vocabulary', 'Synthetic category'),
+      'TAXONOMY_IDENTITY_UNPROVEN',
+    );
+    $this->expectStop(
+      fn () => $this->synthetic('agency1417_ten_taxonomy',
+        $source, 'taxonomy_term', 'blog_categories', 'Different category'),
+      'TAXONOMY_IDENTITY_UNPROVEN',
+    );
+    $this->expectStop(
+      fn () => $this->synthetic('agency1417_ten_taxonomy',
+        $source, 'node', 'blog_categories', 'Synthetic category'),
+      'TAXONOMY_IDENTITY_UNPROVEN',
+    );
+  }
+
+  /**
    * Rejects missing media proof, revisions and private input.
    */
   public function testRejectsMediaMismatchAndNonexistentInput(): void {

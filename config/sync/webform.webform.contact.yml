@@ -372,13 +372,13 @@ handlers:
       cc_options: {  }
       from_mail: jonathan@emergingdigital.be
       from_options: {  }
-      from_name: '[webform_submission:values:name:raw]'
+      from_name: 'E-MERGING DIGITAL'
       reply_to: ''
       return_path: jonathan@emergingdigital.be
       sender_mail: jonathan@emergingdigital.be
       sender_name: ''
       subject: '[webform_submission:values:subject:raw]'
-      body: '[webform_submission:values]'
+      body: 'New contact request received. Review it in the authenticated Drupal Webform submissions administration.'
       excluded_elements: {  }
       ignore_access: false
       exclude_empty: true

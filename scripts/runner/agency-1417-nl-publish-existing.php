@@ -188,7 +188,7 @@ foreach ($menuPlan as $id => [$menu, $frTitle, $frUri, $nlTitle, $nlUri]) {
       $link->bundle() !== $menu ||
       $link->getTranslation('fr')->label() !== $frTitle ||
       $link->getTranslation('fr')->get('link')->uri !== $frUri ||
-      !$link->get('link')->getFieldDefinition()->isTranslatable() ||
+      $link->get('link')->getFieldDefinition()->isTranslatable() ||
       !$link->get('title')->getFieldDefinition()->isTranslatable() ||
       $link->hasTranslation('nl')) {
     agency1417_release_stop('MENU_SOURCE_OR_TRANSLATABILITY_' . $id);
@@ -259,14 +259,21 @@ try {
   }
   foreach ($menuPlan as $id => $entry) {
     $link = $menuEntities[$id];
-    $link->addTranslation('nl', [
-      'title' => $entry[3],
-      'link' => ['uri' => $entry[4]],
-    ]);
+    // Core's link URI is shared across languages. An entity URI keeps the
+    // exact same FR node target while resolving each language's own alias.
+    $enTitle = $link->hasTranslation('en')
+      ? $link->getTranslation('en')->label() : NULL;
+    if ($entry[2] !== $entry[4]) {
+      $link->set('link', ['uri' => $entry[4]]);
+    }
+    $link->addTranslation('nl', ['title' => $entry[3]]);
     $link->save();
     if ($link->getTranslation('fr')->label() !== $entry[1] ||
-        $link->getTranslation('fr')->get('link')->uri !== $entry[2]) {
-      agency1417_release_stop('MENU_FR_CHANGED_' . $id);
+        $link->getTranslation('fr')->get('link')->uri !== $entry[4] ||
+        $link->getTranslation('nl')->get('link')->uri !== $entry[4] ||
+        ($enTitle !== NULL &&
+          $link->getTranslation('en')->label() !== $enTitle)) {
+      agency1417_release_stop('MENU_SOURCE_LANGUAGE_DRIFT_' . $id);
     }
   }
 }

@@ -114,8 +114,8 @@ $menuPlan = [
   9 => ['main', 'Équipe', 'internal:/fr/equipe', 'Team', 'entity:node/23'],
   10 => ['main', 'Blog', 'internal:/blog', 'Blog', 'internal:/blog'],
   6 => ['footer', 'Mentions légales', 'entity:node/6', 'Wettelijke vermeldingen', 'entity:node/6'],
-  7 => ['footer', 'Politique de cookies', 'entity:node/7', 'Cookiebeleid', 'entity:node/7'],
-  8 => ['footer', 'Politique de confidentialité', 'entity:node/8', 'Privacyverklaring', 'entity:node/8'],
+  7 => ['footer', 'Politique de confidentialité', 'entity:node/8', 'Privacyverklaring', 'entity:node/8'],
+  8 => ['footer', 'Politique de cookies', 'entity:node/7', 'Cookiebeleid', 'entity:node/7'],
 ];
 
 $nodePlan = [];

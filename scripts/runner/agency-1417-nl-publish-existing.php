@@ -23,7 +23,7 @@ function agency1417_release_source(ContentEntityInterface $node, string $lang): 
   $translation = $node->getTranslation($lang);
   $values = [];
   foreach ($translation->getFieldDefinitions() as $name => $definition) {
-    if ($name === 'title' || $name === 'status' || str_starts_with($name, 'field_')) {
+    if ($name === 'title' || $name === 'status' || $name === 'body' || str_starts_with($name, 'field_')) {
       $values[$name] = $translation->get($name)->getValue();
     }
   }

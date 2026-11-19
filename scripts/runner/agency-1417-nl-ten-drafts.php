@@ -213,6 +213,15 @@ function agency1417_ten_reference(string $kind, array $source, array $actual): v
   agency1417_ten_stop('UNSUPPORTED_REFERENCE_IDENTITY');
 }
 
+/** Check export entity kind separately from Drupal's vocabulary bundle. */
+function agency1417_ten_taxonomy(array $source, string $type, string $bundle, string $label): void {
+  if (($source['kind'] ?? NULL) !== 'taxonomy_term' ||
+      $type !== 'taxonomy_term' || $bundle !== 'blog_categories' ||
+      ($source['label'] ?? NULL) !== $label) {
+    agency1417_ten_stop('TAXONOMY_IDENTITY_UNPROVEN');
+  }
+}
+
 /** Checks a canonical FR field recursively; never guesses media/Paragraph IDs. */
 function agency1417_ten_canonical(ContentEntityInterface $entity, array $fields): void {
   foreach ($fields as $name => $original) {
@@ -271,10 +280,12 @@ function agency1417_ten_canonical(ContentEntityInterface $entity, array $fields)
         agency1417_ten_stop('TAXONOMY_IDENTITY_UNPROVEN');
       }
       foreach (array_values($refs) as $i => $term) {
-        if (!$term->uuid() || ($original[$i]['kind'] ?? NULL) !== $term->bundle() ||
-            ($original[$i]['label'] ?? NULL) !== $term->label()) {
+        if (!$term->uuid()) {
           agency1417_ten_stop('TAXONOMY_IDENTITY_UNPROVEN');
         }
+        agency1417_ten_taxonomy(
+          $original[$i], $term->getEntityTypeId(), $term->bundle(), $term->label(),
+        );
       }
     }
     elseif (agency1417_ten_digest($field->getValue()) !== agency1417_ten_digest($original)) {

@@ -6,7 +6,8 @@
  *
  * No NL import. Run via Drush as the authorized human PROD operator only.
  * A dry-run never writes. An apply additionally requires separately verified
- * human rendered approval, legal/security gates, and a recoverable DB backup.
+ * direct human approval of the exact existing NL candidate, applicable
+ * publication/security gates, and a recoverable DB backup.
  */
 
 declare(strict_types=1);
@@ -222,8 +223,10 @@ if ($mode === 'dry-run') {
 }
 
 // External authorization MUST be verified through the existing owner+GitHub
-// release policy before this path is used. Flags are not approvals by themselves.
-if (getenv('AGENCY1417_OWNER_RENDER_APPROVED') !== 'YES' ||
+// release policy before this path is used. For existing, owner-accepted PROD
+// translations, the exact candidate GO does not require a repeated PREPROD
+// visual review under AGENTS.md §2.0.4. Flags are not approvals themselves.
+if (getenv('AGENCY1417_OWNER_EXACT_CANDIDATE_GO_VERIFIED') !== 'YES' ||
     getenv('AGENCY1417_PUBLICATION_HOLDS_CLEARED') !== 'YES' ||
     getenv('AGENCY1417_PROD_BACKUP_VERIFIED') !== 'YES' ||
     getenv('AGENCY1417_APPROVED_CANDIDATE_SHA256') !== $proof) {

@@ -252,6 +252,9 @@ REPEAT_PREPROD_VISUAL_REVIEW_FOR_EXISTING_CONTENT = NOT_SYSTEMATIC
   exige une autorite, une revue et une livraison distinctes de l'operation
   PROD qui en beneficiera ; aucune variable d'environnement ne remplace
   la verification d'une approbation reelle.
+- Les nouvelles pages publiques commerciales, campagnes et pages marketing
+  ou editoriales editor-owned sont FR+EN par defaut. Une publication FR-only
+  exige une exception de langue humainement approuvee avant PROD.
 - Les formulaires et nouveaux composants doivent rester coherents avec le
   design system approuve ; les obligations de langue et de securite des routes
   existantes sont conservees.

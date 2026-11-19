@@ -104,6 +104,9 @@ jobs:
             exit 1
           fi
 
+      - name: Test cookie consent expiry (FR/EN/NL, six calendar months)
+        run: node --test tests/runner/cookie-consent-expiry.test.mjs
+
       - name: Setup PHP 8.5
         uses: shivammathur/setup-php@v2
         with:

@@ -7,6 +7,7 @@ namespace Drupal\Tests\agency_project_tests\Functional;
 use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use Drupal\Tests\BrowserTestBase;
 use Drupal\webform\Entity\Webform;
+use Drupal\webform\Entity\WebformSubmission;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use Symfony\Component\Yaml\Yaml;
@@ -138,6 +139,41 @@ final class ContactFormTest extends BrowserTestBase {
       ->load(reset($submission_ids));
     self::assertSame('Contact request - E-merging Digital', $submission->getData()['subject'] ?? NULL);
     self::assertSame('audit_modernization', $submission->getData()['need_family'] ?? NULL);
+  }
+
+  /**
+   * Proves native Webform deletion at the receipt-age boundary, without mail.
+   */
+  public function testContactRetentionPurge(): void {
+    self::assertSame('completed', $this->contactWebform->getSetting('purge'));
+    self::assertSame(364, (int) $this->contactWebform->getSetting('purge_days'));
+    self::assertSame('none', $this->contactWebform->getSetting('draft'));
+
+    $storage = \Drupal::entityTypeManager()->getStorage('webform_submission');
+    $now = \Drupal::time()->getRequestTime();
+    $cutoff = $now - 364 * 86400;
+    $ids = [];
+
+    foreach (['expired' => $cutoff - 60, 'retained' => $cutoff + 60] as $label => $received_at) {
+      $submission = WebformSubmission::create([
+        'webform_id' => 'contact',
+        'data' => [
+          'name' => 'Synthetic ' . $label,
+          'email' => $label . '@example.invalid',
+          'subject' => 'Synthetic retention test',
+          'message' => 'No personal data',
+        ],
+      ]);
+      $submission->setCreatedTime($received_at);
+      $submission->setCompletedTime($received_at);
+      $submission->save();
+      $ids[$label] = $submission->id();
+    }
+
+    // The same native purge method is invoked by Webform's cron hook.
+    $storage->purge(100);
+    self::assertNull($storage->load($ids['expired']));
+    self::assertNotNull($storage->load($ids['retained']));
   }
 
   /**

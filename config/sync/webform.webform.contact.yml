@@ -377,7 +377,7 @@ handlers:
       return_path: jonathan@emergingdigital.be
       sender_mail: jonathan@emergingdigital.be
       sender_name: ''
-      subject: '[webform_submission:values:subject:raw]'
+      subject: 'Contact request - E-merging Digital'
       body: 'New contact request received. Review it in the authenticated Drupal Webform submissions administration.'
       excluded_elements: {  }
       ignore_access: false

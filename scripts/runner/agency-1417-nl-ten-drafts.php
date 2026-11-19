@@ -65,8 +65,14 @@ function agency1417_ten_links(string $html): array {
     agency1417_ten_stop('UNQUOTED_OR_UNSAFE_LINK');
   }
   foreach ($found[2] as $url) {
+    // Drupal Link fields store local paths as "internal:/path#fragment".
+    // Accept only bounded paths, never external/protocol-relative or traversal.
+    $drupalInternal = preg_match(
+      '~^internal:/(?!/)[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*(?:#[A-Za-z0-9_-]+)?$~D',
+      $url,
+    ) === 1;
     if ($url === '' || preg_match('~(^//|[\x00-\x1f]|preprod\.emergingdigital\.be|^(javascript|data|file|entity):)~i', $url) ||
-        !preg_match('~^(https?://|mailto:|tel:|/|#)~i', $url)) {
+        (!preg_match('~^(https?://|mailto:|tel:|/|#)~i', $url) && !$drupalInternal)) {
       agency1417_ten_stop('UNSAFE_LINK_URI');
     }
   }

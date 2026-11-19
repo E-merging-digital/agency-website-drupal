@@ -158,6 +158,34 @@ final class AgencyNlTenDraftsTest extends TestCase {
   }
 
   /**
+   * Keeps unchanged native Drupal Link URLs, rejects nonlocal or unsafe URLs.
+   */
+  public function testPreservedDrupalInternalLinkFieldUri(): void {
+    [$fr, $nl] = $this->fakeBatch();
+    $uri = 'internal:/drupal-2027#points-a-verifier-socle';
+    $fr['items'][3]['fields_fr']['field_home_components'][0]['fields']['field_link'] = [
+      ['uri' => $uri, 'title' => 'Source'],
+    ];
+    $nl['items'][3]['fields_nl']['field_home_components'][0]['fields_nl']['field_link'] = [
+      ['uri' => $uri, 'title' => 'Synthetische bestemming'],
+    ];
+    $nl['items'][3]['source_fr_sha256'] = $this->synthetic('agency1417_ten_digest', $fr['items'][3]);
+    self::assertCount(10, $this->synthetic('agency1417_ten_batch', $fr, $nl));
+
+    foreach ([
+      'internal://example.test',
+      'internal:/../admin',
+      'internal:/page?redirect=https://evil.test',
+      'javascript:alert(1)',
+    ] as $unsafe) {
+      $this->expectStop(
+        fn () => $this->synthetic('agency1417_ten_links', '<a href="' . $unsafe . '">x</a>'),
+        'UNSAFE_LINK_URI',
+      );
+    }
+  }
+
+  /**
    * Rejects a changed Paragraph order, bundle or count.
    */
   public function testRejectsParagraphIdentityAndFieldDifferences(): void {

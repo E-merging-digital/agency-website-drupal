@@ -172,8 +172,12 @@ final class AgencyNlTenDraftsTest extends TestCase {
     $nl['items'][3]['source_fr_sha256'] = $this->synthetic('agency1417_ten_digest', $fr['items'][3]);
     self::assertCount(10, $this->synthetic('agency1417_ten_batch', $fr, $nl));
 
-    foreach (['internal://example.test', 'internal:/../admin',
-      'internal:/page?redirect=https://evil.test', 'javascript:alert(1)'] as $unsafe) {
+    foreach ([
+      'internal://example.test',
+      'internal:/../admin',
+      'internal:/page?redirect=https://evil.test',
+      'javascript:alert(1)',
+    ] as $unsafe) {
       $this->expectStop(
         fn () => $this->synthetic('agency1417_ten_links', '<a href="' . $unsafe . '">x</a>'),
         'UNSAFE_LINK_URI',

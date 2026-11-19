@@ -209,43 +209,59 @@ HUMAN_ACCOUNTABILITY = REQUIRED
 - Ne pas creer d'orchestrateur Drupal.org, base de contributions, UI ou couche
   MCP Agency tant qu'un gap reel n'est pas demontre.
 
-## 2.0.4 Publication editoriale : PREPROD -> validation humaine -> PROD
+## 2.0.4 Publication editoriale : validation humaine et revue proportionnee
 
-Cette doctrine s'applique a toute nouvelle publication editoriale, marketing ou
-commerciale destinee au public, y compris les contenus editor-owned Drupal.
+Cette doctrine s'applique aux publications editoriales, marketing et commerciales
+destinees au public. Elle distingue un nouveau candidat editorial d'une
+traduction ou revision deja presente dans Drupal PROD.
 
 ```text
-PREPROD_RENDER_REQUIRED_BEFORE_PROD = REQUIRED
 HUMAN_APPROVAL_REQUIRED_BEFORE_PROD = REQUIRED
 AGENT_CANNOT_SELF_APPROVE_PUBLICATION = REQUIRED
+EXACT_CANDIDATE_IDENTITY_AND_PROVENANCE = REQUIRED
+REPEAT_PREPROD_VISUAL_REVIEW_FOR_EXISTING_CONTENT = NOT_SYSTEMATIC
 ```
 
-- CI vert, merge, dry-run/apply PREPROD, Browser Validation, statut
-  `READY_FOR_PROD` ou decision Project Lead ne constituent jamais une validation
-  humaine du rendu.
-- Le Project Lead peut declarer un candidat techniquement pret pour revue ; il ne
-  peut pas inferer `HUMAN_RENDER_APPROVAL = YES`.
-- La validation PROD doit etre un commentaire humain direct, explicite et lie a
-  l'identite exacte du candidat revu : revision/identite immuable, hash du
-  contenu lorsque disponible et URL PREPROD FR/EN.
-- Les commentaires bot, GitHub App, agent ou de provenance ambigue sont rejetes
-  comme approbation humaine. Une approbation editee n'est pas reutilisee apres
-  changement de candidat : un nouveau commentaire humain est requis.
-- Un agent peut preparer, tester et materialiser PREPROD, ou declencher une
-  commande technique autorisee ; il ne peut jamais s'auto-approuver pour PROD.
-- Une seule approbation humaine directe du rendu PREPROD vaut aussi GO PROD
-  pour le candidat exact : le dry-run PROD frais et la promotion sont enchaines
-  automatiquement si les controles techniques passent, sans second GO humain.
-  Echec, derive du candidat ou HOLD actif = arret controle, sans contournement.
-- Les nouvelles pages publiques commerciales, campagnes et pages marketing ou
-  editoriales editor-owned sont FR+EN par defaut. Une publication FR-only exige
-  une exception de langue explicitement approuvee par l'humain avant PROD.
-- La validation humaine porte sur le rendu reel, pas seulement sur la
-  fonctionnalite : les formulaires integres doivent reutiliser le design system
-  et rester visuellement coherents avec les formulaires de reference existants.
-- Les details operationnels autoritatifs sont dans
-  `docs/operations/editorial-candidate.md` et
-  `docs/operations/governed-editorial-publication.md`.
+- **Nouveau contenu editorial** : le circuit dedie de creation d'Article
+  reste regi par `docs/operations/editorial-candidate.md` et
+  `docs/operations/governed-editorial-publication.md`. Sa materialisation
+  PREPROD, son rendu, l'approbation humaine exacte et ses verrous techniques
+  restent obligatoires tant que cette route n'est pas modifiee par une
+  autorite distincte.
+- **Contenu ou traduction deja existant dans Drupal PROD** : lorsque le
+  proprietaire a deja accepte le contenu et qu'aucun changement de conception
+  visuelle n'est demande, ne pas imposer une nouvelle synchronisation,
+  materialisation ou revue PREPROD uniquement pour repeter une validation.
+  L'identite exacte du candidat, les contenus/langues et l'absence de derive
+  doivent etre verifies avec les mecanismes deja disponibles.
+- Une publication PROD necessite toujours un **GO humain direct, explicite,
+  non edite et lie au candidat exact** (revision/identite immuable et hash
+  lorsqu'il existe), avec provenance verifiable. Un commentaire de bot,
+  GitHub App ou agent, ou une approbation generale non liee au candidat,
+  ne constitue pas ce GO.
+- CI verte, fusion, dry-run, statut `READY_FOR_PROD`, revue technique,
+  decision Project Lead ou approbation d'un autre candidat ne constituent
+  jamais une autorisation de publication. Le Project Lead ne peut pas
+  s'auto-attribuer l'approbation humaine.
+- Avant une mutation PROD : verifier les protections de release pertinentes,
+  les sauvegardes restaurables et le rollback, les garanties de confidentialite,
+  de securite et tous les HOLD applicables. Echec, derive ou HOLD actif =
+  `CONTROLLED_STOP`, sans autre identite, chemin ou controle contourne.
+- Cette simplification de doctrine **n'efface pas** les gardes deja presentes
+  dans les workflows et scripts de publication. Leur adaptation eventuelle
+  exige une autorite, une revue et une livraison distinctes de l'operation
+  PROD qui en beneficiera ; aucune variable d'environnement ne remplace
+  la verification d'une approbation reelle.
+- Les nouvelles pages publiques commerciales, campagnes et pages marketing
+  ou editoriales editor-owned sont FR+EN par defaut. Une publication FR-only
+  exige une exception de langue humainement approuvee avant PROD.
+- Les formulaires et nouveaux composants doivent rester coherents avec le
+  design system approuve ; les obligations de langue et de securite des routes
+  existantes sont conservees.
+
+Les exigences specifiques a chaque circuit demeurent dans
+`docs/operations/editorial-candidate.md` et
+`docs/operations/governed-editorial-publication.md`.
 
 ## 2.1 Doctrine Drupal AI
 

@@ -185,7 +185,7 @@ $menuEntities = [];
 foreach ($menuPlan as $id => [$menu, $frTitle, $frUri, $nlTitle, $nlUri]) {
   $link = $menus->load($id);
   if (!$link instanceof ContentEntityInterface ||
-      $link->bundle() !== $menu ||
+      $link->get('menu_name')->value !== $menu ||
       $link->getTranslation('fr')->label() !== $frTitle ||
       $link->getTranslation('fr')->get('link')->uri !== $frUri ||
       $link->get('link')->getFieldDefinition()->isTranslatable() ||

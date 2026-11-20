@@ -234,6 +234,17 @@ REPEAT_PREPROD_VISUAL_REVIEW_FOR_EXISTING_CONTENT = NOT_SYSTEMATIC
   materialisation ou revue PREPROD uniquement pour repeter une validation.
   L'identite exacte du candidat, les contenus/langues et l'absence de derive
   doivent etre verifies avec les mecanismes deja disponibles.
+- **Parite des langues et controles transversaux** : la publication d'une
+  traduction deja presente et approuvee dans Drupal PROD ne doit pas declencher
+  a elle seule un nouvel audit juridique, RGPD, cookies ou conservation qui
+  n'a pas ete demande pour les versions deja publiques du meme contenu. Une
+  issue transversale preexistante et differee par le proprietaire se traite
+  dans son propre perimetre ; son existence ou son etat OPEN ne cree pas
+  automatiquement un HOLD additionnel propre a la nouvelle langue. Ne pas
+  requalifier un controle reporte en precondition sous une autre etiquette.
+  Cette regle ne certifie pas l'exactitude d'une declaration, ne leve aucun
+  HOLD explicitement applicable et ne remplace pas les protections de
+  confidentialite, securite, sauvegarde, rollback ou approbation humaine.
 - Une publication PROD necessite toujours un **GO humain direct, explicite,
   non edite et lie au candidat exact** (revision/identite immuable et hash
   lorsqu'il existe), avec provenance verifiable. Un commentaire de bot,

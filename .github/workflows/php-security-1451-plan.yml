@@ -122,8 +122,8 @@ jobs:
             and .EXPECTED_USER == "agency-preprod"
             and .MODE == "READ_ONLY_PHP_PLAN" and .MAIN_SHA == $main and .PLAN_ID == $id
             and .PHP_SOURCE == "SIGNED_ONDREJ_PPA"
-            and (.PHP84_CANDIDATE | startswith("8.4.27-"))
-            and (.PHP85_CANDIDATE | startswith("8.5.12-"))
+            and (.PHP84_CANDIDATE | startswith("8.4.28-"))
+            and (.PHP85_CANDIDATE | startswith("8.5.13-"))
             and .MARIADB_AND_UBUNTU == "OUT_OF_SCOPE_NOT_ATTESTED"
             and .REAL_PACKAGE_MUTATION == "NONE"
             and .PACKAGE_ADDITIONS == [] and .PACKAGE_REMOVALS == []
@@ -215,8 +215,8 @@ jobs:
             and .EXPECTED_USER == $user
             and .MODE == "READ_ONLY_PHP_PLAN" and .MAIN_SHA == $main and .PLAN_ID == $id
             and .PHP_SOURCE == "SIGNED_ONDREJ_PPA"
-            and (.PHP84_CANDIDATE | startswith("8.4.27-"))
-            and (.PHP85_CANDIDATE | startswith("8.5.12-"))
+            and (.PHP84_CANDIDATE | startswith("8.4.28-"))
+            and (.PHP85_CANDIDATE | startswith("8.5.13-"))
             and .MARIADB_AND_UBUNTU == "OUT_OF_SCOPE_NOT_ATTESTED"
             and .REAL_PACKAGE_MUTATION == "NONE"
             and .APT_STATE_MUTATION == "ISOLATED_TEMPORARY_ONLY"

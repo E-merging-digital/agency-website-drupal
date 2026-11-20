@@ -101,7 +101,7 @@ candidates = dict(line.split('\t') for line in (root / 'candidates.tsv').read_te
 simulation = (root / 'simulation.log').read_text(errors='replace').splitlines()
 assert installed and installed.keys() == candidates.keys()
 assert 'php8.4-fpm' in installed and 'php8.5-fpm' in installed
-allowed_target = {'8.4': '8.4.27-', '8.5': '8.5.12-'}
+allowed_target = {'8.4': '8.4.28-', '8.5': '8.5.13-'}
 for package, candidate in candidates.items():
     branch = package[3:6]
     if not candidate.startswith(allowed_target[branch] + '1+ubuntu24.04.1+deb.sury.org+1'):

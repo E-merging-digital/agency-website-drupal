@@ -1,0 +1,229 @@
+name: '#1436 governed PREPROD then PROD OS PLAN (no APPLY)'
+
+on:
+  workflow_call:
+    secrets:
+      PREPROD_SSH_PRIVATE_KEY:
+        required: true
+      PREPROD_SERVER_HOST:
+        required: true
+      SSH_PRIVATE_KEY:
+        required: true
+      SERVER_HOST:
+        required: true
+      SERVER_USER:
+        required: true
+
+concurrency:
+  group: agency-os-maintenance-1436-plan
+  cancel-in-progress: false
+
+jobs:
+  validate-authority:
+    name: Exact direct-owner #1436 PLAN command and fresh main
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      main_sha: ${{ steps.authority.outputs.main_sha }}
+      plan_id: ${{ steps.authority.outputs.plan_id }}
+    steps:
+      - id: authority
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_LOGIN: ${{ github.event.comment.user.login }}
+          COMMENT_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_VIA_APP: ${{ github.event.comment.performed_via_github_app != null }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_NAME" = issue_comment
+          test "$EVENT_ACTION" = created
+          test "$ISSUE_NUMBER" = 1436
+          test "$IS_PULL_REQUEST" = false
+          test "$COMMENT_LOGIN" = E-merging-digital
+          test "$COMMENT_ASSOCIATION" = OWNER
+          test "$COMMENT_VIA_APP" = false
+          [[ "$COMMENT_BODY" =~ ^/agency-os-maintenance-1436\ plan\ main=([0-9a-f]{40})$ ]]
+          expected_main="${BASH_REMATCH[1]}"
+
+          issue_json="$(gh api "repos/$GITHUB_REPOSITORY/issues/1436")"
+          test "$(jq -r '.state' <<<"$issue_json")" = open
+          test "$(jq -r 'has("pull_request")' <<<"$issue_json")" = false
+          jq -e '[.labels[].name] | index("P1") != null' <<<"$issue_json" >/dev/null
+
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$expected_main" = "$main_sha"
+          test "$WORKFLOW_SHA" = "$main_sha"
+          echo "main_sha=$main_sha" >> "$GITHUB_OUTPUT"
+          echo "plan_id=plan-1436-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+  preprod-plan:
+    name: First one isolated APT PLAN via agency-preprod
+    needs: validate-authority
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      plan_digest: ${{ steps.result.outputs.digest }}
+    steps:
+      - name: Checkout exact authorized main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Materialize existing pinned PREPROD SSH trust
+        shell: bash
+        env:
+          PREPROD_SSH_PRIVATE_KEY: ${{ secrets.PREPROD_SSH_PRIVATE_KEY }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$PREPROD_SSH_PRIVATE_KEY"
+          test -n "$PREPROD_SERVER_HOST"
+          printf '%s\n' "$PREPROD_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1436-preprod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1436-preprod.key"
+          PREPROD_SERVER_HOST="$PREPROD_SERVER_HOST" \
+            bash scripts/preproduction-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - id: result
+        name: PLAN metadata only on exact PREPROD user and host
+        shell: bash
+        env:
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+          PREPROD_SERVER_HOST: ${{ secrets.PREPROD_SERVER_HOST }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$MAIN_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$MAIN_SHA"
+          mkdir -p artifacts/agency-1436
+          ssh -i "$RUNNER_TEMP/agency-1436-preprod.key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 "agency-preprod@$PREPROD_SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID' preprod agency-preprod" \
+            < scripts/maintenance-1436/remote-plan.sh \
+            > artifacts/agency-1436/preprod.json
+          jq -e --arg main "$MAIN_SHA" --arg id "$PLAN_ID" '
+            .STATUS == "PASS" and .ISSUE == 1436 and .TARGET == "PREPROD"
+            and .EXPECTED_HOST == "agency-preprod-01"
+            and .EXPECTED_USER == "agency-preprod"
+            and .MODE == "PLAN" and .MAIN_SHA == $main and .PLAN_ID == $id
+            and .PHP_BRANCH == "8.5" and .MARIADB_BRANCH == "11.8"
+            and .REAL_PACKAGE_MUTATION == "NONE"
+            and .APT_STATE_MUTATION == "ISOLATED_TEMPORARY_ONLY"
+            and .SAFETY_GATE == "PASS"
+            and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
+          ' artifacts/agency-1436/preprod.json >/dev/null
+          echo "digest=$(jq -r .PLAN_DIGEST artifacts/agency-1436/preprod.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish bounded PREPROD metadata receipt
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-1436-preprod-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/agency-1436/preprod.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove ephemeral PREPROD key on hosted runner
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1436-preprod.key"
+
+  prod-plan:
+    name: Then one isolated APT PLAN using existing PROD identity
+    needs: [validate-authority, preprod-plan]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout same exact authorized main
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.validate-authority.outputs.main_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Recheck main and successful PREPROD digest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PREPROD_PLAN_DIGEST: ${{ needs.preprod-plan.outputs.plan_digest }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$MAIN_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$MAIN_SHA"
+          [[ "$PREPROD_PLAN_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+
+      - name: Materialize existing pinned PROD SSH trust
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9._:-]+$ ]]
+          [[ "$SERVER_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/agency-1436-prod.key"
+          chmod 600 "$RUNNER_TEMP/agency-1436-prod.key"
+          SERVER_HOST="$SERVER_HOST" \
+            bash scripts/production-ssh-trust/manage-known-host.sh PROVISION >/dev/null
+
+      - name: PLAN metadata only on exact PROD user and host
+        shell: bash
+        env:
+          MAIN_SHA: ${{ needs.validate-authority.outputs.main_sha }}
+          PLAN_ID: ${{ needs.validate-authority.outputs.plan_id }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/agency-1436
+          ssh -i "$RUNNER_TEMP/agency-1436-prod.key" \
+            -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 "$SERVER_USER@$SERVER_HOST" \
+            "bash -s -- '$MAIN_SHA' '$PLAN_ID' prod '$SERVER_USER'" \
+            < scripts/maintenance-1436/remote-plan.sh \
+            > artifacts/agency-1436/prod.json
+          jq -e --arg main "$MAIN_SHA" --arg id "$PLAN_ID" --arg user "$SERVER_USER" '
+            .STATUS == "PASS" and .ISSUE == 1436 and .TARGET == "PROD"
+            and .EXPECTED_HOST == "emergingdigital"
+            and .EXPECTED_USER == $user
+            and .MODE == "PLAN" and .MAIN_SHA == $main and .PLAN_ID == $id
+            and .PHP_BRANCH == "8.5" and .MARIADB_BRANCH == "11.8"
+            and .REAL_PACKAGE_MUTATION == "NONE"
+            and .APT_STATE_MUTATION == "ISOLATED_TEMPORARY_ONLY"
+            and .SAFETY_GATE == "PASS"
+            and (.PLAN_DIGEST | test("^[0-9a-f]{64}$"))
+          ' artifacts/agency-1436/prod.json >/dev/null
+
+      - name: Publish bounded PROD metadata receipt
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: agency-1436-prod-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/agency-1436/prod.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Remove ephemeral PROD key on hosted runner
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/agency-1436-prod.key"

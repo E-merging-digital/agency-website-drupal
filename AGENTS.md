@@ -254,6 +254,33 @@ REPEAT_PREPROD_VISUAL_REVIEW_FOR_EXISTING_CONTENT = NOT_SYSTEMATIC
   decision Project Lead ou approbation d'un autre candidat ne constituent
   jamais une autorisation de publication. Le Project Lead ne peut pas
   s'auto-attribuer l'approbation humaine.
+- **Perimetre des suivis transversaux** : les tickets #1557 (conservation)
+  et #1583 (cookies) restent autonomes pour FR/EN/NL. Leur seule existence
+  ou leur ancien classement comme HOLD de revue DEV ne doit pas conditionner
+  une publication editoriale ordinaire deja acceptee, sans changement du
+  traitement des donnees ni nouvelle affirmation de conformite. Un HOLD
+  explicite de confidentialite ou de securite reellement applicable a
+  l'operation reste contraignant : on ne le marque jamais PASS par report
+  administratif.
+- **Refus d'acces authentifie agent** : l'interdiction liee au refus R14
+  concerne strictement l'operation authentifiee refusee et ses equivalences.
+  Elle ne doit ni devenir une demande de nouveau test authentifie ni bloquer
+  par son seul historique une publication par le circuit existant, avec GO
+  humain exact et sans refaire l'operation refusee. Aucun changement
+  d'identite, de canal ou de droits ne peut contourner le refus.
+- **Sauvegarde proportionnee avant publication editoriale Gandi** : pour
+  une ecriture Drupal de contenu seulement, un snapshot manuel Gandi du
+  volume PROD peut satisfaire la sauvegarde restaurable et le rollback
+  lorsqu'un operateur a verifie son identite, son etat utilisable, sa
+  couverture des donnees persistantes concernees (dont base et fichiers)
+  et la procedure de retour arriere chez l'hebergeur. Ne pas imposer un
+  nouvel essai de restauration pour chaque publication. Si un volume
+  necessaire n'est pas couvert, si le snapshot est indisponible ou si la
+  recuperation ne peut etre etablie, arret controle. Les sauvegardes SQL
+  deja existantes peuvent etre reutilisees sans imposer une nouvelle
+  collecte par defaut. Ne pas assimiler une capture d'ecran de listing a
+  une preuve de la couverture complete ou de la recuperabilite de tout
+  stockage non visible.
 - Avant une mutation PROD : verifier les protections de release pertinentes,
   les sauvegardes restaurables et le rollback, les garanties de confidentialite,
   de securite et tous les HOLD applicables. Echec, derive ou HOLD actif =

@@ -254,6 +254,36 @@ REPEAT_PREPROD_VISUAL_REVIEW_FOR_EXISTING_CONTENT = NOT_SYSTEMATIC
   decision Project Lead ou approbation d'un autre candidat ne constituent
   jamais une autorisation de publication. Le Project Lead ne peut pas
   s'auto-attribuer l'approbation humaine.
+- **Perimetre des suivis transversaux** : les tickets #1557 (conservation)
+  et #1583 (cookies) restent autonomes pour FR/EN/NL. Leur seule existence
+  ou leur ancien classement comme HOLD de revue DEV ne doit pas conditionner
+  une publication editoriale ordinaire deja acceptee, sans changement du
+  traitement des donnees ni nouvelle affirmation de conformite. Un HOLD
+  explicite de confidentialite ou de securite reellement applicable a
+  l'operation reste contraignant : on ne le marque jamais PASS par report
+  administratif.
+- **Refus d'acces authentifie agent** : l'interdiction liee au refus R14
+  concerne strictement l'operation authentifiee refusee et ses equivalences.
+  Elle ne doit ni devenir une demande de nouveau test authentifie ni bloquer
+  par son seul historique une publication par le circuit existant, avec GO
+  humain exact et sans refaire l'operation refusee. Aucun changement
+  d'identite, de canal ou de droits ne peut contourner le refus.
+- **Retour arriere Gandi proportionne avant publication editoriale** :
+  pour une ecriture Drupal de contenu seulement, un snapshot manuel Gandi
+  du volume PROD constitue le point de retour arriere de l'hebergeur
+  lorsque l'operateur a verifie son identite, son etat utilisable, sa
+  couverture des donnees persistantes concernees (base et fichiers) et
+  la procedure de retour arriere. Ne pas imposer un nouvel exercice de
+  restauration pour chaque publication si la capacite de restauration
+  Agency est deja etablie par une preuve encore applicable (Infrastructure
+  #6). Distinguer le snapshot de la sauvegarde independante testee :
+  selon les invariants Infrastructure, une archive n'est certifiee valide
+  qu'apres une restauration reussie ; une capture de listing Gandi n'est
+  pas cette preuve. Reutiliser les sauvegardes deja prouvees et les dumps
+  recents dont l'integrite est verifiee sans les assimiler entre eux.
+  Si la couverture, la recuperation ou une garantie de sauvegarde
+  obligatoire manque, CONTROLLED_STOP. Aucune variable ne remplace
+  une verification reelle.
 - Avant une mutation PROD : verifier les protections de release pertinentes,
   les sauvegardes restaurables et le rollback, les garanties de confidentialite,
   de securite et tous les HOLD applicables. Echec, derive ou HOLD actif =

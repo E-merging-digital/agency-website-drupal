@@ -48,6 +48,27 @@ Concerne le code versionné, Composer, les mises à jour de base Drupal, les imp
 de configuration, Config Split et Governed Content. Elle passe normalement par
 une PR mergée puis par `scripts/deploy-production.sh`.
 
+## Snapshot Gandi pour une publication de contenu (distinct de la maintenance système)
+
+Pour la publication d'un contenu ou d'une traduction Drupal existante, le
+**snapshot manuel Gandi** du volume de la PROD est la voie de sauvegarde et
+de retour arrière proportionnée. Son identifiant et son état utilisable doivent
+être constatés par l'opérateur dans l'interface Gandi ; confirmer que les
+données persistantes nécessaires à la reprise (base MariaDB et fichiers
+concernés) sont effectivement couvertes par le ou les volumes sauvegardés.
+La documentation et l'accès normaux à la restauration Gandi constituent
+le chemin de rollback. Aucune nouvelle restauration d'essai systématique
+n'est ajoutée à chaque publication éditoriale.
+
+Le snapshot est suffisant pour cette opération **si** sa couverture et sa
+restaurabilité sont établies. Si la base ou des fichiers nécessaires sont sur
+un autre volume non couvert, ce snapshot seul n'est pas suffisant et
+l'opération s'arrête. Ne pas certifier comme vérifié un volume, un état
+snapshot ou un rollback non démontré. Réutiliser les sauvegardes SQL
+existantes le cas échéant, sans en créer une nouvelle par automatisme.
+Les migrations système/DB et les déploiements applicatifs gardent leurs
+protections propres ; ce paragraphe ne les remplace pas.
+
 ## 1. Préparer l'intervention
 
 Avant toute modification :

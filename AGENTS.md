@@ -284,10 +284,28 @@ REPEAT_PREPROD_VISUAL_REVIEW_FOR_EXISTING_CONTENT = NOT_SYSTEMATIC
   Si la couverture, la recuperation ou une garantie de sauvegarde
   obligatoire manque, CONTROLLED_STOP. Aucune variable ne remplace
   une verification reelle.
+- **Maintenance corrective de paquets PHP / système déjà installés (règle permanente)** :
+  quand le PLAN exact borne la modification à des versions corrigées dans une
+  même branche compatible, sans ajout/suppression de paquets, migration de base,
+  écriture de contenu ni mutation destructive, un **snapshot Gandi récent et
+  vérifié du volume concerné** suffit comme point de retour arrière pour cette
+  intervention. Avant APPLY, vérifier identité/date/état du snapshot, couverture
+  des données persistantes nécessaires et procédure Gandi de retour arrière.
+  **Ne pas exiger pour chaque correctif** de nouvelle archive chiffrée GPG,
+  d'export hors serveur ou de nouveau test de restauration isolée. Conserver
+  les sauvegardes existantes. Ce snapshot est un rollback de maintenance, **pas**
+  une sauvegarde indépendante qualifiée comme restaurée. La récupération DR
+  indépendante, les opérations destructives, les changements majeurs de base
+  de données et les migrations conservent leurs exigences de reprise propres.
+  Aucun changement implicite aux droits hôte/JIT, HOLD, PLAN de paquets exact,
+  validation PHP-FPM/Drupal/HTTP après APPLY ou GO humain PROD distinct.
+  La politique Infrastructure correspondante doit être publiée sur `main`
+  avant toute opération bénéficiant de cette nouvelle règle.
 - Avant une mutation PROD : verifier les protections de release pertinentes,
-  les sauvegardes restaurables et le rollback, les garanties de confidentialite,
-  de securite et tous les HOLD applicables. Echec, derive ou HOLD actif =
-  `CONTROLLED_STOP`, sans autre identite, chemin ou controle contourne.
+  les garanties de sauvegarde et de rollback proportionnees au type de mutation,
+  les garanties de confidentialite, de securite et tous les HOLD applicables.
+  Echec, derive ou HOLD actif = `CONTROLLED_STOP`, sans autre identite, chemin
+  ou controle contourne.
 - Cette simplification de doctrine **n'efface pas** les gardes deja presentes
   dans les workflows et scripts de publication. Leur adaptation eventuelle
   exige une autorite, une revue et une livraison distinctes de l'operation

@@ -70,6 +70,29 @@ affirmer qu'un dump ou un snapshot non testé a été restauré.
 Les migrations système/DB et les déploiements applicatifs gardent leurs
 protections propres ; ce paragraphe ne les remplace pas.
 
+## Maintenance corrective bornée : snapshot Gandi suffisant pour le rollback
+
+**Règle permanente pour PHP et paquets de sécurité existants :** lorsque le
+PLAN validé ne propose ni ajout/suppression de paquets, ni migration de branche
+majeure, de base de données ou d'état applicatif, le snapshot manuel récent de
+la VM ou du volume Gandi, **vérifié sur le bon serveur**, est le point de retour
+arrière proportionné. Cette maintenance ne requiert **pas** de nouveau dump SQL,
+d'archive GPG/hors serveur ni de nouvel exercice de restauration isolée.
+
+Avant l'installation, contrôler dans Gandi l'identité du serveur et du volume,
+l'identifiant, l'heure et l'état utilisable du snapshot, la couverture des
+données persistantes nécessaires et le chemin de rollback du fournisseur. Les
+modifications de données postérieures au snapshot pourraient être perdues en
+cas de retour arrière. Conserver les sauvegardes existantes sans les effacer.
+
+Un snapshot fournisseur **n'est pas une sauvegarde indépendante validée par
+restauration** : les sauvegardes de reprise après sinistre et les exigences
+plus strictes des migrations/écritures persistantes/destructions continuent
+selon leurs propres politiques. La mise à jour PHP continue à exiger le PLAN
+exact, l'autorité hôte JIT, la validation PHP-FPM/HTTP/Drupal sur PREPROD et
+l'accord humain PROD séparé. La règle ne lève aucun HOLD indépendant. Elle
+s'applique une fois la politique Infrastructure harmonisée et publiée.
+
 ## 1. Préparer l'intervention
 
 Avant toute modification :
@@ -161,7 +184,14 @@ Ne pas poursuivre si la simulation prévoit :
 - un nombre important de suppressions non expliqué ;
 - une source de paquets inconnue ou non approuvée.
 
-## 3. Sauvegarder avant intervention
+## 3. Sauvegarder avant intervention (hors patch correctif borné)
+
+Les commandes de cette section restent applicables aux opérations susceptibles
+de changer les données, configurations, schémas ou l'état persistant et aux
+procédures historiques qui les imposent. **Elles ne constituent pas un
+prérequis additionnel pour un patch correctif PHP borné** couvert par le
+snapshot Gandi vérifié ci-dessus. Ne pas les relancer systématiquement pour
+une mise à jour de paquets qui ne modifie ni données ni schéma.
 
 ### Sauvegarde de la base Drupal
 
@@ -215,8 +245,9 @@ exécuter. Chaque privilège requis doit être `AVAILABLE` ; `UNAVAILABLE` et
 `UNKNOWN / NOT_REQUIRED`. Les classifications entrent dans le digest, les motifs
 fermés restent des observations. Aucune policy sudo brute n'est publiée.
 APPLY rejette les anciens PLANs sans ces champs, revalide le digest et vérifie le
-reçu du helper et les métadonnées de l'archive sans sudo. Les deux sauvegardes
-précèdent le mode maintenance et APT. L'autorité PLAN/APPLY demeure inchangée :
+reçu du helper et les métadonnées de l'archive sans sudo. Pour l'ancienne procédure #1183, les deux sauvegardes
+précèdent le mode maintenance et APT. La nouvelle règle de snapshot pour les
+patchs correctifs bornés ci-dessus ne requiert pas ces deux exports. L'autorité PLAN/APPLY demeure inchangée :
 l'APPLY consommé `35147468119` n'est jamais une autorité réutilisable ; une nouvelle
 intervention exige le PLAN et l'approbation dédiés du workflow existant.
 

@@ -104,7 +104,7 @@ assert 'php8.4-fpm' in installed and 'php8.5-fpm' in installed
 allowed_target = {'8.4': '8.4.28-', '8.5': '8.5.13-'}
 for package, candidate in candidates.items():
     branch = package[3:6]
-    if not candidate.startswith(allowed_target[branch] + '1+ubuntu24.04.1+deb.sury.org+1'):
+    if not candidate.startswith(allowed_target[branch] + '2+ubuntu24.04.1+deb.sury.org+1'):
         raise SystemExit('Unexpected PHP package candidate: ' + package)
 upgrades = {}
 for line in simulation:

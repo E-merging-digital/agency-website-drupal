@@ -51,21 +51,22 @@ une PR mergée puis par `scripts/deploy-production.sh`.
 ## Snapshot Gandi pour une publication de contenu (distinct de la maintenance système)
 
 Pour la publication d'un contenu ou d'une traduction Drupal existante, le
-**snapshot manuel Gandi** du volume de la PROD est la voie de sauvegarde et
-de retour arrière proportionnée. Son identifiant et son état utilisable doivent
-être constatés par l'opérateur dans l'interface Gandi ; confirmer que les
-données persistantes nécessaires à la reprise (base MariaDB et fichiers
-concernés) sont effectivement couvertes par le ou les volumes sauvegardés.
-La documentation et l'accès normaux à la restauration Gandi constituent
-le chemin de rollback. Aucune nouvelle restauration d'essai systématique
-n'est ajoutée à chaque publication éditoriale.
+**snapshot manuel Gandi** du volume de la PROD est le chemin de **retour
+arrière de l'hébergeur** proportionné. Vérifier dans Gandi son identité,
+son état utilisable et la couverture des données persistantes nécessaires
+(base MariaDB et fichiers), ainsi que la procédure de restauration du volume.
 
-Le snapshot est suffisant pour cette opération **si** sa couverture et sa
-restaurabilité sont établies. Si la base ou des fichiers nécessaires sont sur
-un autre volume non couvert, ce snapshot seul n'est pas suffisant et
-l'opération s'arrête. Ne pas certifier comme vérifié un volume, un état
-snapshot ou un rollback non démontré. Réutiliser les sauvegardes SQL
-existantes le cas échéant, sans en créer une nouvelle par automatisme.
+Cette preuve de snapshot ne remplace pas à elle seule la preuve de
+restauration requise pour déclarer une **sauvegarde valide** par les
+invariants Infrastructure. Réutiliser d'abord la restauration Agency déjà
+réussie du 08/11 (Infrastructure #6) et les sauvegardes existantes, en
+distinguant bien l'archive déjà testée et tout nouveau dump non restauré.
+Ne pas exiger un nouvel exercice de restauration systématique pour chaque
+publication si les garanties applicables sont déjà établies. En l'absence
+de preuve de récupération suffisante, si un volume nécessaire n'est pas
+couvert ou si le snapshot n'est pas disponible, arrêt contrôlé : ne pas
+affirmer qu'un dump ou un snapshot non testé a été restauré.
+
 Les migrations système/DB et les déploiements applicatifs gardent leurs
 protections propres ; ce paragraphe ne les remplace pas.
 

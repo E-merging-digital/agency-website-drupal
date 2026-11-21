@@ -1,7 +1,7 @@
 services:
   emerging_digital_content.nl_visibility_guard:
     class: Drupal\emerging_digital_content\StackMiddleware\NlVisibilityGuard
-    arguments: ['@path_alias.repository', '@entity_type.manager', '@config.factory', '@router.no_access_checks']
+    arguments: ['@path_alias.repository', '@entity_type.manager', '@config.factory']
     tags:
       # Must run ahead of Internal Page Cache (priority 200).
       - { name: http_middleware, priority: 220 }

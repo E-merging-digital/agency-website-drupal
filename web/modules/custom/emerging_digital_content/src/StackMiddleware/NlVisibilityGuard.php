@@ -33,8 +33,9 @@ final class NlVisibilityGuard implements HttpKernelInterface {
   public function handle(Request $request, $type = self::MAIN_REQUEST, $catch = TRUE): Response {
     $path = $request->getPathInfo();
 
-    // Drupal Core handles administration and access in every language.
-    if ($path === '/nl/admin' || str_starts_with($path, '/nl/admin/')) {
+    // Native Drupal UI routes keep their normal routing and access checks.
+    // This guard is only for public NL editorial content.
+    if (preg_match('@^/nl/(?:admin|user|canvas|node/add)(?:/|$)@D', $path)) {
       return $this->inner->handle($request, $type, $catch);
     }
 

@@ -689,7 +689,11 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
       'title' => $parts[0],
       'description' => $parts[1] ?? '',
       'url' => $url,
-      'cta_label' => $langcode === 'en' ? 'Explore' : 'Explorer',
+      'cta_label' => match ($langcode) {
+        'en' => 'Explore',
+        'nl' => 'Ontdek',
+        default => 'Explorer',
+      },
     ];
   }
 
@@ -731,6 +735,19 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
       ['Validation humaine', 'Vous gardez la décision'],
       ['Publication', 'Sur votre site Drupal'],
     ];
+
+  if ($langcode === 'nl') {
+    $variables['ai_flow_eyebrow'] = 'AI & Drupal / verantwoorde automatisering';
+    $variables['ai_flow_title'] = 'AI bespaart u tijd. U houdt de controle.';
+    $variables['ai_flow_intro'] = 'Van documenten tot publiceerbare content, met menselijke goedkeuring op het juiste moment.';
+    $variables['ai_flow_outro'] = 'Een duidelijk, beheersbaar proces dat aansluit bij uw tools.';
+    $steps = [
+      ['Uw content', 'Teksten, documenten en vragen'],
+      ['AI-ondersteuning', 'Analyse en voorstellen'],
+      ['Menselijke goedkeuring', 'U neemt de beslissing'],
+      ['Publicatie', 'Op uw Drupal-website'],
+    ];
+  }
 
   foreach ($steps as $index => [$title, $description]) {
     $variables['ai_flow_steps'][] = [
@@ -789,6 +806,32 @@ function emerging_digital_preprocess_paragraph__ai_features(array &$variables): 
       ],
       'disclaimer' => 'Scénarios de conception illustratifs, pas une démonstration IA ou MCP active.',
     ];
+
+  if ($langcode === 'nl') {
+    $variables['ai_visual_flow'] = [
+      'eyebrow' => 'Bekijk de veiligheidsmaatregelen',
+      'title' => 'Wat gebeurt er in elke situatie?',
+      'intro' => 'Drie mogelijke trajecten. Mensen en regels behouden de controle.',
+      'cases' => [
+        [
+          'title' => 'Toegelaten informatie raadplegen',
+          'steps' => ['Een vraag', 'Toegangscontrole', 'Alleen toegelaten informatie'],
+          'result' => 'Vertrouwelijkheid blijft vooropstaan.',
+        ],
+        [
+          'title' => 'Voorstellen zonder te publiceren',
+          'steps' => ['AI-voorstel', 'Bewerkbaar concept', 'Menselijke beslissing'],
+          'result' => 'Geen publicatie zonder goedkeuring.',
+        ],
+        [
+          'title' => 'Een gevoelige actie weigeren',
+          'steps' => ['Niet-toegestane aanvraag', 'Controle van rechten', 'Weigering zonder wijzigingen'],
+          'result' => 'Toegangsrechten gaan boven automatisering.',
+        ],
+      ],
+      'disclaimer' => 'Illustratieve ontwerpscenario’s, geen actieve AI- of MCP-demonstratie.',
+    ];
+  }
 }
 
 /**
@@ -890,6 +933,7 @@ function emerging_digital_hero_illustration_definitions(): array {
       'alt' => [
         'fr' => 'Modules éditoriaux, flux et gouvernance de contenus.',
         'en' => 'Editorial modules, workflows and content governance.',
+        'nl' => 'Redactionele modules, werkprocessen en contentgovernance.',
       ],
     ],
     'services' => [

@@ -76,6 +76,25 @@ E-merging Digital. Elle doit rester courte, pratique et alignee avec le code.
 - Cette doctrine s'applique a **tous** les domaines du projet : contenu,
   deploiement, PREPROD/PROD, donnees, DDEV, IA, frontend et exploitation.
 
+### Règle propriétaire : Drupal natif, sans sur-ingénierie
+
+- Pour toute capacité standard de Drupal, notamment **l'ajout d'une langue**,
+  utiliser **d'abord et par défaut les interfaces d'administration Drupal**
+  et les modules natifs existants (Language, Locale, Content Translation,
+  Configuration Translation, menus et alias). C'est le chemin d'exécution normal,
+  pas une étape d'audit avant de développer du code.
+- **Ne pas ajouter** de middleware, hook, contrôleur, route, script, service,
+  orchestrateur, test, contrôle ou procédure spécifique pour reproduire une
+  fonctionnalité que Drupal fournit déjà. Aucun développement ou contrôle
+  supplémentaire « par précaution » sans demande **explicite du propriétaire**,
+  et sans lacune précise démontrée dans l'existant.
+- Lorsqu'une surcouche personnalisée fait obstacle à Drupal, la **simplifier ou
+  la retirer** plutôt que d'en ajouter une seconde. Corriger d'abord le défaut
+  réel, dans le plus petit périmètre, sans élargir le chantier.
+- Cette règle ne supprime ni les permissions Drupal, ni les protections de
+  publication des brouillons, ni les CI, HOLD ou approbations réellement
+  obligatoires. Aucune exception implicite à la sécurité.
+
 ## 2.0.1 Doctrine DOD-first / Minimum Necessary
 
 Cette doctrine s'applique a **chaque unite de travail Agency et a chaque domaine
@@ -459,15 +478,15 @@ Les exigences specifiques a chaque circuit demeurent dans
 
 ## 6. Regles multilingues
 
-- Le site est bilingue FR/EN.
+- Le site est multilingue FR/EN/NL (français par défaut).
 - Toute page geree par Content Sync doit declarer ses traductions FR et EN.
 - Toute nouvelle page publique commerciale, landing de campagne ou page
   marketing/editoriale editor-owned doit etre FR+EN par defaut. Une publication
   FR-only exige une exception de langue explicitement approuvee par l'humain
   avant toute mutation PROD ; un agent ou le Project Lead ne peut pas l'inferer.
 - Les aliases publics attendus sont prefixes par Drupal selon la langue
-  (`/fr/...`, `/en/...`) mais les aliases declares restent neutres dans le
-  catalogue (`/contact`, `/drupal-agency-belgium`, etc.).
+  (`/fr/...`, `/en/...`, `/nl/...`) mais les aliases declares restent neutres
+  dans le catalogue (`/contact`, `/drupal-agency-belgium`, etc.).
 - Ne jamais casser le language switcher, les hreflang ou les traductions de
   menus.
 - Les textes SEO doivent etre differencies par langue, pas simplement dupliques.

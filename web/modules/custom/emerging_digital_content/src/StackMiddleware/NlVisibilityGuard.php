@@ -8,12 +8,9 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\node\NodeInterface;
 use Drupal\path_alias\AliasRepositoryInterface;
-use Drupal\Core\Routing\RouteObjectInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
-use Symfony\Component\Routing\Matcher\RequestMatcherInterface;
-use Symfony\Component\Routing\Route;
 
 /**
  * Rejects unapproved Dutch pages before Drupal's anonymous page cache.
@@ -28,7 +25,6 @@ final class NlVisibilityGuard implements HttpKernelInterface {
     private readonly AliasRepositoryInterface $aliasRepository,
     private readonly EntityTypeManagerInterface $entityTypeManager,
     private readonly ConfigFactoryInterface $configFactory,
-    private readonly RequestMatcherInterface $routeMatcher,
   ) {}
 
   /**
@@ -36,6 +32,11 @@ final class NlVisibilityGuard implements HttpKernelInterface {
    */
   public function handle(Request $request, $type = self::MAIN_REQUEST, $catch = TRUE): Response {
     $path = $request->getPathInfo();
+
+    // Drupal Core handles administration routing and permissions in every language.
+    if ($path === '/nl/admin' || str_starts_with($path, '/nl/admin/')) {
+      return $this->inner->handle($request, $type, $catch);
+    }
 
     // Native edit and preview routes remain guarded by Drupal Core.
     $native_edit = (bool) preg_match('@^/nl/node/[0-9]+/edit/?$@D', $path);
@@ -57,14 +58,10 @@ final class NlVisibilityGuard implements HttpKernelInterface {
       . '(?:/translate(?:/(?:add/(?:fr|en)/nl|edit/nl|nl/(?:add|edit)))?)?/?$@D';
     $native_contact_translation = (bool) preg_match($contact_translation_pattern, $path);
 
-    // Only real administrative routes can pass to Drupal's native permission
-    // system. A path prefix alone must never grant access.
-    $native_admin = $this->isNativeAdminRoute($request, $path);
 
     if (($path !== '/nl' && !str_starts_with($path, '/nl/'))
       || $native_edit || $native_preview || $native_menu_translation
-      || $native_node_translation || $native_contact_translation
-      || $native_admin) {
+      || $native_node_translation || $native_contact_translation) {
       return $this->inner->handle($request, $type, $catch);
     }
 
@@ -83,29 +80,6 @@ final class NlVisibilityGuard implements HttpKernelInterface {
       'Cache-Control' => 'private, no-store',
       'X-Agency-NL-Guard' => 'blocked',
     ]);
-  }
-
-  /**
-   * Delegates only real Drupal administrative routes to Core access checks.
-   *
-   * Route matching here only classifies the requested route; it does not
-   * authorize any user or bypass Drupal's access manager. Unknown or
-   * non-administrative routes remain blocked before the anonymous cache.
-   */
-  private function isNativeAdminRoute(Request $request, string $path): bool {
-    if (!preg_match('@^/nl/admin(?:/|$)@D', $path)) {
-      return FALSE;
-    }
-
-    try {
-      $matched = $this->routeMatcher->matchRequest($request);
-      $route = $matched[RouteObjectInterface::ROUTE_OBJECT] ?? NULL;
-      return $route instanceof Route
-        && $route->getOption('_admin_route') === TRUE;
-    }
-    catch (\Throwable) {
-      return FALSE;
-    }
   }
 
   /**

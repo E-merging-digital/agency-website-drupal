@@ -10,10 +10,13 @@ use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\node\NodeInterface;
 use Drupal\path_alias\AliasRepositoryInterface;
+use Drupal\Core\Routing\RouteObjectInterface;
 use Drupal\emerging_digital_content\StackMiddleware\NlVisibilityGuard;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Symfony\Component\Routing\Matcher\RequestMatcherInterface;
+use Symfony\Component\Routing\Route;
 use Drupal\Component\Serialization\Yaml as DrupalYaml;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
@@ -185,6 +188,7 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '@path_alias.repository',
       '@entity_type.manager',
       '@config.factory',
+      '@router.no_access_checks',
     ], $middleware['arguments']);
 
     $inner = new class implements HttpKernelInterface {
@@ -374,7 +378,38 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       ['views.view.blog', $blog],
     ]);
 
-    $guard = new NlVisibilityGuard($inner, $alias, $entities, $config);
+    $admin_routes = [
+      '/nl/admin',
+      '/nl/admin/content',
+      '/nl/admin/config',
+      '/nl/admin/structure',
+      '/nl/admin/config/system/site-information',
+    ];
+    $route_matcher = $this->createMock(RequestMatcherInterface::class);
+    $route_matcher->method('matchRequest')->willReturnCallback(
+      static function (Request $request) use ($admin_routes): array {
+        $path = $request->getPathInfo();
+        if ($path === '/nl/admin/public-lookalike') {
+          // The path starts with /nl/admin, but is not an admin route.
+          return [
+            RouteObjectInterface::ROUTE_OBJECT => new Route($path, [], [], [
+              '_admin_route' => FALSE,
+            ]),
+          ];
+        }
+        if (!in_array($path, $admin_routes, TRUE)) {
+          // Unknown or unsafe route matches fail closed.
+          throw new \RuntimeException('NO_MATCHING_NATIVE_ADMIN_ROUTE');
+        }
+        return [
+          RouteObjectInterface::ROUTE_OBJECT => new Route($path, [], [], [
+            '_admin_route' => TRUE,
+          ]),
+        ];
+      },
+    );
+
+    $guard = new NlVisibilityGuard($inner, $alias, $entities, $config, $route_matcher);
 
     foreach ([
       '/nl',
@@ -392,6 +427,11 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/ai-feature',
       '/fr',
       '/en',
+      '/nl/admin',
+      '/nl/admin/content',
+      '/nl/admin/config',
+      '/nl/admin/structure',
+      '/nl/admin/config/system/site-information',
       '/nl/node/6/edit',
       '/nl/node/5/edit',
       '/nl/admin/structure/menu/item/6/edit',
@@ -446,8 +486,8 @@ final class ConfigurationLanguageGovernanceTest extends TestCase {
       '/nl/mismatched',
       '/nl/wrong-target',
       '/nl/node/5/extra',
-      '/nl/admin',
-      '/nl/admin/config/system/site-information',
+      '/nl/admin/public-lookalike',
+      '/nl/admin/unmatched',
       '/nl/admin/structure/menu/item/6/delete',
       '/nl/admin/structure/menu/item/6/edit/translations/delete/nl',
       '/nl/admin/structure/menu/item/6/edit/translations/add/nl/fr',

@@ -2,9 +2,9 @@
 {% set nl = language|default('fr') == 'nl' %}
 {% set prefix = nl ? '/nl' : (en ? '/en' : '/fr') %}
 {% set paths = nl ? [
-  {number: '01', key: 'create', title: 'Een platform bouwen', description: 'Een website of platform dat vertrouwen wekt.', action: 'Bekijk onze diensten', href: prefix ~ '/diensten'},
-  {number: '02', key: 'improve', title: 'Uw bestaande platform moderniseren', description: 'Een snellere, veiligere website die eenvoudiger kan meegroeien.', action: 'Ontdek onze aanpak', href: prefix ~ '/diensten'},
-  {number: '03', key: 'automate', title: 'Slim automatiseren', description: 'Minder repetitief werk. Meer tijd voor wat telt.', action: 'Bespreek een integratie', href: prefix ~ '/contact'},
+  {number: '01', key: 'create', title: 'Een platform bouwen', description: 'Een website of platform dat vertrouwen wekt.', action: 'Bekijk onze diensten', href: prefix ~ '/diensten#service-family-business'},
+  {number: '02', key: 'improve', title: 'Uw bestaande platform moderniseren', description: 'Een snellere, veiligere website die eenvoudiger kan meegroeien.', action: 'Ontdek onze aanpak', href: prefix ~ '/diensten#service-family-other'},
+  {number: '03', key: 'automate', title: 'Slim automatiseren', description: 'Minder repetitief werk. Meer tijd voor wat telt.', action: 'Ontdek AI en automatisering', href: prefix ~ '/diensten#service-family-ai'},
 ] : (en ? [
   {number: '01', key: 'create', title: 'Build a platform', description: 'A website or platform people can trust.', action: 'Explore new builds', href: prefix ~ '/professional-website-creation'},
   {number: '02', key: 'improve', title: 'Modernise your platform', description: 'Make your site faster, safer and easier to improve.', action: 'Explore modernisation', href: prefix ~ '/website-redesign'},

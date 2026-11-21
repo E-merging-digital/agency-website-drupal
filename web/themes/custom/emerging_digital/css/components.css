@@ -1895,6 +1895,207 @@ html[lang="en"] .ed-section__content--contact-form .js-form-required::after {
   }
 }
 
+/* #1420: readable MCP Service landing, scoped to its canonical UUID only. */
+.node--service-mcp .ed-section--hero-services .ed-section__title--hero {
+  max-width: 24ch;
+}
+
+.page-main:not(.page-main--front) .node--service-mcp .ed-section--hero-services .ed-section__hero-illustration--media {
+  display: block;
+  width: 100%;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+}
+
+.ed-mcp-scenario {
+  padding: clamp(1.4rem, 3vw, 2.2rem);
+  border-radius: 1.1rem;
+  background: #f4f8ff;
+  color: #17253a;
+  box-shadow: 0 16px 32px rgb(0 0 0 / 13%);
+}
+
+.ed-mcp-scenario__eyebrow {
+  margin: 0 0 1rem;
+  color: #225489;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.ed-mcp-scenario__question {
+  margin: 0 0 1.2rem;
+  font-size: clamp(1.25rem, 2.2vw, 1.6rem);
+  line-height: 1.36;
+  font-weight: 750;
+}
+
+.ed-mcp-scenario__answer {
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 2px solid #cfdef0;
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.node--service-mcp .ed-mcp-flow {
+  margin: clamp(2rem, 5vw, 4rem) 0;
+  padding: clamp(1.4rem, 4vw, 3rem);
+  border: 1px solid #d7e4f2;
+  border-radius: 1.2rem;
+  background: #f4f8ff;
+}
+
+.ed-mcp-flow__inner {
+  max-width: 74rem;
+  margin-inline: auto;
+}
+
+.ed-mcp-flow h2 {
+  max-width: 27ch;
+  margin: 0 0 0.8rem;
+  color: #14253b;
+  font-size: clamp(1.65rem, 3vw, 2.4rem);
+  line-height: 1.2;
+}
+
+.ed-mcp-flow__description {
+  max-width: 65ch;
+  margin: 0 0 1.8rem;
+  color: #374b63;
+  font-size: 1.08rem;
+  line-height: 1.6;
+}
+
+.ed-mcp-flow__steps,
+.ed-mcp-flow__outcomes {
+  display: grid;
+  gap: 1rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.ed-mcp-flow__steps li,
+.ed-mcp-flow__outcomes li {
+  position: relative;
+  min-width: 0;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  border: 1px solid #d7e4f2;
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.ed-mcp-flow__icon {
+  display: block;
+  box-sizing: content-box;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin-bottom: 1rem;
+  padding: 0.65rem;
+  border-radius: 1rem;
+  background: #e4effc;
+  color: #174e85;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ed-mcp-flow li strong,
+.ed-mcp-flow li span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.ed-mcp-flow li strong {
+  margin-bottom: 0.6rem;
+  color: #152e4a;
+  font-size: 1.07rem;
+  line-height: 1.4;
+}
+
+.ed-mcp-flow li span {
+  color: #34475e;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.ed-mcp-flow__policy {
+  margin: 1.3rem 0 2rem;
+  padding: 1rem 1.25rem;
+  border-left: 4px solid #236399;
+  background: #e4effc;
+  color: #173350;
+  line-height: 1.65;
+}
+
+.ed-mcp-flow__outcomes-title {
+  margin: 0 0 1rem;
+  color: #14253b;
+  font-size: 1.25rem;
+}
+
+.ed-mcp-flow__outcome--allowed {
+  border-top: 4px solid #3f751d;
+}
+
+.ed-mcp-flow__outcome--denied {
+  border-top: 4px solid #a23737;
+}
+
+.ed-mcp-flow__outcome--approval {
+  border-top: 4px solid #956200;
+}
+
+.node--service-mcp .ed-detail-page__layout {
+  margin-inline: auto;
+  max-width: 74rem;
+}
+
+.node--service-mcp .ed-detail-page__main {
+  max-width: 76ch;
+}
+
+.node--service-mcp .ed-prose h2 {
+  margin-top: 2.8rem;
+  font-size: clamp(1.45rem, 2.2vw, 1.85rem);
+  line-height: 1.3;
+}
+
+.node--service-mcp .ed-prose p,
+.node--service-mcp .ed-prose li {
+  margin-bottom: 0.9rem;
+}
+
+.node--service-mcp .ed-mcp-final-cta {
+  margin-top: clamp(2.5rem, 5vw, 4rem);
+}
+
+@media (min-width: 56rem) {
+  .ed-mcp-flow__steps,
+  .ed-mcp-flow__outcomes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ed-mcp-flow__steps li:not(:last-child)::after {
+    position: absolute;
+    z-index: 1;
+    top: 3.5rem;
+    right: -1.2rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-top: 3px solid #225489;
+    border-right: 3px solid #225489;
+    background: #f4f8ff;
+    content: '';
+    transform: rotate(45deg) scale(0.65);
+  }
+}
+
 /* #1471 — Services hub: visual first choices; deep service content follows. */
 .ed-services-paths {
   margin-bottom: var(--space-7);

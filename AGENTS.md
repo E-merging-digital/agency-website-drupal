@@ -478,15 +478,15 @@ Les exigences specifiques a chaque circuit demeurent dans
 
 ## 6. Regles multilingues
 
-- Le site est bilingue FR/EN.
+- Le site est multilingue FR/EN/NL (français par défaut).
 - Toute page geree par Content Sync doit declarer ses traductions FR et EN.
 - Toute nouvelle page publique commerciale, landing de campagne ou page
   marketing/editoriale editor-owned doit etre FR+EN par defaut. Une publication
   FR-only exige une exception de langue explicitement approuvee par l'humain
   avant toute mutation PROD ; un agent ou le Project Lead ne peut pas l'inferer.
 - Les aliases publics attendus sont prefixes par Drupal selon la langue
-  (`/fr/...`, `/en/...`) mais les aliases declares restent neutres dans le
-  catalogue (`/contact`, `/drupal-agency-belgium`, etc.).
+  (`/fr/...`, `/en/...`, `/nl/...`) mais les aliases declares restent neutres
+  dans le catalogue (`/contact`, `/drupal-agency-belgium`, etc.).
 - Ne jamais casser le language switcher, les hreflang ou les traductions de
   menus.
 - Les textes SEO doivent etre differencies par langue, pas simplement dupliques.

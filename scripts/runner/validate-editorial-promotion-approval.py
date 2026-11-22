@@ -74,7 +74,7 @@ def canonical_profile(
     if not isinstance(asset, dict) or not isinstance(alt, dict):
         raise ApprovalError("Feature-image asset/ALT profile is invalid.")
     expected_asset = {"path", "filename", "sha256", "mime", "width", "height", "max_bytes"}
-    if set(asset) != expected_asset or set(alt) != {"fr", "en"}:
+    if set(asset) != expected_asset or set(alt) not in ({"fr", "en"}, {"fr", "en", "nl"}):
         raise ApprovalError("Feature-image asset/ALT keys are not exact.")
     expected_mime = "image/jpeg" if issue_number == 1491 else "image/webp" if issue_number == 1404 or issue_number >= 1542 else "image/png"
     if asset.get("mime") != expected_mime:
@@ -103,8 +103,8 @@ def canonical_profile(
         "en": "A business application connects to an AI agent through a gateway that limits the permissions granted.",
     }:
         raise ApprovalError("Issue #1404 requires the exact reviewed FR/EN ALT values.")
-    if not all(isinstance(alt.get(lang), str) and alt[lang].strip() for lang in ("fr", "en")):
-        raise ApprovalError("FR/EN ALT values are mandatory.")
+    if not all(isinstance(alt.get(lang), str) and alt[lang].strip() for lang in alt):
+        raise ApprovalError("Localized ALT values are mandatory.")
     if not asset_path.is_file():
         raise ApprovalError("Approved feature-image asset is missing.")
     asset_sha = hashlib.sha256(asset_path.read_bytes()).hexdigest()
@@ -156,7 +156,7 @@ def approval_fields(body: str, issue_number: int) -> tuple[dict[str, str], dict[
                 raise ApprovalError(f"Duplicate human approval field: {key}.")
             fields[key] = value.strip()
             continue
-        url_match = re.fullmatch(r"- (FR|EN): `(https://preprod\.emergingdigital\.be/[^`\s]+)`", line)
+        url_match = re.fullmatch(r"- (FR|EN|NL): `(https://preprod\.emergingdigital\.be/[^`\s]+)`", line)
         if url_match is not None:
             lang, url = url_match.groups()
             if lang in urls:
@@ -271,6 +271,7 @@ def validate_native_article(
     approval, fields, urls = direct_owner_approval(comments, args.issue_number)
     if approval.get("created_at") != approval.get("updated_at") or not approval.get("created_at"):
         raise ApprovalError("Native Article approval must be a new unedited direct OWNER comment.")
+    trilingual = set(profile["alt"]) == {"fr", "en", "nl"}
     exact = {
         "CANDIDATE_ID": f"agency-article-{args.issue_number}",
         "CANDIDATE_REVISION": args.candidate_revision,
@@ -286,7 +287,7 @@ def validate_native_article(
         "HUMAN_REVIEW": "PASS",
         "CONTENT": "APPROVED",
         "IMAGE": "APPROVED",
-        "ALT_FR_EN": "APPROVED",
+        "ALT_FR_NL_EN" if trilingual else "ALT_FR_EN": "APPROVED",
         "IMAGE_SOURCE_POLICY": "APPROVED",
         "RESPONSIVE_RENDER": "APPROVED",
         "LISTING_DETAIL_RENDER": "APPROVED",
@@ -297,8 +298,11 @@ def validate_native_article(
     for key, value in exact.items():
         if fields.get(key) != str(value):
             raise ApprovalError(f"Native Article approval field {key} does not match.")
-    if set(urls) != {"FR", "EN"} or not all(url.startswith(PREPROD_PREFIX) for url in urls.values()):
-        raise ApprovalError("Direct native Article approval must bind both real PREPROD URLs.")
+    expected_urls = {"FR", "EN", "NL"} if trilingual else {"FR", "EN"}
+    if set(urls) != expected_urls or not all(url.startswith(PREPROD_PREFIX) for url in urls.values()):
+        raise ApprovalError("Direct native Article approval must bind all required PREPROD URLs.")
+    if trilingual and not urls["NL"].startswith(PREPROD_PREFIX + "nl/"):
+        raise ApprovalError("NL owner approval URL must use the NL PREPROD route.")
     article_apply = re.fullmatch(r"([1-9][0-9]*) / SUCCESS", fields.get("PREPROD_ARTICLE_APPLY", ""))
     image_manifest_run = re.fullmatch(r"([1-9][0-9]*) / SUCCESS", fields.get("PREPROD_IMAGE_MANIFEST", ""))
     if article_apply is None or image_manifest_run is None:
@@ -374,6 +378,7 @@ def validate_native_article(
         "preprod_revision_id": manifest["node_revision_id"],
         "preprod_fid": manifest["fid"],
         "fr_url": urls["FR"], "en_url": urls["EN"],
+        **({"nl_url": urls["NL"]} if trilingual else {}),
         "image_waiver": "UNSUPPORTED",
     }
 

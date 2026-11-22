@@ -18,6 +18,7 @@ final class AgencyEditorialPromotion {
   private const BUNDLE = 'article';
   private const SOURCE_LANGCODE = 'fr';
   private const TRANSLATION_LANGCODE = 'en';
+  private const NL_LANGCODE = 'nl';
   private const AUTHOR_UID = 1;
   private const STATE_PREFIX = 'agency_editorial.issue.';
   private const IMAGE_FIELD = 'field_feature_image';
@@ -67,8 +68,18 @@ final class AgencyEditorialPromotion {
     $this->assertExactContent($node, $payload);
     $this->assertExactImage($node, $imageProfile);
 
-    $translation = $node->getTranslation(self::TRANSLATION_LANGCODE);
-    if ($node->isPublished() && $translation->isPublished()) {
+    $translations = [self::TRANSLATION_LANGCODE];
+    if (($payload['schema_version'] ?? NULL) === 2) {
+      $translations[] = self::NL_LANGCODE;
+    }
+    $states = [$node->isPublished()];
+    foreach ($translations as $langcode) {
+      if (!$node->hasTranslation($langcode)) {
+        throw new RuntimeException('Article missing a required translation before promotion.');
+      }
+      $states[] = $node->getTranslation($langcode)->isPublished();
+    }
+    if (!in_array(FALSE, $states, TRUE)) {
       return [
         'status' => 'PASS',
         'verdict' => 'IDEMPOTENT',
@@ -77,15 +88,17 @@ final class AgencyEditorialPromotion {
         'node' => $this->nodeResult($node),
       ];
     }
-    if ($node->isPublished() !== $translation->isPublished()) {
-      throw new RuntimeException('FR/EN publication states diverge before promotion.');
+    if (count(array_unique($states)) !== 1) {
+      throw new RuntimeException('Article language publication states diverge before promotion.');
     }
 
     $author = $this->loadAuthor();
     $this->accountSwitcher->switchTo($author);
     try {
       $node->setPublished(TRUE);
-      $translation->setPublished(TRUE);
+      foreach ($translations as $langcode) {
+        $node->getTranslation($langcode)->setPublished(TRUE);
+      }
       $node->setNewRevision(TRUE);
       $node->setRevisionUserId(self::AUTHOR_UID);
       $node->setRevisionLogMessage(sprintf(
@@ -114,9 +127,13 @@ final class AgencyEditorialPromotion {
     $reloaded = $this->loadMappedNode($issueNumber, $payloadSha);
     $this->assertExactContent($reloaded, $payload);
     $this->assertExactImage($reloaded, $imageProfile);
-    if (!$reloaded->isPublished()
-      || !$reloaded->getTranslation(self::TRANSLATION_LANGCODE)->isPublished()) {
-      throw new RuntimeException('Exact Article did not converge to published FR/EN state.');
+    $published = $reloaded->isPublished();
+    foreach ($translations as $langcode) {
+      $published = $published && $reloaded->hasTranslation($langcode)
+        && $reloaded->getTranslation($langcode)->isPublished();
+    }
+    if (!$published) {
+      throw new RuntimeException('Exact Article did not converge to the required published languages.');
     }
 
     return [
@@ -160,11 +177,20 @@ final class AgencyEditorialPromotion {
       (string) $node->get('body')->value === ($payload['fr']['body_html'] ?? NULL),
       (int) $node->get('field_blog_category')->target_id === $categoryTid,
     ];
-    $translation = $node->getTranslation(self::TRANSLATION_LANGCODE);
-    $checks[] = $translation->label() === ($payload['en']['title'] ?? NULL);
-    $checks[] = (string) $translation->get('field_short_description')->value === ($payload['en']['short_description'] ?? NULL);
-    $checks[] = (string) $translation->get('body')->value === ($payload['en']['body_html'] ?? NULL);
-    $checks[] = (int) $translation->get('field_blog_category')->target_id === $categoryTid;
+    $languages = [self::TRANSLATION_LANGCODE];
+    if (($payload['schema_version'] ?? NULL) === 2) {
+      $languages[] = self::NL_LANGCODE;
+    }
+    foreach ($languages as $langcode) {
+      if (!$node->hasTranslation($langcode)) {
+        throw new RuntimeException('Required Article translation is missing.');
+      }
+      $translation = $node->getTranslation($langcode);
+      $checks[] = $translation->label() === ($payload[$langcode]['title'] ?? NULL);
+      $checks[] = (string) $translation->get('field_short_description')->value === ($payload[$langcode]['short_description'] ?? NULL);
+      $checks[] = (string) $translation->get('body')->value === ($payload[$langcode]['body_html'] ?? NULL);
+      $checks[] = (int) $translation->get('field_blog_category')->target_id === $categoryTid;
+    }
     if (in_array(FALSE, $checks, TRUE)) {
       throw new RuntimeException('Mapped Article content drifted from the exact approved candidate.');
     }
@@ -177,19 +203,27 @@ final class AgencyEditorialPromotion {
     if (!$node->hasField(self::IMAGE_FIELD)) {
       throw new RuntimeException('Article has no governed feature-image field.');
     }
-    $translation = $node->getTranslation(self::TRANSLATION_LANGCODE);
-    $frItem = $node->get(self::IMAGE_FIELD)->first();
-    $enItem = $translation->get(self::IMAGE_FIELD)->first();
-    $frFid = $frItem?->get('target_id')->getValue();
-    $enFid = $enItem?->get('target_id')->getValue();
-    if ($frFid === NULL || $enFid === NULL || (int) $frFid !== (int) $enFid) {
-      throw new RuntimeException('Article promotion requires one exact FR/EN feature image.');
-    }
-
     $alt = $profile['alt'] ?? [];
-    if ((string) ($frItem?->get('alt')->getValue() ?? '') !== ($alt['fr'] ?? NULL)
-      || (string) ($enItem?->get('alt')->getValue() ?? '') !== ($alt['en'] ?? NULL)) {
-      throw new RuntimeException('Article promotion requires the exact approved FR/EN ALT values.');
+    $languages = array_keys($alt);
+    sort($languages);
+    $expected = array_key_exists('nl', $alt) ? ['en', 'fr', 'nl'] : ['en', 'fr'];
+    if ($languages !== $expected) {
+      throw new RuntimeException('Article promotion image language contract is invalid.');
+    }
+    $frFid = NULL;
+    foreach ($languages as $langcode) {
+      if (!$node->hasTranslation($langcode)) {
+        throw new RuntimeException('Article promotion requires every image translation.');
+      }
+      $item = $node->getTranslation($langcode)->get(self::IMAGE_FIELD)->first();
+      $fid = $item?->get('target_id')->getValue();
+      if ($fid === NULL || (int) $fid <= 0 || ($frFid !== NULL && (int) $fid !== (int) $frFid)) {
+        throw new RuntimeException('Article promotion requires one exact shared feature image.');
+      }
+      $frFid = (int) $fid;
+      if ((string) ($item?->get('alt')->getValue() ?? '') !== $alt[$langcode]) {
+        throw new RuntimeException('Article promotion requires the exact localized ALT values.');
+      }
     }
 
     $file = $this->entityTypeManager->getStorage('file')->load((int) $frFid);
@@ -223,12 +257,16 @@ final class AgencyEditorialPromotion {
    *   Safe Article metadata.
    */
   private function nodeResult(NodeInterface $node): array {
-    return [
+    $result = [
       'id' => (int) $node->id(),
       'revision_id' => (int) $node->getRevisionId(),
       'published_fr' => $node->isPublished(),
       'published_en' => $node->getTranslation(self::TRANSLATION_LANGCODE)->isPublished(),
     ];
+    if ($node->hasTranslation(self::NL_LANGCODE)) {
+      $result['published_nl'] = $node->getTranslation(self::NL_LANGCODE)->isPublished();
+    }
+    return $result;
   }
 
 }

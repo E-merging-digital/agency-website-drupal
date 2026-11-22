@@ -112,7 +112,7 @@ try {
     $issueNumber,
     $payloadSha,
   );
-  $aliasResult = $finalizer->apply($issueNumber, $payloadSha);
+  $aliasResult = $finalizer->apply($issueNumber, $payloadSha, ($payload['schema_version'] ?? NULL) === 2);
 
   $result = [
     'status' => 'PASS',

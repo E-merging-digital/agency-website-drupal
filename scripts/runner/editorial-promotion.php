@@ -218,11 +218,15 @@ final class AgencyEditorialPromotion {
       $item = $node->getTranslation($langcode)->get(self::IMAGE_FIELD)->first();
       $fid = $item?->get('target_id')->getValue();
       if ($fid === NULL || (int) $fid <= 0 || ($frFid !== NULL && (int) $fid !== (int) $frFid)) {
-        throw new RuntimeException('Article promotion requires one exact shared feature image.');
+        throw new RuntimeException(count($languages) === 2
+          ? 'Article promotion requires one exact FR/EN feature image.'
+          : 'Article promotion requires one exact shared feature image.');
       }
       $frFid = (int) $fid;
       if ((string) ($item?->get('alt')->getValue() ?? '') !== $alt[$langcode]) {
-        throw new RuntimeException('Article promotion requires the exact localized ALT values.');
+        throw new RuntimeException(count($languages) === 2
+          ? 'Article promotion requires the exact approved FR/EN ALT values.'
+          : 'Article promotion requires the exact localized ALT values.');
       }
     }
 
